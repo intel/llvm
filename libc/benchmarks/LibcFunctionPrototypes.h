@@ -14,6 +14,12 @@ struct MemcpyConfiguration {
   llvm::StringRef Name;
 };
 
+using MemmoveFunction = void *(*)(void *, const void *, size_t);
+struct MemmoveConfiguration {
+  MemmoveFunction Function;
+  llvm::StringRef Name;
+};
+
 using MemsetFunction = void *(*)(void *, int, size_t);
 struct MemsetConfiguration {
   MemsetFunction Function;
@@ -26,9 +32,9 @@ struct BzeroConfiguration {
   llvm::StringRef Name;
 };
 
-using MemcmpFunction = int (*)(const void *, const void *, size_t);
-struct MemcmpConfiguration {
-  MemcmpFunction Function;
+using MemcmpOrBcmpFunction = int (*)(const void *, const void *, size_t);
+struct MemcmpOrBcmpConfiguration {
+  MemcmpOrBcmpFunction Function;
   llvm::StringRef Name;
 };
 

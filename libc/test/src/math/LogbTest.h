@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/FPUtil/ManipulationFunctions.h"
-#include "src/__support/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include "utils/UnitTest/FPMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 #include <math.h>
@@ -20,7 +20,7 @@ template <typename T> class LogbTest : public __llvm_libc::testing::Test {
   DECLARE_SPECIAL_CONSTANTS(T)
 
   static constexpr UIntType HiddenBit =
-      UIntType(1) << __llvm_libc::fputil::MantissaWidth<T>::value;
+      UIntType(1) << __llvm_libc::fputil::MantissaWidth<T>::VALUE;
 
 public:
   typedef T (*LogbFunc)(T);
@@ -28,9 +28,9 @@ public:
   void testSpecialNumbers(LogbFunc func) {
     ASSERT_FP_EQ(aNaN, func(aNaN));
     ASSERT_FP_EQ(inf, func(inf));
-    ASSERT_FP_EQ(inf, func(negInf));
-    ASSERT_FP_EQ(negInf, func(0.0));
-    ASSERT_FP_EQ(negInf, func(-0.0));
+    ASSERT_FP_EQ(inf, func(neg_inf));
+    ASSERT_FP_EQ(neg_inf, func(0.0));
+    ASSERT_FP_EQ(neg_inf, func(-0.0));
   }
 
   void testPowersOfTwo(LogbFunc func) {

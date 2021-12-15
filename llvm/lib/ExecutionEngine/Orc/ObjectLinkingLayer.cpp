@@ -23,12 +23,6 @@ using namespace llvm::orc;
 namespace {
 
 class LinkGraphMaterializationUnit : public MaterializationUnit {
-private:
-  struct LinkGraphInterface {
-    SymbolFlagsMap SymbolFlags;
-    SymbolStringPtr InitSymbol;
-  };
-
 public:
   static std::unique_ptr<LinkGraphMaterializationUnit>
   Create(ObjectLinkingLayer &ObjLinkingLayer, std::unique_ptr<LinkGraph> G) {
@@ -44,9 +38,9 @@ public:
   }
 
 private:
-  static LinkGraphInterface scanLinkGraph(ExecutionSession &ES, LinkGraph &G) {
+  static Interface scanLinkGraph(ExecutionSession &ES, LinkGraph &G) {
 
-    LinkGraphInterface LGI;
+    Interface LGI;
 
     for (auto *Sym : G.defined_symbols()) {
       // Skip local symbols.
@@ -77,6 +71,7 @@ private:
           Sec.getName() == "__DATA,__objc_classlist" ||
           Sec.getName() == "__TEXT,__swift5_protos" ||
           Sec.getName() == "__TEXT,__swift5_proto" ||
+          Sec.getName() == "__TEXT,__swift5_types" ||
           Sec.getName() == "__DATA,__mod_init_func")
         return true;
     return false;
@@ -97,11 +92,9 @@ private:
   }
 
   LinkGraphMaterializationUnit(ObjectLinkingLayer &ObjLinkingLayer,
-                               std::unique_ptr<LinkGraph> G,
-                               LinkGraphInterface LGI)
-      : MaterializationUnit(std::move(LGI.SymbolFlags),
-                            std::move(LGI.InitSymbol)),
-        ObjLinkingLayer(ObjLinkingLayer), G(std::move(G)) {}
+                               std::unique_ptr<LinkGraph> G, Interface LGI)
+      : MaterializationUnit(std::move(LGI)), ObjLinkingLayer(ObjLinkingLayer),
+        G(std::move(G)) {}
 
   void discard(const JITDylib &JD, const SymbolStringPtr &Name) override {
     for (auto *Sym : G->defined_symbols())
@@ -306,8 +299,7 @@ public:
     return Error::success();
   }
 
-  void notifyFinalized(
-      std::unique_ptr<JITLinkMemoryManager::Allocation> A) override {
+  void notifyFinalized(JITLinkMemoryManager::FinalizedAlloc A) override {
     if (auto Err = Layer.notifyEmitted(*MR, std::move(A))) {
       Layer.getExecutionSession().reportError(std::move(Err));
       MR->failMaterialization();
@@ -423,7 +415,8 @@ private:
     std::vector<std::pair<SymbolStringPtr, Symbol *>> NameToSym;
 
     auto ProcessSymbol = [&](Symbol *Sym) {
-      if (Sym->hasName() && Sym->getLinkage() == Linkage::Weak) {
+      if (Sym->hasName() && Sym->getLinkage() == Linkage::Weak &&
+          Sym->getScope() != Scope::Local) {
         auto Name = ES.intern(Sym->getName());
         if (!MR->getSymbols().count(ES.intern(Sym->getName()))) {
           JITSymbolFlags SF = JITSymbolFlags::Weak;
@@ -680,7 +673,7 @@ void ObjectLinkingLayer::notifyLoaded(MaterializationResponsibility &MR) {
 }
 
 Error ObjectLinkingLayer::notifyEmitted(MaterializationResponsibility &MR,
-                                        AllocPtr Alloc) {
+                                        FinalizedAlloc FA) {
   Error Err = Error::success();
   for (auto &P : Plugins)
     Err = joinErrors(std::move(Err), P->notifyEmitted(MR));
@@ -689,17 +682,20 @@ Error ObjectLinkingLayer::notifyEmitted(MaterializationResponsibility &MR,
     return Err;
 
   return MR.withResourceKeyDo(
-      [&](ResourceKey K) { Allocs[K].push_back(std::move(Alloc)); });
+      [&](ResourceKey K) { Allocs[K].push_back(std::move(FA)); });
 }
 
 Error ObjectLinkingLayer::handleRemoveResources(ResourceKey K) {
 
-  Error Err = Error::success();
+  {
+    Error Err = Error::success();
+    for (auto &P : Plugins)
+      Err = joinErrors(std::move(Err), P->notifyRemovingResources(K));
+    if (Err)
+      return Err;
+  }
 
-  for (auto &P : Plugins)
-    Err = joinErrors(std::move(Err), P->notifyRemovingResources(K));
-
-  std::vector<AllocPtr> AllocsToRemove;
+  std::vector<FinalizedAlloc> AllocsToRemove;
   getExecutionSession().runSessionLocked([&] {
     auto I = Allocs.find(K);
     if (I != Allocs.end()) {
@@ -708,12 +704,10 @@ Error ObjectLinkingLayer::handleRemoveResources(ResourceKey K) {
     }
   });
 
-  while (!AllocsToRemove.empty()) {
-    Err = joinErrors(std::move(Err), AllocsToRemove.back()->deallocate());
-    AllocsToRemove.pop_back();
-  }
+  if (AllocsToRemove.empty())
+    return Error::success();
 
-  return Err;
+  return MemMgr.deallocate(std::move(AllocsToRemove));
 }
 
 void ObjectLinkingLayer::handleTransferResources(ResourceKey DstKey,

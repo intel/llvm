@@ -31,7 +31,8 @@ accepted if enabled by command-line options.
   This conversion allows the results of the intrinsics like
   `SIZE` that (as mentioned below) may return non-default
   `INTEGER` results by default to be passed.  A warning is
-  emitted when truncation is possible.
+  emitted when truncation is possible.  These conversions
+  are not applied in calls to non-intrinsic generic procedures.
 * We are not strict on the contents of `BLOCK DATA` subprograms
   so long as they contain no executable code, no internal subprograms,
   and allocate no storage outside a named `COMMON` block.  (C1415)
@@ -63,6 +64,13 @@ end
   not the bounds of the implied DO loop.  It is not advisable to use
   an object of the same name as the index variable in a bounds
   expression, but it will work, instead of being needlessly undefined.
+* If both the `COUNT=` and the `COUNT_MAX=` optional arguments are
+  present on the same call to the intrinsic subroutine `SYSTEM_CLOCK`,
+  we require that their types have the same integer kind, since the
+  kind of these arguments is used to select the clock rate.
+  In common with some other compilers, the clock is in milliseconds
+  for kinds <= 4 and nanoseconds otherwise where the target system
+  supports these rates.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -114,6 +122,7 @@ end
   files are easier to write and use.
 * $ and \ edit descriptors are supported in FORMAT to suppress newline
   output on user prompts.
+* Tabs in format strings (not `FORMAT` statements) are allowed on output.
 * REAL and DOUBLE PRECISION variable and bounds in DO loops
 * Integer literals without explicit kind specifiers that are out of range
   for the default kind of INTEGER are assumed to have the least larger kind
@@ -168,6 +177,19 @@ end
 * OPEN(ACCESS='APPEND') is interpreted as OPEN(POSITION='APPEND')
   to ease porting from Sun Fortran.
 * Intrinsic subroutines EXIT([status]) and ABORT()
+* The definition of simple contiguity in 9.5.4 applies only to arrays;
+  we also treat scalars as being trivially contiguous, so that they
+  can be used in contexts like data targets in pointer assignments
+  with bounds remapping.
+* We support some combinations of specific procedures in generic
+  interfaces that a strict reading of the standard would preclude
+  when their calls must nonetheless be distinguishable.
+  Specifically, `ALLOCATABLE` dummy arguments are distinguishing
+  if an actual argument acceptable to one could not be passed to
+  the other & vice versa because exactly one is polymorphic or
+  exactly one is unlimited polymorphic).
+* External unit 0 is predefined and connected to the standard error output,
+  and defined as `ERROR_UNIT` in the intrinsic `ISO_FORTRAN_ENV` module.
 
 ### Extensions supported when enabled by options
 
@@ -329,3 +351,12 @@ end
   the parent, allocatable or not;
   all finalization takes place before any deallocation;
   and no object or subobject will be finalized more than once.
+
+* When `RECL=` is set via the `OPEN` statement for a sequential formatted input
+  file, it functions as an effective maximum record length.
+  Longer records, if any, will appear as if they had been truncated to
+  the value of `RECL=`.
+  (Other compilers ignore `RECL=`, signal an error, or apply effective truncation
+  to some forms of input in this situation.)
+  For sequential formatted output, RECL= serves as a limit on record lengths
+  that raises an error when it is exceeded.

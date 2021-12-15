@@ -29,42 +29,23 @@ using namespace mlir::linalg;
 #define DEBUG_TYPE "linalg-codegen-strategy"
 
 void mlir::linalg::CodegenStrategy::configurePassPipeline(
-    OpPassManager &pm, MLIRContext *context) const {
+    OpPassManager &pm, MLIRContext *context, bool addEnablePass) const {
   for (unsigned stepCount = 0, e = transformationSequence.size(); stepCount < e;
        ++stepCount) {
     const std::unique_ptr<Transformation> &t =
         transformationSequence[stepCount];
     std::string currentStr = std::to_string(stepCount);
-    auto currentState = Identifier::get(currentStr, context);
+    auto currentState = StringAttr::get(context, currentStr);
     std::string nextStr = std::to_string(stepCount + 1);
-    auto nextState = Identifier::get(nextStr, context);
+    auto nextState = StringAttr::get(context, nextStr);
     auto filter = (currentState.str() == std::to_string(0))
                       ? linalg::LinalgTransformationFilter(
-                            t->filter, ArrayRef<Identifier>{}, nextState)
+                            t->filter, ArrayRef<StringAttr>{}, nextState)
                       : linalg::LinalgTransformationFilter(
                             t->filter, currentState, nextState);
     t->addToPassPipeline(pm, filter);
-    pm.addPass(createLinalgStrategyEnablePass());
+    if (addEnablePass)
+      pm.addPass(createLinalgStrategyEnablePass(linalgEnablingOptions));
   }
-  LinalgVectorLoweringOptions vectorLoweringOptions;
-  vectorLoweringOptions.enableVectorTransferPartialRewrite =
-      lateCodegenStrategyOptions.enableVectorTransferPartialRewrite;
-  vectorLoweringOptions.enableVectorContractLowering =
-      lateCodegenStrategyOptions.enableVectorContractLowering;
-  vectorLoweringOptions.enableVectorToSCFConversion =
-      lateCodegenStrategyOptions.enableVectorToSCFConversion;
-  vectorLoweringOptions.vectorTransformOptions = vectorTransformOptions;
-  vectorLoweringOptions.vectorTransferToSCFOptions = vectorToSCFOptions;
-  pm.addPass(createLinalgStrategyLowerVectorsPass(vectorLoweringOptions));
-}
-
-LogicalResult mlir::linalg::CodegenStrategy::transform(FuncOp funcOp) const {
-  PassManager pm(funcOp.getContext(), funcOp.getOperationName());
-  configurePassPipeline(pm, funcOp.getContext());
-  LogicalResult res = pm.run(funcOp);
-  // Ensure we drop the marker in the end.
-  funcOp.walk([](LinalgOp op) {
-    op->removeAttr(LinalgTransforms::kLinalgTransformMarker);
-  });
-  return res;
+  pm.addPass(createLinalgStrategyRemoveMarkersPass());
 }

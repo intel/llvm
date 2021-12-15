@@ -294,7 +294,7 @@ private:
   /// Allow access to owner and constructor.
   friend BlockArgument;
 };
-} // end namespace detail
+} // namespace detail
 
 /// This class represents an argument of a Block.
 class BlockArgument : public Value {
@@ -419,7 +419,7 @@ inline unsigned OpResultImpl::getResultNumber() const {
   return cast<InlineOpResult>(this)->getResultNumber();
 }
 
-} // end namespace detail
+} // namespace detail
 
 /// This is a value defined by a result of an operation.
 class OpResult : public Value {
@@ -489,6 +489,17 @@ struct DenseMapInfo<mlir::BlockArgument> : public DenseMapInfo<mlir::Value> {
     return reinterpret_cast<mlir::detail::BlockArgumentImpl *>(pointer);
   }
 };
+template <>
+struct DenseMapInfo<mlir::OpResult> : public DenseMapInfo<mlir::Value> {
+  static mlir::OpResult getEmptyKey() {
+    void *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
+    return reinterpret_cast<mlir::detail::OpResultImpl *>(pointer);
+  }
+  static mlir::OpResult getTombstoneKey() {
+    void *pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
+    return reinterpret_cast<mlir::detail::OpResultImpl *>(pointer);
+  }
+};
 
 /// Allow stealing the low bits of a value.
 template <>
@@ -513,7 +524,15 @@ public:
     return reinterpret_cast<mlir::detail::BlockArgumentImpl *>(pointer);
   }
 };
+template <>
+struct PointerLikeTypeTraits<mlir::OpResult>
+    : public PointerLikeTypeTraits<mlir::Value> {
+public:
+  static inline mlir::OpResult getFromVoidPointer(void *pointer) {
+    return reinterpret_cast<mlir::detail::OpResultImpl *>(pointer);
+  }
+};
 
-} // end namespace llvm
+} // namespace llvm
 
 #endif

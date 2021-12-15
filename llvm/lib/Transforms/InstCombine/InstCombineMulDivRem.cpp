@@ -107,14 +107,19 @@ static Value *foldMulSelectToNegate(BinaryOperator &I,
   // mul (select Cond, 1, -1), OtherOp --> select Cond, OtherOp, -OtherOp
   // mul OtherOp, (select Cond, 1, -1) --> select Cond, OtherOp, -OtherOp
   if (match(&I, m_c_Mul(m_OneUse(m_Select(m_Value(Cond), m_One(), m_AllOnes())),
-                        m_Value(OtherOp))))
-    return Builder.CreateSelect(Cond, OtherOp, Builder.CreateNeg(OtherOp));
-
+                        m_Value(OtherOp)))) {
+    bool HasAnyNoWrap = I.hasNoSignedWrap() || I.hasNoUnsignedWrap();
+    Value *Neg = Builder.CreateNeg(OtherOp, "", false, HasAnyNoWrap);
+    return Builder.CreateSelect(Cond, OtherOp, Neg);
+  }
   // mul (select Cond, -1, 1), OtherOp --> select Cond, -OtherOp, OtherOp
   // mul OtherOp, (select Cond, -1, 1) --> select Cond, -OtherOp, OtherOp
   if (match(&I, m_c_Mul(m_OneUse(m_Select(m_Value(Cond), m_AllOnes(), m_One())),
-                        m_Value(OtherOp))))
-    return Builder.CreateSelect(Cond, Builder.CreateNeg(OtherOp), OtherOp);
+                        m_Value(OtherOp)))) {
+    bool HasAnyNoWrap = I.hasNoSignedWrap() || I.hasNoUnsignedWrap();
+    Value *Neg = Builder.CreateNeg(OtherOp, "", false, HasAnyNoWrap);
+    return Builder.CreateSelect(Cond, Neg, OtherOp);
+  }
 
   // fmul (select Cond, 1.0, -1.0), OtherOp --> select Cond, OtherOp, -OtherOp
   // fmul OtherOp, (select Cond, 1.0, -1.0) --> select Cond, OtherOp, -OtherOp
@@ -749,6 +754,15 @@ Instruction *InstCombinerImpl::commonIDivTransforms(BinaryOperator &I) {
   // This does not apply for fdiv.
   if (simplifyDivRemOfSelectWithZeroOp(I))
     return &I;
+
+  // If the divisor is a select-of-constants, try to constant fold all div ops:
+  // C / (select Cond, TrueC, FalseC) --> select Cond, (C / TrueC), (C / FalseC)
+  // TODO: Adapt simplifyDivRemOfSelectWithZeroOp to allow this and other folds.
+  if (match(Op0, m_ImmConstant()) &&
+      match(Op1, m_Select(m_Value(), m_ImmConstant(), m_ImmConstant()))) {
+    if (Instruction *R = FoldOpIntoSelect(I, cast<SelectInst>(Op1)))
+      return R;
+  }
 
   const APInt *C2;
   if (match(Op1, m_APInt(C2))) {
@@ -1455,6 +1469,15 @@ Instruction *InstCombinerImpl::commonIRemTransforms(BinaryOperator &I) {
   // Handle cases involving: rem X, (select Cond, Y, Z)
   if (simplifyDivRemOfSelectWithZeroOp(I))
     return &I;
+
+  // If the divisor is a select-of-constants, try to constant fold all rem ops:
+  // C % (select Cond, TrueC, FalseC) --> select Cond, (C % TrueC), (C % FalseC)
+  // TODO: Adapt simplifyDivRemOfSelectWithZeroOp to allow this and other folds.
+  if (match(Op0, m_ImmConstant()) &&
+      match(Op1, m_Select(m_Value(), m_ImmConstant(), m_ImmConstant()))) {
+    if (Instruction *R = FoldOpIntoSelect(I, cast<SelectInst>(Op1)))
+      return R;
+  }
 
   if (isa<Constant>(Op1)) {
     if (Instruction *Op0I = dyn_cast<Instruction>(Op0)) {

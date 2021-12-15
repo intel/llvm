@@ -6,25 +6,26 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements bufferization of tensor-valued std.constant ops.
+// This file implements bufferization of tensor-valued arith.constant ops.
 //
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/BufferUtils.h"
-#include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 using namespace mlir;
 
-memref::GlobalOp GlobalCreator::getGlobalFor(ConstantOp constantOp) {
+memref::GlobalOp GlobalCreator::getGlobalFor(arith::ConstantOp constantOp) {
   auto type = constantOp.getType().cast<RankedTensorType>();
 
-  BufferizeTypeConverter typeConverter;
+  bufferization::BufferizeTypeConverter typeConverter;
 
   // If we already have a global for this constant value, no need to do
   // anything else.
@@ -64,15 +65,17 @@ memref::GlobalOp GlobalCreator::getGlobalFor(ConstantOp constantOp) {
 }
 
 namespace {
-class BufferizeTensorConstantOp : public OpConversionPattern<ConstantOp> {
+class BufferizeTensorConstantOp
+    : public OpConversionPattern<arith::ConstantOp> {
 public:
   BufferizeTensorConstantOp(GlobalCreator &globals,
                             TypeConverter &typeConverter, MLIRContext *context)
-      : OpConversionPattern<ConstantOp>(typeConverter, context, /*benefit=*/1),
+      : OpConversionPattern<arith::ConstantOp>(typeConverter, context,
+                                               /*benefit=*/1),
         globals(globals) {}
 
   LogicalResult
-  matchAndRewrite(ConstantOp op, OpAdaptor adaptor,
+  matchAndRewrite(arith::ConstantOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto type = op.getType().dyn_cast<RankedTensorType>();
     if (!type)
@@ -88,7 +91,8 @@ public:
 } // namespace
 
 void mlir::populateTensorConstantBufferizePatterns(
-    GlobalCreator &globalCreator, BufferizeTypeConverter &typeConverter,
+    GlobalCreator &globalCreator,
+    bufferization::BufferizeTypeConverter &typeConverter,
     RewritePatternSet &patterns) {
   patterns.add<BufferizeTensorConstantOp>(globalCreator, typeConverter,
                                           patterns.getContext());
@@ -108,14 +112,15 @@ public:
     GlobalCreator globals(module, alignment);
 
     auto *context = &getContext();
-    BufferizeTypeConverter typeConverter;
+    bufferization::BufferizeTypeConverter typeConverter;
     RewritePatternSet patterns(context);
     ConversionTarget target(*context);
 
     target.addLegalDialect<memref::MemRefDialect>();
     populateTensorConstantBufferizePatterns(globals, typeConverter, patterns);
-    target.addDynamicallyLegalOp<ConstantOp>(
-        [&](ConstantOp op) { return typeConverter.isLegal(op.getType()); });
+    target.addDynamicallyLegalOp<arith::ConstantOp>([&](arith::ConstantOp op) {
+      return typeConverter.isLegal(op.getType());
+    });
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
   }

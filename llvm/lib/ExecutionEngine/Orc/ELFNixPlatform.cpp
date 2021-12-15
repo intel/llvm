@@ -28,8 +28,8 @@ class DSOHandleMaterializationUnit : public MaterializationUnit {
 public:
   DSOHandleMaterializationUnit(ELFNixPlatform &ENP,
                                const SymbolStringPtr &DSOHandleSymbol)
-      : MaterializationUnit(createDSOHandleSectionSymbols(ENP, DSOHandleSymbol),
-                            DSOHandleSymbol),
+      : MaterializationUnit(
+            createDSOHandleSectionInterface(ENP, DSOHandleSymbol)),
         ENP(ENP) {}
 
   StringRef getName() const override { return "DSOHandleMU"; }
@@ -56,7 +56,7 @@ public:
         "<DSOHandleMU>", TT, PointerSize, Endianness,
         jitlink::getGenericEdgeKindName);
     auto &DSOHandleSection =
-        G->createSection(".data.__dso_handle", sys::Memory::MF_READ);
+        G->createSection(".data.__dso_handle", jitlink::MemProt::Read);
     auto &DSOHandleBlock = G->createContentBlock(
         DSOHandleSection, getDSOHandleContent(PointerSize), 0, 8, 0);
     auto &DSOHandleSymbol = G->addDefinedSymbol(
@@ -70,12 +70,13 @@ public:
   void discard(const JITDylib &JD, const SymbolStringPtr &Sym) override {}
 
 private:
-  static SymbolFlagsMap
-  createDSOHandleSectionSymbols(ELFNixPlatform &ENP,
-                                const SymbolStringPtr &DSOHandleSymbol) {
+  static MaterializationUnit::Interface
+  createDSOHandleSectionInterface(ELFNixPlatform &ENP,
+                                  const SymbolStringPtr &DSOHandleSymbol) {
     SymbolFlagsMap SymbolFlags;
     SymbolFlags[DSOHandleSymbol] = JITSymbolFlags::Exported;
-    return SymbolFlags;
+    return MaterializationUnit::Interface(std::move(SymbolFlags),
+                                          DSOHandleSymbol);
   }
 
   ArrayRef<char> getDSOHandleContent(size_t PointerSize) {
@@ -151,7 +152,6 @@ ELFNixPlatform::Create(ExecutionSession &ES,
 Error ELFNixPlatform::setupJITDylib(JITDylib &JD) {
   return JD.define(
       std::make_unique<DSOHandleMaterializationUnit>(*this, DSOHandleSymbol));
-  return Error::success();
 }
 
 Error ELFNixPlatform::notifyAdding(ResourceTracker &RT,

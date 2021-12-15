@@ -86,12 +86,12 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -124,12 +124,12 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -169,12 +169,12 @@ TEST(KernelBundle, EmptyKernelBundle) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -201,12 +201,12 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -259,12 +259,12 @@ TEST(KernelBundle, HasKernelBundle) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -322,12 +322,12 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -380,12 +380,12 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -443,12 +443,12 @@ TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -506,12 +506,12 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -562,5 +562,67 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
     FAIL() << "sycl::exception thrown at the wrong level.";
   } catch (...) {
     FAIL() << "Unexpected exception was thrown in submit.";
+  }
+}
+
+TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
+  sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cerr << "Test is not supported on host, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+  const sycl::context Ctx = Queue.get_context();
+
+  auto EmptyKernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::object>(Ctx, {Dev}, {});
+
+  std::vector<sycl::device> EmptyDevices{};
+
+  // Case without an object bundle.
+  try {
+    auto LinkBundle = sycl::link(EmptyKernelBundle, EmptyDevices);
+    FAIL() << "No exception was thrown.";
+  } catch (const sycl::exception &e) {
+    ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
+        << "sycl::exception code was not the expected "
+           "sycl::errc::invalid.";
+    // Expected path
+  } catch (...) {
+    FAIL() << "Unexpected exception was thrown in sycl::link.";
+  }
+
+  sycl::kernel_bundle KernelBundle =
+      sycl::get_kernel_bundle<TestKernel, sycl::bundle_state::input>(Ctx,
+                                                                     {Dev});
+
+  auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
+  EXPECT_FALSE(ObjBundle.empty()) << "Expect non-empty obj kernel bundle";
+
+  try {
+    auto LinkBundle = sycl::link(ObjBundle, EmptyDevices);
+    FAIL() << "No exception was thrown.";
+  } catch (const sycl::exception &e) {
+    ASSERT_EQ(e.code().value(), static_cast<int>(sycl::errc::invalid))
+        << "sycl::exception code was not the expected "
+           "sycl::errc::invalid.";
+    // Expected path
+  } catch (...) {
+    FAIL() << "Unexpected exception was thrown in sycl::link.";
   }
 }

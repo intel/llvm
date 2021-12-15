@@ -293,6 +293,7 @@ public:
         {"vstore", {"vstore", {a(1), a(0)}}},
 
         {"svm_block_ld_unaligned", {"svm.block.ld.unaligned", {l(0)}}},
+        {"svm_block_ld", {"svm.block.ld", {l(0)}}},
         {"svm_block_st", {"svm.block.st", {l(1)}}},
         {"svm_gather", {"svm.gather", {ai1(2), a(1), a(0), u(-1)}}},
         {"svm_gather4_scaled",
@@ -366,6 +367,15 @@ public:
         // arg6: old value of the data read
         {"gather_scaled",
          {"gather.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), u(-1)}}},
+
+        // arg0: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
+        // arg1: i16 scale, CONSTANT
+        // arg2: i32 surface index
+        // arg3: i32 global offset in bytes
+        // arg4: vXi32 element offset in bytes (overloaded)
+        // arg5: vXi1 predicate (overloaded)
+        {"gather_masked_scaled2",
+         {"gather.masked.scaled2", {t(3), t(4), aSI(0), a(1), a(2), ai1(3)}}},
 
         // arg0: vXi1 predicate (overloaded)
         // arg1: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
@@ -968,6 +978,39 @@ static Instruction *generateGenXCall(ExtractElementInst *EEI,
   return Inst;
 }
 
+// Translates the following intrinsics:
+//   %res = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
+//   %res = call double @llvm.fmuladd.f64(double %a, double %b, double %c)
+// To
+//   %mul = fmul <type> %a, <type> %b
+//   %res = fadd <type> %mul, <type> %c
+void translateFmuladd(CallInst *CI) {
+  assert(CI->getIntrinsicID() == Intrinsic::fmuladd);
+  IRBuilder<> Bld(CI);
+  auto *Mul = Bld.CreateFMul(CI->getOperand(0), CI->getOperand(1));
+  auto *Res = Bld.CreateFAdd(Mul, CI->getOperand(2));
+  CI->replaceAllUsesWith(Res);
+}
+
+// Translates an LLVM intrinsic to a form, digestable by the BE.
+bool translateLLVMIntrinsic(CallInst *CI) {
+  Function *F = CI->getCalledFunction() ? CI->getCalledFunction() : nullptr;
+  assert(F && F->isIntrinsic());
+
+  switch (F->getIntrinsicID()) {
+  case Intrinsic::assume:
+    // no translation - it will be simply removed.
+    // TODO: make use of 'assume' info in the BE
+    break;
+  case Intrinsic::fmuladd:
+    translateFmuladd(CI);
+    break;
+  default:
+    return false; // "intrinsic wasn't translated, keep the original call"
+  }
+  return true; // "intrinsic has been translated, erase the original call"
+}
+
 /// Replaces the load \p LI of SPIRV global with corresponding call(s) of GenX
 /// intrinsic(s). The users of \p LI may also be transformed if needed for
 /// def/use type correctness.
@@ -1459,8 +1502,10 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     Function *Callee = nullptr;
     if (CI && (Callee = CI->getCalledFunction())) {
       // TODO workaround for ESIMD BE until it starts supporting @llvm.assume
-      if (match(&I, PatternMatch::m_Intrinsic<Intrinsic::assume>())) {
-        ToErase.push_back(CI);
+      if (Callee->isIntrinsic()) {
+        if (translateLLVMIntrinsic(CI)) {
+          ToErase.push_back(CI);
+        }
         continue;
       }
       StringRef Name = Callee->getName();

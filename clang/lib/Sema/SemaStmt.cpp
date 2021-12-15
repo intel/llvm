@@ -2759,7 +2759,7 @@ StmtResult Sema::BuildCXXForRangeStmt(SourceLocation ForLoc,
       if (auto *DD = dyn_cast<DecompositionDecl>(LoopVar))
         for (auto *Binding : DD->bindings())
           Binding->setType(Context.DependentTy);
-      LoopVar->setType(SubstAutoType(LoopVar->getType(), Context.DependentTy));
+      LoopVar->setType(SubstAutoTypeDependent(LoopVar->getType()));
     }
   } else if (!BeginDeclStmt.get()) {
     SourceLocation RangeLoc = RangeVar->getLocation();
@@ -3563,8 +3563,7 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
   bool HasDeducedReturnType =
       CurLambda && hasDeducedReturnType(CurLambda->CallOperator);
 
-  if (ExprEvalContexts.back().Context ==
-          ExpressionEvaluationContext::DiscardedStatement &&
+  if (ExprEvalContexts.back().isDiscardedStatementContext() &&
       (HasDeducedReturnType || CurCap->HasImplicitReturnType)) {
     if (RetValExp) {
       ExprResult ER =
@@ -3880,8 +3879,7 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
   if (RetVal.isInvalid())
     return StmtError();
   StmtResult R = BuildReturnStmt(ReturnLoc, RetVal.get());
-  if (R.isInvalid() || ExprEvalContexts.back().Context ==
-                           ExpressionEvaluationContext::DiscardedStatement)
+  if (R.isInvalid() || ExprEvalContexts.back().isDiscardedStatementContext())
     return R;
 
   if (VarDecl *VD =
@@ -3966,8 +3964,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
 
   // C++1z: discarded return statements are not considered when deducing a
   // return type.
-  if (ExprEvalContexts.back().Context ==
-          ExpressionEvaluationContext::DiscardedStatement &&
+  if (ExprEvalContexts.back().isDiscardedStatementContext() &&
       FnRetType->getContainedAutoType()) {
     if (RetValExp) {
       ExprResult ER =
@@ -4187,7 +4184,14 @@ Sema::ActOnObjCAtTryStmt(SourceLocation AtLoc, Stmt *Try,
   if (!getLangOpts().ObjCExceptions)
     Diag(AtLoc, diag::err_objc_exceptions_disabled) << "@try";
 
-  setFunctionHasBranchProtectedScope();
+  // Objective-C try is incompatible with SEH __try.
+  sema::FunctionScopeInfo *FSI = getCurFunction();
+  if (FSI->FirstSEHTryLoc.isValid()) {
+    Diag(AtLoc, diag::err_mixing_cxx_try_seh_try) << 1;
+    Diag(FSI->FirstSEHTryLoc, diag::note_conflicting_try_here) << "'__try'";
+  }
+
+  FSI->setHasObjCTry(AtLoc);
   unsigned NumCatchStmts = CatchStmts.size();
   return ObjCAtTryStmt::Create(Context, AtLoc, Try, CatchStmts.data(),
                                NumCatchStmts, Finally);
@@ -4428,7 +4432,7 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
 
   // C++ try is incompatible with SEH __try.
   if (!getLangOpts().Borland && FSI->FirstSEHTryLoc.isValid()) {
-    Diag(TryLoc, diag::err_mixing_cxx_try_seh_try);
+    Diag(TryLoc, diag::err_mixing_cxx_try_seh_try) << 0;
     Diag(FSI->FirstSEHTryLoc, diag::note_conflicting_try_here) << "'__try'";
   }
 
@@ -4512,9 +4516,12 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
   // SEH __try is incompatible with C++ try. Borland appears to support this,
   // however.
   if (!getLangOpts().Borland) {
-    if (FSI->FirstCXXTryLoc.isValid()) {
-      Diag(TryLoc, diag::err_mixing_cxx_try_seh_try);
-      Diag(FSI->FirstCXXTryLoc, diag::note_conflicting_try_here) << "'try'";
+    if (FSI->FirstCXXOrObjCTryLoc.isValid()) {
+      Diag(TryLoc, diag::err_mixing_cxx_try_seh_try) << FSI->FirstTryType;
+      Diag(FSI->FirstCXXOrObjCTryLoc, diag::note_conflicting_try_here)
+          << (FSI->FirstTryType == sema::FunctionScopeInfo::TryLocIsCXX
+                  ? "'try'"
+                  : "'@try'");
     }
   }
 

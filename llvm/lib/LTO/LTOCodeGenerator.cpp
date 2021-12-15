@@ -135,9 +135,8 @@ LTOCodeGenerator::LTOCodeGenerator(LLVMContext &Context)
 LTOCodeGenerator::~LTOCodeGenerator() {}
 
 void LTOCodeGenerator::setAsmUndefinedRefs(LTOModule *Mod) {
-  const std::vector<StringRef> &undefs = Mod->getAsmUndefinedRefs();
-  for (int i = 0, e = undefs.size(); i != e; ++i)
-    AsmUndefinedRefs.insert(undefs[i]);
+  for (const StringRef &Undef : Mod->getAsmUndefinedRefs())
+    AsmUndefinedRefs.insert(Undef);
 }
 
 bool LTOCodeGenerator::addModule(LTOModule *Mod) {
@@ -245,8 +244,7 @@ bool LTOCodeGenerator::compileOptimizedToFile(const char **Name) {
   // make unique temp output file to put generated code
   SmallString<128> Filename;
 
-  auto AddStream =
-      [&](size_t Task) -> std::unique_ptr<lto::NativeObjectStream> {
+  auto AddStream = [&](size_t Task) -> std::unique_ptr<CachedFileStream> {
     StringRef Extension(Config.CGFileType == CGFT_AssemblyFile ? "s" : "o");
 
     int FD;
@@ -255,7 +253,7 @@ bool LTOCodeGenerator::compileOptimizedToFile(const char **Name) {
     if (EC)
       emitError(EC.message());
 
-    return std::make_unique<lto::NativeObjectStream>(
+    return std::make_unique<CachedFileStream>(
         std::make_unique<llvm::raw_fd_ostream>(FD, true));
   };
 
@@ -557,7 +555,7 @@ bool LTOCodeGenerator::optimize() {
   return true;
 }
 
-bool LTOCodeGenerator::compileOptimized(lto::AddStreamFn AddStream,
+bool LTOCodeGenerator::compileOptimized(AddStreamFn AddStream,
                                         unsigned ParallelismLevel) {
   if (!this->determineTarget())
     return false;

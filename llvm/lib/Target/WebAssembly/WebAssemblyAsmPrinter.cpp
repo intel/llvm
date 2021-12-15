@@ -234,14 +234,22 @@ MCSymbol *WebAssemblyAsmPrinter::getOrCreateWasmSymbol(StringRef Name) {
     return WasmSym;
   }
 
+  if (Name.startswith("GCC_except_table")) {
+    WasmSym->setType(wasm::WASM_SYMBOL_TYPE_DATA);
+    return WasmSym;
+  }
+
   SmallVector<wasm::ValType, 4> Returns;
   SmallVector<wasm::ValType, 4> Params;
   if (Name == "__cpp_exception" || Name == "__c_longjmp") {
     WasmSym->setType(wasm::WASM_SYMBOL_TYPE_TAG);
-    // We may have multiple C++ compilation units to be linked together, each of
-    // which defines the exception symbol. To resolve them, we declare them as
-    // weak.
-    WasmSym->setWeak(true);
+    // In static linking we define tag symbols in WasmException::endModule().
+    // But we may have multiple objects to be linked together, each of which
+    // defines the tag symbols. To resolve them, we declare them as weak. In
+    // dynamic linking we make tag symbols undefined in the backend, define it
+    // in JS, and feed them to each importing module.
+    if (!isPositionIndependent())
+      WasmSym->setWeak(true);
     WasmSym->setExternal(true);
 
     // Currently both C++ exceptions and C longjmps have a single pointer type
@@ -494,6 +502,15 @@ void WebAssemblyAsmPrinter::EmitTargetFeatures(Module &M) {
   }
   // This pseudo-feature tells the linker whether shared memory would be safe
   EmitFeature("shared-mem");
+
+  // This is an "architecture", not a "feature", but we emit it as such for
+  // the benefit of tools like Binaryen and consistency with other producers.
+  // FIXME: Subtarget is null here, so can't Subtarget->hasAddr64() ?
+  if (M.getDataLayout().getPointerSize() == 8) {
+    // Can't use EmitFeature since "wasm-feature-memory64" is not a module
+    // flag.
+    EmittedFeatures.push_back({wasm::WASM_FEATURE_PREFIX_USED, "memory64"});
+  }
 
   if (EmittedFeatures.size() == 0)
     return;

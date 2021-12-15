@@ -8,6 +8,7 @@
 #include <CL/sycl/builtins_esimd.hpp>
 
 using namespace cl::sycl;
+using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 
 // Math sin,cos,log,exp functions are translated into scalar __spirv_ocl_ calls
@@ -30,12 +31,12 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16>
 esimd_math(simd<float, 16> x) {
   simd<float, 16> v = 0;
   //CHECK: call spir_func <16 x float> @_Z11__esimd_cos
-  v = esimd_cos(x);
+  v = esimd::cos(x);
   //CHECK: call spir_func <16 x float> @_Z11__esimd_sin
-  v = esimd_sin(v);
+  v = esimd::sin(v);
   //CHECK: call spir_func <16 x float> @_Z11__esimd_log
-  v = esimd_log(v);
+  v = esimd::log(v);
   //CHECK: call spir_func <16 x float> @_Z11__esimd_exp
-  v = esimd_exp(v);
+  v = esimd::exp(v);
   return v;
 }

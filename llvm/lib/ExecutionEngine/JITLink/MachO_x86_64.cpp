@@ -170,7 +170,7 @@ private:
       auto ToSymbolSec = findSectionByIndex(UnsignedRI.r_symbolnum - 1);
       if (!ToSymbolSec)
         return ToSymbolSec.takeError();
-      ToSymbol = getSymbolByAddress(ToSymbolSec->Address);
+      ToSymbol = getSymbolByAddress(*ToSymbolSec, ToSymbolSec->Address);
       assert(ToSymbol && "No symbol for section");
       FixupValue -= ToSymbol->getAddress();
     }
@@ -216,14 +216,18 @@ private:
         continue;
       }
 
-      // Skip relocations for debug symbols.
+      auto NSec =
+          findSectionByIndex(Obj.getSectionIndex(S.getRawDataRefImpl()));
+      if (!NSec)
+        return NSec.takeError();
+
+      // Skip relocations for MachO sections without corresponding graph
+      // sections.
       {
-        auto &NSec =
-            getSectionByIndex(Obj.getSectionIndex(S.getRawDataRefImpl()));
-        if (!NSec.GraphSection) {
+        if (!NSec->GraphSection) {
           LLVM_DEBUG({
             dbgs() << "  Skipping relocations for MachO section "
-                   << NSec.SegName << "/" << NSec.SectName
+                   << NSec->SegName << "/" << NSec->SectName
                    << " which has no associated graph section\n";
           });
           continue;
@@ -240,16 +244,14 @@ private:
         JITTargetAddress FixupAddress = SectionAddress + (uint32_t)RI.r_address;
 
         LLVM_DEBUG({
-          auto &NSec =
-              getSectionByIndex(Obj.getSectionIndex(S.getRawDataRefImpl()));
-          dbgs() << "  " << NSec.SectName << " + "
+          dbgs() << "  " << NSec->SectName << " + "
                  << formatv("{0:x8}", RI.r_address) << ":\n";
         });
 
         // Find the block that the fixup points to.
         Block *BlockToFix = nullptr;
         {
-          auto SymbolToFixOrErr = findSymbolByAddress(FixupAddress);
+          auto SymbolToFixOrErr = findSymbolByAddress(*NSec, FixupAddress);
           if (!SymbolToFixOrErr)
             return SymbolToFixOrErr.takeError();
           BlockToFix = &SymbolToFixOrErr->getBlock();
@@ -270,7 +272,7 @@ private:
         Symbol *TargetSymbol = nullptr;
         uint64_t Addend = 0;
 
-        // Sanity check the relocation kind.
+        // Validate the relocation kind.
         auto MachORelocKind = getRelocKind(RI);
         if (!MachORelocKind)
           return MachORelocKind.takeError();
@@ -342,7 +344,11 @@ private:
           break;
         case MachOPointer64Anon: {
           JITTargetAddress TargetAddress = *(const ulittle64_t *)FixupContent;
-          if (auto TargetSymbolOrErr = findSymbolByAddress(TargetAddress))
+          auto TargetNSec = findSectionByIndex(RI.r_symbolnum - 1);
+          if (!TargetNSec)
+            return TargetNSec.takeError();
+          if (auto TargetSymbolOrErr =
+                  findSymbolByAddress(*TargetNSec, TargetAddress))
             TargetSymbol = &*TargetSymbolOrErr;
           else
             return TargetSymbolOrErr.takeError();
@@ -363,7 +369,11 @@ private:
         case MachOPCRel32Anon: {
           JITTargetAddress TargetAddress =
               FixupAddress + 4 + *(const little32_t *)FixupContent;
-          if (auto TargetSymbolOrErr = findSymbolByAddress(TargetAddress))
+          auto TargetNSec = findSectionByIndex(RI.r_symbolnum - 1);
+          if (!TargetNSec)
+            return TargetNSec.takeError();
+          if (auto TargetSymbolOrErr =
+                  findSymbolByAddress(*TargetNSec, TargetAddress))
             TargetSymbol = &*TargetSymbolOrErr;
           else
             return TargetSymbolOrErr.takeError();
@@ -379,7 +389,11 @@ private:
                       1ULL << (*MachORelocKind - MachOPCRel32Minus1Anon));
           JITTargetAddress TargetAddress =
               FixupAddress + Delta + *(const little32_t *)FixupContent;
-          if (auto TargetSymbolOrErr = findSymbolByAddress(TargetAddress))
+          auto TargetNSec = findSectionByIndex(RI.r_symbolnum - 1);
+          if (!TargetNSec)
+            return TargetNSec.takeError();
+          if (auto TargetSymbolOrErr =
+                  findSymbolByAddress(*TargetNSec, TargetAddress))
             TargetSymbol = &*TargetSymbolOrErr;
           else
             return TargetSymbolOrErr.takeError();
@@ -420,81 +434,12 @@ private:
   }
 };
 
-class PerGraphGOTAndPLTStubsBuilder_MachO_x86_64
-    : public PerGraphGOTAndPLTStubsBuilder<
-          PerGraphGOTAndPLTStubsBuilder_MachO_x86_64> {
-public:
-
-  using PerGraphGOTAndPLTStubsBuilder<
-      PerGraphGOTAndPLTStubsBuilder_MachO_x86_64>::
-      PerGraphGOTAndPLTStubsBuilder;
-
-  bool isGOTEdgeToFix(Edge &E) const {
-    return E.getKind() == x86_64::RequestGOTAndTransformToDelta32 ||
-           E.getKind() ==
-               x86_64::RequestGOTAndTransformToPCRel32GOTLoadREXRelaxable;
-  }
-
-  Symbol &createGOTEntry(Symbol &Target) {
-    return x86_64::createAnonymousPointer(G, getGOTSection(), &Target);
-  }
-
-  void fixGOTEdge(Edge &E, Symbol &GOTEntry) {
-    // Fix the edge kind.
-    switch (E.getKind()) {
-    case x86_64::RequestGOTAndTransformToDelta32:
-      E.setKind(x86_64::Delta32);
-      break;
-    case x86_64::RequestGOTAndTransformToPCRel32GOTLoadREXRelaxable:
-      E.setKind(x86_64::PCRel32GOTLoadREXRelaxable);
-      break;
-    default:
-      llvm_unreachable("Not a GOT transform edge");
-    }
-    // Fix the target, leave the addend as-is.
-    E.setTarget(GOTEntry);
-  }
-
-  bool isExternalBranchEdge(Edge &E) {
-    return E.getKind() == x86_64::BranchPCRel32 && E.getTarget().isExternal();
-  }
-
-  Symbol &createPLTStub(Symbol &Target) {
-    return x86_64::createAnonymousPointerJumpStub(G, getStubsSection(),
-                                                  getGOTEntry(Target));
-  }
-
-  void fixPLTEdge(Edge &E, Symbol &Stub) {
-    assert(E.getKind() == x86_64::BranchPCRel32 && "Not a Branch32 edge?");
-    assert(E.getAddend() == 0 &&
-           "BranchPCRel32 edge has unexpected addend value");
-
-    // Set the edge kind to BranchPCRel32ToPtrJumpStubBypassable. We will use
-    // this to check for stub optimization opportunities in the
-    // optimizeMachO_x86_64_GOTAndStubs pass below.
-    E.setKind(x86_64::BranchPCRel32ToPtrJumpStubBypassable);
-    E.setTarget(Stub);
-  }
-
-private:
-  Section &getGOTSection() {
-    if (!GOTSection)
-      GOTSection = &G.createSection("$__GOT", sys::Memory::MF_READ);
-    return *GOTSection;
-  }
-
-  Section &getStubsSection() {
-    if (!StubsSection) {
-      auto StubsProt = static_cast<sys::Memory::ProtectionFlags>(
-          sys::Memory::MF_READ | sys::Memory::MF_EXEC);
-      StubsSection = &G.createSection("$__STUBS", StubsProt);
-    }
-    return *StubsSection;
-  }
-
-  Section *GOTSection = nullptr;
-  Section *StubsSection = nullptr;
-};
+Error buildGOTAndStubs_MachO_x86_64(LinkGraph &G) {
+  x86_64::GOTTableManager GOT;
+  x86_64::PLTTableManager PLT(GOT);
+  visitExistingEdges(G, GOT, PLT);
+  return Error::success();
+}
 
 } // namespace
 
@@ -545,11 +490,10 @@ void link_MachO_x86_64(std::unique_ptr<LinkGraph> G,
       Config.PrePrunePasses.push_back(markAllSymbolsLive);
 
     // Add an in-place GOT/Stubs pass.
-    Config.PostPrunePasses.push_back(
-        PerGraphGOTAndPLTStubsBuilder_MachO_x86_64::asPass);
+    Config.PostPrunePasses.push_back(buildGOTAndStubs_MachO_x86_64);
 
     // Add GOT/Stubs optimizer pass.
-    Config.PreFixupPasses.push_back(x86_64::optimize_x86_64_GOTAndStubs);
+    Config.PreFixupPasses.push_back(x86_64::optimizeGOTAndStubAccesses);
   }
 
   if (auto Err = Ctx->modifyPassConfig(*G, Config))

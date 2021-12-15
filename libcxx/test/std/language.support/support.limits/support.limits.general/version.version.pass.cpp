@@ -40,6 +40,7 @@
     __cpp_lib_bounded_array_traits                 201902L [C++20]
     __cpp_lib_boyer_moore_searcher                 201603L [C++17]
     __cpp_lib_byte                                 201603L [C++17]
+    __cpp_lib_byteswap                             202110L [C++2b]
     __cpp_lib_char8_t                              201811L [C++20]
     __cpp_lib_chrono                               201611L [C++17]
     __cpp_lib_chrono_udls                          201304L [C++14]
@@ -67,7 +68,7 @@
     __cpp_lib_execution                            201603L [C++17]
                                                    201902L [C++20]
     __cpp_lib_filesystem                           201703L [C++17]
-    __cpp_lib_format                               201907L [C++20]
+    __cpp_lib_format                               202106L [C++20]
     __cpp_lib_gcd_lcm                              201606L [C++17]
     __cpp_lib_generic_associative_lookup           201304L [C++14]
     __cpp_lib_generic_unordered_lookup             201811L [C++20]
@@ -249,6 +250,10 @@
 
 # ifdef __cpp_lib_byte
 #   error "__cpp_lib_byte should not be defined before c++17"
+# endif
+
+# ifdef __cpp_lib_byteswap
+#   error "__cpp_lib_byteswap should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_char8_t
@@ -779,6 +784,10 @@
 
 # ifdef __cpp_lib_byte
 #   error "__cpp_lib_byte should not be defined before c++17"
+# endif
+
+# ifdef __cpp_lib_byteswap
+#   error "__cpp_lib_byteswap should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_char8_t
@@ -1339,17 +1348,11 @@
 #   error "__cpp_lib_atomic_float should not be defined before c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_is_always_lock_free
-#     error "__cpp_lib_atomic_is_always_lock_free should be defined in c++17"
-#   endif
-#   if __cpp_lib_atomic_is_always_lock_free != 201603L
-#     error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++17"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_is_always_lock_free
-#     error "__cpp_lib_atomic_is_always_lock_free should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_is_always_lock_free
+#   error "__cpp_lib_atomic_is_always_lock_free should be defined in c++17"
+# endif
+# if __cpp_lib_atomic_is_always_lock_free != 201603L
+#   error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++17"
 # endif
 
 # ifdef __cpp_lib_atomic_lock_free_type_aliases
@@ -1417,6 +1420,10 @@
 # endif
 # if __cpp_lib_byte != 201603L
 #   error "__cpp_lib_byte should have the value 201603L in c++17"
+# endif
+
+# ifdef __cpp_lib_byteswap
+#   error "__cpp_lib_byteswap should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_char8_t
@@ -2140,17 +2147,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_flag_test
-#     error "__cpp_lib_atomic_flag_test should be defined in c++20"
-#   endif
-#   if __cpp_lib_atomic_flag_test != 201907L
-#     error "__cpp_lib_atomic_flag_test should have the value 201907L in c++20"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_flag_test
-#     error "__cpp_lib_atomic_flag_test should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_flag_test
+#   error "__cpp_lib_atomic_flag_test should be defined in c++20"
+# endif
+# if __cpp_lib_atomic_flag_test != 201907L
+#   error "__cpp_lib_atomic_flag_test should have the value 201907L in c++20"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -2166,30 +2167,18 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_is_always_lock_free
-#     error "__cpp_lib_atomic_is_always_lock_free should be defined in c++20"
-#   endif
-#   if __cpp_lib_atomic_is_always_lock_free != 201603L
-#     error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++20"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_is_always_lock_free
-#     error "__cpp_lib_atomic_is_always_lock_free should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_is_always_lock_free
+#   error "__cpp_lib_atomic_is_always_lock_free should be defined in c++20"
+# endif
+# if __cpp_lib_atomic_is_always_lock_free != 201603L
+#   error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_lock_free_type_aliases
-#     error "__cpp_lib_atomic_lock_free_type_aliases should be defined in c++20"
-#   endif
-#   if __cpp_lib_atomic_lock_free_type_aliases != 201907L
-#     error "__cpp_lib_atomic_lock_free_type_aliases should have the value 201907L in c++20"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_lock_free_type_aliases
-#     error "__cpp_lib_atomic_lock_free_type_aliases should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_lock_free_type_aliases
+#   error "__cpp_lib_atomic_lock_free_type_aliases should be defined in c++20"
+# endif
+# if __cpp_lib_atomic_lock_free_type_aliases != 201907L
+#   error "__cpp_lib_atomic_lock_free_type_aliases should have the value 201907L in c++20"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -2218,20 +2207,14 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_value_initialization
-#     error "__cpp_lib_atomic_value_initialization should be defined in c++20"
-#   endif
-#   if __cpp_lib_atomic_value_initialization != 201911L
-#     error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++20"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_value_initialization
-#     error "__cpp_lib_atomic_value_initialization should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_value_initialization
+#   error "__cpp_lib_atomic_value_initialization should be defined in c++20"
+# endif
+# if __cpp_lib_atomic_value_initialization != 201911L
+#   error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
+# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
 #   ifndef __cpp_lib_atomic_wait
 #     error "__cpp_lib_atomic_wait should be defined in c++20"
 #   endif
@@ -2240,7 +2223,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_atomic_wait
-#     error "__cpp_lib_atomic_wait should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait) is not defined!"
+#     error "__cpp_lib_atomic_wait should not be defined when !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait) is not defined!"
 #   endif
 # endif
 
@@ -2316,6 +2299,10 @@
 # endif
 # if __cpp_lib_byte != 201603L
 #   error "__cpp_lib_byte should have the value 201603L in c++20"
+# endif
+
+# ifdef __cpp_lib_byteswap
+#   error "__cpp_lib_byteswap should not be defined before c++2b"
 # endif
 
 # if defined(__cpp_char8_t)
@@ -2462,17 +2449,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_coroutine
-#     error "__cpp_lib_coroutine should be defined in c++20"
-#   endif
-#   if __cpp_lib_coroutine != 201902L
-#     error "__cpp_lib_coroutine should have the value 201902L in c++20"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_coroutine
-#     error "__cpp_lib_coroutine should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_coroutine
+#   error "__cpp_lib_coroutine should be defined in c++20"
+# endif
+# if __cpp_lib_coroutine != 201902L
+#   error "__cpp_lib_coroutine should have the value 201902L in c++20"
 # endif
 
 # if TEST_STD_VER > 17 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L
@@ -2546,8 +2527,8 @@
 #   ifndef __cpp_lib_format
 #     error "__cpp_lib_format should be defined in c++20"
 #   endif
-#   if __cpp_lib_format != 201907L
-#     error "__cpp_lib_format should have the value 201907L in c++20"
+#   if __cpp_lib_format != 202106L
+#     error "__cpp_lib_format should have the value 202106L in c++20"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_format
@@ -3291,17 +3272,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_flag_test
-#     error "__cpp_lib_atomic_flag_test should be defined in c++2b"
-#   endif
-#   if __cpp_lib_atomic_flag_test != 201907L
-#     error "__cpp_lib_atomic_flag_test should have the value 201907L in c++2b"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_flag_test
-#     error "__cpp_lib_atomic_flag_test should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_flag_test
+#   error "__cpp_lib_atomic_flag_test should be defined in c++2b"
+# endif
+# if __cpp_lib_atomic_flag_test != 201907L
+#   error "__cpp_lib_atomic_flag_test should have the value 201907L in c++2b"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -3317,30 +3292,18 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_is_always_lock_free
-#     error "__cpp_lib_atomic_is_always_lock_free should be defined in c++2b"
-#   endif
-#   if __cpp_lib_atomic_is_always_lock_free != 201603L
-#     error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++2b"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_is_always_lock_free
-#     error "__cpp_lib_atomic_is_always_lock_free should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_is_always_lock_free
+#   error "__cpp_lib_atomic_is_always_lock_free should be defined in c++2b"
+# endif
+# if __cpp_lib_atomic_is_always_lock_free != 201603L
+#   error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_lock_free_type_aliases
-#     error "__cpp_lib_atomic_lock_free_type_aliases should be defined in c++2b"
-#   endif
-#   if __cpp_lib_atomic_lock_free_type_aliases != 201907L
-#     error "__cpp_lib_atomic_lock_free_type_aliases should have the value 201907L in c++2b"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_lock_free_type_aliases
-#     error "__cpp_lib_atomic_lock_free_type_aliases should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_lock_free_type_aliases
+#   error "__cpp_lib_atomic_lock_free_type_aliases should be defined in c++2b"
+# endif
+# if __cpp_lib_atomic_lock_free_type_aliases != 201907L
+#   error "__cpp_lib_atomic_lock_free_type_aliases should have the value 201907L in c++2b"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -3369,20 +3332,14 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS)
-#   ifndef __cpp_lib_atomic_value_initialization
-#     error "__cpp_lib_atomic_value_initialization should be defined in c++2b"
-#   endif
-#   if __cpp_lib_atomic_value_initialization != 201911L
-#     error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++2b"
-#   endif
-# else
-#   ifdef __cpp_lib_atomic_value_initialization
-#     error "__cpp_lib_atomic_value_initialization should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) is not defined!"
-#   endif
+# ifndef __cpp_lib_atomic_value_initialization
+#   error "__cpp_lib_atomic_value_initialization should be defined in c++2b"
+# endif
+# if __cpp_lib_atomic_value_initialization != 201911L
+#   error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
+# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
 #   ifndef __cpp_lib_atomic_wait
 #     error "__cpp_lib_atomic_wait should be defined in c++2b"
 #   endif
@@ -3391,7 +3348,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_atomic_wait
-#     error "__cpp_lib_atomic_wait should not be defined when !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait) is not defined!"
+#     error "__cpp_lib_atomic_wait should not be defined when !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait) is not defined!"
 #   endif
 # endif
 
@@ -3467,6 +3424,13 @@
 # endif
 # if __cpp_lib_byte != 201603L
 #   error "__cpp_lib_byte should have the value 201603L in c++2b"
+# endif
+
+# ifndef __cpp_lib_byteswap
+#   error "__cpp_lib_byteswap should be defined in c++2b"
+# endif
+# if __cpp_lib_byteswap != 202110L
+#   error "__cpp_lib_byteswap should have the value 202110L in c++2b"
 # endif
 
 # if defined(__cpp_char8_t)
@@ -3613,17 +3577,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_coroutine
-#     error "__cpp_lib_coroutine should be defined in c++2b"
-#   endif
-#   if __cpp_lib_coroutine != 201902L
-#     error "__cpp_lib_coroutine should have the value 201902L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_coroutine
-#     error "__cpp_lib_coroutine should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_coroutine
+#   error "__cpp_lib_coroutine should be defined in c++2b"
+# endif
+# if __cpp_lib_coroutine != 201902L
+#   error "__cpp_lib_coroutine should have the value 201902L in c++2b"
 # endif
 
 # if TEST_STD_VER > 17 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L
@@ -3697,8 +3655,8 @@
 #   ifndef __cpp_lib_format
 #     error "__cpp_lib_format should be defined in c++2b"
 #   endif
-#   if __cpp_lib_format != 201907L
-#     error "__cpp_lib_format should have the value 201907L in c++2b"
+#   if __cpp_lib_format != 202106L
+#     error "__cpp_lib_format should have the value 202106L in c++2b"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_format

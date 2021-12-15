@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===----------------------------- new ------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -149,6 +149,16 @@ _LIBCPP_FUNC_VIS new_handler get_new_handler() _NOEXCEPT;
 
 _LIBCPP_NORETURN _LIBCPP_FUNC_VIS void __throw_bad_alloc();  // not in C++ spec
 
+_LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY
+void __throw_bad_array_new_length()
+{
+#ifndef _LIBCPP_NO_EXCEPTIONS
+    throw bad_array_new_length();
+#else
+    _VSTD::abort();
+#endif
+}
+
 #if !defined(_LIBCPP_HAS_NO_LIBRARY_ALIGNED_ALLOCATION) && \
     !defined(_LIBCPP_ABI_VCRUNTIME)
 #ifndef _LIBCPP_CXX03_LANG
@@ -167,7 +177,7 @@ struct destroying_delete_t {
 inline constexpr destroying_delete_t destroying_delete{};
 #endif // _LIBCPP_STD_VER > 17
 
-}  // std
+} // namespace std
 
 #if defined(_LIBCPP_CXX03_LANG)
 #define _THROW_BAD_ALLOC throw(std::bad_alloc)

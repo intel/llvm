@@ -53,7 +53,7 @@ void populateLoopBody(MlirContext ctx, MlirBlock loopBody,
   mlirBlockAppendOwnedOperation(loopBody, loadRHS);
 
   MlirOperationState addState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("std.addf"), location);
+      mlirStringRefCreateFromCString("arith.addf"), location);
   MlirValue addOperands[] = {mlirOperationGetResult(loadLHS, 0),
                              mlirOperationGetResult(loadRHS, 0)};
   mlirOperationStateAddOperands(&addState, 2, addOperands);
@@ -113,7 +113,7 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
       mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("value")),
       indexZeroLiteral);
   MlirOperationState constZeroState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("std.constant"), location);
+      mlirStringRefCreateFromCString("arith.constant"), location);
   mlirOperationStateAddResults(&constZeroState, 1, &indexType);
   mlirOperationStateAddAttributes(&constZeroState, 1, &indexZeroValueAttr);
   MlirOperation constZero = mlirOperationCreate(&constZeroState);
@@ -140,7 +140,7 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
       mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("value")),
       indexOneLiteral);
   MlirOperationState constOneState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("std.constant"), location);
+      mlirStringRefCreateFromCString("arith.constant"), location);
   mlirOperationStateAddResults(&constOneState, 1, &indexType);
   mlirOperationStateAddAttributes(&constOneState, 1, &indexOneValueAttr);
   MlirOperation constOne = mlirOperationCreate(&constOneState);
@@ -168,13 +168,13 @@ MlirModule makeAndDumpAdd(MlirContext ctx, MlirLocation location) {
   // clang-format off
   // CHECK: module {
   // CHECK:   func @add(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?xf32>) {
-  // CHECK:     %[[C0:.*]] = constant 0 : index
+  // CHECK:     %[[C0:.*]] = arith.constant 0 : index
   // CHECK:     %[[DIM:.*]] = memref.dim %[[ARG0]], %[[C0]] : memref<?xf32>
-  // CHECK:     %[[C1:.*]] = constant 1 : index
+  // CHECK:     %[[C1:.*]] = arith.constant 1 : index
   // CHECK:     scf.for %[[I:.*]] = %[[C0]] to %[[DIM]] step %[[C1]] {
   // CHECK:       %[[LHS:.*]] = memref.load %[[ARG0]][%[[I]]] : memref<?xf32>
   // CHECK:       %[[RHS:.*]] = memref.load %[[ARG1]][%[[I]]] : memref<?xf32>
-  // CHECK:       %[[SUM:.*]] = addf %[[LHS]], %[[RHS]] : f32
+  // CHECK:       %[[SUM:.*]] = arith.addf %[[LHS]], %[[RHS]] : f32
   // CHECK:       memref.store %[[SUM]], %[[ARG0]][%[[I]]] : memref<?xf32>
   // CHECK:     }
   // CHECK:     return
@@ -226,8 +226,8 @@ int collectStatsSingle(OpListNode *head, ModuleStats *stats) {
     ++stats->numOpResults;
   }
 
-  for (unsigned i = 0; i < numRegions; ++i) {
-    MlirRegion region = mlirOperationGetRegion(operation, i);
+  MlirRegion region = mlirOperationGetFirstRegion(operation);
+  while (!mlirRegionIsNull(region)) {
     for (MlirBlock block = mlirRegionGetFirstBlock(region);
          !mlirBlockIsNull(block); block = mlirBlockGetNextInRegion(block)) {
       ++stats->numBlocks;
@@ -255,6 +255,7 @@ int collectStatsSingle(OpListNode *head, ModuleStats *stats) {
         head->next = node;
       }
     }
+    region = mlirRegionGetNextInOperation(region);
   }
   return 0;
 }
@@ -348,17 +349,17 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   mlirOperationPrint(operation, printToStderr, NULL);
   fprintf(stderr, "\n");
   // clang-format off
-  // CHECK:   %[[C0:.*]] = constant 0 : index
+  // CHECK:   %[[C0:.*]] = arith.constant 0 : index
   // CHECK:   %[[DIM:.*]] = memref.dim %{{.*}}, %[[C0]] : memref<?xf32>
-  // CHECK:   %[[C1:.*]] = constant 1 : index
+  // CHECK:   %[[C1:.*]] = arith.constant 1 : index
   // CHECK:   scf.for %[[I:.*]] = %[[C0]] to %[[DIM]] step %[[C1]] {
   // CHECK:     %[[LHS:.*]] = memref.load %{{.*}}[%[[I]]] : memref<?xf32>
   // CHECK:     %[[RHS:.*]] = memref.load %{{.*}}[%[[I]]] : memref<?xf32>
-  // CHECK:     %[[SUM:.*]] = addf %[[LHS]], %[[RHS]] : f32
+  // CHECK:     %[[SUM:.*]] = arith.addf %[[LHS]], %[[RHS]] : f32
   // CHECK:     memref.store %[[SUM]], %{{.*}}[%[[I]]] : memref<?xf32>
   // CHECK:   }
   // CHECK: return
-  // CHECK: First operation: {{.*}} = constant 0 : index
+  // CHECK: First operation: {{.*}} = arith.constant 0 : index
   // clang-format on
 
   // Get the operation name and print it.
@@ -368,7 +369,7 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   for (size_t i = 0; i < identStr.length; ++i)
     fputc(identStr.data[i], stderr);
   fprintf(stderr, "'\n");
-  // CHECK: Operation name: 'std.constant'
+  // CHECK: Operation name: 'arith.constant'
 
   // Get the identifier again and verify equal.
   MlirIdentifier identAgain = mlirIdentifierGet(ctx, identStr);
@@ -410,7 +411,7 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   mlirValuePrint(value, printToStderr, NULL);
   fprintf(stderr, "\n");
   fprintf(stderr, "Value is null: %d\n", mlirValueIsNull(value));
-  // CHECK: Result 0: {{.*}} = constant 0 : index
+  // CHECK: Result 0: {{.*}} = arith.constant 0 : index
   // CHECK: Value is null: 0
 
   MlirType type = mlirValueGetType(value);
@@ -460,7 +461,7 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   mlirOperationPrintWithFlags(operation, flags, printToStderr, NULL);
   fprintf(stderr, "\n");
   // clang-format off
-  // CHECK: Op print with all flags: %{{.*}} = "std.constant"() {elts = opaque<"_", "0xDEADBEEF"> : tensor<4xi32>, value = 0 : index} : () -> index loc(unknown)
+  // CHECK: Op print with all flags: %{{.*}} = "arith.constant"() {elts = opaque<"_", "0xDEADBEEF"> : tensor<4xi32>, value = 0 : index} : () -> index loc(unknown)
   // clang-format on
 
   mlirOpPrintingFlagsDestroy(flags);
@@ -726,7 +727,6 @@ static int printBuiltinTypes(MlirContext ctx) {
   MlirType memRef = mlirMemRefTypeContiguousGet(
       f32, sizeof(shape) / sizeof(int64_t), shape, memSpace2);
   if (!mlirTypeIsAMemRef(memRef) ||
-      mlirMemRefTypeGetNumAffineMaps(memRef) != 0 ||
       !mlirAttributeEqual(mlirMemRefTypeGetMemorySpace(memRef), memSpace2))
     return 18;
   mlirTypeDump(memRef);
@@ -1394,6 +1394,13 @@ int affineMapFromExprs(MlirContext ctx) {
   if (!mlirAffineExprEqual(mlirAffineMapGetResult(map, 1), affineSymbolExpr))
     return 3;
 
+  MlirAffineExpr affineDim2Expr = mlirAffineDimExprGet(ctx, 1);
+  MlirAffineExpr composed = mlirAffineExprCompose(affineDim2Expr, map);
+  // CHECK: s1
+  mlirAffineExprDump(composed);
+  if (!mlirAffineExprEqual(composed, affineSymbolExpr))
+    return 4;
+
   return 0;
 }
 
@@ -1585,7 +1592,7 @@ int testOperands() {
       mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("value")),
       indexZeroLiteral);
   MlirOperationState constZeroState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("std.constant"), loc);
+      mlirStringRefCreateFromCString("arith.constant"), loc);
   mlirOperationStateAddResults(&constZeroState, 1, &indexType);
   mlirOperationStateAddAttributes(&constZeroState, 1, &indexZeroValueAttr);
   MlirOperation constZero = mlirOperationCreate(&constZeroState);
@@ -1597,7 +1604,7 @@ int testOperands() {
       mlirIdentifierGet(ctx, mlirStringRefCreateFromCString("value")),
       indexOneLiteral);
   MlirOperationState constOneState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("std.constant"), loc);
+      mlirStringRefCreateFromCString("arith.constant"), loc);
   mlirOperationStateAddResults(&constOneState, 1, &indexType);
   mlirOperationStateAddAttributes(&constOneState, 1, &indexOneValueAttr);
   MlirOperation constOne = mlirOperationCreate(&constOneState);
@@ -1619,13 +1626,13 @@ int testOperands() {
   MlirValue opOperand = mlirOperationGetOperand(op, 0);
   fprintf(stderr, "Original operand: ");
   mlirValuePrint(opOperand, printToStderr, NULL);
-  // CHECK: Original operand: {{.+}} constant 0 : index
+  // CHECK: Original operand: {{.+}} arith.constant 0 : index
 
   mlirOperationSetOperand(op, 0, constOneValue);
   opOperand = mlirOperationGetOperand(op, 0);
   fprintf(stderr, "Updated operand: ");
   mlirValuePrint(opOperand, printToStderr, NULL);
-  // CHECK: Updated operand: {{.+}} constant 1 : index
+  // CHECK: Updated operand: {{.+}} arith.constant 1 : index
 
   mlirOperationDestroy(op);
   mlirOperationDestroy(constZero);
@@ -1652,7 +1659,7 @@ int testClone() {
   MlirNamedAttribute indexZeroValueAttr = mlirNamedAttributeGet(
       mlirIdentifierGet(ctx, valueStringRef), indexZeroLiteral);
   MlirOperationState constZeroState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("std.constant"), loc);
+      mlirStringRefCreateFromCString("arith.constant"), loc);
   mlirOperationStateAddResults(&constZeroState, 1, &indexType);
   mlirOperationStateAddAttributes(&constZeroState, 1, &indexZeroValueAttr);
   MlirOperation constZero = mlirOperationCreate(&constZeroState);
@@ -1664,8 +1671,8 @@ int testClone() {
 
   mlirOperationPrint(constZero, printToStderr, NULL);
   mlirOperationPrint(constOne, printToStderr, NULL);
-  // CHECK: constant 0 : index
-  // CHECK: constant 1 : index
+  // CHECK: arith.constant 0 : index
+  // CHECK: arith.constant 1 : index
 
   mlirOperationDestroy(constZero);
   mlirOperationDestroy(constOne);
@@ -1691,57 +1698,6 @@ MlirLogicalResult errorHandler(MlirDiagnostic diagnostic, void *userData) {
 static void deleteUserData(void *userData) {
   fprintf(stderr, "deleting user data (userData: %" PRIdPTR ")\n",
           (intptr_t)userData);
-}
-
-void testDiagnostics() {
-  MlirContext ctx = mlirContextCreate();
-  MlirDiagnosticHandlerID id = mlirContextAttachDiagnosticHandler(
-      ctx, errorHandler, (void *)42, deleteUserData);
-  fprintf(stderr, "@test_diagnostics\n");
-  MlirLocation unknownLoc = mlirLocationUnknownGet(ctx);
-  mlirEmitError(unknownLoc, "test diagnostics");
-  MlirLocation fileLineColLoc = mlirLocationFileLineColGet(
-      ctx, mlirStringRefCreateFromCString("file.c"), 1, 2);
-  mlirEmitError(fileLineColLoc, "test diagnostics");
-  MlirLocation callSiteLoc = mlirLocationCallSiteGet(
-      mlirLocationFileLineColGet(
-          ctx, mlirStringRefCreateFromCString("other-file.c"), 2, 3),
-      fileLineColLoc);
-  mlirEmitError(callSiteLoc, "test diagnostics");
-  MlirLocation null = {0};
-  MlirLocation nameLoc =
-      mlirLocationNameGet(ctx, mlirStringRefCreateFromCString("named"), null);
-  mlirEmitError(nameLoc, "test diagnostics");
-  MlirLocation locs[2] = {nameLoc, callSiteLoc};
-  MlirAttribute nullAttr = {0};
-  MlirLocation fusedLoc = mlirLocationFusedGet(ctx, 2, locs, nullAttr);
-  mlirEmitError(fusedLoc, "test diagnostics");
-  mlirContextDetachDiagnosticHandler(ctx, id);
-  mlirEmitError(unknownLoc, "more test diagnostics");
-  // CHECK-LABEL: @test_diagnostics
-  // CHECK: processing diagnostic (userData: 42) <<
-  // CHECK:   test diagnostics
-  // CHECK:   loc(unknown)
-  // CHECK: >> end of diagnostic (userData: 42)
-  // CHECK: processing diagnostic (userData: 42) <<
-  // CHECK:   test diagnostics
-  // CHECK:   loc("file.c":1:2)
-  // CHECK: >> end of diagnostic (userData: 42)
-  // CHECK: processing diagnostic (userData: 42) <<
-  // CHECK:   test diagnostics
-  // CHECK:   loc(callsite("other-file.c":2:3 at "file.c":1:2))
-  // CHECK: >> end of diagnostic (userData: 42)
-  // CHECK: processing diagnostic (userData: 42) <<
-  // CHECK:   test diagnostics
-  // CHECK:   loc("named")
-  // CHECK: >> end of diagnostic (userData: 42)
-  // CHECK: processing diagnostic (userData: 42) <<
-  // CHECK:   test diagnostics
-  // CHECK:   loc(fused["named", callsite("other-file.c":2:3 at "file.c":1:2)])
-  // CHECK: deleting user data (userData: 42)
-  // CHECK-NOT: processing diagnostic
-  // CHECK:     more test diagnostics
-  mlirContextDestroy(ctx);
 }
 
 int testTypeID(MlirContext ctx) {
@@ -1795,14 +1751,19 @@ int testTypeID(MlirContext ctx) {
   MlirNamedAttribute indexZeroValueAttr = mlirNamedAttributeGet(
       mlirIdentifierGet(ctx, valueStringRef), indexZeroLiteral);
   MlirOperationState constZeroState = mlirOperationStateGet(
-      mlirStringRefCreateFromCString("std.constant"), loc);
+      mlirStringRefCreateFromCString("arith.constant"), loc);
   mlirOperationStateAddResults(&constZeroState, 1, &indexType);
   mlirOperationStateAddAttributes(&constZeroState, 1, &indexZeroValueAttr);
   MlirOperation constZero = mlirOperationCreate(&constZeroState);
 
+  if (!mlirOperationVerify(constZero)) {
+    fprintf(stderr, "ERROR: Expected operation to verify correctly\n");
+    return 5;
+  }
+
   if (mlirOperationIsNull(constZero)) {
     fprintf(stderr, "ERROR: Expected registered operation to be present\n");
-    return 5;
+    return 6;
   }
 
   MlirTypeID registeredOpID = mlirOperationGetTypeID(constZero);
@@ -1810,7 +1771,7 @@ int testTypeID(MlirContext ctx) {
   if (mlirTypeIDIsNull(registeredOpID)) {
     fprintf(stderr,
             "ERROR: Expected registered operation type id to be present\n");
-    return 6;
+    return 7;
   }
 
   // Create an unregistered operation, which should not have a type id.
@@ -1820,7 +1781,7 @@ int testTypeID(MlirContext ctx) {
   MlirOperation unregisteredOp = mlirOperationCreate(&opState);
   if (mlirOperationIsNull(unregisteredOp)) {
     fprintf(stderr, "ERROR: Expected unregistered operation to be present\n");
-    return 7;
+    return 8;
   }
 
   MlirTypeID unregisteredOpID = mlirOperationGetTypeID(unregisteredOp);
@@ -1828,13 +1789,155 @@ int testTypeID(MlirContext ctx) {
   if (!mlirTypeIDIsNull(unregisteredOpID)) {
     fprintf(stderr,
             "ERROR: Expected unregistered operation type id to be null\n");
-    return 8;
+    return 9;
   }
 
   mlirOperationDestroy(constZero);
   mlirOperationDestroy(unregisteredOp);
 
   return 0;
+}
+
+int testSymbolTable(MlirContext ctx) {
+  fprintf(stderr, "@testSymbolTable\n");
+
+  const char *moduleString = "func private @foo()"
+                             "func private @bar()";
+  const char *otherModuleString = "func private @qux()"
+                                  "func private @foo()";
+
+  MlirModule module =
+      mlirModuleCreateParse(ctx, mlirStringRefCreateFromCString(moduleString));
+  MlirModule otherModule = mlirModuleCreateParse(
+      ctx, mlirStringRefCreateFromCString(otherModuleString));
+
+  MlirSymbolTable symbolTable =
+      mlirSymbolTableCreate(mlirModuleGetOperation(module));
+
+  MlirOperation funcFoo =
+      mlirSymbolTableLookup(symbolTable, mlirStringRefCreateFromCString("foo"));
+  if (mlirOperationIsNull(funcFoo))
+    return 1;
+
+  MlirOperation funcBar =
+      mlirSymbolTableLookup(symbolTable, mlirStringRefCreateFromCString("bar"));
+  if (mlirOperationEqual(funcFoo, funcBar))
+    return 2;
+
+  MlirOperation missing =
+      mlirSymbolTableLookup(symbolTable, mlirStringRefCreateFromCString("qux"));
+  if (!mlirOperationIsNull(missing))
+    return 3;
+
+  MlirBlock moduleBody = mlirModuleGetBody(module);
+  MlirBlock otherModuleBody = mlirModuleGetBody(otherModule);
+  MlirOperation operation = mlirBlockGetFirstOperation(otherModuleBody);
+  mlirOperationRemoveFromParent(operation);
+  mlirBlockAppendOwnedOperation(moduleBody, operation);
+
+  // At this moment, the operation is still missing from the symbol table.
+  MlirOperation stillMissing =
+      mlirSymbolTableLookup(symbolTable, mlirStringRefCreateFromCString("qux"));
+  if (!mlirOperationIsNull(stillMissing))
+    return 4;
+
+  // After it is added to the symbol table, and not only the operation with
+  // which the table is associated, it can be looked up.
+  mlirSymbolTableInsert(symbolTable, operation);
+  MlirOperation funcQux =
+      mlirSymbolTableLookup(symbolTable, mlirStringRefCreateFromCString("qux"));
+  if (!mlirOperationEqual(operation, funcQux))
+    return 5;
+
+  // Erasing from the symbol table also removes the operation.
+  mlirSymbolTableErase(symbolTable, funcBar);
+  MlirOperation nowMissing =
+      mlirSymbolTableLookup(symbolTable, mlirStringRefCreateFromCString("bar"));
+  if (!mlirOperationIsNull(nowMissing))
+    return 6;
+
+  // Adding a symbol with the same name to the table should rename.
+  MlirOperation duplicateNameOp = mlirBlockGetFirstOperation(otherModuleBody);
+  mlirOperationRemoveFromParent(duplicateNameOp);
+  mlirBlockAppendOwnedOperation(moduleBody, duplicateNameOp);
+  MlirAttribute newName = mlirSymbolTableInsert(symbolTable, duplicateNameOp);
+  MlirStringRef newNameStr = mlirStringAttrGetValue(newName);
+  if (mlirStringRefEqual(newNameStr, mlirStringRefCreateFromCString("foo")))
+    return 7;
+  MlirAttribute updatedName = mlirOperationGetAttributeByName(
+      duplicateNameOp, mlirSymbolTableGetSymbolAttributeName());
+  if (!mlirAttributeEqual(updatedName, newName))
+    return 8;
+
+  mlirOperationDump(mlirModuleGetOperation(module));
+  mlirOperationDump(mlirModuleGetOperation(otherModule));
+  // clang-format off
+  // CHECK-LABEL: @testSymbolTable
+  // CHECK: module
+  // CHECK:   func private @foo
+  // CHECK:   func private @qux
+  // CHECK:   func private @foo{{.+}}
+  // CHECK: module
+  // CHECK-NOT: @qux
+  // CHECK-NOT: @foo
+  // clang-format on
+
+  mlirSymbolTableDestroy(symbolTable);
+  mlirModuleDestroy(module);
+  mlirModuleDestroy(otherModule);
+
+  return 0;
+}
+
+void testDiagnostics() {
+  MlirContext ctx = mlirContextCreate();
+  MlirDiagnosticHandlerID id = mlirContextAttachDiagnosticHandler(
+      ctx, errorHandler, (void *)42, deleteUserData);
+  fprintf(stderr, "@test_diagnostics\n");
+  MlirLocation unknownLoc = mlirLocationUnknownGet(ctx);
+  mlirEmitError(unknownLoc, "test diagnostics");
+  MlirLocation fileLineColLoc = mlirLocationFileLineColGet(
+      ctx, mlirStringRefCreateFromCString("file.c"), 1, 2);
+  mlirEmitError(fileLineColLoc, "test diagnostics");
+  MlirLocation callSiteLoc = mlirLocationCallSiteGet(
+      mlirLocationFileLineColGet(
+          ctx, mlirStringRefCreateFromCString("other-file.c"), 2, 3),
+      fileLineColLoc);
+  mlirEmitError(callSiteLoc, "test diagnostics");
+  MlirLocation null = {0};
+  MlirLocation nameLoc =
+      mlirLocationNameGet(ctx, mlirStringRefCreateFromCString("named"), null);
+  mlirEmitError(nameLoc, "test diagnostics");
+  MlirLocation locs[2] = {nameLoc, callSiteLoc};
+  MlirAttribute nullAttr = {0};
+  MlirLocation fusedLoc = mlirLocationFusedGet(ctx, 2, locs, nullAttr);
+  mlirEmitError(fusedLoc, "test diagnostics");
+  mlirContextDetachDiagnosticHandler(ctx, id);
+  mlirEmitError(unknownLoc, "more test diagnostics");
+  // CHECK-LABEL: @test_diagnostics
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc(unknown)
+  // CHECK: >> end of diagnostic (userData: 42)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc("file.c":1:2)
+  // CHECK: >> end of diagnostic (userData: 42)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc(callsite("other-file.c":2:3 at "file.c":1:2))
+  // CHECK: >> end of diagnostic (userData: 42)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc("named")
+  // CHECK: >> end of diagnostic (userData: 42)
+  // CHECK: processing diagnostic (userData: 42) <<
+  // CHECK:   test diagnostics
+  // CHECK:   loc(fused["named", callsite("other-file.c":2:3 at "file.c":1:2)])
+  // CHECK: deleting user data (userData: 42)
+  // CHECK-NOT: processing diagnostic
+  // CHECK:     more test diagnostics
+  mlirContextDestroy(ctx);
 }
 
 int main() {
@@ -1866,9 +1969,10 @@ int main() {
     return 11;
   if (testClone())
     return 12;
-  if (testTypeID(ctx)) {
+  if (testTypeID(ctx))
     return 13;
-  }
+  if (testSymbolTable(ctx))
+    return 14;
 
   mlirContextDestroy(ctx);
 

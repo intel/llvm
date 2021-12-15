@@ -1095,7 +1095,8 @@ static ValueLatticeElement getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
   if (!Ty->isIntegerTy())
     return ValueLatticeElement::getOverdefined();
 
-  APInt Offset(Ty->getScalarSizeInBits(), 0);
+  unsigned BitWidth = Ty->getScalarSizeInBits();
+  APInt Offset(BitWidth, 0);
   if (matchICmpOperand(Offset, LHS, Val, EdgePred))
     return getValueFromSimpleICmpCondition(EdgePred, RHS, Offset);
 
@@ -1118,11 +1119,21 @@ static ValueLatticeElement getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
     // If (Val & Mask) != 0 then the value must be larger than the lowest set
     // bit of Mask.
     if (EdgePred == ICmpInst::ICMP_NE && !Mask->isZero() && C->isZero()) {
-      unsigned BitWidth = Ty->getIntegerBitWidth();
       return ValueLatticeElement::getRange(ConstantRange::getNonEmpty(
           APInt::getOneBitSet(BitWidth, Mask->countTrailingZeros()),
           APInt::getZero(BitWidth)));
     }
+  }
+
+  // If (X urem Modulus) >= C, then X >= C.
+  // TODO: An upper bound could be computed as well.
+  if (match(LHS, m_URem(m_Specific(Val), m_Value())) &&
+      match(RHS, m_APInt(C))) {
+    // Use the icmp region so we don't have to deal with different predicates.
+    ConstantRange CR = ConstantRange::makeExactICmpRegion(EdgePred, *C);
+    if (!CR.isEmptySet())
+      return ValueLatticeElement::getRange(ConstantRange::getNonEmpty(
+          CR.getUnsignedMin(), APInt(BitWidth, 0)));
   }
 
   return ValueLatticeElement::getOverdefined();
@@ -1779,62 +1790,62 @@ LazyValueInfo::getPredicateAt(unsigned Pred, Value *V, Constant *C,
   // We could consider extending this to search further backwards through the
   // CFG and/or value graph, but there are non-obvious compile time vs quality
   // tradeoffs.
-  if (CxtI) {
-    BasicBlock *BB = CxtI->getParent();
+  BasicBlock *BB = CxtI->getParent();
 
-    // Function entry or an unreachable block.  Bail to avoid confusing
-    // analysis below.
-    pred_iterator PI = pred_begin(BB), PE = pred_end(BB);
-    if (PI == PE)
-      return Unknown;
+  // Function entry or an unreachable block.  Bail to avoid confusing
+  // analysis below.
+  pred_iterator PI = pred_begin(BB), PE = pred_end(BB);
+  if (PI == PE)
+    return Unknown;
 
-    // If V is a PHI node in the same block as the context, we need to ask
-    // questions about the predicate as applied to the incoming value along
-    // each edge. This is useful for eliminating cases where the predicate is
-    // known along all incoming edges.
-    if (auto *PHI = dyn_cast<PHINode>(V))
-      if (PHI->getParent() == BB) {
-        Tristate Baseline = Unknown;
-        for (unsigned i = 0, e = PHI->getNumIncomingValues(); i < e; i++) {
-          Value *Incoming = PHI->getIncomingValue(i);
-          BasicBlock *PredBB = PHI->getIncomingBlock(i);
-          // Note that PredBB may be BB itself.
-          Tristate Result = getPredicateOnEdge(Pred, Incoming, C, PredBB, BB,
-                                               CxtI);
+  // If V is a PHI node in the same block as the context, we need to ask
+  // questions about the predicate as applied to the incoming value along
+  // each edge. This is useful for eliminating cases where the predicate is
+  // known along all incoming edges.
+  if (auto *PHI = dyn_cast<PHINode>(V))
+    if (PHI->getParent() == BB) {
+      Tristate Baseline = Unknown;
+      for (unsigned i = 0, e = PHI->getNumIncomingValues(); i < e; i++) {
+        Value *Incoming = PHI->getIncomingValue(i);
+        BasicBlock *PredBB = PHI->getIncomingBlock(i);
+        // Note that PredBB may be BB itself.
+        Tristate Result =
+            getPredicateOnEdge(Pred, Incoming, C, PredBB, BB, CxtI);
 
-          // Keep going as long as we've seen a consistent known result for
-          // all inputs.
-          Baseline = (i == 0) ? Result /* First iteration */
-            : (Baseline == Result ? Baseline : Unknown); /* All others */
-          if (Baseline == Unknown)
-            break;
-        }
-        if (Baseline != Unknown)
-          return Baseline;
+        // Keep going as long as we've seen a consistent known result for
+        // all inputs.
+        Baseline = (i == 0) ? Result /* First iteration */
+                            : (Baseline == Result ? Baseline
+                                                  : Unknown); /* All others */
+        if (Baseline == Unknown)
+          break;
       }
+      if (Baseline != Unknown)
+        return Baseline;
+    }
 
-    // For a comparison where the V is outside this block, it's possible
-    // that we've branched on it before. Look to see if the value is known
-    // on all incoming edges.
-    if (!isa<Instruction>(V) ||
-        cast<Instruction>(V)->getParent() != BB) {
-      // For predecessor edge, determine if the comparison is true or false
-      // on that edge. If they're all true or all false, we can conclude
-      // the value of the comparison in this block.
-      Tristate Baseline = getPredicateOnEdge(Pred, V, C, *PI, BB, CxtI);
-      if (Baseline != Unknown) {
-        // Check that all remaining incoming values match the first one.
-        while (++PI != PE) {
-          Tristate Ret = getPredicateOnEdge(Pred, V, C, *PI, BB, CxtI);
-          if (Ret != Baseline) break;
-        }
-        // If we terminated early, then one of the values didn't match.
-        if (PI == PE) {
-          return Baseline;
-        }
+  // For a comparison where the V is outside this block, it's possible
+  // that we've branched on it before. Look to see if the value is known
+  // on all incoming edges.
+  if (!isa<Instruction>(V) || cast<Instruction>(V)->getParent() != BB) {
+    // For predecessor edge, determine if the comparison is true or false
+    // on that edge. If they're all true or all false, we can conclude
+    // the value of the comparison in this block.
+    Tristate Baseline = getPredicateOnEdge(Pred, V, C, *PI, BB, CxtI);
+    if (Baseline != Unknown) {
+      // Check that all remaining incoming values match the first one.
+      while (++PI != PE) {
+        Tristate Ret = getPredicateOnEdge(Pred, V, C, *PI, BB, CxtI);
+        if (Ret != Baseline)
+          break;
+      }
+      // If we terminated early, then one of the values didn't match.
+      if (PI == PE) {
+        return Baseline;
       }
     }
   }
+
   return Unknown;
 }
 

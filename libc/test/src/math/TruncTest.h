@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include "utils/UnitTest/FPMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 #include <math.h>
@@ -23,10 +23,10 @@ public:
 
   void testSpecialNumbers(TruncFunc func) {
     EXPECT_FP_EQ(zero, func(zero));
-    EXPECT_FP_EQ(negZero, func(negZero));
+    EXPECT_FP_EQ(neg_zero, func(neg_zero));
 
     EXPECT_FP_EQ(inf, func(inf));
-    EXPECT_FP_EQ(negInf, func(negInf));
+    EXPECT_FP_EQ(neg_inf, func(neg_inf));
 
     EXPECT_FP_EQ(aNaN, func(aNaN));
   }

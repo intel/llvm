@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===------------------------ type_traits ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -852,9 +852,8 @@ inline constexpr bool is_array_v = is_array<_Tp>::value;
 
 // is_pointer
 
-// Before Clang 11 / AppleClang 12.0.5, __is_pointer didn't work for Objective-C types.
+// Before AppleClang 12.0.5, __is_pointer didn't work for Objective-C types.
 #if __has_keyword(__is_pointer) &&                                             \
-    !(defined(_LIBCPP_CLANG_VER) && _LIBCPP_CLANG_VER < 1100) &&               \
     !(defined(_LIBCPP_APPLE_CLANG_VER) && _LIBCPP_APPLE_CLANG_VER < 1205)
 
 template<class _Tp>
@@ -1417,9 +1416,7 @@ template<class _Tp> using type_identity_t = typename type_identity<_Tp>::type;
 
 // is_signed
 
-// Before Clang 10, __is_signed didn't work for floating-point types or enums.
-#if __has_keyword(__is_signed) &&                                              \
-    !(defined(_LIBCPP_CLANG_VER) && _LIBCPP_CLANG_VER < 1000)
+#if __has_keyword(__is_signed)
 
 template<class _Tp>
 struct _LIBCPP_TEMPLATE_VIS is_signed : _BoolConstant<__is_signed(_Tp)> { };
@@ -3956,7 +3953,7 @@ struct __nothrow_swappable_with {
 template <class _Tp, class _Up>
 struct __nothrow_swappable_with<_Tp, _Up, false> : false_type {};
 
-}  // __detail
+} // namespace __detail
 
 template <class _Tp>
 struct __is_swappable

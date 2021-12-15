@@ -119,12 +119,7 @@ void SymbolFilePDB::Terminate() {
 
 void SymbolFilePDB::DebuggerInitialize(lldb_private::Debugger &debugger) {}
 
-lldb_private::ConstString SymbolFilePDB::GetPluginNameStatic() {
-  static ConstString g_name("pdb");
-  return g_name;
-}
-
-const char *SymbolFilePDB::GetPluginDescriptionStatic() {
+llvm::StringRef SymbolFilePDB::GetPluginDescriptionStatic() {
   return "Microsoft PDB debug symbol file reader.";
 }
 
@@ -1426,7 +1421,6 @@ void SymbolFilePDB::AddSymbols(lldb_private::Symtab &symtab) {
                ));
   }
 
-  symtab.CalculateSymbolSizes();
   symtab.Finalize();
 }
 
@@ -1461,7 +1455,7 @@ void SymbolFilePDB::DumpClangAST(Stream &s) {
       llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
   if (!clang_type_system)
     return;
-  clang_type_system->Dump(s);
+  clang_type_system->Dump(s.AsRawOstream());
 }
 
 void SymbolFilePDB::FindTypesByRegex(
@@ -1711,11 +1705,6 @@ SymbolFilePDB::FindNamespace(lldb_private::ConstString name,
     return CompilerDeclContext();
 
   return clang_type_system->CreateDeclContext(namespace_decl);
-}
-
-lldb_private::ConstString SymbolFilePDB::GetPluginName() {
-  static ConstString g_name("pdb");
-  return g_name;
 }
 
 IPDBSession &SymbolFilePDB::GetPDBSession() { return *m_session_up; }

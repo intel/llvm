@@ -15,6 +15,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/DebugInfo/DWARF/DWARFSection.h"
+#include "llvm/DebugInfo/DWARF/DWARFUnitIndex.h"
 #include "llvm/Support/DJB.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/WithColor.h"
@@ -171,15 +172,16 @@ bool DWARFVerifier::verifyName(const DWARFDie &Die) {
   std::string OriginalFullName;
   Die.getFullName(OS, &OriginalFullName);
   OS.flush();
-  if (!OriginalFullName.empty() && OriginalFullName != ReconstructedName) {
-    error() << "Simplified template DW_AT_name could not be reconstituted:\n"
-            << formatv("         original: {0}\n"
-                       "    reconstituted: {1}\n",
-                       OriginalFullName, ReconstructedName);
-    dump(Die) << '\n';
-    dump(Die.getDwarfUnit()->getUnitDIE()) << '\n';
-  }
-  return 0;
+  if (OriginalFullName.empty() || OriginalFullName == ReconstructedName)
+    return 0;
+
+  error() << "Simplified template DW_AT_name could not be reconstituted:\n"
+          << formatv("         original: {0}\n"
+                     "    reconstituted: {1}\n",
+                     OriginalFullName, ReconstructedName);
+  dump(Die) << '\n';
+  dump(Die.getDwarfUnit()->getUnitDIE()) << '\n';
+  return 1;
 }
 
 unsigned DWARFVerifier::verifyUnitContents(DWARFUnit &Unit,
@@ -316,12 +318,33 @@ bool DWARFVerifier::handleDebugAbbrev() {
   return NumErrors == 0;
 }
 
-unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S,
-                                          DWARFSectionKind SectionKind) {
+unsigned DWARFVerifier::verifyUnits(const DWARFUnitVector &Units) {
+  unsigned NumDebugInfoErrors = 0;
+  ReferenceMap CrossUnitReferences;
+
+  for (const auto &Unit : Units) {
+      ReferenceMap UnitLocalReferences;
+      NumDebugInfoErrors +=
+          verifyUnitContents(*Unit, UnitLocalReferences, CrossUnitReferences);
+      NumDebugInfoErrors += verifyDebugInfoReferences(
+          UnitLocalReferences, [&](uint64_t Offset) { return Unit.get(); });
+  }
+
+  NumDebugInfoErrors += verifyDebugInfoReferences(
+      CrossUnitReferences, [&](uint64_t Offset) -> DWARFUnit * {
+        if (DWARFUnit *U = Units.getUnitForOffset(Offset))
+          return U;
+        return nullptr;
+      });
+
+  return NumDebugInfoErrors;
+}
+
+unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S) {
   const DWARFObject &DObj = DCtx.getDWARFObj();
   DWARFDataExtractor DebugInfoData(DObj, S, DCtx.isLittleEndian(), 0);
   unsigned NumDebugInfoErrors = 0;
-  uint64_t OffsetStart = 0, Offset = 0, UnitIdx = 0;
+  uint64_t Offset = 0, UnitIdx = 0;
   uint8_t UnitType = 0;
   bool isUnitDWARF64 = false;
   bool isHeaderChainValid = true;
@@ -333,48 +356,11 @@ unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S,
   /// lies between to valid DIEs.
   ReferenceMap CrossUnitReferences;
   while (hasDIE) {
-    OffsetStart = Offset;
     if (!verifyUnitHeader(DebugInfoData, &Offset, UnitIdx, UnitType,
                           isUnitDWARF64)) {
       isHeaderChainValid = false;
       if (isUnitDWARF64)
         break;
-    } else {
-      DWARFUnitHeader Header;
-      Header.extract(DCtx, DebugInfoData, &OffsetStart, SectionKind);
-      ReferenceMap UnitLocalReferences;
-      DWARFUnit *Unit;
-      switch (UnitType) {
-      case dwarf::DW_UT_type:
-      case dwarf::DW_UT_split_type: {
-        Unit = TypeUnitVector.addUnit(std::make_unique<DWARFTypeUnit>(
-            DCtx, S, Header, DCtx.getDebugAbbrev(), &DObj.getRangesSection(),
-            &DObj.getLocSection(), DObj.getStrSection(),
-            DObj.getStrOffsetsSection(), &DObj.getAddrSection(),
-            DObj.getLineSection(), DCtx.isLittleEndian(), false,
-            TypeUnitVector));
-        break;
-      }
-      case dwarf::DW_UT_skeleton:
-      case dwarf::DW_UT_split_compile:
-      case dwarf::DW_UT_compile:
-      case dwarf::DW_UT_partial:
-      // UnitType = 0 means that we are verifying a compile unit in DWARF v4.
-      case 0: {
-        Unit = CompileUnitVector.addUnit(std::make_unique<DWARFCompileUnit>(
-            DCtx, S, Header, DCtx.getDebugAbbrev(), &DObj.getRangesSection(),
-            &DObj.getLocSection(), DObj.getStrSection(),
-            DObj.getStrOffsetsSection(), &DObj.getAddrSection(),
-            DObj.getLineSection(), DCtx.isLittleEndian(), false,
-            CompileUnitVector));
-        break;
-      }
-      default: { llvm_unreachable("Invalid UnitType."); }
-      }
-      NumDebugInfoErrors +=
-          verifyUnitContents(*Unit, UnitLocalReferences, CrossUnitReferences);
-      NumDebugInfoErrors += verifyDebugInfoReferences(
-          UnitLocalReferences, [&](uint64_t Offset) { return Unit; });
     }
     hasDIE = DebugInfoData.isValidOffset(Offset);
     ++UnitIdx;
@@ -385,14 +371,6 @@ unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S,
   }
   if (!isHeaderChainValid)
     ++NumDebugInfoErrors;
-  NumDebugInfoErrors += verifyDebugInfoReferences(
-      CrossUnitReferences, [&](uint64_t Offset) -> DWARFUnit * {
-        if (DWARFUnit *U = TypeUnitVector.getUnitForOffset(Offset))
-          return U;
-        if (DWARFUnit *U = CompileUnitVector.getUnitForOffset(Offset))
-          return U;
-        return nullptr;
-      });
   return NumDebugInfoErrors;
 }
 
@@ -402,13 +380,16 @@ bool DWARFVerifier::handleDebugInfo() {
 
   OS << "Verifying .debug_info Unit Header Chain...\n";
   DObj.forEachInfoSections([&](const DWARFSection &S) {
-    NumErrors += verifyUnitSection(S, DW_SECT_INFO);
+    NumErrors += verifyUnitSection(S);
   });
 
   OS << "Verifying .debug_types Unit Header Chain...\n";
   DObj.forEachTypesSections([&](const DWARFSection &S) {
-    NumErrors += verifyUnitSection(S, DW_SECT_EXT_TYPES);
+    NumErrors += verifyUnitSection(S);
   });
+
+  OS << "Verifying non-dwo Units...\n";
+  NumErrors += verifyUnits(DCtx.getNormalUnitsVector());
   return NumErrors == 0;
 }
 
@@ -551,9 +532,10 @@ unsigned DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
         DataExtractor Data(toStringRef(Entry.Expr), DCtx.isLittleEndian(), 0);
         DWARFExpression Expression(Data, U->getAddressByteSize(),
                                    U->getFormParams().Format);
-        bool Error = any_of(Expression, [](DWARFExpression::Operation &Op) {
-          return Op.isError();
-        });
+        bool Error =
+            any_of(Expression, [](const DWARFExpression::Operation &Op) {
+              return Op.isError();
+            });
         if (Error || !Expression.verify(U))
           ReportError("DIE contains invalid DWARF expression:");
       }
@@ -1287,16 +1269,14 @@ DWARFVerifier::verifyNameIndexAbbrevs(const DWARFDebugNames::NameIndex &NI) {
 static SmallVector<StringRef, 2> getNames(const DWARFDie &DIE,
                                           bool IncludeLinkageName = true) {
   SmallVector<StringRef, 2> Result;
-  if (const char *Str = DIE.getName(DINameKind::ShortName))
+  if (const char *Str = DIE.getShortName())
     Result.emplace_back(Str);
   else if (DIE.getTag() == dwarf::DW_TAG_namespace)
     Result.emplace_back("(anonymous namespace)");
 
   if (IncludeLinkageName) {
-    if (const char *Str = DIE.getName(DINameKind::LinkageName)) {
-      if (Result.empty() || Result[0] != Str)
-        Result.emplace_back(Str);
-    }
+    if (const char *Str = DIE.getLinkageName())
+      Result.emplace_back(Str);
   }
 
   return Result;
@@ -1399,11 +1379,12 @@ static bool isVariableIndexable(const DWARFDie &Die, DWARFContext &DCtx) {
                        U->getAddressByteSize());
     DWARFExpression Expression(Data, U->getAddressByteSize(),
                                U->getFormParams().Format);
-    bool IsInteresting = any_of(Expression, [](DWARFExpression::Operation &Op) {
-      return !Op.isError() && (Op.getCode() == DW_OP_addr ||
-                               Op.getCode() == DW_OP_form_tls_address ||
-                               Op.getCode() == DW_OP_GNU_push_tls_address);
-    });
+    bool IsInteresting =
+        any_of(Expression, [](const DWARFExpression::Operation &Op) {
+          return !Op.isError() && (Op.getCode() == DW_OP_addr ||
+                                   Op.getCode() == DW_OP_form_tls_address ||
+                                   Op.getCode() == DW_OP_GNU_push_tls_address);
+        });
     if (IsInteresting)
       return true;
   }

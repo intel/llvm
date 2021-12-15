@@ -497,15 +497,14 @@ static LogicalResult verifySourceMemoryAccessAttribute(MemoryOpTy memoryOp) {
   return success();
 }
 
-template <typename BarrierOp>
-static LogicalResult verifyMemorySemantics(BarrierOp op) {
+static LogicalResult
+verifyMemorySemantics(Operation *op, spirv::MemorySemantics memorySemantics) {
   // According to the SPIR-V specification:
   // "Despite being a mask and allowing multiple bits to be combined, it is
   // invalid for more than one of these four bits to be set: Acquire, Release,
   // AcquireRelease, or SequentiallyConsistent. Requesting both Acquire and
   // Release semantics is done by setting the AcquireRelease bit, not by setting
   // two bits."
-  auto memorySemantics = op.memory_semantics();
   auto atMostOneInSet = spirv::MemorySemantics::Acquire |
                         spirv::MemorySemantics::Release |
                         spirv::MemorySemantics::AcquireRelease |
@@ -514,9 +513,10 @@ static LogicalResult verifyMemorySemantics(BarrierOp op) {
   auto bitCount = llvm::countPopulation(
       static_cast<uint32_t>(memorySemantics & atMostOneInSet));
   if (bitCount > 1) {
-    return op.emitError("expected at most one of these four memory constraints "
-                        "to be set: `Acquire`, `Release`,"
-                        "`AcquireRelease` or `SequentiallyConsistent`");
+    return op->emitError(
+        "expected at most one of these four memory constraints "
+        "to be set: `Acquire`, `Release`,"
+        "`AcquireRelease` or `SequentiallyConsistent`");
   }
   return success();
 }
@@ -756,14 +756,28 @@ static void printAtomicUpdateOp(Operation *op, OpAsmPrinter &printer) {
           << "\" " << op->getOperands() << " : " << op->getOperand(0).getType();
 }
 
+template <typename T>
+static StringRef stringifyTypeName();
+
+template <>
+StringRef stringifyTypeName<IntegerType>() {
+  return "integer";
+}
+
+template <>
+StringRef stringifyTypeName<FloatType>() {
+  return "float";
+}
+
 // Verifies an atomic update op.
+template <typename ExpectedElementType>
 static LogicalResult verifyAtomicUpdateOp(Operation *op) {
   auto ptrType = op->getOperand(0).getType().cast<spirv::PointerType>();
   auto elementType = ptrType.getPointeeType();
-  if (!elementType.isa<IntegerType>())
-    return op->emitOpError(
-               "pointer operand must point to an integer value, found ")
-           << elementType;
+  if (!elementType.isa<ExpectedElementType>())
+    return op->emitOpError() << "pointer operand must point to an "
+                             << stringifyTypeName<ExpectedElementType>()
+                             << " value, found " << elementType;
 
   if (op->getNumOperands() > 1) {
     auto valueType = op->getOperand(1).getType();
@@ -771,6 +785,11 @@ static LogicalResult verifyAtomicUpdateOp(Operation *op) {
       return op->emitOpError("expected value to have the same type as the "
                              "pointer operand's pointee type ")
              << elementType << ", but found " << valueType;
+  }
+  auto memorySemantics = static_cast<spirv::MemorySemantics>(
+      op->getAttrOfType<IntegerAttr>(kSemanticsAttrName).getInt());
+  if (failed(verifyMemorySemantics(op, memorySemantics))) {
+    return failure();
   }
   return success();
 }
@@ -1133,12 +1152,16 @@ static LogicalResult verify(spirv::AddressOfOp addressOfOp) {
   return success();
 }
 
-//===----------------------------------------------------------------------===//
-// spv.AtomicCompareExchangeWeak
-//===----------------------------------------------------------------------===//
+template <typename T>
+static void printAtomicCompareExchangeImpl(T atomOp, OpAsmPrinter &printer) {
+  printer << " \"" << stringifyScope(atomOp.memory_scope()) << "\" \""
+          << stringifyMemorySemantics(atomOp.equal_semantics()) << "\" \""
+          << stringifyMemorySemantics(atomOp.unequal_semantics()) << "\" "
+          << atomOp.getOperands() << " : " << atomOp.pointer().getType();
+}
 
-static ParseResult parseAtomicCompareExchangeWeakOp(OpAsmParser &parser,
-                                                    OperationState &state) {
+static ParseResult parseAtomicCompareExchangeImpl(OpAsmParser &parser,
+                                                  OperationState &state) {
   spirv::Scope memoryScope;
   spirv::MemorySemantics equalSemantics, unequalSemantics;
   SmallVector<OpAsmParser::OperandType, 3> operandInfo;
@@ -1168,15 +1191,8 @@ static ParseResult parseAtomicCompareExchangeWeakOp(OpAsmParser &parser,
   return parser.addTypeToList(ptrType.getPointeeType(), state.types);
 }
 
-static void print(spirv::AtomicCompareExchangeWeakOp atomOp,
-                  OpAsmPrinter &printer) {
-  printer << " \"" << stringifyScope(atomOp.memory_scope()) << "\" \""
-          << stringifyMemorySemantics(atomOp.equal_semantics()) << "\" \""
-          << stringifyMemorySemantics(atomOp.unequal_semantics()) << "\" "
-          << atomOp.getOperands() << " : " << atomOp.pointer().getType();
-}
-
-static LogicalResult verify(spirv::AtomicCompareExchangeWeakOp atomOp) {
+template <typename T>
+static LogicalResult verifyAtomicCompareExchangeImpl(T atomOp) {
   // According to the spec:
   // "The type of Value must be the same as Result Type. The type of the value
   // pointed to by Pointer must be the same as Result Type. This type must also
@@ -1192,8 +1208,10 @@ static LogicalResult verify(spirv::AtomicCompareExchangeWeakOp atomOp) {
                "result, but found ")
            << atomOp.comparator().getType() << " vs " << atomOp.getType();
 
-  Type pointeeType =
-      atomOp.pointer().getType().cast<spirv::PointerType>().getPointeeType();
+  Type pointeeType = atomOp.pointer()
+                         .getType()
+                         .template cast<spirv::PointerType>()
+                         .getPointeeType();
   if (atomOp.getType() != pointeeType)
     return atomOp.emitOpError(
                "pointer operand's pointee type must have the same "
@@ -1202,6 +1220,59 @@ static LogicalResult verify(spirv::AtomicCompareExchangeWeakOp atomOp) {
 
   // TODO: Unequal cannot be set to Release or Acquire and Release.
   // In addition, Unequal cannot be set to a stronger memory-order then Equal.
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// spv.AtomicExchange
+//===----------------------------------------------------------------------===//
+
+static void print(spirv::AtomicExchangeOp atomOp, OpAsmPrinter &printer) {
+  printer << " \"" << stringifyScope(atomOp.memory_scope()) << "\" \""
+          << stringifyMemorySemantics(atomOp.semantics()) << "\" "
+          << atomOp.getOperands() << " : " << atomOp.pointer().getType();
+}
+
+static ParseResult parseAtomicExchangeOp(OpAsmParser &parser,
+                                         OperationState &state) {
+  spirv::Scope memoryScope;
+  spirv::MemorySemantics semantics;
+  SmallVector<OpAsmParser::OperandType, 2> operandInfo;
+  Type type;
+  if (parseEnumStrAttr(memoryScope, parser, state, kMemoryScopeAttrName) ||
+      parseEnumStrAttr(semantics, parser, state, kSemanticsAttrName) ||
+      parser.parseOperandList(operandInfo, 2))
+    return failure();
+
+  auto loc = parser.getCurrentLocation();
+  if (parser.parseColonType(type))
+    return failure();
+
+  auto ptrType = type.dyn_cast<spirv::PointerType>();
+  if (!ptrType)
+    return parser.emitError(loc, "expected pointer type");
+
+  if (parser.resolveOperands(operandInfo, {ptrType, ptrType.getPointeeType()},
+                             parser.getNameLoc(), state.operands))
+    return failure();
+
+  return parser.addTypeToList(ptrType.getPointeeType(), state.types);
+}
+
+static LogicalResult verify(spirv::AtomicExchangeOp atomOp) {
+  if (atomOp.getType() != atomOp.value().getType())
+    return atomOp.emitOpError("value operand must have the same type as the op "
+                              "result, but found ")
+           << atomOp.value().getType() << " vs " << atomOp.getType();
+
+  Type pointeeType =
+      atomOp.pointer().getType().cast<spirv::PointerType>().getPointeeType();
+  if (atomOp.getType() != pointeeType)
+    return atomOp.emitOpError(
+               "pointer operand's pointee type must have the same "
+               "as the op result type, but found ")
+           << pointeeType << " vs " << atomOp.getType();
 
   return success();
 }
@@ -2324,12 +2395,6 @@ static LogicalResult verify(spirv::SubgroupBlockWriteINTELOp blockWriteOp) {
 // spv.GroupNonUniformElectOp
 //===----------------------------------------------------------------------===//
 
-void spirv::GroupNonUniformElectOp::build(OpBuilder &builder,
-                                          OperationState &state,
-                                          spirv::Scope scope) {
-  build(builder, state, builder.getI1Type(), scope);
-}
-
 static LogicalResult verify(spirv::GroupNonUniformElectOp groupOp) {
   spirv::Scope scope = groupOp.execution_scope();
   if (scope != spirv::Scope::Workgroup && scope != spirv::Scope::Subgroup)
@@ -2777,11 +2842,6 @@ static LogicalResult verify(spirv::ReturnValueOp retValOp) {
 //===----------------------------------------------------------------------===//
 // spv.Select
 //===----------------------------------------------------------------------===//
-
-void spirv::SelectOp::build(OpBuilder &builder, OperationState &state,
-                            Value cond, Value trueValue, Value falseValue) {
-  build(builder, state, trueValue.getType(), cond, trueValue, falseValue);
-}
 
 static LogicalResult verify(spirv::SelectOp op) {
   if (auto conditionTy = op.condition().getType().dyn_cast<VectorType>()) {

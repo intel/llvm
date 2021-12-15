@@ -12,7 +12,11 @@
 
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 
+#include "mlir/Analysis/AffineStructures.h"
+#include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -38,8 +42,8 @@ using namespace mlir::linalg;
 using namespace mlir::scf;
 
 static bool isZero(Value v) {
-  if (auto cst = v.getDefiningOp<ConstantIndexOp>())
-    return cst.getValue() == 0;
+  if (auto cst = v.getDefiningOp<arith::ConstantIndexOp>())
+    return cst.value() == 0;
   return false;
 }
 
@@ -110,7 +114,7 @@ RegionMatcher::matchAsScalarBinaryOp(GenericOp op) {
   auto a = m_Val(block.getArgument(0));
   auto b = m_Val(block.getArgument(1));
 
-  auto addPattern = m_Op<linalg::YieldOp>(m_Op<AddIOp>(a, b));
+  auto addPattern = m_Op<linalg::YieldOp>(m_Op<arith::AddIOp>(a, b));
   if (addPattern.match(&ops.back()))
     return BinaryOpKind::IAdd;
 
@@ -173,39 +177,107 @@ SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b) {
   return dynOperands;
 }
 
-/// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
-/// is a constant then return a new value set to the smallest such constant.
-/// Otherwise returngetSmallestBoundingIndex nullptr.
-IntegerAttr getSmallestBoundingIndex(Value size) {
-  Optional<int64_t> boundingConst = {};
-  if (auto affineMinOp = size.getDefiningOp<AffineMinOp>()) {
-    for (auto e : affineMinOp.getAffineMap().getResults())
-      if (auto cst = e.dyn_cast<AffineConstantExpr>())
-        boundingConst = boundingConst
-                            ? std::min(boundingConst.getValue(), cst.getValue())
-                            : cst.getValue();
-  } else if (auto constIndexOp = size.getDefiningOp<ConstantOp>()) {
-    if (constIndexOp.getType().isa<IndexType>())
-      boundingConst = constIndexOp.value().cast<IntegerAttr>().getInt();
-  } else if (auto affineApplyOp = size.getDefiningOp<AffineApplyOp>()) {
-    if (auto cExpr = affineApplyOp.getAffineMap()
-                         .getResult(0)
-                         .dyn_cast<AffineConstantExpr>())
-      boundingConst = cExpr.getValue();
-  } else if (auto dimOp = size.getDefiningOp<tensor::DimOp>()) {
-    auto shape = dimOp.source().getType().dyn_cast<ShapedType>();
-    if (auto constOp = dimOp.index().getDefiningOp<ConstantOp>()) {
-      if (auto indexAttr = constOp.value().dyn_cast<IntegerAttr>()) {
-        auto dimIndex = indexAttr.getInt();
-        if (!shape.isDynamicDim(dimIndex)) {
-          boundingConst = shape.getShape()[dimIndex];
-        }
-      }
+void getUpperBoundForIndex(Value value, AffineMap &boundMap,
+                           SmallVectorImpl<Value> &boundOperands) {
+  // Initialize `boundMap` and `boundOperands` to the identity returning
+  // `value`. This combination is the default result of the method if no
+  // simplification is possible.
+  assert(value.getType().isIndex() && "expect value to have index type");
+  boundMap = AffineMap::getMultiDimIdentityMap(1, value.getContext());
+  boundOperands.assign({value});
+  canonicalizeMapAndOperands(&boundMap, &boundOperands);
+
+  // Continue only if there is an affine index computation to simplify.
+  Operation *definingOp = value.getDefiningOp();
+  if (!definingOp || !isa<AffineApplyOp, AffineMinOp>(definingOp))
+    return;
+
+  // Get the backward slice containing the affine index computation.
+  SetVector<Operation *> backwardSlice;
+  getBackwardSlice(definingOp, &backwardSlice, [](Operation *op) {
+    return isa<AffineApplyOp, AffineMinOp>(op);
+  });
+  backwardSlice.insert(definingOp);
+
+  // Setup a system of affine constraints that describe the index computation.
+  FlatAffineValueConstraints constraints;
+
+  // Helper to find or create an identifier for the given value.
+  auto findOrCreateId = [&](Value value) {
+    if (!constraints.containsId(value)) {
+      constraints.appendDimId(value);
+      return true;
     }
+    unsigned pos;
+    constraints.findId(value, &pos);
+    return pos < constraints.getNumDimIds();
+  };
+  // Helper to get the position for the given value.
+  auto getPosition = [&](Value value) {
+    unsigned pos;
+    bool exists = constraints.findId(value, &pos);
+    (void)exists;
+    assert(exists && "expect to find the identifier");
+    return pos;
+  };
+
+  // Add the affine operations in `backwardSlice` to the constraints.
+  for (Operation *op : llvm::reverse(backwardSlice)) {
+    // Add an identifier for all op results and operands.
+    if (!(llvm::all_of(op->getResults(), findOrCreateId) &&
+          llvm::all_of(op->getOperands(), findOrCreateId)))
+      return;
+    // Add AffineApplyOps to the constraints.
+    if (auto applyOp = dyn_cast<AffineApplyOp>(op)) {
+      AffineValueMap valueMap(applyOp.getAffineMap(), applyOp.getOperands(),
+                              applyOp.getResult());
+      if (failed(constraints.composeMap(&valueMap)))
+        return;
+      continue;
+    }
+    // Add AffineMinOps to the constraints.
+    auto minOp = cast<AffineMinOp>(op);
+    AffineMap map = constraints.computeAlignedMap(minOp.getAffineMap(),
+                                                  minOp.getOperands());
+    if (failed(constraints.addBound(FlatAffineConstraints::UB,
+                                    getPosition(minOp.getResult()), map)))
+      return;
   }
-  if (boundingConst && *boundingConst >= 0)
-    return Builder(size.getContext()).getIndexAttr(*boundingConst);
-  return nullptr;
+
+  // Obtain an upper bound for the affine index computation by projecting out
+  // all temporary results and expressing the upper bound for `value` in terms
+  // of the terminals of the index computation.
+  SmallVector<AffineMap> lowerBounds(1), upperBounds(1);
+  constraints.getSliceBounds(getPosition(value), 1, value.getContext(),
+                             &lowerBounds, &upperBounds);
+
+  // Verify `upperBounds[0]` is valid and has at least one result.
+  if (!upperBounds[0] || upperBounds[0].getNumResults() == 0)
+    return;
+
+  // Set `boundMap` and `boundOperands` to the computed upper bound.
+  boundMap = upperBounds[0];
+  constraints.getAllValues(&boundOperands);
+  erase_value(boundOperands, value);
+  canonicalizeMapAndOperands(&boundMap, &boundOperands);
+}
+
+FailureOr<int64_t> getConstantUpperBoundForIndex(Value value) {
+  // Compute an upper bound for `value`.
+  AffineMap boundMap;
+  SmallVector<Value> boundOperands;
+  getUpperBoundForIndex(value, boundMap, boundOperands);
+
+  // Search the results of `boundMap` for constant upper bounds.
+  SmallVector<int64_t> constantBounds;
+  for (AffineExpr result : boundMap.getResults())
+    if (auto constExpr = result.dyn_cast<AffineConstantExpr>())
+      constantBounds.push_back(constExpr.getValue());
+
+  // Return the minimal upper bound or failure if none is found.
+  if (constantBounds.empty())
+    return failure();
+  return *std::min_element(constantBounds.begin(), constantBounds.end());
 }
 
 tensor::ExtractSliceOp makeComposedExtractSliceOp(
@@ -248,6 +320,66 @@ tensor::ExtractSliceOp makeComposedExtractSliceOp(
   }
   return b.create<tensor::ExtractSliceOp>(loc, producerOp.source(),
                                           foldedOffsets, sizes, strides);
+}
+
+Value makeComposedPadHighOp(OpBuilder &b, Location loc, RankedTensorType type,
+                            Value source, Value pad, bool nofold) {
+  assert(type.hasStaticShape() && "expect tensor type to have static shape");
+
+  // Exit if `source` is not defined by an ExtractSliceOp.
+  auto sliceOp = source.getDefiningOp<tensor::ExtractSliceOp>();
+  if (!sliceOp)
+    return PadTensorOp::createPadHighOp(type, source, pad, nofold, loc, b);
+
+  // Search the `source` use-def chain for padded LinalgOps.
+  Value current = sliceOp.source();
+  while (current) {
+    auto linalgOp = current.getDefiningOp<LinalgOp>();
+    if (!linalgOp)
+      break;
+    OpResult opResult = current.cast<OpResult>();
+    current = linalgOp.getOutputOperand(opResult.getResultNumber())->get();
+  }
+  auto padTensorOp = current ? current.getDefiningOp<PadTensorOp>() : nullptr;
+
+  // Exit if the search fails to match a PadTensorOp at the end of the matched
+  // LinalgOp sequence.
+  if (!padTensorOp)
+    return PadTensorOp::createPadHighOp(type, source, pad, nofold, loc, b);
+
+  // Exit if the padded result type does not match.
+  if (sliceOp.source().getType() != type)
+    return PadTensorOp::createPadHighOp(type, source, pad, nofold, loc, b);
+
+  // Exit if the LinalgOps are not high padded.
+  if (llvm::any_of(padTensorOp.getMixedLowPad(), [](OpFoldResult ofr) {
+        return getConstantIntValue(ofr) != static_cast<int64_t>(0);
+      }))
+    return PadTensorOp::createPadHighOp(type, source, pad, nofold, loc, b);
+
+  // Exit if the sizes of the dynamic sizes of `sliceOp` do not match the size
+  // of the slice padded by `padTensorOp`.
+  auto padTensorOpSliceOp =
+      padTensorOp.source().getDefiningOp<tensor::ExtractSliceOp>();
+  if (!padTensorOpSliceOp ||
+      llvm::any_of(llvm::zip(sliceOp.getMixedSizes(),
+                             padTensorOpSliceOp.getMixedSizes()),
+                   [](std::tuple<OpFoldResult, OpFoldResult> it) {
+                     return !isEqualConstantIntOrValue(std::get<0>(it),
+                                                       std::get<1>(it));
+                   }))
+    return PadTensorOp::createPadHighOp(type, source, pad, nofold, loc, b);
+
+  // Exit if the padding values do not match.
+  Attribute padTensorOpPadAttr, padAttr;
+  Value padTensorOpPad = padTensorOp.getConstantPaddingValue();
+  if (!padTensorOpPad ||
+      !matchPattern(padTensorOpPad, m_Constant(&padTensorOpPadAttr)) ||
+      !matchPattern(pad, m_Constant(&padAttr)) || padTensorOpPadAttr != padAttr)
+    return PadTensorOp::createPadHighOp(type, source, pad, nofold, loc, b);
+
+  // Return the padded result if the padding values and sizes match.
+  return sliceOp.source();
 }
 
 /// Specialization to build an scf "for" nest.
@@ -328,9 +460,9 @@ void GenerateLoopNest<AffineForOp>::doit(
   SmallVector<int64_t, 4> constantSteps;
   constantSteps.reserve(steps.size());
   for (Value v : steps) {
-    auto op = v.getDefiningOp<ConstantIndexOp>();
+    auto op = v.getDefiningOp<arith::ConstantIndexOp>();
     assert(op && "Affine loops require constant steps");
-    constantSteps.push_back(op.getValue());
+    constantSteps.push_back(op.value());
   }
 
   mlir::buildAffineLoopNest(b, loc, lbs, ubs, constantSteps,
@@ -629,10 +761,10 @@ Value makeTiledShape(OpBuilder &builder, Location loc, Value valueToTile,
     // b. The subshape size is 1. According to the way the loops are set up,
     //    tensors with "0" dimensions would never be constructed.
     int64_t shapeSize = shape[r];
-    auto sizeCst = size.getDefiningOp<ConstantIndexOp>();
-    auto hasTileSizeOne = sizeCst && sizeCst.getValue() == 1;
+    auto sizeCst = size.getDefiningOp<arith::ConstantIndexOp>();
+    auto hasTileSizeOne = sizeCst && sizeCst.value() == 1;
     auto dividesEvenly = sizeCst && !ShapedType::isDynamic(shapeSize) &&
-                         ((shapeSize % sizeCst.getValue()) == 0);
+                         ((shapeSize % sizeCst.value()) == 0);
     if (!hasTileSizeOne && !dividesEvenly) {
       LLVM_DEBUG(llvm::dbgs() << "makeTiledShape: shapeSize=" << shapeSize
                               << ", size: " << size
@@ -699,8 +831,9 @@ SmallVector<Value> computeTileOffsets(OpBuilder &b, Location loc,
   for (unsigned idx = 0, idxIvs = 0, e = tileSizes.size(); idx < e; ++idx) {
     LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for loop#" << idx << "\n");
     bool isTiled = !isZero(tileSizes[idx]);
-    offsets.push_back(isTiled ? ivs[idxIvs++]
-                              : b.create<ConstantIndexOp>(loc, 0).getResult());
+    offsets.push_back(
+        isTiled ? ivs[idxIvs++]
+                : b.create<arith::ConstantIndexOp>(loc, 0).getResult());
     LLVM_DEBUG(llvm::dbgs()
                << "computeTileOffsets: " << offsets.back() << "\n");
   }
@@ -747,8 +880,12 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
     Value shapedOp = valuesToTile[opOperand->getOperandNumber()];
     LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for operand " << shapedOp);
     AffineMap map = linalgOp.getTiedIndexingMap(opOperand);
-    // If the shape is not tiled, we can use it as is.
-    if (!isTiled(map, tileSizes)) {
+    // Use `opOperand` as is if it is not tiled and not an output tensor. Having
+    // an extract/insert slice pair for all output tensors simplifies follow up
+    // transformations such as padding and bufferization since the
+    // extract/insert slice pairs make the accessed iteration argument
+    // subdomains explicit.
+    if (!isTiled(map, tileSizes) && !linalgOp.isOutputTensor(opOperand)) {
       tiledShapes.push_back(shapedOp);
       LLVM_DEBUG(llvm::dbgs() << ": not tiled: use shape: "
                               << opOperand->get().getType() << "\n");
@@ -766,12 +903,7 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
 void addTileLoopIvsToIndexOpResults(OpBuilder &b, LinalgOp tiledOp,
                                     ArrayRef<Value> ivs) {
   if (tiledOp.hasIndexSemantics()) {
-    assert(tiledOp->getNumRegions() == 1 &&
-           tiledOp->getRegion(0).getBlocks().size() == 1 &&
-           "expect producer to have one block.");
-    // Shift all IndexOp results by the tile offset.
-    Block &block = tiledOp->getRegion(0).front();
-    for (IndexOp indexOp : block.getOps<IndexOp>()) {
+    for (IndexOp indexOp : tiledOp.getBlock()->getOps<IndexOp>()) {
       if (ivs[indexOp.dim()] == nullptr)
         continue;
       OpBuilder::InsertionGuard guard(b);

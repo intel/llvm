@@ -265,6 +265,7 @@ protected:
   // type
   virtual pi_result allocateImpl(void **ResultPtr, size_t Size,
                                  pi_uint32 Alignment) = 0;
+  virtual MemType getMemTypeImpl() = 0;
 
 public:
   USMMemoryAllocBase(pi_context Ctx, pi_device Dev)
@@ -272,6 +273,7 @@ public:
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
   void deallocate(void *Ptr) override final;
+  MemType getMemType() override final;
 };
 
 // Allocation routines for shared memory type
@@ -279,6 +281,7 @@ class USMSharedMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -290,6 +293,7 @@ class USMDeviceMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMDeviceMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -301,6 +305,7 @@ class USMHostMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
@@ -615,6 +620,14 @@ struct _pi_queue : _pi_object {
   // In this vector, main copy engine, if available, come first followed by
   // link copy engines, if available.
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
+
+  // This function will check if a Ze copy command queue is available in
+  // ZeCopyCommandQueues at index 'Index'.
+  // If available, it will return the queue. Otherwise, it will create a new
+  // Ze copy command queue and return a newly created queue.
+  pi_result
+  getOrCreateCopyCommandQueue(int Index,
+                              ze_command_queue_handle_t &ZeCopyCommandQueue);
 
   // One of the many available copy command queues will be used for
   // submitting command lists to. This variable stores index of the last used

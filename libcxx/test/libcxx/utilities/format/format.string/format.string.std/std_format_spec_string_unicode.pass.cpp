@@ -9,6 +9,9 @@
 // UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
+// Fails for 32-bit builds on AIX.
+// UNSUPPORTED: LIBCXX-AIX-FIXME
+
 // UTF-32 doesn't work properly
 // XFAIL: windows
 
@@ -251,7 +254,9 @@ constexpr void test() {
 
 constexpr bool test() {
   test<char>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test<wchar_t>();
+#endif
 #ifndef _LIBCPP_HAS_NO_CHAR8_T
   test<char8_t>();
 #endif

@@ -145,6 +145,14 @@
 # define TEST_THROW_SPEC(...) throw(__VA_ARGS__)
 #endif
 
+#if defined(__cpp_lib_is_constant_evaluated) && __cpp_lib_is_constant_evaluated >= 201811L
+# define TEST_IS_CONSTANT_EVALUATED std::is_constant_evaluated()
+#elif __has_builtin(__builtin_is_constant_evaluated)
+# define TEST_IS_CONSTANT_EVALUATED __builtin_is_constant_evaluated()
+#else
+# define TEST_IS_CONSTANT_EVALUATED false
+#endif
+
 #if TEST_STD_VER >= 14
 # define TEST_CONSTEXPR_CXX14 constexpr
 #else
@@ -346,6 +354,11 @@ inline void DoNotOptimize(Tp const& value) {
 
 #ifdef _WIN32
 #define TEST_WIN_NO_FILESYSTEM_PERMS_NONE
+#endif
+
+// Support for carving out parts of the test suite, like removing wide characters, etc.
+#if defined(_LIBCPP_HAS_NO_WIDE_CHARACTERS)
+#   define TEST_HAS_NO_WIDE_CHARACTERS
 #endif
 
 #if defined(__GNUC__)

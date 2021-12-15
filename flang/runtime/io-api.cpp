@@ -268,9 +268,9 @@ Cookie BeginUnformattedIO(
     IoErrorHandler handler{terminator};
     unit.SetDirection(DIR, handler);
     if constexpr (DIR == Direction::Output) {
-      if (unit.access == Access::Sequential && !unit.isFixedRecordLength) {
+      if (unit.access == Access::Sequential) {
         // Create space for (sub)record header to be completed by
-        // ExternalUnformattedIoStatementState<Direction::Output>::EndIoStatement()
+        // ExternalFileUnit::AdvanceRecord()
         unit.recordLength.reset(); // in case of prior BACKSPACE
         io.Emit("\0\0\0\0", 4); // placeholder for record length header
       }
@@ -543,7 +543,7 @@ bool IONAME(SetRec)(Cookie cookie, std::int64_t rec) {
         "REC= may not appear unless ACCESS='DIRECT'");
     return false;
   }
-  if (!connection.isFixedRecordLength || !connection.recordLength) {
+  if (!connection.openRecl) {
     io.GetIoErrorHandler().SignalError("RECL= was not specified");
     return false;
   }
@@ -554,7 +554,7 @@ bool IONAME(SetRec)(Cookie cookie, std::int64_t rec) {
   }
   connection.currentRecordNumber = rec;
   if (auto *unit{io.GetExternalFileUnit()}) {
-    unit->SetPosition((rec - 1) * *connection.recordLength);
+    unit->SetPosition((rec - 1) * *connection.openRecl);
   }
   return true;
 }
@@ -827,12 +827,11 @@ bool IONAME(SetRecl)(Cookie cookie, std::size_t n) {
   if (n <= 0) {
     io.GetIoErrorHandler().SignalError("RECL= must be greater than zero");
   }
-  if (open->wasExtant() && open->unit().isFixedRecordLength &&
-      open->unit().recordLength.value_or(n) != static_cast<std::int64_t>(n)) {
+  if (open->wasExtant() &&
+      open->unit().openRecl.value_or(n) != static_cast<std::int64_t>(n)) {
     open->SignalError("RECL= may not be changed for an open unit");
   }
-  open->unit().isFixedRecordLength = true;
-  open->unit().recordLength = n;
+  open->unit().openRecl = n;
   return true;
 }
 
@@ -949,14 +948,52 @@ bool IONAME(InputUnformattedBlock)(
   return false;
 }
 
+bool IONAME(OutputInteger8)(Cookie cookie, std::int8_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger8");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 1, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
+bool IONAME(OutputInteger16)(Cookie cookie, std::int16_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger16");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 2, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
+bool IONAME(OutputInteger32)(Cookie cookie, std::int32_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger32");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 4, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
 bool IONAME(OutputInteger64)(Cookie cookie, std::int64_t n) {
   cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger64");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
-      TypeCategory::Integer, sizeof n, reinterpret_cast<void *>(&n), 0);
+      TypeCategory::Integer, 8, reinterpret_cast<void *>(&n), 0);
   return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
 }
+
+#ifdef __SIZEOF_INT128__
+bool IONAME(OutputInteger128)(Cookie cookie, common::int128_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger128");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 16, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+#endif
 
 bool IONAME(InputInteger)(Cookie cookie, std::int64_t &n, int kind) {
   cookie->CheckFormattedStmtType<Direction::Input>("InputInteger");

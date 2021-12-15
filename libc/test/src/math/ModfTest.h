@@ -8,8 +8,8 @@
 
 #include "src/__support/FPUtil/BasicOperations.h"
 #include "src/__support/FPUtil/NearestIntegerOperations.h"
-#include "src/__support/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include "utils/UnitTest/FPMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 #include <math.h>
@@ -28,13 +28,13 @@ public:
 
     EXPECT_FP_EQ(zero, func(zero, &integral));
     EXPECT_FP_EQ(integral, zero);
-    EXPECT_FP_EQ(negZero, func(negZero, &integral));
-    EXPECT_FP_EQ(integral, negZero);
+    EXPECT_FP_EQ(neg_zero, func(neg_zero, &integral));
+    EXPECT_FP_EQ(integral, neg_zero);
 
     EXPECT_FP_EQ(zero, func(inf, &integral));
     EXPECT_FP_EQ(inf, integral);
-    EXPECT_FP_EQ(negZero, func(negInf, &integral));
-    EXPECT_FP_EQ(negInf, integral);
+    EXPECT_FP_EQ(neg_zero, func(neg_inf, &integral));
+    EXPECT_FP_EQ(neg_inf, integral);
 
     EXPECT_FP_EQ(aNaN, func(aNaN, &integral));
   }

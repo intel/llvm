@@ -10,6 +10,8 @@
 #define LLVM_LIB_TARGET_SYSTEMZ_SYSTEMZFRAMELOWERING_H
 
 #include "MCTargetDesc/SystemZMCTargetDesc.h"
+#include "SystemZInstrBuilder.h"
+#include "SystemZMachineFunctionInfo.h"
 #include "llvm/ADT/IndexedMap.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/Support/TypeSize.h"
@@ -19,7 +21,6 @@ class SystemZTargetMachine;
 class SystemZSubtarget;
 
 class SystemZFrameLowering : public TargetFrameLowering {
-
 public:
   SystemZFrameLowering(StackDirection D, Align StackAl, int LAO, Align TransAl,
                        bool StackReal);
@@ -28,7 +29,18 @@ public:
   create(const SystemZSubtarget &STI);
 
   // Override TargetFrameLowering.
-  bool isFPCloseToIncomingSP() const override { return false; }
+  bool allocateScavengingFrameIndexesNearIncomingSP(
+    const MachineFunction &MF) const override {
+    // SystemZ wants normal register scavenging slots, as close to the stack or
+    // frame pointer as possible.
+    // The default implementation assumes an x86-like layout, where the frame
+    // pointer is at the opposite end of the frame from the stack pointer.
+    // This meant that when frame pointer elimination was disabled,
+    // the slots ended up being as close as possible to the incoming
+    // stack pointer, which is the opposite of what we want on SystemZ.
+    return false;
+  }
+
   bool hasReservedCallFrame(const MachineFunction &MF) const override;
   MachineBasicBlock::iterator
   eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
@@ -42,7 +54,6 @@ public:
   SystemZELFFrameLowering();
 
   // Override TargetFrameLowering.
-  bool isFPCloseToIncomingSP() const override { return false; }
   bool
   assignCalleeSavedSpillSlots(MachineFunction &MF,
                               const TargetRegisterInfo *TRI,
@@ -86,8 +97,23 @@ public:
 };
 
 class SystemZXPLINKFrameLowering : public SystemZFrameLowering {
+  IndexedMap<unsigned> RegSpillOffsets;
+
 public:
   SystemZXPLINKFrameLowering();
+
+  bool
+  assignCalleeSavedSpillSlots(MachineFunction &MF,
+                              const TargetRegisterInfo *TRI,
+                              std::vector<CalleeSavedInfo> &CSI) const override;
+
+  void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
+                            RegScavenger *RS) const override;
+
+  bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
+                                 MachineBasicBlock::iterator MBBI,
+                                 ArrayRef<CalleeSavedInfo> CSI,
+                                 const TargetRegisterInfo *TRI) const override;
 
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 

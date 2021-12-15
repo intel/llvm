@@ -36,11 +36,9 @@ protected:
   }
 
   Section &getCommonSection() {
-    if (!CommonSection) {
-      auto Prot = static_cast<sys::Memory::ProtectionFlags>(
-          sys::Memory::MF_READ | sys::Memory::MF_WRITE);
-      CommonSection = &G->createSection(CommonSectionName, Prot);
-    }
+    if (!CommonSection)
+      CommonSection =
+          &G->createSection(CommonSectionName, MemProt::Read | MemProt::Write);
     return *CommonSection;
   }
 
@@ -145,6 +143,9 @@ protected:
   // Only SHF_ALLOC sections will have graph sections.
   DenseMap<ELFSectionIndex, Section *> GraphSections;
   DenseMap<ELFSymbolIndex, Symbol *> GraphSymbols;
+  DenseMap<const typename ELFFile::Elf_Shdr *,
+           ArrayRef<typename ELFFile::Elf_Word>>
+      ShndxTables;
 };
 
 template <typename ELFT>
@@ -243,7 +244,7 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::prepare() {
     return SectionStringTabOrErr.takeError();
 
   // Get the SHT_SYMTAB section.
-  for (auto &Sec : Sections)
+  for (auto &Sec : Sections) {
     if (Sec.sh_type == ELF::SHT_SYMTAB) {
       if (!SymTabSec)
         SymTabSec = &Sec;
@@ -251,6 +252,20 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::prepare() {
         return make_error<JITLinkError>("Multiple SHT_SYMTAB sections in " +
                                         G->getName());
     }
+
+    // Extended table.
+    if (Sec.sh_type == ELF::SHT_SYMTAB_SHNDX) {
+      uint32_t SymtabNdx = Sec.sh_link;
+      if (SymtabNdx >= Sections.size())
+        return make_error<JITLinkError>("sh_link is out of bound");
+
+      auto ShndxTable = Obj.getSHNDXTable(Sec);
+      if (!ShndxTable)
+        return ShndxTable.takeError();
+
+      ShndxTables.insert({&Sections[SymtabNdx], *ShndxTable});
+    }
+  }
 
   return Error::success();
 }
@@ -295,18 +310,11 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySections() {
     });
 
     // Get the section's memory protection flags.
-    sys::Memory::ProtectionFlags Prot;
+    MemProt Prot;
     if (Sec.sh_flags & ELF::SHF_EXECINSTR)
-      Prot = static_cast<sys::Memory::ProtectionFlags>(sys::Memory::MF_READ |
-                                                       sys::Memory::MF_EXEC);
+      Prot = MemProt::Read | MemProt::Exec;
     else
-      Prot = static_cast<sys::Memory::ProtectionFlags>(sys::Memory::MF_READ |
-                                                       sys::Memory::MF_WRITE);
-
-    // For now we just use this to skip the "undefined" section, probably need
-    // to revist.
-    if (Sec.sh_size == 0)
-      continue;
+      Prot = MemProt::Read | MemProt::Write;
 
     auto &GraphSec = G->createSection(*Name, Prot);
     if (Sec.sh_type != ELF::SHT_NOBITS) {
@@ -405,9 +413,19 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
         (Sym.getType() == ELF::STT_NOTYPE || Sym.getType() == ELF::STT_FUNC ||
          Sym.getType() == ELF::STT_OBJECT ||
          Sym.getType() == ELF::STT_SECTION || Sym.getType() == ELF::STT_TLS)) {
-
-      // FIXME: Handle extended tables.
-      if (auto *GraphSec = getGraphSection(Sym.st_shndx)) {
+      // Handle extended tables.
+      unsigned Shndx = Sym.st_shndx;
+      if (Shndx == ELF::SHN_XINDEX) {
+        auto ShndxTable = ShndxTables.find(SymTabSec);
+        if (ShndxTable == ShndxTables.end())
+          continue;
+        auto NdxOrErr = object::getExtendedSymbolTableIndex<ELFT>(
+            Sym, SymIndex, ShndxTable->second);
+        if (!NdxOrErr)
+          return NdxOrErr.takeError();
+        Shndx = *NdxOrErr;
+      }
+      if (auto *GraphSec = getGraphSection(Shndx)) {
         Block *B = nullptr;
         {
           auto Blocks = GraphSec->blocks();

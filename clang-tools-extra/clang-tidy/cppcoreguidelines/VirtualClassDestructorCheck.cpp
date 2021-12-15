@@ -19,6 +19,21 @@ namespace clang {
 namespace tidy {
 namespace cppcoreguidelines {
 
+AST_MATCHER(CXXRecordDecl, hasPublicVirtualOrProtectedNonVirtualDestructor) {
+  // We need to call Node.getDestructor() instead of matching a
+  // CXXDestructorDecl. Otherwise, tests will fail for class templates, since
+  // the primary template (not the specialization) always gets a non-virtual
+  // CXXDestructorDecl in the AST. https://bugs.llvm.org/show_bug.cgi?id=51912
+  const CXXDestructorDecl *Destructor = Node.getDestructor();
+  if (!Destructor)
+    return false;
+
+  return (((Destructor->getAccess() == AccessSpecifier::AS_public) &&
+           Destructor->isVirtual()) ||
+          ((Destructor->getAccess() == AccessSpecifier::AS_protected) &&
+           !Destructor->isVirtual()));
+}
+
 void VirtualClassDestructorCheck::registerMatchers(MatchFinder *Finder) {
   ast_matchers::internal::Matcher<CXXRecordDecl> InheritsVirtualMethod =
       hasAnyBase(hasType(cxxRecordDecl(has(cxxMethodDecl(isVirtual())))));
@@ -26,16 +41,17 @@ void VirtualClassDestructorCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       cxxRecordDecl(
           anyOf(has(cxxMethodDecl(isVirtual())), InheritsVirtualMethod),
-          unless(anyOf(
-              has(cxxDestructorDecl(isPublic(), isVirtual())),
-              has(cxxDestructorDecl(isProtected(), unless(isVirtual()))))))
+          unless(hasPublicVirtualOrProtectedNonVirtualDestructor()))
           .bind("ProblematicClassOrStruct"),
       this);
 }
 
-static CharSourceRange
+static Optional<CharSourceRange>
 getVirtualKeywordRange(const CXXDestructorDecl &Destructor,
                        const SourceManager &SM, const LangOptions &LangOpts) {
+  if (Destructor.getLocation().isMacroID())
+    return None;
+
   SourceLocation VirtualBeginLoc = Destructor.getBeginLoc();
   SourceLocation VirtualEndLoc = VirtualBeginLoc.getLocWithOffset(
       Lexer::MeasureTokenLength(VirtualBeginLoc, SM, LangOpts));
@@ -177,8 +193,10 @@ void VirtualClassDestructorCheck::check(
       Fix = FixItHint::CreateInsertion(Destructor->getLocation(), "virtual ");
     } else if (Destructor->getAccess() == AccessSpecifier::AS_protected) {
       ProtectedAndVirtual = true;
-      Fix = FixItHint::CreateRemoval(getVirtualKeywordRange(
-          *Destructor, *Result.SourceManager, Result.Context->getLangOpts()));
+      if (const auto MaybeRange =
+              getVirtualKeywordRange(*Destructor, *Result.SourceManager,
+                                     Result.Context->getLangOpts()))
+        Fix = FixItHint::CreateRemoval(*MaybeRange);
     }
   } else {
     Fix = generateUserDeclaredDestructor(*MatchedClassOrStruct,

@@ -5,11 +5,13 @@ add_flang_library(FIRDialect
   FIRType.cpp
 
   DEPENDS
+  CanonicalizationPatternsIncGen
   FIRSupport
   FIROpsIncGen
 
   LINK_LIBS
   FIRSupport
+  MLIRArithmetic
   MLIROpenMPToLLVM
   MLIRLLVMToLLVMIRTranslation
   MLIRTargetLLVMIRExport

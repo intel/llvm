@@ -5,6 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// This transformation is a prototype that demote affine dialects operations
+// after optimizations to FIR loops operations.
+// It is used after the AffinePromotion pass.
+// It is not part of the production pipeline and would need more work in order
+// to be used in production.
+// More information can be found in this presentation:
+// https://slides.com/rajanwalia/deck
+//
+//===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
@@ -32,13 +42,14 @@ using namespace fir;
 
 namespace {
 
-class AffineLoadConversion : public OpRewritePattern<mlir::AffineLoadOp> {
+class AffineLoadConversion : public OpConversionPattern<mlir::AffineLoadOp> {
 public:
-  using OpRewritePattern<mlir::AffineLoadOp>::OpRewritePattern;
+  using OpConversionPattern<mlir::AffineLoadOp>::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(mlir::AffineLoadOp op,
-                                PatternRewriter &rewriter) const override {
-    SmallVector<Value> indices(op.getMapOperands());
+  LogicalResult
+  matchAndRewrite(mlir::AffineLoadOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    SmallVector<Value> indices(adaptor.indices());
     auto maybeExpandedMap =
         expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
     if (!maybeExpandedMap)
@@ -46,20 +57,21 @@ public:
 
     auto coorOp = rewriter.create<fir::CoordinateOp>(
         op.getLoc(), fir::ReferenceType::get(op.getResult().getType()),
-        op.getMemRef(), *maybeExpandedMap);
+        adaptor.memref(), *maybeExpandedMap);
 
     rewriter.replaceOpWithNewOp<fir::LoadOp>(op, coorOp.getResult());
     return success();
   }
 };
 
-class AffineStoreConversion : public OpRewritePattern<mlir::AffineStoreOp> {
+class AffineStoreConversion : public OpConversionPattern<mlir::AffineStoreOp> {
 public:
-  using OpRewritePattern<mlir::AffineStoreOp>::OpRewritePattern;
+  using OpConversionPattern<mlir::AffineStoreOp>::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(mlir::AffineStoreOp op,
-                                PatternRewriter &rewriter) const override {
-    SmallVector<Value> indices(op.getMapOperands());
+  LogicalResult
+  matchAndRewrite(mlir::AffineStoreOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    SmallVector<Value> indices(op.indices());
     auto maybeExpandedMap =
         expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
     if (!maybeExpandedMap)
@@ -67,8 +79,8 @@ public:
 
     auto coorOp = rewriter.create<fir::CoordinateOp>(
         op.getLoc(), fir::ReferenceType::get(op.getValueToStore().getType()),
-        op.getMemRef(), *maybeExpandedMap);
-    rewriter.replaceOpWithNewOp<fir::StoreOp>(op, op.getValueToStore(),
+        adaptor.memref(), *maybeExpandedMap);
+    rewriter.replaceOpWithNewOp<fir::StoreOp>(op, adaptor.value(),
                                               coorOp.getResult());
     return success();
   }
@@ -144,6 +156,7 @@ public:
       return true;
     });
     target.addLegalDialect<FIROpsDialect, mlir::scf::SCFDialect,
+                           mlir::arith::ArithmeticDialect,
                            mlir::StandardOpsDialect>();
 
     if (mlir::failed(mlir::applyPartialConversion(function, target,

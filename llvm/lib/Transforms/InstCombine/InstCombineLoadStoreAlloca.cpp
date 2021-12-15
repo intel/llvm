@@ -163,7 +163,7 @@ static bool isDereferenceableForAllocaSize(const Value *V, const AllocaInst *AI,
   uint64_t AllocaSize = DL.getTypeStoreSize(AI->getAllocatedType());
   if (!AllocaSize)
     return false;
-  return isDereferenceableAndAlignedPointer(V, Align(AI->getAlignment()),
+  return isDereferenceableAndAlignedPointer(V, AI->getAlign(),
                                             APInt(64, AllocaSize), DL);
 }
 
@@ -1487,8 +1487,8 @@ bool InstCombinerImpl::mergeStoreIntoSuccessor(StoreInst &SI) {
   StoreInst *OtherStore = nullptr;
   if (OtherBr->isUnconditional()) {
     --BBI;
-    // Skip over debugging info.
-    while (isa<DbgInfoIntrinsic>(BBI) ||
+    // Skip over debugging info and pseudo probes.
+    while (BBI->isDebugOrPseudoInst() ||
            (isa<BitCastInst>(BBI) && BBI->getType()->isPointerTy())) {
       if (BBI==OtherBB->begin())
         return false;

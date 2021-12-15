@@ -32,7 +32,7 @@ using namespace lld::elf;
 SymbolTable *elf::symtab;
 
 void SymbolTable::wrap(Symbol *sym, Symbol *real, Symbol *wrap) {
-  // Swap symbols as instructed by -wrap.
+  // Redirect __real_foo to the original foo and foo to the original __wrap_foo.
   int &idx1 = symMap[CachedHashStringRef(sym->getName())];
   int &idx2 = symMap[CachedHashStringRef(real->getName())];
   int &idx3 = symMap[CachedHashStringRef(wrap->getName())];
@@ -113,7 +113,7 @@ Symbol *SymbolTable::find(StringRef name) {
 
 // A version script/dynamic list is only meaningful for a Defined symbol.
 // A CommonSymbol will be converted to a Defined in replaceCommonSymbols().
-// A lazy symbol may be made Defined if an LTO libcall fetches it.
+// A lazy symbol may be made Defined if an LTO libcall extracts it.
 static bool canBeVersioned(const Symbol &sym) {
   return sym.isDefined() || sym.isCommon() || sym.isLazy();
 }
@@ -188,7 +188,6 @@ std::vector<Symbol *> SymbolTable::findAllByVersion(SymbolVersion ver,
   return res;
 }
 
-// Handles -dynamic-list.
 void SymbolTable::handleDynamicList() {
   for (SymbolVersion &ver : config->dynamicList) {
     std::vector<Symbol *> syms;

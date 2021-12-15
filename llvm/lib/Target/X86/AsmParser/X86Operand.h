@@ -34,7 +34,6 @@ struct X86Operand final : public MCParsedAsmOperand {
   StringRef SymName;
   void *OpDecl;
   bool AddressOf;
-  bool CallOperand;
 
   struct TokOp {
     const char *Data;
@@ -79,7 +78,7 @@ struct X86Operand final : public MCParsedAsmOperand {
 
   X86Operand(KindTy K, SMLoc Start, SMLoc End)
       : Kind(K), StartLoc(Start), EndLoc(End), OpDecl(nullptr),
-        AddressOf(false), CallOperand(false) {}
+        AddressOf(false) {}
 
   StringRef getSymName() override { return SymName; }
   void *getOpDecl() override { return OpDecl; }
@@ -285,6 +284,13 @@ struct X86Operand final : public MCParsedAsmOperand {
   }
 
   bool isOffsetOfLocal() const override { return isImm() && Imm.LocalRef; }
+
+  bool isMemPlaceholder(const MCInstrDesc &Desc) const override {
+    // Add more restrictions to avoid the use of global symbols. This helps
+    // with reducing the code size.
+    return !Desc.isRematerializable() && !Desc.isCall() && isMem() &&
+           !Mem.BaseReg && !Mem.IndexReg;
+  }
 
   bool needAddressOf() const override { return AddressOf; }
 

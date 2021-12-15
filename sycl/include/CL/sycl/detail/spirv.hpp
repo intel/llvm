@@ -16,7 +16,6 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/memory_enums.hpp>
 #include <cstring>
-#include <sycl/ext/oneapi/atomic_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -492,10 +491,9 @@ using EnableIfVectorShuffle =
 
 #ifdef __NVPTX__
 inline uint32_t membermask() {
-  uint32_t FULL_MASK = 0xFFFFFFFF;
-  uint32_t max_size = __spirv_SubgroupMaxSize();
-  uint32_t sg_size = __spirv_SubgroupSize();
-  return FULL_MASK >> (max_size - sg_size);
+  // use a full mask as sync operations are required to be convergent and exited
+  // threads can safely be in the mask
+  return 0xFFFFFFFF;
 }
 #endif
 

@@ -135,6 +135,26 @@ llvm.func @bitreverse_test(%arg0: i32, %arg1: vector<8xi32>) {
   llvm.return
 }
 
+// CHECK-LABEL: @ctlz_test
+llvm.func @ctlz_test(%arg0: i32, %arg1: vector<8xi32>) {
+  %i1 = llvm.mlir.constant(false) : i1
+  // CHECK: call i32 @llvm.ctlz.i32
+  "llvm.intr.ctlz"(%arg0, %i1) : (i32, i1) -> i32
+  // CHECK: call <8 x i32> @llvm.ctlz.v8i32
+  "llvm.intr.ctlz"(%arg1, %i1) : (vector<8xi32>, i1) -> vector<8xi32>
+  llvm.return
+}
+
+// CHECK-LABEL: @cttz_test
+llvm.func @cttz_test(%arg0: i32, %arg1: vector<8xi32>) {
+  %i1 = llvm.mlir.constant(false) : i1
+  // CHECK: call i32 @llvm.cttz.i32
+  "llvm.intr.cttz"(%arg0, %i1) : (i32, i1) -> i32
+  // CHECK: call <8 x i32> @llvm.cttz.v8i32
+  "llvm.intr.cttz"(%arg1, %i1) : (vector<8xi32>, i1) -> vector<8xi32>
+  llvm.return
+}
+
 // CHECK-LABEL: @ctpop_test
 llvm.func @ctpop_test(%arg0: i32, %arg1: vector<8xi32>) {
   // CHECK: call i32 @llvm.ctpop.i32
@@ -309,6 +329,14 @@ llvm.func @memcpy_test(%arg0: i32, %arg2: !llvm.ptr<i8>, %arg3: !llvm.ptr<i8>) {
   %sz = llvm.mlir.constant(10: i64) : i64
   // CHECK: call void @llvm.memcpy.inline.p0i8.p0i8.i64(i8* %{{.*}}, i8* %{{.*}}, i64 10, i1 {{.*}})
   "llvm.intr.memcpy.inline"(%arg2, %arg3, %sz, %i1) : (!llvm.ptr<i8>, !llvm.ptr<i8>, i64, i1) -> ()
+  llvm.return
+}
+
+// CHECK-LABEL: @memset_test
+llvm.func @memset_test(%arg0: i32, %arg2: !llvm.ptr<i8>, %arg3: i8) {
+  %i1 = llvm.mlir.constant(false) : i1
+  // CHECK: call void @llvm.memset.p0i8.i32(i8* %{{.*}}, i8 %{{.*}}, i32 %{{.*}}, i1 {{.*}})
+  "llvm.intr.memset"(%arg2, %arg3, %arg0, %i1) : (!llvm.ptr<i8>, i8, i32, i1) -> ()
   llvm.return
 }
 

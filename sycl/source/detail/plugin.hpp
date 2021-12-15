@@ -89,7 +89,8 @@ auto packCallArguments(ArgsT &&... Args) {
 class plugin {
 public:
   plugin() = delete;
-  plugin(RT::PiPlugin Plugin, backend UseBackend, void *LibraryHandle)
+  plugin(const std::shared_ptr<RT::PiPlugin> &Plugin, backend UseBackend,
+         void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
         TracingMutex(std::make_shared<std::mutex>()),
         MPluginMutex(std::make_shared<std::mutex>()) {}
@@ -101,8 +102,11 @@ public:
 
   ~plugin() = default;
 
-  const RT::PiPlugin &getPiPlugin() const { return MPlugin; }
-  RT::PiPlugin &getPiPlugin() { return MPlugin; }
+  const RT::PiPlugin &getPiPlugin() const { return *MPlugin; }
+  RT::PiPlugin &getPiPlugin() { return *MPlugin; }
+  const std::shared_ptr<RT::PiPlugin> &getPiPluginPtr() const {
+    return MPlugin;
+  }
 
   /// Checks return value from PI calls.
   ///
@@ -148,8 +152,9 @@ public:
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
     auto ArgsData =
         packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
-    uint64_t CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
-        static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsData.data(), MPlugin);
+    uint64_t CorrelationIDWithArgs =
+        pi::emitFunctionWithArgsBeginTrace(static_cast<uint32_t>(PiApiOffset),
+                                           PIFnName, ArgsData.data(), *MPlugin);
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
@@ -157,20 +162,20 @@ public:
       const char *FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
       RT::printArgs(Args...);
-      R = PiCallInfo.getFuncPtr(MPlugin)(Args...);
+      R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
       std::cout << ") ---> ";
       RT::printArgs(R);
       RT::printOuts(Args...);
       std::cout << std::endl;
     } else {
-      R = PiCallInfo.getFuncPtr(MPlugin)(Args...);
+      R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
     }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Close the function begin with a call to function end
     pi::emitFunctionEndTrace(CorrelationID, PIFnName);
     pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
                                      static_cast<uint32_t>(PiApiOffset),
-                                     PIFnName, ArgsData.data(), R, MPlugin);
+                                     PIFnName, ArgsData.data(), R, *MPlugin);
 #endif
     return R;
   }
@@ -236,7 +241,7 @@ public:
   std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
 
 private:
-  RT::PiPlugin MPlugin;
+  std::shared_ptr<RT::PiPlugin> MPlugin;
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;

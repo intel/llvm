@@ -2436,6 +2436,87 @@ bool ShuffleVectorInst::isConcat() const {
   return isIdentityMaskImpl(getShuffleMask(), NumMaskElts);
 }
 
+static bool isReplicationMaskWithParams(ArrayRef<int> Mask,
+                                        int ReplicationFactor, int VF) {
+  assert(Mask.size() == (unsigned)ReplicationFactor * VF &&
+         "Unexpected mask size.");
+
+  for (int CurrElt : seq(0, VF)) {
+    ArrayRef<int> CurrSubMask = Mask.take_front(ReplicationFactor);
+    assert(CurrSubMask.size() == (unsigned)ReplicationFactor &&
+           "Run out of mask?");
+    Mask = Mask.drop_front(ReplicationFactor);
+    if (!all_of(CurrSubMask, [CurrElt](int MaskElt) {
+          return MaskElt == UndefMaskElem || MaskElt == CurrElt;
+        }))
+      return false;
+  }
+  assert(Mask.empty() && "Did not consume the whole mask?");
+
+  return true;
+}
+
+bool ShuffleVectorInst::isReplicationMask(ArrayRef<int> Mask,
+                                          int &ReplicationFactor, int &VF) {
+  // undef-less case is trivial.
+  if (none_of(Mask, [](int MaskElt) { return MaskElt == UndefMaskElem; })) {
+    ReplicationFactor =
+        Mask.take_while([](int MaskElt) { return MaskElt == 0; }).size();
+    if (ReplicationFactor == 0 || Mask.size() % ReplicationFactor != 0)
+      return false;
+    VF = Mask.size() / ReplicationFactor;
+    return isReplicationMaskWithParams(Mask, ReplicationFactor, VF);
+  }
+
+  // However, if the mask contains undef's, we have to enumerate possible tuples
+  // and pick one. There are bounds on replication factor: [1, mask size]
+  // (where RF=1 is an identity shuffle, RF=mask size is a broadcast shuffle)
+  // Additionally, mask size is a replication factor multiplied by vector size,
+  // which further significantly reduces the search space.
+
+  // Before doing that, let's perform basic correctness checking first.
+  int Largest = -1;
+  for (int MaskElt : Mask) {
+    if (MaskElt == UndefMaskElem)
+      continue;
+    // Elements must be in non-decreasing order.
+    if (MaskElt < Largest)
+      return false;
+    Largest = std::max(Largest, MaskElt);
+  }
+
+  // Prefer larger replication factor if all else equal.
+  for (int PossibleReplicationFactor :
+       reverse(seq_inclusive<unsigned>(1, Mask.size()))) {
+    if (Mask.size() % PossibleReplicationFactor != 0)
+      continue;
+    int PossibleVF = Mask.size() / PossibleReplicationFactor;
+    if (!isReplicationMaskWithParams(Mask, PossibleReplicationFactor,
+                                     PossibleVF))
+      continue;
+    ReplicationFactor = PossibleReplicationFactor;
+    VF = PossibleVF;
+    return true;
+  }
+
+  return false;
+}
+
+bool ShuffleVectorInst::isReplicationMask(int &ReplicationFactor,
+                                          int &VF) const {
+  // Not possible to express a shuffle mask for a scalable vector for this
+  // case.
+  if (isa<ScalableVectorType>(getType()))
+    return false;
+
+  VF = cast<FixedVectorType>(Op<0>()->getType())->getNumElements();
+  if (ShuffleMask.size() % VF != 0)
+    return false;
+  ReplicationFactor = ShuffleMask.size() / VF;
+
+  return isReplicationMaskWithParams(ShuffleMask, ReplicationFactor, VF);
+}
+
 //===----------------------------------------------------------------------===//
 //                             InsertValueInst Class
 //===----------------------------------------------------------------------===//
@@ -4053,6 +4134,35 @@ bool CmpInst::isSigned(Predicate predicate) {
     case ICmpInst::ICMP_SLT: case ICmpInst::ICMP_SLE: case ICmpInst::ICMP_SGT:
     case ICmpInst::ICMP_SGE: return true;
   }
+}
+
+bool ICmpInst::compare(const APInt &LHS, const APInt &RHS,
+                       ICmpInst::Predicate Pred) {
+  assert(ICmpInst::isIntPredicate(Pred) && "Only for integer predicates!");
+  switch (Pred) {
+  case ICmpInst::Predicate::ICMP_EQ:
+    return LHS.eq(RHS);
+  case ICmpInst::Predicate::ICMP_NE:
+    return LHS.ne(RHS);
+  case ICmpInst::Predicate::ICMP_UGT:
+    return LHS.ugt(RHS);
+  case ICmpInst::Predicate::ICMP_UGE:
+    return LHS.uge(RHS);
+  case ICmpInst::Predicate::ICMP_ULT:
+    return LHS.ult(RHS);
+  case ICmpInst::Predicate::ICMP_ULE:
+    return LHS.ule(RHS);
+  case ICmpInst::Predicate::ICMP_SGT:
+    return LHS.sgt(RHS);
+  case ICmpInst::Predicate::ICMP_SGE:
+    return LHS.sge(RHS);
+  case ICmpInst::Predicate::ICMP_SLT:
+    return LHS.slt(RHS);
+  case ICmpInst::Predicate::ICMP_SLE:
+    return LHS.sle(RHS);
+  default:
+    llvm_unreachable("Unexpected non-integer predicate.");
+  };
 }
 
 CmpInst::Predicate CmpInst::getFlippedSignednessPredicate(Predicate pred) {

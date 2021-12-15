@@ -527,7 +527,7 @@ func @test_padding_no_const(%arg0 : tensor<1x2xf32>, %arg1 : tensor<2x2xi32>) ->
 
 // CHECK-LABEL:@test_padding_dynamic_input
 func @test_padding_dynamic_input(%arg0 : tensor<1x?xf32>) -> () {
-  %0 = constant dense<[[1, 2], [3, 4]]> : tensor<2x2xi32>
+  %0 = arith.constant dense<[[1, 2], [3, 4]]> : tensor<2x2xi32>
   // CHECK: "tosa.pad"(%arg0, %cst) : (tensor<1x?xf32>, tensor<2x2xi32>) -> tensor<4x?xf32>
   %1 = "tosa.pad"(%arg0, %0)  : (tensor<1x?xf32>, tensor<2x2xi32>)  -> (tensor<?x?xf32>)
   return
@@ -537,7 +537,7 @@ func @test_padding_dynamic_input(%arg0 : tensor<1x?xf32>) -> () {
 
 // CHECK-LABEL: @test_padding_simple
 func @test_padding_simple(%arg0 : tensor<1x2xf32>) -> () {
-  %0 = constant dense<[[1, 2], [3, 4]]> : tensor<2x2xi32>
+  %0 = arith.constant dense<[[1, 2], [3, 4]]> : tensor<2x2xi32>
   // CHECK: "tosa.pad"(%arg0, %cst) : (tensor<1x2xf32>, tensor<2x2xi32>) -> tensor<4x9xf32>
   %1 = "tosa.pad"(%arg0, %0)  : (tensor<1x2xf32>, tensor<2x2xi32>)  -> (tensor<?x?xf32>)
   return
@@ -583,7 +583,7 @@ func @test_transpose_perm_unknown(%arg0 : tensor<4x4x5xi32>, %arg1 : tensor<3xi3
 
 // CHECK-LABEL: @test_transpose_static
 func @test_transpose_static(%arg0 : tensor<3x4x5xi32>) -> () {
-  %0 = constant dense<[2, 1, 0]> : tensor<3xi32>
+  %0 = arith.constant dense<[2, 1, 0]> : tensor<3xi32>
   // CHECK: "tosa.transpose"(%arg0, %cst) : (tensor<3x4x5xi32>, tensor<3xi32>) -> tensor<5x4x3xi32>
   %1 = "tosa.transpose"(%arg0, %0) : (tensor<3x4x5xi32>, tensor<3xi32>)  -> (tensor<?x?x?xi32>)
   return
@@ -919,9 +919,27 @@ func @transpose_conv2d_out_shape(%arg0: tensor<2x?x?x3xf32>, %arg1: tensor<5x3x6
 // -----
 
 // CHECK-LABEL: @transpose_conv2d_static
-func @transpose_conv2d_static(%arg0: tensor<2x6x4x3xf32>, %arg1: tensor<5x3x6x3xf32>, %arg2: tensor<5xf32>) {
-  // CHECK: -> tensor<2x8x9x5xf32>
-  %0 = "tosa.transpose_conv2d"(%arg0, %arg1, %arg2) {dilation = [1, 1], out_pad = [0, 0], out_shape = [-1, -1, -1, -1], stride = [1, 1]} : (tensor<2x6x4x3xf32>, tensor<5x3x6x3xf32>, tensor<5xf32>) -> tensor<2x8x9x5xf32>
+func @transpose_conv2d_static(%arg0: tensor<2x16x14x3xf32>, %arg1: tensor<5x3x6x3xf32>, %arg2: tensor<5xf32>) {
+  // CHECK: -> tensor<2x18x19x5xf32>
+  %0 = "tosa.transpose_conv2d"(%arg0, %arg1, %arg2) {dilation = [1, 1], out_pad = [0, 0], out_shape = [-1, -1, -1, -1], stride = [1, 1]} : (tensor<2x16x14x3xf32>, tensor<5x3x6x3xf32>, tensor<5xf32>) -> tensor<2x?x?x5xf32>
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @transpose_conv2d_static_dilated
+func @transpose_conv2d_static_dilated(%arg0: tensor<2x16x14x3xf32>, %arg1: tensor<5x3x6x3xf32>, %arg2: tensor<5xf32>) {
+  // CHECK: -> tensor<2x20x29x5xf32>
+  %0 = "tosa.transpose_conv2d"(%arg0, %arg1, %arg2) {dilation = [2, 3], out_pad = [0, 0], out_shape = [-1, -1, -1, -1], stride = [1, 1]} : (tensor<2x16x14x3xf32>, tensor<5x3x6x3xf32>, tensor<5xf32>) -> tensor<2x?x?x5xf32>
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @transpose_conv2d_static_strided
+func @transpose_conv2d_static_strided(%arg0: tensor<2x16x14x3xf32>, %arg1: tensor<5x3x6x3xf32>, %arg2: tensor<5xf32>) {
+  // CHECK: -> tensor<2x33x45x5xf32>
+  %0 = "tosa.transpose_conv2d"(%arg0, %arg1, %arg2) {dilation = [1, 1], out_pad = [0, 0], out_shape = [-1, -1, -1, -1], stride = [2, 3]} : (tensor<2x16x14x3xf32>, tensor<5x3x6x3xf32>, tensor<5xf32>) -> tensor<2x?x?x5xf32>
   return
 }
 

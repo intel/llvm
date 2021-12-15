@@ -15,7 +15,7 @@
 
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
-include "mlir/Dialect/StandardOps/IR/StandardOpsBase.td"
+include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
 include "mlir/Dialect/ArmSVE/ArmSVEOpBase.td"
 
 //===----------------------------------------------------------------------===//
@@ -31,6 +31,7 @@ def ArmSVE_Dialect : Dialect {
     vector operations, including a scalable vector type and intrinsics for
     some Arm SVE instructions.
   }];
+  let useDefaultTypePrinterParser = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -65,20 +66,6 @@ def ScalableVectorType : ArmSVE_Type<"ScalableVector"> {
     ArrayRefParameter<"int64_t", "Vector shape">:$shape,
     "Type":$elementType
   );
-
-  let printer = [{
-    $_printer << "vector<";
-    for (int64_t dim : getShape())
-      $_printer << dim << 'x';
-    $_printer << getElementType() << '>';
-  }];
-
-  let parser = [{
-    VectorType vector;
-    if ($_parser.parseType(vector))
-      return Type();
-    return get($_ctxt, vector.getShape(), vector.getElementType());
-  }];
 
   let extraClassDeclaration = [{
     bool hasStaticShape() const {
@@ -460,24 +447,24 @@ def ScalableCmpFOp : ArmSVE_Op<"cmpf", [NoSideEffect, SameTypeOperands,
     ```
   }];
   let arguments = (ins
-    CmpFPredicateAttr:$predicate,
+    Arith_CmpFPredicateAttr:$predicate,
     ScalableVectorOf<[AnyFloat]>:$lhs,
     ScalableVectorOf<[AnyFloat]>:$rhs // TODO: This should support a simple scalar
   );
   let results = (outs ScalableVectorOf<[I1]>:$result);
 
   let builders = [
-    OpBuilder<(ins "CmpFPredicate":$predicate, "Value":$lhs,
+    OpBuilder<(ins "arith::CmpFPredicate":$predicate, "Value":$lhs,
                   "Value":$rhs), [{
       buildScalableCmpFOp($_builder, $_state, predicate, lhs, rhs);
     }]>];
 
   let extraClassDeclaration = [{
     static StringRef getPredicateAttrName() { return "predicate"; }
-    static CmpFPredicate getPredicateByName(StringRef name);
+    static arith::CmpFPredicate getPredicateByName(StringRef name);
 
-    CmpFPredicate getPredicate() {
-      return (CmpFPredicate)(*this)->getAttrOfType<IntegerAttr>(
+    arith::CmpFPredicate getPredicate() {
+      return (arith::CmpFPredicate) (*this)->getAttrOfType<IntegerAttr>(
           getPredicateAttrName()).getInt();
     }
   }];
@@ -520,24 +507,24 @@ def ScalableCmpIOp : ArmSVE_Op<"cmpi", [NoSideEffect, SameTypeOperands,
   }];
 
   let arguments = (ins
-      CmpIPredicateAttr:$predicate,
+      Arith_CmpIPredicateAttr:$predicate,
       ScalableVectorOf<[I8, I16, I32, I64]>:$lhs,
       ScalableVectorOf<[I8, I16, I32, I64]>:$rhs
   );
   let results = (outs ScalableVectorOf<[I1]>:$result);
 
   let builders = [
-    OpBuilder<(ins "CmpIPredicate":$predicate, "Value":$lhs,
+    OpBuilder<(ins "arith::CmpIPredicate":$predicate, "Value":$lhs,
                  "Value":$rhs), [{
       buildScalableCmpIOp($_builder, $_state, predicate, lhs, rhs);
     }]>];
 
   let extraClassDeclaration = [{
     static StringRef getPredicateAttrName() { return "predicate"; }
-    static CmpIPredicate getPredicateByName(StringRef name);
+    static arith::CmpIPredicate getPredicateByName(StringRef name);
 
-    CmpIPredicate getPredicate() {
-      return (CmpIPredicate)(*this)->getAttrOfType<IntegerAttr>(
+    arith::CmpIPredicate getPredicate() {
+      return (arith::CmpIPredicate) (*this)->getAttrOfType<IntegerAttr>(
           getPredicateAttrName()).getInt();
     }
   }];

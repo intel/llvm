@@ -14,6 +14,7 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/TensorEncoding.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/BitVector.h"
@@ -251,7 +252,7 @@ void FunctionType::walkImmediateSubElements(
 
 /// Verify the construction of an opaque type.
 LogicalResult OpaqueType::verify(function_ref<InFlightDiagnostic()> emitError,
-                                 Identifier dialect, StringRef typeData) {
+                                 StringAttr dialect, StringRef typeData) {
   if (!Dialect::isValidNamespace(dialect.strref()))
     return emitError() << "invalid dialect namespace '" << dialect << "'";
 
@@ -441,9 +442,6 @@ bool ShapedType::hasStaticShape(ArrayRef<int64_t> shape) const {
 
 LogicalResult VectorType::verify(function_ref<InFlightDiagnostic()> emitError,
                                  ArrayRef<int64_t> shape, Type elementType) {
-  if (shape.empty())
-    return emitError() << "vector types must have at least one dimension";
-
   if (!isValidElementType(elementType))
     return emitError()
            << "vector elements must be int/index/float type but got "
@@ -574,7 +572,7 @@ mlir::computeRankReductionMask(ArrayRef<int64_t> originalShape,
   llvm::SmallDenseSet<unsigned> unusedDims;
   unsigned reducedIdx = 0;
   for (unsigned originalIdx = 0; originalIdx < originalRank; ++originalIdx) {
-    // Greedily insert `originalIdx` if no match.
+    // Greedily insert `originalIdx` if match.
     if (reducedIdx < reducedRank &&
         originalShape[originalIdx] == reducedShape[reducedIdx]) {
       reducedIdx++;
@@ -593,6 +591,39 @@ mlir::computeRankReductionMask(ArrayRef<int64_t> originalShape,
   return unusedDims;
 }
 
+SliceVerificationResult
+mlir::isRankReducedType(ShapedType originalType,
+                        ShapedType candidateReducedType) {
+  if (originalType == candidateReducedType)
+    return SliceVerificationResult::Success;
+
+  ShapedType originalShapedType = originalType.cast<ShapedType>();
+  ShapedType candidateReducedShapedType =
+      candidateReducedType.cast<ShapedType>();
+
+  // Rank and size logic is valid for all ShapedTypes.
+  ArrayRef<int64_t> originalShape = originalShapedType.getShape();
+  ArrayRef<int64_t> candidateReducedShape =
+      candidateReducedShapedType.getShape();
+  unsigned originalRank = originalShape.size(),
+           candidateReducedRank = candidateReducedShape.size();
+  if (candidateReducedRank > originalRank)
+    return SliceVerificationResult::RankTooLarge;
+
+  auto optionalUnusedDimsMask =
+      computeRankReductionMask(originalShape, candidateReducedShape);
+
+  // Sizes cannot be matched in case empty vector is returned.
+  if (!optionalUnusedDimsMask.hasValue())
+    return SliceVerificationResult::SizeMismatch;
+
+  if (originalShapedType.getElementType() !=
+      candidateReducedShapedType.getElementType())
+    return SliceVerificationResult::ElemTypeMismatch;
+
+  return SliceVerificationResult::Success;
+}
+
 bool mlir::detail::isSupportedMemorySpace(Attribute memorySpace) {
   // Empty attribute is allowed as default memory space.
   if (!memorySpace)
@@ -603,7 +634,7 @@ bool mlir::detail::isSupportedMemorySpace(Attribute memorySpace) {
     return true;
 
   // Allow custom dialect attributes.
-  if (!::mlir::isa<BuiltinDialect>(memorySpace.getDialect()))
+  if (!isa<BuiltinDialect>(memorySpace.getDialect()))
     return true;
 
   return false;
@@ -646,9 +677,118 @@ unsigned MemRefType::getMemorySpaceAsInt() const {
   return detail::getMemorySpaceAsInt(getMemorySpace());
 }
 
+MemRefType MemRefType::get(ArrayRef<int64_t> shape, Type elementType,
+                           MemRefLayoutAttrInterface layout,
+                           Attribute memorySpace) {
+  // Use default layout for empty attribute.
+  if (!layout)
+    layout = AffineMapAttr::get(AffineMap::getMultiDimIdentityMap(
+        shape.size(), elementType.getContext()));
+
+  // Drop default memory space value and replace it with empty attribute.
+  memorySpace = skipDefaultMemorySpace(memorySpace);
+
+  return Base::get(elementType.getContext(), shape, elementType, layout,
+                   memorySpace);
+}
+
+MemRefType MemRefType::getChecked(
+    function_ref<InFlightDiagnostic()> emitErrorFn, ArrayRef<int64_t> shape,
+    Type elementType, MemRefLayoutAttrInterface layout, Attribute memorySpace) {
+
+  // Use default layout for empty attribute.
+  if (!layout)
+    layout = AffineMapAttr::get(AffineMap::getMultiDimIdentityMap(
+        shape.size(), elementType.getContext()));
+
+  // Drop default memory space value and replace it with empty attribute.
+  memorySpace = skipDefaultMemorySpace(memorySpace);
+
+  return Base::getChecked(emitErrorFn, elementType.getContext(), shape,
+                          elementType, layout, memorySpace);
+}
+
+MemRefType MemRefType::get(ArrayRef<int64_t> shape, Type elementType,
+                           AffineMap map, Attribute memorySpace) {
+
+  // Use default layout for empty map.
+  if (!map)
+    map = AffineMap::getMultiDimIdentityMap(shape.size(),
+                                            elementType.getContext());
+
+  // Wrap AffineMap into Attribute.
+  Attribute layout = AffineMapAttr::get(map);
+
+  // Drop default memory space value and replace it with empty attribute.
+  memorySpace = skipDefaultMemorySpace(memorySpace);
+
+  return Base::get(elementType.getContext(), shape, elementType, layout,
+                   memorySpace);
+}
+
+MemRefType
+MemRefType::getChecked(function_ref<InFlightDiagnostic()> emitErrorFn,
+                       ArrayRef<int64_t> shape, Type elementType, AffineMap map,
+                       Attribute memorySpace) {
+
+  // Use default layout for empty map.
+  if (!map)
+    map = AffineMap::getMultiDimIdentityMap(shape.size(),
+                                            elementType.getContext());
+
+  // Wrap AffineMap into Attribute.
+  Attribute layout = AffineMapAttr::get(map);
+
+  // Drop default memory space value and replace it with empty attribute.
+  memorySpace = skipDefaultMemorySpace(memorySpace);
+
+  return Base::getChecked(emitErrorFn, elementType.getContext(), shape,
+                          elementType, layout, memorySpace);
+}
+
+MemRefType MemRefType::get(ArrayRef<int64_t> shape, Type elementType,
+                           AffineMap map, unsigned memorySpaceInd) {
+
+  // Use default layout for empty map.
+  if (!map)
+    map = AffineMap::getMultiDimIdentityMap(shape.size(),
+                                            elementType.getContext());
+
+  // Wrap AffineMap into Attribute.
+  Attribute layout = AffineMapAttr::get(map);
+
+  // Convert deprecated integer-like memory space to Attribute.
+  Attribute memorySpace =
+      wrapIntegerMemorySpace(memorySpaceInd, elementType.getContext());
+
+  return Base::get(elementType.getContext(), shape, elementType, layout,
+                   memorySpace);
+}
+
+MemRefType
+MemRefType::getChecked(function_ref<InFlightDiagnostic()> emitErrorFn,
+                       ArrayRef<int64_t> shape, Type elementType, AffineMap map,
+                       unsigned memorySpaceInd) {
+
+  // Use default layout for empty map.
+  if (!map)
+    map = AffineMap::getMultiDimIdentityMap(shape.size(),
+                                            elementType.getContext());
+
+  // Wrap AffineMap into Attribute.
+  Attribute layout = AffineMapAttr::get(map);
+
+  // Convert deprecated integer-like memory space to Attribute.
+  Attribute memorySpace =
+      wrapIntegerMemorySpace(memorySpaceInd, elementType.getContext());
+
+  return Base::getChecked(emitErrorFn, elementType.getContext(), shape,
+                          elementType, layout, memorySpace);
+}
+
 LogicalResult MemRefType::verify(function_ref<InFlightDiagnostic()> emitError,
                                  ArrayRef<int64_t> shape, Type elementType,
-                                 ArrayRef<AffineMap> affineMapComposition,
+                                 MemRefLayoutAttrInterface layout,
                                  Attribute memorySpace) {
   if (!BaseMemRefType::isValidElementType(elementType))
     return emitError() << "invalid memref element type";
@@ -658,26 +798,12 @@ LogicalResult MemRefType::verify(function_ref<InFlightDiagnostic()> emitError,
     if (s < -1)
       return emitError() << "invalid memref size";
 
-  // Check that the structure of the composition is valid, i.e. that each
-  // subsequent affine map has as many inputs as the previous map has results.
-  // Take the dimensionality of the MemRef for the first map.
-  size_t dim = shape.size();
-  for (auto it : llvm::enumerate(affineMapComposition)) {
-    AffineMap map = it.value();
-    if (map.getNumDims() == dim) {
-      dim = map.getNumResults();
-      continue;
-    }
-    return emitError() << "memref affine map dimension mismatch between "
-                       << (it.index() == 0 ? Twine("memref rank")
-                                           : "affine map " + Twine(it.index()))
-                       << " and affine map" << it.index() + 1 << ": " << dim
-                       << " != " << map.getNumDims();
-  }
+  assert(layout && "missing layout specification");
+  if (failed(layout.verifyLayout(shape, emitError)))
+    return failure();
 
-  if (!isSupportedMemorySpace(memorySpace)) {
+  if (!isSupportedMemorySpace(memorySpace))
     return emitError() << "unsupported memory space Attribute";
-  }
 
   return success();
 }
@@ -686,9 +812,9 @@ void MemRefType::walkImmediateSubElements(
     function_ref<void(Attribute)> walkAttrsFn,
     function_ref<void(Type)> walkTypesFn) const {
   walkTypesFn(getElementType());
+  if (!getLayout().isIdentity())
+    walkAttrsFn(getLayout());
   walkAttrsFn(getMemorySpace());
-  for (AffineMap map : getAffineMaps())
-    walkAttrsFn(AffineMapAttr::get(map));
 }
 
 //===----------------------------------------------------------------------===//
@@ -775,15 +901,10 @@ static LogicalResult extractStrides(AffineExpr e,
 LogicalResult mlir::getStridesAndOffset(MemRefType t,
                                         SmallVectorImpl<AffineExpr> &strides,
                                         AffineExpr &offset) {
-  auto affineMaps = t.getAffineMaps();
+  AffineMap m = t.getLayout().getAffineMap();
 
-  if (affineMaps.size() > 1)
+  if (m.getNumResults() != 1 && !m.isIdentity())
     return failure();
-
-  if (!affineMaps.empty() && affineMaps.back().getNumResults() != 1)
-    return failure();
-
-  AffineMap m = affineMaps.empty() ? AffineMap() : affineMaps.back();
 
   auto zero = getAffineConstantExpr(0, t.getContext());
   auto one = getAffineConstantExpr(1, t.getContext());
@@ -791,7 +912,7 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
   strides.assign(t.getRank(), zero);
 
   // Canonical case for empty map.
-  if (!m || m.isIdentity()) {
+  if (m.isIdentity()) {
     // 0-D corner case, offset is already 0.
     if (t.getRank() == 0)
       return success();
@@ -938,21 +1059,21 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
 /// `t` with simplified layout.
 /// If `t` has multiple layout maps or a multi-result layout, just return `t`.
 MemRefType mlir::canonicalizeStridedLayout(MemRefType t) {
-  auto affineMaps = t.getAffineMaps();
+  AffineMap m = t.getLayout().getAffineMap();
+
   // Already in canonical form.
-  if (affineMaps.empty())
+  if (m.isIdentity())
     return t;
 
   // Can't reduce to canonical identity form, return in canonical form.
-  if (affineMaps.size() > 1 || affineMaps[0].getNumResults() > 1)
+  if (m.getNumResults() > 1)
     return t;
 
   // Corner-case for 0-D affine maps.
-  auto m = affineMaps[0];
   if (m.getNumDims() == 0 && m.getNumSymbols() == 0) {
     if (auto cst = m.getResult(0).dyn_cast<AffineConstantExpr>())
       if (cst.getValue() == 0)
-        return MemRefType::Builder(t).setAffineMaps({});
+        return MemRefType::Builder(t).setLayout({});
     return t;
   }
 
@@ -970,9 +1091,9 @@ MemRefType mlir::canonicalizeStridedLayout(MemRefType t) {
   auto simplifiedLayoutExpr =
       simplifyAffineExpr(m.getResult(0), m.getNumDims(), m.getNumSymbols());
   if (expr != simplifiedLayoutExpr)
-    return MemRefType::Builder(t).setAffineMaps({AffineMap::get(
-        m.getNumDims(), m.getNumSymbols(), simplifiedLayoutExpr)});
-  return MemRefType::Builder(t).setAffineMaps({});
+    return MemRefType::Builder(t).setLayout(AffineMapAttr::get(AffineMap::get(
+        m.getNumDims(), m.getNumSymbols(), simplifiedLayoutExpr)));
+  return MemRefType::Builder(t).setLayout({});
 }
 
 AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
@@ -1016,8 +1137,9 @@ AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
 /// strides. This is used to erase the static layout.
 MemRefType mlir::eraseStridedLayout(MemRefType t) {
   auto val = ShapedType::kDynamicStrideOrOffset;
-  return MemRefType::Builder(t).setAffineMaps(makeStridedLinearLayoutMap(
-      SmallVector<int64_t, 4>(t.getRank(), val), val, t.getContext()));
+  return MemRefType::Builder(t).setLayout(
+      AffineMapAttr::get(makeStridedLinearLayoutMap(
+          SmallVector<int64_t, 4>(t.getRank(), val), val, t.getContext())));
 }
 
 AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,

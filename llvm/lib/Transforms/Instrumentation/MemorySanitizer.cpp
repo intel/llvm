@@ -307,6 +307,11 @@ static cl::opt<bool>
                   cl::desc("Enable KernelMemorySanitizer instrumentation"),
                   cl::Hidden, cl::init(false));
 
+static cl::opt<bool>
+    ClDisableChecks("msan-disable-checks",
+                    cl::desc("Apply no_sanitize to the whole file"), cl::Hidden,
+                    cl::init(false));
+
 // This is an experiment to enable handling of cases where shadow is a non-zero
 // compile-time constant. For some unexplainable reason they were silently
 // ignored in the instrumentation.
@@ -1095,7 +1100,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   MemorySanitizerVisitor(Function &F, MemorySanitizer &MS,
                          const TargetLibraryInfo &TLI)
       : F(F), MS(MS), VAHelper(CreateVarArgHelper(F, MS, *this)), TLI(&TLI) {
-    bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeMemory);
+    bool SanitizeFunction =
+        F.hasFnAttribute(Attribute::SanitizeMemory) && !ClDisableChecks;
     InsertChecks = SanitizeFunction;
     PropagateShadow = SanitizeFunction;
     PoisonStack = SanitizeFunction && ClPoisonStack;
@@ -1708,7 +1714,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           if (FArgEagerCheck) {
             *ShadowPtr = getCleanShadow(V);
             setOrigin(A, getCleanOrigin());
-            continue;
+            break;
           } else if (FArgByVal) {
             Value *Base = getShadowPtrForArgument(&FArg, EntryIRB, ArgOffset);
             // ByVal pointer itself has clean shadow. We copy the actual
@@ -1758,8 +1764,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           break;
         }
 
-        if (!FArgEagerCheck)
-          ArgOffset += alignTo(Size, kShadowTLSAlignment);
+        ArgOffset += alignTo(Size, kShadowTLSAlignment);
       }
       assert(*ShadowPtr && "Could not find shadow for an argument");
       return *ShadowPtr;
@@ -3709,42 +3714,48 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
       if (EagerCheck) {
         insertShadowCheck(A, &CB);
-        continue;
-      }
-      if (ByVal) {
-        // ByVal requires some special handling as it's too big for a single
-        // load
-        assert(A->getType()->isPointerTy() &&
-               "ByVal argument is not a pointer!");
-        Size = DL.getTypeAllocSize(CB.getParamByValType(i));
-        if (ArgOffset + Size > kParamTLSSize) break;
-        const MaybeAlign ParamAlignment(CB.getParamAlign(i));
-        MaybeAlign Alignment = llvm::None;
-        if (ParamAlignment)
-          Alignment = std::min(*ParamAlignment, kShadowTLSAlignment);
-        Value *AShadowPtr =
-            getShadowOriginPtr(A, IRB, IRB.getInt8Ty(), Alignment,
-                               /*isStore*/ false)
-                .first;
-
-        Store = IRB.CreateMemCpy(ArgShadowBase, Alignment, AShadowPtr,
-                                 Alignment, Size);
-        // TODO(glider): need to copy origins.
-      } else {
-        // Any other parameters mean we need bit-grained tracking of uninit data
         Size = DL.getTypeAllocSize(A->getType());
-        if (ArgOffset + Size > kParamTLSSize) break;
-        Store = IRB.CreateAlignedStore(ArgShadow, ArgShadowBase,
-                                       kShadowTLSAlignment);
-        Constant *Cst = dyn_cast<Constant>(ArgShadow);
-        if (Cst && Cst->isNullValue()) ArgIsInitialized = true;
+      } else {
+        if (ByVal) {
+          // ByVal requires some special handling as it's too big for a single
+          // load
+          assert(A->getType()->isPointerTy() &&
+                 "ByVal argument is not a pointer!");
+          Size = DL.getTypeAllocSize(CB.getParamByValType(i));
+          if (ArgOffset + Size > kParamTLSSize)
+            break;
+          const MaybeAlign ParamAlignment(CB.getParamAlign(i));
+          MaybeAlign Alignment = llvm::None;
+          if (ParamAlignment)
+            Alignment = std::min(*ParamAlignment, kShadowTLSAlignment);
+          Value *AShadowPtr =
+              getShadowOriginPtr(A, IRB, IRB.getInt8Ty(), Alignment,
+                                 /*isStore*/ false)
+                  .first;
+
+          Store = IRB.CreateMemCpy(ArgShadowBase, Alignment, AShadowPtr,
+                                   Alignment, Size);
+          // TODO(glider): need to copy origins.
+        } else {
+          // Any other parameters mean we need bit-grained tracking of uninit
+          // data
+          Size = DL.getTypeAllocSize(A->getType());
+          if (ArgOffset + Size > kParamTLSSize)
+            break;
+          Store = IRB.CreateAlignedStore(ArgShadow, ArgShadowBase,
+                                         kShadowTLSAlignment);
+          Constant *Cst = dyn_cast<Constant>(ArgShadow);
+          if (Cst && Cst->isNullValue())
+            ArgIsInitialized = true;
+        }
+        if (MS.TrackOrigins && !ArgIsInitialized)
+          IRB.CreateStore(getOrigin(A),
+                          getOriginPtrForArgument(A, IRB, ArgOffset));
+        (void)Store;
+        assert(Store != nullptr);
+        LLVM_DEBUG(dbgs() << "  Param:" << *Store << "\n");
       }
-      if (MS.TrackOrigins && !ArgIsInitialized)
-        IRB.CreateStore(getOrigin(A),
-                        getOriginPtrForArgument(A, IRB, ArgOffset));
-      (void)Store;
-      assert(Size != 0 && Store != nullptr);
-      LLVM_DEBUG(dbgs() << "  Param:" << *Store << "\n");
+      assert(Size != 0);
       ArgOffset += alignTo(Size, kShadowTLSAlignment);
     }
     LLVM_DEBUG(dbgs() << "  done with call args\n");
@@ -3882,8 +3893,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           &I, IRB, IRB.getInt8Ty(), Align(1), /*isStore*/ true);
 
       Value *PoisonValue = IRB.getInt8(PoisonStack ? ClPoisonStackPattern : 0);
-      IRB.CreateMemSet(ShadowBase, PoisonValue, Len,
-                       MaybeAlign(I.getAlignment()));
+      IRB.CreateMemSet(ShadowBase, PoisonValue, Len, I.getAlign());
     }
 
     if (PoisonStack && MS.TrackOrigins) {

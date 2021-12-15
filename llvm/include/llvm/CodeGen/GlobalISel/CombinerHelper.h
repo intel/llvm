@@ -136,6 +136,10 @@ public:
   void replaceRegOpWith(MachineRegisterInfo &MRI, MachineOperand &FromRegOp,
                         Register ToReg) const;
 
+  /// Replace the opcode in instruction with a new opcode and inform the
+  /// observer of the changes.
+  void replaceOpcodeWith(MachineInstr &FromMI, unsigned ToOpcode) const;
+
   /// Get the register bank of \p Reg.
   /// If Reg has not been assigned a register, a register class,
   /// or a register bank, then this returns nullptr.
@@ -560,6 +564,7 @@ public:
   /// This variant does not erase \p MI after calling the build function.
   void applyBuildFnNoErase(MachineInstr &MI, BuildFnTy &MatchInfo);
 
+  bool matchOrShiftToFunnelShift(MachineInstr &MI, BuildFnTy &MatchInfo);
   bool matchFunnelShiftToRotate(MachineInstr &MI);
   void applyFunnelShiftToRotate(MachineInstr &MI);
   bool matchRotateOutOfRange(MachineInstr &MI);
@@ -575,6 +580,9 @@ public:
   matchICmpToLHSKnownBits(MachineInstr &MI,
                           BuildFnTy &MatchInfo);
 
+  /// \returns true if (and (or x, c1), c2) can be replaced with (and x, c2)
+  bool matchAndOrDisjointMask(MachineInstr &MI, BuildFnTy &MatchInfo);
+
   bool matchBitfieldExtractFromSExtInReg(MachineInstr &MI,
                                          BuildFnTy &MatchInfo);
   /// Match: and (lshr x, cst), mask -> ubfx x, cst, width
@@ -582,6 +590,9 @@ public:
 
   /// Match: shr (shl x, n), k -> sbfx/ubfx x, pos, width
   bool matchBitfieldExtractFromShr(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Match: shr (and x, n), k -> ubfx x, pos, width
+  bool matchBitfieldExtractFromShrAnd(MachineInstr &MI, BuildFnTy &MatchInfo);
 
   // Helpers for reassociation:
   bool matchReassocConstantInnerRHS(GPtrAdd &MI, MachineInstr *RHS,
@@ -637,6 +648,54 @@ public:
   ///           (fmad fneg(x), fneg(y), z) -> (fmad x, y, z)
   ///           (fma fneg(x), fneg(y), z) -> (fma x, y, z)
   bool matchRedundantNegOperands(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  bool canCombineFMadOrFMA(MachineInstr &MI, bool &AllowFusionGlobally,
+                           bool &HasFMAD, bool &Aggressive,
+                           bool CanReassociate = false);
+
+  /// Transform (fadd (fmul x, y), z) -> (fma x, y, z)
+  ///           (fadd (fmul x, y), z) -> (fmad x, y, z)
+  bool matchCombineFAddFMulToFMadOrFMA(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Transform (fadd (fpext (fmul x, y)), z) -> (fma (fpext x), (fpext y), z)
+  ///           (fadd (fpext (fmul x, y)), z) -> (fmad (fpext x), (fpext y), z)
+  bool matchCombineFAddFpExtFMulToFMadOrFMA(MachineInstr &MI,
+                                            BuildFnTy &MatchInfo);
+
+  /// Transform (fadd (fma x, y, (fmul u, v)), z) -> (fma x, y, (fma u, v, z))
+  ///          (fadd (fmad x, y, (fmul u, v)), z) -> (fmad x, y, (fmad u, v, z))
+  bool matchCombineFAddFMAFMulToFMadOrFMA(MachineInstr &MI,
+                                          BuildFnTy &MatchInfo);
+
+  // Transform (fadd (fma x, y, (fpext (fmul u, v))), z)
+  //            -> (fma x, y, (fma (fpext u), (fpext v), z))
+  //           (fadd (fmad x, y, (fpext (fmul u, v))), z)
+  //            -> (fmad x, y, (fmad (fpext u), (fpext v), z))
+  bool matchCombineFAddFpExtFMulToFMadOrFMAAggressive(MachineInstr &MI,
+                                                      BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fmul x, y), z) -> (fma x, y, -z)
+  ///           (fsub (fmul x, y), z) -> (fmad x, y, -z)
+  bool matchCombineFSubFMulToFMadOrFMA(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fneg (fmul, x, y)), z) -> (fma (fneg x), y, (fneg z))
+  ///           (fsub (fneg (fmul, x, y)), z) -> (fmad (fneg x), y, (fneg z))
+  bool matchCombineFSubFNegFMulToFMadOrFMA(MachineInstr &MI,
+                                           BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fpext (fmul x, y)), z)
+  ///           -> (fma (fpext x), (fpext y), (fneg z))
+  ///           (fsub (fpext (fmul x, y)), z)
+  ///           -> (fmad (fpext x), (fpext y), (fneg z))
+  bool matchCombineFSubFpExtFMulToFMadOrFMA(MachineInstr &MI,
+                                            BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fpext (fneg (fmul x, y))), z)
+  ///           -> (fneg (fma (fpext x), (fpext y), z))
+  ///           (fsub (fpext (fneg (fmul x, y))), z)
+  ///           -> (fneg (fmad (fpext x), (fpext y), z))
+  bool matchCombineFSubFpExtFNegFMulToFMadOrFMA(MachineInstr &MI,
+                                                BuildFnTy &MatchInfo);
 
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that

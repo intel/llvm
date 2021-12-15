@@ -38,7 +38,7 @@ struct PipelineDataTransfer
   std::vector<AffineForOp> forOps;
 };
 
-} // end anonymous namespace
+} // namespace
 
 /// Creates a pass to pipeline explicit movement of data across levels of the
 /// memory hierarchy.
@@ -74,9 +74,7 @@ static bool doubleBuffer(Value oldMemRef, AffineForOp forOp) {
     SmallVector<int64_t, 4> newShape(1 + oldMemRefType.getRank());
     newShape[0] = 2;
     std::copy(oldShape.begin(), oldShape.end(), newShape.begin() + 1);
-    return MemRefType::Builder(oldMemRefType)
-        .setShape(newShape)
-        .setAffineMaps({});
+    return MemRefType::Builder(oldMemRefType).setShape(newShape).setLayout({});
   };
 
   auto oldMemRefType = oldMemRef.getType().cast<MemRefType>();

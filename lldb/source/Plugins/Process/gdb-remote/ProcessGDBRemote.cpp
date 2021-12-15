@@ -126,7 +126,7 @@ enum {
 class PluginProperties : public Properties {
 public:
   static ConstString GetSettingName() {
-    return ProcessGDBRemote::GetPluginNameStatic();
+    return ConstString(ProcessGDBRemote::GetPluginNameStatic());
   }
 
   PluginProperties() : Properties() {
@@ -184,12 +184,7 @@ static PluginProperties &GetGlobalPluginProperties() {
 #define HIGH_PORT (49151u)
 #endif
 
-ConstString ProcessGDBRemote::GetPluginNameStatic() {
-  static ConstString g_name("gdb-remote");
-  return g_name;
-}
-
-const char *ProcessGDBRemote::GetPluginDescriptionStatic() {
+llvm::StringRef ProcessGDBRemote::GetPluginDescriptionStatic() {
   return "GDB Remote protocol based debugging plug-in.";
 }
 
@@ -287,9 +282,7 @@ ProcessGDBRemote::ProcessGDBRemote(lldb::TargetSP target_sp,
               __FUNCTION__);
   }
 
-  const uint32_t gdb_event_mask =
-      Communication::eBroadcastBitReadThreadDidExit |
-      GDBRemoteCommunication::eBroadcastBitGdbReadThreadGotNotify;
+  const uint32_t gdb_event_mask = Communication::eBroadcastBitReadThreadDidExit;
   if (m_async_listener_sp->StartListeningForEvents(
           &m_gdb_comm, gdb_event_mask) != gdb_event_mask) {
     LLDB_LOGF(log,
@@ -323,9 +316,6 @@ ProcessGDBRemote::~ProcessGDBRemote() {
   StopAsyncThread();
   KillDebugserverProcess();
 }
-
-// PluginInterface
-ConstString ProcessGDBRemote::GetPluginName() { return GetPluginNameStatic(); }
 
 bool ProcessGDBRemote::ParsePythonTargetDefinition(
     const FileSpec &target_definition_fspec) {
@@ -378,7 +368,7 @@ static size_t SplitCommaSeparatedRegisterNumberString(
     const llvm::StringRef &comma_separated_register_numbers,
     std::vector<uint32_t> &regnums, int base) {
   regnums.clear();
-  for (llvm::StringRef x : llvm::Split(comma_separated_register_numbers, ',')) {
+  for (llvm::StringRef x : llvm::split(comma_separated_register_numbers, ',')) {
     uint32_t reg;
     if (llvm::to_integer(x, reg, base))
       regnums.push_back(reg);
@@ -500,7 +490,7 @@ void ProcessGDBRemote::BuildDynamicRegisterInfo(bool force) {
           } else if (name.equals("dwarf")) {
             value.getAsInteger(0, reg_info.regnum_dwarf);
           } else if (name.equals("generic")) {
-            value.getAsInteger(0, reg_info.regnum_generic);
+            reg_info.regnum_generic = Args::StringToGenericRegister(value);
           } else if (name.equals("container-regs")) {
             SplitCommaSeparatedRegisterNumberString(value, reg_info.value_regs, 16);
           } else if (name.equals("invalidate-regs")) {
@@ -518,31 +508,7 @@ void ProcessGDBRemote::BuildDynamicRegisterInfo(bool force) {
     }
   }
 
-  if (!registers.empty()) {
-    AddRemoteRegisters(registers, arch_to_use);
-    return;
-  }
-
-  // We didn't get anything if the accumulated reg_num is zero.  See if we are
-  // debugging ARM and fill with a hard coded register set until we can get an
-  // updated debugserver down on the devices. On the other hand, if the
-  // accumulated reg_num is positive, see if we can add composite registers to
-  // the existing primordial ones.
-  bool from_scratch = (m_register_info_sp->GetNumRegisters() == 0);
-
-  if (!target_arch.IsValid()) {
-    if (arch_to_use.IsValid() &&
-        (arch_to_use.GetMachine() == llvm::Triple::arm ||
-         arch_to_use.GetMachine() == llvm::Triple::thumb) &&
-        arch_to_use.GetTriple().getVendor() == llvm::Triple::Apple)
-      m_register_info_sp->HardcodeARMRegisters(from_scratch);
-  } else if (target_arch.GetMachine() == llvm::Triple::arm ||
-             target_arch.GetMachine() == llvm::Triple::thumb) {
-    m_register_info_sp->HardcodeARMRegisters(from_scratch);
-  }
-
-  // At this point, we can finalize our register info.
-  m_register_info_sp->Finalize(GetTarget().GetArchitecture());
+  AddRemoteRegisters(registers, arch_to_use);
 }
 
 Status ProcessGDBRemote::WillLaunch(lldb_private::Module *module) {
@@ -639,14 +605,6 @@ Status ProcessGDBRemote::DoConnectRemote(llvm::StringRef remote_url) {
             __FUNCTION__, GetID(),
             GetTarget().GetArchitecture().GetTriple().getTriple().c_str());
 
-  if (error.Success()) {
-    PlatformSP platform_sp = GetTarget().GetPlatform();
-    if (platform_sp && platform_sp->IsConnected())
-      SetUnixSignals(platform_sp->GetUnixSignals());
-    else
-      SetUnixSignals(UnixSignals::Create(GetTarget().GetArchitecture()));
-  }
-
   return error;
 }
 
@@ -717,143 +675,133 @@ Status ProcessGDBRemote::DoLaunch(lldb_private::Module *exe_module,
   //  LLDB_LOG_OPTION_PREPEND_PROC_AND_THREAD);
   //  ::LogSetLogFile ("/dev/stdout");
 
-  ObjectFile *object_file = exe_module->GetObjectFile();
-  if (object_file) {
-    error = EstablishConnectionIfNeeded(launch_info);
-    if (error.Success()) {
-      PseudoTerminal pty;
-      const bool disable_stdio = (launch_flags & eLaunchFlagDisableSTDIO) != 0;
+  error = EstablishConnectionIfNeeded(launch_info);
+  if (error.Success()) {
+    PseudoTerminal pty;
+    const bool disable_stdio = (launch_flags & eLaunchFlagDisableSTDIO) != 0;
 
-      PlatformSP platform_sp(GetTarget().GetPlatform());
-      if (disable_stdio) {
-        // set to /dev/null unless redirected to a file above
+    PlatformSP platform_sp(GetTarget().GetPlatform());
+    if (disable_stdio) {
+      // set to /dev/null unless redirected to a file above
+      if (!stdin_file_spec)
+        stdin_file_spec.SetFile(FileSystem::DEV_NULL,
+                                FileSpec::Style::native);
+      if (!stdout_file_spec)
+        stdout_file_spec.SetFile(FileSystem::DEV_NULL,
+                                 FileSpec::Style::native);
+      if (!stderr_file_spec)
+        stderr_file_spec.SetFile(FileSystem::DEV_NULL,
+                                 FileSpec::Style::native);
+    } else if (platform_sp && platform_sp->IsHost()) {
+      // If the debugserver is local and we aren't disabling STDIO, lets use
+      // a pseudo terminal to instead of relying on the 'O' packets for stdio
+      // since 'O' packets can really slow down debugging if the inferior
+      // does a lot of output.
+      if ((!stdin_file_spec || !stdout_file_spec || !stderr_file_spec) &&
+          !errorToBool(pty.OpenFirstAvailablePrimary(O_RDWR | O_NOCTTY))) {
+        FileSpec secondary_name(pty.GetSecondaryName());
+
         if (!stdin_file_spec)
-          stdin_file_spec.SetFile(FileSystem::DEV_NULL,
-                                  FileSpec::Style::native);
+          stdin_file_spec = secondary_name;
+
         if (!stdout_file_spec)
-          stdout_file_spec.SetFile(FileSystem::DEV_NULL,
-                                   FileSpec::Style::native);
+          stdout_file_spec = secondary_name;
+
         if (!stderr_file_spec)
-          stderr_file_spec.SetFile(FileSystem::DEV_NULL,
-                                   FileSpec::Style::native);
-      } else if (platform_sp && platform_sp->IsHost()) {
-        // If the debugserver is local and we aren't disabling STDIO, lets use
-        // a pseudo terminal to instead of relying on the 'O' packets for stdio
-        // since 'O' packets can really slow down debugging if the inferior
-        // does a lot of output.
-        if ((!stdin_file_spec || !stdout_file_spec || !stderr_file_spec) &&
-            !errorToBool(pty.OpenFirstAvailablePrimary(O_RDWR | O_NOCTTY))) {
-          FileSpec secondary_name(pty.GetSecondaryName());
-
-          if (!stdin_file_spec)
-            stdin_file_spec = secondary_name;
-
-          if (!stdout_file_spec)
-            stdout_file_spec = secondary_name;
-
-          if (!stderr_file_spec)
-            stderr_file_spec = secondary_name;
-        }
-        LLDB_LOGF(
-            log,
-            "ProcessGDBRemote::%s adjusted STDIO paths for local platform "
-            "(IsHost() is true) using secondary: stdin=%s, stdout=%s, "
-            "stderr=%s",
-            __FUNCTION__,
-            stdin_file_spec ? stdin_file_spec.GetCString() : "<null>",
-            stdout_file_spec ? stdout_file_spec.GetCString() : "<null>",
-            stderr_file_spec ? stderr_file_spec.GetCString() : "<null>");
+          stderr_file_spec = secondary_name;
       }
+      LLDB_LOGF(
+          log,
+          "ProcessGDBRemote::%s adjusted STDIO paths for local platform "
+          "(IsHost() is true) using secondary: stdin=%s, stdout=%s, "
+          "stderr=%s",
+          __FUNCTION__,
+          stdin_file_spec ? stdin_file_spec.GetCString() : "<null>",
+          stdout_file_spec ? stdout_file_spec.GetCString() : "<null>",
+          stderr_file_spec ? stderr_file_spec.GetCString() : "<null>");
+    }
 
-      LLDB_LOGF(log,
-                "ProcessGDBRemote::%s final STDIO paths after all "
-                "adjustments: stdin=%s, stdout=%s, stderr=%s",
-                __FUNCTION__,
-                stdin_file_spec ? stdin_file_spec.GetCString() : "<null>",
-                stdout_file_spec ? stdout_file_spec.GetCString() : "<null>",
-                stderr_file_spec ? stderr_file_spec.GetCString() : "<null>");
+    LLDB_LOGF(log,
+              "ProcessGDBRemote::%s final STDIO paths after all "
+              "adjustments: stdin=%s, stdout=%s, stderr=%s",
+              __FUNCTION__,
+              stdin_file_spec ? stdin_file_spec.GetCString() : "<null>",
+              stdout_file_spec ? stdout_file_spec.GetCString() : "<null>",
+              stderr_file_spec ? stderr_file_spec.GetCString() : "<null>");
 
-      if (stdin_file_spec)
-        m_gdb_comm.SetSTDIN(stdin_file_spec);
-      if (stdout_file_spec)
-        m_gdb_comm.SetSTDOUT(stdout_file_spec);
-      if (stderr_file_spec)
-        m_gdb_comm.SetSTDERR(stderr_file_spec);
+    if (stdin_file_spec)
+      m_gdb_comm.SetSTDIN(stdin_file_spec);
+    if (stdout_file_spec)
+      m_gdb_comm.SetSTDOUT(stdout_file_spec);
+    if (stderr_file_spec)
+      m_gdb_comm.SetSTDERR(stderr_file_spec);
 
-      m_gdb_comm.SetDisableASLR(launch_flags & eLaunchFlagDisableASLR);
-      m_gdb_comm.SetDetachOnError(launch_flags & eLaunchFlagDetachOnError);
+    m_gdb_comm.SetDisableASLR(launch_flags & eLaunchFlagDisableASLR);
+    m_gdb_comm.SetDetachOnError(launch_flags & eLaunchFlagDetachOnError);
 
-      m_gdb_comm.SendLaunchArchPacket(
-          GetTarget().GetArchitecture().GetArchitectureName());
+    m_gdb_comm.SendLaunchArchPacket(
+        GetTarget().GetArchitecture().GetArchitectureName());
 
-      const char *launch_event_data = launch_info.GetLaunchEventData();
-      if (launch_event_data != nullptr && *launch_event_data != '\0')
-        m_gdb_comm.SendLaunchEventDataPacket(launch_event_data);
+    const char *launch_event_data = launch_info.GetLaunchEventData();
+    if (launch_event_data != nullptr && *launch_event_data != '\0')
+      m_gdb_comm.SendLaunchEventDataPacket(launch_event_data);
 
-      if (working_dir) {
-        m_gdb_comm.SetWorkingDir(working_dir);
-      }
+    if (working_dir) {
+      m_gdb_comm.SetWorkingDir(working_dir);
+    }
 
-      // Send the environment and the program + arguments after we connect
-      m_gdb_comm.SendEnvironment(launch_info.GetEnvironment());
+    // Send the environment and the program + arguments after we connect
+    m_gdb_comm.SendEnvironment(launch_info.GetEnvironment());
 
-      {
-        // Scope for the scoped timeout object
-        GDBRemoteCommunication::ScopedTimeout timeout(m_gdb_comm,
-                                                      std::chrono::seconds(10));
+    {
+      // Scope for the scoped timeout object
+      GDBRemoteCommunication::ScopedTimeout timeout(m_gdb_comm,
+                                                    std::chrono::seconds(10));
 
-        int arg_packet_err = m_gdb_comm.SendArgumentsPacket(launch_info);
-        if (arg_packet_err == 0) {
-          std::string error_str;
-          if (m_gdb_comm.GetLaunchSuccess(error_str)) {
-            SetID(m_gdb_comm.GetCurrentProcessID());
-          } else {
-            error.SetErrorString(error_str.c_str());
-          }
+      int arg_packet_err = m_gdb_comm.SendArgumentsPacket(launch_info);
+      if (arg_packet_err == 0) {
+        std::string error_str;
+        if (m_gdb_comm.GetLaunchSuccess(error_str)) {
+          SetID(m_gdb_comm.GetCurrentProcessID());
         } else {
-          error.SetErrorStringWithFormat("'A' packet returned an error: %i",
-                                         arg_packet_err);
+          error.SetErrorString(error_str.c_str());
         }
+      } else {
+        error.SetErrorStringWithFormat("'A' packet returned an error: %i",
+                                       arg_packet_err);
+      }
+    }
+
+    if (GetID() == LLDB_INVALID_PROCESS_ID) {
+      LLDB_LOGF(log, "failed to connect to debugserver: %s",
+                error.AsCString());
+      KillDebugserverProcess();
+      return error;
+    }
+
+    StringExtractorGDBRemote response;
+    if (m_gdb_comm.GetStopReply(response)) {
+      SetLastStopPacket(response);
+
+      const ArchSpec &process_arch = m_gdb_comm.GetProcessArchitecture();
+
+      if (process_arch.IsValid()) {
+        GetTarget().MergeArchitecture(process_arch);
+      } else {
+        const ArchSpec &host_arch = m_gdb_comm.GetHostArchitecture();
+        if (host_arch.IsValid())
+          GetTarget().MergeArchitecture(host_arch);
       }
 
-      if (GetID() == LLDB_INVALID_PROCESS_ID) {
-        LLDB_LOGF(log, "failed to connect to debugserver: %s",
-                  error.AsCString());
-        KillDebugserverProcess();
-        return error;
+      SetPrivateState(SetThreadStopInfo(response));
+
+      if (!disable_stdio) {
+        if (pty.GetPrimaryFileDescriptor() != PseudoTerminal::invalid_fd)
+          SetSTDIOFileDescriptor(pty.ReleasePrimaryFileDescriptor());
       }
-
-      StringExtractorGDBRemote response;
-      if (m_gdb_comm.GetStopReply(response)) {
-        SetLastStopPacket(response);
-
-        const ArchSpec &process_arch = m_gdb_comm.GetProcessArchitecture();
-
-        if (process_arch.IsValid()) {
-          GetTarget().MergeArchitecture(process_arch);
-        } else {
-          const ArchSpec &host_arch = m_gdb_comm.GetHostArchitecture();
-          if (host_arch.IsValid())
-            GetTarget().MergeArchitecture(host_arch);
-        }
-
-        SetPrivateState(SetThreadStopInfo(response));
-
-        if (!disable_stdio) {
-          if (pty.GetPrimaryFileDescriptor() != PseudoTerminal::invalid_fd)
-            SetSTDIOFileDescriptor(pty.ReleasePrimaryFileDescriptor());
-        }
-      }
-    } else {
-      LLDB_LOGF(log, "failed to connect to debugserver: %s", error.AsCString());
     }
   } else {
-    // Set our user ID to an invalid process ID.
-    SetID(LLDB_INVALID_PROCESS_ID);
-    error.SetErrorStringWithFormat(
-        "failed to get object file from '%s' for arch %s",
-        exe_module->GetFileSpec().GetFilename().AsCString(),
-        exe_module->GetArchitecture().GetArchitectureName());
+    LLDB_LOGF(log, "failed to connect to debugserver: %s", error.AsCString());
   }
   return error;
 }
@@ -874,9 +822,6 @@ Status ProcessGDBRemote::ConnectToDebugserver(llvm::StringRef connect_url) {
       while (!m_gdb_comm.IsConnected()) {
         if (conn_up->Connect(connect_url, &error) == eConnectionStatusSuccess) {
           m_gdb_comm.SetConnection(std::move(conn_up));
-          break;
-        } else if (error.WasInterrupted()) {
-          // If we were interrupted, don't keep retrying.
           break;
         }
 
@@ -1015,6 +960,18 @@ void ProcessGDBRemote::DidLaunchOrAttach(ArchSpec &process_arch) {
   if (StructuredData::Array *supported_packets =
           m_gdb_comm.GetSupportedStructuredDataPlugins())
     MapSupportedStructuredDataPlugins(*supported_packets);
+
+  // If connected to LLDB ("native-signals+"), use signal defs for
+  // the remote platform.  If connected to GDB, just use the standard set.
+  if (!m_gdb_comm.UsesNativeSignals()) {
+    SetUnixSignals(std::make_shared<GDBRemoteSignals>());
+  } else {
+    PlatformSP platform_sp = GetTarget().GetPlatform();
+    if (platform_sp && platform_sp->IsConnected())
+      SetUnixSignals(platform_sp->GetUnixSignals());
+    else
+      SetUnixSignals(UnixSignals::Create(GetTarget().GetArchitecture()));
+  }
 }
 
 void ProcessGDBRemote::MaybeLoadExecutableModule() {
@@ -1365,24 +1322,6 @@ Status ProcessGDBRemote::DoResume() {
   return error;
 }
 
-void ProcessGDBRemote::HandleStopReplySequence() {
-  while (true) {
-    // Send vStopped
-    StringExtractorGDBRemote response;
-    m_gdb_comm.SendPacketAndWaitForResponse("vStopped", response);
-
-    // OK represents end of signal list
-    if (response.IsOKResponse())
-      break;
-
-    // If not OK or a normal packet we have a problem
-    if (!response.IsNormalResponse())
-      break;
-
-    SetLastStopPacket(response);
-  }
-}
-
 void ProcessGDBRemote::ClearThreadIDList() {
   std::lock_guard<std::recursive_mutex> guard(m_thread_list_real.GetMutex());
   m_thread_ids.clear();
@@ -1411,7 +1350,7 @@ size_t ProcessGDBRemote::UpdateThreadIDsFromStopReplyThreadsValue(
 size_t ProcessGDBRemote::UpdateThreadPCsFromStopReplyThreadsValue(
     llvm::StringRef value) {
   m_thread_pcs.clear();
-  for (llvm::StringRef x : llvm::Split(value, ',')) {
+  for (llvm::StringRef x : llvm::split(value, ',')) {
     lldb::addr_t pc;
     if (llvm::to_integer(x, pc, 16))
       m_thread_pcs.push_back(pc);
@@ -2379,9 +2318,9 @@ Status ProcessGDBRemote::DoDestroy() {
       m_public_state.GetValue() != eStateRunning) {
     PlatformSP platform_sp = GetTarget().GetPlatform();
 
-    // FIXME: These should be ConstStrings so we aren't doing strcmp'ing.
     if (platform_sp && platform_sp->GetName() &&
-        platform_sp->GetName() == PlatformRemoteiOS::GetPluginNameStatic()) {
+        platform_sp->GetName().GetStringRef() ==
+            PlatformRemoteiOS::GetPluginNameStatic()) {
       if (m_destroy_tried_resuming) {
         if (log)
           log->PutCString("ProcessGDBRemote::DoDestroy() - Tried resuming to "
@@ -3580,31 +3519,6 @@ void ProcessGDBRemote::StopAsyncThread() {
         __FUNCTION__);
 }
 
-bool ProcessGDBRemote::HandleNotifyPacket(StringExtractorGDBRemote &packet) {
-  // get the packet at a string
-  const std::string &pkt = std::string(packet.GetStringRef());
-  // skip %stop:
-  StringExtractorGDBRemote stop_info(pkt.c_str() + 5);
-
-  // pass as a thread stop info packet
-  SetLastStopPacket(stop_info);
-
-  // check for more stop reasons
-  HandleStopReplySequence();
-
-  // if the process is stopped then we need to fake a resume so that we can
-  // stop properly with the new break. This is possible due to
-  // SetPrivateState() broadcasting the state change as a side effect.
-  if (GetPrivateState() == lldb::StateType::eStateStopped) {
-    SetPrivateState(lldb::StateType::eStateRunning);
-  }
-
-  // since we have some stopped packets we can halt the process
-  SetPrivateState(lldb::StateType::eStateStopped);
-
-  return true;
-}
-
 thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
   ProcessGDBRemote *process = (ProcessGDBRemote *)arg;
 
@@ -3753,17 +3667,6 @@ thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
           done = true;
           break;
 
-        case GDBRemoteCommunication::eBroadcastBitGdbReadThreadGotNotify: {
-          lldb_private::Event *event = event_sp.get();
-          const EventDataBytes *continue_packet =
-              EventDataBytes::GetEventDataFromEvent(event);
-          StringExtractorGDBRemote notify(
-              (const char *)continue_packet->GetBytes());
-          // Hand this over to the process to handle
-          process->HandleNotifyPacket(notify);
-          break;
-        }
-
         default:
           LLDB_LOGF(log,
                     "ProcessGDBRemote::%s (arg = %p, pid = %" PRIu64
@@ -3897,7 +3800,7 @@ bool ProcessGDBRemote::StopNoticingNewThreads() {
 
 DynamicLoader *ProcessGDBRemote::GetDynamicLoader() {
   if (m_dyld_up.get() == nullptr)
-    m_dyld_up.reset(DynamicLoader::FindPlugin(this, nullptr));
+    m_dyld_up.reset(DynamicLoader::FindPlugin(this, ""));
   return m_dyld_up.get();
 }
 
@@ -4312,10 +4215,14 @@ bool ParseRegisters(XMLNode feature_node, GdbServerTargetInfo &target_info,
           } else if (gdb_type == "data_ptr" || gdb_type == "code_ptr") {
             reg_info.format = eFormatAddressInfo;
             reg_info.encoding = eEncodingUint;
-          } else if (gdb_type == "i387_ext" || gdb_type == "float") {
+          } else if (gdb_type == "float") {
             reg_info.format = eFormatFloat;
             reg_info.encoding = eEncodingIEEE754;
-          } else if (gdb_type == "aarch64v") {
+          } else if (gdb_type == "aarch64v" ||
+                     llvm::StringRef(gdb_type).startswith("vec") ||
+                     gdb_type == "i387_ext" || gdb_type == "uint128") {
+            // lldb doesn't handle 128-bit uints correctly (for ymm*h), so treat
+            // them as vector (similarly to xmm/ymm)
             reg_info.format = eFormatVectorOfUInt8;
             reg_info.encoding = eEncodingVector;
           }
@@ -4975,7 +4882,7 @@ llvm::Expected<bool> ProcessGDBRemote::SaveCore(llvm::StringRef outfile) {
     std::string path;
 
     // process the response
-    for (auto x : llvm::Split(response.GetStringRef(), ';')) {
+    for (auto x : llvm::split(response.GetStringRef(), ';')) {
       if (x.consume_front("core-path:"))
         StringExtractor(x).GetHexByteString(path);
     }

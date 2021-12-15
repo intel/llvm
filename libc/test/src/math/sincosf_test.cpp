@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "src/__support/CPP/Array.h"
 #include "src/__support/FPUtil/FPBits.h"
-#include "src/__support/FPUtil/TestHelpers.h"
 #include "src/math/sincosf.h"
 #include "test/src/math/sdcomp26094.h"
-#include "utils/CPP/Array.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include "utils/UnitTest/FPMatcher.h"
 #include "utils/UnitTest/Test.h"
 #include <math.h>
 
@@ -51,7 +51,7 @@ TEST(LlvmLibcSinCosfTest, SpecialNumbers) {
   EXPECT_EQ(errno, EDOM);
 
   errno = 0;
-  __llvm_libc::sincosf(negInf, &sin, &cos);
+  __llvm_libc::sincosf(neg_inf, &sin, &cos);
   EXPECT_FP_EQ(aNaN, cos);
   EXPECT_FP_EQ(aNaN, sin);
   EXPECT_EQ(errno, EDOM);

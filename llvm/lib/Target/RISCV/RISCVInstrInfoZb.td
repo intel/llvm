@@ -7,7 +7,17 @@
 //===----------------------------------------------------------------------===//
 //
 // This file describes the RISC-V instructions from the standard Bitmanip
-// extensions, version 0.93.
+// extensions, versions:
+//   Zba - 1.0
+//   Zbb - 1.0
+//   Zbc - 1.0
+//   Zbs - 1.0
+//   Zbe - 0.93
+//   Zbf - 0.93
+//   Zbm - 0.93
+//   Zbp - 0.93
+//   Zbr - 0.93
+//   Zbt - 0.93
 // This version is still experimental as the Bitmanip extensions haven't been
 // ratified yet.
 //
@@ -372,50 +382,50 @@ def FSRI : RVBTernaryImm6<0b101, OPC_OP_IMM, "fsri",
 } // Predicates = [HasStdExtZbt]
 
 let Predicates = [HasStdExtZbb] in {
-def CLZ  : RVBUnary<0b0110000, 0b00000, 0b001, RISCVOpcode<0b0010011>, "clz">,
+def CLZ  : RVBUnary<0b0110000, 0b00000, 0b001, OPC_OP_IMM, "clz">,
            Sched<[WriteCLZ, ReadCLZ]>;
-def CTZ  : RVBUnary<0b0110000, 0b00001, 0b001, RISCVOpcode<0b0010011>, "ctz">,
+def CTZ  : RVBUnary<0b0110000, 0b00001, 0b001, OPC_OP_IMM, "ctz">,
            Sched<[WriteCTZ, ReadCTZ]>;
-def CPOP : RVBUnary<0b0110000, 0b00010, 0b001, RISCVOpcode<0b0010011>, "cpop">,
+def CPOP : RVBUnary<0b0110000, 0b00010, 0b001, OPC_OP_IMM, "cpop">,
            Sched<[WriteCPOP, ReadCPOP]>;
 } // Predicates = [HasStdExtZbb]
 
 let Predicates = [HasStdExtZbm, IsRV64] in
-def BMATFLIP : RVBUnary<0b0110000, 0b00011, 0b001, RISCVOpcode<0b0010011>,
-                        "bmatflip">, Sched<[]>;
+def BMATFLIP : RVBUnary<0b0110000, 0b00011, 0b001, OPC_OP_IMM, "bmatflip">,
+               Sched<[]>;
 
 let Predicates = [HasStdExtZbb] in {
-def SEXTB : RVBUnary<0b0110000, 0b00100, 0b001, RISCVOpcode<0b0010011>,
-                     "sext.b">, Sched<[WriteIALU, ReadIALU]>;
-def SEXTH : RVBUnary<0b0110000, 0b00101, 0b001, RISCVOpcode<0b0010011>,
-                     "sext.h">, Sched<[WriteIALU, ReadIALU]>;
+def SEXTB : RVBUnary<0b0110000, 0b00100, 0b001, OPC_OP_IMM, "sext.b">,
+            Sched<[WriteIALU, ReadIALU]>;
+def SEXTH : RVBUnary<0b0110000, 0b00101, 0b001, OPC_OP_IMM, "sext.h">,
+            Sched<[WriteIALU, ReadIALU]>;
 } // Predicates = [HasStdExtZbb]
 
 let Predicates = [HasStdExtZbr] in {
-def CRC32B : RVBUnary<0b0110000, 0b10000, 0b001, RISCVOpcode<0b0010011>,
-                      "crc32.b">, Sched<[]>;
-def CRC32H : RVBUnary<0b0110000, 0b10001, 0b001, RISCVOpcode<0b0010011>,
-                      "crc32.h">, Sched<[]>;
-def CRC32W : RVBUnary<0b0110000, 0b10010, 0b001, RISCVOpcode<0b0010011>,
-                      "crc32.w">, Sched<[]>;
+def CRC32B : RVBUnary<0b0110000, 0b10000, 0b001, OPC_OP_IMM, "crc32.b">,
+             Sched<[]>;
+def CRC32H : RVBUnary<0b0110000, 0b10001, 0b001, OPC_OP_IMM, "crc32.h">,
+             Sched<[]>;
+def CRC32W : RVBUnary<0b0110000, 0b10010, 0b001, OPC_OP_IMM, "crc32.w">,
+             Sched<[]>;
 } // Predicates = [HasStdExtZbr]
 
 let Predicates = [HasStdExtZbr, IsRV64] in
-def CRC32D  : RVBUnary<0b0110000, 0b10011, 0b001, RISCVOpcode<0b0010011>,
-                       "crc32.d">, Sched<[]>;
+def CRC32D  : RVBUnary<0b0110000, 0b10011, 0b001, OPC_OP_IMM, "crc32.d">,
+              Sched<[]>;
 
 let Predicates = [HasStdExtZbr] in {
-def CRC32CB : RVBUnary<0b0110000, 0b11000, 0b001, RISCVOpcode<0b0010011>,
-                       "crc32c.b">, Sched<[]>;
-def CRC32CH : RVBUnary<0b0110000, 0b11001, 0b001, RISCVOpcode<0b0010011>,
-                       "crc32c.h">, Sched<[]>;
-def CRC32CW : RVBUnary<0b0110000, 0b11010, 0b001, RISCVOpcode<0b0010011>,
-                       "crc32c.w">, Sched<[]>;
+def CRC32CB : RVBUnary<0b0110000, 0b11000, 0b001, OPC_OP_IMM, "crc32c.b">,
+              Sched<[]>;
+def CRC32CH : RVBUnary<0b0110000, 0b11001, 0b001, OPC_OP_IMM, "crc32c.h">,
+              Sched<[]>;
+def CRC32CW : RVBUnary<0b0110000, 0b11010, 0b001, OPC_OP_IMM, "crc32c.w">,
+              Sched<[]>;
 } // Predicates = [HasStdExtZbr]
 
 let Predicates = [HasStdExtZbr, IsRV64] in
-def CRC32CD : RVBUnary<0b0110000, 0b11011, 0b001, RISCVOpcode<0b0010011>,
-                       "crc32c.d">, Sched<[]>;
+def CRC32CD : RVBUnary<0b0110000, 0b11011, 0b001, OPC_OP_IMM, "crc32c.d">,
+              Sched<[]>;
 
 let Predicates = [HasStdExtZbc] in {
 def CLMUL  : ALU_rr<0b0000101, 0b001, "clmul">, Sched<[]>;
@@ -485,15 +495,6 @@ def RORW  : ALUW_rr<0b0110000, 0b101, "rorw">,
             Sched<[WriteRotateReg32, ReadRotateReg32, ReadRotateReg32]>;
 } // Predicates = [HasStdExtZbbOrZbp, IsRV64]
 
-let Predicates = [HasStdExtZbs, IsRV64] in {
-// NOTE: These instructions have been removed from the 0.94 spec. As a result
-// we have no isel patterns for them.
-def BCLRW : ALUW_rr<0b0100100, 0b001, "bclrw">, Sched<[]>;
-def BSETW : ALUW_rr<0b0010100, 0b001, "bsetw">, Sched<[]>;
-def BINVW : ALUW_rr<0b0110100, 0b001, "binvw">, Sched<[]>;
-def BEXTW : ALUW_rr<0b0100100, 0b101, "bextw">, Sched<[]>;
-} // Predicates = [HasStdExtZbs, IsRV64]
-
 let Predicates = [HasStdExtZbp, IsRV64] in {
 def GORCW  : ALUW_rr<0b0010100, 0b101, "gorcw">, Sched<[]>;
 def GREVW  : ALUW_rr<0b0110100, 0b101, "grevw">, Sched<[]>;
@@ -506,17 +507,6 @@ def XPERMW : ALU_rr<0b0010100, 0b000, "xperm.w">, Sched<[]>;
 let Predicates = [HasStdExtZbbOrZbp, IsRV64] in
 def RORIW : RVBShiftW_ri<0b0110000, 0b101, OPC_OP_IMM_32, "roriw">,
             Sched<[WriteRotateImm32, ReadRotateImm32]>;
-
-let Predicates = [HasStdExtZbs, IsRV64] in {
-// NOTE: These instructions have been removed from the 0.94 spec. As a result
-// we have no isel patterns for them.
-def BCLRIW : RVBShiftW_ri<0b0100100, 0b001, OPC_OP_IMM_32, "bclriw">,
-              Sched<[]>;
-def BSETIW : RVBShiftW_ri<0b0010100, 0b001, OPC_OP_IMM_32, "bsetiw">,
-              Sched<[]>;
-def BINVIW : RVBShiftW_ri<0b0110100, 0b001, OPC_OP_IMM_32, "binviw">,
-              Sched<[]>;
-} // Predicates = [HasStdExtZbs, IsRV64]
 
 let Predicates = [HasStdExtZbp, IsRV64] in {
 def GORCIW : RVBShiftW_ri<0b0010100, 0b101, OPC_OP_IMM_32, "gorciw">, Sched<[]>;
@@ -533,12 +523,12 @@ def FSRIW : RVBTernaryImm5<0b10, 0b101, OPC_OP_IMM_32,
 } // Predicates = [HasStdExtZbt, IsRV64]
 
 let Predicates = [HasStdExtZbb, IsRV64] in {
-def CLZW   : RVBUnary<0b0110000, 0b00000, 0b001, RISCVOpcode<0b0011011>,
-                      "clzw">, Sched<[WriteCLZ32, ReadCLZ32]>;
-def CTZW   : RVBUnary<0b0110000, 0b00001, 0b001, RISCVOpcode<0b0011011>,
-                      "ctzw">, Sched<[WriteCTZ32, ReadCTZ32]>;
-def CPOPW  : RVBUnary<0b0110000, 0b00010, 0b001, RISCVOpcode<0b0011011>,
-                      "cpopw">, Sched<[WriteCPOP32, ReadCPOP32]>;
+def CLZW   : RVBUnary<0b0110000, 0b00000, 0b001, OPC_OP_IMM_32, "clzw">,
+             Sched<[WriteCLZ32, ReadCLZ32]>;
+def CTZW   : RVBUnary<0b0110000, 0b00001, 0b001, OPC_OP_IMM_32, "ctzw">,
+             Sched<[WriteCTZ32, ReadCTZ32]>;
+def CPOPW  : RVBUnary<0b0110000, 0b00010, 0b001, OPC_OP_IMM_32, "cpopw">,
+             Sched<[WriteCPOP32, ReadCPOP32]>;
 } // Predicates = [HasStdExtZbb, IsRV64]
 
 let Predicates = [HasStdExtZbp, IsRV64] in {
@@ -615,8 +605,6 @@ def ORCB : RVInstI<0b101, OPC_OP_IMM, (outs GPR:$rd), (ins GPR:$rs1),
 //===----------------------------------------------------------------------===//
 
 let Predicates = [HasStdExtZba, IsRV64] in {
-// NOTE: The 0.93 spec shows zext.w as an alias of pack/packw. It has been
-// changed to add.uw in a draft after 0.94.
 def : InstAlias<"zext.w $rd, $rs", (ADDUW GPR:$rd, GPR:$rs, X0)>;
 }
 

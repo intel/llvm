@@ -66,10 +66,6 @@ def testAttrHash():
     a3 = Attribute.parse('"attr1"')
     # CHECK: hash(a1) == hash(a3): True
     print("hash(a1) == hash(a3):", a1.__hash__() == a3.__hash__())
-    # In general, hashes don't have to be unique. In this case, however, the
-    # hash is just the underlying pointer so it will be.
-    # CHECK: hash(a1) == hash(a2): False
-    print("hash(a1) == hash(a2):", a1.__hash__() == a2.__hash__())
 
     s = set()
     s.add(a1)
@@ -87,6 +83,18 @@ def testAttrCast():
     a2 = Attribute(a1)
     # CHECK: a1 == a2: True
     print("a1 == a2:", a1 == a2)
+
+
+# CHECK-LABEL: TEST: testAttrIsInstance
+@run
+def testAttrIsInstance():
+  with Context():
+    a1 = Attribute.parse("42")
+    a2 = Attribute.parse("[42]")
+    assert IntegerAttr.isinstance(a1)
+    assert not IntegerAttr.isinstance(a2)
+    assert not ArrayAttr.isinstance(a1)
+    assert ArrayAttr.isinstance(a2)
 
 
 # CHECK-LABEL: TEST: testAttrEqDoesNotRaise
@@ -327,6 +335,12 @@ def testDictAttr():
 
     # CHECK: "string"
     print(a['stringattr'])
+
+    # CHECK: True
+    print('stringattr' in a)
+
+    # CHECK: False
+    print('not_in_dict' in a)
 
     # Check that exceptions are raised as expected.
     try:

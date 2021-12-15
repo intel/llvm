@@ -162,7 +162,7 @@ TEST_F(xptiApiTest, xptiFindEventGoodInput) {
 
   auto Result = xptiMakeEvent("foo", &Payload, 0,
                               (xpti::trace_activity_type_t)1, &Instance);
-  EXPECT_NE(Result, nullptr);
+  ASSERT_NE(Result, nullptr);
   EXPECT_EQ(Instance, 1);
   auto NewResult = xptiFindEvent(Result->unique_id);
   EXPECT_EQ(Result, NewResult);
@@ -181,6 +181,7 @@ TEST_F(xptiApiTest, xptiQueryPayloadGoodInput) {
   EXPECT_NE(Result, nullptr);
   EXPECT_EQ(instance, 1);
   auto NewResult = xptiQueryPayload(Result);
+  ASSERT_NE(NewResult, nullptr);
   EXPECT_STREQ(Payload.name, NewResult->name);
   EXPECT_STREQ(Payload.source_file, NewResult->source_file);
   // NewResult->name_sid will have a string ID whereas 'Payload' will not

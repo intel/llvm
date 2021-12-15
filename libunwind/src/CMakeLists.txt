@@ -83,6 +83,7 @@ if (LIBUNWIND_ENABLE_THREADS)
 endif()
 
 # Setup flags.
+add_link_flags_if(LIBUNWIND_SUPPORTS_UNWINDLIB_NONE_FLAG --unwindlib=none)
 if (LIBUNWIND_SUPPORTS_NOSTDLIBXX_FLAG)
   add_link_flags_if_supported(-nostdlib++)
 else()
@@ -144,7 +145,6 @@ if (LIBUNWIND_ENABLE_SHARED)
       OUTPUT_NAME "unwind"
       VERSION "1.0"
       SOVERSION "1"
-      POSITION_INDEPENDENT_CODE ON
   )
   list(APPEND LIBUNWIND_BUILD_TARGETS "unwind_shared")
   if (LIBUNWIND_INSTALL_SHARED_LIBRARY)
@@ -170,7 +170,6 @@ if (LIBUNWIND_ENABLE_STATIC)
       LINK_FLAGS "${LIBUNWIND_LINK_FLAGS}"
       LINKER_LANGUAGE C
       OUTPUT_NAME "unwind"
-      POSITION_INDEPENDENT_CODE ON
   )
 
   if(LIBUNWIND_HIDE_SYMBOLS)

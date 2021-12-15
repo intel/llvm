@@ -185,9 +185,8 @@ ParseResult Parser::parseStridedLayout(int64_t &offset,
 ///
 ///   stride-list ::= `[` (dimension (`,` dimension)*)? `]`
 ///   strided-layout ::= `offset:` dimension `,` `strides: ` stride-list
-///   semi-affine-map-composition ::= (semi-affine-map `,` )* semi-affine-map
-///   layout-specification ::= semi-affine-map-composition | strided-layout
-///   memory-space ::= integer-literal /* | TODO: address-space-id */
+///   layout-specification ::= semi-affine-map | strided-layout | attribute
+///   memory-space ::= integer-literal | attribute
 ///
 Type Parser::parseMemRefType() {
   llvm::SMLoc loc = getToken().getLoc();
@@ -221,15 +220,10 @@ Type Parser::parseMemRefType() {
   if (!BaseMemRefType::isValidElementType(elementType))
     return emitError(typeLoc, "invalid memref element type"), nullptr;
 
-  // Parse semi-affine-map-composition.
-  SmallVector<AffineMap, 2> affineMapComposition;
+  MemRefLayoutAttrInterface layout;
   Attribute memorySpace;
-  unsigned numDims = dimensions.size();
 
   auto parseElt = [&]() -> ParseResult {
-    AffineMap map;
-    llvm::SMLoc mapLoc = getToken().getLoc();
-
     // Check for AffineMap as offset/strides.
     if (getToken().is(Token::kw_offset)) {
       int64_t offset;
@@ -237,15 +231,17 @@ Type Parser::parseMemRefType() {
       if (failed(parseStridedLayout(offset, strides)))
         return failure();
       // Construct strided affine map.
-      map = makeStridedLinearLayoutMap(strides, offset, state.context);
+      AffineMap map =
+          makeStridedLinearLayoutMap(strides, offset, state.context);
+      layout = AffineMapAttr::get(map);
     } else {
-      // Either it is AffineMapAttr or memory space attribute.
+      // Either it is MemRefLayoutAttrInterface or memory space attribute.
       Attribute attr = parseAttribute();
       if (!attr)
         return failure();
 
-      if (AffineMapAttr affineMapAttr = attr.dyn_cast<AffineMapAttr>()) {
-        map = affineMapAttr.getValue();
+      if (attr.isa<MemRefLayoutAttrInterface>()) {
+        layout = attr.cast<MemRefLayoutAttrInterface>();
       } else if (memorySpace) {
         return emitError("multiple memory spaces specified in memref type");
       } else {
@@ -259,15 +255,6 @@ Type Parser::parseMemRefType() {
     if (memorySpace)
       return emitError("expected memory space to be last in memref type");
 
-    if (map.getNumDims() != numDims) {
-      size_t i = affineMapComposition.size();
-      return emitError(mapLoc, "memref affine map dimension mismatch between ")
-             << (i == 0 ? Twine("memref rank") : "affine map " + Twine(i))
-             << " and affine map" << i + 1 << ": " << numDims
-             << " != " << map.getNumDims();
-    }
-    numDims = map.getNumResults();
-    affineMapComposition.push_back(map);
     return success();
   };
 
@@ -284,8 +271,8 @@ Type Parser::parseMemRefType() {
   if (isUnranked)
     return getChecked<UnrankedMemRefType>(loc, elementType, memorySpace);
 
-  return getChecked<MemRefType>(loc, dimensions, elementType,
-                                affineMapComposition, memorySpace);
+  return getChecked<MemRefType>(loc, dimensions, elementType, layout,
+                                memorySpace);
 }
 
 /// Parse any type except the function type.
@@ -455,9 +442,7 @@ Type Parser::parseTupleType() {
 
 /// Parse a vector type.
 ///
-///   vector-type ::= `vector` `<` non-empty-static-dimension-list type `>`
-///   non-empty-static-dimension-list ::= decimal-literal `x`
-///                                       static-dimension-list
+///   vector-type ::= `vector` `<` static-dimension-list type `>`
 ///   static-dimension-list ::= (decimal-literal `x`)*
 ///
 VectorType Parser::parseVectorType() {
@@ -469,8 +454,6 @@ VectorType Parser::parseVectorType() {
   SmallVector<int64_t, 4> dimensions;
   if (parseDimensionListRanked(dimensions, /*allowDynamic=*/false))
     return nullptr;
-  if (dimensions.empty())
-    return (emitError("expected dimension size in vector type"), nullptr);
   if (any_of(dimensions, [](int64_t i) { return i <= 0; }))
     return emitError(getToken().getLoc(),
                      "vector types must have positive constant sizes"),
@@ -521,8 +504,8 @@ Parser::parseDimensionListRanked(SmallVectorImpl<int64_t> &dimensions,
         consumeToken();
       } else {
         // Make sure this integer value is in bound and valid.
-        auto dimension = getToken().getUnsignedIntegerValue();
-        if (!dimension.hasValue())
+        Optional<uint64_t> dimension = getToken().getUInt64IntegerValue();
+        if (!dimension || *dimension > std::numeric_limits<int64_t>::max())
           return emitError("invalid dimension");
         dimensions.push_back((int64_t)dimension.getValue());
         consumeToken(Token::integer);

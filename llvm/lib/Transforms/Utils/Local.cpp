@@ -402,6 +402,18 @@ bool llvm::isInstructionTriviallyDead(Instruction *I,
   return wouldInstructionBeTriviallyDead(I, TLI);
 }
 
+bool llvm::wouldInstructionBeTriviallyDeadOnUnusedPaths(
+    Instruction *I, const TargetLibraryInfo *TLI) {
+  // Instructions that are "markers" and have implied meaning on code around
+  // them (without explicit uses), are not dead on unused paths.
+  if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I))
+    if (II->getIntrinsicID() == Intrinsic::stacksave ||
+        II->getIntrinsicID() == Intrinsic::launder_invariant_group ||
+        II->isLifetimeStartOrEnd())
+      return false;
+  return wouldInstructionBeTriviallyDead(I, TLI);
+}
+
 bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
                                            const TargetLibraryInfo *TLI) {
   if (I->isTerminator())
@@ -529,8 +541,8 @@ bool llvm::RecursivelyDeleteTriviallyDeadInstructionsPermissive(
     std::function<void(Value *)> AboutToDeleteCallback) {
   unsigned S = 0, E = DeadInsts.size(), Alive = 0;
   for (; S != E; ++S) {
-    auto *I = cast<Instruction>(DeadInsts[S]);
-    if (!isInstructionTriviallyDead(I)) {
+    auto *I = dyn_cast<Instruction>(DeadInsts[S]);
+    if (!I || !isInstructionTriviallyDead(I)) {
       DeadInsts[S] = nullptr;
       ++Alive;
     }
@@ -760,15 +772,18 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
   SmallVector<DominatorTree::UpdateType, 32> Updates;
 
   if (DTU) {
-    SmallPtrSet<BasicBlock *, 2> PredsOfPredBB(pred_begin(PredBB),
-                                               pred_end(PredBB));
-    Updates.reserve(Updates.size() + 2 * PredsOfPredBB.size() + 1);
-    for (BasicBlock *PredOfPredBB : PredsOfPredBB)
+    // To avoid processing the same predecessor more than once.
+    SmallPtrSet<BasicBlock *, 2> SeenPreds;
+    Updates.reserve(Updates.size() + 2 * pred_size(PredBB) + 1);
+    for (BasicBlock *PredOfPredBB : predecessors(PredBB))
       // This predecessor of PredBB may already have DestBB as a successor.
       if (PredOfPredBB != PredBB)
-        Updates.push_back({DominatorTree::Insert, PredOfPredBB, DestBB});
-    for (BasicBlock *PredOfPredBB : PredsOfPredBB)
-      Updates.push_back({DominatorTree::Delete, PredOfPredBB, PredBB});
+        if (SeenPreds.insert(PredOfPredBB).second)
+          Updates.push_back({DominatorTree::Insert, PredOfPredBB, DestBB});
+    SeenPreds.clear();
+    for (BasicBlock *PredOfPredBB : predecessors(PredBB))
+      if (SeenPreds.insert(PredOfPredBB).second)
+        Updates.push_back({DominatorTree::Delete, PredOfPredBB, PredBB});
     Updates.push_back({DominatorTree::Delete, PredBB, DestBB});
   }
 
@@ -1096,16 +1111,20 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
 
   SmallVector<DominatorTree::UpdateType, 32> Updates;
   if (DTU) {
+    // To avoid processing the same predecessor more than once.
+    SmallPtrSet<BasicBlock *, 8> SeenPreds;
     // All predecessors of BB will be moved to Succ.
-    SmallPtrSet<BasicBlock *, 8> PredsOfBB(pred_begin(BB), pred_end(BB));
     SmallPtrSet<BasicBlock *, 8> PredsOfSucc(pred_begin(Succ), pred_end(Succ));
-    Updates.reserve(Updates.size() + 2 * PredsOfBB.size() + 1);
-    for (auto *PredOfBB : PredsOfBB)
+    Updates.reserve(Updates.size() + 2 * pred_size(BB) + 1);
+    for (auto *PredOfBB : predecessors(BB))
       // This predecessor of BB may already have Succ as a successor.
       if (!PredsOfSucc.contains(PredOfBB))
-        Updates.push_back({DominatorTree::Insert, PredOfBB, Succ});
-    for (auto *PredOfBB : PredsOfBB)
-      Updates.push_back({DominatorTree::Delete, PredOfBB, BB});
+        if (SeenPreds.insert(PredOfBB).second)
+          Updates.push_back({DominatorTree::Insert, PredOfBB, Succ});
+    SeenPreds.clear();
+    for (auto *PredOfBB : predecessors(BB))
+      if (SeenPreds.insert(PredOfBB).second)
+        Updates.push_back({DominatorTree::Delete, PredOfBB, BB});
     Updates.push_back({DominatorTree::Delete, BB, Succ});
   }
 
@@ -1413,8 +1432,6 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
     if (auto *AI =
             dyn_cast_or_null<AllocaInst>(DII->getVariableLocationOp(0))) {
       if (Optional<TypeSize> FragmentSize = AI->getAllocationSizeInBits(DL)) {
-        assert(ValueSize.isScalable() == FragmentSize->isScalable() &&
-               "Both sizes should agree on the scalable flag.");
         return TypeSize::isKnownGE(ValueSize, *FragmentSize);
       }
     }
@@ -1733,9 +1750,11 @@ void llvm::salvageDebugInfo(Instruction &I) {
 
 void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers) {
-  // This is an arbitrary chosen limit on the maximum number of values we can
-  // salvage up to in a DIArgList, used for performance reasons.
+  // These are arbitrary chosen limits on the maximum number of values and the
+  // maximum size of a debug expression we can salvage up to, used for
+  // performance reasons.
   const unsigned MaxDebugArgs = 16;
+  const unsigned MaxExpressionSize = 128;
   bool Salvaged = false;
 
   for (auto *DII : DbgUsers) {
@@ -1772,9 +1791,10 @@ void llvm::salvageDebugInfoForDbgValues(
       break;
 
     DII->replaceVariableLocationOp(&I, Op0);
-    if (AdditionalValues.empty()) {
+    bool IsValidSalvageExpr = SalvagedExpr->getNumElements() <= MaxExpressionSize;
+    if (AdditionalValues.empty() && IsValidSalvageExpr) {
       DII->setExpression(SalvagedExpr);
-    } else if (isa<DbgValueInst>(DII) &&
+    } else if (isa<DbgValueInst>(DII) && IsValidSalvageExpr &&
                DII->getNumVariableLocationOps() + AdditionalValues.size() <=
                    MaxDebugArgs) {
       DII->addVariableLocationOps(AdditionalValues, SalvagedExpr);

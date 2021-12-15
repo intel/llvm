@@ -206,6 +206,24 @@ private:
   AlignedBuffer DstBuffer;
 };
 
+/// Provides source and destination buffers for the Move operation as well as
+/// the associated size distributions.
+struct MoveSetup : public ParameterBatch {
+  MoveSetup();
+
+  inline static const ArrayRef<MemorySizeDistribution> getDistributions() {
+    return getMemmoveSizeDistributions();
+  }
+
+  inline void *Call(ParameterType Parameter, MemmoveFunction Memmove) {
+    return Memmove(Buffer + ParameterBatch::BufferSize / 3,
+                   Buffer + Parameter.OffsetBytes, Parameter.SizeBytes);
+  }
+
+private:
+  AlignedBuffer Buffer;
+};
+
 /// Provides destination buffer for the Set operation as well as the associated
 /// size distributions.
 struct SetSetup : public ParameterBatch {
@@ -238,9 +256,9 @@ struct ComparisonSetup : public ParameterBatch {
     return getMemcmpSizeDistributions();
   }
 
-  inline int Call(ParameterType Parameter, MemcmpFunction Memcmp) {
-    return Memcmp(LhsBuffer + Parameter.OffsetBytes,
-                  RhsBuffer + Parameter.OffsetBytes, Parameter.SizeBytes);
+  inline int Call(ParameterType Parameter, MemcmpOrBcmpFunction MemcmpOrBcmp) {
+    return MemcmpOrBcmp(LhsBuffer + Parameter.OffsetBytes,
+                        RhsBuffer + Parameter.OffsetBytes, Parameter.SizeBytes);
   }
 
 private:

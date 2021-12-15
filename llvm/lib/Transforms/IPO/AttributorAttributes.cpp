@@ -15,6 +15,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -28,6 +29,7 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/Assumptions.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -146,6 +148,7 @@ PIPE_OPERATOR(AANoUndef)
 PIPE_OPERATOR(AACallEdges)
 PIPE_OPERATOR(AAFunctionReachability)
 PIPE_OPERATOR(AAPointerInfo)
+PIPE_OPERATOR(AAAssumptionInfo)
 
 #undef PIPE_OPERATOR
 
@@ -203,46 +206,25 @@ static Value *constructPointer(Type *ResTy, Type *PtrElemTy, Value *Ptr,
                     << "-bytes as " << *ResTy << "\n");
 
   if (Offset) {
-    SmallVector<Value *, 4> Indices;
-    std::string GEPName = Ptr->getName().str() + ".0";
-
-    // Add 0 index to look through the pointer.
-    assert((uint64_t)Offset < DL.getTypeAllocSize(PtrElemTy) &&
-           "Offset out of bounds");
-    Indices.push_back(Constant::getNullValue(IRB.getInt32Ty()));
-
     Type *Ty = PtrElemTy;
-    do {
-      auto *STy = dyn_cast<StructType>(Ty);
-      if (!STy)
-        // Non-aggregate type, we cast and make byte-wise progress now.
-        break;
+    APInt IntOffset(DL.getIndexTypeSizeInBits(Ptr->getType()), Offset);
+    SmallVector<APInt> IntIndices = DL.getGEPIndicesForOffset(Ty, IntOffset);
 
-      const StructLayout *SL = DL.getStructLayout(STy);
-      if (int64_t(SL->getSizeInBytes()) < Offset)
-        break;
-
-      uint64_t Idx = SL->getElementContainingOffset(Offset);
-      assert(Idx < STy->getNumElements() && "Offset calculation error!");
-      uint64_t Rem = Offset - SL->getElementOffset(Idx);
-      Ty = STy->getElementType(Idx);
-
-      LLVM_DEBUG(errs() << "Ty: " << *Ty << " Offset: " << Offset
-                        << " Idx: " << Idx << " Rem: " << Rem << "\n");
-
-      GEPName += "." + std::to_string(Idx);
-      Indices.push_back(ConstantInt::get(IRB.getInt32Ty(), Idx));
-      Offset = Rem;
-    } while (Offset);
+    SmallVector<Value *, 4> ValIndices;
+    std::string GEPName = Ptr->getName().str();
+    for (const APInt &Index : IntIndices) {
+      ValIndices.push_back(IRB.getInt(Index));
+      GEPName += "." + std::to_string(Index.getZExtValue());
+    }
 
     // Create a GEP for the indices collected above.
-    Ptr = IRB.CreateGEP(PtrElemTy, Ptr, Indices, GEPName);
+    Ptr = IRB.CreateGEP(PtrElemTy, Ptr, ValIndices, GEPName);
 
     // If an offset is left we use byte-wise adjustment.
-    if (Offset) {
+    if (IntOffset != 0) {
       Ptr = IRB.CreateBitCast(Ptr, IRB.getInt8PtrTy());
-      Ptr = IRB.CreateGEP(IRB.getInt8Ty(), Ptr, IRB.getInt32(Offset),
-                          GEPName + ".b" + Twine(Offset));
+      Ptr = IRB.CreateGEP(IRB.getInt8Ty(), Ptr, IRB.getInt(IntOffset),
+                          GEPName + ".b" + Twine(IntOffset.getZExtValue()));
     }
   }
 
@@ -431,10 +413,11 @@ const Value *stripAndAccumulateMinimalOffsets(
   };
 
   return Val->stripAndAccumulateConstantOffsets(DL, Offset, AllowNonInbounds,
+                                                /* AllowInvariant */ false,
                                                 AttributorAnalysis);
 }
 
-static const Value *getMinimalBaseOfAccsesPointerOperand(
+static const Value *getMinimalBaseOfAccessPointerOperand(
     Attributor &A, const AbstractAttribute &QueryingAA, const Instruction *I,
     int64_t &BytesOffset, const DataLayout &DL, bool AllowNonInbounds = false) {
   const Value *Ptr = getPointerOperand(I, /* AllowVolatile */ false);
@@ -503,6 +486,7 @@ static void clampReturnedValueStates(
     S ^= *T;
 }
 
+namespace {
 /// Helper class for generic deduction: return value -> returned position.
 template <typename AAType, typename BaseType,
           typename StateType = typename BaseType::StateType,
@@ -661,6 +645,7 @@ struct AACallSiteReturnedFromReturned : public BaseType {
     return clampStateAndIndicateChange(S, AA.getState());
   }
 };
+} // namespace
 
 /// Helper function to accumulate uses.
 template <class AAType, typename StateType = typename AAType::StateType>
@@ -1051,6 +1036,7 @@ private:
   BooleanState BS;
 };
 
+namespace {
 struct AAPointerInfoImpl
     : public StateWrapper<AA::PointerInfo::State, AAPointerInfo> {
   using BaseTy = StateWrapper<AA::PointerInfo::State, AAPointerInfo>;
@@ -1207,7 +1193,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         }
 
         SmallVector<Value *, 8> Indices;
-        for (Use &Idx : llvm::make_range(GEP->idx_begin(), GEP->idx_end())) {
+        for (Use &Idx : GEP->indices()) {
           if (auto *CIdx = dyn_cast<ConstantInt>(Idx)) {
             Indices.push_back(CIdx);
             continue;
@@ -1244,7 +1230,11 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         }
 
         // Check if the PHI operand is not dependent on the PHI itself.
-        APInt Offset(DL.getIndexTypeSizeInBits(AssociatedValue.getType()), 0);
+        // TODO: This is not great as we look at the pointer type. However, it
+        // is unclear where the Offset size comes from with typeless pointers.
+        APInt Offset(
+            DL.getIndexSizeInBits(CurPtr->getType()->getPointerAddressSpace()),
+            0);
         if (&AssociatedValue == CurPtr->stripAndAccumulateConstantOffsets(
                                     DL, Offset, /* AllowNonInbounds */ true)) {
           if (Offset != PtrOI.Offset) {
@@ -2139,7 +2129,7 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
 
   int64_t Offset;
   const Value *Base =
-      getMinimalBaseOfAccsesPointerOperand(A, QueryingAA, I, Offset, DL);
+      getMinimalBaseOfAccessPointerOperand(A, QueryingAA, I, Offset, DL);
   if (Base) {
     if (Base == &AssociatedValue &&
         getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
@@ -5090,6 +5080,7 @@ struct AANoCaptureCallSiteReturned final : AANoCaptureImpl {
     STATS_DECLTRACK_CSRET_ATTR(nocapture)
   }
 };
+} // namespace
 
 /// ------------------ Value Simplify Attribute ----------------------------
 
@@ -5110,6 +5101,7 @@ bool ValueSimplifyStateType::unionAssumed(Optional<Value *> Other) {
   return true;
 }
 
+namespace {
 struct AAValueSimplifyImpl : AAValueSimplify {
   AAValueSimplifyImpl(const IRPosition &IRP, Attributor &A)
       : AAValueSimplify(IRP, A) {}
@@ -7338,10 +7330,12 @@ void AAMemoryBehaviorFloating::analyzeUseIn(Attributor &A, const Use &U,
 
   case Instruction::Store:
     // Stores cause the NO_WRITES property to disappear if the use is the
-    // pointer operand. Note that we do assume that capturing was taken care of
-    // somewhere else.
+    // pointer operand. Note that while capturing was taken care of somewhere
+    // else we need to deal with stores of the value that is not looked through.
     if (cast<StoreInst>(UserI)->getPointerOperand() == U.get())
       removeAssumedBits(NO_WRITES);
+    else
+      indicatePessimisticFixpoint();
     return;
 
   case Instruction::Call:
@@ -7387,6 +7381,7 @@ void AAMemoryBehaviorFloating::analyzeUseIn(Attributor &A, const Use &U,
   if (UserI->mayWriteToMemory())
     removeAssumedBits(NO_WRITES);
 }
+} // namespace
 
 /// -------------------- Memory Locations Attributes ---------------------------
 /// Includes read-none, argmemonly, inaccessiblememonly,
@@ -8665,31 +8660,7 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
 
   static bool calculateICmpInst(const ICmpInst *ICI, const APInt &LHS,
                                 const APInt &RHS) {
-    ICmpInst::Predicate Pred = ICI->getPredicate();
-    switch (Pred) {
-    case ICmpInst::ICMP_UGT:
-      return LHS.ugt(RHS);
-    case ICmpInst::ICMP_SGT:
-      return LHS.sgt(RHS);
-    case ICmpInst::ICMP_EQ:
-      return LHS.eq(RHS);
-    case ICmpInst::ICMP_UGE:
-      return LHS.uge(RHS);
-    case ICmpInst::ICMP_SGE:
-      return LHS.sge(RHS);
-    case ICmpInst::ICMP_ULT:
-      return LHS.ult(RHS);
-    case ICmpInst::ICMP_SLT:
-      return LHS.slt(RHS);
-    case ICmpInst::ICMP_NE:
-      return LHS.ne(RHS);
-    case ICmpInst::ICMP_ULE:
-      return LHS.ule(RHS);
-    case ICmpInst::ICMP_SLE:
-      return LHS.sle(RHS);
-    default:
-      llvm_unreachable("Invalid ICmp predicate!");
-    }
+    return ICmpInst::compare(LHS, RHS, ICI->getPredicate());
   }
 
   static APInt calculateCastInst(const CastInst *CI, const APInt &Src,
@@ -9658,6 +9629,7 @@ public:
   }
 
   void trackStatistics() const override {}
+
 private:
   bool canReachUnknownCallee() const override {
     return WholeFunction.CanReachUnknownCallee;
@@ -9669,6 +9641,140 @@ private:
   /// Used to answer if a call base inside this function can reach a specific
   /// function.
   DenseMap<CallBase *, QuerySet> CBQueries;
+};
+
+/// ---------------------- Assumption Propagation ------------------------------
+struct AAAssumptionInfoImpl : public AAAssumptionInfo {
+  AAAssumptionInfoImpl(const IRPosition &IRP, Attributor &A,
+                       const DenseSet<StringRef> &Known)
+      : AAAssumptionInfo(IRP, A, Known) {}
+
+  bool hasAssumption(const StringRef Assumption) const override {
+    return isValidState() && setContains(Assumption);
+  }
+
+  /// See AbstractAttribute::getAsStr()
+  const std::string getAsStr() const override {
+    const SetContents &Known = getKnown();
+    const SetContents &Assumed = getAssumed();
+
+    const std::string KnownStr =
+        llvm::join(Known.getSet().begin(), Known.getSet().end(), ",");
+    const std::string AssumedStr =
+        (Assumed.isUniversal())
+            ? "Universal"
+            : llvm::join(Assumed.getSet().begin(), Assumed.getSet().end(), ",");
+
+    return "Known [" + KnownStr + "]," + " Assumed [" + AssumedStr + "]";
+  }
+};
+
+/// Propagates assumption information from parent functions to all of their
+/// successors. An assumption can be propagated if the containing function
+/// dominates the called function.
+///
+/// We start with a "known" set of assumptions already valid for the associated
+/// function and an "assumed" set that initially contains all possible
+/// assumptions. The assumed set is inter-procedurally updated by narrowing its
+/// contents as concrete values are known. The concrete values are seeded by the
+/// first nodes that are either entries into the call graph, or contains no
+/// assumptions. Each node is updated as the intersection of the assumed state
+/// with all of its predecessors.
+struct AAAssumptionInfoFunction final : AAAssumptionInfoImpl {
+  AAAssumptionInfoFunction(const IRPosition &IRP, Attributor &A)
+      : AAAssumptionInfoImpl(IRP, A,
+                             getAssumptions(*IRP.getAssociatedFunction())) {}
+
+  /// See AbstractAttribute::manifest(...).
+  ChangeStatus manifest(Attributor &A) override {
+    const auto &Assumptions = getKnown();
+
+    // Don't manifest a universal set if it somehow made it here.
+    if (Assumptions.isUniversal())
+      return ChangeStatus::UNCHANGED;
+
+    Function *AssociatedFunction = getAssociatedFunction();
+
+    bool Changed = addAssumptions(*AssociatedFunction, Assumptions.getSet());
+
+    return Changed ? ChangeStatus::CHANGED : ChangeStatus::UNCHANGED;
+  }
+
+  /// See AbstractAttribute::updateImpl(...).
+  ChangeStatus updateImpl(Attributor &A) override {
+    bool Changed = false;
+
+    auto CallSitePred = [&](AbstractCallSite ACS) {
+      const auto &AssumptionAA = A.getAAFor<AAAssumptionInfo>(
+          *this, IRPosition::callsite_function(*ACS.getInstruction()),
+          DepClassTy::REQUIRED);
+      // Get the set of assumptions shared by all of this function's callers.
+      Changed |= getIntersection(AssumptionAA.getAssumed());
+      return !getAssumed().empty() || !getKnown().empty();
+    };
+
+    bool AllCallSitesKnown;
+    // Get the intersection of all assumptions held by this node's predecessors.
+    // If we don't know all the call sites then this is either an entry into the
+    // call graph or an empty node. This node is known to only contain its own
+    // assumptions and can be propagated to its successors.
+    if (!A.checkForAllCallSites(CallSitePred, *this, true, AllCallSitesKnown))
+      return indicatePessimisticFixpoint();
+
+    return Changed ? ChangeStatus::CHANGED : ChangeStatus::UNCHANGED;
+  }
+
+  void trackStatistics() const override {}
+};
+
+/// Assumption Info defined for call sites.
+struct AAAssumptionInfoCallSite final : AAAssumptionInfoImpl {
+
+  AAAssumptionInfoCallSite(const IRPosition &IRP, Attributor &A)
+      : AAAssumptionInfoImpl(IRP, A, getInitialAssumptions(IRP)) {}
+
+  /// See AbstractAttribute::initialize(...).
+  void initialize(Attributor &A) override {
+    const IRPosition &FnPos = IRPosition::function(*getAnchorScope());
+    A.getAAFor<AAAssumptionInfo>(*this, FnPos, DepClassTy::REQUIRED);
+  }
+
+  /// See AbstractAttribute::manifest(...).
+  ChangeStatus manifest(Attributor &A) override {
+    // Don't manifest a universal set if it somehow made it here.
+    if (getKnown().isUniversal())
+      return ChangeStatus::UNCHANGED;
+
+    CallBase &AssociatedCall = cast<CallBase>(getAssociatedValue());
+    bool Changed = addAssumptions(AssociatedCall, getAssumed().getSet());
+
+    return Changed ? ChangeStatus::CHANGED : ChangeStatus::UNCHANGED;
+  }
+
+  /// See AbstractAttribute::updateImpl(...).
+  ChangeStatus updateImpl(Attributor &A) override {
+    const IRPosition &FnPos = IRPosition::function(*getAnchorScope());
+    auto &AssumptionAA =
+        A.getAAFor<AAAssumptionInfo>(*this, FnPos, DepClassTy::REQUIRED);
+    bool Changed = getIntersection(AssumptionAA.getAssumed());
+    return Changed ? ChangeStatus::CHANGED : ChangeStatus::UNCHANGED;
+  }
+
+  /// See AbstractAttribute::trackStatistics()
+  void trackStatistics() const override {}
+
+private:
+  /// Helper to initialized the known set as all the assumptions this call and
+  /// the callee contain.
+  DenseSet<StringRef> getInitialAssumptions(const IRPosition &IRP) {
+    const CallBase &CB = cast<CallBase>(IRP.getAssociatedValue());
+    auto Assumptions = getAssumptions(CB);
+    if (Function *F = IRP.getAssociatedFunction())
+      set_union(Assumptions, getAssumptions(*F));
+    if (Function *F = IRP.getAssociatedFunction())
+      set_union(Assumptions, getAssumptions(*F));
+    return Assumptions;
+  }
 };
 
 } // namespace
@@ -9706,6 +9812,7 @@ const char AANoUndef::ID = 0;
 const char AACallEdges::ID = 0;
 const char AAFunctionReachability::ID = 0;
 const char AAPointerInfo::ID = 0;
+const char AAAssumptionInfo::ID = 0;
 
 // Macro magic to create the static generator function for attributes that
 // follow the naming scheme.
@@ -9808,6 +9915,7 @@ CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AANoReturn)
 CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAReturnedValues)
 CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAMemoryLocation)
 CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AACallEdges)
+CREATE_FUNCTION_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAAssumptionInfo)
 
 CREATE_VALUE_ABSTRACT_ATTRIBUTE_FOR_POSITION(AANonNull)
 CREATE_VALUE_ABSTRACT_ATTRIBUTE_FOR_POSITION(AANoAlias)

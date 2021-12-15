@@ -1820,8 +1820,8 @@ DEFAULT_TYPELOC_IMPL(Enum, TagType)
 DEFAULT_TYPELOC_IMPL(SubstTemplateTypeParm, Type)
 DEFAULT_TYPELOC_IMPL(SubstTemplateTypeParmPack, Type)
 DEFAULT_TYPELOC_IMPL(Auto, Type)
-DEFAULT_TYPELOC_IMPL(ExtInt, Type)
-DEFAULT_TYPELOC_IMPL(DependentExtInt, Type)
+DEFAULT_TYPELOC_IMPL(BitInt, Type)
+DEFAULT_TYPELOC_IMPL(DependentBitInt, Type)
 
 bool CursorVisitor::VisitCXXRecordDecl(CXXRecordDecl *D) {
   // Visit the nested-name-specifier, if present.
@@ -2320,6 +2320,10 @@ void OMPClauseEnqueue::VisitOMPFilterClause(const OMPFilterClause *C) {
   Visitor->AddStmt(C->getThreadID());
 }
 
+void OMPClauseEnqueue::VisitOMPAlignClause(const OMPAlignClause *C) {
+  Visitor->AddStmt(C->getAlignment());
+}
+
 void OMPClauseEnqueue::VisitOMPUnifiedAddressClause(
     const OMPUnifiedAddressClause *) {}
 
@@ -2586,6 +2590,8 @@ void OMPClauseEnqueue::VisitOMPAffinityClause(const OMPAffinityClause *C) {
   for (const Expr *E : C->varlists())
     Visitor->AddStmt(E);
 }
+void OMPClauseEnqueue::VisitOMPBindClause(const OMPBindClause *C) {}
+
 } // namespace
 
 void EnqueueVisitor::EnqueueChildren(const OMPClause *S) {
@@ -5715,6 +5721,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("OMPDispatchDirective");
   case CXCursor_OMPMaskedDirective:
     return cxstring::createRef("OMPMaskedDirective");
+  case CXCursor_OMPGenericLoopDirective:
+    return cxstring::createRef("OMPGenericLoopDirective");
   case CXCursor_OverloadCandidate:
     return cxstring::createRef("OverloadCandidate");
   case CXCursor_TypeAliasTemplateDecl:
@@ -9092,7 +9100,7 @@ cxindex::checkForMacroInMacroDefinition(const MacroInfo *MI, const Token &Tok,
     return nullptr;
 
   // Check that the identifier is not one of the macro arguments.
-  if (std::find(MI->param_begin(), MI->param_end(), &II) != MI->param_end())
+  if (llvm::is_contained(MI->params(), &II))
     return nullptr;
 
   MacroDirective *InnerMD = PP.getLocalMacroDirectiveHistory(&II);

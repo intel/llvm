@@ -203,6 +203,15 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
                               const DominatorTree *DT = nullptr,
                               bool UseInstrInfo = true);
 
+  /// Get the minimum bit size for this Value \p Op as a signed integer.
+  /// i.e.  x == sext(trunc(x to MinSignedBits) to bitwidth(x)).
+  /// Similar to the APInt::getMinSignedBits function.
+  unsigned ComputeMinSignedBits(const Value *Op, const DataLayout &DL,
+                                unsigned Depth = 0,
+                                AssumptionCache *AC = nullptr,
+                                const Instruction *CxtI = nullptr,
+                                const DominatorTree *DT = nullptr);
+
   /// This function computes the integer multiple of Base that equals V. If
   /// successful, it returns true and returns the multiple in Multiple. If
   /// unsuccessful, it returns false. Also, if V can be simplified to an
@@ -637,10 +646,16 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   /// true. If Op raises immediate UB but never creates poison or undef
   /// (e.g. sdiv I, 0), canCreatePoison returns false.
   ///
+  /// \p ConsiderFlags controls whether poison producing flags on the
+  /// instruction are considered.  This can be used to see if the instruction
+  /// could still introduce undef or poison even without poison generating flags
+  /// which might be on the instruction.  (i.e. could the result of
+  /// Op->dropPoisonGeneratingFlags() still create poison or undef)
+  ///
   /// canCreatePoison returns true if Op can create poison from non-poison
   /// operands.
-  bool canCreateUndefOrPoison(const Operator *Op);
-  bool canCreatePoison(const Operator *Op);
+  bool canCreateUndefOrPoison(const Operator *Op, bool ConsiderFlags = true);
+  bool canCreatePoison(const Operator *Op, bool ConsiderFlags = true);
 
   /// Return true if V is poison given that ValAssumedPoison is already poison.
   /// For example, if ValAssumedPoison is `icmp X, 10` and V is `icmp X, 5`,

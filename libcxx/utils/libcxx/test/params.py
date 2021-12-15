@@ -123,10 +123,11 @@ DEFAULT_PARAMETERS = [
 
   Parameter(name='debug_level', choices=['', '0', '1'], type=str, default='',
             help="The debugging level to enable in the test suite.",
-            actions=lambda debugLevel: [] if debugLevel == '' else [
+            actions=lambda debugLevel: [] if debugLevel == '' else filter(None, [
               AddFeature('debug_level={}'.format(debugLevel)),
-              AddCompileFlag('-D_LIBCPP_DEBUG={}'.format(debugLevel))
-            ]),
+              AddCompileFlag('-D_LIBCPP_DEBUG={}'.format(debugLevel)),
+              AddFeature('LIBCXX-DEBUG-FIXME') if debugLevel == '1' else None
+            ])),
 
   Parameter(name='use_sanitizer', choices=['', 'Address', 'Undefined', 'Memory', 'MemoryWithOrigins', 'Thread', 'DataFlow', 'Leaks'], type=str, default='',
             help="An optional sanitizer to enable when building and running the test suite.",
@@ -174,14 +175,6 @@ DEFAULT_PARAMETERS = [
             help="Whether to enable tests that exercise the libc++ debugging mode.",
             actions=lambda enabled: [] if enabled else [
               AddFeature('libcxx-no-debug-mode')
-            ]),
-
-  Parameter(name='enable_32bit', choices=[True, False], type=bool, default=False,
-            help="Whether to build the test suite in 32 bit mode even on a 64 bit target. This basically controls "
-                 "whether -m32 is used when building the test suite.",
-            actions=lambda enabled: [] if not enabled else [
-              AddFlag('-m32'),
-              AddFeature('32bits-on-64bits')
             ]),
 
   Parameter(name='additional_features', type=list, default=[],

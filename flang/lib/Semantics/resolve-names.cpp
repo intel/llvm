@@ -1576,8 +1576,8 @@ void AttrsVisitor::SetBindNameOn(Symbol &symbol) {
   if (!attrs_ || !attrs_->test(Attr::BIND_C)) {
     return;
   }
-  std::optional<std::string> label{evaluate::GetScalarConstantValue<
-      evaluate::Type<TypeCategory::Character, 1>>(bindName_)};
+  std::optional<std::string> label{
+      evaluate::GetScalarConstantValue<evaluate::Ascii>(bindName_)};
   // 18.9.2(2): discard leading and trailing blanks, ignore if all blank
   if (label) {
     auto first{label->find_first_not_of(" ")};
@@ -4978,7 +4978,7 @@ bool DeclarationVisitor::PassesLocalityChecks(
         "Finalizable variable '%s' not allowed in a locality-spec"_err_en_US);
     return false;
   }
-  if (IsCoarray(symbol)) { // C1128
+  if (evaluate::IsCoarray(symbol)) { // C1128
     SayWithDecl(
         name, symbol, "Coarray '%s' not allowed in a locality-spec"_err_en_US);
     return false;

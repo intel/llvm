@@ -39,6 +39,63 @@ def testFileLineCol():
 run(testFileLineCol)
 
 
+# CHECK-LABEL: TEST: testName
+def testName():
+  with Context() as ctx:
+    loc = Location.name("nombre")
+    locWithChildLoc = Location.name("naam", loc)
+  ctx = None
+  gc.collect()
+  # CHECK: file str: loc("nombre")
+  print("file str:", str(loc))
+  # CHECK: file repr: loc("nombre")
+  print("file repr:", repr(loc))
+  # CHECK: file str: loc("naam"("nombre"))
+  print("file str:", str(locWithChildLoc))
+  # CHECK: file repr: loc("naam"("nombre"))
+  print("file repr:", repr(locWithChildLoc))
+
+run(testName)
+
+
+# CHECK-LABEL: TEST: testCallSite
+def testCallSite():
+  with Context() as ctx:
+    loc = Location.callsite(
+        Location.file("foo.text", 123, 45), [
+            Location.file("util.foo", 379, 21),
+            Location.file("main.foo", 100, 63)
+        ])
+  ctx = None
+  # CHECK: file str: loc(callsite("foo.text":123:45 at callsite("util.foo":379:21 at "main.foo":100:63))
+  print("file str:", str(loc))
+  # CHECK: file repr: loc(callsite("foo.text":123:45 at callsite("util.foo":379:21 at "main.foo":100:63))
+  print("file repr:", repr(loc))
+
+run(testCallSite)
+
+
+# CHECK-LABEL: TEST: testFused
+def testFused():
+  with Context() as ctx:
+    loc = Location.fused(
+        [Location.name("apple"), Location.name("banana")])
+    attr = Attribute.parse('"sauteed"')
+    loc_attr = Location.fused([Location.name("carrot"),
+                               Location.name("potatoes")], attr)
+  ctx = None
+  # CHECK: file str: loc(fused["apple", "banana"])
+  print("file str:", str(loc))
+  # CHECK: file repr: loc(fused["apple", "banana"])
+  print("file repr:", repr(loc))
+  # CHECK: file str: loc(fused<"sauteed">["carrot", "potatoes"])
+  print("file str:", str(loc_attr))
+  # CHECK: file repr: loc(fused<"sauteed">["carrot", "potatoes"])
+  print("file repr:", repr(loc_attr))
+
+run(testFused)
+
+
 # CHECK-LABEL: TEST: testLocationCapsule
 def testLocationCapsule():
   with Context() as ctx:

@@ -569,7 +569,7 @@ hash_code llvm::hash_value(const APInt &Arg) {
       hash_combine_range(Arg.U.pVal, Arg.U.pVal + Arg.getNumWords()));
 }
 
-unsigned DenseMapInfo<APInt>::getHashValue(const APInt &Key) {
+unsigned DenseMapInfo<APInt, void>::getHashValue(const APInt &Key) {
   return static_cast<unsigned>(hash_value(Key));
 }
 
@@ -1952,8 +1952,9 @@ APInt APInt::sdiv_ov(const APInt &RHS, bool &Overflow) const {
 APInt APInt::smul_ov(const APInt &RHS, bool &Overflow) const {
   APInt Res = *this * RHS;
 
-  if (*this != 0 && RHS != 0)
-    Overflow = Res.sdiv(RHS) != *this || Res.sdiv(*this) != RHS;
+  if (RHS != 0)
+    Overflow = Res.sdiv(RHS) != *this ||
+               (isMinSignedValue() && RHS.isAllOnes());
   else
     Overflow = false;
   return Res;

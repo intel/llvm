@@ -336,40 +336,26 @@ ELFFile<ELFT>::decode_relrs(Elf_Relr_Range relrs) const {
   std::vector<Elf_Rel> Relocs;
 
   // Word type: uint32_t for Elf32, and uint64_t for Elf64.
-  typedef typename ELFT::uint Word;
+  using Addr = typename ELFT::uint;
 
-  // Word size in number of bytes.
-  const size_t WordSize = sizeof(Word);
-
-  // Number of bits used for the relocation offsets bitmap.
-  // These many relative relocations can be encoded in a single entry.
-  const size_t NBits = 8*WordSize - 1;
-
-  Word Base = 0;
-  for (const Elf_Relr &R : relrs) {
-    Word Entry = R;
-    if ((Entry&1) == 0) {
+  Addr Base = 0;
+  for (Elf_Relr R : relrs) {
+    typename ELFT::uint Entry = R;
+    if ((Entry & 1) == 0) {
       // Even entry: encodes the offset for next relocation.
       Rel.r_offset = Entry;
       Relocs.push_back(Rel);
       // Set base offset for subsequent bitmap entries.
-      Base = Entry + WordSize;
-      continue;
+      Base = Entry + sizeof(Addr);
+    } else {
+      // Odd entry: encodes bitmap for relocations starting at base.
+      for (Addr Offset = Base; (Entry >>= 1) != 0; Offset += sizeof(Addr))
+        if ((Entry & 1) != 0) {
+          Rel.r_offset = Offset;
+          Relocs.push_back(Rel);
+        }
+      Base += (CHAR_BIT * sizeof(Entry) - 1) * sizeof(Addr);
     }
-
-    // Odd entry: encodes bitmap for relocations starting at base.
-    Word Offset = Base;
-    while (Entry != 0) {
-      Entry >>= 1;
-      if ((Entry&1) != 0) {
-        Rel.r_offset = Offset;
-        Relocs.push_back(Rel);
-      }
-      Offset += WordSize;
-    }
-
-    // Advance base offset by NBits words.
-    Base += NBits * WordSize;
   }
 
   return Relocs;
@@ -636,14 +622,14 @@ ELFFile<ELFT>::toMappedAddr(uint64_t VAddr, WarningHandler WarnHandler) const {
 }
 
 template <class ELFT>
-Expected<std::vector<typename ELFT::BBAddrMap>>
+Expected<std::vector<BBAddrMap>>
 ELFFile<ELFT>::decodeBBAddrMap(const Elf_Shdr &Sec) const {
   Expected<ArrayRef<uint8_t>> ContentsOrErr = getSectionContents(Sec);
   if (!ContentsOrErr)
     return ContentsOrErr.takeError();
   ArrayRef<uint8_t> Content = *ContentsOrErr;
   DataExtractor Data(Content, isLE(), ELFT::Is64Bits ? 8 : 4);
-  std::vector<Elf_BBAddrMap> FunctionEntries;
+  std::vector<BBAddrMap> FunctionEntries;
 
   DataExtractor::Cursor Cur(0);
   Error ULEBSizeErr = Error::success();
@@ -670,7 +656,7 @@ ELFFile<ELFT>::decodeBBAddrMap(const Elf_Shdr &Sec) const {
   while (!ULEBSizeErr && Cur && Cur.tell() < Content.size()) {
     uintX_t Address = static_cast<uintX_t>(Data.getAddress(Cur));
     uint32_t NumBlocks = ReadULEB128AsUInt32();
-    std::vector<typename Elf_BBAddrMap::BBEntry> BBEntries;
+    std::vector<BBAddrMap::BBEntry> BBEntries;
     for (uint32_t BlockID = 0; !ULEBSizeErr && Cur && (BlockID < NumBlocks);
          ++BlockID) {
       uint32_t Offset = ReadULEB128AsUInt32();

@@ -269,15 +269,15 @@ TEST_P(ImportExpr, ImportStringLiteral) {
   testImport("void declToImport() { (void)\"foo\"; }", Lang_CXX03, "",
              Lang_CXX03, Verifier,
              functionDecl(hasDescendant(
-                 stringLiteral(hasType(asString("const char [4]"))))));
+                 stringLiteral(hasType(asString("const char[4]"))))));
   testImport("void declToImport() { (void)L\"foo\"; }", Lang_CXX03, "",
              Lang_CXX03, Verifier,
              functionDecl(hasDescendant(
-                 stringLiteral(hasType(asString("const wchar_t [4]"))))));
+                 stringLiteral(hasType(asString("const wchar_t[4]"))))));
   testImport("void declToImport() { (void) \"foo\" \"bar\"; }", Lang_CXX03, "",
              Lang_CXX03, Verifier,
              functionDecl(hasDescendant(
-                 stringLiteral(hasType(asString("const char [7]"))))));
+                 stringLiteral(hasType(asString("const char[7]"))))));
 }
 
 TEST_P(ImportExpr, ImportChooseExpr) {
@@ -508,8 +508,8 @@ TEST_P(ImportExpr, ImportPredefinedExpr) {
   testImport("void declToImport() { (void)__func__; }", Lang_CXX03, "",
              Lang_CXX03, Verifier,
              functionDecl(hasDescendant(predefinedExpr(
-                 hasType(asString("const char [13]")),
-                 has(stringLiteral(hasType(asString("const char [13]"))))))));
+                 hasType(asString("const char[13]")),
+                 has(stringLiteral(hasType(asString("const char[13]"))))))));
 }
 
 TEST_P(ImportExpr, ImportInitListExpr) {
@@ -6145,6 +6145,50 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportDefaultConstructibleLambdas) {
             2u);
 }
 
+TEST_P(ASTImporterOptionSpecificTestBase,
+       ImportFunctionDeclWithTypeSourceInfoWithSourceDecl) {
+  // This code results in a lambda with implicit constructor.
+  // The constructor's TypeSourceInfo points out the function prototype.
+  // This prototype has an EST_Unevaluated in its exception information and a
+  // SourceDecl that is the function declaration itself.
+  // The test verifies that AST import of such AST does not crash.
+  // (Here the function's TypeSourceInfo references the function itself.)
+  Decl *FromTU = getTuDecl(
+      R"(
+        template<typename T> void f(T) { auto X = [](){}; }
+        void g() { f(10); }
+        )",
+      Lang_CXX11, "input0.cc");
+
+  // Use LastDeclMatcher to find the LambdaExpr in the template specialization.
+  CXXRecordDecl *FromL = LastDeclMatcher<LambdaExpr>()
+                             .match(FromTU, lambdaExpr())
+                             ->getLambdaClass();
+
+  CXXConstructorDecl *FromCtor = *FromL->ctor_begin();
+  ASSERT_TRUE(FromCtor->isCopyConstructor());
+  ASSERT_TRUE(FromCtor->getTypeSourceInfo());
+  const auto *FromFPT = FromCtor->getType()->getAs<FunctionProtoType>();
+  ASSERT_TRUE(FromFPT);
+  EXPECT_EQ(FromCtor->getTypeSourceInfo()->getType().getTypePtr(), FromFPT);
+  FunctionProtoType::ExtProtoInfo FromEPI = FromFPT->getExtProtoInfo();
+  // If type is EST_Unevaluated, SourceDecl should be set to the parent Decl.
+  EXPECT_EQ(FromEPI.ExceptionSpec.Type, EST_Unevaluated);
+  EXPECT_EQ(FromEPI.ExceptionSpec.SourceDecl, FromCtor);
+
+  auto ToL = Import(FromL, Lang_CXX11);
+
+  // Check if the import was correct.
+  CXXConstructorDecl *ToCtor = *ToL->ctor_begin();
+  EXPECT_TRUE(ToCtor->getTypeSourceInfo());
+  const auto *ToFPT = ToCtor->getType()->getAs<FunctionProtoType>();
+  ASSERT_TRUE(ToFPT);
+  EXPECT_EQ(ToCtor->getTypeSourceInfo()->getType().getTypePtr(), ToFPT);
+  FunctionProtoType::ExtProtoInfo ToEPI = ToFPT->getExtProtoInfo();
+  EXPECT_EQ(ToEPI.ExceptionSpec.Type, EST_Unevaluated);
+  EXPECT_EQ(ToEPI.ExceptionSpec.SourceDecl, ToCtor);
+}
+
 struct ImportAutoFunctions : ASTImporterOptionSpecificTestBase {};
 
 TEST_P(ImportAutoFunctions, ReturnWithTypedefDeclaredInside) {
@@ -6408,8 +6452,8 @@ TEST_P(ImportSourceLocations, OverwrittenFileBuffer) {
 
     llvm::SmallVector<char, 64> Buffer;
     Buffer.append(Contents.begin(), Contents.end());
-    auto FileContents =
-        std::make_unique<llvm::SmallVectorMemoryBuffer>(std::move(Buffer), Path);
+    auto FileContents = std::make_unique<llvm::SmallVectorMemoryBuffer>(
+        std::move(Buffer), Path, /*RequiresNullTerminator=*/false);
     FromSM.overrideFileContents(&FE, std::move(FileContents));
 
     // Import the VarDecl to trigger the importing of the FileID.
@@ -7283,6 +7327,143 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportUsingShadowList) {
   EXPECT_EQ(*ShadowI, ToUsingShadowF1);
   ++ShadowI;
   EXPECT_EQ(*ShadowI, ToUsingShadowF2);
+}
+
+AST_MATCHER_P(FunctionTemplateDecl, templateParameterCountIs, unsigned, Cnt) {
+  return Node.getTemplateParameters()->size() == Cnt;
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportDeductionGuide) {
+  TranslationUnitDecl *FromTU = getTuDecl(
+      R"(
+      template<class> class A { };
+      template<class T> class B {
+          template<class T1, typename = A<T>> B(T1);
+      };
+      template<class T>
+      B(T, T) -> B<int>;
+      )",
+      Lang_CXX17);
+
+  // Get the implicit deduction guide for (non-default) constructor of 'B'.
+  auto *FromDGCtor = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU, functionTemplateDecl(templateParameterCountIs(3)));
+  // Implicit deduction guide for copy constructor of 'B'.
+  auto *FromDGCopyCtor = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU, functionTemplateDecl(templateParameterCountIs(1), isImplicit()));
+  // User defined deduction guide.
+  auto *FromDGOther = FirstDeclMatcher<CXXDeductionGuideDecl>().match(
+      FromTU, cxxDeductionGuideDecl(unless(isImplicit())));
+
+  TemplateParameterList *FromDGCtorTP = FromDGCtor->getTemplateParameters();
+  // Don't know why exactly but this is the DeclContext here.
+  EXPECT_EQ(FromDGCtorTP->getParam(0)->getDeclContext(),
+            FromDGCopyCtor->getTemplatedDecl());
+  EXPECT_EQ(FromDGCtorTP->getParam(1)->getDeclContext(),
+            FromDGCtor->getTemplatedDecl());
+  EXPECT_EQ(FromDGCtorTP->getParam(2)->getDeclContext(),
+            FromDGCtor->getTemplatedDecl());
+  EXPECT_EQ(
+      FromDGCopyCtor->getTemplateParameters()->getParam(0)->getDeclContext(),
+      FromDGCopyCtor->getTemplatedDecl());
+  EXPECT_EQ(FromDGOther->getDescribedTemplate()
+                ->getTemplateParameters()
+                ->getParam(0)
+                ->getDeclContext(),
+            FromDGOther);
+
+  auto *ToDGCtor = Import(FromDGCtor, Lang_CXX17);
+  auto *ToDGCopyCtor = Import(FromDGCopyCtor, Lang_CXX17);
+  auto *ToDGOther = Import(FromDGOther, Lang_CXX17);
+  ASSERT_TRUE(ToDGCtor);
+  ASSERT_TRUE(ToDGCopyCtor);
+  ASSERT_TRUE(ToDGOther);
+
+  TemplateParameterList *ToDGCtorTP = ToDGCtor->getTemplateParameters();
+  EXPECT_EQ(ToDGCtorTP->getParam(0)->getDeclContext(),
+            ToDGCopyCtor->getTemplatedDecl());
+  EXPECT_EQ(ToDGCtorTP->getParam(1)->getDeclContext(),
+            ToDGCtor->getTemplatedDecl());
+  EXPECT_EQ(ToDGCtorTP->getParam(2)->getDeclContext(),
+            ToDGCtor->getTemplatedDecl());
+  EXPECT_EQ(
+      ToDGCopyCtor->getTemplateParameters()->getParam(0)->getDeclContext(),
+      ToDGCopyCtor->getTemplatedDecl());
+  EXPECT_EQ(ToDGOther->getDescribedTemplate()
+                ->getTemplateParameters()
+                ->getParam(0)
+                ->getDeclContext(),
+            ToDGOther);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportDeductionGuideDifferentOrder) {
+  // This test demonstrates that the DeclContext of the imported object is
+  // dependent on the order of import. The test is an exact copy of the previous
+  // one except at the indicated locations.
+  TranslationUnitDecl *FromTU = getTuDecl(
+      R"(
+      template<class> class A { };
+      template<class T> class B {
+          template<class T1, typename = A<T>> B(T1);
+      };
+      template<class T>
+      B(T, T) -> B<int>;
+      )",
+      Lang_CXX17);
+
+  // Get the implicit deduction guide for (non-default) constructor of 'B'.
+  auto *FromDGCtor = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU, functionTemplateDecl(templateParameterCountIs(3)));
+  // Implicit deduction guide for copy constructor of 'B'.
+  auto *FromDGCopyCtor = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU, functionTemplateDecl(templateParameterCountIs(1), isImplicit()));
+  // User defined deduction guide.
+  auto *FromDGOther = FirstDeclMatcher<CXXDeductionGuideDecl>().match(
+      FromTU, cxxDeductionGuideDecl(unless(isImplicit())));
+
+  TemplateParameterList *FromDGCtorTP = FromDGCtor->getTemplateParameters();
+  // Don't know why exactly but this is the DeclContext here.
+  EXPECT_EQ(FromDGCtorTP->getParam(0)->getDeclContext(),
+            FromDGCopyCtor->getTemplatedDecl());
+  EXPECT_EQ(FromDGCtorTP->getParam(1)->getDeclContext(),
+            FromDGCtor->getTemplatedDecl());
+  EXPECT_EQ(FromDGCtorTP->getParam(2)->getDeclContext(),
+            FromDGCtor->getTemplatedDecl());
+  EXPECT_EQ(
+      FromDGCopyCtor->getTemplateParameters()->getParam(0)->getDeclContext(),
+      FromDGCopyCtor->getTemplatedDecl());
+  EXPECT_EQ(FromDGOther->getDescribedTemplate()
+                ->getTemplateParameters()
+                ->getParam(0)
+                ->getDeclContext(),
+            FromDGOther);
+
+  // Here the import of 'ToDGCopyCtor' and 'ToDGCtor' is reversed relative to
+  // the previous test.
+  auto *ToDGCopyCtor = Import(FromDGCopyCtor, Lang_CXX17);
+  auto *ToDGCtor = Import(FromDGCtor, Lang_CXX17);
+  auto *ToDGOther = Import(FromDGOther, Lang_CXX17);
+  ASSERT_TRUE(ToDGCtor);
+  ASSERT_TRUE(ToDGCopyCtor);
+  ASSERT_TRUE(ToDGOther);
+
+  TemplateParameterList *ToDGCtorTP = ToDGCtor->getTemplateParameters();
+  // Next line: DeclContext is different relative to the previous test.
+  EXPECT_EQ(ToDGCtorTP->getParam(0)->getDeclContext(),
+            ToDGCtor->getTemplatedDecl());
+  EXPECT_EQ(ToDGCtorTP->getParam(1)->getDeclContext(),
+            ToDGCtor->getTemplatedDecl());
+  EXPECT_EQ(ToDGCtorTP->getParam(2)->getDeclContext(),
+            ToDGCtor->getTemplatedDecl());
+  // Next line: DeclContext is different relative to the previous test.
+  EXPECT_EQ(
+      ToDGCopyCtor->getTemplateParameters()->getParam(0)->getDeclContext(),
+      ToDGCtor->getTemplatedDecl());
+  EXPECT_EQ(ToDGOther->getDescribedTemplate()
+                ->getTemplateParameters()
+                ->getParam(0)
+                ->getDeclContext(),
+            ToDGOther);
 }
 
 INSTANTIATE_TEST_SUITE_P(ParameterizedTests, ASTImporterLookupTableTest,

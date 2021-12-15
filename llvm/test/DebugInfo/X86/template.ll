@@ -1,6 +1,6 @@
 
 ; RUN: llc -mtriple=x86_64-linux -O0 -filetype=obj < %s | llvm-dwarfdump -v -debug-info - | FileCheck %s
-; RUN: llc -mtriple=x86_64-linux -O0 -filetype=obj < %s | not llvm-dwarfdump -verify - | FileCheck %s --check-prefix VERIFY
+; RUN: llc -mtriple=x86_64-linux -O0 -filetype=obj < %s | llvm-dwarfdump -verify - | FileCheck %s --check-prefix VERIFY
 
 ; IR generated with `clang++ -g -emit-llvm -S` from the following code:
 ; template<typename T> T var;
@@ -13,29 +13,12 @@
 ; int glbl = func<3, &glbl, y_impl, nullptr, E, 1, 2>();
 ; y_impl<int>::nested n;
 
-; VERIFY-NOT: error: DIE has DW_AT_type with incompatible tag DW_TAG_unspecified_type
-; VERIFY: error: DIEs have overlapping address ranges
-
-; CHECK: [[INT:0x[0-9a-f]*]]:{{ *}}DW_TAG_base_type
-; CHECK-NEXT: DW_AT_name{{.*}} = "int"
-
-; CHECK: DW_TAG_structure_type
-; CHECK: DW_AT_name{{.*}}"y_impl<int>"
-; CHECK-NOT: {{TAG|NULL}}
-; CHECK: DW_TAG_template_type_parameter
-
-; CHECK: DW_TAG_variable
-; CHECK-NEXT: DW_AT_name{{.*}}"var"
-; CHECK-NOT: NULL
-; CHECK: DW_TAG_template_type_parameter
-; CHECK-NEXT: DW_AT_type{{.*}}=> {[[INT]]}
-; CHECK-NEXT: DW_AT_name{{.*}}= "T"
-
+; VERIFY-NOT: error:
 
 ; CHECK: DW_AT_name{{.*}}"func<3, &glbl, y_impl, nullptr, E, 1, 2>"
 ; CHECK-NOT: NULL
 ; CHECK: DW_TAG_template_value_parameter
-; CHECK-NEXT: DW_AT_type{{.*}}=> {[[INT]]}
+; CHECK-NEXT: DW_AT_type{{.*}}=> {[[INT:0x[0-9a-f]*]]}
 ; CHECK-NEXT: DW_AT_name{{.*}}= "x"
 ; CHECK-NEXT: DW_AT_const_value [DW_FORM_sdata]{{.*}}(3)
 
@@ -71,6 +54,21 @@
 ; CHECK: DW_TAG_template_value_parameter
 ; CHECK-NEXT: DW_AT_type{{.*}}=> {[[INT]]}
 ; CHECK-NEXT: DW_AT_const_value  [DW_FORM_sdata]{{.*}}(2)
+
+; CHECK: [[INT]]:{{ *}}DW_TAG_base_type
+; CHECK-NEXT: DW_AT_name{{.*}} = "int"
+
+; CHECK: DW_TAG_structure_type
+; CHECK: DW_AT_name{{.*}}"y_impl<int>"
+; CHECK-NOT: {{TAG|NULL}}
+; CHECK: DW_TAG_template_type_parameter
+
+; CHECK: DW_TAG_variable
+; CHECK-NEXT: DW_AT_name{{.*}}"var"
+; CHECK-NOT: NULL
+; CHECK: DW_TAG_template_type_parameter
+; CHECK-NEXT: DW_AT_type{{.*}}=> {[[INT]]}
+; CHECK-NEXT: DW_AT_name{{.*}}= "T"
 
 ; CHECK: [[INTPTR]]:{{ *}}DW_TAG_pointer_type
 ; CHECK-NEXT: DW_AT_type{{.*}} => {[[INT]]}

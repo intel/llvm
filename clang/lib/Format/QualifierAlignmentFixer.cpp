@@ -61,10 +61,10 @@ QualifierAlignmentFixer::QualifierAlignmentFixer(
 std::pair<tooling::Replacements, unsigned> QualifierAlignmentFixer::analyze(
     TokenAnnotator &Annotator, SmallVectorImpl<AnnotatedLine *> &AnnotatedLines,
     FormatTokenLexer &Tokens) {
-
-  auto Env =
-      std::make_unique<Environment>(Code, FileName, Ranges, FirstStartColumn,
-                                    NextStartColumn, LastStartColumn);
+  auto Env = Environment::make(Code, FileName, Ranges, FirstStartColumn,
+                               NextStartColumn, LastStartColumn);
+  if (!Env)
+    return {};
   llvm::Optional<std::string> CurrentCode = None;
   tooling::Replacements Fixes;
   for (size_t I = 0, E = Passes.size(); I < E; ++I) {
@@ -75,10 +75,12 @@ std::pair<tooling::Replacements, unsigned> QualifierAlignmentFixer::analyze(
       Fixes = Fixes.merge(PassFixes.first);
       if (I + 1 < E) {
         CurrentCode = std::move(*NewCode);
-        Env = std::make_unique<Environment>(
+        Env = Environment::make(
             *CurrentCode, FileName,
             tooling::calculateRangesAfterReplacements(Fixes, Ranges),
             FirstStartColumn, NextStartColumn, LastStartColumn);
+        if (!Env)
+          return {};
       }
     }
   }
@@ -419,7 +421,7 @@ void QualifierAlignmentFixer::PrepareLeftRightOrdering(
   // To iterate forward or backward through the order list as qualifier
   // can push through each other.
   // The Order list must define the position of "type" to signify
-  assert(std::find(Order.begin(), Order.end(), "type") != Order.end() &&
+  assert(llvm::is_contained(Order, "type") &&
          "QualifierOrder must contain type");
   // Split the Order list by type and reverse the left side.
 
@@ -447,8 +449,7 @@ void QualifierAlignmentFixer::PrepareLeftRightOrdering(
 bool LeftRightQualifierAlignmentFixer::isQualifierOrType(
     const FormatToken *Tok, const std::vector<tok::TokenKind> &specifiedTypes) {
   return Tok && (Tok->isSimpleTypeSpecifier() || Tok->is(tok::kw_auto) ||
-                 (std::find(specifiedTypes.begin(), specifiedTypes.end(),
-                            Tok->Tok.getKind()) != specifiedTypes.end()));
+                 llvm::is_contained(specifiedTypes, Tok->Tok.getKind()));
 }
 
 // If a token is an identifier and it's upper case, it could

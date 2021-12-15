@@ -385,7 +385,7 @@ TEST(ConstantsTest, GEPReplaceWithConstant) {
       new GlobalVariable(*M, PtrTy, false, GlobalValue::ExternalLinkage, GEP);
   ASSERT_EQ(GEP, Ref->getInitializer());
 
-  auto *Global = new GlobalVariable(*M, PtrTy, false,
+  auto *Global = new GlobalVariable(*M, IntTy, false,
                                     GlobalValue::ExternalLinkage, nullptr);
   auto *Alias = GlobalAlias::create(IntTy, 0, GlobalValue::ExternalLinkage,
                                     "alias", Global, M.get());
@@ -404,7 +404,7 @@ TEST(ConstantsTest, AliasCAPI) {
   Type *I16PTy = PointerType::get(I16Ty, 0);
   Constant *Aliasee = ConstantExpr::getBitCast(G, I16PTy);
   LLVMValueRef AliasRef =
-      LLVMAddAlias(wrap(M.get()), wrap(I16PTy), wrap(Aliasee), "a");
+      LLVMAddAlias2(wrap(M.get()), wrap(I16Ty), 0, wrap(Aliasee), "a");
   ASSERT_EQ(unwrap<GlobalAlias>(AliasRef)->getAliasee(), Aliasee);
 }
 

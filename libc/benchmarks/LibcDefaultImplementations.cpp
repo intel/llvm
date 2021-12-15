@@ -5,6 +5,7 @@
 namespace __llvm_libc {
 
 extern void *memcpy(void *__restrict, const void *__restrict, size_t);
+extern void *memmove(void *, const void *, size_t);
 extern void *memset(void *, int, size_t);
 extern void bzero(void *, size_t);
 extern int memcmp(const void *, const void *, size_t);
@@ -15,8 +16,9 @@ extern int bcmp(const void *, const void *, size_t);
 // List of implementations to test.
 
 using llvm::libc_benchmarks::BzeroConfiguration;
-using llvm::libc_benchmarks::MemcmpConfiguration;
+using llvm::libc_benchmarks::MemcmpOrBcmpConfiguration;
 using llvm::libc_benchmarks::MemcpyConfiguration;
+using llvm::libc_benchmarks::MemmoveConfiguration;
 using llvm::libc_benchmarks::MemsetConfiguration;
 
 llvm::ArrayRef<MemcpyConfiguration> getMemcpyConfigurations() {
@@ -24,13 +26,18 @@ llvm::ArrayRef<MemcpyConfiguration> getMemcpyConfigurations() {
       {__llvm_libc::memcpy, "__llvm_libc::memcpy"}};
   return llvm::makeArrayRef(kMemcpyConfigurations);
 }
-llvm::ArrayRef<MemcmpConfiguration> getMemcmpConfigurations() {
-  static constexpr MemcmpConfiguration kMemcmpConfigurations[] = {
-      {__llvm_libc::memcmp, "__llvm_libc::memcmp"}};
-  return llvm::makeArrayRef(kMemcmpConfigurations);
+llvm::ArrayRef<MemmoveConfiguration> getMemmoveConfigurations() {
+  static constexpr MemmoveConfiguration kMemmoveConfigurations[] = {
+      {__llvm_libc::memmove, "__llvm_libc::memmove"}};
+  return llvm::makeArrayRef(kMemmoveConfigurations);
 }
-llvm::ArrayRef<MemcmpConfiguration> getBcmpConfigurations() {
-  static constexpr MemcmpConfiguration kBcmpConfigurations[] = {
+llvm::ArrayRef<MemcmpOrBcmpConfiguration> getMemcmpConfigurations() {
+  static constexpr MemcmpOrBcmpConfiguration kMemcmpConfiguration[] = {
+      {__llvm_libc::memcmp, "__llvm_libc::memcmp"}};
+  return llvm::makeArrayRef(kMemcmpConfiguration);
+}
+llvm::ArrayRef<MemcmpOrBcmpConfiguration> getBcmpConfigurations() {
+  static constexpr MemcmpOrBcmpConfiguration kBcmpConfigurations[] = {
       {__llvm_libc::bcmp, "__llvm_libc::bcmp"}};
   return llvm::makeArrayRef(kBcmpConfigurations);
 }

@@ -229,12 +229,12 @@ define <16 x i8> @extract_v16i8_nxv16i8_idx16(<vscale x 16 x i8> %vec) nounwind 
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    str x29, [sp, #-16]! // 8-byte Folded Spill
 ; CHECK-NEXT:    addvl sp, sp, #-1
-; CHECK-NEXT:    rdvl x8, #1
+; CHECK-NEXT:    mov x8, #-16
 ; CHECK-NEXT:    mov w9, #16
-; CHECK-NEXT:    sub x8, x8, #16
 ; CHECK-NEXT:    ptrue p0.b
-; CHECK-NEXT:    cmp x8, #16
 ; CHECK-NEXT:    st1b { z0.b }, p0, [sp]
+; CHECK-NEXT:    addvl x8, x8, #1
+; CHECK-NEXT:    cmp x8, #16
 ; CHECK-NEXT:    csel x8, x8, x9, lo
 ; CHECK-NEXT:    mov x9, sp
 ; CHECK-NEXT:    ldr q0, [x9, x8]
@@ -406,6 +406,22 @@ define <4 x i64> @extract_fixed_v4i64_nxv2i64(<vscale x 2 x i64> %vec) nounwind 
 ; CHECK-NEXT:    ret
   %retval = call <4 x i64> @llvm.experimental.vector.extract.v4i64.nxv2i64(<vscale x 2 x i64> %vec, i64 4)
   ret <4 x i64> %retval
+}
+
+; Check that extract from load via bitcast-gep-of-scalar-ptr does not crash.
+define <4 x i32> @typesize_regression_test_v4i32(i32* %addr, i64 %idx) {
+; CHECK-LABEL: typesize_regression_test_v4i32:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    ptrue p0.s
+; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0, x1, lsl #2]
+; CHECK-NEXT:    // kill: def $q0 killed $q0 killed $z0
+; CHECK-NEXT:    ret
+entry:
+  %ptr = getelementptr inbounds i32, i32* %addr, i64 %idx
+  %bc = bitcast i32* %ptr to <vscale x 4 x i32>*
+  %ld = load <vscale x 4 x i32>, <vscale x 4 x i32>* %bc, align 16
+  %out = call <4 x i32> @llvm.experimental.vector.extract.v4i32.nxv4i32(<vscale x 4 x i32> %ld, i64 0)
+  ret <4 x i32> %out
 }
 
 attributes #0 = { vscale_range(2,2) }

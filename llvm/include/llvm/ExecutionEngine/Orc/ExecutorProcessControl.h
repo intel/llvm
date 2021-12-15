@@ -49,6 +49,7 @@ public:
     friend class ExecutorProcessControl;
   public:
     IncomingWFRHandler() = default;
+    explicit operator bool() const { return !!H; }
     void operator()(shared::WrapperFunctionResult WFR) { H(std::move(WFR)); }
   private:
     template <typename FnT> IncomingWFRHandler(FnT &&Fn)
@@ -455,7 +456,7 @@ private:
   void writeBuffersAsync(ArrayRef<tpctypes::BufferWrite> Ws,
                          WriteResultFn OnWriteComplete) override;
 
-  static shared::detail::CWrapperFunctionResult
+  static shared::CWrapperFunctionResult
   jitDispatchViaWrapperFunctionManager(void *Ctx, const void *FnTag,
                                        const char *Data, size_t Size);
 

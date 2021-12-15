@@ -24,6 +24,9 @@ using namespace mlir::linalg;
 static Value sourceMaterializationCallback(OpBuilder &builder, Type type,
                                            ValueRange inputs, Location loc) {
   assert(inputs.size() == 1);
+  if (inputs[0].getType().isa<TensorType>())
+    return nullptr;
+
   // A detensored value is converted back by creating a new tensor from its
   // element(s).
   auto createNewTensorOp = builder.create<tensor::FromElementsOp>(
@@ -31,7 +34,7 @@ static Value sourceMaterializationCallback(OpBuilder &builder, Type type,
 
   // FromElementsOp results in a tensor<1xdtype>, we need to reshape that to
   // a tensor<dtype> instead.
-  return builder.create<linalg::TensorCollapseShapeOp>(
+  return builder.create<tensor::CollapseShapeOp>(
       loc, type, createNewTensorOp, ArrayRef<ReassociationExprs>{});
 }
 
@@ -175,7 +178,7 @@ struct ExtractFromReshapeFromElements
       return failure();
 
     auto tensorReshape =
-        extract.tensor().getDefiningOp<TensorCollapseShapeOp>();
+        extract.tensor().getDefiningOp<tensor::CollapseShapeOp>();
     if (tensorReshape == nullptr)
       return failure();
 
@@ -221,7 +224,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
     ///     ins(%6, %6 : tensor<i32>, tensor<i32>)
     ///     outs(%7 : tensor<i32>) {
     ///     ^bb0(%arg0: i32, %arg1: i32, %arg2: i32):
-    ///       %9 = addi %arg0, %arg1 : i32
+    ///       %9 = arith.addi %arg0, %arg1 : i32
     ///       linalg.yield %9 : i32
     ///   } -> tensor<i32>
     ///   %10 = "some.op"(%9)

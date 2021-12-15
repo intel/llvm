@@ -346,9 +346,8 @@ static Instruction *foldShiftOfShiftedLogic(BinaryOperator &I,
   // TODO: Remove the one-use check if the other logic operand (Y) is constant.
   Value *X, *Y;
   auto matchFirstShift = [&](Value *V) {
-    BinaryOperator *BO;
     APInt Threshold(Ty->getScalarSizeInBits(), Ty->getScalarSizeInBits());
-    return match(V, m_BinOp(BO)) && BO->getOpcode() == ShiftOpcode &&
+    return match(V, m_BinOp(ShiftOpcode, m_Value(), m_Value())) &&
            match(V, m_OneUse(m_Shift(m_Value(X), m_Constant(C0)))) &&
            match(ConstantExpr::getAdd(C0, C1),
                  m_SpecificInt_ICMP(ICmpInst::ICMP_ULT, Threshold));
@@ -1067,28 +1066,31 @@ Instruction *InstCombinerImpl::visitLShr(BinaryOperator &I) {
       return new ZExtInst(NewLShr, Ty);
     }
 
-    if (match(Op0, m_SExt(m_Value(X))) &&
-        (!Ty->isIntegerTy() || shouldChangeType(Ty, X->getType()))) {
-      // Are we moving the sign bit to the low bit and widening with high zeros?
+    if (match(Op0, m_SExt(m_Value(X)))) {
       unsigned SrcTyBitWidth = X->getType()->getScalarSizeInBits();
-      if (ShAmtC == BitWidth - 1) {
-        // lshr (sext i1 X to iN), N-1 --> zext X to iN
-        if (SrcTyBitWidth == 1)
-          return new ZExtInst(X, Ty);
+      // lshr (sext i1 X to iN), C --> select (X, -1 >> C, 0)
+      if (SrcTyBitWidth == 1) {
+        auto *NewC = ConstantInt::get(
+            Ty, APInt::getLowBitsSet(BitWidth, BitWidth - ShAmtC));
+        return SelectInst::Create(X, NewC, ConstantInt::getNullValue(Ty));
+      }
 
-        // lshr (sext iM X to iN), N-1 --> zext (lshr X, M-1) to iN
-        if (Op0->hasOneUse()) {
+      if ((!Ty->isIntegerTy() || shouldChangeType(Ty, X->getType())) &&
+          Op0->hasOneUse()) {
+        // Are we moving the sign bit to the low bit and widening with high
+        // zeros? lshr (sext iM X to iN), N-1 --> zext (lshr X, M-1) to iN
+        if (ShAmtC == BitWidth - 1) {
           Value *NewLShr = Builder.CreateLShr(X, SrcTyBitWidth - 1);
           return new ZExtInst(NewLShr, Ty);
         }
-      }
 
-      // lshr (sext iM X to iN), N-M --> zext (ashr X, min(N-M, M-1)) to iN
-      if (ShAmtC == BitWidth - SrcTyBitWidth && Op0->hasOneUse()) {
-        // The new shift amount can't be more than the narrow source type.
-        unsigned NewShAmt = std::min(ShAmtC, SrcTyBitWidth - 1);
-        Value *AShr = Builder.CreateAShr(X, NewShAmt);
-        return new ZExtInst(AShr, Ty);
+        // lshr (sext iM X to iN), N-M --> zext (ashr X, min(N-M, M-1)) to iN
+        if (ShAmtC == BitWidth - SrcTyBitWidth) {
+          // The new shift amount can't be more than the narrow source type.
+          unsigned NewShAmt = std::min(ShAmtC, SrcTyBitWidth - 1);
+          Value *AShr = Builder.CreateAShr(X, NewShAmt);
+          return new ZExtInst(AShr, Ty);
+        }
       }
     }
 

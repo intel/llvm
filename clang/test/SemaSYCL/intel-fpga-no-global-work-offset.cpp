@@ -51,7 +51,7 @@ int main() {
         []() [[intel::no_global_work_offset,
                intel::no_global_work_offset]]{}); // OK
 
-    // expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+    // expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
     h.single_task<class test_kernel6>(
         []() [[intel::no_global_work_offset("foo")]]{});
 

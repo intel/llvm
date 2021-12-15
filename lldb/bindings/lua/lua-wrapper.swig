@@ -4,13 +4,9 @@ template <typename T>
 void
 PushSBClass(lua_State* L, T* obj);
 
-%}
-
-%wrapper %{
-
 // This function is called from Lua::CallBreakpointCallback
-SWIGEXPORT llvm::Expected<bool>
-LLDBSwigLuaBreakpointCallbackFunction
+llvm::Expected<bool>
+lldb_private::LLDBSwigLuaBreakpointCallbackFunction
 (
    lua_State *L,
    lldb::StackFrameSP stop_frame_sp,
@@ -54,8 +50,8 @@ LLDBSwigLuaBreakpointCallbackFunction
 }
 
 // This function is called from Lua::CallWatchpointCallback
-SWIGEXPORT llvm::Expected<bool>
-LLDBSwigLuaWatchpointCallbackFunction
+llvm::Expected<bool>
+lldb_private::LLDBSwigLuaWatchpointCallbackFunction
 (
    lua_State *L,
    lldb::StackFrameSP stop_frame_sp,
@@ -88,5 +84,20 @@ LLDBSwigLuaWatchpointCallbackFunction
    return stop;
 }
 
+static void
+LLDBSwigLuaCallLuaLogOutputCallback(const char *str, void *baton) {
+   lua_State *L = (lua_State *)baton;
+
+   lua_pushlightuserdata(L, (void *)&LLDBSwigLuaCallLuaLogOutputCallback);
+   lua_gettable(L, LUA_REGISTRYINDEX);
+
+   // FIXME: There's no way to report errors back to the user
+   lua_pushstring(L, str);
+   lua_pcall(L, 1, 0, 0);
+}
+
+static int LLDBSwigLuaCloseFileHandle(lua_State *L) {
+   return luaL_error(L, "You cannot close a file handle used by lldb.");
+}
 
 %}

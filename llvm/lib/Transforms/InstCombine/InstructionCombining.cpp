@@ -967,6 +967,29 @@ Value *InstCombinerImpl::dyn_castNegVal(Value *V) const {
   return nullptr;
 }
 
+/// A binop with a constant operand and a sign-extended boolean operand may be
+/// converted into a select of constants by applying the binary operation to
+/// the constant with the two possible values of the extended boolean (0 or -1).
+Instruction *InstCombinerImpl::foldBinopOfSextBoolToSelect(BinaryOperator &BO) {
+  // TODO: Handle non-commutative binop (constant is operand 0).
+  // TODO: Handle zext.
+  // TODO: Peek through 'not' of cast.
+  Value *BO0 = BO.getOperand(0);
+  Value *BO1 = BO.getOperand(1);
+  Value *X;
+  Constant *C;
+  if (!match(BO0, m_SExt(m_Value(X))) || !match(BO1, m_ImmConstant(C)) ||
+      !X->getType()->isIntOrIntVectorTy(1))
+    return nullptr;
+
+  // bo (sext i1 X), C --> select X, (bo -1, C), (bo 0, C)
+  Constant *Ones = ConstantInt::getAllOnesValue(BO.getType());
+  Constant *Zero = ConstantInt::getNullValue(BO.getType());
+  Constant *TVal = ConstantExpr::get(BO.getOpcode(), Ones, C);
+  Constant *FVal = ConstantExpr::get(BO.getOpcode(), Zero, C);
+  return SelectInst::Create(X, TVal, FVal);
+}
+
 static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
                                              InstCombiner::BuilderTy &Builder) {
   if (auto *Cast = dyn_cast<CastInst>(&I))
@@ -1135,9 +1158,11 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
   BasicBlock *NonConstBB = nullptr;
   for (unsigned i = 0; i != NumPHIValues; ++i) {
     Value *InVal = PN->getIncomingValue(i);
-    // If I is a freeze instruction, count undef as a non-constant.
-    if (match(InVal, m_ImmConstant()) &&
-        (!isa<FreezeInst>(I) || isGuaranteedNotToBeUndefOrPoison(InVal)))
+    // For non-freeze, require constant operand
+    // For freeze, require non-undef, non-poison operand
+    if (!isa<FreezeInst>(I) && match(InVal, m_ImmConstant()))
+      continue;
+    if (isa<FreezeInst>(I) && isGuaranteedNotToBeUndefOrPoison(InVal))
       continue;
 
     if (isa<PHINode>(InVal)) return nullptr;  // Itself a phi.
@@ -1727,25 +1752,20 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
     Value *X;
     ArrayRef<int> MaskC;
     int SplatIndex;
-    BinaryOperator *BO;
+    Value *Y, *OtherOp;
     if (!match(LHS,
                m_OneUse(m_Shuffle(m_Value(X), m_Undef(), m_Mask(MaskC)))) ||
         !match(MaskC, m_SplatOrUndefMask(SplatIndex)) ||
-        X->getType() != Inst.getType() || !match(RHS, m_OneUse(m_BinOp(BO))) ||
-        BO->getOpcode() != Opcode)
+        X->getType() != Inst.getType() ||
+        !match(RHS, m_OneUse(m_BinOp(Opcode, m_Value(Y), m_Value(OtherOp)))))
       return nullptr;
 
     // FIXME: This may not be safe if the analysis allows undef elements. By
     //        moving 'Y' before the splat shuffle, we are implicitly assuming
     //        that it is not undef/poison at the splat index.
-    Value *Y, *OtherOp;
-    if (isSplatValue(BO->getOperand(0), SplatIndex)) {
-      Y = BO->getOperand(0);
-      OtherOp = BO->getOperand(1);
-    } else if (isSplatValue(BO->getOperand(1), SplatIndex)) {
-      Y = BO->getOperand(1);
-      OtherOp = BO->getOperand(0);
-    } else {
+    if (isSplatValue(OtherOp, SplatIndex)) {
+      std::swap(Y, OtherOp);
+    } else if (!isSplatValue(Y, SplatIndex)) {
       return nullptr;
     }
 
@@ -1761,7 +1781,7 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
     // dropped to be safe.
     if (isa<FPMathOperator>(R)) {
       R->copyFastMathFlags(&Inst);
-      R->andIRFlags(BO);
+      R->andIRFlags(RHS);
     }
     if (auto *NewInstBO = dyn_cast<BinaryOperator>(NewBO))
       NewInstBO->copyIRFlags(R);
@@ -2812,6 +2832,26 @@ static Instruction *tryToMoveFreeBeforeNullTest(CallInst &FI,
   }
   assert(FreeInstrBB->size() == 1 &&
          "Only the branch instruction should remain");
+
+  // Now that we've moved the call to free before the NULL check, we have to
+  // remove any attributes on its parameter that imply it's non-null, because
+  // those attributes might have only been valid because of the NULL check, and
+  // we can get miscompiles if we keep them. This is conservative if non-null is
+  // also implied by something other than the NULL check, but it's guaranteed to
+  // be correct, and the conservativeness won't matter in practice, since the
+  // attributes are irrelevant for the call to free itself and the pointer
+  // shouldn't be used after the call.
+  AttributeList Attrs = FI.getAttributes();
+  Attrs = Attrs.removeParamAttribute(FI.getContext(), 0, Attribute::NonNull);
+  Attribute Dereferenceable = Attrs.getParamAttr(0, Attribute::Dereferenceable);
+  if (Dereferenceable.isValid()) {
+    uint64_t Bytes = Dereferenceable.getDereferenceableBytes();
+    Attrs = Attrs.removeParamAttribute(FI.getContext(), 0,
+                                       Attribute::Dereferenceable);
+    Attrs = Attrs.addDereferenceableOrNullParamAttr(FI.getContext(), 0, Bytes);
+  }
+  FI.setAttributes(Attrs);
+
   return &FI;
 }
 
@@ -2925,7 +2965,7 @@ Instruction *InstCombinerImpl::visitUnconditionalBranchInst(BranchInst &BI) {
 
   auto GetLastSinkableStore = [](BasicBlock::iterator BBI) {
     auto IsNoopInstrForStoreMerging = [](BasicBlock::iterator BBI) {
-      return isa<DbgInfoIntrinsic>(BBI) ||
+      return BBI->isDebugOrPseudoInst() ||
              (isa<BitCastInst>(BBI) && BBI->getType()->isPointerTy());
     };
 
@@ -3116,26 +3156,21 @@ Instruction *InstCombinerImpl::visitExtractValueInst(ExtractValueInst &EV) {
       // checking for overflow.
       const APInt *C;
       if (match(WO->getRHS(), m_APInt(C))) {
-        // Compute the no-wrap range [X,Y) for LHS given RHS=C, then
-        // check for the inverted range using range offset trick (i.e.
-        // use a subtract to shift the range to bottom of either the
-        // signed or unsigned domain and then use a single compare to
-        // check range membership).
+        // Compute the no-wrap range for LHS given RHS=C, then construct an
+        // equivalent icmp, potentially using an offset.
         ConstantRange NWR =
           ConstantRange::makeExactNoWrapRegion(WO->getBinaryOp(), *C,
                                                WO->getNoWrapKind());
-        APInt Min = WO->isSigned() ? NWR.getSignedMin() : NWR.getUnsignedMin();
-        NWR = NWR.subtract(Min);
 
         CmpInst::Predicate Pred;
-        APInt NewRHSC;
-        if (NWR.getEquivalentICmp(Pred, NewRHSC)) {
-          auto *OpTy = WO->getRHS()->getType();
-          auto *NewLHS = Builder.CreateSub(WO->getLHS(),
-                                           ConstantInt::get(OpTy, Min));
-          return new ICmpInst(ICmpInst::getInversePredicate(Pred), NewLHS,
-                              ConstantInt::get(OpTy, NewRHSC));
-        }
+        APInt NewRHSC, Offset;
+        NWR.getEquivalentICmp(Pred, NewRHSC, Offset);
+        auto *OpTy = WO->getRHS()->getType();
+        auto *NewLHS = WO->getLHS();
+        if (Offset != 0)
+          NewLHS = Builder.CreateAdd(NewLHS, ConstantInt::get(OpTy, Offset));
+        return new ICmpInst(ICmpInst::getInversePredicate(Pred), NewLHS,
+                            ConstantInt::get(OpTy, NewRHSC));
       }
     }
   }
@@ -3544,8 +3579,14 @@ InstCombinerImpl::pushFreezeToPreventPoisonFromPropagating(FreezeInst &OrigFI) {
   // While we could change the other users of OrigOp to use freeze(OrigOp), that
   // potentially reduces their optimization potential, so let's only do this iff
   // the OrigOp is only used by the freeze.
-  if (!OrigOpInst || !OrigOpInst->hasOneUse() || isa<PHINode>(OrigOp) ||
-      canCreateUndefOrPoison(dyn_cast<Operator>(OrigOp)))
+  if (!OrigOpInst || !OrigOpInst->hasOneUse() || isa<PHINode>(OrigOp))
+    return nullptr;
+
+  // We can't push the freeze through an instruction which can itself create
+  // poison.  If the only source of new poison is flags, we can simply
+  // strip them (since we know the only use is the freeze and nothing can
+  // benefit from them.)
+  if (canCreateUndefOrPoison(cast<Operator>(OrigOp), /*ConsiderFlags*/ false))
     return nullptr;
 
   // If operand is guaranteed not to be poison, there is no need to add freeze
@@ -3560,6 +3601,8 @@ InstCombinerImpl::pushFreezeToPreventPoisonFromPropagating(FreezeInst &OrigFI) {
     else
       return nullptr;
   }
+
+  OrigOpInst->dropPoisonGeneratingFlags();
 
   // If all operands are guaranteed to be non-poison, we can drop freeze.
   if (!MaybePoisonOperand)

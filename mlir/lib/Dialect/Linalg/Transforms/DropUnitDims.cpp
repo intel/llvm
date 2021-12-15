@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
@@ -59,7 +60,7 @@ using namespace mlir::linalg;
 ///        tensor<5xf32> into tensor<5x1xf32>
 ///   %2 = linalg.generic #trait %0, %1 {
 ///        ^bb0(%arg2: f32, %arg3: f32):
-///          %3 = addf %arg2, %arg3 : f32
+///          %3 = arith.addf %arg2, %arg3 : f32
 ///          linalg.yield %3 : f32
 ///        } : tensor<1x5xf32>, tensor<5x1xf32> -> tensor<5x5xf32>
 ///   return %2 : tensor<5x5xf32>
@@ -87,7 +88,7 @@ using namespace mlir::linalg;
 /// {
 ///   %0 = linalg.generic #trait %arg0, %arg1 {
 ///        ^bb0(%arg2: f32, %arg3: f32):
-///          %3 = addf %arg2, %arg3 : f32
+///          %3 = arith.addf %arg2, %arg3 : f32
 ///          linalg.yield %3 : f32
 ///        } : tensor<5xf32>, tensor<5xf32> -> tensor<5x5xf32>
 ///   return %0 : tensor<5x5xf32>
@@ -148,16 +149,12 @@ static ArrayAttr replaceUnitDims(DenseSet<unsigned> &unitDims,
 static void replaceUnitDimIndexOps(GenericOp genericOp,
                                    const DenseSet<unsigned> &unitDims,
                                    PatternRewriter &rewriter) {
-  assert(genericOp->getNumRegions() == 1 &&
-         genericOp->getRegion(0).getBlocks().size() == 1 &&
-         "expected generic operation to have one block.");
-  Block &block = genericOp->getRegion(0).front();
-
-  for (IndexOp indexOp : llvm::make_early_inc_range(block.getOps<IndexOp>())) {
+  for (IndexOp indexOp :
+       llvm::make_early_inc_range(genericOp.getBody()->getOps<IndexOp>())) {
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPoint(indexOp);
     if (unitDims.count(indexOp.dim()) != 0) {
-      rewriter.replaceOpWithNewOp<ConstantIndexOp>(indexOp, 0);
+      rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(indexOp, 0);
     } else {
       // Update the dimension of the index operation if needed.
       unsigned droppedDims = llvm::count_if(
@@ -261,7 +258,7 @@ replaceUnitExtents(GenericOp genericOp, OpOperand *opOperand,
   // leave them unchanged.
   Type actualType = opOperand->get().getType();
   if (auto memref = actualType.dyn_cast<MemRefType>()) {
-    if (!memref.getAffineMaps().empty())
+    if (!memref.getLayout().isIdentity())
       return llvm::None;
   }
 
@@ -326,7 +323,7 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
     if (origResultType == result.getType())
       return result;
     if (origResultType.isa<RankedTensorType>()) {
-      return rewriter.create<linalg::TensorExpandShapeOp>(
+      return rewriter.create<tensor::ExpandShapeOp>(
           loc, origResultType, result,
           convertAffineMapArrayToExprs(reassociationMap));
     }
@@ -352,7 +349,7 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
           convertAffineMapArrayToExprs(reassociationMap));
     }
     if (operandType.isa<RankedTensorType>()) {
-      return rewriter.create<linalg::TensorCollapseShapeOp>(
+      return rewriter.create<tensor::CollapseShapeOp>(
           loc, newInputOutputType, operand,
           convertAffineMapArrayToExprs(reassociationMap));
     }
@@ -511,8 +508,8 @@ struct UseRankReducedExtractSliceOp
     Location loc = sliceOp.getLoc();
     Value newSlice = rewriter.create<tensor::ExtractSliceOp>(
         loc, rankReducedType, sliceOp.source(), offsets, sizes, strides);
-    rewriter.replaceOpWithNewOp<TensorExpandShapeOp>(sliceOp, resultType,
-                                                     newSlice, *reassociation);
+    rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
+        sliceOp, resultType, newSlice, *reassociation);
     return success();
   }
 };
@@ -533,7 +530,7 @@ struct UseRankReducedInsertSliceOp
         reassociation->size() == static_cast<size_t>(sourceType.getRank()))
       return failure();
     Location loc = insertOp.getLoc();
-    auto reshapedSource = rewriter.create<TensorCollapseShapeOp>(
+    auto reshapedSource = rewriter.create<tensor::CollapseShapeOp>(
         loc, insertOp.source(), *reassociation);
     rewriter.replaceOpWithNewOp<tensor::InsertSliceOp>(
         insertOp, reshapedSource, insertOp.dest(), insertOp.getMixedOffsets(),
@@ -551,8 +548,10 @@ void mlir::linalg::populateFoldUnitExtentDimsPatterns(
   patterns.add<FoldUnitDimLoops, ReplaceUnitExtents,
                UseRankReducedExtractSliceOp, UseRankReducedInsertSliceOp>(
       context);
-  TensorCollapseShapeOp::getCanonicalizationPatterns(patterns, context);
-  TensorExpandShapeOp::getCanonicalizationPatterns(patterns, context);
+  linalg::FillOp::getCanonicalizationPatterns(patterns, context);
+  linalg::InitTensorOp::getCanonicalizationPatterns(patterns, context);
+  tensor::CollapseShapeOp::getCanonicalizationPatterns(patterns, context);
+  tensor::ExpandShapeOp::getCanonicalizationPatterns(patterns, context);
 }
 
 namespace {

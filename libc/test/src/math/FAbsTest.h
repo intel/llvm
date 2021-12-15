@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include "utils/UnitTest/FPMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 #include <math.h>
@@ -25,10 +25,10 @@ public:
     EXPECT_FP_EQ(aNaN, func(aNaN));
 
     EXPECT_FP_EQ(inf, func(inf));
-    EXPECT_FP_EQ(inf, func(negInf));
+    EXPECT_FP_EQ(inf, func(neg_inf));
 
     EXPECT_FP_EQ(zero, func(zero));
-    EXPECT_FP_EQ(zero, func(negZero));
+    EXPECT_FP_EQ(zero, func(neg_zero));
   }
 
   void testRange(FabsFunc func) {

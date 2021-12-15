@@ -31,7 +31,7 @@ class raw_ostream;
 template <typename T> class SmallVectorImpl;
 template <typename T> class ArrayRef;
 template <typename T> class Optional;
-template <typename T> struct DenseMapInfo;
+template <typename T, typename Enable> struct DenseMapInfo;
 
 class APInt;
 
@@ -428,6 +428,17 @@ public:
       return isPowerOf2_64(U.VAL);
     }
     return countPopulationSlowCase() == 1;
+  }
+
+  /// Check if this APInt's negated value is a power of two greater than zero.
+  bool isNegatedPowerOf2() const {
+    assert(BitWidth && "zero width values not allowed");
+    if (isNonNegative())
+      return false;
+    // NegatedPowerOf2 - shifted mask in the top bits.
+    unsigned LO = countLeadingOnes();
+    unsigned TZ = countTrailingZeros();
+    return (LO + TZ) == BitWidth;
   }
 
   /// Check if the APInt's value is returned by getSignMask.
@@ -1447,10 +1458,8 @@ public:
   /// uint64_t. The bitwidth must be <= 64 or the value must fit within a
   /// uint64_t. Otherwise an assertion will result.
   uint64_t getZExtValue() const {
-    if (isSingleWord()) {
-      assert(BitWidth && "zero width values not allowed");
+    if (isSingleWord())
       return U.VAL;
-    }
     assert(getActiveBits() <= 64 && "Too many bits for uint64_t");
     return U.pVal[0];
   }
@@ -1806,7 +1815,7 @@ private:
 
   unsigned BitWidth; ///< The number of bits in this APInt.
 
-  friend struct DenseMapInfo<APInt>;
+  friend struct DenseMapInfo<APInt, void>;
   friend class APSInt;
 
   /// This constructor is used only internally for speed of construction of
@@ -2240,7 +2249,7 @@ void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst, unsigned StoreBytes);
 void LoadIntFromMemory(APInt &IntVal, const uint8_t *Src, unsigned LoadBytes);
 
 /// Provide DenseMapInfo for APInt.
-template <> struct DenseMapInfo<APInt> {
+template <> struct DenseMapInfo<APInt, void> {
   static inline APInt getEmptyKey() {
     APInt V(nullptr, 0);
     V.U.VAL = 0;

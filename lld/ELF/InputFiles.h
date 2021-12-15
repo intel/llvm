@@ -43,8 +43,7 @@ using llvm::object::Archive;
 
 class Symbol;
 
-// If -reproduce option is given, all input files are written
-// to this tar archive.
+// If --reproduce is specified, all input files are written to this tar archive.
 extern std::unique_ptr<llvm::TarWriter> tar;
 
 // Opens a given file.
@@ -169,6 +168,15 @@ public:
 
   StringRef getStringTable() const { return stringTable; }
 
+  ArrayRef<Symbol *> getLocalSymbols() {
+    if (symbols.empty())
+      return {};
+    return llvm::makeArrayRef(symbols).slice(1, firstGlobal - 1);
+  }
+  ArrayRef<Symbol *> getGlobalSymbols() {
+    return llvm::makeArrayRef(symbols).slice(firstGlobal);
+  }
+
   template <typename ELFT> typename ELFT::SymRange getELFSyms() const {
     return typename ELFT::SymRange(
         reinterpret_cast<const typename ELFT::Sym *>(elfSyms), numELFSyms);
@@ -197,9 +205,6 @@ public:
   llvm::object::ELFFile<ELFT> getObj() const {
     return this->ELFFileBase::getObj<ELFT>();
   }
-
-  ArrayRef<Symbol *> getLocalSymbols();
-  ArrayRef<Symbol *> getGlobalSymbols();
 
   ObjFile(MemoryBufferRef m, StringRef archiveName) : ELFFileBase(ObjKind, m) {
     this->archiveName = std::string(archiveName);
@@ -260,9 +265,10 @@ private:
   void initializeSymbols();
   void initializeJustSymbols();
 
-  InputSectionBase *getRelocTarget(const Elf_Shdr &sec);
-  InputSectionBase *createInputSection(const Elf_Shdr &sec);
-  StringRef getSectionName(const Elf_Shdr &sec);
+  InputSectionBase *getRelocTarget(uint32_t idx, StringRef name,
+                                   const Elf_Shdr &sec);
+  InputSectionBase *createInputSection(uint32_t idx, const Elf_Shdr &sec,
+                                       StringRef shstrtab);
 
   bool shouldMerge(const Elf_Shdr &sec, StringRef name);
 
@@ -279,9 +285,6 @@ private:
   // The following variable contains the contents of .symtab_shndx.
   // If the section does not exist (which is common), the array is empty.
   ArrayRef<Elf_Word> shndxTable;
-
-  // .shstrtab contents.
-  StringRef sectionStringTable;
 
   // Debugging information to retrieve source file and line for error
   // reporting. Linker may find reasonable number of errors in a
@@ -309,13 +312,13 @@ public:
   static bool classof(const InputFile *f) { return f->kind() == LazyObjKind; }
 
   template <class ELFT> void parse();
-  void fetch();
+  void extract();
 
-  // Check if a non-common symbol should be fetched to override a common
+  // Check if a non-common symbol should be extracted to override a common
   // definition.
-  bool shouldFetchForCommon(const StringRef &name);
+  bool shouldExtractForCommon(const StringRef &name);
 
-  bool fetched = false;
+  bool extracted = false;
 
 private:
   uint64_t offsetInArchive;
@@ -332,14 +335,14 @@ public:
   // returns it. If the same file was instantiated before, this
   // function does nothing (so we don't instantiate the same file
   // more than once.)
-  void fetch(const Archive::Symbol &sym);
+  void extract(const Archive::Symbol &sym);
 
-  // Check if a non-common symbol should be fetched to override a common
+  // Check if a non-common symbol should be extracted to override a common
   // definition.
-  bool shouldFetchForCommon(const Archive::Symbol &sym);
+  bool shouldExtractForCommon(const Archive::Symbol &sym);
 
   size_t getMemberCount() const;
-  size_t getFetchedMemberCount() const { return seen.size(); }
+  size_t getExtractedMemberCount() const { return seen.size(); }
 
   bool parsed = false;
 
@@ -361,7 +364,7 @@ public:
 class SharedFile : public ELFFileBase {
 public:
   SharedFile(MemoryBufferRef m, StringRef defaultSoName)
-      : ELFFileBase(SharedKind, m), soName(std::string(defaultSoName)),
+      : ELFFileBase(SharedKind, m), soName(defaultSoName),
         isNeeded(!config->asNeeded) {}
 
   // This is actually a vector of Elf_Verdef pointers.
@@ -375,7 +378,7 @@ public:
   static unsigned vernauxNum;
 
   std::vector<StringRef> dtNeeded;
-  std::string soName;
+  StringRef soName;
 
   static bool classof(const InputFile *f) { return f->kind() == SharedKind; }
 

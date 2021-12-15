@@ -42,6 +42,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 
 using namespace mlir;
 using namespace mlir::LLVM;
@@ -119,9 +120,12 @@ convertDenseElementsAttr(Location loc, DenseElementsAttr denseElementsAttr,
   if (!llvm::ConstantDataSequential::isElementTypeCompatible(innermostLLVMType))
     return nullptr;
 
+  ShapedType type = denseElementsAttr.getType();
+  if (type.getNumElements() == 0)
+    return nullptr;
+
   // Compute the shape of all dimensions but the innermost. Note that the
   // innermost dimension may be that of the vector element type.
-  ShapedType type = denseElementsAttr.getType();
   bool hasVectorElementType = type.getElementType().isa<VectorType>();
   unsigned numAggregates =
       denseElementsAttr.getNumElements() /
@@ -135,7 +139,7 @@ convertDenseElementsAttr(Location loc, DenseElementsAttr denseElementsAttr,
   if (denseElementsAttr.isSplat() &&
       (type.isa<VectorType>() || hasVectorElementType)) {
     llvm::Constant *splatValue = LLVM::detail::getLLVMConstant(
-        innermostLLVMType, denseElementsAttr.getSplatValue(), loc,
+        innermostLLVMType, denseElementsAttr.getSplatValue<Attribute>(), loc,
         moduleTranslation, /*isTopLevel=*/false);
     llvm::Constant *splatVector =
         llvm::ConstantDataVector::getSplat(0, splatValue);
@@ -250,8 +254,9 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
         isa<llvm::ArrayType, llvm::VectorType>(elementType);
     llvm::Constant *child = getLLVMConstant(
         elementType,
-        elementTypeSequential ? splatAttr : splatAttr.getSplatValue(), loc,
-        moduleTranslation, false);
+        elementTypeSequential ? splatAttr
+                              : splatAttr.getSplatValue<Attribute>(),
+        loc, moduleTranslation, false);
     if (!child)
       return nullptr;
     if (llvmType->isVectorTy())
@@ -363,16 +368,16 @@ static Value getPHISourceValue(Block *current, Block *pred,
     // For conditional branches, we take the operands from either the "true" or
     // the "false" branch.
     return condBranchOp.getSuccessor(0) == current
-               ? condBranchOp.trueDestOperands()[index]
-               : condBranchOp.falseDestOperands()[index];
+               ? condBranchOp.getTrueDestOperands()[index]
+               : condBranchOp.getFalseDestOperands()[index];
   }
 
   if (auto switchOp = dyn_cast<LLVM::SwitchOp>(terminator)) {
     // For switches, we take the operands from either the default case, or from
     // the case branch that was taken.
-    if (switchOp.defaultDestination() == current)
-      return switchOp.defaultOperands()[index];
-    for (auto i : llvm::enumerate(switchOp.caseDestinations()))
+    if (switchOp.getDefaultDestination() == current)
+      return switchOp.getDefaultOperands()[index];
+    for (auto i : llvm::enumerate(switchOp.getCaseDestinations()))
       if (i.value() == current)
         return switchOp.getCaseOperands(i.index())[index];
   }
@@ -436,29 +441,6 @@ llvm::Value *mlir::LLVM::detail::createIntrinsicCall(
     ArrayRef<llvm::Value *> args, ArrayRef<llvm::Type *> tys) {
   llvm::Module *module = builder.GetInsertBlock()->getModule();
   llvm::Function *fn = llvm::Intrinsic::getDeclaration(module, intrinsic, tys);
-  return builder.CreateCall(fn, args);
-}
-
-llvm::Value *
-mlir::LLVM::detail::createNvvmIntrinsicCall(llvm::IRBuilderBase &builder,
-                                            llvm::Intrinsic::ID intrinsic,
-                                            ArrayRef<llvm::Value *> args) {
-  llvm::Module *module = builder.GetInsertBlock()->getModule();
-  llvm::Function *fn;
-  if (llvm::Intrinsic::isOverloaded(intrinsic)) {
-    if (intrinsic != llvm::Intrinsic::nvvm_wmma_m16n16k16_mma_row_row_f16_f16 &&
-        intrinsic != llvm::Intrinsic::nvvm_wmma_m16n16k16_mma_row_row_f32_f32) {
-      // NVVM load and store instrinsic names are overloaded on the
-      // source/destination pointer type. Pointer is the first argument in the
-      // corresponding NVVM Op.
-      fn = llvm::Intrinsic::getDeclaration(module, intrinsic,
-                                           {args[0]->getType()});
-    } else {
-      fn = llvm::Intrinsic::getDeclaration(module, intrinsic, {});
-    }
-  } else {
-    fn = llvm::Intrinsic::getDeclaration(module, intrinsic);
-  }
   return builder.CreateCall(fn, args);
 }
 
@@ -553,7 +535,7 @@ static void addRuntimePreemptionSpecifier(bool dsoLocalRequested,
 }
 
 /// Create named global variables that correspond to llvm.mlir.global
-/// definitions.
+/// definitions. Convert llvm.global_ctors and global_dtors ops.
 LogicalResult ModuleTranslation::convertGlobals() {
   for (auto op : getModuleBody(mlirModule).getOps<LLVM::GlobalOp>()) {
     llvm::Type *type = convertType(op.getType());
@@ -571,8 +553,8 @@ LogicalResult ModuleTranslation::convertGlobals() {
       }
     }
 
-    auto linkage = convertLinkageToLLVM(op.linkage());
-    auto addrSpace = op.addr_space();
+    auto linkage = convertLinkageToLLVM(op.getLinkage());
+    auto addrSpace = op.getAddrSpace();
 
     // LLVM IR requires constant with linkage other than external or weak
     // external to have initializers. If MLIR does not provide an initializer,
@@ -584,18 +566,18 @@ LogicalResult ModuleTranslation::convertGlobals() {
       cst = nullptr;
 
     auto *var = new llvm::GlobalVariable(
-        *llvmModule, type, op.constant(), linkage, cst, op.sym_name(),
+        *llvmModule, type, op.getConstant(), linkage, cst, op.getSymName(),
         /*InsertBefore=*/nullptr, llvm::GlobalValue::NotThreadLocal, addrSpace);
 
-    if (op.unnamed_addr().hasValue())
-      var->setUnnamedAddr(convertUnnamedAddrToLLVM(*op.unnamed_addr()));
+    if (op.getUnnamedAddr().hasValue())
+      var->setUnnamedAddr(convertUnnamedAddrToLLVM(*op.getUnnamedAddr()));
 
-    if (op.section().hasValue())
-      var->setSection(*op.section());
+    if (op.getSection().hasValue())
+      var->setSection(*op.getSection());
 
-    addRuntimePreemptionSpecifier(op.dso_local(), var);
+    addRuntimePreemptionSpecifier(op.getDsoLocal(), var);
 
-    Optional<uint64_t> alignment = op.alignment();
+    Optional<uint64_t> alignment = op.getAlignment();
     if (alignment.hasValue())
       var->setAlignment(llvm::MaybeAlign(alignment.getValue()));
 
@@ -619,6 +601,26 @@ LogicalResult ModuleTranslation::convertGlobals() {
       auto *global = cast<llvm::GlobalVariable>(lookupGlobal(op));
       if (!shouldDropGlobalInitializer(global->getLinkage(), cst))
         global->setInitializer(cst);
+    }
+  }
+
+  // Convert llvm.mlir.global_ctors and dtors.
+  for (Operation &op : getModuleBody(mlirModule)) {
+    auto ctorOp = dyn_cast<GlobalCtorsOp>(op);
+    auto dtorOp = dyn_cast<GlobalDtorsOp>(op);
+    if (!ctorOp && !dtorOp)
+      continue;
+    auto range = ctorOp ? llvm::zip(ctorOp.getCtors(), ctorOp.getPriorities())
+                        : llvm::zip(dtorOp.getDtors(), dtorOp.getPriorities());
+    auto appendGlobalFn =
+        ctorOp ? llvm::appendToGlobalCtors : llvm::appendToGlobalDtors;
+    for (auto symbolAndPriority : range) {
+      llvm::Function *f = lookupFunction(
+          std::get<0>(symbolAndPriority).cast<FlatSymbolRefAttr>().getValue());
+      appendGlobalFn(
+          *llvmModule.get(), f,
+          std::get<1>(symbolAndPriority).cast<IntegerAttr>().getInt(),
+          /*Data=*/nullptr);
     }
   }
 
@@ -766,10 +768,10 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
   }
 
   // Check the personality and set it.
-  if (func.personality().hasValue()) {
+  if (func.getPersonality().hasValue()) {
     llvm::Type *ty = llvm::Type::getInt8PtrTy(llvmFunc->getContext());
-    if (llvm::Constant *pfunc =
-            getLLVMConstant(ty, func.personalityAttr(), func.getLoc(), *this))
+    if (llvm::Constant *pfunc = getLLVMConstant(ty, func.getPersonalityAttr(),
+                                                func.getLoc(), *this))
       llvmFunc->setPersonalityFn(pfunc);
   }
 
@@ -813,13 +815,13 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
         function.getName(),
         cast<llvm::FunctionType>(convertType(function.getType())));
     llvm::Function *llvmFunc = cast<llvm::Function>(llvmFuncCst.getCallee());
-    llvmFunc->setLinkage(convertLinkageToLLVM(function.linkage()));
+    llvmFunc->setLinkage(convertLinkageToLLVM(function.getLinkage()));
     mapFunction(function.getName(), llvmFunc);
-    addRuntimePreemptionSpecifier(function.dso_local(), llvmFunc);
+    addRuntimePreemptionSpecifier(function.getDsoLocal(), llvmFunc);
 
     // Forward the pass-through attributes to LLVM.
-    if (failed(forwardPassthroughAttributes(function.getLoc(),
-                                            function.passthrough(), llvmFunc)))
+    if (failed(forwardPassthroughAttributes(
+            function.getLoc(), function.getPassthrough(), llvmFunc)))
       return failure();
   }
 
@@ -892,7 +894,7 @@ LogicalResult ModuleTranslation::createAliasScopeMetadata() {
       llvm::LLVMContext &ctx = llvmModule->getContext();
       llvm::SmallVector<llvm::Metadata *, 2> operands;
       operands.push_back({}); // Placeholder for self-reference
-      if (Optional<StringRef> description = op.description())
+      if (Optional<StringRef> description = op.getDescription())
         operands.push_back(llvm::MDString::get(ctx, description.getValue()));
       llvm::MDNode *domain = llvm::MDNode::get(ctx, operands);
       domain->replaceOperandWith(0, domain); // Self-reference for uniqueness
@@ -905,13 +907,13 @@ LogicalResult ModuleTranslation::createAliasScopeMetadata() {
       assert(isa<LLVM::MetadataOp>(op->getParentOp()));
       auto metadataOp = dyn_cast<LLVM::MetadataOp>(op->getParentOp());
       Operation *domainOp =
-          SymbolTable::lookupNearestSymbolFrom(metadataOp, op.domainAttr());
+          SymbolTable::lookupNearestSymbolFrom(metadataOp, op.getDomainAttr());
       llvm::MDNode *domain = aliasScopeDomainMetadataMapping.lookup(domainOp);
       assert(domain && "Scope's domain should already be valid");
       llvm::SmallVector<llvm::Metadata *, 3> operands;
       operands.push_back({}); // Placeholder for self-reference
       operands.push_back(domain);
-      if (Optional<StringRef> description = op.description())
+      if (Optional<StringRef> description = op.getDescription())
         operands.push_back(llvm::MDString::get(ctx, description.getValue()));
       llvm::MDNode *scope = llvm::MDNode::get(ctx, operands);
       scope->replaceOperandWith(0, scope); // Self-reference for uniqueness
@@ -1025,7 +1027,8 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
   // Convert other top-level operations if possible.
   llvm::IRBuilder<> llvmBuilder(llvmContext);
   for (Operation &o : getModuleBody(module).getOperations()) {
-    if (!isa<LLVM::LLVMFuncOp, LLVM::GlobalOp, LLVM::MetadataOp>(&o) &&
+    if (!isa<LLVM::LLVMFuncOp, LLVM::GlobalOp, LLVM::GlobalCtorsOp,
+             LLVM::GlobalDtorsOp, LLVM::MetadataOp>(&o) &&
         !o.hasTrait<OpTrait::IsTerminator>() &&
         failed(translator.convertOperation(o, llvmBuilder))) {
       return nullptr;

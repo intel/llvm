@@ -188,11 +188,11 @@ public:
   }
   bool IsArray() const { return !shape_.empty(); }
   bool IsCoarray() const { return !coshape_.empty(); }
-  bool IsAssumedShape() const { return isDummy() && shape_.IsAssumedShape(); }
-  bool IsDeferredShape() const {
-    return !isDummy() && shape_.IsDeferredShape();
+  bool CanBeAssumedShape() const {
+    return isDummy() && shape_.CanBeAssumedShape();
   }
-  bool IsAssumedSize() const { return isDummy() && shape_.IsAssumedSize(); }
+  bool CanBeDeferredShape() const { return shape_.CanBeDeferredShape(); }
+  bool IsAssumedSize() const { return isDummy() && shape_.CanBeAssumedSize(); }
   bool IsAssumedRank() const { return isDummy() && shape_.IsAssumedRank(); }
 
 private:
@@ -683,7 +683,7 @@ private:
   const Symbol *GetParentComponent(const Scope * = nullptr) const;
 
   template <std::size_t> friend class Symbols;
-  template <class, std::size_t> friend struct std::array;
+  template <class, std::size_t> friend class std::array;
 };
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, Symbol::Flag);

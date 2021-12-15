@@ -65,6 +65,8 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_113;
   if (raw_version < 11050)
     return CudaVersion::CUDA_114;
+  if (raw_version < 11060)
+    return CudaVersion::CUDA_115;
   return CudaVersion::NEW;
 }
 
@@ -626,6 +628,11 @@ void NVPTX::OpenMPLinker::ConstructJob(Compilation &C, const JobAction &JA,
   AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, CmdArgs, "nvptx", GPUArch,
                       false, false);
 
+  // Find nvlink and pass it as "--nvlink-path=" argument of
+  // clang-nvlink-wrapper.
+  CmdArgs.push_back(Args.MakeArgString(
+      Twine("--nvlink-path=" + getToolChain().GetProgramPath("nvlink"))));
+
   const char *Exec =
       Args.MakeArgString(getToolChain().GetProgramPath("clang-nvlink-wrapper"));
   C.addCommand(std::make_unique<Command>(
@@ -665,6 +672,14 @@ std::string CudaToolChain::getInputFilename(const InputInfo &Input) const {
   SmallString<256> Filename(ToolChain::getInputFilename(Input));
   llvm::sys::path::replace_extension(Filename, "cubin");
   return std::string(Filename.str());
+}
+
+// Select remangled libclc variant. 64-bit longs default, 32-bit longs on
+// Windows
+static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
+  if (HostTC.getTriple().isOSWindows())
+    return "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc";
+  return "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
 }
 
 void CudaToolChain::addClangTargetOptions(
@@ -717,13 +732,8 @@ void CudaToolChain::addClangTargetOptions(
       llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
       LibraryPaths.emplace_back(WithInstallPath.c_str());
 
-      // Select remangled libclc variant. 64-bit longs default, 32-bit longs on
-      // Windows
-      std::string LibSpirvTargetName =
-          "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
-      if (HostTC.getTriple().isOSWindows())
-        LibSpirvTargetName =
-            "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc";
+      // Select remangled libclc variant
+      std::string LibSpirvTargetName = getLibSpirvTargetName(HostTC);
 
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> LibSpirvTargetFile(LibraryPath);
@@ -737,7 +747,8 @@ void CudaToolChain::addClangTargetOptions(
     }
 
     if (LibSpirvFile.empty()) {
-      getDriver().Diag(diag::err_drv_no_sycl_libspirv);
+      getDriver().Diag(diag::err_drv_no_sycl_libspirv)
+          << getLibSpirvTargetName(HostTC);
       return;
     }
 
@@ -772,6 +783,7 @@ void CudaToolChain::addClangTargetOptions(
   case CudaVersion::CUDA_##CUDA_VER:                                           \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
+    CASE_CUDA_VERSION(115, 75);
     CASE_CUDA_VERSION(114, 74);
     CASE_CUDA_VERSION(113, 73);
     CASE_CUDA_VERSION(112, 72);
@@ -807,7 +819,7 @@ void CudaToolChain::addClangTargetOptions(
 
     std::string BitcodeSuffix;
     if (DriverArgs.hasFlag(options::OPT_fopenmp_target_new_runtime,
-                           options::OPT_fno_openmp_target_new_runtime, false))
+                           options::OPT_fno_openmp_target_new_runtime, true))
       BitcodeSuffix = "new-nvptx-" + GpuArch.str();
     else
       BitcodeSuffix = "nvptx-" + GpuArch.str();
@@ -887,17 +899,9 @@ CudaToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   // flags are not duplicated.
   // Also append the compute capability.
   if (DeviceOffloadKind == Action::OFK_OpenMP) {
-    for (Arg *A : Args) {
-      bool IsDuplicate = false;
-      for (Arg *DALArg : *DAL) {
-        if (A == DALArg) {
-          IsDuplicate = true;
-          break;
-        }
-      }
-      if (!IsDuplicate)
+    for (Arg *A : Args)
+      if (!llvm::is_contained(*DAL, A))
         DAL->append(A);
-    }
 
     StringRef Arch = DAL->getLastArgValue(options::OPT_march_EQ);
     if (Arch.empty())

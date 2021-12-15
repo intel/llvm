@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file defines manifest constants for the wasm object file format.
-// See: https://github.com/WebAssembly/design/blob/master/BinaryEncoding.md
+// See: https://github.com/WebAssembly/design/blob/main/BinaryEncoding.md
 //
 //===----------------------------------------------------------------------===//
 
@@ -36,7 +36,13 @@ struct WasmObjectHeader {
   uint32_t Version;
 };
 
-struct WasmDylinkExport {
+struct WasmDylinkImportInfo {
+  StringRef Module;
+  StringRef Field;
+  uint32_t Flags;
+};
+
+struct WasmDylinkExportInfo {
   StringRef Name;
   uint32_t Flags;
 };
@@ -47,7 +53,8 @@ struct WasmDylinkInfo {
   uint32_t TableSize;  // Table size in elements
   uint32_t TableAlignment;  // P2 alignment of table
   std::vector<StringRef> Needed; // Shared library dependencies
-  std::vector<WasmDylinkExport> ExportInfo; // Shared library dependencies
+  std::vector<WasmDylinkImportInfo> ImportInfo;
+  std::vector<WasmDylinkExportInfo> ExportInfo;
 };
 
 struct WasmProducerInfo {
@@ -291,6 +298,7 @@ enum : unsigned {
   WASM_OPCODE_DROP = 0x1a,
   WASM_OPCODE_MISC_PREFIX = 0xfc,
   WASM_OPCODE_MEMORY_INIT = 0x08,
+  WASM_OPCODE_MEMORY_FILL = 0x0b,
   WASM_OPCODE_DATA_DROP = 0x09,
   WASM_OPCODE_ATOMICS_PREFIX = 0xfe,
   WASM_OPCODE_ATOMIC_NOTIFY = 0x00,
@@ -346,6 +354,7 @@ enum : unsigned {
   WASM_DYLINK_MEM_INFO = 0x1,
   WASM_DYLINK_NEEDED = 0x2,
   WASM_DYLINK_EXPORT_INFO = 0x3,
+  WASM_DYLINK_IMPORT_INFO = 0x4,
 };
 
 // Kind codes used in the custom "linking" section in the WASM_COMDAT_INFO

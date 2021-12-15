@@ -36,8 +36,7 @@
 using namespace clang;
 
 // FIXME: Figure out how to unify with namespace init_convenience from
-//        tools/clang-import-test/clang-import-test.cpp and
-//        examples/clang-interpreter/main.cpp
+//        tools/clang-import-test/clang-import-test.cpp
 namespace {
 /// Retrieves the clang CC1 specific flags out of the compilation's jobs.
 /// \returns NULL on error.
@@ -113,6 +112,10 @@ CreateCI(const llvm::opt::ArgStringList &Argv) {
 
   Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
 
+  // Don't clear the AST before backend codegen since we do codegen multiple
+  // times, reusing the same AST.
+  Clang->getCodeGenOpts().ClearASTBeforeBackend = false;
+
   return std::move(Clang);
 }
 
@@ -144,7 +147,6 @@ IncrementalCompilerBuilder::create(std::vector<const char *> &ClangArgv) {
   // driver to construct.
   ClangArgv.push_back("<<< inputs >>>");
 
-  CompilerInvocation Invocation;
   // Buffer diagnostics from argument parsing so that we can output them using a
   // well formed diagnostic object.
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
@@ -218,4 +220,34 @@ llvm::Error Interpreter::Execute(PartialTranslationUnit &T) {
     return Err;
 
   return llvm::Error::success();
+}
+
+llvm::Expected<llvm::JITTargetAddress>
+Interpreter::getSymbolAddress(GlobalDecl GD) const {
+  if (!IncrExecutor)
+    return llvm::make_error<llvm::StringError>("Operation failed. "
+                                               "No execution engine",
+                                               std::error_code());
+  llvm::StringRef MangledName = IncrParser->GetMangledName(GD);
+  return getSymbolAddress(MangledName);
+}
+
+llvm::Expected<llvm::JITTargetAddress>
+Interpreter::getSymbolAddress(llvm::StringRef IRName) const {
+  if (!IncrExecutor)
+    return llvm::make_error<llvm::StringError>("Operation failed. "
+                                               "No execution engine",
+                                               std::error_code());
+
+  return IncrExecutor->getSymbolAddress(IRName, IncrementalExecutor::IRName);
+}
+
+llvm::Expected<llvm::JITTargetAddress>
+Interpreter::getSymbolAddressFromLinkerName(llvm::StringRef Name) const {
+  if (!IncrExecutor)
+    return llvm::make_error<llvm::StringError>("Operation failed. "
+                                               "No execution engine",
+                                               std::error_code());
+
+  return IncrExecutor->getSymbolAddress(Name, IncrementalExecutor::LinkerName);
 }

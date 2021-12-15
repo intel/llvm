@@ -11,8 +11,10 @@
 
 include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
+include "mlir/IR/OpAsmInterface.td"
 
 // Base class for Arithmetic dialect ops. Ops in this dialect have no side
 // effects and can be applied element-wise to vectors and tensors.
@@ -91,16 +93,16 @@ def SignlessFixedWidthIntegerLike : TypeConstraint<Or<[
 // Cast from an integer type to another integer type.
 class Arith_IToICastOp<string mnemonic, list<OpTrait> traits = []> :
     Arith_CastOp<mnemonic, SignlessFixedWidthIntegerLike,
-                           SignlessFixedWidthIntegerLike>;
+                           SignlessFixedWidthIntegerLike, traits>;
 // Cast from an integer type to a floating point type.
 class Arith_IToFCastOp<string mnemonic, list<OpTrait> traits = []> :
-    Arith_CastOp<mnemonic, SignlessFixedWidthIntegerLike, FloatLike>;
+    Arith_CastOp<mnemonic, SignlessFixedWidthIntegerLike, FloatLike, traits>;
 // Cast from a floating point type to an integer type.
 class Arith_FToICastOp<string mnemonic, list<OpTrait> traits = []> :
-    Arith_CastOp<mnemonic, FloatLike, SignlessFixedWidthIntegerLike>;
+    Arith_CastOp<mnemonic, FloatLike, SignlessFixedWidthIntegerLike, traits>;
 // Cast from a floating point type to another floating point type.
 class Arith_FToFCastOp<string mnemonic, list<OpTrait> traits = []> :
-    Arith_CastOp<mnemonic, FloatLike, FloatLike>;
+    Arith_CastOp<mnemonic, FloatLike, FloatLike, traits>;
 
 // Base class for compare operations. Requires two operands of the same type
 // and returns a single `BoolLike` result. If the operand type is a vector or
@@ -114,17 +116,26 @@ class Arith_CompareOp<string mnemonic, list<OpTrait> traits = []> :
   let assemblyFormat = "$predicate `,` $lhs `,` $rhs attr-dict `:` type($lhs)";
 }
 
+// Just like `Arith_CompareOp` but also admits 0-D vectors. Introduced
+// temporarily to allow gradual transition to 0-D vectors.
+class Arith_CompareOpOfAnyRank<string mnemonic, list<OpTrait> traits = []> :
+    Arith_CompareOp<mnemonic, traits> {
+  let results = (outs BoolLikeOfAnyRank:$result);
+}
+
 //===----------------------------------------------------------------------===//
 // ConstantOp
 //===----------------------------------------------------------------------===//
 
 def Arith_ConstantOp : Op<Arithmetic_Dialect, "constant",
-    [ConstantLike, NoSideEffect, TypesMatchWith<
-    "result type has same type as the attribute value",
+    [ConstantLike, NoSideEffect,
+     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+     TypesMatchWith<
+    "result and attribute have the same type",
     "value", "result", "$_self">]> {
   let summary = "integer or floating point constant";
   let description = [{
-    The `const` operation produces an SSA value equal to some integer or
+    The `constant` operation produces an SSA value equal to some integer or
     floating-point constant specified by an attribute. This is the way MLIR
     forms simple integer and floating point constants.
 
@@ -140,7 +151,14 @@ def Arith_ConstantOp : Op<Arithmetic_Dialect, "constant",
   }];
 
   let arguments = (ins AnyAttr:$value);
-  let results = (outs SignlessIntegerOrFloatLike:$result);
+  // TODO: Disallow arith.constant to return anything other than a signless
+  // integer or float like. Downstream users of Arithmetic should only be
+  // working with signless integers, floats, or vectors/tensors thereof.
+  // However, it is necessary to allow arith.constant to return vectors/tensors
+  // of strings and signed/unsigned integers (for now) as an artefact of
+  // splitting the Standard dialect.
+  let results = (outs /*SignlessIntegerOrFloatLike*/AnyType:$result);
+  let verifier = [{ return ::verify(*this); }];
 
   let builders = [
     OpBuilder<(ins "Attribute":$value),
@@ -148,6 +166,12 @@ def Arith_ConstantOp : Op<Arithmetic_Dialect, "constant",
     OpBuilder<(ins "Attribute":$value, "Type":$type),
     [{ build($_builder, $_state, type, value); }]>,
   ];
+
+  let extraClassDeclaration = [{
+    /// Whether the constant op can be constructed with a particular value and
+    /// type.
+    static bool isBuildableWith(Attribute value, Type type);
+  }];
 
   let hasFolder = 1;
   let assemblyFormat = "attr-dict $value";
@@ -261,6 +285,30 @@ def Arith_DivSIOp : Arith_IntBinaryOp<"divsi"> {
 }
 
 //===----------------------------------------------------------------------===//
+// CeilDivUIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_CeilDivUIOp : Arith_IntBinaryOp<"ceildivui"> {
+  let summary = "unsigned ceil integer division operation";
+  let description = [{
+    Unsigned integer division. Rounds towards positive infinity. Treats the
+    leading bit as the most significant, i.e. for `i16` given two's complement
+    representation, `6 / -2 = 6 / (2^16 - 2) = 1`.
+
+    Note: the semantics of division by zero is TBD; do NOT assume any specific
+    behavior.
+
+    Example:
+
+    ```mlir
+    // Scalar unsigned integer division.
+    %a = arith.ceildivui %b, %c : i64
+    ```
+  }];
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
 // CeilDivSIOp
 //===----------------------------------------------------------------------===//
 
@@ -351,13 +399,13 @@ def Arith_RemSIOp : Arith_IntBinaryOp<"remsi"> {
 
     ```mlir
     // Scalar signed integer division remainder.
-    %a = remsi %b, %c : i64
+    %a = arith.remsi %b, %c : i64
 
     // SIMD vector element-wise division remainder.
-    %f = remsi %g, %h : vector<4xi32>
+    %f = arith.remsi %g, %h : vector<4xi32>
 
     // Tensor element-wise integer division remainder.
-    %x = remsi %y, %z : tensor<4x?xi8>
+    %x = arith.remsi %y, %z : tensor<4x?xi8>
     ```
   }];
   let hasFolder = 1;
@@ -367,7 +415,7 @@ def Arith_RemSIOp : Arith_IntBinaryOp<"remsi"> {
 // AndIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_AndIOp : Arith_IntBinaryOp<"andi", [Commutative]> {
+def Arith_AndIOp : Arith_IntBinaryOp<"andi", [Commutative, Idempotent]> {
   let summary = "integer binary and";
   let description = [{
     The `andi` operation takes two operands and returns one result, each of
@@ -395,7 +443,7 @@ def Arith_AndIOp : Arith_IntBinaryOp<"andi", [Commutative]> {
 // OrIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_OrIOp : Arith_IntBinaryOp<"ori", [Commutative]> {
+def Arith_OrIOp : Arith_IntBinaryOp<"ori", [Commutative, Idempotent]> {
   let summary = "integer binary or";
   let description = [{
     The `ori` operation takes two operands and returns one result, each of these
@@ -581,6 +629,93 @@ def Arith_SubFOp : Arith_FloatBinaryOp<"subf"> {
 }
 
 //===----------------------------------------------------------------------===//
+// MaxFOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MaxFOp : Arith_FloatBinaryOp<"maxf"> {
+  let summary = "floating-point maximum operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `arith.maxf` ssa-use `,` ssa-use `:` type
+    ```
+
+    Returns the maximum of the two arguments, treating -0.0 as less than +0.0.
+    If one of the arguments is NaN, then the result is also NaN.
+
+    Example:
+
+    ```mlir
+    // Scalar floating-point maximum.
+    %a = arith.maxf %b, %c : f64
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// MaxSIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MaxSIOp : Arith_IntBinaryOp<"maxsi"> {
+  let summary = "signed integer maximum operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// MaxUIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MaxUIOp : Arith_IntBinaryOp<"maxui"> {
+  let summary = "unsigned integer maximum operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// MinFOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MinFOp : Arith_FloatBinaryOp<"minf"> {
+  let summary = "floating-point minimum operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `arith.minf` ssa-use `,` ssa-use `:` type
+    ```
+
+    Returns the minimum of the two arguments, treating -0.0 as less than +0.0.
+    If one of the arguments is NaN, then the result is also NaN.
+
+    Example:
+
+    ```mlir
+    // Scalar floating-point minimum.
+    %a = arith.minf %b, %c : f64
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// MinSIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MinSIOp : Arith_IntBinaryOp<"minsi"> {
+  let summary = "signed integer minimum operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// MinUIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MinUIOp : Arith_IntBinaryOp<"minui"> {
+  let summary = "unsigned integer minimum operation";
+  let hasFolder = 1;
+}
+
+
+//===----------------------------------------------------------------------===//
 // MulFOp
 //===----------------------------------------------------------------------===//
 
@@ -717,10 +852,10 @@ def Arith_TruncIOp : Arith_IToICastOp<"trunci"> {
 
     ```mlir
       %1 = arith.constant 21 : i5     // %1 is 0b10101
-      %2 = trunci %1 : i5 to i4       // %2 is 0b0101
-      %3 = trunci %1 : i5 to i3       // %3 is 0b101
+      %2 = arith.trunci %1 : i5 to i4 // %2 is 0b0101
+      %3 = arith.trunci %1 : i5 to i3 // %3 is 0b101
 
-      %5 = trunci %0 : vector<2 x i32> to vector<2 x i16>
+      %5 = arith.trunci %0 : vector<2 x i32> to vector<2 x i16>
     ```
   }];
 
@@ -803,7 +938,14 @@ def Arith_FPToSIOp : Arith_FToICastOp<"fptosi"> {
 // IndexCastOp
 //===----------------------------------------------------------------------===//
 
-def Arith_IndexCastOp : Arith_IToICastOp<"index_cast"> {
+// Index cast can convert between memrefs of signless integers and indices too.
+def IndexCastTypeConstraint : TypeConstraint<Or<[
+        SignlessIntegerLike.predicate,
+        MemRefOf<[AnySignlessInteger, Index]>.predicate]>,
+    "signless-integer-like or memref of signless-integer">;
+
+def Arith_IndexCastOp : Arith_CastOp<"index_cast", IndexCastTypeConstraint,
+                                                   IndexCastTypeConstraint> {
   let summary = "cast between index and integer types";
   let description = [{
     Casts between scalar or vector integers and corresponding 'index' scalar or
@@ -820,8 +962,15 @@ def Arith_IndexCastOp : Arith_IToICastOp<"index_cast"> {
 // BitcastOp
 //===----------------------------------------------------------------------===//
 
-def Arith_BitcastOp : Arith_CastOp<"bitcast", SignlessIntegerOrFloatLike,
-                                              SignlessIntegerOrFloatLike> {
+// Bitcast can convert between memrefs of signless integers, indices, and
+// floats too.
+def BitcastTypeConstraint : TypeConstraint<Or<[
+        SignlessIntegerOrFloatLike.predicate,
+        MemRefOf<[AnySignlessInteger, Index, AnyFloat]>.predicate]>,
+    "signless-integer-or-float-like or memref of signless-integer or float">;
+
+def Arith_BitcastOp : Arith_CastOp<"bitcast", BitcastTypeConstraint,
+                                              BitcastTypeConstraint> {
   let summary = "bitcast between values of equal bit width";
   let description = [{
     Bitcast an integer or floating point value to an integer or floating point
@@ -848,7 +997,7 @@ def Arith_BitcastOp : Arith_CastOp<"bitcast", SignlessIntegerOrFloatLike,
 // CmpIOp
 //===----------------------------------------------------------------------===//
 
-def Arith_CmpIOp : Arith_CompareOp<"cmpi"> {
+def Arith_CmpIOp : Arith_CompareOpOfAnyRank<"cmpi"> {
   let summary = "integer comparison operation";
   let description = [{
     The `cmpi` operation is a generic comparison for integer-like types. Its two
@@ -915,8 +1064,8 @@ def Arith_CmpIOp : Arith_CompareOp<"cmpi"> {
   }];
 
   let arguments = (ins Arith_CmpIPredicateAttr:$predicate,
-                       SignlessIntegerLike:$lhs,
-                       SignlessIntegerLike:$rhs);
+                       SignlessIntegerLikeOfAnyRank:$lhs,
+                       SignlessIntegerLikeOfAnyRank:$rhs);
 
   let builders = [
     OpBuilder<(ins "CmpIPredicate":$predicate, "Value":$lhs, "Value":$rhs), [{
@@ -926,13 +1075,7 @@ def Arith_CmpIOp : Arith_CompareOp<"cmpi"> {
   ];
 
   let extraClassDeclaration = [{
-    static StringRef getPredicateAttrName() { return "predicate"; }
-    static CmpIPredicate getPredicateByName(StringRef name);
-
-    CmpIPredicate getPredicate() {
-      return (CmpIPredicate) (*this)->getAttrOfType<IntegerAttr>(
-          getPredicateAttrName()).getInt();
-    }
+    static arith::CmpIPredicate getPredicateByName(StringRef name);
   }];
 
   let hasFolder = 1;
@@ -982,13 +1125,7 @@ def Arith_CmpFOp : Arith_CompareOp<"cmpf"> {
   ];
 
   let extraClassDeclaration = [{
-    static StringRef getPredicateAttrName() { return "predicate"; }
-    static CmpFPredicate getPredicateByName(StringRef name);
-
-    CmpFPredicate getPredicate() {
-      return (CmpFPredicate) (*this)->getAttrOfType<IntegerAttr>(
-          getPredicateAttrName()).getInt();
-    }
+    static arith::CmpFPredicate getPredicateByName(StringRef name);
   }];
 
   let hasFolder = 1;

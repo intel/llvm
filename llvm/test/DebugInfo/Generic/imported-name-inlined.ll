@@ -1,4 +1,4 @@
-; RUN: %llc_dwarf -O0 -filetype=obj < %s | llvm-dwarfdump -v -debug-info - | FileCheck --implicit-check-not "{{DW_TAG|NULL}}" %s
+; RUN: %llc_dwarf -O0 -filetype=obj < %s | llvm-dwarfdump -debug-info - | FileCheck --implicit-check-not "{{DW_TAG|NULL}}" %s
 
 ; Generated from the following source:
 ; namespace ns {
@@ -13,21 +13,17 @@
 ; Ensure that top level imported declarations don't produce an extra degenerate
 ; concrete subprogram definition.
 
-; FIXME: imported entities should only be emitted to the abstract origin if one is present
-
 ; CHECK: DW_TAG_compile_unit
 ; CHECK:   DW_TAG_subprogram
-; CHECK:     DW_AT_name {{.*}} "f1"
+; CHECK:     DW_AT_name ("f1")
 ; CHECK:     DW_TAG_imported_declaration
+; CHECK:     NULL
+; CHECK:   DW_TAG_subprogram
+; CHECK:     DW_AT_name ("f2")
+; CHECK:     DW_TAG_inlined_subroutine
 ; CHECK:     NULL
 ; CHECK:   DW_TAG_namespace
 ; CHECK:     DW_TAG_subprogram
-; CHECK:     NULL
-; CHECK:   DW_TAG_subprogram
-; CHECK:     DW_AT_name {{.*}} "f2"
-; CHECK:     DW_TAG_inlined_subroutine
-; CHECK:       DW_TAG_imported_declaration
-; CHECK:       NULL
 ; CHECK:     NULL
 ; CHECK:   NULL
 

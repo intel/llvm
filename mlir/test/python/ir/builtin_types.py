@@ -67,10 +67,6 @@ def testTypeHash():
 
   # CHECK: hash(t1) == hash(t3): True
   print("hash(t1) == hash(t3):", t1.__hash__() == t3.__hash__())
-  # In general, hashes don't have to be unique. In this case, however, the
-  # hash is just the underlying pointer so it will be.
-  # CHECK: hash(t1) == hash(t2): False
-  print("hash(t1) == hash(t2):", t1.__hash__() == t2.__hash__())
 
   s = set()
   s.add(t1)
@@ -319,6 +315,9 @@ def testRankedTensorType():
     # Encoding should be None.
     assert RankedTensorType.get(shape, f32).encoding is None
 
+    tensor = RankedTensorType.get(shape, f32)
+    assert tensor.shape == shape
+
 
 # CHECK-LABEL: TEST: testUnrankedTensorType
 @run
@@ -372,18 +371,21 @@ def testMemRefType():
     memref = MemRefType.get(shape, f32, memory_space=Attribute.parse("2"))
     # CHECK: memref type: memref<2x3xf32, 2>
     print("memref type:", memref)
-    # CHECK: number of affine layout maps: 0
-    print("number of affine layout maps:", len(memref.layout))
+    # CHECK: memref layout: affine_map<(d0, d1) -> (d0, d1)>
+    print("memref layout:", memref.layout)
+    # CHECK: memref affine map: (d0, d1) -> (d0, d1)
+    print("memref affine map:", memref.affine_map)
     # CHECK: memory space: 2
     print("memory space:", memref.memory_space)
 
-    layout = AffineMap.get_permutation([1, 0])
-    memref_layout = MemRefType.get(shape, f32, [layout])
+    layout = AffineMapAttr.get(AffineMap.get_permutation([1, 0]))
+    memref_layout = MemRefType.get(shape, f32, layout=layout)
     # CHECK: memref type: memref<2x3xf32, affine_map<(d0, d1) -> (d1, d0)>>
     print("memref type:", memref_layout)
-    assert len(memref_layout.layout) == 1
-    # CHECK: memref layout: (d0, d1) -> (d1, d0)
-    print("memref layout:", memref_layout.layout[0])
+    # CHECK: memref layout: affine_map<(d0, d1) -> (d1, d0)>
+    print("memref layout:", memref_layout.layout)
+    # CHECK: memref affine map: (d0, d1) -> (d1, d0)
+    print("memref affine map:", memref_layout.affine_map)
     # CHECK: memory space: <<NULL ATTRIBUTE>>
     print("memory space:", memref_layout.memory_space)
 
@@ -396,6 +398,8 @@ def testMemRefType():
       print(e)
     else:
       print("Exception not produced")
+
+    assert memref.shape == shape
 
 
 # CHECK-LABEL: TEST: testUnrankedMemRefType

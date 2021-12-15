@@ -180,6 +180,7 @@ public:
   void setGeneratorId(unsigned short Id) override { GeneratorId = Id; }
   void setGeneratorVer(unsigned short Ver) override { GeneratorVer = Ver; }
   void resolveUnknownStructFields() override;
+  void insertEntryNoId(SPIRVEntry *Entry) override { EntryNoId.insert(Entry); }
 
   void setSPIRVVersion(SPIRVWord Ver) override {
     assert(this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver)));
@@ -272,8 +273,8 @@ public:
                            const std::vector<SPIRVValue *> &Elements) override;
   SPIRVEntry *addSpecConstantCompositeContinuedINTEL(
       const std::vector<SPIRVValue *> &) override;
-  SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                           SPIRVFunction *F) override;
+  SPIRVValue *addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                              SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
   SPIRVValue *addConstant(SPIRVType *, uint64_t) override;
   SPIRVValue *addConstant(SPIRVType *, llvm::APInt) override;
@@ -444,11 +445,6 @@ public:
                                         SPIRVBasicBlock *) override;
   SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *, SPIRVValue *,
                                         SPIRVBasicBlock *) override;
-  SPIRVInstruction *addAssumeTrueINTELInst(SPIRVValue *Condition,
-                                           SPIRVBasicBlock *BB) override;
-  SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy, SPIRVValue *Value,
-                                       SPIRVValue *ExpectedValue,
-                                       SPIRVBasicBlock *BB) override;
   template <typename AliasingInstType>
   SPIRVEntry *getOrAddMemAliasingINTELInst(std::vector<SPIRVId> Args,
                                            llvm::MDNode *MD);
@@ -458,6 +454,11 @@ public:
                                               llvm::MDNode *MD) override;
   SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
                                                   llvm::MDNode *MD) override;
+  SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
+                                         SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy, SPIRVValue *Value,
+                                     SPIRVValue *ExpectedValue,
+                                     SPIRVBasicBlock *BB) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -1153,9 +1154,10 @@ SPIRVEntry *SPIRVModuleImpl::addSpecConstantCompositeContinuedINTEL(
   return add(new SPIRVSpecConstantCompositeContinuedINTEL(this, Elements));
 }
 
-SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                                          SPIRVFunction *F) {
-  return addConstant(new SPIRVConstFunctionPointerINTEL(getId(), Ty, F, this));
+SPIRVValue *SPIRVModuleImpl::addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                                             SPIRVFunction *F) {
+  return addConstant(
+      new SPIRVConstantFunctionPointerINTEL(getId(), Ty, F, this));
 }
 
 SPIRVValue *SPIRVModuleImpl::addUndef(SPIRVType *TheType) {
@@ -1607,17 +1609,17 @@ SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
                         BB);
 }
 
-SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueINTELInst(SPIRVValue *Condition,
-                                                          SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVAssumeTrueINTEL(Condition->getId(), BB), BB);
+SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueKHRInst(SPIRVValue *Condition,
+                                                        SPIRVBasicBlock *BB) {
+  return addInstruction(new SPIRVAssumeTrueKHR(Condition->getId(), BB), BB);
 }
 
-SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
-                                                      SPIRVValue *Value,
-                                                      SPIRVValue *ExpectedValue,
-                                                      SPIRVBasicBlock *BB) {
+SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,
+                                                    SPIRVValue *Value,
+                                                    SPIRVValue *ExpectedValue,
+                                                    SPIRVBasicBlock *BB) {
   return addInstruction(SPIRVInstTemplateBase::create(
-                            internal::OpExpectINTEL, ResultTy, getId(),
+                            OpExpectKHR, ResultTy, getId(),
                             getVec(Value->getId(), ExpectedValue->getId()), BB,
                             this),
                         BB);

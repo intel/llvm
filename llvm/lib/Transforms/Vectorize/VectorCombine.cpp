@@ -63,8 +63,10 @@ namespace {
 class VectorCombine {
 public:
   VectorCombine(Function &F, const TargetTransformInfo &TTI,
-                const DominatorTree &DT, AAResults &AA, AssumptionCache &AC)
-      : F(F), Builder(F.getContext()), TTI(TTI), DT(DT), AA(AA), AC(AC) {}
+                const DominatorTree &DT, AAResults &AA, AssumptionCache &AC,
+                bool ScalarizationOnly)
+      : F(F), Builder(F.getContext()), TTI(TTI), DT(DT), AA(AA), AC(AC),
+        ScalarizationOnly(ScalarizationOnly) {}
 
   bool run();
 
@@ -75,6 +77,11 @@ private:
   const DominatorTree &DT;
   AAResults &AA;
   AssumptionCache &AC;
+
+  /// If true only perform scalarization combines and do not introduce new
+  /// vector operations.
+  bool ScalarizationOnly;
+
   InstructionWorklist Worklist;
 
   bool vectorizeLoadInsert(Instruction &I);
@@ -95,6 +102,7 @@ private:
   bool foldExtractedCmps(Instruction &I);
   bool foldSingleElementStore(Instruction &I);
   bool scalarizeLoadExtract(Instruction &I);
+  bool foldShuffleOfBinops(Instruction &I);
 
   void replaceValue(Value &Old, Value &New) {
     Old.replaceAllUsesWith(&New);
@@ -1058,6 +1066,60 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
   return true;
 }
 
+/// Try to convert "shuffle (binop), (binop)" with a shared binop operand into
+/// "binop (shuffle), (shuffle)".
+bool VectorCombine::foldShuffleOfBinops(Instruction &I) {
+  auto *VecTy = dyn_cast<FixedVectorType>(I.getType());
+  if (!VecTy)
+    return false;
+
+  BinaryOperator *B0, *B1;
+  ArrayRef<int> Mask;
+  if (!match(&I, m_Shuffle(m_OneUse(m_BinOp(B0)), m_OneUse(m_BinOp(B1)),
+                           m_Mask(Mask))) ||
+      B0->getOpcode() != B1->getOpcode() || B0->getType() != VecTy)
+    return false;
+
+  // Try to replace a binop with a shuffle if the shuffle is not costly.
+  // The new shuffle will choose from a single, common operand, so it may be
+  // cheaper than the existing two-operand shuffle.
+  SmallVector<int> UnaryMask = createUnaryMask(Mask, Mask.size());
+  Instruction::BinaryOps Opcode = B0->getOpcode();
+  InstructionCost BinopCost = TTI.getArithmeticInstrCost(Opcode, VecTy);
+  InstructionCost ShufCost = TTI.getShuffleCost(
+      TargetTransformInfo::SK_PermuteSingleSrc, VecTy, UnaryMask);
+  if (ShufCost > BinopCost)
+    return false;
+
+  // If we have something like "add X, Y" and "add Z, X", swap ops to match.
+  Value *X = B0->getOperand(0), *Y = B0->getOperand(1);
+  Value *Z = B1->getOperand(0), *W = B1->getOperand(1);
+  if (BinaryOperator::isCommutative(Opcode) && X != Z && Y != W)
+    std::swap(X, Y);
+
+  Value *Shuf0, *Shuf1;
+  if (X == Z) {
+    // shuf (bo X, Y), (bo X, W) --> bo (shuf X), (shuf Y, W)
+    Shuf0 = Builder.CreateShuffleVector(X, UnaryMask);
+    Shuf1 = Builder.CreateShuffleVector(Y, W, Mask);
+  } else if (Y == W) {
+    // shuf (bo X, Y), (bo Z, Y) --> bo (shuf X, Z), (shuf Y)
+    Shuf0 = Builder.CreateShuffleVector(X, Z, Mask);
+    Shuf1 = Builder.CreateShuffleVector(Y, UnaryMask);
+  } else {
+    return false;
+  }
+
+  Value *NewBO = Builder.CreateBinOp(Opcode, Shuf0, Shuf1);
+  // Intersect flags from the old binops.
+  if (auto *NewInst = dyn_cast<Instruction>(NewBO)) {
+    NewInst->copyIRFlags(B0);
+    NewInst->andIRFlags(B1);
+  }
+  replaceValue(I, *NewBO);
+  return true;
+}
+
 /// This is the entry point for all transforms. Pass manager differences are
 /// handled in the callers of this function.
 bool VectorCombine::run() {
@@ -1071,11 +1133,14 @@ bool VectorCombine::run() {
   bool MadeChange = false;
   auto FoldInst = [this, &MadeChange](Instruction &I) {
     Builder.SetInsertPoint(&I);
-    MadeChange |= vectorizeLoadInsert(I);
-    MadeChange |= foldExtractExtract(I);
-    MadeChange |= foldBitcastShuf(I);
+    if (!ScalarizationOnly) {
+      MadeChange |= vectorizeLoadInsert(I);
+      MadeChange |= foldExtractExtract(I);
+      MadeChange |= foldBitcastShuf(I);
+      MadeChange |= foldExtractedCmps(I);
+      MadeChange |= foldShuffleOfBinops(I);
+    }
     MadeChange |= scalarizeBinopOrCmp(I);
-    MadeChange |= foldExtractedCmps(I);
     MadeChange |= scalarizeLoadExtract(I);
     MadeChange |= foldSingleElementStore(I);
   };
@@ -1085,7 +1150,7 @@ bool VectorCombine::run() {
       continue;
     // Use early increment range so that we can erase instructions in loop.
     for (Instruction &I : make_early_inc_range(BB)) {
-      if (isa<DbgInfoIntrinsic>(I))
+      if (I.isDebugOrPseudoInst())
         continue;
       FoldInst(I);
     }
@@ -1137,7 +1202,7 @@ public:
     auto &TTI = getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
     auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     auto &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
-    VectorCombine Combiner(F, TTI, DT, AA, AC);
+    VectorCombine Combiner(F, TTI, DT, AA, AC, false);
     return Combiner.run();
   }
 };
@@ -1161,7 +1226,7 @@ PreservedAnalyses VectorCombinePass::run(Function &F,
   TargetTransformInfo &TTI = FAM.getResult<TargetIRAnalysis>(F);
   DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
   AAResults &AA = FAM.getResult<AAManager>(F);
-  VectorCombine Combiner(F, TTI, DT, AA, AC);
+  VectorCombine Combiner(F, TTI, DT, AA, AC, ScalarizationOnly);
   if (!Combiner.run())
     return PreservedAnalyses::all();
   PreservedAnalyses PA;

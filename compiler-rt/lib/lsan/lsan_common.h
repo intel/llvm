@@ -82,6 +82,15 @@ extern Flags lsan_flags;
 inline Flags *flags() { return &lsan_flags; }
 void RegisterLsanFlags(FlagParser *parser, Flags *f);
 
+struct LeakedChunk {
+  uptr chunk;
+  u32 stack_trace_id;
+  uptr leaked_size;
+  ChunkTag tag;
+};
+
+using LeakedChunks = InternalMmapVector<LeakedChunk>;
+
 struct Leak {
   u32 id;
   uptr hit_count;
@@ -101,21 +110,18 @@ struct LeakedObject {
 class LeakReport {
  public:
   LeakReport() {}
-  void AddLeakedChunk(uptr chunk, u32 stack_trace_id, uptr leaked_size,
-                      ChunkTag tag);
+  void AddLeakedChunks(const LeakedChunks &chunks);
   void ReportTopLeaks(uptr max_leaks);
   void PrintSummary();
   uptr ApplySuppressions();
   uptr UnsuppressedLeakCount();
   uptr IndirectUnsuppressedLeakCount();
-  const StackDepotReverseMap &stack_depot() { return stack_depot_; }
 
  private:
   void PrintReportForLeak(uptr index);
   void PrintLeakedObjectsForLeak(uptr index);
 
   u32 next_id_ = 0;
-  StackDepotReverseMap stack_depot_;
   InternalMmapVector<Leak> leaks_;
   InternalMmapVector<LeakedObject> leaked_objects_;
 };
@@ -138,11 +144,11 @@ struct RootRegion {
 // threads and enumerating roots.
 struct CheckForLeaksParam {
   Frontier frontier;
-  LeakReport leak_report;
+  LeakedChunks leaks;
   bool success = false;
 };
 
-InternalMmapVector<RootRegion> const *GetRootRegions();
+InternalMmapVectorNoCtor<RootRegion> const *GetRootRegions();
 void ScanRootRegion(Frontier *frontier, RootRegion const &region,
                     uptr region_begin, uptr region_end, bool is_readable);
 void ForEachExtraStackRangeCb(uptr begin, uptr end, void* arg);
@@ -226,6 +232,22 @@ bool WordIsPoisoned(uptr addr);
 // Wrappers for ThreadRegistry access.
 void LockThreadRegistry() NO_THREAD_SAFETY_ANALYSIS;
 void UnlockThreadRegistry() NO_THREAD_SAFETY_ANALYSIS;
+
+struct ScopedStopTheWorldLock {
+  ScopedStopTheWorldLock() {
+    LockThreadRegistry();
+    LockAllocator();
+  }
+
+  ~ScopedStopTheWorldLock() {
+    UnlockAllocator();
+    UnlockThreadRegistry();
+  }
+
+  ScopedStopTheWorldLock &operator=(const ScopedStopTheWorldLock &) = delete;
+  ScopedStopTheWorldLock(const ScopedStopTheWorldLock &) = delete;
+};
+
 ThreadRegistry *GetThreadRegistryLocked();
 bool GetThreadRangesLocked(tid_t os_id, uptr *stack_begin, uptr *stack_end,
                            uptr *tls_begin, uptr *tls_end, uptr *cache_begin,
@@ -282,6 +304,13 @@ int __lsan_is_turned_off();
 
 SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
 const char *__lsan_default_suppressions();
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __lsan_register_root_region(const void *p, __lsan::uptr size);
+
+SANITIZER_INTERFACE_ATTRIBUTE
+void __lsan_unregister_root_region(const void *p, __lsan::uptr size);
+
 }  // extern "C"
 
 #endif  // LSAN_COMMON_H

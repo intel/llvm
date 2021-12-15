@@ -226,6 +226,7 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
   StringRef CpuVer = toolchains::HexagonToolChain::GetTargetCPUVersion(Args);
 
   bool NeedsSanitizerDeps = addSanitizerRuntimes(HTC, Args, CmdArgs);
+  bool NeedsXRayDeps = addXRayRuntime(HTC, Args, CmdArgs);
 
   //----------------------------------------------------------------------------
   // Silence warnings for various options
@@ -297,6 +298,8 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
 
         CmdArgs.push_back("-lunwind");
       }
+      if (NeedsXRayDeps)
+        linkXRayRuntimeDeps(HTC, CmdArgs);
 
       CmdArgs.push_back("-lclang_rt.builtins-hexagon");
       CmdArgs.push_back("-lc");
@@ -487,7 +490,7 @@ void HexagonToolChain::getHexagonLibraryPaths(const ArgList &Args,
 
   std::string TargetDir = getHexagonTargetDir(D.getInstalledDir(),
                                               D.PrefixDirs);
-  if (llvm::find(RootDirs, TargetDir) == RootDirs.end())
+  if (!llvm::is_contained(RootDirs, TargetDir))
     RootDirs.push_back(TargetDir);
 
   bool HasPIC = Args.hasArg(options::OPT_fpic, options::OPT_fPIC);
