@@ -259,7 +259,7 @@ jobs:
     runs-on: ${{ fromJSON(needs.configure.outputs.params).amdgpu_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).amdgpu_image }}
-      options: -u 1001 --device=/dev/dri --device=/dev/kfd
+      options: --device=/dev/dri --device=/dev/kfd
     steps:
     - uses: actions/checkout@v2
       with:
