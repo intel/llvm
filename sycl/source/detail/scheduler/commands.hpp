@@ -108,10 +108,12 @@ public:
   Command(CommandType Type, QueueImplPtr Queue);
 
   /// \return an optional connection cmd to enqueue
-  [[nodiscard]] Command *addDep(DepDesc NewDep);
+  [[nodiscard]] Command *addDep(DepDesc NewDep,
+                                std::vector<Command *> &ToCleanUp);
 
   /// \return an optional connection cmd to enqueue
-  [[nodiscard]] Command *addDep(EventImplPtr Event);
+  [[nodiscard]] Command *addDep(EventImplPtr Event,
+                                std::vector<Command *> &ToCleanUp);
 
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
@@ -224,7 +226,8 @@ protected:
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
   [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent,
-                                         const DepDesc &Dep);
+                                         const DepDesc &Dep,
+                                         std::vector<Command *> &ToCleanUp);
 
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
@@ -414,7 +417,8 @@ class AllocaSubBufCommand : public AllocaCommandBase {
 public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca,
-                      std::vector<Command *> &ToEnqueue);
+                      std::vector<Command *> &ToEnqueue,
+                      std::vector<Command *> &ToCleanUp);
 
   void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;

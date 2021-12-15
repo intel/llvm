@@ -518,7 +518,8 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
+Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
+                                  std::vector<Command *> &ToCleanUp) {
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
@@ -550,7 +551,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   // If contexts don't match we'll connect them using host task
   if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
+    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 
@@ -570,11 +571,12 @@ bool Command::supportsPostEnqueueCleanup() const {
   return !MUsers.empty() || !MDeps.empty();
 }
 
-Command *Command::addDep(DepDesc NewDep) {
+Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
   Command *ConnectionCmd = nullptr;
 
   if (NewDep.MDepCommand) {
-    ConnectionCmd = processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
+    ConnectionCmd =
+        processDepEvent(NewDep.MDepCommand->getEvent(), NewDep, ToCleanUp);
   }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -586,7 +588,8 @@ Command *Command::addDep(DepDesc NewDep) {
   return ConnectionCmd;
 }
 
-Command *Command::addDep(EventImplPtr Event) {
+Command *Command::addDep(EventImplPtr Event,
+                         std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
@@ -596,7 +599,8 @@ Command *Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
+  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr},
+                         ToCleanUp);
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -802,8 +806,11 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
   // so this call must be before the addDep() call.
   emitInstrumentationDataProxy();
   // "Nothing to depend on"
-  Command *ConnectionCmd = addDep(DepDesc(nullptr, getRequirement(), this));
+  std::vector<Command *> ToCleanUp;
+  Command *ConnectionCmd =
+      addDep(DepDesc(nullptr, getRequirement(), this), ToCleanUp);
   assert(ConnectionCmd == nullptr);
+  assert(ToCleanUp.empty());
   (void)ConnectionCmd;
 }
 
@@ -868,7 +875,8 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
 
 AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                                          AllocaCommandBase *ParentAlloca,
-                                         std::vector<Command *> &ToEnqueue)
+                                         std::vector<Command *> &ToEnqueue,
+                                         std::vector<Command *> &ToCleanUp)
     : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
                         std::move(Req),
                         /*LinkedAllocaCmd*/ nullptr),
@@ -877,8 +885,8 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
   // is added to this node, so this call must be before
   // the addDep() call.
   emitInstrumentationDataProxy();
-  Command *ConnectionCmd =
-      addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  Command *ConnectionCmd = addDep(
+      DepDesc(MParentAlloca, getRequirement(), MParentAlloca), ToCleanUp);
   if (ConnectionCmd)
     ToEnqueue.push_back(ConnectionCmd);
 }
@@ -1448,8 +1456,11 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
   const Requirement *const StoredReq = &MRequirements.back();
 
   // EmptyCommand is always host one, so we believe that result of addDep is nil
-  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  std::vector<Command *> ToCleanUp;
+  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd}, ToCleanUp);
   assert(Cmd == nullptr && "Conection command should be null for EmptyCommand");
+  assert(ToCleanUp.empty() && "addDep should add a command for cleanup only if "
+                              "there's a connection command");
   (void)Cmd;
 }
 

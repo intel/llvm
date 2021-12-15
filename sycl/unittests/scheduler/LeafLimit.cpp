@@ -52,10 +52,12 @@ TEST_F(SchedulerTest, LeafLimit) {
         std::make_unique<MockCommand>(detail::getSyclObjImpl(MQueue), MockReq));
   }
   // Create edges: all soon-to-be leaves are direct users of MockDep
+  std::vector<detail::Command *> ToCleanUp;
   for (auto &Leaf : LeavesToAdd) {
     MockDepCmd->addUser(Leaf.get());
     (void)Leaf->addDep(
-        detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr});
+        detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr},
+        ToCleanUp);
   }
   std::vector<cl::sycl::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit

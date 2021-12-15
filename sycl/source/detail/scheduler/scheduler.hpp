@@ -553,17 +553,20 @@ protected:
     /// Removes commands from leaves.
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
                       access::mode AccessMode,
-                      std::vector<Command *> *CommandsToCleanUp = nullptr);
+                      std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
     /// \param DepEvent event to depend on
     /// \param Dep optional DepDesc to perform connection properly
+    /// \param ToCleanUp container for commands that can be cleaned up due to
+    /// their removal from leaves
     /// \returns the connecting command which is to be enqueued
     ///
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
     Command *connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
-                             const DepDesc &Dep);
+                             const DepDesc &Dep,
+                             std::vector<Command *> &ToCleanUp);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 

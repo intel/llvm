@@ -154,7 +154,8 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
       new cl::sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
   DepEvent->setCommand(&B);
 
-  (void)A.addDep(DepEvent);
+  std::vector<detail::Command *> ToCleanUp;
+  (void)A.addDep(DepEvent, ToCleanUp);
 
   // We have such a "graph":
   //
