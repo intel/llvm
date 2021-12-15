@@ -1000,8 +1000,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   // Node dependencies can be modified further when adding the node to leaves,
   // iterate over their copy.
   // FIXME employ a reference here to eliminate copying of a vector
-  // Updating leaves might also clean up some of the dep commands, so update
-  // their users first.
   std::vector<DepDesc> Deps = NewCmd->MDeps;
   for (DepDesc &Dep : Deps) {
     Dep.MDepCommand->addUser(NewCmd.get());

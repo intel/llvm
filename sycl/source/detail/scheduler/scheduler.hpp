@@ -462,7 +462,7 @@ protected:
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
-                                         std::vector<Command *> &CmdsToCleanUp);
+                                         std::vector<Command *> &ToCleanUp);
 
   /// Graph builder class.
   ///
@@ -729,23 +729,25 @@ protected:
   public:
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
+    /// \param ToCleanUp container for commands that can be cleaned up.
     /// \param LockTheLock selects if graph lock should be locked upon return
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
     static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
-                             std::vector<Command *> &EnqueueCommands,
+                             std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
+    /// \param ToCleanUp container for commands that can be cleaned up.
     /// \return true if the command is successfully enqueued.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
-                               std::vector<Command *> &CmdsToCleanUp,
+                               std::vector<Command *> &ToCleanUp,
                                BlockingT Blocking = NON_BLOCKING);
   };
 

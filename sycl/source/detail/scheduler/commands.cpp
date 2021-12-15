@@ -267,7 +267,7 @@ public:
     // of empty command.
     // Also, it's possible to have record deallocated prior to enqueue process.
     // Thus we employ read-lock of graph.
-    std::vector<Command *> CmdsToCleanUp;
+    std::vector<Command *> ToCleanUp;
     Scheduler &Sched = Scheduler::getInstance();
     {
       Scheduler::ReadLockT Lock(Sched.MGraphLock);
@@ -280,10 +280,9 @@ public:
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
       for (const DepDesc &Dep : Deps)
-        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement,
-                                              CmdsToCleanUp);
+        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
     }
-    Sched.cleanupCommands(CmdsToCleanUp);
+    Sched.cleanupCommands(ToCleanUp);
   }
 };
 
@@ -635,7 +634,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 }
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
-                      std::vector<Command *> &CmdsToCleanUp) {
+                      std::vector<Command *> &ToCleanUp) {
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
@@ -708,7 +707,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
       assert(!MPostEnqueueCleanup);
       MPostEnqueueCleanup = true;
-      CmdsToCleanUp.push_back(this);
+      ToCleanUp.push_back(this);
     }
   }
 

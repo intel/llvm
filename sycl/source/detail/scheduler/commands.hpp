@@ -107,10 +107,14 @@ public:
 
   Command(CommandType Type, QueueImplPtr Queue);
 
+  /// \param NewDep dependency to be added
+  /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return an optional connection cmd to enqueue
   [[nodiscard]] Command *addDep(DepDesc NewDep,
                                 std::vector<Command *> &ToCleanUp);
 
+  /// \param NewDep dependency to be added
+  /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return an optional connection cmd to enqueue
   [[nodiscard]] Command *addDep(EventImplPtr Event,
                                 std::vector<Command *> &ToCleanUp);
@@ -125,9 +129,10 @@ public:
   /// \param EnqueueResult is set to the specific status if enqueue failed.
   /// \param Blocking if this argument is true, function will wait for the
   ///        command to be unblocked before calling enqueueImp.
+  /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return true if the command is enqueued.
   virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
-                       std::vector<Command *> &CmdsToCleanUp);
+                       std::vector<Command *> &ToCleanUp);
 
   bool isFinished();
 
@@ -218,6 +223,7 @@ protected:
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
   /// \param Dep optional DepDesc to perform connection of events properly
+  /// \param ToCleanUp is a
   /// \return returns an optional connection command to enqueue
   ///
   /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
