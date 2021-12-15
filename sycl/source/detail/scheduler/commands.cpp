@@ -1307,9 +1307,21 @@ std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
   return {};
 }
 
+std::vector<std::shared_ptr<const void>>
+ExecCGCommand::getReductionResources() const {
+  if (MCommandGroup->getType() == CG::Kernel)
+    return ((CGExecKernel *)MCommandGroup.get())->getReductionResources();
+  return {};
+}
+
 void ExecCGCommand::clearStreams() {
   if (MCommandGroup->getType() == CG::Kernel)
     ((CGExecKernel *)MCommandGroup.get())->clearStreams();
+}
+
+void ExecCGCommand::clearReductionResources() {
+  if (MCommandGroup->getType() == CG::Kernel)
+    ((CGExecKernel *)MCommandGroup.get())->clearReductionResources();
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {

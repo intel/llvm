@@ -518,8 +518,10 @@ public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
   std::vector<StreamImplPtr> getStreams() const;
+  std::vector<std::shared_ptr<const void>> getReductionResources() const;
 
   void clearStreams();
+  void clearReductionResources();
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;

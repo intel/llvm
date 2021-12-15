@@ -65,6 +65,12 @@ public:
   /// equal to the queue associated with the handler if the corresponding
   /// submission is a fallback from a previous submission.
   std::shared_ptr<queue_impl> MSubmissionSecondaryQueue;
+
+  // Protects reduction resources
+  std::mutex MReductionResourcesMutex;
+
+  // Stores additional resources used by reductions.
+  std::vector<std::shared_ptr<const void>> MReductionResources;
 };
 
 } // namespace detail

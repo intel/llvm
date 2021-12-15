@@ -113,7 +113,9 @@ public:
   void cleanupCommandsForRecord(cl::sycl::detail::MemObjRecord *Rec) {
     std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>>
         StreamsToDeallocate;
-    MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate);
+    std::vector<std::shared_ptr<const void>> ReductionResourcesToDeallocate;
+    MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate,
+                                           ReductionResourcesToDeallocate);
   }
 
   void addNodeToLeaves(cl::sycl::detail::MemObjRecord *Rec,

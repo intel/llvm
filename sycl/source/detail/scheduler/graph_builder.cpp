@@ -1001,7 +1001,8 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
 
 void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     MemObjRecord *Record,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
+    std::vector<std::shared_ptr<const void>> &ReduResourcesToDeallocate) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
@@ -1053,10 +1054,20 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
       auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
+
+      // Transfer ownership of stream implementations.
       std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
       ExecCmd->clearStreams();
       StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
                                  Streams.end());
+
+      // Transfer ownership of reduction resources.
+      std::vector<std::shared_ptr<const void>> ReduResources =
+          ExecCmd->getReductionResources();
+      ExecCmd->clearReductionResources();
+      ReduResourcesToDeallocate.insert(ReduResourcesToDeallocate.end(),
+                                       ReduResources.begin(),
+                                       ReduResources.end());
     }
 
     for (Command *UserCmd : Cmd->MUsers)
@@ -1098,7 +1109,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(
     Command *FinishedCmd,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
+    std::vector<std::shared_ptr<const void>> &ReduResourcesToDeallocate) {
   assert(MCmdsToVisit.empty());
   MCmdsToVisit.push(FinishedCmd);
   MVisitedCmds.clear();
@@ -1114,10 +1126,20 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
     // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
       auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
+
+      // Transfer ownership of stream implementations.
       std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
       ExecCmd->clearStreams();
       StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
                                  Streams.end());
+
+      // Transfer ownership of reduction resources.
+      std::vector<std::shared_ptr<const void>> ReduResources =
+          ExecCmd->getReductionResources();
+      ExecCmd->clearReductionResources();
+      ReduResourcesToDeallocate.insert(ReduResourcesToDeallocate.end(),
+                                       ReduResources.begin(),
+                                       ReduResources.end());
     }
 
     for (const DepDesc &Dep : Cmd->MDeps) {

@@ -9,6 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <detail/handler_impl.hpp>
 #include <detail/scheduler/scheduler_helpers.hpp>
 
 using namespace cl::sycl;
@@ -39,6 +40,7 @@ public:
 
   std::unique_ptr<detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
+    std::shared_ptr<detail::handler_impl> Impl = evictHandlerImpl();
     std::unique_ptr<detail::CG> CommandGroup;
     switch (CGH->MCGType) {
     case detail::CG::Kernel:
@@ -50,7 +52,7 @@ public:
           std::move(CGH->MRequirements), std::move(CGH->MEvents),
           std::move(CGH->MArgs), std::move(CGH->MKernelName),
           std::move(CGH->MOSModuleHandle), std::move(CGH->MStreamStorage),
-          CGH->MCGType, CGH->MCodeLoc));
+          std::move(Impl->MReductionResources), CGH->MCGType, CGH->MCodeLoc));
       break;
     }
     default:
