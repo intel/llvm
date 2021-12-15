@@ -82,6 +82,8 @@ public:
     Command::waitForEvents(Queue, RawEvents, Event);
   }
 
+  std::shared_ptr<cl::sycl::detail::event_impl> getEvent() { return MEvent; }
+
 protected:
   cl::sycl::detail::Requirement MRequirement;
 };

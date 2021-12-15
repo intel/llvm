@@ -30,6 +30,12 @@ using namespace llvm::PatternMatch;
 static cl::opt<bool> EnableFalkorHWPFUnrollFix("enable-falkor-hwpf-unroll-fix",
                                                cl::init(true), cl::Hidden);
 
+static cl::opt<unsigned> SVEGatherOverhead("sve-gather-overhead", cl::init(10),
+                                           cl::Hidden);
+
+static cl::opt<unsigned> SVEScatterOverhead("sve-scatter-overhead",
+                                            cl::init(10), cl::Hidden);
+
 bool AArch64TTIImpl::areInlineCompatible(const Function *Caller,
                                          const Function *Callee) const {
   const TargetMachine &TM = getTLI()->getTargetMachine();
@@ -725,6 +731,22 @@ static Optional<Instruction *> instCombineSVEVectorFMLA(InstCombiner &IC,
   return IC.replaceInstUsesWith(II, FMLA);
 }
 
+static bool isAllActivePredicate(Value *Pred) {
+  // Look through convert.from.svbool(convert.to.svbool(...) chain.
+  Value *UncastedPred;
+  if (match(Pred, m_Intrinsic<Intrinsic::aarch64_sve_convert_from_svbool>(
+                      m_Intrinsic<Intrinsic::aarch64_sve_convert_to_svbool>(
+                          m_Value(UncastedPred)))))
+    // If the predicate has the same or less lanes than the uncasted
+    // predicate then we know the casting has no effect.
+    if (cast<ScalableVectorType>(Pred->getType())->getMinNumElements() <=
+        cast<ScalableVectorType>(UncastedPred->getType())->getMinNumElements())
+      Pred = UncastedPred;
+
+  return match(Pred, m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
+                         m_ConstantInt<AArch64SVEPredPattern::all>()));
+}
+
 static Optional<Instruction *>
 instCombineSVELD1(InstCombiner &IC, IntrinsicInst &II, const DataLayout &DL) {
   IRBuilder<> Builder(II.getContext());
@@ -735,8 +757,7 @@ instCombineSVELD1(InstCombiner &IC, IntrinsicInst &II, const DataLayout &DL) {
   Type *VecTy = II.getType();
   Value *VecPtr = Builder.CreateBitCast(PtrOp, VecTy->getPointerTo());
 
-  if (match(Pred, m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
-                      m_ConstantInt<AArch64SVEPredPattern::all>()))) {
+  if (isAllActivePredicate(Pred)) {
     LoadInst *Load = Builder.CreateLoad(VecTy, VecPtr);
     return IC.replaceInstUsesWith(II, Load);
   }
@@ -758,8 +779,7 @@ instCombineSVEST1(InstCombiner &IC, IntrinsicInst &II, const DataLayout &DL) {
   Value *VecPtr =
       Builder.CreateBitCast(PtrOp, VecOp->getType()->getPointerTo());
 
-  if (match(Pred, m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
-                      m_ConstantInt<AArch64SVEPredPattern::all>()))) {
+  if (isAllActivePredicate(Pred)) {
     Builder.CreateStore(VecOp, VecPtr);
     return IC.eraseInstFromFunction(II);
   }
@@ -1763,6 +1783,10 @@ AArch64TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
   return LT.first * 2;
 }
 
+static unsigned getSVEGatherScatterOverhead(unsigned Opcode) {
+  return Opcode == Instruction::Load ? SVEGatherOverhead : SVEScatterOverhead;
+}
+
 InstructionCost AArch64TTIImpl::getGatherScatterOpCost(
     unsigned Opcode, Type *DataTy, const Value *Ptr, bool VariableMask,
     Align Alignment, TTI::TargetCostKind CostKind, const Instruction *I) {
@@ -1785,6 +1809,10 @@ InstructionCost AArch64TTIImpl::getGatherScatterOpCost(
   ElementCount LegalVF = LT.second.getVectorElementCount();
   InstructionCost MemOpCost =
       getMemoryOpCost(Opcode, VT->getElementType(), Alignment, 0, CostKind, I);
+  // Add on an overhead cost for using gathers/scatters.
+  // TODO: At the moment this is applied unilaterally for all CPUs, but at some
+  // point we may want a per-CPU overhead.
+  MemOpCost *= getSVEGatherScatterOverhead(Opcode);
   return LT.first * MemOpCost * getMaxNumElements(LegalVF);
 }
 

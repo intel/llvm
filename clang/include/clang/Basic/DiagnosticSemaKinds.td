@@ -8387,8 +8387,8 @@ def err_atomic_exclusive_builtin_pointer_size : Error<
   " 1,2,4 or 8 byte type (%0 invalid)">;
 def err_atomic_builtin_ext_int_size : Error<
   "Atomic memory operand must have a power-of-two size">;
-def err_atomic_builtin_ext_int_prohibit : Error<
-  "argument to atomic builtin of type '_ExtInt' is not supported">;
+def err_atomic_builtin_bit_int_prohibit : Error<
+  "argument to atomic builtin of type '_BitInt' is not supported">;
 def err_atomic_op_needs_atomic : Error<
   "address argument to atomic operation must be a pointer to _Atomic "
   "type (%0 invalid)">;
@@ -8424,8 +8424,8 @@ def err_overflow_builtin_must_be_int : Error<
 def err_overflow_builtin_must_be_ptr_int : Error<
   "result argument to overflow builtin must be a pointer "
   "to a non-const integer (%0 invalid)">;
-def err_overflow_builtin_ext_int_max_size : Error<
-  "__builtin_mul_overflow does not support signed _ExtInt operands of more "
+def err_overflow_builtin_bit_int_max_size : Error<
+  "__builtin_mul_overflow does not support 'signed _BitInt' operands of more "
   "than %0 bits">;
 
 def err_atomic_load_store_uses_lib : Error<
@@ -8676,11 +8676,11 @@ def warn_unused_volatile : Warning<
   InGroup<DiagGroup<"unused-volatile-lvalue">>;
 
 def ext_cxx14_attr : Extension<
-  "use of the %0 attribute is a C++14 extension">, InGroup<CXX14>;
+  "use of the %0 attribute is a C++14 extension">, InGroup<CXX14Attrs>;
 def ext_cxx17_attr : Extension<
-  "use of the %0 attribute is a C++17 extension">, InGroup<CXX17>;
+  "use of the %0 attribute is a C++17 extension">, InGroup<CXX17Attrs>;
 def ext_cxx20_attr : Extension<
-  "use of the %0 attribute is a C++20 extension">, InGroup<CXX20>;
+  "use of the %0 attribute is a C++20 extension">, InGroup<CXX20Attrs>;
 
 def warn_unused_comparison : Warning<
   "%select{equality|inequality|relational|three-way}0 comparison result unused">,
@@ -9861,6 +9861,8 @@ def err_ppc_builtin_only_on_arch : Error<
   "this builtin is only valid on POWER%0 or later CPUs">;
 def err_ppc_builtin_requires_vsx : Error<
   "this builtin requires VSX to be enabled">;
+def err_ppc_builtin_requires_htm : Error<
+  "this builtin requires HTM to be enabled">;
 def err_ppc_builtin_requires_abi : Error<
   "this builtin requires ABI -mabi=%0">;
 def err_ppc_invalid_use_mma_type : Error<
@@ -11407,8 +11409,9 @@ def err_builtin_launder_invalid_arg : Error<
 def err_builtin_invalid_arg_type: Error <
   "%ordinal0 argument must be a "
   "%select{vector, integer or floating point type|matrix|"
-   "pointer to a valid matrix element type|"
-   "signed integer or floating point type|vector type}1 (was %2)">;
+  "pointer to a valid matrix element type|"
+  "signed integer or floating point type|vector type|"
+  "floating point type}1 (was %2)">;
 
 def err_builtin_matrix_disabled: Error<
   "matrix types extension is disabled. Pass -fenable-matrix to enable it">;
@@ -11475,9 +11478,9 @@ def warn_sycl_kernel_return_type : Warning<
   "function template with 'sycl_kernel' attribute must have a 'void' return type">,
   InGroup<IgnoredAttributes>;
 
-def err_ext_int_bad_size : Error<"%select{signed|unsigned}0 _ExtInt must "
+def err_bit_int_bad_size : Error<"%select{signed|unsigned}0 _BitInt must "
                                  "have a bit size of at least %select{2|1}0">;
-def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
+def err_bit_int_max_size : Error<"%select{signed|unsigned}0 _BitInt of bit "
                                  "sizes greater than %1 not supported">;
 def err_esimd_glob_cant_init : Error<
   "SYCL explicit SIMD does not permit private global variable to have an initializer">;
