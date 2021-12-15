@@ -4756,7 +4756,7 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
           static_cast<int *>(hipPointerAttributeType.devicePointer);
       value = *devicePointer;
       pi_platform platform;
-      result = hip_piPlatformsGet(0, &platform, nullptr);
+      result = hip_piPlatformsGet(1, &platform, nullptr);
       pi_device device = platform->devices_[value].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
