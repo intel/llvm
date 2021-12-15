@@ -139,6 +139,7 @@ unavailable.
  * **cpu**, **gpu**, **host**, **accelerator** - target device;
  * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
  * **sycl-ls** - sycl-ls tool availability;
+ * **cm-compiler** - C for Metal compiler availability;
  * **cl_options** - CL command line options recognized (or not) by compiler;
  * **opencl_icd** - OpenCL ICD loader availability;
  * **aot_tool** - Ahead-of-time compilation tools availability;

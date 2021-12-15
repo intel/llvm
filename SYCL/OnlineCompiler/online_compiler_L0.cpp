@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, level_zero_dev_kit
+// REQUIRES: level_zero, level_zero_dev_kit, cm-compiler
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DRUN_KERNELS %level_zero_options %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

@@ -326,6 +326,9 @@ else:
 if find_executable('sycl-ls'):
     config.available_features.add('sycl-ls')
 
+if find_executable('cmc'):
+    config.available_features.add('cm-compiler')
+
 # Device AOT compilation tools aren't part of the SYCL project,
 # so they need to be pre-installed on the machine
 aot_tools = ["ocloc", "aoc", "opencl-aot"]

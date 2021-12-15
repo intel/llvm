@@ -1,4 +1,4 @@
-// REQUIRES: opencl, opencl_icd
+// REQUIRES: opencl, opencl_icd, cm-compiler
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
