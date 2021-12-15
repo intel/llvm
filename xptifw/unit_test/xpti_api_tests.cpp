@@ -253,6 +253,25 @@ TEST_F(xptiApiTest, xptiRegisterCallbackGoodInput) {
       StreamID, (uint16_t)xpti::trace_point_type_t::function_begin,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_begin,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_end, fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_begin,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_end,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 }
 
 TEST_F(xptiApiTest, xptiUnregisterCallbackBadInput) {
@@ -294,6 +313,26 @@ TEST_F(xptiApiTest, xptiNotifySubscribersBadInput) {
       StreamID, (uint16_t)xpti::trace_point_type_t::function_begin, nullptr,
       nullptr, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_begin, nullptr,
+      nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_end, nullptr,
+      nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_begin, nullptr,
+      nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_end, nullptr,
+      nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 }
 
 TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
@@ -328,6 +367,49 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
   Result = xptiNotifySubscribers(
       StreamID, (uint16_t)xpti::trace_point_type_t::function_begin, nullptr,
       (xpti::trace_event_data_t *)1, 0, "foo");
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  EXPECT_NE(tmp, func_callback_update);
+
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_begin,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_end, fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_begin,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_end,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  xpti::mem_alloc_data_t AllocData{10, 100, 1, 0};
+
+  tmp = func_callback_update;
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_begin, nullptr,
+      nullptr, 0, &AllocData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  EXPECT_NE(tmp, func_callback_update);
+  tmp = func_callback_update;
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_end, nullptr,
+      (xpti::trace_event_data_t *)1, 0, &AllocData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  EXPECT_NE(tmp, func_callback_update);
+
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_begin, nullptr,
+      nullptr, 0, &AllocData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  EXPECT_NE(tmp, func_callback_update);
+  tmp = func_callback_update;
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::mem_release_end, nullptr,
+      (xpti::trace_event_data_t *)1, 0, &AllocData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   EXPECT_NE(tmp, func_callback_update);
 }

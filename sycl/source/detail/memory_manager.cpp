@@ -9,6 +9,7 @@
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/mem_alloc_helper.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <algorithm>
@@ -16,9 +17,94 @@
 #include <cstring>
 #include <vector>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <xpti/xpti_data_types.h>
+#include <xpti/xpti_trace_framework.hpp>
+uint8_t GMemAllocStreamID;
+xpti::trace_event_data_t *GMemAllocEvent;
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+uint64_t emitMemAllocBeginTrace(uintptr_t ObjHandle, size_t AllocSize,
+                                size_t GuardZone) {
+  (void)ObjHandle;
+  (void)AllocSize;
+  (void)GuardZone;
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    xpti::mem_alloc_data_t MemAlloc{ObjHandle, 0 /* alloc ptr */, AllocSize,
+                                    GuardZone};
+
+    CorrelationID = xptiGetUniqueId();
+    xptiNotifySubscribers(
+        GMemAllocStreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_begin),
+        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+  }
+#endif
+  return CorrelationID;
+}
+
+void emitMemAllocEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
+                          size_t AllocSize, size_t GuardZone,
+                          uint64_t CorrelationID) {
+  (void)ObjHandle;
+  (void)AllocPtr;
+  (void)AllocSize;
+  (void)GuardZone;
+  (void)CorrelationID;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, AllocSize, GuardZone};
+
+    xptiNotifySubscribers(
+        GMemAllocStreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_end),
+        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+  }
+#endif
+}
+
+uint64_t emitMemReleaseBeginTrace(uintptr_t ObjHandle, uintptr_t AllocPtr) {
+  (void)ObjHandle;
+  (void)AllocPtr;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  uint64_t CorrelationID = 0;
+  if (xptiTraceEnabled()) {
+    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
+                                    0 /* guard zone */};
+
+    CorrelationID = xptiGetUniqueId();
+    xptiNotifySubscribers(
+        GMemAllocStreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_begin),
+        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+  }
+#endif
+  return CorrelationID;
+}
+
+void emitMemReleaseEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
+                            uint64_t CorrelationID) {
+  (void)ObjHandle;
+  (void)AllocPtr;
+  (void)CorrelationID;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
+                                    0 /* guard zone */};
+
+    xptiNotifySubscribers(
+        GMemAllocStreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_end),
+        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+  }
+#endif
+}
 
 static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
@@ -67,7 +153,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
   }
 
   const detail::plugin &Plugin = TargetContext->getPlugin();
-  Plugin.call<PiApiKind::piMemRelease>(pi::cast<RT::PiMem>(MemAllocation));
+  memReleaseHelper(Plugin, pi::cast<RT::PiMem>(MemAllocation));
 }
 
 void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
@@ -165,9 +251,8 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
 
   RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
-  Plugin.call<PiApiKind::piMemBufferCreate>(TargetContext->getHandleRef(),
-                                            CreationFlags, Size, UserPtr,
-                                            &NewMem, nullptr);
+  memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
+                        Size, UserPtr, &NewMem, nullptr);
   return NewMem;
 }
 
@@ -623,10 +708,9 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   void *MappedPtr = nullptr;
   const size_t BytesToMap = AccessRange[0] * AccessRange[1] * AccessRange[2];
   const detail::plugin &Plugin = Queue->getPlugin();
-  Plugin.call<PiApiKind::piEnqueueMemBufferMap>(
-      Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags,
-      AccessOffset[0], BytesToMap, DepEvents.size(), DepEvents.data(),
-      &OutEvent, &MappedPtr);
+  memBufferMapHelper(Plugin, Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem),
+                     CL_FALSE, Flags, AccessOffset[0], BytesToMap,
+                     DepEvents.size(), DepEvents.data(), &OutEvent, &MappedPtr);
   return MappedPtr;
 }
 
@@ -639,9 +723,8 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   // Using the plugin of the Queue.
 
   const detail::plugin &Plugin = Queue->getPlugin();
-  Plugin.call<PiApiKind::piEnqueueMemUnmap>(
-      Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), MappedPtr,
-      DepEvents.size(), DepEvents.data(), &OutEvent);
+  memUnmapHelper(Plugin, Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem),
+                 MappedPtr, DepEvents.size(), DepEvents.data(), &OutEvent);
 }
 
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
