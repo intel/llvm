@@ -15,7 +15,7 @@
 // CHECK-SPIRV: ImageRead [[IVecTy]]
 // CHECK-SPIRV: ImageRead [[FVecTy]]
 
-// CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z24__spirv_ImageRead_Ruint4PU3AS133__spirv_Image__void_2_0_0_0_0_0_0Dv4_i(%spirv.Image._void_2_0_0_0_0_0_0 addrspace(1)*
+// CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z23__spirv_ImageRead_Rint4PU3AS133__spirv_Image__void_2_0_0_0_0_0_0Dv4_i(%spirv.Image._void_2_0_0_0_0_0_0 addrspace(1)*
 // CHECK-SPV-LLVM: call spir_func <4 x float> @_Z25__spirv_ImageRead_Rfloat4PU3AS133__spirv_Image__void_2_0_0_0_0_0_0Dv4_i(%spirv.Image._void_2_0_0_0_0_0_0 addrspace(1)*
 
 __kernel void kernelA(__read_only image3d_t input) {

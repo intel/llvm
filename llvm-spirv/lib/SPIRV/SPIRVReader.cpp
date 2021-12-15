@@ -1495,6 +1495,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
     SPIRVStorageClassKind BS = BVar->getStorageClass();
     SPIRVValue *Init = BVar->getInitializer();
+
+    if (isSPIRVSamplerType(Ty) && BS == StorageClassUniformConstant) {
+      // Skip generating llvm code during translation of a variable definition,
+      // generate code only for its uses
+      if (!BB)
+        return nullptr;
+
+      assert(Init && "UniformConstant OpVariable with sampler type must have "
+                     "an initializer!");
+      return transValue(Init, F, BB);
+    }
+
     if (BS == StorageClassFunction && !Init) {
       assert(BB && "Invalid BB");
       return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
@@ -3097,24 +3109,43 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
                                                     BasicBlock *BB) {
   assert(BB && "Invalid BB");
   const auto OC = BI->getOpCode();
-  bool AddRetTypePostfix = false;
-  if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize ||
-      OC == OpImageRead || OC == OpSubgroupImageBlockReadINTEL ||
-      OC == OpSubgroupBlockReadINTEL || OC == internal::OpJointMatrixLoadINTEL)
-    AddRetTypePostfix = true;
 
-  bool IsRetSigned = false;
-  if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
+  bool AddRetTypePostfix = false;
+  switch (static_cast<size_t>(OC)) {
+  case OpImageQuerySizeLod:
+  case OpImageQuerySize:
+  case OpImageRead:
+  case OpSubgroupImageBlockReadINTEL:
+  case OpSubgroupBlockReadINTEL:
+  case OpImageSampleExplicitLod:
+  case OpSDotKHR:
+  case OpUDotKHR:
+  case OpSUDotKHR:
+  case OpSDotAccSatKHR:
+  case OpUDotAccSatKHR:
+  case OpSUDotAccSatKHR:
+  case internal::OpJointMatrixLoadINTEL:
     AddRetTypePostfix = true;
-    if (OC == OpConvertUToF || OC == OpSatConvertUToS)
-      IsRetSigned = true;
+    break;
+  default: {
+    if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit)
+      AddRetTypePostfix = true;
+    break;
+  }
   }
 
-  if (OC == OpImageSampleExplicitLod)
-    AddRetTypePostfix = true;
-
-  if (OpSDotKHR <= BI->getOpCode() && BI->getOpCode() <= OpSUDotAccSatKHR)
-    AddRetTypePostfix = true;
+  bool IsRetSigned;
+  switch (OC) {
+  case OpConvertFToU:
+  case OpSatConvertSToU:
+  case OpUConvert:
+  case OpUDotKHR:
+  case OpUDotAccSatKHR:
+    IsRetSigned = false;
+    break;
+  default:
+    IsRetSigned = true;
+  }
 
   if (AddRetTypePostfix) {
     const Type *RetTy =
@@ -3913,6 +3944,12 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
       F->addParamAttr(ArgNo, Attr);
     }
+    if (BA->hasDecorate(DecorationMediaBlockIOINTEL)) {
+      assert(BA->getType()->isTypeImage() &&
+             "MediaBlockIOINTEL decoration is valid only on image parameters");
+      F->addParamAttr(ArgNo,
+                      Attribute::get(*Context, kVCMetadata::VCMediaBlockIO));
+    }
   }
 
   // Do not add float control if there is no any
@@ -4072,12 +4109,10 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (BF->hasDecorate(internal::DecorationPipelineEnableINTEL)) {
     auto Literals =
         BF->getDecorationLiterals(internal::DecorationPipelineEnableINTEL);
-    if (!Literals[0]) {
-      std::vector<Metadata *> MetadataVec;
-      MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, 1)));
-      F->setMetadata(kSPIR2MD::DisableLoopPipelining,
-                     MDNode::get(*Context, MetadataVec));
-    }
+    std::vector<Metadata *> MetadataVec;
+    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, !Literals[0])));
+    F->setMetadata(kSPIR2MD::DisableLoopPipelining,
+                   MDNode::get(*Context, MetadataVec));
   }
   return true;
 }

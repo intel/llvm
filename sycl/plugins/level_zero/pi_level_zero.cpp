@@ -2510,6 +2510,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
     return ReturnValue(
         pi_uint32{Device->ZeDeviceProperties->numEUsPerSubslice});
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties->numThreadsPerEU});
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // currently not supported in level zero runtime
     return PI_INVALID_VALUE;
@@ -3026,6 +3028,13 @@ pi_result piQueueFinish(pi_queue Queue) {
       ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
   }
 
+  return PI_SUCCESS;
+}
+
+// Flushing cross-queue dependencies is covered by createAndRetainPiZeEventList,
+// so this can be left as a no-op.
+pi_result piQueueFlush(pi_queue Queue) {
+  (void)Queue;
   return PI_SUCCESS;
 }
 

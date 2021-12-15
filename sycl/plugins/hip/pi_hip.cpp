@@ -1607,6 +1607,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_SLICES:
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     return PI_INVALID_VALUE;
 
@@ -2200,6 +2201,14 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
   }
 
   return result;
+}
+
+// There is no HIP counterpart for queue flushing and we don't run into the
+// same problem of having to flush cross-queue dependencies as some of the
+// other plugins, so it can be left as no-op.
+pi_result hip_piQueueFlush(pi_queue command_queue) {
+  (void)command_queue;
+  return PI_SUCCESS;
 }
 
 /// Gets the native HIP handle of a PI queue object
@@ -4750,7 +4759,7 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
           static_cast<int *>(hipPointerAttributeType.devicePointer);
       value = *devicePointer;
       pi_platform platform;
-      result = hip_piPlatformsGet(0, &platform, nullptr);
+      result = hip_piPlatformsGet(1, &platform, nullptr);
       pi_device device = platform->devices_[value].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
@@ -4820,6 +4829,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
+  _PI_CL(piQueueFlush, hip_piQueueFlush)
   _PI_CL(piQueueRetain, hip_piQueueRetain)
   _PI_CL(piQueueRelease, hip_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
