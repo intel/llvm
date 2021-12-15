@@ -62,6 +62,18 @@ enum class address_space : int {
   local_space
 };
 } // namespace access
+
+// Dummy aspect enum with limited enumerators
+enum class aspect {
+  host = 0,
+  cpu = 1,
+  gpu = 2,
+  accelerator = 3,
+  custom = 4,
+  fp16 = 5,
+  fp64 = 6,
+};
+
 using access::target;
 using access_mode = access::mode;
 

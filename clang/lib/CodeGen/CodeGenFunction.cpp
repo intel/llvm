@@ -1055,6 +1055,26 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->setMetadata("loop_fuse",
                       llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
     }
+    if (const SYCLDeviceHasAttr *A = D->getAttr<SYCLDeviceHasAttr>()) {
+      SmallVector<llvm::Metadata *, 4> AspectsMD;
+      for (auto *Aspect : A->aspects()) {
+        llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(getContext());
+        AspectsMD.push_back(llvm::ConstantAsMetadata::get(
+            Builder.getInt32(AspectInt.getZExtValue())));
+      }
+      Fn->setMetadata("intel_declared_aspects",
+                      llvm::MDNode::get(getLLVMContext(), AspectsMD));
+    }
+    if (const SYCLUsesAspectsAttr *A = D->getAttr<SYCLUsesAspectsAttr>()) {
+      SmallVector<llvm::Metadata *, 4> AspectsMD;
+      for (auto *Aspect : A->aspects()) {
+        llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(getContext());
+        AspectsMD.push_back(llvm::ConstantAsMetadata::get(
+            Builder.getInt32(AspectInt.getZExtValue())));
+      }
+      Fn->setMetadata("intel_used_aspects",
+                      llvm::MDNode::get(getLLVMContext(), AspectsMD));
+    }
   }
 
   if (getLangOpts().SYCLIsDevice && D &&
