@@ -71,8 +71,9 @@ DEFINE_TRIVIAL_LLVM_TYPE(LLVMMetadataType);
 /// LLVM dialect array type. It is an aggregate type representing consecutive
 /// elements in memory, parameterized by the number of elements and the element
 /// type.
-class LLVMArrayType : public Type::TypeBase<LLVMArrayType, Type,
-                                            detail::LLVMTypeAndSizeStorage> {
+class LLVMArrayType
+    : public Type::TypeBase<LLVMArrayType, Type, detail::LLVMTypeAndSizeStorage,
+                            DataLayoutTypeInterface::Trait> {
 public:
   /// Inherit base constructors.
   using Base::Base;
@@ -88,14 +89,28 @@ public:
                                   Type elementType, unsigned numElements);
 
   /// Returns the element type of the array.
-  Type getElementType();
+  Type getElementType() const;
 
   /// Returns the number of elements in the array type.
-  unsigned getNumElements();
+  unsigned getNumElements() const;
 
   /// Verifies that the type about to be constructed is well-formed.
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               Type elementType, unsigned numElements);
+
+  /// Hooks for DataLayoutTypeInterface. Should not be called directly. Obtain a
+  /// DataLayout instance and query it instead.
+  unsigned getTypeSizeInBits(const DataLayout &dataLayout,
+                             DataLayoutEntryListRef params) const;
+
+  unsigned getTypeSize(const DataLayout &dataLayout,
+                       DataLayoutEntryListRef params) const;
+
+  unsigned getABIAlignment(const DataLayout &dataLayout,
+                           DataLayoutEntryListRef params) const;
+
+  unsigned getPreferredAlignment(const DataLayout &dataLayout,
+                                 DataLayoutEntryListRef params) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -468,9 +483,21 @@ Type getVectorElementType(Type type);
 /// Returns the element count of any LLVM-compatible vector type.
 llvm::ElementCount getVectorNumElements(Type type);
 
+/// Returns whether a vector type is scalable or not.
+bool isScalableVectorType(Type vectorType);
+
+/// Creates an LLVM dialect-compatible vector type with the given element type
+/// and length.
+Type getVectorType(Type elementType, unsigned numElements,
+                   bool isScalable = false);
+
 /// Creates an LLVM dialect-compatible type with the given element type and
 /// length.
 Type getFixedVectorType(Type elementType, unsigned numElements);
+
+/// Creates an LLVM dialect-compatible type with the given element type and
+/// length.
+Type getScalableVectorType(Type elementType, unsigned numElements);
 
 /// Returns the size of the given primitive LLVM dialect-compatible type
 /// (including vectors) in bits, for example, the size of i16 is 16 and

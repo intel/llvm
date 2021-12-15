@@ -25,6 +25,8 @@
 using namespace mlir;
 using namespace mlir::LLVM;
 
+constexpr const static unsigned kBitsInByte = 8;
+
 //===----------------------------------------------------------------------===//
 // Array type.
 //===----------------------------------------------------------------------===//
@@ -47,9 +49,11 @@ LLVMArrayType::getChecked(function_ref<InFlightDiagnostic()> emitError,
                           numElements);
 }
 
-Type LLVMArrayType::getElementType() { return getImpl()->elementType; }
+Type LLVMArrayType::getElementType() const { return getImpl()->elementType; }
 
-unsigned LLVMArrayType::getNumElements() { return getImpl()->numElements; }
+unsigned LLVMArrayType::getNumElements() const {
+  return getImpl()->numElements;
+}
 
 LogicalResult
 LLVMArrayType::verify(function_ref<InFlightDiagnostic()> emitError,
@@ -57,6 +61,29 @@ LLVMArrayType::verify(function_ref<InFlightDiagnostic()> emitError,
   if (!isValidElementType(elementType))
     return emitError() << "invalid array element type: " << elementType;
   return success();
+}
+
+unsigned LLVMArrayType::getTypeSizeInBits(const DataLayout &dataLayout,
+                                          DataLayoutEntryListRef params) const {
+  return kBitsInByte * getTypeSize(dataLayout, params);
+}
+
+unsigned LLVMArrayType::getTypeSize(const DataLayout &dataLayout,
+                                    DataLayoutEntryListRef params) const {
+  return llvm::alignTo(dataLayout.getTypeSize(getElementType()),
+                       dataLayout.getTypeABIAlignment(getElementType())) *
+         getNumElements();
+}
+
+unsigned LLVMArrayType::getABIAlignment(const DataLayout &dataLayout,
+                                        DataLayoutEntryListRef params) const {
+  return dataLayout.getTypeABIAlignment(getElementType());
+}
+
+unsigned
+LLVMArrayType::getPreferredAlignment(const DataLayout &dataLayout,
+                                     DataLayoutEntryListRef params) const {
+  return dataLayout.getTypePreferredAlignment(getElementType());
 }
 
 //===----------------------------------------------------------------------===//
@@ -159,7 +186,6 @@ enum class DLEntryPos { Size = 0, Abi = 1, Preferred = 2, Address = 3 };
 
 constexpr const static unsigned kDefaultPointerSizeBits = 64;
 constexpr const static unsigned kDefaultPointerAlignment = 8;
-constexpr const static unsigned kBitsInByte = 8;
 
 /// Returns the value that corresponds to named position `pos` from the
 /// attribute `attr` assuming it's a dense integer elements attribute.
@@ -749,7 +775,12 @@ Type mlir::LLVM::getVectorElementType(Type type) {
 
 llvm::ElementCount mlir::LLVM::getVectorNumElements(Type type) {
   return llvm::TypeSwitch<Type, llvm::ElementCount>(type)
-      .Case<LLVMFixedVectorType, VectorType>([](auto ty) {
+      .Case([](VectorType ty) {
+        if (ty.isScalable())
+          return llvm::ElementCount::getScalable(ty.getNumElements());
+        return llvm::ElementCount::getFixed(ty.getNumElements());
+      })
+      .Case([](LLVMFixedVectorType ty) {
         return llvm::ElementCount::getFixed(ty.getNumElements());
       })
       .Case([](LLVMScalableVectorType ty) {
@@ -758,6 +789,31 @@ llvm::ElementCount mlir::LLVM::getVectorNumElements(Type type) {
       .Default([](Type) -> llvm::ElementCount {
         llvm_unreachable("incompatible with LLVM vector type");
       });
+}
+
+bool mlir::LLVM::isScalableVectorType(Type vectorType) {
+  assert(
+      (vectorType
+           .isa<LLVMFixedVectorType, LLVMScalableVectorType, VectorType>()) &&
+      "expected LLVM-compatible vector type");
+  return !vectorType.isa<LLVMFixedVectorType>() &&
+         (vectorType.isa<LLVMScalableVectorType>() ||
+          vectorType.cast<VectorType>().isScalable());
+}
+
+Type mlir::LLVM::getVectorType(Type elementType, unsigned numElements,
+                               bool isScalable) {
+  bool useLLVM = LLVMFixedVectorType::isValidElementType(elementType);
+  bool useBuiltIn = VectorType::isValidElementType(elementType);
+  (void)useBuiltIn;
+  assert((useLLVM ^ useBuiltIn) && "expected LLVM-compatible fixed-vector type "
+                                   "to be either builtin or LLVM dialect type");
+  if (useLLVM) {
+    if (isScalable)
+      return LLVMScalableVectorType::get(elementType, numElements);
+    return LLVMFixedVectorType::get(elementType, numElements);
+  }
+  return VectorType::get(numElements, elementType, (unsigned)isScalable);
 }
 
 Type mlir::LLVM::getFixedVectorType(Type elementType, unsigned numElements) {
@@ -769,6 +825,18 @@ Type mlir::LLVM::getFixedVectorType(Type elementType, unsigned numElements) {
   if (useLLVM)
     return LLVMFixedVectorType::get(elementType, numElements);
   return VectorType::get(numElements, elementType);
+}
+
+Type mlir::LLVM::getScalableVectorType(Type elementType, unsigned numElements) {
+  bool useLLVM = LLVMScalableVectorType::isValidElementType(elementType);
+  bool useBuiltIn = VectorType::isValidElementType(elementType);
+  (void)useBuiltIn;
+  assert((useLLVM ^ useBuiltIn) && "expected LLVM-compatible scalable-vector "
+                                   "type to be either builtin or LLVM dialect "
+                                   "type");
+  if (useLLVM)
+    return LLVMScalableVectorType::get(elementType, numElements);
+  return VectorType::get(numElements, elementType, /*numScalableDims=*/1);
 }
 
 llvm::TypeSize mlir::LLVM::getPrimitiveTypeSizeInBits(Type type) {
