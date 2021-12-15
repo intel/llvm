@@ -2626,11 +2626,12 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
 
   // Format of instruction PowN:
   //   LLVM arbitrary floating point functions return value: iN
-  //   Arguments: A(iN), MA(i32), B(iN), Mout(i32), EnableSubnormals(i32),
-  //              RoundingMode(i32), RoundingAccuracy(i32)
+  //   Arguments: A(iN), MA(i32), B(iN), Mout(i32), SignOfB(bool),
+  //              EnableSubnormals(i32), RoundingMode(i32),
+  //              RoundingAccuracy(i32)
   //   where A, B and return values are of arbitrary precision integer type.
   //   SPIR-V arbitrary floating point instruction layout:
-  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal Mout
+  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal Mout Literal SignOfB
   //       Literal EnableSubnormals Literal RoundingMode
   //       Literal RoundingAccuracy
 
@@ -2696,7 +2697,7 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
 
   Op OC = Inst->getOpCode();
   if (OC == OpArbitraryFloatCastFromIntINTEL ||
-      OC == OpArbitraryFloatCastToIntINTEL) {
+      OC == OpArbitraryFloatCastToIntINTEL || OC == OpArbitraryFloatPowNINTEL) {
     IntegerType *Int1Ty = Type::getInt1Ty(*Context);
     ArgTys.push_back(Int1Ty);
     Args.push_back(ConstantInt::get(Int1Ty, *WordsItr++)); /* ToSign/FromSign */

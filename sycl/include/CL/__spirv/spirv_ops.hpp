@@ -681,6 +681,7 @@ template <int WA, int WB, int Wout>
 extern SYCL_EXTERNAL cl::sycl::detail::ap_int<Wout>
 __spirv_ArbitraryFloatPowNINTEL(cl::sycl::detail::ap_int<WA> A, int32_t MA,
                                 cl::sycl::detail::ap_int<WB> B, int32_t Mout,
+                                bool SignOfB = false,
                                 int32_t EnableSubnormals = 0,
                                 int32_t RoundingMode = 0,
                                 int32_t RoundingAccuracy = 0) noexcept;

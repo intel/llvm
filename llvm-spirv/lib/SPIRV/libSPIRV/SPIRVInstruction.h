@@ -2623,7 +2623,7 @@ _SPIRV_OP(ATanPi, true, 9)
 _SPIRV_OP(ATan2, true, 11)
 _SPIRV_OP(Pow, true, 11)
 _SPIRV_OP(PowR, true, 11)
-_SPIRV_OP(PowN, true, 10)
+_SPIRV_OP(PowN, true, 11)
 #undef _SPIRV_OP
 
 class SPIRVAtomicInstBase : public SPIRVInstTemplateBase {
