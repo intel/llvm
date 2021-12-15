@@ -106,24 +106,22 @@ namespace {
 
 /// Encapsulates the update of CallInst's literal argument.
 struct CallReplacer {
-  CallReplacer(CallInst *CI, Value *CASArg) : CI(CI), CASArg(CASArg) {}
+  CallReplacer(CallInst *CI, Constant *CASArg) : CI(CI), CASArg(CASArg) {}
   void replaceWithFunction(Function *CASPrintf) {
     CI->setCalledFunction(CASPrintf);
-    Value *ArgToSet = CASArg;
-    if (auto *Const = dyn_cast<Constant>(CASArg)) {
-      // In case there's a misalignment between the updated function type and
-      // the constant literal type, create a constant pointer cast so as to
-      // duck module verifier complaints.
-      Type *ParamType = CASPrintf->getFunctionType()->getParamType(0);
-      if (Const->getType() != ParamType)
-        ArgToSet = ConstantExpr::getPointerCast(Const, ParamType);
-    }
-    CI->setArgOperand(0, ArgToSet);
+    auto *Const = CASArg;
+    // In case there's a misalignment between the updated function type and
+    // the constant literal type, create a constant pointer cast so as to
+    // duck module verifier complaints.
+    Type *ParamType = CASPrintf->getFunctionType()->getParamType(0);
+    if (Const->getType() != ParamType)
+      Const = ConstantExpr::getPointerCast(Const, ParamType);
+    CI->setArgOperand(0, Const);
   }
 
 private:
   CallInst *CI;
-  Value *CASArg;
+  Constant *CASArg;
 };
 
 /// The function's effect is similar to V->stripPointerCastsAndAliases(), but
