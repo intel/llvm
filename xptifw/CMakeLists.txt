@@ -58,6 +58,7 @@ add_subdirectory(unit_test)
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
   add_subdirectory(samples/syclpi_collector)
+  add_subdirectory(samples/itt_mapper)
 endif()
 
 # The tests in basic_test are written using TBB, so these tests are enabled
