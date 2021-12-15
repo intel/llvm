@@ -1157,9 +1157,19 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
     Command *FailedCmd,
     std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>>
         &StreamsToDeallocate) {
+  MVisitedCmds.clear();
+
+  // If the failed command has no users and no dependencies, there is no reason
+  // to replace it with an empty command.
+  if (FailedCmd->MDeps.size() == 0 && FailedCmd->MUsers.size() == 0) {
+    markNodeAsVisited(FailedCmd, MVisitedCmds);
+    FailedCmd->MMarks.MToBeDeleted = true;
+    handleVisitedNodes(MVisitedCmds);
+    return;
+  }
+
   assert(MCmdsToVisit.empty());
   MCmdsToVisit.push(FailedCmd);
-  MVisitedCmds.clear();
 
   // Traverse the graph using BFS
   while (!MCmdsToVisit.empty()) {
