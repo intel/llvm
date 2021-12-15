@@ -72,7 +72,19 @@ auto get_native(const SyclObjectT &Obj)
     throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
   }
 
-  return Obj.template get_native<BackendName>();
+  #if (!SYCL_OLD_RETURN_T) && SYCL_BACKEND_OPENCL
+  backend_return_t<BackendName, event> ReturnValue;
+  std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
+  for (auto const &element : ReturnVector) {
+      ReturnValue.push_back(
+          reinterpret_cast<
+              typename detail::interop<BackendName, event>::value_type>(
+              element));
+    }
+  return ReturnValue;
+  #else
+  return Obj.template get_native<BackendName>(); 
+  #endif
 }
 
 // Native handle of an accessor should be accessed through interop_handler
