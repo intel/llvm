@@ -42,7 +42,7 @@ struct initializer {
 
 // Descriptor class for the case of calling constructor in variable declaration
 // context
-struct var_declaration {
+struct var_decl {
   static std::string get_description() { return "variable declaration"; }
 
   template <typename DataT, int NumElems>
@@ -54,7 +54,7 @@ struct var_declaration {
 
 // Descriptor class for the case of calling constructor in rvalue in an
 // expression context
-struct rval_in_expression {
+struct rval_in_expr {
   static std::string get_description() { return "rvalue in an expression"; }
 
   template <typename DataT, int NumElems>
@@ -116,30 +116,6 @@ template <typename DataT, int NumElems, typename TestCaseT> struct test {
   }
 };
 
-template <typename DataT, typename TestT>
-using run_test_with_one_elem = test<DataT, 1, TestT>;
-
-template <typename DataT, typename TestT>
-using run_test_with_eight_elems = test<DataT, 8, TestT>;
-
-template <typename DataT, typename TestT>
-using run_test_with_sixteen_elems = test<DataT, 16, TestT>;
-
-template <typename DataT, typename TestT>
-using run_test_with_thirty_two_elems = test<DataT, 32, TestT>;
-
-template <typename TestT, typename... T>
-bool run_verification_with_chosen_test_type(
-    sycl::queue &queue, const named_type_pack<T...> &types) {
-  bool passed{true};
-
-  passed &= for_all_types<run_test_with_one_elem, TestT>(types, queue);
-  passed &= for_all_types<run_test_with_eight_elems, TestT>(types, queue);
-  passed &= for_all_types<run_test_with_sixteen_elems, TestT>(types, queue);
-  passed &= for_all_types<run_test_with_thirty_two_elems, TestT>(types, queue);
-  return passed;
-}
-
 int main(int argc, char **argv) {
   sycl::queue queue{esimd_test::ESIMDSelector{},
                     esimd_test::createExceptionHandler()};
@@ -147,13 +123,12 @@ int main(int argc, char **argv) {
   bool passed{true};
 
   const auto types{get_tested_types<tested_types::all>()};
+  const auto dims{get_all_dimensions()};
 
-  passed &= run_verification_with_chosen_test_type<initializer>(queue, types);
-  passed &=
-      run_verification_with_chosen_test_type<var_declaration>(queue, types);
-  passed &=
-      run_verification_with_chosen_test_type<rval_in_expression>(queue, types);
-  passed &= run_verification_with_chosen_test_type<const_ref>(queue, types);
+  passed &= for_all_types_and_dims<test, initializer>(types, dims, queue);
+  passed &= for_all_types_and_dims<test, var_decl>(types, dims, queue);
+  passed &= for_all_types_and_dims<test, rval_in_expr>(types, dims, queue);
+  passed &= for_all_types_and_dims<test, const_ref>(types, dims, queue);
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;

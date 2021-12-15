@@ -21,6 +21,11 @@ namespace esimd_test {
 namespace api {
 namespace functional {
 
+// Integer pack to store provided int values
+template <int... T> struct values_pack {
+  values_pack() {}
+};
+
 // Type pack to store types and underlying data type names to use with
 // type_name_string
 template <typename... T> struct named_type_pack {
@@ -86,28 +91,56 @@ template <tested_types required> auto get_tested_types() {
   }
 }
 
+// Factory method to retrieve pre-defined values_pack, to have the same
+// default dimensions over the tests
+auto get_all_dimensions() { return values_pack<1, 8, 16, 32>(); }
+
 // Run action for each of types given by named_type_pack instance
-template <template <typename, typename...> class action,
-          typename... actionArgsT, typename... types, typename... argsT>
-inline bool for_all_types(const named_type_pack<types...> &typeList,
-                          argsT &&... args) {
+template <template <typename, int, typename...> class Action, int N,
+          typename... ActionArgsT, typename... Types, typename... ArgsT>
+inline bool for_all_types(const named_type_pack<Types...> &type_list,
+                          ArgsT &&... args) {
   bool passed{true};
 
-  // run action for each type from types... parameter pack
-  size_t typeNameIndex = 0;
+  size_t type_name_index = 0;
 
-  int packExpansion[] = {
-      (passed &= action<types, actionArgsT...>{}(std::forward<argsT>(args)...,
-                                                 typeList.names[typeNameIndex]),
-       ++typeNameIndex,
-       0 // Dummy initialization value
-       )...};
-  // Every initializer clause is sequenced before any initializer clause that
-  // follows it in the braced-init-list. Every expression in comma operator is
-  // also strictly sequenced. So we can use increment safely. We still should
-  // discard dummy results, but this initialization should not be optimized out
-  // due side-effects
-  static_cast<void>(packExpansion);
+  // Run action for each type from named_type_pack... parameter pack
+  ((passed &= Action<Types, N, ActionArgsT...>{}(
+        std::forward<ArgsT>(args)..., type_list.names[type_name_index]),
+    ++type_name_index),
+   ...);
+  // The unary right fold expression is used for parameter pack expansion.
+  // Every expression with comma operator is strictly sequenced, so we can
+  // increment safely. And of course the fold expression would not be optimized
+  // out due to side-effects.
+  // Additional pair of brackets is required because of precedence of increment
+  // operator relative to the comma operator.
+  //
+  // Note that there is actually no difference in left or right fold expression
+  // for the comma operator, as it would give the same order of actions
+  // execution and the same order of the type name index increment: both the
+  // "(expr0, (exr1, expr2))" and "((expr0, expr1), expr2)" would give the same
+  //  result as simple "expr0, expr1, expr2"
+
+  return passed;
+}
+
+// Calls for_all_types for each vector length by values_pack instance
+template <template <typename, int, typename...> class Action,
+          typename... ActionArgsT, typename... Types, int... Dims,
+          typename... ArgsT>
+inline bool for_all_types_and_dims(const named_type_pack<Types...> &type_list,
+                                   const values_pack<Dims...> &dim_list,
+                                   ArgsT &&... args) {
+  bool passed{true};
+
+  // Run action for each value from values_pack... parameter pack
+  ((passed &= for_all_types<Action, Dims, ActionArgsT...>(
+        type_list, std::forward<ArgsT>(args)...)),
+   ...);
+  // The unary right fold expression is used for parameter pack expansion.
+  // An additional pair of brackets is required because of precedence of any
+  // operator relatively to the comma operator.
 
   return passed;
 }
