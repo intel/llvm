@@ -94,6 +94,8 @@ namespace ext {
 namespace oneapi {
 namespace this_kernel {
 
+size_t get_linear_id();
+
 template <int Dimensions>
 id<Dimensions> get_id();
 
@@ -113,6 +115,15 @@ sub_group get_sub_group();
 }
 }
 ----
+
+[source,c++]
+----
+size_t get_linear_id();
+----
+_Returns_: A `size_t` representing the current work-item's linear position in
+the global iteration space. Multi-dimensional indices are converted into a
+linear index following the linearization equations defined in Section 3.11.1 of
+the SYCL 2020 specification.
 
 [source,c++]
 ----
