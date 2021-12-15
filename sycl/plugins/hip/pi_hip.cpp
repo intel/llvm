@@ -2206,7 +2206,10 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
 // There is no HIP counterpart for queue flushing and we don't run into the
 // same problem of having to flush cross-queue dependencies as some of the
 // other plugins, so it can be left as no-op.
-pi_result hip_piQueueFlush(pi_queue command_queue) { return PI_SUCCESS; }
+pi_result hip_piQueueFlush(pi_queue command_queue) {
+  (void)command_queue;
+  return PI_SUCCESS;
+}
 
 /// Gets the native HIP handle of a PI queue object
 ///
