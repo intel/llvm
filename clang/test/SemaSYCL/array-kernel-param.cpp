@@ -114,10 +114,12 @@ int main() {
 // Check Kernel_Accessor parameters
 // CHECK: FunctionDecl {{.*}}Kernel_Accessor{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK-NEXT: SYCLAccessorPtrAttr
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::id<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK-NEXT: SYCLAccessorPtrAttr
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'sycl::id<1>'
@@ -165,10 +167,12 @@ int main() {
 // Check Kernel_StructAccArray parameters
 // CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// CHECK-NEXT: SYCLAccessorPtrAttr
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::id<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// CHECK-NEXT: SYCLAccessorPtrAttr
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::id<1>'
