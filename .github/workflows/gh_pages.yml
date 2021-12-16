@@ -3,6 +3,13 @@ name: Generate Doxygen documentation
 on:
   schedule:
   - cron: 0 1 * * *
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - '.github/workflows/gh_pages.yml'
+    - 'clang/docs/**'
+    - 'sycl/docs/**'
 
 jobs:
   build:
@@ -16,7 +23,7 @@ jobs:
     - name: Install deps
       run: |
         sudo apt-get install -y doxygen graphviz ssh ninja-build
-        sudo pip3 install 'sphinx==4.1.2' 'myst-parser==0.15.1'
+        sudo pip3 install 'sphinx==4.1.2' 'myst-parser==0.15.1' 'recommonmark==0.7.1'
     - name: Build Docs
       run: |
         mkdir -p $GITHUB_WORKSPACE/build
@@ -27,7 +34,24 @@ jobs:
         cmake --build . --target doxygen-clang
         cmake --build . --target docs-sycl-html
         cmake --build . --target docs-clang-html
+        cd $GITHUB_WORKSPACE
+        mkdir rendered
+        cd rendered
+        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
+        mv $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html doxygen/
+        mv $GITHUB_WORKSPACE/build/tools/clang/docs/html clang/
+        mv $GITHUB_WORKSPACE/build/tools/clang/docs/doxygen/html clang_doxygen/
+    - name: Pack
+      if: ${{ github.event_name != 'schedule' }}
+      run: tar -czf sycl_docs.tar.gz -C $GITHUB_WORKSPACE/rendered .
+    - name: Upload docs as artifact
+      if: ${{ github.event_name != 'schedule' }}
+      uses: actions/upload-artifact@v1
+      with:
+        name: sycl_docs
+        path: sycl_docs.tar.gz
     - name: Deploy
+      if: ${{ github.event_name == 'schedule' }}
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run: |
@@ -40,10 +64,7 @@ jobs:
         cd $GITHUB_WORKSPACE/docs
         git rm -rf .
         touch .nojekyll
-        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
-        mv $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html doxygen/
-        mv $GITHUB_WORKSPACE/build/tools/clang/docs/html clang/
-        mv $GITHUB_WORKSPACE/build/tools/clang/docs/doxygen/html clang_doxygen/
+        yes | \cp -rf $GITHUB_WORKSPACE/rendered/* .
         git config --global user.name "iclsrc"
         git config --global user.email "ia.compiler.tools.git@intel.com"
         git add .
