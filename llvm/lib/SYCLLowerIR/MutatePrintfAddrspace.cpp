@@ -44,49 +44,15 @@ private:
   SYCLMutatePrintfAddrspacePass Impl;
 };
 
-class AddrspaceReplacer {
-public:
-  static constexpr unsigned ConstantAddrspaceID = 2;
+static constexpr unsigned ConstantAddrspaceID = 2;
+// If the variadic version gets picked during FE compilation, we'll only have
+// 1 function to replace. However, unique declarations are emitted for each
+// of the non-variadic (variadic template) calls.
+using FunctionVecTy = SmallVector<Function *, 8>;
 
-  AddrspaceReplacer() = delete;
-  AddrspaceReplacer(Module *M) : M(M) {
-    Type *Int8Type = Type::getInt8Ty(M->getContext());
-    CASLiteralType = PointerType::get(Int8Type, ConstantAddrspaceID);
-    // Get the constant addrspace version of the __spirv_ocl_printf declaration,
-    // or generate it if the IR module doesn't have it yet. Also make it
-    // variadic so that it could replace all non-variadic generic AS versions.
-    Type *Int32Type = Type::getInt32Ty(M->getContext());
-    auto *CASPrintfFuncTy = FunctionType::get(Int32Type, CASLiteralType,
-                                              /*isVarArg=*/true);
-    // extern int __spirv_ocl_printf(
-    //                const __attribute__((opencl_constant)) char *Format, ...)
-    FunctionCallee CASPrintfFuncCallee = M->getOrInsertFunction(
-        "_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy);
-    CASPrintfFunc = cast<Function>(CASPrintfFuncCallee.getCallee());
-    CASPrintfFunc->setCallingConv(CallingConv::SPIR_FUNC);
-    CASPrintfFunc->setDSOLocal(true);
-  }
-  ~AddrspaceReplacer() {
-    for (Function *F : FunctionsToDrop)
-      F->eraseFromParent();
-  }
-  size_t getMutatedCallsCount() { return MutatedCallsCount; }
-
-  void runOnFunctionDeclaration(Function *F);
-
-private:
-  Module *M;
-  PointerType *CASLiteralType;
-  Function *CASPrintfFunc;
-  size_t MutatedCallsCount = 0;
-  /// If the variadic version gets picked during FE compilation, we'll only have
-  /// 1 function to replace. However, unique declarations are emitted for each
-  /// of the non-variadic (variadic template) calls.
-  SmallVector<Function *, 8> FunctionsToDrop;
-
-  Constant *getCASLiteral(GlobalVariable *GenericASLiteral);
-  void mutateCallArg(CallInst *CI, Constant *CASArg);
-};
+Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType);
+size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
+                                 FunctionVecTy &FunctionsToDrop);
 } // namespace
 
 char SYCLMutatePrintfAddrspaceLegacyPass::ID = 0;
@@ -102,23 +68,74 @@ ModulePass *llvm::createSYCLMutatePrintfAddrspaceLegacyPass() {
 
 PreservedAnalyses
 SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
-  AddrspaceReplacer ASReplacer(&M);
+  Type *Int8Type = Type::getInt8Ty(M.getContext());
+  auto *CASLiteralType = PointerType::get(Int8Type, ConstantAddrspaceID);
+  Function *CASPrintfFunc = getCASPrintfFunction(M, CASLiteralType);
+
+  FunctionVecTy FunctionsToDrop;
+  bool ModuleChanged = false;
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
     if (!F.getName().startswith("_Z18__spirv_ocl_printf"))
       continue;
-    ASReplacer.runOnFunctionDeclaration(&F);
+    if (F.getArg(0)->getType() == CASLiteralType)
+      // No need to replace the literal type and its printf users
+      continue;
+    ModuleChanged |=
+        setFuncCallsOntoCASPrintf(&F, CASPrintfFunc, FunctionsToDrop);
   }
-  return ASReplacer.getMutatedCallsCount() ? PreservedAnalyses::all()
-                                           : PreservedAnalyses::none();
+  for (Function *F : FunctionsToDrop)
+    F->eraseFromParent();
+
+  return ModuleChanged ? PreservedAnalyses::all() : PreservedAnalyses::none();
 }
 
 /// Helper implementations
 namespace {
 
+/// Get the constant addrspace version of the __spirv_ocl_printf declaration,
+/// or generate it if the IR module doesn't have it yet. Also make it
+/// variadic so that it could replace all non-variadic generic AS versions.
+Function *getCASPrintfFunction(Module &M, PointerType *CASLiteralType) {
+  Type *Int32Type = Type::getInt32Ty(M.getContext());
+  auto *CASPrintfFuncTy = FunctionType::get(Int32Type, CASLiteralType,
+                                            /*isVarArg=*/true);
+  // extern int __spirv_ocl_printf(
+  //                const __attribute__((opencl_constant)) char *Format, ...)
+  FunctionCallee CASPrintfFuncCallee =
+      M.getOrInsertFunction("_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy);
+  auto *CASPrintfFunc = cast<Function>(CASPrintfFuncCallee.getCallee());
+  CASPrintfFunc->setCallingConv(CallingConv::SPIR_FUNC);
+  CASPrintfFunc->setDSOLocal(true);
+  return CASPrintfFunc;
+}
+
+/// Generate the constant addrspace version of the generic addrspace-residing
+/// global string. If one exists already, get it from the module.
+Constant *getCASLiteral(GlobalVariable *GenericASLiteral) {
+  Module *M = GenericASLiteral->getParent();
+  // Appending the stable suffix ensures that only one CAS copy is made for each
+  // string. In case of the matching name, llvm::Module APIs will ensure that
+  // the existing global is returned.
+  std::string CASLiteralName = GenericASLiteral->getName().str() + "._AS2";
+  IRBuilder<> Builder(M->getContext());
+  if (GlobalVariable *ExistingGlobal =
+          M->getGlobalVariable(CASLiteralName, /*AllowInternal=*/true))
+    return ExistingGlobal;
+
+  StringRef LiteralValue;
+  getConstantStringInfo(GenericASLiteral, LiteralValue);
+  GlobalVariable *Res = Builder.CreateGlobalString(LiteralValue, CASLiteralName,
+                                                   ConstantAddrspaceID, M);
+  Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+  Res->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
+  return Res;
+}
+
 /// Encapsulates the update of CallInst's literal argument.
-void AddrspaceReplacer::mutateCallArg(CallInst *CI, Constant *CASArg) {
+void setCallArgOntoCASPrintf(CallInst *CI, Constant *CASArg,
+                             Function *CASPrintfFunc) {
   CI->setCalledFunction(CASPrintfFunc);
   auto *Const = CASArg;
   // In case there's a misalignment between the updated function type and
@@ -128,7 +145,6 @@ void AddrspaceReplacer::mutateCallArg(CallInst *CI, Constant *CASArg) {
   if (Const->getType() != ParamType)
     Const = ConstantExpr::getPointerCast(Const, ParamType);
   CI->setArgOperand(0, Const);
-  ++MutatedCallsCount;
 }
 
 /// The function's effect is similar to V->stripPointerCastsAndAliases(), but
@@ -160,11 +176,12 @@ void emitError(Function *PrintfInstance, CallInst *PrintfCall) {
   PrintfInstance->getContext().emitError(PrintfCall, ErrorMsg);
 }
 
-void AddrspaceReplacer::runOnFunctionDeclaration(Function *F) {
-  auto *LiteralType = F->getArg(0)->getType();
-  if (LiteralType->getPointerAddressSpace() == ConstantAddrspaceID)
-    // No need to replace the literal type and its printf users
-    return;
+/// This routine goes over CallInst users of F, resetting the called function
+/// to CASPrintfFunc and generating/retracting constant addrspace format
+/// strings to use as operands of the mutated calls.
+size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
+                                 FunctionVecTy &FunctionsToDrop) {
+  size_t MutatedCallsCount = 0;
   SmallVector<std::pair<CallInst *, Constant *>, 16> CallsToMutate;
   for (User *U : F->users()) {
     if (!isa<CallInst>(U))
@@ -191,7 +208,7 @@ void AddrspaceReplacer::runOnFunctionDeclaration(Function *F) {
         // We only expect 1 level of wrappers
         if (!Literal) {
           emitError(WrapperFunc, WrapperCI);
-          return;
+          return 0;
         }
         CallsToMutate.emplace_back(WrapperCI, getCASLiteral(Literal));
       }
@@ -206,33 +223,16 @@ void AddrspaceReplacer::runOnFunctionDeclaration(Function *F) {
       FunctionsToDrop.emplace_back(F);
     } else {
       emitError(F, CI);
-      return;
+      return 0;
     }
   }
-  for (auto &CallConstantPair : CallsToMutate)
-    mutateCallArg(CallConstantPair.first, CallConstantPair.second);
+  for (auto &CallConstantPair : CallsToMutate) {
+    setCallArgOntoCASPrintf(CallConstantPair.first, CallConstantPair.second,
+                            CASPrintfFunc);
+    ++MutatedCallsCount;
+  }
   if (F->hasNUses(0))
     FunctionsToDrop.emplace_back(F);
-}
-
-/// Generate the constant addrspace version of the generic addrspace-residing
-/// global string. If one exists already, get it from the module.
-Constant *AddrspaceReplacer::getCASLiteral(GlobalVariable *GenericASLiteral) {
-  // Appending the stable suffix ensures that only one CAS copy is made for each
-  // string. In case of the matching name, llvm::Module APIs will ensure that
-  // the existing global is returned.
-  std::string CASLiteralName = GenericASLiteral->getName().str() + "._AS2";
-  IRBuilder<> Builder(M->getContext());
-  if (GlobalVariable *ExistingGlobal =
-          M->getGlobalVariable(CASLiteralName, /*AllowInternal=*/true))
-    return ExistingGlobal;
-
-  StringRef LiteralValue;
-  getConstantStringInfo(GenericASLiteral, LiteralValue);
-  GlobalVariable *Res = Builder.CreateGlobalString(LiteralValue, CASLiteralName,
-                                                   ConstantAddrspaceID, M);
-  Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-  Res->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
-  return Res;
+  return MutatedCallsCount;
 }
 } // namespace
