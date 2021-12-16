@@ -149,6 +149,10 @@ void setCallArgOntoCASPrintf(CallInst *CI, Constant *CASArg,
 
 /// The function's effect is similar to V->stripPointerCastsAndAliases(), but
 /// also strips load/store aliases.
+/// NB: This function can only operate on simple CFG, where load/store pairs
+/// leading to the global variable are merely a consequence of low optimization
+/// level. Re-using it for complex CFG with arbitrary memory paths is definitely
+/// not recommended.
 Value *stripToMemorySource(Value *V) {
   Value *MemoryAccess = V;
   if (auto *LI = dyn_cast<LoadInst>(MemoryAccess)) {
@@ -160,7 +164,8 @@ Value *stripToMemorySource(Value *V) {
   return MemoryAccess->stripPointerCastsAndAliases();
 }
 
-void emitError(Function *PrintfInstance, CallInst *PrintfCall) {
+void emitError(Function *PrintfInstance, CallInst *PrintfCall,
+               StringRef RecommendationToUser = "") {
   std::string ErrorMsg =
       std::string("experimental::printf requires format string to reside "
                   "in constant "
@@ -169,10 +174,8 @@ void emitError(Function *PrintfInstance, CallInst *PrintfCall) {
                   "your format string into constant address space when "
                   "processing builtin ") +
       PrintfInstance->getName().str() + " called in function " +
-      PrintfCall->getFunction()->getName().str() +
-      ".\nMake sure each format string literal is "
-      "known at compile time or use OpenCL constant address space literals "
-      "for device-side printf calls";
+      PrintfCall->getFunction()->getName().str() + ".\n" +
+      RecommendationToUser.str();
   PrintfInstance->getContext().emitError(PrintfCall, ErrorMsg);
 }
 
@@ -201,13 +204,19 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
       // function argument. We'll update the wrapper calls to use the builtin
       // function directly instead.
       Function *WrapperFunc = Arg->getParent();
+      std::string BadWrapperErrorMsg =
+          "Consider simplifying the code by "
+          "passing format strings directly into experimental::printf calls, "
+          "avoiding indirection via wrapper function arguments.";
+      if (!WrapperFunc->getName().contains("6oneapi12experimental6printf"))
+        emitError(WrapperFunc, CI, BadWrapperErrorMsg);
       for (User *WrapperU : WrapperFunc->users()) {
         auto *WrapperCI = cast<CallInst>(WrapperU);
         Value *StrippedArg = stripToMemorySource(WrapperCI->getArgOperand(0));
         auto *Literal = dyn_cast<GlobalVariable>(StrippedArg);
         // We only expect 1 level of wrappers
         if (!Literal) {
-          emitError(WrapperFunc, WrapperCI);
+          emitError(WrapperFunc, WrapperCI, BadWrapperErrorMsg);
           return 0;
         }
         CallsToMutate.emplace_back(WrapperCI, getCASLiteral(Literal));
@@ -222,7 +231,11 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
                                "SYCL wrapper function");
       FunctionsToDrop.emplace_back(F);
     } else {
-      emitError(F, CI);
+      emitError(
+          F, CI,
+          "Make sure each format string literal is "
+          "known at compile time or use OpenCL constant address space literals "
+          "for device-side printf calls");
       return 0;
     }
   }
