@@ -106,7 +106,7 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj, arg):
-        # No way to wasily figure out which devices is currently being used,
+        # No way to easily figure out which devices is currently being used,
         # try all accessor implementations until one of them works:
         accessors = [
             DeviceAccessor(obj, self.result_type, self.depth),
