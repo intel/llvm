@@ -285,34 +285,32 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
   // then handle the rest with piQueueFinish.
-    bool SupportsPiFinish = !is_host() && MSupportOOO;
-    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
-         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
-      if (std::shared_ptr<event_impl> EventImplSharedPtr =
-              EventImplWeakPtrIt->lock()) {
-        // A nullptr PI event indicates that piQueueFinish will not cover it,
-        // either because it's a host task event or an unenqueued one.
-        if (!SupportsPiFinish ||
-            nullptr == EventImplSharedPtr->getHandleRef()) {
-          EventImplSharedPtr->wait(EventImplSharedPtr);
-        }
+  bool SupportsPiFinish = !is_host() && MSupportOOO;
+  for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
+       EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
+    if (std::shared_ptr<event_impl> EventImplSharedPtr =
+            EventImplWeakPtrIt->lock()) {
+      // A nullptr PI event indicates that piQueueFinish will not cover it,
+      // either because it's a host task event or an unenqueued one.
+      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandleRef()) {
+        EventImplSharedPtr->wait(EventImplSharedPtr);
       }
     }
-    if (SupportsPiFinish) {
-      const detail::plugin &Plugin = getPlugin();
-      Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
-      for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
-        if (std::shared_ptr<event_impl> EventImplSharedPtr =
-                EventImplWeakPtr.lock())
-          if (EventImplSharedPtr->needsCleanupAfterWait())
-            EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
-      assert(SharedEvents.empty() &&
-             "Queues that support calling piQueueFinish "
-             "shouldn't have shared events");
-    } else {
-      for (event &Event : SharedEvents)
-        Event.wait();
-    }
+  }
+  if (SupportsPiFinish) {
+    const detail::plugin &Plugin = getPlugin();
+    Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
+    for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtr.lock())
+        if (EventImplSharedPtr->needsCleanupAfterWait())
+          EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
+    assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
+                                   "shouldn't have shared events");
+  } else {
+    for (event &Event : SharedEvents)
+      Event.wait();
+  }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
