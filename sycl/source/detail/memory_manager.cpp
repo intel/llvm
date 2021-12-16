@@ -192,7 +192,6 @@ void memUnmapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Mem,
                                             WaitList, Event);
 }
 
-
 void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation,
                             std::vector<EventImplPtr> DepEvents,
