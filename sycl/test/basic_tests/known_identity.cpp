@@ -101,11 +101,6 @@ bool compareVectors(const vec<T, Num> a, const vec<T, Num> b) {
   for (int i = 0; i < Num; ++i) {
     res &= (a[i] == b[i]);
   }
-  if (!res) {
-    for (int i = 0; i < Num; ++i) {
-      std::cout << "(" << (int)a[i] << " == " << (int)b[i] << ")" << std::endl;
-    }
-  }
   return res;
 }
 
@@ -195,50 +190,46 @@ checkVecKnownIdentity() {
   static_assert(has_known_identity<maximum<vec<T, Num>>, vec<T, Num>>::value);
 }
 
+template <typename T> void checkVecTypeKnownIdentity() {
+  checkVecKnownIdentity<T, 1>();
+  checkVecKnownIdentity<T, 2>();
+  checkVecKnownIdentity<T, 3>();
+  checkVecKnownIdentity<T, 4>();
+  checkVecKnownIdentity<T, 8>();
+  checkVecKnownIdentity<T, 16>();
+}
+
 void checkVecTypesKnownIdentity() {
-
-#define CHECK_VEC(type)                                                        \
-  do {                                                                         \
-    checkVecKnownIdentity<type, 1>();                                          \
-    checkVecKnownIdentity<type, 2>();                                          \
-    checkVecKnownIdentity<type, 3>();                                          \
-    checkVecKnownIdentity<type, 4>();                                          \
-    checkVecKnownIdentity<type, 8>();                                          \
-    checkVecKnownIdentity<type, 16>();                                         \
-  } while (0)
-
 #if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-  CHECK_VEC(std::byte);
+  checkVecTypeKnownIdentity<std::byte>();
 #endif
-  CHECK_VEC(int8_t);
-  CHECK_VEC(int16_t);
-  CHECK_VEC(int32_t);
-  CHECK_VEC(int64_t);
-  CHECK_VEC(uint8_t);
-  CHECK_VEC(uint16_t);
-  CHECK_VEC(uint32_t);
-  CHECK_VEC(uint64_t);
+  checkVecTypeKnownIdentity<int8_t>();
+  checkVecTypeKnownIdentity<int16_t>();
+  checkVecTypeKnownIdentity<int32_t>();
+  checkVecTypeKnownIdentity<int64_t>();
+  checkVecTypeKnownIdentity<uint8_t>();
+  checkVecTypeKnownIdentity<uint16_t>();
+  checkVecTypeKnownIdentity<uint32_t>();
+  checkVecTypeKnownIdentity<uint64_t>();
 
-  CHECK_VEC(char);
-  CHECK_VEC(short int);
-  CHECK_VEC(int);
-  CHECK_VEC(long);
-  CHECK_VEC(long long);
-  CHECK_VEC(unsigned char);
-  CHECK_VEC(unsigned short int);
-  CHECK_VEC(unsigned int);
-  CHECK_VEC(unsigned long);
-  CHECK_VEC(unsigned long long);
-  CHECK_VEC(float);
-  CHECK_VEC(double);
+  checkVecTypeKnownIdentity<char>();
+  checkVecTypeKnownIdentity<short int>();
+  checkVecTypeKnownIdentity<int>();
+  checkVecTypeKnownIdentity<long>();
+  checkVecTypeKnownIdentity<long long>();
+  checkVecTypeKnownIdentity<unsigned char>();
+  checkVecTypeKnownIdentity<unsigned short int>();
+  checkVecTypeKnownIdentity<unsigned int>();
+  checkVecTypeKnownIdentity<unsigned long>();
+  checkVecTypeKnownIdentity<unsigned long long>();
+  checkVecTypeKnownIdentity<float>();
+  checkVecTypeKnownIdentity<double>();
 
   checkVecKnownIdentity<half, 2>();
   checkVecKnownIdentity<half, 3>();
   checkVecKnownIdentity<half, 4>();
   checkVecKnownIdentity<half, 8>();
   checkVecKnownIdentity<half, 16>();
-
-#undef CHECK_VEC
 }
 
 template <typename T, size_t Num>
@@ -246,11 +237,6 @@ bool compareMarrays(const marray<T, Num> a, const marray<T, Num> b) {
   bool res = true;
   for (int i = 0; i < Num; ++i) {
     res &= (a[i] == b[i]);
-  }
-  if (!res) {
-    for (int i = 0; i < Num; ++i) {
-      std::cout << "(" << (int)a[i] << " == " << (int)b[i] << ")" << std::endl;
-    }
   }
   return res;
 }
@@ -354,45 +340,41 @@ checkMarrayKnownIdentity() {
       has_known_identity<maximum<marray<T, Num>>, marray<T, Num>>::value);
 }
 
+template <typename T> void checkMarrayTypeKnownIdentity() {
+  checkMarrayKnownIdentity<T, 1>();
+  checkMarrayKnownIdentity<T, 2>();
+  checkMarrayKnownIdentity<T, 3>();
+  checkMarrayKnownIdentity<T, 4>();
+  checkMarrayKnownIdentity<T, 8>();
+  checkMarrayKnownIdentity<T, 16>();
+}
+
 void checkMarrayTypesKnownIdentity() {
-
-#define CHECK_MARRAY(type)                                                     \
-  do {                                                                         \
-    checkMarrayKnownIdentity<type, 1>();                                       \
-    checkMarrayKnownIdentity<type, 2>();                                       \
-    checkMarrayKnownIdentity<type, 3>();                                       \
-    checkMarrayKnownIdentity<type, 4>();                                       \
-    checkMarrayKnownIdentity<type, 8>();                                       \
-    checkMarrayKnownIdentity<type, 16>();                                      \
-  } while (0)
-
 #if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-  CHECK_MARRAY(std::byte);
+  checkMarrayTypeKnownIdentity<std::byte>();
 #endif
-  CHECK_MARRAY(int8_t);
-  CHECK_MARRAY(int16_t);
-  CHECK_MARRAY(int32_t);
-  CHECK_MARRAY(int64_t);
-  CHECK_MARRAY(uint8_t);
-  CHECK_MARRAY(uint16_t);
-  CHECK_MARRAY(uint32_t);
-  CHECK_MARRAY(uint64_t);
+  checkMarrayTypeKnownIdentity<int8_t>();
+  checkMarrayTypeKnownIdentity<int16_t>();
+  checkMarrayTypeKnownIdentity<int32_t>();
+  checkMarrayTypeKnownIdentity<int64_t>();
+  checkMarrayTypeKnownIdentity<uint8_t>();
+  checkMarrayTypeKnownIdentity<uint16_t>();
+  checkMarrayTypeKnownIdentity<uint32_t>();
+  checkMarrayTypeKnownIdentity<uint64_t>();
 
-  CHECK_MARRAY(char);
-  CHECK_MARRAY(short int);
-  CHECK_MARRAY(int);
-  CHECK_MARRAY(long);
-  CHECK_MARRAY(long long);
-  CHECK_MARRAY(unsigned char);
-  CHECK_MARRAY(unsigned short int);
-  CHECK_MARRAY(unsigned int);
-  CHECK_MARRAY(unsigned long);
-  CHECK_MARRAY(unsigned long long);
-  CHECK_MARRAY(half);
-  CHECK_MARRAY(float);
-  CHECK_MARRAY(double);
-
-#undef CHECK_MARRAY
+  checkMarrayTypeKnownIdentity<char>();
+  checkMarrayTypeKnownIdentity<short int>();
+  checkMarrayTypeKnownIdentity<int>();
+  checkMarrayTypeKnownIdentity<long>();
+  checkMarrayTypeKnownIdentity<long long>();
+  checkMarrayTypeKnownIdentity<unsigned char>();
+  checkMarrayTypeKnownIdentity<unsigned short int>();
+  checkMarrayTypeKnownIdentity<unsigned int>();
+  checkMarrayTypeKnownIdentity<unsigned long>();
+  checkMarrayTypeKnownIdentity<unsigned long long>();
+  checkMarrayTypeKnownIdentity<half>();
+  checkMarrayTypeKnownIdentity<float>();
+  checkMarrayTypeKnownIdentity<double>();
 }
 
 int main() {
