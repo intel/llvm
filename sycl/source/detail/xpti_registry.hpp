@@ -16,9 +16,6 @@
 // Include the headers necessary for emitting
 // traces using the trace framework
 #include "xpti/xpti_trace_framework.h"
-
-extern uint8_t GMemAllocStreamID;
-extern xpti::trace_event_data_t *GMemAllocEvent;
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -34,6 +31,11 @@ inline constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
 inline constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
 inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+extern uint8_t GMemAllocStreamID;
+extern xpti::trace_event_data_t *GMemAllocEvent;
+#endif
 
 class XPTIRegistry {
 public:

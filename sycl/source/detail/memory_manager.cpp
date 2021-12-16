@@ -20,13 +20,16 @@
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <xpti/xpti_data_types.h>
 #include <xpti/xpti_trace_framework.hpp>
-uint8_t GMemAllocStreamID;
-xpti::trace_event_data_t *GMemAllocEvent;
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+uint8_t GMemAllocStreamID;
+xpti::trace_event_data_t *GMemAllocEvent;
+#endif
 
 uint64_t emitMemAllocBeginTrace(uintptr_t ObjHandle, size_t AllocSize,
                                 size_t GuardZone) {
@@ -119,6 +122,76 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
     Plugin.call<PiApiKind::piEventsWait>(PiEvents.size(), &PiEvents[0]);
   }
 }
+
+void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
+                           pi_mem_flags Flags, size_t Size, void *HostPtr,
+                           pi_mem *RetMem, const pi_mem_properties *Props) {
+  uint64_t CorrID = 0;
+  CorrID = emitMemAllocBeginTrace(0 /* mem object */, Size, 0 /* guard zone */);
+  xpti::utils::finally _{[&] {
+    uintptr_t MemObjID = reinterpret_cast<uintptr_t>(*RetMem);
+    pi_native_handle Ptr = 0;
+    Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(*RetMem, &Ptr);
+    emitMemAllocEndTrace(MemObjID, reinterpret_cast<uintptr_t>(Ptr), Size,
+                         0 /* guard zone */, CorrID);
+  }};
+  Plugin.call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr, RetMem,
+                                            Props);
+}
+
+void memReleaseHelper(const plugin &Plugin, pi_mem Mem) {
+  // FIXME piMemRelease does not guarante memory release. It is only true if
+  // reference counter is 1. However, SYCL runtime currently only calls
+  // piMemRetain only for OpenCL interop
+  uint64_t CorrID = 0;
+  pi_native_handle PtrHandle = 0;
+  Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
+  uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Mem);
+  uintptr_t Ptr = reinterpret_cast<uintptr_t>(PtrHandle);
+  CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
+  xpti::utils::finally _{
+      [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
+  Plugin.call<PiApiKind::piMemRelease>(Mem);
+}
+
+void memBufferMapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Buffer,
+                        pi_bool Blocking, pi_map_flags Flags, size_t Offset,
+                        size_t Size, pi_uint32 NumEvents,
+                        const pi_event *WaitList, pi_event *Event,
+                        void **RetMap) {
+  uint64_t CorrID = 0;
+  uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Buffer);
+  CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
+  xpti::utils::finally _{[&] {
+    emitMemAllocEndTrace(MemObjID, reinterpret_cast<uintptr_t>(*RetMap), Size,
+                         0 /* guard zone */, CorrID);
+  }};
+  Plugin.call<PiApiKind::piEnqueueMemBufferMap>(Queue, Buffer, Blocking, Flags,
+                                                Offset, Size, NumEvents,
+                                                WaitList, Event, RetMap);
+}
+void memUnmapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Mem,
+                    void *MappedPtr, pi_uint32 NumEvents,
+                    const pi_event *WaitList, pi_event *Event) {
+  uint64_t CorrID = 0;
+  pi_native_handle PtrHandle = 0;
+  Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
+  uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Mem);
+  uintptr_t Ptr = reinterpret_cast<uintptr_t>(MappedPtr);
+  CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
+  xpti::utils::finally _{[&] {
+    if (xptiTraceEnabled()) {
+      // There's no way for SYCL to know, when the pointer is freed, so we have
+      // to explicitly wait for the end of data transfers here in order to
+      // report correct events.
+      Plugin.call_nocheck<PiApiKind::piEventsWait>(1, Event);
+    }
+    emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
+  }};
+  Plugin.call<PiApiKind::piEnqueueMemUnmap>(Queue, Mem, MappedPtr, NumEvents,
+                                            WaitList, Event);
+}
+
 
 void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation,
