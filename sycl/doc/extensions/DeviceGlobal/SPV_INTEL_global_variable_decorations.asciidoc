@@ -159,8 +159,8 @@ Legal values of _Trigger_:
   frequency.
 
 If a global *OpVariable* with an _Initializer_ operand is not decorated with
-*InitModeINTEL*, the method by which its value is initialized is implementation
-defined.
+*InitModeINTEL*, the method by which the variable's value is initialized is
+implementation defined.
 
 2+| Literal Number +
 _Trigger_
