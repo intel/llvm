@@ -89,12 +89,13 @@ class
 ```
 
 The `[[__sycl_detail__::add_ir_global_variable_attributes()]]` attribute has an
-even number of parameters.  The first half of the parameters are the names of
-the properties, and the second half of the parameters are the values for those
-properties.  Each property has exactly one value, so the property at parameter
-position 0 corresponds to the value at position _N / 2_, etc.  To illustrate
-using the same example as before, the result of the parameter pack expansion
-would look like this:
+even number of parameters, assuming that the optional "filter list" parameter
+is not specified (see below for a description of this parameter).  The first
+half of the parameters are the names of the properties, and the second half of
+the parameters are the values for those properties.  Each property has exactly
+one value, so the property at parameter position 0 corresponds to the value at
+position _N / 2_, etc.  To illustrate using the same example as before, the
+result of the parameter pack expansion would look like this:
 
 ```
 namespace sycl::ext::oneapi {
@@ -244,12 +245,28 @@ the property value to a string if it is not already a string.
 
 [7]: <https://llvm.org/doxygen/classllvm_1_1Function.html#a092beb46ecce99e6b39628ee92ccd95a>
 
-**TODO**: What happens when a "sycl special class" object is captured as a
-kernel argument?  The compiler passes each member of the class as a separate
-argument.  Should the device compiler duplicate the properties on each such
-parameter in this case?  Or, is it the header's responsibility to add the C++
-attribute to one of the member variables in this case?  How does the header
-decide which member variable to decorate, though?
+**TODO**: There are a number of open issues with this attribute and with the
+semantics of properties that are represented as attributes on kernel
+arguments.  Suppose there are two SYCL types that take properties: _A_ and
+_B_.  (For example, this could be two specializations of `annotated_ptr`, each
+decorated with different properties.)  Now suppose the application creates a
+struct that contains members with both of these types, and it passes that
+struct as a kernel argument.  What is the intended semantic?  Does the argument
+get decorated with the union of the properties on both _A_ and _B_?  What if
+those properties are mutually exclusive?  A similar case exists when the
+application creates a struct that inherits from both _A_ and _B_.
+
+The previous example shows a case when a single kernel argument gets properties
+from two (or more) types.  However, the opposite can also occur.  Certain SYCL
+classes are decorated with `__attribute__((sycl_special_class))`, which causes
+the compiler to pass each member of that class as a separate kernel argument.
+What should happen with the properties that decorate the class?  Should the
+compiler duplicate the properties on each such kernel argument?  Or, maybe it
+should be the header file's responsibility not to decorate such a class with
+`[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`, and instead it
+should decorate specific member variable(s) with this attribute?  How does the
+header decide which properties are used to decorate which member variables,
+though?
 
 
 ## Properties on kernel functions
@@ -344,11 +361,12 @@ string if it is not already a string.
 
 [9]: <https://llvm.org/doxygen/classllvm_1_1Function.html#ae7b919df259dce5480774e656791c079>
 
-**TODO**: The intention is to replace the existing member functions like
+**NOTE**: The intention is to replace the existing member functions like
 `handler::kernel_single_task()` with wrapper classes like
-`KernelSingleTaskWrapper`.  Does this pose any problems?  There are comments in
-the headers indicating that the front-end recognizes the function
-`handler::kernel_single_task()` by name.
+`KernelSingleTaskWrapper`.  We believe this will not cause problems for the
+device compiler front-end because it recognizes kernel functions via the
+`__attribute__((sycl_kernel))` attribute, not by the name
+`handler::kernel_single_task()`.
 
 
 ## Properties on a non-global variable type
@@ -617,6 +635,10 @@ first parameter that is a brace-enclosed list of property names:
 * `[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`
 * `[[__sycl_detail__::add_ir_function_attributes()]]`
 * `[[__sycl_detail__::add_ir_member_annotation()]]`
+
+Since this brace-enclosed list acts somewhat like an initializer list, the
+header must include `<initializer_list>` prior to passing this optional first
+parameter.
 
 The front-end treats this list as a "pass list", ignoring any property whose
 name is not in the list.  To illustrate, consider the following example where
