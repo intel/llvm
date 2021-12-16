@@ -279,8 +279,8 @@ public:
   std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
     return MStreams;
   }
-  std::vector<std::shared_ptr<const void>>
-  getReductionResources() const {
+
+  std::vector<std::shared_ptr<const void>> getReductionResources() const {
     return MReductionResources;
   }
 
