@@ -40,9 +40,13 @@ namespace experimental {
 // executing program.
 //
 // - According to the OpenCL spec, the format string must reside in constant
-// address space. This requires to perform "tricky" declarations of them, see
-// test/built-ins/printf.cpp for examples
-// FIXME: this potentially can be done on SYCL FE side automatically
+// address space. The constant address space declarations might get "tricky",
+// see test/built-ins/printf.cpp for examples.
+// In simple cases (compile-time known string contents, direct declaration of
+// the format literal inside the printf call, etc.), the compiler should handle
+// the automatic address space conversion.
+// FIXME: Once the extension to generic address space is fully supported, the
+// constant AS version may need to be deprecated.
 //
 // - The format string is interpreted according to the OpenCL C spec, where all
 // data types has fixed size, opposed to C++ types which doesn't guarantee
