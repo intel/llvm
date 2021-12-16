@@ -76,19 +76,36 @@ overhead than a simple synchronous implementation in some cases.
 `async_group_copy` will asynchronously copy a given number of values of type
 `dataT` from global memory to local memory or from local memory to global
 memory. If an asynchronous copy is not supported then `async_group_copy` will
-fall back on a synchronous copy. `async_group_copy` is a free function with the
+fall back on a synchronous copy.
+
+`async_group_copy` will return an `async_copy_event` that can be used with `wait_for`
+to block until the copy has completed.
+
+When copying from global memory to local memory an optional stride, `src_stride`,
+can be provided. For 0 <= i < `count`, the value copied to dest[i] will be
+src[i*`src_stride`]. 
+
+When copying from local memory to global memory an optional stride, `dest_stride`,
+can be provided. For 0 <= i < `count`, the value located at src[i] will be
+copied to dest[i*`dest_stride`]. 
+
+`async_group_copy` is a free function with the
 following properties:
 
 * The work-items will not necessarily be synchronized, so must have a
   consistent view of the memory before the invocation.
-* The order of operations is not specified.
+* The order of operations is implementation defined.
+* The method of copy is implementation defined.
 * All work-items of the group are required to call the function with the same
   arguments, otherwise the behaviour is undefined.
 * All work-items of the group are required to call the function in convergent
   control flow, otherwise the behaviour is undefined.
-* The type of `dataT` should be a scalar or vector type.
-* The data written by `async_group_copy` should not be read until `wait_for`
-  has been called on the returned `device_event`.
+* The type of `dataT` must be trivially copyable as defined by the C++ core language.
+* The copy is only guaranteed to be complete after `wait_for` has been called on the
+  returned `async_copy_event` and has completed.
+* `src_stride` and `dst_stride` must be non-zero `size_t` values.
+* The default value for `src_stride` and `dest_stride` is 1.
+* The number of work-items in the group does not need to be equal to `count`.
 
 The structs `dest_stride` and `src_stride` have been introduced to reduce errors
 when specifying the stride.
@@ -100,6 +117,14 @@ functions in SYCL 2020.
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
+template <typename Group, std::enable_if_t<sycl::is_group<Group>::value, bool> = true>
+class async_copy_event {
+private:
+  ...
+public:
+    using group = Group;
+};
+
 struct dest_stride {
        std::size_t value;
 };
@@ -109,45 +134,41 @@ struct src_stride {
 };
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count);
+async_copy_event<Group> async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count);
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count);
+async_copy_event<Group> async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count);
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count, dest_stride destStride);
+async_copy_event<Group> async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count, dest_stride destStride);
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count, src_stride srcStride);
+async_copy_event<Group> async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count, src_stride srcStride);
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ## New `wait_for` function
 `wait_for` will work very similarly to `nd_item::wait_for` or `group::wait_for`,
-but with the ability to utilize individual sub-groups. The group will be provided
-as a template parameter, in the same fashion as `group_barrier`.
+but with the ability to utilize individual sub-groups. The group will be linked
+to the `async_copy_event` so `wait_for` and `async_group_copy` use the same group.
 
 `wait_for` will block until all the asychronous copies represented by the
-`device_event` arguments are complete. Data written to a location by `async_group_copy`
-should not be read until `wait_for` has been called with the returned
-`device_event`. `wait_for` will also act as a group barrier to ensure memory
-consistency between the work-items of the group.
+`async_copy_event` arguments are complete. Copies performed with `async_group_copy`
+are not guaranteed to be complete until `wait_for` has been called with the returned
+`async_copy_event`, so the data cannot be read reliably before that. `wait_for` will also act
+as a group barrier to ensure memory consistency between the work-items of the group.
 
 `wait_for` is a free function with the following properties:
 
-* The group should be the same as the group used in all invocations of
-  `async_group_copy` that returned the `device_event` arguments or the behaviour is undefined.
 * All work-items of the group are required to call the function in convergent
   control flow, otherwise the behaviour is undefined.
+* All instances of `eventTN` are of template type `async_copy_event` with the same specialization.
 
-
-NOTE: For NVIDIA architectures of sm_80 or higher, the group will be blocked until all
-outstanding async_group_copy requests are completed.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-    template <typename Group, typename eventTN>
-    void wait_for(Group group, eventTN... Events) noexcept;
+template <typename group, typename... eventTN>
+std::enable_if_t<(std::is_same_v<eventTN,async_copy_event<group>> && ...)> wait_for(eventTN... Events);
 }  // namespace sycl
 ```
 
