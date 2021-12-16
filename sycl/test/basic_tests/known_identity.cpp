@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx -fsycl -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -o %t.out -std=c++17
+// RUN: %RUN_ON_HOST %t.out
 // expected-no-diagnostics
 
 // This test performs basic checks of has_known_identity and known_identity
@@ -6,6 +7,7 @@
 
 #include <CL/sycl.hpp>
 #include <cassert>
+#include <cstddef>
 
 using namespace cl::sycl;
 
@@ -93,6 +95,152 @@ template <typename T> void checkBoolKnownIdentity() {
   static_assert(known_identity<sycl::logical_or<T>, T>::value == false);
 }
 
+template <typename T, int Num>
+bool compareVectors(const vec<T, Num> a, const vec<T, Num> b) {
+  bool res = true;
+  for (int i = 0; i < Num; ++i) {
+    res &= (a[i] == b[i]);
+  }
+  if (!res) {
+    for (int i = 0; i < Num; ++i) {
+      std::cout << "(" << (int)a[i] << " == " << (int)b[i] << ")" << std::endl;
+    }
+  }
+  return res;
+}
+
+template <typename T, int Num>
+typename std::enable_if<!std::is_same<T, half>::value &&
+                            !std::is_same<T, float>::value &&
+                            !std::is_same<T, double>::value,
+                        void>::type
+checkVecKnownIdentity() {
+  constexpr vec<T, Num> zeros(T(0));
+  constexpr vec<T, Num> ones(T(1));
+  constexpr vec<T, Num> bit_ones(~T(0));
+
+  static_assert(has_known_identity<plus<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<plus<vec<T, Num>>, vec<T, Num>>::value);
+  assert(compareVectors(known_identity<plus<>, vec<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<bit_or<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<bit_or<vec<T, Num>>, vec<T, Num>>::value);
+  assert(compareVectors(known_identity<bit_or<>, vec<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<bit_xor<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<bit_xor<vec<T, Num>>, vec<T, Num>>::value);
+  assert(compareVectors(known_identity<bit_xor<>, vec<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<bit_and<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<bit_and<vec<T, Num>>, vec<T, Num>>::value);
+  assert(
+      compareVectors(known_identity<bit_and<>, vec<T, Num>>::value, bit_ones));
+
+  static_assert(has_known_identity<logical_or<>, vec<T, Num>>::value);
+  static_assert(
+      has_known_identity<logical_or<vec<T, Num>>, vec<T, Num>>::value);
+  assert(
+      compareVectors(known_identity<logical_or<>, vec<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<logical_and<>, vec<T, Num>>::value);
+  static_assert(
+      has_known_identity<logical_and<vec<T, Num>>, vec<T, Num>>::value);
+  assert(
+      compareVectors(known_identity<logical_and<>, vec<T, Num>>::value, ones));
+
+  static_assert(has_known_identity<multiplies<>, vec<T, Num>>::value);
+  static_assert(
+      has_known_identity<multiplies<vec<T, Num>>, vec<T, Num>>::value);
+  assert(
+      compareVectors(known_identity<multiplies<>, vec<T, Num>>::value, ones));
+
+  static_assert(has_known_identity<minimum<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<minimum<vec<T, Num>>, vec<T, Num>>::value);
+  if constexpr (!std::is_same<T, std::byte>::value) {
+    constexpr vec<T, Num> maxs(-std::numeric_limits<T>::infinity());
+    assert(compareVectors(known_identity<minimum<>, vec<T, Num>>::value, maxs));
+  }
+
+  static_assert(has_known_identity<maximum<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<maximum<vec<T, Num>>, vec<T, Num>>::value);
+  if constexpr (!std::is_same<T, std::byte>::value) {
+    constexpr vec<T, Num> mins(std::numeric_limits<T>::infinity());
+    assert(compareVectors(known_identity<maximum<>, vec<T, Num>>::value, mins));
+  }
+}
+
+template <typename T, int Num>
+typename std::enable_if<std::is_same<T, sycl::half>::value ||
+                            std::is_same<T, float>::value ||
+                            std::is_same<T, double>::value,
+                        void>::type
+checkVecKnownIdentity() {
+  constexpr vec<T, Num> zeros(T(0.0f));
+  constexpr vec<T, Num> ones(T(1.0f));
+
+  static_assert(has_known_identity<plus<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<plus<vec<T, Num>>, vec<T, Num>>::value);
+  assert(compareVectors(known_identity<plus<>, vec<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<multiplies<>, vec<T, Num>>::value);
+  static_assert(
+      has_known_identity<multiplies<vec<T, Num>>, vec<T, Num>>::value);
+  assert(
+      compareVectors(known_identity<multiplies<>, vec<T, Num>>::value, ones));
+
+  static_assert(has_known_identity<minimum<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<minimum<vec<T, Num>>, vec<T, Num>>::value);
+
+  static_assert(has_known_identity<maximum<>, vec<T, Num>>::value);
+  static_assert(has_known_identity<maximum<vec<T, Num>>, vec<T, Num>>::value);
+}
+
+void checkVecTypesKnownIdentity() {
+
+#define CHECK_VEC(type)                                                        \
+  do {                                                                         \
+    checkVecKnownIdentity<type, 1>();                                          \
+    checkVecKnownIdentity<type, 2>();                                          \
+    checkVecKnownIdentity<type, 3>();                                          \
+    checkVecKnownIdentity<type, 4>();                                          \
+    checkVecKnownIdentity<type, 8>();                                          \
+    checkVecKnownIdentity<type, 16>();                                         \
+  } while (0)
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  CHECK_VEC(std::byte);
+#endif
+  CHECK_VEC(int8_t);
+  CHECK_VEC(int16_t);
+  CHECK_VEC(int32_t);
+  CHECK_VEC(int64_t);
+  CHECK_VEC(uint8_t);
+  CHECK_VEC(uint16_t);
+  CHECK_VEC(uint32_t);
+  CHECK_VEC(uint64_t);
+
+  CHECK_VEC(char);
+  CHECK_VEC(short int);
+  CHECK_VEC(int);
+  CHECK_VEC(long);
+  CHECK_VEC(long long);
+  CHECK_VEC(unsigned char);
+  CHECK_VEC(unsigned short int);
+  CHECK_VEC(unsigned int);
+  CHECK_VEC(unsigned long);
+  CHECK_VEC(unsigned long long);
+  CHECK_VEC(float);
+  CHECK_VEC(double);
+
+  checkVecKnownIdentity<half, 2>();
+  checkVecKnownIdentity<half, 3>();
+  checkVecKnownIdentity<half, 4>();
+  checkVecKnownIdentity<half, 8>();
+  checkVecKnownIdentity<half, 16>();
+
+#undef CHECK_VEC
+}
+
 int main() {
   checkIntKnownIdentity<int8_t>();
   checkIntKnownIdentity<char>();
@@ -142,6 +290,8 @@ int main() {
   checkCommonKnownIdentity<::cl_half>();
 
   checkBoolKnownIdentity<bool>();
+
+  checkVecTypesKnownIdentity();
 
   // Few negative tests just to check that it does not always return true.
   static_assert(!has_known_identity<std::minus<>, int>::value);
