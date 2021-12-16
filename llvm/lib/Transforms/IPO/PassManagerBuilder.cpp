@@ -72,9 +72,8 @@ static cl::opt<bool>
 RunLoopRerolling("reroll-loops", cl::Hidden,
                  cl::desc("Run the loop rerolling pass"));
 
-static cl::opt<bool>
-    SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
-                         cl::desc("Enable SYCL optimization mode."));
+cl::opt<bool> SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
+                                   cl::desc("Enable SYCL optimization mode."));
 
 cl::opt<bool> RunNewGVN("enable-newgvn", cl::init(false), cl::Hidden,
                         cl::desc("Run the NewGVN pass"));

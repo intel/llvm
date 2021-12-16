@@ -1378,6 +1378,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
+    if (LangOpts.SYCLIsDevice)
+      PB.registerPipelineStartEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(ESIMDVerifierPass());
+          });
+
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
     bool IsLTO = CodeGenOpts.PrepareForLTO;
 
