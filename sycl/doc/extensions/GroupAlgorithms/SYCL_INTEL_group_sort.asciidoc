@@ -599,6 +599,13 @@ will be added to the Spec to be used with other Group algorithms, e.g. find, red
 . Predefined sorters can be revisited to find a better interfaces for `memory_required` overloads.
 . `group_with_scratchpad` can be replaced with concepts that requires 2 methods.
 
+== Non-implemented features
+Please, note that following is not inplemented yet for the open-source repo:
+
+. `radix_sorter`, `radix_order`
+. sub-groups support.
+
+
 == Revision History
 
 [cols="5,15,15,70"]
@@ -607,6 +614,7 @@ will be added to the Spec to be used with other Group algorithms, e.g. find, red
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-04-28|Andrey Fedorov|Initial public working draft
-|2|{docdate}|Andrey Fedorov|Changes related to additional memory providing
-|3|{docdate}|Andrey Fedorov|Some refactoring and sections reordering
+|2|2021-09-15|Andrey Fedorov|Changes related to additional memory providing
+|3|2021-12-16|Andrey Fedorov|Some refactoring, sections reordering,
+making the entire extension experimental
 |========================================
