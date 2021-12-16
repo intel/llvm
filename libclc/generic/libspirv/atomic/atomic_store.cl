@@ -26,29 +26,42 @@ _Z19__spirv_AtomicStorePU3AS3fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE
       (volatile local uint *)p, scope, semantics, as_uint(val));
 }
 
-#define FDECL(TYPE, PREFIX, AS, BYTE_SIZE, MEM_ORDER) \
-TYPE __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_##MEM_ORDER(volatile AS const TYPE *, TYPE);
+_CLC_DEF void
+_Z19__spirv_AtomicStorePfN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
+    volatile float *p, enum Scope scope,
+    enum MemorySemanticsMask semantics, float val) {
+  _Z19__spirv_AtomicStorePjN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEj(
+      (volatile uint *)p, scope, semantics, as_uint(val));
+}
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, PREFIX, BYTE_SIZE)                                                           \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, unordered)                                                                               \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, release)                                                                                 \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, seq_cst)                                                                                 \
-  _CLC_DEF void                                                                                                               \
-      _Z19__spirv_AtomicStorePU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                              \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                                     \
-    if (semantics == Release) {                                                                                               \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_release(p, val);                                                     \
-    } else if (semantics == SequentiallyConsistent) {                                                                         \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_seq_cst(p, val);                                                     \
-    } else {                                                                                                                  \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_unordered(p, val);                                                   \
-    }                                                                                                                         \
+#define FDECL(TYPE, PREFIX, AS, AS_, BYTE_SIZE, MEM_ORDER) \
+TYPE __clc__atomic_##PREFIX##store_##AS_##BYTE_SIZE##_##MEM_ORDER(volatile AS const TYPE *, TYPE);
+
+#define IMPL(TYPE, TYPE_MANGLED, AS_PREFIX, AS, AS_, AS_MANGLED, PREFIX,                                                               \
+             BYTE_SIZE)                                                                                                                \
+  FDECL(TYPE, PREFIX, AS, AS_, BYTE_SIZE, unordered)                                                                                   \
+  FDECL(TYPE, PREFIX, , , BYTE_SIZE, unordered)                                                                                        \
+  FDECL(TYPE, PREFIX, AS, AS_, BYTE_SIZE, release)                                                                                     \
+  FDECL(TYPE, PREFIX, , , BYTE_SIZE, release)                                                                                          \
+  FDECL(TYPE, PREFIX, AS, AS_, BYTE_SIZE, seq_cst)                                                                                     \
+  FDECL(TYPE, PREFIX, , , BYTE_SIZE, seq_cst)                                                                                          \
+  _CLC_DEF void                                                                                                                        \
+      _Z19__spirv_AtomicStoreP##AS_PREFIX##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
+          volatile AS TYPE *p, enum Scope scope,                                                                                       \
+          enum MemorySemanticsMask semantics, TYPE val) {                                                                              \
+    if (semantics == Release) {                                                                                                        \
+      __clc__atomic_##PREFIX##store_##AS_##BYTE_SIZE##_release(p, val);                                                                \
+    } else if (semantics == SequentiallyConsistent) {                                                                                  \
+      __clc__atomic_##PREFIX##store_##AS_##BYTE_SIZE##_seq_cst(p, val);                                                                \
+    } else {                                                                                                                           \
+      __clc__atomic_##PREFIX##store_##AS_##BYTE_SIZE##_unordered(p, val);                                                              \
+    }                                                                                                                                  \
   }
 
-#define IMPL_AS(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE) \
-IMPL(TYPE, TYPE_MANGLED, global, AS1, PREFIX, BYTE_SIZE) \
-IMPL(TYPE, TYPE_MANGLED, local, AS3, PREFIX, BYTE_SIZE)
+#define IMPL_AS(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE)                         \
+  IMPL(TYPE, TYPE_MANGLED, U3, global, global_, AS1, PREFIX, BYTE_SIZE)        \
+  IMPL(TYPE, TYPE_MANGLED, U3, local, local_, AS3, PREFIX, BYTE_SIZE)          \
+  IMPL(TYPE, TYPE_MANGLED, , , , , PREFIX, BYTE_SIZE)
 
 IMPL_AS(int, i, , 4)
 IMPL_AS(unsigned int, j, u, 4)
