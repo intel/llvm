@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
       int numSlices = 0;
       int numSubslices = 0;
       int numEUsPerSubslice = 0;
+      int numHWThreadsPerEU = 0;
       for (const auto &dev : plt.get_devices()) {
         std::cout << "Platform #" << pltCount++ << ":" << std::endl;
         if (dev.has(aspect::gpu)) {
@@ -88,6 +89,12 @@ int main(int argc, char **argv) {
               numEUsPerSubslice = dev.get_info<
                   info::device::ext_intel_gpu_eu_count_per_subslice>();
               std::cout << "Number of EUs per subslice = " << numEUsPerSubslice
+                        << std::endl;
+            }
+            if (dev.has(aspect::ext_intel_gpu_hw_threads_per_eu)) {
+              numHWThreadsPerEU =
+                  dev.get_info<info::device::ext_intel_gpu_hw_threads_per_eu>();
+              std::cout << "Number of HW threads per EU = " << numHWThreadsPerEU
                         << std::endl;
             }
             if (dev.has(aspect::ext_intel_max_mem_bandwidth)) {
