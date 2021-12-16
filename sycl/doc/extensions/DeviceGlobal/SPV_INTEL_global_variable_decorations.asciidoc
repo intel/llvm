@@ -121,17 +121,14 @@ API's execution environment may use to identify this variable.
 Legal values of _Access_:
 
 * 0 [Read] - The execution environment may read the variable from the host but
-  will never write it.  On an FPGA device, only a read memory port is exposed
-  by the generated IP core.
+  will never write it.  On an FPGA device, only a read memory port is exposed.
 * 1 [Write] - The execution environment may write the variable from the host
   but will never read it.  On an FPGA device, only a write memory port is
-  exposed by the generated IP core.
+  exposed.
 * 2 [Read/Write] - The execution environment may read or write the variable
-  from the host.  On an FPGA device, a read/write memory port is exposed by the
-  generated IP core.
+  from the host.  On an FPGA device, a read/write memory port is exposed.
 * 3 [None] - The execution environment may neither read nor write the variable
-  from the host.  On an FPGA device, no memory port is exposed by the generated
-  IP core.
+  from the host.  On an FPGA device, no memory port is exposed.
 
 If a global *OpVariable* is not decorated with *HostAccessINTEL*, the default
 behavior is [Read/Write].
@@ -145,7 +142,8 @@ _Name_
 | 6148
 a|
 *InitModeINTEL* +
-Only valid on global (module scope) *OpVariable*.
+Only valid on global (module scope) *OpVariable* which has an _Initializer_
+operand.
 
 This decoration only has an effect when the consumer is an FPGA or similar
 device.  The _Trigger_ value tells how the global variable should be
@@ -153,10 +151,16 @@ initialized.
 
 Legal values of _Trigger_:
 
-* 0 [init on device reprogram] - Initialization is performed when the device is
-  programmed.
-* 1 [init on device reset] - Initialization is performed when a reset signal is
-  sent to the device.
+* 0 [init on device reprogram] - Initialization is performed by reprogramming
+  the device.  This may require more frequent reprogramming but may reduce
+  area.
+* 1 [init on device reset] - Initialization is performed by sending a reset
+  signal to the device.  This may increase area but may reduce reprogramming
+  frequency.
+
+If a global *OpVariable* with an _Initializer_ operand is not decorated with
+*InitModeINTEL*, the method by which its value is initialized is implementation
+defined.
 
 2+| Literal Number +
 _Trigger_
@@ -177,6 +181,9 @@ Legal values of _Value_:
 * 0 [False] - Access to this memory is through a dedicated interface.
 * 1 [True] - Access to this memory is through a CSR interface shared with the
   kernel arguments.
+
+If a global *OpVariable* is not decorated with *ImplementInCSRINTEL*, the
+interface for the variable is implementation defined.
 
 2+| Literal Number +
 _Value_
