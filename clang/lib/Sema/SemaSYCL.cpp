@@ -1980,9 +1980,13 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
     // Add implicit attribute to parameter decl when it is a read only
     // SYCL accessor.
-    if (isReadOnlyAccessor(AccessModeArg))
+    if (isReadOnlyAccessor(AccessModeArg)) {
       Params.back()->addAttr(
           SYCLAccessorReadonlyAttr::CreateImplicit(SemaRef.getASTContext()));
+    } else {
+      Params.back()->addAttr(
+          SYCLAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
+    }
   }
 
   // All special SYCL objects must have __init method. We extract types for

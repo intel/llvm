@@ -1275,6 +1275,20 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+// Used by FE to mark SYCL kernel pointer parameters which correspond to the
+// original lambda's captured accessors. FE turns the attribute to some metadata
+// required by the FPGA back-end.
+// This attribute does not require custom semantic handling 
+// hence we set the SemaHandler field to 0.
+// The attribute is not for public consumption, and is an implicitly-created attribute
+// that has no visible spelling, hence undocumented.
+def SYCLAccessorPtr : InheritableAttr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  let Spellings = [];
+  let SemaHandler = 0;
+  let Documentation = [Undocumented];
+}
+
 // Used to mark readonly accessors. It is not to be used directly in the source.
 def SYCLAccessorReadonly : Attr {
   // This attribute has no spellings as it is only ever created implicitly.

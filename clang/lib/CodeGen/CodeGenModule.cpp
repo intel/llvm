@@ -1700,12 +1700,14 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
   // MDNode for listing SYCL kernel pointer arguments originating from
-  // accessors
+  // accessors.
   SmallVector<llvm::Metadata *, 8> argSYCLKernelRuntimeAligned;
 
   // MDNode for listing ESIMD kernel pointer arguments originating from
-  // accessors
+  // accessors.
   SmallVector<llvm::Metadata *, 8> argESIMDAccPtrs;
+
+  bool isKernelArgAnAccessor = false;
 
   if (FD && CGF)
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
@@ -1754,12 +1756,6 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
             llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
                 ArgInfoAddressSpace(pointeeTy.getAddressSpace()))));
 
-        // Get address qualifier of SYCL kernel pointer parameter from
-        // accessors.
-        argSYCLKernelRuntimeAligned.push_back(
-            llvm::ConstantAsMetadata::get(CGF->Builder.getInt1(
-                ArgInfoAddressSpace(pointeeTy.getAddressSpace()))));
-
         // Get argument type name.
         std::string typeName = getTypeSpelling(pointeeTy) + "*";
         std::string baseTypeName =
@@ -1784,9 +1780,6 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
 
         addressQuals.push_back(
             llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(AddrSpc)));
-
-        argSYCLKernelRuntimeAligned.push_back(
-            llvm::ConstantAsMetadata::get(CGF->Builder.getInt1(AddrSpc)));
 
         // Get argument type name.
         ty = isPipe ? ty->castAs<PipeType>()->getElementType() : ty;
@@ -1819,6 +1812,22 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
 
+      // If a kernel pointer argument comes from a global accessor, we generate
+      // a new metadata(kernel_arg_runtime_aligned) to the kernel to indicate
+      // that this pointer has runtime allocated alignment. The value of any
+      // "kernel_arg_runtime_aligned" metadata element is 'true' for any kernel
+      // arguments that corresponds to the base pointer of an accessor and
+      // 'false' otherwise.
+      if (parm->hasAttr<SYCLAccessorReadonlyAttr>() ||
+          parm->hasAttr<SYCLAccessorPtrAttr>()) {
+        isKernelArgAnAccessor = true;
+        argSYCLKernelRuntimeAligned.push_back(
+            llvm::ConstantAsMetadata::get(CGF->Builder.getTrue()));
+      } else {
+        argSYCLKernelRuntimeAligned.push_back(
+            llvm::ConstantAsMetadata::get(CGF->Builder.getFalse()));
+      }
+
       if (FD->hasAttr<SYCLSimdAttr>())
         argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
             CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
@@ -1829,12 +1838,11 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   if (LangOpts.SYCLIsDevice && !IsEsimdFunction) {
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
+    if (isKernelArgAnAccessor)
+      Fn->setMetadata(
+          "kernel_arg_runtime_aligned",
+          llvm::MDNode::get(VMContext, argSYCLKernelRuntimeAligned));
 
-    // The value of any "kernel_arg_runtime_aligned" metadata element is 1 for
-    // any kernel arguments that corresponds to the base pointer of an accessor
-    // and 0 otherwise.
-    Fn->setMetadata("kernel_arg_runtime_aligned",
-                    llvm::MDNode::get(VMContext, argSYCLKernelRuntimeAligned));
   } else {
     Fn->setMetadata("kernel_arg_addr_space",
                     llvm::MDNode::get(VMContext, addressQuals));
