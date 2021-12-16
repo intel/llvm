@@ -1,6 +1,6 @@
 ; This test checks that the Local Accessor to Shared Memory pass does not run with the
 ; `amdgcn-amd-amdpal` triple.
-; RUN: llc -mtriple=amdgcn-amd-amdpal < %s | FileCheck %s
+; RUN: llc -mtriple=amdgcn-amd-amdpal -sycl-enable-local-accessor < %s | FileCheck %s
 
 ; ModuleID = 'local-accessor-to-shared-memory-invalid-triple.ll'
 source_filename = "local-accessor-to-shared-memory-invalid-triple.ll"

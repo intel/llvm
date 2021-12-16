@@ -5787,6 +5787,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-treat-scalable-fixed-error-as-warning");
   }
 
+  // Enable local accessor to shared memory pass for SYCL.
+  if (isa<BackendJobAction>(JA) && IsSYCL) {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-sycl-enable-local-accessor");
+  }
   // These two are potentially updated by AddClangCLArgs.
   codegenoptions::DebugInfoKind DebugInfoKind = codegenoptions::NoDebugInfo;
   bool EmitCodeView = false;

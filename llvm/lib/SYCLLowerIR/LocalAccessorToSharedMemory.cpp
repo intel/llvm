@@ -18,11 +18,19 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "localaccessortosharedmemory"
+
+static bool EnableLocalAccessor;
+
+static cl::opt<bool, true> EnableLocalAccessorFlag(
+    "sycl-enable-local-accessor", cl::Hidden,
+    cl::desc("Enable local accessor to shared memory optimisation."),
+    cl::location(EnableLocalAccessor), cl::init(false));
 
 namespace llvm {
 void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
@@ -48,6 +56,9 @@ public:
   LocalAccessorToSharedMemory() : ModulePass(ID) {}
 
   bool runOnModule(Module &M) override {
+    if (!EnableLocalAccessor)
+      return false;
+
     auto AT = StringSwitch<ArchType>(M.getTargetTriple().c_str())
                   .Case("nvptx64-nvidia-cuda", ArchType::Cuda)
                   .Case("nvptx-nvidia-cuda", ArchType::Cuda)
@@ -57,7 +68,9 @@ public:
     // Invariant: This pass is only intended to operate on SYCL kernels being
     // compiled to either `nvptx{,64}-nvidia-cuda`, or `amdgcn-amd-amdhsa`
     // triples.
-    assert(AT != ArchType::Unsupported && "Only AMGHSA or CUDA supported.");
+    if (ArchType::Unsupported == AT)
+      return false;
+
     if (skipModule(M))
       return false;
 

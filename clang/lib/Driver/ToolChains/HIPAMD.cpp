@@ -78,8 +78,12 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
                                          const llvm::opt::ArgList &Args) const {
   // Construct lld command.
   // The output from ld.lld is an HSA code object file.
-  ArgStringList LldArgs{"-flavor", "gnu", "--no-undefined", "-shared",
-                        "-plugin-opt=-amdgpu-internalize-symbols"};
+  ArgStringList LldArgs{"-flavor",
+                        "gnu",
+                        "--no-undefined",
+                        "-shared",
+                        "-plugin-opt=-amdgpu-internalize-symbols",
+                        "-plugin-opt=-sycl-enable-local-accessor"};
 
   auto &TC = getToolChain();
   auto &D = TC.getDriver();
