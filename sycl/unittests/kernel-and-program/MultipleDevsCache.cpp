@@ -188,17 +188,17 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     auto Bundle = cl::sycl::get_kernel_bundle<sycl::bundle_state::input>(
         Queue.get_context());
     Queue.submit([&](cl::sycl::handler &cgh) {
-      cgh.single_task<MultTestKernel>([](){});
+      cgh.single_task<MultTestKernel>([]() {});
     });
 
     auto BundleObject = cl::sycl::build(Bundle, Bundle.get_devices());
     auto KernelID = cl::sycl::get_kernel_id<MultTestKernel>();
     auto Kernel = BundleObject.get_kernel(KernelID);
 
-    // Because of emulating 2 devices program is retained for each one in build().
-    // It is also depends on number of device images. This test has one image,
-    // but other tests can create other images. Additional variable is added
-    // to control count of piProgramRetain calls
+    // Because of emulating 2 devices program is retained for each one in
+    // build(). It is also depends on number of device images. This test has one
+    // image, but other tests can create other images. Additional variable is
+    // added to control count of piProgramRetain calls
     auto BundleImpl = getSyclObjImpl(Bundle);
     int NumRetains = BundleImpl->size() * 2;
 
@@ -212,7 +212,7 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     EXPECT_EQ(KernelCache.size(), (size_t)2) << "Expect 2 kernels in cache";
   }
   // Cache is cleared here, check kernel release
-  // 3 kernel releases is expected because kernel_bundle::get_kernel() calls piKernelRetain
-  // so one more kernel release is needed
+  // 3 kernel releases is expected because kernel_bundle::get_kernel() calls
+  // piKernelRetain so one more kernel release is needed
   EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
 }
