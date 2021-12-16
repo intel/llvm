@@ -119,13 +119,13 @@ Constant *getCASLiteral(GlobalVariable *GenericASLiteral) {
   // string. In case of the matching name, llvm::Module APIs will ensure that
   // the existing global is returned.
   std::string CASLiteralName = GenericASLiteral->getName().str() + "._AS2";
-  IRBuilder<> Builder(M->getContext());
   if (GlobalVariable *ExistingGlobal =
           M->getGlobalVariable(CASLiteralName, /*AllowInternal=*/true))
     return ExistingGlobal;
 
   StringRef LiteralValue;
   getConstantStringInfo(GenericASLiteral, LiteralValue);
+  IRBuilder<> Builder(M->getContext());
   GlobalVariable *Res = Builder.CreateGlobalString(LiteralValue, CASLiteralName,
                                                    ConstantAddrspaceID, M);
   Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
@@ -208,8 +208,10 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
           "Consider simplifying the code by "
           "passing format strings directly into experimental::printf calls, "
           "avoiding indirection via wrapper function arguments.";
-      if (!WrapperFunc->getName().contains("6oneapi12experimental6printf"))
+      if (!WrapperFunc->getName().contains("6oneapi12experimental6printf")) {
         emitError(WrapperFunc, CI, BadWrapperErrorMsg);
+        return 0;
+      }
       for (User *WrapperU : WrapperFunc->users()) {
         auto *WrapperCI = cast<CallInst>(WrapperU);
         Value *StrippedArg = stripToMemorySource(WrapperCI->getArgOperand(0));

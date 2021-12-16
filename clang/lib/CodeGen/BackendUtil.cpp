@@ -1472,6 +1472,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(ModuleMemProfilerPass());
     }
   }
+  if (LangOpts.SYCLIsDevice) {
+    MPM.addPass(SYCLMutatePrintfAddrspacePass());
+  }
 
   // Add a verifier pass if requested. We don't have to do this if the action
   // requires code generation because there will already be a verifier pass in
