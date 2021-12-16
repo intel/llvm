@@ -138,6 +138,15 @@ struct known_identity_impl<
   static constexpr vec<std::byte, NumElements> value =
       vec<std::byte, NumElements>(std::byte(0));
 };
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsZeroIdentityOp<marray<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(0));
+};
 #endif
 
 template <typename BinaryOperation, int NumElements>
@@ -178,6 +187,15 @@ struct known_identity_impl<
   static constexpr vec<std::byte, NumElements> value =
       vec<std::byte, NumElements>(std::byte(1));
 };
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsOneIdentityOp<marray<std::byte, NumElements>,
+                                     BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(1));
+};
 #endif
 
 template <typename BinaryOperation>
@@ -209,6 +227,15 @@ struct known_identity_impl<
   static constexpr vec<std::byte, NumElements> value =
       vec<std::byte, NumElements>(std::byte(-1LL));
 };
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsOnesIdentityOp<marray<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(-1LL));
+};
 #endif
 
 /// Returns maximal possible value as identity for MIN operations.
@@ -233,6 +260,18 @@ struct known_identity_impl<
           std::numeric_limits<vec<std::byte, NumElements>>::has_infinity
               ? std::numeric_limits<vec<std::byte, NumElements>>::infinity()
               : (std::numeric_limits<vec<std::byte, NumElements>>::max)());
+};
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsMinimumIdentityOp<marray<std::byte, NumElements>,
+                                         BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      static_cast<marray<std::byte, NumElements>>(
+          std::numeric_limits<marray<std::byte, NumElements>>::has_infinity
+              ? std::numeric_limits<marray<std::byte, NumElements>>::infinity()
+              : (std::numeric_limits<marray<std::byte, NumElements>>::max)());
 };
 #endif
 
@@ -261,6 +300,20 @@ struct known_identity_impl<
                 -std::numeric_limits<vec<std::byte, NumElements>>::infinity())
           : std::numeric_limits<vec<std::byte, NumElements>>::lowest());
 };
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsMaximumIdentityOp<marray<std::byte, NumElements>,
+                                         BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      static_cast<marray<std::byte, NumElements>>(
+          std::numeric_limits<marray<std::byte, NumElements>>::has_infinity
+              ? static_cast<marray<std::byte, NumElements>>(
+                    -std::numeric_limits<
+                        marray<std::byte, NumElements>>::infinity())
+              : std::numeric_limits<marray<std::byte, NumElements>>::lowest());
+};
 #endif
 
 /// Returns false as identity for LOGICAL OR operations.
@@ -280,6 +333,15 @@ struct known_identity_impl<
   static constexpr vec<std::byte, NumElements> value =
       vec<std::byte, NumElements>(std::byte(false));
 };
+
+template <typename BinaryOperation, size_t NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsFalseIdentityOp<marray<std::byte, NumElements>,
+                                       BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(false));
+};
 #endif
 
 /// Returns true as identity for LOGICAL AND operations.
@@ -298,6 +360,15 @@ struct known_identity_impl<
                                       BinaryOperation>::value>> {
   static constexpr vec<std::byte, NumElements> value =
       vec<std::byte, NumElements>(std::byte(true));
+};
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsTrueIdentityOp<marray<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(true));
 };
 #endif
 

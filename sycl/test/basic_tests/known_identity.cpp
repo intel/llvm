@@ -241,6 +241,160 @@ void checkVecTypesKnownIdentity() {
 #undef CHECK_VEC
 }
 
+template <typename T, size_t Num>
+bool compareMarrays(const marray<T, Num> a, const marray<T, Num> b) {
+  bool res = true;
+  for (int i = 0; i < Num; ++i) {
+    res &= (a[i] == b[i]);
+  }
+  if (!res) {
+    for (int i = 0; i < Num; ++i) {
+      std::cout << "(" << (int)a[i] << " == " << (int)b[i] << ")" << std::endl;
+    }
+  }
+  return res;
+}
+
+template <typename T, size_t Num>
+typename std::enable_if<!std::is_same<T, half>::value &&
+                            !std::is_same<T, float>::value &&
+                            !std::is_same<T, double>::value,
+                        void>::type
+checkMarrayKnownIdentity() {
+  constexpr marray<T, Num> zeros(T(0));
+  constexpr marray<T, Num> ones(T(1));
+  constexpr marray<T, Num> bit_ones(~T(0));
+
+  static_assert(has_known_identity<plus<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<plus<marray<T, Num>>, marray<T, Num>>::value);
+  assert(compareMarrays(known_identity<plus<>, marray<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<bit_or<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<bit_or<marray<T, Num>>, marray<T, Num>>::value);
+  assert(
+      compareMarrays(known_identity<bit_or<>, marray<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<bit_xor<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<bit_xor<marray<T, Num>>, marray<T, Num>>::value);
+  assert(
+      compareMarrays(known_identity<bit_xor<>, marray<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<bit_and<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<bit_and<marray<T, Num>>, marray<T, Num>>::value);
+  assert(compareMarrays(known_identity<bit_and<>, marray<T, Num>>::value,
+                        bit_ones));
+
+  static_assert(has_known_identity<logical_or<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<logical_or<marray<T, Num>>, marray<T, Num>>::value);
+  assert(compareMarrays(known_identity<logical_or<>, marray<T, Num>>::value,
+                        zeros));
+
+  static_assert(has_known_identity<logical_and<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<logical_and<marray<T, Num>>, marray<T, Num>>::value);
+  assert(compareMarrays(known_identity<logical_and<>, marray<T, Num>>::value,
+                        ones));
+
+  static_assert(has_known_identity<multiplies<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<multiplies<marray<T, Num>>, marray<T, Num>>::value);
+  assert(compareMarrays(known_identity<multiplies<>, marray<T, Num>>::value,
+                        ones));
+
+  static_assert(has_known_identity<minimum<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<minimum<marray<T, Num>>, marray<T, Num>>::value);
+  if constexpr (!std::is_same<T, std::byte>::value) {
+    constexpr marray<T, Num> maxs(-std::numeric_limits<T>::infinity());
+    assert(
+        compareMarrays(known_identity<minimum<>, marray<T, Num>>::value, maxs));
+  }
+
+  static_assert(has_known_identity<maximum<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<maximum<marray<T, Num>>, marray<T, Num>>::value);
+  if constexpr (!std::is_same<T, std::byte>::value) {
+    constexpr marray<T, Num> mins(std::numeric_limits<T>::infinity());
+    assert(
+        compareMarrays(known_identity<maximum<>, marray<T, Num>>::value, mins));
+  }
+}
+
+template <typename T, int Num>
+typename std::enable_if<std::is_same<T, sycl::half>::value ||
+                            std::is_same<T, float>::value ||
+                            std::is_same<T, double>::value,
+                        void>::type
+checkMarrayKnownIdentity() {
+  constexpr marray<T, Num> zeros(T(0.0f));
+  constexpr marray<T, Num> ones(T(1.0f));
+
+  static_assert(has_known_identity<plus<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<plus<marray<T, Num>>, marray<T, Num>>::value);
+  assert(compareMarrays(known_identity<plus<>, marray<T, Num>>::value, zeros));
+
+  static_assert(has_known_identity<multiplies<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<multiplies<marray<T, Num>>, marray<T, Num>>::value);
+  assert(compareMarrays(known_identity<multiplies<>, marray<T, Num>>::value,
+                        ones));
+
+  static_assert(has_known_identity<minimum<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<minimum<marray<T, Num>>, marray<T, Num>>::value);
+
+  static_assert(has_known_identity<maximum<>, marray<T, Num>>::value);
+  static_assert(
+      has_known_identity<maximum<marray<T, Num>>, marray<T, Num>>::value);
+}
+
+void checkMarrayTypesKnownIdentity() {
+
+#define CHECK_MARRAY(type)                                                     \
+  do {                                                                         \
+    checkMarrayKnownIdentity<type, 1>();                                       \
+    checkMarrayKnownIdentity<type, 2>();                                       \
+    checkMarrayKnownIdentity<type, 3>();                                       \
+    checkMarrayKnownIdentity<type, 4>();                                       \
+    checkMarrayKnownIdentity<type, 8>();                                       \
+    checkMarrayKnownIdentity<type, 16>();                                      \
+  } while (0)
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  CHECK_MARRAY(std::byte);
+#endif
+  CHECK_MARRAY(int8_t);
+  CHECK_MARRAY(int16_t);
+  CHECK_MARRAY(int32_t);
+  CHECK_MARRAY(int64_t);
+  CHECK_MARRAY(uint8_t);
+  CHECK_MARRAY(uint16_t);
+  CHECK_MARRAY(uint32_t);
+  CHECK_MARRAY(uint64_t);
+
+  CHECK_MARRAY(char);
+  CHECK_MARRAY(short int);
+  CHECK_MARRAY(int);
+  CHECK_MARRAY(long);
+  CHECK_MARRAY(long long);
+  CHECK_MARRAY(unsigned char);
+  CHECK_MARRAY(unsigned short int);
+  CHECK_MARRAY(unsigned int);
+  CHECK_MARRAY(unsigned long);
+  CHECK_MARRAY(unsigned long long);
+  CHECK_MARRAY(half);
+  CHECK_MARRAY(float);
+  CHECK_MARRAY(double);
+
+#undef CHECK_MARRAY
+}
+
 int main() {
   checkIntKnownIdentity<int8_t>();
   checkIntKnownIdentity<char>();
@@ -292,6 +446,7 @@ int main() {
   checkBoolKnownIdentity<bool>();
 
   checkVecTypesKnownIdentity();
+  checkMarrayTypesKnownIdentity();
 
   // Few negative tests just to check that it does not always return true.
   static_assert(!has_known_identity<std::minus<>, int>::value);
