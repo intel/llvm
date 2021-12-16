@@ -3,8 +3,6 @@
 // RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 //
 // CHECK-NOT: LEAK
-// Disable due to sporadic failures of the test in CI
-// REQUIRES: TEMPORARY_DISABLE
 
 // The test is to check that there are no leaks reported with the embedded
 // ZE_DEBUG=4 testing capability. Example of a leak reported is this:
