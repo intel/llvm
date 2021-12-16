@@ -825,7 +825,7 @@ bool _pi_queue::isInOrderQueue() const {
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                                       bool MakeAvailable) {
   bool UseCopyEngine = CommandList->second.isCopy();
-  auto &ZeCommandListCache = (UseCopyEngine)
+  auto &ZeCommandListCache = UseCopyEngine
                                  ? this->Context->ZeCopyCommandListCache
                                  : this->Context->ZeComputeCommandListCache;
 
@@ -908,8 +908,8 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
 
   // Default value of 0. This specifies to use dynamic batch size adjustment.
   const auto BatchSizeStr =
-      (IsCopy) ? std::getenv("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE")
-               : std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
+      IsCopy ? std::getenv("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE")
+             : std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
   if (BatchSizeStr) {
     pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
     // Level Zero may only support a limted number of commands per command
@@ -982,7 +982,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
                                      pi_command_list_ptr_t &CommandList,
                                      bool UseCopyEngine, bool AllowBatching) {
   auto &CommandBatch =
-      (UseCopyEngine) ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
+      UseCopyEngine ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
   // Handle batching of commands
   // First see if there is an command-list open for batching commands
   // for this queue.
@@ -1006,7 +1006,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   _pi_result pi_result = PI_OUT_OF_RESOURCES;
   ZeStruct<ze_fence_desc_t> ZeFenceDesc;
 
-  auto &ZeCommandListCache = (UseCopyEngine)
+  auto &ZeCommandListCache = UseCopyEngine
                                  ? Queue->Context->ZeCopyCommandListCache
                                  : Queue->Context->ZeComputeCommandListCache;
 
@@ -1036,7 +1036,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
         if (UseCopyEngine)
           ZeCopyCommandQueue = Queue->getZeCopyCommandQueue(&CopyQueueIndex);
         auto &ZeCommandQueue =
-            (UseCopyEngine) ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
+            UseCopyEngine ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
 
         ze_fence_handle_t ZeFence;
         ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
@@ -1092,8 +1092,8 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
     }
     ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
     ZeCommandListDesc.commandQueueGroupOrdinal =
-        (UseCopyEngine) ? ZeCopyCommandQueueGroupIndex
-                        : Queue->Device->ZeComputeQueueGroupIndex;
+        UseCopyEngine ? ZeCopyCommandQueueGroupIndex
+                      : Queue->Device->ZeComputeQueueGroupIndex;
 
     ZE_CALL(zeCommandListCreate,
             (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -1102,7 +1102,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
     Queue->Device->Platform->ZeGlobalCommandListCount++;
 
     auto &ZeCommandQueue =
-        (UseCopyEngine) ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
+        UseCopyEngine ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
     ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
     std::tie(CommandList, std::ignore) = Queue->CommandListMap.insert(
         std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
@@ -1114,7 +1114,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
 }
 
 void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
-  auto &CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
+  auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   pi_uint32 QueueBatchSize = CommandBatch.QueueBatchSize;
   // QueueBatchSize of 0 means never allow batching.
   if (QueueBatchSize == 0 || !ZeCommandListBatchConfig(IsCopy).dynamic())
@@ -1140,7 +1140,7 @@ void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
 }
 
 void _pi_queue::adjustBatchSizeForPartialBatch(bool IsCopy) {
-  auto &CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
+  auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   pi_uint32 QueueBatchSize = CommandBatch.QueueBatchSize;
   // QueueBatchSize of 0 means never allow batching.
   if (QueueBatchSize == 0 || !ZeCommandListBatchConfig(IsCopy).dynamic())
@@ -1190,7 +1190,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // as indicated by !ZeCommandListBatch.dynamic(), then just ignore
   // CurrentlyEmpty as we want to strictly follow the batching the user
   // specified.
-  auto &CommandBatch = (UseCopyEngine) ? CopyCommandBatch : ComputeCommandBatch;
+  auto &CommandBatch = UseCopyEngine ? CopyCommandBatch : ComputeCommandBatch;
   if (OKToBatchCommand && this->isBatchingAllowed(UseCopyEngine) &&
       (!ZeCommandListBatchConfig(UseCopyEngine).dynamic() || !CurrentlyEmpty)) {
 
@@ -1216,7 +1216,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       return Res;
   }
   auto &ZeCommandQueue =
-      (UseCopyEngine) ? ZeCopyCommandQueue : ZeComputeCommandQueue;
+      UseCopyEngine ? ZeCopyCommandQueue : ZeComputeCommandQueue;
   // Scope of the lock must be till the end of the function, otherwise new mem
   // allocs can be created between the moment when we made a snapshot and the
   // moment when command list is closed and executed. But mutex is locked only
@@ -1274,7 +1274,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 }
 
 bool _pi_queue::isBatchingAllowed(bool IsCopy) {
-  auto &CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
+  auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   return (CommandBatch.QueueBatchSize > 0 &&
           ((ZeSerialize & ZeSerializeBlock) == 0));
 }
@@ -1381,7 +1381,7 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
 }
 
 pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
-  auto &CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
+  auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   // If there are any commands still in the open command list for this
   // queue, then close and execute that command list now.
   if (hasOpenCommandList(IsCopy)) {
