@@ -134,8 +134,8 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 }
 
 void queue_impl::addEvent(const event &Event) {
-  EventImplPtr Eimpl = getSyclObjImpl(Event);
-  Command *Cmd = (Command *)(Eimpl->getCommand());
+  EventImplPtr EImpl = getSyclObjImpl(Event);
+  Command *Cmd = (Command *)(EImpl->getCommand());
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
@@ -146,8 +146,16 @@ void queue_impl::addEvent(const event &Event) {
     if (is_host() || !MSupportOOO ||
         getPlugin().getBackend() == backend::ext_oneapi_level_zero)
       addSharedEvent(Event);
-  } else {
-    std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
+  }
+  // As long as the queue supports piQueueFinish we only need to store events
+  // with command nodes in the following cases:
+  // 1. Unenqueued commands, since they aren't covered by piQueueFinish.
+  // 2. Kernels with streams, since they are not supported by post enqueue
+  // cleanup.
+  // 3. Host tasks, for both reasons.
+  else if (!is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr ||
+           EImpl->needsCleanupAfterWait()) {
+    std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
   }
@@ -323,7 +331,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
         if (std::shared_ptr<event_impl> EventImplSharedPtr =
                 EventImplWeakPtr.lock())
-          EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
+          if (EventImplSharedPtr->needsCleanupAfterWait())
+            EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
       // FIXME these events are stored for level zero until as a workaround,
       // remove once piEventRelease no longer calls wait on the event in the
       // plugin.

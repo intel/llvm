@@ -1606,9 +1606,14 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr Queue)
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask)
+  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MSubmittedQueue =
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+    MEvent->setNeedsCleanupAfterWait(true);
+  } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
+             (static_cast<CGExecKernel *>(MCommandGroup.get()))->hasStreams())
+    MEvent->setNeedsCleanupAfterWait(true);
+
   emitInstrumentationDataProxy();
 }
 
