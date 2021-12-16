@@ -39,8 +39,7 @@ static cl::opt<std::string> InputFilename(cl::Positional,
                                           cl::value_desc("filename"));
 
 // Output - The filename to output to.
-static cl::opt<std::string> Output("o",
-                                   cl::desc("<output IR filename>"),
+static cl::opt<std::string> Output("o", cl::desc("<output IR filename>"),
                                    cl::value_desc("filename"));
 
 // LlvmSpirvOpts - The filename to output to.
