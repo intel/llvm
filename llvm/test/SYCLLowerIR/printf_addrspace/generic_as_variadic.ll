@@ -40,7 +40,7 @@ entry:
 
 ; Make sure the generic addrspace declaration has been replaced:
 ; obsolete: declare dso_local spir_func i32 @_Z18__spirv_ocl_printf{{.*}}(i8 addrspace(4)*, ...)
-; CHECK: declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)*, ...) #1
+; CHECK: declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)*, ...)
 ; Function Attrs: convergent
 declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)*, ...) local_unnamed_addr #1
 

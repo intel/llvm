@@ -44,35 +44,48 @@ private:
   SYCLMutatePrintfAddrspacePass Impl;
 };
 
-struct CallReplacer;
 class AddrspaceReplacer {
 public:
   static constexpr unsigned ConstantAddrspaceID = 2;
 
   AddrspaceReplacer() = delete;
   AddrspaceReplacer(Module *M) : M(M) {
-    Type *Int8Ty = Type::getInt8Ty(M->getContext());
-    CASLiteralType = PointerType::get(Int8Ty, ConstantAddrspaceID);
+    Type *Int8Type = Type::getInt8Ty(M->getContext());
+    CASLiteralType = PointerType::get(Int8Type, ConstantAddrspaceID);
+    // Get the constant addrspace version of the __spirv_ocl_printf declaration,
+    // or generate it if the IR module doesn't have it yet. Also make it
+    // variadic so that it could replace all non-variadic generic AS versions.
+    Type *Int32Type = Type::getInt32Ty(M->getContext());
+    auto *CASPrintfFuncTy = FunctionType::get(Int32Type, CASLiteralType,
+                                              /*isVarArg=*/true);
+    // extern int __spirv_ocl_printf(
+    //                const __attribute__((opencl_constant)) char *Format, ...)
+    FunctionCallee CASPrintfFuncCallee = M->getOrInsertFunction(
+        "_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy);
+    CASPrintfFunc = cast<Function>(CASPrintfFuncCallee.getCallee());
+    CASPrintfFunc->setCallingConv(CallingConv::SPIR_FUNC);
+    CASPrintfFunc->setDSOLocal(true);
   }
   ~AddrspaceReplacer() {
     for (Function *F : FunctionsToDrop)
       F->eraseFromParent();
   }
-  size_t getReplacedCallsCount() { return ReplacedCallsCount; }
+  size_t getMutatedCallsCount() { return MutatedCallsCount; }
 
   void runOnFunctionDeclaration(Function *F);
 
 private:
   Module *M;
   PointerType *CASLiteralType;
-  size_t ReplacedCallsCount = 0;
+  Function *CASPrintfFunc;
+  size_t MutatedCallsCount = 0;
   /// If the variadic version gets picked during FE compilation, we'll only have
   /// 1 function to replace. However, unique declarations are emitted for each
   /// of the non-variadic (variadic template) calls.
   SmallVector<Function *, 8> FunctionsToDrop;
 
-  Function *getCASPrintfFunction(Function *GenericASPrintfFunc);
   Constant *getCASLiteral(GlobalVariable *GenericASLiteral);
+  void mutateCallArg(CallInst *CI, Constant *CASArg);
 };
 } // namespace
 
@@ -97,32 +110,26 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
       continue;
     ASReplacer.runOnFunctionDeclaration(&F);
   }
-  return ASReplacer.getReplacedCallsCount() ? PreservedAnalyses::all()
-                                            : PreservedAnalyses::none();
+  return ASReplacer.getMutatedCallsCount() ? PreservedAnalyses::all()
+                                           : PreservedAnalyses::none();
 }
 
 /// Helper implementations
 namespace {
 
 /// Encapsulates the update of CallInst's literal argument.
-struct CallReplacer {
-  CallReplacer(CallInst *CI, Constant *CASArg) : CI(CI), CASArg(CASArg) {}
-  void replaceWithFunction(Function *CASPrintf) {
-    CI->setCalledFunction(CASPrintf);
-    auto *Const = CASArg;
-    // In case there's a misalignment between the updated function type and
-    // the constant literal type, create a constant pointer cast so as to
-    // duck module verifier complaints.
-    Type *ParamType = CASPrintf->getFunctionType()->getParamType(0);
-    if (Const->getType() != ParamType)
-      Const = ConstantExpr::getPointerCast(Const, ParamType);
-    CI->setArgOperand(0, Const);
-  }
-
-private:
-  CallInst *CI;
-  Constant *CASArg;
-};
+void AddrspaceReplacer::mutateCallArg(CallInst *CI, Constant *CASArg) {
+  CI->setCalledFunction(CASPrintfFunc);
+  auto *Const = CASArg;
+  // In case there's a misalignment between the updated function type and
+  // the constant literal type, create a constant pointer cast so as to
+  // duck module verifier complaints.
+  Type *ParamType = CASPrintfFunc->getFunctionType()->getParamType(0);
+  if (Const->getType() != ParamType)
+    Const = ConstantExpr::getPointerCast(Const, ParamType);
+  CI->setArgOperand(0, Const);
+  ++MutatedCallsCount;
+}
 
 /// The function's effect is similar to V->stripPointerCastsAndAliases(), but
 /// also strips load/store aliases.
@@ -137,25 +144,41 @@ Value *stripToMemorySource(Value *V) {
   return MemoryAccess->stripPointerCastsAndAliases();
 }
 
+void emitError(Function *PrintfInstance, CallInst *PrintfCall) {
+  std::string ErrorMsg =
+      std::string("experimental::printf requires format string to reside "
+                  "in constant "
+                  "address space. The compiler wasn't able to "
+                  "automatically convert "
+                  "your format string into constant address space when "
+                  "processing builtin ") +
+      PrintfInstance->getName().str() + " called in function " +
+      PrintfCall->getFunction()->getName().str() +
+      ".\nMake sure each format string literal is "
+      "known at compile time or use OpenCL constant address space literals "
+      "for device-side printf calls";
+  PrintfInstance->getContext().emitError(PrintfCall, ErrorMsg);
+}
+
 void AddrspaceReplacer::runOnFunctionDeclaration(Function *F) {
   auto *LiteralType = F->getArg(0)->getType();
   if (LiteralType->getPointerAddressSpace() == ConstantAddrspaceID)
     // No need to replace the literal type and its printf users
     return;
-  SmallVector<CallReplacer, 16> CallsToReplace;
+  SmallVector<std::pair<CallInst *, Constant *>, 16> CallsToMutate;
   for (User *U : F->users()) {
     if (!isa<CallInst>(U))
       continue;
     auto *CI = cast<CallInst>(U);
 
-    /// This key algorithm reaches the global string used as an argument to a
-    /// __spirv_ocl_printf call. It then generates a constant AS copy of that
-    /// global (or gets an existing one). For the return value, the call
-    /// instruction is paired with its future constant addrspace string
-    /// argument.
+    // This key algorithm reaches the global string used as an argument to a
+    // __spirv_ocl_printf call. It then generates a constant AS copy of that
+    // global (or gets an existing one). For the return value, the call
+    // instruction is paired with its future constant addrspace string
+    // argument.
     Value *Stripped = stripToMemorySource(CI->getArgOperand(0));
     if (auto *Literal = dyn_cast<GlobalVariable>(Stripped))
-      CallsToReplace.emplace_back(CI, getCASLiteral(Literal));
+      CallsToMutate.emplace_back(CI, getCASLiteral(Literal));
     else if (auto *Arg = dyn_cast<Argument>(Stripped)) {
       // The global literal is passed to __spirv_ocl_printf via a wrapper
       // function argument. We'll update the wrapper calls to use the builtin
@@ -164,9 +187,13 @@ void AddrspaceReplacer::runOnFunctionDeclaration(Function *F) {
       for (User *WrapperU : WrapperFunc->users()) {
         auto *WrapperCI = cast<CallInst>(WrapperU);
         Value *StrippedArg = stripToMemorySource(WrapperCI->getArgOperand(0));
-        // We're only expecting 1 level of wrappers, so cast unconditionally
-        auto *Literal = cast<GlobalVariable>(StrippedArg);
-        CallsToReplace.emplace_back(WrapperCI, getCASLiteral(Literal));
+        auto *Literal = dyn_cast<GlobalVariable>(StrippedArg);
+        // We only expect 1 level of wrappers
+        if (!Literal) {
+          emitError(WrapperFunc, WrapperCI);
+          return;
+        }
+        CallsToMutate.emplace_back(WrapperCI, getCASLiteral(Literal));
       }
       // We're certain that the wrapper won't have any uses, since we've just
       // marked all its calls for replacement with __spirv_ocl_printf.
@@ -177,34 +204,15 @@ void AddrspaceReplacer::runOnFunctionDeclaration(Function *F) {
       assert(F->hasOneUse() && "Unexpected __spirv_ocl_printf call outside of "
                                "SYCL wrapper function");
       FunctionsToDrop.emplace_back(F);
-    } else
-      llvm_unreachable(
-          "Unexpected literal operand type for device-side printf");
+    } else {
+      emitError(F, CI);
+      return;
+    }
   }
-  Function *CASPrintfFunc = getCASPrintfFunction(F);
-  for (CallReplacer &CR : CallsToReplace) {
-    CR.replaceWithFunction(CASPrintfFunc);
-    ++ReplacedCallsCount;
-  }
+  for (auto &CallConstantPair : CallsToMutate)
+    mutateCallArg(CallConstantPair.first, CallConstantPair.second);
   if (F->hasNUses(0))
     FunctionsToDrop.emplace_back(F);
-}
-
-/// Get the constant addrspace version of the __spirv_ocl_printf declaration, or
-/// generate it if the IR module doesn't have it yet. Also make it variadic so
-/// that it could replace all non-variadic generic AS versions.
-Function *
-AddrspaceReplacer::getCASPrintfFunction(Function *GenericASPrintfFunc) {
-  auto *CASPrintfFuncTy =
-      FunctionType::get(GenericASPrintfFunc->getReturnType(), CASLiteralType,
-                        /*isVarArg=*/true);
-  FunctionCallee CASPrintfFunc =
-      M->getOrInsertFunction("_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy,
-                             GenericASPrintfFunc->getAttributes());
-  auto *Callee = cast<Function>(CASPrintfFunc.getCallee());
-  Callee->setCallingConv(CallingConv::SPIR_FUNC);
-  Callee->setDSOLocal(true);
-  return Callee;
 }
 
 /// Generate the constant addrspace version of the generic addrspace-residing
