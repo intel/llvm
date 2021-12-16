@@ -244,9 +244,7 @@ public:
             typename = EnableIfContiguous<Container>>
   buffer(Container &container, const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer(container, {}, propList) {
-    impl->constructorNotification(CodeLoc);
-  }
+      : buffer(container, {}, propList, CodeLoc) {}
 
   buffer(buffer<T, dimensions, AllocatorT> &b, const id<dimensions> &baseIndex,
          const range<dimensions> &subRange,
@@ -468,7 +466,8 @@ private:
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(pi_native_handle MemObject, const context &SyclContext,
-         event AvailableEvent = {})
+         event AvailableEvent = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
     size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
@@ -479,14 +478,18 @@ private:
         MemObject, SyclContext, BufSize,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
         AvailableEvent);
+    impl->constructorNotification(CodeLoc);
   }
 
   // Reinterpret contructor
   buffer(std::shared_ptr<detail::buffer_impl> Impl,
          range<dimensions> reinterpretRange, size_t reinterpretOffset,
-         bool isSubBuffer)
+         bool isSubBuffer,
+         const detail::code_location CodeLoc = detail::code_location::current())
       : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset),
-        IsSubBuffer(isSubBuffer){};
+        IsSubBuffer(isSubBuffer) {
+    impl->constructorNotification(CodeLoc);
+  }
 
   template <typename Type, int N>
   size_t getOffsetInBytes(const id<N> &offset, const range<N> &range) {
