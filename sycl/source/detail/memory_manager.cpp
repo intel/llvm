@@ -127,16 +127,23 @@ void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
                            pi_mem_flags Flags, size_t Size, void *HostPtr,
                            pi_mem *RetMem, const pi_mem_properties *Props) {
   uint64_t CorrID = 0;
-  CorrID = emitMemAllocBeginTrace(0 /* mem object */, Size, 0 /* guard zone */);
-  xpti::utils::finally _{[&] {
-    uintptr_t MemObjID = reinterpret_cast<uintptr_t>(*RetMem);
-    pi_native_handle Ptr = 0;
-    Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(*RetMem, &Ptr);
-    emitMemAllocEndTrace(MemObjID, reinterpret_cast<uintptr_t>(Ptr), Size,
-                         0 /* guard zone */, CorrID);
-  }};
-  Plugin.call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr, RetMem,
-                                            Props);
+  // We only want to instrument piMemBufferCreate
+  {
+    CorrID =
+        emitMemAllocBeginTrace(0 /* mem object */, Size, 0 /* guard zone */);
+    xpti::utils::finally _{[&] {
+      uintptr_t MemObjID = reinterpret_cast<uintptr_t>(*RetMem);
+      pi_native_handle Ptr = 0;
+      // Always use call_nocheck here, because call may throw an exception,
+      // and this lambda will be called from destructor, which in combination
+      // rewards us with UB.
+      Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(*RetMem, &Ptr);
+      emitMemAllocEndTrace(MemObjID, reinterpret_cast<uintptr_t>(Ptr), Size,
+                           0 /* guard zone */, CorrID);
+    }};
+    Plugin.call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr, RetMem,
+                                              Props);
+  }
 }
 
 void memReleaseHelper(const plugin &Plugin, pi_mem Mem) {
@@ -144,14 +151,21 @@ void memReleaseHelper(const plugin &Plugin, pi_mem Mem) {
   // reference counter is 1. However, SYCL runtime currently only calls
   // piMemRetain only for OpenCL interop
   uint64_t CorrID = 0;
-  pi_native_handle PtrHandle = 0;
-  Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
   uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Mem);
-  uintptr_t Ptr = reinterpret_cast<uintptr_t>(PtrHandle);
-  CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
-  xpti::utils::finally _{
-      [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
-  Plugin.call<PiApiKind::piMemRelease>(Mem);
+  uintptr_t Ptr = 0;
+  // Do not make unnecessary PI calls without instrumentation enabled
+  if (xptiTraceEnabled()) {
+    pi_native_handle PtrHandle = 0;
+    Plugin.call<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
+    Ptr = reinterpret_cast<uintptr_t>(PtrHandle);
+  }
+  // We only want to instrument piMemRelease
+  {
+    CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
+    xpti::utils::finally _{
+        [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
+    Plugin.call<PiApiKind::piMemRelease>(Mem);
+  }
 }
 
 void memBufferMapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Buffer,
@@ -161,35 +175,41 @@ void memBufferMapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Buffer,
                         void **RetMap) {
   uint64_t CorrID = 0;
   uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Buffer);
-  CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
-  xpti::utils::finally _{[&] {
-    emitMemAllocEndTrace(MemObjID, reinterpret_cast<uintptr_t>(*RetMap), Size,
-                         0 /* guard zone */, CorrID);
-  }};
-  Plugin.call<PiApiKind::piEnqueueMemBufferMap>(Queue, Buffer, Blocking, Flags,
-                                                Offset, Size, NumEvents,
-                                                WaitList, Event, RetMap);
+  // We only want to instrument piEnqueueMemBufferMap
+  {
+    CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
+    xpti::utils::finally _{[&] {
+      emitMemAllocEndTrace(MemObjID, reinterpret_cast<uintptr_t>(*RetMap), Size,
+                           0 /* guard zone */, CorrID);
+    }};
+    Plugin.call<PiApiKind::piEnqueueMemBufferMap>(
+        Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
+        Event, RetMap);
+  }
 }
+
 void memUnmapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Mem,
                     void *MappedPtr, pi_uint32 NumEvents,
                     const pi_event *WaitList, pi_event *Event) {
   uint64_t CorrID = 0;
-  pi_native_handle PtrHandle = 0;
-  Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
   uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Mem);
   uintptr_t Ptr = reinterpret_cast<uintptr_t>(MappedPtr);
-  CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
-  xpti::utils::finally _{[&] {
-    if (xptiTraceEnabled()) {
+  // We only want to instrument piEnqueueMemUnmap
+  {
+    CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
+    xpti::utils::finally _{[&] {
       // There's no way for SYCL to know, when the pointer is freed, so we have
       // to explicitly wait for the end of data transfers here in order to
       // report correct events.
+      // Always use call_nocheck here, because call may throw an exception,
+      // and this lambda will be called from destructor, which in combination
+      // rewards us with UB.
       Plugin.call_nocheck<PiApiKind::piEventsWait>(1, Event);
-    }
-    emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
-  }};
-  Plugin.call<PiApiKind::piEnqueueMemUnmap>(Queue, Mem, MappedPtr, NumEvents,
-                                            WaitList, Event);
+      emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
+    }};
+    Plugin.call<PiApiKind::piEnqueueMemUnmap>(Queue, Mem, MappedPtr, NumEvents,
+                                              WaitList, Event);
+  }
 }
 
 void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
