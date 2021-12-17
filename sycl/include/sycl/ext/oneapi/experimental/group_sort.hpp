@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <type_traits>
 
-#include "experimental/group_helpers_sorters.hpp"
+#include "group_helpers_sorters.hpp"
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
