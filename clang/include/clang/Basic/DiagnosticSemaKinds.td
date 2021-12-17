@@ -11525,7 +11525,7 @@ def err_sycl_invalid_accessor_property_list_template_param : Error<
 def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
   "%0 attribute must evenly divide the work-group size for the %1 attribute">;
 def err_sycl_invalid_aspect_argument : Error<
-  "invalid argument for %0 attribute; argument must be device aspect of type cl::sycl::aspect">;
+  "%0 attribute argument is invalid; argument must be device aspect of type sycl::aspect">;
 
 def warn_sycl_pass_by_value_deprecated 
     : Warning<"passing kernel functions by value is deprecated in SYCL 2020">,

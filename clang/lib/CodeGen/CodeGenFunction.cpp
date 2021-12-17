@@ -1055,7 +1055,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->setMetadata("loop_fuse",
                       llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
     }
-    if (const SYCLDeviceHasAttr *A = D->getAttr<SYCLDeviceHasAttr>()) {
+    if (const auto *A = D->getAttr<SYCLDeviceHasAttr>()) {
       SmallVector<llvm::Metadata *, 4> AspectsMD;
       for (auto *Aspect : A->aspects()) {
         llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(getContext());
@@ -1065,7 +1065,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->setMetadata("intel_declared_aspects",
                       llvm::MDNode::get(getLLVMContext(), AspectsMD));
     }
-    if (const SYCLUsesAspectsAttr *A = D->getAttr<SYCLUsesAspectsAttr>()) {
+    if (const auto *A = D->getAttr<SYCLUsesAspectsAttr>()) {
       SmallVector<llvm::Metadata *, 4> AspectsMD;
       for (auto *Aspect : A->aspects()) {
         llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(getContext());

@@ -34,6 +34,10 @@ void func6() {
   Type2WithAspect TestObj2;
 }
 
+constexpr cl::sycl::aspect getAspect() { return cl::sycl::aspect::cpu; }
+// CHECK: define dso_local spir_func void @{{.*}}func7{{.*}} !intel_used_aspects ![[ASPECTS1]] {
+[[__sycl_detail__::__uses_aspects__(getAspect())]] void func7() {}
+
 class KernelFunctor {
 public:
   void operator()() const {
@@ -43,6 +47,7 @@ public:
     func4<cl::sycl::aspect::host>();
     func5();
     func6();
+    func7();
   }
 };
 

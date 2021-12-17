@@ -428,10 +428,10 @@ type-legalization steps.
 def SYCLDeviceHasDocs : Documentation {
   let Category = DocCatStmt;
   let Content = [{
-The ``[[sycl::device_has(aspect, ...)]]`` attribute is used to used to decorate
-either the declaration of a kernel function that is defined in the current
-translation unit or to decorate the declaration of a non-kernel device function.
-The parameter list to the sycl::device_has() attribute consists of zero or more
+The ``[[sycl::device_has(aspect, ...)]]`` attribute is used to decorate either
+the declaration of a kernel function that is defined in the current translation
+unit or to decorate the declaration of a non-kernel device function. The
+parameter list to the sycl::device_has() attribute consists of zero or more
 constexpr integral expressions, where each integer is interpreted as one of the
 enumerated values in the sycl::aspect enumeration type.
 
@@ -444,7 +444,8 @@ an aspect that is not listed in the attribute.
 
 .. code-block:: c++
 
-  [[intel::device_indirectly_callable]] int func() {}
+  [[sycl::device_has()]] int func1() {}
+  [[sycl::device_has(sycl::aspect1, sycl::aspect2)]] int func2() {}
 
   }];
 }

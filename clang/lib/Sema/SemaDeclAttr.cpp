@@ -9327,7 +9327,8 @@ MakeDeclContextDesc(Decl::Kind K, StringRef SR) {
   return std::pair<Decl::Kind, StringRef>{K, SR};
 }
 
-// FIXME: Can we perform a lookup instead?
+// FIXME: Refactor Util class in SemaSYCL.cpp to avoid following
+// code duplication
 bool isDeviceAspectType(const QualType Ty) {
   const EnumType *ET = Ty->getAs<EnumType>();
   if (!ET)
@@ -9365,7 +9366,7 @@ bool isDeviceAspectType(const QualType Ty) {
 
 SYCLDeviceHasAttr *Sema::MergeSYCLDeviceHasAttr(Decl *D,
                                                 const SYCLDeviceHasAttr &A) {
-  if (const auto ExistingAttr = D->getAttr<SYCLDeviceHasAttr>()) {
+  if (const auto *ExistingAttr = D->getAttr<SYCLDeviceHasAttr>()) {
     Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
     Diag(A.getLoc(), diag::note_previous_attribute);
     return nullptr;
@@ -9398,7 +9399,7 @@ static void handleSYCLDeviceHasAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 
 SYCLUsesAspectsAttr *
 Sema::MergeSYCLUsesAspectsAttr(Decl *D, const SYCLUsesAspectsAttr &A) {
-  if (const auto ExistingAttr = D->getAttr<SYCLUsesAspectsAttr>()) {
+  if (const auto *ExistingAttr = D->getAttr<SYCLUsesAspectsAttr>()) {
     Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
     Diag(A.getLoc(), diag::note_previous_attribute);
     return nullptr;

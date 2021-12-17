@@ -1050,7 +1050,7 @@ public:
       llvm::FunctionType *FnType = nullptr, bool DontDefer = false,
       ForDefinition_t IsForDefinition = NotForDefinition);
 
-  void addTypesWithAspects(StringRef TypeName, const RecordDecl *RD) {
+  void addTypeWithAspects(StringRef TypeName, const RecordDecl *RD) {
     TypesWithAspects[TypeName] = RD;
   }
 
