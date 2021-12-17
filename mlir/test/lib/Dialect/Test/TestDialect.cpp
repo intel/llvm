@@ -224,7 +224,7 @@ public:
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // TestDialect
@@ -318,6 +318,11 @@ TestDialect::getParseOperationHook(StringRef opName) const {
       return parser.parseKeyword("custom_format");
     }};
   }
+  if (opName == "test.dialect_custom_format_fallback") {
+    return ParseOpHook{[](OpAsmParser &parser, OperationState &state) {
+      return parser.parseKeyword("custom_format_fallback");
+    }};
+  }
   return None;
 }
 
@@ -327,6 +332,11 @@ TestDialect::getOperationPrinter(Operation *op) const {
   if (opName == "test.dialect_custom_printer") {
     return [](Operation *op, OpAsmPrinter &printer) {
       printer.getStream() << " custom_format";
+    };
+  }
+  if (opName == "test.dialect_custom_format_fallback") {
+    return [](Operation *op, OpAsmPrinter &printer) {
+      printer.getStream() << " custom_format_fallback";
     };
   }
   return {};
@@ -374,7 +384,7 @@ struct FoldToCallOpPattern : public OpRewritePattern<FoldToCallOp> {
     return success();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void FoldToCallOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                MLIRContext *context) {
@@ -855,7 +865,7 @@ struct TestRemoveOpWithInnerOps
     return success();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void TestOpWithRegionPattern::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
@@ -972,7 +982,7 @@ namespace {
 struct TestResource : public SideEffects::Resource::Base<TestResource> {
   StringRef getName() final { return "<Test>"; }
 };
-} // end anonymous namespace
+} // namespace
 
 static void testSideEffectOpGetEffect(
     Operation *op,

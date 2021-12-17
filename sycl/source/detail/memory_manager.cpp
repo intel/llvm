@@ -824,14 +824,14 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
+                             RT::PiEvent *OutEvent) {
   sycl::context Context = SrcQueue->get_context();
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!Context.is_host() && !DepEvents.empty()) {
       SrcQueue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
           SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
-          &OutEvent);
+          OutEvent);
     }
     return;
   }
@@ -847,19 +847,19 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
                                                   /* blocking */ false, DstMem,
                                                   SrcMem, Len, DepEvents.size(),
-                                                  DepEvents.data(), &OutEvent);
+                                                  DepEvents.data(), OutEvent);
   }
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern, std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
+                             RT::PiEvent *OutEvent) {
   sycl::context Context = Queue->get_context();
 
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!Context.is_host() && !DepEvents.empty()) {
       Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), &OutEvent);
+          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
   }
@@ -874,13 +874,13 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     const detail::plugin &Plugin = Queue->getPlugin();
     Plugin.call<PiApiKind::piextUSMEnqueueMemset>(
         Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-        DepEvents.data(), &OutEvent);
+        DepEvents.data(), OutEvent);
   }
 }
 
 void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                                  std::vector<RT::PiEvent> DepEvents,
-                                 RT::PiEvent &OutEvent) {
+                                 RT::PiEvent *OutEvent) {
   sycl::context Context = Queue->get_context();
 
   if (Context.is_host()) {
@@ -889,21 +889,50 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     const detail::plugin &Plugin = Queue->getPlugin();
     Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
         Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
-        DepEvents.size(), DepEvents.data(), &OutEvent);
+        DepEvents.size(), DepEvents.data(), OutEvent);
   }
 }
 
 void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                size_t Length, pi_mem_advice Advice,
                                std::vector<RT::PiEvent> /*DepEvents*/,
-                               RT::PiEvent &OutEvent) {
+                               RT::PiEvent *OutEvent) {
   sycl::context Context = Queue->get_context();
 
   if (!Context.is_host()) {
     const detail::plugin &Plugin = Queue->getPlugin();
     Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
-                                                     Length, Advice, &OutEvent);
+                                                     Length, Advice, OutEvent);
   }
+}
+
+// TODO: Delete this function when ABI breaking changes are allowed.
+void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
+                             void *DstMem, std::vector<RT::PiEvent> DepEvents,
+                             RT::PiEvent &OutEvent) {
+  copy_usm(SrcMem, Queue, Len, DstMem, DepEvents, &OutEvent);
+}
+
+// TODO: Delete this function when ABI breaking changes are allowed.
+void MemoryManager::fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
+                             int Pattern, std::vector<RT::PiEvent> DepEvents,
+                             RT::PiEvent &OutEvent) {
+  fill_usm(DstMem, Queue, Len, Pattern, DepEvents, &OutEvent);
+}
+
+// TODO: Delete this function when ABI breaking changes are allowed.
+void MemoryManager::prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
+                                 std::vector<RT::PiEvent> DepEvents,
+                                 RT::PiEvent &OutEvent) {
+  prefetch_usm(Ptr, Queue, Len, DepEvents, &OutEvent);
+}
+
+// TODO: Delete this function when ABI breaking changes are allowed.
+void MemoryManager::advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
+                               pi_mem_advice Advice,
+                               std::vector<RT::PiEvent> DepEvents,
+                               RT::PiEvent &OutEvent) {
+  advise_usm(Ptr, Queue, Len, Advice, DepEvents, &OutEvent);
 }
 
 } // namespace detail

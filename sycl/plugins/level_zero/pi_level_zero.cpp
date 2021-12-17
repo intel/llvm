@@ -3033,7 +3033,10 @@ pi_result piQueueFinish(pi_queue Queue) {
 
 // Flushing cross-queue dependencies is covered by createAndRetainPiZeEventList,
 // so this can be left as a no-op.
-pi_result piQueueFlush(pi_queue Queue) { return PI_SUCCESS; }
+pi_result piQueueFlush(pi_queue Queue) {
+  (void)Queue;
+  return PI_SUCCESS;
+}
 
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
                                     pi_native_handle *NativeHandle) {

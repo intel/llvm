@@ -9,6 +9,7 @@
 #ifndef TEST_OPS
 #define TEST_OPS
 
+include "TestDialect.td"
 include "mlir/Dialect/DLTI/DLTIBase.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/OpAsmInterface.td"
@@ -23,40 +24,11 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Dialect/Linalg/IR/LinalgInterfaces.td"
 include "TestInterfaces.td"
 
-def Test_Dialect : Dialect {
-  let name = "test";
-  let cppNamespace = "::test";
-  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
-  let hasCanonicalizer = 1;
-  let hasConstantMaterializer = 1;
-  let hasOperationAttrVerify = 1;
-  let hasRegionArgAttrVerify = 1;
-  let hasRegionResultAttrVerify = 1;
-  let hasOperationInterfaceFallback = 1;
-  let hasNonDefaultDestructor = 1;
-  let useDefaultAttributePrinterParser = 1;
-  let dependentDialects = ["::mlir::DLTIDialect"];
-
-  let extraClassDeclaration = [{
-    void registerAttributes();
-    void registerTypes();
-
-    // Provides a custom printing/parsing for some operations.
-    ::llvm::Optional<ParseOpHook>
-      getParseOperationHook(::llvm::StringRef opName) const override;
-    ::llvm::unique_function<void(::mlir::Operation *,
-                                 ::mlir::OpAsmPrinter &printer)>
-     getOperationPrinter(::mlir::Operation *op) const override;
-
-  private:
-    // Storage for a custom fallback interface.
-    void *fallbackEffectOpInterfaces;
-
-  }];
-}
 
 // Include the attribute definitions.
 include "TestAttrDefs.td"
+// Include the type definitions.
+include "TestTypeDefs.td"
 
 
 class TEST_Op<string mnemonic, list<OpTrait> traits = []> :
@@ -625,6 +597,10 @@ def AttrSizedResultOp : TEST_Op<"attr_sized_results",
   );
 }
 
+// This is used to test that the fallback for a custom op's parser and printer
+// is the dialect parser and printer hooks.
+def CustomFormatFallbackOp : TEST_Op<"dialect_custom_format_fallback">;
+
 // This is used to test encoding of a string attribute into an SSA name of a
 // pretty printed value name.
 def StringAttrPrettyNameOp
@@ -1160,7 +1136,9 @@ def ThreeResultOp : TEST_Op<"three_result"> {
   let results = (outs I32:$result1, F32:$result2, F32:$result3);
 }
 
-def AnotherThreeResultOp : TEST_Op<"another_three_result", [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+def AnotherThreeResultOp
+    : TEST_Op<"another_three_result",
+              [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let arguments = (ins MultiResultOpEnum:$kind);
   let results = (outs I32:$result1, F32:$result2, F32:$result3);
 }
@@ -1933,6 +1911,16 @@ def FormatNestedAttr : TEST_Op<"format_nested_attr"> {
   let assemblyFormat = "$nested attr-dict-with-keyword";
 }
 
+def FormatNestedCompoundAttr : TEST_Op<"format_cpmd_nested_attr"> {
+  let arguments = (ins CompoundNestedOuter:$nested);
+  let assemblyFormat = "`nested` $nested attr-dict-with-keyword";
+}
+
+def FormatNestedType : TEST_Op<"format_cpmd_nested_type"> {
+  let arguments = (ins CompoundNestedOuterType:$nested);
+  let assemblyFormat = "$nested `nested` type($nested) attr-dict-with-keyword";
+}
+
 //===----------------------------------------------------------------------===//
 // Custom Directives
 
@@ -2113,6 +2101,53 @@ def FormatInferTypeOp : TEST_Op<"format_infer_type", [InferTypeOpInterface]> {
       return ::mlir::success();
     }
    }];
+}
+
+// Base class for testing mixing allOperandTypes, allOperands, and
+// inferResultTypes.
+class FormatInferAllTypesBaseOp<string mnemonic, list<OpTrait> traits = []>
+    : TEST_Op<mnemonic, [InferTypeOpInterface] # traits> {
+  let arguments = (ins Variadic<AnyType>:$args);
+  let results = (outs Variadic<AnyType>:$outs);
+  let extraClassDeclaration = [{
+    static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
+          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
+          ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
+      ::mlir::TypeRange operandTypes = operands.getTypes();
+      inferredReturnTypes.assign(operandTypes.begin(), operandTypes.end());
+      return ::mlir::success();
+    }
+   }];
+}
+
+// Test inferReturnTypes is called when allOperandTypes and allOperands is true.
+def FormatInferTypeAllOperandsAndTypesOp
+    : FormatInferAllTypesBaseOp<"format_infer_type_all_operands_and_types"> {
+  let assemblyFormat = "`(` operands `)` attr-dict `:` type(operands)";
+}
+
+// Test inferReturnTypes is called when allOperandTypes is true and there is one
+// ODS operand.
+def FormatInferTypeAllOperandsAndTypesOneOperandOp
+    : FormatInferAllTypesBaseOp<"format_infer_type_all_types_one_operand"> {
+  let assemblyFormat = "`(` $args `)` attr-dict `:` type(operands)";
+}
+
+// Test inferReturnTypes is called when allOperandTypes is true and there are
+// more than one ODS operands.
+def FormatInferTypeAllOperandsAndTypesTwoOperandsOp
+    : FormatInferAllTypesBaseOp<"format_infer_type_all_types_two_operands",
+                                [SameVariadicOperandSize]> {
+  let arguments = (ins Variadic<AnyType>:$args0, Variadic<AnyType>:$args1);
+  let assemblyFormat = "`(` $args0 `)` `(` $args1 `)` attr-dict `:` type(operands)";
+}
+
+// Test inferReturnTypes is called when allOperands is true and operand types
+// are separately specified.
+def FormatInferTypeAllTypesOp
+    : FormatInferAllTypesBaseOp<"format_infer_type_all_types"> {
+  let assemblyFormat = "`(` operands `)` attr-dict `:` type($args)";
 }
 
 //===----------------------------------------------------------------------===//
