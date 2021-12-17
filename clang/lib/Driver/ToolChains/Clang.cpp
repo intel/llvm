@@ -987,11 +987,7 @@ static bool ContainsCompileAction(const Action *A) {
   if (isa<CompileJobAction>(A) || isa<BackendJobAction>(A))
     return true;
 
-  for (const auto &AI : A->inputs())
-    if (ContainsCompileAction(AI))
-      return true;
-
-  return false;
+  return llvm::any_of(A->inputs(), ContainsCompileAction);
 }
 
 /// Check if -relax-all should be passed to the internal assembler.
@@ -1691,6 +1687,49 @@ void RenderARMABI(const Driver &D, const llvm::Triple &Triple,
 }
 }
 
+static void CollectARMPACBTIOptions(const Driver &D, const ArgList &Args,
+                                    ArgStringList &CmdArgs, bool isAArch64) {
+  const Arg *A = isAArch64
+                     ? Args.getLastArg(options::OPT_msign_return_address_EQ,
+                                       options::OPT_mbranch_protection_EQ)
+                     : Args.getLastArg(options::OPT_mbranch_protection_EQ);
+  if (!A)
+    return;
+
+  StringRef Scope, Key;
+  bool IndirectBranches;
+
+  if (A->getOption().matches(options::OPT_msign_return_address_EQ)) {
+    Scope = A->getValue();
+    if (!Scope.equals("none") && !Scope.equals("non-leaf") &&
+        !Scope.equals("all"))
+      D.Diag(diag::err_invalid_branch_protection)
+          << Scope << A->getAsString(Args);
+    Key = "a_key";
+    IndirectBranches = false;
+  } else {
+    StringRef DiagMsg;
+    llvm::ARM::ParsedBranchProtection PBP;
+    if (!llvm::ARM::parseBranchProtection(A->getValue(), PBP, DiagMsg))
+      D.Diag(diag::err_invalid_branch_protection)
+          << DiagMsg << A->getAsString(Args);
+    if (!isAArch64 && PBP.Key == "b_key")
+      D.Diag(diag::warn_unsupported_branch_protection)
+          << "b-key" << A->getAsString(Args);
+    Scope = PBP.Scope;
+    Key = PBP.Key;
+    IndirectBranches = PBP.BranchTargetEnforcement;
+  }
+
+  CmdArgs.push_back(
+      Args.MakeArgString(Twine("-msign-return-address=") + Scope));
+  if (!Scope.equals("none"))
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("-msign-return-address-key=") + Key));
+  if (IndirectBranches)
+    CmdArgs.push_back("-mbranch-target-enforce");
+}
+
 void Clang::AddARMTargetArgs(const llvm::Triple &Triple, const ArgList &Args,
                              ArgStringList &CmdArgs, bool KernelOrKext) const {
   RenderARMABI(getToolChain().getDriver(), Triple, Args, CmdArgs);
@@ -1732,6 +1771,10 @@ void Clang::AddARMTargetArgs(const llvm::Triple &Triple, const ArgList &Args,
     CmdArgs.push_back("-mcmse");
 
   AddAAPCSVolatileBitfieldArgs(Args, CmdArgs);
+
+  // Enable/disable return address signing and indirect branch targets.
+  CollectARMPACBTIOptions(getToolChain().getDriver(), Args, CmdArgs,
+                          false /*isAArch64*/);
 }
 
 void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
@@ -1847,19 +1890,6 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
 
   RenderAArch64ABI(Triple, Args, CmdArgs);
 
-  if (Arg *A = Args.getLastArg(options::OPT_mfix_cortex_a53_835769,
-                               options::OPT_mno_fix_cortex_a53_835769)) {
-    CmdArgs.push_back("-mllvm");
-    if (A->getOption().matches(options::OPT_mfix_cortex_a53_835769))
-      CmdArgs.push_back("-aarch64-fix-cortex-a53-835769=1");
-    else
-      CmdArgs.push_back("-aarch64-fix-cortex-a53-835769=0");
-  } else if (Triple.isAndroid()) {
-    // Enabled A53 errata (835769) workaround by default on android
-    CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back("-aarch64-fix-cortex-a53-835769=1");
-  }
-
   // Forward the -mglobal-merge option for explicit control over the pass.
   if (Arg *A = Args.getLastArg(options::OPT_mglobal_merge,
                                options::OPT_mno_global_merge)) {
@@ -1871,40 +1901,8 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
   }
 
   // Enable/disable return address signing and indirect branch targets.
-  if (Arg *A = Args.getLastArg(options::OPT_msign_return_address_EQ,
-                               options::OPT_mbranch_protection_EQ)) {
-
-    const Driver &D = getToolChain().getDriver();
-
-    StringRef Scope, Key;
-    bool IndirectBranches;
-
-    if (A->getOption().matches(options::OPT_msign_return_address_EQ)) {
-      Scope = A->getValue();
-      if (!Scope.equals("none") && !Scope.equals("non-leaf") &&
-          !Scope.equals("all"))
-        D.Diag(diag::err_invalid_branch_protection)
-            << Scope << A->getAsString(Args);
-      Key = "a_key";
-      IndirectBranches = false;
-    } else {
-      StringRef Err;
-      llvm::AArch64::ParsedBranchProtection PBP;
-      if (!llvm::AArch64::parseBranchProtection(A->getValue(), PBP, Err))
-        D.Diag(diag::err_invalid_branch_protection)
-            << Err << A->getAsString(Args);
-      Scope = PBP.Scope;
-      Key = PBP.Key;
-      IndirectBranches = PBP.BranchTargetEnforcement;
-    }
-
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-msign-return-address=") + Scope));
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-msign-return-address-key=") + Key));
-    if (IndirectBranches)
-      CmdArgs.push_back("-mbranch-target-enforce");
-  }
+  CollectARMPACBTIOptions(getToolChain().getDriver(), Args, CmdArgs,
+                          true /*isAArch64*/);
 
   // Handle -msve_vector_bits=<bits>
   if (Arg *A = Args.getLastArg(options::OPT_msve_vector_bits_EQ)) {
@@ -4853,6 +4851,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // header file.
         CmdArgs.push_back("-dependency-filter");
         CmdArgs.push_back(Args.MakeArgString(Header));
+
+        // Since this is a host compilation and the integration header is
+        // included, enable the integration header based diagnostics.
+        CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
@@ -6281,8 +6283,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_inlines_hidden_static_local_var,
                            options::OPT_fno_visibility_inlines_hidden_static_local_var);
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_global_new_delete_hidden);
-  Args.AddLastArg(CmdArgs, options::OPT_fnew_infallible);
   Args.AddLastArg(CmdArgs, options::OPT_ftlsmodel_EQ);
+
+  if (Args.hasFlag(options::OPT_fnew_infallible,
+                   options::OPT_fno_new_infallible, false))
+    CmdArgs.push_back("-fnew-infallible");
 
   if (Args.hasFlag(options::OPT_fno_operator_names,
                    options::OPT_foperator_names, false))
@@ -6346,7 +6351,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // runtime.
       if (Args.hasFlag(options::OPT_fopenmp_target_new_runtime,
                        options::OPT_fno_openmp_target_new_runtime,
-                       /*Default=*/false))
+                       /*Default=*/true))
         CmdArgs.push_back("-fopenmp-target-new-runtime");
 
       // When in OpenMP offloading mode, enable debugging on the device.

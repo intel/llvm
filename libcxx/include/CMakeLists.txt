@@ -228,6 +228,7 @@ set(files
   __memory/allocator.h
   __memory/auto_ptr.h
   __memory/compressed_pair.h
+  __memory/concepts.h
   __memory/construct_at.h
   __memory/pointer_traits.h
   __memory/raw_storage_iterator.h
@@ -237,12 +238,26 @@ set(files
   __memory/unique_ptr.h
   __memory/uses_allocator.h
   __mutex_base
+  __numeric/accumulate.h
+  __numeric/adjacent_difference.h
+  __numeric/exclusive_scan.h
+  __numeric/gcd_lcm.h
+  __numeric/inclusive_scan.h
+  __numeric/inner_product.h
+  __numeric/iota.h
+  __numeric/midpoint.h
+  __numeric/partial_sum.h
+  __numeric/reduce.h
+  __numeric/transform_exclusive_scan.h
+  __numeric/transform_inclusive_scan.h
+  __numeric/transform_reduce.h
   __node_handle
   __nullptr
   __random/bernoulli_distribution.h
   __random/binomial_distribution.h
   __random/cauchy_distribution.h
   __random/chi_squared_distribution.h
+  __random/clamp_to_integral.h
   __random/default_random_engine.h
   __random/discard_block_engine.h
   __random/discrete_distribution.h

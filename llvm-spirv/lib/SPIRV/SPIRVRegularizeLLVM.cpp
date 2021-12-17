@@ -42,6 +42,7 @@
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/StringExtras.h" // llvm::isDigit
+#include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
@@ -76,14 +77,11 @@ public:
   void lowerFuncPtr(Function *F, Op OC);
   void lowerFuncPtr(Module *M);
 
-  /// There is no SPIR-V counterpart for @llvm.memset.* intrinsic. Cases with
-  /// constant value and length arguments are emulated via "storing" a constant
-  /// array to the destination. For other cases we wrap the intrinsic in
-  /// @spirv.llvm_memset_* function and expand the intrinsic to a loop via
-  /// expandMemSetAsLoop() from llvm/Transforms/Utils/LowerMemIntrinsics.h
-  /// During reverse translation from SPIR-V to LLVM IR we can detect
-  /// @spirv.llvm_memset_* and replace it with @llvm.memset.
-  void lowerMemset(MemSetInst *MSI);
+  /// Some LLVM intrinsics that have no SPIR-V counterpart may be wrapped in
+  /// @spirv.llvm_intrinsic_* function. During reverse translation from SPIR-V
+  /// to LLVM IR we can detect this @spirv.llvm_intrinsic_* function and
+  /// replace it with @llvm.intrinsic.* back.
+  void lowerIntrinsicToFunction(IntrinsicInst *Intrinsic);
 
   /// No SPIR-V counterpart for @llvm.fshl.*(@llvm.fshr.*) intrinsic. It will be
   /// lowered to a newly generated @spirv.llvm_fshl_*(@spirv.llvm_fshr_*)
@@ -152,42 +150,71 @@ std::string SPIRVRegularizeLLVMBase::lowerLLVMIntrinsicName(IntrinsicInst *II) {
   return FuncName;
 }
 
-void SPIRVRegularizeLLVMBase::lowerMemset(MemSetInst *MSI) {
-  if (isa<Constant>(MSI->getValue()) && isa<ConstantInt>(MSI->getLength()))
-    return; // To be handled in LLVMToSPIRV::transIntrinsicInst
+void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
+    IntrinsicInst *Intrinsic) {
+  // For @llvm.memset.* intrinsic cases with constant value and length arguments
+  // are emulated via "storing" a constant array to the destination. For other
+  // cases we wrap the intrinsic in @spirv.llvm_memset_* function and expand the
+  // intrinsic to a loop via expandMemSetAsLoop() from
+  // llvm/Transforms/Utils/LowerMemIntrinsics.h
+  if (auto *MSI = dyn_cast<MemSetInst>(Intrinsic))
+    if (isa<Constant>(MSI->getValue()) && isa<ConstantInt>(MSI->getLength()))
+      return; // To be handled in LLVMToSPIRV::transIntrinsicInst
 
-  std::string FuncName = lowerLLVMIntrinsicName(MSI);
-  if (MSI->isVolatile())
+  std::string FuncName = lowerLLVMIntrinsicName(Intrinsic);
+  if (Intrinsic->isVolatile())
     FuncName += ".volatile";
-  // Redirect @llvm.memset.* call to @spirv.llvm_memset_*
+  // Redirect @llvm.intrinsic.* call to @spirv.llvm_intrinsic_*
   Function *F = M->getFunction(FuncName);
   if (F) {
     // This function is already linked in.
-    MSI->setCalledFunction(F);
+    Intrinsic->setCalledFunction(F);
     return;
   }
   // TODO copy arguments attributes: nocapture writeonly.
-  FunctionCallee FC = M->getOrInsertFunction(FuncName, MSI->getFunctionType());
-  MSI->setCalledFunction(FC);
+  FunctionCallee FC =
+      M->getOrInsertFunction(FuncName, Intrinsic->getFunctionType());
+  auto IntrinsicID = Intrinsic->getIntrinsicID();
+  Intrinsic->setCalledFunction(FC);
 
   F = dyn_cast<Function>(FC.getCallee());
   assert(F && "must be a function!");
-  Argument *Dest = F->getArg(0);
-  Argument *Val = F->getArg(1);
-  Argument *Len = F->getArg(2);
-  Argument *IsVolatile = F->getArg(3);
-  Dest->setName("dest");
-  Val->setName("val");
-  Len->setName("len");
-  IsVolatile->setName("isvolatile");
-  IsVolatile->addAttr(Attribute::ImmArg);
-  BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
-  IRBuilder<> IRB(EntryBB);
-  auto *MemSet =
-      IRB.CreateMemSet(Dest, Val, Len, MSI->getDestAlign(), MSI->isVolatile());
-  IRB.CreateRetVoid();
-  expandMemSetAsLoop(cast<MemSetInst>(MemSet));
-  MemSet->eraseFromParent();
+
+  switch (IntrinsicID) {
+  case Intrinsic::memset: {
+    auto *MSI = static_cast<MemSetInst *>(Intrinsic);
+    Argument *Dest = F->getArg(0);
+    Argument *Val = F->getArg(1);
+    Argument *Len = F->getArg(2);
+    Argument *IsVolatile = F->getArg(3);
+    Dest->setName("dest");
+    Val->setName("val");
+    Len->setName("len");
+    IsVolatile->setName("isvolatile");
+    IsVolatile->addAttr(Attribute::ImmArg);
+    BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
+    IRBuilder<> IRB(EntryBB);
+    auto *MemSet = IRB.CreateMemSet(Dest, Val, Len, MSI->getDestAlign(),
+                                    MSI->isVolatile());
+    IRB.CreateRetVoid();
+    expandMemSetAsLoop(cast<MemSetInst>(MemSet));
+    MemSet->eraseFromParent();
+    break;
+  }
+  case Intrinsic::bswap: {
+    BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
+    IRBuilder<> IRB(EntryBB);
+    auto *BSwap = IRB.CreateIntrinsic(Intrinsic::bswap, Intrinsic->getType(),
+                                      F->getArg(0));
+    IRB.CreateRet(BSwap);
+    IntrinsicLowering IL(M->getDataLayout());
+    IL.LowerIntrinsicCall(BSwap);
+    break;
+  }
+  default:
+    break; // do nothing
+  }
+
   return;
 }
 
@@ -389,8 +416,9 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           if (CF && CF->isIntrinsic()) {
             removeFnAttr(Call, Attribute::NoUnwind);
             auto *II = cast<IntrinsicInst>(Call);
-            if (auto *MSI = dyn_cast<MemSetInst>(II))
-              lowerMemset(MSI);
+            if (II->getIntrinsicID() == Intrinsic::memset ||
+                II->getIntrinsicID() == Intrinsic::bswap)
+              lowerIntrinsicToFunction(II);
             else if (II->getIntrinsicID() == Intrinsic::fshl ||
                      II->getIntrinsicID() == Intrinsic::fshr)
               lowerFunnelShift(II);

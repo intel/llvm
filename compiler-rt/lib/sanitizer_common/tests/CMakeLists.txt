@@ -23,9 +23,11 @@ set(SANITIZER_UNITTESTS
   sanitizer_format_interceptor_test.cpp
   sanitizer_hash_test.cpp
   sanitizer_ioctl_test.cpp
+  sanitizer_leb128_test.cpp
   sanitizer_libc_test.cpp
   sanitizer_linux_test.cpp
   sanitizer_list_test.cpp
+  sanitizer_lzw_test.cpp
   sanitizer_mac_test.cpp
   sanitizer_mutex_test.cpp
   sanitizer_nolibc_test.cpp

@@ -776,6 +776,8 @@ public:
 
   bool preferIncOfAddToSubOfNot(EVT VT) const override;
 
+  bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
+
   bool hasBitPreservingFPLogic(EVT VT) const override {
     // FIXME: Is this always true? It should be true for vectors at least.
     return VT == MVT::f32 || VT == MVT::f64;
@@ -843,6 +845,8 @@ public:
 
   EVT getAsmOperandValueType(const DataLayout &DL, Type *Ty,
                              bool AllowUnknown = false) const override;
+
+  bool shouldExpandGetActiveLaneMask(EVT VT, EVT OpVT) const override;
 
 private:
   /// Keep a pointer to the AArch64Subtarget around so that we can

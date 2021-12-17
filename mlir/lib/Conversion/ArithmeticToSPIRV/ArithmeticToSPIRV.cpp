@@ -190,7 +190,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // Conversion Helpers
@@ -637,7 +637,7 @@ LogicalResult CmpIOpBooleanPattern::matchAndRewrite(
 #define DISPATCH(cmpPredicate, spirvOp)                                        \
   case cmpPredicate:                                                           \
     rewriter.replaceOpWithNewOp<spirvOp>(op, op.getResult().getType(),         \
-                                         adaptor.lhs(), adaptor.rhs());        \
+                                         adaptor.getLhs(), adaptor.getRhs());  \
     return success();
 
     DISPATCH(arith::CmpIPredicate::eq, spirv::LogicalEqualOp);
@@ -669,7 +669,7 @@ CmpIOpPattern::matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
           "bitwidth emulation is not implemented yet on unsigned op");         \
     }                                                                          \
     rewriter.replaceOpWithNewOp<spirvOp>(op, op.getResult().getType(),         \
-                                         adaptor.lhs(), adaptor.rhs());        \
+                                         adaptor.getLhs(), adaptor.getRhs());  \
     return success();
 
     DISPATCH(arith::CmpIPredicate::eq, spirv::IEqualOp);
@@ -699,7 +699,7 @@ CmpFOpPattern::matchAndRewrite(arith::CmpFOp op, OpAdaptor adaptor,
 #define DISPATCH(cmpPredicate, spirvOp)                                        \
   case cmpPredicate:                                                           \
     rewriter.replaceOpWithNewOp<spirvOp>(op, op.getResult().getType(),         \
-                                         adaptor.lhs(), adaptor.rhs());        \
+                                         adaptor.getLhs(), adaptor.getRhs());  \
     return success();
 
     // Ordered.
@@ -845,7 +845,7 @@ struct ConvertArithmeticToSPIRVPass
       signalPassFailure();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<Pass> mlir::arith::createConvertArithmeticToSPIRVPass() {
   return std::make_unique<ConvertArithmeticToSPIRVPass>();

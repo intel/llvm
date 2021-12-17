@@ -2160,6 +2160,11 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       return true;
     }
     case ARM::tBXNS_RET: {
+      // For v8.0-M.Main we need to authenticate LR before clearing FPRs, which
+      // uses R12 as a scratch register.
+      if (!STI->hasV8_1MMainlineOps() && AFI->shouldSignReturnAddress())
+        BuildMI(MBB, MBBI, DebugLoc(), TII->get(ARM::t2AUT));
+
       MachineBasicBlock &AfterBB = CMSEClearFPRegs(MBB, MBBI);
 
       if (STI->hasV8_1MMainlineOps()) {
@@ -2169,6 +2174,9 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
             .addReg(ARM::SP)
             .addImm(4)
             .add(predOps(ARMCC::AL));
+
+        if (AFI->shouldSignReturnAddress())
+          BuildMI(AfterBB, AfterBB.end(), DebugLoc(), TII->get(ARM::t2AUT));
       }
 
       // Clear all GPR that are not a use of the return instruction.
@@ -2523,17 +2531,21 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     case ARM::LDRLIT_ga_pcrel:
     case ARM::LDRLIT_ga_pcrel_ldr:
     case ARM::tLDRLIT_ga_abs:
+    case ARM::t2LDRLIT_ga_pcrel:
     case ARM::tLDRLIT_ga_pcrel: {
       Register DstReg = MI.getOperand(0).getReg();
       bool DstIsDead = MI.getOperand(0).isDead();
       const MachineOperand &MO1 = MI.getOperand(1);
       auto Flags = MO1.getTargetFlags();
       const GlobalValue *GV = MO1.getGlobal();
-      bool IsARM =
-          Opcode != ARM::tLDRLIT_ga_pcrel && Opcode != ARM::tLDRLIT_ga_abs;
+      bool IsARM = Opcode != ARM::tLDRLIT_ga_pcrel &&
+                   Opcode != ARM::tLDRLIT_ga_abs &&
+                   Opcode != ARM::t2LDRLIT_ga_pcrel;
       bool IsPIC =
           Opcode != ARM::LDRLIT_ga_abs && Opcode != ARM::tLDRLIT_ga_abs;
       unsigned LDRLITOpc = IsARM ? ARM::LDRi12 : ARM::tLDRpci;
+      if (Opcode == ARM::t2LDRLIT_ga_pcrel)
+        LDRLITOpc = ARM::t2LDRpci;
       unsigned PICAddOpc =
           IsARM
               ? (Opcode == ARM::LDRLIT_ga_pcrel_ldr ? ARM::PICLDR : ARM::PICADD)
@@ -3066,6 +3078,22 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       MIB.cloneMemRefs(MI);
       for (const MachineOperand &MO : llvm::drop_begin(MI.operands()))
         MIB.add(MO);
+      MI.eraseFromParent();
+      return true;
+    }
+    case ARM::t2CALL_BTI: {
+      MachineFunction &MF = *MI.getMF();
+      MachineInstrBuilder MIB =
+          BuildMI(MF, MI.getDebugLoc(), TII->get(ARM::tBL));
+      MIB.cloneMemRefs(MI);
+      for (unsigned i = 0; i < MI.getNumOperands(); ++i)
+        MIB.add(MI.getOperand(i));
+      if (MI.isCandidateForCallSiteEntry())
+        MF.moveCallSiteInfo(&MI, MIB.getInstr());
+      MIBundleBuilder Bundler(MBB, MI);
+      Bundler.append(MIB);
+      Bundler.append(BuildMI(MF, MI.getDebugLoc(), TII->get(ARM::t2BTI)));
+      finalizeBundle(MBB, Bundler.begin(), Bundler.end());
       MI.eraseFromParent();
       return true;
     }

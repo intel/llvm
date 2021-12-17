@@ -79,7 +79,7 @@ cl::opt<bool, true> EnableDbgOutput("spirv-debug",
                                     cl::location(SPIRVDbgEnable));
 #endif
 
-bool isSupportedTriple(Triple T) { return T.isSPIR(); }
+bool isSupportedTriple(Triple T) { return T.isSPIR() || T.isSPIRV(); }
 
 void addFnAttr(CallInst *Call, Attribute::AttrKind Attr) {
   Call->addFnAttr(Attr);
@@ -259,6 +259,19 @@ bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name) {
     if (auto ST = dyn_cast<StructType>(PT->getElementType()))
       if (ST->isOpaque() && ST->getName() == Name)
         return true;
+  return false;
+}
+
+bool isSPIRVSamplerType(llvm::Type *Ty) {
+  if (auto *PT = dyn_cast<PointerType>(Ty))
+    if (auto *ST = dyn_cast<StructType>(PT->getElementType()))
+      if (ST->isOpaque()) {
+        auto Name = ST->getName();
+        if (Name.startswith(std::string(kSPIRVTypeName::PrefixAndDelim) +
+                            kSPIRVTypeName::Sampler)) {
+          return true;
+        }
+      }
   return false;
 }
 

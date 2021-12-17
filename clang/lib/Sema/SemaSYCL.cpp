@@ -3230,7 +3230,7 @@ public:
     assert(ClassTy && "Type must be a C++ record type");
     if (Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)) {
       const auto *AccTy =
-          dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
+          cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
       assert(AccTy->getTemplateArgs().size() >= 2 &&
              "Incorrect template args for Accessor Type");
       int Dims = static_cast<int>(
@@ -3515,7 +3515,8 @@ public:
           // case will resolve to ::main::KernelName1 (instead of
           // ::KernelName1). Since this is not visible to runtime code that
           // submits kernels, this is invalid.
-          if (Tag->isCompleteDefinition() || S.getLangOpts().SYCLIsHost) {
+          if (Tag->isCompleteDefinition() ||
+              S.getLangOpts().SYCLEnableIntHeaderDiags) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
                 << /* kernel name should be forward declarable at namespace
