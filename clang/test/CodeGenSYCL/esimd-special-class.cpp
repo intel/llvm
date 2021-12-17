@@ -2,7 +2,11 @@
 // RUN: -internal-isystem %S/Inputs -triple spir64-unknown-unknown \
 // RUN:   -disable-llvm-passes -emit-llvm %s -o - %s | FileCheck --enable-var-scope %s
 
-#include "sycl.hpp"
+// The test is to ensure that the use is sycl_explicit_simd attribute doesn't
+// crash when used with sampler or stream. Currently samplers are not supported
+// in esimd.
+
+#Include "sycl.hpp"
 using namespace cl::sycl;
 void test() {
 
