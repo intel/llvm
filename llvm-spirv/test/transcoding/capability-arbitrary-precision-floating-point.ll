@@ -8,6 +8,7 @@
 ; constexpr int32_t RndAcc = 1;
 ; constexpr bool FromSign = false;
 ; constexpr bool ToSign = true;
+; constexpr bool SignOfB = false;
 ;
 ; template <int EA, int MA, int Eout, int Mout>
 ; void ap_float_cast() {
@@ -344,7 +345,7 @@
 ;   ap_int<WB> B;
 ;   ap_int<1+Eout+Mout> pown_res =
 ;       __spirv_ArbitraryFloatPowNINTEL<1+EA+MA, WB, 1+Eout+Mout>(
-;           A, MA, B, Mout, Subnorm, RndMode, RndAcc);
+;           A, MA, B, SignOfB, Mout, Subnorm, RndMode, RndAcc);
 ; }
 ;
 ; template <typename name, typename Func>
@@ -1553,11 +1554,11 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_pownILi4ELi7ELi10ELi5
   call void @llvm.lifetime.start.p0i8(i64 2, i8* %6) #5
   %7 = load i12, i12* %1, align 2, !tbaa !101
   %8 = load i10, i10* %2, align 2, !tbaa !69
-  %9 = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi12ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i12 signext %7, i32 7, i10 signext %8, i32 9, i32 0, i32 2, i32 1) #5
+  %9 = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi12ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i12 signext %7, i32 7, i10 signext %8, i1 zeroext false, i32 9, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_12]] [[PowN_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_10]] [[PowN_BId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 10 ArbitraryFloatPowNINTEL [[Ty_15]] [[#]] [[PowN_AId]] 7 [[PowN_BId]] 9 0 2 1
-; CHECK-LLVM: call i15 @intel_arbitrary_float_pown.i15.i12.i10(i12 %[[#]], i32 7, i10 %[[#]], i32 9, i32 0, i32 2, i32 1)
+; CHECK-SPIRV-NEXT: 11 ArbitraryFloatPowNINTEL [[Ty_15]] [[#]] [[PowN_AId]] 7 [[PowN_BId]] 0 9 0 2 1
+; CHECK-LLVM: call i15 @intel_arbitrary_float_pown.i15.i12.i10(i12 %[[#]], i32 7, i10 %[[#]], i1 false, i32 9, i32 0, i32 2, i32 1)
   store i15 %9, i15* %3, align 2, !tbaa !21
   %10 = bitcast i15* %3 to i8*
   call void @llvm.lifetime.end.p0i8(i64 2, i8* %10) #5
@@ -1647,9 +1648,9 @@ entry:
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_10]] [[PowN_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 5 Store [[PtrId:[0-9]+]] [[ResAId]]
 ; CHECK-SPIRV-NEXT: 4 Load [[Ty_72]] [[PowN_AId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 10 ArbitraryFloatPowNINTEL [[Ty_15]] [[#]] [[PowN_AId]] 7 [[PowN_BId]] 9 0 2 1
-; CHECK-LLVM: call i15 @intel_arbitrary_float_pown.i15.i72.i10(i72 %[[#]], i32 7, i10 %[[#]], i32 9, i32 0, i32 2, i32 1)
-  %call = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i72* byval(i72) align 8 %indirect-arg-temp, i32 7, i10 signext %4, i32 9, i32 0, i32 2, i32 1) #4
+; CHECK-SPIRV-NEXT: 11 ArbitraryFloatPowNINTEL [[Ty_15]] [[#]] [[PowN_AId]] 7 [[PowN_BId]] 1 9 0 2 1
+; CHECK-LLVM: call i15 @intel_arbitrary_float_pown.i15.i72.i10(i72 %[[#]], i32 7, i10 %[[#]], i1 true, i32 9, i32 0, i32 2, i32 1)
+  %call = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i72* byval(i72) align 8 %indirect-arg-temp, i32 7, i10 signext %4, i1 zeroext true, i32 9, i32 0, i32 2, i32 1) #4
   store i15 %call, i15 addrspace(4)* %pown_res.ascast, align 2
   %5 = bitcast i15* %pown_res to i8*
   call void @llvm.lifetime.end.p0i8(i64 2, i8* %5) #5
@@ -1784,7 +1785,7 @@ declare dso_local spir_func signext i21 @_Z30__spirv_ArbitraryFloatPowINTELILi17
 declare dso_local spir_func i56 @_Z31__spirv_ArbitraryFloatPowRINTELILi54ELi55ELi56EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i54, i32, i55, i32, i32, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
-declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi12ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i12 signext, i32, i10 signext, i32, i32, i32, i32) #4
+declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi12ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i12 signext, i32, i10 signext, i1 zeroext, i32, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
 declare dso_local spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i66 addrspace(4)* sret(i66) align 8, i34, i32, i32, i32, i32, i32) #4
@@ -1793,7 +1794,7 @@ declare dso_local spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi6
 declare dso_local spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i66 addrspace(4)* sret(i66) align 8, i24 signext, i32, i25 signext, i32, i32, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
-declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i72* byval(i72) align 8, i32, i10 signext, i32, i32, i32, i32) #4
+declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i72* byval(i72) align 8, i32, i10 signext, i1 zeroext, i32, i32, i32, i32) #4
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }
