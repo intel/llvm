@@ -47,7 +47,6 @@ class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
   int32_t StreamID;
   uint64_t IId;
   xpti::trace_event_data_t *TraceEvent = nullptr;
-  std::string Name;
 #endif
 
 public:

@@ -46,7 +46,7 @@ void buffer_impl::constructorNotification(
   // We try to create a unique string for the buffer constructor call by
   // combining it with the the created object address
   xpti::utils::StringHelper NG;
-  Name = NG.nameWithAddress<buffer_impl *>("buffer", this);
+  std::string Name = NG.nameWithAddress<buffer_impl *>("buffer", this);
   xpti::offload_buffer_data_t BufConstr{reinterpret_cast<uintptr_t>(this)};
 
   xpti::payload_t Payload(
