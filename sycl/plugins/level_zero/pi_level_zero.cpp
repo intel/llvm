@@ -904,11 +904,13 @@ typedef struct CommandListBatchConfig {
 } zeCommandListBatchConfig;
 
 // Static variable that holds batch config info for compute command batching.
-static const zeCommandListBatchConfig ZeCommandListBatchComputeConfig = [] {
+static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
   zeCommandListBatchConfig Config{}; // default initialize
 
   // Default value of 0. This specifies to use dynamic batch size adjustment.
-  const auto BatchSizeStr = std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
+  const auto BatchSizeStr =
+      (IsCopy) ? std::getenv("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE")
+               : std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
   if (BatchSizeStr) {
     pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
     // Level Zero may only support a limted number of commands per command
@@ -940,7 +942,11 @@ static const zeCommandListBatchConfig ZeCommandListBatchComputeConfig = [] {
         try {
           Val = std::stoi(BatchConfig.substr(Pos));
         } catch (...) {
-          zePrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: failed to parse value\n");
+          if (IsCopy)
+            zePrint(
+                "SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: failed to parse value\n");
+          else
+            zePrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: failed to parse value\n");
           break;
         }
         switch (Ord) {
@@ -962,89 +968,37 @@ static const zeCommandListBatchConfig ZeCommandListBatchComputeConfig = [] {
         default:
           die("Unexpected batch config");
         }
-        zePrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: dynamic batch param #%d: %d\n",
-                (int)Ord, (int)Val);
+        if (IsCopy)
+          zePrint("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: dynamic batch param "
+                  "#%d: %d\n",
+                  (int)Ord, (int)Val);
+        else
+          zePrint(
+              "SYCL_PI_LEVEL_ZERO_BATCH_SIZE: dynamic batch param #%d: %d\n",
+              (int)Ord, (int)Val);
       };
 
     } else {
       // Negative batch sizes are silently ignored.
-      zePrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: ignored negative value\n");
+      if (IsCopy)
+        zePrint("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: ignored negative value\n");
+      else
+        zePrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: ignored negative value\n");
     }
   }
   return Config;
+}
+
+// Static variable that holds batch config info for compute command batching.
+static const zeCommandListBatchConfig ZeCommandListBatchComputeConfig = [] {
+  using IsCopy = bool;
+  return ZeCommandListBatchConfig(IsCopy{false});
 }();
 
 // Static variable that holds batch config info for copy command batching.
 static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
-  zeCommandListBatchConfig Config{}; // default initialize
-
-  // Default value of 0. This specifies to use dynamic batch size adjustment.
-  const auto BatchSizeStr = std::getenv("SYCL_PI_LEVEL_COPY_ZERO_BATCH_SIZE");
-  if (BatchSizeStr) {
-    pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
-    // Level Zero may only support a limted number of commands per command
-    // list.  The actual upper limit is not specified by the Level Zero
-    // Specification.  For now we allow an arbitrary upper limit.
-    if (BatchSizeStrVal > 0) {
-      Config.Size = BatchSizeStrVal;
-    } else if (BatchSizeStrVal == 0) {
-      Config.Size = 0;
-      // We are requested to do dynamic batching. Collect specifics, if any.
-      // The extended format supported is ":" separated values.
-      //
-      // NOTE: these extra settings are experimental and are intended to
-      // be used only for finding a better default heuristic.
-      //
-      std::string BatchConfig(BatchSizeStr);
-      size_t Ord = 0;
-      size_t Pos = 0;
-      while (true) {
-        if (++Ord > 5)
-          break;
-
-        Pos = BatchConfig.find(":", Pos);
-        if (Pos == std::string::npos)
-          break;
-        ++Pos; // past the ":"
-
-        pi_uint32 Val;
-        try {
-          Val = std::stoi(BatchConfig.substr(Pos));
-        } catch (...) {
-          zePrint(
-              "SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: failed to parse value\n");
-          break;
-        }
-        switch (Ord) {
-        case 1:
-          Config.DynamicSizeStart = Val;
-          break;
-        case 2:
-          Config.DynamicSizeMax = Val;
-          break;
-        case 3:
-          Config.DynamicSizeStep = Val;
-          break;
-        case 4:
-          Config.NumTimesClosedEarlyThreshold = Val;
-          break;
-        case 5:
-          Config.NumTimesClosedFullThreshold = Val;
-          break;
-        default:
-          die("Unexpected batch config");
-        }
-        zePrint(
-            "SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: dynamic batch param #%d: %d\n",
-            (int)Ord, (int)Val);
-      };
-
-    } else {
-      // Negative batch sizes are silently ignored.
-      zePrint("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: ignored negative value\n");
-    }
-  }
-  return Config;
+  using IsCopy = bool;
+  return ZeCommandListBatchConfig(IsCopy{true});
 }();
 
 _pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
