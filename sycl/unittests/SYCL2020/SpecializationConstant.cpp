@@ -18,7 +18,6 @@
 #include <gtest/gtest.h>
 
 class TestKernel;
-class TestKernelNative;
 const static sycl::specialization_id<int> SpecConst1{42};
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -38,26 +37,9 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
-template <> struct KernelInfo<TestKernelNative> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() {
-    return "SpecializationConstantNative_TestKernel";
-  }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-};
-
 template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
   return "SC1";
 }
-//template <> const char *get_spec_constant_symbolic_ID<SpecConst2>() {
-//  return "SC2";
-//}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
@@ -87,7 +69,6 @@ static sycl::unittest::PiImage generateImageWithSpecConsts() {
 
   return Img;
 }
-
 
 static sycl::unittest::PiImage Img = generateImageWithSpecConsts();
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
