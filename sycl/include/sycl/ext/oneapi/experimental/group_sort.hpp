@@ -42,8 +42,7 @@ struct is_sorter_impl {
   template <typename G = Group>
   static decltype(
       std::integral_constant<bool, is_expected_return_type<G>::value &&
-                                       sycl::is_group_v<G>>{})
-  test(int);
+                                       sycl::is_group_v<G>>{}) test(int);
 
   template <typename = Group> static std::false_type test(...);
 };
@@ -57,8 +56,7 @@ struct is_sorter_impl<
   template <typename G = Group>
   static decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(),
                                          std::declval<Ptr>()),
-                  sycl::detail::is_generic_group<G>{})
-  test(int);
+                  sycl::detail::is_generic_group<G>{}) test(int);
 
   template <typename = Group> static std::false_type test(...);
 };
