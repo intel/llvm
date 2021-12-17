@@ -40,10 +40,10 @@
 // RUN:   --no-cuda-noopt-device-debug -O2 -c %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK,ARCH64,SM35,OPT2 %s
 
-// Regular compile without -O.  This should result in us passing -O0 to ptxas.
+// Regular compile without -O.  This should result in us passing -O3 to ptxas.
 // RUN: %clang -### -target x86_64-linux-gnu -c %s 2>&1 \
 // RUN:   --offload-arch=sm_35 --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
-// RUN: | FileCheck -check-prefixes=CHECK,ARCH64,SM35,OPT0 %s
+// RUN: | FileCheck -check-prefixes=CHECK,ARCH64,SM35,OPT3 %s
 
 // Regular compiles with -Os and -Oz.  For lack of a better option, we map
 // these to ptxas -O3.
@@ -75,7 +75,7 @@
 // Compile with -fintegrated-as.  This should still cause us to invoke ptxas.
 // RUN: %clang -### -target x86_64-linux-gnu -fintegrated-as -c %s 2>&1 \
 // RUN:   --offload-arch=sm_35 --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
-// RUN: | FileCheck -check-prefixes=CHECK,ARCH64,SM35,OPT0 %s
+// RUN: | FileCheck -check-prefixes=CHECK,ARCH64,SM35,OPT3 %s
 // Check that we still pass -c when generating relocatable device code.
 // RUN: %clang -### -target x86_64-linux-gnu -fintegrated-as -fgpu-rdc -c %s 2>&1 \
 // RUN:   --offload-arch=sm_35 --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
