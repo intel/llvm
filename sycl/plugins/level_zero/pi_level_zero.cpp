@@ -903,7 +903,8 @@ typedef struct CommandListBatchConfig {
   bool dynamic() const { return Size == 0; }
 } zeCommandListBatchConfig;
 
-// Static variable that holds batch config info for compute command batching.
+// Helper function to initialize static variables that holds batch config info
+// for compute and copy command batching.
 static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
   zeCommandListBatchConfig Config{}; // default initialize
 
