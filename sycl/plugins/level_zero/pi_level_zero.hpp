@@ -152,13 +152,13 @@ template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
 // The helpers to properly default initialize Level-Zero descriptor and
 // properties structures.
 template <class T> struct ZeStruct : public T {
-  ZeStruct() : T{} { // zero initializes base struct
+  ZeStruct() : T {} { // zero initializes base struct
     this->stype = getZeStructureType<T>();
     this->pNext = nullptr;
   }
 };
 template <class T> struct ZesStruct : public T {
-  ZesStruct() : T{} { // zero initializes base struct
+  ZesStruct() : T {} { // zero initializes base struct
     this->stype = getZesStructureType<T>();
     this->pNext = nullptr;
   }
@@ -178,7 +178,7 @@ template <class T> struct ZeCache : private T {
   InitFunctionType Compute;
   bool Computed{false};
 
-  ZeCache() : T{} {}
+  ZeCache() : T {} {}
 
   // Access to the fields of the original T data structure.
   T *operator->() {
@@ -315,7 +315,7 @@ struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
              pi_device ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
+        ZeDeviceProperties{}, ZeDeviceComputeProperties {} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -606,13 +606,7 @@ struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
             pi_context Context, pi_device Device, bool OwnZeCommandQueue,
-            pi_queue_properties PiQueueProperties = 0)
-      : ZeComputeCommandQueue{Queue}, ZeCopyCommandQueues{CopyQueues},
-        Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
-        PiQueueProperties(PiQueueProperties) {
-    ComputeCommandBatch.OpenCommandList = CommandListMap.end();
-    CopyCommandBatch.OpenCommandList = CommandListMap.end();
-  }
+            pi_queue_properties PiQueueProperties = 0);
 
   // Level Zero compute command queue handle.
   ze_command_queue_handle_t ZeComputeCommandQueue;
@@ -622,6 +616,11 @@ struct _pi_queue : _pi_object {
   // In this vector, main copy engine, if available, come first followed by
   // link copy engines, if available.
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
+
+  // This function considers multiple factors including copy engine
+  // availability and user preference and returns a boolean that is used to
+  // specify if copy engine will eventually be used for a particular command.
+  bool useCopyEngine(bool PreferCopyEngine = true) const;
 
   // This function will check if a Ze copy command queue is available in
   // ZeCopyCommandQueues at index 'Index'.
@@ -702,13 +701,15 @@ struct _pi_queue : _pi_object {
     pi_uint32 QueueBatchSize = {0};
   } command_batch;
 
+  // ComputeCommandBatch holds data related to batching of non-copy commands.
+  // CopyCommandBatch holds data related to batching of copy commands.
   command_batch ComputeCommandBatch, CopyCommandBatch;
 
   // Returns true if any commands for this queue are allowed to
   // be batched together.
   // For copy commands, IsCopy is set to 'true'.
   // For non-copy commands, IsCopy is set to 'false'.
-  bool isBatchingAllowed(bool IsCopy);
+  bool isBatchingAllowed(bool IsCopy) const;
 
   // Keeps the properties of this queue.
   pi_queue_properties PiQueueProperties;
@@ -763,7 +764,9 @@ struct _pi_queue : _pi_object {
   pi_result executeOpenCommandList(bool IsCopy);
 
   // Wrapper function to execute both OpenCommandLists (Copy and Compute).
-  pi_result executeOpenCommandLists() {
+  // This wrapper is helpful when all 'open' commands need to be executed.
+  // Call-sites instances: piQuueueFinish, piQueueRelease, etc.
+  pi_result executeAllOpenCommandLists() {
     if (auto Res = executeOpenCommandList(false /* IsCopy */))
       return Res;
     if (auto Res = executeOpenCommandList(true /* IsCopy */))
@@ -819,7 +822,7 @@ struct _pi_mem : _pi_object {
 
 protected:
   _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
+      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings {} {}
 
 private:
   // The key is the host pointer representing an active mapping.

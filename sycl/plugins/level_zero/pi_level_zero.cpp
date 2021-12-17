@@ -903,13 +903,12 @@ typedef struct CommandListBatchConfig {
   bool dynamic() const { return Size == 0; }
 } zeCommandListBatchConfig;
 
-static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
+// Static variable that holds batch config info for compute command batching.
+static const zeCommandListBatchConfig ZeCommandListBatchComputeConfig = [] {
   zeCommandListBatchConfig Config{}; // default initialize
 
   // Default value of 0. This specifies to use dynamic batch size adjustment.
-  const auto BatchSizeStr =
-      IsCopy ? std::getenv("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE")
-             : std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
+  const auto BatchSizeStr = std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
   if (BatchSizeStr) {
     pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
     // Level Zero may only support a limted number of commands per command
@@ -973,6 +972,94 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
     }
   }
   return Config;
+}();
+
+// Static variable that holds batch config info for copy command batching.
+static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
+  zeCommandListBatchConfig Config{}; // default initialize
+
+  // Default value of 0. This specifies to use dynamic batch size adjustment.
+  const auto BatchSizeStr = std::getenv("SYCL_PI_LEVEL_COPY_ZERO_BATCH_SIZE");
+  if (BatchSizeStr) {
+    pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
+    // Level Zero may only support a limted number of commands per command
+    // list.  The actual upper limit is not specified by the Level Zero
+    // Specification.  For now we allow an arbitrary upper limit.
+    if (BatchSizeStrVal > 0) {
+      Config.Size = BatchSizeStrVal;
+    } else if (BatchSizeStrVal == 0) {
+      Config.Size = 0;
+      // We are requested to do dynamic batching. Collect specifics, if any.
+      // The extended format supported is ":" separated values.
+      //
+      // NOTE: these extra settings are experimental and are intended to
+      // be used only for finding a better default heuristic.
+      //
+      std::string BatchConfig(BatchSizeStr);
+      size_t Ord = 0;
+      size_t Pos = 0;
+      while (true) {
+        if (++Ord > 5)
+          break;
+
+        Pos = BatchConfig.find(":", Pos);
+        if (Pos == std::string::npos)
+          break;
+        ++Pos; // past the ":"
+
+        pi_uint32 Val;
+        try {
+          Val = std::stoi(BatchConfig.substr(Pos));
+        } catch (...) {
+          zePrint(
+              "SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: failed to parse value\n");
+          break;
+        }
+        switch (Ord) {
+        case 1:
+          Config.DynamicSizeStart = Val;
+          break;
+        case 2:
+          Config.DynamicSizeMax = Val;
+          break;
+        case 3:
+          Config.DynamicSizeStep = Val;
+          break;
+        case 4:
+          Config.NumTimesClosedEarlyThreshold = Val;
+          break;
+        case 5:
+          Config.NumTimesClosedFullThreshold = Val;
+          break;
+        default:
+          die("Unexpected batch config");
+        }
+        zePrint(
+            "SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: dynamic batch param #%d: %d\n",
+            (int)Ord, (int)Val);
+      };
+
+    } else {
+      // Negative batch sizes are silently ignored.
+      zePrint("SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE: ignored negative value\n");
+    }
+  }
+  return Config;
+}();
+
+_pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
+                     std::vector<ze_command_queue_handle_t> &CopyQueues,
+                     pi_context Context, pi_device Device,
+                     bool OwnZeCommandQueue,
+                     pi_queue_properties PiQueueProperties)
+    : ZeComputeCommandQueue{Queue}, ZeCopyCommandQueues{CopyQueues},
+      Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
+      PiQueueProperties(PiQueueProperties) {
+  ComputeCommandBatch.OpenCommandList = CommandListMap.end();
+  CopyCommandBatch.OpenCommandList = CommandListMap.end();
+  ComputeCommandBatch.QueueBatchSize =
+      ZeCommandListBatchComputeConfig.startSize();
+  CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 }
 
 // Retrieve an available command list to be used in a PI call
@@ -1115,9 +1202,11 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
 
 void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
+  auto &ZeCommandListBatchConfig =
+      IsCopy ? ZeCommandListBatchCopyConfig : ZeCommandListBatchComputeConfig;
   pi_uint32 QueueBatchSize = CommandBatch.QueueBatchSize;
   // QueueBatchSize of 0 means never allow batching.
-  if (QueueBatchSize == 0 || !ZeCommandListBatchConfig(IsCopy).dynamic())
+  if (QueueBatchSize == 0 || !ZeCommandListBatchConfig.dynamic())
     return;
   CommandBatch.NumTimesClosedFull += 1;
 
@@ -1126,11 +1215,11 @@ void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
   // the batching size slowly. Don't raise it if it is already pretty
   // high.
   if (CommandBatch.NumTimesClosedEarly <=
-          ZeCommandListBatchConfig(IsCopy).NumTimesClosedEarlyThreshold &&
+          ZeCommandListBatchConfig.NumTimesClosedEarlyThreshold &&
       CommandBatch.NumTimesClosedFull >
-          ZeCommandListBatchConfig(IsCopy).NumTimesClosedFullThreshold) {
-    if (QueueBatchSize < ZeCommandListBatchConfig(IsCopy).DynamicSizeMax) {
-      QueueBatchSize += ZeCommandListBatchConfig(IsCopy).DynamicSizeStep;
+          ZeCommandListBatchConfig.NumTimesClosedFullThreshold) {
+    if (QueueBatchSize < ZeCommandListBatchConfig.DynamicSizeMax) {
+      QueueBatchSize += ZeCommandListBatchConfig.DynamicSizeStep;
       zePrint("Raising QueueBatchSize to %d\n", QueueBatchSize);
     }
     CommandBatch.NumTimesClosedEarly = 0;
@@ -1141,9 +1230,11 @@ void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
 
 void _pi_queue::adjustBatchSizeForPartialBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
+  auto &ZeCommandListBatchConfig =
+      IsCopy ? ZeCommandListBatchCopyConfig : ZeCommandListBatchComputeConfig;
   pi_uint32 QueueBatchSize = CommandBatch.QueueBatchSize;
   // QueueBatchSize of 0 means never allow batching.
-  if (QueueBatchSize == 0 || !ZeCommandListBatchConfig(IsCopy).dynamic())
+  if (QueueBatchSize == 0 || !ZeCommandListBatchConfig.dynamic())
     return;
   CommandBatch.NumTimesClosedEarly += 1;
 
@@ -1191,8 +1282,11 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // CurrentlyEmpty as we want to strictly follow the batching the user
   // specified.
   auto &CommandBatch = UseCopyEngine ? CopyCommandBatch : ComputeCommandBatch;
+  auto &ZeCommandListBatchConfig = UseCopyEngine
+                                       ? ZeCommandListBatchCopyConfig
+                                       : ZeCommandListBatchComputeConfig;
   if (OKToBatchCommand && this->isBatchingAllowed(UseCopyEngine) &&
-      (!ZeCommandListBatchConfig(UseCopyEngine).dynamic() || !CurrentlyEmpty)) {
+      (!ZeCommandListBatchConfig.dynamic() || !CurrentlyEmpty)) {
 
     if (hasOpenCommandList(UseCopyEngine) &&
         CommandBatch.OpenCommandList != CommandList)
@@ -1273,7 +1367,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   return PI_SUCCESS;
 }
 
-bool _pi_queue::isBatchingAllowed(bool IsCopy) {
+bool _pi_queue::isBatchingAllowed(bool IsCopy) const {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   return (CommandBatch.QueueBatchSize > 0 &&
           ((ZeSerialize & ZeSerializeBlock) == 0));
@@ -1444,7 +1538,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           // Lock automatically releases when this goes out of scope.
           std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-          if (auto Res = Queue->executeOpenCommandLists())
+          if (auto Res = Queue->executeAllOpenCommandLists())
             return Res;
         }
 
@@ -2831,15 +2925,6 @@ pi_result piContextRelease(pi_context Context) {
   return ContextReleaseHelper(Context);
 }
 
-// This function will initialize batch sizes for the compute anc copy command
-// lists
-static void initializeQueueBatchSizes(pi_queue Queue) {
-  Queue->ComputeCommandBatch.QueueBatchSize =
-      ZeCommandListBatchConfig(false /* IsCopy */).startSize();
-  Queue->CopyCommandBatch.QueueBatchSize =
-      ZeCommandListBatchConfig(true /* IsCopy */).startSize();
-}
-
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
 
@@ -2901,7 +2986,6 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-  initializeQueueBatchSizes(*Queue);
   return PI_SUCCESS;
 }
 
@@ -2963,7 +3047,7 @@ pi_result piQueueRelease(pi_queue Queue) {
       //
       // It is possible to get to here and still have an open command list
       // if no wait or finish ever occurred for this queue.
-      if (auto Res = Queue->executeOpenCommandLists())
+      if (auto Res = Queue->executeAllOpenCommandLists())
         return Res;
 
       // Make sure all commands get executed.
@@ -3046,7 +3130,7 @@ pi_result piQueueFinish(pi_queue Queue) {
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   // execute any command list that may still be open.
-  if (auto Res = Queue->executeOpenCommandLists())
+  if (auto Res = Queue->executeAllOpenCommandLists())
     return Res;
 
   ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
@@ -3090,7 +3174,6 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
   *Queue =
       new _pi_queue(ZeQueue, ZeroCopyQueues, Context, Device, OwnNativeHandle);
-  initializeQueueBatchSizes(*Queue);
   return PI_SUCCESS;
 }
 
@@ -5115,7 +5198,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
       if (Queue->RefCount > 0) {
-        if (auto Res = Queue->executeOpenCommandLists())
+        if (auto Res = Queue->executeAllOpenCommandLists())
           return Res;
       }
     }
@@ -5534,6 +5617,11 @@ pi_result piEnqueueMemBufferReadRect(
 
 } // extern "C"
 
+bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
+  return (!isInOrderQueue() || UseCopyEngineForInOrderQueue) &&
+         PreferCopyEngine && Device->hasCopyEngine();
+}
+
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must not have queue's mutex locked on entry.
 static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
@@ -5555,9 +5643,7 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine =
-      (!(Queue->isInOrderQueue()) || UseCopyEngineForInOrderQueue) &&
-      PreferCopyEngine && Queue->Device->hasCopyEngine();
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
@@ -5620,9 +5706,7 @@ static pi_result enqueueMemCopyRectHelper(
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine =
-      (!(Queue->isInOrderQueue()) || UseCopyEngineForInOrderQueue) &&
-      PreferCopyEngine && Queue->Device->hasCopyEngine();
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(
@@ -5826,9 +5910,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
             PI_INVALID_VALUE);
 
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine =
-      (!(Queue->isInOrderQueue()) || UseCopyEngineForInOrderQueue) &&
-      PreferCopyEngine && Queue->Device->hasCopyEngine();
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(
@@ -6199,9 +6281,7 @@ static pi_result enqueueMemImageCommandHelper(
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine =
-      (!(Queue->isInOrderQueue()) || UseCopyEngineForInOrderQueue) &&
-      PreferCopyEngine && Queue->Device->hasCopyEngine();
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(
