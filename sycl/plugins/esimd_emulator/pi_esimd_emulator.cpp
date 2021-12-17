@@ -865,6 +865,13 @@ pi_result piQueueFinish(pi_queue) {
   CONTINUE_NO_IMPLEMENTATION;
 }
 
+pi_result piQueueFlush(pi_queue) {
+  // No-op as enqueued commands with ESIMD_EMULATOR plugin are blocking
+  // ones that do not return until their completion - kernel execution
+  // and memory read.
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
 pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
