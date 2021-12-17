@@ -767,9 +767,10 @@ struct _pi_queue : _pi_object {
   // This wrapper is helpful when all 'open' commands need to be executed.
   // Call-sites instances: piQuueueFinish, piQueueRelease, etc.
   pi_result executeAllOpenCommandLists() {
-    if (auto Res = executeOpenCommandList(false /* IsCopy */))
+    using IsCopy = bool;
+    if (auto Res = executeOpenCommandList(IsCopy{false}))
       return Res;
-    if (auto Res = executeOpenCommandList(true /* IsCopy */))
+    if (auto Res = executeOpenCommandList(IsCopy{true}))
       return Res;
     return PI_SUCCESS;
   }
