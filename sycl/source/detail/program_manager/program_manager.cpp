@@ -1322,9 +1322,6 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   std::cout << KernelName << std::endl;
-  for (auto x:m_KernelIDs){
-    std::cout << x.first << std::endl;
-  }
   auto KernelID = m_KernelIDs.find(KernelName);
   if (KernelID == m_KernelIDs.end())
     throw runtime_error("No kernel found with the specified name",
