@@ -584,9 +584,16 @@ std::string handler::getKernelName() {
 void handler::verifyUsedKernelBundle(const std::string &KernelName) {
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
+  std::cout << "HANDLER ->" << KernelName << std::endl;
   if (!UsedKernelBundleImplPtr)
     return;
-
+  for (auto x:*UsedKernelBundleImplPtr) {
+    auto DIPtr = detail::getSyclObjImpl(x);
+    for (auto y: DIPtr->get_kernel_ids_ref()) {
+      auto KIPtr = detail::getSyclObjImpl(y);
+      std::cout << "HANDLER ->" << KIPtr->get_name() << std::endl;
+    }
+  }
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
   device Dev = detail::getDeviceFromHandler(*this);
   if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))

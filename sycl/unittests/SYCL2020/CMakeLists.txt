@@ -7,5 +7,6 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   SpecializationConstant.cpp
   KernelBundle.cpp
   KernelID.cpp
+  SpecConstBuffer.cpp
 )
 

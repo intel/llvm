@@ -220,6 +220,10 @@ public:
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin.call<PiApiKind::piProgramRelease>(MProgram);
     }
+    if (MSpecConstsBuffer) {
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      Plugin.call<PiApiKind::piMemRelease>(MSpecConstsBuffer);
+    }
   }
 
 private:
