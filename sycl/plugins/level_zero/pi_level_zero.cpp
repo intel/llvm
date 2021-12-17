@@ -4951,16 +4951,17 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
       // Only do the execute of the open command list if the event that
       // is being queried and event that is to be signalled by something
       // currently in that open command list.
-      if (Event->Queue->hasOpenCommandList(false /* IsCopy */) &&
+      using IsCopy = bool;
+      if (Event->Queue->hasOpenCommandList(IsCopy{false}) &&
           Event->Queue->ComputeCommandBatch.OpenCommandList->first ==
               Event->ZeCommandList) {
-        if (auto Res = Event->Queue->executeOpenCommandList(false /* IsCopy */))
+        if (auto Res = Event->Queue->executeOpenCommandList(IsCopy{false}))
           return Res;
       }
-      if (Event->Queue->hasOpenCommandList(true /* IsCopy */) &&
+      if (Event->Queue->hasOpenCommandList(IsCopy{true}) &&
           Event->Queue->CopyCommandBatch.OpenCommandList->first ==
               Event->ZeCommandList) {
-        if (auto Res = Event->Queue->executeOpenCommandList(true /* IsCopy */))
+        if (auto Res = Event->Queue->executeOpenCommandList(IsCopy{true}))
           return Res;
       }
     }
