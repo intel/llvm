@@ -149,23 +149,23 @@ checkVecKnownIdentity() {
 
   static_assert(has_known_identity<minimum<>, vec<T, Num>>::value);
   static_assert(has_known_identity<minimum<vec<T, Num>>, vec<T, Num>>::value);
-  if constexpr (!std::is_same<T, std::byte>::value) {
+  if constexpr (!std::is_same_v<T, std::byte>) {
     constexpr vec<T, Num> maxs(-std::numeric_limits<T>::infinity());
     assert(compareVectors(known_identity<minimum<>, vec<T, Num>>::value, maxs));
   }
 
   static_assert(has_known_identity<maximum<>, vec<T, Num>>::value);
   static_assert(has_known_identity<maximum<vec<T, Num>>, vec<T, Num>>::value);
-  if constexpr (!std::is_same<T, std::byte>::value) {
+  if constexpr (!std::is_same_v<T, std::byte>) {
     constexpr vec<T, Num> mins(std::numeric_limits<T>::infinity());
     assert(compareVectors(known_identity<maximum<>, vec<T, Num>>::value, mins));
   }
 }
 
 template <typename T, int Num>
-typename std::enable_if<std::is_same<T, sycl::half>::value ||
-                            std::is_same<T, float>::value ||
-                            std::is_same<T, double>::value,
+typename std::enable_if<std::is_same_v<T, sycl::half> ||
+                            std::is_same_v<T, float> ||
+                            std::is_same_v<T, double>,
                         void>::type
 checkVecKnownIdentity() {
   constexpr vec<T, Num> zeros(T(0.0f));
@@ -240,9 +240,8 @@ bool compareMarrays(const marray<T, Num> a, const marray<T, Num> b) {
 }
 
 template <typename T, size_t Num>
-typename std::enable_if<!std::is_same<T, half>::value &&
-                            !std::is_same<T, float>::value &&
-                            !std::is_same<T, double>::value,
+typename std::enable_if<!std::is_same_v<T, half> && !std::is_same_v<T, float> &&
+                            !std::is_same_v<T, double>,
                         void>::type
 checkMarrayKnownIdentity() {
   constexpr marray<T, Num> zeros(T(0));
@@ -293,7 +292,7 @@ checkMarrayKnownIdentity() {
   static_assert(has_known_identity<minimum<>, marray<T, Num>>::value);
   static_assert(
       has_known_identity<minimum<marray<T, Num>>, marray<T, Num>>::value);
-  if constexpr (!std::is_same<T, std::byte>::value) {
+  if constexpr (!std::is_same_v<T, std::byte>) {
     constexpr marray<T, Num> maxs(-std::numeric_limits<T>::infinity());
     assert(
         compareMarrays(known_identity<minimum<>, marray<T, Num>>::value, maxs));
@@ -302,7 +301,7 @@ checkMarrayKnownIdentity() {
   static_assert(has_known_identity<maximum<>, marray<T, Num>>::value);
   static_assert(
       has_known_identity<maximum<marray<T, Num>>, marray<T, Num>>::value);
-  if constexpr (!std::is_same<T, std::byte>::value) {
+  if constexpr (!std::is_same_v<T, std::byte>) {
     constexpr marray<T, Num> mins(std::numeric_limits<T>::infinity());
     assert(
         compareMarrays(known_identity<maximum<>, marray<T, Num>>::value, mins));
@@ -310,9 +309,9 @@ checkMarrayKnownIdentity() {
 }
 
 template <typename T, int Num>
-typename std::enable_if<std::is_same<T, sycl::half>::value ||
-                            std::is_same<T, float>::value ||
-                            std::is_same<T, double>::value,
+typename std::enable_if<std::is_same_v<T, sycl::half> ||
+                            std::is_same_v<T, float> ||
+                            std::is_same_v<T, double>,
                         void>::type
 checkMarrayKnownIdentity() {
   constexpr marray<T, Num> zeros(T(0.0f));
