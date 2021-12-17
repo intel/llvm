@@ -105,10 +105,8 @@ bool compareVectors(const vec<T, Num> a, const vec<T, Num> b) {
 }
 
 template <typename T, int Num>
-typename std::enable_if<!std::is_same<T, half>::value &&
-                            !std::is_same<T, float>::value &&
-                            !std::is_same<T, double>::value,
-                        void>::type
+std::enable_if_t<!std::is_same_v<T, half> && !std::is_same_v<T, float> &&
+                 !std::is_same_v<T, double>>
 checkVecKnownIdentity() {
   constexpr vec<T, Num> zeros(T(0));
   constexpr vec<T, Num> ones(T(1));
