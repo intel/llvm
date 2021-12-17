@@ -3,9 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
-//
-// Failing on HIP AMD
-// XFAIL: hip_amd
 
 //==------------------- select.cpp - filter_selector test ------------------==//
 //
