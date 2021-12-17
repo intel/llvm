@@ -1176,7 +1176,7 @@ template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> islessgreater(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_LessOrGreater<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdNotEqual<detail::rel_ret_t<T>>(x, y));
 }
 
 // int isfinite (half x)

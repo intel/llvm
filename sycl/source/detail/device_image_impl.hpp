@@ -183,7 +183,7 @@ public:
 
   RT::PiMem &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-    if (nullptr == MSpecConstsBuffer) {
+    if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin.call<PiApiKind::piMemBufferCreate>(
           detail::getSyclObjImpl(MContext)->getHandleRef(),

@@ -995,8 +995,7 @@ bool MachineConstPropagator::rewrite(MachineFunction &MF) {
     bool HaveTargets = computeBlockSuccessors(B, Targets);
     // Rewrite the executable instructions. Skip branches if we don't
     // have block successor information.
-    for (auto I = B->rbegin(), E = B->rend(); I != E; ++I) {
-      MachineInstr &MI = *I;
+    for (MachineInstr &MI : llvm::reverse(*B)) {
       if (InstrExec.count(&MI)) {
         if (MI.isBranch() && !HaveTargets)
           continue;
@@ -1045,13 +1044,9 @@ bool MachineConstPropagator::rewrite(MachineFunction &MF) {
   // erase instructions during rewriting, so this needs to be delayed until
   // now.
   for (MachineBasicBlock &B : MF) {
-    MachineBasicBlock::iterator I = B.begin(), E = B.end();
-    while (I != E) {
-      auto Next = std::next(I);
-      if (I->isBranch() && !InstrExec.count(&*I))
-        B.erase(I);
-      I = Next;
-    }
+    for (MachineInstr &MI : llvm::make_early_inc_range(B))
+      if (MI.isBranch() && !InstrExec.count(&MI))
+        B.erase(&MI);
   }
   return Changed;
 }
@@ -3132,11 +3127,9 @@ void HexagonConstEvaluator::replaceAllRegUsesWith(Register FromReg,
                                                   Register ToReg) {
   assert(FromReg.isVirtual());
   assert(ToReg.isVirtual());
-  for (auto I = MRI->use_begin(FromReg), E = MRI->use_end(); I != E;) {
-    MachineOperand &O = *I;
-    ++I;
+  for (MachineOperand &O :
+       llvm::make_early_inc_range(MRI->use_operands(FromReg)))
     O.setReg(ToReg);
-  }
 }
 
 bool HexagonConstEvaluator::rewriteHexBranch(MachineInstr &BrI,

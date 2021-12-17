@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===--------------------------- complex ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -1485,8 +1485,8 @@ inline namespace literals
     {
         return { 0.0f, static_cast<float>(__im) };
     }
-  }
-}
+  } // namespace complex_literals
+} // namespace literals
 #endif
 
 _LIBCPP_END_NAMESPACE_STD

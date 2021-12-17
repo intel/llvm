@@ -169,6 +169,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
   add(DecorationVectorComputeCallableFunctionINTEL,
       "VectorComputeCallableFunctionINTEL");
+  add(DecorationMediaBlockIOINTEL, "MediaBlockIOINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
@@ -181,6 +182,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
   add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
   add(internal::DecorationRuntimeAlignedINTEL, "RuntimeAlignedINTEL");
+  add(internal::DecorationArgumentAttributeINTEL, "ArgumentAttributeINTEL");
 
   add(DecorationMax, "Max");
 }

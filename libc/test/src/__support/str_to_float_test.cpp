@@ -23,7 +23,7 @@ public:
     typename __llvm_libc::fputil::FPBits<T>::UIntType actualOutputMantissa = 0;
     uint32_t actualOutputExp2 = 0;
 
-    ASSERT_TRUE(__llvm_libc::internal::clingerFastPath<T>(
+    ASSERT_TRUE(__llvm_libc::internal::clinger_fast_path<T>(
         inputMantissa, inputExp10, &actualOutputMantissa, &actualOutputExp2));
     EXPECT_EQ(actualOutputMantissa, expectedOutputMantissa);
     EXPECT_EQ(actualOutputExp2, expectedOutputExp2);
@@ -36,7 +36,7 @@ public:
     typename __llvm_libc::fputil::FPBits<T>::UIntType actualOutputMantissa = 0;
     uint32_t actualOutputExp2 = 0;
 
-    ASSERT_FALSE(__llvm_libc::internal::clingerFastPath<T>(
+    ASSERT_FALSE(__llvm_libc::internal::clinger_fast_path<T>(
         inputMantissa, inputExp10, &actualOutputMantissa, &actualOutputExp2));
   }
 
@@ -50,7 +50,7 @@ public:
     typename __llvm_libc::fputil::FPBits<T>::UIntType actualOutputMantissa = 0;
     uint32_t actualOutputExp2 = 0;
 
-    ASSERT_TRUE(__llvm_libc::internal::eiselLemire<T>(
+    ASSERT_TRUE(__llvm_libc::internal::eisel_lemire<T>(
         inputMantissa, inputExp10, &actualOutputMantissa, &actualOutputExp2));
     EXPECT_EQ(actualOutputMantissa, expectedOutputMantissa);
     EXPECT_EQ(actualOutputExp2, expectedOutputExp2);
@@ -66,7 +66,7 @@ public:
     uint32_t actualOutputExp2 = 0;
     errno = 0;
 
-    __llvm_libc::internal::simpleDecimalConversion<T>(
+    __llvm_libc::internal::simple_decimal_conversion<T>(
         numStart, &actualOutputMantissa, &actualOutputExp2);
     EXPECT_EQ(actualOutputMantissa, expectedOutputMantissa);
     EXPECT_EQ(actualOutputExp2, expectedOutputExp2);
@@ -77,38 +77,38 @@ public:
 TEST(LlvmLibcStrToFloatTest, LeadingZeroes) {
   uint64_t testNum64 = 1;
   uint32_t numOfZeroes = 63;
-  EXPECT_EQ(__llvm_libc::internal::leadingZeroes<uint64_t>(0), 64u);
+  EXPECT_EQ(__llvm_libc::internal::leading_zeroes<uint64_t>(0), 64u);
   for (; numOfZeroes < 64; testNum64 <<= 1, numOfZeroes--) {
-    EXPECT_EQ(__llvm_libc::internal::leadingZeroes<uint64_t>(testNum64),
+    EXPECT_EQ(__llvm_libc::internal::leading_zeroes<uint64_t>(testNum64),
               numOfZeroes);
   }
 
   testNum64 = 3;
   numOfZeroes = 62;
   for (; numOfZeroes > 63; testNum64 <<= 1, numOfZeroes--) {
-    EXPECT_EQ(__llvm_libc::internal::leadingZeroes<uint64_t>(testNum64),
+    EXPECT_EQ(__llvm_libc::internal::leading_zeroes<uint64_t>(testNum64),
               numOfZeroes);
   }
 
-  EXPECT_EQ(__llvm_libc::internal::leadingZeroes<uint64_t>(0xffffffffffffffff),
+  EXPECT_EQ(__llvm_libc::internal::leading_zeroes<uint64_t>(0xffffffffffffffff),
             0u);
 
   testNum64 = 1;
   numOfZeroes = 63;
   for (; numOfZeroes > 63; testNum64 = (testNum64 << 1) + 1, numOfZeroes--) {
-    EXPECT_EQ(__llvm_libc::internal::leadingZeroes<uint64_t>(testNum64),
+    EXPECT_EQ(__llvm_libc::internal::leading_zeroes<uint64_t>(testNum64),
               numOfZeroes);
   }
 
   uint64_t testNum32 = 1;
   numOfZeroes = 31;
-  EXPECT_EQ(__llvm_libc::internal::leadingZeroes<uint32_t>(0), 32u);
+  EXPECT_EQ(__llvm_libc::internal::leading_zeroes<uint32_t>(0), 32u);
   for (; numOfZeroes < 32; testNum32 <<= 1, numOfZeroes--) {
-    EXPECT_EQ(__llvm_libc::internal::leadingZeroes<uint32_t>(testNum32),
+    EXPECT_EQ(__llvm_libc::internal::leading_zeroes<uint32_t>(testNum32),
               numOfZeroes);
   }
 
-  EXPECT_EQ(__llvm_libc::internal::leadingZeroes<uint32_t>(0xffffffff), 0u);
+  EXPECT_EQ(__llvm_libc::internal::leading_zeroes<uint32_t>(0xffffffff), 0u);
 }
 
 TEST_F(LlvmLibcStrToFloatTest, ClingerFastPathFloat64Simple) {
@@ -171,16 +171,16 @@ TEST_F(LlvmLibcStrToFloatTest, EiselLemireFallbackStates) {
   uint32_t outputExp2 = 0;
 
   // This Eisel-Lemire implementation doesn't support long doubles yet.
-  ASSERT_FALSE(__llvm_libc::internal::eiselLemire<long double>(
+  ASSERT_FALSE(__llvm_libc::internal::eisel_lemire<long double>(
       tooLongMantissa, 0, &tooLongMantissa, &outputExp2));
 
   // This number can't be evaluated by Eisel-Lemire since it's exactly 1024 away
   // from both of its closest floating point approximations
   // (12345678901234548736 and 12345678901234550784)
-  ASSERT_FALSE(__llvm_libc::internal::eiselLemire<double>(
+  ASSERT_FALSE(__llvm_libc::internal::eisel_lemire<double>(
       12345678901234549760u, 0, &doubleOutputMantissa, &outputExp2));
 
-  ASSERT_FALSE(__llvm_libc::internal::eiselLemire<float>(
+  ASSERT_FALSE(__llvm_libc::internal::eisel_lemire<float>(
       20040229, 0, &floatOutputMantissa, &outputExp2));
 }
 
@@ -206,8 +206,8 @@ TEST_F(LlvmLibcStrToFloatTest, SimpleDecimalConversion64BasicExponents) {
 }
 
 TEST_F(LlvmLibcStrToFloatTest, SimpleDecimalConversion64BasicSubnormals) {
-  SimpleDecimalConversionTest<double>("1e-320", 0x7e8, 0);
-  SimpleDecimalConversionTest<double>("1e-308", 0x730d67819e8d2, 0);
+  SimpleDecimalConversionTest<double>("1e-320", 0x7e8, 0, ERANGE);
+  SimpleDecimalConversionTest<double>("1e-308", 0x730d67819e8d2, 0, ERANGE);
   SimpleDecimalConversionTest<double>("2.9e-308", 0x14da6df5e4bcc8, 1);
 }
 
@@ -217,7 +217,7 @@ TEST_F(LlvmLibcStrToFloatTest, SimpleDecimalConversion64SubnormalRounding) {
   // but this is the shortest string that results in the maximum subnormal that
   // I found.
   SimpleDecimalConversionTest<double>("2.225073858507201e-308", 0xfffffffffffff,
-                                      0);
+                                      0, ERANGE);
 
   // Same here, if you were to extend the max subnormal out for another 800
   // digits, incrementing any one of those digits would create a normal number.
@@ -227,7 +227,8 @@ TEST_F(LlvmLibcStrToFloatTest, SimpleDecimalConversion64SubnormalRounding) {
 
 TEST_F(LlvmLibcStrToFloatTest, SimpleDecimalConversion32SpecificFailures) {
   SimpleDecimalConversionTest<float>(
-      "1.4012984643248170709237295832899161312802619418765e-45", 0x1, 0);
+      "1.4012984643248170709237295832899161312802619418765e-45", 0x1, 0,
+      ERANGE);
 }
 
 TEST(LlvmLibcStrToFloatTest, SimpleDecimalConversionExtraTypes) {
@@ -235,7 +236,7 @@ TEST(LlvmLibcStrToFloatTest, SimpleDecimalConversionExtraTypes) {
   uint32_t outputExp2 = 0;
 
   errno = 0;
-  __llvm_libc::internal::simpleDecimalConversion<float>(
+  __llvm_libc::internal::simple_decimal_conversion<float>(
       "123456789012345678900", &floatOutputMantissa, &outputExp2);
   EXPECT_EQ(floatOutputMantissa, uint32_t(0xd629d4));
   EXPECT_EQ(outputExp2, uint32_t(193));
@@ -245,7 +246,7 @@ TEST(LlvmLibcStrToFloatTest, SimpleDecimalConversionExtraTypes) {
   outputExp2 = 0;
 
   errno = 0;
-  __llvm_libc::internal::simpleDecimalConversion<double>(
+  __llvm_libc::internal::simple_decimal_conversion<double>(
       "123456789012345678900", &doubleOutputMantissa, &outputExp2);
   EXPECT_EQ(doubleOutputMantissa, uint64_t(0x1AC53A7E04BCDA));
   EXPECT_EQ(outputExp2, uint32_t(1089));
@@ -257,7 +258,7 @@ TEST(LlvmLibcStrToFloatTest, SimpleDecimalConversionExtraTypes) {
   // outputExp2 = 0;
 
   // errno = 0;
-  // __llvm_libc::internal::simpleDecimalConversion<long double>(
+  // __llvm_libc::internal::simple_decimal_conversion<long double>(
   //     "123456789012345678900", &longDoubleOutputMantissa, &outputExp2);
   // EXPECT_EQ(longDoubleOutputMantissa, __uint128_t(0x1AC53A7E04BCDA));
   // EXPECT_EQ(outputExp2, uint32_t(1089));

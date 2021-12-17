@@ -631,6 +631,12 @@ func @test_cmpi_vector(%arg0 : vector<8xi64>, %arg1 : vector<8xi64>) -> vector<8
   return %0 : vector<8xi1>
 }
 
+// CHECK-LABEL: test_cmpi_vector_0d
+func @test_cmpi_vector_0d(%arg0 : vector<i64>, %arg1 : vector<i64>) -> vector<i1> {
+  %0 = arith.cmpi ult, %arg0, %arg1 : vector<i64>
+  return %0 : vector<i1>
+}
+
 // CHECK-LABEL: test_cmpf
 func @test_cmpf(%arg0 : f64, %arg1 : f64) -> i1 {
   %0 = arith.cmpf oeq, %arg0, %arg1 : f64
@@ -702,5 +708,27 @@ func @test_constant() -> () {
   // CHECK: %false = arith.constant false
   %8 = arith.constant false
 
+  return
+}
+
+// CHECK-LABEL: func @maximum
+func @maximum(%v1: vector<4xf32>, %v2: vector<4xf32>,
+               %f1: f32, %f2: f32,
+               %i1: i32, %i2: i32) {
+  %max_vector = arith.maxf %v1, %v2 : vector<4xf32>
+  %max_float = arith.maxf %f1, %f2 : f32
+  %max_signed = arith.maxsi %i1, %i2 : i32
+  %max_unsigned = arith.maxui %i1, %i2 : i32
+  return
+}
+
+// CHECK-LABEL: func @minimum
+func @minimum(%v1: vector<4xf32>, %v2: vector<4xf32>,
+               %f1: f32, %f2: f32,
+               %i1: i32, %i2: i32) {
+  %min_vector = arith.minf %v1, %v2 : vector<4xf32>
+  %min_float = arith.minf %f1, %f2 : f32
+  %min_signed = arith.minsi %i1, %i2 : i32
+  %min_unsigned = arith.minui %i1, %i2 : i32
   return
 }

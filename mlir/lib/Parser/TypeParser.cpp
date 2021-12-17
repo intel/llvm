@@ -442,9 +442,7 @@ Type Parser::parseTupleType() {
 
 /// Parse a vector type.
 ///
-///   vector-type ::= `vector` `<` non-empty-static-dimension-list type `>`
-///   non-empty-static-dimension-list ::= decimal-literal `x`
-///                                       static-dimension-list
+///   vector-type ::= `vector` `<` static-dimension-list type `>`
 ///   static-dimension-list ::= (decimal-literal `x`)*
 ///
 VectorType Parser::parseVectorType() {
@@ -456,8 +454,6 @@ VectorType Parser::parseVectorType() {
   SmallVector<int64_t, 4> dimensions;
   if (parseDimensionListRanked(dimensions, /*allowDynamic=*/false))
     return nullptr;
-  if (dimensions.empty())
-    return (emitError("expected dimension size in vector type"), nullptr);
   if (any_of(dimensions, [](int64_t i) { return i <= 0; }))
     return emitError(getToken().getLoc(),
                      "vector types must have positive constant sizes"),
@@ -508,8 +504,8 @@ Parser::parseDimensionListRanked(SmallVectorImpl<int64_t> &dimensions,
         consumeToken();
       } else {
         // Make sure this integer value is in bound and valid.
-        auto dimension = getToken().getUnsignedIntegerValue();
-        if (!dimension.hasValue())
+        Optional<uint64_t> dimension = getToken().getUInt64IntegerValue();
+        if (!dimension || *dimension > std::numeric_limits<int64_t>::max())
           return emitError("invalid dimension");
         dimensions.push_back((int64_t)dimension.getValue());
         consumeToken(Token::integer);

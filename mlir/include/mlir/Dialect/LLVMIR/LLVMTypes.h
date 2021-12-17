@@ -24,8 +24,8 @@ class TypeSize;
 
 namespace mlir {
 
-class DialectAsmParser;
-class DialectAsmPrinter;
+class AsmParser;
+class AsmPrinter;
 
 namespace LLVM {
 class LLVMDialect;
@@ -419,7 +419,7 @@ namespace detail {
 Type parseType(DialectAsmParser &parser);
 
 /// Prints an LLVM Dialect type.
-void printType(Type type, DialectAsmPrinter &printer);
+void printType(Type type, AsmPrinter &printer);
 } // namespace detail
 
 //===----------------------------------------------------------------------===//
@@ -428,6 +428,10 @@ void printType(Type type, DialectAsmPrinter &printer);
 
 /// Returns `true` if the given type is compatible with the LLVM dialect.
 bool isCompatibleType(Type type);
+
+/// Returns `true` if the given outer type is compatible with the LLVM dialect
+/// without checking its potential nested types such as struct elements.
+bool isCompatibleOuterType(Type type);
 
 /// Returns `true` if the given type is a floating-point type compatible with
 /// the LLVM dialect.

@@ -401,37 +401,6 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
     if (!EC.isScalable() && IndexC->getValue().uge(NumElts))
       return nullptr;
 
-    // This instruction only demands the single element from the input vector.
-    // Skip for scalable type, the number of elements is unknown at
-    // compile-time.
-    if (!EC.isScalable() && NumElts != 1) {
-      // If the input vector has a single use, simplify it based on this use
-      // property.
-      if (SrcVec->hasOneUse()) {
-        APInt UndefElts(NumElts, 0);
-        APInt DemandedElts(NumElts, 0);
-        DemandedElts.setBit(IndexC->getZExtValue());
-        if (Value *V =
-                SimplifyDemandedVectorElts(SrcVec, DemandedElts, UndefElts))
-          return replaceOperand(EI, 0, V);
-      } else {
-        // If the input vector has multiple uses, simplify it based on a union
-        // of all elements used.
-        APInt DemandedElts = findDemandedEltsByAllUsers(SrcVec);
-        if (!DemandedElts.isAllOnes()) {
-          APInt UndefElts(NumElts, 0);
-          if (Value *V = SimplifyDemandedVectorElts(
-                  SrcVec, DemandedElts, UndefElts, 0 /* Depth */,
-                  true /* AllowMultipleUsers */)) {
-            if (V != SrcVec) {
-              SrcVec->replaceAllUsesWith(V);
-              return &EI;
-            }
-          }
-        }
-      }
-    }
-
     if (Instruction *I = foldBitcastExtElt(EI))
       return I;
 
@@ -473,11 +442,9 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
 
   if (auto *I = dyn_cast<Instruction>(SrcVec)) {
     if (auto *IE = dyn_cast<InsertElementInst>(I)) {
-      // Extracting the inserted element?
-      if (IE->getOperand(2) == Index)
-        return replaceInstUsesWith(EI, IE->getOperand(1));
-      // If the inserted and extracted elements are constants, they must not
-      // be the same value, extract from the pre-inserted value instead.
+      // instsimplify already handled the case where the indices are constants
+      // and equal by value, if both are constants, they must not be the same
+      // value, extract from the pre-inserted value instead.
       if (isa<Constant>(IE->getOperand(2)) && IndexC)
         return replaceOperand(EI, 0, IE->getOperand(0));
     } else if (auto *GEP = dyn_cast<GetElementPtrInst>(I)) {
@@ -497,30 +464,27 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
             llvm::count_if(GEP->operands(), [](const Value *V) {
               return isa<VectorType>(V->getType());
             });
-        if (VectorOps > 1)
-          return nullptr;
-        assert(VectorOps == 1 && "Expected exactly one vector GEP operand!");
+        if (VectorOps == 1) {
+          Value *NewPtr = GEP->getPointerOperand();
+          if (isa<VectorType>(NewPtr->getType()))
+            NewPtr = Builder.CreateExtractElement(NewPtr, IndexC);
 
-        Value *NewPtr = GEP->getPointerOperand();
-        if (isa<VectorType>(NewPtr->getType()))
-          NewPtr = Builder.CreateExtractElement(NewPtr, IndexC);
+          SmallVector<Value *> NewOps;
+          for (unsigned I = 1; I != GEP->getNumOperands(); ++I) {
+            Value *Op = GEP->getOperand(I);
+            if (isa<VectorType>(Op->getType()))
+              NewOps.push_back(Builder.CreateExtractElement(Op, IndexC));
+            else
+              NewOps.push_back(Op);
+          }
 
-        SmallVector<Value *> NewOps;
-        for (unsigned I = 1; I != GEP->getNumOperands(); ++I) {
-          Value *Op = GEP->getOperand(I);
-          if (isa<VectorType>(Op->getType()))
-            NewOps.push_back(Builder.CreateExtractElement(Op, IndexC));
-          else
-            NewOps.push_back(Op);
+          GetElementPtrInst *NewGEP = GetElementPtrInst::Create(
+              cast<PointerType>(NewPtr->getType())->getElementType(), NewPtr,
+              NewOps);
+          NewGEP->setIsInBounds(GEP->isInBounds());
+          return NewGEP;
         }
-
-        GetElementPtrInst *NewGEP = GetElementPtrInst::Create(
-            cast<PointerType>(NewPtr->getType())->getElementType(), NewPtr,
-            NewOps);
-        NewGEP->setIsInBounds(GEP->isInBounds());
-        return NewGEP;
       }
-      return nullptr;
     } else if (auto *SVI = dyn_cast<ShuffleVectorInst>(I)) {
       // If this is extracting an element from a shufflevector, figure out where
       // it came from and extract from the appropriate input element instead.
@@ -551,6 +515,44 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
       if (CI->hasOneUse() && (CI->getOpcode() != Instruction::BitCast)) {
         Value *EE = Builder.CreateExtractElement(CI->getOperand(0), Index);
         return CastInst::Create(CI->getOpcode(), EE, EI.getType());
+      }
+    }
+  }
+
+  // Run demanded elements after other transforms as this can drop flags on
+  // binops.  If there's two paths to the same final result, we prefer the
+  // one which doesn't force us to drop flags.
+  if (IndexC) {
+    ElementCount EC = EI.getVectorOperandType()->getElementCount();
+    unsigned NumElts = EC.getKnownMinValue();
+    // This instruction only demands the single element from the input vector.
+    // Skip for scalable type, the number of elements is unknown at
+    // compile-time.
+    if (!EC.isScalable() && NumElts != 1) {
+      // If the input vector has a single use, simplify it based on this use
+      // property.
+      if (SrcVec->hasOneUse()) {
+        APInt UndefElts(NumElts, 0);
+        APInt DemandedElts(NumElts, 0);
+        DemandedElts.setBit(IndexC->getZExtValue());
+        if (Value *V =
+                SimplifyDemandedVectorElts(SrcVec, DemandedElts, UndefElts))
+          return replaceOperand(EI, 0, V);
+      } else {
+        // If the input vector has multiple uses, simplify it based on a union
+        // of all elements used.
+        APInt DemandedElts = findDemandedEltsByAllUsers(SrcVec);
+        if (!DemandedElts.isAllOnes()) {
+          APInt UndefElts(NumElts, 0);
+          if (Value *V = SimplifyDemandedVectorElts(
+                  SrcVec, DemandedElts, UndefElts, 0 /* Depth */,
+                  true /* AllowMultipleUsers */)) {
+            if (V != SrcVec) {
+              SrcVec->replaceAllUsesWith(V);
+              return &EI;
+            }
+          }
+        }
       }
     }
   }
@@ -2268,12 +2270,8 @@ static Instruction *foldShuffleWithInsert(ShuffleVectorInst &Shuf,
   SmallVector<int, 16> Mask;
   Shuf.getShuffleMask(Mask);
 
-  // The shuffle must not change vector sizes.
-  // TODO: This restriction could be removed if the insert has only one use
-  //       (because the transform would require a new length-changing shuffle).
   int NumElts = Mask.size();
-  if (NumElts != (int)(cast<FixedVectorType>(V0->getType())->getNumElements()))
-    return nullptr;
+  int InpNumElts = cast<FixedVectorType>(V0->getType())->getNumElements();
 
   // This is a specialization of a fold in SimplifyDemandedVectorElts. We may
   // not be able to handle it there if the insertelement has >1 use.
@@ -2290,11 +2288,16 @@ static Instruction *foldShuffleWithInsert(ShuffleVectorInst &Shuf,
   if (match(V1, m_InsertElt(m_Value(X), m_Value(), m_ConstantInt(IdxC)))) {
     // Offset the index constant by the vector width because we are checking for
     // accesses to the 2nd vector input of the shuffle.
-    IdxC += NumElts;
+    IdxC += InpNumElts;
     // shuf ?, (inselt X, ?, IdxC), Mask --> shuf ?, X, Mask
     if (!is_contained(Mask, (int)IdxC))
       return IC.replaceOperand(Shuf, 1, X);
   }
+  // For the rest of the transform, the shuffle must not change vector sizes.
+  // TODO: This restriction could be removed if the insert has only one use
+  //       (because the transform would require a new length-changing shuffle).
+  if (NumElts != InpNumElts)
+    return nullptr;
 
   // shuffle (insert ?, Scalar, IndexC), V1, Mask --> insert V1, Scalar, IndexC'
   auto isShufflingScalarIntoOp1 = [&](Value *&Scalar, ConstantInt *&IndexC) {
