@@ -184,6 +184,8 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-size
+        # TODO this should be resolved in CMakeLists.txt
+        cmake --build $GITHUB_WORKSPACE/build --target install-lld || echo "skipped"
 
     - name: Pack toolchain
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .

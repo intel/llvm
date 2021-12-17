@@ -29,6 +29,7 @@ inputs:
     description: 'Extra arguments to cmake command'
     required: false
 
+post-if: false
 runs:
   using: "composite"
   steps:
@@ -70,8 +71,10 @@ runs:
   - name: Run testing
     shell: bash
     run: |
-      export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH:/runtimes/oclcpu/x64:/runtimes/fpgaemu/x64/
+      export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
       export PATH=$PWD/toolchain/bin/:$PATH
+      # TODO make this part of container build
+      export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
       export LIT_OPTS="-v --no-progress-bar --show-unsupported --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
