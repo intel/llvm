@@ -152,13 +152,13 @@ template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
 // The helpers to properly default initialize Level-Zero descriptor and
 // properties structures.
 template <class T> struct ZeStruct : public T {
-  ZeStruct() : T {} { // zero initializes base struct
+  ZeStruct() : T{} { // zero initializes base struct
     this->stype = getZeStructureType<T>();
     this->pNext = nullptr;
   }
 };
 template <class T> struct ZesStruct : public T {
-  ZesStruct() : T {} { // zero initializes base struct
+  ZesStruct() : T{} { // zero initializes base struct
     this->stype = getZesStructureType<T>();
     this->pNext = nullptr;
   }
@@ -178,7 +178,7 @@ template <class T> struct ZeCache : private T {
   InitFunctionType Compute;
   bool Computed{false};
 
-  ZeCache() : T {} {}
+  ZeCache() : T{} {}
 
   // Access to the fields of the original T data structure.
   T *operator->() {
@@ -315,7 +315,7 @@ struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
              pi_device ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ZeDeviceProperties{}, ZeDeviceComputeProperties {} {
+        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -823,7 +823,7 @@ struct _pi_mem : _pi_object {
 
 protected:
   _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings {} {}
+      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
 
 private:
   // The key is the host pointer representing an active mapping.
