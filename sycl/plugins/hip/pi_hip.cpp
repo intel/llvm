@@ -1320,10 +1320,13 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
         hipDeviceGetAttribute(&constant_memory,
                               hipDeviceAttributeTotalConstantMemory,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(constant_memory >= 0);
 
+    // hipDeviceGetAttribute takes a int*, however the size of the constant
+    // memory on AMD GPU may be larger than what can fit in the positive part
+    // of a signed integer, so we need to cast it to unsigned before returning
+    // the value.
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   pi_uint64(constant_memory));
+                   pi_uint64(static_cast<unsigned int>(constant_memory)));
   }
   case PI_DEVICE_INFO_MAX_CONSTANT_ARGS: {
     // TODO: is there a way to retrieve this from HIP driver API?
