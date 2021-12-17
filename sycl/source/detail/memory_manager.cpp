@@ -132,14 +132,15 @@ void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
     CorrID =
         emitMemAllocBeginTrace(0 /* mem object */, Size, 0 /* guard zone */);
     xpti::utils::finally _{[&] {
-      uintptr_t MemObjID = reinterpret_cast<uintptr_t>(*RetMem);
+      // C-style cast is required for MSVC
+      uintptr_t MemObjID = (uintptr_t)(*RetMem);
       pi_native_handle Ptr = 0;
       // Always use call_nocheck here, because call may throw an exception,
       // and this lambda will be called from destructor, which in combination
       // rewards us with UB.
       Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(*RetMem, &Ptr);
-      emitMemAllocEndTrace(MemObjID, reinterpret_cast<uintptr_t>(Ptr), Size,
-                           0 /* guard zone */, CorrID);
+      emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
+                           CorrID);
     }};
     Plugin.call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr, RetMem,
                                               Props);
@@ -151,13 +152,14 @@ void memReleaseHelper(const plugin &Plugin, pi_mem Mem) {
   // reference counter is 1. However, SYCL runtime currently only calls
   // piMemRetain only for OpenCL interop
   uint64_t CorrID = 0;
-  uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Mem);
+  // C-style cast is required for MSVC
+  uintptr_t MemObjID = (uintptr_t)(Mem);
   uintptr_t Ptr = 0;
   // Do not make unnecessary PI calls without instrumentation enabled
   if (xptiTraceEnabled()) {
     pi_native_handle PtrHandle = 0;
     Plugin.call<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
-    Ptr = reinterpret_cast<uintptr_t>(PtrHandle);
+    Ptr = (uintptr_t)(PtrHandle);
   }
   // We only want to instrument piMemRelease
   {
@@ -174,12 +176,12 @@ void memBufferMapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Buffer,
                         const pi_event *WaitList, pi_event *Event,
                         void **RetMap) {
   uint64_t CorrID = 0;
-  uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Buffer);
+  uintptr_t MemObjID = (uintptr_t)(Buffer);
   // We only want to instrument piEnqueueMemBufferMap
   {
     CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
     xpti::utils::finally _{[&] {
-      emitMemAllocEndTrace(MemObjID, reinterpret_cast<uintptr_t>(*RetMap), Size,
+      emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
                            0 /* guard zone */, CorrID);
     }};
     Plugin.call<PiApiKind::piEnqueueMemBufferMap>(
@@ -192,8 +194,8 @@ void memUnmapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Mem,
                     void *MappedPtr, pi_uint32 NumEvents,
                     const pi_event *WaitList, pi_event *Event) {
   uint64_t CorrID = 0;
-  uintptr_t MemObjID = reinterpret_cast<uintptr_t>(Mem);
-  uintptr_t Ptr = reinterpret_cast<uintptr_t>(MappedPtr);
+  uintptr_t MemObjID = (uintptr_t)(Mem);
+  uintptr_t Ptr = (uintptr_t)(MappedPtr);
   // We only want to instrument piEnqueueMemUnmap
   {
     CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
