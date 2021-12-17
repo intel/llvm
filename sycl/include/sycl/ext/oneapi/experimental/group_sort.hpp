@@ -20,6 +20,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 namespace detail {
 
 // ---- traits
@@ -135,6 +136,7 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
              experimental::default_sorter<>(exec.get_memory()));
 }
 
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
