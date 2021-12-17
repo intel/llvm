@@ -185,6 +185,7 @@ int main() {
     // CHECK: define dso_local spir_func void @_Z4foo1v()
     h.single_task<class kernel_name8>(
         []() { foo1(); });
+
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name9() #0 !kernel_arg_buffer_location ![[NUM]] !no_global_work_offset ![[NUM:[0-9]+]]
     Foo2 boo2;
     h.single_task<class kernel_name9>(boo2);
