@@ -6,7 +6,7 @@
 // crash when used with sampler or stream. Currently samplers are not supported
 // in esimd.
 
-#Include "sycl.hpp"
+#include "sycl.hpp"
 using namespace cl::sycl;
 void test() {
 
