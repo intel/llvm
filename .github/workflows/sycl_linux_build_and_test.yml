@@ -82,13 +82,13 @@ jobs:
               \"cxx\":\"g++\",
               \"build_runs_on\":\"build\",
               \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"build_github_cache\":\"false\",
+              \"build_github_cache\":\"\\\"false\\\"\",
               \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
               \"build_cache_size\":\"2G\",
               \"build_configure_extra_args\":\"--hip --cuda\",
               \"build_artifact_suffix\":\"default\",
-              \"build_upload_artifact\":\"false\",
+              \"build_upload_artifact\":\"\\\"true\\\"\",
               \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
               \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
               \"lts_config\":\"l0_gen9;hip_amdgpu\",
@@ -112,6 +112,8 @@ jobs:
     - uses: actions/checkout@v2
       with:
         path: src
+    - name: Register cleanup after job is finished
+      uses: ./src/devops/actions/cleanup
     - name: Setup Cache
       uses: actions/cache@v2
       if: ${{ fromJSON(needs.configure.outputs.params).build_github_cache }}
@@ -201,9 +203,6 @@ jobs:
       with:
         name: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         path: lit.tar.xz
-    - name: Cleanup
-      if: always()
-      run: rm -rf $GITHUB_WORKSPACE/*
 
   llvm_test_suite_l0_gen9:
     name: L0 GEN9 Test Suite
@@ -217,6 +216,8 @@ jobs:
     - uses: actions/checkout@v2
       with:
         path: llvm
+    - name: Register cleanup after job is finished
+      uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
@@ -229,9 +230,6 @@ jobs:
         check_sycl_all: 'level_zero:gpu,host'
         results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
-    - name: Cleanup
-      if: always()
-      run: rm -rf llvm
 
   llvm_test_suite_ocl_x64:
     name: OCL x64 Test Suite
@@ -245,6 +243,8 @@ jobs:
     - uses: actions/checkout@v2
       with:
         path: llvm
+    - name: Register cleanup after job is finished
+      uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
@@ -256,9 +256,6 @@ jobs:
         lit_archive: lit.tar.xz
         check_sycl_all: 'opencl:cpu,host'
         results_name_suffix: ocl_x64_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-    - name: Cleanup
-      if: always()
-      run: rm -rf llvm
 
   llvm_test_suite_hip_amdgpu:
     name: HIP AMD GPU Test Suite
@@ -272,6 +269,8 @@ jobs:
     - uses: actions/checkout@v2
       with:
         path: llvm
+    - name: Register cleanup after job is finished
+      uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
@@ -284,6 +283,3 @@ jobs:
         check_sycl_all: 'hip:gpu,host'
         results_name_suffix: ocl_x64_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         cmake_args: '-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"'
-    - name: Cleanup
-      if: always()
-      run: rm -rf llvm
