@@ -1,12 +1,12 @@
 ; Check for passthrough abilities
 ; RUN: llvm-as %s -o %t.bc
-; RUN: spir-to-ir %t.bc -o %t_1.bc
+; RUN: spir-to-ir-wrapper %t.bc -o %t_1.bc
 ; RUN: llvm-dis %t_1.bc -o %t_1.ll
 ; RUN: FileCheck %s --input-file %t_1.ll
 
 ; Check for SPIR-V conversion
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: spir-to-ir %t.spv -o %t_2.bc
+; RUN: spir-to-ir-wrapper %t.spv -o %t_2.bc
 ; RUN: llvm-dis %t_2.bc -o %t_2.ll
 ; RUN: FileCheck %s --input-file %t_2.ll
 

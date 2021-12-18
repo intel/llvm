@@ -1,4 +1,4 @@
-//===--- spir-to-ir.cpp - Utility to convert to ir if needed --------------===//
+//===--- spir-to-ir-wrapper.cpp - Utility to convert to ir if needed ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,7 +15,7 @@
 // The output file is used to allow for proper input and output flow within
 // the driver toolchain.
 //
-// Usage: spir-to-ir input.spv -o output.bc
+// Usage: spir-to-ir-wrapper input.spv -o output.bc
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,28 +34,27 @@ using namespace llvm;
 
 // InputFilename - The filename to read from.
 static cl::opt<std::string> InputFilename(cl::Positional,
-                                          cl::desc("<input spv file>"),
-                                          cl::init("-"),
-                                          cl::value_desc("filename"));
+                                          cl::value_desc("<input spv file>"),
+                                          cl::desc("<input file>"));
 
 // Output - The filename to output to.
-static cl::opt<std::string> Output("o", cl::desc("<output IR filename>"),
-                                   cl::value_desc("filename"));
+static cl::opt<std::string> Output("o", cl::value_desc("output IR filename"),
+                                   cl::desc("output filename"));
 
 // LlvmSpirvOpts - The filename to output to.
 static cl::opt<std::string>
-    LlvmSpirvOpts("llvm-spirv-opts", cl::desc("<llvm-spirv options>"),
-                  cl::value_desc("options to pass to llvm-spirv"));
+    LlvmSpirvOpts("llvm-spirv-opts", cl::value_desc("llvm-spirv options"),
+                  cl::desc("options to pass to llvm-spirv"));
 
 static void error(const Twine &Message) {
-  llvm::errs() << "spir-to-ir: " << Message << '\n';
+  llvm::errs() << "spir-to-ir-wrapper: " << Message << '\n';
   exit(1);
 }
 
 // Convert the SPIR-V to LLVM-IR.
 static int convertSPIRVToLLVMIR(const char *Argv0) {
   // Find llvm-spirv.  It is expected this resides in the same directory
-  // as spir-to-ir.
+  // as spir-to-ir-wrapper.
   StringRef ParentPath = llvm::sys::path::parent_path(Argv0);
   llvm::ErrorOr<std::string> LlvmSpirvBinary =
       llvm::sys::findProgramByName("llvm-spirv", ParentPath);
@@ -78,7 +77,7 @@ static int convertSPIRVToLLVMIR(const char *Argv0) {
   return llvm::sys::ExecuteAndWait(LlvmSpirvBinary.get(), LlvmSpirvArgs);
 }
 
-static int copyInputLLVMIRToOutput(void) {
+static int copyInputToOutput(void) {
   // When given an output file, just copy the input to the output
   if (!Output.empty() && !InputFilename.empty()) {
     llvm::sys::fs::copy_file(InputFilename, Output);
@@ -101,12 +100,8 @@ static bool isLLVMIRBinary(const std::string &File) {
 }
 
 static int checkInputFileIsAlreadyLLVM(const char *Argv0) {
-  if (InputFilename == "-")
-    return SPIRV::isSpirvBinary(InputFilename) ? convertSPIRVToLLVMIR(Argv0)
-                                               : copyInputLLVMIRToOutput();
-
   if (isLLVMIRBinary(InputFilename))
-    return copyInputLLVMIRToOutput();
+    return copyInputToOutput();
 
   StringRef Ext = llvm::sys::path::has_extension(InputFilename)
                       ? llvm::sys::path::extension(InputFilename).drop_front()
@@ -114,15 +109,19 @@ static int checkInputFileIsAlreadyLLVM(const char *Argv0) {
   if (Ext == "spv" || SPIRV::isSpirvBinary(InputFilename))
     return convertSPIRVToLLVMIR(Argv0);
 
-  error("Could not determine input type for " + InputFilename);
-  return -1;
+  // We could not directly determine the input file, so we just copy it
+  // to the output file.
+  return copyInputToOutput();
 }
 
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
 
   LLVMContext Context;
-  cl::ParseCommandLineOptions(argc, argv, "spir-to-ir\n");
+  cl::ParseCommandLineOptions(argc, argv, "spir-to-ir-wrapper\n");
+
+  if (InputFilename.empty())
+    error("No input file provided");
 
   if (!llvm::sys::fs::exists(InputFilename))
     error("Input file \'" + InputFilename + "\' not found");
