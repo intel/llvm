@@ -40,7 +40,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda"
+        default: "--hip --hip-amd-arch=gfx906 --cuda"
       build_artifact_suffix:
         type: string
         required: true
@@ -82,16 +82,16 @@ jobs:
               \"cxx\":\"g++\",
               \"build_runs_on\":\"build\",
               \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"build_github_cache\":\"\\\"false\\\"\",
+              \"build_github_cache\":\"false\",
               \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
               \"build_cache_size\":\"2G\",
-              \"build_configure_extra_args\":\"--hip --cuda\",
+              \"build_configure_extra_args\":\"--hip --hip-amd-arch=gfx906 --cuda\",
               \"build_artifact_suffix\":\"default\",
-              \"build_upload_artifact\":\"\\\"true\\\"\",
+              \"build_upload_artifact\":\"false\",
               \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
               \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"lts_config\":\"l0_gen9;hip_amdgpu\",
+              \"lts_config\":\"ocl_x64;hip_amdgpu\",
               \"gen9_runs_on\":\"gen9\",
               \"amdgpu_runs_on\":\"amdgpu\"
             }"
@@ -116,7 +116,7 @@ jobs:
       uses: ./src/devops/actions/cleanup
     - name: Setup Cache
       uses: actions/cache@v2
-      if: ${{ fromJSON(needs.configure.outputs.params).build_github_cache }}
+      if: ${{ steps.parameters.build_github_cache }}
       id: cache
       with:
         path: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}/build_cache_${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
@@ -231,6 +231,33 @@ jobs:
         results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
 
+  llvm_test_suite_ocl_gen9:
+    name: OCL GEN9 Test Suite
+    needs: [build, configure]
+    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_gen9') }}
+    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
+    container:
+      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
+      options: -u 1001 --device=/dev/dri
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: llvm
+    - name: Register cleanup after job is finished
+      uses: ./llvm/devops/actions/cleanup
+    - uses: ./llvm/devops/actions/llvm_test_suite
+      name: Run LLVM Test Suite
+      with:
+        # TODO allow custom test references
+        test_ref: 'intel'
+        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        sycl_archive: llvm_sycl.tar.xz
+        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        lit_archive: lit.tar.xz
+        check_sycl_all: 'opencl:gpu,host'
+        results_name_suffix: ocl_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
+
   llvm_test_suite_ocl_x64:
     name: OCL x64 Test Suite
     needs: [build, configure]
@@ -281,5 +308,5 @@ jobs:
         lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         lit_archive: lit.tar.xz
         check_sycl_all: 'hip:gpu,host'
-        results_name_suffix: ocl_x64_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        results_name_suffix: hip_amdgpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         cmake_args: '-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"'
