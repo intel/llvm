@@ -102,7 +102,7 @@ jobs:
           echo "::set-output name=params::$INPUTS"
           echo "$INPUTS"
   build:
-    name: Build SYCL toolchain
+    name: Build + LIT
     needs: configure
     runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
     container:
@@ -138,7 +138,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults $ARGS --hip-amd-arch="gfx906" \
+          --ci-defaults $ARGS \
           --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
           --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
