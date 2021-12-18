@@ -5,8 +5,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// XFAIL: cuda
-
 #include <CL/sycl.hpp>
 
 #include <cassert>
