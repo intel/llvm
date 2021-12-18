@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
 // Tests for AST of __uses_aspects__(aspect, ...) attribute
 #include "sycl.hpp"
@@ -45,6 +45,18 @@ template <cl::sycl::aspect Aspect>
 [[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] void func5();
 void func5() {}
 
+// CHECK: FunctionDecl {{.*}} used func6 'void ()'
+// CHECK-NEXT: SYCLUsesAspectsAttr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] void func6();
+
+// CHECK: FunctionDecl {{.*}} used func6 'void ()'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: SYCLUsesAspectsAttr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
+// CHECK-NOT: SYCLUsesAspectsAttr
+[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::gpu)]] void func6() {}
+
 // CHECK: CXXRecordDecl {{.*}} class TypeWithAspect definition
 // CHECK: SYCLUsesAspectsAttr
 // CHECK-NEXT:DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
@@ -58,6 +70,7 @@ public:
     func3();
     func4<cl::sycl::aspect::host>();
     func5();
+    func6();
   }
 };
 

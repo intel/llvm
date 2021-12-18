@@ -32,3 +32,7 @@ void checkTemplate() {
 
 template <typename Ty>
 [[__sycl_detail__::__uses_aspects__(Ty{})]] void func6() {} // expected-error{{'__uses_aspects__' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
+
+[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] // expected-note{{previous attribute is here}}
+[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::gpu)]] void
+func7() {} // expected-warning@-1{{attribute '__uses_aspects__' is already applied}}

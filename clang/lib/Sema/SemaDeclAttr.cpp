@@ -9328,7 +9328,7 @@ MakeDeclContextDesc(Decl::Kind K, StringRef SR) {
 }
 
 // FIXME: Refactor Util class in SemaSYCL.cpp to avoid following
-// code duplication
+// code duplication.
 bool isDeviceAspectType(const QualType Ty) {
   const EnumType *ET = Ty->getAs<EnumType>();
   if (!ET)
@@ -9371,6 +9371,7 @@ SYCLDeviceHasAttr *Sema::MergeSYCLDeviceHasAttr(Decl *D,
     Diag(A.getLoc(), diag::note_previous_attribute);
     return nullptr;
   }
+
   SmallVector<Expr *, 5> Args;
   for (auto *E : A.aspects())
     Args.push_back(E);
@@ -9386,6 +9387,13 @@ void Sema::AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
   for (auto *E : TmpAttr.aspects())
     if (!isDeviceAspectType(E->getType()))
       Diag(E->getExprLoc(), diag::err_sycl_invalid_aspect_argument) << CI;
+
+  if (const auto *ExistingAttr = D->getAttr<SYCLDeviceHasAttr>()) {
+    Diag(CI.getLoc(), diag::warn_duplicate_attribute_exact) << CI;
+    Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+    return;
+  }
+
   D->addAttr(::new (Context) SYCLDeviceHasAttr(Context, CI, Exprs, Size));
 }
 
@@ -9404,6 +9412,7 @@ Sema::MergeSYCLUsesAspectsAttr(Decl *D, const SYCLUsesAspectsAttr &A) {
     Diag(A.getLoc(), diag::note_previous_attribute);
     return nullptr;
   }
+
   SmallVector<Expr *, 5> Args;
   for (auto *E : A.aspects())
     Args.push_back(E);
@@ -9419,6 +9428,13 @@ void Sema::AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
   for (auto *E : TmpAttr.aspects())
     if (!isDeviceAspectType(E->getType()))
       Diag(E->getExprLoc(), diag::err_sycl_invalid_aspect_argument) << CI;
+
+  if (const auto *ExistingAttr = D->getAttr<SYCLUsesAspectsAttr>()) {
+    Diag(CI.getLoc(), diag::warn_duplicate_attribute_exact) << CI;
+    Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+    return;
+  }
+
   D->addAttr(::new (Context) SYCLUsesAspectsAttr(Context, CI, Exprs, Size));
 }
 

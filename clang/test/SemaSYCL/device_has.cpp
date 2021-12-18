@@ -32,3 +32,7 @@ void checkTemplate() {
 
 template <typename Ty>
 [[sycl::device_has(Ty{})]] void func6() {} // expected-error{{'device_has' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
+
+[[sycl::device_has(cl::sycl::aspect::cpu)]] // expected-note{{previous attribute is here}}
+[[sycl::device_has(cl::sycl::aspect::gpu)]] void
+func7() {} // expected-warning@-1{{attribute 'device_has' is already applied}}

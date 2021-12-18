@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
 // Tests for AST of device_has(aspect, ...) attribute
 #include "sycl.hpp"
@@ -45,6 +45,18 @@ template <cl::sycl::aspect Aspect>
 [[sycl::device_has(cl::sycl::aspect::cpu)]] void func5();
 void func5() {}
 
+// CHECK: FunctionDecl {{.*}} used func6 'void ()'
+// CHECK-NEXT: SYCLDeviceHasAttr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+[[sycl::device_has(cl::sycl::aspect::cpu)]] void func6();
+
+// CHECK: FunctionDecl {{.*}} used func6 'void ()'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: SYCLDeviceHasAttr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
+// CHECK-NOT: SYCLDeviceHasAttr
+[[sycl::device_has(cl::sycl::aspect::gpu)]] void func6() {}
+
 class KernelFunctor {
 public:
   void operator()() const {
@@ -53,6 +65,7 @@ public:
     func3();
     func4<cl::sycl::aspect::host>();
     func5();
+    func6();
   }
 };
 
