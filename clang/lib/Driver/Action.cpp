@@ -61,6 +61,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "static-lib-linker";
   case ForEachWrappingClass:
     return "foreach";
+  case SpirToIrWrapperJobClass:
+    return "spir-to-ir-wrapper";
   }
 
   llvm_unreachable("invalid class");
@@ -543,6 +545,12 @@ void StaticLibJobAction::anchor() {}
 
 StaticLibJobAction::StaticLibJobAction(ActionList &Inputs, types::ID Type)
     : JobAction(StaticLibJobClass, Inputs, Type) {}
+
+void SpirToIrWrapperJobAction::anchor() {}
+
+SpirToIrWrapperJobAction::SpirToIrWrapperJobAction(Action *Input,
+                                                   types::ID Type)
+    : JobAction(SpirToIrWrapperJobClass, Input, Type) {}
 
 ForEachWrappingAction::ForEachWrappingAction(JobAction *TFormInput,
                                              JobAction *Job)

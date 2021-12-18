@@ -3056,6 +3056,14 @@ bool Driver::checkForOffloadStaticLib(Compilation &C,
   return false;
 }
 
+/// Check whether the given input tree contains any clang-offload-dependency
+/// actions.
+static bool ContainsOffloadDepsAction(const Action *A) {
+  if (isa<OffloadDepsJobAction>(A))
+    return true;
+  return llvm::any_of(A->inputs(), ContainsOffloadDepsAction);
+}
+
 namespace {
 /// Provides a convenient interface for different programming models to generate
 /// the required device actions.
@@ -4538,7 +4546,18 @@ class OffloadingActionBuilder final {
             DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
             continue;
           } else if (!types::isFPGA(Input->getType())) {
-            LinkObjects.push_back(Input);
+            // No need for any conversion if we are coming in from the
+            // clang-offload-deps or regular compilation path.
+            if (ContainsOffloadDepsAction(Input) ||
+                ContainsCompileOrAssembleAction(Input)) {
+              LinkObjects.push_back(Input);
+              continue;
+            }
+            Action *ConvertSPIRVAction = C.MakeAction<SpirToIrWrapperJobAction>(
+                Input, Input->getType() == types::TY_Archive
+                           ? types::TY_Tempfilelist
+                           : types::TY_LLVM_BC);
+            LinkObjects.push_back(ConvertSPIRVAction);
           }
         }
         if (LinkObjects.empty())
