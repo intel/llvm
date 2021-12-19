@@ -869,20 +869,123 @@ property set.
 
 #### Device configuration file
 
-The configuration file uses a simple YAML format where each top-level key is
-a name of a device architecture. There are sub-keys under each device for
-the supported aspects and sub-group sizes.  For example:
+The "device configuration file" is a [YAML](https://yaml.org) format file which
+stores information about all the AOT targets supported by the DPC++ compiler.
+The top-level keys (nodes) can be of 2 kinds: targets and property collections.
+- Targets are those strings which can appear in the `-fsycl-targets` list.
+- Property collections are basically named groups of properties to conveniently
+  refer to from other targets and property collections.
+
+> ##### Target name specification formats
+> Targets within can be specified in three forms: long, short and dynamic.
+> - Long form has the format `<vendor>`\_`<device type>`\_`<ID>`
+> - Short form has the format `<ID>`
+> - Dynamic form has the format `<vendor>`\_`<device type>`\_`*`. Dynamic
+>   targets are used for dynamically generated platforms, such as some Intel
+>   FPGA ones. More on this below.
+>
+> Some targets have only long form, some - both long and short. There is an aspect
+> with the same spelling for each long and short form target. There is no aspect
+> for dynamic targets.
+
+
+A target or a property collection may "extend" one ore more other target or
+property collection. Thus the nodes form an asyclic directed graph, with graph
+entry nodes being targets, and inner nodes being other targets or property
+collections. A node in the graph, beside of properties listed immediately in the
+node, also possesses all the properties combined from of all its descendants.
+A property can be "combinable" - such as `aspects` - or non-combinable - such as
+`aot-toolchain`. It is an error if there are two or more not matching
+non-combinable properties possessed by a node. (**TODO** add some 'override' prefix to
+ignore base nodes' values). This is a convenience feature to avoid duplication of
+properties, such as symbolic aspects enumerations, in multiple similar targets.
+
+The "extends" relation is specifed via the `extends` key. For example:
+```
+intel_gpu:
+  aot-toolchain: intel-gpu
+  ...
+intel_gpu_12_2_1:
+  TARGET
+  ...
+intel_gpu_dg2_g10:
+  TARGET
+  extends: intel_gpu_12_2_1, intel_gpu
+  ...
+intel_gpu_dg2_g11:
+  TARGET
+  extends: intel_gpu_12_2_1, intel_gpu
+  ...
+```
+
+Each target must immediately contain the `TARGET` sub-key w/o a value.
+(**TODO**: it can specify AOT compiler argument needed to compile for this
+target).
+The following information must be available for each target either immediately
+or through base nodes:
+- YAML key `aot-toolchain`. AOT toolchain identification - this lets DPC++
+  compilation driver know what toolchain to use to AOT compile for this target.
+  Possible values:
+  - `intel-gpu` - Intel's toolchain for GPU AOT compilation (ocloc)
+  - `intel-fpga`- Intel's toolchain for FPGA AOT compilation
+  - `ptx` - Toolchain for PTX compilation
+  - `intel-x86-cpu` - Intel's toolchain for CPU AOT compilation.
+
+There are other properties which can be specified immediately within a target
+or a property collection:
+
+- YAML key `aspects`. A list of supported SYCL aspects (as defined by the SYCL
+  specification or vendor extensions).
+- YAML key `sub-group-sizes`. An array of supported sub-group sizes.
+
+
+Example device configuration file (not real! actual definitions may be different
+in real configuration file):
 
 ```
-intel_gpu_11_1:
-  aspects: [1, 2, 3]
-  sub-group-sizes: [8, 16]
-intel_gpu_icl:
-  aspects: [2, 3]
-  sub-group-sizes: [8, 16]
+base_usm:
+  aspects: usm_device_allocations, usm_host_allocations, usm_shared_allocations
+
+intel_gpu:
+  aot-toolchain: intel-gpu
+  aspects: gpu, online_compiler, queue_profiling
+  sub-group-sizes: [8, 16, 32]
+
+intel_gpu_12_x_x:
+  extends: intel_gpu, base_usm
+  aspects: fp16
+
+intel_gpu_12_2_1:
+  TARGET
+  extends: intel_gpu_12_x_x
+  aspects: fp16, intel_gpu_12_2_1
+
+intel_gpu_dg2_g10:
+  TARGET
+  extends: intel_gpu_12_2_1
+  aspects: intel_gpu_dg2_g10
+
+# a short form alias for the above long form:
+#
+dg2_g10:
+  TARGET
+  extends: intel_gpu_dg2_g10
+
+intel_gpu_dg2_g11:
+  TARGET
+  extends: intel_gpu_12_2_1
+
 x86_64_avx512:
   aspects: [1, 2, 3, 9, 11]
-  sub-group-sizes: [8, 32]
+  sub-group-sizes: [8, 16, 32]
+
+# dynamic target - specifies just the toolchain, and clang driver knows
+# how to get device configuration file for this toolchain (mechanism is
+# hardcoded into the driver)
+#
+intel_fpga_*:
+  aot-toolchain: intel-fpga
+
 ```
 
 The values of the aspects in this configuration file can be the numerical
@@ -894,8 +997,36 @@ example, if a new device is released before there is a new DPC++ release.  In
 fact, the DPC++ driver supports a command line option which allows the user
 to select an alternate configuration file.
 
-**TODO**:
-* Define location of the default device configuration file.
+**TODO**: Define location of the default device configuration file.
+
+For some device types such as FPGA, the complete set of platforms might not be
+known until the developer, who uses pre-installed DPC++, "generates" the
+platforms. For such device types, there should be a component installed together
+with the DPC++ on developer's machine, which can generate and provide the device
+configuration file's location to the DPC++ compilation driver. The mechanism of
+providing the location is device type-specific, and the compilation driver
+chooses one based on the corresponding dynamic target entry in the configuration
+file.
+
+For example, suppose developer specified
+`-fsycl-targets=intel_fpga_stratix_10_X` on the command line, and there is no
+`intel_fpga_stratix_10_X` target in the current configuration file compilation
+driver uses. The driver will then search for the dynamic target `intel_fpga_*`
+to see what toolchain it should use. Suppose it finds the following:
+```
+intel_fpga_*:
+  aot-toolchain: intel-fpga
+```
+The driver now knows that
+1) `intel_fpga_stratix_10_X` is a dynamic target, because it starts with a
+   dynamic target prefix specified in the configuration file
+2) it needs to query `intel-fpga` AOT toolchain for the actual configuration
+   file with more details about all `intel_fpga_*` targets.
+
+Clang driver can use multiple configuration files in single compilation. All
+target definitions in all configuration files become known to the driver.
+Targets and property collections are not visible across configuration file
+boundaries.
 
 #### New features in clang compilation driver and tools
 
@@ -995,32 +1126,41 @@ Exact location of the file and final name of the compiler option is TBD.
 
 ##### AOT target identification
 
-There are several user-visible places in the SDK where SYCL device target
-architectures need to be identified:
+There are several user-visible places in the SDK where SYCL target device needs to
+be identified:
 
 - `-fsycl-targets` option
 - a device configuration file entry
 - `-target` option of the `sycl-aspec-filter` tool
 - a SYCL aspect enum identifier (we expect to add a new SYCL aspect for each
-  device target architecture)
+  device target)
 
-In all such places architecture naming should be the same. In some cases aliases
-are allowed. Below is a list of target architectures supported by DPC++:
+In all such places the naming scheme should be the same. In some cases aliases
+are allowed. Below is a table describing targets supported by DPC++.
+A target can fall into two logical categories:
+- An Instruction Set Architecture (ISA) version or ID, identifies just the
+  instruction set supported by the target.
+- A platform ID, identifies a concrete product configuration. E.g. there can be
+  two platforms with different cache size, but the same ISA. So platform ID is
+  provides more specific info about the target.
 
-| target/alias(es) | description |
-|-|-|
-| intel_gpu    | Generic Intel graphics architecture |
-| intel_gpu_tgl, intel_gpu_12_0 | Intel Tiger Lake (11th generation Core) integrated graphics architecture |
-| ptx64  | Generic 64-bit PTX target architecture |
-| spir64 | Generic 64-bit SPIR-V target |
-| x86_64 | Generic 64-bit x86 architecture |
+| target/alias(es)           | ISA Id           | description                                                    |
+|----------------------------|------------------|----------------------------------------------------------------|
+| intel_gpu                  |                  | Generic Intel GPU                                              |
+| intel_gpu_skl              | intel_gpu_9_0_0  | Intel 6th generation Core (Skylake) integrated GPU             |
+| intel_gpu_kbl              | intel_gpu_9_1_0  | Intel 7th generation Core (Kaby Lake) integrated GPU           |
+| intel_gpu_cfl              | intel_gpu_9_2_0  | Intel 8th/9th generation Core (Coffee Lake) integrated GPU     |
+| intel_gpu_icl              | intel_gpu_11_0_0 | Intel 10th generation Core (Ice Lake) integrated GPU           |
+| intel_gpu_tgl              | intel_gpu_12_0_0 | Intel 11th generation Core (Tiger Lake) integrated GPU         |
+| ptx64                      |                  | Generic 64-bit PTX target architecture                         |
+| spir64                     |                  | Generic 64-bit SPIR-V target                                   |
+| x86_64                     |                  | Generic 64-bit x86 architecture                                |
 
-TODO: Provide full list of AOT targets supported by the identification
-mechanism.
+**TODO**: Complete list of AOT targets supported by the identification mechanism.
 
 Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
 ```
-clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0,ptx64 ...
+clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0_0,ptx64 ...
 ```
 
 ### Changes to the DPC++ runtime
