@@ -70,7 +70,8 @@ void buffer_impl::associateNotification(void *MemObj) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiTraceEnabled() && TraceEvent))
     return;
-  xpti::offload_buffer_association_data_t BufAssoc{(uintptr_t)this, (uintptr_t)MemObj};
+  xpti::offload_buffer_association_data_t BufAssoc{(uintptr_t)this,
+                                                   (uintptr_t)MemObj};
 
   // Add assotiation between user level and PI level memory object
   xptiNotifySubscribers(StreamID, xpti::trace_offload_alloc_associate, nullptr,
