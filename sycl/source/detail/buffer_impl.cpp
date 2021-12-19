@@ -47,7 +47,7 @@ void buffer_impl::constructorNotification(
   // combining it with the the created object address
   xpti::utils::StringHelper NG;
   std::string Name = NG.nameWithAddress<buffer_impl *>("buffer", this);
-  xpti::offload_buffer_data_t BufConstr{reinterpret_cast<uintptr_t>(this)};
+  xpti::offload_buffer_data_t BufConstr{(uintptr_t)this};
 
   xpti::payload_t Payload(
       Name.c_str(), (CodeLoc.fileName() ? CodeLoc.fileName() : ""),
@@ -70,8 +70,7 @@ void buffer_impl::associateNotification(void *MemObj) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiTraceEnabled() && TraceEvent))
     return;
-  xpti::offload_buffer_association_data_t BufAssoc{
-      reinterpret_cast<uintptr_t>(this), reinterpret_cast<uintptr_t>(MemObj)};
+  xpti::offload_buffer_association_data_t BufAssoc{(uintptr_t)this, (uintptr_t)MemObj};
 
   // Add assotiation between user level and PI level memory object
   xptiNotifySubscribers(StreamID, xpti::trace_offload_alloc_associate, nullptr,
