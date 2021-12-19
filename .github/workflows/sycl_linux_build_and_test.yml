@@ -81,17 +81,17 @@ jobs:
               \"cc\":\"gcc\",
               \"cxx\":\"g++\",
               \"build_runs_on\":\"build\",
-              \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
+              \"build_image\":\"ghcr.io/testorg-abatashev/llvm/ubuntu2004_base:latest\",
               \"build_github_cache\":\"false\",
               \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
               \"build_cache_size\":\"2G\",
-              \"build_configure_extra_args\":\"--hip --hip-amd-arch=gfx906 --cuda\",
+              \"build_configure_extra_args\":\"\",
               \"build_artifact_suffix\":\"default\",
               \"build_upload_artifact\":\"false\",
               \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
               \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"lts_config\":\"ocl_x64;ocl_gen9;hip_amdgpu\",
+              \"lts_config\":\"\",
               \"gen9_runs_on\":\"gen9\",
               \"amdgpu_runs_on\":\"amdgpu\"
             }"
@@ -109,7 +109,7 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
       options: -u 1001:1001
     steps:
-    - uses: alexbatashev/llvm/devops/actions/cached_checkout@repo_cache
+    - uses: /actions/cached_checkout@repo_cache
       with:
         path: src
         cache_path: "/__w/repo_cache/"
