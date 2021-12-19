@@ -26,7 +26,7 @@ public:
             typename KernelName>
   void setHostKernel(KernelType Kernel) {
     static_cast<sycl::handler *>(this)->MHostKernel.reset(
-        new sycl::detail::HostKernel<KernelType, ArgType, Dims, false>(Kernel));
+        new sycl::detail::HostKernel<KernelType, ArgType, Dims>(Kernel));
   }
 
   template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
