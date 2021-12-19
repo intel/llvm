@@ -109,7 +109,7 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
       options: -u 1001:1001
     steps:
-    - uses: /actions/cached_checkout@repo_cache
+    - uses: /actions/cached_checkout
       with:
         path: src
         cache_path: "/__w/repo_cache/"
