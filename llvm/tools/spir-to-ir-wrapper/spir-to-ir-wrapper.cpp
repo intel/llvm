@@ -85,6 +85,15 @@ static int copyInputToOutput(void) {
   return 0;
 }
 
+static bool isSPIRVBinary(const std::string &File) {
+  auto FileOrError = MemoryBuffer::getFile(File, /*IsText=*/false,
+                                           /*RequiresNullTerminator=*/false);
+  if (!FileOrError)
+    return false;
+  std::unique_ptr<MemoryBuffer> FileBuffer = std::move(*FileOrError);
+  return SPIRV::isSpirvBinary(FileBuffer->getBuffer().str());
+}
+
 static bool isLLVMIRBinary(const std::string &File) {
   if (File.size() < sizeof(unsigned))
     return false;
@@ -100,13 +109,12 @@ static bool isLLVMIRBinary(const std::string &File) {
 }
 
 static int checkInputFileIsAlreadyLLVM(const char *Argv0) {
-  if (isLLVMIRBinary(InputFilename))
-    return copyInputToOutput();
-
   StringRef Ext = llvm::sys::path::has_extension(InputFilename)
                       ? llvm::sys::path::extension(InputFilename).drop_front()
                       : "";
-  if (Ext == "spv" || SPIRV::isSpirvBinary(InputFilename))
+  if (Ext == "bc" || isLLVMIRBinary(InputFilename))
+    return copyInputToOutput();
+  if (Ext == "spv" || isSPIRVBinary(InputFilename))
     return convertSPIRVToLLVMIR(Argv0);
 
   // We could not directly determine the input file, so we just copy it
