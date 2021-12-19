@@ -4548,7 +4548,7 @@ class OffloadingActionBuilder final {
           } else if (!types::isFPGA(Input->getType())) {
             // No need for any conversion if we are coming in from the
             // clang-offload-deps or regular compilation path.
-            if (ContainsOffloadDepsAction(Input) ||
+            if (isNVPTX || isAMDGCN || ContainsOffloadDepsAction(Input) ||
                 ContainsCompileOrAssembleAction(Input)) {
               LinkObjects.push_back(Input);
               continue;

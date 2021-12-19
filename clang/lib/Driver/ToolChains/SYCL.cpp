@@ -236,7 +236,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.
         std::string FileName(II.getFilename());
-        Objs.push_back(C.getArgs().MakeArgString("@" + FileName));
+        Libs.push_back(C.getArgs().MakeArgString("@" + FileName));
       } else if (II.getType() == types::TY_Archive && !LinkSYCLDeviceLibs) {
         Libs.push_back(II.getFilename());
       } else
