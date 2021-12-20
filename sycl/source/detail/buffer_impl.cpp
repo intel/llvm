@@ -9,11 +9,12 @@
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/xpti_registry.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti/xpti_trace_framework.hpp"
-#include <detail/xpti_registry.hpp>
 #include <sstream>
 #endif
 
@@ -39,6 +40,7 @@ void buffer_impl::constructorNotification(
     const detail::code_location &CodeLoc) {
   (void)CodeLoc;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
   if (!xptiTraceEnabled())
     return;
   StreamID = xptiRegisterStream(SYCL_BUFFER_STREAM_NAME);
