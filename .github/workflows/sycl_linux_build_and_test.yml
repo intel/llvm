@@ -262,7 +262,7 @@ jobs:
     name: OCL x64 Test Suite
     needs: [build, configure]
     if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_x64') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
+    runs-on: x64
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001
