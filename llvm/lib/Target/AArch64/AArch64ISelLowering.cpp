@@ -10958,15 +10958,14 @@ SDValue AArch64TargetLowering::LowerINSERT_SUBVECTOR(SDValue Op,
   EVT InVT = Op.getOperand(1).getValueType();
   unsigned Idx = cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue();
 
-  if (InVT.isScalableVector()) {
-    SDLoc DL(Op);
-    EVT VT = Op.getValueType();
+  SDValue Vec0 = Op.getOperand(0);
+  SDValue Vec1 = Op.getOperand(1);
+  SDLoc DL(Op);
+  EVT VT = Op.getValueType();
 
+  if (InVT.isScalableVector()) {
     if (!isTypeLegal(VT))
       return SDValue();
-
-    SDValue Vec0 = Op.getOperand(0);
-    SDValue Vec1 = Op.getOperand(1);
 
     // Ensure the subvector is half the size of the main vector.
     if (VT.getVectorElementCount() != (InVT.getVectorElementCount() * 2))
@@ -10997,9 +10996,18 @@ SDValue AArch64TargetLowering::LowerINSERT_SUBVECTOR(SDValue Op,
     return SDValue();
   }
 
-  // This will be matched by custom code during ISelDAGToDAG.
-  if (Idx == 0 && isPackedVectorType(InVT, DAG) && Op.getOperand(0).isUndef())
-    return Op;
+  if (Idx == 0 && isPackedVectorType(VT, DAG)) {
+    // This will be matched by custom code during ISelDAGToDAG.
+    if (Vec0.isUndef())
+      return Op;
+
+    unsigned int PredPattern =
+        getSVEPredPatternFromNumElements(InVT.getVectorNumElements());
+    auto PredTy = VT.changeVectorElementType(MVT::i1);
+    SDValue PTrue = getPTrue(DAG, DL, PredTy, PredPattern);
+    SDValue ScalableVec1 = convertToScalableVector(DAG, VT, Vec1);
+    return DAG.getNode(ISD::VSELECT, DL, VT, PTrue, ScalableVec1, Vec0);
+  }
 
   return SDValue();
 }
@@ -18576,7 +18584,25 @@ AArch64TargetLowering::getVaListSizeInBits(const DataLayout &DL) const {
 }
 
 void AArch64TargetLowering::finalizeLowering(MachineFunction &MF) const {
-  MF.getFrameInfo().computeMaxCallFrameSize(MF);
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  // If we have any vulnerable SVE stack objects then the stack protector
+  // needs to be placed at the top of the SVE stack area, as the SVE locals
+  // are placed above the other locals, so we allocate it as if it were a
+  // scalable vector.
+  // FIXME: It may be worthwhile having a specific interface for this rather
+  // than doing it here in finalizeLowering.
+  if (MFI.hasStackProtectorIndex()) {
+    for (unsigned int i = 0, e = MFI.getObjectIndexEnd(); i != e; ++i) {
+      if (MFI.getStackID(i) == TargetStackID::ScalableVector &&
+          MFI.getObjectSSPLayout(i) != MachineFrameInfo::SSPLK_None) {
+        MFI.setStackID(MFI.getStackProtectorIndex(),
+                       TargetStackID::ScalableVector);
+        MFI.setObjectAlignment(MFI.getStackProtectorIndex(), Align(16));
+        break;
+      }
+    }
+  }
+  MFI.computeMaxCallFrameSize(MF);
   TargetLoweringBase::finalizeLowering(MF);
 }
 
@@ -19109,7 +19135,7 @@ SDValue AArch64TargetLowering::LowerToPredicatedOp(SDValue Op,
   if (isMergePassthruOpcode(NewOp))
     Operands.push_back(DAG.getUNDEF(VT));
 
-  return DAG.getNode(NewOp, DL, VT, Operands);
+  return DAG.getNode(NewOp, DL, VT, Operands, Op->getFlags());
 }
 
 // If a fixed length vector operation has no side effects when applied to

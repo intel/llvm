@@ -22,7 +22,7 @@
 #include "ToolChains/FreeBSD.h"
 #include "ToolChains/Fuchsia.h"
 #include "ToolChains/Gnu.h"
-#include "ToolChains/HIP.h"
+#include "ToolChains/HIPAMD.h"
 #include "ToolChains/Haiku.h"
 #include "ToolChains/Hexagon.h"
 #include "ToolChains/Hurd.h"
@@ -7777,7 +7777,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_HIP:
-        TC = std::make_unique<toolchains::HIPToolChain>(
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(
             *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_OpenMP:
@@ -7798,7 +7798,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
               *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           case llvm::Triple::amdgcn:
-            TC = std::make_unique<toolchains::HIPToolChain>(
+            TC = std::make_unique<toolchains::HIPAMDToolChain>(
                 *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
