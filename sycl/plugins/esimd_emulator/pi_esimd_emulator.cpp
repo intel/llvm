@@ -127,6 +127,9 @@ static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
 
+// For PI_DEVICE_INFO_VERSION info
+static char CmEmuDeviceVersionString[32];
+
 using IDBuilder = sycl::detail::Builder;
 
 template <int NDims>
@@ -463,6 +466,23 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   int Result = cm_support::CreateCmDevice(CmDevice, Version);
 
+  // CM Device version info consists of two decimal numbers - major
+  // and minor. Minor is single-digit. Version info is encoded into a
+  // unsigned integer value = 100 * major + minor. Second from right
+  // digit in decimal must be zero as it is used as 'dot'
+  // REF - $CM_EMU/common/cm_version_defs.h - 'CURRENT_CM_VERSION'
+  // e.g. CM version 7.3 => Device version = 703
+
+  if (((Version / 10) % 10) == 0) {
+    if (PrintPiTrace) {
+      std::cerr << "CM_EMU Device version info is incorrect" << std::endl;
+    }
+    return PI_INVALID_DEVICE;
+  }
+
+  sprintf(CmEmuDeviceVersionString, "%d.%d", (int)(Version / 100),
+          (int)(Version % 10));
+
   if (Result != cm_support::CM_SUCCESS) {
     return PI_INVALID_DEVICE;
   }
@@ -536,9 +556,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // cl_khr_int64_extended_atomics
     return ReturnValue("");
   case PI_DEVICE_INFO_VERSION:
-    // CM_EMU release version from
-    // https://github.com/intel/cm-cpu-emulation/releases
-    return ReturnValue("1.0");
+    return ReturnValue(CmEmuDeviceVersionString);
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{false});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
