@@ -95,7 +95,6 @@
 // CHK-FPGA-AOCO-PHASES-EMU: 25: clang-offload-wrapper, {24}, object, (device-sycl)
 // CHK-FPGA-AOCO-PHASES-EMU: 26: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64_fpga-unknown-unknown)" {25}, image
 
-
 /// aoco emulation test, checking tools
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fintelfpga %t_aoco.a -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO-EMU,CHK-FPGA-AOCO-EMU-LIN %s
