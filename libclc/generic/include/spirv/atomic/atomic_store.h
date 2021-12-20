@@ -7,15 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 // TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
-#define DECL(TYPE, TYPE_MANGLED, AS_PREFIX, AS, AS_MANGLED)                                                                            \
-  _CLC_DECL void                                                                                                                       \
-      _Z19__spirv_AtomicStoreP##AS_PREFIX##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
+#define DECL(TYPE, TYPE_MANGLED, AS, AS_MANGLED)                                                                              \
+  _CLC_DECL void                                                                                                              \
+      _Z19__spirv_AtomicStorePU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
           volatile AS TYPE *, enum Scope, enum MemorySemanticsMask, TYPE);
 
-#define DECL_AS(TYPE, TYPE_MANGLED)                                            \
-  DECL(TYPE, TYPE_MANGLED, U3, global, AS1)                                    \
-  DECL(TYPE, TYPE_MANGLED, U3, local, AS3)                                     \
-  DECL(TYPE, TYPE_MANGLED, , , )
+#define DECL_AS(TYPE, TYPE_MANGLED) \
+DECL(TYPE, TYPE_MANGLED, global, AS1) \
+DECL(TYPE, TYPE_MANGLED, local, AS3)
 
 DECL_AS(int, i)
 DECL_AS(unsigned int, j)
