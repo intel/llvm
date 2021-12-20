@@ -60,10 +60,6 @@ downloaded an image previously, and you want to update it, use
 
 ## Persisting data
 
-This command will download an image, if it does not exist locally. If you've
-downloaded an image previously, and you want to update it, use
-`docker pull <image_name>` command.
-
 ### Persisting data with volumes
 
 Docker container images are read-only. When container is destroyed, all its data
