@@ -204,6 +204,15 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
       Subscripts.push_back(Builder.getOrCreateSubrange(1, nullptr));
       continue;
     }
+    if (auto *LocalVar = getDbgInst<SPIRVDebug::LocalVariable>(Ops[I])) {
+      if (auto *UpperBound = transDebugInst<DILocalVariable>(LocalVar)) {
+        auto *LowerBound = ConstantAsMetadata::get(
+            ConstantInt::get(M->getContext(), APInt(32, 1)));
+        Subscripts.push_back(Builder.getOrCreateSubrange(nullptr, LowerBound,
+                                                         UpperBound, nullptr));
+        continue;
+      }
+    }
     SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
     int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
     Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
@@ -509,7 +518,8 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
   llvm::DITemplateParameterArray TParamsArray = TParams.get();
 
   DISubprogram *DIS = nullptr;
-  if ((isa<DICompositeType>(Scope) || isa<DINamespace>(Scope)) && !IsDefinition)
+  if (Scope && (isa<DICompositeType>(Scope) || isa<DINamespace>(Scope)) &&
+      !IsDefinition)
     DIS = Builder.createMethod(Scope, Name, LinkageName, File, LineNo, Ty, 0, 0,
                                nullptr, Flags, SPFlags, TParamsArray);
   else

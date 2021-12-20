@@ -569,7 +569,10 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
       Ops[ComponentCountIdx + I] =
           SPIRVWriter->transValue(Count, nullptr)->getId();
     } else {
-      Ops[ComponentCountIdx + I] = getDebugInfoNoneId();
+      if (auto *UpperBound = dyn_cast<MDNode>(SR->getRawUpperBound()))
+        Ops[ComponentCountIdx + I] = transDbgEntry(UpperBound)->getId();
+      else
+        Ops[ComponentCountIdx + I] = getDebugInfoNoneId();
     }
   }
   return BM->addDebugInfo(SPIRVDebug::TypeArray, getVoidTy(), Ops);
