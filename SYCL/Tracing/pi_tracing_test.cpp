@@ -17,7 +17,7 @@
 // CHECK-NEXT:  <unknown> : 40
 // CHECK-NEXT:  <unknown> : 0
 // CHECK-NEXT:  <unknown> : {{0[xX]?[0-9a-fA-F]*}}
-// CHECK:  <nullptr>
+// CHECK:  {{<nullptr>|0}}
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
 // CHECK-NEXT: [out]void * : {{0+}}
 // CHECK-NEXT: [out]pi_mem * : {{0[xX]?[0-9a-fA-F]*}}[ {{0[xX]?[0-9a-fA-F]*}}
