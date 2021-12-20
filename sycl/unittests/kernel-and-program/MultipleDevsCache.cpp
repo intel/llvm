@@ -212,10 +212,10 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     EXPECT_EQ(KernelCache.size(), (size_t)2) << "Expect 2 kernels in cache";
   }
   // First kernel creating is called in handler::single_task().
-  // kernel_bundle::get_kernel() creates a kernel and shares it with created programs.
-  // Also the kernel is retained in kernel_bundle::get_kernel().
-  // A kernel is removed from cache if piKernelRelease was called for it,
-  // so it will not be removed twice for the other programs.
-  // As a result we must expect 3 piKernelRelease calls.
+  // kernel_bundle::get_kernel() creates a kernel and shares it with created
+  // programs. Also the kernel is retained in kernel_bundle::get_kernel(). A
+  // kernel is removed from cache if piKernelRelease was called for it, so it
+  // will not be removed twice for the other programs. As a result we must
+  // expect 3 piKernelRelease calls.
   EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
 }
