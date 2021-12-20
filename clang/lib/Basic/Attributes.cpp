@@ -11,6 +11,9 @@ int clang::hasAttribute(AttrSyntax Syntax, const IdentifierInfo *Scope,
   StringRef ScopeName = Scope ? Scope->getName() : "";
   StringRef Name = Attr->getName();
   // Normalize the attribute name, __foo__ becomes foo.
+  // FIXME: Normalization does not work correctly for attributes in
+  // __sycl_detail__ namespace. Should normalization work for
+  // attributes not in gnu and clang namespace?
   if (ScopeName != "__sycl_detail__" && Name.size() >= 4 &&
       Name.startswith("__") && Name.endswith("__"))
     Name = Name.substr(2, Name.size() - 4);

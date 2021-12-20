@@ -23,13 +23,9 @@ template <cl::sycl::aspect Aspect>
 [[sycl::device_has(cl::sycl::aspect::cpu)]] void func5();
 void func5() {}
 
-[[sycl::device_has(cl::sycl::aspect::cpu)]] void func6();
-// CHECK: define dso_local spir_func void @{{.*}}func6{{.*}} !intel_declared_aspects ![[ASPECTS1]] {
-void func6() {}
-
 constexpr cl::sycl::aspect getAspect() { return cl::sycl::aspect::cpu; }
-// CHECK: define dso_local spir_func void @{{.*}}func7{{.*}} !intel_declared_aspects ![[ASPECTS1]] {
-[[sycl::device_has(getAspect())]] void func7() {}
+// CHECK: define dso_local spir_func void @{{.*}}func6{{.*}} !intel_declared_aspects ![[ASPECTS1]] {
+[[sycl::device_has(getAspect())]] void func6() {}
 
 class KernelFunctor {
 public:
@@ -40,7 +36,6 @@ public:
     func4<cl::sycl::aspect::host>();
     func5();
     func6();
-    func7();
   }
 };
 
