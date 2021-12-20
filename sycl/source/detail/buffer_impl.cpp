@@ -58,10 +58,10 @@ void buffer_impl::constructorNotification(
   // constructor calls could be at different user-code locations; We create a
   // new event based on the code location info and if this has been seen before,
   // a previously created event will be returned.
+  IId = xptiGetUniqueId();
   TraceEvent =
       xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_offload_buffer_event,
                     xpti_at::active, &IId);
-  IId = xptiGetUniqueId();
   xptiNotifySubscribers(StreamID, xpti::trace_offload_alloc_construct, nullptr,
                         TraceEvent, IId, &BufConstr);
 #endif
