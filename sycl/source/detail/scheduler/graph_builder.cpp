@@ -1171,6 +1171,15 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
   assert(MCmdsToVisit.empty());
   MCmdsToVisit.push(FailedCmd);
 
+  // Create empty command that is "ready" for enqueuing.
+  EmptyCommand *EmptyCmd = new EmptyCommand(FailedCmd->getQueue());
+  if (!EmptyCmd)
+    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+  EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  // Mark new empty command as visited to avoid replacing it later.
+  markNodeAsVisited(EmptyCmd, MVisitedCmds);
+
   // Traverse the graph using BFS
   while (!MCmdsToVisit.empty()) {
     Command *Cmd = MCmdsToVisit.front();
@@ -1178,14 +1187,6 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
 
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
-
-    // Skip replacing empty commands similar to the one we will create
-    if (Cmd->getType() == Command::EMPTY_TASK &&
-        Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueReady) {
-      for (Command *UserCmd : Cmd->MUsers)
-        MCmdsToVisit.push(UserCmd);
-      continue;
-    }
 
     // Collect stream objects for a visited command.
     if (Cmd->getType() == Command::CommandType::RUN_CG) {
@@ -1196,28 +1197,10 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
                                  Streams.end());
     }
 
-    // Create empty command that is "ready" for enqueuing.
-    EmptyCommand *EmptyCmd = new EmptyCommand(Cmd->getQueue());
-    if (!EmptyCmd)
-      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-    // Mark new empty command as visited to avoid replacing it later.
-    markNodeAsVisited(EmptyCmd, MVisitedCmds);
-
-    for (Command *UserCmd : Cmd->MUsers) {
-      // User dependencies cannot be satisfied as dependency failed. These are
-      // also considered as failed.
+    // Users cannot be satisfied as dependency failed. These are also considered
+    // as failed. We merge these into the new empty root command.
+    for (Command *UserCmd : Cmd->MUsers)
       MCmdsToVisit.push(UserCmd);
-
-      // Replace failed command in users with new empty command.
-      for (DepDesc &Dep : UserCmd->MDeps) {
-        if (Dep.MDepCommand == Cmd) {
-          Dep.MDepCommand = EmptyCmd;
-          EmptyCmd->MUsers.insert(UserCmd);
-        }
-      }
-    }
 
     for (DepDesc &Dep : Cmd->MDeps) {
       // Replace failed command in dependency records.
@@ -1228,7 +1211,7 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
       addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
 
       // Replace failed command as a user.
-      if (Dep.MDepCommand->MUsers.erase(Cmd))
+      if (Dep.MDepCommand->MUsers.erase(Cmd) && Dep.MDepCommand != EmptyCmd)
         Dep.MDepCommand->MUsers.insert(EmptyCmd);
     }
 
