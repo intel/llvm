@@ -5,7 +5,7 @@
 ;; SYCLMutatePrintfAddrspacePass turned off):
 ;; clang++ -fsycl -fsycl-device-only Inputs/experimental-printf.cpp -S -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ -O2
 
-; RUN: opt < %s --SYCLMutatePrintfAddrspace -S | FileCheck %s --implicit-check-not=obsolete
+; RUN: opt < %s --SYCLMutatePrintfAddrspace -S | FileCheck %s
 ; RUN: opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=1 | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -36,10 +36,6 @@ entry:
   ret void
 }
 
-; Make sure the non-variadic declarations have been wiped out
-; in favor of the single variadic one:
-; obsolete: declare dso_local spir_func i32 @_Z18__spirv_ocl_printf{{.*}}(i8 addrspace(4)*, float)
-; obsolete: declare dso_local spir_func i32 @_Z18__spirv_ocl_printf{{.*}}(i8 addrspace(4)*, i32)
 ; CHECK: declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)*, ...)
 
 ; Function Attrs: convergent

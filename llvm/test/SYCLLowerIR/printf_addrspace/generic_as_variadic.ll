@@ -2,15 +2,14 @@
 ;; __spirv_ocl_printf at the regular O2 optimization level.
 ;; Note: this test's checks are almost identical to those for non-variadic version
 ;; of pre-transformation printf functions. However, we can't exclude argument promotion
-;; here since it has been enforced by FE. Also, distinct negative checks are required
-;; for deletion of obsolete declarations.
+;; here since it has been enforced by FE.
 
 ;; Compiled with the following command (custom build of SYCL Clang with
 ;; SYCLMutatePrintfAddrspacePass turned off):
 ;; clang++ -fsycl -fsycl-device-only Inputs/experimental-printf.cpp -S -O2
 
-; RUN: opt < %s --SYCLMutatePrintfAddrspace -S | FileCheck %s --implicit-check-not=obsolete
-; RUN: opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=1 | FileCheck %s --implicit-check-not=obsolete
+; RUN: opt < %s --SYCLMutatePrintfAddrspace -S | FileCheck %s
+; RUN: opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=1 | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -38,8 +37,6 @@ entry:
   ret void
 }
 
-; Make sure the generic addrspace declaration has been replaced:
-; obsolete: declare dso_local spir_func i32 @_Z18__spirv_ocl_printf{{.*}}(i8 addrspace(4)*, ...)
 ; CHECK: declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)*, ...)
 ; Function Attrs: convergent
 declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)*, ...) local_unnamed_addr #1
