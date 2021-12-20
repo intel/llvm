@@ -1648,11 +1648,37 @@ public:
           ReorderingModes[OpIdx] = ReorderingMode::Failed;
       }
 
+      // Check that we don't have same operands. No need to reorder if operands
+      // are just perfect diamond or shuffled diamond match. Do not do it only
+      // for possible broadcasts or non-power of 2 number of scalars (just for
+      // now).
+      auto &&SkipReordering = [this]() {
+        SmallPtrSet<Value *, 4> UniqueValues;
+        ArrayRef<OperandData> Op0 = OpsVec.front();
+        for (const OperandData &Data : Op0)
+          UniqueValues.insert(Data.V);
+        for (ArrayRef<OperandData> Op : drop_begin(OpsVec, 1)) {
+          if (any_of(Op, [&UniqueValues](const OperandData &Data) {
+                return !UniqueValues.contains(Data.V);
+              }))
+            return false;
+        }
+        // TODO: Check if we can remove a check for non-power-2 number of
+        // scalars after full support of non-power-2 vectorization.
+        return UniqueValues.size() != 2 && isPowerOf2_32(UniqueValues.size());
+      };
+
       // If the initial strategy fails for any of the operand indexes, then we
       // perform reordering again in a second pass. This helps avoid assigning
       // high priority to the failed strategy, and should improve reordering for
       // the non-failed operand indexes.
       for (int Pass = 0; Pass != 2; ++Pass) {
+        // Check if no need to reorder operands since they're are perfect or
+        // shuffled diamond match.
+        // Need to to do it to avoid extra external use cost counting for
+        // shuffled matches, which may cause regressions.
+        if (SkipReordering())
+          break;
         // Skip the second pass if the first pass did not fail.
         bool StrategyFailed = false;
         // Mark all operand data as free to use.
@@ -1940,9 +1966,10 @@ private:
       if (Operands.size() < OpIdx + 1)
         Operands.resize(OpIdx + 1);
       assert(Operands[OpIdx].empty() && "Already resized?");
-      Operands[OpIdx].resize(Scalars.size());
-      for (unsigned Lane = 0, E = Scalars.size(); Lane != E; ++Lane)
-        Operands[OpIdx][Lane] = OpVL[Lane];
+      assert(OpVL.size() <= Scalars.size() &&
+             "Number of operands is greater than the number of scalars.");
+      Operands[OpIdx].resize(OpVL.size());
+      copy(OpVL, Operands[OpIdx].begin());
     }
 
     /// Set the operands of this bundle in their original order.
@@ -2092,7 +2119,7 @@ private:
       if (ReuseShuffleIndices.empty())
         dbgs() << "Empty";
       else
-        for (unsigned ReuseIdx : ReuseShuffleIndices)
+        for (int ReuseIdx : ReuseShuffleIndices)
           dbgs() << ReuseIdx << ", ";
       dbgs() << "\n";
       dbgs() << "ReorderIndices: ";
@@ -3524,9 +3551,14 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     // Check that every instruction appears once in this bundle.
     DenseMap<Value *, unsigned> UniquePositions;
     for (Value *V : VL) {
+      if (isConstant(V)) {
+        ReuseShuffleIndicies.emplace_back(
+            isa<UndefValue>(V) ? UndefMaskElem : UniqueValues.size());
+        UniqueValues.emplace_back(V);
+        continue;
+      }
       auto Res = UniquePositions.try_emplace(V, UniqueValues.size());
-      ReuseShuffleIndicies.emplace_back(isa<UndefValue>(V) ? -1
-                                                           : Res.first->second);
+      ReuseShuffleIndicies.emplace_back(Res.first->second);
       if (Res.second)
         UniqueValues.emplace_back(V);
     }
@@ -3536,6 +3568,8 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     } else {
       LLVM_DEBUG(dbgs() << "SLP: Shuffle for reused scalars.\n");
       if (NumUniqueScalarValues <= 1 ||
+          (NumUniqueScalarValues == 2 &&
+           any_of(UniqueValues, UndefValue::classof)) ||
           !llvm::isPowerOf2_32(NumUniqueScalarValues)) {
         LLVM_DEBUG(dbgs() << "SLP: Scalar used twice in bundle.\n");
         newTreeEntry(VL, None /*not vectorized*/, S, UserTreeIdx);
@@ -4729,6 +4763,8 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
     if (isSplat(VL)) {
       // Found the broadcasting of the single scalar, calculate the cost as the
       // broadcast.
+      assert(VecTy == FinalVecTy &&
+             "No reused scalars expected for broadcast.");
       return TTI->getShuffleCost(TargetTransformInfo::SK_Broadcast, VecTy);
     }
     InstructionCost ReuseShuffleCost = 0;

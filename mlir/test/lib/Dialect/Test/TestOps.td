@@ -11,6 +11,7 @@
 
 include "TestDialect.td"
 include "mlir/Dialect/DLTI/DLTIBase.td"
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/RegionKindInterface.td"
@@ -286,6 +287,38 @@ def StringElementsAttrOp : TEST_Op<"string_elements_attr"> {
       StringElementsAttr:$scalar_string_attr
   );
 }
+
+//===----------------------------------------------------------------------===//
+// Test Enum Attributes
+//===----------------------------------------------------------------------===//
+
+// Define the C++ enum.
+def TestEnum
+    : I32EnumAttr<"TestEnum", "a test enum", [
+        I32EnumAttrCase<"First", 0, "first">,
+        I32EnumAttrCase<"Second", 1, "second">,
+        I32EnumAttrCase<"Third", 2, "third">,
+      ]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "test";
+}
+
+// Define the enum attribute.
+def TestEnumAttr : EnumAttr<Test_Dialect, TestEnum, "enum">;
+
+// Define an op that contains the enum attribute.
+def OpWithEnum : TEST_Op<"op_with_enum"> {
+  let arguments = (ins TestEnumAttr:$value, OptionalAttr<AnyAttr>:$tag);
+  let assemblyFormat = "$value (`tag` $tag^)? attr-dict";
+}
+
+// Define a pattern that matches and creates an enum attribute.
+def : Pat<(OpWithEnum ConstantAttr<TestEnumAttr,
+                                   "::test::TestEnum::First">:$value,
+                      ConstantAttr<I32Attr, "0">:$tag),
+          (OpWithEnum ConstantAttr<TestEnumAttr,
+                                   "::test::TestEnum::Second">,
+                      ConstantAttr<I32Attr, "1">)>;
 
 //===----------------------------------------------------------------------===//
 // Test Attribute Constraints
@@ -2148,6 +2181,48 @@ def FormatInferTypeAllOperandsAndTypesTwoOperandsOp
 def FormatInferTypeAllTypesOp
     : FormatInferAllTypesBaseOp<"format_infer_type_all_types"> {
   let assemblyFormat = "`(` operands `)` attr-dict `:` type($args)";
+}
+
+// Test inferReturnTypes coupled with regions.
+def FormatInferTypeRegionsOp
+    : TEST_Op<"format_infer_type_regions", [InferTypeOpInterface]> {
+  let results = (outs Variadic<AnyType>:$outs);
+  let regions = (region AnyRegion:$region);
+  let assemblyFormat = "$region attr-dict";
+  let extraClassDeclaration = [{
+    static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
+          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
+          ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
+      if (regions.empty())
+        return ::mlir::failure();
+      auto types = regions.front()->getArgumentTypes();
+      inferredReturnTypes.assign(types.begin(), types.end());
+      return ::mlir::success();
+    }
+  }];
+}
+
+// Test inferReturnTypes coupled with variadic operands (operand_segment_sizes).
+def FormatInferTypeVariadicOperandsOp
+    : TEST_Op<"format_infer_type_variadic_operands",
+              [InferTypeOpInterface, AttrSizedOperandSegments]> {
+  let arguments = (ins Variadic<I32>:$a, Variadic<I64>:$b);
+  let results = (outs Variadic<AnyType>:$outs);
+  let assemblyFormat = "`(` $a `:` type($a) `)` `(` $b `:` type($b) `)` attr-dict";
+  let extraClassDeclaration = [{
+    static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
+          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
+          ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
+      FormatInferTypeVariadicOperandsOpAdaptor adaptor(operands, attributes);
+      auto aTypes = adaptor.getA().getTypes();
+      auto bTypes = adaptor.getB().getTypes();
+      inferredReturnTypes.append(aTypes.begin(), aTypes.end());
+      inferredReturnTypes.append(bTypes.begin(), bTypes.end());
+      return ::mlir::success();
+    }
+  }];
 }
 
 //===----------------------------------------------------------------------===//
