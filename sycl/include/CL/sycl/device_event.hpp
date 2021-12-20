@@ -14,15 +14,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
-template <typename Group, typename... eventTN>
-void wait_for(Group g, eventTN... Events);
-}
-} // namespace oneapi
-} // namespace ext
-
 /// Encapsulates a single SYCL device event which is available only within SYCL
 /// kernel functions and can be used to wait for asynchronous operations within
 /// a kernel function to complete.
@@ -41,9 +32,6 @@ public:
   device_event(__ocl_event_t *Event) : m_Event(Event) {}
 
   void wait() { __spirv_GroupWaitEvents(__spv::Scope::Workgroup, 1, m_Event); }
-
-  template <typename Group, typename... eventTN>
-  friend void ext::oneapi::experimental::wait_for(Group g, eventTN... Events);
 };
 
 } // namespace sycl

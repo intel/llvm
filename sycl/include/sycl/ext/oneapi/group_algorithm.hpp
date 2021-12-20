@@ -78,6 +78,25 @@ template <typename Group> constexpr auto group_to_scope() {
 }
 } // namespace detail
 
+template <typename Group,
+          std::enable_if_t<sycl::is_group_v<Group>, bool> = true>
+class async_copy_event {
+public:
+  using group = Group;
+  __ocl_event_t Event;
+  async_copy_event(__ocl_event_t Event) : Event(Event) {}
+};
+
+template <typename Group, typename eventT, typename... eventsT>
+std::enable_if_t<sycl::is_group_v<Group> &&
+                 std::is_same_v<eventT, async_copy_event<Group>> &&
+                 (std::is_same_v<eventT, eventsT> && ...)>
+wait_for(Group, eventT event, eventsT... Events) {
+  constexpr auto scope = detail::group_to_scope<Group>();
+  __spirv_GroupWaitEvents(scope, 1, &event.Event);
+  (__spirv_GroupWaitEvents(scope, 1, &Events.Event), ...);
+}
+
 struct src_stride {
   std::size_t value;
 };
@@ -92,7 +111,7 @@ struct dest_stride {
 /// Permitted types for dataT are all scalar and vector types, except boolean.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !sycl::detail::is_bool<dataT>::value,
-                 device_event>
+                 async_copy_event<Group>>
 async_group_copy(Group, global_ptr<dataT> src, local_ptr<dataT> dest,
                  size_t numElements, src_stride srcStride) {
   using DestT = sycl::detail::ConvertToOpenCLType_t<decltype(dest)>;
@@ -101,7 +120,7 @@ async_group_copy(Group, global_ptr<dataT> src, local_ptr<dataT> dest,
   __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
       detail::group_to_scope<Group>(), DestT(dest.get()), SrcT(src.get()),
       numElements, srcStride.value, 0);
-  return device_event(&E);
+  return async_copy_event<Group>(E);
 }
 
 /// Asynchronously copies a number of elements specified by \p numElements
@@ -111,7 +130,7 @@ async_group_copy(Group, global_ptr<dataT> src, local_ptr<dataT> dest,
 /// Permitted types for dataT are all scalar and vector types, except boolean.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !sycl::detail::is_bool<dataT>::value,
-                 device_event>
+                 async_copy_event<Group>>
 async_group_copy(Group, local_ptr<dataT> src, global_ptr<dataT> dest,
                  size_t numElements, dest_stride destStride) {
   using DestT = sycl::detail::ConvertToOpenCLType_t<decltype(dest)>;
@@ -120,7 +139,7 @@ async_group_copy(Group, local_ptr<dataT> src, global_ptr<dataT> dest,
   __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
       detail::group_to_scope<Group>(), DestT(dest.get()), SrcT(src.get()),
       numElements, destStride.value, 0);
-  return device_event(&E);
+  return async_copy_event<Group>(E);
 }
 
 /// Specialization for bool type.
@@ -130,7 +149,7 @@ async_group_copy(Group, local_ptr<dataT> src, global_ptr<dataT> dest,
 /// which can be used to wait on the completion of the copy.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && sycl::detail::is_bool<dataT>::value,
-                 device_event>
+                 async_copy_event<Group>>
 async_group_copy(Group g, global_ptr<dataT> Src, local_ptr<dataT> Dest,
                  size_t NumElements, src_stride srcStride) {
   static_assert(sizeof(bool) == sizeof(char),
@@ -150,7 +169,7 @@ async_group_copy(Group g, global_ptr<dataT> Src, local_ptr<dataT> Dest,
 /// which can be used to wait on the completion of the copy.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && sycl::detail::is_bool<dataT>::value,
-                 device_event>
+                 async_copy_event<Group>>
 async_group_copy(Group g, local_ptr<dataT> Src, global_ptr<dataT> Dest,
                  size_t NumElements, dest_stride destStride) {
   static_assert(sizeof(bool) == sizeof(char),
@@ -169,7 +188,7 @@ async_group_copy(Group g, local_ptr<dataT> Src, global_ptr<dataT> Dest,
 /// of the copy.
 /// Permitted types for dataT are all scalar and vector types.
 template <typename Group, typename dataT>
-std::enable_if_t<is_group_v<Group>, device_event>
+std::enable_if_t<is_group_v<Group>, async_copy_event<Group>>
 async_group_copy(Group g, global_ptr<dataT> src, local_ptr<dataT> dest,
                  size_t numElements) {
   return async_group_copy(g, src, dest, numElements, src_stride{1});
@@ -181,16 +200,12 @@ async_group_copy(Group g, global_ptr<dataT> src, local_ptr<dataT> dest,
 /// of the copy.
 /// Permitted types for dataT are all scalar and vector types.
 template <typename Group, typename dataT>
-device_event async_group_copy(Group g, local_ptr<dataT> src,
-                              global_ptr<dataT> dest, size_t numElements) {
+async_copy_event<Group> async_group_copy(Group g, local_ptr<dataT> src,
+                                         global_ptr<dataT> dest,
+                                         size_t numElements) {
   return async_group_copy(g, src, dest, numElements, dest_stride{1});
 }
 
-template <typename Group, typename... eventTN>
-void wait_for(Group, eventTN... Events) {
-  (__spirv_GroupWaitEvents(detail::group_to_scope<Group>(), 1, Events.m_Event),
-   ...);
-}
 } // namespace experimental
 #endif
 
