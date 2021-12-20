@@ -205,24 +205,24 @@ joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
 template <typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group>
-class wi_elem {
+class wi_element {
   joint_matrix<T, NumRows, NumCols, Layout, Group> &M;
   std::size_t idx;
 
 public:
-  wi_elem(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat, std::size_t i)
+  wi_element(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat, std::size_t i)
       : M(Mat), idx(i) {}
   operator T() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_JointMatrixGetSliceElem(M.spvm, idx);
+    return __spirv_VectorExtractDynamic(M.spvm, idx);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
-  wi_elem &operator=(const T &rhs) {
+  wi_element &operator=(const T &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_JointMatrixSetSliceElem(M.spvm, idx, rhs);
+    M.spvm = __spirv_VectorInsertDynamic(M.spvm, rhs, idx);
     return *this;
 #else
     (void)rhs;
@@ -230,10 +230,10 @@ public:
                         PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
-  wi_elem &operator*=(const T &rhs) {
+  wi_element &operator*=(const T &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_JointMatrixSetSliceElem(
-        M.spvm, idx, __spirv_JointMatrixGetSliceElem(M.spvm, idx) * rhs);
+    M.spvm = __spirv_VectorInsertDynamic(
+        M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) * rhs, idx);
     return *this;
 #else
     (void)rhs;
@@ -253,14 +253,14 @@ public:
   wi_slice(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat) : M(Mat) {}
   size_t length() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_JointMatrixGetSliceLength(M.spvm);
+    return __spirv_JointMatrixWorkItemLengthINTEL(M.spvm);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
-  wi_elem<T, NumRows, NumCols, Layout, Group> operator[](size_t i) {
-    return wi_elem<T, NumRows, NumCols, Layout, Group>(M, i);
+  wi_element<T, NumRows, NumCols, Layout, Group> operator[](size_t i) {
+    return wi_element<T, NumRows, NumCols, Layout, Group>(M, i);
   }
 };
 
