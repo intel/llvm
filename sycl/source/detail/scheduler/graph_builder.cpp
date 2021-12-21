@@ -1164,6 +1164,7 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
     }
   }
 #endif
+  (void)CmdT;
 
   for (Command *UserCmd : Cmd->MUsers) {
     for (DepDesc &Dep : UserCmd->MDeps) {
