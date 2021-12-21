@@ -33,6 +33,7 @@ post-if: false
 runs:
   using: "composite"
   steps:
+  - run: cp -r /actions .
   - name: Checkout LLVM Test Suite
     uses: ./actions/cached_checkout
     with:
