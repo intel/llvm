@@ -210,7 +210,8 @@ class wi_element {
   std::size_t idx;
 
 public:
-  wi_element(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat, std::size_t i)
+  wi_element(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat,
+             std::size_t i)
       : M(Mat), idx(i) {}
   operator T() {
 #ifdef __SYCL_DEVICE_ONLY__
