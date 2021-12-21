@@ -198,6 +198,8 @@ inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
                   joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
                   const T v) {
+  // We kept the unused "sg" in joint_matrix_fill to match the other DPC++
+  // functions
   (void)sg;
 #ifdef __SYCL_DEVICE_ONLY__
   res.spvm = __spirv_CompositeConstruct<T, NumRows, NumCols>(v);
