@@ -34,12 +34,11 @@ runs:
   using: "composite"
   steps:
   - name: Checkout LLVM Test Suite
-    uses: alexbatashev/llvm/devops/actions/cached_checkout@repo_cache
+    uses: actions/checkout@v2
     with:
       path: llvm_test_suite
       repository: 'intel/llvm-test-suite'
       ref: ${{ inputs.test_ref }}
-      cache_path: "/__w/repo_cache/"
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
     with:

@@ -81,17 +81,17 @@ jobs:
               \"cc\":\"gcc\",
               \"cxx\":\"g++\",
               \"build_runs_on\":\"build\",
-              \"build_image\":\"ghcr.io/testorg-abatashev/llvm/ubuntu2004_base:latest\",
+              \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
               \"build_github_cache\":\"false\",
               \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
               \"build_cache_size\":\"2G\",
-              \"build_configure_extra_args\":\"\",
+              \"build_configure_extra_args\":\"--hip --hip-amd-arch=gfx906 --cuda\",
               \"build_artifact_suffix\":\"default\",
               \"build_upload_artifact\":\"false\",
               \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
               \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"lts_config\":\"\",
+              \"lts_config\":\"ocl_x64;hip_amdgpu\",
               \"gen9_runs_on\":\"gen9\",
               \"amdgpu_runs_on\":\"amdgpu\"
             }"
@@ -109,13 +109,11 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
       options: -u 1001:1001
     steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+    - uses: actions/checkout@v2
       with:
         path: src
-        cache_path: "/__w/repo_cache/"
+    - name: Register cleanup after job is finished
+      uses: ./src/devops/actions/cleanup
     - name: Setup Cache
       uses: actions/cache@v2
       if: ${{ steps.parameters.build_github_cache }}
@@ -215,10 +213,9 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001 --device=/dev/dri
     steps:
-    - uses: alexbatashev/llvm/devops/actions/cached_checkout@repo_cache
+    - uses: actions/checkout@v2
       with:
         path: llvm
-        cache_path: "/__w/repo_cache/"
     - name: Register cleanup after job is finished
       uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
@@ -243,10 +240,9 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001 --device=/dev/dri
     steps:
-    - uses: alexbatashev/llvm/devops/actions/cached_checkout@repo_cache
+    - uses: actions/checkout@v2
       with:
         path: llvm
-        cache_path: "/__w/repo_cache/"
     - name: Register cleanup after job is finished
       uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
@@ -271,10 +267,9 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001
     steps:
-    - uses: alexbatashev/llvm/devops/actions/cached_checkout@repo_cache
+    - uses: actions/checkout@v2
       with:
         path: llvm
-        cache_path: "/__w/repo_cache/"
     - name: Register cleanup after job is finished
       uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
@@ -298,10 +293,9 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).amdgpu_image }}
       options: --device=/dev/dri --device=/dev/kfd
     steps:
-    - uses: alexbatashev/llvm/devops/actions/cached_checkout@repo_cache
+    - uses: actions/checkout@v2
       with:
         path: llvm
-        cache_path: "/__w/repo_cache/"
     - name: Register cleanup after job is finished
       uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
