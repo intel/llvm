@@ -531,12 +531,14 @@ struct _pi_context : _pi_object {
   // caller must pass a command queue to create a new fence for the new command
   // list if a command list/fence pair is not available. All Command Lists &
   // associated fences are destroyed at Device Release.
+  // If UseCopyEngine is true, the command will eventually be executed in a
+  // copy engine. Otherwise, the command will be executed in a compute engine.
   // If AllowBatching is true, then the command list returned may already have
   // command in it, if AllowBatching is false, any open command lists that
   // already exist in Queue will be closed and executed.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
-                                    bool PreferCopyCommandList = false,
+                                    bool UseCopyEngine = false,
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no available
@@ -603,14 +605,8 @@ private:
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
-            pi_context Context, pi_device Device, pi_uint32 BatchSize,
-            bool OwnZeCommandQueue, pi_queue_properties PiQueueProperties = 0)
-      : ZeComputeCommandQueue{Queue},
-        ZeCopyCommandQueues{CopyQueues}, Context{Context}, Device{Device},
-        QueueBatchSize{BatchSize}, OwnZeCommandQueue{OwnZeCommandQueue},
-        PiQueueProperties(PiQueueProperties) {
-    OpenCommandList = CommandListMap.end();
-  }
+            pi_context Context, pi_device Device, bool OwnZeCommandQueue,
+            pi_queue_properties PiQueueProperties = 0);
 
   // Level Zero compute command queue handle.
   ze_command_queue_handle_t ZeComputeCommandQueue;
@@ -620,6 +616,11 @@ struct _pi_queue : _pi_object {
   // In this vector, main copy engine, if available, come first followed by
   // link copy engines, if available.
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
+
+  // This function considers multiple factors including copy engine
+  // availability and user preference and returns a boolean that is used to
+  // specify if copy engine will eventually be used for a particular command.
+  bool useCopyEngine(bool PreferCopyEngine = true) const;
 
   // This function will check if a Ze copy command queue is available in
   // ZeCopyCommandQueues at index 'Index'.
@@ -672,33 +673,43 @@ struct _pi_queue : _pi_object {
   // for execution.
   std::vector<pi_kernel> KernelsToBeSubmitted;
 
-  // Approximate number of commands that are allowed to be batched for
-  // this queue.
-  // Added this member to the queue rather than using a global variable
-  // so that future implementation could use heuristics to change this on
-  // a queue specific basis. And by putting it in the queue itself, this
-  // is thread safe because of the locking of the queue that occurs.
-  pi_uint32 QueueBatchSize = {0};
-
   // Indicates if we own the ZeCommandQueue or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
 
-  // These two members are used to keep track of how often the
-  // batching closes and executes a command list before reaching the
-  // QueueBatchSize limit, versus how often we reach the limit.
-  // This info might be used to vary the QueueBatchSize value.
-  pi_uint32 NumTimesClosedEarly = {0};
-  pi_uint32 NumTimesClosedFull = {0};
-
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;
 
-  // Open command list field for batching commands into this queue.
-  pi_command_list_ptr_t OpenCommandList{};
-  bool hasOpenCommandList() const {
-    return OpenCommandList != CommandListMap.end();
-  }
+  // Helper data structure to hold all variables related to batching
+  typedef struct CommandBatch {
+    // These two members are used to keep track of how often the
+    // batching closes and executes a command list before reaching the
+    // QueueComputeBatchSize limit, versus how often we reach the limit.
+    // This info might be used to vary the QueueComputeBatchSize value.
+    pi_uint32 NumTimesClosedEarly = {0};
+    pi_uint32 NumTimesClosedFull = {0};
+
+    // Open command list fields for batching commands into this queue.
+    pi_command_list_ptr_t OpenCommandList{};
+
+    // Approximate number of commands that are allowed to be batched for
+    // this queue.
+    // Added this member to the queue rather than using a global variable
+    // so that future implementation could use heuristics to change this on
+    // a queue specific basis. And by putting it in the queue itself, this
+    // is thread safe because of the locking of the queue that occurs.
+    pi_uint32 QueueBatchSize = {0};
+  } command_batch;
+
+  // ComputeCommandBatch holds data related to batching of non-copy commands.
+  // CopyCommandBatch holds data related to batching of copy commands.
+  command_batch ComputeCommandBatch, CopyCommandBatch;
+
+  // Returns true if any commands for this queue are allowed to
+  // be batched together.
+  // For copy commands, IsCopy is set to 'true'.
+  // For non-copy commands, IsCopy is set to 'false'.
+  bool isBatchingAllowed(bool IsCopy) const;
 
   // Keeps the properties of this queue.
   pi_queue_properties PiQueueProperties;
@@ -706,17 +717,17 @@ struct _pi_queue : _pi_object {
   // Returns true if the queue is a in-order queue.
   bool isInOrderQueue() const;
 
-  // Returns true if any commands for this queue are allowed to
-  // be batched together.
-  bool isBatchingAllowed();
-
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.
-  void adjustBatchSizeForFullBatch();
+  // For copy commands, IsCopy is set to 'true'.
+  // For non-copy commands, IsCopy is set to 'false'.
+  void adjustBatchSizeForFullBatch(bool IsCopy);
 
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with only a partial batch of commands.
-  void adjustBatchSizeForPartialBatch();
+  // For copy commands, IsCopy is set to 'true'.
+  // For non-copy commands, IsCopy is set to 'false'.
+  void adjustBatchSizeForPartialBatch(bool IsCopy);
 
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
@@ -725,6 +736,14 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable);
 
+  // Returns true if an OpenCommandList has commands that need to be submitted.
+  // If IsCopy is 'true', then the OpenCommandList containing copy commands is
+  // checked. Otherwise, the OpenCommandList containing compute commands is
+  // checked.
+  bool hasOpenCommandList(bool IsCopy) const {
+    auto CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
+    return CommandBatch.OpenCommandList != CommandListMap.end();
+  }
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
   // The "IsBlocking" tells if the wait for completion is required.
@@ -738,9 +757,23 @@ struct _pi_queue : _pi_object {
                                bool OKToBatchCommand = false);
 
   // If there is an open command list associated with this queue,
-  // close it, execute it, and reset ZeOpenCommandList, ZeCommandListFence,
-  // and ZeOpenCommandListSize.
-  pi_result executeOpenCommandList();
+  // close it, execute it, and reset the corresponding OpenCommandList.
+  // If IsCopy is 'true', then the OpenCommandList containing copy commands is
+  // executed. Otherwise OpenCommandList containing compute commands is
+  // executed.
+  pi_result executeOpenCommandList(bool IsCopy);
+
+  // Wrapper function to execute both OpenCommandLists (Copy and Compute).
+  // This wrapper is helpful when all 'open' commands need to be executed.
+  // Call-sites instances: piQuueueFinish, piQueueRelease, etc.
+  pi_result executeAllOpenCommandLists() {
+    using IsCopy = bool;
+    if (auto Res = executeOpenCommandList(IsCopy{false}))
+      return Res;
+    if (auto Res = executeOpenCommandList(IsCopy{true}))
+      return Res;
+    return PI_SUCCESS;
+  }
 
   // Besides each PI object keeping a total reference count in
   // _pi_object::RefCount we keep special track of the queue *external*

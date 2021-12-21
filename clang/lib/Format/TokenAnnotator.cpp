@@ -1679,7 +1679,7 @@ private:
       Current.setType(TT_LambdaArrow);
     } else if (Current.is(tok::arrow) && AutoFound && Line.MustBeDeclaration &&
                Current.NestingLevel == 0 &&
-               !Current.Previous->is(tok::kw_operator)) {
+               !Current.Previous->isOneOf(tok::kw_operator, tok::identifier)) {
       // not auto operator->() -> xxx;
       Current.setType(TT_TrailingReturnArrow);
     } else if (Current.is(tok::arrow) && Current.Previous &&
@@ -3242,7 +3242,13 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
     return false;
   if (Left.is(tok::period) || Right.is(tok::period))
     return false;
-  if (Right.is(tok::hash) && Left.is(tok::identifier) && Left.TokenText == "L")
+  // u#str, U#str, L#str, u8#str
+  // uR#str, UR#str, LR#str, u8R#str
+  if (Right.is(tok::hash) && Left.is(tok::identifier) &&
+      (Left.TokenText == "L" || Left.TokenText == "u" ||
+       Left.TokenText == "U" || Left.TokenText == "u8" ||
+       Left.TokenText == "LR" || Left.TokenText == "uR" ||
+       Left.TokenText == "UR" || Left.TokenText == "u8R"))
     return false;
   if (Left.is(TT_TemplateCloser) && Left.MatchingParen &&
       Left.MatchingParen->Previous &&
@@ -3715,6 +3721,10 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
         Left.is(TT_CSharpNamedArgumentColon))
       return false;
     if (Right.is(TT_CSharpGenericTypeConstraint))
+      return true;
+    if (Right.Next && Right.Next->is(TT_FatArrow) &&
+        (Right.is(tok::numeric_constant) ||
+         (Right.is(tok::identifier) && Right.TokenText == "_")))
       return true;
 
     // Break after C# [...] and before public/protected/private/internal.
