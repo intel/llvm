@@ -15,7 +15,7 @@ int main() {
   q.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel1>([]() {}); });
 
-  cl::sycl::event e = q.submit_barrier();
+  cl::sycl::event e = q.ext_oneapi_submit_barrier();
   e.wait_and_throw();
 
   return 0;

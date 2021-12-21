@@ -18,7 +18,7 @@ int main() {
 
   q.single_task<class kernel1>([=] { *x = 1; });
 
-  q.submit_barrier();
+  q.ext_oneapi_submit_barrier();
 
   q.single_task<class kernel2>([=] {
     if (*x == 1) {

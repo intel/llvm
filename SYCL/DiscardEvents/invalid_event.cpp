@@ -72,7 +72,7 @@ void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {
       DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
       sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.submit_barrier();
+  DiscardedEvent = Q.ext_oneapi_submit_barrier();
   assert(
       DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
       sycl::info::event_command_status::ext_oneapi_unknown);

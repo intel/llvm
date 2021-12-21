@@ -27,8 +27,8 @@ int main() {
   Q1.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel4>([]() {}); });
 
-  // call queue::submit_barrier()
-  Q1.submit_barrier();
+  // call queue::ext_oneapi_submit_barrier()
+  Q1.ext_oneapi_submit_barrier();
 
   sycl::queue Q2(Context, sycl::default_selector{});
   sycl::queue Q3(Context, sycl::default_selector{});
@@ -51,8 +51,8 @@ int main() {
   auto Event4 = Q2.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel9>([]() {}); });
 
-  // call queue::submit_barrier(const std::vector<event> &WaitList)
-  Q3.submit_barrier({Event3, Event4});
+  // call queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList)
+  Q3.ext_oneapi_submit_barrier({Event3, Event4});
 
   Q3.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel10>([]() {}); });
