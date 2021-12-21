@@ -65,15 +65,16 @@ static int convertSPIRVToLLVMIR(const char *Argv0) {
                                              "-o", Output};
 
   // Add any additional options specified by the user.
+  SmallVector<const char *, 8> TargetArgs;
+  llvm::BumpPtrAllocator BPA;
+  llvm::StringSaver S(BPA);
   if (!LlvmSpirvOpts.empty()) {
-    SmallVector<const char *, 8> TargetArgs;
-    llvm::BumpPtrAllocator BPA;
-    llvm::StringSaver S(BPA);
     // Tokenize the string.
     llvm::cl::TokenizeGNUCommandLine(LlvmSpirvOpts, S, TargetArgs);
-    llvm::transform(TargetArgs, std::back_inserter(LlvmSpirvArgs),
-                    [](StringRef A) { return SmallString<32>(A); });
+    std::copy(TargetArgs.begin(), TargetArgs.end(),
+              std::back_inserter(LlvmSpirvArgs));
   }
+
   return llvm::sys::ExecuteAndWait(LlvmSpirvBinary.get(), LlvmSpirvArgs);
 }
 
