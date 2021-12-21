@@ -4111,11 +4111,6 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                        const FunctionDecl *Callee,
                                        SourceLocation Loc,
                                        DeviceDiagnosticReason Reason) {
-  // Somehow an unspecialized template appears to be in callgraph or list of
-  // device functions. We don't want to emit diagnostic here.
-  if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
-    return;
-
   Callee = Callee->getMostRecentDecl();
 
   // If the reason for the emission of this diagnostic is not SYCL-specific,
