@@ -341,10 +341,8 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
   cleanupCommands(ToCleanUp);
 }
 
-// static
 void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                            std::vector<Command *> &ToCleanUp) {
-  // FIXME handle this as well
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [&ToCleanUp](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {

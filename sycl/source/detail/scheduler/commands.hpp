@@ -223,7 +223,7 @@ protected:
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
   /// \param Dep optional DepDesc to perform connection of events properly
-  /// \param ToCleanUp is a
+  /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return returns an optional connection command to enqueue
   ///
   /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
