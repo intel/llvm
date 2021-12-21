@@ -12,7 +12,7 @@
 
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -1770,6 +1770,14 @@ public:
 
     SmallVector<int8_t> shiftValues;
     getValuesFromIntArrayAttribute(op.shift(), shiftValues);
+
+    // If we shift by more than the bitwidth, this just sets to 0.
+    for (int i = 0, s = multiplierValues.size(); i < s; i++) {
+      if (shiftValues[i] > 63) {
+        shiftValues[i] = 0;
+        multiplierValues[i] = 0;
+      }
+    }
 
     // Double round only occurs if shift is greater than 31, check that this
     // is ever true.

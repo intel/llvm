@@ -2417,7 +2417,7 @@ SDValue SITargetLowering::LowerFormalArguments(
   if (IsEntryFunc) {
     allocateSpecialEntryInputVGPRs(CCInfo, MF, *TRI, *Info);
     allocateHSAUserSGPRs(CCInfo, MF, *TRI, *Info);
-  } else {
+  } else if (!IsGraphics) {
     // For the fixed ABI, pass workitem IDs in the last argument register.
     allocateSpecialInputVGPRsFixed(CCInfo, MF, *TRI, *Info);
   }
@@ -2551,7 +2551,8 @@ SDValue SITargetLowering::LowerFormalArguments(
     allocateSystemSGPRs(CCInfo, MF, *Info, CallConv, IsGraphics);
   } else {
     CCInfo.AllocateReg(Info->getScratchRSrcReg());
-    allocateSpecialInputSGPRs(CCInfo, MF, *TRI, *Info);
+    if (!IsGraphics)
+      allocateSpecialInputSGPRs(CCInfo, MF, *TRI, *Info);
   }
 
   auto &ArgUsageInfo =
@@ -6267,10 +6268,6 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
     }
   }
 
-  // Push back extra arguments.
-  for (unsigned I = Intr->VAddrStart; I < Intr->GradientStart; I++)
-    VAddrs.push_back(Op.getOperand(ArgOffset + I));
-
   // Check for 16 bit addresses or derivatives and pack if true.
   MVT VAddrVT =
       Op.getOperand(ArgOffset + Intr->GradientStart).getSimpleValueType();
@@ -6282,6 +6279,17 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
   VAddrScalarVT = VAddrVT.getScalarType();
   MVT AddrPackVectorVT = VAddrScalarVT == MVT::f16 ? MVT::v2f16 : MVT::v2i16;
   IsA16 = VAddrScalarVT == MVT::f16 || VAddrScalarVT == MVT::i16;
+
+  // Push back extra arguments.
+  for (unsigned I = Intr->VAddrStart; I < Intr->GradientStart; I++) {
+    if (IsA16 && (Op.getOperand(ArgOffset + I).getValueType() == MVT::f16)) {
+      // Special handling of bias when A16 is on. Bias is of type half but
+      // occupies full 32-bit.
+      SDValue bias = DAG.getBuildVector( MVT::v2f16, DL, {Op.getOperand(ArgOffset + I), DAG.getUNDEF(MVT::f16)});
+      VAddrs.push_back(bias);
+    } else
+      VAddrs.push_back(Op.getOperand(ArgOffset + I));
+  }
 
   if (BaseOpcode->Gradients && !ST->hasG16() && (IsA16 != IsG16)) {
     // 16 bit gradients are supported, but are tied to the A16 control
