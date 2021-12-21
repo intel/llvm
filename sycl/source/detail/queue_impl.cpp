@@ -140,7 +140,7 @@ void queue_impl::addEvent(const event &Event) {
   // 2. Kernels with streams, since they are not supported by post enqueue
   // cleanup.
   // 3. Host tasks, for both reasons.
-  else if (!is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr ||
+  else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr ||
            EImpl->needsCleanupAfterWait()) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
@@ -285,7 +285,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
   // then handle the rest with piQueueFinish.
-  bool SupportsPiFinish = !is_host() && MSupportOOO;
+  const bool SupportsPiFinish = !is_host() && MSupportOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
