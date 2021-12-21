@@ -2989,6 +2989,17 @@ def err_attribute_invalid_argument : Error<
 def err_attribute_wrong_number_arguments : Error<
   "%0 attribute %plural{0:takes no arguments|1:takes one argument|"
   ":requires exactly %1 arguments}1">;
+def err_attribute_wrong_number_arguments_for : Error <
+  "%0 attribute references function %1, which %plural{0:takes no arguments|1:takes one argument|"
+  ":takes exactly %2 arguments}2">;
+def err_attribute_bounds_for_function : Error<
+  "%0 attribute references parameter %1, but the function %2 has only %3 parameters">;
+def err_attribute_no_member_function : Error<
+  "%0 attribute cannot be applied to non-static member functions">;
+def err_attribute_parameter_types : Error<
+  "%0 attribute parameter types do not match: parameter %1 of function %2 has type %3, "
+  "but parameter %4 of function %5 has type %6">;
+
 def err_attribute_too_many_arguments : Error<
   "%0 attribute takes no more than %1 argument%s1">;
 def warn_attribute_too_many_arguments : Warning<
@@ -3052,7 +3063,7 @@ def err_attribute_sizeless_type : Error<
   "%0 attribute cannot be applied to sizeless type %1">;
 def err_attribute_argument_n_type : Error<
   "%0 attribute requires parameter %1 to be %select{int or bool|an integer "
-  "constant|a string|an identifier|a constant expression}2">;
+  "constant|a string|an identifier|a constant expression|a builtin function}2">;
 def err_attribute_argument_type : Error<
   "%0 attribute requires %select{int or bool|an integer "
   "constant|a string|an identifier}1">;
@@ -9190,15 +9201,22 @@ def warn_cxx17_compat_defaulted_comparison : Warning<
   "before C++20">, InGroup<CXXPre20Compat>, DefaultIgnore;
 def err_defaulted_comparison_template : Error<
   "comparison operator template cannot be defaulted">;
-def err_defaulted_comparison_out_of_class : Error<
-  "%sub{select_defaulted_comparison_kind}0 can only be defaulted in a class "
-  "definition">;
+def err_defaulted_comparison_num_args : Error<
+  "%select{non-member|member}0 %sub{select_defaulted_comparison_kind}1"
+  " comparison operator must have %select{2|1}0 parameters">;
 def err_defaulted_comparison_param : Error<
   "invalid parameter type for defaulted %sub{select_defaulted_comparison_kind}0"
   "; found %1, expected %2%select{| or %4}3">;
+def err_defaulted_comparison_param_unknown : Error<
+  "invalid parameter type for non-member defaulted"
+  " %sub{select_defaulted_comparison_kind}0"
+  "; found %1, expected class or reference to a constant class">;
 def err_defaulted_comparison_param_mismatch : Error<
   "parameters for defaulted %sub{select_defaulted_comparison_kind}0 "
   "must have the same type%diff{ (found $ vs $)|}1,2">;
+def err_defaulted_comparison_not_friend : Error<
+  "%sub{select_defaulted_comparison_kind}0 is not a friend of"
+  " %select{|incomplete class }1%2">;
 def err_defaulted_comparison_non_const : Error<
   "defaulted member %sub{select_defaulted_comparison_kind}0 must be "
   "const-qualified">;

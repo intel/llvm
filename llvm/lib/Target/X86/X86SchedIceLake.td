@@ -331,12 +331,12 @@ defm : ICXWriteResPair<WriteFLogicZ, [ICXPort05], 1, [1], 1, 7>;
 defm : ICXWriteResPair<WriteFTest,  [ICXPort0], 2, [1], 1, 6>; // Floating point TEST instructions.
 defm : ICXWriteResPair<WriteFTestY, [ICXPort0], 2, [1], 1, 7>;
 defm : ICXWriteResPair<WriteFTestZ, [ICXPort0], 2, [1], 1, 7>;
-defm : ICXWriteResPair<WriteFShuffle,  [ICXPort5], 1, [1], 1, 6>; // Floating point vector shuffles.
-defm : ICXWriteResPair<WriteFShuffleY, [ICXPort5], 1, [1], 1, 7>;
-defm : ICXWriteResPair<WriteFShuffleZ, [ICXPort5], 1, [1], 1, 7>;
-defm : ICXWriteResPair<WriteFVarShuffle,  [ICXPort5], 1, [1], 1, 6>; // Floating point vector variable shuffles.
-defm : ICXWriteResPair<WriteFVarShuffleY, [ICXPort5], 1, [1], 1, 7>;
-defm : ICXWriteResPair<WriteFVarShuffleZ, [ICXPort5], 1, [1], 1, 7>;
+defm : ICXWriteResPair<WriteFShuffle,  [ICXPort15], 1, [1], 1, 6>; // Floating point vector shuffles.
+defm : ICXWriteResPair<WriteFShuffleY, [ICXPort15], 1, [1], 1, 7>;
+defm : ICXWriteResPair<WriteFShuffleZ, [ICXPort5],  1, [1], 1, 7>;
+defm : ICXWriteResPair<WriteFVarShuffle,  [ICXPort15], 1, [1], 1, 6>; // Floating point vector variable shuffles.
+defm : ICXWriteResPair<WriteFVarShuffleY, [ICXPort15], 1, [1], 1, 7>;
+defm : ICXWriteResPair<WriteFVarShuffleZ, [ICXPort5],  1, [1], 1, 7>;
 defm : ICXWriteResPair<WriteFBlend, [ICXPort015], 1, [1], 1, 6>; // Floating point vector blends.
 defm : ICXWriteResPair<WriteFBlendY,[ICXPort015], 1, [1], 1, 7>;
 defm : ICXWriteResPair<WriteFBlendZ,[ICXPort015], 1, [1], 1, 7>;
@@ -388,14 +388,14 @@ defm : ICXWriteResPair<WriteVecIMulZ, [ICXPort05],  5, [1], 1, 7>;
 defm : ICXWriteResPair<WritePMULLD,   [ICXPort01], 10, [2], 2, 6>; // Vector PMULLD.
 defm : ICXWriteResPair<WritePMULLDY,  [ICXPort01], 10, [2], 2, 7>;
 defm : ICXWriteResPair<WritePMULLDZ,  [ICXPort05], 10, [2], 2, 7>;
-defm : ICXWriteResPair<WriteShuffle,  [ICXPort5], 1, [1], 1, 5>; // Vector shuffles.
-defm : ICXWriteResPair<WriteShuffleX, [ICXPort5], 1, [1], 1, 6>;
-defm : ICXWriteResPair<WriteShuffleY, [ICXPort5], 1, [1], 1, 7>;
-defm : ICXWriteResPair<WriteShuffleZ, [ICXPort5], 1, [1], 1, 7>;
-defm : ICXWriteResPair<WriteVarShuffle,  [ICXPort5], 1, [1], 1, 5>; // Vector variable shuffles.
-defm : ICXWriteResPair<WriteVarShuffleX, [ICXPort5], 1, [1], 1, 6>;
-defm : ICXWriteResPair<WriteVarShuffleY, [ICXPort5], 1, [1], 1, 7>;
-defm : ICXWriteResPair<WriteVarShuffleZ, [ICXPort5], 1, [1], 1, 7>;
+defm : ICXWriteResPair<WriteShuffle,  [ICXPort5],  1, [1], 1, 5>; // Vector shuffles.
+defm : ICXWriteResPair<WriteShuffleX, [ICXPort15], 1, [1], 1, 6>;
+defm : ICXWriteResPair<WriteShuffleY, [ICXPort15], 1, [1], 1, 7>;
+defm : ICXWriteResPair<WriteShuffleZ, [ICXPort5],  1, [1], 1, 7>;
+defm : ICXWriteResPair<WriteVarShuffle,  [ICXPort5],  1, [1], 1, 5>; // Vector variable shuffles.
+defm : ICXWriteResPair<WriteVarShuffleX, [ICXPort15], 1, [1], 1, 6>;
+defm : ICXWriteResPair<WriteVarShuffleY, [ICXPort15], 1, [1], 1, 7>;
+defm : ICXWriteResPair<WriteVarShuffleZ, [ICXPort5],  1, [1], 1, 7>;
 defm : ICXWriteResPair<WriteBlend, [ICXPort5], 1, [1], 1, 6>; // Vector blends.
 defm : ICXWriteResPair<WriteBlendY,[ICXPort5], 1, [1], 1, 7>;
 defm : ICXWriteResPair<WriteBlendZ,[ICXPort5], 1, [1], 1, 7>;
@@ -663,7 +663,16 @@ def ICXWriteResGroup3 : SchedWriteRes<[ICXPort5]> {
 }
 def: InstRW<[ICXWriteResGroup3], (instregex "COM(P?)_FST0r",
                                             "KMOV(B|D|Q|W)kr",
-                                            "UCOM_F(P?)r")>;
+                                            "UCOM_F(P?)r",
+                                            "VPBROADCAST(D|Q)rr",
+                                            "(V?)INSERTPS(Z?)rr",
+                                            "(V?)MOV(HL|LH)PS(Z?)rr",
+                                            "(V?)MOVDDUP(Y|Z|Z128|Z256)?rr",
+                                            "(V?)PALIGNR(Y|Z|Z128|Z256)?rri",
+                                            "(V?)PERMIL(PD|PS)(Y|Z|Z128|Z256)?ri",
+                                            "(V?)PERMIL(PD|PS)(Y|Z|Z128|Z256)?rr",
+                                            "(V?)PACK(U|S)S(DW|WB)(Y|Z|Z128|Z256)?rr",
+                                            "(V?)UNPCK(L|H)(PD|PS)(Y|Z|Z128|Z256)?rr")>;
 
 def ICXWriteResGroup4 : SchedWriteRes<[ICXPort6]> {
   let Latency = 1;
@@ -702,6 +711,7 @@ def: InstRW<[ICXWriteResGroup9], (instregex "VBLENDMPD(Z128|Z256)rr",
                                             "VBLENDMPS(Z128|Z256)rr",
                                             "VPADD(B|D|Q|W)(Y|Z|Z128|Z256)rr",
                                             "(V?)PADD(B|D|Q|W)rr",
+                                            "(V?)MOV(SD|SS)(Z?)rr",
                                             "VPBLENDD(Y?)rri",
                                             "VPBLENDMB(Z128|Z256)rr",
                                             "VPBLENDMD(Z128|Z256)rr",
@@ -1295,20 +1305,14 @@ def ICXWriteResGroup92 : SchedWriteRes<[ICXPort5,ICXPort23]> {
   let NumMicroOps = 2;
   let ResourceCycles = [1,1];
 }
-def: InstRW<[ICXWriteResGroup92], (instregex "VMOVSDZrm(b?)",
-                                             "VMOVSSZrm(b?)")>;
-
-def ICXWriteResGroup92a : SchedWriteRes<[ICXPort5,ICXPort23]> {
-  let Latency = 6;
-  let NumMicroOps = 2;
-  let ResourceCycles = [1,1];
-}
-def: InstRW<[ICXWriteResGroup92a], (instregex "(V?)PMOV(SX|ZX)BDrm",
-                                              "(V?)PMOV(SX|ZX)BQrm",
-                                              "(V?)PMOV(SX|ZX)BWrm",
-                                              "(V?)PMOV(SX|ZX)DQrm",
-                                              "(V?)PMOV(SX|ZX)WDrm",
-                                              "(V?)PMOV(SX|ZX)WQrm")>;
+def: InstRW<[ICXWriteResGroup92], (instregex "VMOV(SD|SS)Zrm(b?)",
+                                              "VPBROADCAST(B|W)(Z128)?rm",
+                                             "(V?)INSERTPS(Z?)rm",
+                                             "(V?)PALIGNR(Z128)?rmi",
+                                             "(V?)PERMIL(PD|PS)(Z128)?m(b?)i",
+                                             "(V?)PERMIL(PD|PS)(Z128)?rm",
+                                             "(V?)PACK(U|S)S(DW|WB)(Z128)?rm",
+                                             "(V?)UNPCK(L|H)(PD|PS)(Z128)?rm")>;
 
 def ICXWriteResGroup93 : SchedWriteRes<[ICXPort5,ICXPort015]> {
   let Latency = 7;
@@ -1546,7 +1550,12 @@ def ICXWriteResGroup119 : SchedWriteRes<[ICXPort5,ICXPort23]> {
 }
 def: InstRW<[ICXWriteResGroup119], (instregex "FCOM(P?)(32|64)m",
                                               "VPBROADCASTB(Z|Z256)rm(b?)",
-                                              "VPBROADCASTW(Z|Z256)rm(b?)")>;
+                                              "VPBROADCASTW(Z|Z256)rm(b?)",
+                                              "(V?)PALIGNR(Y|Z|Z256)rmi",
+                                              "(V?)PERMIL(PD|PS)(Y|Z|Z256)m(b?)i",
+                                              "(V?)PERMIL(PD|PS)(Y|Z|Z256)rm",
+                                              "(V?)PACK(U|S)S(DW|WB)(Y|Z|Z256)rm",
+                                              "(V?)UNPCK(L|H)(PD|PS)(Y|Z|Z256)rm")>;
 def: InstRW<[ICXWriteResGroup119], (instrs VPBROADCASTBYrm,
                                            VPBROADCASTWYrm,
                                            VPMOVSXBDYrm,

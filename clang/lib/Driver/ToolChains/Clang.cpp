@@ -695,6 +695,29 @@ static void addCoveragePrefixMapArg(const Driver &D, const ArgList &Args,
   }
 }
 
+/// Simple check to see if the optimization level is at -O2 or higher.
+/// For -fsycl (DPC++) -O2 is the default.
+static bool isSYCLOptimizationO2orHigher(const ArgList &Args) {
+  if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    if (A->getOption().matches(options::OPT_O4) ||
+        A->getOption().matches(options::OPT_Ofast))
+      return true;
+
+    if (A->getOption().matches(options::OPT_O0))
+      return false;
+
+    assert(A->getOption().matches(options::OPT_O) && "Must have a -O flag");
+
+    StringRef S(A->getValue());
+    unsigned OptLevel = 0;
+    if (S.getAsInteger(10, OptLevel))
+      return false;
+    return OptLevel > 1;
+  }
+  // No -O setting seen, default is -O2 for device.
+  return true;
+}
+
 /// Vectorize at all optimization levels greater than 1 except for -Oz.
 /// For -Oz the loop vectorizer is disabled, while the slp vectorizer is
 /// enabled.
@@ -4736,9 +4759,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     // Turn on Dead Parameter Elimination Optimization with early optimizations
+    // TODO: Enable DAE by default without the Optimization level check in the
+    // driver.  The enabling can be done in CodeGenOpt, and we can pass an
+    // option to explicitly disable/disable here.
     if (!(RawTriple.isAMDGCN()) &&
         Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
-                     options::OPT_fno_sycl_dead_args_optimization, false))
+                     options::OPT_fno_sycl_dead_args_optimization,
+                     isSYCLOptimizationO2orHigher(Args)))
       CmdArgs.push_back("-fenable-sycl-dae");
     bool IsMSVC = AuxT.isWindowsMSVCEnvironment();
     if (IsMSVC) {
@@ -8379,7 +8406,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += CurTC->getTriple().normalize();
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
-        CurDep->getOffloadingArch()) {
+        !StringRef(CurDep->getOffloadingArch()).empty()) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch();
     }
@@ -9135,7 +9162,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Turn on Dead Parameter Elimination Optimization with early optimizations
   if (!(getToolChain().getTriple().isAMDGCN()) &&
       TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
-                     options::OPT_fno_sycl_dead_args_optimization, false))
+                     options::OPT_fno_sycl_dead_args_optimization,
+                     isSYCLOptimizationO2orHigher(TCArgs)))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
   if (getToolChain().getTriple().isNVPTX())

@@ -264,8 +264,8 @@ InputSection *elf::createInterpSection() {
 
 Defined *elf::addSyntheticLocal(StringRef name, uint8_t type, uint64_t value,
                                 uint64_t size, InputSectionBase &section) {
-  auto *s = make<Defined>(section.file, name, STB_LOCAL, STV_DEFAULT, type,
-                          value, size, &section);
+  Defined *s = makeDefined(section.file, name, STB_LOCAL, STV_DEFAULT, type,
+                           value, size, &section);
   if (in.symTab)
     in.symTab->addSymbol(s);
   return s;
@@ -1678,7 +1678,7 @@ template <class ELFT> void RelocationSection<ELFT>::writeTo(uint8_t *buf) {
   // place R_*_RELATIVE first. SymIndex is to improve locality, while r_offset
   // is to make results easier to read.
   if (sort)
-    llvm::stable_sort(
+    parallelSort(
         relocs, [&](const DynamicReloc &a, const DynamicReloc &b) {
           return std::make_tuple(a.type != target->relativeRel,
                                  a.getSymIndex(symTab), a.getOffset()) <
@@ -2175,7 +2175,8 @@ static BssSection *getCommonSec(Symbol *sym) {
 static uint32_t getSymSectionIndex(Symbol *sym) {
   if (getCommonSec(sym))
     return SHN_COMMON;
-  if (!isa<Defined>(sym) || sym->needsPltAddr)
+  assert(!(sym->needsCopy && sym->isObject()));
+  if (!isa<Defined>(sym) || sym->needsCopy)
     return SHN_UNDEF;
   if (const OutputSection *os = sym->getOutputSection())
     return os->sectionIndex >= SHN_LORESERVE ? (uint32_t)SHN_XINDEX
@@ -2250,7 +2251,7 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
 
     for (SymbolTableEntry &ent : symbols) {
       Symbol *sym = ent.sym;
-      if (sym->isInPlt() && sym->needsPltAddr)
+      if (sym->isInPlt() && sym->needsCopy)
         eSym->st_other |= STO_MIPS_PLT;
       if (isMicroMips()) {
         // We already set the less-significant bit for symbols
@@ -2261,7 +2262,7 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *buf) {
         // like `objdump` will be able to deal with a correct
         // symbol position.
         if (sym->isDefined() &&
-            ((sym->stOther & STO_MIPS_MICROMIPS) || sym->needsPltAddr)) {
+            ((sym->stOther & STO_MIPS_MICROMIPS) || sym->needsCopy)) {
           if (!strTabSec.isDynamic())
             eSym->st_value &= ~1;
           eSym->st_other |= STO_MIPS_MICROMIPS;
@@ -2426,10 +2427,10 @@ static uint32_t hashGnu(StringRef name) {
 // Add symbols to this symbol hash table. Note that this function
 // destructively sort a given vector -- which is needed because
 // GNU-style hash table places some sorting requirements.
-void GnuHashTableSection::addSymbols(std::vector<SymbolTableEntry> &v) {
+void GnuHashTableSection::addSymbols(SmallVectorImpl<SymbolTableEntry> &v) {
   // We cannot use 'auto' for Mid because GCC 6.1 cannot deduce
   // its type correctly.
-  std::vector<SymbolTableEntry>::iterator mid =
+  auto mid =
       std::stable_partition(v.begin(), v.end(), [&](const SymbolTableEntry &s) {
         return !s.sym->isDefined() || s.sym->partition != partition;
       });
@@ -2715,16 +2716,17 @@ void GdbIndexSection::initOutputSize() {
   }
 }
 
-static std::vector<GdbIndexSection::CuEntry> readCuList(DWARFContext &dwarf) {
-  std::vector<GdbIndexSection::CuEntry> ret;
+static SmallVector<GdbIndexSection::CuEntry, 0>
+readCuList(DWARFContext &dwarf) {
+  SmallVector<GdbIndexSection::CuEntry, 0> ret;
   for (std::unique_ptr<DWARFUnit> &cu : dwarf.compile_units())
     ret.push_back({cu->getOffset(), cu->getLength() + 4});
   return ret;
 }
 
-static std::vector<GdbIndexSection::AddressEntry>
+static SmallVector<GdbIndexSection::AddressEntry, 0>
 readAddressAreas(DWARFContext &dwarf, InputSection *sec) {
-  std::vector<GdbIndexSection::AddressEntry> ret;
+  SmallVector<GdbIndexSection::AddressEntry, 0> ret;
 
   uint32_t cuIdx = 0;
   for (std::unique_ptr<DWARFUnit> &cu : dwarf.compile_units()) {
@@ -2757,7 +2759,7 @@ readAddressAreas(DWARFContext &dwarf, InputSection *sec) {
 template <class ELFT>
 static std::vector<GdbIndexSection::NameAttrEntry>
 readPubNamesAndTypes(const LLDDwarfObj<ELFT> &obj,
-                     const std::vector<GdbIndexSection::CuEntry> &cus) {
+                     const SmallVectorImpl<GdbIndexSection::CuEntry> &cus) {
   const LLDDWARFSection &pubNames = obj.getGnuPubnamesSection();
   const LLDDWARFSection &pubTypes = obj.getGnuPubtypesSection();
 
@@ -3254,8 +3256,8 @@ void MergeTailSection::finalizeContents() {
 }
 
 void MergeNoTailSection::writeTo(uint8_t *buf) {
-  for (size_t i = 0; i < numShards; ++i)
-    shards[i].write(buf + shardOffsets[i]);
+  parallelForEachN(0, numShards,
+                   [&](size_t i) { shards[i].write(buf + shardOffsets[i]); });
 }
 
 // This function is very hot (i.e. it can take several seconds to finish)
@@ -3310,15 +3312,6 @@ void MergeNoTailSection::finalizeContents() {
         sec->pieces[i].outputOff +=
             shardOffsets[getShardId(sec->pieces[i].hash)];
   });
-}
-
-MergeSyntheticSection *elf::createMergeSynthetic(StringRef name, uint32_t type,
-                                                 uint64_t flags,
-                                                 uint32_t alignment) {
-  bool shouldTailMerge = (flags & SHF_STRINGS) && config->optimize >= 2;
-  if (shouldTailMerge)
-    return make<MergeTailSection>(name, type, flags, alignment);
-  return make<MergeNoTailSection>(name, type, flags, alignment);
 }
 
 template <class ELFT> void elf::splitSections() {

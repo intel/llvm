@@ -22,7 +22,7 @@
 #include "ToolChains/FreeBSD.h"
 #include "ToolChains/Fuchsia.h"
 #include "ToolChains/Gnu.h"
-#include "ToolChains/HIP.h"
+#include "ToolChains/HIPAMD.h"
 #include "ToolChains/Haiku.h"
 #include "ToolChains/Hexagon.h"
 #include "ToolChains/Hurd.h"
@@ -4200,8 +4200,11 @@ class OffloadingActionBuilder final {
             // device objects for future host link. Device libraries should
             // be linked by default to resolve any undefined reference.
             const auto *TC = ToolChains.front();
-            if (TC->getTriple().getSubArch() !=
-                llvm::Triple::SPIRSubArch_fpga) {
+            llvm::Triple TT(TC->getTriple());
+            bool isAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                         TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                         TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+            if (TT.getSubArch() != llvm::Triple::SPIRSubArch_fpga) {
               SYCLDeviceLibLinked =
                   addSYCLDeviceLibs(TC, FullSYCLLinkBinaryList, true,
                                     C.getDefaultToolChain()
@@ -4216,11 +4219,26 @@ class OffloadingActionBuilder final {
             else
               FullDeviceLinkAction = DeviceLinkAction;
             auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                FullDeviceLinkAction, types::TY_LLVM_BC, types::TY_LLVM_BC);
+                FullDeviceLinkAction, types::TY_LLVM_BC,
+                types::TY_Tempfiletable);
+            PostLinkAction->setRTSetsSpecConstants(!isAOT);
+            auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+                PostLinkAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
+            // single column w/o title fits TY_Tempfilelist format
+            ExtractIRFilesAction->addExtractColumnTform(
+                FileTableTformJobAction::COL_CODE, false /*drop titles*/);
             auto *TranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
-                PostLinkAction, types::TY_Image);
+                ExtractIRFilesAction, types::TY_Tempfilelist);
+
+            ActionList TformInputs{PostLinkAction, TranslateAction};
+            auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
+                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+            ReplaceFilesAction->addReplaceColumnTform(
+                FileTableTformJobAction::COL_CODE,
+                FileTableTformJobAction::COL_CODE);
+
             SYCLLinkBinary = C.MakeAction<OffloadWrapperJobAction>(
-                TranslateAction, types::TY_Object);
+                ReplaceFilesAction, types::TY_Object);
           } else {
             auto *Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
                                                          types::TY_Image);
@@ -7777,7 +7795,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_HIP:
-        TC = std::make_unique<toolchains::HIPToolChain>(
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(
             *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_OpenMP:
@@ -7798,7 +7816,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
               *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           case llvm::Triple::amdgcn:
-            TC = std::make_unique<toolchains::HIPToolChain>(
+            TC = std::make_unique<toolchains::HIPAMDToolChain>(
                 *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:
