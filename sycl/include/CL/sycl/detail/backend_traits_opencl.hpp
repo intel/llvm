@@ -41,7 +41,7 @@ template <> struct interop<backend::opencl, device> {
   using type = cl_device_id;
 };
 
-#ifdef SYCL_OLD_RETURN_T
+#ifdef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
 template <> struct interop<backend::opencl, event> { using type = cl_event; };
 template <> struct BackendInput<backend::opencl, event> {
   using type = cl_event;

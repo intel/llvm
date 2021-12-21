@@ -71,21 +71,36 @@ auto get_native(const SyclObjectT &Obj)
   if (Obj.get_backend() != BackendName) {
     throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
   }
-
-  #if (!SYCL_OLD_RETURN_T) && SYCL_BACKEND_OPENCL
-  backend_return_t<BackendName, event> ReturnValue;
-  std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
-  for (auto const &element : ReturnVector) {
-      ReturnValue.push_back(
-          reinterpret_cast<
-              typename detail::interop<BackendName, event>::value_type>(
-              element));
-    }
-  return ReturnValue;
-  #else
-  return Obj.template get_native<BackendName>(); 
-  #endif
+  return Obj.template get_native<BackendName>();
 }
+
+template <>
+#ifdef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
+backend_return_t<backend::opencl, event> get_native<backend::opencl, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::opencl) {
+    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+  }
+  return Obj.template get_native<backend::opencl>();
+}
+#else
+backend_return_t<backend::opencl, event> get_native<backend::opencl, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::opencl) {
+    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+  }
+  backend_return_t<backend::opencl, event> ReturnValue;
+  // for (auto const &element : Obj.template getNativeVector<backend::opencl>())
+  // {
+  for (auto const &element : Obj.getNativeVector()) {
+    ReturnValue.push_back(
+        reinterpret_cast<
+            typename detail::interop<backend::opencl, event>::value_type>(
+            element));
+  }
+  return ReturnValue;
+}
+#endif
 
 // Native handle of an accessor should be accessed through interop_handler
 template <backend BackendName, typename DataT, int Dimensions,

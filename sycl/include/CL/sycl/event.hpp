@@ -9,6 +9,16 @@
 #pragma once
 
 #include <CL/sycl/detail/backend_traits.hpp>
+#include <CL/sycl/feature_test.hpp>
+#if SYCL_BACKEND_OPENCL
+#include <CL/sycl/detail/backend_traits_opencl.hpp>
+#endif
+#if SYCL_EXT_ONEAPI_BACKEND_CUDA
+#include <CL/sycl/detail/backend_traits_cuda.hpp>
+#endif
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+#include <CL/sycl/detail/backend_traits_level_zero.hpp>
+#endif
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -143,6 +153,8 @@ private:
 
   pi_native_handle getNative() const;
 
+  std::vector<pi_native_handle> getNativeVector() const;
+
   std::shared_ptr<detail::event_impl> impl;
 
   template <class Obj>
@@ -150,6 +162,38 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  friend backend_return_t<backend::opencl, event> sycl::get_native<backend::opencl, event>(const event &Obj);
+
+  ///localdisk2/dkabanov/llvm/sycl/include/CL/sycl/event.hpp:177:66: error: invalid use of template-id ‘get_native<opencl, cl::sycl::event>’ in declaration of primary template
+  // template <backend BackendName, class SyclObjectT>
+  // friend auto get_native<backend::opencl, event>(const event &Obj);
+  
+  //error: explicit specialization in non-namespace scope ‘class cl::sycl::event’
+  // template <>
+  // friend auto get_native<backend::opencl, event>(const event &Obj);
+
+  //error: field ‘get_native’ has incomplete type ‘auto’
+  //friend auto cl::sycl::get_native<backend::opencl, event>(const event &Obj);
+
+  //error: field ‘get_native’ has incomplete type ‘auto’
+  //friend auto cl::sycl::get_native<backend::opencl, event>(const event &Obj) -> backend_return_t<backend::opencl, event> ;
+
+  //error: ‘get_native’ in namespace ‘cl::sycl’ does not name a template type
+  //friend cl::sycl::get_native<backend::opencl, event>(const event &Obj) -> backend_return_t<backend::opencl, event>;
+  
+  // /localdisk2/dkabanov/llvm/sycl/include/CL/sycl/backend_types.hpp:44:72: error: invalid use of incomplete type ‘class cl::sycl::backend_traits<(cl::sycl::backend)1>’
+  //   typename backend_traits<Backend>::template return_type<SYCLObjectT>;
+  //friend backend_return_t<backend::opencl, event> cl::sycl::get_native<backend::opencl, event>(const event &Obj);
+
+  ///localdisk2/dkabanov/llvm/sycl/include/CL/sycl/backend.hpp:89:52: error: ‘std::vector<long unsigned int> cl::sycl::event::getNativeVector() const’ is private within this context
+  //template <backend BackendName, class SyclObjectT>
+  //friend auto get_native(const SyclObjectT &Obj);
+
+  // /localdisk2/dkabanov/llvm/sycl/include/CL/sycl/backend.hpp:89:52: error: ‘std::vector<long unsigned int> cl::sycl::event::getNativeVector() const’ is private within this context
+  //template <backend BackendName, class SyclObjectT>
+  //friend auto get_native(const event &Obj);
+
 };
 
 } // namespace sycl
