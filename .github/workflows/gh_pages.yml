@@ -9,7 +9,7 @@ on:
     paths:
     - '.github/workflows/gh_pages.yml'
     - 'clang/docs/**'
-    - 'sycl/docs/**'
+    - 'sycl/doc/**'
 
 jobs:
   build:
