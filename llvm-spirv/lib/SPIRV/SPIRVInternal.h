@@ -646,6 +646,9 @@ Decoration getArgAsDecoration(CallInst *CI, unsigned I);
 bool isPointerToOpaqueStructType(llvm::Type *Ty);
 bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name);
 
+/// Check if a type is SPIRV sampler type.
+bool isSPIRVSamplerType(llvm::Type *Ty);
+
 /// Check if a type is OCL image type.
 /// \return type name without "opencl." prefix.
 bool isOCLImageType(llvm::Type *Ty, StringRef *Name = nullptr);

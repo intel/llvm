@@ -213,6 +213,7 @@ def IsVectorTypePred : And<[CPred<"$_self.isa<::mlir::VectorType>()">,
                             CPred<"$_self.cast<::mlir::VectorType>().getRank() > 0">]>;
 
 // Temporary vector type clone that allows gradual transition to 0-D vectors.
+// TODO: Remove this when all ops support 0-D vectors.
 def IsVectorOfAnyRankTypePred : CPred<"$_self.isa<::mlir::VectorType>()">;
 
 // Whether a type is a TensorType.
@@ -603,7 +604,9 @@ class HasAnyRankOfPred<list<int> ranks> : And<[
 class VectorOf<list<Type> allowedTypes> :
   ShapedContainerType<allowedTypes, IsVectorTypePred, "vector",
                       "::mlir::VectorType">;
+
 // Temporary vector type clone that allows gradual transition to 0-D vectors.
+// TODO: Remove this when all ops support 0-D vectors.
 class VectorOfAnyRankOf<list<Type> allowedTypes> :
   ShapedContainerType<allowedTypes, IsVectorOfAnyRankTypePred, "vector",
                       "::mlir::VectorType">;
@@ -835,11 +838,27 @@ def BoolLike : TypeConstraint<Or<[I1.predicate, VectorOf<[I1]>.predicate,
                                   TensorOf<[I1]>.predicate]>,
     "bool-like">;
 
+// Temporary constraint to allow gradual transition to supporting 0-D vectors.
+// TODO: Remove this when all ops support 0-D vectors.
+def BoolLikeOfAnyRank : TypeConstraint<Or<[
+        I1.predicate,
+        VectorOfAnyRankOf<[I1]>.predicate,
+        TensorOf<[I1]>.predicate]>,
+    "bool-like">;
+
 // Type constraint for signless-integer-like types: signless integers, indices,
 // vectors of signless integers or indices, tensors of signless integers.
 def SignlessIntegerLike : TypeConstraint<Or<[
         AnySignlessIntegerOrIndex.predicate,
         VectorOf<[AnySignlessIntegerOrIndex]>.predicate,
+        TensorOf<[AnySignlessIntegerOrIndex]>.predicate]>,
+    "signless-integer-like">;
+
+// Temporary constraint to allow gradual transition to supporting 0-D vectors.
+// TODO: Remove this when all ops support 0-D vectors.
+def SignlessIntegerLikeOfAnyRank : TypeConstraint<Or<[
+        AnySignlessIntegerOrIndex.predicate,
+        VectorOfAnyRankOf<[AnySignlessIntegerOrIndex]>.predicate,
         TensorOf<[AnySignlessIntegerOrIndex]>.predicate]>,
     "signless-integer-like">;
 
@@ -1597,6 +1616,8 @@ def StrArrayAttr : TypedArrayAttrBase<StrAttr, "string array attribute"> {
 def TypeArrayAttr : TypedArrayAttrBase<TypeAttr, "type array attribute"> {
   let constBuilderCall = "$_builder.getTypeArrayAttr($0)";
 }
+def IndexListArrayAttr :
+  TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
 
 // Attribute information for an Attribute field within a StructAttr.
 class StructFieldAttr<string thisName, Attr thisType> {
@@ -2984,6 +3005,9 @@ class TypeDef<Dialect dialect, string name, list<Trait> traits = [],
               string baseCppClass = "::mlir::Type">
     : DialectType<dialect, CPred<"">, /*descr*/"", name # "Type">,
       AttrOrTypeDef<"Type", name, traits, baseCppClass> {
+  // Make it possible to use such type as parameters for other types.
+  string cppType = dialect.cppNamespace # "::" # cppClassName;
+
   // A constant builder provided when the type has no parameters.
   let builderCall = !if(!empty(parameters),
                            "$_builder.getType<" # dialect.cppNamespace #
