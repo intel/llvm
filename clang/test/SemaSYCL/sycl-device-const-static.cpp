@@ -24,7 +24,7 @@ const S s5;
 
 template <typename T>
 class randomType {
- public:
+public:
   randomType() {}
   T val;
 };
@@ -45,7 +45,7 @@ void usage() {
   // expected-error@+1{{SYCL kernel cannot use a const static or global variable that is neither zero-initialized nor constant-initialized}}
   (void)s6;
 
-  //expected-error@+1{{SYCL kernel cannot use a const static or global variable that is neither zero-initialized nor constant-initialized}}
+  // expected-error@+1{{SYCL kernel cannot use a const static or global variable that is neither zero-initialized nor constant-initialized}}
   (void)Var<int>;
 }
 
