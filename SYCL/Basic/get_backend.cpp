@@ -1,9 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_FILTER=%sycl_be %t.out
 //
-// Failing on HIP AMD
-// XFAIL: hip_amd
-//
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().
 // Do not set SYCL_DEVICE_FILTER. We do not want the preferred
@@ -21,6 +18,7 @@ bool check(backend be) {
   case backend::opencl:
   case backend::ext_oneapi_level_zero:
   case backend::ext_oneapi_cuda:
+  case backend::ext_oneapi_hip:
   case backend::host:
     return true;
   default:
