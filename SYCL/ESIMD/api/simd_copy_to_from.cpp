@@ -156,13 +156,14 @@ template <typename T> bool testUSM(const std::string &Type, queue &Q) {
   Pass &= testUSM<T, 15>(Type, Q);
   Pass &= testUSM<T, 16>(Type, Q);
 
-  if constexpr (sizeof(T) < 8) {
-    Pass &= testUSM<T, 24>(Type, Q);
-    Pass &= testUSM<T, 25>(Type, Q);
+  Pass &= testUSM<T, 24>(Type, Q);
+  Pass &= testUSM<T, 25>(Type, Q);
 
-    Pass &= testUSM<T, 31>(Type, Q);
-    Pass &= testUSM<T, 32>(Type, Q);
-  }
+  Pass &= testUSM<T, 31>(Type, Q);
+  Pass &= testUSM<T, 32>(Type, Q);
+
+  Pass &= testUSM<T, 91>(Type, Q);
+  Pass &= testUSM<T, 92>(Type, Q);
 
   return Pass;
 }
@@ -209,13 +210,14 @@ template <typename T> bool testAcc(const std::string &Type, queue &Q) {
   Pass &= testAcc<T, 15>(Type, Q);
   Pass &= testAcc<T, 16>(Type, Q);
 
-  if constexpr (sizeof(T) < 8) {
-    Pass &= testAcc<T, 24>(Type, Q);
-    Pass &= testAcc<T, 25>(Type, Q);
+  Pass &= testAcc<T, 24>(Type, Q);
+  Pass &= testAcc<T, 25>(Type, Q);
 
-    Pass &= testAcc<T, 31>(Type, Q);
-    Pass &= testAcc<T, 32>(Type, Q);
-  }
+  Pass &= testAcc<T, 31>(Type, Q);
+  Pass &= testAcc<T, 32>(Type, Q);
+
+  Pass &= testAcc<T, 91>(Type, Q);
+  Pass &= testAcc<T, 92>(Type, Q);
 
   return Pass;
 }
