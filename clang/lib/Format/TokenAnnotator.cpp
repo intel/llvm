@@ -1004,6 +1004,8 @@ private:
         if (CurrentToken && CurrentToken->is(Keywords.kw_await))
           next();
       }
+      if (Style.isCpp() && CurrentToken && CurrentToken->is(tok::kw_co_await))
+        next();
       Contexts.back().ColonIsForRangeExpr = true;
       next();
       if (!parseParens())
@@ -1677,7 +1679,7 @@ private:
       Current.setType(TT_LambdaArrow);
     } else if (Current.is(tok::arrow) && AutoFound && Line.MustBeDeclaration &&
                Current.NestingLevel == 0 &&
-               !Current.Previous->is(tok::kw_operator)) {
+               !Current.Previous->isOneOf(tok::kw_operator, tok::identifier)) {
       // not auto operator->() -> xxx;
       Current.setType(TT_TrailingReturnArrow);
     } else if (Current.is(tok::arrow) && Current.Previous &&
@@ -2032,9 +2034,8 @@ private:
                            tok::comma, tok::semi, tok::kw_return, tok::colon,
                            tok::kw_co_return, tok::kw_co_await,
                            tok::kw_co_yield, tok::equal, tok::kw_delete,
-                           tok::kw_sizeof, tok::kw_throw) ||
-        PrevToken->isOneOf(TT_BinaryOperator, TT_ConditionalExpr,
-                           TT_UnaryOperator, TT_CastRParen))
+                           tok::kw_sizeof, tok::kw_throw, TT_BinaryOperator,
+                           TT_ConditionalExpr, TT_UnaryOperator, TT_CastRParen))
       return TT_UnaryOperator;
 
     if (NextToken->is(tok::l_square) && NextToken->isNot(TT_LambdaLSquare))
@@ -2172,8 +2173,8 @@ public:
 
       int CurrentPrecedence = getCurrentPrecedence();
 
-      if (Current && Current->is(TT_SelectorName) &&
-          Precedence == CurrentPrecedence) {
+      if (Precedence == CurrentPrecedence && Current &&
+          Current->is(TT_SelectorName)) {
         if (LatestOperator)
           addFakeParenthesis(Start, prec::Level(Precedence));
         Start = Current;
@@ -2372,11 +2373,9 @@ static unsigned maxNestingDepth(const AnnotatedLine &Line) {
 }
 
 void TokenAnnotator::annotate(AnnotatedLine &Line) {
-  for (SmallVectorImpl<AnnotatedLine *>::iterator I = Line.Children.begin(),
-                                                  E = Line.Children.end();
-       I != E; ++I) {
-    annotate(**I);
-  }
+  for (auto &Child : Line.Children)
+    annotate(*Child);
+
   AnnotatingParser Parser(Style, Line, Keywords);
   Line.Type = Parser.parseLine();
 
@@ -2952,6 +2951,14 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
   if (Left.is(tok::kw_auto) && Right.isOneOf(tok::l_paren, tok::l_brace))
     return false;
 
+  // operator co_await(x)
+  if (Right.is(tok::l_paren) && Left.is(tok::kw_co_await) && Left.Previous &&
+      Left.Previous->is(tok::kw_operator))
+    return false;
+  // co_await (x), co_yield (x), co_return (x)
+  if (Left.isOneOf(tok::kw_co_await, tok::kw_co_yield, tok::kw_co_return) &&
+      Right.isNot(tok::semi))
+    return true;
   // requires clause Concept1<T> && Concept2<T>
   if (Left.is(TT_ConstraintJunctions) && Right.is(tok::identifier))
     return true;
@@ -3014,8 +3021,14 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
          Style.SpaceAroundPointerQualifiers == FormatStyle::SAPQ_Both) &&
         (Left.is(TT_AttributeParen) || Left.canBePointerOrReferenceQualifier()))
       return true;
+    if (Left.Tok.isLiteral())
+      return true;
+    // for (auto a = 0, b = 0; const auto & c : {1, 2, 3})
+    if (Left.isTypeOrIdentifier() && Right.Next && Right.Next->Next &&
+        Right.Next->Next->is(TT_RangeBasedForLoopColon))
+      return getTokenPointerOrReferenceAlignment(Right) !=
+             FormatStyle::PAS_Left;
     return (
-        Left.Tok.isLiteral() ||
         (!Left.isOneOf(TT_PointerOrReference, tok::l_paren) &&
          (getTokenPointerOrReferenceAlignment(Right) != FormatStyle::PAS_Left ||
           (Line.IsMultiVariableDeclStmt &&
@@ -3034,18 +3047,32 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
          Style.SpaceAroundPointerQualifiers == FormatStyle::SAPQ_Both) &&
         Right.canBePointerOrReferenceQualifier())
       return true;
-    return Right.Tok.isLiteral() || Right.is(TT_BlockComment) ||
-           (Right.isOneOf(Keywords.kw_override, Keywords.kw_final) &&
-            !Right.is(TT_StartOfName)) ||
-           (Right.is(tok::l_brace) && Right.is(BK_Block)) ||
-           (!Right.isOneOf(TT_PointerOrReference, TT_ArraySubscriptLSquare,
-                           tok::l_paren) &&
-            (getTokenPointerOrReferenceAlignment(Left) !=
-                 FormatStyle::PAS_Right &&
-             !Line.IsMultiVariableDeclStmt) &&
-            Left.Previous &&
-            !Left.Previous->isOneOf(tok::l_paren, tok::coloncolon,
-                                    tok::l_square));
+    // & 1
+    if (Right.Tok.isLiteral())
+      return true;
+    // & /* comment
+    if (Right.is(TT_BlockComment))
+      return true;
+    // foo() -> const Bar * override/final
+    if (Right.isOneOf(Keywords.kw_override, Keywords.kw_final) &&
+        !Right.is(TT_StartOfName))
+      return true;
+    // & {
+    if (Right.is(tok::l_brace) && Right.is(BK_Block))
+      return true;
+    // for (auto a = 0, b = 0; const auto& c : {1, 2, 3})
+    if (Left.Previous && Left.Previous->isTypeOrIdentifier() && Right.Next &&
+        Right.Next->is(TT_RangeBasedForLoopColon))
+      return getTokenPointerOrReferenceAlignment(Left) !=
+             FormatStyle::PAS_Right;
+    return !Right.isOneOf(TT_PointerOrReference, TT_ArraySubscriptLSquare,
+                          tok::l_paren) &&
+           (getTokenPointerOrReferenceAlignment(Left) !=
+                FormatStyle::PAS_Right &&
+            !Line.IsMultiVariableDeclStmt) &&
+           Left.Previous &&
+           !Left.Previous->isOneOf(tok::l_paren, tok::coloncolon,
+                                   tok::l_square);
   }
   // Ensure right pointer alignment with ellipsis e.g. int *...P
   if (Left.is(tok::ellipsis) && Left.Previous &&
@@ -3169,9 +3196,13 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
     if (Left.isIf(Line.Type != LT_PreprocessorDirective))
       return Style.SpaceBeforeParensOptions.AfterControlStatements ||
              spaceRequiredBeforeParens(Right);
+
+    // TODO add Operator overloading specific Options to
+    // SpaceBeforeParensOptions
+    if (Right.is(TT_OverloadedOperatorLParen))
+      return spaceRequiredBeforeParens(Right);
     // Function declaration or definition
-    if (Line.MightBeFunctionDecl && (Left.is(TT_FunctionDeclarationName) ||
-                                     Right.is(TT_OverloadedOperatorLParen))) {
+    if (Line.MightBeFunctionDecl && (Left.is(TT_FunctionDeclarationName))) {
       if (Line.mightBeFunctionDefinition())
         return Style.SpaceBeforeParensOptions.AfterFunctionDefinitionName ||
                spaceRequiredBeforeParens(Right);
@@ -3211,7 +3242,13 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
     return false;
   if (Left.is(tok::period) || Right.is(tok::period))
     return false;
-  if (Right.is(tok::hash) && Left.is(tok::identifier) && Left.TokenText == "L")
+  // u#str, U#str, L#str, u8#str
+  // uR#str, UR#str, LR#str, u8R#str
+  if (Right.is(tok::hash) && Left.is(tok::identifier) &&
+      (Left.TokenText == "L" || Left.TokenText == "u" ||
+       Left.TokenText == "U" || Left.TokenText == "u8" ||
+       Left.TokenText == "LR" || Left.TokenText == "uR" ||
+       Left.TokenText == "UR" || Left.TokenText == "u8R"))
     return false;
   if (Left.is(TT_TemplateCloser) && Left.MatchingParen &&
       Left.MatchingParen->Previous &&
@@ -3684,6 +3721,10 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
         Left.is(TT_CSharpNamedArgumentColon))
       return false;
     if (Right.is(TT_CSharpGenericTypeConstraint))
+      return true;
+    if (Right.Next && Right.Next->is(TT_FatArrow) &&
+        (Right.is(tok::numeric_constant) ||
+         (Right.is(tok::identifier) && Right.TokenText == "_")))
       return true;
 
     // Break after C# [...] and before public/protected/private/internal.

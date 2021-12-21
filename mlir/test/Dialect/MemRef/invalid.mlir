@@ -644,7 +644,7 @@ func @invalid_rank_reducing_subview(%arg0 : index, %arg1 : index, %arg2 : index)
 // -----
 
 func @invalid_rank_reducing_subview(%arg0 : memref<?x?xf32>, %arg1 : index, %arg2 : index) {
-  // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result sizes)}}
+  // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result layout)}}
   %0 = memref.subview %arg0[0, %arg1][%arg2, 1][1, 1] : memref<?x?xf32> to memref<?xf32>
   return
 }
@@ -653,9 +653,45 @@ func @invalid_rank_reducing_subview(%arg0 : memref<?x?xf32>, %arg1 : index, %arg
 
 func @static_stride_to_dynamic_stride(%arg0 : memref<?x?x?xf32>, %arg1 : index,
     %arg2 : index) -> memref<?x?xf32, offset:?, strides: [?, ?]> {
-  // expected-error @+1 {{expected result type to be 'memref<1x?x?xf32, affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2 + d2)>>' or a rank-reduced version. (mismatch of result sizes)}}
+  // expected-error @+1 {{expected result type to be 'memref<1x?x?xf32, affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2 + d2)>>' or a rank-reduced version. (mismatch of result layout)}}
   %0 = memref.subview %arg0[0, 0, 0] [1, %arg1, %arg2] [1, 1, 1] : memref<?x?x?xf32> to memref<?x?xf32, offset: ?, strides: [?, ?]>
   return %0 : memref<?x?xf32, offset: ?, strides: [?, ?]>
+}
+
+// -----
+
+#map0 = affine_map<(d0, d1)[s0] -> (d0 * 16 + d1)>
+
+func @subview_bad_offset_1(%arg0: memref<16x16xf32>) {
+  %c0 = arith.constant 0 : index
+  %c8 = arith.constant 8 : index
+  // expected-error @+1 {{expected result type to be 'memref<8x8xf32, affine_map<(d0, d1)[s0] -> (d0 * 16 + s0 + d1)>>' or a rank-reduced version}}
+  %s2 = memref.subview %arg0[%c8, %c8][8, 8][1, 1]  : memref<16x16xf32> to memref<8x8xf32, #map0>
+  return
+}
+
+// -----
+
+#map0 = affine_map<(d0, d1)[s0] -> (d0 * 16 + d1 + 136)>
+
+func @subview_bad_offset_2(%arg0: memref<16x16xf32>) {
+  %c0 = arith.constant 0 : index
+  %c8 = arith.constant 8 : index
+  // expected-error @+1 {{expected result type to be 'memref<8x8xf32, affine_map<(d0, d1)[s0] -> (d0 * 16 + s0 + d1)>>' or a rank-reduced version}}
+  %s2 = memref.subview %arg0[%c8, 8][8, 8][1, 1]  : memref<16x16xf32> to memref<8x8xf32, #map0>
+  return
+}
+
+// -----
+
+#map0 = affine_map<(d0, d1)[s0] -> (d0 * 16 + d1 + s0 * 437)>
+
+func @subview_bad_offset_3(%arg0: memref<16x16xf32>) {
+  %c0 = arith.constant 0 : index
+  %c8 = arith.constant 8 : index
+  // expected-error @+1 {{expected result type to be 'memref<8x8xf32, affine_map<(d0, d1)[s0] -> (d0 * 16 + s0 + d1)>>' or a rank-reduced version}}
+  %s2 = memref.subview %arg0[%c8, 8][8, 8][1, 1]  : memref<16x16xf32> to memref<8x8xf32, #map0>
+  return
 }
 
 // -----
@@ -806,5 +842,13 @@ func @test_alloc_memref_map_rank_mismatch() {
 ^bb0:
   // expected-error@+1 {{memref layout mismatch between rank and affine map: 2 != 1}}
   %0 = memref.alloc() : memref<1024x64xf32, affine_map<(d0) -> (d0)>, 1>
+  return
+}
+
+// -----
+
+func @rank(%0: f32) {
+  // expected-error@+1 {{'memref.rank' op operand #0 must be unranked.memref of any type values or memref of any type values}}
+  "memref.rank"(%0): (f32)->index
   return
 }

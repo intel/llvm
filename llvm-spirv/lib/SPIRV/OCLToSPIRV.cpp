@@ -260,6 +260,9 @@ public:
   void visitSubgroupAVCBuiltinCallWithSampler(CallInst *CI,
                                               StringRef DemangledName);
 
+  void visitCallLdexp(CallInst *CI, StringRef MangledName,
+                      StringRef DemangledName);
+
   void setOCLTypeToSPIRV(OCLTypeToSPIRVBase *OCLTypeToSPIRV) {
     OCLTypeToSPIRVPtr = OCLTypeToSPIRV;
   }
@@ -565,6 +568,10 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
       visitSubgroupAVCBuiltinCallWithSampler(&CI, DemangledName);
     else
       visitSubgroupAVCBuiltinCall(&CI, DemangledName);
+    return;
+  }
+  if (DemangledName.find(kOCLBuiltinName::LDEXP) == 0) {
+    visitCallLdexp(&CI, MangledName, DemangledName);
     return;
   }
   visitCallBuiltinSimple(&CI, MangledName, DemangledName);
@@ -1881,6 +1888,32 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
         return getSPIRVFuncName(OC);
       },
       &Attrs);
+}
+
+void OCLToSPIRVBase::visitCallLdexp(CallInst *CI, StringRef MangledName,
+                                    StringRef DemangledName) {
+  auto Args = getArguments(CI);
+  if (Args.size() == 2) {
+    Type *Type0 = Args[0]->getType();
+    Type *Type1 = Args[1]->getType();
+    // For OpenCL built-in math functions 'halfn ldexp(halfn x, int k)',
+    // 'floatn ldexp(floatn x, int k)' and 'doublen ldexp (doublen x, int k)',
+    // convert scalar arg to vector to keep consistency with SPIRV spec.
+    // Regarding to SPIRV OpenCL Extended Instruction set, k operand must have
+    // the same component count as Result Type and x operands
+    if (auto *FixedVecType0 = dyn_cast<FixedVectorType>(Type0)) {
+      auto ScalarTypeID = Type0->getScalarType()->getTypeID();
+      if ((ScalarTypeID == llvm::Type::FloatTyID ||
+           ScalarTypeID == llvm::Type::DoubleTyID ||
+           ScalarTypeID == llvm::Type::HalfTyID) &&
+          Type1->isIntegerTy()) {
+        IRBuilder<> IRB(CI);
+        unsigned Width = FixedVecType0->getNumElements();
+        CI->setOperand(1, IRB.CreateVectorSplat(Width, CI->getArgOperand(1)));
+      }
+    }
+  }
+  visitCallBuiltinSimple(CI, MangledName, DemangledName);
 }
 
 } // namespace SPIRV

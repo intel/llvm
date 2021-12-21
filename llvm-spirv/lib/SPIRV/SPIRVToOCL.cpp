@@ -95,7 +95,7 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     if (static_cast<uint32_t>(BuiltinKind) >=
             internal::BuiltInSubDeviceIDINTEL &&
         static_cast<uint32_t>(BuiltinKind) <=
-            internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL)
+            internal::BuiltInGlobalHWThreadIDINTEL)
       return;
 
     visitCallSPIRVBuiltin(&CI, BuiltinKind);

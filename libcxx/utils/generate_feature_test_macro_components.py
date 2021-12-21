@@ -283,7 +283,7 @@ feature_test_macros = [ add_version_header(x) for x in [
     "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)"
   }, {
     "name": "__cpp_lib_format",
-    "values": { "c++20": 201907 },
+    "values": { "c++20": 202106 },
     "headers": ["format"],
     "test_suite_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
     "libcxx_guard": "!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_format)",
@@ -442,6 +442,10 @@ feature_test_macros = [ add_version_header(x) for x in [
     "values": { "c++17": 201603 },
     "headers": ["memory_resource"],
     "unimplemented": True,
+  }, {
+    "name": "__cpp_lib_monadic_optional",
+    "values": { "c++2b": 202110 },
+    "headers": ["optional"],
   }, {
     "name": "__cpp_lib_node_extract",
     "values": { "c++17": 201606 },

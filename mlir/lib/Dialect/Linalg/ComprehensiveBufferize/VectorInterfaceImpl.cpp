@@ -20,35 +20,38 @@ namespace vector_ext {
 struct TransferReadOpInterface
     : public BufferizableOpInterface::ExternalModel<TransferReadOpInterface,
                                                     vector::TransferReadOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              BufferizationState &state) const {
     assert(opOperand.get().getType().isa<RankedTensorType>() &&
            "only tensor types expected");
     return true;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     assert(opOperand.get().getType().isa<RankedTensorType>() &&
            "only tensor types expected");
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return OpResult();
   }
 
   LogicalResult bufferize(Operation *op, OpBuilder &b,
                           BufferizationState &state) const {
-    auto transferReadOp = cast<vector::TransferReadOp>(op);
-
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(op);
+    auto readOp = cast<vector::TransferReadOp>(op);
+    assert(readOp.getShapedType().isa<TensorType>() &&
+           "only tensor types expected");
 
     // TransferReadOp always reads from the bufferized op.source().
-    assert(transferReadOp.getShapedType().isa<TensorType>() &&
-           "only tensor types expected");
-    Value v = state.lookupBuffer(transferReadOp.source());
-    transferReadOp.sourceMutable().assign(v);
+    Value buffer = state.lookupBuffer(readOp.source());
+    Value read = b.create<vector::TransferReadOp>(
+        readOp.getLoc(), readOp.getVectorType(), buffer, readOp.indices(),
+        readOp.permutation_map(), readOp.padding(), readOp.mask(),
+        readOp.in_boundsAttr());
+    state.replaceOp(op, read);
     return success();
   }
 };
@@ -56,54 +59,49 @@ struct TransferReadOpInterface
 struct TransferWriteOpInterface
     : public BufferizableOpInterface::ExternalModel<TransferWriteOpInterface,
                                                     vector::TransferWriteOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              BufferizationState &state) const {
     assert(opOperand.get().getType().isa<TensorType>() &&
            "only tensor types expected");
     return true;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     assert(opOperand.get().getType().isa<TensorType>() &&
            "only tensor types expected");
     return true;
   }
 
-  SmallVector<OpOperand *> getAliasingOpOperand(Operation *op,
-                                                OpResult opResult) const {
-    return {&op->getOpOperand(1)};
-  }
-
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     assert(opOperand.get().getType().isa<TensorType>() &&
            "only tensor types expected");
     return op->getOpResult(0);
   }
 
-  BufferRelation bufferRelation(Operation *op, OpOperand &opOperand) const {
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationAliasInfo &aliasInfo,
+                                BufferizationState &state) const {
     return BufferRelation::Equivalent;
   }
 
   LogicalResult bufferize(Operation *op, OpBuilder &b,
                           BufferizationState &state) const {
     auto writeOp = cast<vector::TransferWriteOp>(op);
-
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(op);
+    assert(writeOp.getShapedType().isa<TensorType>() &&
+           "only tensor types expected");
 
     // Create a new transfer_write on buffer that doesn't have a return value.
     // Leave the previous transfer_write to dead code as it still has uses at
     // this point.
-    assert(writeOp.getShapedType().isa<TensorType>() &&
-           "only tensor types expected");
-    Value resultBuffer = getResultBuffer(b, op->getResult(0), state);
+    Value resultBuffer = state.getResultBuffer(op->getResult(0));
     if (!resultBuffer)
       return failure();
     b.create<vector::TransferWriteOp>(
         writeOp.getLoc(), writeOp.vector(), resultBuffer, writeOp.indices(),
-        writeOp.permutation_map(),
-        writeOp.in_bounds() ? *writeOp.in_bounds() : ArrayAttr());
-    state.mapBuffer(op->getResult(0), resultBuffer);
+        writeOp.permutation_mapAttr(), writeOp.in_boundsAttr());
+    state.replaceOp(op, resultBuffer);
 
     return success();
   }
