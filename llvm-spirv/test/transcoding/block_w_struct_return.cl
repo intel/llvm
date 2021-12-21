@@ -1,19 +1,16 @@
 // RUN: %clang_cc1 -triple spir -cl-std=cl2.0 -disable-llvm-passes -fdeclare-opencl-builtins -finclude-default-header %s -emit-llvm-bc -o %t.bc
-// TODO: currently max version is limited to 1.1 for this test. Issues here
-// that the SPIR-V module generated for blocks is invalid for versions starting
-// from 1.4, spirv-val is failing with:
-//   error: line 63: Interface variable id <13> is used by entry point
-//                   'block_kernel' id <24>, but is not listed as an interface
-//   %__block_literal_global = OpVariable %_ptr_CrossWorkgroup__struct_10
-//                         CrossWorkgroup %11
-// details can be found in:
-// – Public issue #35: OpEntryPoint must list all global variables in the
-//   interface. Additionally, duplication in the list is not allowed.
-// RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -spirv-text -o %t.spv.txt
-// RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -o %t.spv
-// RUN: spirv-val %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+
+// RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV1_1,CHECK-SPIRV
+// RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -o %t.spirv1.1.spv
+// RUN: spirv-val --target-env spv1.1 %t.spirv1.1.spv
+// RUN: llvm-spirv -r %t.spirv1.1.spv -o %t.rev.bc
+// RUN: llvm-dis %t.rev.bc
+// RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
+// RUN: llvm-spirv --spirv-max-version=1.4 %t.bc -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV1_4,CHECK-SPIRV
+// RUN: llvm-spirv --spirv-max-version=1.4 %t.bc -o %t.spirv1.4.spv
+// RUN: spirv-val --target-env spv1.4 %t.spirv1.4.spv
+// RUN: llvm-spirv -r %t.spirv1.4.spv -o %t.rev.bc
 // RUN: llvm-dis %t.rev.bc
 // RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
@@ -33,6 +30,13 @@ kernel void block_ret_struct(__global int* res)
   aa.a = 5;
   res[tid] = kernelBlock(aa).a - 6;
 }
+
+// CHECK-SPIRV1_4: EntryPoint 6 [[#]] "block_ret_struct" [[#InterdaceId1:]] [[#InterdaceId2:]]
+// CHECK-SPIRV1_4: Name [[#InterdaceId1]] "__block_literal_global"
+// CHECK-SPIRV1_4: Name [[#InterdaceId2]] "__spirv_BuiltInGlobalInvocationId"
+
+// CHECK-SPIRV1_1: EntryPoint 6 [[#]] "block_ret_struct" [[#InterdaceId1:]]
+// CHECK-SPIRV1_1: Name [[#InterdaceId1]] "__spirv_BuiltInGlobalInvocationId"
 
 // CHECK-SPIRV: Name [[BlockInv:[0-9]+]] "__block_ret_struct_block_invoke"
 
