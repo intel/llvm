@@ -84,6 +84,7 @@ llvm/**/append-file/ @mdtoguchi @AGindinson
 llvm/**/file-table-tform/ @mlychkov @AlexeySachkov @kbobrovs
 llvm/**/llvm-foreach/ @AlexeySachkov  @Fznamznon
 llvm/**/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
+llvm/**/spir-to-ir-wrapper/ @mdtoguchi @AGindinson
 llvm/**/sycl-post-link/ @mlychkov @AlexeySachkov @kbobrovs
 llvm/include/llvm/Support/PropertySetIO.h @mlychkov @AlexeySachkov @kbobrovs
 llvm/lib/Support/PropertySetIO.cpp @mlychkov @AlexeySachkov @kbobrovs
