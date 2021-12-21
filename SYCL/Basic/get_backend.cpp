@@ -62,6 +62,7 @@ int main() {
       if (e.get_backend() != plt.get_backend()) {
         return_fail();
       }
+      free(HostAlloc, c);
     }
   }
   std::cout << "Passed" << std::endl;
