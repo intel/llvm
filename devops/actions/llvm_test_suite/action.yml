@@ -37,7 +37,6 @@ runs:
   - name: Checkout LLVM Test Suite
     uses: ./actions/cached_checkout
     with:
-      path: llvm
       path: llvm_test_suite
       repository: 'intel/llvm-test-suite'
       ref: ${{ inputs.test_ref }}
