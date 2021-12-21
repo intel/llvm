@@ -24,43 +24,44 @@ int main() {
     auto accB = bufB.get_access<access::mode::read_write>(cgh);
     auto accD = bufD.get_access<access::mode::read_write>(cgh);
 
-    cgh.parallel_for<class row_row_m16n16k16>(nd_range<2>({1, 32}, {1, 32}), [=
-    ](nd_item<2> item)[[sycl::reqd_work_group_size(1, 1, 32)]] {
-      sycl::sub_group sg = item.get_sub_group();
+    cgh.parallel_for<class row_row_m16n16k16>(
+        nd_range<2>({1, 32}, {1, 32}), [=
+    ](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+          sycl::sub_group sg = item.get_sub_group();
 
-      joint_matrix<int32_t, matrix_use::accumulator, 16, 16,
-                   matrix_layout::row_major>
-          sub_c;
+          joint_matrix<int32_t, matrix_use::accumulator, 16, 16,
+                       matrix_layout::row_major>
+              sub_c;
 
-      joint_matrix<uint8_t, matrix_use::a, 16, 16, matrix_layout::row_major>
-          sub_a;
+          joint_matrix<uint8_t, matrix_use::a, 16, 16, matrix_layout::row_major>
+              sub_a;
 
-      joint_matrix<uint8_t, matrix_use::b, 16, 16, matrix_layout::row_major>
-          sub_b;
+          joint_matrix<uint8_t, matrix_use::b, 16, 16, matrix_layout::row_major>
+              sub_b;
 
-      // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 }
-      // @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)*
-      // %add.ptr.i, i32 16) #{{.*}}
-      joint_matrix_load(sg, sub_c, accC.get_pointer(), stride);
-      // CHECK: tail call { i32, i32 }
-      // @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.u8.p0i32(i32*
-      // %call.ascast.i.i49.i, i32 16) #{{.*}}
-      joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
-      // CHECK: tail call { i32, i32 }
-      // @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.u8.p0i32(i32*
-      // %call.ascast.i.i.i, i32 16) #{{.*}}
-      joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
-      // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 }
-      // @llvm.nvvm.wmma.m16n16k16.mma.row.row.u8(i32 %19, i32 %20, i32 %23, i32
-      // %24, i32 %9, i32 %10, i32 %11, i32 %12, i32 %13, i32 %14, i32 %15, i32
-      // %16) #{{.*}}
-      sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-      // CHECK: tail call void
-      // @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.s32.p1i32(i32 addrspace(1)*
-      // %add.ptr.i76, i32 %26, i32 %27, i32 %28, i32 %29, i32 %30, i32 %31, i32
-      // %32, i32 %33, i32 16) #{{.*}}
-      joint_matrix_store(sg, sub_c, accD.get_pointer(), stride);
-    });
+          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 }
+          // @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.s32.p1i32(i32
+          // addrspace(1)* %add.ptr.i, i32 16) #{{.*}}
+          joint_matrix_load(sg, sub_c, accC.get_pointer(), stride);
+          // CHECK: tail call { i32, i32 }
+          // @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.u8.p0i32(i32*
+          // %call.ascast.i.i49.i, i32 16) #{{.*}}
+          joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
+          // CHECK: tail call { i32, i32 }
+          // @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.u8.p0i32(i32*
+          // %call.ascast.i.i.i, i32 16) #{{.*}}
+          joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
+          // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 }
+          // @llvm.nvvm.wmma.m16n16k16.mma.row.row.u8(i32 %19, i32 %20, i32 %23,
+          // i32 %24, i32 %9, i32 %10, i32 %11, i32 %12, i32 %13, i32 %14, i32
+          // %15, i32 %16) #{{.*}}
+          sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          // CHECK: tail call void
+          // @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.s32.p1i32(i32
+          // addrspace(1)* %add.ptr.i76, i32 %26, i32 %27, i32 %28, i32 %29, i32
+          // %30, i32 %31, i32 %32, i32 %33, i32 16) #{{.*}}
+          joint_matrix_store(sg, sub_c, accD.get_pointer(), stride);
+        });
 
     cgh.parallel_for<class col_col_m16n16k16>(nd_range<2>({1, 32}, {1, 32}), [=
     ](nd_item<2> item)[[sycl::reqd_work_group_size(1, 1, 32)]] {
