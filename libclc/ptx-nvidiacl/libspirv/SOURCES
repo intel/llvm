@@ -97,3 +97,5 @@ atomic/atomic_min.cl
 atomic/atomic_xchg.cl
 atomic/atomic_or.cl
 atomic/atomic_xor.cl
+atomic/atomic_load.cl
+atomic/atomic_store.cl
