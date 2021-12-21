@@ -46,7 +46,10 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <queue>
 #include <string>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 using namespace llvm;
@@ -352,124 +355,81 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
     EntryPointsGroups[GLOBAL_SCOPE_NAME] = {};
 }
 
-enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
+// This function traverses over reversed call graph by BFS algorithm.
+// It means that an edge links some function @func with functions
+// which contain call of function @func.It starts from
+// @StartingFunction and lifts up until it reach all reachable functions
+// or it reaches some function containing "referenced-indirectly" attribute.
+// If it reaches "referenced-indirectly" attribute than it returns true and
+// an empty list.
+// Otherwise, it returns false and a list of reached SPIR kernel function's
+// names.
+std::pair<bool, std::vector<StringRef>>
+TraverseCGToFindSPIRKernels(const Function *StartingFunction) {
+  std::queue<const Function *> FunctionsToVisit;
+  std::unordered_set<const Function *> VisitedFunctions;
+  FunctionsToVisit.push(StartingFunction);
+  std::vector<StringRef> KernelNames;
 
-// Go through function call graph searching for assert call.
-HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
-  // Map holds the info about assertions in already examined functions:
-  // true  - if there is an assertion in underlying functions,
-  // false - if there are definetely no assertions in underlying functions.
-  static std::map<const Function *, bool> hasAssertionInCallGraphMap;
-  std::vector<const Function *> FuncCallStack;
+  while (!FunctionsToVisit.empty()) {
+    const Function *F = FunctionsToVisit.front();
+    FunctionsToVisit.pop();
 
-  static std::vector<const Function *> isIndirectlyCalledInGraph;
+    // It is possible that we insert some particular function several
+    // times in functionsToVisit queue.
+    if (VisitedFunctions.find(F) != VisitedFunctions.end())
+      continue;
 
-  std::vector<const Function *> Workstack;
-  Workstack.push_back(Func);
+    VisitedFunctions.insert(F);
 
-  while (!Workstack.empty()) {
-    const Function *F = Workstack.back();
-    Workstack.pop_back();
-    if (F != Func)
-      FuncCallStack.push_back(F);
-
-    bool HasIndirectlyCalledAttr = false;
-    if (std::find(isIndirectlyCalledInGraph.begin(),
-                  isIndirectlyCalledInGraph.end(),
-                  F) != isIndirectlyCalledInGraph.end())
-      HasIndirectlyCalledAttr = true;
-    else if (F->hasFnAttribute("referenced-indirectly")) {
-      HasIndirectlyCalledAttr = true;
-      isIndirectlyCalledInGraph.push_back(F);
-    }
-
-    bool IsLeaf = true;
-    for (const auto &I : instructions(F)) {
-      if (!isa<CallBase>(&I))
+    for (const auto *U : F->users()) {
+      const Instruction *I = cast<const Instruction>(U);
+      const Function *ParentF = I->getFunction();
+      if (VisitedFunctions.find(ParentF) != VisitedFunctions.end())
         continue;
 
-      const Function *CF = cast<CallBase>(&I)->getCalledFunction();
-      if (!CF)
-        continue;
-
-      bool IsIndirectlyCalled =
-          HasIndirectlyCalledAttr ||
-          std::find(isIndirectlyCalledInGraph.begin(),
-                    isIndirectlyCalledInGraph.end(),
-                    CF) != isIndirectlyCalledInGraph.end();
-
-      // Return if we've already discovered if there are asserts in the
-      // function call graph.
-      auto HasAssert = hasAssertionInCallGraphMap.find(CF);
-      if (HasAssert != hasAssertionInCallGraphMap.end()) {
-        // If we know, that this function does not contain assert, we still
-        // should investigate another instructions in the function.
-        if (!HasAssert->second)
-          continue;
-
-        return IsIndirectlyCalled ? Assert_Indirect : Assert;
+      if (ParentF->hasFnAttribute("referenced-indirectly")) {
+        return {true, {}};
       }
 
-      if (CF->getName().startswith("__devicelib_assert_fail")) {
-        // Mark all the functions above in call graph as ones that can call
-        // assert.
-        for (const auto *It : FuncCallStack)
-          hasAssertionInCallGraphMap[It] = true;
+      if (ParentF->getCallingConv() == CallingConv::SPIR_KERNEL)
+        KernelNames.push_back(ParentF->getName());
 
-        hasAssertionInCallGraphMap[Func] = true;
-        hasAssertionInCallGraphMap[CF] = true;
-
-        return IsIndirectlyCalled ? Assert_Indirect : Assert;
-      }
-
-      if (!CF->isDeclaration()) {
-        Workstack.push_back(CF);
-        IsLeaf = false;
-        if (HasIndirectlyCalledAttr)
-          isIndirectlyCalledInGraph.push_back(CF);
-      }
-    }
-
-    if (IsLeaf && !FuncCallStack.empty()) {
-      // Mark the leaf function as one that definetely does not call assert.
-      hasAssertionInCallGraphMap[FuncCallStack.back()] = false;
-      FuncCallStack.clear();
+      FunctionsToVisit.push(ParentF);
     }
   }
-  return No_Assert;
+
+  return {false, std::move(KernelNames)};
 }
 
 std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
-  std::vector<StringRef> Result;
+  Optional<const Function *> DevicelibAssertFailFunction;
+  std::vector<StringRef> SPIRKernelNames;
+  // This loop finds all SPIR kernel's names and __devicelib_assert_fail
+  // function if it is present.
+  for (const Function &F : M) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      SPIRKernelNames.push_back(F.getName());
 
-  bool HasIndirectlyCalledAssert = false;
-  EntryPointGroup Kernels;
-  for (const auto &F : M.functions()) {
-    // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
-    // TODO: handle function pointers.
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
-
-    Kernels.push_back(&F);
-    if (HasIndirectlyCalledAssert)
-      continue;
-
-    HasAssertStatus HasAssert = hasAssertInFunctionCallGraph(&F);
-    switch (HasAssert) {
-    case Assert:
-      Result.push_back(F.getName());
-      break;
-    case Assert_Indirect:
-      HasIndirectlyCalledAssert = true;
-      break;
-    case No_Assert:
-      break;
+    if (F.getName().startswith("__devicelib_assert_fail")) {
+      assert(!DevicelibAssertFailFunction.hasValue());
+      DevicelibAssertFailFunction = &F;
     }
   }
 
-  if (HasIndirectlyCalledAssert)
-    for (const auto *F : Kernels)
-      Result.push_back(F->getName());
+  if (!DevicelibAssertFailFunction)
+    return {};
+
+  auto TraverseResult =
+      TraverseCGToFindSPIRKernels(*DevicelibAssertFailFunction);
+  std::vector<StringRef> Result;
+  if (TraverseResult.first) {
+    // If assert is met in some indirectly callable function than
+    // we return all kernels in Module due to the current assert's design.
+    Result = std::move(SPIRKernelNames);
+  } else {
+    Result = std::move(TraverseResult.second);
+  }
 
   return Result;
 }

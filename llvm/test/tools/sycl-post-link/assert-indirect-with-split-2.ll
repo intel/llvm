@@ -63,13 +63,6 @@ entry:
   ret void
 }
 
-; CHECK-NOT: main_TU0_kernel1
-define dso_local spir_kernel void @main_TU0_kernel1() #0 {
-entry:
-  call spir_func void @_Z4foo1v()
-  ret void
-}
-
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo1v() {
 entry:
@@ -82,6 +75,13 @@ entry:
 define dso_local spir_kernel void @main_TU1_kernel0() #2 {
 entry:
   call spir_func void @_Z3foov() ; call assert
+  ret void
+}
+
+; CHECK-NOT: main_TU0_kernel1
+define dso_local spir_kernel void @main_TU0_kernel1() #0 {
+entry:
+  call spir_func void @_Z4foo1v()
   ret void
 }
 

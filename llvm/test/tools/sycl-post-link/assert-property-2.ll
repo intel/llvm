@@ -122,7 +122,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E7Kernel9
+; CHECK-DAG: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E7Kernel9
 ; Function Attrs: convergent noinline norecurse mustprogress
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E7Kernel9() #0 {
 entry:
@@ -130,7 +130,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E8Kernel10
+; CHECK-DAG: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E8Kernel10
 ; Function Attrs: convergent noinline norecurse optnone mustprogress
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E8Kernel10() #0 {
 entry:
@@ -164,7 +164,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE6Kernel
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE6Kernel
 ; Function Attrs: convergent norecurse mustprogress
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE6Kernel"() local_unnamed_addr #0 {
 entry:
@@ -186,7 +186,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel2
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel2
 ; Function Attrs: convergent norecurse mustprogress
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel2"() local_unnamed_addr #0 {
 entry:
@@ -216,7 +216,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel3
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel3
 ; Function Attrs: convergent norecurse mustprogress
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel3"() local_unnamed_addr #0 {
 entry:
@@ -244,7 +244,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel4
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel4
 ; Function Attrs: convergent norecurse mustprogress
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel4"() local_unnamed_addr #0 {
 entry:
@@ -252,7 +252,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel5
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel5
 ; Function Attrs: convergent norecurse mustprogress
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel5"() local_unnamed_addr #0 {
 entry:
@@ -267,15 +267,6 @@ entry:
   ret void
 }
 
-; CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z6E_exclv()
-  call spir_func void @_Z6E_exclv()
-  ret void
-}
-
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_func void @_Z6F_inclv() local_unnamed_addr {
 entry:
@@ -283,7 +274,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel7
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel7
 ; Function Attrs: convergent norecurse mustprogress
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel7"() local_unnamed_addr #0 {
 entry:
@@ -328,11 +319,20 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel8
+; CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel8
 ; Function Attrs: convergent norecurse mustprogress
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel8"() local_unnamed_addr #0 {
   call spir_func void @_Z1Gv()
   call spir_func void @_Z1Hv()
+  ret void
+}
+
+; CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z6E_exclv()
+  call spir_func void @_Z6E_exclv()
   ret void
 }
 
