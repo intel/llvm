@@ -133,30 +133,6 @@ template <typename DataT, int NumElems> std::vector<DataT> generate_ref_data() {
 
   std::vector<DataT> ref_data{};
 
-  if constexpr (std::is_signed_v<DataT>) {
-    ref_data.reserve((NumElems > 1) ? NumElems : 5);
-
-    ref_data.insert(ref_data.end(), {min, min_half, max, max_half, 0});
-    if constexpr (NumElems != 1) {
-      ref_data.insert(ref_data.end(), {min_plus_one, max_minus_one, -1});
-      for (size_t i = ref_data.size(); i < NumElems; ++i) {
-        ref_data.push_back(i);
-      }
-    }
-  }
-
-  if constexpr (std::is_unsigned_v<DataT>) {
-    ref_data.reserve((NumElems > 1) ? NumElems : 3);
-
-    ref_data.insert(ref_data.end(), {max, max_half, 0});
-    if constexpr (NumElems != 1) {
-      ref_data.insert(ref_data.end(), {max_minus_one});
-      for (size_t i = ref_data.size(); i < NumElems; ++i) {
-        ref_data.push_back(i);
-      }
-    }
-  }
-
   if constexpr (type_traits::is_sycl_floating_point_v<DataT>) {
     static const DataT nan = value<DataT>::nan();
     static const DataT inf = value<DataT>::inf();
@@ -174,8 +150,28 @@ template <typename DataT, int NumElems> std::vector<DataT> generate_ref_data() {
         ref_data.push_back(i + 0.25);
       }
     }
-  }
+  } else if constexpr (std::is_signed_v<DataT>) {
+    ref_data.reserve((NumElems > 1) ? NumElems : 5);
 
+    ref_data.insert(ref_data.end(), {min, min_half, max, max_half, 0});
+    if constexpr (NumElems != 1) {
+      ref_data.insert(ref_data.end(), {min_plus_one, max_minus_one, -1});
+      for (size_t i = ref_data.size(); i < NumElems; ++i) {
+        ref_data.push_back(i);
+      }
+    }
+  } else {
+    // Unsigned integral type
+    ref_data.reserve((NumElems > 1) ? NumElems : 3);
+
+    ref_data.insert(ref_data.end(), {max, max_half, 0});
+    if constexpr (NumElems != 1) {
+      ref_data.insert(ref_data.end(), {max_minus_one});
+      for (size_t i = ref_data.size(); i < NumElems; ++i) {
+        ref_data.push_back(i);
+      }
+    }
+  }
   return ref_data;
 }
 
