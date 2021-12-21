@@ -32,6 +32,7 @@ class DefaultingPyMlirContext;
 class PyModule;
 class PyOperation;
 class PyType;
+class PySymbolTable;
 class PyValue;
 
 /// Template for a reference to a concrete type which captures a python
@@ -243,8 +244,7 @@ class DefaultingPyMlirContext
     : public Defaulting<DefaultingPyMlirContext, PyMlirContext> {
 public:
   using Defaulting::Defaulting;
-  static constexpr const char kTypeDescription[] =
-      "[ThreadContextAware] mlir.ir.Context";
+  static constexpr const char kTypeDescription[] = "mlir.ir.Context";
   static PyMlirContext &resolve();
 };
 
@@ -338,8 +338,7 @@ class DefaultingPyLocation
     : public Defaulting<DefaultingPyLocation, PyLocation> {
 public:
   using Defaulting::Defaulting;
-  static constexpr const char kTypeDescription[] =
-      "[ThreadContextAware] mlir.ir.Location";
+  static constexpr const char kTypeDescription[] = "mlir.ir.Location";
   static PyLocation &resolve();
 
   operator MlirLocation() const { return *get(); }
@@ -393,11 +392,13 @@ public:
   /// Implements the bound 'print' method and helps with others.
   void print(pybind11::object fileObject, bool binary,
              llvm::Optional<int64_t> largeElementsLimit, bool enableDebugInfo,
-             bool prettyDebugInfo, bool printGenericOpForm, bool useLocalScope);
+             bool prettyDebugInfo, bool printGenericOpForm, bool useLocalScope,
+             bool assumeVerified);
   pybind11::object getAsm(bool binary,
                           llvm::Optional<int64_t> largeElementsLimit,
                           bool enableDebugInfo, bool prettyDebugInfo,
-                          bool printGenericOpForm, bool useLocalScope);
+                          bool printGenericOpForm, bool useLocalScope,
+                          bool assumeVerified);
 
   /// Moves the operation before or after the other operation.
   void moveAfter(PyOperationBase &other);
@@ -513,6 +514,7 @@ private:
   bool valid = true;
 
   friend class PyOperationBase;
+  friend class PySymbolTable;
 };
 
 /// A PyOpView is equivalent to the C++ "Op" wrappers: these are the basis for
@@ -674,10 +676,14 @@ public:
 
   static void bind(pybind11::module &m) {
     auto cls = ClassTy(m, DerivedTy::pyClassName, pybind11::module_local());
-    cls.def(pybind11::init<PyType &>(), pybind11::keep_alive<0, 1>());
-    cls.def_static("isinstance", [](PyType &otherType) -> bool {
-      return DerivedTy::isaFunction(otherType);
-    });
+    cls.def(pybind11::init<PyType &>(), pybind11::keep_alive<0, 1>(),
+            pybind11::arg("cast_from_type"));
+    cls.def_static(
+        "isinstance",
+        [](PyType &otherType) -> bool {
+          return DerivedTy::isaFunction(otherType);
+        },
+        pybind11::arg("other"));
     DerivedTy::bindDerived(cls);
   }
 
@@ -764,10 +770,14 @@ public:
   static void bind(pybind11::module &m) {
     auto cls = ClassTy(m, DerivedTy::pyClassName, pybind11::buffer_protocol(),
                        pybind11::module_local());
-    cls.def(pybind11::init<PyAttribute &>(), pybind11::keep_alive<0, 1>());
-    cls.def_static("isinstance", [](PyAttribute &otherAttr) -> bool {
-      return DerivedTy::isaFunction(otherAttr);
-    });
+    cls.def(pybind11::init<PyAttribute &>(), pybind11::keep_alive<0, 1>(),
+            pybind11::arg("cast_from_attr"));
+    cls.def_static(
+        "isinstance",
+        [](PyAttribute &otherAttr) -> bool {
+          return DerivedTy::isaFunction(otherAttr);
+        },
+        pybind11::arg("other"));
     cls.def_property_readonly("type", [](PyAttribute &attr) {
       return PyType(attr.getContext(), mlirAttributeGetType(attr));
     });
@@ -874,6 +884,57 @@ public:
 
 private:
   MlirIntegerSet integerSet;
+};
+
+/// Bindings for MLIR symbol tables.
+class PySymbolTable {
+public:
+  /// Constructs a symbol table for the given operation.
+  explicit PySymbolTable(PyOperationBase &operation);
+
+  /// Destroys the symbol table.
+  ~PySymbolTable() { mlirSymbolTableDestroy(symbolTable); }
+
+  /// Returns the symbol (opview) with the given name, throws if there is no
+  /// such symbol in the table.
+  pybind11::object dunderGetItem(const std::string &name);
+
+  /// Removes the given operation from the symbol table and erases it.
+  void erase(PyOperationBase &symbol);
+
+  /// Removes the operation with the given name from the symbol table and erases
+  /// it, throws if there is no such symbol in the table.
+  void dunderDel(const std::string &name);
+
+  /// Inserts the given operation into the symbol table. The operation must have
+  /// the symbol trait.
+  PyAttribute insert(PyOperationBase &symbol);
+
+  /// Gets and sets the name of a symbol op.
+  static PyAttribute getSymbolName(PyOperationBase &symbol);
+  static void setSymbolName(PyOperationBase &symbol, const std::string &name);
+
+  /// Gets and sets the visibility of a symbol op.
+  static PyAttribute getVisibility(PyOperationBase &symbol);
+  static void setVisibility(PyOperationBase &symbol,
+                            const std::string &visibility);
+
+  /// Replaces all symbol uses within an operation. See the API
+  /// mlirSymbolTableReplaceAllSymbolUses for all caveats.
+  static void replaceAllSymbolUses(const std::string &oldSymbol,
+                                   const std::string &newSymbol,
+                                   PyOperationBase &from);
+
+  /// Walks all symbol tables under and including 'from'.
+  static void walkSymbolTables(PyOperationBase &from, bool allSymUsesVisible,
+                               pybind11::object callback);
+
+  /// Casts the bindings class into the C API structure.
+  operator MlirSymbolTable() { return symbolTable; }
+
+private:
+  PyOperationRef operation;
+  MlirSymbolTable symbolTable;
 };
 
 void populateIRAffine(pybind11::module &m);

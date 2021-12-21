@@ -29,6 +29,8 @@ void host_ok(void) {
   C.field1 = A;
 }
 
+long double ld_func(long double arg) { return 0; };
+
 void usage() {
   // expected-note@+2 3{{'A' defined here}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
@@ -60,6 +62,9 @@ void usage() {
     float F2 = 0.1f;
     // expected-error@+1 3{{expression requires 128 bit size '__float128' type support, but target 'spir64' does not support it}}
     float F3 = ((__float128)F1 * (__float128)F2) / 2.0f;
+
+    // assume that long double is supported
+    float F4 = ld_func(F3);
   };
 
   // expected-note@+1 {{called by 'usage'}}

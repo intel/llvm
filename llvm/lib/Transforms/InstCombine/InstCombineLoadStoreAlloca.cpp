@@ -163,7 +163,7 @@ static bool isDereferenceableForAllocaSize(const Value *V, const AllocaInst *AI,
   uint64_t AllocaSize = DL.getTypeStoreSize(AI->getAllocatedType());
   if (!AllocaSize)
     return false;
-  return isDereferenceableAndAlignedPointer(V, Align(AI->getAlignment()),
+  return isDereferenceableAndAlignedPointer(V, AI->getAlign(),
                                             APInt(64, AllocaSize), DL);
 }
 
@@ -640,7 +640,6 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
     return nullptr;
 
   StringRef Name = LI.getName();
-  assert(LI.getAlignment() && "Alignment must be set at this point");
 
   if (auto *ST = dyn_cast<StructType>(T)) {
     // If the struct only have one element, we unpack.

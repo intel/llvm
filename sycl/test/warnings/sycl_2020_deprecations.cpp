@@ -134,6 +134,10 @@ int main() {
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
 
+  // expected-warning@+1{{'built_in_kernels' is deprecated: use built_in_kernel_ids instead}}
+  auto BIK = sycl::info::device::built_in_kernels;
+  (void)BIK;
+
   // expected-warning@+1{{'extensions' is deprecated: platform::extensions is deprecated, use device::get_info() with info::device::aspects instead.}}
   auto PE = sycl::info::platform::extensions;
 

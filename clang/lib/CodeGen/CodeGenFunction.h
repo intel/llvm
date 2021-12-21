@@ -379,6 +379,34 @@ public:
   /// we prefer to insert allocas.
   llvm::AssertingVH<llvm::Instruction> AllocaInsertPt;
 
+private:
+  /// PostAllocaInsertPt - This is a place in the prologue where code can be
+  /// inserted that will be dominated by all the static allocas. This helps
+  /// achieve two things:
+  ///   1. Contiguity of all static allocas (within the prologue) is maintained.
+  ///   2. All other prologue code (which are dominated by static allocas) do
+  ///      appear in the source order immediately after all static allocas.
+  ///
+  /// PostAllocaInsertPt will be lazily created when it is *really* required.
+  llvm::AssertingVH<llvm::Instruction> PostAllocaInsertPt = nullptr;
+
+public:
+  /// Return PostAllocaInsertPt. If it is not yet created, then insert it
+  /// immediately after AllocaInsertPt.
+  llvm::Instruction *getPostAllocaInsertPoint() {
+    if (!PostAllocaInsertPt) {
+      assert(AllocaInsertPt &&
+             "Expected static alloca insertion point at function prologue");
+      assert(AllocaInsertPt->getParent()->isEntryBlock() &&
+             "EBB should be entry block of the current code gen function");
+      PostAllocaInsertPt = AllocaInsertPt->clone();
+      PostAllocaInsertPt->setName("postallocapt");
+      PostAllocaInsertPt->insertAfter(AllocaInsertPt);
+    }
+
+    return PostAllocaInsertPt;
+  }
+
   /// API for captured statement code generation.
   class CGCapturedStmtInfo {
   public:
@@ -471,7 +499,7 @@ public:
     AbstractCallee(const FunctionDecl *FD) : CalleeDecl(FD) {}
     AbstractCallee(const ObjCMethodDecl *OMD) : CalleeDecl(OMD) {}
     bool hasFunctionDecl() const {
-      return dyn_cast_or_null<FunctionDecl>(CalleeDecl);
+      return isa_and_nonnull<FunctionDecl>(CalleeDecl);
     }
     const Decl *getDecl() const { return CalleeDecl; }
     unsigned getNumParams() const {
@@ -2466,14 +2494,16 @@ public:
 
   LValue MakeAddrLValue(llvm::Value *V, QualType T, CharUnits Alignment,
                         AlignmentSource Source = AlignmentSource::Type) {
-    return LValue::MakeAddr(Address(V, Alignment), T, getContext(),
-                            LValueBaseInfo(Source), CGM.getTBAAAccessInfo(T));
+    Address Addr(V, ConvertTypeForMem(T), Alignment);
+    return LValue::MakeAddr(Addr, T, getContext(), LValueBaseInfo(Source),
+                            CGM.getTBAAAccessInfo(T));
   }
 
-  LValue MakeAddrLValue(llvm::Value *V, QualType T, CharUnits Alignment,
-                        LValueBaseInfo BaseInfo, TBAAAccessInfo TBAAInfo) {
-    return LValue::MakeAddr(Address(V, Alignment), T, getContext(),
-                            BaseInfo, TBAAInfo);
+  LValue
+  MakeAddrLValueWithoutTBAA(Address Addr, QualType T,
+                            AlignmentSource Source = AlignmentSource::Type) {
+    return LValue::MakeAddr(Addr, T, getContext(), LValueBaseInfo(Source),
+                            TBAAAccessInfo());
   }
 
   LValue MakeNaturalAlignPointeeAddrLValue(llvm::Value *V, QualType T);
@@ -3100,15 +3130,18 @@ public:
 
   class ParamValue {
     llvm::Value *Value;
+    llvm::Type *ElementType;
     unsigned Alignment;
-    ParamValue(llvm::Value *V, unsigned A) : Value(V), Alignment(A) {}
+    ParamValue(llvm::Value *V, llvm::Type *T, unsigned A)
+        : Value(V), ElementType(T), Alignment(A) {}
   public:
     static ParamValue forDirect(llvm::Value *value) {
-      return ParamValue(value, 0);
+      return ParamValue(value, nullptr, 0);
     }
     static ParamValue forIndirect(Address addr) {
       assert(!addr.getAlignment().isZero());
-      return ParamValue(addr.getPointer(), addr.getAlignment().getQuantity());
+      return ParamValue(addr.getPointer(), addr.getElementType(),
+                        addr.getAlignment().getQuantity());
     }
 
     bool isIndirect() const { return Alignment != 0; }
@@ -3121,7 +3154,7 @@ public:
 
     Address getIndirectAddress() const {
       assert(isIndirect());
-      return Address(Value, CharUnits::fromQuantity(Alignment));
+      return Address(Value, ElementType, CharUnits::fromQuantity(Alignment));
     }
   };
 
@@ -4070,10 +4103,9 @@ public:
   RValue EmitCUDAKernelCallExpr(const CUDAKernelCallExpr *E,
                                 ReturnValueSlot ReturnValue);
 
-  RValue EmitNVPTXDevicePrintfCallExpr(const CallExpr *E,
-                                       ReturnValueSlot ReturnValue);
-  RValue EmitAMDGPUDevicePrintfCallExpr(const CallExpr *E,
-                                        ReturnValueSlot ReturnValue);
+  RValue EmitNVPTXDevicePrintfCallExpr(const CallExpr *E);
+  RValue EmitAMDGPUDevicePrintfCallExpr(const CallExpr *E);
+  RValue EmitOpenMPDevicePrintfCallExpr(const CallExpr *E);
 
   RValue EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
                          const CallExpr *E, ReturnValueSlot ReturnValue);
@@ -4540,7 +4572,7 @@ public:
   /// \p SignedIndices indicates whether any of the GEP indices are signed.
   /// \p IsSubtraction indicates whether the expression used to form the GEP
   /// is a subtraction.
-  llvm::Value *EmitCheckedInBoundsGEP(llvm::Value *Ptr,
+  llvm::Value *EmitCheckedInBoundsGEP(llvm::Type *ElemTy, llvm::Value *Ptr,
                                       ArrayRef<llvm::Value *> IdxList,
                                       bool SignedIndices,
                                       bool IsSubtraction,

@@ -29,6 +29,8 @@ enum class VectorTransposeLowering {
   /// Lower 2-D transpose to `vector.flat_transpose`, maps 1-1 to LLVM matrix
   /// intrinsics.
   Flat = 1,
+  /// Lower 2-D transpose to `vector.shuffle`.
+  Shuffle = 2,
 };
 /// Enum to control the lowering of `vector.multi_reduction` operations.
 enum class VectorMultiReductionLowering {
@@ -155,9 +157,7 @@ void populateVectorTransposeLoweringPatterns(
 /// the other patterns can kick in, thus fully exiting out of the
 /// vector.multi_reduction abstraction.
 void populateVectorMultiReductionLoweringPatterns(
-    RewritePatternSet &patterns,
-    VectorMultiReductionLowering options =
-        VectorMultiReductionLowering::InnerParallel);
+    RewritePatternSet &patterns, VectorMultiReductionLowering options);
 
 /// Collects patterns to progressively lower vector contraction ops on high-D
 /// into low-D reduction and product ops.

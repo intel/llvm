@@ -21,7 +21,7 @@
 //   COMMON_INTERCEPTOR_FD_RELEASE
 //   COMMON_INTERCEPTOR_FD_ACCESS
 //   COMMON_INTERCEPTOR_SET_THREAD_NAME
-//   COMMON_INTERCEPTOR_ON_DLOPEN
+//   COMMON_INTERCEPTOR_DLOPEN
 //   COMMON_INTERCEPTOR_ON_EXIT
 //   COMMON_INTERCEPTOR_MUTEX_PRE_LOCK
 //   COMMON_INTERCEPTOR_MUTEX_POST_LOCK
@@ -206,9 +206,9 @@ extern const short *_tolower_tab_;
     COMMON_INTERCEPTOR_READ_RANGE((ctx), (s),                       \
       common_flags()->strict_string_checks ? (internal_strlen(s)) + 1 : (n) )
 
-#ifndef COMMON_INTERCEPTOR_ON_DLOPEN
-#define COMMON_INTERCEPTOR_ON_DLOPEN(filename, flag) \
-  CheckNoDeepBind(filename, flag);
+#ifndef COMMON_INTERCEPTOR_DLOPEN
+#define COMMON_INTERCEPTOR_DLOPEN(filename, flag) \
+  ({ CheckNoDeepBind(filename, flag); REAL(dlopen)(filename, flag); })
 #endif
 
 #ifndef COMMON_INTERCEPTOR_GET_TLS_RANGE
@@ -2431,14 +2431,20 @@ static int PosixSpawnImpl(void *ctx, RealSpawnPtr *real_posix_spawn, pid_t *pid,
                           char *const envp[]) {
   COMMON_INTERCEPTOR_READ_RANGE(ctx, file_or_path,
                                 internal_strlen(file_or_path) + 1);
-  char *const *s = argv;
-  for (; *s; ++s)
-    COMMON_INTERCEPTOR_READ_RANGE(ctx, *s, internal_strlen(*s) + 1);
-  COMMON_INTERCEPTOR_READ_RANGE(ctx, argv, (s - argv + 1) / sizeof(*s));
-  s = envp;
-  for (; *s; ++s)
-    COMMON_INTERCEPTOR_READ_RANGE(ctx, *s, internal_strlen(*s) + 1);
-  COMMON_INTERCEPTOR_READ_RANGE(ctx, s, (s - envp + 1) / sizeof(*s));
+  if (argv) {
+    for (char *const *s = argv; ; ++s) {
+      COMMON_INTERCEPTOR_READ_RANGE(ctx, s, sizeof(*s));
+      if (!*s) break;
+      COMMON_INTERCEPTOR_READ_RANGE(ctx, *s, internal_strlen(*s) + 1);
+    }
+  }
+  if (envp) {
+    for (char *const *s = envp; ; ++s) {
+      COMMON_INTERCEPTOR_READ_RANGE(ctx, s, sizeof(*s));
+      if (!*s) break;
+      COMMON_INTERCEPTOR_READ_RANGE(ctx, *s, internal_strlen(*s) + 1);
+    }
+  }
   int res =
       real_posix_spawn(pid, file_or_path, file_actions, attrp, argv, envp);
   if (res == 0)
@@ -2706,17 +2712,20 @@ INTERCEPTOR(int, getnameinfo, void *sockaddr, unsigned salen, char *host,
 #endif
 
 #if SANITIZER_INTERCEPT_GETSOCKNAME
-INTERCEPTOR(int, getsockname, int sock_fd, void *addr, int *addrlen) {
+INTERCEPTOR(int, getsockname, int sock_fd, void *addr, unsigned *addrlen) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, getsockname, sock_fd, addr, addrlen);
-  COMMON_INTERCEPTOR_READ_RANGE(ctx, addrlen, sizeof(*addrlen));
-  int addrlen_in = *addrlen;
+  unsigned addr_sz;
+  if (addrlen) {
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, addrlen, sizeof(*addrlen));
+    addr_sz = *addrlen;
+  }
   // FIXME: under ASan the call below may write to freed memory and corrupt
   // its metadata. See
   // https://github.com/google/sanitizers/issues/321.
   int res = REAL(getsockname)(sock_fd, addr, addrlen);
-  if (res == 0) {
-    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, addr, Min(addrlen_in, *addrlen));
+  if (!res && addr && addrlen) {
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, addr, Min(addr_sz, *addrlen));
   }
   return res;
 }
@@ -3221,13 +3230,17 @@ INTERCEPTOR(int, getpeername, int sockfd, void *addr, unsigned *addrlen) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, getpeername, sockfd, addr, addrlen);
   unsigned addr_sz;
-  if (addrlen) addr_sz = *addrlen;
+  if (addrlen) {
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, addrlen, sizeof(*addrlen));
+    addr_sz = *addrlen;
+  }
   // FIXME: under ASan the call below may write to freed memory and corrupt
   // its metadata. See
   // https://github.com/google/sanitizers/issues/321.
   int res = REAL(getpeername)(sockfd, addr, addrlen);
-  if (!res && addr && addrlen)
+  if (!res && addr && addrlen) {
     COMMON_INTERCEPTOR_WRITE_RANGE(ctx, addr, Min(addr_sz, *addrlen));
+  }
   return res;
 }
 #define INIT_GETPEERNAME COMMON_INTERCEPT_FUNCTION(getpeername);
@@ -6367,8 +6380,7 @@ INTERCEPTOR(void*, dlopen, const char *filename, int flag) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER_NOIGNORE(ctx, dlopen, filename, flag);
   if (filename) COMMON_INTERCEPTOR_READ_STRING(ctx, filename, 0);
-  COMMON_INTERCEPTOR_ON_DLOPEN(filename, flag);
-  void *res = REAL(dlopen)(filename, flag);
+  void *res = COMMON_INTERCEPTOR_DLOPEN(filename, flag);
   Symbolizer::GetOrInit()->InvalidateModuleList();
   COMMON_INTERCEPTOR_LIBRARY_LOADED(filename, res);
   return res;
@@ -9081,10 +9093,10 @@ INTERCEPTOR(char *, MD2Data, const unsigned char *data, unsigned int len,
     return ret; \
   }
 
-SHA2_INTERCEPTORS(224, u32);
-SHA2_INTERCEPTORS(256, u32);
-SHA2_INTERCEPTORS(384, u64);
-SHA2_INTERCEPTORS(512, u64);
+SHA2_INTERCEPTORS(224, u32)
+SHA2_INTERCEPTORS(256, u32)
+SHA2_INTERCEPTORS(384, u64)
+SHA2_INTERCEPTORS(512, u64)
 
 #define INIT_SHA2_INTECEPTORS(LEN) \
   COMMON_INTERCEPT_FUNCTION(SHA##LEN##_Init); \

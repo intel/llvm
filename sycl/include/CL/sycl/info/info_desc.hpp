@@ -20,6 +20,7 @@ class program;
 #endif
 class device;
 class platform;
+class kernel_id;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
@@ -109,7 +110,8 @@ enum class device : cl_device_info {
   is_linker_available = CL_DEVICE_LINKER_AVAILABLE,
   execution_capabilities = CL_DEVICE_EXECUTION_CAPABILITIES,
   queue_profiling = CL_DEVICE_QUEUE_PROPERTIES,
-  built_in_kernels = CL_DEVICE_BUILT_IN_KERNELS,
+  built_in_kernels __SYCL2020_DEPRECATED("use built_in_kernel_ids instead") =
+      CL_DEVICE_BUILT_IN_KERNELS,
   platform = CL_DEVICE_PLATFORM,
   name = CL_DEVICE_NAME,
   vendor = CL_DEVICE_VENDOR,
@@ -136,6 +138,7 @@ enum class device : cl_device_info {
   sub_group_sizes = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
   partition_type_property,
   kernel_kernel_pipe_support,
+  built_in_kernel_ids,
   // USM
   usm_device_allocations = PI_USM_DEVICE_SUPPORT,
   usm_host_allocations = PI_USM_HOST_SUPPORT,
@@ -153,6 +156,7 @@ enum class device : cl_device_info {
   ext_intel_gpu_subslices_per_slice = PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
   ext_intel_gpu_eu_count_per_subslice =
       PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+  ext_intel_gpu_hw_threads_per_eu = PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
   ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
   ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
   ext_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,
@@ -284,7 +288,10 @@ enum class event : cl_event_info {
 enum class event_command_status : cl_int {
   submitted = CL_SUBMITTED,
   running = CL_RUNNING,
-  complete = CL_COMPLETE
+  complete = CL_COMPLETE,
+  // Since all BE values are positive, it is safe to use a negative value If you
+  // add other ext_oneapi values
+  ext_oneapi_unknown = -1
 };
 
 enum class event_profiling : cl_profiling_info {
