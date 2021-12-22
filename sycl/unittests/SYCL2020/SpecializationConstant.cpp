@@ -92,7 +92,7 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
 
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
-  
+
   const sycl::device Dev = Plt.get_devices()[0];
 
   sycl::queue Queue{Dev};

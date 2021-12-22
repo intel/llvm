@@ -606,7 +606,7 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
     return;
-  
+
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
   device Dev = detail::getDeviceFromHandler(*this);
   if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
