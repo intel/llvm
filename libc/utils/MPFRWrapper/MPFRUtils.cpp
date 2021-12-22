@@ -10,6 +10,7 @@
 
 #include "src/__support/CPP/StringView.h"
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/__support/architectures.h"
 #include "utils/UnitTest/FPMatcher.h"
 
 #include <cmath>
@@ -44,7 +45,7 @@ template <> struct Precision<double> {
   static constexpr unsigned int value = 53;
 };
 
-#if !(defined(__x86_64__) || defined(__i386__))
+#if !(defined(LLVM_LIBC_ARCH_X86))
 template <> struct Precision<long double> {
   static constexpr unsigned int value = 64;
 };
@@ -100,9 +101,7 @@ public:
     mpfr_set(value, other.value, MPFR_RNDN);
   }
 
-  ~MPFRNumber() {
-    mpfr_clear(value);
-  }
+  ~MPFRNumber() { mpfr_clear(value); }
 
   MPFRNumber &operator=(const MPFRNumber &rhs) {
     mpfrPrecision = rhs.mpfrPrecision;
@@ -163,6 +162,12 @@ public:
   MPFRNumber hypot(const MPFRNumber &b) {
     MPFRNumber result;
     mpfr_hypot(result.value, value, b.value, MPFR_RNDN);
+    return result;
+  }
+
+  MPFRNumber log() const {
+    MPFRNumber result;
+    mpfr_log(result.value, value, MPFR_RNDN);
     return result;
   }
 
@@ -311,13 +316,21 @@ public:
     if (thisAsT == input)
       return T(0.0);
 
-    int thisExponent = fputil::FPBits<T>(thisAsT).getExponent();
-    int inputExponent = fputil::FPBits<T>(input).getExponent();
+    int thisExponent = fputil::FPBits<T>(thisAsT).get_exponent();
+    int inputExponent = fputil::FPBits<T>(input).get_exponent();
+    // Adjust the exponents for denormal numbers.
+    if (fputil::FPBits<T>(thisAsT).get_unbiased_exponent() == 0)
+      ++thisExponent;
+    if (fputil::FPBits<T>(input).get_unbiased_exponent() == 0)
+      ++inputExponent;
+
     if (thisAsT * input < 0 || thisExponent == inputExponent) {
       MPFRNumber inputMPFR(input);
       mpfr_sub(inputMPFR.value, value, inputMPFR.value, MPFR_RNDN);
       mpfr_abs(inputMPFR.value, inputMPFR.value, MPFR_RNDN);
-      mpfr_mul_2si(inputMPFR.value, inputMPFR.value, -thisExponent, MPFR_RNDN);
+      mpfr_mul_2si(inputMPFR.value, inputMPFR.value,
+                   -thisExponent + int(fputil::MantissaWidth<T>::VALUE),
+                   MPFR_RNDN);
       return inputMPFR.as<double>();
     }
 
@@ -328,8 +341,13 @@ public:
     input = std::abs(input);
     T min = thisAsT > input ? input : thisAsT;
     T max = thisAsT > input ? thisAsT : input;
-    int minExponent = fputil::FPBits<T>(min).getExponent();
-    int maxExponent = fputil::FPBits<T>(max).getExponent();
+    int minExponent = fputil::FPBits<T>(min).get_exponent();
+    int maxExponent = fputil::FPBits<T>(max).get_exponent();
+    // Adjust the exponents for denormal numbers.
+    if (fputil::FPBits<T>(min).get_unbiased_exponent() == 0)
+      ++minExponent;
+    if (fputil::FPBits<T>(max).get_unbiased_exponent() == 0)
+      ++maxExponent;
 
     MPFRNumber minMPFR(min);
     MPFRNumber maxMPFR(max);
@@ -338,10 +356,14 @@ public:
     mpfr_mul_2si(pivot.value, pivot.value, maxExponent, MPFR_RNDN);
 
     mpfr_sub(minMPFR.value, pivot.value, minMPFR.value, MPFR_RNDN);
-    mpfr_mul_2si(minMPFR.value, minMPFR.value, -minExponent, MPFR_RNDN);
+    mpfr_mul_2si(minMPFR.value, minMPFR.value,
+                 -minExponent + int(fputil::MantissaWidth<T>::VALUE),
+                 MPFR_RNDN);
 
     mpfr_sub(maxMPFR.value, maxMPFR.value, pivot.value, MPFR_RNDN);
-    mpfr_mul_2si(maxMPFR.value, maxMPFR.value, -maxExponent, MPFR_RNDN);
+    mpfr_mul_2si(maxMPFR.value, maxMPFR.value,
+                 -maxExponent + int(fputil::MantissaWidth<T>::VALUE),
+                 MPFR_RNDN);
 
     mpfr_add(minMPFR.value, minMPFR.value, maxMPFR.value, MPFR_RNDN);
     return minMPFR.as<double>();
@@ -369,6 +391,8 @@ unaryOperation(Operation op, InputType input) {
     return mpfrInput.expm1();
   case Operation::Floor:
     return mpfrInput.floor();
+  case Operation::Log:
+    return mpfrInput.log();
   case Operation::Mod2PI:
     return mpfrInput.mod_2pi();
   case Operation::ModPIOver2:

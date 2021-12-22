@@ -37,8 +37,8 @@ struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
     RewritePatternSet owningPatterns(context);
     for (auto *dialect : context->getLoadedDialects())
       dialect->getCanonicalizationPatterns(owningPatterns);
-    for (auto *op : context->getRegisteredOperations())
-      op->getCanonicalizationPatterns(owningPatterns, context);
+    for (RegisteredOperationName op : context->getRegisteredOperations())
+      op.getCanonicalizationPatterns(owningPatterns, context);
 
     patterns = FrozenRewritePatternSet(std::move(owningPatterns),
                                        disabledPatterns, enabledPatterns);
@@ -52,7 +52,7 @@ struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
   GreedyRewriteConfig config;
   FrozenRewritePatternSet patterns;
 };
-} // end anonymous namespace
+} // namespace
 
 /// Create a Canonicalizer pass.
 std::unique_ptr<Pass> mlir::createCanonicalizerPass() {

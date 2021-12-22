@@ -22,9 +22,9 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: TypeFunction {{[0-9]+}} [[TF:[0-9]+]]
 
 ; CHECK: TypePointer [[TP:[0-9]+]]
-; CHECK: ConstFunctionPointerINTEL [[TP]] [[FPCtor:[0-9]+]] [[NameCtor]]
+; CHECK: ConstantFunctionPointerINTEL [[TP]] [[FPCtor:[0-9]+]] [[NameCtor]]
 ; CHECK: ConstantComposite {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[FPCtor]]
-; CHECK: ConstFunctionPointerINTEL [[TP]] [[FPDtor:[0-9]+]] [[NameDtor]]
+; CHECK: ConstantFunctionPointerINTEL [[TP]] [[FPDtor:[0-9]+]] [[NameDtor]]
 ; CHECK: ConstantComposite {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[FPDtor]]
 
 ; CHECK: 5 Function [[TF]] [[NameCtor]] 0

@@ -115,11 +115,6 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
 class atomic_ref_base {
   static_assert(
-      AddressSpace != access::address_space::generic_space,
-      "access::address_space::generic_space is a valid address space but the "
-      "address space is not supported yet.");
-
-  static_assert(
       detail::IsValidAtomicRefType<T>::value,
       "Invalid atomic type.  Valid types are int, unsigned int, long, "
       "unsigned long, long long, unsigned long long, float, double "

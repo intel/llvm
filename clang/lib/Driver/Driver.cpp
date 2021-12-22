@@ -22,7 +22,7 @@
 #include "ToolChains/FreeBSD.h"
 #include "ToolChains/Fuchsia.h"
 #include "ToolChains/Gnu.h"
-#include "ToolChains/HIP.h"
+#include "ToolChains/HIPAMD.h"
 #include "ToolChains/Haiku.h"
 #include "ToolChains/Hexagon.h"
 #include "ToolChains/Hurd.h"
@@ -37,6 +37,7 @@
 #include "ToolChains/NaCl.h"
 #include "ToolChains/NetBSD.h"
 #include "ToolChains/OpenBSD.h"
+#include "ToolChains/PPCFreeBSD.h"
 #include "ToolChains/PPCLinux.h"
 #include "ToolChains/PS4CPU.h"
 #include "ToolChains/RISCVToolchain.h"
@@ -961,7 +962,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             } else if (TT.getVendor() != llvm::Triple::UnknownVendor)
               SuggestedTriple += Twine("-" + TT.getVendorName()).str();
             Diag(clang::diag::warn_drv_deprecated_arg)
-                << TT.str() << true << SuggestedTriple;
+                << TT.str() << SuggestedTriple;
             // Drop environment component.
             std::string EffectiveTriple =
                 Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +
@@ -1837,7 +1838,7 @@ int Driver::ExecuteCompilation(
   if (Diags.hasErrorOccurred())
     return 1;
 
-  // Set up response file names for each command, if necessary
+  // Set up response file names for each command, if necessary.
   for (auto &Job : C.getJobs())
     setUpResponseFiles(C, Job);
 
@@ -2409,11 +2410,7 @@ static bool ContainsCompileOrAssembleAction(const Action *A) {
       isa<AssembleJobAction>(A))
     return true;
 
-  for (const Action *Input : A->inputs())
-    if (ContainsCompileOrAssembleAction(Input))
-      return true;
-
-  return false;
+  return llvm::any_of(A->inputs(), ContainsCompileOrAssembleAction);
 }
 
 void Driver::BuildUniversalActions(Compilation &C, const ToolChain &TC,
@@ -3594,7 +3591,6 @@ class OffloadingActionBuilder final {
   class HIPActionBuilder final : public CudaActionBuilderBase {
     /// The linker inputs obtained for each device arch.
     SmallVector<ActionList, 8> DeviceLinkerInputs;
-    bool GPUSanitize;
     // The default bundling behavior depends on the type of output, therefore
     // BundleOutput needs to be tri-value: None, true, or false.
     // Bundle code objects except --no-gpu-output is specified for device
@@ -3607,8 +3603,6 @@ class OffloadingActionBuilder final {
                      const Driver::InputList &Inputs)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP) {
       DefaultCudaArch = CudaArch::GFX803;
-      GPUSanitize = Args.hasFlag(options::OPT_fgpu_sanitize,
-                                 options::OPT_fno_gpu_sanitize, false);
       if (Args.hasArg(options::OPT_gpu_bundle_output,
                       options::OPT_no_gpu_bundle_output))
         BundleOutput = Args.hasFlag(options::OPT_gpu_bundle_output,
@@ -4206,8 +4200,11 @@ class OffloadingActionBuilder final {
             // device objects for future host link. Device libraries should
             // be linked by default to resolve any undefined reference.
             const auto *TC = ToolChains.front();
-            if (TC->getTriple().getSubArch() !=
-                llvm::Triple::SPIRSubArch_fpga) {
+            llvm::Triple TT(TC->getTriple());
+            bool isAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                         TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                         TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+            if (TT.getSubArch() != llvm::Triple::SPIRSubArch_fpga) {
               SYCLDeviceLibLinked =
                   addSYCLDeviceLibs(TC, FullSYCLLinkBinaryList, true,
                                     C.getDefaultToolChain()
@@ -4222,11 +4219,26 @@ class OffloadingActionBuilder final {
             else
               FullDeviceLinkAction = DeviceLinkAction;
             auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                FullDeviceLinkAction, types::TY_LLVM_BC, types::TY_LLVM_BC);
+                FullDeviceLinkAction, types::TY_LLVM_BC,
+                types::TY_Tempfiletable);
+            PostLinkAction->setRTSetsSpecConstants(!isAOT);
+            auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
+                PostLinkAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
+            // single column w/o title fits TY_Tempfilelist format
+            ExtractIRFilesAction->addExtractColumnTform(
+                FileTableTformJobAction::COL_CODE, false /*drop titles*/);
             auto *TranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
-                PostLinkAction, types::TY_Image);
+                ExtractIRFilesAction, types::TY_Tempfilelist);
+
+            ActionList TformInputs{PostLinkAction, TranslateAction};
+            auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
+                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+            ReplaceFilesAction->addReplaceColumnTform(
+                FileTableTformJobAction::COL_CODE,
+                FileTableTformJobAction::COL_CODE);
+
             SYCLLinkBinary = C.MakeAction<OffloadWrapperJobAction>(
-                TranslateAction, types::TY_Object);
+                ReplaceFilesAction, types::TY_Object);
           } else {
             auto *Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
                                                          types::TY_Image);
@@ -5573,6 +5585,17 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   // When compiling for -fsycl, generate the integration header files and the
   // Unique ID that will be used during the compilation.
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    const bool IsSaveTemps = isSaveTempsEnabled();
+    SmallString<128> OutFileDir;
+    if (IsSaveTemps) {
+      if (SaveTemps == SaveTempsObj) {
+        auto *OptO = C.getArgs().getLastArg(options::OPT_o);
+        OutFileDir = (OptO ? OptO->getValues()[0] : "");
+        llvm::sys::path::remove_filename(OutFileDir);
+        if (!OutFileDir.empty())
+          OutFileDir.append(llvm::sys::path::get_separator());
+      }
+    }
     for (auto &I : Inputs) {
       std::string SrcFileName(I.second->getAsString(Args));
       if (I.first == types::TY_PP_C || I.first == types::TY_PP_CXX ||
@@ -5584,12 +5607,23 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       }
       if (!types::isSrcFile(I.first))
         continue;
-      std::string TmpFileNameHeader = C.getDriver().GetTemporaryPath(
-          llvm::sys::path::stem(SrcFileName).str() + "-header", "h");
+
+      std::string TmpFileNameHeader;
+      std::string TmpFileNameFooter;
+      auto StemmedSrcFileName = llvm::sys::path::stem(SrcFileName).str();
+      if (IsSaveTemps) {
+        TmpFileNameHeader.append(C.getDriver().GetUniquePath(
+            OutFileDir.c_str() + StemmedSrcFileName + "-header", "h"));
+        TmpFileNameFooter.append(C.getDriver().GetUniquePath(
+            OutFileDir.c_str() + StemmedSrcFileName + "-footer", "h"));
+      } else {
+        TmpFileNameHeader.assign(C.getDriver().GetTemporaryPath(
+            StemmedSrcFileName + "-header", "h"));
+        TmpFileNameFooter =
+            C.getDriver().GetTemporaryPath(StemmedSrcFileName + "-footer", "h");
+      }
       StringRef TmpFileHeader =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
-      std::string TmpFileNameFooter = C.getDriver().GetTemporaryPath(
-          llvm::sys::path::stem(SrcFileName).str() + "-footer", "h");
       StringRef TmpFileFooter =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
       // Use of -fsycl-footer-path puts the integration footer into that
@@ -7385,7 +7419,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       std::pair<StringRef, StringRef> Split = CollidingName.split('.');
       std::string UniqueName = GetUniquePath(
           Split.first, types::getTypeTempSuffix(JA.getType(), IsCLMode()));
-      return C.addResultFile(C.getArgs().MakeArgString(UniqueName), &JA);
+      return C.addTempFile(C.getArgs().MakeArgString(UniqueName));
     }
   }
 
@@ -7517,7 +7551,7 @@ std::string Driver::GetTemporaryPath(StringRef Prefix, StringRef Suffix) const {
 
 std::string Driver::GetUniquePath(StringRef BaseName, StringRef Ext) const {
   SmallString<128> Path;
-  std::error_code EC = llvm::sys::fs::createUniqueFile(
+  std::error_code EC = llvm::sys::fs::getPotentiallyUniqueFileName(
       Twine(BaseName) + Twine("-%%%%%%.") + Ext, Path);
   if (EC) {
     Diag(clang::diag::err_unable_to_make_temp) << EC.message();
@@ -7595,7 +7629,11 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       TC = std::make_unique<toolchains::NetBSD>(*this, Target, Args);
       break;
     case llvm::Triple::FreeBSD:
-      TC = std::make_unique<toolchains::FreeBSD>(*this, Target, Args);
+      if (Target.isPPC())
+        TC = std::make_unique<toolchains::PPCFreeBSDToolChain>(*this, Target,
+                                                               Args);
+      else
+        TC = std::make_unique<toolchains::FreeBSD>(*this, Target, Args);
       break;
     case llvm::Triple::Minix:
       TC = std::make_unique<toolchains::Minix>(*this, Target, Args);
@@ -7757,7 +7795,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
           *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_HIP:
-        TC = std::make_unique<toolchains::HIPToolChain>(
+        TC = std::make_unique<toolchains::HIPAMDToolChain>(
             *this, Target, HostTC, Args, TargetDeviceOffloadKind);
         break;
       case Action::OFK_OpenMP:
@@ -7778,7 +7816,7 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
               *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           case llvm::Triple::amdgcn:
-            TC = std::make_unique<toolchains::HIPToolChain>(
+            TC = std::make_unique<toolchains::HIPAMDToolChain>(
                 *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
           default:

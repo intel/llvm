@@ -5,7 +5,7 @@ add_entrypoint_object(
   HDRS
     atoi.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -15,7 +15,7 @@ add_entrypoint_object(
   HDRS
     atof.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_float
 )
 
 add_entrypoint_object(
@@ -25,7 +25,7 @@ add_entrypoint_object(
   HDRS
     atol.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -35,7 +35,7 @@ add_entrypoint_object(
   HDRS
     atoll.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -45,7 +45,7 @@ add_entrypoint_object(
   HDRS
     strtof.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_float
 )
 
 add_entrypoint_object(
@@ -55,7 +55,17 @@ add_entrypoint_object(
   HDRS
     strtod.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_float
+)
+
+add_entrypoint_object(
+  strtold
+  SRCS
+    strtold.cpp
+  HDRS
+    strtold.h
+  DEPENDS
+    libc.src.__support.str_to_float
 )
 
 add_entrypoint_object(
@@ -65,7 +75,7 @@ add_entrypoint_object(
   HDRS
     strtol.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -75,7 +85,7 @@ add_entrypoint_object(
   HDRS
     strtoll.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -85,7 +95,7 @@ add_entrypoint_object(
   HDRS
     strtoul.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -95,7 +105,7 @@ add_entrypoint_object(
   HDRS
     strtoull.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.src.__support.str_to_integer
 )
 
 add_entrypoint_object(
@@ -238,14 +248,14 @@ add_entrypoint_object(
     .${LIBC_TARGET_OS}._Exit
 )
 
-add_entrypoint_object(
-  abort
-  SRCS
-    abort.cpp
-  HDRS
-    abort.h
-  DEPENDS
-    libc.include.stdlib
-    libc.src.signal.raise
-    ._Exit
-)
+# add_entrypoint_object(
+#   abort
+#   SRCS
+#     abort.cpp
+#   HDRS
+#     abort.h
+#   DEPENDS
+#     libc.include.stdlib
+#     libc.src.signal.raise
+#     ._Exit
+# )

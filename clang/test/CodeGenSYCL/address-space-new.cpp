@@ -31,8 +31,8 @@ void test() {
 
   // CHECK: @[[STR:[.a-zA-Z0-9_]+]] = private unnamed_addr addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
 
-  // CHECK: %[[GEN:.*]] = addrspacecast i32* %i to i32 addrspace(4)*
   // CHECK: %[[ARR:[a-zA-Z0-9]+]] = alloca [42 x i32]
+  // CHECK: %[[GEN:.*]] = addrspacecast i32* %i to i32 addrspace(4)*
   // CHECK: [[ARR_ASCAST:%.*]] = addrspacecast [42 x i32]* %[[ARR]] to [42 x i32] addrspace(4)*
 
   int i = 0;

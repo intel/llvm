@@ -177,6 +177,7 @@ public:
   virtual void setGeneratorVer(unsigned short) = 0;
   virtual void resolveUnknownStructFields() = 0;
   virtual void setSPIRVVersion(SPIRVWord) = 0;
+  virtual void insertEntryNoId(SPIRVEntry *Entry) = 0;
 
   void setMinSPIRVVersion(SPIRVWord Ver) {
     setSPIRVVersion(std::max(Ver, getSPIRVVersion()));
@@ -267,8 +268,8 @@ public:
                            const std::vector<SPIRVValue *> &Elements) = 0;
   virtual SPIRVEntry *
   addSpecConstantCompositeContinuedINTEL(const std::vector<SPIRVValue *> &) = 0;
-  virtual SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                                   SPIRVFunction *F) = 0;
+  virtual SPIRVValue *addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                                      SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, llvm::APInt) = 0;
