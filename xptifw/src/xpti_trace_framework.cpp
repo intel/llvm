@@ -7,6 +7,8 @@
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_string_table.hpp"
 
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <cstdio>
@@ -939,13 +941,20 @@ public:
       // have 'nullptr' for both the Parent and Object only if UserData is
       // provided and the trace_point_type is function_begin/function_end.
       // This allows us to trace function calls without too much effort.
+      std::array<trace_point_type_t, 8> AllowedTypes = {
+          trace_point_type_t::function_begin,
+          trace_point_type_t::function_end,
+          trace_point_type_t::function_with_args_begin,
+          trace_point_type_t::function_with_args_end,
+          trace_point_type_t::mem_alloc_begin,
+          trace_point_type_t::mem_alloc_end,
+          trace_point_type_t::mem_release_begin,
+          trace_point_type_t::mem_release_end};
+      const auto Predicate = [TraceType](trace_point_type_t RHS) {
+        return TraceType == static_cast<uint16_t>(RHS);
+      };
       if (!(UserData &&
-            (TraceType == (uint16_t)trace_point_type_t::function_begin ||
-             TraceType == (uint16_t)trace_point_type_t::function_end ||
-             TraceType ==
-                 (uint16_t)trace_point_type_t::function_with_args_begin ||
-             TraceType ==
-                 (uint16_t)trace_point_type_t::function_with_args_end))) {
+            std::any_of(AllowedTypes.begin(), AllowedTypes.end(), Predicate))) {
         return xpti::result_t::XPTI_RESULT_INVALIDARG;
       }
     }
