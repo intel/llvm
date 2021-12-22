@@ -240,6 +240,9 @@ public:
   /// Transform SPV-IR image opaque type into OpenCL representation,
   /// example: spirv.Image._void_1_0_0_0_0_0_1 => opencl.image2d_wo_t
   std::string getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes);
+  /// Transform SPV-IR pipe opaque type into OpenCL representation,
+  /// example: spirv.Pipe._0 => opencl.pipe_ro_t
+  std::string getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
   void translateOpaqueTypes();
 
