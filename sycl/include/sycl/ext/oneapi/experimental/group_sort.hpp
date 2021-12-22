@@ -14,12 +14,13 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <type_traits>
 
-#include "experimental/group_helpers_sorters.hpp"
+#include "group_helpers_sorters.hpp"
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 namespace detail {
 
 // ---- traits
@@ -41,8 +42,7 @@ struct is_sorter_impl {
   template <typename G = Group>
   static decltype(
       std::integral_constant<bool, is_expected_return_type<G>::value &&
-                                       sycl::is_group_v<G>>{})
-  test(int);
+                                       sycl::is_group_v<G>>{}) test(int);
 
   template <typename = Group> static std::false_type test(...);
 };
@@ -56,8 +56,7 @@ struct is_sorter_impl<
   template <typename G = Group>
   static decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(),
                                          std::declval<Ptr>()),
-                  sycl::detail::is_generic_group<G>{})
-  test(int);
+                  sycl::detail::is_generic_group<G>{}) test(int);
 
   template <typename = Group> static std::false_type test(...);
 };
@@ -135,6 +134,7 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
              experimental::default_sorter<>(exec.get_memory()));
 }
 
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
