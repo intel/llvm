@@ -517,12 +517,16 @@ struct _pi_context : _pi_object {
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
   std::mutex ZeCommandListCacheMutex;
-  // Cache of all currently Available Command Lists for use by PI APIs.
+  // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
+  //
+  // TODO: explore if we should use root-device for creating command-lists
+  // as spec says that in that case any sub-device can re-use it: "The
+  // application must only use the command list for the device, or its
+  // sub-devices, which was provided during creation."
+  //
   std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
       ZeComputeCommandListCache;
-  // Cache of all currently Available Copy Command Lists for use by PI APIs.
-  // Note that command-list can only be re-used on the same device.
   std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
       ZeCopyCommandListCache;
 
