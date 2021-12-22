@@ -142,12 +142,16 @@ if cl_options:
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
     config.substitutions.append( ('%cxx_std_option',  '/std:' ) )
+    config.substitutions.append( ('%fPIC', '') )
+    config.substitutions.append( ('%shared_lib', '/LD') )
 else:
     config.substitutions.append( ('%sycl_options', ' -lsycl -I' +
                                 config.sycl_include + ' -I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '-include' ) )
     config.substitutions.append( ('%debug_option',  '-g' ) )
     config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
+    config.substitutions.append( ('%fPIC', '-fPIC') )
+    config.substitutions.append( ('%shared_lib', '-shared') )
 
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
@@ -325,6 +329,34 @@ else:
 
 if find_executable('sycl-ls'):
     config.available_features.add('sycl-ls')
+
+# TODO properly set XPTIFW include and runtime dirs
+xptifw_lib_dir = os.path.join(config.dpcpp_root_dir, 'lib')
+xptifw_dispatcher = ""
+if platform.system() == "Linux":
+    xptifw_dispatcher = os.path.join(xptifw_lib_dir, 'libxptifw.so')
+elif platform.system() == "Windows":
+    xptifw_dispatcher = os.path.join(config.dpcpp_root_dir, 'bin', 'xptifw.dll')
+xptifw_includes = os.path.join(config.dpcpp_root_dir, 'include')
+if os.path.exists(xptifw_lib) and os.path.exists(os.path.join(xptifw_includes, 'xpti', 'xpti_trace_framework.h')):
+    config.available_features.add('xptifw')
+    config.substitutions.append(('%xptifw_dispatcher', xptifw_dispatcher))
+    if platform.system() == "Linux":
+        config.substitutions.append(('%xptifw_lib', " {}/xptifw.lib".format(xptifw_lib_dir)))
+    elif platform.system() == "Windows":
+        config.substitutions.append(('%xptifw_lib', "-L{} -I{} -lxptifw".format(xptifw_lib_dir, xptifw_includes)))
+
+
+llvm_tools = ["llvm-spirv", "llvm-link"]
+for llvm_tool in llvm_tools:
+  llvm_tool_path = find_executable(llvm_tool)
+  if llvm_tool_path:
+    lit_config.note("Found " + llvm_tool)
+    config.available_features.add(llvm_tool)
+    config.substitutions.append( ('%' + llvm_tool.replace('-', '_'),
+                                  os.path.realpath(llvm_tool_path)) )
+  else:
+    lit_config.warning("Can't find " + llvm_tool)
 
 if find_executable('cmc'):
     config.available_features.add('cm-compiler')
