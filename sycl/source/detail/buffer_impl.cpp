@@ -21,6 +21,9 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+uint8_t GBufferStreamID;
+#endif
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                                void *HostPtr, RT::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
@@ -43,7 +46,6 @@ void buffer_impl::constructorNotification(
   GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
   if (!xptiTraceEnabled())
     return;
-  StreamID = xptiRegisterStream(SYCL_BUFFER_STREAM_NAME);
 
   // We try to create a unique string for the buffer constructor call by
   // combining it with the the created object address
@@ -62,8 +64,8 @@ void buffer_impl::constructorNotification(
   TraceEvent =
       xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_offload_buffer_event,
                     xpti_at::active, &IId);
-  xptiNotifySubscribers(StreamID, xpti::trace_offload_alloc_construct, nullptr,
-                        TraceEvent, IId, &BufConstr);
+  xptiNotifySubscribers(GBufferStreamID, xpti::trace_offload_alloc_construct,
+                        nullptr, TraceEvent, IId, &BufConstr);
 #endif
 }
 
@@ -76,8 +78,8 @@ void buffer_impl::associateNotification(void *MemObj) {
                                                    (uintptr_t)MemObj};
 
   // Add assotiation between user level and PI level memory object
-  xptiNotifySubscribers(StreamID, xpti::trace_offload_alloc_associate, nullptr,
-                        TraceEvent, IId, &BufAssoc);
+  xptiNotifySubscribers(GBufferStreamID, xpti::trace_offload_alloc_associate,
+                        nullptr, TraceEvent, IId, &BufAssoc);
 #endif
 }
 
@@ -86,8 +88,8 @@ void buffer_impl::destructorNotification() {
   if (!(xptiTraceEnabled() && TraceEvent))
     return;
   // Destruction of user level memory object
-  xptiNotifySubscribers(StreamID, xpti::trace_offload_alloc_destruct, nullptr,
-                        TraceEvent, IId, nullptr);
+  xptiNotifySubscribers(GBufferStreamID, xpti::trace_offload_alloc_destruct,
+                        nullptr, TraceEvent, IId, nullptr);
 #endif
 }
 

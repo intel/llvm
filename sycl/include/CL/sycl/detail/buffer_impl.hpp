@@ -44,7 +44,6 @@ class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  uint8_t StreamID;
   uint64_t IId;
   xpti::trace_event_data_t *TraceEvent;
 #endif

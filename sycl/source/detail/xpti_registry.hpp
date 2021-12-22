@@ -33,6 +33,7 @@ inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+extern uint8_t GBufferStreamID;
 extern uint8_t GMemAllocStreamID;
 extern xpti::trace_event_data_t *GMemAllocEvent;
 #endif
@@ -48,6 +49,7 @@ public:
     std::call_once(MInitialized, [this] {
       xptiFrameworkInitialize();
       // SYCL buffer events
+      GBufferStreamID = xptiRegisterStream(SYCL_BUFFER_STREAM_NAME);
       this->initializeStream(SYCL_BUFFER_STREAM_NAME, 0, 1, "0.1");
 
       // Memory allocation events
