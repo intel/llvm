@@ -387,9 +387,8 @@ TraverseCGToFindSPIRKernels(const Function *StartingFunction) {
       if (VisitedFunctions.count(ParentF))
         continue;
 
-      if (ParentF->hasFnAttribute("referenced-indirectly")) {
+      if (ParentF->hasFnAttribute("referenced-indirectly"))
         return {};
-      }
 
       if (ParentF->getCallingConv() == CallingConv::SPIR_KERNEL)
         KernelNames.push_back(ParentF->getName());
@@ -409,9 +408,8 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   auto TraverseResult =
       TraverseCGToFindSPIRKernels(DevicelibAssertFailFunction);
 
-  if (TraverseResult.hasValue()) {
+  if (TraverseResult.hasValue())
     return std::move(*TraverseResult);
-  }
 
   // Here we reached "referenced-indirectly", so we need to find all kernels and
   // return them.
