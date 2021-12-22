@@ -338,7 +338,7 @@ if platform.system() == "Linux":
 elif platform.system() == "Windows":
     xptifw_dispatcher = os.path.join(config.dpcpp_root_dir, 'bin', 'xptifw.dll')
 xptifw_includes = os.path.join(config.dpcpp_root_dir, 'include')
-if os.path.exists(xptifw_lib) and os.path.exists(os.path.join(xptifw_includes, 'xpti', 'xpti_trace_framework.h')):
+if os.path.exists(xptifw_lib_dir) and os.path.exists(os.path.join(xptifw_includes, 'xpti', 'xpti_trace_framework.h')):
     config.available_features.add('xptifw')
     config.substitutions.append(('%xptifw_dispatcher', xptifw_dispatcher))
     if platform.system() == "Linux":
