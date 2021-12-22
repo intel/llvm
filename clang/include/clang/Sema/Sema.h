@@ -359,13 +359,6 @@ public:
     Itr->updateKernelNames(Name, StableName);
   }
 
-  /// Note which free functions (this_id, this_item, etc) are called within the
-  /// kernel
-  void setCallsThisId(bool B);
-  void setCallsThisItem(bool B);
-  void setCallsThisNDItem(bool B);
-  void setCallsThisGroup(bool B);
-
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
