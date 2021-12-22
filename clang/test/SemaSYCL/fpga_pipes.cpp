@@ -23,7 +23,7 @@ const pipe_storage Storage1 __attribute__((io_pipe_id(1)));
 // expected-error@+1{{'io_pipe_id' attribute requires a non-negative integral compile time constant expression}}
 const pipe_storage Storage2 __attribute__((io_pipe_id(-11)));
 
-// expected-error@+1{{'io_pipe_id' attribute requires an integer constant}}
+// expected-error@+1{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
 const pipe_storage Storage3 __attribute__((io_pipe_id("abc")));
 
 // expected-error@+1{{'io_pipe_id' attribute only applies to SYCL pipe storage declaration}}

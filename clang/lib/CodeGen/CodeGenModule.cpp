@@ -4117,11 +4117,10 @@ static void maybeEmitPipeStorageMetadata(const VarDecl *D,
   if (!PipeTy->isStructureType())
     return;
 
-  if (auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-    Optional<llvm::APSInt> ID =
-        IOAttr->getID()->getIntegerConstantExpr(D->getASTContext());
+  if (const auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
+    const auto *CE = cast<ConstantExpr>(IOAttr->getID());
+    Optional<llvm::APSInt> ID = CE->getResultAsAPSInt();
     llvm::LLVMContext &Context = CGM.getLLVMContext();
-    assert(bool(ID) && "Not an integer constant expression");
 
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(

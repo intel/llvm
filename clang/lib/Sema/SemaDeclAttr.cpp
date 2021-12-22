@@ -7098,7 +7098,7 @@ static void handlePatchableFunctionEntryAttr(Sema &S, Decl *D,
                  PatchableFunctionEntryAttr(S.Context, AL, Count, Offset));
 }
 
-void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
+void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI,
                                   Expr *E) {
   VarDecl *VD = cast<VarDecl>(D);
   QualType Ty = VD->getType();
@@ -7106,36 +7106,36 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &Attr,
   // as structures inside of SYCL headers. Add a check for pipe_storage_t
   // when it is ready.
   if (!Ty->isStructureType()) {
-    Diag(Attr.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << Attr.getAttrName() << "SYCL pipe storage declaration";
+    Diag(CI.getLoc(), diag::err_attribute_wrong_decl_type_str)
+        << CI << "SYCL pipe storage declaration";
     return;
   }
 
-  if (!E->isInstantiationDependent()) {
-    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
-    if (!ArgVal) {
-      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << Attr << AANT_ArgumentIntegerConstant << E->getSourceRange();
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
       return;
-    }
-    int32_t ArgInt = ArgVal->getSExtValue();
-    if (ArgInt < 0) {
+    E = Res.get();
+
+    // This attribute requires a non-negative value.
+    if (ArgVal < 0) {
       Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << Attr << /*non-negative*/ 1;
+          << CI << /*non-negative*/ 1;
       return;
     }
   }
 
-  D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, Attr, E));
+  D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, CI, E));
 }
 
 static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D,
-                                      const ParsedAttr &Attr) {
-  if (D->isInvalidDecl())
-    return;
-
-  Expr *E = Attr.getArgAsExpr(0);
-  S.addSYCLIntelPipeIOAttr(D, Attr, E);
+                                      const ParsedAttr &A) {
+  Expr *E = A.getArgAsExpr(0);
+  S.addSYCLIntelPipeIOAttr(D, A, E);
 }
 
 SYCLIntelFPGAMaxConcurrencyAttr *Sema::MergeSYCLIntelFPGAMaxConcurrencyAttr(
