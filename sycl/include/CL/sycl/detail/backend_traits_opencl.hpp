@@ -41,29 +41,6 @@ template <> struct interop<backend::opencl, device> {
   using type = cl_device_id;
 };
 
-#ifdef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
-template <> struct interop<backend::opencl, event> { using type = cl_event; };
-template <> struct BackendInput<backend::opencl, event> {
-  using type = cl_event;
-};
-template <> struct BackendReturn<backend::opencl, event> {
-  using type = cl_event;
-};
-#else
-template <> struct interop<backend::opencl, event> {
-  using type = std::vector<cl_event>;
-  using value_type = cl_event;
-};
-template <> struct BackendInput<backend::opencl, event> {
-  using type = std::vector<cl_event>;
-  using value_type = cl_event;
-};
-template <> struct BackendReturn<backend::opencl, event> {
-  using type = std::vector<cl_event>;
-  using value_type = cl_event;
-};
-#endif
-
 template <> struct interop<backend::opencl, queue> {
   using type = cl_command_queue;
 };
@@ -126,6 +103,29 @@ template <> struct BackendInput<backend::opencl, device> {
 template <> struct BackendReturn<backend::opencl, device> {
   using type = cl_device_id;
 };
+
+#ifdef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
+template <> struct interop<backend::opencl, event> { using type = cl_event; };
+template <> struct BackendInput<backend::opencl, event> {
+  using type = cl_event;
+};
+template <> struct BackendReturn<backend::opencl, event> {
+  using type = cl_event;
+};
+#else
+template <> struct interop<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
+template <> struct BackendInput<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
+template <> struct BackendReturn<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
+#endif
 
 template <> struct BackendInput<backend::opencl, queue> {
   using type = cl_command_queue;

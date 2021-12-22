@@ -74,24 +74,15 @@ auto get_native(const SyclObjectT &Obj)
   return Obj.template get_native<BackendName>();
 }
 
+#ifndef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
 template <>
-#ifdef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
-backend_return_t<backend::opencl, event> get_native<backend::opencl, event>(const event &Obj) {
-  // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::opencl) {
-    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
-  }
-  return Obj.template get_native<backend::opencl>();
-}
-#else
-backend_return_t<backend::opencl, event> get_native<backend::opencl, event>(const event &Obj) {
+inline backend_return_t<backend::opencl, event>
+get_native<backend::opencl, event>(const event &Obj) {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::opencl) {
     throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
   }
   backend_return_t<backend::opencl, event> ReturnValue;
-  // for (auto const &element : Obj.template getNativeVector<backend::opencl>())
-  // {
   for (auto const &element : Obj.getNativeVector()) {
     ReturnValue.push_back(
         reinterpret_cast<
