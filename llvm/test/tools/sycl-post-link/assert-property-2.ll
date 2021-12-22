@@ -3,7 +3,7 @@
 ; graph.
 
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop
+; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6
 
 ; SYCL source:
 ; void assert_func() {
@@ -267,6 +267,14 @@ entry:
   ret void
 }
 
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z6E_exclv()
+  call spir_func void @_Z6E_exclv()
+  ret void
+}
+
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_func void @_Z6F_inclv() local_unnamed_addr {
 entry:
@@ -324,15 +332,6 @@ entry:
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel8"() local_unnamed_addr #0 {
   call spir_func void @_Z1Gv()
   call spir_func void @_Z1Hv()
-  ret void
-}
-
-; CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z6E_exclv()
-  call spir_func void @_Z6E_exclv()
   ret void
 }
 
