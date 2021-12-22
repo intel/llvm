@@ -19,6 +19,8 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/UUID.h"
 #include "lldb/lldb-private.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Support/VersionTuple.h"
 
 namespace lldb_private {
@@ -322,12 +324,26 @@ public:
   /// Gets the symbol table for the currently selected architecture (and
   /// object for archives).
   ///
-  /// Symbol table parsing can be deferred by ObjectFile instances until this
-  /// accessor is called the first time.
+  /// This function will manage when ParseSymtab(...) is called to actually do
+  /// the symbol table parsing in each plug-in. This function will take care of
+  /// taking all the necessary locks and finalizing the symbol table when the
+  /// symbol table does get parsed.
   ///
   /// \return
   ///     The symbol table for this object file.
-  virtual Symtab *GetSymtab() = 0;
+  Symtab *GetSymtab();
+
+  /// Parse the symbol table into the provides symbol table object.
+  ///
+  /// Symbol table parsing will be done once when this function is called by
+  /// each object file plugin. All of the necessary locks will already be
+  /// acquired before this function is called and the symbol table object to
+  /// populate is supplied as an argument and doesn't need to be created by
+  /// each plug-in.
+  ///
+  /// \param
+  ///     The symbol table to populate.
+  virtual void ParseSymtab(Symtab &symtab) = 0;
 
   /// Perform relocations on the section if necessary.
   ///
@@ -692,6 +708,15 @@ public:
     return false;
   }
 
+  /// Get a hash that can be used for caching object file releated information.
+  ///
+  /// Data for object files can be cached between runs of debug sessions and
+  /// a module can end up using a main file and a symbol file, both of which
+  /// can be object files. So we need a unique hash that identifies an object
+  /// file when storing cached data.
+  uint32_t GetCacheHash();
+
+
 protected:
   // Member variables.
   FileSpec m_file;
@@ -708,7 +733,13 @@ protected:
   const lldb::addr_t m_memory_addr;
   std::unique_ptr<lldb_private::SectionList> m_sections_up;
   std::unique_ptr<lldb_private::Symtab> m_symtab_up;
-  uint32_t m_synthetic_symbol_idx;
+  /// We need a llvm::once_flag that we can use to avoid locking the module
+  /// lock and deadlocking LLDB. See comments in ObjectFile::GetSymtab() for
+  /// the full details. We also need to be able to clear the symbol table, so we
+  /// need to use a std::unique_ptr to a llvm::once_flag so if we clear the
+  /// symbol table, we can have a new once flag to use when it is created again.
+  std::unique_ptr<llvm::once_flag> m_symtab_once_up;
+  llvm::Optional<uint32_t> m_cache_hash;
 
   /// Sets the architecture for a module.  At present the architecture can
   /// only be set if it is invalid.  It is not allowed to switch from one

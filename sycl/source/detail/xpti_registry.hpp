@@ -29,6 +29,13 @@ inline constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
 // Stream name being used for traces generated from PI calls. This stream
 // contains information about function arguments.
 inline constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
+inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
+    "sycl.experimental.mem_alloc";
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+extern uint8_t GMemAllocStreamID;
+extern xpti::trace_event_data_t *GMemAllocEvent;
+#endif
 
 // Stream name being used to notify about buffer objects.
 inline constexpr const char *SYCL_BUFFER_STREAM_NAME =
@@ -40,7 +47,17 @@ public:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     std::call_once(MInitialized, [this] {
       xptiFrameworkInitialize();
+      // SYCL buffer events
       this->initializeStream(SYCL_BUFFER_STREAM_NAME, 0, 1, "0.1");
+
+      // Memory allocation events
+      GMemAllocStreamID = xptiRegisterStream(SYCL_MEM_ALLOC_STREAM_NAME);
+      this->initializeStream(SYCL_MEM_ALLOC_STREAM_NAME, 0, 1, "0.1");
+      xpti::payload_t MAPayload("SYCL Memory Allocations Layer");
+      uint64_t MAInstanceNo = 0;
+      GMemAllocEvent = xptiMakeEvent("SYCL Memory Allocations", &MAPayload,
+                                     xpti::trace_algorithm_event,
+                                     xpti_at::active, &MAInstanceNo);
     });
 #endif
   }

@@ -40,24 +40,24 @@ getTensorBufferizationState(BufferizationState &state) {
 struct CastOpInterface
     : public BufferizableOpInterface::ExternalModel<CastOpInterface,
                                                     tensor::CastOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              BufferizationState &state) const {
     return false;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return false;
   }
 
-  SmallVector<OpOperand *> getAliasingOpOperand(Operation *op,
-                                                OpResult opResult) const {
-    return {&op->getOpOperand(0)};
-  }
-
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return op->getResult(0);
   }
 
-  BufferRelation bufferRelation(Operation *op, OpOperand &opOperand) const {
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationAliasInfo &aliasInfo,
+                                BufferizationState &state) const {
     return BufferRelation::Equivalent;
   }
 
@@ -65,11 +65,7 @@ struct CastOpInterface
                           BufferizationState &state) const {
     auto castOp = cast<tensor::CastOp>(op);
 
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(castOp);
-
-    Value resultBuffer = getResultBuffer(b, castOp->getResult(0), state);
+    Value resultBuffer = state.getResultBuffer(castOp->getResult(0));
     if (!resultBuffer)
       return failure();
     Type sourceType = resultBuffer.getType();
@@ -86,10 +82,7 @@ struct CastOpInterface
             : MemRefLayoutAttrInterface();
     Type memRefType = getContiguousOrUnrankedMemRefType(
         castOp.getResult().getType(), layout, memorySpace);
-    Value res =
-        b.create<memref::CastOp>(castOp.getLoc(), memRefType, resultBuffer);
-    state.aliasInfo.insertNewBufferEquivalence(res, castOp.getResult());
-    state.mapBuffer(castOp.getResult(), res);
+    state.replaceOpWithNewOp<memref::CastOp>(b, op, memRefType, resultBuffer);
     return success();
   }
 };
@@ -97,31 +90,28 @@ struct CastOpInterface
 struct DimOpInterface
     : public BufferizableOpInterface::ExternalModel<DimOpInterface,
                                                     tensor::DimOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              BufferizationState &state) const {
     return true;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return OpResult();
   }
 
   LogicalResult bufferize(Operation *op, OpBuilder &b,
                           BufferizationState &state) const {
     auto dimOp = cast<tensor::DimOp>(op);
-
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(dimOp);
-
-    if (dimOp.source().getType().isa<RankedTensorType>()) {
-      Value v = state.lookupBuffer(dimOp.source());
-      dimOp.result().replaceAllUsesWith(
-          b.create<memref::DimOp>(dimOp.getLoc(), v, dimOp.index()));
-    }
+    if (!dimOp.source().getType().isa<RankedTensorType>())
+      return dimOp.emitError("unranked tensor not supported");
+    Value v = state.lookupBuffer(dimOp.source());
+    state.replaceOpWithNewOp<memref::DimOp>(b, op, v, dimOp.index());
     return success();
   }
 };
@@ -129,37 +119,32 @@ struct DimOpInterface
 struct ExtractSliceOpInterface
     : public BufferizableOpInterface::ExternalModel<ExtractSliceOpInterface,
                                                     tensor::ExtractSliceOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              BufferizationState &state) const {
     return false;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return false;
   }
 
-  SmallVector<OpOperand *> getAliasingOpOperand(Operation *op,
-                                                OpResult opResult) const {
-    return {&op->getOpOperand(0) /*source*/};
-  }
-
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return &opOperand == &op->getOpOperand(0) /*source*/
                ? op->getResult(0)
                : OpResult();
   }
 
-  BufferRelation bufferRelation(Operation *op, OpOperand &opOperand) const {
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationAliasInfo &aliasInfo,
+                                BufferizationState &state) const {
     return BufferRelation::None;
   }
 
   LogicalResult bufferize(Operation *op, OpBuilder &b,
                           BufferizationState &state) const {
     auto extractSliceOp = cast<tensor::ExtractSliceOp>(op);
-
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(extractSliceOp);
-
     Location loc = extractSliceOp.getLoc();
     Value srcMemref = state.lookupBuffer(extractSliceOp.source());
     auto srcMemrefType = srcMemref.getType().cast<MemRefType>();
@@ -167,10 +152,10 @@ struct ExtractSliceOpInterface
         extractSliceOp.result().getType().cast<RankedTensorType>();
 
     // If not inplaceable, alloc.
-    bool inplace = state.aliasInfo.isInPlace(extractSliceOp->getResult(0));
+    bool inplace = state.isInPlace(extractSliceOp->getResult(0));
     Value alloc;
     if (!inplace)
-      alloc = state.createAllocDeallocFn(b, loc, extractSliceOp.result());
+      alloc = state.createAllocDeallocPair(b, loc, extractSliceOp.result());
 
     // Bufferize to subview.
     auto subviewMemRefType =
@@ -182,19 +167,16 @@ struct ExtractSliceOpInterface
     Value subView = b.create<memref::SubViewOp>(
         loc, subviewMemRefType, srcMemref, extractSliceOp.getMixedOffsets(),
         extractSliceOp.getMixedSizes(), extractSliceOp.getMixedStrides());
-    // Insert new alias.
-    state.aliasInfo.insertNewBufferAlias(subView, srcMemref);
 
     /// If not inplaceable, copy.
     if (!inplace) {
       // Do not copy if the copied data is never read.
-      if (isValueRead(extractSliceOp.result()))
-        state.allocationFns.memCpyFn(b, extractSliceOp.getLoc(), subView,
-                                     alloc);
+      if (state.isValueRead(extractSliceOp.result()))
+        state.createMemCpy(b, extractSliceOp.getLoc(), subView, alloc);
       subView = alloc;
     }
 
-    state.mapBuffer(extractSliceOp.result(), subView);
+    state.replaceOp(op, subView);
     return success();
   }
 };
@@ -202,31 +184,72 @@ struct ExtractSliceOpInterface
 struct ExtractOpInterface
     : public BufferizableOpInterface::ExternalModel<ExtractOpInterface,
                                                     tensor::ExtractOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              BufferizationState &state) const {
     return true;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return OpResult();
   }
 
   LogicalResult bufferize(Operation *op, OpBuilder &b,
                           BufferizationState &state) const {
     auto extractOp = cast<tensor::ExtractOp>(op);
-
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(extractOp);
-
-    Location loc = extractOp.getLoc();
     Value srcMemref = state.lookupBuffer(extractOp.tensor());
-    Value l = b.create<memref::LoadOp>(loc, srcMemref, extractOp.indices());
-    extractOp.replaceAllUsesWith(l);
+    state.replaceOpWithNewOp<memref::LoadOp>(b, op, srcMemref,
+                                             extractOp.indices());
     return success();
+  }
+};
+
+struct InsertOpInterface
+    : public BufferizableOpInterface::ExternalModel<InsertOpInterface,
+                                                    tensor::InsertOp> {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              BufferizationState &state) const {
+    return true;
+  }
+
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
+    return true;
+  }
+
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
+    assert(&opOperand == &op->getOpOperand(1) /*dest*/ &&
+           "expected dest OpOperand");
+    return op->getOpResult(0);
+  }
+
+  SmallVector<OpOperand *>
+  getAliasingOpOperand(Operation *op, OpResult opResult,
+                       BufferizationState &state) const {
+    return {&op->getOpOperand(1) /*dest*/};
+  }
+
+  LogicalResult bufferize(Operation *op, OpBuilder &b,
+                          BufferizationState &state) const {
+    auto insertOp = cast<tensor::InsertOp>(op);
+    Location loc = insertOp.getLoc();
+    Value destMemref = state.getResultBuffer(insertOp->getOpResult(0));
+    b.create<memref::StoreOp>(loc, insertOp.scalar(), destMemref,
+                              insertOp.indices());
+    state.replaceOp(op, destMemref);
+    return success();
+  }
+
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationAliasInfo &aliasInfo,
+                                BufferizationState &state) const {
+    return BufferRelation::Equivalent;
   }
 };
 
@@ -268,7 +291,8 @@ static bool isSourceEquivalentToAMatchingInplaceExtractSliceOp(
 /// Return true if `value` is originating from an ExtractSliceOp that matches
 /// the given InsertSliceOp.
 static bool hasMatchingExtractSliceOp(const BufferizationAliasInfo &aliasInfo,
-                                      Value value, InsertSliceOp insertOp) {
+                                      BufferizationState &state, Value value,
+                                      InsertSliceOp insertOp) {
   auto condition = [&](Value val) {
     if (auto extractOp = val.getDefiningOp<ExtractSliceOp>())
       if (areEquivalentExtractSliceOps(aliasInfo, extractOp, insertOp))
@@ -276,38 +300,38 @@ static bool hasMatchingExtractSliceOp(const BufferizationAliasInfo &aliasInfo,
     return false;
   };
 
-  return llvm::all_of(findValueInReverseUseDefChain(value, condition),
+  return llvm::all_of(state.findValueInReverseUseDefChain(value, condition),
                       condition);
 }
 
 struct InsertSliceOpInterface
     : public BufferizableOpInterface::ExternalModel<InsertSliceOpInterface,
                                                     tensor::InsertSliceOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              BufferizationState &state) const {
     return true;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return &opOperand == &op->getOpOperand(1) /*dest*/;
   }
 
-  SmallVector<OpOperand *> getAliasingOpOperand(Operation *op,
-                                                OpResult opResult) const {
-    return {&op->getOpOperand(1) /*dest*/};
-  }
-
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               BufferizationState &state) const {
     return &opOperand == &op->getOpOperand(1) /*dest*/
                ? op->getResult(0)
                : OpResult();
   }
 
-  BufferRelation bufferRelation(Operation *op, OpOperand &opOperand) const {
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationAliasInfo &aliasInfo,
+                                BufferizationState &state) const {
     return BufferRelation::Equivalent;
   }
 
   bool isNotConflicting(Operation *op, OpOperand *uRead,
-                        OpOperand *uConflictingWrite,
+                        OpOperand *uConflictingWrite, BufferizationState &state,
                         const BufferizationAliasInfo &aliasInfo) const {
     Operation *readingOp = uRead->getOwner();
     Operation *conflictingWritingOp = uConflictingWrite->getOwner();
@@ -324,7 +348,7 @@ struct InsertSliceOpInterface
 
       // TODO: Use insertSliceOp.getDestOpOperand etc. when available.
       if (uRead == &insertSliceOp->getOpOperand(1) /*dest*/ &&
-          hasMatchingExtractSliceOp(aliasInfo, uConflictingWrite->get(),
+          hasMatchingExtractSliceOp(aliasInfo, state, uConflictingWrite->get(),
                                     insertSliceOp))
         // Case 1: The main insight is that InsertSliceOp reads only part of
         // the destination tensor. The overwritten area is not read. If
@@ -342,7 +366,8 @@ struct InsertSliceOpInterface
 
       if (uRead == &insertSliceOp->getOpOperand(0) /*source*/ &&
           uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
-          hasMatchingExtractSliceOp(aliasInfo, uRead->get(), insertSliceOp))
+          hasMatchingExtractSliceOp(aliasInfo, state, uRead->get(),
+                                    insertSliceOp))
         // Case 2: The read of the source tensor and the write to the dest
         // tensor via an InsertSliceOp is not a conflict if the read is
         // reading exactly that part of an equivalent tensor that the
@@ -375,7 +400,7 @@ struct InsertSliceOpInterface
       if (uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
           aliasInfo.areEquivalentBufferizedValues(uRead->get(),
                                                   insertSliceOp.source()) &&
-          hasMatchingExtractSliceOp(aliasInfo, insertSliceOp.source(),
+          hasMatchingExtractSliceOp(aliasInfo, state, insertSliceOp.source(),
                                     insertSliceOp))
         return true;
 
@@ -390,15 +415,11 @@ struct InsertSliceOpInterface
     // catastrophically bad scheduling decision.
     // TODO: be very loud about it or even consider failing the pass.
     auto insertSliceOp = cast<tensor::InsertSliceOp>(op);
+    Location loc = insertSliceOp.getLoc();
     TensorBufferizationState &tensorState = getTensorBufferizationState(state);
 
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(insertSliceOp);
-    Location loc = insertSliceOp.getLoc();
-
     // When bufferizing out-of-place, `getResultBuffer` allocates.
-    Value dstMemref = getResultBuffer(b, insertSliceOp->getResult(0), state);
+    Value dstMemref = state.getResultBuffer(insertSliceOp->getResult(0));
     if (!dstMemref)
       return failure();
 
@@ -416,15 +437,12 @@ struct InsertSliceOpInterface
       Value subView = b.create<memref::SubViewOp>(
           loc, subviewMemRefType, dstMemref, insertSliceOp.getMixedOffsets(),
           insertSliceOp.getMixedSizes(), insertSliceOp.getMixedStrides());
-      // Insert new alias.
-      state.aliasInfo.insertNewBufferAlias(subView, dstMemref);
       // Copy tensor.
       Value srcMemref = state.lookupBuffer(insertSliceOp.source());
-      state.allocationFns.memCpyFn(b, insertSliceOp.getLoc(), srcMemref,
-                                   subView);
+      state.createMemCpy(b, insertSliceOp.getLoc(), srcMemref, subView);
     }
 
-    state.mapBuffer(insertSliceOp.result(), dstMemref);
+    state.replaceOp(op, dstMemref);
     return success();
   }
 };
@@ -435,18 +453,19 @@ struct InsertSliceOpInterface
 } // namespace mlir
 
 LogicalResult mlir::linalg::comprehensive_bufferize::tensor_ext::
-    InplaceInsertSliceOpAnalysis::run(FuncOp funcOp, BufferizationState &state,
+    InplaceInsertSliceOpAnalysis::run(Operation *op, BufferizationState &state,
+                                      BufferizationAliasInfo &aliasInfo,
                                       SmallVector<Operation *> &newOps) {
   auto &tensorState = getTensorBufferizationState(state);
-  funcOp.walk([&](InsertSliceOp insertSliceOp) {
+  op->walk([&](InsertSliceOp insertSliceOp) {
     // A copy of the source buffer is needed if either:
     //   - The producer of `source` is not inplace. This is the case where a
     //     slice is computed out of place into the inplace full tensor.
     //   - The result is not inplace. This is the case where the whole tensor is
     //     cloned and the clone needs to be updated.
-    if (isSourceEquivalentToAMatchingInplaceExtractSliceOp(state.aliasInfo,
+    if (isSourceEquivalentToAMatchingInplaceExtractSliceOp(aliasInfo,
                                                            insertSliceOp) &&
-        state.aliasInfo.isInPlace(insertSliceOp->getResult(0)))
+        state.isInPlace(insertSliceOp->getResult(0)))
       tensorState.insertSliceOpsWithoutCopy.insert(insertSliceOp);
   });
   return success();
@@ -459,6 +478,7 @@ void mlir::linalg::comprehensive_bufferize::tensor_ext::
   registry.addOpInterface<tensor::ExtractSliceOp,
                           tensor_ext::ExtractSliceOpInterface>();
   registry.addOpInterface<tensor::ExtractOp, tensor_ext::ExtractOpInterface>();
+  registry.addOpInterface<tensor::InsertOp, tensor_ext::InsertOpInterface>();
   registry.addOpInterface<tensor::InsertSliceOp,
                           tensor_ext::InsertSliceOpInterface>();
 }

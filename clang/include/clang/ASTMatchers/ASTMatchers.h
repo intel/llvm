@@ -4227,8 +4227,8 @@ AST_MATCHER(VarDecl, isInitCapture) { return Node.isInitCapture(); }
 /// lambdaExpr(forEachLambdaCapture(
 ///     lambdaCapture(capturesVar(varDecl(hasType(isInteger()))))))
 /// will trigger two matches, binding for 'x' and 'y' respectively.
-AST_MATCHER_P(LambdaExpr, forEachLambdaCapture, LambdaCaptureMatcher,
-              InnerMatcher) {
+AST_MATCHER_P(LambdaExpr, forEachLambdaCapture,
+              internal::Matcher<LambdaCapture>, InnerMatcher) {
   BoundNodesTreeBuilder Result;
   bool Matched = false;
   for (const auto &Capture : Node.captures()) {
@@ -4655,7 +4655,8 @@ extern const internal::VariadicAllOfMatcher<LambdaCapture> lambdaCapture;
 /// lambdaExpr(hasAnyCapture(lambdaCapture())) and
 /// lambdaExpr(hasAnyCapture(lambdaCapture(refersToVarDecl(hasName("t")))))
 ///   both match `[=](){ return t; }`.
-AST_MATCHER_P(LambdaExpr, hasAnyCapture, LambdaCaptureMatcher, InnerMatcher) {
+AST_MATCHER_P(LambdaExpr, hasAnyCapture, internal::Matcher<LambdaCapture>,
+              InnerMatcher) {
   for (const LambdaCapture &Capture : Node.captures()) {
     clang::ast_matchers::internal::BoundNodesTreeBuilder Result(*Builder);
     if (InnerMatcher.matches(Capture, Finder, &Result)) {
@@ -4871,7 +4872,7 @@ AST_POLYMORPHIC_MATCHER_P2(forEachArgumentWithParamType,
     }
   }
 
-  int ParamIndex = 0;
+  unsigned ParamIndex = 0;
   bool Matched = false;
   unsigned NumArgs = Node.getNumArgs();
   if (FProto && FProto->isVariadic())
@@ -4885,7 +4886,7 @@ AST_POLYMORPHIC_MATCHER_P2(forEachArgumentWithParamType,
 
       // This test is cheaper compared to the big matcher in the next if.
       // Therefore, please keep this order.
-      if (FProto) {
+      if (FProto && FProto->getNumParams() > ParamIndex) {
         QualType ParamType = FProto->getParamType(ParamIndex);
         if (ParamMatcher.matches(ParamType, Finder, &ParamMatches)) {
           Result.addMatch(ParamMatches);

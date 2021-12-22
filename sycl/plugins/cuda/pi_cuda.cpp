@@ -245,7 +245,7 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
-void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
+void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
                         const size_t maxThreadsPerBlock[3], pi_kernel kernel,
                         pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
@@ -259,10 +259,9 @@ void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
 
   (void)minGrid; // Not used, avoid warnings
 
-  threadsPerBlock[0] =
-      std::min(static_cast<int>(maxThreadsPerBlock[0]),
-               std::min(static_cast<int>(global_work_size[0]),
-                        static_cast<int>(recommendedBlockSize)));
+  threadsPerBlock[0] = std::min(
+      maxThreadsPerBlock[0],
+      std::min(global_work_size[0], static_cast<size_t>(recommendedBlockSize)));
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
@@ -473,7 +472,10 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
   // for native events, the cuStreamWaitEvent call is used.
   // This makes all future work submitted to stream wait for all
   // work captured in event.
-  return PI_CHECK_ERROR(cuStreamWaitEvent(queue->get(), event->get(), 0));
+  if (queue->get() != event->get_queue()->get()) {
+    return PI_CHECK_ERROR(cuStreamWaitEvent(queue->get(), event->get(), 0));
+  }
+  return PI_SUCCESS;
 }
 
 _pi_program::_pi_program(pi_context ctxt)
@@ -1675,6 +1677,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_SLICES:
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if Intel device UUID extension is utilized for CUDA.
     // For details about this extension, see
@@ -2252,6 +2255,14 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
   return result;
 }
 
+// There is no CUDA counterpart for queue flushing and we don't run into the
+// same problem of having to flush cross-queue dependencies as some of the
+// other plugins, so it can be left as no-op.
+pi_result cuda_piQueueFlush(pi_queue command_queue) {
+  (void)command_queue;
+  return PI_SUCCESS;
+}
+
 /// Gets the native CUDA handle of a PI queue object
 ///
 /// \param[in] queue The PI queue to get the native CUDA object of.
@@ -2610,7 +2621,7 @@ pi_result cuda_piEnqueueKernelLaunch(
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
-  int threadsPerBlock[3] = {32, 1, 1};
+  size_t threadsPerBlock[3] = {32u, 1u, 1u};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
@@ -2641,7 +2652,7 @@ pi_result cuda_piEnqueueKernelLaunch(
             return PI_INVALID_WORK_GROUP_SIZE;
           if (0u != (global_work_size[dim] % local_work_size[dim]))
             return PI_INVALID_WORK_GROUP_SIZE;
-          threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
+          threadsPerBlock[dim] = local_work_size[dim];
           return PI_SUCCESS;
         };
 
@@ -2661,12 +2672,11 @@ pi_result cuda_piEnqueueKernelLaunch(
       return PI_INVALID_WORK_GROUP_SIZE;
     }
 
-    int blocksPerGrid[3] = {1, 1, 1};
+    size_t blocksPerGrid[3] = {1u, 1u, 1u};
 
     for (size_t i = 0; i < work_dim; i++) {
       blocksPerGrid[i] =
-          static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
-          threadsPerBlock[i];
+          (global_work_size[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
     }
 
     std::unique_ptr<_pi_event> retImplEv{nullptr};
@@ -4885,6 +4895,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
+  _PI_CL(piQueueFlush, cuda_piQueueFlush)
   _PI_CL(piQueueRetain, cuda_piQueueRetain)
   _PI_CL(piQueueRelease, cuda_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, cuda_piextQueueGetNativeHandle)

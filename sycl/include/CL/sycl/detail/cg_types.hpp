@@ -242,7 +242,7 @@ public:
 };
 
 // Class which stores specific lambda object.
-template <class KernelType, class KernelArgType, int Dims, typename KernelName>
+template <class KernelType, class KernelArgType, int Dims, bool StoreLocation>
 class HostKernel : public HostKernelBase {
   using IDBuilder = sycl::detail::Builder;
   KernelType MKernel;
@@ -290,9 +290,6 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using KI = detail::KernelInfo<KernelName>;
-    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
-
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
     sycl::range<Dims> Stride(
@@ -323,9 +320,6 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using KI = detail::KernelInfo<KernelName>;
-    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
-
     sycl::id<Dims> ID;
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I)
@@ -348,9 +342,6 @@ public:
   typename detail::enable_if_t<
       std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using KI = detail::KernelInfo<KernelName>;
-    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
-
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> Offset;
     sycl::range<Dims> Stride(
@@ -380,9 +371,6 @@ public:
   template <class ArgT = KernelArgType>
   typename detail::enable_if_t<std::is_same<ArgT, nd_item<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    using KI = detail::KernelInfo<KernelName>;
-    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
-
     sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||

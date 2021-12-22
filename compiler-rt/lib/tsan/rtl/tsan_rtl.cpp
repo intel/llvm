@@ -512,8 +512,39 @@ void DontNeedShadowFor(uptr addr, uptr size) {
 }
 
 #if !SANITIZER_GO
+// We call UnmapShadow before the actual munmap, at that point we don't yet
+// know if the provided address/size are sane. We can't call UnmapShadow
+// after the actual munmap becuase at that point the memory range can
+// already be reused for something else, so we can't rely on the munmap
+// return value to understand is the values are sane.
+// While calling munmap with insane values (non-canonical address, negative
+// size, etc) is an error, the kernel won't crash. We must also try to not
+// crash as the failure mode is very confusing (paging fault inside of the
+// runtime on some derived shadow address).
+static bool IsValidMmapRange(uptr addr, uptr size) {
+  if (size == 0)
+    return true;
+  if (static_cast<sptr>(size) < 0)
+    return false;
+  if (!IsAppMem(addr) || !IsAppMem(addr + size - 1))
+    return false;
+  // Check that if the start of the region belongs to one of app ranges,
+  // end of the region belongs to the same region.
+  const uptr ranges[][2] = {
+      {LoAppMemBeg(), LoAppMemEnd()},
+      {MidAppMemBeg(), MidAppMemEnd()},
+      {HiAppMemBeg(), HiAppMemEnd()},
+  };
+  for (auto range : ranges) {
+    if (addr >= range[0] && addr < range[1])
+      return addr + size <= range[1];
+  }
+  return false;
+}
+
 void UnmapShadow(ThreadState *thr, uptr addr, uptr size) {
-  if (size == 0) return;
+  if (size == 0 || !IsValidMmapRange(addr, size))
+    return;
   DontNeedShadowFor(addr, size);
   ScopedGlobalProcessor sgp;
   SlotLocker locker(thr, true);
@@ -666,6 +697,18 @@ void Initialize(ThreadState *thr) {
 
   OnInitialize();
 }
+
+#if !SANITIZER_GO
+#  pragma clang diagnostic push
+// We intentionally use a global constructor to delay the pthread call.
+#  pragma clang diagnostic ignored "-Wglobal-constructors"
+static bool UNUSED __local_tsan_dyninit = [] {
+  if (flags()->force_background_thread)
+    MaybeSpawnBackgroundThread();
+  return false;
+}();
+#  pragma clang diagnostic pop
+#endif
 
 void MaybeSpawnBackgroundThread() {
   // On MIPS, TSan initialization is run before

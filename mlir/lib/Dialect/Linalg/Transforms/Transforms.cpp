@@ -15,7 +15,7 @@
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/SCF/Transforms.h"
@@ -186,26 +186,34 @@ static LogicalResult padOperandToSmallestStaticBoundingBox(
   if (!sliceOp)
     return failure(hasDynamicShape);
 
+  // Compute the dropped dimensions if `sliceOp` is ranke-reducing.
+  llvm::SmallDenseSet<unsigned> droppedDims = sliceOp.getDroppedDims();
+
   // Upper bound the `sliceOp` sizes to obtain a static bounding box.
   SmallVector<int64_t> staticSizes;
-  staticSizes.reserve(opToPad.getRank(opOperand));
+  staticSizes.reserve(shape.size());
   auto shapedOp = cast<OffsetSizeAndStrideOpInterface>(sliceOp.getOperation());
-  for (auto size : shapedOp.getMixedSizes()) {
+  for (auto en : enumerate(shapedOp.getMixedSizes())) {
+    // Skip dropped dimensions.
+    if (droppedDims.contains(en.index()))
+      continue;
     // If the size is an attribute add it directly to `staticSizes`.
-    if (size.is<Attribute>()) {
+    if (en.value().is<Attribute>()) {
       staticSizes.push_back(
-          size.get<Attribute>().dyn_cast<IntegerAttr>().getInt());
+          en.value().get<Attribute>().dyn_cast<IntegerAttr>().getInt());
       continue;
     }
     // Otherwise, try to compute a constant upper bound for the size value.
     FailureOr<int64_t> upperBound =
-        getConstantUpperBoundForIndex(size.get<Value>());
+        getConstantUpperBoundForIndex(en.value().get<Value>());
     if (failed(upperBound)) {
       LLVM_DEBUG(DBGS() << "No constant bounding box can be found for padding");
       return failure();
     }
     staticSizes.push_back(upperBound.getValue());
   }
+  assert(staticSizes.size() == shape.size() &&
+         "expect the dynamic and static ranks to match");
 
   // Pad the operand to the bounding box defined by `staticSizes`.
   auto staticTensorType = RankedTensorType::get(
@@ -503,10 +511,8 @@ LogicalResult mlir::linalg::LinalgPaddingPattern::matchAndRewrite(
   FailureOr<SmallVector<Value>> newResults = rewriteAsPaddedOp(
       rewriter, linalgOp, options.paddingValueComputationFunction,
       options.paddingNoFoldComputationFunction, paddedOp);
-  if (failed(newResults)) {
-    filter.replaceLinalgTransformationFilter(rewriter, linalgOp);
+  if (failed(newResults))
     return failure();
-  }
 
   // Compute the desired hoisting depths.
   SmallVector<int64_t> depths;
@@ -907,9 +913,12 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
   if (!sliceOp.hasUnitStride())
     return failure();
 
-  Operation *tiledPadOp = padOp.getTiledImplementation(
-      rewriter, /*dest=*/ValueRange{}, sliceOp.getMixedOffsets(),
-      sliceOp.getMixedSizes());
+  Operation *tiledPadOp =
+      padOp
+          .getTiledImplementation(
+              rewriter, /*dest=*/ValueRange{}, sliceOp.getMixedOffsets(),
+              sliceOp.getMixedSizes(), /*tileDestOperands=*/false)
+          .front();
   // All shapes are static and the data source is actually used. Rewrite into
   // pad_tensor(subtensor(x)).
   rewriter.replaceOp(sliceOp, tiledPadOp->getResults());
@@ -929,31 +938,36 @@ namespace {
 /// convolution ops.
 struct DownscaleSizeOneWindowed2DConvolution final
     : public OpRewritePattern<Conv2DNhwcHwcfOp> {
-  using OpRewritePattern::OpRewritePattern;
+  DownscaleSizeOneWindowed2DConvolution(
+      MLIRContext *context,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : OpRewritePattern<Conv2DNhwcHwcfOp>(context, benefit), filter(filter) {}
 
   LogicalResult matchAndRewrite(linalg::Conv2DNhwcHwcfOp convOp,
                                 PatternRewriter &rewriter) const override {
-    auto linalgOp = cast<linalg::LinalgOp>(*convOp);
-    if (linalgOp.hasBufferSemantics())
+    if (failed(filter.checkAndNotify(rewriter, convOp)))
+      return failure();
+    if (convOp.hasBufferSemantics())
       return failure(); // To be implemented
 
     Value input = convOp.inputs().front();
-    Value filter = convOp.inputs().back();
+    Value kernel = convOp.inputs().back();
     Value output = convOp.outputs().front();
 
     auto inputType = input.getType().dyn_cast<RankedTensorType>();
-    auto filterType = filter.getType().dyn_cast<RankedTensorType>();
+    auto kernelType = kernel.getType().dyn_cast<RankedTensorType>();
     auto outputType = output.getType().dyn_cast<RankedTensorType>();
 
-    auto filterShape = filterType.getShape();
+    auto kernelShape = kernelType.getShape();
     auto outputShape = outputType.getShape();
 
     // Only handle the case where at least one of the window dimensions is
     // of size 1. Other cases can rely on tiling to reduce to such cases.
-    int64_t fhSize = filterShape[0], fwSize = filterShape[1];
+    int64_t khSize = kernelShape[0], kwSize = kernelShape[1];
     int64_t ohSize = outputShape[1], owSize = outputShape[2];
-    bool removeH = (fhSize == 1 && ohSize == 1);
-    bool removeW = (fwSize == 1 && owSize == 1);
+    bool removeH = (khSize == 1 && ohSize == 1);
+    bool removeW = (kwSize == 1 && owSize == 1);
     if (!removeH && !removeW)
       return failure();
 
@@ -962,8 +976,8 @@ struct DownscaleSizeOneWindowed2DConvolution final
     using RTTBuilder = RankedTensorType::Builder;
     RankedTensorType newInputType =
         RTTBuilder(inputType).dropDim((removeH ? 1 : 2));
-    RankedTensorType newFilterType =
-        RTTBuilder(filterType).dropDim((removeH ? 0 : 1));
+    RankedTensorType newKernelType =
+        RTTBuilder(kernelType).dropDim((removeH ? 0 : 1));
     RankedTensorType newOutputType =
         RTTBuilder(outputType).dropDim(removeH ? 1 : 2);
 
@@ -971,8 +985,8 @@ struct DownscaleSizeOneWindowed2DConvolution final
     Location loc = convOp.getLoc();
     Value newInput = tensor::createCanonicalRankReducingExtractSliceOp(
         rewriter, loc, input, newInputType);
-    Value newFilter = tensor::createCanonicalRankReducingExtractSliceOp(
-        rewriter, loc, filter, newFilterType);
+    Value newKernel = tensor::createCanonicalRankReducingExtractSliceOp(
+        rewriter, loc, kernel, newKernelType);
     Value newOutput = tensor::createCanonicalRankReducingExtractSliceOp(
         rewriter, loc, output, newOutputType);
 
@@ -988,7 +1002,7 @@ struct DownscaleSizeOneWindowed2DConvolution final
     auto dilationsAttr = rewriter.getI64VectorAttr(dilations);
 
     auto conv1DOp = rewriter.create<linalg::Conv1DNwcWcfOp>(
-        loc, newOutputType, ValueRange{newInput, newFilter},
+        loc, newOutputType, ValueRange{newInput, newKernel},
         ValueRange{newOutput}, stridesAttr, dilationsAttr);
 
     // Insert back.
@@ -996,20 +1010,31 @@ struct DownscaleSizeOneWindowed2DConvolution final
         rewriter, loc, conv1DOp.getResult(0), output);
     rewriter.replaceOp(convOp, inserted);
 
+    filter.replaceLinalgTransformationFilter(rewriter, conv1DOp);
     return success();
   };
+
+private:
+  /// LinalgTransformMarker handles special attribute manipulations.
+  LinalgTransformationFilter filter;
 };
 
 /// Rewrites 2-D depthwise convolution ops with size-1 (w, kw) or (h, kh)
 /// dimensions into 1-D depthwise convolution ops.
 struct DownscaleDepthwiseConv2DNhwcHwcOp final
     : public OpRewritePattern<DepthwiseConv2DNhwcHwcOp> {
-  using OpRewritePattern::OpRewritePattern;
+  DownscaleDepthwiseConv2DNhwcHwcOp(
+      MLIRContext *context,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : OpRewritePattern<DepthwiseConv2DNhwcHwcOp>(context, benefit),
+        filter(filter) {}
 
   LogicalResult matchAndRewrite(DepthwiseConv2DNhwcHwcOp convOp,
                                 PatternRewriter &rewriter) const override {
-    auto linalgOp = cast<linalg::LinalgOp>(*convOp);
-    if (linalgOp.hasBufferSemantics())
+    if (failed(filter.checkAndNotify(rewriter, convOp)))
+      return failure();
+    if (convOp.hasBufferSemantics())
       return failure(); // To be implemented
 
     Value input = convOp.inputs().front();
@@ -1071,15 +1096,21 @@ struct DownscaleDepthwiseConv2DNhwcHwcOp final
         rewriter, loc, conv1DOp.getResult(0), output);
     rewriter.replaceOp(convOp, inserted);
 
+    filter.replaceLinalgTransformationFilter(rewriter, conv1DOp);
     return success();
   };
+
+private:
+  /// LinalgTransformMarker handles special attribute manipulations.
+  LinalgTransformationFilter filter;
 };
 
 } // namespace
 
-void linalg::populateDecomposeConvolutionPatterns(RewritePatternSet &patterns,
-                                                  PatternBenefit benefit) {
+void linalg::populateDecomposeConvolutionPatterns(
+    RewritePatternSet &patterns, LinalgTransformationFilter filter,
+    PatternBenefit benefit) {
   patterns.add<DownscaleSizeOneWindowed2DConvolution,
-               DownscaleDepthwiseConv2DNhwcHwcOp>(patterns.getContext(),
+               DownscaleDepthwiseConv2DNhwcHwcOp>(patterns.getContext(), filter,
                                                   benefit);
 }

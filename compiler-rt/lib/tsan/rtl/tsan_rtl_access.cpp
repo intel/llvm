@@ -664,7 +664,12 @@ void MemoryAccessRangeT(ThreadState* thr, uptr pc, uptr addr, uptr size) {
 
   // Access to .rodata section, no races here.
   // Measurements show that it can be 10-20% of all memory accesses.
-  if (is_read && *shadow_mem == Shadow::kRodata)
+  // Check here once to not check for every access separately.
+  // Note: we could (and should) do this only for the is_read case
+  // (writes shouldn't go to .rodata). But it happens in Chromium tests:
+  // https://bugs.chromium.org/p/chromium/issues/detail?id=1275581#c19
+  // Details are unknown since it happens only on CI machines.
+  if (*shadow_mem == Shadow::kRodata)
     return;
 
   FastState fast_state = thr->fast_state;

@@ -508,7 +508,7 @@ cl_int enqueueImpKernel(
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
-    std::vector<RT::PiEvent> &RawEvents, const EventImplPtr &EventImpl,
+    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
 
 /// The exec CG command enqueues execution of kernel or explicit memory

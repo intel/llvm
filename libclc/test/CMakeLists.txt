@@ -13,6 +13,7 @@ set(LIBCLC_TEST_DEPS
   llvm-dis
   not
   clang
+  count
 )
 
 add_custom_target(check-libclc)

@@ -166,8 +166,8 @@ static cl::opt<unsigned> MemorySSAPathCheckLimit(
 // those cases, the flag can be used to check if DSE's MemorySSA optimizations
 // impact follow-up passes.
 static cl::opt<bool>
-    OptimizeMemorySSA("dse-optimize-memoryssa", cl::init(false), cl::Hidden,
-                      cl::desc("Allow DSE to optimize memory accesses"));
+    OptimizeMemorySSA("dse-optimize-memoryssa", cl::init(true), cl::Hidden,
+                      cl::desc("Allow DSE to optimize memory accesses."));
 
 //===----------------------------------------------------------------------===//
 // Helper functions
@@ -206,9 +206,9 @@ static bool isRemovable(Instruction *I) {
     }
   }
 
-  // note: only get here for calls with analyzable writes - i.e. libcalls
+  // note: only get here for calls with analyzable writes.
   if (auto *CB = dyn_cast<CallBase>(I))
-    return CB->use_empty();
+    return CB->use_empty() && CB->willReturn() && CB->doesNotThrow();
 
   return false;
 }
@@ -1026,41 +1026,13 @@ struct DSEState {
     if (!I->mayWriteToMemory())
       return None;
 
-    if (auto *MTI = dyn_cast<AnyMemIntrinsic>(I))
-      return {MemoryLocation::getForDest(MTI)};
-
     if (auto *CB = dyn_cast<CallBase>(I)) {
       // If the functions may write to memory we do not know about, bail out.
       if (!CB->onlyAccessesArgMemory() &&
           !CB->onlyAccessesInaccessibleMemOrArgMem())
         return None;
 
-      LibFunc LF;
-      if (TLI.getLibFunc(*CB, LF) && TLI.has(LF)) {
-        switch (LF) {
-        case LibFunc_strncpy:
-          if (const auto *Len = dyn_cast<ConstantInt>(CB->getArgOperand(2)))
-            return MemoryLocation(CB->getArgOperand(0),
-                                  LocationSize::precise(Len->getZExtValue()),
-                                  CB->getAAMetadata());
-          LLVM_FALLTHROUGH;
-        case LibFunc_strcpy:
-        case LibFunc_strcat:
-        case LibFunc_strncat:
-          return {MemoryLocation::getAfter(CB->getArgOperand(0))};
-        default:
-          break;
-        }
-      }
-      switch (CB->getIntrinsicID()) {
-      case Intrinsic::init_trampoline:
-        return {MemoryLocation::getAfter(CB->getArgOperand(0))};
-      case Intrinsic::masked_store:
-        return {MemoryLocation::getForArgument(CB, 1, TLI)};
-      default:
-        break;
-      }
-      return None;
+      return MemoryLocation::getForDest(CB, TLI);
     }
 
     return MemoryLocation::getOrNone(I);
@@ -1729,8 +1701,7 @@ struct DSEState {
     LLVM_DEBUG(
         dbgs()
         << "Trying to eliminate MemoryDefs at the end of the function\n");
-    for (int I = MemDefs.size() - 1; I >= 0; I--) {
-      MemoryDef *Def = MemDefs[I];
+    for (MemoryDef *Def : llvm::reverse(MemDefs)) {
       if (SkipStores.contains(Def) || !isRemovable(Def->getMemoryInst()))
         continue;
 
@@ -1928,7 +1899,14 @@ struct DSEState {
       if (SkipStores.contains(Def) || MSSA.isLiveOnEntryDef(Def) ||
           !isRemovable(Def->getMemoryInst()))
         continue;
-      auto *UpperDef = dyn_cast<MemoryDef>(Def->getDefiningAccess());
+      MemoryDef *UpperDef;
+      // To conserve compile-time, we avoid walking to the next clobbering def.
+      // Instead, we just try to get the optimized access, if it exists. DSE
+      // will try to optimize defs during the earlier traversal.
+      if (Def->isOptimized())
+        UpperDef = dyn_cast<MemoryDef>(Def->getOptimized());
+      else
+        UpperDef = dyn_cast<MemoryDef>(Def->getDefiningAccess());
       if (!UpperDef || MSSA.isLiveOnEntryDef(UpperDef))
         continue;
 

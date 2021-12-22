@@ -38,12 +38,12 @@ func @swappy(%cond1 : i1, %cond2 : i1, %t1 : tensor<f32>, %t2 : tensor<f32>)
 func @scf_if_not_equivalent(
     %cond: i1, %t1: tensor<?xf32> {linalg.inplaceable = true},
     %idx: index) -> tensor<?xf32> {
-  // expected-error @+1 {{result buffer is ambiguous}}
   %r = scf.if %cond -> (tensor<?xf32>) {
     scf.yield %t1 : tensor<?xf32>
   } else {
     // This buffer aliases, but is not equivalent.
     %t2 = tensor.extract_slice %t1 [%idx] [%idx] [1] : tensor<?xf32> to tensor<?xf32>
+    // expected-error @+1 {{Yield operand #0 does not bufferize to a buffer that is equivalent to a buffer defined outside of the scf::if op}}
     scf.yield %t2 : tensor<?xf32>
   }
   return %r : tensor<?xf32>
@@ -127,9 +127,9 @@ func @extract_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = true})
 
 // -----
 
+// expected-error @+1 {{memref return type is unsupported}}
 func @scf_yield(%b : i1, %A : tensor<4xf32>, %B : tensor<4xf32>) -> tensor<4xf32>
 {
-  // expected-error @+1 {{result buffer is ambiguous}}
   %r = scf.if %b -> (tensor<4xf32>) {
     scf.yield %A : tensor<4xf32>
   } else {
@@ -166,4 +166,24 @@ func @main() -> tensor<4xi32> {
     scf.yield %A: tensor<4xi32>
   }
   return %r: tensor<4xi32>
+}
+
+// -----
+
+func @to_memref_op_is_writing(
+    %t1: tensor<?xf32> {linalg.inplaceable = true}, %idx1: index,
+    %idx2: index, %idx3: index, %v1: vector<5xf32>) -> (vector<5xf32>, vector<5xf32>) {
+  // This is a RaW conflict because to_memref is an inplace write and %t1 is
+  // read further down. This will likely have to change with partial
+  // bufferization.
+
+  // expected-error @+1 {{input IR has RaW conflict}}
+  %0 = bufferization.to_memref %t1 : memref<?xf32>
+
+  // Read from both.
+  %cst = arith.constant 0.0 : f32
+  %r1 = vector.transfer_read %t1[%idx3], %cst : tensor<?xf32>, vector<5xf32>
+  %r2 = vector.transfer_read %0[%idx3], %cst : memref<?xf32>, vector<5xf32>
+
+  return %r1, %r2 : vector<5xf32>, vector<5xf32>
 }
