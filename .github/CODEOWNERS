@@ -109,3 +109,8 @@ sycl/doc/extensions/ExplicitSIMD/ @kbobrovs @v-klochkov @kychendev
 llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari
 llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims @vzakhari
 llvm/test/Transforms/SPIRITTAnnotations/* @MrSidims @vzakhari
+
+# Generic address space support for printf
+llvm/lib/SYCLLowerIR/MutatePrintfAddrspace.cpp @AGindinson @AlexeySachkov @mlychkov
+llvm/include/llvm/SYCLLowerIR/MutatePrintfAddrspace.h @AGindinson @AlexeySachkov @mlychkov
+llvm/test/SYCLLowerIR/printf_addrspace/* @AGindinson @AlexeySachkov @mlychkov
