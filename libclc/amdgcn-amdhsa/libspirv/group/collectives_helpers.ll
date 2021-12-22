@@ -1,8 +1,7 @@
 ; 32 storage locations is sufficient for all current-generation AMD GPUs
 ; 64 bits per wavefront is sufficient for all fundamental data types
 ; Reducing storage for small data types or increasing it for user-defined types
-;
-will likely require an additional pass to track group algorithm usage
+; will likely require an additional pass to track group algorithm usage
     @__clc__group_scratch = internal
     addrspace(3) global[32 x i64] undef,
     align 1
