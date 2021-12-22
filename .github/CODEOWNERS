@@ -111,6 +111,6 @@ llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims @vza
 llvm/test/Transforms/SPIRITTAnnotations/* @MrSidims @vzakhari
 
 # Generic address space support for printf
-llvm/lib/SYCLLowerIR/MutatePrintfAddrspace.cpp @AGindinson @AlexeySachkov @mlychkov
-llvm/include/llvm/SYCLLowerIR/MutatePrintfAddrspace.h @AGindinson @AlexeySachkov @mlychkov
-llvm/test/SYCLLowerIR/printf_addrspace/* @AGindinson @AlexeySachkov @mlychkov
+llvm/lib/SYCLLowerIR/MutatePrintfAddrspace.cpp @intel/dpcpp-tools-reviewers
+llvm/include/llvm/SYCLLowerIR/MutatePrintfAddrspace.h @intel/dpcpp-tools-reviewers
+llvm/test/SYCLLowerIR/printf_addrspace/* @intel/dpcpp-tools-reviewers
