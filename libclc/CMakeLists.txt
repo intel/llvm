@@ -85,7 +85,7 @@ set(LIBCLC_TARGET_TO_TEST)
 foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
 	if( ${t} IN_LIST LIBCLC_TARGETS_TO_BUILD )
 		list( APPEND LIBCLC_TARGET_TO_TEST "${t}" )
-	endif(t)
+	endif( ${t} IN_LIST LIBCLC_TARGETS_TO_BUILD )
 endforeach(t)
 
 execute_process( COMMAND ${LLVM_CONFIG} "--system-libs"
@@ -198,8 +198,8 @@ endif()
 
 # pkg-config file
 configure_file( libclc.pc.in libclc.pc @ONLY )
-install( FILES ${CMAKE_CURRENT_BINARY_DIR}/libclc.pc DESTINATION ${CMAKE_INSTALL_DATADIR}/pkgconfig )
-install( DIRECTORY generic/include/clc DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} )
+install( FILES ${CMAKE_CURRENT_BINARY_DIR}/libclc.pc DESTINATION "${CMAKE_INSTALL_DATADIR}/pkgconfig" )
+install( DIRECTORY generic/include/clc DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" )
 
 if( ENABLE_RUNTIME_SUBNORMAL )
 	add_library( subnormal_use_default STATIC
@@ -207,7 +207,7 @@ if( ENABLE_RUNTIME_SUBNORMAL )
 	add_library( subnormal_disable STATIC
 		generic/libspirv/subnormal_disable.ll )
 	install( TARGETS subnormal_use_default subnormal_disable ARCHIVE
-		DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+		DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
 endif()
 
 find_package( Python3 REQUIRED COMPONENTS Interpreter )
@@ -322,6 +322,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		endforeach()
 	endforeach()
 
+        # Please NOTE that variables in the foreach are not local and thus need
+        # to be reset every iteration.
 	foreach( d ${${t}_devices} )
 		# Some targets don't have a specific GPU to target
 		if( ${d} STREQUAL "none" OR ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
@@ -330,6 +332,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# Disables NVVM reflection to defer to after linking
 				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx72"
 						 "SHELL:-march=sm_86" "SHELL:-mllvm --nvvm-reflect-enable=false")
+                        else()
+                                set ( flags )
 			endif()
 			set( arch_suffix "${t}" )
 		else()

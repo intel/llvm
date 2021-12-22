@@ -40,7 +40,22 @@ class vvp_commutative<SDNode RootOp> :
 def vvp_add    : SDNode<"VEISD::VVP_ADD",  SDTIntBinOpVVP>;
 def c_vvp_add  : vvp_commutative<vvp_add>;
 
+def vvp_sub    : SDNode<"VEISD::VVP_SUB",  SDTIntBinOpVVP>;
+
+def vvp_mul    : SDNode<"VEISD::VVP_MUL",  SDTIntBinOpVVP>;
+def c_vvp_mul  : vvp_commutative<vvp_mul>;
+
 def vvp_and    : SDNode<"VEISD::VVP_AND",  SDTIntBinOpVVP>;
 def c_vvp_and  : vvp_commutative<vvp_and>;
+
+def vvp_or     : SDNode<"VEISD::VVP_OR",  SDTIntBinOpVVP>;
+def c_vvp_or   : vvp_commutative<vvp_or>;
+
+def vvp_xor    : SDNode<"VEISD::VVP_XOR",  SDTIntBinOpVVP>;
+def c_vvp_xor  : vvp_commutative<vvp_xor>;
+
+def vvp_srl    : SDNode<"VEISD::VVP_SRL",  SDTIntBinOpVVP>;
+def vvp_sra    : SDNode<"VEISD::VVP_SRA",  SDTIntBinOpVVP>;
+def vvp_shl    : SDNode<"VEISD::VVP_SHL",  SDTIntBinOpVVP>;
 
 // } Binary Operators

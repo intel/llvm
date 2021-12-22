@@ -14,7 +14,7 @@
 namespace mlir {
 namespace detail {
 class PDLByteCode;
-} // end namespace detail
+} // namespace detail
 
 /// This class represents a frozen set of patterns that can be processed by a
 /// pattern applicator. This class is designed to enable caching pattern lists
@@ -42,7 +42,7 @@ public:
   /// `disabledPatternLabels` is a set of labels used to filter out input
   /// patterns with a label in this set. `enabledPatternLabels` is a set of
   /// labels used to filter out input patterns that do not have one of the
-  /// lables in this set.
+  /// labels in this set.
   FrozenRewritePatternSet(
       RewritePatternSet &&patterns,
       ArrayRef<std::string> disabledPatternLabels = llvm::None,
@@ -92,6 +92,6 @@ private:
   std::shared_ptr<Impl> impl;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_REWRITE_FROZENREWRITEPATTERNSET_H

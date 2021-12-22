@@ -187,8 +187,8 @@
 ; CHECK-LLVM: call i10 @intel_arbitrary_fixed_sincospi.i10.i13(i13 %[[#]], i1 false, i32 2, i32 2, i32 0, i32 0)
 ; CHECK-LLVM: call i44 @intel_arbitrary_fixed_log.i44.i64(i64 %[[#]], i1 true, i32 24, i32 22, i32 0, i32 0)
 ; CHECK-LLVM: call i34 @intel_arbitrary_fixed_exp.i34.i44(i44 %[[#]], i1 false, i32 20, i32 20, i32 0, i32 0)
-; CHECK-LLVM: call i66 @intel_arbitrary_fixed_sincos.i66.i34(i34 %[[#]], i1 true, i32 3, i32 2, i32 0, i32 0)
-; CHECK-LLVM: call i68 @intel_arbitrary_fixed_exp.i68.i68(i68 %[[#]], i1 false, i32 20, i32 20, i32 0, i32 0)
+; CHECK-LLVM: call void @intel_arbitrary_fixed_sincos.i66.i34(i66 addrspace(4)* sret(i66) %[[#]], i34 %[[#]], i1 true, i32 3, i32 2, i32 0, i32 0)
+; CHECK-LLVM: call void @intel_arbitrary_fixed_exp.i68.i68(i68 addrspace(4)* sret(i68) %[[#]], i68 %[[#]], i1 false, i32 20, i32 20, i32 0, i32 0)
 
 ; ModuleID = 'ap_fixed.cpp'
 source_filename = "ap_fixed.cpp"

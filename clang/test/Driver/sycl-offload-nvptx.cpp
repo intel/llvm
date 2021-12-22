@@ -8,6 +8,11 @@
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS %s
+//
+// RUN: %clang_cl -### -fsycl \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-ACTIONS-WIN %s
 
 // CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-cuda" "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-emit-llvm-bc" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-feature" "+ptx42"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_50"{{.*}} "-std=c++11"{{.*}}
 // CHK-ACTIONS: sycl-post-link{{.*}} "-split=auto"
@@ -19,17 +24,32 @@
 // CHK-ACTIONS-NOT: "-mllvm -sycl-opt"
 // CHK-ACTIONS: clang-offload-wrapper"{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=nvptx64" "-kind=sycl"{{.*}}
 
+// CHK-ACTIONS-WIN: "-cc1" "-triple" "nvptx64-nvidia-cuda" "-aux-triple" "x86_64-pc-windows-msvc"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-emit-llvm-bc" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-feature" "+ptx42"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_50"{{.*}}
+// CHK-ACTIONS-WIN: sycl-post-link{{.*}} "-split=auto"
+// CHK-ACTIONS-WIN: file-table-tform" "-extract=Code" "-drop_titles"
+// CHK-ACTIONS-WIN: llvm-foreach" {{.*}} "--" "{{.*}}clang-{{[0-9]+}}"
+// CHK-ACTIONS-WIN: llvm-foreach" {{.*}} "--" "{{.*}}ptxas"
+// CHK-ACTIONS-WIN: llvm-foreach" {{.*}} "--" "{{.*}}fatbinary"
+// CHK-ACTIONS-WIN: file-table-tform" "-replace=Code,Code"
+// CHK-ACTIONS-WIN-NOT: "-mllvm -sycl-opt"
+// CHK-ACTIONS-WIN: clang-offload-wrapper"{{.*}} "-host=x86_64-pc-windows-msvc" "-target=nvptx64" "-kind=sycl"{{.*}}
+
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
+//
+// RUN: %clang_cl -ccc-print-phases -fsycl \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
+//
 // CHK-PHASES-NO-CC: 0: input, "{{.*}}", c++, (host-sycl)
 // CHK-PHASES-NO-CC: 1: append-footer, {0}, c++, (host-sycl)
 // CHK-PHASES-NO-CC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
 // CHK-PHASES-NO-CC: 3: input, "{{.*}}", c++, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 5: compiler, {4}, ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {5}, c++-cpp-output
+// CHK-PHASES-NO-CC: 6: offload, "host-sycl (x86_64-{{.*}})" {2}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {5}, c++-cpp-output
 // CHK-PHASES-NO-CC: 7: compiler, {6}, ir, (host-sycl)
 // CHK-PHASES-NO-CC: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASES-NO-CC: 9: assembler, {8}, object, (host-sycl)
@@ -43,21 +63,26 @@
 // CHK-PHASES-NO-CC: 17: foreach, {13, 16}, cuda-fatbin, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 18: file-table-tform, {12, 17}, tempfiletable, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 19: clang-offload-wrapper, {18}, object, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {19}, image
+// CHK-PHASES-NO-CC: 20: offload, "host-sycl (x86_64-{{.*}})" {10}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {19}, image
 
 /// Check phases specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda \
-N.)
 // RUN: -Xsycl-target-backend "--cuda-gpu-arch=sm_35" %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES %s
+//
+// RUN: %clang_cl -ccc-print-phases -fsycl \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN: -Xsycl-target-backend "--cuda-gpu-arch=sm_35" %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-PHASES %s
+//
 // CHK-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
 // CHK-PHASES: 1: append-footer, {0}, c++, (host-sycl)
 // CHK-PHASES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
 // CHK-PHASES: 3: input, "{{.*}}", c++, (device-sycl, sm_35)
 // CHK-PHASES: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, sm_35)
 // CHK-PHASES: 5: compiler, {4}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (nvptx64-nvidia-cuda:sm_35)" {5}, c++-cpp-output
+// CHK-PHASES: 6: offload, "host-sycl (x86_64-{{.*}})" {2}, "device-sycl (nvptx64-nvidia-cuda:sm_35)" {5}, c++-cpp-output
 // CHK-PHASES: 7: compiler, {6}, ir, (host-sycl)
 // CHK-PHASES: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASES: 9: assembler, {8}, object, (host-sycl)
@@ -71,7 +96,7 @@ N.)
 // CHK-PHASES: 17: foreach, {13, 16}, cuda-fatbin, (device-sycl, sm_35)
 // CHK-PHASES: 18: file-table-tform, {12, 17}, tempfiletable, (device-sycl, sm_35)
 // CHK-PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl, sm_35)
-// CHK-PHASES: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-cuda:sm_35)" {19}, image
+// CHK-PHASES: 20: offload, "host-sycl (x86_64-{{.*}})" {10}, "device-sycl (nvptx64-nvidia-cuda:sm_35)" {19}, image
 
 /// Check calling preprocessor only
 // RUN: %clangxx -E -fsycl -fsycl-targets=nvptx64-nvidia-cuda -ccc-print-phases %s 2>&1 \
@@ -79,3 +104,29 @@ N.)
 // CHK-PREPROC: 1: preprocessor, {0}, c++-cpp-output, (device-sycl, sm_[[CUDA_VERSION:[0-9.]+]])
 // CHK-PREPROC: 2: offload, "device-sycl (nvptx64-nvidia-cuda:sm_[[CUDA_VERSION]])" {1}, c++-cpp-output
 // CHK-PREPROC: 4: compiler, {1}, none, (device-sycl, sm_[[CUDA_VERSION]])
+//
+// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-CUDA-PATH-ERROR %s
+//
+// RUN: %clang_cl -### -fsycl \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-CUDA-PATH-ERROR %s
+//
+// CHK-CUDA-PATH-ERROR: provide path to different CUDA installation via '--cuda-path', or pass '-nocudalib' to build without linking with libdevice
+//
+//
+// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -nocudalib %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-CUDA-NO-LIB %s
+//
+// RUN: %clang_cl -### -fsycl \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -nocudalib %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-CUDA-NO-LIB %s
+//
+// CHK-CUDA-NO-LIB-NOT: provide path to different CUDA installation via '--cuda-path', or pass '-nocudalib' to build without linking with libdevice
+//
