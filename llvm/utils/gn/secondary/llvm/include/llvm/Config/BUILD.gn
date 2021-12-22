@@ -119,6 +119,7 @@ write_cmake_config("config") {
     "LLVM_TARGET_TRIPLE_ENV=",
     "LLVM_VERSION_INFO=",
     "LLVM_VERSION_PRINTER_SHOW_HOST_TARGET_INFO=1",
+    "LLVM_WINDOWS_PREFER_FORWARD_SLASH=",
     "PACKAGE_BUGREPORT=https://bugs.llvm.org/",
     "PACKAGE_NAME=LLVM",
     "PACKAGE_STRING=LLVM ${llvm_version}git",
@@ -328,7 +329,10 @@ write_cmake_config("llvm-config") {
   input = "llvm-config.h.cmake"
   output = "$target_gen_dir/llvm-config.h"
   values = [
+    "LLVM_BUILD_LLVM_DYLIB=",
+    "LLVM_BUILD_SHARED_LIBS=",
     "LLVM_DEFAULT_TARGET_TRIPLE=$llvm_target_triple",
+    "LLVM_ENABLE_CURL=",
     "LLVM_ENABLE_DUMP=",
     "LLVM_ENABLE_NEW_PASS_MANAGER=1",
     "LLVM_FORCE_ENABLE_STATS=",

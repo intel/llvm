@@ -1,3 +1,5 @@
+assert/__assert_fail.cl
+reflect.ll
 atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 integer/mul24.cl
@@ -85,6 +87,7 @@ images/image_helpers.ll
 images/image.cl
 group/collectives_helpers.ll
 group/collectives.cl
+group/group_ballot.cl
 atomic/atomic_add.cl
 atomic/atomic_and.cl
 atomic/atomic_cmpxchg.cl

@@ -65,19 +65,21 @@ class Module;
 /// such that it could levarage polymorphism to extract common code for
 /// DbgVariable and DbgLabel.
 class DbgEntity {
-  const DINode *Entity;
-  const DILocation *InlinedAt;
-  DIE *TheDIE = nullptr;
-  unsigned SubclassID;
-
 public:
   enum DbgEntityKind {
     DbgVariableKind,
     DbgLabelKind
   };
 
-  DbgEntity(const DINode *N, const DILocation *IA, unsigned ID)
-    : Entity(N), InlinedAt(IA), SubclassID(ID) {}
+private:
+  const DINode *Entity;
+  const DILocation *InlinedAt;
+  DIE *TheDIE = nullptr;
+  const DbgEntityKind SubclassID;
+
+public:
+  DbgEntity(const DINode *N, const DILocation *IA, DbgEntityKind ID)
+      : Entity(N), InlinedAt(IA), SubclassID(ID) {}
   virtual ~DbgEntity() {}
 
   /// Accessors.
@@ -85,19 +87,18 @@ public:
   const DINode *getEntity() const { return Entity; }
   const DILocation *getInlinedAt() const { return InlinedAt; }
   DIE *getDIE() const { return TheDIE; }
-  unsigned getDbgEntityID() const { return SubclassID; }
+  DbgEntityKind getDbgEntityID() const { return SubclassID; }
   /// @}
 
   void setDIE(DIE &D) { TheDIE = &D; }
 
   static bool classof(const DbgEntity *N) {
     switch (N->getDbgEntityID()) {
-    default:
-      return false;
     case DbgVariableKind:
     case DbgLabelKind:
       return true;
     }
+    llvm_unreachable("Invalid DbgEntityKind");
   }
 };
 
@@ -315,11 +316,13 @@ class DwarfDebug : public DebugHandlerBase {
   /// can refer to them in spite of insertions into this list.
   DebugLocStream DebugLocs;
 
+  using SubprogramSetVector =
+      SetVector<const DISubprogram *, SmallVector<const DISubprogram *, 16>,
+                SmallPtrSet<const DISubprogram *, 16>>;
+
   /// This is a collection of subprogram MDNodes that are processed to
   /// create DIEs.
-  SetVector<const DISubprogram *, SmallVector<const DISubprogram *, 16>,
-            SmallPtrSet<const DISubprogram *, 16>>
-      ProcessedSPNodes;
+  SubprogramSetVector ProcessedSPNodes;
 
   /// If nonnull, stores the current machine function we're processing.
   const MachineFunction *CurFn = nullptr;
@@ -597,10 +600,6 @@ private:
   void finishUnitAttributes(const DICompileUnit *DIUnit,
                             DwarfCompileUnit &NewCU);
 
-  /// Construct imported_module or imported_declaration DIE.
-  void constructAndAddImportedEntityDIE(DwarfCompileUnit &TheCU,
-                                        const DIImportedEntity *N);
-
   /// Register a source line with debug info. Returns the unique
   /// label that was emitted and which provides correspondence to the
   /// source line list.
@@ -665,6 +664,12 @@ public:
   /// type units.
   void addDwarfTypeUnitType(DwarfCompileUnit &CU, StringRef Identifier,
                             DIE &Die, const DICompositeType *CTy);
+
+  /// Return the type unit signature of \p CTy after finding or creating its
+  /// type unit. Return None if a type unit cannot be created for \p CTy.
+  Optional<uint64_t> getOrCreateDwarfTypeUnit(DwarfCompileUnit &CU,
+                                              StringRef Identifier,
+                                              const DICompositeType *CTy);
 
   class NonTypeUnitContext {
     DwarfDebug *DD;
@@ -780,6 +785,9 @@ public:
   /// Returns the previous CU that was being updated
   const DwarfCompileUnit *getPrevCU() const { return PrevCU; }
   void setPrevCU(const DwarfCompileUnit *PrevCU) { this->PrevCU = PrevCU; }
+
+  /// Terminate the line table by adding the last range label.
+  void terminateLineTable(const DwarfCompileUnit *CU);
 
   /// Returns the entries for the .debug_loc section.
   const DebugLocStream &getDebugLocs() const { return DebugLocs; }

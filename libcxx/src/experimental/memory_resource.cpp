@@ -1,4 +1,4 @@
-//===------------------------ memory_resource.cpp -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -76,9 +76,9 @@ union ResourceInitHelper {
   ~ResourceInitHelper() {}
 };
 
-# 79 "memory_resource.cpp" 1 3
-_LIBCPP_SAFE_STATIC ResourceInitHelper res_init _LIBCPP_INIT_PRIORITY_MAX;
-# 81 "memory_resource.cpp" 2
+// Pretend we're inside a system header so the compiler doesn't flag the use of the init_priority
+// attribute with a value that's reserved for the implementation (we're the implementation).
+#include "memory_resource_init_helper.h"
 
 } // end namespace
 

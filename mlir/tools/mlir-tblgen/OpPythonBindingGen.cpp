@@ -67,6 +67,7 @@ class {0}(_ods_ir.OpView):
 /// Each segment spec is either None (default) or an array of integers
 /// where:
 ///   1 = single element (expect non sequence operand/result)
+///   0 = optional element (expect a value or None)
 ///   -1 = operand/result is a sequence corresponding to a variadic
 constexpr const char *opClassSizedSegmentsTemplate = R"Py(
   _ODS_{0}_SEGMENTS = {1}
@@ -108,10 +109,13 @@ constexpr const char *opSingleAfterVariableTemplate = R"Py(
 ///   {1} is either 'operand' or 'result';
 ///   {2} is the total number of element groups;
 ///   {3} is the position of the current group in the group list.
+/// This works if we have only one variable-length group (and it's the optional
+/// operand/result): we can deduce it's absent if the `len(operation.{1}s)` is
+/// smaller than the total number of groups.
 constexpr const char *opOneOptionalTemplate = R"Py(
   @builtins.property
   def {0}(self):
-    return self.operation.{1}s[{3}] if len(self.operation.{1}s) > {2} else None
+    return None if len(self.operation.{1}s) < {2} else self.operation.{1}s[{3}]
 )Py";
 
 /// Template for the variadic group accessor in the single variadic group case:
@@ -310,7 +314,7 @@ static std::string attrSizedTraitForKind(const char *kind) {
 /// `operand` or `result` and is used verbatim in the emitted code.
 static void emitElementAccessors(
     const Operator &op, raw_ostream &os, const char *kind,
-    llvm::function_ref<unsigned(const Operator &)> getNumVariadic,
+    llvm::function_ref<unsigned(const Operator &)> getNumVariableLength,
     llvm::function_ref<int(const Operator &)> getNumElements,
     llvm::function_ref<const NamedTypeConstraint &(const Operator &, int)>
         getElement) {
@@ -325,12 +329,12 @@ static void emitElementAccessors(
                     llvm::StringRef(kind).drop_front());
   std::string attrSizedTrait = attrSizedTraitForKind(kind);
 
-  unsigned numVariadic = getNumVariadic(op);
+  unsigned numVariableLength = getNumVariableLength(op);
 
-  // If there is only one variadic element group, its size can be inferred from
-  // the total number of elements. If there are none, the generation is
-  // straightforward.
-  if (numVariadic <= 1) {
+  // If there is only one variable-length element group, its size can be
+  // inferred from the total number of elements. If there are none, the
+  // generation is straightforward.
+  if (numVariableLength <= 1) {
     bool seenVariableLength = false;
     for (int i = 0, e = getNumElements(op); i < e; ++i) {
       const NamedTypeConstraint &element = getElement(op, i);
@@ -363,7 +367,7 @@ static void emitElementAccessors(
       const NamedTypeConstraint &element = getElement(op, i);
       if (!element.name.empty()) {
         os << llvm::formatv(opVariadicEqualPrefixTemplate,
-                            sanitizeName(element.name), kind, numVariadic,
+                            sanitizeName(element.name), kind, numVariableLength,
                             numPrecedingSimple, numPrecedingVariadic);
         os << llvm::formatv(element.isVariableLength()
                                 ? opVariadicEqualVariadicTemplate
@@ -413,20 +417,20 @@ static const NamedTypeConstraint &getResult(const Operator &op, int i) {
 
 /// Emits accessors to Op operands.
 static void emitOperandAccessors(const Operator &op, raw_ostream &os) {
-  auto getNumVariadic = [](const Operator &oper) {
+  auto getNumVariableLengthOperands = [](const Operator &oper) {
     return oper.getNumVariableLengthOperands();
   };
-  emitElementAccessors(op, os, "operand", getNumVariadic, getNumOperands,
-                       getOperand);
+  emitElementAccessors(op, os, "operand", getNumVariableLengthOperands,
+                       getNumOperands, getOperand);
 }
 
 /// Emits accessors Op results.
 static void emitResultAccessors(const Operator &op, raw_ostream &os) {
-  auto getNumVariadic = [](const Operator &oper) {
+  auto getNumVariableLengthResults = [](const Operator &oper) {
     return oper.getNumVariableLengthResults();
   };
-  emitElementAccessors(op, os, "result", getNumVariadic, getNumResults,
-                       getResult);
+  emitElementAccessors(op, os, "result", getNumVariableLengthResults,
+                       getNumResults, getResult);
 }
 
 /// Emits accessors to Op attributes.
@@ -505,6 +509,9 @@ constexpr const char *singleResultAppendTemplate = "results.append({0})";
 ///   {0} is the field name.
 constexpr const char *optionalAppendOperandTemplate =
     "if {0} is not None: operands.append(_get_op_result_or_value({0}))";
+constexpr const char *optionalAppendAttrSizedOperandsTemplate =
+    "operands.append(_get_op_result_or_value({0}) if {0} is not None else "
+    "None)";
 constexpr const char *optionalAppendResultTemplate =
     "if {0} is not None: results.append({0})";
 
@@ -693,7 +700,11 @@ populateBuilderLinesOperand(const Operator &op,
     if (!element.isVariableLength()) {
       formatString = singleOperandAppendTemplate;
     } else if (element.isOptional()) {
-      formatString = optionalAppendOperandTemplate;
+      if (sizedSegments) {
+        formatString = optionalAppendAttrSizedOperandsTemplate;
+      } else {
+        formatString = optionalAppendOperandTemplate;
+      }
     } else {
       assert(element.isVariadic() && "unhandled element group type");
       // If emitting with sizedSegments, then we add the actual list-typed
@@ -882,10 +893,10 @@ static void emitSegmentSpec(
   std::string segmentSpec("[");
   for (int i = 0, e = getNumElements(op); i < e; ++i) {
     const NamedTypeConstraint &element = getElement(op, i);
-    if (element.isVariableLength()) {
-      segmentSpec.append("-1,");
-    } else if (element.isOptional()) {
+    if (element.isOptional()) {
       segmentSpec.append("0,");
+    } else if (element.isVariadic()) {
+      segmentSpec.append("-1,");
     } else {
       segmentSpec.append("1,");
     }

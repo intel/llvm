@@ -2221,14 +2221,9 @@ public:
     return true;
   }
 
-  // Generate kernel argument to intialize specialization constants. This
-  // argument is only generated when the target has no native support for
-  // specialization constants
+  // Generate kernel argument to initialize specialization constants.
   void handleSyclKernelHandlerType() {
     ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
-
     StringRef Name = "_arg__specialization_constants_buffer";
     addParam(Name, Context.getPointerType(Context.getAddrSpaceQualType(
                        Context.CharTy, LangAS::sycl_global)));
@@ -2471,9 +2466,6 @@ public:
   }
 
   void handleSyclKernelHandlerType() {
-    ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
     addParam(DC.getParamVarDeclsForCurrentField()[0]->getType(),
              "SYCL2020 specialization constant");
   }
@@ -3239,7 +3231,7 @@ public:
     assert(ClassTy && "Type must be a C++ record type");
     if (Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)) {
       const auto *AccTy =
-          dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
+          cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
       assert(AccTy->getTemplateArgs().size() >= 2 &&
              "Incorrect template args for Accessor Type");
       int Dims = static_cast<int>(
@@ -3322,13 +3314,8 @@ public:
   void handleSyclKernelHandlerType(QualType Ty) {
     // The compiler generated kernel argument used to initialize SYCL 2020
     // specialization constants, `specialization_constants_buffer`, should
-    // have corresponding entry in integration header. This argument is
-    // only generated when target has no native support for specialization
-    // constants.
+    // have corresponding entry in integration header.
     ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
-
     // Offset is zero since kernel_handler argument is not part of
     // kernel object (i.e. it is not captured)
     addParam(Context.getPointerType(Context.CharTy),
@@ -3529,7 +3516,8 @@ public:
           // case will resolve to ::main::KernelName1 (instead of
           // ::KernelName1). Since this is not visible to runtime code that
           // submits kernels, this is invalid.
-          if (Tag->isCompleteDefinition() || S.getLangOpts().SYCLIsHost) {
+          if (Tag->isCompleteDefinition() ||
+              S.getLangOpts().SYCLEnableIntHeaderDiags) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
                 << /* kernel name should be forward declarable at namespace
@@ -4161,7 +4149,7 @@ bool Sema::checkAllowedSYCLInitializer(VarDecl *VD) {
     return true;
 
   const Expr *Init = VD->getInit();
-  bool ValueDependent = Init->isValueDependent();
+  bool ValueDependent = Init && Init->isValueDependent();
   bool isConstantInit =
       Init && !ValueDependent && Init->isConstantInitializer(Context, false);
   if (!VD->isConstexpr() && Init && !ValueDependent && !isConstantInit)
@@ -5188,7 +5176,9 @@ bool Util::matchContext(const DeclContext *Ctx,
       return false;
     Ctx = Ctx->getParent();
   }
-  return Ctx->isTranslationUnit();
+  return Ctx->isTranslationUnit() ||
+         (Ctx->isExternCXXContext() &&
+          Ctx->getEnclosingNamespaceContext()->isTranslationUnit());
 }
 
 bool Util::matchQualifiedTypeName(QualType Ty,
