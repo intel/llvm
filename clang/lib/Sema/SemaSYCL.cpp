@@ -20,6 +20,7 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
@@ -4573,6 +4574,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
+
+  // Predefines which need to be set for custom host compilation
+  // must be defined in integration header.
+  for (const std::pair<StringRef, StringRef> &Macro :
+       getSYCLVersionMacros(S.getLangOpts())) {
+    O << "#ifndef " << Macro.first << '\n';
+    O << "#define " << Macro.first << " " << Macro.second << '\n';
+    O << "#endif //" << Macro.first << "\n\n";
+  }
+
+  if (S.getLangOpts().SYCLDisableRangeRounding) {
+    O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+  }
 
   if (SpecConsts.size() > 0) {
     O << "// Forward declarations of templated spec constant types:\n";
