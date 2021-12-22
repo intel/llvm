@@ -13,7 +13,7 @@
 #include <random>
 #include <vector>
 
-namespace my_sycl = sycl::ext::oneapi;
+namespace my_sycl = sycl::ext::oneapi::experimental;
 
 auto async_handler_ = [](sycl::exception_list ex_list) {
   for (auto &ex : ex_list) {
@@ -105,9 +105,8 @@ int test_sort_over_group(sycl::queue &q, std::size_t local,
 
   sycl::range<dim> local_range = get_range<dim>(local);
 
-  std::size_t local_memory_size =
-      my_sycl::experimental::default_sorter<>::memory_required<T>(
-          sycl::memory_scope::work_group, local_range);
+  std::size_t local_memory_size = my_sycl::default_sorter<>::memory_required<T>(
+      sycl::memory_scope::work_group, local_range);
 
   if (local_memory_size >
       q.get_device().template get_info<sycl::info::device::local_mem_size>())
@@ -131,14 +130,14 @@ int test_sort_over_group(sycl::queue &q, std::size_t local,
              if constexpr (std::is_same_v<Compare, std::less<T>> &&
                            !std::is_same_v<T, CustomType>)
                aI1[local_id] = my_sycl::sort_over_group(
-                   my_sycl::experimental::group_with_scratchpad(
+                   my_sycl::group_with_scratchpad(
                        id.get_group(),
                        sycl::span{&scratch[0], local_memory_size}),
                    aI1[local_id]);
              break;
            case 1:
              aI1[local_id] = my_sycl::sort_over_group(
-                 my_sycl::experimental::group_with_scratchpad(
+                 my_sycl::group_with_scratchpad(
                      id.get_group(),
                      sycl::span{&scratch[0], local_memory_size}),
                  aI1[local_id], comp);
@@ -146,7 +145,7 @@ int test_sort_over_group(sycl::queue &q, std::size_t local,
            case 2:
              aI1[local_id] = my_sycl::sort_over_group(
                  id.get_group(), aI1[local_id],
-                 my_sycl::experimental::default_sorter<Compare>(
+                 my_sycl::default_sorter<Compare>(
                      sycl::span{&scratch[0], local_memory_size}));
              break;
            }
@@ -161,9 +160,8 @@ int test_joint_sort(sycl::queue &q, std::size_t n_items, std::size_t local,
   auto n = bufI1.size();
   auto n_groups = (n - 1) / n_items + 1;
 
-  std::size_t local_memory_size =
-      my_sycl::experimental::default_sorter<>::memory_required<T>(
-          sycl::memory_scope::work_group, n);
+  std::size_t local_memory_size = my_sycl::default_sorter<>::memory_required<T>(
+      sycl::memory_scope::work_group, n);
   if (local_memory_size >
       q.get_device().template get_info<sycl::info::device::local_mem_size>())
     std::cout << "local_memory_size = " << local_memory_size << ", available = "
@@ -190,7 +188,7 @@ int test_joint_sort(sycl::queue &q, std::size_t n_items, std::size_t local,
              if constexpr (std::is_same_v<Compare, std::less<T>> &&
                            !std::is_same_v<T, CustomType>)
                my_sycl::joint_sort(
-                   my_sycl::experimental::group_with_scratchpad(
+                   my_sycl::group_with_scratchpad(
                        id.get_group(),
                        sycl::span{&scratch[0], local_memory_size}),
                    ptr_keys,
@@ -198,7 +196,7 @@ int test_joint_sort(sycl::queue &q, std::size_t n_items, std::size_t local,
              break;
            case 1:
              my_sycl::joint_sort(
-                 my_sycl::experimental::group_with_scratchpad(
+                 my_sycl::group_with_scratchpad(
                      id.get_group(),
                      sycl::span{&scratch[0], local_memory_size}),
                  ptr_keys,
@@ -208,7 +206,7 @@ int test_joint_sort(sycl::queue &q, std::size_t n_items, std::size_t local,
              my_sycl::joint_sort(
                  id.get_group(), ptr_keys,
                  ptr_keys + sycl::min(n_items, n - group_id * n_items),
-                 my_sycl::experimental::default_sorter<Compare>(
+                 my_sycl::default_sorter<Compare>(
                      sycl::span{&scratch[0], local_memory_size}));
              break;
            }
