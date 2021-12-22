@@ -1544,7 +1544,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       return BVar;
     if (static_cast<uint32_t>(Builtin) >= internal::BuiltInSubDeviceIDINTEL &&
         static_cast<uint32_t>(Builtin) <=
-            internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL) {
+            internal::BuiltInGlobalHWThreadIDINTEL) {
       if (!BM->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_hw_thread_queries)) {
         std::string ErrorStr = "Intel HW thread queries must be enabled by "

@@ -46,6 +46,17 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     [Download](https://visualstudio.microsoft.com/downloads/)
 
+Alternatively, you can use Docker image, that has everything you need
+pre-installed:
+
+```
+docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2004_base /bin/bash
+```
+
+This command will start a terminal session, from which you can proceed with the
+instructions below. See [Docker BKMs](dev/DockerBKMs.md) for more info on Docker
+commands.
+
 ### Create DPC++ workspace
 
 Throughout this document `DPCPP_HOME` denotes the path to the local directory
