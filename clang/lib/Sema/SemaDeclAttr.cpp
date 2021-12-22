@@ -6515,7 +6515,7 @@ static void handleSYCLIntelNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
 
 /// Handle the [[intel::singlepump]] attribute.
 static void handleSYCLIntelFPGASinglePumpAttr(Sema &S, Decl *D,
-		                              const ParsedAttr &AL) {
+                                              const ParsedAttr &AL) {
   checkForDuplicateAttribute<IntelFPGASinglePumpAttr>(S, D, AL);
 
   // If the declaration does not have an [[intel::fpga_memory]]
