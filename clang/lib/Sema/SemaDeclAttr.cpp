@@ -7132,8 +7132,7 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, CI, E));
 }
 
-static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D,
-                                      const ParsedAttr &A) {
+static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   Expr *E = A.getArgAsExpr(0);
   S.addSYCLIntelPipeIOAttr(D, A, E);
 }
