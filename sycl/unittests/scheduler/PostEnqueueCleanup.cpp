@@ -1,4 +1,4 @@
-//==------------ QueueFlushing.cpp --- Scheduler unit tests ----------------==//
+//==--------- PostEnqueueCleanup.cpp --- Scheduler unit tests --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -198,10 +198,6 @@ static void checkCleanupOnLeafUpdate(
 }
 
 TEST_F(SchedulerTest, PostEnqueueCleanup) {
-  // Enforce creation of linked commands to test all sites of calling cleanup.
-  unittest::ScopedEnvVar HostUnifiedMemoryVar{
-      HostUnifiedMemoryName, "1",
-      detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
   default_selector Selector;
   platform Plt{default_selector()};
   if (Plt.is_host()) {
@@ -209,6 +205,10 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
     return;
   }
 
+  // Enforce creation of linked commands to test all sites of calling cleanup.
+  unittest::ScopedEnvVar HostUnifiedMemoryVar{
+      HostUnifiedMemoryName, "1",
+      detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
