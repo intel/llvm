@@ -10,9 +10,15 @@
 
 #pragma once
 
+// The test proxy if solely for the test purposes, so it's off by default, with
+// no any code generated. It is enabled only if the __ESIMD_ENABLE_TEST_PROXY
+// macro is defined.
+// It's expected for the proxy class to be available in device code, so that it
+// could be incorporated into the ESIMD API classes. Though there is no reason
+// to limit it to the __SYCL_DEVICE_ONLY__.
 #ifndef __ESIMD_ENABLE_TEST_PROXY
 
-// No ABI-breaking changes by default
+// No code generation by default
 #define __ESIMD_DECLARE_TEST_PROXY
 #define __ESIMD_DECLARE_TEST_PROXY_ACCESS
 #define __esimd_move_test_proxy(other)
@@ -52,26 +58,25 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
-/// The test_proxy class.
-///
-/// This is a helper class for tests to differentiate between the copy
-/// constructor/assignment and the move constructor/assignment calls,
-/// as the copy constructor works as the default fallback for every case with
-/// move constructor disabled or not provided
-///
-/// The test proxy is enabled only if the __ESIMD_ENABLE_TEST_PROXY macro is
-/// defined.
-/// It is expected for the class with the test proxy (the class under test) to:
-/// - provide the get_test_proxy() method
-/// - properly handle moving the test_proxy member in user-defined move
-///   constructors and user-defined assignment operators
-///
-/// Therefore the following expression is expected to return `true` only if the
-/// move constructor or move operator was called for the instance of the class
-/// under test:
-///   instance.get_test_proxy().was_moved()
-///
-/// \ingroup sycl_esimd
+// The test_proxy class.
+// Being intended solely for the test purposes, it is enabled only if the
+// __ESIMD_ENABLE_TEST_PROXY macro is defined, which is off by default.
+//
+// This is a helper class for tests to differentiate between the copy
+// constructor/assignment and the move constructor/assignment calls,
+// as the copy constructor works as the default fallback for every case with
+// move constructor disabled or not provided
+//
+// It is expected for the class with the test proxy (the class under test) to:
+// - provide the get_test_proxy() method
+// - properly handle moving the test_proxy member in user-defined move
+//   constructors and user-defined assignment operators
+//
+// Therefore the following expression is expected to return `true` only if the
+// move constructor or move operator was called for the instance of the class
+// under test:
+//   instance.get_test_proxy().was_moved()
+//
 class test_proxy {
   // Define the default value to use for every constructor
   bool m_moved = false;
