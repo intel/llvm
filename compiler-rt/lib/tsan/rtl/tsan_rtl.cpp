@@ -210,7 +210,6 @@ static void DoResetImpl(uptr epoch) {
 // error: expecting mutex 'slot.mtx' to be held at start of each loop
 void DoReset(ThreadState* thr, uptr epoch) NO_THREAD_SAFETY_ANALYSIS {
   {
-    Lock l(&ctx->multi_slot_mtx);
     for (auto& slot : ctx->slots) {
       slot.mtx.Lock();
       if (UNLIKELY(epoch == 0))
@@ -337,6 +336,13 @@ void SlotDetach(ThreadState* thr) {
 
 void SlotLock(ThreadState* thr) NO_THREAD_SAFETY_ANALYSIS {
   DCHECK(!thr->slot_locked);
+#if SANITIZER_DEBUG
+  // Check these mutexes are not locked.
+  // We can call DoReset from SlotAttachAndLock, which will lock
+  // these mutexes, but it happens only every once in a while.
+  { ThreadRegistryLock lock(&ctx->thread_registry); }
+  { Lock lock(&ctx->slot_mtx); }
+#endif
   TidSlot* slot = thr->slot;
   slot->mtx.Lock();
   thr->slot_locked = true;
@@ -365,9 +371,7 @@ Context::Context()
       racy_stacks(),
       racy_addresses(),
       fired_suppressions_mtx(MutexTypeFired),
-      clock_alloc(LINKER_INITIALIZED, "clock allocator"),
       slot_mtx(MutexTypeSlots),
-      multi_slot_mtx(MutexTypeMultiSlot),
       resetting() {
   fired_suppressions.reserve(8);
   for (uptr i = 0; i < ARRAY_SIZE(slots); i++) {
@@ -413,11 +417,11 @@ void MemoryProfiler(u64 uptime) {
   WriteToFile(ctx->memprof_fd, buf.data(), internal_strlen(buf.data()));
 }
 
-void InitializeMemoryProfiler() {
+static bool InitializeMemoryProfiler() {
   ctx->memprof_fd = kInvalidFd;
   const char *fname = flags()->profile_memory;
   if (!fname || !fname[0])
-    return;
+    return false;
   if (internal_strcmp(fname, "stdout") == 0) {
     ctx->memprof_fd = 1;
   } else if (internal_strcmp(fname, "stderr") == 0) {
@@ -429,11 +433,11 @@ void InitializeMemoryProfiler() {
     if (ctx->memprof_fd == kInvalidFd) {
       Printf("ThreadSanitizer: failed to open memory profile file '%s'\n",
              filename.data());
-      return;
+      return false;
     }
   }
   MemoryProfiler(0);
-  MaybeSpawnBackgroundThread();
+  return true;
 }
 
 static void *BackgroundThread(void *arg) {
@@ -445,33 +449,34 @@ static void *BackgroundThread(void *arg) {
   const u64 kMs2Ns = 1000 * 1000;
   const u64 start = NanoTime();
 
-  u64 last_flush = NanoTime();
+  u64 last_flush = start;
   uptr last_rss = 0;
-  for (int i = 0;
-      atomic_load(&ctx->stop_background_thread, memory_order_relaxed) == 0;
-      i++) {
+  while (!atomic_load_relaxed(&ctx->stop_background_thread)) {
     SleepForMillis(100);
     u64 now = NanoTime();
 
     // Flush memory if requested.
     if (flags()->flush_memory_ms > 0) {
       if (last_flush + flags()->flush_memory_ms * kMs2Ns < now) {
-        VPrintf(1, "ThreadSanitizer: periodic memory flush\n");
+        VReport(1, "ThreadSanitizer: periodic memory flush\n");
         FlushShadowMemory();
-        last_flush = NanoTime();
+        now = last_flush = NanoTime();
       }
     }
     if (flags()->memory_limit_mb > 0) {
       uptr rss = GetRSS();
       uptr limit = uptr(flags()->memory_limit_mb) << 20;
-      VPrintf(1, "ThreadSanitizer: memory flush check"
-                 " RSS=%llu LAST=%llu LIMIT=%llu\n",
+      VReport(1,
+              "ThreadSanitizer: memory flush check"
+              " RSS=%llu LAST=%llu LIMIT=%llu\n",
               (u64)rss >> 20, (u64)last_rss >> 20, (u64)limit >> 20);
       if (2 * rss > limit + last_rss) {
-        VPrintf(1, "ThreadSanitizer: flushing memory due to RSS\n");
+        VReport(1, "ThreadSanitizer: flushing memory due to RSS\n");
         FlushShadowMemory();
         rss = GetRSS();
-        VPrintf(1, "ThreadSanitizer: memory flushed RSS=%llu\n", (u64)rss>>20);
+        now = NanoTime();
+        VReport(1, "ThreadSanitizer: memory flushed RSS=%llu\n",
+                (u64)rss >> 20);
       }
       last_rss = rss;
     }
@@ -684,7 +689,8 @@ void Initialize(ThreadState *thr) {
 
 #if !SANITIZER_GO
   Symbolizer::LateInitialize();
-  InitializeMemoryProfiler();
+  if (InitializeMemoryProfiler() || flags()->force_background_thread)
+    MaybeSpawnBackgroundThread();
 #endif
   ctx->initialized = true;
 
@@ -697,18 +703,6 @@ void Initialize(ThreadState *thr) {
 
   OnInitialize();
 }
-
-#if !SANITIZER_GO
-#  pragma clang diagnostic push
-// We intentionally use a global constructor to delay the pthread call.
-#  pragma clang diagnostic ignored "-Wglobal-constructors"
-static bool UNUSED __local_tsan_dyninit = [] {
-  if (flags()->force_background_thread)
-    MaybeSpawnBackgroundThread();
-  return false;
-}();
-#  pragma clang diagnostic pop
-#endif
 
 void MaybeSpawnBackgroundThread() {
   // On MIPS, TSan initialization is run before
@@ -767,7 +761,6 @@ void ForkBefore(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   // Detaching from the slot makes OnUserFree skip writing to the shadow.
   // The slot will be locked so any attempts to use it will deadlock anyway.
   SlotDetach(thr);
-  ctx->multi_slot_mtx.Lock();
   for (auto& slot : ctx->slots) slot.mtx.Lock();
   ctx->thread_registry.Lock();
   ctx->slot_mtx.Lock();
@@ -799,7 +792,6 @@ static void ForkAfter(ThreadState* thr) NO_THREAD_SAFETY_ANALYSIS {
   ctx->slot_mtx.Unlock();
   ctx->thread_registry.Unlock();
   for (auto& slot : ctx->slots) slot.mtx.Unlock();
-  ctx->multi_slot_mtx.Unlock();
   SlotAttachAndLock(thr);
   SlotUnlock(thr);
   GlobalProcessorUnlock();
@@ -809,7 +801,7 @@ void ForkParentAfter(ThreadState* thr, uptr pc) { ForkAfter(thr); }
 
 void ForkChildAfter(ThreadState* thr, uptr pc, bool start_thread) {
   ForkAfter(thr);
-  u32 nthread = ThreadCount(thr);
+  u32 nthread = ctx->thread_registry.OnFork(thr->tid);
   VPrintf(1,
           "ThreadSanitizer: forked new process with pid %d,"
           " parent had %d threads\n",
@@ -961,8 +953,18 @@ void TraceSwitchPartImpl(ThreadState* thr) {
   }
   {
     Lock lock(&ctx->slot_mtx);
-    ctx->slot_queue.Remove(thr->slot);
-    ctx->slot_queue.PushBack(thr->slot);
+    // There is a small chance that the slot may be not queued at this point.
+    // This can happen if the slot has kEpochLast epoch and another thread
+    // in FindSlotAndLock discovered that it's exhausted and removed it from
+    // the slot queue. kEpochLast can happen in 2 cases: (1) if TraceSwitchPart
+    // was called with the slot locked and epoch already at kEpochLast,
+    // or (2) if we've acquired a new slot in SlotLock in the beginning
+    // of the function and the slot was at kEpochLast - 1, so after increment
+    // in SlotAttachAndLock it become kEpochLast.
+    if (ctx->slot_queue.Queued(thr->slot)) {
+      ctx->slot_queue.Remove(thr->slot);
+      ctx->slot_queue.PushBack(thr->slot);
+    }
     if (recycle)
       ctx->trace_part_recycle.PushBack(recycle);
   }
@@ -970,12 +972,6 @@ void TraceSwitchPartImpl(ThreadState* thr) {
           trace->parts.Front(), trace->parts.Back(),
           atomic_load_relaxed(&thr->trace_pos));
 }
-
-#if !SANITIZER_GO
-extern "C" void __tsan_trace_switch() {}
-
-extern "C" void __tsan_report_race() {}
-#endif
 
 void ThreadIgnoreBegin(ThreadState* thr, uptr pc) {
   DPrintf("#%d: ThreadIgnoreBegin\n", thr->tid);
@@ -1053,9 +1049,7 @@ MutexMeta mutex_meta[] = {
     {MutexTypeAtExit, "AtExit", {}},
     {MutexTypeFired, "Fired", {MutexLeaf}},
     {MutexTypeRacy, "Racy", {MutexLeaf}},
-    {MutexTypeGlobalProc,
-     "GlobalProc",
-     {MutexTypeSlot, MutexTypeSlots, MutexTypeMultiSlot}},
+    {MutexTypeGlobalProc, "GlobalProc", {MutexTypeSlot, MutexTypeSlots}},
     {MutexTypeInternalAlloc, "InternalAlloc", {MutexLeaf}},
     {MutexTypeTrace, "Trace", {}},
     {MutexTypeSlot,
@@ -1063,7 +1057,6 @@ MutexMeta mutex_meta[] = {
      {MutexMulti, MutexTypeTrace, MutexTypeSyncVar, MutexThreadRegistry,
       MutexTypeSlots}},
     {MutexTypeSlots, "Slots", {MutexTypeTrace, MutexTypeReport}},
-    {MutexTypeMultiSlot, "MultiSlot", {MutexTypeSlot, MutexTypeSlots}},
     {},
 };
 

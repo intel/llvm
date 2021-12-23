@@ -202,7 +202,8 @@ CodeGenFunction::MakeNaturalAlignPointeeAddrLValue(llvm::Value *V, QualType T) {
   TBAAAccessInfo TBAAInfo;
   CharUnits Align = CGM.getNaturalTypeAlignment(T, &BaseInfo, &TBAAInfo,
                                                 /* forPointeeType= */ true);
-  return MakeAddrLValue(Address(V, Align), T, BaseInfo, TBAAInfo);
+  Address Addr(V, ConvertTypeForMem(T), Align);
+  return MakeAddrLValue(Addr, T, BaseInfo, TBAAInfo);
 }
 
 
@@ -2399,6 +2400,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::Record:
     case Type::Enum:
     case Type::Elaborated:
+    case Type::Using:
     case Type::TemplateSpecialization:
     case Type::ObjCTypeParam:
     case Type::ObjCObject:
