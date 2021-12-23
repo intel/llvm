@@ -5,19 +5,18 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// CUDA backend has had no support for the generic address space yet
+// XFAIL: cuda
+
 #include "add.h"
 #include <iostream>
 using namespace sycl;
 
 // Floating-point types do not support pre- or post-increment
-template <> void add_test<double>(queue q, size_t N) {
-  add_fetch_test<::sycl::ext::oneapi::atomic_ref,
-                 access::address_space::global_space, double>(q, N);
-  add_fetch_test<::sycl::atomic_ref, access::address_space::global_space,
+template <> void add_generic_test<double>(queue q, size_t N) {
+  add_fetch_test<::sycl::atomic_ref, access::address_space::generic_space,
                  double>(q, N);
-  add_plus_equal_test<::sycl::ext::oneapi::atomic_ref,
-                      access::address_space::global_space, double>(q, N);
-  add_plus_equal_test<::sycl::atomic_ref, access::address_space::global_space,
+  add_plus_equal_test<::sycl::atomic_ref, access::address_space::generic_space,
                       double>(q, N);
 }
 
@@ -30,23 +29,23 @@ int main() {
   }
 
   constexpr int N = 32;
-  add_test<double>(q, N);
+  add_generic_test<double>(q, N);
 
   // Include long tests if they are 64 bits wide
   if constexpr (sizeof(long) == 8) {
-    add_test<long>(q, N);
-    add_test<unsigned long>(q, N);
+    add_generic_test<long>(q, N);
+    add_generic_test<unsigned long>(q, N);
   }
 
   // Include long long tests if they are 64 bits wide
   if constexpr (sizeof(long long) == 8) {
-    add_test<long long>(q, N);
-    add_test<unsigned long long>(q, N);
+    add_generic_test<long long>(q, N);
+    add_generic_test<unsigned long long>(q, N);
   }
 
   // Include pointer tests if they are 64 bits wide
   if constexpr (sizeof(char *) == 8) {
-    add_test<char *, ptrdiff_t>(q, N);
+    add_generic_test<char *, ptrdiff_t>(q, N);
   }
 
   std::cout << "Test passed." << std::endl;

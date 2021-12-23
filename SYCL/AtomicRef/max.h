@@ -11,7 +11,7 @@ using namespace sycl::ext::oneapi;
 
 template <template <typename, memory_order, memory_scope, access::address_space>
           class AtomicRef,
-          typename T>
+          access::address_space address_space, typename T>
 void max_test(queue q, size_t N) {
   T initial = std::numeric_limits<T>::lowest();
   T val = initial;
@@ -28,7 +28,7 @@ void max_test(queue q, size_t N) {
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
         auto atm = AtomicRef<T, memory_order::relaxed, memory_scope::device,
-                             access::address_space::global_space>(val[0]);
+                             address_space>(val[0]);
         // +1 accounts for lowest() returning 0 for unsigned types
         out[gid] = atm.fetch_max(T(gid) + 1);
       });
@@ -49,6 +49,11 @@ void max_test(queue q, size_t N) {
 }
 
 template <typename T> void max_test(queue q, size_t N) {
-  max_test<::sycl::ext::oneapi::atomic_ref, T>(q, N);
-  max_test<::sycl::atomic_ref, T>(q, N);
+  max_test<::sycl::ext::oneapi::atomic_ref, access::address_space::global_space,
+           T>(q, N);
+  max_test<::sycl::atomic_ref, access::address_space::global_space, T>(q, N);
+}
+
+template <typename T> void max_generic_test(queue q, size_t N) {
+  max_test<::sycl::atomic_ref, access::address_space::generic_space, T>(q, N);
 }

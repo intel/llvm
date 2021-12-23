@@ -11,12 +11,12 @@ using namespace sycl::ext::oneapi;
 
 template <template <typename, memory_order, memory_scope, access::address_space>
           class AtomicRef,
-          typename T>
+          access::address_space address_space, typename T>
 class compare_exchange_kernel;
 
 template <template <typename, memory_order, memory_scope, access::address_space>
           class AtomicRef,
-          typename T>
+          access::address_space address_space, typename T>
 void compare_exchange_test(queue q, size_t N) {
   const T initial = T(N);
   T compare_exchange = initial;
@@ -32,11 +32,11 @@ void compare_exchange_test(queue q, size_t N) {
               cgh);
       auto out =
           output_buf.template get_access<access::mode::discard_write>(cgh);
-      cgh.parallel_for<compare_exchange_kernel<AtomicRef, T>>(
+      cgh.parallel_for<compare_exchange_kernel<AtomicRef, address_space, T>>(
           range<1>(N), [=](item<1> it) {
             size_t gid = it.get_id(0);
             auto atm = AtomicRef<T, memory_order::relaxed, memory_scope::device,
-                                 access::address_space::global_space>(exc[0]);
+                                 address_space>(exc[0]);
             T result = T(N); // Avoid copying pointer
             bool success = atm.compare_exchange_strong(result, (T)gid);
             if (success) {
@@ -58,6 +58,13 @@ void compare_exchange_test(queue q, size_t N) {
 }
 
 template <typename T> void compare_exchange_test(queue q, size_t N) {
-  compare_exchange_test<::sycl::ext::oneapi::atomic_ref, T>(q, N);
-  compare_exchange_test<::sycl::atomic_ref, T>(q, N);
+  compare_exchange_test<::sycl::ext::oneapi::atomic_ref,
+                        access::address_space::global_space, T>(q, N);
+  compare_exchange_test<::sycl::atomic_ref, access::address_space::global_space,
+                        T>(q, N);
+}
+
+template <typename T> void compare_exchange_generic_test(queue q, size_t N) {
+  compare_exchange_test<::sycl::atomic_ref,
+                        access::address_space::generic_space, T>(q, N);
 }
