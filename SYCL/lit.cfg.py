@@ -342,9 +342,12 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(os.path.join(xptifw_include
     config.available_features.add('xptifw')
     config.substitutions.append(('%xptifw_dispatcher', xptifw_dispatcher))
     if platform.system() == "Linux":
-        config.substitutions.append(('%xptifw_lib', " {}/xptifw.lib".format(xptifw_lib_dir)))
+        config.substitutions.append(('%xptifw_lib', " -L{} -lxptifw -I{} ".format(xptifw_lib_dir, xptifw_includes)))
     elif platform.system() == "Windows":
-        config.substitutions.append(('%xptifw_lib', "-L{} -I{} -lxptifw".format(xptifw_lib_dir, xptifw_includes)))
+        if cl_options:
+            config.substitutions.append(('%xptifw_lib', " {}/xptifw.lib /I{} ".format(xptifw_lib_dir, xptifw_includes)))
+        else:
+            config.substitutions.append(('%xptifw_lib', " {}/xptifw.lib -I{} ".format(xptifw_lib_dir, xptifw_includes)))
 
 
 llvm_tools = ["llvm-spirv", "llvm-link"]
