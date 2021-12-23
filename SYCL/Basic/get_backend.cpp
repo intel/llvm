@@ -1,6 +1,6 @@
-// UNSUPPORTED: TEMPORARY_DISABLED
+// REQUIRES: TEMPORARY_DISABLED
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=%sycl_be %t.out
+// RUN: %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().
