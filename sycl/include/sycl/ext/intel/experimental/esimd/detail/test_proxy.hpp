@@ -36,10 +36,13 @@
 // constructors and move operators.
 // Still the user-defined constructors or move operators should explicitly state
 // what to do with each of class atributes, so a proper wrapper required
+//
+// We are using a simple do-while trick to make sure no code breakage could
+// possibly occur in case macro becomes multistatement (PRE10-C in SEI CERT C)
 #define __esimd_move_test_proxy(other)                                         \
   do {                                                                         \
     M_testProxy = std::move(other.M_testProxy);                                \
-  } while (false);
+  } while (false)
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
