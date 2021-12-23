@@ -1,5 +1,5 @@
-// FIXME: fails on HIP and accelerator
-// UNSUPPORTED: hip || (opencl && acc)
+// FIXME: Fails on HIP and OpenCL accelerator
+// UNSUPPORTED: hip, (opencl && accelerator)
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
