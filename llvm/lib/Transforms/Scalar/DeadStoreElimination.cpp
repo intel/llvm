@@ -206,9 +206,9 @@ static bool isRemovable(Instruction *I) {
     }
   }
 
-  // note: only get here for calls with analyzable writes - i.e. libcalls
+  // note: only get here for calls with analyzable writes.
   if (auto *CB = dyn_cast<CallBase>(I))
-    return CB->use_empty();
+    return CB->use_empty() && CB->willReturn() && CB->doesNotThrow();
 
   return false;
 }
@@ -1701,8 +1701,7 @@ struct DSEState {
     LLVM_DEBUG(
         dbgs()
         << "Trying to eliminate MemoryDefs at the end of the function\n");
-    for (int I = MemDefs.size() - 1; I >= 0; I--) {
-      MemoryDef *Def = MemDefs[I];
+    for (MemoryDef *Def : llvm::reverse(MemDefs)) {
       if (SkipStores.contains(Def) || !isRemovable(Def->getMemoryInst()))
         continue;
 
