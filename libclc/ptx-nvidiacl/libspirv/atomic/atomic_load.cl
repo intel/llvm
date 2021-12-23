@@ -17,50 +17,50 @@ extern int __clc_nvvm_reflect_arch();
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
     TYPE_NV res = __nvvm##ORDER##_cta_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(      \
-        (ADDR_SPACE TYPE_NV *)pointer);                    \
+        (ADDR_SPACE TYPE_NV *)pointer);                                        \
     return *(TYPE *)&res;                                                      \
   }                                                                            \
   case Device: {                                                               \
     TYPE_NV res = __nvvm##ORDER##_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(          \
-        (ADDR_SPACE TYPE_NV *)pointer);                    \
+        (ADDR_SPACE TYPE_NV *)pointer);                                        \
     return *(TYPE *)&res;                                                      \
   }                                                                            \
   case CrossDevice:                                                            \
   default: {                                                                   \
     TYPE_NV res = __nvvm##ORDER##_sys_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(      \
-        (ADDR_SPACE TYPE_NV *)pointer);                    \
+        (ADDR_SPACE TYPE_NV *)pointer);                                        \
     return *(TYPE *)&res;                                                      \
   }                                                                            \
   }
 
-#define __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, TYPE_NV,                                                       \
-                                    TYPE_MANGLED_NV, ADDR_SPACE,                                                       \
-                                    ADDR_SPACE_MANGLED, ADDR_SPACE_NV)                                                 \
-  _CLC_DECL TYPE                                                                                                       \
+#define __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, TYPE_NV,                                                          \
+                                    TYPE_MANGLED_NV, ADDR_SPACE,                                                          \
+                                    ADDR_SPACE_MANGLED, ADDR_SPACE_NV)                                                    \
+  _CLC_DECL TYPE                                                                                                          \
       _Z18__spirv_AtomicLoadPU3##ADDR_SPACE_MANGLED##K##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
-          const volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                                                         \
-          enum MemorySemanticsMask semantics) {                                                            \
-    /* Semantics mask may include memory order, storage class and other info                                           \
-Memory order is stored in the lowest 5 bits */                                                                         \
-    unsigned int order = semantics & 0x1F;                                                                             \
-    if (__clc_nvvm_reflect_arch() >= 700) {                                                                          \
-        switch (order) {                                                                                                   \
-        case None:                                                                                                         \
-                __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                          \
-                                                ADDR_SPACE, ADDR_SPACE_NV, )                                                 \
-        case Acquire:                                                                                                      \
-                __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                          \
-                                                ADDR_SPACE, ADDR_SPACE_NV, _acquire)                                         \
-        }                                                                                                                  \
-    } else{                            \
-      if(order == None){ \
-        TYPE_NV res = __nvvm_volatile_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                           \
-                (ADDR_SPACE TYPE_NV *)pointer);                                                        \
-            return *(TYPE *)&res;                                                                                          \
-      } \
-    } \
-    __builtin_trap();                                                                                                  \
-    __builtin_unreachable();                                                                                           \
+          const volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                                                      \
+          enum MemorySemanticsMask semantics) {                                                                           \
+    /* Semantics mask may include memory order, storage class and other info                                              \
+Memory order is stored in the lowest 5 bits */                                                                            \
+    unsigned int order = semantics & 0x1F;                                                                                \
+    if (__clc_nvvm_reflect_arch() >= 700) {                                                                               \
+      switch (order) {                                                                                                    \
+      case None:                                                                                                          \
+        __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                 \
+                                          ADDR_SPACE, ADDR_SPACE_NV, )                                                    \
+      case Acquire:                                                                                                       \
+        __CLC_NVVM_ATOMIC_LOAD_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                 \
+                                          ADDR_SPACE, ADDR_SPACE_NV, _acquire)                                            \
+      }                                                                                                                   \
+    } else {                                                                                                              \
+      if (order == None) {                                                                                                \
+        TYPE_NV res = __nvvm_volatile_ld##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                 \
+            (ADDR_SPACE TYPE_NV *)pointer);                                                                               \
+        return *(TYPE *)&res;                                                                                             \
+      }                                                                                                                   \
+    }                                                                                                                     \
+    __builtin_trap();                                                                                                     \
+    __builtin_unreachable();                                                                                              \
   }
 
 #define __CLC_NVVM_ATOMIC_LOAD(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV)   \

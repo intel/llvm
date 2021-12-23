@@ -46,16 +46,16 @@ Memory order is stored in the lowest 5 bits */                                  
     if (__clc_nvvm_reflect_arch() >= 700) {                                                                                           \
       switch (order) {                                                                                                                \
       case None:                                                                                                                      \
-        __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                        \
+        __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                            \
                                            ADDR_SPACE, ADDR_SPACE_NV, )                                                               \
       case Release:                                                                                                                   \
-        __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                        \
+        __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                            \
                                            ADDR_SPACE, ADDR_SPACE_NV,                                                                 \
                                            _release)                                                                                  \
       }                                                                                                                               \
     } else {                                                                                                                          \
       if (order == None) {                                                                                                            \
-        __nvvm_volatile_st##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                                      \
+        __nvvm_volatile_st##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                                           \
             (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                                                                       \
         return;                                                                                                                       \
       }                                                                                                                               \
