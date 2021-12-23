@@ -470,10 +470,16 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg)
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
-  auto BuildF = [this, &M, &KSId, &ContextImpl, &DeviceImpl, Prg, &CompileOpts,
+  // Use root device image to avoid building for the same architecture.
+  DeviceImplPtr RootDev = DeviceImpl;
+  while (!RootDev->isRootDevice())
+    RootDev = detail::getSyclObjImpl(
+        RootDev->get_info<info::device::parent_device>());
+
+  auto BuildF = [this, &M, &KSId, &ContextImpl, &RootDev, Prg, &CompileOpts,
                  &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     auto Context = createSyclObjFromImpl<context>(ContextImpl);
-    auto Device = createSyclObjFromImpl<device>(DeviceImpl);
+    auto Device = createSyclObjFromImpl<device>(RootDev);
 
     const RTDeviceBinaryImage &Img =
         getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
@@ -523,7 +529,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     return BuiltProgram.release();
   };
 
-  const RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
+  const RT::PiDevice PiDevice = RootDev->getHandleRef();
 
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
@@ -560,7 +566,13 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
-  const RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
+
+  // Use root device image to avoid building for the same architecture.
+  DeviceImplPtr D = DeviceImpl;
+  while (!D->isRootDevice())
+    D = detail::getSyclObjImpl(D->get_info<info::device::parent_device>());
+
+  const RT::PiDevice PiDevice = D->getHandleRef();
 
   auto key = std::make_tuple(std::move(SpecConsts), M, PiDevice,
                              CompileOpts + LinkOpts, KernelName);
@@ -569,7 +581,7 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     return ret_tuple;
 
   RT::PiProgram Program =
-      getBuiltPIProgram(M, ContextImpl, DeviceImpl, KernelName, Prg);
+      getBuiltPIProgram(M, ContextImpl, D, KernelName, Prg);
 
   auto AcquireF = [](KernelProgramCache &Cache) {
     return Cache.acquireKernelsPerProgramCache();
@@ -830,8 +842,13 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   for (unsigned I = 0; I < Imgs.size(); I++)
     RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
 
+  // Use root device image to avoid building for the same architecture.
+  device RootDevice = Device;
+  while (!getSyclObjImpl(RootDevice)->isRootDevice())
+    RootDevice = Device.get_info<info::device::parent_device>();
+
   Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
-      getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
+      getSyclObjImpl(RootDevice)->getHandleRef(), RawImgs.data(),
       (cl_uint)RawImgs.size(), &ImgInd);
 
   if (JITCompilationIsRequired) {

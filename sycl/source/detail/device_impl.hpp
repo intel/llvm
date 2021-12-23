@@ -225,12 +225,14 @@ public:
 
   bool isAssertFailSupported() const;
 
+  bool isRootDevice() const { return MRootDevice == nullptr; }
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const plugin &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
-  bool MIsRootDevice = false;
+  RT::PiDevice MRootDevice = nullptr;
   bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;

@@ -53,13 +53,11 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
   Plugin.call<PiApiKind::piDeviceGetInfo>(
       MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, nullptr);
 
-  RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
-                                          sizeof(RT::PiDevice), &parent,
+                                          sizeof(RT::PiDevice), &MRootDevice,
                                           nullptr);
 
-  MIsRootDevice = (nullptr == parent);
   if (!InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     // Interoperability Constructor already calls DeviceRetain in

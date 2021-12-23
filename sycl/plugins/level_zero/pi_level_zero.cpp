@@ -2124,8 +2124,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
   }
   case PI_DEVICE_INFO_PARENT_DEVICE:
-    // TODO: all Level Zero devices are parent ?
-    return ReturnValue(pi_device{0});
+    return ReturnValue(Device->RootDevice);
   case PI_DEVICE_INFO_PLATFORM:
     return ReturnValue(Device->Platform);
   case PI_DEVICE_INFO_VENDOR_ID:
