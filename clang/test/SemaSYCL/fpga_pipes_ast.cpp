@@ -1,11 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump %s | FileCheck %s
 
 // Tests for AST of SYCLIntelPipeIOAttr.
-
-#include "sycl.hpp"
-
-using namespace cl::sycl;
-queue q;
 
 struct pipe_storage {};
 
@@ -35,8 +30,6 @@ template <int N>
 pipe_storage Storage2 __attribute__((io_pipe_id(N)));
 
 int main() {
-  q.submit([&](handler &h) {
-    h.single_task<class kernel_function>([]() {});
-  });
   Storage2<2>;
+  return 0;
 }
