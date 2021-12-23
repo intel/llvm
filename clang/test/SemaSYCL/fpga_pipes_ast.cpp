@@ -22,7 +22,6 @@ const pipe_storage Storage1 __attribute__((io_pipe_id(5)));
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'pipe_storage' 'void () noexcept'
 // CHECK_NEXT: SYCLIntelPipeIOAttr
 // CHECK_NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
-// CHECK: FunctionDecl {{.*}} used foo 'void (pipe_storage)'
 // CHECK: VarTemplateSpecializationDecl {{.*}} used Storage2 'pipe_storage' callinit
 // CHECK-NEXT: TemplateArgument integral 2
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'pipe_storage' 'void () noexcept'
@@ -35,11 +34,9 @@ const pipe_storage Storage1 __attribute__((io_pipe_id(5)));
 template <int N>
 pipe_storage Storage2 __attribute__((io_pipe_id(N)));
 
-void foo(pipe_storage PS) {}
-
 int main() {
   q.submit([&](handler &h) {
     h.single_task<class kernel_function>([]() {});
   });
-  foo(Storage2<2>);
+  Storage2<2>;
 }
