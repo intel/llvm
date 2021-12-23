@@ -1812,7 +1812,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
 
-      // If a kernel pointer argument comes from a global accessor, we generate
+      // If a kernel pointer argument comes from an accessor, we generate
       // a new metadata(kernel_arg_runtime_aligned) to the kernel to indicate
       // that this pointer has runtime allocated alignment. The value of any
       // "kernel_arg_runtime_aligned" metadata element is 'true' for any kernel
@@ -1830,7 +1830,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
 
       if (FD->hasAttr<SYCLSimdAttr>())
         argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
-            CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
+            CGF->Builder.getInt1(parm->hasAttr<SYCLAccessorPtrAttr>())));
     }
 
   bool IsEsimdFunction = FD && FD->hasAttr<SYCLSimdAttr>();

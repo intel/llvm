@@ -1971,7 +1971,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     if (KernelDecl->hasAttr<SYCLSimdAttr>())
       // In ESIMD, the kernels accessor's pointer argument needs to be marked.
       Params.back()->addAttr(
-          SYCLSimdAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
+          SYCLAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
     // Get access mode of accessor.
     const auto *AccessorSpecializationDecl =
         cast<ClassTemplateSpecializationDecl>(RecordDecl);

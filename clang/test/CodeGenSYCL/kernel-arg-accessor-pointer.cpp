@@ -17,6 +17,11 @@ int main() {
 
   accessor<int, 1, access::mode::read, access::target::global_buffer> readOnlyAccessor;
 
+  cl::sycl::accessor<float, 2, cl::sycl::access::mode::write,
+                     cl::sycl::access::target::local,
+                     cl::sycl::access::placeholder::true_t>
+      acc3;
+
   // kernel_A parameters : int*, sycl::range<1>, sycl::range<1>, sycl::id<1>,
   // int*, sycl::range<1>, sycl::range<1>,sycl::id<1>.
   q.submit([&](cl::sycl::handler &h) {
@@ -58,6 +63,14 @@ int main() {
       *y = 3.14;
     });
   });
+
+  // Using local accessor as a kernel parameter.
+  // kernel_arg_runtime_aligned is generated for pointers from local accessors.
+  q.submit([&](cl::sycl::handler &h) {
+    h.single_task<class localAccessor>([=]() {
+      acc3.use();
+    });
+  });
 }
 
 // Check kernel_A parameters
@@ -94,6 +107,13 @@ int main() {
 // CHECK-SAME: i32 addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: float addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-NOT: kernel_arg_runtime_aligned
+
+// CHECK: define {{.*}}spir_kernel void @{{.*}}localAccessor
+// CHECK-SAME: float addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %"struct.cl::sycl::range.5"* byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
+// CHECK-SAME: %"struct.cl::sycl::range.5"* byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
+// CHECK-SAME: %"struct.cl::sycl::id.6"* byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]]
+// CHECK-SAME: !kernel_arg_runtime_aligned !14
 
 // Check kernel-arg-runtime-aligned metadata.
 // The value of any metadata element is 1 for any kernel arguments

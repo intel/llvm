@@ -1263,18 +1263,6 @@ def SYCLRegisterNum : InheritableAttr {
   let Documentation = [SYCLRegisterNumDocs];
 }
 
-// Used by FE to mark ESIMD kernel pointer parameters which correspond to the
-// original lambda's captured accessors. FE turns the attribute to some metadata
-// required by the ESIMD Back-End.
-// Not supposed to be used directly in the source - SYCL device compiler FE
-// automatically adds it for ESIMD kernels, hence undocumented.
-def SYCLSimdAccessorPtr : InheritableAttr {
-  // No spelling, as this attribute can't be created in the source code.
-  let Spellings = [];
-  let Subjects = SubjectList<[ParmVar]>;
-  let Documentation = [Undocumented];
-}
-
 // Used by FE to mark SYCL kernel pointer parameters which correspond to the
 // original lambda's captured accessors. FE turns the attribute to some metadata
 // required by the FPGA back-end.
@@ -1282,7 +1270,7 @@ def SYCLSimdAccessorPtr : InheritableAttr {
 // hence we set the SemaHandler field to 0.
 // The attribute is not for public consumption, and is an implicitly-created attribute
 // that has no visible spelling, hence undocumented.
-def SYCLAccessorPtr : InheritableAttr {
+def SYCLAccessorPtr : Attr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
