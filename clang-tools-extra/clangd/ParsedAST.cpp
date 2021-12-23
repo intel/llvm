@@ -395,7 +395,8 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
           if (IsInsideMainFile &&
               tidy::shouldSuppressDiagnostic(DiagLevel, Info, *CTContext,
                                              TidySuppressedErrors,
-                                             /*AllowIO=*/false)) {
+                                             /*AllowIO=*/false,
+                                             /*EnableNolintBlocks=*/false)) {
             // FIXME: should we expose the suppression error (invalid use of
             // NOLINT comments)?
             return DiagnosticsEngine::Ignored;
@@ -446,7 +447,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   // Important: collectIncludeStructure is registered *after* ReplayPreamble!
   // Otherwise we would collect the replayed includes again...
   // (We can't *just* use the replayed includes, they don't have Resolved path).
-  Clang->getPreprocessor().addPPCallbacks(Includes.collect(*Clang));
+  Includes.collect(*Clang);
   // Copy over the macros in the preamble region of the main file, and combine
   // with non-preamble macros below.
   MainFileMacros Macros;

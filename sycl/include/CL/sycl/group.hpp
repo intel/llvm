@@ -294,7 +294,7 @@ public:
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
         __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
         numElements, srcStride, 0);
-    return device_event(&E);
+    return device_event(E);
   }
 
   /// Asynchronously copies a number of elements specified by \p numElements
@@ -312,7 +312,7 @@ public:
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
         __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
         numElements, destStride, 0);
-    return device_event(&E);
+    return device_event(E);
   }
 
   /// Specialization for scalar bool type.

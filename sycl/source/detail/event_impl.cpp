@@ -56,6 +56,11 @@ void event_impl::waitInternal() const {
     return;
   }
 
+  if (MState == HES_Discarded)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "waitInternal method cannot be used for a discarded event.");
+
   while (MState != HES_Complete)
     ;
 }
@@ -93,7 +98,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MState = HES_NotComplete;
 }
 
-event_impl::event_impl() : MIsFlushed(true), MState(HES_Complete) {}
+event_impl::event_impl(HostEventState State)
+    : MIsFlushed(true), MState(State) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
@@ -188,6 +194,10 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+  if (MState == HES_Discarded)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait method cannot be used for a discarded event.");
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -304,6 +314,9 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
+  if (MState == HES_Discarded)
+    return info::event_command_status::ext_oneapi_unknown;
+
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef(), this->getPlugin());
@@ -333,6 +346,11 @@ pi_native_handle event_impl::getNative() const {
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
+  if (MState == HES_Discarded)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_wait_list() cannot be used for a discarded event.");
+
   std::lock_guard<std::mutex> Lock(MMutex);
 
   std::vector<EventImplPtr> Result;

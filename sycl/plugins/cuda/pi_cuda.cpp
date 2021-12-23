@@ -1677,6 +1677,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_SLICES:
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if Intel device UUID extension is utilized for CUDA.
     // For details about this extension, see
@@ -2257,7 +2258,10 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
 // There is no CUDA counterpart for queue flushing and we don't run into the
 // same problem of having to flush cross-queue dependencies as some of the
 // other plugins, so it can be left as no-op.
-pi_result cuda_piQueueFlush(pi_queue command_queue) { return PI_SUCCESS; }
+pi_result cuda_piQueueFlush(pi_queue command_queue) {
+  (void)command_queue;
+  return PI_SUCCESS;
+}
 
 /// Gets the native CUDA handle of a PI queue object
 ///

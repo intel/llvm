@@ -1757,7 +1757,7 @@ static pi_result SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     RT::PiKernel Kernel, NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
-    const EventImplPtr &EventImpl,
+    RT::PiEvent *OutEvent,
     const ProgramManager::KernelArgMask &EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   const detail::plugin &Plugin = Queue->getPlugin();
@@ -1880,8 +1880,7 @@ static pi_result SetKernelParamsAndLaunch(
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0],
-      (EventImpl ? &EventImpl->getHandleRef() : nullptr));
+      RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
   return Error;
 }
 
@@ -1910,7 +1909,7 @@ cl_int enqueueImpKernel(
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
-    std::vector<RT::PiEvent> &RawEvents, const EventImplPtr &EventImpl,
+    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
 
   // Run OpenCL kernel
@@ -1923,15 +1922,16 @@ cl_int enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  // Use kernel_bundle is available
-  if (KernelBundleImplPtr) {
-
-    std::shared_ptr<kernel_id_impl> KernelIDImpl =
-        std::make_shared<kernel_id_impl>(KernelName);
-
-    kernel SyclKernel = KernelBundleImplPtr->get_kernel(
-        detail::createSyclObjFromImpl<kernel_id>(KernelIDImpl),
-        KernelBundleImplPtr);
+  // Use kernel_bundle if available unless it is interop.
+  // Interop bundles can't be used in the first branch, because the kernels
+  // in interop kernel bundles (if any) do not have kernel_id
+  // and can therefore not be looked up, but since they are self-contained
+  // they can simply be launched directly.
+  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    kernel SyclKernel =
+        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
 
     SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
 
@@ -1977,11 +1977,11 @@ cl_int enqueueImpKernel(
     // For cacheable kernels, we use per-kernel mutex
     std::lock_guard<std::mutex> Lock(*KernelMutex);
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, RawEvents, EventImpl,
+                                     NDRDesc, RawEvents, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
   } else {
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, RawEvents, EventImpl,
+                                     NDRDesc, RawEvents, OutEvent,
                                      EliminatedArgMask, getMemAllocationFunc);
   }
 
@@ -2003,8 +2003,10 @@ cl_int ExecCGCommand::enqueueImp() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  RT::PiEvent &Event = MEvent->getHandleRef();
-
+  RT::PiEvent *Event = (MQueue->has_discard_events_support() &&
+                        MCommandGroup->MRequirements.size() == 0)
+                           ? nullptr
+                           : &MEvent->getHandleRef();
   switch (MCommandGroup->getType()) {
 
   case CG::CGTYPE::UpdateHost: {
@@ -2022,7 +2024,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Req->MElemSize, Copy->getDst(),
         Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
         Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
-        Req->MElemSize, std::move(RawEvents), Event);
+        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
 
     return CL_SUCCESS;
   }
@@ -2033,13 +2035,13 @@ cl_int ExecCGCommand::enqueueImp() {
 
     Scheduler::getInstance().getDefaultHostQueue();
 
-    MemoryManager::copy(AllocaCmd->getSYCLMemObj(), Copy->getSrc(),
-                        Scheduler::getInstance().getDefaultHostQueue(),
-                        Req->MDims, Req->MAccessRange, Req->MAccessRange,
-                        /*SrcOffset*/ {0, 0, 0}, Req->MElemSize,
-                        AllocaCmd->getMemAllocation(), MQueue, Req->MDims,
-                        Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
-                        Req->MElemSize, std::move(RawEvents), Event);
+    MemoryManager::copy(
+        AllocaCmd->getSYCLMemObj(), Copy->getSrc(),
+        Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
+        Req->MAccessRange, Req->MAccessRange,
+        /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
+        MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
+        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
 
     return CL_SUCCESS;
   }
@@ -2056,7 +2058,8 @@ cl_int ExecCGCommand::enqueueImp() {
         ReqSrc->MDims, ReqSrc->MMemoryRange, ReqSrc->MAccessRange,
         ReqSrc->MOffset, ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(),
         MQueue, ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
-        ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), Event);
+        ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents),
+        MEvent->getHandleRef());
 
     return CL_SUCCESS;
   }
@@ -2069,7 +2072,7 @@ cl_int ExecCGCommand::enqueueImp() {
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
         Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-        std::move(RawEvents), Event);
+        std::move(RawEvents), MEvent->getHandleRef());
 
     return CL_SUCCESS;
   }
@@ -2131,7 +2134,7 @@ cl_int ExecCGCommand::enqueueImp() {
         MQueue->getHandleRef(), DispatchNativeKernel, (void *)ArgsBlob.data(),
         ArgsBlob.size() * sizeof(ArgsBlob[0]), Buffers.size(), Buffers.data(),
         const_cast<const void **>(MemLocs.data()), RawEvents.size(),
-        RawEvents.empty() ? nullptr : RawEvents.data(), &Event);
+        RawEvents.empty() ? nullptr : RawEvents.data(), Event);
 
     switch (Error) {
     case PI_INVALID_OPERATION:
@@ -2185,10 +2188,24 @@ cl_int ExecCGCommand::enqueueImp() {
       return AllocaCmd->getMemAllocation();
     };
 
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel =
+        ExecKernel->MSyclKernel;
+    const std::string &KernelName = ExecKernel->MKernelName;
+    const detail::OSModuleHandle &OSModuleHandle = ExecKernel->MOSModuleHandle;
+
+    if (!Event) {
+      // Kernel only uses assert if it's non interop one
+      bool KernelUsesAssert = !(SyclKernel && SyclKernel->isInterop()) &&
+                              ProgramManager::getInstance().kernelUsesAssert(
+                                  OSModuleHandle, KernelName);
+      if (KernelUsesAssert) {
+        Event = &MEvent->getHandleRef();
+      }
+    }
+
     return enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
-        ExecKernel->MSyclKernel, ExecKernel->MKernelName,
-        ExecKernel->MOSModuleHandle, RawEvents, MEvent, getMemAllocationFunc);
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
+        KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -2243,7 +2260,7 @@ cl_int ExecCGCommand::enqueueImp() {
     interop_handler InteropHandler(std::move(ReqMemObjs), MQueue);
     ExecInterop->MInteropTask->call(InteropHandler);
     Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0,
-                                                nullptr, &Event);
+                                                nullptr, Event);
 
     return CL_SUCCESS;
   }
@@ -2309,7 +2326,7 @@ cl_int ExecCGCommand::enqueueImp() {
     }
     const detail::plugin &Plugin = MQueue->getPlugin();
     Plugin.call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), 0, nullptr, &Event);
+        MQueue->getHandleRef(), 0, nullptr, Event);
 
     return PI_SUCCESS;
   }
@@ -2324,7 +2341,7 @@ cl_int ExecCGCommand::enqueueImp() {
     }
     const detail::plugin &Plugin = MQueue->getPlugin();
     Plugin.call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], &Event);
+        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
 
     return PI_SUCCESS;
   }

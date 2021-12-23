@@ -899,8 +899,12 @@ void SIInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   unsigned EltSize = 4;
   unsigned Opcode = AMDGPU::V_MOV_B32_e32;
   if (RI.isAGPRClass(RC)) {
-    Opcode = (RI.hasVGPRs(SrcRC)) ?
-      AMDGPU::V_ACCVGPR_WRITE_B32_e64 : AMDGPU::INSTRUCTION_LIST_END;
+    if (ST.hasGFX90AInsts() && RI.isAGPRClass(SrcRC))
+      Opcode = AMDGPU::V_ACCVGPR_MOV_B32;
+    else if (RI.hasVGPRs(SrcRC))
+      Opcode = AMDGPU::V_ACCVGPR_WRITE_B32_e64;
+    else
+      Opcode = AMDGPU::INSTRUCTION_LIST_END;
   } else if (RI.hasVGPRs(RC) && RI.isAGPRClass(SrcRC)) {
     Opcode = AMDGPU::V_ACCVGPR_READ_B32_e64;
   } else if ((Size % 64 == 0) && RI.hasVGPRs(RC) &&
@@ -1417,6 +1421,33 @@ static unsigned getAGPRSpillSaveOpcode(unsigned Size) {
   }
 }
 
+static unsigned getAVSpillSaveOpcode(unsigned Size) {
+  switch (Size) {
+  case 4:
+    return AMDGPU::SI_SPILL_AV32_SAVE;
+  case 8:
+    return AMDGPU::SI_SPILL_AV64_SAVE;
+  case 12:
+    return AMDGPU::SI_SPILL_AV96_SAVE;
+  case 16:
+    return AMDGPU::SI_SPILL_AV128_SAVE;
+  case 20:
+    return AMDGPU::SI_SPILL_AV160_SAVE;
+  case 24:
+    return AMDGPU::SI_SPILL_AV192_SAVE;
+  case 28:
+    return AMDGPU::SI_SPILL_AV224_SAVE;
+  case 32:
+    return AMDGPU::SI_SPILL_AV256_SAVE;
+  case 64:
+    return AMDGPU::SI_SPILL_AV512_SAVE;
+  case 128:
+    return AMDGPU::SI_SPILL_AV1024_SAVE;
+  default:
+    llvm_unreachable("unknown register size");
+  }
+}
+
 void SIInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                       MachineBasicBlock::iterator MI,
                                       Register SrcReg, bool isKill,
@@ -1463,20 +1494,10 @@ void SIInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     return;
   }
 
-  unsigned Opcode = RI.isAGPRClass(RC) ? getAGPRSpillSaveOpcode(SpillSize)
-                                       : getVGPRSpillSaveOpcode(SpillSize);
+  unsigned Opcode = RI.isVectorSuperClass(RC) ? getAVSpillSaveOpcode(SpillSize)
+                    : RI.isAGPRClass(RC) ? getAGPRSpillSaveOpcode(SpillSize)
+                                         : getVGPRSpillSaveOpcode(SpillSize);
   MFI->setHasSpilledVGPRs();
-
-  if (RI.isVectorSuperClass(RC)) {
-    // Convert an AV spill into a VGPR spill. Introduce a copy from AV to an
-    // equivalent VGPR register beforehand. Regalloc might want to introduce
-    // AV spills only to be relevant until rewriter at which they become
-    // either spills of VGPRs or AGPRs.
-    Register TmpVReg = MRI.createVirtualRegister(RI.getEquivalentVGPRClass(RC));
-    BuildMI(MBB, MI, DL, get(TargetOpcode::COPY), TmpVReg)
-        .addReg(SrcReg, RegState::Kill);
-    SrcReg = TmpVReg;
-  }
 
   BuildMI(MBB, MI, DL, get(Opcode))
     .addReg(SrcReg, getKillRegState(isKill)) // data
@@ -1567,6 +1588,33 @@ static unsigned getAGPRSpillRestoreOpcode(unsigned Size) {
   }
 }
 
+static unsigned getAVSpillRestoreOpcode(unsigned Size) {
+  switch (Size) {
+  case 4:
+    return AMDGPU::SI_SPILL_AV32_RESTORE;
+  case 8:
+    return AMDGPU::SI_SPILL_AV64_RESTORE;
+  case 12:
+    return AMDGPU::SI_SPILL_AV96_RESTORE;
+  case 16:
+    return AMDGPU::SI_SPILL_AV128_RESTORE;
+  case 20:
+    return AMDGPU::SI_SPILL_AV160_RESTORE;
+  case 24:
+    return AMDGPU::SI_SPILL_AV192_RESTORE;
+  case 28:
+    return AMDGPU::SI_SPILL_AV224_RESTORE;
+  case 32:
+    return AMDGPU::SI_SPILL_AV256_RESTORE;
+  case 64:
+    return AMDGPU::SI_SPILL_AV512_RESTORE;
+  case 128:
+    return AMDGPU::SI_SPILL_AV1024_RESTORE;
+  default:
+    llvm_unreachable("unknown register size");
+  }
+}
+
 void SIInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                        MachineBasicBlock::iterator MI,
                                        Register DestReg, int FrameIndex,
@@ -1609,26 +1657,15 @@ void SIInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     return;
   }
 
-  unsigned Opcode = RI.isAGPRClass(RC) ? getAGPRSpillRestoreOpcode(SpillSize)
-                                       : getVGPRSpillRestoreOpcode(SpillSize);
-
-  bool IsVectorSuperClass = RI.isVectorSuperClass(RC);
-  Register TmpReg = DestReg;
-  if (IsVectorSuperClass) {
-    // For AV classes, insert the spill restore to a VGPR followed by a copy
-    // into an equivalent AV register.
-    MachineRegisterInfo &MRI = MF->getRegInfo();
-    DestReg = MRI.createVirtualRegister(RI.getEquivalentVGPRClass(RC));
-  }
+  unsigned Opcode = RI.isVectorSuperClass(RC)
+                        ? getAVSpillRestoreOpcode(SpillSize)
+                    : RI.isAGPRClass(RC) ? getAGPRSpillRestoreOpcode(SpillSize)
+                                         : getVGPRSpillRestoreOpcode(SpillSize);
   BuildMI(MBB, MI, DL, get(Opcode), DestReg)
-    .addFrameIndex(FrameIndex)        // vaddr
-    .addReg(MFI->getStackPtrOffsetReg()) // scratch_offset
-    .addImm(0)                           // offset
-    .addMemOperand(MMO);
-
-  if (IsVectorSuperClass)
-    BuildMI(MBB, MI, DL, get(TargetOpcode::COPY), TmpReg)
-        .addReg(DestReg, RegState::Kill);
+      .addFrameIndex(FrameIndex)           // vaddr
+      .addReg(MFI->getStackPtrOffsetReg()) // scratch_offset
+      .addImm(0)                           // offset
+      .addMemOperand(MMO);
 }
 
 void SIInstrInfo::insertNoop(MachineBasicBlock &MBB,
@@ -3264,7 +3301,7 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineInstr &MI,
     }
   }
 
-  unsigned NewOpc = IsFMA ? (IsF16 ? AMDGPU::V_FMA_F16_e64
+  unsigned NewOpc = IsFMA ? (IsF16 ? AMDGPU::V_FMA_F16_gfx9_e64
                                    : IsF64 ? AMDGPU::V_FMA_F64_e64
                                            : AMDGPU::V_FMA_F32_e64)
                           : (IsF16 ? AMDGPU::V_MAD_F16_e64 : AMDGPU::V_MAD_F32_e64);
@@ -3623,12 +3660,6 @@ bool SIInstrInfo::canShrink(const MachineInstr &MI,
                             const MachineRegisterInfo &MRI) const {
   const MachineOperand *Src2 = getNamedOperand(MI, AMDGPU::OpName::src2);
   // Can't shrink instruction with three operands.
-  // FIXME: v_cndmask_b32 has 3 operands and is shrinkable, but we need to add
-  // a special case for it.  It can only be shrunk if the third operand
-  // is vcc, and src0_modifiers and src1_modifiers are not set.
-  // We should handle this the same way we handle vopc, by addding
-  // a register allocation hint pre-regalloc and then do the shrinking
-  // post-regalloc.
   if (Src2) {
     switch (MI.getOpcode()) {
       default: return false;
@@ -4581,8 +4612,9 @@ static unsigned adjustAllocatableRegClass(const GCNSubtarget &ST,
                                           unsigned RCID,
                                           bool IsAllocatable) {
   if ((IsAllocatable || !ST.hasGFX90AInsts() || !MRI.reservedRegsFrozen()) &&
-      (TID.mayLoad() || TID.mayStore() ||
-      (TID.TSFlags & (SIInstrFlags::DS | SIInstrFlags::MIMG)))) {
+      (((TID.mayLoad() || TID.mayStore()) &&
+        !(TID.TSFlags & SIInstrFlags::VGPRSpill)) ||
+       (TID.TSFlags & (SIInstrFlags::DS | SIInstrFlags::MIMG)))) {
     switch (RCID) {
     case AMDGPU::AV_32RegClassID: return AMDGPU::VGPR_32RegClassID;
     case AMDGPU::AV_64RegClassID: return AMDGPU::VReg_64RegClassID;
@@ -5019,8 +5051,7 @@ void SIInstrInfo::legalizeOperandsVOP3(MachineRegisterInfo &MRI,
     --ConstantBusLimit;
   }
 
-  for (unsigned i = 0; i < 3; ++i) {
-    int Idx = VOP3Idx[i];
+  for (int Idx : VOP3Idx) {
     if (Idx == -1)
       break;
     MachineOperand &MO = MI.getOperand(Idx);

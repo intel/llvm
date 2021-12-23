@@ -15,7 +15,7 @@
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/SCF/Transforms.h"
@@ -186,26 +186,34 @@ static LogicalResult padOperandToSmallestStaticBoundingBox(
   if (!sliceOp)
     return failure(hasDynamicShape);
 
+  // Compute the dropped dimensions if `sliceOp` is ranke-reducing.
+  llvm::SmallDenseSet<unsigned> droppedDims = sliceOp.getDroppedDims();
+
   // Upper bound the `sliceOp` sizes to obtain a static bounding box.
   SmallVector<int64_t> staticSizes;
-  staticSizes.reserve(opToPad.getRank(opOperand));
+  staticSizes.reserve(shape.size());
   auto shapedOp = cast<OffsetSizeAndStrideOpInterface>(sliceOp.getOperation());
-  for (auto size : shapedOp.getMixedSizes()) {
+  for (auto en : enumerate(shapedOp.getMixedSizes())) {
+    // Skip dropped dimensions.
+    if (droppedDims.contains(en.index()))
+      continue;
     // If the size is an attribute add it directly to `staticSizes`.
-    if (size.is<Attribute>()) {
+    if (en.value().is<Attribute>()) {
       staticSizes.push_back(
-          size.get<Attribute>().dyn_cast<IntegerAttr>().getInt());
+          en.value().get<Attribute>().dyn_cast<IntegerAttr>().getInt());
       continue;
     }
     // Otherwise, try to compute a constant upper bound for the size value.
     FailureOr<int64_t> upperBound =
-        getConstantUpperBoundForIndex(size.get<Value>());
+        getConstantUpperBoundForIndex(en.value().get<Value>());
     if (failed(upperBound)) {
       LLVM_DEBUG(DBGS() << "No constant bounding box can be found for padding");
       return failure();
     }
     staticSizes.push_back(upperBound.getValue());
   }
+  assert(staticSizes.size() == shape.size() &&
+         "expect the dynamic and static ranks to match");
 
   // Pad the operand to the bounding box defined by `staticSizes`.
   auto staticTensorType = RankedTensorType::get(
@@ -503,10 +511,8 @@ LogicalResult mlir::linalg::LinalgPaddingPattern::matchAndRewrite(
   FailureOr<SmallVector<Value>> newResults = rewriteAsPaddedOp(
       rewriter, linalgOp, options.paddingValueComputationFunction,
       options.paddingNoFoldComputationFunction, paddedOp);
-  if (failed(newResults)) {
-    filter.replaceLinalgTransformationFilter(rewriter, linalgOp);
+  if (failed(newResults))
     return failure();
-  }
 
   // Compute the desired hoisting depths.
   SmallVector<int64_t> depths;
@@ -907,9 +913,12 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
   if (!sliceOp.hasUnitStride())
     return failure();
 
-  Operation *tiledPadOp = padOp.getTiledImplementation(
-      rewriter, /*dest=*/ValueRange{}, sliceOp.getMixedOffsets(),
-      sliceOp.getMixedSizes());
+  Operation *tiledPadOp =
+      padOp
+          .getTiledImplementation(
+              rewriter, /*dest=*/ValueRange{}, sliceOp.getMixedOffsets(),
+              sliceOp.getMixedSizes(), /*tileDestOperands=*/false)
+          .front();
   // All shapes are static and the data source is actually used. Rewrite into
   // pad_tensor(subtensor(x)).
   rewriter.replaceOp(sliceOp, tiledPadOp->getResults());

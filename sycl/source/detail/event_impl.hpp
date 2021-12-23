@@ -32,10 +32,16 @@ using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
 
 class event_impl {
 public:
+  enum HostEventState : int {
+    HES_NotComplete = 0,
+    HES_Complete,
+    HES_Discarded
+  };
+
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl();
+  event_impl(HostEventState State = HES_Complete);
   /// Constructs an event instance from a plug-in event handle.
   ///
   /// The SyclContext must match the plug-in context associated with the
@@ -190,6 +196,11 @@ public:
   /// Cleans dependencies of this event_impl
   void cleanupDependencyEvents();
 
+  /// Checks if this event is discarded by SYCL implementation.
+  ///
+  /// \return true if this event is discarded.
+  bool isDiscarded() const { return MState == HES_Discarded; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -214,8 +225,6 @@ private:
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.
   std::atomic<bool> MIsFlushed = false;
-
-  enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
 
   // State of host event. Employed only for host events and event with no
   // backend's representation (e.g. alloca). Used values are listed in

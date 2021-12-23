@@ -74,6 +74,14 @@ def err_drv_no_hip_runtime : Error<
   "cannot find HIP runtime; provide its path via '--rocm-path', or pass "
   "'-nogpuinc' to build without HIP runtime">;
 
+def err_drv_no_hipspv_device_lib : Error<
+  "cannot find HIP device library%select{| for %1}0; provide its path via "
+  "'--hip-path' or '--hip-device-lib-path', or pass '-nogpulib' to build "
+  "without HIP device library">;
+def err_drv_hipspv_no_hip_path : Error<
+  "'--hip-path' must be specified when offloading to "
+  "SPIR-V%select{| unless %1 is given}0.">;
+
 def err_drv_undetermined_amdgpu_arch : Error<
   "cannot determine AMDGPU architecture: %0; consider passing it via "
   "'--march'">;
@@ -638,6 +646,8 @@ def err_cc1_round_trip_ok_then_fail : Error<
   "generated arguments parse failed in round-trip">;
 def err_cc1_round_trip_mismatch : Error<
   "generated arguments do not match in round-trip">;
+def err_cc1_unbounded_vscale_min : Error<
+  "minimum vscale must be an unsigned integer greater than 0">;
 
 def err_drv_ssp_missing_offset_argument : Error<
   "'%0' is used without '-mstack-protector-guard-offset', and there is no default">;

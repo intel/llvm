@@ -1006,6 +1006,9 @@ defm hip_fp32_correctly_rounded_divide_sqrt : BoolFOption<"hip-fp32-correctly-ro
   BothFlags<[], " that single precision floating-point divide and sqrt used in "
   "the program source are correctly rounded (HIP device compilation only)">>,
   ShouldParseIf<hip.KeyPath>;
+def hipspv_pass_plugin_EQ : Joined<["--"], "hipspv-pass-plugin=">,
+  Group<Link_Group>, MetaVarName<"<dsopath>">,
+  HelpText<"path to a pass plugin for HIP to SPIR-V passes.">;
 defm gpu_allow_device_init : BoolFOption<"gpu-allow-device-init",
   LangOpts<"GPUAllowDeviceInit">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Allow">, NegFlag<SetFalse, [], "Don't allow">,
@@ -2415,7 +2418,8 @@ def fomit_frame_pointer : Flag<["-"], "fomit-frame-pointer">, Group<f_Group>;
 def fopenmp : Flag<["-"], "fopenmp">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, FlangOption, FC1Option]>,
   HelpText<"Parse OpenMP pragmas and generate parallel code.">;
 def fno_openmp : Flag<["-"], "fno-openmp">, Group<f_Group>, Flags<[NoArgumentUnused]>;
-def fopenmp_version_EQ : Joined<["-"], "fopenmp-version=">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused]>;
+def fopenmp_version_EQ : Joined<["-"], "fopenmp-version=">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused]>,
+  HelpText<"Set OpenMP version (e.g. 45 for OpenMP 4.5, 50 for OpenMP 5.0). Default value is 50.">;
 defm openmp_extensions: BoolFOption<"openmp-extensions",
   LangOpts<"OpenMPExtensions">, DefaultTrue,
   PosFlag<SetTrue, [CC1Option, NoArgumentUnused],
@@ -2456,16 +2460,16 @@ def fopenmp_target_debug : Flag<["-"], "fopenmp-target-debug">, Group<f_Group>, 
   HelpText<"Enable debugging in the OpenMP offloading device RTL">;
 def fno_openmp_target_debug : Flag<["-"], "fno-openmp-target-debug">, Group<f_Group>, Flags<[NoArgumentUnused]>;
 def fopenmp_target_debug_EQ : Joined<["-"], "fopenmp-target-debug=">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
-def fopenmp_assume_teams_oversubscription : Flag<["-"], "fopenmp-assume-teams-oversubscription">, 
+def fopenmp_assume_teams_oversubscription : Flag<["-"], "fopenmp-assume-teams-oversubscription">,
   Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
-def fopenmp_assume_threads_oversubscription : Flag<["-"], "fopenmp-assume-threads-oversubscription">, 
+def fopenmp_assume_threads_oversubscription : Flag<["-"], "fopenmp-assume-threads-oversubscription">,
   Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
-def fno_openmp_assume_teams_oversubscription : Flag<["-"], "fno-openmp-assume-teams-oversubscription">, 
+def fno_openmp_assume_teams_oversubscription : Flag<["-"], "fno-openmp-assume-teams-oversubscription">,
   Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
-def fno_openmp_assume_threads_oversubscription : Flag<["-"], "fno-openmp-assume-threads-oversubscription">, 
+def fno_openmp_assume_threads_oversubscription : Flag<["-"], "fno-openmp-assume-threads-oversubscription">,
   Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
 defm openmp_target_new_runtime: BoolFOption<"openmp-target-new-runtime",
-  LangOpts<"OpenMPTargetNewRuntime">, DefaultFalse,
+  LangOpts<"OpenMPTargetNewRuntime">, DefaultTrue,
   PosFlag<SetTrue, [CC1Option], "Use the new bitcode library for OpenMP offloading">,
   NegFlag<SetFalse>>;
 defm openmp_optimistic_collapse : BoolFOption<"openmp-optimistic-collapse",
@@ -2699,7 +2703,7 @@ def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Path to libspirv library">;
 def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, Flags<[CoreOption]>, HelpText<"Disable check for libspirv">;
 def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
-  Flags<[CoreOption]>, HelpText<"Specify C++ compiler binary to perform host "
+  Flags<[CoreOption, NoArgumentUnused]>, HelpText<"Specify C++ compiler binary to perform host "
   "compilation with during SYCL offload compiles.">;
 def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=">,
   Flags<[CoreOption]>, HelpText<"When performing the host compilation with "
@@ -3434,6 +3438,11 @@ def mno_fix_cortex_a53_835769 : Flag<["-"], "mno-fix-cortex-a53-835769">,
 def mmark_bti_property : Flag<["-"], "mmark-bti-property">,
   Group<m_aarch64_Features_Group>,
   HelpText<"Add .note.gnu.property with BTI to assembly files (AArch64 only)">;
+def mno_bti_at_return_twice : Flag<["-"], "mno-bti-at-return-twice">,
+  Group<m_arm_Features_Group>,
+  HelpText<"Do not add a BTI instruction after a setjmp or other"
+           " return-twice construct (Arm only)">;
+
 foreach i = {1-31} in
   def ffixed_x#i : Flag<["-"], "ffixed-x"#i>, Group<m_Group>,
     HelpText<"Reserve the x"#i#" register (AArch64/RISC-V only)">;
@@ -3448,8 +3457,7 @@ def msve_vector_bits_EQ : Joined<["-"], "msve-vector-bits=">, Group<m_aarch64_Fe
 
 def mvscale_min_EQ : Joined<["-"], "mvscale-min=">,
   Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
-  HelpText<"Specify the vscale minimum. Defaults to the"
-           " vector length agnostic value of \"0\". (AArch64 only)">,
+  HelpText<"Specify the vscale minimum. Defaults to \"1\". (AArch64 only)">,
   MarshallingInfoInt<LangOpts<"VScaleMin">>;
 def mvscale_max_EQ : Joined<["-"], "mvscale-max=">,
   Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
@@ -3855,6 +3863,8 @@ def nobuiltininc : Flag<["-"], "nobuiltininc">, Flags<[CC1Option, CoreOption]>,
   MarshallingInfoNegativeFlag<HeaderSearchOpts<"UseBuiltinIncludes">>;
 def nogpuinc : Flag<["-"], "nogpuinc">, HelpText<"Do not add include paths for CUDA/HIP and"
   " do not include the default CUDA/HIP wrapper headers">;
+def nohipwrapperinc : Flag<["-"], "nohipwrapperinc">,
+  HelpText<"Do not include the default HIP wrapper headers and include paths">;
 def : Flag<["-"], "nocudainc">, Alias<nogpuinc>;
 def nogpulib : Flag<["-"], "nogpulib">,
   HelpText<"Do not link device library for CUDA/HIP device compilation">;

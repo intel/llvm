@@ -44,6 +44,7 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
+#include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -97,10 +98,16 @@ using namespace llvm;
   llvm::PassPluginLibraryInfo get##Ext##PluginInfo();
 #include "llvm/Support/Extension.def"
 
+namespace llvm {
+extern cl::opt<bool> DebugInfoCorrelate;
+}
+
 namespace {
 
 // Default filename used for profile generation.
-static constexpr StringLiteral DefaultProfileGenName = "default_%m.profraw";
+std::string getDefaultProfileGenName() {
+  return DebugInfoCorrelate ? "default_%m.proflite" : "default_%m.profraw";
+}
 
 class EmitAssemblyHelper {
   DiagnosticsEngine &Diags;
@@ -892,7 +899,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     if (!CodeGenOpts.InstrProfileOutput.empty())
       PMBuilder.PGOInstrGen = CodeGenOpts.InstrProfileOutput;
     else
-      PMBuilder.PGOInstrGen = std::string(DefaultProfileGenName);
+      PMBuilder.PGOInstrGen = getDefaultProfileGenName();
   }
   if (CodeGenOpts.hasProfileIRUse()) {
     PMBuilder.PGOInstrUse = CodeGenOpts.ProfileInstrumentUsePath;
@@ -1053,6 +1060,7 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
     if (CodeGenOpts.DisableLLVMPasses)
       PerModulePasses.add(createAlwaysInlinerLegacyPass(false));
     PerModulePasses.add(createSYCLLowerWGLocalMemoryLegacyPass());
+    PerModulePasses.add(createSYCLMutatePrintfAddrspaceLegacyPass());
   }
 
   switch (Action) {
@@ -1263,7 +1271,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   if (CodeGenOpts.hasProfileIRInstr())
     // -fprofile-generate.
     PGOOpt = PGOOptions(CodeGenOpts.InstrProfileOutput.empty()
-                            ? std::string(DefaultProfileGenName)
+                            ? getDefaultProfileGenName()
                             : CodeGenOpts.InstrProfileOutput,
                         "", "", PGOOptions::IRInstr, PGOOptions::NoCSAction,
                         CodeGenOpts.DebugInfoForProfiling);
@@ -1301,13 +1309,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
              "Cannot run CSProfileGen pass with ProfileGen or SampleUse "
              " pass");
       PGOOpt->CSProfileGenFile = CodeGenOpts.InstrProfileOutput.empty()
-                                     ? std::string(DefaultProfileGenName)
+                                     ? getDefaultProfileGenName()
                                      : CodeGenOpts.InstrProfileOutput;
       PGOOpt->CSAction = PGOOptions::CSIRInstr;
     } else
       PGOOpt = PGOOptions("",
                           CodeGenOpts.InstrProfileOutput.empty()
-                              ? std::string(DefaultProfileGenName)
+                              ? getDefaultProfileGenName()
                               : CodeGenOpts.InstrProfileOutput,
                           "", PGOOptions::NoAction, PGOOptions::CSIRInstr,
                           CodeGenOpts.DebugInfoForProfiling);
@@ -1469,6 +1477,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
       MPM.addPass(ModuleMemProfilerPass());
     }
+  }
+  if (LangOpts.SYCLIsDevice) {
+    MPM.addPass(SYCLMutatePrintfAddrspacePass());
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action

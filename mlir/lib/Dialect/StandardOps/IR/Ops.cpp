@@ -94,7 +94,7 @@ struct StdInlinerInterface : public DialectInlinerInterface {
       valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 };
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // StandardOpsDialect
@@ -515,7 +515,8 @@ static Type getI1SameShape(Type type) {
   if (type.isa<UnrankedTensorType>())
     return UnrankedTensorType::get(i1Type);
   if (auto vectorType = type.dyn_cast<VectorType>())
-    return VectorType::get(vectorType.getShape(), i1Type);
+    return VectorType::get(vectorType.getShape(), i1Type,
+                           vectorType.getNumScalableDims());
   return i1Type;
 }
 
@@ -749,7 +750,7 @@ struct CondBranchTruthPropagation : public OpRewritePattern<CondBranchOp> {
     return success(replaced);
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void CondBranchOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                MLIRContext *context) {
@@ -897,20 +898,6 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
            arrAttr[1].getType() == complexEltTy;
   }
   return value.isa<UnitAttr>();
-}
-
-//===----------------------------------------------------------------------===//
-// RankOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
-  // Constant fold rank when the rank of the operand is known.
-  auto type = getOperand().getType();
-  if (auto shapedType = type.dyn_cast<ShapedType>())
-    if (shapedType.hasRank())
-      return IntegerAttr::get(IndexType::get(getContext()),
-                              shapedType.getRank());
-  return IntegerAttr();
 }
 
 //===----------------------------------------------------------------------===//
