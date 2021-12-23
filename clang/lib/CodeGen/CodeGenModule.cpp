@@ -1843,7 +1843,6 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
       Fn->setMetadata(
           "kernel_arg_runtime_aligned",
           llvm::MDNode::get(VMContext, argSYCLKernelRuntimeAligned));
-
   } else {
     Fn->setMetadata("kernel_arg_addr_space",
                     llvm::MDNode::get(VMContext, addressQuals));
