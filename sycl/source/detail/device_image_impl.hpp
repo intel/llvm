@@ -223,7 +223,7 @@ public:
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      Plugin.call<PiApiKind::piMemRelease>(MSpecConstsBuffer);
+      memReleaseHelper(Plugin, MSpecConstsBuffer);
     }
   }
 
