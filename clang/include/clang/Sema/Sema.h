@@ -359,13 +359,6 @@ public:
     Itr->updateKernelNames(Name, StableName);
   }
 
-  /// Note which free functions (this_id, this_item, etc) are called within the
-  /// kernel
-  void setCallsThisId(bool B);
-  void setCallsThisItem(bool B);
-  void setCallsThisNDItem(bool B);
-  void setCallsThisGroup(bool B);
-
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -381,15 +374,6 @@ private:
     unsigned Offset = 0;
 
     KernelParamDesc() = default;
-  };
-
-  // there are four free functions the kernel may call (this_id, this_item,
-  // this_nd_item, this_group)
-  struct KernelCallsSYCLFreeFunction {
-    bool CallsThisId = false;
-    bool CallsThisItem = false;
-    bool CallsThisNDItem = false;
-    bool CallsThisGroup = false;
   };
 
   // Kernel invocation descriptor
@@ -413,10 +397,6 @@ private:
 
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
-
-    // Whether kernel calls any of the SYCL free functions (this_item(),
-    // this_id(), etc)
-    KernelCallsSYCLFreeFunction FreeFunctionCalls;
 
     // If we are in unnamed kernel/lambda mode AND this is one that the user
     // hasn't provided an explicit name for.

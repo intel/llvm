@@ -17,6 +17,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/mem_alloc_helper.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
@@ -190,11 +191,11 @@ public:
       // device_image_impl and, as a result, destruction of MSpecConstsBlob
       // while MSpecConstsBuffer is still in use.
       // TODO consider changing the lifetime of device_image_impl instead
-      Plugin.call<PiApiKind::piMemBufferCreate>(
-          detail::getSyclObjImpl(MContext)->getHandleRef(),
-          PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
-          MSpecConstsBlob.size(), MSpecConstsBlob.data(), &MSpecConstsBuffer,
-          nullptr);
+      memBufferCreateHelper(Plugin,
+                            detail::getSyclObjImpl(MContext)->getHandleRef(),
+                            PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
+                            MSpecConstsBlob.size(), MSpecConstsBlob.data(),
+                            &MSpecConstsBuffer, nullptr);
     }
     return MSpecConstsBuffer;
   }
