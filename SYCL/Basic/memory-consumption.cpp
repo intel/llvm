@@ -5,7 +5,8 @@
 // Issue #106: The test failing sporadically on OpenCL platform due to
 // processing OCL_ICD_FILENAMES debug environment variable which causes
 // extra memory allocation on device creation.
-// UNSUPPORTED: windows, opencl
+// Issue #661: The test is failing sporadically on HIP AMD.
+// UNSUPPORTED: windows, opencl, hip_amd
 //
 //==-----memory-consumption.cpp - SYCL memory consumption basic test ------==//
 //
