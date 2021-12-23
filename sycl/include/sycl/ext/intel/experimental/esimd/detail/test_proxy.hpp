@@ -32,7 +32,8 @@
 // default/copy/move constructor of the test_proxy class was explcitly
 // called by any of the user-defined constructors of the proxy target
 #define __ESIMD_DECLARE_TEST_PROXY                                             \
-  esimd::detail::test_proxy M_testProxy = esimd::detail::test_proxy();
+  esimd::detail::test::test_proxy M_testProxy =                                \
+      esimd::detail::test::test_proxy();
 
 // Declare the getter to access the proxy from the tests
 #define __ESIMD_DECLARE_TEST_PROXY_ACCESS                                      \
@@ -51,12 +52,7 @@
   } while (false)
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
-namespace detail {
+namespace sycl::ext::intel::experimental::esimd::detail::test {
 
 // The test_proxy class.
 // Being intended solely for the test purposes, it is enabled only if the
@@ -103,12 +99,7 @@ public:
   bool was_moved() const { return m_moved; }
 };
 
-} // namespace detail
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::intel::experimental::esimd::detail::test
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif // __ESIMD_ENABLE_TEST_PROXY
