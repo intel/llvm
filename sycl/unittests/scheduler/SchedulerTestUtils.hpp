@@ -103,11 +103,19 @@ protected:
 
 class MockScheduler : public cl::sycl::detail::Scheduler {
 public:
+  using cl::sycl::detail::Scheduler::addCG;
+  using cl::sycl::detail::Scheduler::addCopyBack;
+  using cl::sycl::detail::Scheduler::cleanupCommands;
+
   cl::sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(const cl::sycl::detail::QueueImplPtr &Queue,
                           cl::sycl::detail::Requirement *Req,
                           std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
+  }
+
+  void decrementLeafCountersForRecord(cl::sycl::detail::MemObjRecord *Rec) {
+    MGraphBuilder.decrementLeafCountersForRecord(Rec);
   }
 
   void removeRecordForMemObj(cl::sycl::detail::SYCLMemObjI *MemObj) {
@@ -125,6 +133,13 @@ public:
                        cl::sycl::access::mode Mode,
                        std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode, ToEnqueue);
+  }
+
+  void updateLeaves(const std::set<cl::sycl::detail::Command *> &Cmds,
+                    cl::sycl::detail::MemObjRecord *Record,
+                    cl::sycl::access::mode AccessMode,
+                    std::vector<cl::sycl::detail::Command *> &ToCleanUp) {
+    return MGraphBuilder.updateLeaves(Cmds, Record, AccessMode, ToCleanUp);
   }
 
   static bool enqueueCommand(cl::sycl::detail::Command *Cmd,
@@ -151,6 +166,29 @@ public:
                    const cl::sycl::detail::QueueImplPtr &Queue,
                    std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertMemoryMove(Record, Req, Queue, ToEnqueue);
+  }
+
+  cl::sycl::detail::Command *
+  addCopyBack(cl::sycl::detail::Requirement *Req,
+              std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.addCopyBack(Req, ToEnqueue);
+  }
+
+  cl::sycl::detail::UpdateHostRequirementCommand *
+  insertUpdateHostReqCmd(cl::sycl::detail::MemObjRecord *Record,
+                         cl::sycl::detail::Requirement *Req,
+                         const cl::sycl::detail::QueueImplPtr &Queue,
+                         std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, Queue, ToEnqueue);
+  }
+
+  cl::sycl::detail::EmptyCommand *
+  addEmptyCmd(cl::sycl::detail::Command *Cmd,
+              const std::vector<cl::sycl::detail::Requirement *> &Reqs,
+              const cl::sycl::detail::QueueImplPtr &Queue,
+              cl::sycl::detail::Command::BlockReason Reason,
+              std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Queue, Reason, ToEnqueue);
   }
 
   cl::sycl::detail::Command *
