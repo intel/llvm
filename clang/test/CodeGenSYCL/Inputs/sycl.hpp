@@ -143,21 +143,8 @@ namespace ext {
 namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
-namespace experimental {
-template <int Dims> item<Dims>
-this_item() { return item<Dims>{}; }
-
-template <int Dims> id<Dims>
-this_id() { return id<Dims>{}; }
-} // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
-template <int Dims> item<Dims>
-this_item() { return item<Dims>{}; }
-
-template <int Dims> id<Dims>
-this_id() { return id<Dims>{}; }
 
 template <int dim>
 struct range {
