@@ -4,6 +4,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// UNSUPPORTED: windows
+// The failure is caused by intel/llvm#5213
+
 //==- free_function_queries.cpp - SYCL free function queries test -=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

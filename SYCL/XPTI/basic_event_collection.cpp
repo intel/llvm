@@ -3,6 +3,7 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 env XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher env XPTI_SUBSCRIBERS=%t_collector.dll env SYCL_DEVICE_FILTER=opencl %t.out | FileCheck %s 2>&1
 
+// REQUIRES: TEMPORARY_DISABLED
 #ifdef XPTI_COLLECTOR
 
 #include "Inputs/test_collector.cpp"
@@ -65,7 +66,7 @@ int main() {
 // CHECK-NEXT: PI Call Begin : piKernelGetGroupInfo
 // CHECK-NEXT: PI Call Begin : piEnqueueKernelLaunch
 // CHECK-NEXT: Node create
-// CHECK-NEXT:   sym_line_no : 21
+// CHECK-NEXT:   sym_line_no : {{.*}}
 // CHECK-NEXT:   sym_source_file_name : {{.*}}
 // CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   from_source : false
@@ -76,7 +77,7 @@ int main() {
 // CHECK-NEXT: Edge create
 // CHECK-NEXT:   event : Event[{{.*}}]
 // CHECK-NEXT: Task begin
-// CHECK-NEXT:   sym_line_no : 21
+// CHECK-NEXT:   sym_line_no : {{.*}}
 // CHECK-NEXT:   sym_source_file_name : {{.*}}
 // CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   from_source : false
@@ -88,14 +89,14 @@ int main() {
 // CHECK-NEXT: PI Call Begin : piKernelGetGroupInfo
 // CHECK-NEXT: PI Call Begin : piEnqueueKernelLaunch
 // CHECK-NEXT: Signal
-// CHECK-NEXT:   sym_line_no : 21
+// CHECK-NEXT:   sym_line_no : {{.*}}
 // CHECK-NEXT:   sym_source_file_name : {{.*}}
 // CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   from_source : false
 // CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   sycl_device : {{.*}}
 // CHECK-NEXT: Task end
-// CHECK-NEXT:   sym_line_no : 21
+// CHECK-NEXT:   sym_line_no : {{.*}}
 // CHECK-NEXT:   sym_source_file_name : {{.*}}
 // CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   from_source : false

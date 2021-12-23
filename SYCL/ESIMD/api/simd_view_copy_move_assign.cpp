@@ -9,7 +9,9 @@
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-//
+
+// UNSUPPORTED: windows
+// Temprorary disabled on Windows until intel/llvm-test-suite#664 fixed
 
 // This test checks the behavior of simd_view constructors
 // and assignment operators.
