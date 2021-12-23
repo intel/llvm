@@ -197,12 +197,12 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        path: llvm_sycl.tar.xz
+        path: llvm_sycl.tar.zst
     - name: Upload LIT
       uses: actions/upload-artifact@v1
       with:
         name: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        path: lit.tar.xz
+        path: lit.tar.zst
 
   llvm_test_suite_l0_gen9:
     name: L0 GEN9 Test Suite
