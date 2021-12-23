@@ -798,21 +798,24 @@ pi_result _pi_context::finalize() {
   // Destroy the command list used for initializations
   ZE_CALL(zeCommandListDestroy, (ZeCommandListInit));
 
-  std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
-  for (ze_command_list_handle_t &ZeCommandList : ZeComputeCommandListCache) {
-    if (ZeCommandList)
-      ZE_CALL(zeCommandListDestroy, (ZeCommandList));
-  }
-  for (ze_command_list_handle_t &ZeCommandList : ZeCopyCommandListCache) {
-    if (ZeCommandList)
-      ZE_CALL(zeCommandListDestroy, (ZeCommandList));
-  }
-
   // Adjust the number of command lists created on this platform.
   auto Platform = Devices[0]->Platform;
-  Platform->ZeGlobalCommandListCount -= ZeComputeCommandListCache.size();
-  Platform->ZeGlobalCommandListCount -= ZeCopyCommandListCache.size();
 
+  std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
+  for (auto &List : ZeComputeCommandListCache) {
+    for (ze_command_list_handle_t &ZeCommandList : List.second) {
+      if (ZeCommandList)
+        ZE_CALL(zeCommandListDestroy, (ZeCommandList));
+    }
+    Platform->ZeGlobalCommandListCount -= List.second.size();
+  }
+  for (auto &List : ZeCopyCommandListCache) {
+    for (ze_command_list_handle_t &ZeCommandList : List.second) {
+      if (ZeCommandList)
+        ZE_CALL(zeCommandListDestroy, (ZeCommandList));
+    }
+    Platform->ZeGlobalCommandListCount -= List.second.size();
+  }
   return PI_SUCCESS;
 }
 
@@ -825,9 +828,10 @@ bool _pi_queue::isInOrderQueue() const {
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                                       bool MakeAvailable) {
   bool UseCopyEngine = CommandList->second.isCopy();
-  auto &ZeCommandListCache = UseCopyEngine
-                                 ? this->Context->ZeCopyCommandListCache
-                                 : this->Context->ZeComputeCommandListCache;
+  auto &ZeCommandListCache =
+      UseCopyEngine
+          ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
+          : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
 
   // Fence had been signalled meaning the associated command-list completed.
   // Reset the fence and put the command list into a cache for reuse in PI
@@ -1048,9 +1052,10 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   _pi_result pi_result = PI_OUT_OF_RESOURCES;
   ZeStruct<ze_fence_desc_t> ZeFenceDesc;
 
-  auto &ZeCommandListCache = UseCopyEngine
-                                 ? Queue->Context->ZeCopyCommandListCache
-                                 : Queue->Context->ZeComputeCommandListCache;
+  auto &ZeCommandListCache =
+      UseCopyEngine
+          ? Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice]
+          : Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice];
 
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
@@ -1068,7 +1073,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
         CommandList->second.InUse = true;
       } else {
         // If there is a command list available on this context, but it
-        // wasn't yet used in this queue then creat a new entry in this
+        // wasn't yet used in this queue then create a new entry in this
         // queue's map to hold the fence and other associated command
         // list information.
 
@@ -7421,6 +7426,7 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 // the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
+  bool LeakFound = false;
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
   for (pi_platform &Platform : *PiPlatformsCache) {
     delete Platform;
@@ -7498,8 +7504,10 @@ pi_result piTearDown(void *PluginParameter) {
         fprintf(stderr, "%30s = %-5d", ZeName, ZeCount);
       }
 
-      if (diff)
+      if (diff) {
+        LeakFound = true;
         fprintf(stderr, " ---> LEAK = %d", diff);
+      }
       fprintf(stderr, "\n");
     }
 
@@ -7507,6 +7515,8 @@ pi_result piTearDown(void *PluginParameter) {
     delete ZeCallCount;
     ZeCallCount = nullptr;
   }
+  if (LeakFound)
+    return PI_INVALID_MEM_OBJECT;
   return PI_SUCCESS;
 }
 
