@@ -374,8 +374,9 @@ static sycl::detail::SpinLock *PiPlatformsCacheMutex =
     new sycl::detail::SpinLock;
 static bool PiPlatformCachePopulated = false;
 
-// Keeps track if the global offset extension is found
+// Flags which tell whether various Level Zero extensions are available.
 static bool PiDriverGlobalOffsetExtensionFound = false;
+static bool PiDriverModuleProgramExtensionFound = false;
 
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
 // write (as it is OK for multiple threads to read the map without locking it).
@@ -556,6 +557,7 @@ inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
     ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE)
     ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE)
     ZE_ERRCASE(ZE_RESULT_ERROR_OVERLAPPING_REGIONS)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_MODULE_UNLINKED)
     ZE_ERRCASE(ZE_RESULT_ERROR_UNKNOWN)
 
 #undef ZE_ERRCASE
@@ -1582,31 +1584,11 @@ extern "C" {
 // Forward declarations
 decltype(piEventCreate) piEventCreate;
 
-static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
-                                const pi_device *DeviceList,
-                                const char *Options);
-static pi_result copyModule(ze_context_handle_t ZeContext,
-                            ze_device_handle_t ZeDevice,
-                            ze_module_handle_t SrcMod,
-                            ze_module_handle_t *DestMod);
-
-static bool setEnvVar(const char *var, const char *value);
-
-// Forward declarations for mock implementations of Level Zero APIs that
-// do not yet work in the driver.
-// TODO: Remove these mock definitions when they work in the driver.
 static ze_result_t
-zeModuleDynamicLinkMock(uint32_t numModules, ze_module_handle_t *phModules,
-                        ze_module_build_log_handle_t *phLinkLog);
+checkUnresolvedSymbols(ze_module_handle_t ZeModule,
+                       ze_module_build_log_handle_t *ZeBuildLog);
 
-static ze_result_t
-zeModuleGetPropertiesMock(ze_module_handle_t hModule,
-                          ze_module_properties_t *pModuleProperties);
-
-static bool isOnlineLinkEnabled();
-// End forward declarations for mock Level Zero APIs
-
-// This function will ensure compatibility with both Linux and Windowns for
+// This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 static bool setEnvVar(const char *name, const char *value) {
 #ifdef _WIN32
@@ -1655,6 +1637,14 @@ pi_result _pi_platform::initialize() {
                 strlen(ZE_GLOBAL_OFFSET_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_GLOBAL_OFFSET_EXP_VERSION_1_0) {
         PiDriverGlobalOffsetExtensionFound = true;
+      }
+    }
+    // Check if extension is available for "static linking" (compiling multiple
+    // SPIR-V modules together into one Level Zero module).
+    if (strncmp(extension.name, ZE_MODULE_PROGRAM_EXP_NAME,
+                strlen(ZE_MODULE_PROGRAM_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_MODULE_PROGRAM_EXP_VERSION_1_0) {
+        PiDriverModuleProgramExtensionFound = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
@@ -3603,11 +3593,10 @@ pi_result piProgramCreate(pi_context Context, const void *ILBytes,
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
 
   // NOTE: the Level Zero module creation is also building the program, so we
-  // are deferring it until the program is ready to be built in piProgramBuild
-  // and piProgramCompile. Also it is only then we know the build options.
+  // are deferring it until the program is ready to be built.
 
   try {
-    *Program = new _pi_program(Context, ILBytes, Length, _pi_program::IL);
+    *Program = new _pi_program(_pi_program::IL, Context, ILBytes, Length);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3655,7 +3644,7 @@ pi_result piProgramCreateWithBinary(
   // information to distinguish the cases.
 
   try {
-    *Program = new _pi_program(Context, Binary, Length, _pi_program::Native);
+    *Program = new _pi_program(_pi_program::Native, Context, Binary, Length);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3698,32 +3687,16 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     // TODO: return all devices this program exists for.
     return ReturnValue(Program->Context->Devices[0]);
   case PI_PROGRAM_INFO_BINARY_SIZES: {
+    std::shared_lock Guard(Program->Mutex);
     size_t SzBinary;
     if (Program->State == _pi_program::IL ||
-        Program->State == _pi_program::Native) {
+        Program->State == _pi_program::Native ||
+        Program->State == _pi_program::Object) {
       SzBinary = Program->CodeLength;
+    } else if (Program->State == _pi_program::Exe) {
+      ZE_CALL(zeModuleGetNativeBinary, (Program->ZeModule, &SzBinary, nullptr));
     } else {
-      PI_ASSERT(Program->State == _pi_program::Object ||
-                    Program->State == _pi_program::Exe ||
-                    Program->State == _pi_program::LinkedExe,
-                PI_INVALID_OPERATION);
-
-      // If the program is in LinkedExe state it may contain several modules.
-      // We cannot handle this case because each module's contents is in its
-      // own address range, discontiguous from the others.  The
-      // PI_PROGRAM_INFO_BINARY_SIZES API assume the entire linked program is
-      // one contiguous region, which is not the case for LinkedExe program
-      // in Level Zero.  Therefore, this API is unimplemented when the Program
-      // has more than one module.
-      _pi_program::ModuleIterator ModIt(Program);
-
-      PI_ASSERT(!ModIt.Done(), PI_INVALID_VALUE);
-
-      if (ModIt.Count() > 1) {
-        die("piProgramGetInfo: PI_PROGRAM_INFO_BINARY_SIZES not implemented "
-            "for linked programs");
-      }
-      ZE_CALL(zeModuleGetNativeBinary, (*ModIt, &SzBinary, nullptr));
+      return PI_INVALID_PROGRAM;
     }
     // This is an array of 1 element, initialized as if it were scalar.
     return ReturnValue(size_t{SzBinary});
@@ -3736,76 +3709,57 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     uint8_t **PBinary = pi_cast<uint8_t **>(ParamValue);
     if (!PBinary[0])
       break;
+
+    std::shared_lock Guard(Program->Mutex);
     if (Program->State == _pi_program::IL ||
-        Program->State == _pi_program::Native) {
+        Program->State == _pi_program::Native ||
+        Program->State == _pi_program::Object) {
       std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
-    } else {
-      PI_ASSERT(Program->State == _pi_program::Object ||
-                    Program->State == _pi_program::Exe ||
-                    Program->State == _pi_program::LinkedExe,
-                PI_INVALID_OPERATION);
-
-      _pi_program::ModuleIterator ModIt(Program);
-
-      PI_ASSERT(!ModIt.Done(), PI_INVALID_VALUE);
-
-      if (ModIt.Count() > 1) {
-        die("piProgramGetInfo: PI_PROGRAM_INFO_BINARIES not implemented for "
-            "linked programs");
-      }
+    } else if (Program->State == _pi_program::Exe) {
       size_t SzBinary = 0;
-      ZE_CALL(zeModuleGetNativeBinary, (*ModIt, &SzBinary, PBinary[0]));
+      ZE_CALL(zeModuleGetNativeBinary,
+              (Program->ZeModule, &SzBinary, PBinary[0]));
+    } else {
+      return PI_INVALID_PROGRAM;
     }
     break;
   }
   case PI_PROGRAM_INFO_NUM_KERNELS: {
+    std::shared_lock Guard(Program->Mutex);
     uint32_t NumKernels;
     if (Program->State == _pi_program::IL ||
         Program->State == _pi_program::Native ||
         Program->State == _pi_program::Object) {
       return PI_INVALID_PROGRAM_EXECUTABLE;
-    } else {
-      PI_ASSERT(Program->State == _pi_program::Exe ||
-                    Program->State == _pi_program::LinkedExe,
-                PI_INVALID_OPERATION);
-
+    } else if (Program->State == _pi_program::Exe) {
       NumKernels = 0;
-      _pi_program::ModuleIterator ModIt(Program);
-      while (!ModIt.Done()) {
-        uint32_t Num;
-        ZE_CALL(zeModuleGetKernelNames, (*ModIt, &Num, nullptr));
-        NumKernels += Num;
-        ModIt++;
-      }
+      ZE_CALL(zeModuleGetKernelNames,
+              (Program->ZeModule, &NumKernels, nullptr));
+    } else {
+      return PI_INVALID_PROGRAM;
     }
     return ReturnValue(size_t{NumKernels});
   }
   case PI_PROGRAM_INFO_KERNEL_NAMES:
     try {
+      std::shared_lock Guard(Program->Mutex);
       std::string PINames{""};
       if (Program->State == _pi_program::IL ||
           Program->State == _pi_program::Native ||
           Program->State == _pi_program::Object) {
         return PI_INVALID_PROGRAM_EXECUTABLE;
-      } else {
-        PI_ASSERT(Program->State == _pi_program::Exe ||
-                      Program->State == _pi_program::LinkedExe,
-                  PI_INVALID_PROGRAM_EXECUTABLE);
-
-        bool First = true;
-        _pi_program::ModuleIterator ModIt(Program);
-        while (!ModIt.Done()) {
-          uint32_t Count = 0;
-          ZE_CALL(zeModuleGetKernelNames, (*ModIt, &Count, nullptr));
-          std::unique_ptr<const char *[]> PNames(new const char *[Count]);
-          ZE_CALL(zeModuleGetKernelNames, (*ModIt, &Count, PNames.get()));
-          for (uint32_t I = 0; I < Count; ++I) {
-            PINames += (!First ? ";" : "");
-            PINames += PNames[I];
-            First = false;
-          }
-          ModIt++;
+      } else if (Program->State == _pi_program::Exe) {
+        uint32_t Count = 0;
+        ZE_CALL(zeModuleGetKernelNames, (Program->ZeModule, &Count, nullptr));
+        std::unique_ptr<const char *[]> PNames(new const char *[Count]);
+        ZE_CALL(zeModuleGetKernelNames,
+                (Program->ZeModule, &Count, PNames.get()));
+        for (uint32_t I = 0; I < Count; ++I) {
+          PINames += (I > 0 ? ";" : "");
+          PINames += PNames[I];
         }
+      } else {
+        return PI_INVALID_PROGRAM;
       }
       return ReturnValue(PINames.c_str());
     } catch (const std::bad_alloc &) {
@@ -3826,8 +3780,6 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
-  (void)Options;
-
   // We only support one device with Level Zero currently.
   pi_device Device = Context->Devices[0];
   if (NumDevices != 1) {
@@ -3835,109 +3787,142 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     return PI_INVALID_VALUE;
   }
 
-  PI_ASSERT(DeviceList && DeviceList[0] == Device, PI_INVALID_DEVICE);
-  PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
-
-  // Validate input parameters.
-  if (NumInputPrograms == 0 || InputPrograms == nullptr)
-    return PI_INVALID_VALUE;
-  for (pi_uint32 I = 0; I < NumInputPrograms; I++) {
-    if (InputPrograms[I]->State != _pi_program::Object) {
-      return PI_INVALID_OPERATION;
-    }
-    PI_ASSERT(InputPrograms[I]->ZeModule, PI_INVALID_VALUE);
+  // We do not support any link flags at this time because the Level Zero API
+  // does not have any way to pass flags that are specific to linking.
+  if (Options && *Options != '\0') {
+    std::string ErrorMessage(
+        "Level Zero does not support kernel link flags: \"");
+    ErrorMessage.append(Options);
+    ErrorMessage.push_back('\"');
+    pi_program Program =
+        new _pi_program(_pi_program::Invalid, Context, Options, ErrorMessage);
+    *RetProgram = Program;
+    return PI_LINK_PROGRAM_FAILURE;
   }
 
-  // Linking modules on Level Zero is different from OpenCL.  With Level Zero,
-  // each input object module already has native code loaded onto the device.
-  // Linking two modules together causes the importing module to be changed
-  // such that its native code points to an address in the exporting module.
-  // As a result, a module that imports symbols can only be linked into one
-  // executable at a time.  By contrast, modules that export symbols are not
-  // changed, so they can be safely linked into multiple executables
-  // simultaneously.
-  //
-  // Level Zero linking also differs from OpenCL because a link operation does
-  // not create a new module that represents the linked executable.  Instead,
-  // we must keep track of all the input modules and refer to the entire list
-  // whenever we want to know something about the executable.
+  // Validate input parameters.
+  PI_ASSERT(DeviceList && DeviceList[0] == Device, PI_INVALID_DEVICE);
+  PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
+  if (NumInputPrograms == 0 || InputPrograms == nullptr)
+    return PI_INVALID_VALUE;
 
-  // This vector hold the Level Zero modules that we will actually link
-  // together.  This may be different from "InputPrograms" because some of
-  // those modules may import symbols and already be linked into other
-  // executables.  In such a case, we must make a copy of the module before we
-  // can link it again.
-  std::vector<_pi_program::LinkedReleaser> Inputs;
+  pi_result PiResult = PI_SUCCESS;
   try {
-    Inputs.reserve(NumInputPrograms);
-
-    // We do several things in this loop.
+    // Acquire a "shared" lock on each of the input programs, and also validate
+    // that they are all in Object state.
     //
-    // 1. We identify any modules that need to be copied because they import
-    //    symbols and are already linked into some other program.
-    // 2. For any module that does not need to be copied, we bump its reference
-    //    count because we will hold a reference to it.
-    // 3. We create a vector of Level Zero modules, which we can pass to the
-    //    zeModuleDynamicLink() API.
-    std::vector<ze_module_handle_t> ZeHandles;
-    ZeHandles.reserve(NumInputPrograms);
+    // There is no danger of deadlock here even if two threads call
+    // piProgramLink simultaneously with the same input programs in a different
+    // order.  If we were acquiring these with "exclusive" access, this could
+    // lead to a classic lock ordering deadlock.  However, there is no such
+    // deadlock potential with "shared" access.  There could also be a deadlock
+    // potential if there was some other code that holds more than one of these
+    // locks simultaneously with "exclusive" access.  However, there is no such
+    // code like that, so this is also not a danger.
+    std::vector<std::shared_lock<std::shared_mutex>> Guards(NumInputPrograms);
     for (pi_uint32 I = 0; I < NumInputPrograms; I++) {
-      pi_program Input = InputPrograms[I];
-      if (Input->HasImports) {
-        std::unique_lock<std::mutex> Guard(Input->MutexHasImportsAndIsLinked);
-        if (!Input->HasImportsAndIsLinked) {
-          // This module imports symbols, but it isn't currently linked with
-          // any other module.  Grab the flag to indicate that it is now
-          // linked.
-          PI_CALL(piProgramRetain(Input));
-          Input->HasImportsAndIsLinked = true;
-        } else {
-          // This module imports symbols and is also linked with another module
-          // already, so it needs to be copied.  We expect this to be quite
-          // rare since linking is mostly used to link against libraries which
-          // only export symbols.
-          Guard.unlock();
-          ze_module_handle_t ZeModule;
-          pi_result res = copyModule(Context->ZeContext, Device->ZeDevice,
-                                     Input->ZeModule, &ZeModule);
-          if (res != PI_SUCCESS) {
-            return res;
-          }
-          Input =
-              new _pi_program(Input->Context, ZeModule, true /*own ZeModule*/,
-                              _pi_program::Object, Input->HasImports);
-          Input->HasImportsAndIsLinked = true;
-        }
-      } else {
-        PI_CALL(piProgramRetain(Input));
+      std::shared_lock Guard(InputPrograms[I]->Mutex);
+      Guards[I].swap(Guard);
+      if (InputPrograms[I]->State != _pi_program::Object) {
+        return PI_INVALID_OPERATION;
       }
-      Inputs.emplace_back(Input);
-      ZeHandles.push_back(Input->ZeModule);
     }
 
-    // Link all the modules together.
-    ze_module_build_log_handle_t ZeBuildLog;
+    // Previous calls to piProgramCompile did not actually compile the SPIR-V.
+    // Instead, we postpone compilation until this point, when all the modules
+    // are linked together.  By doing compilation and linking together, the JIT
+    // compiler is able see all modules and do cross-module optimizations.
+    //
+    // Construct a ze_module_program_exp_desc_t which contains information about
+    // all of the modules that will be linked together.
+    ZeStruct<ze_module_program_exp_desc_t> ZeExtModuleDesc;
+    std::vector<size_t> CodeSizes(NumInputPrograms);
+    std::vector<const uint8_t *> CodeBufs(NumInputPrograms);
+    std::vector<const char *> BuildFlagPtrs(NumInputPrograms);
+    std::vector<const ze_module_constants_t *> SpecConstPtrs(NumInputPrograms);
+    std::vector<_pi_program::SpecConstantShim> SpecConstShims;
+    SpecConstShims.reserve(NumInputPrograms);
+
+    for (pi_uint32 I = 0; I < NumInputPrograms; I++) {
+      pi_program Program = InputPrograms[I];
+      CodeSizes[I] = Program->CodeLength;
+      CodeBufs[I] = Program->Code.get();
+      BuildFlagPtrs[I] = Program->BuildFlags.c_str();
+      SpecConstShims.emplace_back(Program);
+      SpecConstPtrs[I] = SpecConstShims[I].ze();
+    }
+
+    ZeExtModuleDesc.count = NumInputPrograms;
+    ZeExtModuleDesc.inputSizes = CodeSizes.data();
+    ZeExtModuleDesc.pInputModules = CodeBufs.data();
+    ZeExtModuleDesc.pBuildFlags = BuildFlagPtrs.data();
+    ZeExtModuleDesc.pConstants = SpecConstPtrs.data();
+
+    ZeStruct<ze_module_desc_t> ZeModuleDesc;
+    ZeModuleDesc.pNext = &ZeExtModuleDesc;
+    ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+
+    // We need a Level Zero extension to compile multiple programs together into
+    // a single Level Zero module.  However, we don't need that extension if
+    // there happens to be only one input program.
+    if (!PiDriverModuleProgramExtensionFound) {
+      if (NumInputPrograms == 1) {
+        ZeModuleDesc.pNext = nullptr;
+        ZeModuleDesc.inputSize = ZeExtModuleDesc.inputSizes[0];
+        ZeModuleDesc.pInputModule = ZeExtModuleDesc.pInputModules[0];
+        ZeModuleDesc.pBuildFlags = ZeExtModuleDesc.pBuildFlags[0];
+        ZeModuleDesc.pConstants = ZeExtModuleDesc.pConstants[0];
+      } else {
+        zePrint("piProgramLink: level_zero driver does not have static linking "
+                "support.");
+        return PI_INVALID_VALUE;
+      }
+    }
+
+    // Call the Level Zero API to compile, link, and create the module.
+    ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
+    ze_context_handle_t ZeContext = Context->ZeContext;
+    ze_module_handle_t ZeModule = nullptr;
+    ze_module_build_log_handle_t ZeBuildLog = nullptr;
     ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeModuleDynamicLinkMock,
-                        (ZeHandles.size(), ZeHandles.data(), &ZeBuildLog));
+        ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                         &ZeModule, &ZeBuildLog));
 
-    // Construct a new program object to represent the linked executable.  This
-    // new object holds a reference to all the input programs.  Note that we
-    // create this program object even if the link fails with "link failure"
-    // because we need the new program object to hold the buid log (which has
-    // the description of the failure).
-    if (ZeResult == ZE_RESULT_SUCCESS ||
-        ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-      *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog);
+    // We still create a _pi_program object even if there is a BUILD_FAILURE
+    // because we need the object to hold the ZeBuildLog.  There is no build
+    // log created for other errors, so we don't create an object.
+    PiResult = mapError(ZeResult);
+    if (ZeResult != ZE_RESULT_SUCCESS &&
+        ZeResult != ZE_RESULT_ERROR_MODULE_BUILD_FAILURE) {
+      return PiResult;
     }
-    if (ZeResult != ZE_RESULT_SUCCESS)
-      return mapError(ZeResult);
+
+    // The call to zeModuleCreate does not report an error if there are
+    // unresolved symbols because it thinks these could be resolved later via a
+    // call to zeModuleDynamicLink.  However, modules created with piProgramLink
+    // are supposed to be fully linked and ready to use.  Therefore, do an extra
+    // check now for unresolved symbols.  Note that we still create a
+    // _pi_program if there are unresolved symbols because the ZeBuildLog tells
+    // which symbols are unresolved.
+    if (ZeResult == ZE_RESULT_SUCCESS) {
+      ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
+      if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+        PiResult = PI_LINK_PROGRAM_FAILURE;
+      } else if (ZeResult != ZE_RESULT_SUCCESS) {
+        return mapError(ZeResult);
+      }
+    }
+
+    _pi_program::state State =
+        (PiResult == PI_SUCCESS) ? _pi_program::Exe : _pi_program::Invalid;
+    *RetProgram =
+        new _pi_program(State, Context, ZeModule, ZeBuildLog, Options);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-  return PI_SUCCESS;
+  return PiResult;
 }
 
 pi_result piProgramCompile(
@@ -3949,10 +3934,15 @@ pi_result piProgramCompile(
   (void)InputHeaders;
   (void)HeaderIncludeNames;
 
-  // The OpenCL spec says this should return CL_INVALID_PROGRAM, but there is
-  // no corresponding PI error code.
-  if (!Program)
-    return PI_INVALID_OPERATION;
+  PI_ASSERT(Program, PI_INVALID_PROGRAM);
+
+  if ((NumDevices && !DeviceList) || (!NumDevices && DeviceList))
+    return PI_INVALID_VALUE;
+
+  // These aren't supported.
+  PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
+
+  std::scoped_lock Guard(Program->Mutex);
 
   // It's only valid to compile a program created from IL (we don't support
   // programs created from source code).
@@ -3962,14 +3952,15 @@ pi_result piProgramCompile(
   if (Program->State != _pi_program::IL)
     return PI_INVALID_OPERATION;
 
-  // These aren't supported.
-  PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
-
-  pi_result res = compileOrBuild(Program, NumDevices, DeviceList, Options);
-  if (res != PI_SUCCESS)
-    return res;
-
+  // We don't compile anything now.  Instead, we delay compilation until
+  // piProgramLink, where we do both compilation and linking as a single step.
+  // This produces better code because the driver can do cross-module
+  // optimizations.  Therefore, we just remember the compilation flags, so we
+  // can use them later.
+  if (Options)
+    Program->BuildFlags = Options;
   Program->State = _pi_program::Object;
+
   return PI_SUCCESS;
 }
 
@@ -3978,32 +3969,7 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
                          void (*PFnNotify)(pi_program Program, void *UserData),
                          void *UserData) {
 
-  // The OpenCL spec says this should return CL_INVALID_PROGRAM, but there is
-  // no corresponding PI error code.
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
-
-  // It is legal to build a program created from either IL or from native
-  // device code.
-  if (Program->State != _pi_program::IL &&
-      Program->State != _pi_program::Native)
-    return PI_INVALID_OPERATION;
-
-  // These aren't supported.
-  PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
-
-  pi_result res = compileOrBuild(Program, NumDevices, DeviceList, Options);
-  if (res != PI_SUCCESS)
-    return res;
-
-  Program->State = _pi_program::Exe;
-  return PI_SUCCESS;
-}
-
-// Perform common operations for compiling or building a program.
-static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
-                                const pi_device *DeviceList,
-                                const char *Options) {
-
   if ((NumDevices && !DeviceList) || (!NumDevices && DeviceList))
     return PI_INVALID_VALUE;
 
@@ -4011,63 +3977,61 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   // TODO: we should eventually build to the possibly multiple root
   // devices in the context.
   if (NumDevices != 1) {
-    zePrint("compileOrBuild: level_zero supports only one device.");
+    zePrint("piProgramBuild: level_zero supports only one device.");
     return PI_INVALID_VALUE;
   }
 
-  PI_ASSERT(DeviceList, PI_INVALID_DEVICE);
+  // These aren't supported.
+  PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
+
+  std::scoped_lock Guard(Program->Mutex);
+
+  // It is legal to build a program created from either IL or from native
+  // device code.
+  if (Program->State != _pi_program::IL &&
+      Program->State != _pi_program::Native)
+    return PI_INVALID_OPERATION;
 
   // We should have either IL or native device code.
   PI_ASSERT(Program->Code, PI_INVALID_PROGRAM);
 
-  // Specialization constants are used only if the program was created from
-  // IL.  Translate them to the Level Zero format.
-  ze_module_constants_t ZeSpecConstants = {};
-  std::vector<uint32_t> ZeSpecContantsIds;
-  std::vector<uint64_t> ZeSpecContantsValues;
-  if (Program->State == _pi_program::IL) {
-    std::lock_guard<std::mutex> Guard(Program->MutexZeSpecConstants);
-
-    ZeSpecConstants.numConstants = Program->ZeSpecConstants.size();
-    ZeSpecContantsIds.reserve(ZeSpecConstants.numConstants);
-    ZeSpecContantsValues.reserve(ZeSpecConstants.numConstants);
-
-    for (auto &SpecConstant : Program->ZeSpecConstants) {
-      ZeSpecContantsIds.push_back(SpecConstant.first);
-      ZeSpecContantsValues.push_back(SpecConstant.second);
-    }
-    ZeSpecConstants.pConstantIds = ZeSpecContantsIds.data();
-    ZeSpecConstants.pConstantValues = const_cast<const void **>(
-        reinterpret_cast<void **>(ZeSpecContantsValues.data()));
-  }
-
   // Ask Level Zero to build and load the native code onto the device.
   ZeStruct<ze_module_desc_t> ZeModuleDesc;
+  _pi_program::SpecConstantShim Shim(Program);
   ZeModuleDesc.format = (Program->State == _pi_program::IL)
                             ? ZE_MODULE_FORMAT_IL_SPIRV
                             : ZE_MODULE_FORMAT_NATIVE;
   ZeModuleDesc.inputSize = Program->CodeLength;
   ZeModuleDesc.pInputModule = Program->Code.get();
   ZeModuleDesc.pBuildFlags = Options;
-  ZeModuleDesc.pConstants = &ZeSpecConstants;
+  ZeModuleDesc.pConstants = Shim.ze();
 
   ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
-  ze_module_handle_t ZeModule;
+  ze_module_handle_t ZeModule = nullptr;
   ZE_CALL(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
                            &Program->ZeBuildLog));
 
-  // Check if this module imports any symbols, which we need to know if we
-  // end up linking this module later.  See comments in piProgramLink() for
-  // details.
-  ZeStruct<ze_module_properties_t> ZeModuleProps;
-  ZE_CALL(zeModuleGetPropertiesMock, (ZeModule, &ZeModuleProps));
-  Program->HasImports = (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS);
+  // The call to zeModuleCreate does not report an error if there are
+  // unresolved symbols because it thinks these could be resolved later via a
+  // call to zeModuleDynamicLink.  However, modules created with piProgramBuild
+  // are supposed to be fully linked and ready to use.  Therefore, do an extra
+  // check now for unresolved symbols.
+  ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+  if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+    return PI_BUILD_PROGRAM_FAILURE;
+  } else if (ZeResult != ZE_RESULT_SUCCESS) {
+    return mapError(ZeResult);
+  }
 
   // We no longer need the IL / native code.
-  // The caller must set the State to Object or Exe as appropriate.
   Program->Code.reset();
+
+  if (Options)
+    Program->BuildFlags = Options;
   Program->ZeModule = ZeModule;
+  Program->State = _pi_program::Exe;
+
   return PI_SUCCESS;
 }
 
@@ -4077,35 +4041,40 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
                                 size_t *ParamValueSizeRet) {
   (void)Device;
 
+  std::shared_lock Guard(Program->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   if (ParamName == CL_PROGRAM_BINARY_TYPE) {
     cl_program_binary_type Type = CL_PROGRAM_BINARY_TYPE_NONE;
     if (Program->State == _pi_program::Object) {
       Type = CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
-    } else if (Program->State == _pi_program::Exe ||
-               Program->State == _pi_program::LinkedExe) {
+    } else if (Program->State == _pi_program::Exe) {
       Type = CL_PROGRAM_BINARY_TYPE_EXECUTABLE;
     }
     return ReturnValue(cl_program_binary_type{Type});
   }
   if (ParamName == CL_PROGRAM_BUILD_OPTIONS) {
-    // TODO: how to get module build options out of Level Zero?
-    // For the programs that we compiled we can remember the options
-    // passed with piProgramCompile/piProgramBuild, but what can we
-    // return for programs that were built outside and registered
-    // with piProgramRegister?
-    return ReturnValue("");
+    return ReturnValue(Program->BuildFlags.c_str());
   } else if (ParamName == CL_PROGRAM_BUILD_LOG) {
-    // The OpenCL spec says an empty string is returned if there was no
-    // previous Compile, Build, or Link.
-    if (!Program->ZeBuildLog)
-      return ReturnValue("");
-    size_t LogSize = ParamValueSize;
-    ZE_CALL(zeModuleBuildLogGetString,
-            (Program->ZeBuildLog, &LogSize, pi_cast<char *>(ParamValue)));
-    if (ParamValueSizeRet) {
-      *ParamValueSizeRet = LogSize;
+    // Check first to see if the plugin code recorded an error message.
+    if (!Program->ErrorMessage.empty()) {
+      return ReturnValue(Program->ErrorMessage.c_str());
     }
+
+    // Next check if there is a Level Zero build log.
+    if (Program->ZeBuildLog) {
+      size_t LogSize = ParamValueSize;
+      ZE_CALL(zeModuleBuildLogGetString,
+              (Program->ZeBuildLog, &LogSize, pi_cast<char *>(ParamValue)));
+      if (ParamValueSizeRet) {
+        *ParamValueSizeRet = LogSize;
+      }
+      return PI_SUCCESS;
+    }
+
+    // Otherwise, there is no error.  The OpenCL spec says to return an empty
+    // string if there ws no previous attempt to compile, build, or link the
+    // program.
+    return ReturnValue("");
   } else {
     zePrint("piProgramGetBuildInfo: unsupported ParamName\n");
     return PI_INVALID_VALUE;
@@ -4136,20 +4105,10 @@ pi_result piextProgramGetNativeHandle(pi_program Program,
 
   auto ZeModule = pi_cast<ze_module_handle_t *>(NativeHandle);
 
+  std::shared_lock Guard(Program->Mutex);
   switch (Program->State) {
-  case _pi_program::Object:
-  case _pi_program::Exe:
-  case _pi_program::LinkedExe: {
-    _pi_program::ModuleIterator ModIt(Program);
-    PI_ASSERT(!ModIt.Done(), PI_INVALID_VALUE);
-    if (ModIt.Count() > 1) {
-      // Programs in LinkedExe state could have several corresponding
-      // Level Zero modules, so there is no right answer in this case.
-      //
-      // TODO: Maybe we should return PI_INVALID_OPERATION instead here?
-      die("piextProgramGetNativeHandle: Not implemented for linked programs");
-    }
-    *ZeModule = *ModIt;
+  case _pi_program::Exe: {
+    *ZeModule = Program->ZeModule;
     break;
   }
 
@@ -4176,7 +4135,7 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   try {
     *Program =
-        new _pi_program(Context, ZeModule, ownNativeHandle, _pi_program::Exe);
+        new _pi_program(_pi_program::Exe, Context, ZeModule, ownNativeHandle);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -4198,102 +4157,40 @@ _pi_program::~_pi_program() {
   }
 }
 
-_pi_program::LinkedReleaser::~LinkedReleaser() {
-  if (Prog->HasImports) {
-    std::lock_guard<std::mutex> Guard(Prog->MutexHasImportsAndIsLinked);
-    if (Prog->HasImportsAndIsLinked)
-      Prog->HasImportsAndIsLinked = false;
-  }
-  piProgramRelease(Prog);
-}
-
-// Create a copy of a Level Zero module by extracting the native code and
-// creating a new module from that native code.
-static pi_result copyModule(ze_context_handle_t ZeContext,
-                            ze_device_handle_t ZeDevice,
-                            ze_module_handle_t SrcMod,
-                            ze_module_handle_t *DestMod) {
-  size_t Length;
-  ZE_CALL(zeModuleGetNativeBinary, (SrcMod, &Length, nullptr));
-
-  std::unique_ptr<uint8_t[]> Code(new uint8_t[Length]);
-  ZE_CALL(zeModuleGetNativeBinary, (SrcMod, &Length, Code.get()));
-
-  ZeStruct<ze_module_desc_t> ZeModuleDesc;
-  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
-  ZeModuleDesc.inputSize = Length;
-  ZeModuleDesc.pInputModule = Code.get();
-  ZeModuleDesc.pBuildFlags = nullptr;
-  ZeModuleDesc.pConstants = nullptr;
-
-  ze_module_handle_t ZeModule;
-  ZE_CALL(zeModuleCreate,
-          (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule, nullptr));
-  *DestMod = ZeModule;
-  return PI_SUCCESS;
-}
-
-// TODO: Remove this mock implementation once the Level Zero driver
-// implementation works.
+// Check to see if a Level Zero module has any unresolved symbols.
+//
+// @param ZeModule    The module handle to check.
+// @param ZeBuildLog  If there are unresolved symbols, this build log handle is
+//                     modified to receive information telling which symbols
+//                     are unresolved.
+//
+// @return ZE_RESULT_ERROR_MODULE_LINK_FAILURE indicates there are unresolved
+//  symbols.  ZE_RESULT_SUCCESS indicates all symbols are resolved.  Any other
+//  value indicates there was an error and we cannot tell if symbols are
+//  resolved.
 static ze_result_t
-zeModuleDynamicLinkMock(uint32_t numModules, ze_module_handle_t *phModules,
-                        ze_module_build_log_handle_t *phLinkLog) {
+checkUnresolvedSymbols(ze_module_handle_t ZeModule,
+                       ze_module_build_log_handle_t *ZeBuildLog) {
 
-  // If enabled, try calling the real driver API instead.  At the time this
-  // code was written, the "phLinkLog" parameter to zeModuleDynamicLink()
-  // doesn't work, so hard code it to NULL.
-  if (isOnlineLinkEnabled()) {
-    if (phLinkLog)
-      *phLinkLog = nullptr;
-    return ZE_CALL_NOCHECK(zeModuleDynamicLink,
-                           (numModules, phModules, nullptr));
+  // First check to see if the module has any imported symbols.  If there are
+  // no imported symbols, it's not possible to have any unresolved symbols.  We
+  // do this check first because we assume it's faster than the call to
+  // zeModuleDynamicLink below.
+  ZeStruct<ze_module_properties_t> ZeModuleProps;
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeModuleGetProperties, (ZeModule, &ZeModuleProps));
+  if (ZeResult != ZE_RESULT_SUCCESS)
+    return ZeResult;
+
+  // If there are imported symbols, attempt to "link" the module with itself.
+  // As a side effect, this will return the error
+  // ZE_RESULT_ERROR_MODULE_LINK_FAILURE if there are any unresolved symbols.
+  if (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS) {
+    return ZE_CALL_NOCHECK(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog));
   }
-
-  // The mock implementation can only handle the degenerate case where there
-  // is only a single module that is "linked" to itself.  There is nothing to
-  // do in this degenerate case.
-  if (numModules > 1) {
-    die("piProgramLink: Program Linking is not supported yet in Level0");
-  }
-
-  // The mock does not support the link log.
-  if (phLinkLog)
-    *phLinkLog = nullptr;
   return ZE_RESULT_SUCCESS;
 }
 
-// TODO: Remove this mock implementation once the Level Zero driver
-// implementation works.
-static ze_result_t
-zeModuleGetPropertiesMock(ze_module_handle_t hModule,
-                          ze_module_properties_t *pModuleProperties) {
-
-  // If enabled, try calling the real driver API first.  At the time this code
-  // was written it always returns ZE_RESULT_ERROR_UNSUPPORTED_FEATURE, so we
-  // fall back to the mock in this case.
-  if (isOnlineLinkEnabled()) {
-    ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeModuleGetProperties, (hModule, pModuleProperties));
-    if (ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      return ZeResult;
-    }
-  }
-
-  // The mock implementation assumes that the module has imported symbols.
-  // This is a conservative guess which may result in unnecessary calls to
-  // copyModule(), but it is always correct.
-  pModuleProperties->flags = ZE_MODULE_PROPERTY_FLAG_IMPORTS;
-  return ZE_RESULT_SUCCESS;
-}
-
-// Returns true if we should use the Level Zero driver online linking APIs.
-// At the time this code was written, these APIs exist but do not work.  We
-// think that support in the DPC++ runtime is ready once the driver bugs are
-// fixed, so runtime support can be enabled by setting an environment variable.
-static bool isOnlineLinkEnabled() {
-  static bool IsEnabled = std::getenv("SYCL_ENABLE_LEVEL_ZERO_LINK");
-  return IsEnabled;
-}
 pi_result piKernelCreate(pi_program Program, const char *KernelName,
                          pi_kernel *RetKernel) {
 
@@ -4301,8 +4198,8 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   PI_ASSERT(RetKernel, PI_INVALID_VALUE);
   PI_ASSERT(KernelName, PI_INVALID_VALUE);
 
-  if (Program->State != _pi_program::Exe &&
-      Program->State != _pi_program::LinkedExe) {
+  std::shared_lock Guard(Program->Mutex);
+  if (Program->State != _pi_program::Exe) {
     return PI_INVALID_PROGRAM_EXECUTABLE;
   }
 
@@ -4310,29 +4207,8 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
   ZeKernelDesc.flags = 0;
   ZeKernelDesc.pKernelName = KernelName;
 
-  // Search for the kernel name in each module.
   ze_kernel_handle_t ZeKernel;
-  ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_KERNEL_NAME;
-  _pi_program::ModuleIterator ModIt(Program);
-  while (!ModIt.Done()) {
-    // For a module with valid sycl kernel inside, zeKernelCreate API
-    // should return ZE_RESULT_SUCCESS if target kernel is found and
-    // ZE_RESULT_ERROR_INVALID_KERNEL_NAME otherwise. However, some module
-    // may not include any sycl kernel such as device library modules. For such
-    // modules, zeKernelCreate will return ZE_RESULT_ERROR_INVALID_ARGUMENT and
-    // we should skip them.
-    uint32_t KernelNum = 0;
-    ZE_CALL(zeModuleGetKernelNames, (*ModIt, &KernelNum, nullptr));
-    if (KernelNum != 0) {
-      ZeResult =
-          ZE_CALL_NOCHECK(zeKernelCreate, (*ModIt, &ZeKernelDesc, &ZeKernel));
-      if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
-        break;
-    }
-    ModIt++;
-  }
-  if (ZeResult != ZE_RESULT_SUCCESS)
-    return mapError(ZeResult);
+  ZE_CALL(zeKernelCreate, (Program->ZeModule, &ZeKernelDesc, &ZeKernel));
 
   try {
     *RetKernel = new _pi_kernel(ZeKernel, true, Program);
@@ -6546,22 +6422,15 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
   (void)Device;
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
 
-  if (Program->State != _pi_program::Exe &&
-      Program->State != _pi_program::LinkedExe) {
+  std::shared_lock Guard(Program->Mutex);
+  if (Program->State != _pi_program::Exe) {
     return PI_INVALID_PROGRAM_EXECUTABLE;
   }
 
-  // Search for the function name in each module.
-  ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_FUNCTION_NAME;
-  _pi_program::ModuleIterator ModIt(Program);
-  while (!ModIt.Done()) {
-    ZeResult = ZE_CALL_NOCHECK(
-        zeModuleGetFunctionPointer,
-        (*ModIt, FunctionName, reinterpret_cast<void **>(FunctionPointerRet)));
-    if (ZeResult != ZE_RESULT_ERROR_INVALID_FUNCTION_NAME)
-      break;
-    ModIt++;
-  }
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeModuleGetFunctionPointer,
+                      (Program->ZeModule, FunctionName,
+                       reinterpret_cast<void **>(FunctionPointerRet)));
 
   // zeModuleGetFunctionPointer currently fails for all
   // kernels regardless of if the kernel exist or not
@@ -7378,16 +7247,15 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
 pi_result piextProgramSetSpecializationConstant(pi_program Prog,
                                                 pi_uint32 SpecID, size_t,
                                                 const void *SpecValue) {
-  // Level Zero sets spec constants when creating modules,
-  // so save them for when program is built.
-  std::lock_guard<std::mutex> Guard(Prog->MutexZeSpecConstants);
+  std::scoped_lock Guard(Prog->Mutex);
 
-  // Pass SpecValue pointer. Spec constant value is retrieved
-  // by Level Zero when creating the module.
+  // Remember the value of this specialization constant until the program is
+  // built.  Note that we only save the pointer to the buffer that contains the
+  // value.  The caller is responsible for maintaining storage for this buffer.
   //
   // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by
   // SpecID.
-  Prog->ZeSpecConstants[SpecID] = reinterpret_cast<uint64_t>(SpecValue);
+  Prog->SpecConstants[SpecID] = SpecValue;
 
   return PI_SUCCESS;
 }
