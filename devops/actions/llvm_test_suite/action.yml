@@ -34,6 +34,7 @@ runs:
   using: "composite"
   steps:
   - run: cp -r /actions .
+    shell: bash
   - name: Checkout LLVM Test Suite
     uses: ./actions/cached_checkout
     with:
