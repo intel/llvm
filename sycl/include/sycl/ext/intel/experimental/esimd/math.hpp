@@ -1592,12 +1592,14 @@ asin(T src0, int flag = saturation_off) {
   return Result[0];
 }
 
-// log
-
+/// Computes the natural logarithm of the given argument. This is an
+/// emulated version based on the H/W supported log2.
+/// @param the source operand to compute base-e logarithm of.
+/// @return the base-e logarithm of \p src0.
 template <int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ> log(simd<float, SZ> src0,
                                                int flag = saturation_off) {
-  constexpr float ln2 = 0.693147f; // std::numbers::ln2_v<float> in c++20
+  constexpr float ln2 = 0.69314718f; // std::numbers::ln2_v<float> in c++20
   simd<float, SZ> Result = esimd::log2<SZ>(src0) * ln2;
 
   if (flag != saturation_on)
@@ -1610,8 +1612,10 @@ ESIMD_NODEBUG ESIMD_INLINE float log(float src0, int flag = saturation_off) {
   return esimd::log<1>(src0, flag)[0];
 }
 
-// exp
-
+/// Computes e raised to the power of the given argument. This is an
+/// emulated version based on the H/W supported exp2.
+/// @param the source operand to compute base-e exponential of.
+/// @return e raised to the power of \p src0.
 template <int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ> exp(simd<float, SZ> src0,
                                                int flag = saturation_off) {
