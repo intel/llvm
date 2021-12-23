@@ -37,6 +37,17 @@ enum class address_space : int {
 };
 } // namespace access
 
+// Dummy aspect enum with limited enumerators
+enum class aspect {
+  host = 0,
+  cpu = 1,
+  gpu = 2,
+  accelerator = 3,
+  custom = 4,
+  fp16 = 5,
+  fp64 = 6,
+};
+
 class property_list {};
 
 namespace ext {
