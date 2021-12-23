@@ -7421,6 +7421,7 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 // the plugin is unloaded from memory.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
+  bool LeakFound = false;
   // reclaim pi_platform objects here since we don't have piPlatformRelease.
   for (pi_platform &Platform : *PiPlatformsCache) {
     delete Platform;
@@ -7498,8 +7499,10 @@ pi_result piTearDown(void *PluginParameter) {
         fprintf(stderr, "%30s = %-5d", ZeName, ZeCount);
       }
 
-      if (diff)
+      if (diff) {
+        LeakFound = true;
         fprintf(stderr, " ---> LEAK = %d", diff);
+      }
       fprintf(stderr, "\n");
     }
 
@@ -7507,6 +7510,8 @@ pi_result piTearDown(void *PluginParameter) {
     delete ZeCallCount;
     ZeCallCount = nullptr;
   }
+  if (LeakFound)
+    return PI_INVALID_MEM_OBJECT;
   return PI_SUCCESS;
 }
 
