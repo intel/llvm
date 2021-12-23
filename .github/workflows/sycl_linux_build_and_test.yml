@@ -221,10 +221,10 @@ jobs:
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+    # FIXME cached_checkout fails here, but works everywhere else
+    - uses: actions/checkout@v2
       with:
         path: llvm
-        cache_path: "/__w/repo_cache/"
     # TODO should this action be packed into container as well?
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
@@ -251,10 +251,10 @@ jobs:
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+    # FIXME cached_checkout fails here, but works everywhere else
+    - uses: actions/checkout@v2
       with:
         path: llvm
-        cache_path: "/__w/repo_cache/"
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
@@ -280,10 +280,10 @@ jobs:
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+    # FIXME cached_checkout fails here, but works everywhere else
+    - uses: actions/checkout@v2
       with:
         path: llvm
-        cache_path: "/__w/repo_cache/"
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
@@ -306,21 +306,14 @@ jobs:
       options: --device=/dev/dri --device=/dev/kfd
     steps:
     - run: cp -r /actions .
-    - run: |
-        ls -la /__w/
-        ls -la /__w/_actions/
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
-    - run: |
-        ls -la /__w/
-        ls -la /__w/_actions/
     # TODO remove this step one LLVM Test Suite action is settled and packed
     # into container.
-    - name: Checkout llvm repo
-      uses: ./actions/cached_checkout
+    # FIXME cached_checkout fails here, but works everywhere else
+    - uses: actions/checkout@v2
       with:
         path: llvm
-        cache_path: "/__w/repo_cache/"
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
