@@ -21,9 +21,7 @@
 #include <limits>
 #include <type_traits>
 
-namespace esimd_test {
-namespace api {
-namespace functional {
+namespace esimd_test::api::functional {
 
 namespace details {
 
@@ -175,6 +173,4 @@ template <typename DataT, int NumElems> std::vector<DataT> generate_ref_data() {
   return ref_data;
 }
 
-} // namespace functional
-} // namespace api
-} // namespace esimd_test
+} // namespace esimd_test::api::functional

@@ -17,25 +17,21 @@
 #include <iostream>
 #include <string>
 
-namespace esimd_test {
-namespace api {
-namespace functional {
+namespace esimd_test::api::functional {
+
+// Interface for any test case description class to use for logs within generic
+// assertions
+struct ITestDescription {
+  virtual ~ITestDescription() = default;
+  virtual std::string to_string() const = 0;
+};
+
 namespace log {
 
 // Printing failure message to console with pre-defined format
-template <int NumElems = 0>
-inline void fail(const std::string &msg,
-                 std::string underlying_data_type = "") {
-  std::string log_msg{msg};
-  if (!underlying_data_type.empty()) {
-    log_msg += ", with data type: ";
-    log_msg += underlying_data_type;
-  }
-  if constexpr (NumElems != 0) {
-    log_msg += ", with num elements: ";
-    log_msg += std::to_string(NumElems);
-  }
-  std::cout << log_msg << std::endl;
+inline void fail(const ITestDescription &test_description) {
+  // Force output buffer flush after each failure
+  std::cout << test_description.to_string() << std::endl;
 }
 
 // Printing provided string to the console with a forced flush to have all logs
@@ -43,6 +39,5 @@ inline void fail(const std::string &msg,
 inline void note(const std::string &msg) { std::cout << msg << std::endl; }
 
 } // namespace log
-} // namespace functional
-} // namespace api
-} // namespace esimd_test
+
+} // namespace esimd_test::api::functional

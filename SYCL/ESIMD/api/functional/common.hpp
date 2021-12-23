@@ -25,9 +25,7 @@
 
 #include <vector>
 
-namespace esimd_test {
-namespace api {
-namespace functional {
+namespace esimd_test::api::functional {
 
 namespace details {
 
@@ -48,6 +46,12 @@ template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
 
 } // namespace details
 
+template <typename DataT>
+using shared_allocator = sycl::usm_allocator<DataT, sycl::usm::alloc::shared>;
+
+template <typename DataT>
+using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
+
 // A wrapper to speed-up bitwise comparison
 template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
   // We are safe to compare unsigned integral types using `==` operator.
@@ -63,6 +67,4 @@ template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
   }
 }
 
-} // namespace functional
-} // namespace api
-} // namespace esimd_test
+} // namespace esimd_test::api::functional

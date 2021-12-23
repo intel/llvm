@@ -15,73 +15,38 @@
 
 #include "../common.hpp"
 
-namespace esimd_test {
-namespace api {
-namespace functional {
-namespace ctors {
+namespace esimd_test::api::functional::ctors {
 
 // Dummy kernel for submitting some code into device side.
 template <typename DataT, int NumElems, typename T> struct Kernel;
 
-template <typename DataT>
-using shared_allocator = sycl::usm_allocator<DataT, sycl::usm::alloc::shared>;
+template <typename DataT, int NumElems, typename ContextT>
+class TestDescription : public ITestDescription {
+public:
+  TestDescription(size_t index, DataT retrieved_val, DataT expected_val,
+                  const std::string &data_type)
+      : m_data_type(data_type), m_retrieved_val(retrieved_val),
+        m_expected_val(expected_val), m_index(index) {}
 
-template <typename DataT>
-using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
+  std::string to_string() const override {
+    // TODO: Make strings for fp values more short during failure output, may be
+    // by using hex representation
+    std::string log_msg("Failed for simd<");
 
-// Calls simd constructor in provided invocation context, which depends on the
-// TestCaseT type. TestCaseT is a struct, that should have call_simd_ctor method
-// that should return constructed object of simd class.
-// This function returns std::vector instance with the output data.
-template <typename DataT, int NumElems, typename TestCaseT>
-auto call_simd(sycl::queue &queue, const shared_vector<DataT> &ref_data) {
+    log_msg += m_data_type + ", " + std::to_string(NumElems) + ">";
+    log_msg += ", with context: " + ContextT::get_description();
+    log_msg += ", retrieved: " + std::to_string(m_retrieved_val);
+    log_msg += ", expected: " + std::to_string(m_expected_val);
+    log_msg += ", at index: " + std::to_string(m_index);
 
-  shared_vector<DataT> result{NumElems, shared_allocator<DataT>{queue}};
-
-  queue.submit([&](sycl::handler &cgh) {
-    const auto ref = ref_data.data();
-    auto out = result.data();
-
-    cgh.single_task<Kernel<DataT, NumElems, TestCaseT>>(
-        [=]() SYCL_ESIMD_KERNEL {
-          sycl::ext::intel::experimental::esimd::simd<DataT, NumElems>
-              result_simd =
-                  TestCaseT::template call_simd_ctor<DataT, NumElems>(ref);
-          result_simd.copy_to(out);
-        });
-  });
-  return result;
-}
-
-// The main test routine.
-// Using functor class to be able to iterate over the pre-defined data types.
-template <typename DataT, int NumElems, typename TestCaseT> struct test {
-  bool operator()(sycl::queue &queue, const std::string &data_type) {
-    bool passed{true};
-
-    std::vector<DataT> generated_data{generate_ref_data<DataT, NumElems>()};
-    shared_vector<DataT> ref_data{generated_data.begin(), generated_data.end(),
-                                  shared_allocator<DataT>{queue}};
-
-    const auto result_data =
-        call_simd<DataT, NumElems, TestCaseT>(queue, ref_data);
-
-    for (size_t it = 0; it < ref_data.size(); it++) {
-      if (!are_bitwise_equal(ref_data[it], result_data[it])) {
-        passed = false;
-        log::fail<NumElems>(
-            "Simd by " + TestCaseT::get_description() +
-                " failed, retrieved: " + std::to_string(result_data[it]) +
-                ", expected: " + std::to_string(ref_data[it]),
-            data_type);
-      }
-    }
-
-    return passed;
+    return log_msg;
   }
+
+private:
+  const std::string m_data_type;
+  const DataT m_retrieved_val;
+  const DataT m_expected_val;
+  const size_t m_index;
 };
 
-} // namespace ctors
-} // namespace functional
-} // namespace api
-} // namespace esimd_test
+} // namespace esimd_test::api::functional::ctors

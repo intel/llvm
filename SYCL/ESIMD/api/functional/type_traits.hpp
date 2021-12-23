@@ -15,10 +15,7 @@
 
 #include <type_traits>
 
-namespace esimd_test {
-namespace api {
-namespace functional {
-namespace type_traits {
+namespace esimd_test::api::functional::type_traits {
 
 template <typename T>
 using is_sycl_floating_point =
@@ -29,7 +26,4 @@ template <typename T>
 inline constexpr bool is_sycl_floating_point_v{
     is_sycl_floating_point<T>::value};
 
-} // namespace type_traits
-} // namespace functional
-} // namespace api
-} // namespace esimd_test
+} // namespace esimd_test::api::functional::type_traits

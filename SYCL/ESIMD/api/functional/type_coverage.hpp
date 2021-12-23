@@ -17,9 +17,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace esimd_test {
-namespace api {
-namespace functional {
+namespace esimd_test::api::functional {
 
 // Integer pack to store provided int values
 template <int... T> struct values_pack {
@@ -145,6 +143,4 @@ inline bool for_all_types_and_dims(const named_type_pack<Types...> &type_list,
   return passed;
 }
 
-} // namespace functional
-} // namespace api
-} // namespace esimd_test
+} // namespace esimd_test::api::functional
