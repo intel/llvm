@@ -485,7 +485,7 @@ bool BranchRelaxation::fixupUnconditionalBranch(MachineInstr &MI) {
     MachineBasicBlock *PrevBB = &*std::prev(DestBB->getIterator());
     if (auto *FT = PrevBB->getFallThrough()) {
       assert(FT == DestBB);
-      TII->insertUnconditionalBranch(*PrevBB, DestBB, DebugLoc());
+      TII->insertUnconditionalBranch(*PrevBB, FT, DebugLoc());
       // Recalculate the block size.
       BlockInfo[PrevBB->getNumber()].Size = computeBlockSize(*PrevBB);
     }
@@ -513,9 +513,7 @@ bool BranchRelaxation::relaxBranchInstructions() {
 
   // Relaxing branches involves creating new basic blocks, so re-eval
   // end() for termination.
-  for (MachineFunction::iterator I = MF->begin(); I != MF->end(); ++I) {
-    MachineBasicBlock &MBB = *I;
-
+  for (MachineBasicBlock &MBB : *MF) {
     // Empty block?
     MachineBasicBlock::iterator Last = MBB.getLastNonDebugInstr();
     if (Last == MBB.end())

@@ -129,7 +129,8 @@ def color_diagnostics_eq: J<"color-diagnostics=">,
   HelpText<"Use colors in diagnostics (default: auto)">,
   MetaVarName<"[auto,always,never]">;
 
-def cref: FF<"cref">, HelpText<"Output cross reference table">;
+def cref: FF<"cref">,
+  HelpText<"Output cross reference table. If -Map is specified, print to the map file">;
 
 defm define_common: B<"define-common",
     "Assign space to common symbols",
@@ -250,10 +251,10 @@ def icf_safe: F<"icf=safe">, HelpText<"Enable safe identical code folding">;
 
 def icf_none: F<"icf=none">, HelpText<"Disable identical code folding (default)">;
 
-def ignore_function_address_equality: F<"ignore-function-address-equality">,
+def ignore_function_address_equality: FF<"ignore-function-address-equality">,
   HelpText<"lld can break the address equality of functions">;
 
-def ignore_data_address_equality: F<"ignore-data-address-equality">,
+def ignore_data_address_equality: FF<"ignore-data-address-equality">,
   HelpText<"lld can break the address equality of data">;
 
 defm image_base: EEq<"image-base", "Set the base address">;
@@ -304,8 +305,8 @@ def no_undefined: F<"no-undefined">,
 def o: JoinedOrSeparate<["-"], "o">, MetaVarName<"<path>">,
   HelpText<"Path to file to write output">;
 
-def oformat: Separate<["--"], "oformat">, MetaVarName<"<format>">,
-  HelpText<"Specify the binary format for the output object file">;
+defm oformat: EEq<"oformat", "Specify the binary format for the output object file">,
+  MetaVarName<"[elf,binary]">;
 
 def omagic: FF<"omagic">, MetaVarName<"<magic>">,
   HelpText<"Set the text and data sections to be readable and writable, do not page align sections, link against static libraries">;
@@ -338,7 +339,7 @@ defm print_icf_sections: B<"print-icf-sections",
 
 def print_archive_stats: J<"print-archive-stats=">,
   HelpText<"Write archive usage statistics to the specified file. "
-           "Print the numbers of members and fetched members for each archive">;
+           "Print the numbers of members and extracted members for each archive">;
 
 defm print_symbol_order: Eq<"print-symbol-order",
   "Print a symbol order specified by --call-graph-ordering-file into the specified file">;
@@ -352,8 +353,12 @@ def push_state: F<"push-state">,
 def print_map: F<"print-map">,
   HelpText<"Print a link map to the standard output">;
 
+defm relax: BB<"relax",
+  "Enable target-specific relaxations if supported (default)",
+  "Disable target-specific relaxations">;
+
 defm reproduce:
-  Eq<"reproduce",
+  EEq<"reproduce",
      "Write tar file containing inputs and command to reproduce link">;
 
 defm rosegment: BB<"rosegment",
@@ -404,7 +409,7 @@ defm target2:
   MetaVarName<"<type>">;
 
 defm threads
-    : Eq<"threads",
+    : EEq<"threads",
          "Number of threads. '1' disables multi-threading. By default all "
          "available hardware threads are used">;
 
@@ -450,22 +455,19 @@ def verbose: F<"verbose">, HelpText<"Verbose mode">;
 
 def version: F<"version">, HelpText<"Display the version number and exit">;
 
-def power10_stubs: F<"power10-stubs">, HelpText<"Alias for --power10-stubs=auto">;
-
-def no_power10_stubs: F<"no-power10-stubs">, HelpText<"Alias for --power10-stubs=no">;
-
-def power10_stubs_eq:
-  J<"power10-stubs=">, HelpText<
-                     "Enables Power10 instructions in all stubs without options, "
-                     "options override previous flags."
-                     "auto: Allow Power10 instructions in stubs if applicable."
-                     "no:   No Power10 instructions in stubs.">;
+def power10_stubs_eq: JJ<"power10-stubs=">, MetaVarName<"<mode>">,
+  HelpText<"Whether to use Power10 instructions in call stubs for R_PPC64_REL24_NOTOC and TOC/NOTOC "
+  "interworking (yes (default): use; no: don't use). \"auto\" is currently the same as \"yes\"">;
+def power10_stubs: FF<"power10-stubs">, Alias<power10_stubs_eq>, AliasArgs<["yes"]>,
+  HelpText<"Alias for --power10-stubs=auto">;
+def no_power10_stubs: FF<"no-power10-stubs">, Alias<power10_stubs_eq>, AliasArgs<["no"]>,
+  HelpText<"Alias for --power10-stubs=no">;
 
 defm version_script: Eq<"version-script", "Read a version script">;
 
 defm warn_backrefs: BB<"warn-backrefs",
-    "Warn about backward symbol references to fetch archive members",
-    "Do not warn about backward symbol references to fetch archive members (default)">;
+    "Warn about backward symbol references to extract archive members",
+    "Do not warn about backward symbol references to extract archive members (default)">;
 
 defm warn_backrefs_exclude
     : EEq<"warn-backrefs-exclude",
@@ -501,7 +503,7 @@ defm wrap : Eq<"wrap", "Redirect symbol references to __wrap_symbol and "
 def z: JoinedOrSeparate<["-"], "z">, MetaVarName<"<option>">,
   HelpText<"Linker option extensions">;
 
-def visual_studio_diagnostics_format : F<"vs-diagnostics">,
+def visual_studio_diagnostics_format : FF<"vs-diagnostics">,
 HelpText<"Format diagnostics for Visual Studio compatibility">;
 
 // Aliases
@@ -695,7 +697,6 @@ def: F<"long-plt">;
 def: F<"no-copy-dt-needed-entries">;
 def: F<"no-ctors-in-init-array">;
 def: F<"no-keep-memory">;
-def: F<"no-relax">;
 def: F<"no-warn-mismatch">;
 def: Separate<["--", "-"], "rpath-link">;
 def: J<"rpath-link=">;

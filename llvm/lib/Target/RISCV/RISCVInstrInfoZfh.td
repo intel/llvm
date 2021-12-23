@@ -28,45 +28,10 @@ def riscv_fmv_x_anyexth
     : SDNode<"RISCVISD::FMV_X_ANYEXTH", SDT_RISCVFMV_X_ANYEXTH>;
 
 //===----------------------------------------------------------------------===//
-// Instruction class templates
-//===----------------------------------------------------------------------===//
-
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class FPFMAH_rrr_frm<RISCVOpcode opcode, string opcodestr>
-    : RVInstR4Frm<0b10, opcode, (outs FPR16:$rd),
-                  (ins FPR16:$rs1, FPR16:$rs2, FPR16:$rs3, frmarg:$funct3),
-                  opcodestr, "$rd, $rs1, $rs2, $rs3, $funct3">;
-
-class FPFMAHDynFrmAlias<FPFMAH_rrr_frm Inst, string OpcodeStr>
-    : InstAlias<OpcodeStr#" $rd, $rs1, $rs2, $rs3",
-                (Inst FPR16:$rd, FPR16:$rs1, FPR16:$rs2, FPR16:$rs3, 0b111)>;
-
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class FPALUH_rr<bits<7> funct7, bits<3> funct3, string opcodestr>
-    : RVInstR<funct7, funct3, OPC_OP_FP, (outs FPR16:$rd),
-              (ins FPR16:$rs1, FPR16:$rs2), opcodestr, "$rd, $rs1, $rs2">;
-
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class FPALUH_rr_frm<bits<7> funct7, string opcodestr>
-    : RVInstRFrm<funct7, OPC_OP_FP, (outs FPR16:$rd),
-                 (ins FPR16:$rs1, FPR16:$rs2, frmarg:$funct3), opcodestr,
-                  "$rd, $rs1, $rs2, $funct3">;
-
-class FPALUHDynFrmAlias<FPALUH_rr_frm Inst, string OpcodeStr>
-    : InstAlias<OpcodeStr#" $rd, $rs1, $rs2",
-                (Inst FPR16:$rd, FPR16:$rs1, FPR16:$rs2, 0b111)>;
-
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-class FPCmpH_rr<bits<3> funct3, string opcodestr>
-    : RVInstR<0b1010010, funct3, OPC_OP_FP, (outs GPR:$rd),
-              (ins FPR16:$rs1, FPR16:$rs2), opcodestr, "$rd, $rs1, $rs2">,
-      Sched<[WriteFCmp16, ReadFCmp16, ReadFCmp16]>;
-
-//===----------------------------------------------------------------------===//
 // Instructions
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtZfh] in {
+let Predicates = [HasStdExtZfhmin] in {
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
 def FLH : RVInstI<0b001, OPC_LOAD_FP, (outs FPR16:$rd),
                   (ins GPR:$rs1, simm12:$imm12),
@@ -81,32 +46,34 @@ def FSH : RVInstS<0b001, OPC_STORE_FP, (outs),
                   (ins FPR16:$rs2, GPR:$rs1, simm12:$imm12),
                    "fsh", "$rs2, ${imm12}(${rs1})">,
           Sched<[WriteFST16, ReadStoreData, ReadFMemBase]>;
+} // Predicates = [HasStdExtZfhmin]
 
-def FMADD_H  : FPFMAH_rrr_frm<OPC_MADD, "fmadd.h">,
-               Sched<[WriteFMA16, ReadFMA16, ReadFMA16, ReadFMA16]>;
-def          : FPFMAHDynFrmAlias<FMADD_H, "fmadd.h">;
-def FMSUB_H  : FPFMAH_rrr_frm<OPC_MSUB, "fmsub.h">,
-               Sched<[WriteFMA16, ReadFMA16, ReadFMA16, ReadFMA16]>;
-def          : FPFMAHDynFrmAlias<FMSUB_H, "fmsub.h">;
-def FNMSUB_H : FPFMAH_rrr_frm<OPC_NMSUB, "fnmsub.h">,
-               Sched<[WriteFMA16, ReadFMA16, ReadFMA16, ReadFMA16]>;
-def          : FPFMAHDynFrmAlias<FNMSUB_H, "fnmsub.h">;
-def FNMADD_H : FPFMAH_rrr_frm<OPC_NMADD, "fnmadd.h">,
-               Sched<[WriteFMA16, ReadFMA16, ReadFMA16, ReadFMA16]>;
-def          : FPFMAHDynFrmAlias<FNMADD_H, "fnmadd.h">;
+let Predicates = [HasStdExtZfh] in {
+let SchedRW = [WriteFMA16, ReadFMA16, ReadFMA16, ReadFMA16] in {
+def FMADD_H  : FPFMA_rrr_frm<OPC_MADD,  0b10, "fmadd.h",  FPR16>;
+def FMSUB_H  : FPFMA_rrr_frm<OPC_MSUB,  0b10, "fmsub.h",  FPR16>;
+def FNMSUB_H : FPFMA_rrr_frm<OPC_NMSUB, 0b10, "fnmsub.h", FPR16>;
+def FNMADD_H : FPFMA_rrr_frm<OPC_NMADD, 0b10, "fnmadd.h", FPR16>;
+}
 
-def FADD_H : FPALUH_rr_frm<0b0000010, "fadd.h">,
+def : FPFMADynFrmAlias<FMADD_H,  "fmadd.h",  FPR16>;
+def : FPFMADynFrmAlias<FMSUB_H,  "fmsub.h",  FPR16>;
+def : FPFMADynFrmAlias<FNMSUB_H, "fnmsub.h", FPR16>;
+def : FPFMADynFrmAlias<FNMADD_H, "fnmadd.h", FPR16>;
+
+def FADD_H : FPALU_rr_frm<0b0000010, "fadd.h", FPR16>,
              Sched<[WriteFALU16, ReadFALU16, ReadFALU16]>;
-def        : FPALUHDynFrmAlias<FADD_H, "fadd.h">;
-def FSUB_H : FPALUH_rr_frm<0b0000110, "fsub.h">,
+def FSUB_H : FPALU_rr_frm<0b0000110, "fsub.h", FPR16>,
              Sched<[WriteFALU16, ReadFALU16, ReadFALU16]>;
-def        : FPALUHDynFrmAlias<FSUB_H, "fsub.h">;
-def FMUL_H : FPALUH_rr_frm<0b0001010, "fmul.h">,
+def FMUL_H : FPALU_rr_frm<0b0001010, "fmul.h", FPR16>,
              Sched<[WriteFMul16, ReadFMul16, ReadFMul16]>;
-def        : FPALUHDynFrmAlias<FMUL_H, "fmul.h">;
-def FDIV_H : FPALUH_rr_frm<0b0001110, "fdiv.h">,
+def FDIV_H : FPALU_rr_frm<0b0001110, "fdiv.h", FPR16>,
              Sched<[WriteFDiv16, ReadFDiv16, ReadFDiv16]>;
-def        : FPALUHDynFrmAlias<FDIV_H, "fdiv.h">;
+
+def        : FPALUDynFrmAlias<FADD_H, "fadd.h", FPR16>;
+def        : FPALUDynFrmAlias<FSUB_H, "fsub.h", FPR16>;
+def        : FPALUDynFrmAlias<FMUL_H, "fmul.h", FPR16>;
+def        : FPALUDynFrmAlias<FDIV_H, "fdiv.h", FPR16>;
 
 def FSQRT_H : FPUnaryOp_r_frm<0b0101110, FPR16, FPR16, "fsqrt.h">,
               Sched<[WriteFSqrt16, ReadFSqrt16]> {
@@ -114,16 +81,16 @@ def FSQRT_H : FPUnaryOp_r_frm<0b0101110, FPR16, FPR16, "fsqrt.h">,
 }
 def         : FPUnaryOpDynFrmAlias<FSQRT_H, "fsqrt.h", FPR16, FPR16>;
 
-def FSGNJ_H  : FPALUH_rr<0b0010010, 0b000, "fsgnj.h">,
-               Sched<[WriteFSGNJ16, ReadFSGNJ16, ReadFSGNJ16]>;
-def FSGNJN_H : FPALUH_rr<0b0010010, 0b001, "fsgnjn.h">,
-               Sched<[WriteFSGNJ16, ReadFSGNJ16, ReadFSGNJ16]>;
-def FSGNJX_H : FPALUH_rr<0b0010010, 0b010, "fsgnjx.h">,
-               Sched<[WriteFSGNJ16, ReadFSGNJ16, ReadFSGNJ16]>;
-def FMIN_H   : FPALUH_rr<0b0010110, 0b000, "fmin.h">,
-               Sched<[WriteFMinMax16, ReadFMinMax16, ReadFMinMax16]>;
-def FMAX_H   : FPALUH_rr<0b0010110, 0b001, "fmax.h">,
-               Sched<[WriteFMinMax16, ReadFMinMax16, ReadFMinMax16]>;
+let SchedRW = [WriteFSGNJ16, ReadFSGNJ16, ReadFSGNJ16] in {
+def FSGNJ_H  : FPALU_rr<0b0010010, 0b000, "fsgnj.h", FPR16>;
+def FSGNJN_H : FPALU_rr<0b0010010, 0b001, "fsgnjn.h", FPR16>;
+def FSGNJX_H : FPALU_rr<0b0010010, 0b010, "fsgnjx.h", FPR16>;
+}
+
+let SchedRW = [WriteFMinMax16, ReadFMinMax16, ReadFMinMax16] in {
+def FMIN_H   : FPALU_rr<0b0010110, 0b000, "fmin.h", FPR16>;
+def FMAX_H   : FPALU_rr<0b0010110, 0b001, "fmax.h", FPR16>;
+}
 
 def FCVT_W_H : FPUnaryOp_r_frm<0b1100010, GPR, FPR16, "fcvt.w.h">,
                Sched<[WriteFCvtF16ToI32, ReadFCvtF16ToI32]> {
@@ -148,7 +115,9 @@ def FCVT_H_WU : FPUnaryOp_r_frm<0b1101010, FPR16, GPR, "fcvt.h.wu">,
   let rs2 = 0b00001;
 }
 def           : FPUnaryOpDynFrmAlias<FCVT_H_WU, "fcvt.h.wu", FPR16, GPR>;
+} // Predicates = [HasStdExtZfh]
 
+let Predicates = [HasStdExtZfhmin] in {
 def FCVT_H_S : FPUnaryOp_r_frm<0b0100010, FPR16, FPR32, "fcvt.h.s">,
                Sched<[WriteFCvtF32ToF16, ReadFCvtF32ToF16]> {
   let rs2 = 0b00000;
@@ -169,10 +138,15 @@ def FMV_H_X : FPUnaryOp_r<0b1111010, 0b000, FPR16, GPR, "fmv.h.x">,
               Sched<[WriteFMovI16ToF16, ReadFMovI16ToF16]> {
   let rs2 = 0b00000;
 }
+} // Predicates = [HasStdExtZfhmin]
 
-def FEQ_H : FPCmpH_rr<0b010, "feq.h">;
-def FLT_H : FPCmpH_rr<0b001, "flt.h">;
-def FLE_H : FPCmpH_rr<0b000, "fle.h">;
+let Predicates = [HasStdExtZfh] in {
+
+let SchedRW = [WriteFCmp16, ReadFCmp16, ReadFCmp16] in {
+def FEQ_H : FPCmp_rr<0b1010010, 0b010, "feq.h", FPR16>;
+def FLT_H : FPCmp_rr<0b1010010, 0b001, "flt.h", FPR16>;
+def FLE_H : FPCmp_rr<0b1010010, 0b000, "fle.h", FPR16>;
+}
 
 def FCLASS_H : FPUnaryOp_r<0b1110010, 0b001, GPR, FPR16, "fclass.h">,
                Sched<[WriteFClass16, ReadFClass16]> {
@@ -206,7 +180,7 @@ def FCVT_H_LU : FPUnaryOp_r_frm<0b1101010, FPR16, GPR, "fcvt.h.lu">,
 def           : FPUnaryOpDynFrmAlias<FCVT_H_LU, "fcvt.h.lu", FPR16, GPR>;
 } // Predicates = [HasStdExtZfh, IsRV64]
 
-let Predicates = [HasStdExtZfh, HasStdExtD] in {
+let Predicates = [HasStdExtZfhmin, HasStdExtD] in {
 def FCVT_H_D : FPUnaryOp_r_frm<0b0100010, FPR16, FPR64, "fcvt.h.d">,
                Sched<[WriteFCvtF64ToF16, ReadFCvtF64ToF16]> {
   let rs2 = 0b00001;
@@ -217,16 +191,18 @@ def FCVT_D_H : FPUnaryOp_r<0b0100001, 0b000, FPR64, FPR16, "fcvt.d.h">,
                Sched<[WriteFCvtF16ToF64, ReadFCvtF16ToF64]> {
   let rs2 = 0b00010;
 }
-} // Predicates = [HasStdExtZfh, HasStdExtD]
+} // Predicates = [HasStdExtZfhmin, HasStdExtD]
 
 //===----------------------------------------------------------------------===//
 // Assembler Pseudo Instructions (User-Level ISA, Version 2.2, Chapter 20)
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtZfh] in {
+let Predicates = [HasStdExtZfhmin] in {
 def : InstAlias<"flh $rd, (${rs1})",  (FLH FPR16:$rd,  GPR:$rs1, 0), 0>;
 def : InstAlias<"fsh $rs2, (${rs1})", (FSH FPR16:$rs2, GPR:$rs1, 0), 0>;
+} // Predicates = [HasStdExtZfhmin]
 
+let Predicates = [HasStdExtZfh] in {
 def : InstAlias<"fmv.h $rd, $rs",  (FSGNJ_H  FPR16:$rd, FPR16:$rs, FPR16:$rs)>;
 def : InstAlias<"fabs.h $rd, $rs", (FSGNJX_H FPR16:$rd, FPR16:$rs, FPR16:$rs)>;
 def : InstAlias<"fneg.h $rd, $rs", (FSGNJN_H FPR16:$rd, FPR16:$rs, FPR16:$rs)>;
@@ -237,10 +213,12 @@ def : InstAlias<"fgt.h $rd, $rs, $rt",
                 (FLT_H GPR:$rd, FPR16:$rt, FPR16:$rs), 0>;
 def : InstAlias<"fge.h $rd, $rs, $rt",
                 (FLE_H GPR:$rd, FPR16:$rt, FPR16:$rs), 0>;
+} // Predicates = [HasStdExtZfh]
 
+let Predicates = [HasStdExtZfhmin] in {
 def PseudoFLH  : PseudoFloatLoad<"flh", FPR16>;
 def PseudoFSH  : PseudoStore<"fsh", FPR16>;
-} // Predicates = [HasStdExtZfh]
+} // Predicates = [HasStdExtZfhmin]
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
@@ -313,7 +291,9 @@ def : PatFpr16Fpr16<setle, FLE_H>;
 def : PatFpr16Fpr16<setole, FLE_H>;
 
 def Select_FPR16_Using_CC_GPR : SelectCC_rrirr<FPR16, GPR>;
+} // Predicates = [HasStdExtZfh]
 
+let Predicates = [HasStdExtZfhmin] in {
 /// Loads
 
 defm : LdPat<load, FLH, f16>;
@@ -331,7 +311,7 @@ def : Pat<(fpextend FPR16:$rs1), (FCVT_S_H FPR16:$rs1)>;
 // Moves (no conversion)
 def : Pat<(riscv_fmv_h_x GPR:$src), (FMV_H_X GPR:$src)>;
 def : Pat<(riscv_fmv_x_anyexth FPR16:$src), (FMV_X_H FPR16:$src)>;
-} // Predicates = [HasStdExtZfh]
+} // Predicates = [HasStdExtZfhmin]
 
 let Predicates = [HasStdExtZfh, IsRV32] in {
 // half->[u]int. Round-to-zero must be used.
@@ -383,7 +363,7 @@ def : Pat<(sint_to_fp (i64 GPR:$rs1)), (FCVT_H_L $rs1, 0b111)>;
 def : Pat<(uint_to_fp (i64 GPR:$rs1)), (FCVT_H_LU $rs1, 0b111)>;
 } // Predicates = [HasStdExtZfh, IsRV64]
 
-let Predicates = [HasStdExtZfh, HasStdExtD] in {
+let Predicates = [HasStdExtZfhmin, HasStdExtD] in {
 /// Float conversion operations
 // f64 -> f16, f16 -> f64
 def : Pat<(fpround FPR64:$rs1), (FCVT_H_D FPR64:$rs1, 0b111)>;
@@ -393,4 +373,4 @@ def : Pat<(fpextend FPR16:$rs1), (FCVT_D_H FPR16:$rs1)>;
 def : Pat<(fcopysign FPR16:$rs1, FPR64:$rs2),
           (FSGNJ_H $rs1, (FCVT_H_D $rs2, 0b111))>;
 def : Pat<(fcopysign FPR64:$rs1, FPR16:$rs2), (FSGNJ_D $rs1, (FCVT_D_H $rs2))>;
-}
+} // Predicates = [HasStdExtZfhmin, HasStdExtD]

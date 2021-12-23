@@ -144,10 +144,37 @@ func @mismatch_values_types(%arg0: tensor<?xf64, #SparseVector>) -> memref<?xf32
 
 // -----
 
-func @sparse_to_unannotated_tensor(%arg0: memref<?xf64>) -> tensor<16x32xf64> {
-  // expected-error@+1 {{expected a sparse tensor result}}
-  %0 = sparse_tensor.tensor %arg0 : memref<?xf64> to tensor<16x32xf64>
+func @sparse_unannotated_load(%arg0: tensor<16x32xf64>) -> tensor<16x32xf64> {
+  // expected-error@+1 {{expected a sparse tensor to materialize}}
+  %0 = sparse_tensor.load %arg0 : tensor<16x32xf64>
   return %0 : tensor<16x32xf64>
+}
+
+// -----
+
+func @sparse_unannotated_insert(%arg0: tensor<128xf64>, %arg1: memref<?xindex>, %arg2: f64) {
+  // expected-error@+1 {{expected a sparse tensor for insertion}}
+  sparse_tensor.lex_insert %arg0, %arg1, %arg2 : tensor<128xf64>, memref<?xindex>, f64
+  return
+}
+
+// -----
+
+func @sparse_unannotated_expansion(%arg0: tensor<128xf64>) {
+  // expected-error@+1 {{expected a sparse tensor for expansion}}
+  %values, %filled, %added, %count = sparse_tensor.expand %arg0
+    : tensor<128xf64> to memref<?xf64>, memref<?xi1>, memref<?xindex>, index
+  return
+}
+
+// -----
+
+func @sparse_unannotated_compression(%arg0: tensor<128xf64>, %arg1: memref<?xindex>,
+                                     %arg2: memref<?xf64>, %arg3: memref<?xi1>,
+				     %arg4: memref<?xindex>, %arg5: index) {
+  // expected-error@+1 {{expected a sparse tensor for compression}}
+  sparse_tensor.compress %arg0, %arg1, %arg2, %arg3, %arg4, %arg5
+    : tensor<128xf64>, memref<?xindex>, memref<?xf64>, memref<?xi1>, memref<?xindex>, index
 }
 
 // -----

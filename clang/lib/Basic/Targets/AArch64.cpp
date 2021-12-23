@@ -140,8 +140,8 @@ bool AArch64TargetInfo::setABI(const std::string &Name) {
 bool AArch64TargetInfo::validateBranchProtection(StringRef Spec,
                                                  BranchProtectionInfo &BPI,
                                                  StringRef &Err) const {
-  llvm::AArch64::ParsedBranchProtection PBP;
-  if (!llvm::AArch64::parseBranchProtection(Spec, PBP, Err))
+  llvm::ARM::ParsedBranchProtection PBP;
+  if (!llvm::ARM::parseBranchProtection(Spec, PBP, Err))
     return false;
 
   BPI.SignReturnAddr =
@@ -474,10 +474,12 @@ ArrayRef<Builtin::Info> AArch64TargetInfo::getTargetBuiltins() const {
 Optional<std::pair<unsigned, unsigned>>
 AArch64TargetInfo::getVScaleRange(const LangOptions &LangOpts) const {
   if (LangOpts.VScaleMin || LangOpts.VScaleMax)
-    return std::pair<unsigned, unsigned>(LangOpts.VScaleMin,
-                                         LangOpts.VScaleMax);
+    return std::pair<unsigned, unsigned>(
+        LangOpts.VScaleMin ? LangOpts.VScaleMin : 1, LangOpts.VScaleMax);
+
   if (hasFeature("sve"))
-    return std::pair<unsigned, unsigned>(0, 16);
+    return std::pair<unsigned, unsigned>(1, 16);
+
   return None;
 }
 

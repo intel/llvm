@@ -56,6 +56,9 @@ isBroadcastableTo(Type srcType, VectorType dstVectorType,
 void populateVectorToVectorCanonicalizationPatterns(
     RewritePatternSet &patterns);
 
+/// Collect a set of vector.shape_cast folding patterns.
+void populateShapeCastFoldingPatterns(RewritePatternSet &patterns);
+
 /// Collect a set of leading one dimension removal patterns.
 ///
 /// These patterns insert vector.shape_cast to remove leading one dimensions
@@ -101,8 +104,8 @@ public:
 
   CombiningKind getKind() const;
 
-  void print(DialectAsmPrinter &p) const;
-  static Attribute parse(DialectAsmParser &parser);
+  void print(AsmPrinter &p) const;
+  static Attribute parse(AsmParser &parser, Type type);
 };
 
 /// Collects patterns to progressively lower vector.broadcast ops on high-D
@@ -141,8 +144,8 @@ namespace impl {
 AffineMap getTransferMinorIdentityMap(ShapedType shapedType,
                                       VectorType vectorType);
 } // namespace impl
-} // end namespace vector
-} // end namespace mlir
+} // namespace vector
+} // namespace mlir
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Vector/VectorOps.h.inc"

@@ -51,8 +51,8 @@ void markLive() {
     if (auto *d = dyn_cast<Defined>(s)) {
       if (d->isec)
         enqueue(d->isec, d->value);
-      if (d->compactUnwind)
-        enqueue(d->compactUnwind, 0);
+      if (d->unwindEntry)
+        enqueue(d->unwindEntry, 0);
     }
   };
 
@@ -96,8 +96,7 @@ void markLive() {
   }
   // -u symbols
   for (Symbol *sym : config->explicitUndefineds)
-    if (auto *defined = dyn_cast<Defined>(sym))
-      addSym(defined);
+    addSym(sym);
   // local symbols explicitly marked .no_dead_strip
   for (const InputFile *file : inputFiles)
     if (auto *objFile = dyn_cast<ObjFile>(file))

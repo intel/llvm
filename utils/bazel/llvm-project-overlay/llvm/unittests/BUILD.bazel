@@ -38,6 +38,7 @@ cc_test(
         exclude = [
             # TODO: Add this file to the build.
             "Analysis/TFUtilsTest.cpp",
+            "Analysis/MLModelRunnerTest.cpp",
         ],
     ),
     deps = [
@@ -286,7 +287,8 @@ cc_test(
 
 cc_test(
     name = "ir_tests",
-    size = "medium",  # ConstantRangeTest cases may take several seconds each.
+    size = "medium",
+    timeout = "long",  # ConstantRangeTest cases may take several seconds each.
     srcs = glob(
         [
             "IR/*.cpp",

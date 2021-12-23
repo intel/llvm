@@ -227,7 +227,7 @@ LogicalResult spirv::Deserializer::processDecoration(ArrayRef<uint32_t> words) {
     return emitError(unknownLoc, "invalid Decoration code : ") << words[1];
   }
   auto attrName = llvm::convertToSnakeFromCamelCase(decorationName);
-  auto symbol = opBuilder.getIdentifier(attrName);
+  auto symbol = opBuilder.getStringAttr(attrName);
   switch (static_cast<spirv::Decoration>(words[1])) {
   case spirv::Decoration::DescriptorSet:
   case spirv::Decoration::Binding:
@@ -521,7 +521,7 @@ spirv::Deserializer::createSpecConstant(Location loc, uint32_t resultID,
                                                     defaultValue);
   if (decorations.count(resultID)) {
     for (auto attr : decorations[resultID].getAttrs())
-      op->setAttr(attr.first, attr.second);
+      op->setAttr(attr.getName(), attr.getValue());
   }
   specConstMap[resultID] = op;
   return op;
@@ -591,9 +591,8 @@ spirv::Deserializer::processGlobalVariable(ArrayRef<uint32_t> operands) {
 
   // Decorations.
   if (decorations.count(variableID)) {
-    for (auto attr : decorations[variableID].getAttrs()) {
-      varOp->setAttr(attr.first, attr.second);
-    }
+    for (auto attr : decorations[variableID].getAttrs())
+      varOp->setAttr(attr.getName(), attr.getValue());
   }
   globalVariableMap[variableID] = varOp;
   return success();
@@ -1438,7 +1437,7 @@ LogicalResult spirv::Deserializer::processBranch(ArrayRef<uint32_t> operands) {
   // the same OpLine information.
   opBuilder.create<spirv::BranchOp>(loc, target);
 
-  (void)clearDebugLine();
+  clearDebugLine();
   return success();
 }
 
@@ -1472,7 +1471,7 @@ spirv::Deserializer::processBranchConditional(ArrayRef<uint32_t> operands) {
       /*trueArguments=*/ArrayRef<Value>(), falseBlock,
       /*falseArguments=*/ArrayRef<Value>(), weights);
 
-  (void)clearDebugLine();
+  clearDebugLine();
   return success();
 }
 
@@ -1734,6 +1733,7 @@ LogicalResult ControlFlowStructurizer::structurizeImpl() {
       LLVM_DEBUG(llvm::dbgs()
                  << "[cf] block " << block << " is a function entry block\n");
     }
+
     for (auto &op : *block)
       newBlock->push_back(op.clone(mapper));
   }
@@ -1747,9 +1747,8 @@ LogicalResult ControlFlowStructurizer::structurizeImpl() {
       if (Block *mappedOp = mapper.lookupOrNull(succOp.get()))
         succOp.set(mappedOp);
   };
-  for (auto &block : body) {
+  for (auto &block : body)
     block.walk(remapOperands);
-  }
 
   // We have created the SelectionOp/LoopOp and "moved" all blocks belonging to
   // the selection/loop construct into its region. Next we need to fix the
@@ -1759,8 +1758,12 @@ LogicalResult ControlFlowStructurizer::structurizeImpl() {
   // SelectionOp/LoopOp resides right now.
   headerBlock->replaceAllUsesWith(mergeBlock);
 
+  LLVM_DEBUG(llvm::dbgs() << "[cf] after cloning and fixing references:\n");
+  LLVM_DEBUG(llvm::dbgs() << *headerBlock->getParentOp());
+  LLVM_DEBUG(llvm::dbgs() << "\n");
+
   if (isLoop) {
-    // The loop selection/loop header block may have block arguments. Since now
+    // The selection/loop header block may have block arguments. Since now
     // we place the selection/loop op inside the old merge block, we need to
     // make sure the old merge block has the same block argument list.
     assert(mergeBlock->args_empty() && "OpPhi in loop merge block unsupported");
@@ -1964,7 +1967,7 @@ Location spirv::Deserializer::createFileLineColLoc(OpBuilder opBuilder) {
   auto fileName = debugInfoMap.lookup(debugLine->fileID).str();
   if (fileName.empty())
     fileName = "<unknown>";
-  return FileLineColLoc::get(opBuilder.getIdentifier(fileName), debugLine->line,
+  return FileLineColLoc::get(opBuilder.getStringAttr(fileName), debugLine->line,
                              debugLine->col);
 }
 
@@ -1981,10 +1984,7 @@ spirv::Deserializer::processDebugLine(ArrayRef<uint32_t> operands) {
   return success();
 }
 
-LogicalResult spirv::Deserializer::clearDebugLine() {
-  debugLine = llvm::None;
-  return success();
-}
+void spirv::Deserializer::clearDebugLine() { debugLine = llvm::None; }
 
 LogicalResult
 spirv::Deserializer::processDebugString(ArrayRef<uint32_t> operands) {
