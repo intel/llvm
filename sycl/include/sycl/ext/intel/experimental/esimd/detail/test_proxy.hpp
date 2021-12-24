@@ -71,11 +71,11 @@ namespace sycl::ext::intel::experimental::esimd::detail::test {
 // Therefore the following expression is expected to return `true` only if the
 // move constructor or move operator was called for the instance of the class
 // under test:
-//   instance.get_test_proxy().was_moved()
+//   instance.get_test_proxy().was_move_destination()
 //
 class test_proxy {
   // Define the default value to use for every constructor
-  bool m_moved = false;
+  bool M_move_destination = false;
 
 public:
   test_proxy() { __esimd_dbg_print(test_proxy()); }
@@ -85,7 +85,7 @@ public:
   }
   test_proxy(test_proxy &&) {
     __esimd_dbg_print(test_proxy(test_proxy && other));
-    m_moved = true;
+    M_move_destination = true;
   }
   test_proxy &operator=(const test_proxy &) {
     __esimd_dbg_print(test_proxy::operator=(const test_proxy &other));
@@ -93,10 +93,10 @@ public:
   }
   test_proxy &operator=(test_proxy &&) {
     __esimd_dbg_print(test_proxy::operator=(test_proxy &&other));
-    m_moved = true;
+    M_move_destination = true;
     return *this;
   }
-  bool was_moved() const { return m_moved; }
+  bool was_move_destination() const { return M_move_destination; }
 };
 
 } // namespace sycl::ext::intel::experimental::esimd::detail::test
