@@ -11,22 +11,21 @@ Example usage:
 ```cpp
 #include <sycl/sycl.hpp>
 
-namespace my_sycl = sycl::ext::oneapi;
-namespace my_sycl_exp = sycl::ext::oneapi::experimental;
+namespace oneapi_exp = sycl::ext::oneapi::experimental;
 sycl::range<1> local_range{256};
 // predefine radix_sorter to calculate local memory size
-using RSorter = my_sycl_exp::radix_sorter<T, my_sycl_exp::sorting_order::descending>;
+using RSorter = oneapi_exp::radix_sorter<T, oneapi_exp::sorting_order::descending>;
 // calculate required local memory size
 size_t temp_memory_size =
     RSorter::memory_required(sycl::memory_scope::work_group, local_range);
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
-  auto scratch = sycl::local_accessor<uint8_t, 1>( {temp_memory_size}, h);
+  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h);
   h.parallel_for(
     sycl::nd_range<1>{ local_range, local_range },
     [=](sycl::nd_item<1> id) {
       acc[id.get_local_id()] =
-        my_sycl::sort_over_group(
+        oneapi_exp::sort_over_group(
           id.get_group(),
           acc[id.get_local_id()],
           RSorter(sycl::span{scratch.get_pointer(), temp_memory_size})
@@ -38,11 +37,15 @@ q.submit([&](sycl::handler& h) {
 
 ## Design objectives
 
+In DPC++ Headers/DPC++ RT we don't know which sorting algorithm is better for
+different architectures. Backends have more capability to optimize the sorting algorithm
+using low-level instructions.
+
 The following should be implemented:
 
 1. Sorter classes and their `operator()` including sorting algorithms.
 
-2. `joint_sort` and `sort_over_group` functions for `sycl::ext::oneapi` namespace.
+2. `joint_sort` and `sort_over_group` functions.
 
 3. Traits to distinguish interfaces with `Compare` and `Sorter` parameters.
 
@@ -61,15 +64,12 @@ The following should be implemented:
 Data types that should be supported by backends: arithmetic types
 (https://en.cppreference.com/w/c/language/arithmetic_types), `sycl::half`.
 
-Comparators that should be supported by backends: `std::less`, `std::greater`.
+Comparators that should be supported by backends: `std::less`, `std::greater`,
+custom comparators
 
 ## Design
 
-In DPC++ Headers/DPC++ RT we don't know which sorting algorithm is better for
-different architectures. Backends have more capability to optimize the sorting algorithm
-using low-level instructions.
-
-Overall, we need to have the following:
+Overall, for backend support we need to have the following:
 - Fallback implementation of sorting algorithms for user's types, comparators and/or sorters.
 
 - Backend implementation for types, comparators and/or sorters
@@ -91,6 +91,14 @@ as well as other classes and methods.
 - Traits to distinguish interfaces with `Compare` and `Sorter` parameters.
 
 - Fallback solution for user's types, user's comparators and/or user's sorters.
+
+### Level Zero
+
+To implement `memory_reuired` methods for sorters we need to calculate
+how much temporary memory is needed.
+However, we don't have an information how much memory is needed by backend compiler.
+That's why we need a Level Zero function that calls a function from the backend and
+provide actual value to the SYCL code.
 
 ### Fallback SPIR-V library
 
