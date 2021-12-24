@@ -545,13 +545,17 @@ void ProfiledBinary::disassemble(const ELFObjectFileBase *Obj) {
     // Register the text section.
     TextSections.insert({SectionOffset, SectSize});
 
+    StringRef SectionName = unwrapOrError(Section.getName(), FileName);
+
     if (ShowDisassemblyOnly) {
-      StringRef SectionName = unwrapOrError(Section.getName(), FileName);
       outs() << "\nDisassembly of section " << SectionName;
       outs() << " [" << format("0x%" PRIx64, Section.getAddress()) << ", "
              << format("0x%" PRIx64, Section.getAddress() + SectSize)
              << "]:\n\n";
     }
+
+    if (SectionName == ".plt")
+      continue;
 
     // Get the section data.
     ArrayRef<uint8_t> Bytes =
@@ -694,15 +698,11 @@ SampleContextFrameVector ProfiledBinary::symbolize(const InstructionPointer &IP,
       FunctionName = FunctionSamples::getCanonicalFnName(FunctionName);
 
     uint32_t Discriminator = CallerFrame.Discriminator;
-    uint32_t LineOffset = CallerFrame.Line - CallerFrame.StartLine;
+    uint32_t LineOffset = (CallerFrame.Line - CallerFrame.StartLine) & 0xffff;
     if (UseProbeDiscriminator) {
       LineOffset =
           PseudoProbeDwarfDiscriminator::extractProbeIndex(Discriminator);
       Discriminator = 0;
-    } else {
-      // Filter out invalid negative(int type) lineOffset
-      if (LineOffset & 0xffff0000)
-        return SampleContextFrameVector();
     }
 
     LineLocation Line(LineOffset, Discriminator);

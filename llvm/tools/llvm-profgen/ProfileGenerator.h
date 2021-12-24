@@ -34,7 +34,7 @@ public:
   virtual ~ProfileGeneratorBase() = default;
   static std::unique_ptr<ProfileGeneratorBase>
   create(ProfiledBinary *Binary, const ContextSampleCounterMap &SampleCounters,
-         bool ProfileIsCS);
+         bool ProfileIsCSFlat);
   virtual void generateProfile() = 0;
   void write();
 
@@ -124,11 +124,14 @@ private:
   // inline stack and meanwhile it adds the total samples for each frame's
   // function profile.
   FunctionSamples &
-  getLeafFrameProfile(const SampleContextFrameVector &FrameVec);
+  getLeafProfileAndAddTotalSamples(const SampleContextFrameVector &FrameVec,
+                                   uint64_t Count);
   void populateBodySamplesForAllFunctions(const RangeSample &RangeCounter);
   void
   populateBoundarySamplesForAllFunctions(const BranchSample &BranchCounters);
   void postProcessProfiles();
+  void trimColdProfiles(const SampleProfileMap &Profiles,
+                        uint64_t ColdCntThreshold);
 };
 
 using ProbeCounterMap =

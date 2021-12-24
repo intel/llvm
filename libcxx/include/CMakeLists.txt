@@ -231,6 +231,7 @@ set(files
   __memory/concepts.h
   __memory/construct_at.h
   __memory/pointer_traits.h
+  __memory/ranges_uninitialized_algorithms.h
   __memory/raw_storage_iterator.h
   __memory/shared_ptr.h
   __memory/temporary_buffer.h
@@ -257,6 +258,7 @@ set(files
   __random/binomial_distribution.h
   __random/cauchy_distribution.h
   __random/chi_squared_distribution.h
+  __random/clamp_to_integral.h
   __random/default_random_engine.h
   __random/discard_block_engine.h
   __random/discrete_distribution.h
@@ -530,7 +532,7 @@ if (LIBCXX_INSTALL_HEADERS)
   foreach(file ${files})
     get_filename_component(dir ${file} DIRECTORY)
     install(FILES ${file}
-      DESTINATION ${LIBCXX_INSTALL_INCLUDE_DIR}/${dir}
+      DESTINATION "${LIBCXX_INSTALL_INCLUDE_DIR}/${dir}"
       COMPONENT cxx-headers
       PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     )
@@ -538,7 +540,7 @@ if (LIBCXX_INSTALL_HEADERS)
 
   # Install the generated __config_site.
   install(FILES ${LIBCXX_GENERATED_INCLUDE_TARGET_DIR}/__config_site
-    DESTINATION ${LIBCXX_INSTALL_INCLUDE_TARGET_DIR}
+    DESTINATION "${LIBCXX_INSTALL_INCLUDE_TARGET_DIR}"
     PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     COMPONENT cxx-headers)
 
