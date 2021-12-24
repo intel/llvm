@@ -42,6 +42,7 @@
 #include "ToolChains/PPCLinux.h"
 #include "ToolChains/PS4CPU.h"
 #include "ToolChains/RISCVToolchain.h"
+#include "ToolChains/SPIRV.h"
 #include "ToolChains/SYCL.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
@@ -5638,6 +5639,14 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
   }
 
+  // FIXME: Linking separate translation units for SPIR-V is not supported yet.
+  // It can be done either by LLVM IR linking before conversion of the final
+  // linked module to SPIR-V or external SPIR-V linkers can be used e.g.
+  // spirv-link.
+  if (C.getDefaultToolChain().getTriple().isSPIRV() && Inputs.size() > 1) {
+    Diag(clang::diag::warn_drv_spirv_linking_multiple_inputs_unsupported);
+  }
+
   handleArguments(C, Args, Inputs, Actions);
 
   // When compiling for -fsycl, generate the integration header files and the
@@ -5735,8 +5744,15 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // Queue linker inputs.
       if (Phase == phases::Link) {
         assert(Phase == PL.back() && "linking must be final compilation step.");
-        LinkerInputs.push_back(Current);
-        Current = nullptr;
+        // Compilation phases are setup per language, however for SPIR-V the
+        // final linking phase is meaningless since the compilation phase
+        // produces the final binary.
+        // FIXME: OpenCL - we could strip linking phase out from OpenCL
+        // compilation phases if we could verify it is not needed by any target.
+        if (!C.getDefaultToolChain().getTriple().isSPIRV()) {
+          LinkerInputs.push_back(Current);
+          Current = nullptr;
+        }
         break;
       }
 
@@ -6445,6 +6461,12 @@ class ToolSelector final {
     if (!T)
       return nullptr;
 
+    // Can't collapse if we don't have codegen support unless we are
+    // emitting LLVM IR.
+    bool OutputIsLLVM = types::isLLVMIR(ActionInfo[0].JA->getType());
+    if (!T->hasIntegratedBackend() && !(OutputIsLLVM && T->canEmitIR()))
+      return nullptr;
+
     // When using -fembed-bitcode, it is required to have the same tool (clang)
     // for both CompilerJA and BackendJA. Otherwise, combine two stages.
     if (EmbedBitcode) {
@@ -6512,6 +6534,12 @@ class ToolSelector final {
     // Get compiler tool.
     const Tool *T = TC.SelectTool(*CJ);
     if (!T)
+      return nullptr;
+
+    // Can't collapse if we don't have codegen support unless we are
+    // emitting LLVM IR.
+    bool OutputIsLLVM = types::isLLVMIR(ActionInfo[0].JA->getType());
+    if (!T->hasIntegratedBackend() && !(OutputIsLLVM && T->canEmitIR()))
       return nullptr;
 
     if (T->canEmitIR() && ((SaveTemps && !InputIsBitcode) || EmbedBitcode))
@@ -7812,6 +7840,10 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         break;
       case llvm::Triple::ve:
         TC = std::make_unique<toolchains::VEToolChain>(*this, Target, Args);
+        break;
+      case llvm::Triple::spirv32:
+      case llvm::Triple::spirv64:
+        TC = std::make_unique<toolchains::SPIRVToolChain>(*this, Target, Args);
         break;
       default:
         if (Target.getVendor() == llvm::Triple::Myriad)
