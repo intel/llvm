@@ -1818,8 +1818,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
       // "kernel_arg_runtime_aligned" metadata element is 'true' for any kernel
       // arguments that corresponds to the base pointer of an accessor and
       // 'false' otherwise.
-      if (parm->hasAttr<SYCLAccessorReadonlyAttr>() ||
-          parm->hasAttr<SYCLAccessorPtrAttr>()) {
+      if (parm->hasAttr<SYCLAccessorPtrAttr>()) {
         isKernelArgAnAccessor = true;
         argSYCLKernelRuntimeAligned.push_back(
             llvm::ConstantAsMetadata::get(CGF->Builder.getTrue()));
@@ -1838,7 +1837,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   if (LangOpts.SYCLIsDevice && !IsEsimdFunction) {
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
-    // Generate this metadata only if a kernel argument is an accessor.
+    // Generate this metadata only if atleast one kernel argument is an accessor.
     if (isKernelArgAnAccessor)
       Fn->setMetadata(
           "kernel_arg_runtime_aligned",

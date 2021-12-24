@@ -17,28 +17,28 @@ int main() {
 
   accessor<int, 1, access::mode::read, access::target::global_buffer> readOnlyAccessor;
 
-  cl::sycl::accessor<float, 2, cl::sycl::access::mode::write,
-                     cl::sycl::access::target::local,
-                     cl::sycl::access::placeholder::true_t>
+  accessor<float, 2, access::mode::write,
+           access::target::local,
+           access::placeholder::true_t>
       acc3;
 
   // kernel_A parameters : int*, sycl::range<1>, sycl::range<1>, sycl::id<1>,
   // int*, sycl::range<1>, sycl::range<1>,sycl::id<1>.
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     h.single_task<class kernel_A>([=]() {
       acc[1].use();
     });
   });
 
   // kernel_readOnlyAcc parameters : int*, sycl::range<1>, sycl::range<1>, sycl::id<1>.
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     h.single_task<class kernel_readOnlyAcc>([=]() {
       readOnlyAccessor.use();
     });
   });
 
   // kernel_B parameters : none.
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     h.single_task<class kernel_B>([=]() {
       int result = 5;
     });
@@ -47,7 +47,7 @@ int main() {
   int a = 10;
 
   // kernel_C parameters : int.
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     h.single_task<class kernel_C>([=]() {
       int x = a;
     });
@@ -57,7 +57,7 @@ int main() {
   // kernel_arg_runtime_aligned is not generated for raw pointers.
   int *x;
   float *y;
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     h.single_task<class usm_ptr>([=]() {
       *x = 42;
       *y = 3.14;
@@ -66,7 +66,7 @@ int main() {
 
   // Using local accessor as a kernel parameter.
   // kernel_arg_runtime_aligned is generated for pointers from local accessors.
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](handler &h) {
     h.single_task<class localAccessor>([=]() {
       acc3.use();
     });
