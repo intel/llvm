@@ -1922,15 +1922,16 @@ cl_int enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  // Use kernel_bundle is available
-  if (KernelBundleImplPtr) {
-
-    std::shared_ptr<kernel_id_impl> KernelIDImpl =
-        std::make_shared<kernel_id_impl>(KernelName);
-
-    kernel SyclKernel = KernelBundleImplPtr->get_kernel(
-        detail::createSyclObjFromImpl<kernel_id>(KernelIDImpl),
-        KernelBundleImplPtr);
+  // Use kernel_bundle if available unless it is interop.
+  // Interop bundles can't be used in the first branch, because the kernels
+  // in interop kernel bundles (if any) do not have kernel_id
+  // and can therefore not be looked up, but since they are self-contained
+  // they can simply be launched directly.
+  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    kernel SyclKernel =
+        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
 
     SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
 

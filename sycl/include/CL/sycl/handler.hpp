@@ -575,23 +575,21 @@ private:
    */
 
   // For 'id, item w/wo offset, nd_item' kernel arguments
-  template <class KernelType, class NormalizedKernelType, int Dims,
-            bool StoreLocation>
+  template <class KernelType, class NormalizedKernelType, int Dims>
   KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
     auto HostKernelPtr =
         new detail::HostKernel<decltype(NormalizedKernelFunc),
-                               sycl::nd_item<Dims>, Dims, StoreLocation>(
-            NormalizedKernelFunc);
+                               sycl::nd_item<Dims>, Dims>(NormalizedKernelFunc);
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
                 ->MKernelFunc;
   }
 
   // For 'sycl::id<Dims>' kernel argument
-  template <class KernelType, typename ArgT, int Dims, bool StoreLocation>
+  template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
@@ -603,12 +601,12 @@ private:
         detail::runKernelWithArg(MKernelFunc, Arg.get_global_id());
       }
     };
-    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims,
-                                 StoreLocation>(KernelFunc);
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
   }
 
   // For 'sycl::nd_item<Dims>' kernel argument
-  template <class KernelType, typename ArgT, int Dims, bool StoreLocation>
+  template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, sycl::nd_item<Dims>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
@@ -620,12 +618,12 @@ private:
         detail::runKernelWithArg(MKernelFunc, Arg);
       }
     };
-    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims,
-                                 StoreLocation>(KernelFunc);
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
   }
 
   // For 'sycl::item<Dims, without_offset>' kernel argument
-  template <class KernelType, typename ArgT, int Dims, bool StoreLocation>
+  template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, false>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
@@ -639,12 +637,12 @@ private:
         detail::runKernelWithArg(MKernelFunc, Item);
       }
     };
-    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims,
-                                 StoreLocation>(KernelFunc);
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
   }
 
   // For 'sycl::item<Dims, with_offset>' kernel argument
-  template <class KernelType, typename ArgT, int Dims, bool StoreLocation>
+  template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, true>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
@@ -658,8 +656,8 @@ private:
         detail::runKernelWithArg(MKernelFunc, Item);
       }
     };
-    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims,
-                                 StoreLocation>(KernelFunc);
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
   }
 
   /* 'wrapper'-based approach using 'NormalizedKernelType' struct is
@@ -669,14 +667,13 @@ private:
    * not supported in ESIMD.
    */
   // For 'void' and 'sycl::group<Dims>' kernel argument
-  template <class KernelType, typename ArgT, int Dims, bool StoreLocation>
+  template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, void>::value ||
                               std::is_same<ArgT, sycl::group<Dims>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
     MHostKernel.reset(
-        new detail::HostKernel<KernelType, ArgT, Dims, StoreLocation>(
-            KernelFunc));
+        new detail::HostKernel<KernelType, ArgT, Dims>(KernelFunc));
     return (KernelType *)(MHostKernel->getPtr());
   }
 
@@ -699,7 +696,6 @@ private:
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
     using KI = detail::KernelInfo<KernelName>;
-    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
@@ -711,8 +707,7 @@ private:
           PI_INVALID_OPERATION);
     }
     KernelType *KernelPtr =
-        ResetHostKernel<KernelType, LambdaArgType, Dims, StoreLocation>(
-            KernelFunc);
+        ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
     using KI = sycl::detail::KernelInfo<KernelName>;
     // Empty name indicates that the compilation happens without integration
@@ -978,8 +973,7 @@ private:
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
     // 2. The kernel is provided via an interoperability method.
-    // 3. The API "this_item" is used inside the kernel.
-    // 4. The range is already a multiple of the rounding factor.
+    // 3. The range is already a multiple of the rounding factor.
     //
     // Cases 2 and 3 could be supported with extra effort.
     // As an optimization for the common case it is an
@@ -996,8 +990,7 @@ private:
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
         this->DisableRangeRounding() ||
-        (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
-        (KI::callsThisItem());
+        (KI::getName() == nullptr || KI::getName()[0] == '\0');
 
     // Perform range rounding if rounding-up is enabled
     // and there are sufficient work-items to need rounding
@@ -1488,8 +1481,7 @@ public:
     MNDRDesc.set(range<1>{1});
 
     MArgs = std::move(MAssociatedAccesors);
-    MHostKernel.reset(
-        new detail::HostKernel<FuncT, void, 1, false>(std::move(Func)));
+    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
     setType(detail::CG::RunOnHostIntel);
   }
 

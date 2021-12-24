@@ -1240,6 +1240,23 @@ def SYCLSpecialClass: InheritableAttr {
   let Documentation = [SYCLSpecialClassDocs];
 }
 
+def SYCLDeviceHas : InheritableAttr {
+  let Spellings = [CXX11<"sycl", "device_has">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Args = [VariadicExprArgument<"Aspects">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLDeviceHasDocs];
+}
+
+def SYCLUsesAspects : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "__uses_aspects__">];
+  let Subjects = SubjectList<[CXXRecord, Function], ErrorDiag>;
+  let Args = [VariadicExprArgument<"Aspects">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by the SYCL implementation
+  let Documentation = [Undocumented];
+}
+
 // Marks functions which must not be vectorized via horizontal SIMT widening,
 // e.g. because the function is already vectorized. Used to mark SYCL
 // explicit SIMD kernels and functions.

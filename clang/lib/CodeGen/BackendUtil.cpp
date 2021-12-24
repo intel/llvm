@@ -44,6 +44,7 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
+#include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -1059,6 +1060,7 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
     if (CodeGenOpts.DisableLLVMPasses)
       PerModulePasses.add(createAlwaysInlinerLegacyPass(false));
     PerModulePasses.add(createSYCLLowerWGLocalMemoryLegacyPass());
+    PerModulePasses.add(createSYCLMutatePrintfAddrspaceLegacyPass());
   }
 
   switch (Action) {
@@ -1475,6 +1477,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
       MPM.addPass(ModuleMemProfilerPass());
     }
+  }
+  if (LangOpts.SYCLIsDevice) {
+    MPM.addPass(SYCLMutatePrintfAddrspacePass());
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action

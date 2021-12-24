@@ -1873,7 +1873,6 @@
 ?fill_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
 ?fill_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?finalize@handler@sycl@cl@@AEAA?AVevent@23@XZ
-?getESIMDDeviceInterface@detail@sycl@cl@@YAPEAUESIMDDeviceInterface@123@XZ
 ?find_device_intersection@detail@sycl@cl@@YA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@AEBV?$vector@V?$kernel_bundle@$00@sycl@cl@@V?$allocator@V?$kernel_bundle@$00@sycl@cl@@@std@@@5@@Z
 ?floor@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?floor@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
@@ -2094,6 +2093,7 @@
 ?getDevices@?$image_impl@$01@detail@sycl@cl@@AEAA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@V?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@6@@Z
 ?getDevices@?$image_impl@$02@detail@sycl@cl@@AEAA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@V?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@6@@Z
 ?getDirName@OSUtil@detail@sycl@cl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBD@Z
+?getESIMDDeviceInterface@detail@sycl@cl@@YAPEAUESIMDDeviceInterface@123@XZ
 ?getElementSize@?$image_impl@$00@detail@sycl@cl@@QEBA_KXZ
 ?getElementSize@?$image_impl@$01@detail@sycl@cl@@QEBA_KXZ
 ?getElementSize@?$image_impl@$02@detail@sycl@cl@@QEBA_KXZ
@@ -2116,13 +2116,13 @@
 ?getNative@device@sycl@cl@@AEBA_KXZ
 ?getNative@device_image_plain@detail@sycl@cl@@QEBA_KXZ
 ?getNative@event@sycl@cl@@AEBA_KXZ
+?getNative@kernel@sycl@cl@@AEBA_KXZ
 ?getNative@platform@sycl@cl@@AEBA_KXZ
 ?getNative@program@sycl@cl@@AEBA_KXZ
 ?getNative@queue@sycl@cl@@AEBA_KXZ
 ?getNativeContext@interop_handle@sycl@cl@@AEBA_KXZ
 ?getNativeDevice@interop_handle@sycl@cl@@AEBA_KXZ
 ?getNativeImpl@kernel@sycl@cl@@AEBA_KXZ
-?getNative@kernel@sycl@cl@@AEBA_KXZ
 ?getNativeMem@interop_handle@sycl@cl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@sycl@cl@@AEBA_KXZ
 ?getOSMemSize@OSUtil@detail@sycl@cl@@SA_KXZ
@@ -2180,6 +2180,7 @@
 ?get_devices@kernel_bundle_plain@detail@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@XZ
 ?get_devices@platform@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@W4device_type@info@23@@Z
 ?get_devices@program@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@XZ
+?get_empty_interop_kernel_bundle_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@@Z
 ?get_filtering_mode@sampler@sycl@cl@@QEBA?AW4filtering_mode@23@XZ
 ?get_filtering_mode@sampler_impl@detail@sycl@cl@@QEBA?AW4filtering_mode@34@XZ
 ?get_flags@stream@sycl@cl@@AEBAIXZ
