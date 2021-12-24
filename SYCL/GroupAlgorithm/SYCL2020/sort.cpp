@@ -2,18 +2,16 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//
-// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t13.out
 
 #include "support.h"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <algorithm>
 #include <iostream>
 #include <random>
 #include <vector>
 
-namespace my_sycl = sycl::ext::oneapi::experimental;
+namespace oneapi_exp = sycl::ext::oneapi::experimental;
 
 auto async_handler_ = [](sycl::exception_list ex_list) {
   for (auto &ex : ex_list) {
@@ -38,14 +36,11 @@ struct CustomFunctor {
   }
 };
 
-// we need it since using std::abs leads to compilation error
-template <typename T> T my_abs(T x) { return x >= 0 ? x : -x; }
-
 template <typename T> bool check(T lhs, T rhs, float epsilon) {
-  return my_abs(lhs - rhs) > epsilon;
+  return sycl::abs(lhs - rhs) > epsilon;
 }
 bool check(CustomType lhs, CustomType rhs, float epsilon) {
-  return my_abs(lhs.x - rhs.x) > epsilon;
+  return sycl::abs(lhs.x - rhs.x) > epsilon;
 }
 
 template <typename T>
@@ -105,8 +100,9 @@ int test_sort_over_group(sycl::queue &q, std::size_t local,
 
   sycl::range<dim> local_range = get_range<dim>(local);
 
-  std::size_t local_memory_size = my_sycl::default_sorter<>::memory_required<T>(
-      sycl::memory_scope::work_group, local_range);
+  std::size_t local_memory_size =
+      oneapi_exp::default_sorter<>::memory_required<T>(
+          sycl::memory_scope::work_group, local_range);
 
   if (local_memory_size >
       q.get_device().template get_info<sycl::info::device::local_mem_size>())
@@ -129,23 +125,23 @@ int test_sort_over_group(sycl::queue &q, std::size_t local,
            case 0:
              if constexpr (std::is_same_v<Compare, std::less<T>> &&
                            !std::is_same_v<T, CustomType>)
-               aI1[local_id] = my_sycl::sort_over_group(
-                   my_sycl::group_with_scratchpad(
+               aI1[local_id] = oneapi_exp::sort_over_group(
+                   oneapi_exp::group_with_scratchpad(
                        id.get_group(),
                        sycl::span{&scratch[0], local_memory_size}),
                    aI1[local_id]);
              break;
            case 1:
-             aI1[local_id] = my_sycl::sort_over_group(
-                 my_sycl::group_with_scratchpad(
+             aI1[local_id] = oneapi_exp::sort_over_group(
+                 oneapi_exp::group_with_scratchpad(
                      id.get_group(),
                      sycl::span{&scratch[0], local_memory_size}),
                  aI1[local_id], comp);
              break;
            case 2:
-             aI1[local_id] = my_sycl::sort_over_group(
+             aI1[local_id] = oneapi_exp::sort_over_group(
                  id.get_group(), aI1[local_id],
-                 my_sycl::default_sorter<Compare>(
+                 oneapi_exp::default_sorter<Compare>(
                      sycl::span{&scratch[0], local_memory_size}));
              break;
            }
@@ -160,8 +156,9 @@ int test_joint_sort(sycl::queue &q, std::size_t n_items, std::size_t local,
   auto n = bufI1.size();
   auto n_groups = (n - 1) / n_items + 1;
 
-  std::size_t local_memory_size = my_sycl::default_sorter<>::memory_required<T>(
-      sycl::memory_scope::work_group, n);
+  std::size_t local_memory_size =
+      oneapi_exp::default_sorter<>::memory_required<T>(
+          sycl::memory_scope::work_group, n);
   if (local_memory_size >
       q.get_device().template get_info<sycl::info::device::local_mem_size>())
     std::cout << "local_memory_size = " << local_memory_size << ", available = "
@@ -187,26 +184,26 @@ int test_joint_sort(sycl::queue &q, std::size_t n_items, std::size_t local,
            case 0:
              if constexpr (std::is_same_v<Compare, std::less<T>> &&
                            !std::is_same_v<T, CustomType>)
-               my_sycl::joint_sort(
-                   my_sycl::group_with_scratchpad(
+               oneapi_exp::joint_sort(
+                   oneapi_exp::group_with_scratchpad(
                        id.get_group(),
                        sycl::span{&scratch[0], local_memory_size}),
                    ptr_keys,
                    ptr_keys + sycl::min(n_items, n - group_id * n_items));
              break;
            case 1:
-             my_sycl::joint_sort(
-                 my_sycl::group_with_scratchpad(
+             oneapi_exp::joint_sort(
+                 oneapi_exp::group_with_scratchpad(
                      id.get_group(),
                      sycl::span{&scratch[0], local_memory_size}),
                  ptr_keys,
                  ptr_keys + sycl::min(n_items, n - group_id * n_items), comp);
              break;
            case 2:
-             my_sycl::joint_sort(
+             oneapi_exp::joint_sort(
                  id.get_group(), ptr_keys,
                  ptr_keys + sycl::min(n_items, n - group_id * n_items),
-                 my_sycl::default_sorter<Compare>(
+                 oneapi_exp::default_sorter<Compare>(
                      sycl::span{&scratch[0], local_memory_size}));
              break;
            }
@@ -217,7 +214,7 @@ int test_joint_sort(sycl::queue &q, std::size_t n_items, std::size_t local,
 
 template <typename T, typename Compare>
 int test_custom_sorter(sycl::queue &q, sycl::buffer<T> &bufI1, Compare comp) {
-  std::size_t local = 256;
+  std::size_t local = 4;
   auto n = bufI1.size();
   if (n > local)
     return -1;
@@ -230,7 +227,7 @@ int test_custom_sorter(sycl::queue &q, sycl::buffer<T> &bufI1, Compare comp) {
          sycl::nd_range<2>({local, 1}, {local, 1}), [=](sycl::nd_item<2> id) {
            auto ptr = aI1.get_pointer();
 
-           my_sycl::joint_sort(
+           oneapi_exp::joint_sort(
                id.get_group(), ptr, ptr + n,
                bubble_sorter<Compare>{comp, id.get_local_linear_id()});
          });
@@ -243,9 +240,11 @@ void run_sort(sycl::queue &q, std::vector<T> &in, std::size_t size,
               Compare comp, int test_case, int sort_case) {
   std::vector<T> in2(in.begin(), in.begin() + size);
   std::vector<T> expected(in.begin(), in.begin() + size);
-  std::size_t local =
+  constexpr size_t work_size_limit = 4;
+  std::size_t local = std::min(
+      work_size_limit,
       q.get_device()
-          .template get_info<sycl::info::device::max_work_group_size>();
+          .template get_info<sycl::info::device::max_work_group_size>());
   local = std::min(local, size);
   auto n_items = items_per_work_item * local;
 
@@ -354,7 +353,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  std::vector<int> sizes{1, 2, 64, 256, 1024, 2048, 4096};
+  std::vector<int> sizes{1, 12, 32};
 
   for (int i = 0; i < sizes.size(); ++i) {
     test_sort_by_type<std::int8_t>(q, sizes[i]);
