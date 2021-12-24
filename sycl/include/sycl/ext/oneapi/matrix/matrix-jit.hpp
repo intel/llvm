@@ -202,6 +202,23 @@ joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
 #endif // __SYCL_DEVICE_ONLY__
 }
 
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout>
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_fill(Group sg,
+                  joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
+                  const T v) {
+  // We kept the unused "sg" in joint_matrix_fill to match the other DPC++
+  // functions
+  (void)sg;
+#ifdef __SYCL_DEVICE_ONLY__
+  res.spvm = __spirv_CompositeConstruct<T, NumRows, NumCols>(v);
+#else
+  (void)res;
+  (void)v;
+#endif // __SYCL_DEVICE_ONLY__
+}
+
 template <typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group>

@@ -226,6 +226,11 @@ public:
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin.call<PiApiKind::piProgramRelease>(MProgram);
     }
+    if (MSpecConstsBuffer) {
+      std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      memReleaseHelper(Plugin, MSpecConstsBuffer);
+    }
   }
 
 private:
