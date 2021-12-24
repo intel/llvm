@@ -382,8 +382,12 @@ TraverseCGToFindSPIRKernels(const Function *StartingFunction) {
       continue;
 
     for (const auto *U : F->users()) {
-      const Instruction *I = cast<const Instruction>(U);
-      const Function *ParentF = I->getFunction();
+      const CallInst *CI = dyn_cast<const CallInst>(U);
+      if (!CI)
+        continue;
+
+      const Function *ParentF = CI->getFunction();
+
       if (VisitedFunctions.count(ParentF))
         continue;
 
@@ -612,6 +616,7 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
 
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
+    std::sort(FuncNames.begin(), FuncNames.end());
     for (const StringRef &FName : FuncNames)
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
   }

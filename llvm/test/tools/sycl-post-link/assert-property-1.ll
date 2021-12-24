@@ -57,6 +57,14 @@ entry:
   ret void
 }
 
+; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3
+; Function Attrs: convergent norecurse
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3"() #0 {
+entry:
+  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_4itemILi2ELb1EEEE1_clES5_"()
+  ret void
+}
+
 ; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel"() #0 {
@@ -91,14 +99,6 @@ entry:
 define dso_local spir_func void @_Z3bazv() {
 entry:
   tail call spir_func void @__assert_fail(i8 addrspace(4)* getelementptr inbounds ([2 x i8], [2 x i8] addrspace(4)* addrspacecast ([2 x i8] addrspace(1)* @.str to [2 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @.str.1 to [11 x i8] addrspace(4)*), i64 0, i64 0), i32 8, i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* addrspacecast ([11 x i8] addrspace(1)* @__PRETTY_FUNCTION__._Z3foov to [11 x i8] addrspace(4)*), i64 0, i64 0))
-  ret void
-}
-
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3
-; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3"() #0 {
-entry:
-  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_4itemILi2ELb1EEEE1_clES5_"()
   ret void
 }
 

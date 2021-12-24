@@ -3,7 +3,7 @@
 ; in their call graph.
 
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not _ZTSZ4mainE11TU0_kernel1
+; RUN: FileCheck %s -input-file=%t_0.prop
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
@@ -18,7 +18,14 @@ target triple = "spir64-unknown-linux"
 
 ; CHECK: [SYCL/assert used]
 
-; CHECK-DAG: _ZTSZ4mainE11TU0_kernel0
+; CHECK: _ZTSZ4mainE10TU1_kernel
+define dso_local spir_kernel void @_ZTSZ4mainE10TU1_kernel() #1 {
+entry:
+  call spir_func void @_Z4foo2v()
+  ret void
+}
+
+; CHECK: _ZTSZ4mainE11TU0_kernel0
 define dso_local spir_kernel void @_ZTSZ4mainE11TU0_kernel0() #0 {
 entry:
   call spir_func void @_Z3foov()
@@ -36,6 +43,7 @@ entry:
   ret void
 }
 
+; CHECK-NOT: _ZTSZ4mainE11TU0_kernel1
 define dso_local spir_kernel void @_ZTSZ4mainE11TU0_kernel1() #0 {
 entry:
   call spir_func void @_Z4foo1v()
@@ -47,13 +55,6 @@ define dso_local spir_func void @_Z4foo1v() {
 entry:
   %a = alloca i32, align 4
   store i32 2, i32* %a, align 4
-  ret void
-}
-
-; CHECK-DAG: _ZTSZ4mainE10TU1_kernel
-define dso_local spir_kernel void @_ZTSZ4mainE10TU1_kernel() #1 {
-entry:
-  call spir_func void @_Z4foo2v()
   ret void
 }
 
