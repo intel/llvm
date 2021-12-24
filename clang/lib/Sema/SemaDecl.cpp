@@ -2717,6 +2717,10 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeIntelFPGABankWidthAttr(D, *A);
   else if (const auto *A = dyn_cast<IntelFPGANumBanksAttr>(Attr))
     NewAttr = S.MergeIntelFPGANumBanksAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(Attr))
+    NewAttr = S.MergeSYCLDeviceHasAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(Attr))
+    NewAttr = S.MergeSYCLUsesAspectsAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -18725,15 +18729,13 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
                                                      bool Final) {
   assert(FD && "Expected non-null FunctionDecl");
 
-  // SYCL functions can be template, so we check if they have appropriate
-  // attribute prior to checking if it is a template.
-  if (LangOpts.SYCLIsDevice &&
-      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()))
-    return FunctionEmissionStatus::Emitted;
-
   // Templates are emitted when they're instantiated.
   if (FD->isDependentContext())
     return FunctionEmissionStatus::TemplateDiscarded;
+
+  if (LangOpts.SYCLIsDevice &&
+      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()))
+    return FunctionEmissionStatus::Emitted;
 
   // Check whether this function is an externally visible definition.
   auto IsEmittedForExternalSymbol = [this, FD]() {
