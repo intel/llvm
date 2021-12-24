@@ -86,6 +86,12 @@ __spirv_JointMatrixSUMadINTEL(
     __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
+template <typename T, std::size_t R, std::size_t C,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
+__spirv_CompositeConstruct(const T v);
+
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
