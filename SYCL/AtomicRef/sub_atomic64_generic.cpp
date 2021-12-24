@@ -6,7 +6,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // CUDA backend has had no support for the generic address space yet
-// XFAIL: cuda
+// XFAIL: cuda || hip
 
 #include "sub.h"
 #include <iostream>

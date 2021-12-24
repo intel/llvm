@@ -8,7 +8,7 @@
 // UNSUPPORTED: level_zero || opencl || hip
 
 // CUDA backend has had no support for the generic address space yet
-// XFAIL: cuda
+// XFAIL: cuda || hip
 
 // NOTE: Tests load and store for sequentially consistent memory ordering.
 
