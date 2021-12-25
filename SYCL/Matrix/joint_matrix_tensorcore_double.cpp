@@ -1,5 +1,4 @@
-// The test is disabled to devil's issue #666
-// REQUIRES: gpu, cuda, TEMPORARY_DISABLED
+// REQUIRES: gpu, cuda
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX=3  %s -o %t.out
 //
