@@ -4417,3 +4417,4 @@ _ZNK2cl4sycl9exception8categoryEv
 _ZNK2cl4sycl9kernel_id8get_nameEv
 __sycl_register_lib
 __sycl_unregister_lib
+_ZN2cl4sycl6detail11make_pi_memEmmNS0_7contextEbNS0_7backendE

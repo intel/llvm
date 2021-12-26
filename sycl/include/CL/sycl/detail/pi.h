@@ -1150,7 +1150,10 @@ __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
 /// \param nativeHandle is the native handle to create PI mem from.
 /// \param mem is the PI mem created from the native handle.
 __SYCL_EXPORT pi_result
-piextMemCreateWithNativeHandle(pi_native_handle nativeHandle, pi_mem *mem);
+// piextMemCreateWithNativeHandle(pi_native_handle nativeHandle, pi_mem *mem);
+piextMemCreateWithNativeHandle(pi_native_handle NativeHandle, size_t Size,
+                               pi_context Context, bool ownNativeHandle,
+                               pi_mem *Mem);
 
 //
 // Program

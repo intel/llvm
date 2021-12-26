@@ -327,10 +327,9 @@ protected:
   EventImplPtr MInteropEvent;
   // Context passed by user to interoperability constructor.
   ContextImplPtr MInteropContext;
-  // OpenCL's memory object handle passed by user to interoperability
+  // Native backend memory object handle passed by user to interoperability
   // constructor.
-  // TODO update this member to support other backends.
-  cl_mem MInteropMemObject;
+  RT::PiMem MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;

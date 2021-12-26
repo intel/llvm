@@ -202,13 +202,18 @@ struct _pi_object {
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
 struct MemAllocRecord : _pi_object {
-  MemAllocRecord(pi_context Context) : Context(Context) {}
+  MemAllocRecord(pi_context Context, bool OwnZeMemHandle = true)
+      : Context(Context), OwnZeMemHandle(OwnZeMemHandle) {}
   // Currently kernel can reference memory allocations from different contexts
   // and we need to know the context of a memory allocation when we release it
   // in piKernelRelease.
   // TODO: this should go away when memory isolation issue is fixed in the Level
   // Zero runtime.
   pi_context Context;
+
+  // Indicates if we own the native memory handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeMemHandle;
 };
 
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
@@ -272,7 +277,7 @@ public:
       : Context{Ctx}, Device{Dev} {}
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
-  void deallocate(void *Ptr) override final;
+  void deallocate(void *Ptr, bool OwnZeMemHandle) override final;
   MemType getMemType() override final;
 };
 
@@ -800,6 +805,10 @@ struct _pi_mem : _pi_object {
   // piEnqueueMemBufferMap for details).
   char *MapHostPtr;
 
+  // Indicates if we own the native memory handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeMemHandle;
+
   // Flag to indicate that this memory is allocated in host memory
   bool OnHost;
 
@@ -830,8 +839,10 @@ struct _pi_mem : _pi_object {
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr, bool OwnZeMemHandle,
+          bool MemOnHost = false)
+      : Context{Ctx}, MapHostPtr{HostPtr},
+        OwnZeMemHandle{OwnZeMemHandle}, OnHost{MemOnHost}, Mappings{} {}
 
 private:
   // The key is the host pointer representing an active mapping.
@@ -846,11 +857,11 @@ private:
 
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
-             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
-             bool MemOnHost = false)
-      : _pi_mem(Ctx, HostPtr, MemOnHost), ZeMem{Mem}, SubBuffer{Parent, Origin,
-                                                                Size} {}
+  _pi_buffer(pi_context Ctx, size_t BufSize, char *Mem, char *HostPtr,
+             bool OwnZeMemHandle, _pi_mem *Parent = nullptr, size_t Origin = 0,
+             size_t Size = 0, bool MemOnHost = false)
+      : _pi_mem(Ctx, HostPtr, OwnZeMemHandle, MemOnHost), Size{BufSize},
+        ZeMem{Mem}, SubBuffer{Parent, Origin, Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 
@@ -859,6 +870,8 @@ struct _pi_buffer final : _pi_mem {
   bool isImage() const override { return false; }
 
   bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
+
+  size_t Size;
 
   // Level Zero memory handle is really just a naked pointer.
   // It is just convenient to have it char * to simplify offset arithmetics.
@@ -873,8 +886,9 @@ struct _pi_buffer final : _pi_mem {
 
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr)
-      : _pi_mem(Ctx, HostPtr), ZeImage{Image} {}
+  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr,
+            bool OwnZeMemHandle)
+      : _pi_mem(Ctx, HostPtr, OwnZeMemHandle), ZeImage{Image} {}
 
   void *getZeHandle() override { return ZeImage; }
 

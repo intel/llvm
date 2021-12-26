@@ -28,7 +28,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
-      MInteropMemObject(pi::cast<cl_mem>(MemObject)), MOpenCLInterop(true),
+      MInteropMemObject(pi::cast<RT::PiMem>(MemObject)), MOpenCLInterop(true),
       MHostPtrReadOnly(false), MNeedWriteBack(true), MSizeInBytes(SizeInBytes),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr) {
@@ -38,17 +38,18 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         "not allowed",
         PI_INVALID_CONTEXT);
 
-  RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
   RT::PiContext Context = nullptr;
   const plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piMemGetInfo>(Mem, CL_MEM_CONTEXT, sizeof(Context),
-                                       &Context, nullptr);
+  Plugin.call<PiApiKind::piMemGetInfo>(MInteropMemObject, CL_MEM_CONTEXT,
+                                       sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem",
         PI_INVALID_CONTEXT);
-  Plugin.call<PiApiKind::piMemRetain>(Mem);
+
+  if (Plugin.getBackend() == backend::opencl)
+    Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);
 }
 
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {

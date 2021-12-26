@@ -2068,9 +2068,17 @@ pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
+// pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+//                                              pi_mem *mem) {
+
 pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             size_t size, pi_context context,
+                                             bool ownNativeHandle,
                                              pi_mem *mem) {
   (void)nativeHandle;
+  (void)size;
+  (void)context;
+  (void)ownNativeHandle;
   (void)mem;
 
   cl::sycl::detail::pi::die(

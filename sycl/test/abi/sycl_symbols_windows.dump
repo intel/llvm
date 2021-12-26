@@ -4628,6 +4628,7 @@
 ?wait_proxy@queue@sycl@cl@@QEAAXAEBUcode_location@detail@23@@Z
 ?what@exception@sycl@cl@@UEBAPEBDXZ
 ?wrapIntoImageBuffer@MemoryManager@detail@sycl@cl@@SAPEAXV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAXPEAVSYCLMemObjI@234@@Z
+?make_pi_mem@detail@sycl@cl@@YAPEAU_pi_mem@@_K0Vcontext@23@_NW4backend@23@@Z
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib
