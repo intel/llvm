@@ -58,7 +58,9 @@ public:
             class = std::enable_if_t<__SEIEED::is_simd_type_v<SimdT> &&
                                      (length == SimdT::length)>>
   simd(const SimdT &RHS)
-      : base_type(__builtin_convertvector(RHS.data(), vector_type)) {
+      : base_type(
+            detail::convert_vector<Ty, typename SimdT::user_element_type, N>(
+                RHS.data())) {
     __esimd_dbg_print(simd(const SimdT &RHS));
   }
 

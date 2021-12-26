@@ -198,12 +198,13 @@ __ESIMD_DEF_SIMD_OBJ_IMPL_BIN_OP(/, BinOp::div, __ESIMD_ARITH_OP_FILTER)
       using PromotedT = computation_type_t<T1, T2>;                            \
       /* vector_comparison_op returns vector_type_t<Ti, N>, where Ti is        \
        * integer type */                                                       \
-      /* of the same bit size as PromotedT */                                                                            \
+      /* of the same bit size as PromotedT */                                  \
       auto Res = vector_comparison_op<CMPOP_ID, PromotedT, N>(                 \
           __SEIEED::convert_vector<PromotedT, T1, N>(LHS.data()),              \
           __SEIEED::convert_vector<PromotedT, T2, N>(RHS.data()));             \
+      using ResElemT = element_type_t<decltype(Res)>;                          \
       return __SEIEE::simd_mask<N>(                                            \
-          __SEIEED::convert_vector<simd_mask_elem_type, PromotedT, N>(Res) &   \
+          __SEIEED::convert_vector<simd_mask_elem_type, ResElemT, N>(Res) &    \
           MaskVecT(1));                                                        \
     } else {                                                                   \
       /* this is comparison of masks, don't perform type promotion */          \

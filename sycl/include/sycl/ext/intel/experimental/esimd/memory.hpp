@@ -358,12 +358,10 @@ ESIMD_INLINE
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr int16_t scale = 0;
   const auto si = __ESIMD_GET_SURF_HANDLE(acc);
-  constexpr bool IsHalfT = std::is_same_v<T, sycl::half>;
 
   if constexpr (sizeof(T) < 4) {
-    using Tint = std::conditional_t<IsHalfT, uint16_t, T>;
-    static_assert(std::is_integral_v<Tint>,
-                  "only integral 1- & 2-byte types are supported");
+    using Tint = std::conditional_t<std::is_integral_v<T>, T,
+                                    detail::uint_type_t<sizeof(T)>>;
     using Treal = element_storage_t<T>;
     simd<Tint, N> vals_int = bitcast<Tint, Treal, N>(std::move(vals).data());
     using PromoT =
@@ -390,10 +388,11 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t scale = 0;
   const auto si = get_surface_index(acc);
-  constexpr bool IsHalfT = std::is_same_v<T, sycl::half>;
 
   if constexpr (sizeof(T) < 4) {
-    using Tint = std::conditional_t<IsHalfT, uint16_t, T>;
+    using Tint = std::conditional_t<std::is_integral_v<T>, T,
+                                    detail::uint_type_t<sizeof(T)>>;
+    using Treal = element_storage_t<T>;
     static_assert(std::is_integral<Tint>::value,
                   "only integral 1- & 2-byte types are supported");
     using PromoT =
@@ -405,8 +404,8 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
                                              pred.data());
     auto Res = convert<Tint>(promo_vals);
 
-    if constexpr (IsHalfT) {
-      return detail::bitcast<detail::half, uint16_t, N>(Res.data());
+    if constexpr (!std::is_same_v<Tint, T>) {
+      return detail::bitcast<Treal, Tint, N>(Res.data());
     } else {
       return Res;
     }
@@ -678,8 +677,8 @@ constexpr bool check_atomic() {
       static_assert(NumSrc == 1, "One source operand is expected");
       return false;
     }
-    if constexpr (!is_type<T, float, detail::half>()) {
-      static_assert((is_type<T, float, detail::half>()),
+    if constexpr (!is_type<T, float, sycl::half>()) {
+      static_assert((is_type<T, float, sycl::half>()),
                     "Type F or HF is expected");
       return false;
     }
@@ -698,9 +697,8 @@ constexpr bool check_atomic() {
                     "Type UW, UD or UQ is expected");
       return false;
     }
-    if constexpr (Op == atomic_op::fcmpwr &&
-                  !is_type<T, float, detail::half>()) {
-      static_assert((is_type<T, float, detail::half>()),
+    if constexpr (Op == atomic_op::fcmpwr && !is_type<T, float, sycl::half>()) {
+      static_assert((is_type<T, float, sycl::half>()),
                     "Type F or HF is expected");
       return false;
     }
@@ -723,7 +721,7 @@ constexpr bool check_atomic() {
 /// dec. \ingroup sycl_esimd
 template <atomic_op Op, typename Tx, int n,
           class T = detail::element_storage_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<Tx, n>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 0>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
@@ -746,7 +744,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
 /// sub. \ingroup sycl_esimd
 template <atomic_op Op, typename Tx, int n,
           class T = detail::element_storage_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<Tx, n>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 1>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
               simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -771,7 +769,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
 /// cmpxchg. \ingroup sycl_esimd
 template <atomic_op Op, typename Tx, int n,
           class T = detail::element_storage_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<Tx, n>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 2>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
               simd<Tx, n> src1, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));

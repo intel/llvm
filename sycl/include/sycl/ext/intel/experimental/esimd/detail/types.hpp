@@ -43,6 +43,13 @@ namespace detail {
 
 namespace csd = cl::sycl::detail;
 
+template <int N> using uint_type_t =
+  std::conditional_t<N == 1, uint8_t,
+  std::conditional_t<N == 2, uint16_t,
+  std::conditional_t<N == 4, uint32_t,
+  std::conditional_t<N == 8, uint64_t, void>>>>;
+
+
 // forward declarations of major internal simd classes
 template <typename Ty, int N> class simd_mask_impl;
 template <typename ElT, int N, class Derived, class SFINAE = void>

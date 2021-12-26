@@ -175,35 +175,44 @@ ESIMD_INLINE DstRawVecTy convert_vector(SrcRawVecTy Val) {
                        !detail::is_wrapper_elem_type_v<DstWrapperTy>) {
     return __builtin_convertvector(Val, DstRawVecTy);
   } else {
+    // SrcRawVecTy (of SrcWrapperTy)
+    //     | step A [wrapper_type_converter<SrcWrapperTy, SrcStdT>]::from_vector
+    //     v
+    //  SrcStdT
+    //     | step B [__builtin_convertvector]
+    //     v
+    //  DstStdT
+    //     | step C [wrapper_type_converter<DstWrapperTy, DstStdT>]::to_vector
+    //     v
+    // DstRawVecTy (of DstWrapperTy)
     using DstStdT = typename element_type_traits<DstWrapperTy>::EnclosingCppT;
     using SrcStdT = typename element_type_traits<SrcWrapperTy>::EnclosingCppT;
-
-    using SrcWTC = wrapper_type_converter<SrcWrapperTy, SrcStdT>;
-    using DstWTC = wrapper_type_converter<DstWrapperTy, DstStdT>;
-
-    using CommonT = computation_type_t<DstStdT, SrcStdT>;
-    using CommonVecT = vector_type_t<CommonT, N>;
+    using SrcConv = wrapper_type_converter<SrcWrapperTy, SrcStdT>;
+    using DstConv = wrapper_type_converter<DstWrapperTy, DstStdT>;
     using DstStdVecT = vector_type_t<DstStdT, N>;
+    using SrcStdVecT = vector_type_t<SrcStdT, N>;
+    SrcStdVecT TmpSrcVal;
 
-    CommonVecT TmpVal;
-
-    // element_storage_t<SrcWrapperTy>
-    //                                |
-    //                                SrcWrapperTy -- SrcStdT --\
-    //                                                          CommonT
-    //                                DstWrapperTy -- DstStdT --/
-    //                                |
-    // element_storage_t<DstWrapperTy>
-
-    if constexpr (std::is_same_v<CommonT, SrcWrapperTy>) {
-      TmpVal = std::move(Val);
+    if constexpr (std::is_same_v<SrcStdT, SrcWrapperTy>) {
+      TmpSrcVal = std::move(Val);
     } else {
-      TmpVal = convert<CommonVecT>(SrcWTC::template from_vector<N>(Val));
+      TmpSrcVal = SrcConv::template from_vector<N>(Val); // step A
     }
-    if constexpr (std::is_same_v<DstWrapperTy, CommonT>) {
-      return TmpVal;
+    if constexpr (std::is_same_v<SrcStdT, DstWrapperTy>) {
+      return TmpSrcVal;
     } else {
-      return DstWTC::template to_vector<N>(convert<DstStdVecT>(TmpVal));
+      DstStdVecT TmpDstVal;
+
+      if constexpr (std::is_same_v<SrcStdT, DstStdVecT>) {
+        TmpDstVal = std::move(TmpSrcVal);
+      } else {
+        TmpDstVal = __builtin_convertvector(TmpSrcVal, DstStdVecT); // step B
+      }
+      if constexpr (std::is_same_v<DstStdT, DstWrapperTy>) {
+        return TmpDstVal;
+      } else {
+        return DstConv::template to_vector<N>(TmpDstVal); // step C
+      }
     }
   }
 }
@@ -355,7 +364,7 @@ ESIMD_INLINE RawVecT vector_binary_op_default(RawVecT X, RawVecT Y) {
 // back.
 template <BinOp Op, class ElemT, int N, class RawVecT = __rv_t<__hlp<ElemT, N>>>
 ESIMD_INLINE RawVecT __esimd_vector_binary_op(RawVecT X, RawVecT Y) {
-  using T1 = element_type_traits<ElemT>::EnclosingCppT;
+  using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
   using VecT1 = vector_type_t<T1, N>;
   VecT1 X1 = convert_vector<T1, ElemT, N>(X);
   VecT1 Y1 = convert_vector<T1, ElemT, N>(Y);
@@ -432,14 +441,11 @@ public:
   }
 };
 
-// Both std:: variants of the check fail for _Float16, so need a w/a
-// template <typename T>
-// static inline constexpr bool is_floating_point_v =
-// std::is_floating_point_v<element_type_traits<T>::EnclosingCppT>;
-//
-// template <typename T>
-// static inline constexpr bool is_arithmetic_v =
-// std::is_arithmetic_v<element_type_traits<T>::EnclosingCppT>;
+// "Generic" version of std::is_floating_point_v which returns "true" also for
+// the wrapper floating-point types such as sycl::half.
+template <typename T>
+static inline constexpr bool is_generic_floating_point_v =
+std::is_floating_point_v<typename element_type_traits<T>::EnclosingCppT>;
 
 // @{
 // Get computation type of a binary operator given its operand types:
@@ -461,14 +467,35 @@ template <class T1, class T2>
 struct computation_type<T1, T2,
                         std::enable_if_t<is_valid_simd_elem_type_v<T1> &&
                                          is_valid_simd_elem_type_v<T2>>> {
-  template <class T> using __tr = element_type_traits<T>;
+private:
+  template <class T> using tr = element_type_traits<T>;
   template <class T>
-  using __native_t = std::conditional_t<__tr<T>::use_native_cpp_ops,
-                                        typename __tr<T>::StorageT,
-                                        typename __tr<T>::EnclosingCppT>;
+  using native_t = std::conditional_t<tr<T>::use_native_cpp_ops,
+    typename tr<T>::StorageT,
+    typename tr<T>::EnclosingCppT>;
+  static inline constexpr bool is_wr1 = is_wrapper_elem_type_v<T1>;
+  static inline constexpr bool is_wr2 = is_wrapper_elem_type_v<T2>;
+  static inline constexpr bool is_fp1 = is_generic_floating_point_v<T1>;
+  static inline constexpr bool is_fp2 = is_generic_floating_point_v<T2>;
 
-  using type =
-      decltype(std::declval<__native_t<T1>>() + std::declval<__native_t<T2>>());
+public:
+
+  using type = std::conditional_t<!is_wr1 && !is_wr2,
+    // T1 and T2 are both std C++ types - use std C++ type promotion
+    decltype(std::declval<T1>() + std::declval<T2>()),
+    std::conditional_t<std::is_same_v<T1, T2>,
+      // Types are the same wrapper type - return any
+      T1,
+      std::conditional_t<is_fp1 != is_fp2,
+        // One of the types is floating-point - return it
+        // (e.g. computation_type<int, sycl::half> will yield sycl::half)
+        std::conditional_t<is_fp1, T1, T2>,
+        // both are either floating point or integral - return result of C++
+        // promotion of the native types
+        decltype(std::declval<native_t<T1>>() + std::declval<native_t<T2>>())
+      >
+    >
+  >;
 };
 
 template <class T1, class T2>
@@ -498,25 +525,22 @@ using computation_type_t =
 // sycl::half traits
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef __SYCL_DEVICE_ONLY__
-using half = _Float16;
-#else
-using half = uint16_t;
-#endif // __SYCL_DEVICE_ONLY__
-
 template <class T>
 struct element_type_traits<T, std::enable_if_t<std::is_same_v<T, sycl::half>>> {
-  using EnclosingCppT = float;
-  // Can't use sycl::detail::half_impl::StorageT as it still maps to struct on
-  // host (even though the struct is a trivial wrapper around uint16_t), and for
-  // ESIMD we need a type which can be an element of clang vector.
+  // Can't use sycl::detail::half_impl::StorageT as StorageT for both host and
+  // device as it still maps to struct on/ host (even though the struct is a
+  // trivial wrapper around uint16_t), and for ESIMD we need a type which can be
+  // an element of clang vector.
 #ifdef __SYCL_DEVICE_ONLY__
   using StorageT = sycl::detail::half_impl::StorageT;
+  // On device, _Float16 is native Cpp type, so it is the enclosing C++ type
+  using EnclosingCppT = StorageT;
   // On device, operations on half are translated to operations on _Float16,
   // which is natively supported by the device compiler
   static inline constexpr bool use_native_cpp_ops = true;
 #else
   using StorageT = uint16_t;
+  using EnclosingCppT = float;
   // On host, we can't use native Cpp '+', '-' etc. over uint16_t to emulate the
   // operations on half type.
   static inline constexpr bool use_native_cpp_ops = false;
@@ -540,12 +564,12 @@ struct is_esimd_arithmetic_type<element_storage_t<sycl::half>, void>
     : std::true_type {};
 
 // Misc
-inline std::ostream &operator<<(std::ostream &O, half const &rhs) {
+inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
   O << static_cast<float>(rhs);
   return O;
 }
 
-inline std::istream &operator>>(std::istream &I, half &rhs) {
+inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
   float ValFloat = 0.0f;
   I >> ValFloat;
   rhs = ValFloat;
