@@ -28,6 +28,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <cassert>
 #include <string>
@@ -916,6 +917,8 @@ cl_int AllocaSubBufCommand::enqueueImp() {
       MRequirement.MElemSize, MRequirement.MOffsetInBytes,
       MRequirement.MAccessRange, std::move(EventImpls), Event);
 
+  XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
+                                            MMemAllocation);
   return CL_SUCCESS;
 }
 

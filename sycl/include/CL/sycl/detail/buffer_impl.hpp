@@ -43,10 +43,6 @@ namespace detail {
 class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
   using typename BaseT::MemObjType;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  uint64_t IId;
-  xpti::trace_event_data_t *TraceEvent;
-#endif
 
 public:
   buffer_impl(size_t SizeInBytes, size_t, const property_list &Props,
@@ -159,19 +155,18 @@ public:
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
-
-  void constructorNotification(const detail::code_location &CodeLoc);
-  void associateNotification(void *MemObj);
-  void destructorNotification();
+  void constructorNotification(const detail::code_location &CodeLoc,
+                               void *UserObj);
+  void destructorNotification(void *UserObj);
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
   ~buffer_impl() {
-    destructorNotification();
     try {
       BaseT::updateHostMemory();
     } catch (...) {
     }
+    destructorNotification(this);
   }
 
   void resize(size_t size) { BaseT::MSizeInBytes = size; }

@@ -385,6 +385,8 @@ enum class trace_point_type_t : uint16_t {
   offload_alloc_associate = XPTI_TRACE_POINT_BEGIN(21),
   /// Used to notify that offload buffer will be destructed
   offload_alloc_destruct = XPTI_TRACE_POINT_BEGIN(22),
+  /// Used to notify about releasing internal handle for offload buffer
+  offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -628,6 +630,8 @@ constexpr uint16_t trace_offload_alloc_associate =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_associate);
 constexpr uint16_t trace_offload_alloc_destruct =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_destruct);
+constexpr uint16_t trace_offload_alloc_release =
+    static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_release);
 
 constexpr uint16_t trace_graph_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::graph);

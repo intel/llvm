@@ -13,11 +13,6 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti/xpti_trace_framework.hpp"
-#include <sstream>
-#endif
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -32,65 +27,16 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
   assert(!(nullptr == HostPtr && BaseT::useHostPtr() && Context->is_host()) &&
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
-  auto MemBuffer = MemoryManager::allocateMemBuffer(
+  return MemoryManager::allocateMemBuffer(
       std::move(Context), this, HostPtr, HostPtrReadOnly, BaseT::getSize(),
       BaseT::MInteropEvent, BaseT::MInteropContext, MProps, OutEventToWait);
-  associateNotification(MemBuffer);
-  return MemBuffer;
 }
-
-void buffer_impl::constructorNotification(
-    const detail::code_location &CodeLoc) {
-  (void)CodeLoc;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-  if (!xptiTraceEnabled())
-    return;
-
-  // We try to create a unique string for the buffer constructor call by
-  // combining it with the the created object address
-  xpti::utils::StringHelper NG;
-  std::string Name = NG.nameWithAddress<buffer_impl *>("buffer", this);
-  xpti::offload_buffer_data_t BufConstr{(uintptr_t)this};
-
-  xpti::payload_t Payload(
-      Name.c_str(), (CodeLoc.fileName() ? CodeLoc.fileName() : ""),
-      CodeLoc.lineNumber(), CodeLoc.columnNumber(), (void *)this);
-
-  // constructor calls could be at different user-code locations; We create a
-  // new event based on the code location info and if this has been seen before,
-  // a previously created event will be returned.
-  IId = xptiGetUniqueId();
-  TraceEvent =
-      xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_offload_buffer_event,
-                    xpti_at::active, &IId);
-  xptiNotifySubscribers(GBufferStreamID, xpti::trace_offload_alloc_construct,
-                        nullptr, TraceEvent, IId, &BufConstr);
-#endif
+void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
+                                          void *UserObj) {
+  XPTIRegistry::bufferConstructorNotification(UserObj, CodeLoc);
 }
-
-void buffer_impl::associateNotification(void *MemObj) {
-  (void)MemObj;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && TraceEvent))
-    return;
-  xpti::offload_buffer_association_data_t BufAssoc{(uintptr_t)this,
-                                                   (uintptr_t)MemObj};
-
-  // Add assotiation between user level and PI level memory object
-  xptiNotifySubscribers(GBufferStreamID, xpti::trace_offload_alloc_associate,
-                        nullptr, TraceEvent, IId, &BufAssoc);
-#endif
-}
-
-void buffer_impl::destructorNotification() {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && TraceEvent))
-    return;
-  // Destruction of user level memory object
-  xptiNotifySubscribers(GBufferStreamID, xpti::trace_offload_alloc_destruct,
-                        nullptr, TraceEvent, IId, nullptr);
-#endif
+void buffer_impl::destructorNotification(void *UserObj) {
+  XPTIRegistry::bufferDestructorNotification(UserObj);
 }
 
 } // namespace detail

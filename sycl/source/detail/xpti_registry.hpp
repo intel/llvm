@@ -12,6 +12,8 @@
 #include <string>
 #include <unordered_set>
 
+#include <CL/sycl/detail/common.hpp>
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
 // traces using the trace framework
@@ -86,6 +88,13 @@ public:
     xptiFrameworkFinalize();
 #endif // XPTI_ENABLE_INSTRUMENTATION
   }
+
+  static void
+  bufferConstructorNotification(void *UserObj,
+                                const detail::code_location &CodeLoc);
+  static void bufferAssociateNotification(void *UserObj, void *MemObj);
+  static void bufferReleaseNotification(void *UserObj, void *MemObj);
+  static void bufferDestructorNotification(void *UserObj);
 
 private:
   std::unordered_set<std::string> MActiveStreams;
