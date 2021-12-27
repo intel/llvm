@@ -14,12 +14,7 @@
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
-namespace detail {
+namespace __SEIEED {
 
 template <typename BaseTy, typename EltTy> struct compute_format_type;
 
@@ -94,10 +89,5 @@ template <typename Ty, typename EltTy, int Height, int Width>
 using compute_format_type_2d_t =
     typename compute_format_type_2d<Ty, EltTy, Height, Width>::type;
 
-} // namespace detail
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __SEIEED
 } // __SYCL_INLINE_NAMESPACE(cl)

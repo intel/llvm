@@ -21,12 +21,7 @@
 #include <CL/sycl/half_type.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
-namespace detail {
+namespace __SEIEED {
 
 enum class BinOp {
   ARITH_FIRST,
@@ -171,8 +166,8 @@ template <class DstWrapperTy, class SrcWrapperTy, int N,
 ESIMD_INLINE DstRawVecTy convert_vector(SrcRawVecTy Val) {
   if constexpr (std::is_same_v<SrcWrapperTy, DstWrapperTy>) {
     return Val;
-  } else if constexpr (!detail::is_wrapper_elem_type_v<SrcWrapperTy> &&
-                       !detail::is_wrapper_elem_type_v<DstWrapperTy>) {
+  } else if constexpr (!is_wrapper_elem_type_v<SrcWrapperTy> &&
+                       !is_wrapper_elem_type_v<DstWrapperTy>) {
     return __builtin_convertvector(Val, DstRawVecTy);
   } else {
     // SrcRawVecTy (of SrcWrapperTy)
@@ -246,7 +241,7 @@ template <class DstWrapperTy, class SrcWrapperTy,
 ESIMD_INLINE DstWrapperTy convert_scalar(SrcWrapperTy Val) {
   if constexpr (std::is_same_v<SrcWrapperTy, DstWrapperTy>) {
     return Val;
-  } else if constexpr (!detail::is_wrapper_elem_type_v<SrcWrapperTy> &&
+  } else if constexpr (!is_wrapper_elem_type_v<SrcWrapperTy> &&
                        !is_wrapper_elem_type_v<DstWrapperTy>) {
     return static_cast<DstRawTy>(Val);
   } else {
@@ -396,11 +391,11 @@ ESIMD_INLINE RetT vector_comparison_op_default(RawVecT X, RawVecT Y) {
 template <CmpOp Op, class ElemT, int N, class H = __hlp<ElemT, N>,
           class RetT = __cmp_t<H>, class RawVecT = __rv_t<H>>
 ESIMD_INLINE RetT __esimd_vector_comparison_op(RawVecT X, RawVecT Y) {
-  using T1 = element_type_traits<ElemT>::EnclosingCppT;
+  using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
   using VecT1 = vector_type_t<T1, N>;
   VecT1 X1 = convert_vector<T1, ElemT, N>(X);
   VecT1 Y1 = convert_vector<T1, ElemT, N>(Y);
-  return convert_vector<element_type_t<RetT>, T1>(
+  return convert_vector<element_type_t<RetT>, T1, N>(
       vector_comparison_op_default<Op, T1, N>(X1, Y1));
 }
 
@@ -445,7 +440,7 @@ public:
 // the wrapper floating-point types such as sycl::half.
 template <typename T>
 static inline constexpr bool is_generic_floating_point_v =
-std::is_floating_point_v<typename element_type_traits<T>::EnclosingCppT>;
+    std::is_floating_point_v<typename element_type_traits<T>::EnclosingCppT>;
 
 // @{
 // Get computation type of a binary operator given its operand types:
@@ -470,32 +465,33 @@ struct computation_type<T1, T2,
 private:
   template <class T> using tr = element_type_traits<T>;
   template <class T>
-  using native_t = std::conditional_t<tr<T>::use_native_cpp_ops,
-    typename tr<T>::StorageT,
-    typename tr<T>::EnclosingCppT>;
+  using native_t =
+      std::conditional_t<tr<T>::use_native_cpp_ops, typename tr<T>::StorageT,
+                         typename tr<T>::EnclosingCppT>;
   static inline constexpr bool is_wr1 = is_wrapper_elem_type_v<T1>;
   static inline constexpr bool is_wr2 = is_wrapper_elem_type_v<T2>;
   static inline constexpr bool is_fp1 = is_generic_floating_point_v<T1>;
   static inline constexpr bool is_fp2 = is_generic_floating_point_v<T2>;
 
 public:
-
-  using type = std::conditional_t<!is_wr1 && !is_wr2,
-    // T1 and T2 are both std C++ types - use std C++ type promotion
-    decltype(std::declval<T1>() + std::declval<T2>()),
-    std::conditional_t<std::is_same_v<T1, T2>,
-      // Types are the same wrapper type - return any
-      T1,
-      std::conditional_t<is_fp1 != is_fp2,
-        // One of the types is floating-point - return it
-        // (e.g. computation_type<int, sycl::half> will yield sycl::half)
-        std::conditional_t<is_fp1, T1, T2>,
-        // both are either floating point or integral - return result of C++
-        // promotion of the native types
-        decltype(std::declval<native_t<T1>>() + std::declval<native_t<T2>>())
-      >
-    >
-  >;
+  using type = std::conditional_t<
+      !is_wr1 && !is_wr2,
+      // T1 and T2 are both std C++ types - use std C++ type promotion
+      decltype(std::declval<T1>() + std::declval<T2>()),
+      std::conditional_t<
+          std::is_same_v<T1, T2>,
+          // Types are the same wrapper type - return any
+          T1,
+          std::conditional_t<is_fp1 != is_fp2,
+                             // One of the types is floating-point - return it
+                             // (e.g. computation_type<int, sycl::half> will
+                             // yield sycl::half)
+                             std::conditional_t<is_fp1, T1, T2>,
+                             // both are either floating point or integral -
+                             // return result of C++ promotion of the native
+                             // types
+                             decltype(std::declval<native_t<T1>>() +
+                                      std::declval<native_t<T2>>())>>>;
 };
 
 template <class T1, class T2>
@@ -583,10 +579,5 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 // sycl::bfloat16 traits
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace __SEIEED
 } // __SYCL_INLINE_NAMESPACE(cl)

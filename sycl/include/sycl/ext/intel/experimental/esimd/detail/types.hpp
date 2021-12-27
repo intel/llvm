@@ -43,12 +43,13 @@ namespace detail {
 
 namespace csd = cl::sycl::detail;
 
-template <int N> using uint_type_t =
-  std::conditional_t<N == 1, uint8_t,
-  std::conditional_t<N == 2, uint16_t,
-  std::conditional_t<N == 4, uint32_t,
-  std::conditional_t<N == 8, uint64_t, void>>>>;
-
+template <int N>
+using uint_type_t = std::conditional_t<
+    N == 1, uint8_t,
+    std::conditional_t<
+        N == 2, uint16_t,
+        std::conditional_t<N == 4, uint32_t,
+                           std::conditional_t<N == 8, uint64_t, void>>>>;
 
 // forward declarations of major internal simd classes
 template <typename Ty, int N> class simd_mask_impl;
@@ -332,11 +333,6 @@ std::enable_if_t<is_clang_vector_type_v<To> && is_clang_vector_type_v<From>, To>
     return __builtin_convertvector(Val, To);
   }
 }
-
-// template <typename To, typename From, int N>
-// vector_type_t<To, N> convert(vector_type_t<From, N> Val) {
-//   return convert<vector_type_t<To, N>>(Val);
-// }
 
 /// Base case for checking if a type U is one of the types.
 template <typename U> constexpr bool is_type() { return false; }

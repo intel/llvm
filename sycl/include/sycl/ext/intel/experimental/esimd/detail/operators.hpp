@@ -64,33 +64,6 @@
 namespace __SEIEED {
 template <class T> using __st = element_storage_t<T>;
 
-#if 0
-  enum class BinOp {
-  ARITH_FIRST, add=ARITH_FIRST, sub, mul, div, rem, ARITH_LAST=rem,
-  BIT_FIRST, shl=BIT_FIRST, shr, BIT_LOG, bit_or=BIT_LOG, bit_and, bit_xor, BIT_LST=bit_xor,
-  LOG_FIRST, log_or=LOG_FIRST, log_and, LOG_LAST=log_and,
-  CMP_FIRST, lt=CMP_FIRST, lte, gte, gt, EQ_CMP_FIRST, eq=EQ_CMP_FIRST, ne, CMP_LAST=ne
-};
-
-#define __ESIMD_BIN_OP_IMPL(OpEum, OpSym)                                      \
-  if constexpr (BinOp::OpEnum == Op)                                           \
-  return (LHS)OpSym(RHS)
-
-#define __ESIMD_BIN_OP_HALF_IMPL
-
-template <class UserElemT, class VecT, BinOp Op>
-ESIMD_INLINE VecT bin_op_impl(VecT LHS, VecT RHS) {
-  if constexpr (std::is_same_v<UserElemT, sycl::half>) {
-    return half_bin_op_impl(LHS, RHS);
-  } else {
-    __ESIMD_BIN_OP_IMPL(add, +);
-    __ESIMD_BIN_OP_IMPL(sub, -);
-    __ESIMD_BIN_OP_IMPL(mul, *);
-    __ESIMD_BIN_OP_IMPL(div, /);
-    __ESIMD_BIN_OP_IMPL(rem, %);
-  }
-}
-#endif
 ////////////////////////////////////////////////////////////////////////////////
 // simd_obj_impl global operators
 ////////////////////////////////////////////////////////////////////////////////

@@ -71,7 +71,7 @@ public:
     __esimd_dbg_print(simd(T1 Val));
   }
 
-  /// Implicit conversion for simd<T, 1> into T.
+  /// Type conversion for simd<T, 1> into T.
   template <class To, class T = simd,
             class = sycl::detail::enable_if_t<
                 (T::length == 1) && (detail::is_vectorizable_v<To> ||
