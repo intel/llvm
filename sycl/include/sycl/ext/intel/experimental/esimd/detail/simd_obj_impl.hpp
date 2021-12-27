@@ -107,7 +107,8 @@ template <class T, int N> struct elem_type_of_derived<simd_mask_impl<T, N>> {
 ///
 /// \ingroup sycl_esimd
 ///
-template <typename RawTy, int N, class Derived, class SFINAE> class simd_obj_impl {
+template <typename RawTy, int N, class Derived, class SFINAE>
+class simd_obj_impl {
   template <typename, typename> friend class simd_view;
   template <typename, int> friend class simd;
   template <typename, int> friend class simd_mask_impl;
@@ -127,7 +128,7 @@ public:
 
 protected:
   template <int N1, class = std::enable_if_t<N1 == N>>
-  void init_from_array(const RawTy(&&Arr)[N1]) noexcept {
+  void init_from_array(const RawTy (&&Arr)[N1]) noexcept {
     for (auto I = 0; I < N; ++I) {
       M_data[I] = Arr[I];
     }
@@ -197,7 +198,7 @@ public:
 
   /// Construct from an array. To allow e.g. simd_mask_type<N> m({1,0,0,1,...}).
   template <int N1, class = std::enable_if_t<N1 == N>>
-  simd_obj_impl(const RawTy(&&Arr)[N1]) noexcept {
+  simd_obj_impl(const RawTy (&&Arr)[N1]) noexcept {
     __esimd_dbg_print(simd_obj_impl(const RawTy(&&Arr)[N1]));
     init_from_array(std::move(Arr));
   }
@@ -225,7 +226,8 @@ public:
   /// @}
 
   // Load the object's value from array.
-  template <int N1> std::enable_if_t<N1 == N> copy_from(const RawTy(&&Arr)[N1]) {
+  template <int N1>
+  std::enable_if_t<N1 == N> copy_from(const RawTy (&&Arr)[N1]) {
     __esimd_dbg_print(copy_from(const RawTy(&&Arr)[N1]));
     raw_vector_type Tmp;
     for (auto I = 0; I < N; ++I) {
@@ -235,7 +237,7 @@ public:
   }
 
   // Store the object's value to array.
-  template <int N1> std::enable_if_t<N1 == N> copy_to(RawTy(&&Arr)[N1]) const {
+  template <int N1> std::enable_if_t<N1 == N> copy_to(RawTy (&&Arr)[N1]) const {
     __esimd_dbg_print(copy_to(RawTy(&&Arr)[N1]));
     for (auto I = 0; I < N; ++I) {
       Arr[I] = data()[I];
@@ -256,8 +258,7 @@ public:
   /// Type conversion into a scalar:
   /// simd_obj_impl<RawTy, 1, simd<Ty,1>> to Ty.
   template <typename T = simd_obj_impl,
-            typename = sycl::detail::enable_if_t<
-                T::length ==1>>
+            typename = sycl::detail::enable_if_t<T::length == 1>>
   operator Ty() const {
     __esimd_dbg_print(operator Ty());
     return bitcast_to_wrapper_type<Ty>(data()[0]);
@@ -285,7 +286,7 @@ public:
   /// Whole region update with predicates.
   void merge(const Derived &Val, const simd_mask_type<N> &Mask) {
     set(__esimd_wrregion<RawTy, N, N, 0 /*VS*/, N, 1, N>(data(), Val.data(), 0,
-                                                      Mask.data()));
+                                                         Mask.data()));
   }
 
   void merge(const Derived &Val1, Derived Val2, const simd_mask_type<N> &Mask) {
@@ -348,19 +349,15 @@ public:
                   "Stride must be 1 in single-element region");
     Derived &&Val = std::move(cast_this_to_derived());
     return __esimd_rdregion<RawTy, N, Size, /*VS*/ 0, Size, Stride>(Val.data(),
-                                                                 Offset);
+                                                                    Offset);
   }
 
   /// Read single element, return value only (not reference).
-  Ty operator[](int i) const {
-    return bitcast_to_wrapper_type<Ty>(data()[i]);
-  }
+  Ty operator[](int i) const { return bitcast_to_wrapper_type<Ty>(data()[i]); }
 
   /// Read single element, return value only (not reference).
   __SYCL_DEPRECATED("use operator[] form.")
-  Ty operator()(int i) const {
-    return bitcast_to_wrapper_type<Ty>(data()[i]);
-  }
+  Ty operator()(int i) const { return bitcast_to_wrapper_type<Ty>(data()[i]); }
 
   /// Return writable view of a single element.
   simd_view<Derived, region1d_scalar_t<Ty>> operator[](int i)
@@ -398,7 +395,7 @@ public:
                const simd_mask_type<Size> &Mask) {
     vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(RawTy);
     set(__esimd_wrindirect<RawTy, N, Size>(data(), Val.data(), Offsets,
-                                        Mask.data()));
+                                           Mask.data()));
   }
 
   /// \name Replicate
@@ -473,8 +470,8 @@ public:
   template <int Rep, int VS, int W, int HS>
   resize_a_simd_type_t<Derived, Rep * W>
   replicate_vs_w_hs(uint16_t Offset) const {
-    return __esimd_rdregion<RawTy, N, Rep * W, VS, W, HS, N>(data(),
-                                                          Offset * sizeof(RawTy));
+    return __esimd_rdregion<RawTy, N, Rep * W, VS, W, HS, N>(
+        data(), Offset * sizeof(RawTy));
   }
   ///@}
 
@@ -498,8 +495,7 @@ public:
 
   /// Write a simd_obj_impl-vector into a basic region of a simd_obj_impl
   /// object.
-  template <typename RTy,
-            class ElemTy = __raw_t<typename RTy::element_type>>
+  template <typename RTy, class ElemTy = __raw_t<typename RTy::element_type>>
   ESIMD_INLINE void writeRegion(RTy Region,
                                 const vector_type_t<ElemTy, RTy::length> &Val) {
 
@@ -592,9 +588,10 @@ public:
   /// global address space, otherwise behavior is undefined.
   /// @param flags for the copy operation. If the template parameter Flags is
   /// is element_aligned_tag, \p addr must be aligned by alignof(T). If Flags is
-  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's raw_vector_type
-  /// alignment. If Flags is overaligned_tag<N>, \p addr must be aligned by N.
-  /// Program not meeting alignment requirements results in undefined behavior.
+  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's
+  /// raw_vector_type alignment. If Flags is overaligned_tag<N>, \p addr must be
+  /// aligned by N. Program not meeting alignment requirements results in
+  /// undefined behavior.
   template <typename Flags = element_aligned_tag, int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE void copy_from(const Ty *addr, Flags = {}) SYCL_ESIMD_FUNCTION;
@@ -607,9 +604,10 @@ public:
   /// @param offset offset to copy from (in bytes).
   /// @param flags for the copy operation. If the template parameter Flags is
   /// is element_aligned_tag, offset must be aligned by alignof(T). If Flags is
-  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's raw_vector_type
-  /// alignment. If Flags is overaligned_tag<N>, offset must be aligned by N.
-  /// Program not meeting alignment requirements results in undefined behavior.
+  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's
+  /// raw_vector_type alignment. If Flags is overaligned_tag<N>, offset must be
+  /// aligned by N. Program not meeting alignment requirements results in
+  /// undefined behavior.
   template <typename AccessorT, typename Flags = element_aligned_tag,
             int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
@@ -622,9 +620,10 @@ public:
   /// global address space, otherwise behavior is undefined.
   /// @param flags for the copy operation. If the template parameter Flags is
   /// is element_aligned_tag, \p addr must be aligned by alignof(T). If Flags is
-  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's raw_vector_type
-  /// alignment. If Flags is overaligned_tag<N>, \p addr must be aligned by N.
-  /// Program not meeting alignment requirements results in undefined behavior.
+  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's
+  /// raw_vector_type alignment. If Flags is overaligned_tag<N>, \p addr must be
+  /// aligned by N. Program not meeting alignment requirements results in
+  /// undefined behavior.
   template <typename Flags = element_aligned_tag, int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE void copy_to(Ty *addr, Flags = {}) const SYCL_ESIMD_FUNCTION;
@@ -636,9 +635,10 @@ public:
   /// @param offset offset to copy from.
   /// @param flags for the copy operation. If the template parameter Flags is
   /// is element_aligned_tag, offset must be aligned by alignof(T). If Flags is
-  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's raw_vector_type
-  /// alignment. If Flags is overaligned_tag<N>, offset must be aligned by N.
-  /// Program not meeting alignment requirements results in undefined behavior.
+  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's
+  /// raw_vector_type alignment. If Flags is overaligned_tag<N>, offset must be
+  /// aligned by N. Program not meeting alignment requirements results in
+  /// undefined behavior.
   template <typename AccessorT, typename Flags = element_aligned_tag,
             int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
@@ -653,7 +653,8 @@ public:
   /// Bitwise inversion, available in all subclasses.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
   Derived operator~() const {
-    return Derived{ detail::vector_unary_op<detail::UnaryOp::bit_not, T1, N>(data()) };
+    return Derived{
+        detail::vector_unary_op<detail::UnaryOp::bit_not, T1, N>(data())};
   }
 
   /// Unary logical negation operator, available in all subclasses.
@@ -675,9 +676,8 @@ public:
       const __SEIEED::simd_obj_impl<T1, N, SimdT> &RHS) {                      \
     auto Res = *this BINOP RHS;                                                \
     using ResT = decltype(Res);                                                \
-    set(__SEIEED::convert_vector<element_type,                            \
-                                 typename ResT::element_type, length>(    \
-        Res.data()));                                                          \
+    set(__SEIEED::convert_vector<element_type, typename ResT::element_type,    \
+                                 length>(Res.data()));                         \
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
@@ -692,9 +692,8 @@ public:
       const __SEIEE::simd_view<SimdT1, RegionT1> &RHS) {                       \
     auto Res = *this BINOP RHS.read();                                         \
     using ResT = decltype(Res);                                                \
-    set(__SEIEED::convert_vector<element_type,                            \
-                                 typename ResT::element_type, length>(    \
-        Res.data()));                                                          \
+    set(__SEIEED::convert_vector<element_type, typename ResT::element_type,    \
+                                 length>(Res.data()));                         \
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
@@ -705,7 +704,7 @@ public:
       using RHSVecT = __SEIEED::construct_a_simd_type_t<Derived, T1, N>;       \
       return *this OPASSIGN RHSVecT(RHS);                                      \
     } else {                                                                   \
-      return *this OPASSIGN Derived((RawTy)RHS);                                  \
+      return *this OPASSIGN Derived((RawTy)RHS);                               \
     }                                                                          \
   }
 

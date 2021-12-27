@@ -301,8 +301,7 @@ __ESIMD_API simd<Tx, n> block_load(AccessorTy acc, uint32_t offset,
 /// \ingroup sycl_esimd
 // TODO the above note about cache hints applies to this API as well.
 template <typename Tx, int n, CacheHint L1H = CacheHint::None,
-          CacheHint L3H = CacheHint::None,
-          class T = detail::__raw_t<Tx>>
+          CacheHint L3H = CacheHint::None, class T = detail::__raw_t<Tx>>
 __ESIMD_API void block_store(Tx *p, simd<Tx, n> vals) {
   detail::IfNotNone<L1H, L3H>::warn();
   constexpr unsigned Sz = sizeof(T) * n;
@@ -719,8 +718,7 @@ constexpr bool check_atomic() {
 
 /// USM address atomic update, version with no source operands: \c inc and \c
 /// dec. \ingroup sycl_esimd
-template <atomic_op Op, typename Tx, int n,
-          class T = detail::__raw_t<Tx>>
+template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 0>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -742,8 +740,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
 
 /// USM address atomic update, version with one source operand: e.g. \c add, \c
 /// sub. \ingroup sycl_esimd
-template <atomic_op Op, typename Tx, int n,
-          class T = detail::__raw_t<Tx>>
+template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 1>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
               simd_mask<n> pred) {
@@ -767,8 +764,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
 
 /// USM address atomic update, version with two source operands: e.g. \c
 /// cmpxchg. \ingroup sycl_esimd
-template <atomic_op Op, typename Tx, int n,
-          class T = detail::__raw_t<Tx>>
+template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 2>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
               simd<Tx, n> src1, simd_mask<n> pred) {
@@ -1012,13 +1008,11 @@ __ESIMD_API void slm_block_store(uint32_t offset, simd<T, n> vals) {
                 "block size must be at most 8 owords");
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   // offset in genx.oword.st is in owords
-  __esimd_oword_st<detail::__raw_t<T>, n>(si, offset >> 4,
-                                                    vals.data());
+  __esimd_oword_st<detail::__raw_t<T>, n>(si, offset >> 4, vals.data());
 }
 
 /// SLM atomic update operation, no source operands: \c inc and \c dec.
-template <atomic_op Op, typename Tx, int n,
-          class T = detail::__raw_t<Tx>>
+template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<Tx, n>>
 slm_atomic_update(simd<uint32_t, n> offsets, simd_mask<n> pred) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
@@ -1034,8 +1028,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
 }
 
 /// SLM atomic update operation, one source operand: e.g. \c add, \c sub.
-template <atomic_op Op, typename Tx, int n,
-          class T = detail::__raw_t<Tx>>
+template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<Tx, n>>
 slm_atomic_update(simd<uint32_t, n> offsets, simd<Tx, n> src0,
                   simd_mask<n> pred) {
@@ -1054,8 +1047,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
 }
 
 /// SLM atomic, two source operands.
-template <atomic_op Op, typename Tx, int n,
-          class T = detail::__raw_t<Tx>>
+template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<Tx, n>>
 slm_atomic_update(simd<uint32_t, n> offsets, simd<Tx, n> src0, simd<Tx, n> src1,
                   simd_mask<n> pred) {

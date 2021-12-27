@@ -315,9 +315,8 @@ public:
                                       is_simd_type_v<BaseTy>)&&(length ==
                                                                 SimdT::length)>>
   Derived &operator=(const simd_obj_impl<T, N, SimdT> &Other) {
-    return write(
-        convert_vector<element_type, typename SimdT::element_type, N>(
-            Other.data()));
+    return write(convert_vector<element_type, typename SimdT::element_type, N>(
+        Other.data()));
   }
 
   template <class T1, class = std::enable_if_t<is_valid_simd_elem_type_v<T1>>>

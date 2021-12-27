@@ -175,18 +175,18 @@ public:
 ///   auto v1 = v.select<2, 1>(0);
 ///   auto v2 = v1[0]; // simd_view of a nested region for a single element
 template <typename BaseTy, typename NestedRegion>
-class simd_view<BaseTy,
-                std::pair<region1d_scalar_t<typename BaseTy::element_type>,
-                          NestedRegion>>
+class simd_view<
+    BaseTy,
+    std::pair<region1d_scalar_t<typename BaseTy::element_type>, NestedRegion>>
     : public detail::simd_view_impl<
-          BaseTy,
-          std::pair<region1d_scalar_t<typename BaseTy::element_type>,
-                    NestedRegion>> {
+          BaseTy, std::pair<region1d_scalar_t<typename BaseTy::element_type>,
+                            NestedRegion>> {
   template <typename, int> friend class simd;
   template <typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using RegionTy = std::pair<region1d_scalar_t<typename BaseTy::element_type>, NestedRegion>;
+  using RegionTy =
+      std::pair<region1d_scalar_t<typename BaseTy::element_type>, NestedRegion>;
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;

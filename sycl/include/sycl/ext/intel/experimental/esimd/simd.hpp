@@ -42,8 +42,7 @@ template <typename Ty, int N>
 class simd : public detail::simd_obj_impl<
                  detail::__raw_t<Ty>, N, simd<Ty, N>,
                  std::enable_if_t<detail::is_valid_simd_elem_type_v<Ty>>> {
-  using base_type =
-      detail::simd_obj_impl<detail::__raw_t<Ty>, N, simd<Ty, N>>;
+  using base_type = detail::simd_obj_impl<detail::__raw_t<Ty>, N, simd<Ty, N>>;
 
 public:
   using base_type::base_type;
@@ -58,9 +57,8 @@ public:
             class = std::enable_if_t<__SEIEED::is_simd_type_v<SimdT> &&
                                      (length == SimdT::length)>>
   simd(const SimdT &RHS)
-      : base_type(
-            detail::convert_vector<Ty, detail::element_type_t<SimdT>, N>(
-                RHS.data())) {
+      : base_type(detail::convert_vector<Ty, detail::element_type_t<SimdT>, N>(
+            RHS.data())) {
     __esimd_dbg_print(simd(const SimdT &RHS));
   }
 
@@ -109,7 +107,8 @@ public:
   template <class T1 = Ty> simd operator ARITH_UNARY_OP() const {              \
     static_assert(!std::is_unsigned_v<T1>,                                     \
                   #ARITH_UNARY_OP "doesn't apply to unsigned types");          \
-    return simd{detail::vector_unary_op<detail::UnaryOp::ID, T1, N>(base_type::data())};                            \
+    return simd{detail::vector_unary_op<detail::UnaryOp::ID, T1, N>(           \
+        base_type::data())};                                                   \
   }
 
   __ESIMD_DEF_SIMD_ARITH_UNARY_OP(-, minus)

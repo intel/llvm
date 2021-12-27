@@ -106,21 +106,9 @@ enum class BinOp {
   log_and
 };
 
-enum class CmpOp {
-  lt,
-  lte,
-  gte,
-  gt,
-  eq,
-  ne
-};
+enum class CmpOp { lt, lte, gte, gt, eq, ne };
 
-enum class UnaryOp {
-  minus,
-  plus,
-  bit_not,
-  log_not
-};
+enum class UnaryOp { minus, plus, bit_not, log_not };
 
 // If given type is a special "wrapper" element type.
 template <class T>
@@ -276,8 +264,7 @@ ESIMD_INLINE DstRawVecTy convert_vector(SrcRawVecTy Val) {
   }
 }
 
-template <class Ty>
-ESIMD_INLINE __raw_t<Ty> bitcast_to_raw_type(Ty Val) {
+template <class Ty> ESIMD_INLINE __raw_t<Ty> bitcast_to_raw_type(Ty Val) {
   if constexpr (!is_wrapper_elem_type_v<Ty>) {
     return Val;
   } else {
@@ -285,8 +272,7 @@ ESIMD_INLINE __raw_t<Ty> bitcast_to_raw_type(Ty Val) {
   }
 }
 
-template <class Ty>
-ESIMD_INLINE Ty bitcast_to_wrapper_type(__raw_t<Ty> Val) {
+template <class Ty> ESIMD_INLINE Ty bitcast_to_wrapper_type(__raw_t<Ty> Val) {
   if constexpr (!is_wrapper_elem_type_v<Ty>) {
     return Val;
   } else {
@@ -454,8 +440,8 @@ ESIMD_INLINE RawVecT vector_binary_op(RawVecT X, RawVecT Y) {
 template <UnaryOp Op, class T> ESIMD_INLINE T __esimd_unary_op(T X);
 
 template <UnaryOp Op, class T,
-  class = std::enable_if_t<is_valid_simd_elem_type_v<T>>>
-  ESIMD_INLINE T unary_op_default(T X) {
+          class = std::enable_if_t<is_valid_simd_elem_type_v<T>>>
+ESIMD_INLINE T unary_op_default(T X) {
   static_assert(element_type_traits<T>::use_native_cpp_ops);
   using T1 = __raw_t<T>;
   T1 X1 = bitcast_to_raw_type(X);
@@ -473,8 +459,8 @@ template <UnaryOp Op, class T> ESIMD_INLINE T __esimd_unary_op(T X) {
 }
 
 template <UnaryOp Op, class T,
-  class = std::enable_if_t<is_valid_simd_elem_type_v<T>>>
-  ESIMD_INLINE T unary_op(T X) {
+          class = std::enable_if_t<is_valid_simd_elem_type_v<T>>>
+ESIMD_INLINE T unary_op(T X) {
   if constexpr (element_type_traits<T>::use_native_cpp_ops) {
     return unary_op_default<Op>(X);
   } else {
@@ -484,7 +470,8 @@ template <UnaryOp Op, class T,
 
 // --- Vector versions of unary operations
 
-template <UnaryOp Op, class ElemT, int N, class RawVecT = __rv_t<__hlp<ElemT, N>>>
+template <UnaryOp Op, class ElemT, int N,
+          class RawVecT = __rv_t<__hlp<ElemT, N>>>
 ESIMD_INLINE RawVecT vector_unary_op_default(RawVecT X) {
   static_assert(element_type_traits<ElemT>::use_native_cpp_ops);
   return unary_op_default_impl<Op, RawVecT>(X);
@@ -493,7 +480,8 @@ ESIMD_INLINE RawVecT vector_unary_op_default(RawVecT X) {
 // Default (inefficient) implementation of a vector unary operation, which
 // involves conversion to an std C++ type, performing the op and converting
 // back.
-template <UnaryOp Op, class ElemT, int N, class RawVecT = __rv_t<__hlp<ElemT, N>>>
+template <UnaryOp Op, class ElemT, int N,
+          class RawVecT = __rv_t<__hlp<ElemT, N>>>
 ESIMD_INLINE RawVecT __esimd_vector_unary_op(RawVecT X) {
   using T1 = typename element_type_traits<ElemT>::EnclosingCppT;
   using VecT1 = vector_type_t<T1, N>;
@@ -501,7 +489,8 @@ ESIMD_INLINE RawVecT __esimd_vector_unary_op(RawVecT X) {
   return convert_vector<ElemT, T1, N>(vector_unary_op_default<Op, T1, N>(X1));
 }
 
-template <UnaryOp Op, class ElemT, int N, class RawVecT = __rv_t<__hlp<ElemT, N>>>
+template <UnaryOp Op, class ElemT, int N,
+          class RawVecT = __rv_t<__hlp<ElemT, N>>>
 ESIMD_INLINE RawVecT vector_unary_op(RawVecT X) {
   if constexpr (element_type_traits<ElemT>::use_native_cpp_ops) {
     return vector_unary_op_default<Op, ElemT, N>(X);
@@ -690,8 +679,7 @@ half_raw __esimd_wrapper_type_bitcast_from<sycl::half>(sycl::half Val) {
 }
 
 template <>
-struct is_esimd_arithmetic_type<__raw_t<sycl::half>, void>
-    : std::true_type {};
+struct is_esimd_arithmetic_type<__raw_t<sycl::half>, void> : std::true_type {};
 
 // Misc
 inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {

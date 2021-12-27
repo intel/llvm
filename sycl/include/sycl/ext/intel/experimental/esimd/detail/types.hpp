@@ -149,17 +149,15 @@ struct is_simd_obj_impl_derivative<simd_obj_impl<RawT, N, Derived>>
     : public std::true_type {};
 
 template <class T, class SFINAE = void> struct element_type_traits;
-template <class T> using __raw_t = typename __SEIEED::element_type_traits<T>::RawT;
-
+template <class T>
+using __raw_t = typename __SEIEED::element_type_traits<T>::RawT;
 
 // Specialization for all other types.
 template <typename T, int N, template <typename, int> class Derived>
 struct is_simd_obj_impl_derivative<Derived<T, N>>
     : public std::conditional_t<
-          std::is_base_of_v<
-              simd_obj_impl<__raw_t<T>, N,
+          std::is_base_of_v<simd_obj_impl<__raw_t<T>, N, Derived<T, N>>,
                             Derived<T, N>>,
-              Derived<T, N>>,
           std::true_type, std::false_type> {};
 
 // Convenience shortcut.
@@ -173,15 +171,14 @@ inline constexpr bool is_simd_obj_impl_derivative_v =
 template <class SimdT, int Ndst> struct resize_a_simd_type;
 
 // Specialization for the simd_obj_impl type.
-template <typename T, int Nsrc, int Ndst,
-          template <typename, int> class SimdT>
-struct resize_a_simd_type<simd_obj_impl<__raw_t<T>, Nsrc, SimdT<T, Nsrc>>, Ndst> {
+template <typename T, int Nsrc, int Ndst, template <typename, int> class SimdT>
+struct resize_a_simd_type<simd_obj_impl<__raw_t<T>, Nsrc, SimdT<T, Nsrc>>,
+                          Ndst> {
   using type = simd_obj_impl<__raw_t<T>, Ndst, SimdT<T, Ndst>>;
 };
 
 // Specialization for the simd_obj_impl type derivatives.
-template <typename T, int Nsrc, int Ndst,
-          template <typename, int> class SimdT>
+template <typename T, int Nsrc, int Ndst, template <typename, int> class SimdT>
 struct resize_a_simd_type<SimdT<T, Nsrc>, Ndst> {
   using type = SimdT<T, Ndst>;
 };
@@ -199,8 +196,8 @@ template <class SimdT, typename NewElemT> struct convert_simd_elem_type;
 // Specialization for the simd_obj_impl type.
 template <typename OldElemT, int N, typename NewElemT,
           template <typename, int> class SimdT>
-struct convert_simd_elem_type<simd_obj_impl<__raw_t<OldElemT>, N, SimdT<OldElemT, N>>,
-                              NewElemT> {
+struct convert_simd_elem_type<
+    simd_obj_impl<__raw_t<OldElemT>, N, SimdT<OldElemT, N>>, NewElemT> {
   using type = simd_obj_impl<__raw_t<NewElemT>, N, SimdT<NewElemT, N>>;
 };
 
