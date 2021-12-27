@@ -42,32 +42,13 @@ xpti/ @tovinkere @intel/llvm-reviewers-runtime
 xptifw/ @tovinkere @intel/llvm-reviewers-runtime
 
 # DPC++ tools
-llvm/**/append-file/ @intel/dpcpp-tools-reviewers
-llvm/**/file-table-tform/ @intel/dpcpp-tools-reviewers
-llvm/**/llvm-foreach/ @intel/dpcpp-tools-reviewers
-llvm/**/llvm-no-spir-kernel/ @intel/dpcpp-tools-reviewers
-llvm/**/sycl-post-link/ @intel/dpcpp-tools-reviewers
-llvm/include/llvm/Support/PropertySetIO.h @intel/dpcpp-tools-reviewers
-llvm/lib/Support/PropertySetIO.cpp @intel/dpcpp-tools-reviewers
-llvm/unittests/Support/PropertySetIOTest.cpp @intel/dpcpp-tools-reviewers
-llvm/include/llvm/Support/SimpleTable.h @intel/dpcpp-tools-reviewers
-llvm/lib/Support/SimpleTable.cpp @intel/dpcpp-tools-reviewers
-llvm/unittests/Support/SimpleTableTest.cpp @intel/dpcpp-tools-reviewers
-llvm/lib/Support/Base64.cpp @intel/dpcpp-tools-reviewers
+llvm/ @intel/dpcpp-tools-reviewers
 
 # Clang offload tools
-clang/tools/clang-offload-bundler/ @intel/dpcpp-tools-reviewers
-clang/tools/clang-offload-wrapper/ @intel/dpcpp-tools-reviewers
-clang/tools/clang-offload-deps/ @intel/dpcpp-tools-reviewers
-clang/tools/clang-offload-extract/ @intel/dpcpp-tools-reviewers
+clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
 SYCLLowerIR/ @intel/dpcpp-esimd-reviewers
 esimd/ @kbobrovs @intel/dpcpp-esimd-reviewers
 sycl/include/sycl/ext/intel/experimental/esimd.hpp @intel/dpcpp-esimd-reviewers
 sycl/doc/extensions/ExplicitSIMD/ @intel/dpcpp-esimd-reviewers
-
-# ITT annotations
-llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @intel/dpcpp-tools-reviewers
-llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @intel/dpcpp-tools-reviewers
-llvm/test/Transforms/SPIRITTAnnotations/* @intel/dpcpp-tools-reviewers
