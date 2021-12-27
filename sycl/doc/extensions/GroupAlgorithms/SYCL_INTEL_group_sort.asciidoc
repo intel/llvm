@@ -33,6 +33,8 @@ This extension is written against the SYCL 2020 revision 3 specification. All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
+NOTE: This extension is experimental: interfaces are subject to change later.
+
 == Introduction
 
 This extension introduces sorting functions to the group algorithms library, along with
@@ -54,6 +56,104 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_GROUP_SORT` macro.
 |Value |Description
 |1     |Initial extension version. Base features are supported.
 |===
+
+== Sorting functions
+The sort function from the {cpp} standard sorts elements with respect to
+the binary comparison function object.
+
+SYCL provides two similar algorithms:
+
+`joint_sort` uses the work-items in a group to execute the corresponding
+algorithm in parallel.
+
+`sort_over_group` performs a sort over values held directly by the work-items
+in a group, and results returned to work-item `i` represent values that are in
+position `i` in the ordered range.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  template <typename GroupHelper, typename Ptr>
+  void joint_sort(GroupHelper exec, Ptr first, Ptr last); // (1)
+
+  template <typename GroupHelper, typename Ptr, typename Compare>
+  void joint_sort(GroupHelper exec, Ptr first, Ptr last, Compare comp); // (2)
+
+  template <typename Group, typename Ptr, typename Sorter>
+  void joint_sort(Group g, Ptr first, Ptr last, Sorter sorter); // (3)
+
+  template <typename GroupHelper, typename T>
+  T sort_over_group(GroupHelper exec, T val); // (4)
+
+  template <typename GroupHelper, typename T, typename Compare>
+  T sort_over_group(GroupHelper exec, T val, Compare comp); // (5)
+
+  template <typename Group, typename T, typename Sorter>
+  T sort_over_group(Group g, T val, Sorter sorter); // (6)
+}
+----
+
+1._Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+_Effects_: Sort the elements in the range `[first, last)`
+using the `exec` group helper object. Elements are compared by `operator<`.
+
+_Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupHelper` was created with a work-group or sub-group and
+some associated scratch space.
+
+2._Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+_Mandates_: `comp` must satisfy the requirements of `Compare` from
+the {cpp} standard.
+
+_Effects_: Sort the elements in the range `[first, last)` with respect to the
+binary comparison function object `comp` using the `exec` group helper object.
+
+_Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space.
+
+3._Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+_Effects_: Equivalent to: `sorter(g, first, last)`.
+
+_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
+it provides `operator()(Group, Ptr, Ptr)` overload.
+
+4._Returns_: The value returned on work-item `i` is the value in position `i`
+of the ordered range resulting from sorting `val` from all work-items in the group.
+Elements are compared by `operator<`
+using the `exec` group helper object.
+For multi-dimensional groups, the order of work-items in the group is
+determined by their linear id.
+
+_Complexity_: Let `N` be the work-group size. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space.
+
+5._Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
+
+_Returns_: The value returned on work-item `i` is the value in position `i`
+of the ordered range resulting from sorting `val` from all work-items in the
+`g` group with respect to the binary comparison function object `comp`
+using the `exec` group helper object.
+For multi-dimensional groups, the order of work-items in the group is
+determined by their linear id.
+
+_Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space.
+
+6._Effects_: Equivalent to: `return sorter(g, val)`.
+
+_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
+it provides `operator()(Group, T)` overload.
 
 == Sorters
 
@@ -93,33 +193,14 @@ T operator()(Group g, T val);`
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
 |===
 
-Example of custom Sorter:
-[source,c++]
-----
-template<typename Compare>
-class bubble_sorter{
-public:
-  Compare comp;
+SYCL provides some predefined sorters mentioned below.
+However, custom sorters are particularly useful when the application knows the data has some
+special property. For example, an application could implement a fast bitonic sort
+if it knows the data size is a power of 2.
 
-  template<typename Group, typename Ptr>
-  void operator()(Group g, Ptr first, Ptr last){
-    size_t n = last - first;
-    size_t idx = g.get_local_id().get(0);
-    if(idx == 0)
-      for(size_t i = 0; i < n; ++i)
-        for(size_t j = i + 1; j < n; ++j)
-          if(comp(first[j], first[i]))
-            std::swap(first[i], first[j]);
-  }
-};
-----
+=== Predefined Sorters
 
-This sorter can be invoked by `joint_sort`, but won't work with `sort_over_group`
-due to the absence of corresponding `operator()`
-
-==== Predefined Sorters
-
-===== Sorting Order
+==== Sorting Order
 
 `sorting_order` is an `enum` that defines a sorting order when `radix_sorter` is used.
 Only ascending and descending orders are applicable.
@@ -246,8 +327,8 @@ the default sorting algorithm defined by the sorter calling by `joint_sort`.
 `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
-use `sycl::memory_scope::work_group` to get memory size required for each work_group;
-use `sycl::memory_scope::sub_group` to get memory size required for each sub_group`.
+use `sycl::memory_scope::work_group` to get memory size required for each work-group;
+use `sycl::memory_scope::sub_group` to get memory size required for each sub-group.
 If other `scope` values are passed, behavior is unspecified.
 
 |`static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
@@ -292,8 +373,8 @@ memory_required(sycl::memory_scope scope, std::size_t range_size)`
 calling by `joint_sort`. `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
-use `sycl::memory_scope::work_group` to get memory size required for each work_group;
-use `sycl::memory_scope::sub_group` to get memory size required for each sub_group`.
+use `sycl::memory_scope::work_group` to get memory size required for each work-group;
+use `sycl::memory_scope::sub_group` to get memory size required for each sub-group.
 If other `scope` values are passed, behavior is unspecified.
 
 |`template<int dimensions = 1>
@@ -307,21 +388,19 @@ if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
 |===
 
-NOTE: Predefined sorters are in the `experimental` namespace: interfaces might be changed later.
-
 === Group Helper
 
-To pass additional memory to algorithms that don't have the Sorter
-parameter SYCL introduces special type: group helper.
-It encapsulates a group and a memory.
-
-Group helper must have following methods:
+The overloads of `joint_sort` and `sort_over_group` that do not take a Sorter parameter implicitly
+use the default sorter. Since the default sorter requires the application to allocate some
+temporary memory, the application must use a Group Helper object to communicate the location of
+this memory. A Group Helper object is any object
+that has the following two public member functions:
 
 [source,c++]
 ----
 /* unspecified */ get_group() const;
 
-/* unspecified */ get_memory() const;
+sycl::span<std::byte, Extent> get_memory() const
 ----
 
 Table 8. Member functions of group helpers.
@@ -332,10 +411,9 @@ Table 8. Member functions of group helpers.
 |Returns the group that is handled by the group helper object.
 Assuming `Group` is a type of method's result `sycl::is_group_v<std::decay_t<Group>>` must be true.
 
-|`/* unspecified */ get_memory() const`
-|Returns the memory object that represents a memory handled by the group helper object.
-A type of the returned value must be the same as the type of the `default_sorter` 's constructor
-that passes an additional memory to `default_sorter`.
+|`sycl::span<std::byte, Extent> get_memory() const`
+|Returns the memory object that the default sorter can use.
+The return type is aligned with the first parameter of constructor for `default_sorter`.
 |===
 
 ==== Predefined Group Helpers
@@ -365,8 +443,8 @@ namespace sycl::ext::oneapi::experimental {
 }
 ----
 
-NOTE: `group_with_scratchpad` is in the `experimental` namespace:
-interfaces might be changed later.
+For most applications it is enough to pass an instance of the `group_with_scratchpad` class
+instead of their own classes creation.
 
 Table 9. Constructors of the `group_with_scratchpad` class.
 |===
@@ -395,104 +473,6 @@ that is handled by the `group_with_scratchpad` object.
 
 |===
 
-=== Sort
-The sort function from the {cpp} standard sorts elements with respect to
-the binary comparison function object.
-
-SYCL provides two similar algorithms:
-
-`joint_sort` uses the work-items in a group to execute the corresponding
-algorithm in parallel.
-
-`sort_over_group` performs a sort over values held directly by the work-items
-in a group, and results returned to work-item `i` represent values that are in
-position `i` in the ordered range.
-
-[source,c++]
-----
-namespace sycl::ext::oneapi {
-
-  template <typename GroupHelper, typename Ptr>
-  void joint_sort(GroupHelper exec, Ptr first, Ptr last); // (1)
-
-  template <typename GroupHelper, typename Ptr, typename Compare>
-  void joint_sort(GroupHelper exec, Ptr first, Ptr last, Compare comp); // (2)
-
-  template <typename Group, typename Ptr, typename Sorter>
-  void joint_sort(Group g, Ptr first, Ptr last, Sorter sorter); // (3)
-
-  template <typename GroupHelper, typename T>
-  T sort_over_group(GroupHelper exec, T val); // (4)
-
-  template <typename GroupHelper, typename T, typename Compare>
-  T sort_over_group(GroupHelper exec, T val, Compare comp); // (5)
-
-  template <typename Group, typename T, typename Sorter>
-  T sort_over_group(Group g, T val, Sorter sorter); // (6)
-}
-----
-
-1._Preconditions_: `first`, `last` must be the same for all work-items in the group.
-
-_Effects_: Sort the elements in the range `[first, last)`
-using the `exec` group helper object. Elements are compared by `operator<`.
-
-_Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
-
-_Constraints_: Only available if `GroupHelper` was created with a work group or sub_group and
-some associated scratch space.
-
-2._Preconditions_: `first`, `last` must be the same for all work-items in the group.
-
-_Mandates_: `comp` must satisfy the requirements of `Compare` from
-the {cpp} standard.
-
-_Effects_: Sort the elements in the range `[first, last)` with respect to the
-binary comparison function object `comp` using the `exec` group helper object.
-
-_Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
-
-_Constraints_: Only available if `GroupHelper` was created with a work group or sub_group and
-some associated scratch space.
-
-3._Preconditions_: `first`, `last` must be the same for all work-items in the group.
-
-_Effects_: Equivalent to: `sorter(g, first, last)`.
-
-_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
-it provides `operator()(Group, Ptr, Ptr)` overload.
-
-4._Returns_: The value returned on work-item `i` is the value in position `i`
-of the ordered range resulting from sorting `val` from all work-items in the group.
-Elements are compared by `operator<`
-using the `exec` group helper object.
-For multi-dimensional groups, the order of work-items in the group is
-determined by their linear id.
-
-_Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
-
-_Constraints_: Only available if `GroupHelper` was created with a work group or sub_group and
-some associated scratch space.
-
-5._Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
-
-_Returns_: The value returned on work-item `i` is the value in position `i`
-of the ordered range resulting from sorting `val` from all work-items in the
-`g` group with respect to the binary comparison function object `comp`
-using the `exec` group helper object.
-For multi-dimensional groups, the order of work-items in the group is
-determined by their linear id.
-
-_Complexity_: Let `N` be the work group or sub-group size. `O(N*log(N)*log(N))` comparisons.
-
-_Constraints_: Only available if `GroupHelper` was created with a work group or sub_group and
-some associated scratch space.
-
-6._Effects_: Equivalent to: `return sorter(g, val)`.
-
-_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
-it provides `operator()(Group, Ptr, Ptr)` overload.
-
 == Examples
 
 1.Using `joint_sort` without Sorters.
@@ -500,11 +480,10 @@ it provides `operator()(Group, Ptr, Ptr)` overload.
 [source,c++]
 ----
 ...
-namespace my_sycl = sycl::ext::oneapi;
-namespace my_sycl_exp = sycl::ext::oneapi::experimental;
+namespace my_sycl = sycl::ext::oneapi::experimental;
 // calculate required local memory size
 size_t temp_memory_size =
-    my_sycl_exp::default_sorter<>::memory_required<T>(sycl::memory_scope::work_group, n);
+    my_sycl::default_sorter<>::memory_required<T>(sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
@@ -517,7 +496,7 @@ q.submit([&](sycl::handler& h) {
 
       my_sycl::joint_sort(
         // create group helper using deduction guides
-        my_sycl_exp::group_with_scratchpad(
+        my_sycl::group_with_scratchpad(
           id.get_group(),
           sycl::span{scratch.get_pointer(), temp_memory_size}
         ),
@@ -534,12 +513,11 @@ q.submit([&](sycl::handler& h) {
 [source,c++]
 ----
 ...
-namespace my_sycl = sycl::ext::oneapi;
-namespace my_sycl_exp = sycl::ext::oneapi::experimental;
+namespace my_sycl = sycl::ext::oneapi::experimental;
 
 sycl::range<1> local_range{256};
 // predefine radix_sorter to calculate local memory size
-using RSorter = my_sycl_exp::radix_sorter<T, my_sycl_exp::sorting_order::descending>;
+using RSorter = my_sycl::radix_sorter<T, my_sycl::sorting_order::descending>;
 // calculate required local memory size
 size_t temp_memory_size =
     RSorter::memory_required(sycl::memory_scope::work_group, local_range);
@@ -573,12 +551,11 @@ for details.
 [source,c++]
 ----
 ...
-namespace my_sycl = sycl::ext::oneapi;
-namespace my_sycl_exp = sycl::ext::oneapi::experimental;
+namespace my_sycl = sycl::ext::oneapi::experimental;
 using TupleType = typename std::iterator_traits<oneapi::dpl::zip_iterator<T*, U*>>::value_type;
 // calculate required local memory size
 size_t temp_memory_size =
-    my_sycl_exp::default_sorter<>::memory_required<TupleType>(sycl::memory_scope::work_group, n);
+    my_sycl::default_sorter<>::memory_required<TupleType>(sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto keys_acc = sycl::accessor(keys_buf, h);
@@ -595,7 +572,7 @@ q.submit([&](sycl::handler& h) {
 
       my_sycl::joint_sort(
         // create group excutor using deduction guides
-        my_sycl_exp::group_with_scratchpad(
+        my_sycl::group_with_scratchpad(
           id.get_group(),
           sycl::span{scratch.get_pointer(), temp_memory_size}
         ),
@@ -622,6 +599,13 @@ will be added to the Spec to be used with other Group algorithms, e.g. find, red
 . Predefined sorters can be revisited to find a better interfaces for `memory_required` overloads.
 . `group_with_scratchpad` can be replaced with concepts that requires 2 methods.
 
+== Non-implemented features
+Please, note that following is not inplemented yet for the open-source repo:
+
+. `radix_sorter`, `radix_order`
+. sub-groups support.
+
+
 == Revision History
 
 [cols="5,15,15,70"]
@@ -630,5 +614,7 @@ will be added to the Spec to be used with other Group algorithms, e.g. find, red
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-04-28|Andrey Fedorov|Initial public working draft
-|2|{docdate}|Andrey Fedorov|Changes related to additional memory providing
+|2|2021-09-15|Andrey Fedorov|Changes related to additional memory providing
+|3|2021-12-16|Andrey Fedorov|Some refactoring, sections reordering,
+making the entire extension experimental
 |========================================

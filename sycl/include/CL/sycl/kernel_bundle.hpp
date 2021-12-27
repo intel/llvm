@@ -312,7 +312,7 @@ public:
 
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> backend_return_t<Backend, kernel_bundle<State>> {
+  backend_return_t<Backend, kernel_bundle<State>> get_native() const {
     return getNative<Backend>();
   }
 
@@ -471,6 +471,21 @@ using DevImgSelectorImpl =
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State, const DevImgSelectorImpl &Selector);
+
+// Internal non-template versions of get_empty_interop_kernel_bundle API which
+// is used by public onces
+__SYCL_EXPORT detail::KernelBundleImplPtr
+get_empty_interop_kernel_bundle_impl(const context &Ctx,
+                                     const std::vector<device> &Devs);
+
+/// make_kernel may need an empty interop kernel bundle. This function supplies
+/// this.
+template <bundle_state State>
+kernel_bundle<State> get_empty_interop_kernel_bundle(const context &Ctx) {
+  detail::KernelBundleImplPtr Impl =
+      detail::get_empty_interop_kernel_bundle_impl(Ctx, Ctx.get_devices());
+  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
+}
 } // namespace detail
 
 /// A kernel bundle in state State which contains all of the device images for

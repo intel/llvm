@@ -111,14 +111,11 @@ bool ToolChain::useRelaxRelocations() const {
   return ENABLE_X86_RELAX_RELOCATIONS;
 }
 
-bool ToolChain::isNoExecStackDefault() const {
-    return false;
-}
-
-const SanitizerArgs& ToolChain::getSanitizerArgs() const {
-  if (!SanitizerArguments.get())
-    SanitizerArguments.reset(new SanitizerArgs(*this, Args));
-  return *SanitizerArguments.get();
+SanitizerArgs
+ToolChain::getSanitizerArgs(const llvm::opt::ArgList &JobArgs) const {
+  SanitizerArgs SanArgs(*this, JobArgs, !SanitizerArgsChecked);
+  SanitizerArgsChecked = true;
+  return SanArgs;
 }
 
 const XRayArgs& ToolChain::getXRayArgs() const {
@@ -613,12 +610,9 @@ std::string ToolChain::GetProgramPath(const char *Name) const {
   return D.GetProgramPath(Name, *this);
 }
 
-std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
-                                     bool *LinkerIsLLDDarwinNew) const {
+std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD) const {
   if (LinkerIsLLD)
     *LinkerIsLLD = false;
-  if (LinkerIsLLDDarwinNew)
-    *LinkerIsLLDDarwinNew = false;
 
   // Get -fuse-ld= first to prevent -Wunused-command-line-argument. -fuse-ld= is
   // considered as the linker flavor, e.g. "bfd", "gold", or "lld".
@@ -671,11 +665,8 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
 
     std::string LinkerPath(GetProgramPath(LinkerName.c_str()));
     if (llvm::sys::fs::can_execute(LinkerPath)) {
-      // FIXME: Remove LinkerIsLLDDarwinNew once there's only one MachO lld.
       if (LinkerIsLLD)
-        *LinkerIsLLD = UseLinker == "lld" || UseLinker == "lld.darwinold";
-      if (LinkerIsLLDDarwinNew)
-        *LinkerIsLLDDarwinNew = UseLinker == "lld";
+        *LinkerIsLLD = UseLinker == "lld";
       return LinkerPath;
     }
   }

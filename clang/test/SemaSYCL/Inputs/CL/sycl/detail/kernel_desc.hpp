@@ -43,8 +43,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
     }
     static constexpr const char *getName() { return ""; }
     static constexpr bool isESIMD() { return 0; }
-    static constexpr bool callsThisItem() { return false; }
-    static constexpr bool callsAnyThisFreeFunction() { return false; }
   };
   } // namespace detail
   } // namespace sycl

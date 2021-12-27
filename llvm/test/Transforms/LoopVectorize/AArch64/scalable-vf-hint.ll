@@ -187,9 +187,9 @@ exit:
 ; CHECK-DBG: LV: User VF=vscale x 4 is unsafe. Ignoring scalable UserVF.
 ; CHECK-DBG: remark: <unknown>:0:0: User-specified vectorization factor vscale x 4 is unsafe. Ignoring the hint to let the compiler pick a more suitable value.
 ; CHECK-DBG: Found feasible scalable VF = vscale x 2
-; CHECK-DBG: LV: Selecting VF: 4.
+; CHECK-DBG: LV: Selecting VF: vscale x 2.
 ; CHECK-LABEL: @test4
-; CHECK: <4 x i32>
+; CHECK: <vscale x 2 x i32>
 define void @test4(i32* %a, i32* %b) #0 {
 entry:
   br label %loop
@@ -378,7 +378,7 @@ exit:
   ret void
 }
 
-attributes #0 = { vscale_range(0, 16) }
+attributes #0 = { vscale_range(1, 16) }
 !21 = !{!21, !22, !23}
 !22 = !{!"llvm.loop.vectorize.width", i32 4}
 !23 = !{!"llvm.loop.vectorize.scalable.enable", i1 true}
