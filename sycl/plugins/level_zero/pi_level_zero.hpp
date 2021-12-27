@@ -254,6 +254,7 @@ struct _pi_platform {
   // in the driver.
   std::list<pi_context> Contexts;
   std::mutex ContextsMutex;
+  std::mutex Mutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -742,7 +743,8 @@ struct _pi_queue : _pi_object {
   // needs to be set to true. The caller must verify that this command list and
   // fence have been signalled.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
-                             bool MakeAvailable);
+                             bool MakeAvailable,
+                             std::vector<pi_event> &EventList);
 
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
@@ -990,12 +992,14 @@ struct _pi_event : _pi_object {
   _pi_ze_event_list_t WaitList;
 
   // Performs the cleanup of a completed event.
-  pi_result cleanup(pi_queue LockedQueue = nullptr);
+  pi_result cleanup();
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.
   //
   bool CleanedUp = {false};
+
+  std::mutex Mutex;
 };
 
 struct _pi_program : _pi_object {
