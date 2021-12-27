@@ -730,9 +730,9 @@ detail::enable_if_t<detail::is_geninteger<T>::value, T> ctz(T x) __NOEXC {
   return __sycl_std::__invoke_ctz<T>(x);
 }
 
+// geninteger ctz (geninteger x) for calls with deprecated namespace
 namespace ext {
 namespace intel {
-// geninteger ctz (geninteger x) for calls in depraceted variant
 template <typename T>
 sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T>
 ctz(T x) __NOEXC {
