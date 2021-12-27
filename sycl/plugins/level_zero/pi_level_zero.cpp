@@ -5544,9 +5544,6 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
   }
 
   if (--(Event->RefCount) == 0) {
-    if (!Event->CleanedUp)
-      Event->cleanup(LockedQueue);
-
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
       // Free the memory allocated in the piEnqueueMemBufferMap.
