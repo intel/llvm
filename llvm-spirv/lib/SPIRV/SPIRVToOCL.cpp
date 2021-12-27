@@ -181,6 +181,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVEnqueueKernel(&CI, OC);
     return;
   }
+  if (OC == OpGenericPtrMemSemantics) {
+    visitCallSPIRVGenericPtrMemSemantics(&CI);
+    return;
+  }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
@@ -938,6 +942,21 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
           llvm_unreachable("invalid avc instruction");
 
         return OCLSPIRVSubgroupAVCIntelBuiltinMap::rmap(OC);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVGenericPtrMemSemantics(CallInst *CI) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
+        return OCLSPIRVBuiltinMap::rmap(OpGenericPtrMemSemantics);
+      },
+      [=](CallInst *CI) -> Instruction * {
+        auto *Shl = BinaryOperator::CreateShl(CI, getInt32(M, 8), "");
+        Shl->insertAfter(CI);
+        return Shl;
       },
       &Attrs);
 }

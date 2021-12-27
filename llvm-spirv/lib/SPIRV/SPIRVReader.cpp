@@ -2908,8 +2908,6 @@ SPIRVToLLVM::transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
     return CastInst::Create(Instruction::Trunc, CI, transType(BI->getType()),
                             "cvt", BB);
   }
-  if (OC == OpGenericPtrMemSemantics)
-    return BinaryOperator::CreateShl(CI, getInt32(M, 8), "", BB);
   if (SPIRVEnableStepExpansion &&
       (DemangledName == "smoothstep" || DemangledName == "step"))
     return expandOCLBuiltinWithScalarArg(CI, DemangledName);

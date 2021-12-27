@@ -156,6 +156,11 @@ public:
   ///   intel_sub_group_avc_mce_get_default_inter_base_multi_reference_penalty
   void visitCallSPIRVAvcINTELInstructionBuiltin(CallInst *CI, Op OC);
 
+  ///  Transform __spirv_GenericPtrMemSemantics to:
+  ///  %0 = call spirv_func i32 @_Z9get_fence
+  ///  %1 = shl i31 %0, 8
+  void visitCallSPIRVGenericPtrMemSemantics(CallInst *CI);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
