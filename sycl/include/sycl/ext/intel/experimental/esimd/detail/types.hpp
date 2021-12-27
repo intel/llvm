@@ -53,7 +53,7 @@ using uint_type_t = std::conditional_t<
 
 // forward declarations of major internal simd classes
 template <typename Ty, int N> class simd_mask_impl;
-template <typename ElT, int N, class Derived, class SFINAE = void>
+template <typename RawT, int N, class Derived, class SFINAE = void>
 class simd_obj_impl;
 
 // @{
@@ -125,8 +125,8 @@ static inline constexpr bool is_esimd_scalar_v =
 template <typename T>
 using is_esimd_scalar = typename std::bool_constant<is_esimd_scalar_v<T>>;
 
-// vector_type, using clang vector type extension.
-template <typename Ty, int N> struct vector_type {
+// raw_vector_type, using clang vector type extension.
+template <typename Ty, int N> struct raw_vector_type {
   static_assert(!std::is_const<Ty>::value, "const element type not supported");
   static_assert(is_vectorizable_v<Ty>, "element type not supported");
   static_assert(N > 0, "zero-element vector not supported");
@@ -136,40 +136,31 @@ template <typename Ty, int N> struct vector_type {
 };
 
 template <typename Ty, int N>
-using vector_type_t = typename vector_type<Ty, N>::type;
+using vector_type_t = typename raw_vector_type<Ty, N>::type;
 
 // @{
 // Checks if given type T derives from simd_obj_impl or is equal to it.
 template <typename T>
-struct is_simd_obj_impl_derivative : public std::false_type {
-  using element_type = invalid_element_type;
-};
+struct is_simd_obj_impl_derivative : public std::false_type {};
 
 // Specialization for the simd_obj_impl type itself.
-template <typename ElT, int N, class Derived>
-struct is_simd_obj_impl_derivative<simd_obj_impl<ElT, N, Derived>>
-    : public std::true_type {
-  using element_type = ElT;
-};
+template <typename RawT, int N, class Derived>
+struct is_simd_obj_impl_derivative<simd_obj_impl<RawT, N, Derived>>
+    : public std::true_type {};
 
 template <class T, class SFINAE = void> struct element_type_traits;
+template <class T> using __raw_t = typename __SEIEED::element_type_traits<T>::RawT;
+
 
 // Specialization for all other types.
-template <typename ElT, int N, template <typename, int> class Derived>
-struct is_simd_obj_impl_derivative<Derived<ElT, N>>
+template <typename T, int N, template <typename, int> class Derived>
+struct is_simd_obj_impl_derivative<Derived<T, N>>
     : public std::conditional_t<
           std::is_base_of_v<
-              simd_obj_impl<typename element_type_traits<ElT>::StorageT, N,
-                            Derived<ElT, N>>,
-              Derived<ElT, N>>,
-          std::true_type, std::false_type> {
-  using element_type = std::conditional_t<
-      std::is_base_of_v<
-          simd_obj_impl<typename element_type_traits<ElT>::StorageT, N,
-                        Derived<ElT, N>>,
-          Derived<ElT, N>>,
-      typename element_type_traits<ElT>::StorageT, void>;
-};
+              simd_obj_impl<__raw_t<T>, N,
+                            Derived<T, N>>,
+              Derived<T, N>>,
+          std::true_type, std::false_type> {};
 
 // Convenience shortcut.
 template <typename T>
@@ -182,17 +173,17 @@ inline constexpr bool is_simd_obj_impl_derivative_v =
 template <class SimdT, int Ndst> struct resize_a_simd_type;
 
 // Specialization for the simd_obj_impl type.
-template <typename ElT, int Nsrc, int Ndst,
+template <typename T, int Nsrc, int Ndst,
           template <typename, int> class SimdT>
-struct resize_a_simd_type<simd_obj_impl<ElT, Nsrc, SimdT<ElT, Nsrc>>, Ndst> {
-  using type = simd_obj_impl<ElT, Ndst, SimdT<ElT, Ndst>>;
+struct resize_a_simd_type<simd_obj_impl<__raw_t<T>, Nsrc, SimdT<T, Nsrc>>, Ndst> {
+  using type = simd_obj_impl<__raw_t<T>, Ndst, SimdT<T, Ndst>>;
 };
 
 // Specialization for the simd_obj_impl type derivatives.
-template <typename ElT, int Nsrc, int Ndst,
+template <typename T, int Nsrc, int Ndst,
           template <typename, int> class SimdT>
-struct resize_a_simd_type<SimdT<ElT, Nsrc>, Ndst> {
-  using type = SimdT<ElT, Ndst>;
+struct resize_a_simd_type<SimdT<T, Nsrc>, Ndst> {
+  using type = SimdT<T, Ndst>;
 };
 
 // Convenience shortcut.
@@ -202,36 +193,36 @@ using resize_a_simd_type_t = typename resize_a_simd_type<SimdT, Ndst>::type;
 
 // @{
 // Converts element type of given simd type \c SimdT to
-// given scalar type \c DstElemT.
-template <class SimdT, typename DstElemT> struct convert_simd_elem_type;
+// given scalar type \c NewElemT.
+template <class SimdT, typename NewElemT> struct convert_simd_elem_type;
 
 // Specialization for the simd_obj_impl type.
-template <typename SrcElemT, int N, typename DstElemT,
+template <typename OldElemT, int N, typename NewElemT,
           template <typename, int> class SimdT>
-struct convert_simd_elem_type<simd_obj_impl<SrcElemT, N, SimdT<SrcElemT, N>>,
-                              DstElemT> {
-  using type = simd_obj_impl<DstElemT, N, SimdT<DstElemT, N>>;
+struct convert_simd_elem_type<simd_obj_impl<__raw_t<OldElemT>, N, SimdT<OldElemT, N>>,
+                              NewElemT> {
+  using type = simd_obj_impl<__raw_t<NewElemT>, N, SimdT<NewElemT, N>>;
 };
 
 // Specialization for the simd_obj_impl type derivatives.
-template <typename SrcElemT, int N, typename DstElemT,
+template <typename OldElemT, int N, typename NewElemT,
           template <typename, int> class SimdT>
-struct convert_simd_elem_type<SimdT<SrcElemT, N>, DstElemT> {
-  using type = SimdT<DstElemT, N>;
+struct convert_simd_elem_type<SimdT<OldElemT, N>, NewElemT> {
+  using type = SimdT<NewElemT, N>;
 };
 
 // Convenience shortcut.
-template <class SimdT, typename DstElemT>
+template <class SimdT, typename NewElemT>
 using convert_simd_elem_type_t =
-    typename convert_simd_elem_type<SimdT, DstElemT>::type;
+    typename convert_simd_elem_type<SimdT, NewElemT>::type;
 
 // @}
 
 // Constructs a simd type with the same template type as in \c SimdT, and
 // given element type and number.
-template <class SimdT, typename ElT, int N>
+template <class SimdT, typename T, int N>
 using construct_a_simd_type_t =
-    convert_simd_elem_type_t<resize_a_simd_type_t<SimdT, N>, ElT>;
+    convert_simd_elem_type_t<resize_a_simd_type_t<SimdT, N>, T>;
 
 // @}
 
@@ -313,7 +304,7 @@ struct element_type<T, std::enable_if_t<is_vectorizable_v<T>>> {
 
 template <typename T>
 struct element_type<T, std::enable_if_t<is_simd_like_type_v<T>>> {
-  using type = typename T::user_element_type;
+  using type = typename T::element_type;
 };
 
 template <typename T>
@@ -372,16 +363,6 @@ bitcast(vector_type_t<FromEltTy, FromN> Val) {
   using VTy = vector_type_t<ToEltTy, ToN>;
   return reinterpret_cast<VTy>(Val);
 }
-
-template <class T> struct get_user_elem_type { using type = void; };
-
-template <class T, int N> struct get_user_elem_type<simd<T, N>> {
-  using type = T;
-};
-
-template <class T, int N> struct get_user_elem_type<simd_mask_impl<T, N>> {
-  using type = simd_mask_elem_type;
-};
 
 } // namespace detail
 

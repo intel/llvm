@@ -62,7 +62,6 @@
 // stop further lookup, leaving just non-viable sycl::operator < etc. on the
 // table).
 namespace __SEIEED {
-template <class T> using __st = element_storage_t<T>;
 
 ////////////////////////////////////////////////////////////////////////////////
 // simd_obj_impl global operators
@@ -76,11 +75,11 @@ template <class T> using __st = element_storage_t<T>;
   template <class T1, class T2, int N, template <class, int> class SimdT,      \
             class SimdTx = SimdT<T1, N>, class = std::enable_if_t<COND>>       \
   inline auto operator BINOP(                                                  \
-      const __SEIEED::simd_obj_impl<__st<T1>, N, SimdT<T1, N>> &LHS,           \
-      const __SEIEED::simd_obj_impl<__st<T2>, N, SimdT<T2, N>> &RHS) {         \
+      const __SEIEED::simd_obj_impl<__raw_t<T1>, N, SimdT<T1, N>> &LHS,           \
+      const __SEIEED::simd_obj_impl<__raw_t<T2>, N, SimdT<T2, N>> &RHS) {         \
     if constexpr (__SEIEED::is_simd_type_v<SimdT<T1, N>>) {                    \
       using PromotedT = __SEIEED::computation_type_t<T1, T2>;                  \
-      /* vector_binary_op returns SimdT<PromotedT, N>::vector_type */          \
+      /* vector_binary_op returns SimdT<PromotedT, N>::raw_vector_type */          \
       SimdT<PromotedT, N> Res = vector_binary_op<BINOP_ID, PromotedT, N>(      \
           __SEIEED::convert_vector<PromotedT, T1, N>(LHS.data()),              \
           __SEIEED::convert_vector<PromotedT, T2, N>(RHS.data()));             \
@@ -96,7 +95,7 @@ template <class T> using __st = element_storage_t<T>;
   template <class T1, int N1, template <class, int> class SimdT1, class T2,    \
             class SimdTx = SimdT1<T1, N1>, class = std::enable_if_t<COND>>     \
   inline auto operator BINOP(                                                  \
-      const __SEIEED::simd_obj_impl<__st<T1>, N1, SimdT1<T1, N1>> &LHS,        \
+      const __SEIEED::simd_obj_impl<__raw_t<T1>, N1, SimdT1<T1, N1>> &LHS,        \
       T2 RHS) {                                                                \
     if constexpr (__SEIEED::is_simd_type_v<SimdT1<T1, N1>>) {                  \
       /* convert the SCALAR to vector type and reuse the basic operation over  \
@@ -114,7 +113,7 @@ template <class T> using __st = element_storage_t<T>;
             class SimdTx = SimdT2<T2, N2>, class = std::enable_if_t<COND>>     \
   inline auto operator BINOP(                                                  \
       T1 LHS,                                                                  \
-      const __SEIEED::simd_obj_impl<__st<T2>, N2, SimdT2<T2, N2>> &RHS) {      \
+      const __SEIEED::simd_obj_impl<__raw_t<T2>, N2, SimdT2<T2, N2>> &RHS) {      \
     if constexpr (__SEIEED::is_simd_type_v<SimdT2<T2, N2>>) {                  \
       /* convert the SCALAR to vector type and reuse the basic operation over  \
        * simd objects */                                                       \
@@ -163,9 +162,9 @@ __ESIMD_DEF_SIMD_OBJ_IMPL_BIN_OP(/, BinOp::div, __ESIMD_ARITH_OP_FILTER)
   template <class T1, class T2, int N, template <class, int> class SimdT,      \
             class SimdTx = SimdT<T1, N>, class = std::enable_if_t<COND>>       \
   inline __SEIEE::simd_mask<N> operator CMPOP(                                 \
-      const __SEIEED::simd_obj_impl<__st<T1>, N, SimdT<T1, N>> &LHS,           \
-      const __SEIEED::simd_obj_impl<__st<T2>, N, SimdT<T2, N>> &RHS) {         \
-    using MaskVecT = typename __SEIEE::simd_mask<N>::vector_type;              \
+      const __SEIEED::simd_obj_impl<__raw_t<T1>, N, SimdT<T1, N>> &LHS,           \
+      const __SEIEED::simd_obj_impl<__raw_t<T2>, N, SimdT<T2, N>> &RHS) {         \
+    using MaskVecT = typename __SEIEE::simd_mask<N>::raw_vector_type;              \
                                                                                \
     if constexpr (is_simd_type_v<SimdT<T1, N>>) {                              \
       using PromotedT = computation_type_t<T1, T2>;                            \
@@ -193,7 +192,7 @@ __ESIMD_DEF_SIMD_OBJ_IMPL_BIN_OP(/, BinOp::div, __ESIMD_ARITH_OP_FILTER)
             class = std::enable_if_t<                                          \
                 __SEIEED::is_valid_simd_elem_type_v<T2> && COND>>              \
   inline __SEIEE::simd_mask<N1> operator CMPOP(                                \
-      const __SEIEED::simd_obj_impl<__st<T1>, N1, SimdT1<T1, N1>> &LHS,        \
+      const __SEIEED::simd_obj_impl<__raw_t<T1>, N1, SimdT1<T1, N1>> &LHS,        \
       T2 RHS) {                                                                \
     if constexpr (__SEIEED::is_simd_type_v<SimdT1<T1, N1>>)                    \
       /* simd case */                                                          \
@@ -210,7 +209,7 @@ __ESIMD_DEF_SIMD_OBJ_IMPL_BIN_OP(/, BinOp::div, __ESIMD_ARITH_OP_FILTER)
                 __SEIEED::is_valid_simd_elem_type_v<T1> && COND>>              \
   inline __SEIEE::simd_mask<N2> operator CMPOP(                                \
       T1 LHS,                                                                  \
-      const __SEIEED::simd_obj_impl<__st<T2>, N2, SimdT2<T2, N2>> &RHS) {      \
+      const __SEIEED::simd_obj_impl<__raw_t<T2>, N2, SimdT2<T2, N2>> &RHS) {      \
     if constexpr (__SEIEED::is_simd_type_v<SimdT2<T2, N2>>)                    \
       /* simd case */                                                          \
       return SimdT2<T1, N2>(LHS) CMPOP RHS;                                    \

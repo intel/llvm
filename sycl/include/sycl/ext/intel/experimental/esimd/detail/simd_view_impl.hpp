@@ -27,7 +27,7 @@ namespace detail {
 /// \ingroup sycl_esimd
 template <typename BaseTy,
           typename RegionTy =
-              region1d_t<typename BaseTy::user_element_type, BaseTy::length, 1>>
+              region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
 class simd_view_impl {
   using Derived = simd_view<BaseTy, RegionTy>;
   template <typename, int, class, class> friend class simd_obj_impl;
@@ -51,13 +51,13 @@ public:
   /// The element type of this class, which could be different from the element
   /// type of the base object type.
   using element_type = typename ShapeTy::element_type;
-  using raw_element_type = element_storage_t<element_type>;
+  using raw_element_type = __raw_t<element_type>;
 
   /// The simd type if reading the object.
   using value_type = get_simd_t<element_type, length>;
 
   /// The underlying builtin vector type backing the value read from the object.
-  using vector_type = vector_type_t<element_storage_t<element_type>, length>;
+  using raw_vector_type = vector_type_t<__raw_t<element_type>, length>;
 
 private:
   Derived &cast_this_to_derived() { return reinterpret_cast<Derived &>(*this); }
@@ -113,12 +113,12 @@ public:
 
   /// Read the object.
   value_type read() const {
-    using BT = typename BaseTy::user_element_type;
+    using BT = typename BaseTy::element_type;
     constexpr int BN = BaseTy::length;
     return value_type{readRegion<BT, BN>(M_base.data(), M_region)};
   }
 
-  typename value_type::vector_type data() const { return read().data(); }
+  typename value_type::raw_vector_type data() const { return read().data(); }
 
   /// Write to this object.
   Derived &write(const value_type &Val) {
@@ -288,7 +288,7 @@ public:
   template <class T = element_type,
             class = std::enable_if_t<std::is_integral_v<T>>>
   auto operator!() {
-    using MaskVecT = typename simd_mask_type<length>::vector_type;
+    using MaskVecT = typename simd_mask_type<length>::raw_vector_type;
     auto V = read().data() == 0;
     return simd_mask_type<length>{__builtin_convertvector(V, MaskVecT) &
                                   MaskVecT(1)};
@@ -316,7 +316,7 @@ public:
                                                                 SimdT::length)>>
   Derived &operator=(const simd_obj_impl<T, N, SimdT> &Other) {
     return write(
-        convert_vector<element_type, typename SimdT::user_element_type, N>(
+        convert_vector<element_type, typename SimdT::element_type, N>(
             Other.data()));
   }
 

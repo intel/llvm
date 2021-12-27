@@ -111,7 +111,7 @@ using is_fp_or_dword_type =
 
 /// Convert types into vector types
 template <typename T> struct simd_type { using type = simd<T, 1>; };
-template <typename T, int N> struct simd_type<vector_type<T, N>> {
+template <typename T, int N> struct simd_type<raw_vector_type<T, N>> {
   using type = simd<T, N>;
 };
 

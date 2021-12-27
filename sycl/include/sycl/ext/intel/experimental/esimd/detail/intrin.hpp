@@ -139,7 +139,7 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
-template <class T> using __st = element_storage_t<T>;
+template <class T> using __st = __raw_t<T>;
 
 /// read from a basic region of a vector, return a vector
 template <typename BT, int BN, typename RTy>

@@ -139,7 +139,7 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 /// \ingroup sycl_esimd
 template <typename Tx, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
                               (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
                                ElemsPerAddr == 4)),
@@ -179,7 +179,7 @@ gather(const Tx *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 /// Flat-address scatter.
 /// \ingroup sycl_esimd
 template <typename Tx, int n, int ElemsPerAddr = 1,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
                               (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
                                ElemsPerAddr == 4))>
@@ -235,7 +235,7 @@ __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
 /// \ingroup sycl_esimd
 template <typename Tx, int n, typename Flags = vector_aligned_tag,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None,
-          class T = detail::element_storage_t<Tx>,
+          class T = detail::__raw_t<Tx>,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
 __ESIMD_API simd<Tx, n> block_load(const Tx *addr, Flags = {}) {
   detail::IfNotNone<L1H, L3H>::warn();
@@ -263,7 +263,7 @@ __ESIMD_API simd<Tx, n> block_load(const Tx *addr, Flags = {}) {
 template <typename Tx, int n, typename AccessorTy,
           typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, n> block_load(AccessorTy acc, uint32_t offset,
                                    Flags = {}) {
   constexpr unsigned Sz = sizeof(T) * n;
@@ -302,7 +302,7 @@ __ESIMD_API simd<Tx, n> block_load(AccessorTy acc, uint32_t offset,
 // TODO the above note about cache hints applies to this API as well.
 template <typename Tx, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API void block_store(Tx *p, simd<Tx, n> vals) {
   detail::IfNotNone<L1H, L3H>::warn();
   constexpr unsigned Sz = sizeof(T) * n;
@@ -322,7 +322,7 @@ __ESIMD_API void block_store(Tx *p, simd<Tx, n> vals) {
 /// Accessor-based block-store.
 /// \ingroup sycl_esimd
 template <typename Tx, int n, typename AccessorTy,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
                              simd<Tx, n> vals) {
   constexpr unsigned Sz = sizeof(T) * n;
@@ -362,7 +362,7 @@ ESIMD_INLINE
   if constexpr (sizeof(T) < 4) {
     using Tint = std::conditional_t<std::is_integral_v<T>, T,
                                     detail::uint_type_t<sizeof(T)>>;
-    using Treal = element_storage_t<T>;
+    using Treal = __raw_t<T>;
     simd<Tint, N> vals_int = bitcast<Tint, Treal, N>(std::move(vals).data());
     using PromoT =
         typename sycl::detail::conditional_t<std::is_signed<Tint>::value,
@@ -392,7 +392,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
   if constexpr (sizeof(T) < 4) {
     using Tint = std::conditional_t<std::is_integral_v<T>, T,
                                     detail::uint_type_t<sizeof(T)>>;
-    using Treal = element_storage_t<T>;
+    using Treal = __raw_t<T>;
     static_assert(std::is_integral<Tint>::value,
                   "only integral 1- & 2-byte types are supported");
     using PromoT =
@@ -557,7 +557,7 @@ __ESIMD_API void scalar_store1(AccessorTy acc, uint32_t offset, T val) {
 /// @param pred predication control used for masking lanes.
 /// \ingroup sycl_esimd
 template <typename Tx, int N, rgba_channel_mask Mask,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
                              simd<Tx, N * get_num_channels_enabled(Mask)>>
 gather_rgba(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
@@ -597,7 +597,7 @@ __ESIMD_API std::enable_if_t<
 /// @param pred predication control used for masking lanes.
 /// \ingroup sycl_esimd
 template <typename Tx, int N, rgba_channel_mask Mask,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4)>
 scatter_rgba(Tx *p, simd<uint32_t, N> offsets,
              simd<Tx, N * get_num_channels_enabled(Mask)> vals,
@@ -720,7 +720,7 @@ constexpr bool check_atomic() {
 /// USM address atomic update, version with no source operands: \c inc and \c
 /// dec. \ingroup sycl_esimd
 template <atomic_op Op, typename Tx, int n,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 0>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -743,7 +743,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
 /// USM address atomic update, version with one source operand: e.g. \c add, \c
 /// sub. \ingroup sycl_esimd
 template <atomic_op Op, typename Tx, int n,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 1>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
               simd_mask<n> pred) {
@@ -768,7 +768,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
 /// USM address atomic update, version with two source operands: e.g. \c
 /// cmpxchg. \ingroup sycl_esimd
 template <atomic_op Op, typename Tx, int n,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 2>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
               simd<Tx, n> src1, simd_mask<n> pred) {
@@ -995,7 +995,7 @@ __ESIMD_API simd<T, n> slm_block_load(uint32_t offset) {
                 "block size must be at most 16 owords");
 
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  return __esimd_oword_ld<detail::element_storage_t<T>, n>(si, offset >> 4);
+  return __esimd_oword_ld<detail::__raw_t<T>, n>(si, offset >> 4);
 }
 
 /// SLM block-store.
@@ -1012,13 +1012,13 @@ __ESIMD_API void slm_block_store(uint32_t offset, simd<T, n> vals) {
                 "block size must be at most 8 owords");
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   // offset in genx.oword.st is in owords
-  __esimd_oword_st<detail::element_storage_t<T>, n>(si, offset >> 4,
+  __esimd_oword_st<detail::__raw_t<T>, n>(si, offset >> 4,
                                                     vals.data());
 }
 
 /// SLM atomic update operation, no source operands: \c inc and \c dec.
 template <atomic_op Op, typename Tx, int n,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<Tx, n>>
 slm_atomic_update(simd<uint32_t, n> offsets, simd_mask<n> pred) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
@@ -1035,7 +1035,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
 
 /// SLM atomic update operation, one source operand: e.g. \c add, \c sub.
 template <atomic_op Op, typename Tx, int n,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<Tx, n>>
 slm_atomic_update(simd<uint32_t, n> offsets, simd<Tx, n> src0,
                   simd_mask<n> pred) {
@@ -1055,7 +1055,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
 
 /// SLM atomic, two source operands.
 template <atomic_op Op, typename Tx, int n,
-          class T = detail::element_storage_t<Tx>>
+          class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<Tx, n>>
 slm_atomic_update(simd<uint32_t, n> offsets, simd<Tx, n> src0, simd<Tx, n> src1,
                   simd_mask<n> pred) {

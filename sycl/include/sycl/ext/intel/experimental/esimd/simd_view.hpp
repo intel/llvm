@@ -27,7 +27,7 @@ namespace esimd {
 /// \ingroup sycl_esimd
 template <typename BaseTy,
           typename RegionTy =
-              region1d_t<typename BaseTy::user_element_type, BaseTy::length, 1>>
+              region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
 class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
   template <typename, int, class, class> friend class detail::simd_obj_impl;
   template <typename, int> friend class detail::simd_mask_impl;
@@ -58,8 +58,8 @@ public:
   using value_type = get_simd_t<element_type, length>;
 
   /// The underlying builtin value type
-  using vector_type =
-      detail::vector_type_t<detail::element_storage_t<element_type>, length>;
+  using raw_vector_type =
+      detail::vector_type_t<detail::__raw_t<element_type>, length>;
 
 protected:
   /// @{
@@ -120,15 +120,14 @@ public:
 ///
 /// \ingroup sycl_esimd
 template <typename BaseTy>
-class simd_view<BaseTy, region1d_scalar_t<typename BaseTy::user_element_type>>
+class simd_view<BaseTy, region1d_scalar_t<typename BaseTy::element_type>>
     : public detail::simd_view_impl<
-          BaseTy, region1d_scalar_t<typename BaseTy::user_element_type>> {
+          BaseTy, region1d_scalar_t<typename BaseTy::element_type>> {
   template <typename, int, class, class> friend class detail::simd_obj_impl;
   template <typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using T = typename BaseTy::user_element_type;
-  using RegionTy = region1d_scalar_t<T>;
+  using RegionTy = region1d_scalar_t<typename BaseTy::element_type>;
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
@@ -151,8 +150,8 @@ public:
   simd_view(BaseTy &Base) : BaseClass(Base) {}
 
   operator element_type() const {
-    const auto v = BaseClass::read();
-    return detail::convert_scalar<element_type>(v[0]);
+    const auto v = BaseClass::read().data();
+    return detail::bitcast_to_wrapper_type<element_type>(std::move(v)[0]);
   }
 
   using BaseClass::operator--;
@@ -177,25 +176,24 @@ public:
 ///   auto v2 = v1[0]; // simd_view of a nested region for a single element
 template <typename BaseTy, typename NestedRegion>
 class simd_view<BaseTy,
-                std::pair<region1d_scalar_t<typename BaseTy::user_element_type>,
+                std::pair<region1d_scalar_t<typename BaseTy::element_type>,
                           NestedRegion>>
     : public detail::simd_view_impl<
           BaseTy,
-          std::pair<region1d_scalar_t<typename BaseTy::user_element_type>,
+          std::pair<region1d_scalar_t<typename BaseTy::element_type>,
                     NestedRegion>> {
   template <typename, int> friend class simd;
   template <typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using T = typename BaseTy::user_element_type;
-  using RegionTy = std::pair<region1d_scalar_t<T>, NestedRegion>;
+  using RegionTy = std::pair<region1d_scalar_t<typename BaseTy::element_type>, NestedRegion>;
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");
   /// The element type of this class, which could be different from the element
   /// type of the base object type.
-  using element_type = T;
+  using element_type = typename ShapeTy::element_type;
 
 private:
   simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
