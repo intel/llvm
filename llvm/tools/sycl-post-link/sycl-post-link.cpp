@@ -616,7 +616,6 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
 
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
-    std::sort(FuncNames.begin(), FuncNames.end());
     for (const StringRef &FName : FuncNames)
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
   }

@@ -22,7 +22,7 @@ target triple = "spir64-unknown-linux"
 
 ; CHECK: [SYCL/assert used]
 
-; CHECK: main_TU0_kernel0
+; CHECK-DAG: main_TU0_kernel0
 define dso_local spir_kernel void @main_TU0_kernel0() #0 {
 entry:
   call spir_func void @_Z3foov()
@@ -40,7 +40,7 @@ entry:
   ret void
 }
 
-; CHECK: main_TU0_kernel1
+; CHECK-DAG: main_TU0_kernel1
 define dso_local spir_kernel void @main_TU0_kernel1() #0 {
 entry:
   call spir_func void @_Z4foo1v()
@@ -55,14 +55,14 @@ entry:
   ret void
 }
 
-; CHECK: main_TU1_kernel0
+; CHECK-DAG: main_TU1_kernel0
 define dso_local spir_kernel void @main_TU1_kernel0() #2 {
 entry:
   call spir_func void @_Z3foov()
   ret void
 }
 
-; CHECK: main_TU1_kernel1
+; CHECK-DAG: main_TU1_kernel1
 define dso_local spir_kernel void @main_TU1_kernel1() #2 {
 entry:
   call spir_func void @_Z4foo2v()

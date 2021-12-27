@@ -3,7 +3,8 @@
 ; graph.
 
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop
+; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=PRESENCE-CHECK
+; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=ABSENCE-CHECK
 
 ; SYCL source:
 ; void assert_func() {
@@ -105,7 +106,7 @@ target triple = "spir64_x86_64-unknown-unknown"
 @__PRETTY_FUNCTION__._Z11assert_funcv = private unnamed_addr addrspace(1) constant [19 x i8] c"void assert_func()\00", align 1
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
-; CHECK: [SYCL/assert used]
+; PRESENCE-CHECK: [SYCL/assert used]
 
 ; Function Attrs: convergent noinline norecurse optnone mustprogress
 define dso_local spir_func void @_Z1Jv() #3 {
@@ -122,76 +123,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE6Kernel
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE6Kernel"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z6A_exclv()
-  call spir_func void @_Z6B_inclv()
-  ret void
-}
-
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel2
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel2"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z6A_inclv()
-  call spir_func void @_Z6B_exclv()
-  ret void
-}
-
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel3
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel3"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z6commonv()
-  ret void
-}
-
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel4
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel4"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z7common2v()
-  ret void
-}
-
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel5
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel5"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z6B_inclv()
-  call spir_func void @_Z6A_exclv()
-  ret void
-}
-
-; CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z6E_exclv()
-  call spir_func void @_Z6E_exclv()
-  ret void
-}
-
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel7
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel7"() local_unnamed_addr #0 {
-entry:
-  call spir_func void @_Z6F_inclv()
-  call spir_func void @_Z6F_inclv()
-  ret void
-}
-
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel8
-; Function Attrs: convergent norecurse mustprogress
-define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel8"() local_unnamed_addr #0 {
-  call spir_func void @_Z1Gv()
-  call spir_func void @_Z1Hv()
-  ret void
-}
-
-; CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E7Kernel9
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E7Kernel9
 ; Function Attrs: convergent noinline norecurse mustprogress
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E7Kernel9() #0 {
 entry:
@@ -199,7 +131,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E8Kernel10
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E8Kernel10
 ; Function Attrs: convergent noinline norecurse optnone mustprogress
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E8Kernel10() #0 {
 entry:
@@ -233,6 +165,15 @@ entry:
   ret void
 }
 
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE6Kernel
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE6Kernel"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z6A_exclv()
+  call spir_func void @_Z6B_inclv()
+  ret void
+}
+
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_func void @_Z6A_inclv() local_unnamed_addr {
 entry:
@@ -243,6 +184,15 @@ entry:
 ; Function Attrs: nofree norecurse nosync nounwind readnone willreturn mustprogress
 define dso_local spir_func void @_Z6B_exclv() local_unnamed_addr {
 entry:
+  ret void
+}
+
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel2
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel2"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z6A_inclv()
+  call spir_func void @_Z6B_exclv()
   ret void
 }
 
@@ -267,6 +217,14 @@ entry:
   ret void
 }
 
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel3
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel3"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z6commonv()
+  ret void
+}
+
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_func void @_Z7common2v() local_unnamed_addr {
 entry:
@@ -287,6 +245,23 @@ entry:
   ret void
 }
 
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel4
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel4"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z7common2v()
+  ret void
+}
+
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel5
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel5"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z6B_inclv()
+  call spir_func void @_Z6A_exclv()
+  ret void
+}
+
 ; Function Attrs: nofree norecurse nosync nounwind readnone willreturn mustprogress
 define dso_local spir_func void @_Z6E_exclv() local_unnamed_addr {
 entry:
@@ -297,6 +272,15 @@ entry:
 define dso_local spir_func void @_Z6F_inclv() local_unnamed_addr {
 entry:
   call spir_func void @_Z11assert_funcv()
+  ret void
+}
+
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel7
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel7"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z6F_inclv()
+  call spir_func void @_Z6F_inclv()
   ret void
 }
 
@@ -333,6 +317,23 @@ entry:
 define dso_local spir_func void @_Z6I_inclv() local_unnamed_addr {
 entry:
   call spir_func void @_Z11assert_funcv()
+  ret void
+}
+
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel8
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel8"() local_unnamed_addr #0 {
+  call spir_func void @_Z1Gv()
+  call spir_func void @_Z1Hv()
+  ret void
+}
+
+; ABSENCE-CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6
+; Function Attrs: convergent norecurse mustprogress
+define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE7Kernel6"() local_unnamed_addr #0 {
+entry:
+  call spir_func void @_Z6E_exclv()
+  call spir_func void @_Z6E_exclv()
   ret void
 }
 

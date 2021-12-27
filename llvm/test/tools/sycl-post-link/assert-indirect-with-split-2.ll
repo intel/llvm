@@ -9,7 +9,8 @@
 ; marked as using asserts.
 
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop
+; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=PRESENCE-CHECK
+; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=ABSENCE-CHECK
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
@@ -22,7 +23,15 @@ target triple = "spir64-unknown-linux"
 @__spirv_BuiltInLocalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
-; CHECK: [SYCL/assert used]
+; PRESENCE-CHECK: [SYCL/assert used]
+
+; PRESENCE-CHECK-DAG: main_TU1_kernel1
+define dso_local spir_kernel void @main_TU1_kernel1() #2 {
+entry:
+  call spir_func void @foo()
+  call spir_func void @bar()
+  ret void
+}
 
 define dso_local spir_func void @foo() #2 {
 entry:
@@ -30,7 +39,7 @@ entry:
   ret void
 }
 
-; CHECK-NOT: empty_kernel
+; ABSENCE-CHECK-NOT: empty_kernel
 define dso_local spir_kernel void @empty_kernel() {
   %1 = ptrtoint void ()* @bar to i64
   ret void
@@ -43,13 +52,12 @@ entry:
   ret void
 }
 
-; CHECK: main_TU0_kernel0
+; PRESENCE-CHECK-DAG: main_TU0_kernel0
 define dso_local spir_kernel void @main_TU0_kernel0() #0 {
 entry:
   call spir_func void @_Z3foov() ; call assert
   ret void
 }
-
 
 define dso_local spir_func void @_Z3foov() {
 entry:
@@ -62,13 +70,6 @@ entry:
   ret void
 }
 
-; CHECK-NOT: main_TU0_kernel1
-define dso_local spir_kernel void @main_TU0_kernel1() #0 {
-entry:
-  call spir_func void @_Z4foo1v()
-  ret void
-}
-
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo1v() {
 entry:
@@ -77,13 +78,19 @@ entry:
   ret void
 }
 
-; CHECK: main_TU1_kernel0
+; PRESENCE-CHECK-DAG: main_TU1_kernel0
 define dso_local spir_kernel void @main_TU1_kernel0() #2 {
 entry:
   call spir_func void @_Z3foov() ; call assert
   ret void
 }
 
+; ABSENCE-CHECK-NOT: main_TU0_kernel1
+define dso_local spir_kernel void @main_TU0_kernel1() #0 {
+entry:
+  call spir_func void @_Z4foo1v()
+  ret void
+}
 
 ; This function is marked with "referenced-indirectly", but it doesn't call an assert
 ; Function Attrs: nounwind
@@ -96,13 +103,6 @@ entry:
   ret void
 }
 
-; CHECK: main_TU1_kernel1
-define dso_local spir_kernel void @main_TU1_kernel1() #2 {
-entry:
-  call spir_func void @foo()
-  call spir_func void @bar()
-  ret void
-}
 
 ; Function Attrs: convergent norecurse mustprogress
 define weak dso_local spir_func void @__assert_fail(i8 addrspace(4)* %expr, i8 addrspace(4)* %file, i32 %line, i8 addrspace(4)* %func) local_unnamed_addr {
