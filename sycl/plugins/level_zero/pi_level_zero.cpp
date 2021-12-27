@@ -801,7 +801,7 @@ pi_result _pi_context::finalize() {
   // Adjust the number of command lists created on this platform.
   auto Platform = Devices[0]->Platform;
 
-  std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
+  std::scoped_lock Lock(ZeCommandListCacheMutex, Platform->Mutex);
   for (auto &List : ZeComputeCommandListCache) {
     for (ze_command_list_handle_t &ZeCommandList : List.second) {
       if (ZeCommandList)
@@ -1125,6 +1125,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   // command lists we can create.
   // Once created, this command list & fence are added to the command list fence
   // map.
+  std::lock_guard<std::mutex> lock(Queue->Device->Platform->Mutex);
   if (Queue->Device->Platform->ZeGlobalCommandListCount <
       ZeMaxCommandListCacheSize) {
     ze_command_list_handle_t ZeCommandList;
@@ -1278,7 +1279,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // unique_lock destructor at the end of the function will unlock the mutex if
   // it was locked (which happens only if IndirectAccessTrackingEnabled is
   // true).
-  std::unique_lock<std::mutex> ContextsLock(Device->Platform->ContextsMutex,
+  std::unique_lock<std::mutex> ContextsLock(Device->Platform->Mutex,
                                             std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     // We are going to submit kernels for execution. If indirect access flag is
@@ -1628,6 +1629,8 @@ static bool setEnvVar(const char *name, const char *value) {
   return true;
 }
 
+// Platforms are initialized only once and stored in the cache, so we don't need
+// to use synchronization mechanisms here.
 pi_result _pi_platform::initialize() {
   // Cache driver properties
   ZeStruct<ze_driver_properties_t> ZeDriverProperties;
@@ -1782,6 +1785,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   return PI_SUCCESS;
 }
 
+// Fields returned by this API are initialized only once because platforms are
+// stored in the cache, so we don't need to use synchronization mechanisms here.
 pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
                             size_t ParamValueSize, void *ParamValue,
                             size_t *ParamValueSizeRet) {
@@ -1832,6 +1837,8 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
   return PI_SUCCESS;
 }
 
+// ZeDriver value doesn't change after initialization, so we don't need to use
+// synchronization mechanisms here.
 pi_result piextPlatformGetNativeHandle(pi_platform Platform,
                                        pi_native_handle *NativeHandle) {
   PI_ASSERT(Platform, PI_INVALID_PLATFORM);
@@ -2751,7 +2758,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
     *RetContext = new _pi_context(ZeContext, NumDevices, Devices, true);
     (*RetContext)->initialize();
     if (IndirectAccessTrackingEnabled) {
-      std::lock_guard<std::mutex> Lock(Platform->ContextsMutex);
+      std::lock_guard<std::mutex> Lock(Platform->Mutex);
       Platform->Contexts.push_back(*RetContext);
     }
   } catch (const std::bad_alloc &) {
@@ -2879,8 +2886,7 @@ pi_result ContextReleaseHelper(pi_context Context) {
 
 pi_result piContextRelease(pi_context Context) {
   pi_platform Plt = Context->Devices[0]->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<std::mutex> ContextsLock(Plt->Mutex, std::defer_lock);
   if (IndirectAccessTrackingEnabled)
     ContextsLock.lock();
 
@@ -3151,8 +3157,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
 static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
                                         pi_device Device, size_t Size) {
   pi_platform Plt = Device->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<std::mutex> ContextsLock(Plt->Mutex, std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     // Lock the mutex which is guarding contexts container in the platform.
     // This prevents new kernels from being submitted in any context while
@@ -3186,8 +3191,7 @@ static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
 static pi_result ZeHostMemAllocHelper(void **ResultPtr, pi_context Context,
                                       size_t Size) {
   pi_platform Plt = Context->Devices[0]->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<std::mutex> ContextsLock(Plt->Mutex, std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     // Lock the mutex which is guarding contexts container in the platform.
     // This prevents new kernels from being submitted in any context while
@@ -3367,8 +3371,7 @@ pi_result piMemRetain(pi_mem Mem) {
 // performed.
 static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr) {
   pi_platform Plt = Context->Devices[0]->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<std::mutex> ContextsLock(Plt->Mutex, std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     ContextsLock.lock();
     auto It = Context->MemAllocs.find(Ptr);
@@ -4574,7 +4577,7 @@ pi_result piKernelRelease(pi_kernel Kernel) {
     // deallocated and context can be removed from container in the platform.
     // That's why we need to lock a mutex here.
     pi_platform Plt = Kernel->Program->Context->Devices[0]->Platform;
-    std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
+    std::lock_guard<std::mutex> ContextsLock(Plt->Mutex);
 
     if (--Kernel->SubmissionsCount == 0) {
       // Kernel is not submitted for execution, release referenced memory
@@ -6787,8 +6790,7 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
     return PI_INVALID_VALUE;
 
   pi_platform Plt = Device->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<std::mutex> ContextsLock(Plt->Mutex, std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     // Lock the mutex which is guarding contexts container in the platform.
     // This prevents new kernels from being submitted in any context while we
@@ -6850,8 +6852,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
     return PI_INVALID_VALUE;
 
   pi_platform Plt = Device->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<std::mutex> ContextsLock(Plt->Mutex, std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     // Lock the mutex which is guarding contexts container in the platform.
     // This prevents new kernels from being submitted in any context while we
@@ -6911,8 +6912,7 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
     return PI_INVALID_VALUE;
 
   pi_platform Plt = Context->Devices[0]->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<std::mutex> ContextsLock(Plt->Mutex, std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     // Lock the mutex which is guarding contexts container in the platform.
     // This prevents new kernels from being submitted in any context while we
@@ -7071,8 +7071,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
 
 pi_result piextUSMFree(pi_context Context, void *Ptr) {
   pi_platform Plt = Context->Devices[0]->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<std::mutex> ContextsLock(Plt->Mutex, std::defer_lock);
   if (IndirectAccessTrackingEnabled)
     ContextsLock.lock();
   return USMFreeHelper(Context, Ptr);

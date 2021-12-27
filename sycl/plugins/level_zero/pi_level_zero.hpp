@@ -245,7 +245,7 @@ struct _pi_platform {
 
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
-  std::atomic<int> ZeGlobalCommandListCount{0};
+  int ZeGlobalCommandListCount = 0;
 
   // Keep track of all contexts in the platform. This is needed to manage
   // a lifetime of memory allocations in each context when there are kernels
@@ -253,7 +253,8 @@ struct _pi_platform {
   // TODO: should be deleted when memory isolation in the context is implemented
   // in the driver.
   std::list<pi_context> Contexts;
-  std::mutex ContextsMutex;
+
+  std::mutex Mutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
