@@ -108,7 +108,12 @@ enum class GroupOperation : uint32_t {
   ExclusiveScan = 2
 };
 
-enum class MatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
+enum class MatrixLayout : uint32_t {
+  RowMajor = 0,
+  ColumnMajor = 1,
+  PackedA = 2,
+  PackedB = 3
+};
 
 // TODO: replace the following W/A with a better solution when we have it.
 // The following structure is used to represent the joint matrix type in the
