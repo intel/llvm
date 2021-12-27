@@ -66,7 +66,7 @@ namespace RT = detail::pi;
 /// redefinitions would also affect other platforms' behavior.
 /// Therefore, any plugin-related information is fully copied whenever
 /// a user-passed SYCL object instance is being mocked.
-/// The underlying SYCL platform must be a non-host plaftorm to facilitate
+/// The underlying SYCL platform must be a non-host platform to facilitate
 /// plugin usage.
 ///
 /// Simple usage examples would look like this:
