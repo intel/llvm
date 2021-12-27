@@ -197,6 +197,8 @@ struct _pi_object {
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
+
+  void retain() { ++RefCount; }
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -372,6 +374,13 @@ struct _pi_device : _pi_object {
   pi_device RootDevice;
   bool isSubDevice() { return RootDevice != nullptr; }
 
+  void retain() {
+    // The root-device ref-count remains unchanged (always 1).
+    if (isSubDevice()) {
+      ++RefCount;
+    }
+  }
+
   // Cache of the immutable device properties.
   ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
@@ -380,6 +389,8 @@ struct _pi_device : _pi_object {
   ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
       ZeDeviceMemoryProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+
+  std::mutex Mutex;
 };
 
 // Structure describing the specific use of a command-list in a queue.
@@ -514,9 +525,6 @@ struct _pi_context : _pi_object {
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
 
-  // Mutex Lock for the Command List Cache. This lock is used to control both
-  // compute and copy command list caches.
-  std::mutex ZeCommandListCacheMutex;
   // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
   //
@@ -574,6 +582,11 @@ struct _pi_context : _pi_object {
   // when kernel has finished execution.
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
+  // Access to all state of a context is done only after
+  // this lock has been acquired. No other mutexes/locking should be
+  // needed/used for the context data structures.
+  std::mutex Mutex;
+
 private:
   // Following member variables are used to manage assignment of events
   // to event pools.
@@ -604,10 +617,6 @@ private:
   // This will help when we try to make the code thread-safe.
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
       NumEventsUnreleasedInEventPool;
-
-  // Mutex to control operations on event pool caches and the helper maps
-  // holding the current pool usage counts.
-  std::mutex ZeEventPoolCacheMutex;
 };
 
 struct _pi_queue : _pi_object {

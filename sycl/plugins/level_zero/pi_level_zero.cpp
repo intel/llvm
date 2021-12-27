@@ -408,7 +408,7 @@ pi_result
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
                                             size_t &Index, bool HostVisible) {
   // Lock while updating event pool machinery.
-  std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
+  std::lock_guard<std::mutex> Lock(Mutex);
 
   // Setup for host-visible pool as needed.
   ze_event_pool_flag_t ZePoolFlag = {};
@@ -468,7 +468,7 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   }
 
   // Put the empty pool to the cache of the pools.
-  std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
+  std::lock_guard<std::mutex> Lock(Mutex);
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
     die("Invalid event release: event pool doesn't have unreleased events");
   if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
@@ -780,20 +780,18 @@ pi_result _pi_context::initialize() {
   return PI_SUCCESS;
 }
 
+// Context->Mutex must be locked before calling this function.
 pi_result _pi_context::finalize() {
   // This function is called when pi_context is deallocated, piContextRelease.
   // There could be some memory that may have not been deallocated.
   // For example, event pool caches would be still alive.
-  {
-    std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
-    for (auto &ZePool : ZeEventPoolCache)
-      ZE_CALL(zeEventPoolDestroy, (ZePool));
-    for (auto &ZePool : ZeHostVisibleEventPoolCache)
-      ZE_CALL(zeEventPoolDestroy, (ZePool));
+  for (auto &ZePool : ZeEventPoolCache)
+    ZE_CALL(zeEventPoolDestroy, (ZePool));
+  for (auto &ZePool : ZeHostVisibleEventPoolCache)
+    ZE_CALL(zeEventPoolDestroy, (ZePool));
 
-    ZeEventPoolCache.clear();
-    ZeHostVisibleEventPoolCache.clear();
-  }
+  ZeEventPoolCache.clear();
+  ZeHostVisibleEventPoolCache.clear();
 
   // Destroy the command list used for initializations
   ZE_CALL(zeCommandListDestroy, (ZeCommandListInit));
@@ -801,7 +799,6 @@ pi_result _pi_context::finalize() {
   // Adjust the number of command lists created on this platform.
   auto Platform = Devices[0]->Platform;
 
-  std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
   for (auto &List : ZeComputeCommandListCache) {
     for (ze_command_list_handle_t &ZeCommandList : List.second) {
       if (ZeCommandList)
@@ -854,7 +851,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   EventList.clear();
 
   if (MakeAvailable) {
-    std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
+    std::lock_guard<std::mutex> lock(this->Context->Mutex);
     ZeCommandListCache.push_back(CommandList->first);
   }
 
@@ -1063,7 +1060,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   {
     // Make sure to acquire the lock before checking the size, or there
     // will be a race condition.
-    std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
+    std::lock_guard<std::mutex> lock(Queue->Context->Mutex);
 
     if (ZeCommandListCache.size() > 0) {
       auto &ZeCommandList = ZeCommandListCache.front();
@@ -2074,26 +2071,31 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
 pi_result piDeviceRetain(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  // The root-device ref-count remains unchanged (always 1).
-  if (Device->isSubDevice()) {
-    ++(Device->RefCount);
-  }
+  std::lock_guard<std::mutex> Guard(Device->Mutex);
+  Device->retain();
+
   return PI_SUCCESS;
 }
 
 pi_result piDeviceRelease(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  // Check if the device is already released
-  if (Device->RefCount <= 0)
-    die("piDeviceRelease: the device has been already released");
+  bool RefCountZero = false;
+  {
+    std::lock_guard<std::mutex> Guard(Device->Mutex);
+    // Check if the device is already released
+    if (Device->RefCount <= 0)
+      die("piDeviceRelease: the device has been already released");
 
-  // Root devices are destroyed during the piTearDown process.
-  if (Device->isSubDevice()) {
-    if (--(Device->RefCount) == 0) {
-      delete Device;
+    // Root devices are destroyed during the piTearDown process.
+    if (Device->isSubDevice()) {
+      if (--(Device->RefCount) == 0) {
+        RefCountZero = true;
+      }
     }
   }
+  if (RefCountZero)
+    delete Device;
 
   return PI_SUCCESS;
 }
@@ -2104,8 +2106,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  ze_device_handle_t ZeDevice = Device->ZeDevice;
+  std::lock_guard<std::mutex> Guard(Device->Mutex);
 
+  ze_device_handle_t ZeDevice = Device->ZeDevice;
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   switch (ParamName) {
@@ -2597,6 +2600,8 @@ pi_result piDevicePartition(pi_device Device,
                             const pi_device_partition_property *Properties,
                             pi_uint32 NumDevices, pi_device *OutDevices,
                             pi_uint32 *OutNumDevices) {
+  std::lock_guard<std::mutex> Guard(Device->Mutex);
+
   // Other partitioning ways are not supported by Level Zero
   if (Properties[0] != PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN ||
       (Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE &&
@@ -2686,6 +2691,7 @@ pi_result piextDeviceGetNativeHandle(pi_device Device,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
+  std::lock_guard<std::mutex> Guard(Device->Mutex);
   auto ZeDevice = pi_cast<ze_device_handle_t *>(NativeHandle);
   // Extract the Level Zero module handle from the given PI device
   *ZeDevice = Device->ZeDevice;
@@ -2769,6 +2775,7 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
+  std::lock_guard<std::mutex> Guard(Context->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_CONTEXT_INFO_DEVICES:
@@ -2793,6 +2800,7 @@ pi_result piextContextSetExtendedDeleter(pi_context Context,
   (void)Context;
   (void)Function;
   (void)UserData;
+  std::lock_guard<std::mutex> Guard(Context->Mutex);
   die("piextContextSetExtendedDeleter: not supported");
   return PI_SUCCESS;
 }
@@ -2802,6 +2810,7 @@ pi_result piextContextGetNativeHandle(pi_context Context,
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
+  std::lock_guard<std::mutex> Guard(Context->Mutex);
   auto ZeContext = pi_cast<ze_context_handle_t *>(NativeHandle);
   // Extract the Level Zero queue handle from the given PI queue
   *ZeContext = Context->ZeContext;
@@ -2835,7 +2844,8 @@ pi_result piContextRetain(pi_context Context) {
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
-  ++(Context->RefCount);
+  std::lock_guard<std::mutex> Guard(Context->Mutex);
+  Context->retain();
   return PI_SUCCESS;
 }
 
@@ -2845,21 +2855,28 @@ pi_result piContextRetain(pi_context Context) {
 pi_result ContextReleaseHelper(pi_context Context) {
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  bool RefCountZero = false;
+  ze_context_handle_t DestroyZeContext;
+  pi_result Result = PI_SUCCESS;
+  {
+    std::lock_guard<std::mutex> Guard(Context->Mutex);
+    if (--(Context->RefCount) == 0) {
+      if (IndirectAccessTrackingEnabled) {
+        pi_platform Plt = Context->Devices[0]->Platform;
+        auto &Contexts = Plt->Contexts;
+        auto It = std::find(Contexts.begin(), Contexts.end(), Context);
+        if (It != Contexts.end())
+          Contexts.erase(It);
+      }
+      DestroyZeContext = Context->OwnZeContext ? Context->ZeContext : nullptr;
 
-  if (--(Context->RefCount) == 0) {
-    if (IndirectAccessTrackingEnabled) {
-      pi_platform Plt = Context->Devices[0]->Platform;
-      auto &Contexts = Plt->Contexts;
-      auto It = std::find(Contexts.begin(), Contexts.end(), Context);
-      if (It != Contexts.end())
-        Contexts.erase(It);
+      // Clean up any live memory associated with Context
+      Result = Context->finalize();
+
+      RefCountZero = true;
     }
-    ze_context_handle_t DestoryZeContext =
-        Context->OwnZeContext ? Context->ZeContext : nullptr;
-
-    // Clean up any live memory associated with Context
-    pi_result Result = Context->finalize();
-
+  }
+  if (RefCountZero) {
     // We must delete Context first and then destroy zeContext because
     // Context deallocation requires ZeContext in some member deallocation of
     // pi_context.
@@ -2869,12 +2886,10 @@ pi_result ContextReleaseHelper(pi_context Context) {
     // and therefore it must be valid at that point.
     // Technically it should be placed to the destructor of pi_context
     // but this makes API error handling more complex.
-    if (DestoryZeContext)
-      ZE_CALL(zeContextDestroy, (DestoryZeContext));
-
-    return Result;
+    if (DestroyZeContext)
+      ZE_CALL(zeContextDestroy, (DestroyZeContext));
   }
-  return PI_SUCCESS;
+  return Result;
 }
 
 pi_result piContextRelease(pi_context Context) {
@@ -2890,6 +2905,7 @@ pi_result piContextRelease(pi_context Context) {
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
 
+  std::scoped_lock Guard(Device->Mutex, Context->Mutex);
   // Check that unexpected bits are not set.
   PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                              PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
