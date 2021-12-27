@@ -105,6 +105,7 @@ int main() {
         err_cnt++;
       }
     }
+    free(A, ctx);
     if (err_cnt != 0) {
       std::cerr << "Total mismatch =  " << err_cnt << std::endl;
       return 1;
