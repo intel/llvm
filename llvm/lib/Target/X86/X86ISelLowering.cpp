@@ -1091,11 +1091,10 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
       setOperationAction(ISD::SRL,              VT, Custom);
       setOperationAction(ISD::SHL,              VT, Custom);
       setOperationAction(ISD::SRA,              VT, Custom);
+      if (VT == MVT::v2i64) continue;
+      setOperationAction(ISD::ROTL,             VT, Custom);
+      setOperationAction(ISD::ROTR,             VT, Custom);
     }
-
-    setOperationAction(ISD::ROTL,               MVT::v4i32, Custom);
-    setOperationAction(ISD::ROTL,               MVT::v8i16, Custom);
-    setOperationAction(ISD::ROTL,               MVT::v16i8, Custom);
 
     setOperationAction(ISD::STRICT_FSQRT,       MVT::v2f64, Legal);
     setOperationAction(ISD::STRICT_FADD,        MVT::v2f64, Legal);
@@ -1194,8 +1193,10 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
 
   if (!Subtarget.useSoftFloat() && Subtarget.hasXOP()) {
     for (auto VT : { MVT::v16i8, MVT::v8i16,  MVT::v4i32, MVT::v2i64,
-                     MVT::v32i8, MVT::v16i16, MVT::v8i32, MVT::v4i64 })
+                     MVT::v32i8, MVT::v16i16, MVT::v8i32, MVT::v4i64 }) {
       setOperationAction(ISD::ROTL, VT, Custom);
+      setOperationAction(ISD::ROTR, VT, Custom);
+    }
 
     // XOP can efficiently perform BITREVERSE with VPPERM.
     for (auto VT : { MVT::i8, MVT::i16, MVT::i32, MVT::i64 })
@@ -1278,6 +1279,9 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
       setOperationAction(ISD::SRL, VT, Custom);
       setOperationAction(ISD::SHL, VT, Custom);
       setOperationAction(ISD::SRA, VT, Custom);
+      if (VT == MVT::v4i64) continue;
+      setOperationAction(ISD::ROTL, VT, Custom);
+      setOperationAction(ISD::ROTR, VT, Custom);
     }
 
     // These types need custom splitting if their input is a 128-bit vector.
@@ -1285,10 +1289,6 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::SIGN_EXTEND,       MVT::v16i32, Custom);
     setOperationAction(ISD::ZERO_EXTEND,       MVT::v8i64,  Custom);
     setOperationAction(ISD::ZERO_EXTEND,       MVT::v16i32, Custom);
-
-    setOperationAction(ISD::ROTL,              MVT::v8i32,  Custom);
-    setOperationAction(ISD::ROTL,              MVT::v16i16, Custom);
-    setOperationAction(ISD::ROTL,              MVT::v32i8,  Custom);
 
     setOperationAction(ISD::SELECT,            MVT::v4f64, Custom);
     setOperationAction(ISD::SELECT,            MVT::v4i64, Custom);
@@ -1675,10 +1675,13 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     }
 
     // With BWI, expanding (and promoting the shifts) is the better.
-    if (!Subtarget.useBWIRegs())
+    if (!Subtarget.useBWIRegs()) {
       setOperationAction(ISD::ROTL, MVT::v32i16, Custom);
+      setOperationAction(ISD::ROTR, MVT::v32i16, Custom);
+    }
 
     setOperationAction(ISD::ROTL,   MVT::v64i8,  Custom);
+    setOperationAction(ISD::ROTR,   MVT::v64i8,  Custom);
 
     for (auto VT : { MVT::v64i8, MVT::v32i16 }) {
       setOperationAction(ISD::ABS,     VT, HasBWI ? Legal : Custom);
@@ -6820,7 +6823,6 @@ static SDValue getUnpackh(SelectionDAG &DAG, const SDLoc &dl, EVT VT,
 
 /// Returns a node that packs the LHS + RHS nodes together at half width.
 /// May return X86ISD::PACKSS/PACKUS, packing the top/bottom half.
-/// TODO: Add vXi64 -> vXi32 pack support with vector_shuffle node.
 /// TODO: Add subvector splitting if/when we have a need for it.
 static SDValue getPack(SelectionDAG &DAG, const X86Subtarget &Subtarget,
                        const SDLoc &dl, MVT VT, SDValue LHS, SDValue RHS,
@@ -6832,8 +6834,23 @@ static SDValue getPack(SelectionDAG &DAG, const X86Subtarget &Subtarget,
          VT.getSizeInBits() == OpVT.getSizeInBits() &&
          (EltSizeInBits * 2) == OpVT.getScalarSizeInBits() &&
          "Unexpected PACK operand types");
-  assert((EltSizeInBits == 8 || EltSizeInBits == 16) &&
+  assert((EltSizeInBits == 8 || EltSizeInBits == 16 || EltSizeInBits == 32) &&
          "Unexpected PACK result type");
+
+  // Rely on vector shuffles for vXi64 -> vXi32 packing.
+  if (EltSizeInBits == 32) {
+    SmallVector<int> PackMask;
+    int Offset = PackHiHalf ? 1 : 0;
+    int NumElts = VT.getVectorNumElements();
+    for (int I = 0; I != NumElts; I += 4) {
+      PackMask.push_back(I + Offset);
+      PackMask.push_back(I + Offset + 2);
+      PackMask.push_back(I + Offset + NumElts);
+      PackMask.push_back(I + Offset + NumElts + 2);
+    }
+    return DAG.getVectorShuffle(VT, dl, DAG.getBitcast(VT, LHS),
+                                DAG.getBitcast(VT, RHS), PackMask);
+  }
 
   // See if we already have sufficient leading bits for PACKSS/PACKUS.
   if (!PackHiHalf) {
@@ -25611,17 +25628,13 @@ static SDValue getTargetVShiftByConstNode(unsigned Opc, const SDLoc &dl, MVT VT,
 
 /// Handle vector element shifts where the shift amount may or may not be a
 /// constant. Takes immediate version of shift as input.
+/// TODO: Replace with vector + (splat) idx to avoid extract_element nodes.
 static SDValue getTargetVShiftNode(unsigned Opc, const SDLoc &dl, MVT VT,
                                    SDValue SrcOp, SDValue ShAmt,
                                    const X86Subtarget &Subtarget,
                                    SelectionDAG &DAG) {
   MVT SVT = ShAmt.getSimpleValueType();
   assert((SVT == MVT::i32 || SVT == MVT::i64) && "Unexpected value type!");
-
-  // Catch shift-by-constant.
-  if (ConstantSDNode *CShAmt = dyn_cast<ConstantSDNode>(ShAmt))
-    return getTargetVShiftByConstNode(Opc, dl, VT, SrcOp,
-                                      CShAmt->getZExtValue(), DAG);
 
   // Change opcode to non-immediate version.
   Opc = getTargetVShiftUniformOpcode(Opc, true);
@@ -26354,10 +26367,19 @@ SDValue X86TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
       return DAG.getNode(ISD::ZERO_EXTEND, dl, MVT::i32,
                          DAG.getBitcast(MVT::i16, Ins));
     }
-    case VSHIFT:
+    case VSHIFT: {
+      SDValue SrcOp = Op.getOperand(1);
+      SDValue ShAmt = Op.getOperand(2);
+
+      // Catch shift-by-constant.
+      if (auto *CShAmt = dyn_cast<ConstantSDNode>(ShAmt))
+        return getTargetVShiftByConstNode(IntrData->Opc0, dl,
+                                          Op.getSimpleValueType(), SrcOp,
+                                          CShAmt->getZExtValue(), DAG);
+
       return getTargetVShiftNode(IntrData->Opc0, dl, Op.getSimpleValueType(),
-                                 Op.getOperand(1), Op.getOperand(2), Subtarget,
-                                 DAG);
+                                 SrcOp, ShAmt, Subtarget, DAG);
+    }
     case COMPRESS_EXPAND_IN_REG: {
       SDValue Mask = Op.getOperand(3);
       SDValue DataToCompress = Op.getOperand(1);
@@ -26650,7 +26672,7 @@ SDValue X86TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
       X86CC = X86::COND_E;
       break;
     }
-    SmallVector<SDValue, 5> NewOps(Op->op_begin()+1, Op->op_end());
+    SmallVector<SDValue, 5> NewOps(llvm::drop_begin(Op->ops()));
     SDVTList VTs = DAG.getVTList(MVT::i32, MVT::v16i8, MVT::i32);
     SDValue PCMP = DAG.getNode(Opcode, dl, VTs, NewOps).getValue(2);
     SDValue SetCC = getSETCC(X86CC, PCMP, dl, DAG);
@@ -26665,7 +26687,7 @@ SDValue X86TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     else
       Opcode = X86ISD::PCMPESTR;
 
-    SmallVector<SDValue, 5> NewOps(Op->op_begin()+1, Op->op_end());
+    SmallVector<SDValue, 5> NewOps(llvm::drop_begin(Op->ops()));
     SDVTList VTs = DAG.getVTList(MVT::i32, MVT::v16i8, MVT::i32);
     return DAG.getNode(Opcode, dl, VTs, NewOps);
   }
@@ -26678,7 +26700,7 @@ SDValue X86TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     else
       Opcode = X86ISD::PCMPESTR;
 
-    SmallVector<SDValue, 5> NewOps(Op->op_begin()+1, Op->op_end());
+    SmallVector<SDValue, 5> NewOps(llvm::drop_begin(Op->ops()));
     SDVTList VTs = DAG.getVTList(MVT::i32, MVT::v16i8, MVT::i32);
     return DAG.getNode(Opcode, dl, VTs, NewOps).getValue(1);
   }
@@ -29828,7 +29850,19 @@ static SDValue LowerRotate(SDValue Op, const X86Subtarget &Subtarget,
     return DAG.getNode(FunnelOpc, DL, VT, R, R, Amt);
   }
 
-  assert(IsROTL && "Only ROTL supported");
+  SDValue Z = DAG.getConstant(0, DL, VT);
+
+  if (!IsROTL) {
+    // If the ISD::ROTR amount is constant, we're always better converting to
+    // ISD::ROTL.
+    if (SDValue NegAmt = DAG.FoldConstantArithmetic(ISD::SUB, DL, VT, {Z, Amt}))
+      return DAG.getNode(ISD::ROTL, DL, VT, R, NegAmt);
+
+    // XOP targets always prefers ISD::ROTL.
+    if (Subtarget.hasXOP())
+      return DAG.getNode(ISD::ROTL, DL, VT, R,
+                         DAG.getNode(ISD::SUB, DL, VT, Z, Amt));
+  }
 
   // Split 256-bit integers on XOP/pre-AVX2 targets.
   if (VT.is256BitVector() && (Subtarget.hasXOP() || !Subtarget.hasAVX2()))
@@ -29838,6 +29872,7 @@ static SDValue LowerRotate(SDValue Op, const X86Subtarget &Subtarget,
   // +ve/-ve Amt = rotate left/right - just need to handle ISD::ROTL.
   // XOP implicitly uses modulo rotation amounts.
   if (Subtarget.hasXOP()) {
+    assert(IsROTL && "Only ROTL expected");
     assert(VT.is128BitVector() && "Only rotate 128-bit vectors!");
 
     // Attempt to rotate by immediate.
@@ -29866,44 +29901,44 @@ static SDValue LowerRotate(SDValue Op, const X86Subtarget &Subtarget,
           (VT == MVT::v64i8 && Subtarget.useBWIRegs())) &&
          "Only vXi32/vXi16/vXi8 vector rotates supported");
 
-  bool IsSplatAmt = DAG.isSplatValue(Amt);
+  MVT ExtSVT = MVT::getIntegerVT(2 * EltSizeInBits);
+  MVT ExtVT = MVT::getVectorVT(ExtSVT, NumElts / 2);
+
   SDValue AmtMask = DAG.getConstant(EltSizeInBits - 1, DL, VT);
+  SDValue AmtMod = DAG.getNode(ISD::AND, DL, VT, Amt, AmtMask);
+
+  // Attempt to fold as unpack(x,x) << zext(splat(y)):
+  // rotl(x,y) -> (unpack(x,x) << (y & (bw-1))) >> bw.
+  // rotr(x,y) -> (unpack(x,x) >> (y & (bw-1))).
+  // TODO: Handle vXi16 cases.
+  if (EltSizeInBits == 8 || EltSizeInBits == 32) {
+    if (SDValue BaseRotAmt = DAG.getSplatValue(AmtMod)) {
+      unsigned ShiftX86Opc = IsROTL ? X86ISD::VSHLI : X86ISD::VSRLI;
+      SDValue Lo = DAG.getBitcast(ExtVT, getUnpackl(DAG, DL, VT, R, R));
+      SDValue Hi = DAG.getBitcast(ExtVT, getUnpackh(DAG, DL, VT, R, R));
+      BaseRotAmt = DAG.getZExtOrTrunc(BaseRotAmt, DL, MVT::i32);
+      Lo = getTargetVShiftNode(ShiftX86Opc, DL, ExtVT, Lo, BaseRotAmt,
+                               Subtarget, DAG);
+      Hi = getTargetVShiftNode(ShiftX86Opc, DL, ExtVT, Hi, BaseRotAmt,
+                               Subtarget, DAG);
+      return getPack(DAG, Subtarget, DL, VT, Lo, Hi, IsROTL);
+    }
+  }
 
   // v16i8/v32i8/v64i8: Split rotation into rot4/rot2/rot1 stages and select by
   // the amount bit.
   // TODO: We're doing nothing here that we couldn't do for funnel shifts.
   if (EltSizeInBits == 8) {
     bool IsConstAmt = ISD::isBuildVectorOfConstantSDNodes(Amt.getNode());
-    // Check for a hidden ISD::ROTR, vXi8 lowering can handle both, but we
-    // currently hit infinite loops in legalization if we allow ISD::ROTR.
-    // FIXME: Infinite ROTL<->ROTR legalization in TargetLowering::expandROT.
-    SDValue HiddenROTRAmt;
-    if (Amt.getOpcode() == ISD::SUB &&
-        ISD::isBuildVectorAllZeros(Amt.getOperand(0).getNode()))
-      HiddenROTRAmt = Amt.getOperand(1);
-
-    MVT ExtVT = MVT::getVectorVT(MVT::i16, NumElts / 2);
     MVT WideVT =
         MVT::getVectorVT(Subtarget.hasBWI() ? MVT::i16 : MVT::i32, NumElts);
-    unsigned ShiftOpc = HiddenROTRAmt ? ISD::SRL : ISD::SHL;
-    unsigned ShiftX86Opc = HiddenROTRAmt ? X86ISD::VSRLI : X86ISD::VSHLI;
-    SDValue AmtMod = DAG.getNode(ISD::AND, DL, VT,
-                                 HiddenROTRAmt ? HiddenROTRAmt : Amt, AmtMask);
+    unsigned ShiftOpc = IsROTL ? ISD::SHL : ISD::SRL;
 
-    // Attempt to fold as unpack(x,x) << zext(y):
+    // Attempt to fold as:
     // rotl(x,y) -> (((aext(x) << bw) | zext(x)) << (y & (bw-1))) >> bw.
     // rotr(x,y) -> (((aext(x) << bw) | zext(x)) >> (y & (bw-1))).
-    if (SDValue BaseRotAmt = DAG.getSplatValue(AmtMod)) {
-      BaseRotAmt = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i32, BaseRotAmt);
-      SDValue Lo = DAG.getBitcast(ExtVT, getUnpackl(DAG, DL, VT, R, R));
-      SDValue Hi = DAG.getBitcast(ExtVT, getUnpackh(DAG, DL, VT, R, R));
-      Lo = getTargetVShiftNode(ShiftX86Opc, DL, ExtVT, Lo, BaseRotAmt,
-                               Subtarget, DAG);
-      Hi = getTargetVShiftNode(ShiftX86Opc, DL, ExtVT, Hi, BaseRotAmt,
-                               Subtarget, DAG);
-      return getPack(DAG, Subtarget, DL, VT, Lo, Hi, !HiddenROTRAmt);
-    } else if (supportedVectorVarShift(WideVT, Subtarget, ShiftOpc) &&
-               supportedVectorShiftWithImm(WideVT, Subtarget, ShiftOpc)) {
+    if (supportedVectorVarShift(WideVT, Subtarget, ShiftOpc) &&
+        supportedVectorShiftWithImm(WideVT, Subtarget, ShiftOpc)) {
       // If we're rotating by constant, just use default promotion.
       if (IsConstAmt)
         return SDValue();
@@ -29914,20 +29949,23 @@ static SDValue LowerRotate(SDValue Op, const X86Subtarget &Subtarget,
           getTargetVShiftByConstNode(X86ISD::VSHLI, DL, WideVT, R, 8, DAG));
       Amt = DAG.getNode(ISD::ZERO_EXTEND, DL, WideVT, AmtMod);
       R = DAG.getNode(ShiftOpc, DL, WideVT, R, Amt);
-      if (!HiddenROTRAmt)
+      if (IsROTL)
         R = getTargetVShiftByConstNode(X86ISD::VSRLI, DL, WideVT, R, 8, DAG);
       return DAG.getNode(ISD::TRUNCATE, DL, VT, R);
-    } else if (IsConstAmt ||
-               supportedVectorVarShift(ExtVT, Subtarget, ShiftOpc)) {
+    }
+
+    // Attempt to fold as unpack(x,x) << zext(y):
+    // rotl(x,y) -> (unpack(x,x) << (y & (bw-1))) >> bw.
+    // rotr(x,y) -> (unpack(x,x) >> (y & (bw-1))).
+    if (IsConstAmt || supportedVectorVarShift(ExtVT, Subtarget, ShiftOpc)) {
       // See if we can perform this by unpacking to lo/hi vXi16.
-      SDValue Z = DAG.getConstant(0, DL, VT);
       SDValue RLo = DAG.getBitcast(ExtVT, getUnpackl(DAG, DL, VT, R, R));
       SDValue RHi = DAG.getBitcast(ExtVT, getUnpackh(DAG, DL, VT, R, R));
       SDValue ALo = DAG.getBitcast(ExtVT, getUnpackl(DAG, DL, VT, AmtMod, Z));
       SDValue AHi = DAG.getBitcast(ExtVT, getUnpackh(DAG, DL, VT, AmtMod, Z));
       SDValue Lo = DAG.getNode(ShiftOpc, DL, ExtVT, RLo, ALo);
       SDValue Hi = DAG.getNode(ShiftOpc, DL, ExtVT, RHi, AHi);
-      return getPack(DAG, Subtarget, DL, VT, Lo, Hi, !HiddenROTRAmt);
+      return getPack(DAG, Subtarget, DL, VT, Lo, Hi, IsROTL);
     }
     assert((VT == MVT::v16i8 || VT == MVT::v32i8) && "Unsupported vXi8 type");
 
@@ -29950,14 +29988,14 @@ static SDValue LowerRotate(SDValue Op, const X86Subtarget &Subtarget,
       return DAG.getSelect(DL, SelVT, C, V0, V1);
     };
 
-    // 'Hidden' ROTR is currently only profitable on AVX512 targets where we
-    // have VPTERNLOG.
-    unsigned ShiftLHS = ISD::SHL;
-    unsigned ShiftRHS = ISD::SRL;
-    if (HiddenROTRAmt && useVPTERNLOG(Subtarget, VT)) {
-      std::swap(ShiftLHS, ShiftRHS);
-      Amt = HiddenROTRAmt;
+    // ISD::ROTR is currently only profitable on AVX512 targets with VPTERNLOG.
+    if (!IsROTL && !useVPTERNLOG(Subtarget, VT)) {
+      Amt = DAG.getNode(ISD::SUB, DL, VT, Z, Amt);
+      IsROTL = true;
     }
+
+    unsigned ShiftLHS = IsROTL ? ISD::SHL : ISD::SRL;
+    unsigned ShiftRHS = IsROTL ? ISD::SRL : ISD::SHL;
 
     // Turn 'a' into a mask suitable for VSELECT: a = a << 5;
     // We can safely do this using i16 shifts as we're only interested in
@@ -29995,18 +30033,7 @@ static SDValue LowerRotate(SDValue Op, const X86Subtarget &Subtarget,
     return SignBitSelect(VT, Amt, M, R);
   }
 
-  // ISD::ROT* uses modulo rotate amounts.
-  if (SDValue BaseRotAmt = DAG.getSplatValue(Amt)) {
-    // If the amount is a splat, perform the modulo BEFORE the splat,
-    // this helps LowerShiftByScalarVariable to remove the splat later.
-    Amt = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, VT, BaseRotAmt);
-    Amt = DAG.getNode(ISD::AND, DL, VT, Amt, AmtMask);
-    Amt = DAG.getVectorShuffle(VT, DL, Amt, DAG.getUNDEF(VT),
-                               SmallVector<int>(NumElts, 0));
-  } else {
-    Amt = DAG.getNode(ISD::AND, DL, VT, Amt, AmtMask);
-  }
-
+  bool IsSplatAmt = DAG.isSplatValue(Amt);
   bool ConstantAmt = ISD::isBuildVectorOfConstantSDNodes(Amt.getNode());
   bool LegalVarShifts = supportedVectorVarShift(VT, Subtarget, ISD::SHL) &&
                         supportedVectorVarShift(VT, Subtarget, ISD::SRL);
@@ -30014,12 +30041,24 @@ static SDValue LowerRotate(SDValue Op, const X86Subtarget &Subtarget,
   // Fallback for splats + all supported variable shifts.
   // Fallback for non-constants AVX2 vXi16 as well.
   if (IsSplatAmt || LegalVarShifts || (Subtarget.hasAVX2() && !ConstantAmt)) {
+    Amt = DAG.getNode(ISD::AND, DL, VT, Amt, AmtMask);
     SDValue AmtR = DAG.getConstant(EltSizeInBits, DL, VT);
     AmtR = DAG.getNode(ISD::SUB, DL, VT, AmtR, Amt);
-    SDValue SHL = DAG.getNode(ISD::SHL, DL, VT, R, Amt);
-    SDValue SRL = DAG.getNode(ISD::SRL, DL, VT, R, AmtR);
+    SDValue SHL = DAG.getNode(IsROTL ? ISD::SHL : ISD::SRL, DL, VT, R, Amt);
+    SDValue SRL = DAG.getNode(IsROTL ? ISD::SRL : ISD::SHL, DL, VT, R, AmtR);
     return DAG.getNode(ISD::OR, DL, VT, SHL, SRL);
   }
+
+  // Everything below assumes ISD::ROTL.
+  if (!IsROTL) {
+    Amt = DAG.getNode(ISD::SUB, DL, VT, Z, Amt);
+    IsROTL = true;
+  }
+
+  // ISD::ROT* uses modulo rotate amounts.
+  Amt = DAG.getNode(ISD::AND, DL, VT, Amt, AmtMask);
+
+  assert(IsROTL && "Only ROTL supported");
 
   // As with shifts, attempt to convert the rotation amount to a multiplication
   // factor, fallback to general expansion.
@@ -32969,11 +33008,6 @@ bool X86TargetLowering::isLegalAddressingMode(const DataLayout &DL,
 
 bool X86TargetLowering::isVectorShiftByScalarCheap(Type *Ty) const {
   unsigned Bits = Ty->getScalarSizeInBits();
-
-  // 8-bit shifts are always expensive, but versions with a scalar amount aren't
-  // particularly cheaper than those without.
-  if (Bits == 8)
-    return false;
 
   // XOP has v16i8/v8i16/v4i32/v2i64 variable vector shifts.
   // Splitting for v32i8/v16i16 on XOP+AVX2 targets is still preferred.
@@ -41024,6 +41058,28 @@ SDValue X86TargetLowering::SimplifyMultipleUseDemandedBitsForTargetNode(
 
   return TargetLowering::SimplifyMultipleUseDemandedBitsForTargetNode(
       Op, DemandedBits, DemandedElts, DAG, Depth);
+}
+
+bool X86TargetLowering::isSplatValueForTargetNode(SDValue Op,
+                                                  const APInt &DemandedElts,
+                                                  APInt &UndefElts,
+                                                  unsigned Depth) const {
+  unsigned NumElts = DemandedElts.getBitWidth();
+  unsigned Opc = Op.getOpcode();
+
+  switch (Opc) {
+  case X86ISD::VBROADCAST:
+  case X86ISD::VBROADCAST_LOAD:
+    // TODO: Permit vXi64 types on 32-bit targets.
+    if (isTypeLegal(Op.getValueType().getVectorElementType())) {
+      UndefElts = APInt::getNullValue(NumElts);
+      return true;
+    }
+    return false;
+  }
+
+  return TargetLowering::isSplatValueForTargetNode(Op, DemandedElts, UndefElts,
+                                                   Depth);
 }
 
 // Helper to peek through bitops/trunc/setcc to determine size of source vector.

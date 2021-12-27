@@ -133,7 +133,7 @@ static bool isDefOrUse(const AsmParserState::SMDefinition &def, llvm::SMLoc loc,
   }
 
   // Check the uses.
-  auto useIt = llvm::find_if(def.uses, [&](const llvm::SMRange &range) {
+  const auto *useIt = llvm::find_if(def.uses, [&](const llvm::SMRange &range) {
     return contains(range, loc);
   });
   if (useIt != def.uses.end()) {
@@ -878,7 +878,7 @@ struct lsp::MLIRServer::Impl {
 
 lsp::MLIRServer::MLIRServer(DialectRegistry &registry)
     : impl(std::make_unique<Impl>(registry)) {}
-lsp::MLIRServer::~MLIRServer() {}
+lsp::MLIRServer::~MLIRServer() = default;
 
 void lsp::MLIRServer::addOrUpdateDocument(
     const URIForFile &uri, StringRef contents, int64_t version,

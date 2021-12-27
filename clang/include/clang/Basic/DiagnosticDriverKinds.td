@@ -119,6 +119,10 @@ def warn_drv_unsupported_option_for_target : Warning<
   "ignoring '%0' option as it is not currently supported for target '%1'">,
   InGroup<OptionIgnored>;
 
+def warn_drv_spirv_linking_multiple_inputs_unsupported: Warning<
+  "Linking multiple input files is not supported for SPIR-V yet">,
+  InGroup<OptionIgnored>;
+
 def err_drv_invalid_thread_model_for_target : Error<
   "invalid thread model '%0' in '%1' for this target">;
 def err_drv_invalid_linker_name : Error<
@@ -651,4 +655,9 @@ def err_cc1_unbounded_vscale_min : Error<
 
 def err_drv_ssp_missing_offset_argument : Error<
   "'%0' is used without '-mstack-protector-guard-offset', and there is no default">;
+
+def err_drv_only_one_offload_target_supported_in : Error<
+  "Only one offload target is supported in %0.">;
+def err_drv_invalid_or_unsupported_offload_target : Error<
+  "Invalid or unsupported offload target: '%0'.">;
 }
