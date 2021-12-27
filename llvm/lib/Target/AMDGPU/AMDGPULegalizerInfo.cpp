@@ -4237,8 +4237,17 @@ static void packImage16bitOpsToDwords(MachineIRBuilder &B, MachineInstr &MI,
         (I >= Intr->GradientStart && I < Intr->CoordStart && !IsG16) ||
         (I >= Intr->CoordStart && !IsA16)) {
       // Handle any gradient or coordinate operands that should not be packed
-      AddrReg = B.buildBitcast(V2S16, AddrReg).getReg(0);
-      PackedAddrs.push_back(AddrReg);
+      if ((I < Intr->GradientStart) && IsA16 &&
+          (B.getMRI()->getType(AddrReg) == S16)) {
+        // Special handling of bias when A16 is on. Bias is of type half but
+        // occupies full 32-bit.
+        PackedAddrs.push_back(
+            B.buildBuildVector(V2S16, {AddrReg, B.buildUndef(S16).getReg(0)})
+                .getReg(0));
+      } else {
+        AddrReg = B.buildBitcast(V2S16, AddrReg).getReg(0);
+        PackedAddrs.push_back(AddrReg);
+      }
     } else {
       // Dz/dh, dz/dv and the last odd coord are packed with undef. Also, in 1D,
       // derivatives dx/dh and dx/dv are packed with undef.
@@ -4869,8 +4878,8 @@ bool AMDGPULegalizerInfo::legalizeBVHIntrinsic(MachineInstr &MI,
   }
   Ops.push_back(RayExtent);
 
-  auto packLanes = [&Ops, &S32, &B] (Register Src) {
-    auto Unmerge = B.buildUnmerge({S32, S32, S32, S32}, Src);
+  auto packLanes = [&Ops, &S32, &B](Register Src) {
+    auto Unmerge = B.buildUnmerge({S32, S32, S32}, Src);
     Ops.push_back(Unmerge.getReg(0));
     Ops.push_back(Unmerge.getReg(1));
     Ops.push_back(Unmerge.getReg(2));
@@ -4878,8 +4887,8 @@ bool AMDGPULegalizerInfo::legalizeBVHIntrinsic(MachineInstr &MI,
 
   packLanes(RayOrigin);
   if (IsA16) {
-    auto UnmergeRayDir = B.buildUnmerge({S16, S16, S16, S16}, RayDir);
-    auto UnmergeRayInvDir = B.buildUnmerge({S16, S16, S16, S16}, RayInvDir);
+    auto UnmergeRayDir = B.buildUnmerge({S16, S16, S16}, RayDir);
+    auto UnmergeRayInvDir = B.buildUnmerge({S16, S16, S16}, RayInvDir);
     Register R1 = MRI.createGenericVirtualRegister(S32);
     Register R2 = MRI.createGenericVirtualRegister(S32);
     Register R3 = MRI.createGenericVirtualRegister(S32);

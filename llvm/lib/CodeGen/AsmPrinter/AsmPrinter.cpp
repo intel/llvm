@@ -180,7 +180,7 @@ Align AsmPrinter::getGVAlignment(const GlobalObject *GV, const DataLayout &DL,
     Alignment = InAlign;
 
   // If the GV has a specified alignment, take it into account.
-  const MaybeAlign GVAlign(GV->getAlignment());
+  const MaybeAlign GVAlign(GV->getAlign());
   if (!GVAlign)
     return Alignment;
 
@@ -288,7 +288,11 @@ bool AsmPrinter::doInitialization(Module &M) {
   // use the directive, where it would need the same conditionalization
   // anyway.
   const Triple &Target = TM.getTargetTriple();
-  OutStreamer->emitVersionForTarget(Target, M.getSDKVersion());
+  Triple TVT(M.getDarwinTargetVariantTriple());
+  OutStreamer->emitVersionForTarget(
+      Target, M.getSDKVersion(),
+      M.getDarwinTargetVariantTriple().empty() ? nullptr : &TVT,
+      M.getDarwinTargetVariantSDKVersion());
 
   // Allow the target to emit any magic that it wants at the start of the file.
   emitStartOfAsmFile(M);
@@ -910,8 +914,7 @@ static void emitKill(const MachineInstr *MI, AsmPrinter &AP) {
   std::string Str;
   raw_string_ostream OS(Str);
   OS << "kill:";
-  for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
-    const MachineOperand &Op = MI->getOperand(i);
+  for (const MachineOperand &Op : MI->operands()) {
     assert(Op.isReg() && "KILL instruction must have only register operands");
     OS << ' ' << (Op.isDef() ? "def " : "killed ")
        << printReg(Op.getReg(), AP.MF->getSubtarget().getRegisterInfo());
@@ -1856,6 +1859,17 @@ bool AsmPrinter::doFinalization(Module &M) {
       if (!GO.hasExternalWeakLinkage())
         continue;
       OutStreamer->emitSymbolAttribute(getSymbol(&GO), MCSA_WeakReference);
+    }
+    if (shouldEmitWeakSwiftAsyncExtendedFramePointerFlags()) {
+      auto SymbolName = "swift_async_extendedFramePointerFlags";
+      auto Global = M.getGlobalVariable(SymbolName);
+      if (!Global) {
+        auto Int8PtrTy = Type::getInt8PtrTy(M.getContext());
+        Global = new GlobalVariable(M, Int8PtrTy, false,
+                                    GlobalValue::ExternalWeakLinkage, nullptr,
+                                    SymbolName);
+        OutStreamer->emitSymbolAttribute(getSymbol(Global), MCSA_WeakReference);
+      }
     }
   }
 

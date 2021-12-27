@@ -30,7 +30,7 @@ namespace elf {
 class InputFile;
 class InputSectionBase;
 
-enum ELFKind {
+enum ELFKind : uint8_t {
   ELFNoneKind,
   ELF32LEKind,
   ELF32BEKind,
@@ -128,6 +128,8 @@ struct Configuration {
   llvm::StringRef thinLTOCacheDir;
   llvm::StringRef thinLTOIndexOnlyArg;
   llvm::StringRef whyExtract;
+  StringRef zBtiReport = "none";
+  StringRef zCetReport = "none";
   llvm::StringRef ltoBasicBlockSections;
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOObjectSuffixReplace;
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOPrefixReplace;
@@ -261,7 +263,7 @@ struct Configuration {
   UnresolvedPolicy unresolvedSymbols;
   UnresolvedPolicy unresolvedSymbolsInShlib;
   Target2Policy target2;
-  bool Power10Stub;
+  bool power10Stubs;
   ARMVFPArgKind armVFPArgs = ARMVFPArgKind::Default;
   BuildIdKind buildId = BuildIdKind::None;
   SeparateSegmentKind zSeparate;

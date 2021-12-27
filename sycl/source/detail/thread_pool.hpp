@@ -51,11 +51,6 @@ class ThreadPool {
     }
   }
 
-public:
-  ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {}
-
-  ~ThreadPool() { finishAndWait(); }
-
   void start() {
     MLaunchedThreads.reserve(MThreadCount);
 
@@ -64,6 +59,13 @@ public:
     for (size_t Idx = 0; Idx < MThreadCount; ++Idx)
       MLaunchedThreads.emplace_back([this] { worker(); });
   }
+
+public:
+  ThreadPool(unsigned int ThreadCount = 1) : MThreadCount(ThreadCount) {
+    start();
+  }
+
+  ~ThreadPool() { finishAndWait(); }
 
   void finishAndWait() {
     MStop.store(true);

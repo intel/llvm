@@ -230,7 +230,18 @@ SPIRVSpecConstantOp *createSpecConstantOpInst(SPIRVInstruction *Inst) {
   auto OC = Inst->getOpCode();
   assert(isSpecConstantOpAllowedOp(OC) &&
          "Op code not allowed for OpSpecConstantOp");
-  auto Ops = Inst->getIds(Inst->getOperands());
+  std::vector<SPIRVWord> Ops;
+
+  // CompositeExtract/Insert operations use zero-based numbering for their
+  // indexes (containted in instruction operands). All their operands are
+  // Literals, so we can pass them as is for further handling.
+  if (OC == OpCompositeExtract || OC == OpCompositeInsert) {
+    auto *SPIRVInst = static_cast<SPIRVInstTemplateBase *>(Inst);
+    Ops = SPIRVInst->getOpWords();
+  } else {
+    Ops = Inst->getIds(Inst->getOperands());
+  }
+
   Ops.insert(Ops.begin(), OC);
   return static_cast<SPIRVSpecConstantOp *>(SPIRVSpecConstantOp::create(
       OpSpecConstantOp, Inst->getType(), Inst->getId(), Ops, nullptr,
@@ -244,8 +255,12 @@ SPIRVInstruction *createInstFromSpecConstantOp(SPIRVSpecConstantOp *Inst) {
   assert(isSpecConstantOpAllowedOp(OC) &&
          "Op code not allowed for OpSpecConstantOp");
   Ops.erase(Ops.begin(), Ops.begin() + 1);
-  return SPIRVInstTemplateBase::create(OC, Inst->getType(), Inst->getId(), Ops,
-                                       nullptr, Inst->getModule());
+  auto *BM = Inst->getModule();
+  auto *RetInst = SPIRVInstTemplateBase::create(
+      OC, Inst->getType(), Inst->getId(), Ops, nullptr, BM);
+  // Instruction that creates from OpSpecConstantOp has the same Id
+  BM->insertEntryNoId(RetInst);
+  return RetInst;
 }
 
 } // namespace SPIRV

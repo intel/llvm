@@ -6,6 +6,7 @@ endif(NOT DEFINED BASE_LLVM_VERSION)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
 include(FetchContent)
+include(FindPkgConfig)
 
 option(LLVM_SPIRV_INCLUDE_TESTS
   "Generate build targets for the llvm-spirv lit tests."
@@ -78,6 +79,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       Analysis
       BitReader
       BitWriter
+      CodeGen
       Core
       Support
       TransformUtils
@@ -102,6 +104,12 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
 endif()
 
 set(LLVM_SPIRV_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+pkg_search_module(SPIRV_TOOLS SPIRV-Tools)
+if(NOT SPIRV_TOOLS_FOUND)
+  message(STATUS "SPIRV-Tools not found; project will be built without "
+          "--spirv-tools-dis support.")
+endif(NOT SPIRV_TOOLS_FOUND)
 
 add_subdirectory(lib/SPIRV)
 add_subdirectory(tools/llvm-spirv)

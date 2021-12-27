@@ -155,12 +155,14 @@ static ParseResult parseCmpOp(OpAsmParser &parser, OperationState &result) {
     return parser.emitError(trailingTypeLoc,
                             "expected LLVM dialect-compatible type");
   if (LLVM::isCompatibleVectorType(type)) {
-    if (type.isa<LLVM::LLVMScalableVectorType>()) {
-      resultType = LLVM::LLVMScalableVectorType::get(
-          resultType, LLVM::getVectorNumElements(type).getKnownMinValue());
+    if (LLVM::isScalableVectorType(type)) {
+      resultType = LLVM::getVectorType(
+          resultType, LLVM::getVectorNumElements(type).getKnownMinValue(),
+          /*isScalable=*/true);
     } else {
-      resultType = LLVM::getFixedVectorType(
-          resultType, LLVM::getVectorNumElements(type).getFixedValue());
+      resultType = LLVM::getVectorType(
+          resultType, LLVM::getVectorNumElements(type).getFixedValue(),
+          /*isScalable=*/false);
     }
   }
 
@@ -1502,7 +1504,7 @@ struct EnumTraits {};
 
 REGISTER_ENUM_TYPE(Linkage);
 REGISTER_ENUM_TYPE(UnnamedAddr);
-} // end namespace
+} // namespace
 
 /// Parse an enum from the keyword, or default to the provided default value.
 /// The return type is the enum type by default, unless overriden with the
@@ -1666,7 +1668,7 @@ static LogicalResult verify(GlobalOp op) {
 
 LogicalResult
 GlobalCtorsOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  for (Attribute ctor : ctors()) {
+  for (Attribute ctor : getCtors()) {
     if (failed(verifySymbolAttrUse(ctor.cast<FlatSymbolRefAttr>(), *this,
                                    symbolTable)))
       return failure();
@@ -1675,7 +1677,7 @@ GlobalCtorsOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 }
 
 static LogicalResult verify(GlobalCtorsOp op) {
-  if (op.ctors().size() != op.priorities().size())
+  if (op.getCtors().size() != op.getPriorities().size())
     return op.emitError(
         "mismatch between the number of ctors and the number of priorities");
   return success();
@@ -1687,7 +1689,7 @@ static LogicalResult verify(GlobalCtorsOp op) {
 
 LogicalResult
 GlobalDtorsOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  for (Attribute dtor : dtors()) {
+  for (Attribute dtor : getDtors()) {
     if (failed(verifySymbolAttrUse(dtor.cast<FlatSymbolRefAttr>(), *this,
                                    symbolTable)))
       return failure();
@@ -1696,7 +1698,7 @@ GlobalDtorsOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 }
 
 static LogicalResult verify(GlobalDtorsOp op) {
-  if (op.dtors().size() != op.priorities().size())
+  if (op.getDtors().size() != op.getPriorities().size())
     return op.emitError(
         "mismatch between the number of dtors and the number of priorities");
   return success();

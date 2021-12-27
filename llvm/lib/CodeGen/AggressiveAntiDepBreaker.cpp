@@ -354,8 +354,7 @@ void AggressiveAntiDepBreaker::PrescanInstruction(
   // dead, or because only a subregister is live at the def. If we
   // don't do this the dead def will be incorrectly merged into the
   // previous def.
-  for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-    MachineOperand &MO = MI.getOperand(i);
+  for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || !MO.isDef()) continue;
     Register Reg = MO.getReg();
     if (Reg == 0) continue;
@@ -407,8 +406,7 @@ void AggressiveAntiDepBreaker::PrescanInstruction(
 
   // Scan the register defs for this instruction and update
   // live-ranges.
-  for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-    MachineOperand &MO = MI.getOperand(i);
+  for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg() || !MO.isDef()) continue;
     Register Reg = MO.getReg();
     if (Reg == 0) continue;
@@ -495,8 +493,7 @@ void AggressiveAntiDepBreaker::ScanInstruction(MachineInstr &MI,
     LLVM_DEBUG(dbgs() << "\tKill Group:");
 
     unsigned FirstReg = 0;
-    for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-      MachineOperand &MO = MI.getOperand(i);
+    for (const MachineOperand &MO : MI.operands()) {
       if (!MO.isReg()) continue;
       Register Reg = MO.getReg();
       if (Reg == 0) continue;
@@ -564,8 +561,7 @@ bool AggressiveAntiDepBreaker::FindSuitableFreeRegisters(
                     << ":\n");
   std::map<unsigned, BitVector> RenameRegisterMap;
   unsigned SuperReg = 0;
-  for (unsigned i = 0, e = Regs.size(); i != e; ++i) {
-    unsigned Reg = Regs[i];
+  for (unsigned Reg : Regs) {
     if ((SuperReg == 0) || TRI->isSuperRegister(SuperReg, Reg))
       SuperReg = Reg;
 
@@ -587,8 +583,7 @@ bool AggressiveAntiDepBreaker::FindSuitableFreeRegisters(
   }
 
   // All group registers should be a subreg of SuperReg.
-  for (unsigned i = 0, e = Regs.size(); i != e; ++i) {
-    unsigned Reg = Regs[i];
+  for (unsigned Reg : Regs) {
     if (Reg == SuperReg) continue;
     bool IsSub = TRI->isSubRegister(SuperReg, Reg);
     // FIXME: remove this once PR18663 has been properly fixed. For now,
@@ -649,8 +644,7 @@ bool AggressiveAntiDepBreaker::FindSuitableFreeRegisters(
     // For each referenced group register (which must be a SuperReg or
     // a subregister of SuperReg), find the corresponding subregister
     // of NewSuperReg and make sure it is free to be renamed.
-    for (unsigned i = 0, e = Regs.size(); i != e; ++i) {
-      unsigned Reg = Regs[i];
+    for (unsigned Reg : Regs) {
       unsigned NewReg = 0;
       if (Reg == SuperReg) {
         NewReg = NewSuperReg;

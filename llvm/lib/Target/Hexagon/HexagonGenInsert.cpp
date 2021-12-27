@@ -602,8 +602,7 @@ void HexagonGenInsert::buildOrderingMF(RegisterOrdering &RO) const {
       continue;
 
     for (const MachineInstr &MI : B) {
-      for (unsigned i = 0, n = MI.getNumOperands(); i < n; ++i) {
-        const MachineOperand &MO = MI.getOperand(i);
+      for (const MachineOperand &MO : MI.operands()) {
         if (MO.isReg() && MO.isDef()) {
           Register R = MO.getReg();
           assert(MO.getSubReg() == 0 && "Unexpected subregister in definition");
@@ -719,8 +718,7 @@ bool HexagonGenInsert::findNonSelfReference(unsigned VR) const {
 
 void HexagonGenInsert::getInstrDefs(const MachineInstr *MI,
       RegisterSet &Defs) const {
-  for (unsigned i = 0, n = MI->getNumOperands(); i < n; ++i) {
-    const MachineOperand &MO = MI->getOperand(i);
+  for (const MachineOperand &MO : MI->operands()) {
     if (!MO.isReg() || !MO.isDef())
       continue;
     Register R = MO.getReg();
@@ -732,8 +730,7 @@ void HexagonGenInsert::getInstrDefs(const MachineInstr *MI,
 
 void HexagonGenInsert::getInstrUses(const MachineInstr *MI,
       RegisterSet &Uses) const {
-  for (unsigned i = 0, n = MI->getNumOperands(); i < n; ++i) {
-    const MachineOperand &MO = MI->getOperand(i);
+  for (const MachineOperand &MO : MI->operands()) {
     if (!MO.isReg() || !MO.isUse())
       continue;
     Register R = MO.getReg();
@@ -1448,8 +1445,8 @@ bool HexagonGenInsert::removeDeadCode(MachineDomTreeNode *N) {
 
   MachineBasicBlock *B = N->getBlock();
   std::vector<MachineInstr*> Instrs;
-  for (auto I = B->rbegin(), E = B->rend(); I != E; ++I)
-    Instrs.push_back(&*I);
+  for (MachineInstr &MI : llvm::reverse(*B))
+    Instrs.push_back(&MI);
 
   for (MachineInstr *MI : Instrs) {
     unsigned Opc = MI->getOpcode();

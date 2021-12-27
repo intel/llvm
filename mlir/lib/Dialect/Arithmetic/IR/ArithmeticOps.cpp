@@ -73,7 +73,7 @@ static arith::CmpIPredicateAttr invertPredicate(arith::CmpIPredicateAttr pred) {
 
 namespace {
 #include "ArithmeticCanonicalization.inc"
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // ConstantOp
@@ -494,9 +494,6 @@ OpFoldResult arith::AndIOp::fold(ArrayRef<Attribute> operands) {
   APInt intValue;
   if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isAllOnes())
     return getLhs();
-  /// and(x, x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
 
   return constFoldBinaryOp<IntegerAttr>(operands,
                                         [](APInt a, APInt b) { return a & b; });
@@ -510,9 +507,6 @@ OpFoldResult arith::OrIOp::fold(ArrayRef<Attribute> operands) {
   /// or(x, 0) -> x
   if (matchPattern(getRhs(), m_Zero()))
     return getLhs();
-  /// or(x, x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
   /// or(x, <all ones>) -> <all ones>
   if (auto rhsAttr = operands[1].dyn_cast_or_null<IntegerAttr>())
     if (rhsAttr.getValue().isAllOnes())
@@ -1005,7 +999,8 @@ static Type getI1SameShape(Type type) {
   if (type.isa<UnrankedTensorType>())
     return UnrankedTensorType::get(i1Type);
   if (auto vectorType = type.dyn_cast<VectorType>())
-    return VectorType::get(vectorType.getShape(), i1Type);
+    return VectorType::get(vectorType.getShape(), i1Type,
+                           vectorType.getNumScalableDims());
   return i1Type;
 }
 

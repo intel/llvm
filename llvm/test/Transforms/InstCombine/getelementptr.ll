@@ -215,7 +215,7 @@ define <2 x i1> @test13_vector(<2 x i64> %X, <2 x %S*> %P) nounwind {
 
 define <2 x i1> @test13_vector2(i64 %X, <2 x %S*> %P) nounwind {
 ; CHECK-LABEL: @test13_vector2(
-; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i64> poison, i64 [[X:%.*]], i32 0
+; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i64> poison, i64 [[X:%.*]], i64 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = shl <2 x i64> [[DOTSPLATINSERT]], <i64 2, i64 0>
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp eq <2 x i64> [[TMP1]], <i64 -4, i64 poison>
 ; CHECK-NEXT:    [[C:%.*]] = shufflevector <2 x i1> [[TMP2]], <2 x i1> poison, <2 x i32> zeroinitializer
@@ -230,7 +230,7 @@ define <2 x i1> @test13_vector2(i64 %X, <2 x %S*> %P) nounwind {
 ; This is a test of icmp + shl nuw in disguise - 4611... is 0x3fff...
 define <2 x i1> @test13_vector3(i64 %X, <2 x %S*> %P) nounwind {
 ; CHECK-LABEL: @test13_vector3(
-; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i64> poison, i64 [[X:%.*]], i32 0
+; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i64> poison, i64 [[X:%.*]], i64 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = shl <2 x i64> [[DOTSPLATINSERT]], <i64 2, i64 0>
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp eq <2 x i64> [[TMP1]], <i64 4, i64 poison>
 ; CHECK-NEXT:    [[C:%.*]] = shufflevector <2 x i1> [[TMP2]], <2 x i1> poison, <2 x i32> zeroinitializer
@@ -359,8 +359,8 @@ define i1 @test18(i16* %P, i32 %I) {
 ; Larger than the pointer size for a non-zero address space
 define i1 @test18_as1(i16 addrspace(1)* %P, i32 %I) {
 ; CHECK-LABEL: @test18_as1(
-; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[I:%.*]] to i16
-; CHECK-NEXT:    [[C:%.*]] = icmp slt i16 [[TMP1]], 0
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[I:%.*]], 32768
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[TMP1]], 0
 ; CHECK-NEXT:    ret i1 [[C]]
 ;
   %X = getelementptr inbounds i16, i16 addrspace(1)* %P, i32 %I
@@ -371,8 +371,8 @@ define i1 @test18_as1(i16 addrspace(1)* %P, i32 %I) {
 ; Smaller than the pointer size for a non-zero address space
 define i1 @test18_as1_i32(i16 addrspace(1)* %P, i32 %I) {
 ; CHECK-LABEL: @test18_as1_i32(
-; CHECK-NEXT:    [[TMP1:%.*]] = trunc i32 [[I:%.*]] to i16
-; CHECK-NEXT:    [[C:%.*]] = icmp slt i16 [[TMP1]], 0
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[I:%.*]], 32768
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[TMP1]], 0
 ; CHECK-NEXT:    ret i1 [[C]]
 ;
   %X = getelementptr inbounds i16, i16 addrspace(1)* %P, i32 %I
@@ -405,8 +405,8 @@ define i1 @test18_i64(i16* %P, i64 %I) {
 ; Larger than the pointer size
 define i1 @test18_i128(i16* %P, i128 %I) {
 ; CHECK-LABEL: @test18_i128(
-; CHECK-NEXT:    [[TMP1:%.*]] = trunc i128 [[I:%.*]] to i64
-; CHECK-NEXT:    [[C:%.*]] = icmp slt i64 [[TMP1]], 0
+; CHECK-NEXT:    [[TMP1:%.*]] = and i128 [[I:%.*]], 9223372036854775808
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i128 [[TMP1]], 0
 ; CHECK-NEXT:    ret i1 [[C]]
 ;
   %X = getelementptr inbounds i16, i16* %P, i128 %I

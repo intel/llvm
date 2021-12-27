@@ -236,47 +236,50 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
     }
   }
 
-  if ((ISD == ISD::MUL || ISD == ISD::SDIV || ISD == ISD::SREM ||
-       ISD == ISD::UDIV || ISD == ISD::UREM) &&
+  // Vector multiply by pow2 will be simplified to shifts.
+  if (ISD == ISD::MUL &&
+      (Op2Info == TargetTransformInfo::OK_UniformConstantValue ||
+       Op2Info == TargetTransformInfo::OK_NonUniformConstantValue) &&
+      Opd2PropInfo == TargetTransformInfo::OP_PowerOf2)
+    return getArithmeticInstrCost(Instruction::Shl, Ty, CostKind, Op1Info,
+                                  Op2Info, TargetTransformInfo::OP_None,
+                                  TargetTransformInfo::OP_None);
+
+  // On X86, vector signed division by constants power-of-two are
+  // normally expanded to the sequence SRA + SRL + ADD + SRA.
+  // The OperandValue properties may not be the same as that of the previous
+  // operation; conservatively assume OP_None.
+  if ((ISD == ISD::SDIV || ISD == ISD::SREM) &&
       (Op2Info == TargetTransformInfo::OK_UniformConstantValue ||
        Op2Info == TargetTransformInfo::OK_NonUniformConstantValue) &&
       Opd2PropInfo == TargetTransformInfo::OP_PowerOf2) {
-    // Vector multiply by pow2 will be simplified to shifts.
-    if (ISD == ISD::MUL) {
-      InstructionCost Cost = getArithmeticInstrCost(
-          Instruction::Shl, Ty, CostKind, Op1Info, Op2Info,
-          TargetTransformInfo::OP_None, TargetTransformInfo::OP_None);
-      return Cost;
+    InstructionCost Cost =
+        2 * getArithmeticInstrCost(Instruction::AShr, Ty, CostKind, Op1Info,
+                                   Op2Info, TargetTransformInfo::OP_None,
+                                   TargetTransformInfo::OP_None);
+    Cost += getArithmeticInstrCost(Instruction::LShr, Ty, CostKind, Op1Info,
+                                   Op2Info, TargetTransformInfo::OP_None,
+                                   TargetTransformInfo::OP_None);
+    Cost += getArithmeticInstrCost(Instruction::Add, Ty, CostKind, Op1Info,
+                                   Op2Info, TargetTransformInfo::OP_None,
+                                   TargetTransformInfo::OP_None);
+
+    if (ISD == ISD::SREM) {
+      // For SREM: (X % C) is the equivalent of (X - (X/C)*C)
+      Cost += getArithmeticInstrCost(Instruction::Mul, Ty, CostKind, Op1Info,
+                                     Op2Info);
+      Cost += getArithmeticInstrCost(Instruction::Sub, Ty, CostKind, Op1Info,
+                                     Op2Info);
     }
 
-    if (ISD == ISD::SDIV || ISD == ISD::SREM) {
-      // On X86, vector signed division by constants power-of-two are
-      // normally expanded to the sequence SRA + SRL + ADD + SRA.
-      // The OperandValue properties may not be the same as that of the previous
-      // operation; conservatively assume OP_None.
-      InstructionCost Cost =
-          2 * getArithmeticInstrCost(Instruction::AShr, Ty, CostKind, Op1Info,
-                                     Op2Info, TargetTransformInfo::OP_None,
-                                     TargetTransformInfo::OP_None);
-      Cost += getArithmeticInstrCost(Instruction::LShr, Ty, CostKind, Op1Info,
-                                     Op2Info, TargetTransformInfo::OP_None,
-                                     TargetTransformInfo::OP_None);
-      Cost += getArithmeticInstrCost(Instruction::Add, Ty, CostKind, Op1Info,
-                                     Op2Info, TargetTransformInfo::OP_None,
-                                     TargetTransformInfo::OP_None);
+    return Cost;
+  }
 
-      if (ISD == ISD::SREM) {
-        // For SREM: (X % C) is the equivalent of (X - (X/C)*C)
-        Cost += getArithmeticInstrCost(Instruction::Mul, Ty, CostKind, Op1Info,
-                                       Op2Info);
-        Cost += getArithmeticInstrCost(Instruction::Sub, Ty, CostKind, Op1Info,
-                                       Op2Info);
-      }
-
-      return Cost;
-    }
-
-    // Vector unsigned division/remainder will be simplified to shifts/masks.
+  // Vector unsigned division/remainder will be simplified to shifts/masks.
+  if ((ISD == ISD::UDIV || ISD == ISD::UREM) &&
+      (Op2Info == TargetTransformInfo::OK_UniformConstantValue ||
+       Op2Info == TargetTransformInfo::OK_NonUniformConstantValue) &&
+      Opd2PropInfo == TargetTransformInfo::OP_PowerOf2) {
     if (ISD == ISD::UDIV)
       return getArithmeticInstrCost(Instruction::LShr, Ty, CostKind, Op1Info,
                                     Op2Info, TargetTransformInfo::OP_None,
@@ -660,6 +663,7 @@ InstructionCost X86TTIImpl::getArithmeticInstrCost(
     { ISD::MUL,     MVT::v8i32,      1 }, // pmulld (Skylake from agner.org)
     { ISD::MUL,     MVT::v4i32,      1 }, // pmulld (Skylake from agner.org)
     { ISD::MUL,     MVT::v8i64,      6 }, // 3*pmuludq/3*shift/2*add
+    { ISD::MUL,     MVT::i64,        1 }, // Skylake from http://www.agner.org/
 
     { ISD::FNEG,    MVT::v8f64,      1 }, // Skylake from http://www.agner.org/
     { ISD::FADD,    MVT::v8f64,      1 }, // Skylake from http://www.agner.org/
@@ -4071,7 +4075,9 @@ InstructionCost X86TTIImpl::getAddressComputationCost(Type *Ty,
   // Even in the case of (loop invariant) stride whose value is not known at
   // compile time, the address computation will not incur more than one extra
   // ADD instruction.
-  if (Ty->isVectorTy() && SE) {
+  if (Ty->isVectorTy() && SE && !ST->hasAVX2()) {
+    // TODO: AVX2 is the current cut-off because we don't have correct
+    //       interleaving costs for prior ISA's.
     if (!BaseT::isStridedAccess(Ptr))
       return NumVectorInstToHideOverhead;
     if (!BaseT::getConstantStrideStep(SE, Ptr))
@@ -5275,7 +5281,8 @@ InstructionCost X86TTIImpl::getInterleavedMemoryOpCostAVX512(
   auto *SingleMemOpTy = FixedVectorType::get(VecTy->getElementType(),
                                              LegalVT.getVectorNumElements());
   InstructionCost MemOpCost;
-  if (UseMaskForCond || UseMaskForGaps)
+  bool UseMaskedMemOp = UseMaskForCond || UseMaskForGaps;
+  if (UseMaskedMemOp)
     MemOpCost = getMaskedMemoryOpCost(Opcode, SingleMemOpTy, Alignment,
                                       AddressSpace, CostKind);
   else
@@ -5285,9 +5292,8 @@ InstructionCost X86TTIImpl::getInterleavedMemoryOpCostAVX512(
   unsigned VF = VecTy->getNumElements() / Factor;
   MVT VT = MVT::getVectorVT(MVT::getVT(VecTy->getScalarType()), VF);
 
-  // FIXME: this is the most conservative estimate for the mask cost.
   InstructionCost MaskCost;
-  if (UseMaskForCond || UseMaskForGaps) {
+  if (UseMaskedMemOp) {
     APInt DemandedLoadStoreElts = APInt::getZero(VecTy->getNumElements());
     for (unsigned Index : Indices) {
       assert(Index < Factor && "Invalid index for interleaved memory op");
@@ -5295,10 +5301,10 @@ InstructionCost X86TTIImpl::getInterleavedMemoryOpCostAVX512(
         DemandedLoadStoreElts.setBit(Index + Elm * Factor);
     }
 
-    Type *I8Type = Type::getInt8Ty(VecTy->getContext());
+    Type *I1Type = Type::getInt1Ty(VecTy->getContext());
 
     MaskCost = getReplicationShuffleCost(
-        I8Type, Factor, VF,
+        I1Type, Factor, VF,
         UseMaskForGaps ? DemandedLoadStoreElts
                        : APInt::getAllOnes(VecTy->getNumElements()),
         CostKind);
@@ -5309,7 +5315,7 @@ InstructionCost X86TTIImpl::getInterleavedMemoryOpCostAVX512(
     // memory access, we need to account for the cost of And-ing the two masks
     // inside the loop.
     if (UseMaskForGaps) {
-      auto *MaskVT = FixedVectorType::get(I8Type, VecTy->getNumElements());
+      auto *MaskVT = FixedVectorType::get(I1Type, VecTy->getNumElements());
       MaskCost += getArithmeticInstrCost(BinaryOperator::And, MaskVT, CostKind);
     }
   }
@@ -5350,9 +5356,10 @@ InstructionCost X86TTIImpl::getInterleavedMemoryOpCostAVX512(
         NumOfLoadsInInterleaveGrp;
 
     // About a half of the loads may be folded in shuffles when we have only
-    // one result. If we have more than one result, we do not fold loads at all.
+    // one result. If we have more than one result, or the loads are masked,
+    // we do not fold loads at all.
     unsigned NumOfUnfoldedLoads =
-        NumOfResults > 1 ? NumOfMemOps : NumOfMemOps / 2;
+        UseMaskedMemOp || NumOfResults > 1 ? NumOfMemOps : NumOfMemOps / 2;
 
     // Get a number of shuffle operations per result.
     unsigned NumOfShufflesPerResult =

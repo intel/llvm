@@ -19,9 +19,9 @@
 
 namespace mlir {
 
-std::unique_ptr<OperationPass<FuncOp>> createConvertElementwiseToLinalgPass();
+std::unique_ptr<Pass> createConvertElementwiseToLinalgPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createLinalgFoldUnitExtentDimsPass();
+std::unique_ptr<Pass> createLinalgFoldUnitExtentDimsPass();
 
 std::unique_ptr<Pass> createLinalgElementwiseOpFusionPass();
 std::unique_ptr<Pass> createFoldReshapeOpsByLinearizationPass();
@@ -112,9 +112,10 @@ createLinalgStrategyGeneralizePass(StringRef opName = "",
                                        linalg::LinalgTransformationFilter());
 
 /// Create a LinalgStrategyDecomposePass.
-// TODO: atm this is applied to all supported ops. If/when we need finer control
-// this should be exposed with an opName + filter and a proper pattern.
-std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyDecomposePass();
+// TODO: if/when we need finer control add an `opName` parameter.
+std::unique_ptr<OperationPass<FuncOp>>
+createLinalgStrategyDecomposePass(linalg::LinalgTransformationFilter filter =
+                                      linalg::LinalgTransformationFilter());
 
 /// Create a LinalgStrategyInterchangePass.
 std::unique_ptr<OperationPass<FuncOp>>
