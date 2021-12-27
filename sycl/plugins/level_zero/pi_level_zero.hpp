@@ -801,7 +801,7 @@ struct _pi_mem : _pi_object {
   char *MapHostPtr;
 
   // Flag to indicate that this memory is allocated in host memory
-  bool OnHost;
+  const bool OnHost;
 
   // Supplementary data to keep track of the mappings of this memory
   // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
@@ -811,6 +811,8 @@ struct _pi_mem : _pi_object {
     // The size of the mapped region.
     size_t Size;
   };
+
+  std::mutex Mutex;
 
   // Interface of the _pi_mem object
 
@@ -837,11 +839,6 @@ private:
   // The key is the host pointer representing an active mapping.
   // The value is the information needed to maintain/undo the mapping.
   std::unordered_map<void *, Mapping> Mappings;
-
-  // TODO: we'd like to create a thread safe map class instead of mutex + map,
-  // that must be carefully used together.
-  // The mutex that is used for thread-safe work with Mappings.
-  std::mutex MappingsMutex;
 };
 
 struct _pi_buffer final : _pi_mem {
