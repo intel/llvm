@@ -724,13 +724,19 @@ detail::enable_if_t<detail::is_geninteger<T>::value, T> clz(T x) __NOEXC {
   return __sycl_std::__invoke_clz<T>(x);
 }
 
+// geninteger ctz (geninteger x)
+template <typename T>
+detail::enable_if_t<detail::is_geninteger<T>::value, T> ctz(T x) __NOEXC {
+  return __sycl_std::__invoke_ctz<T>(x);
+}
+
 namespace ext {
 namespace intel {
-// geninteger ctz (geninteger x)
+// geninteger ctz (geninteger x) for calls in depraceted variant
 template <typename T>
 sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T>
 ctz(T x) __NOEXC {
-  return __sycl_std::__invoke_ctz<T>(x);
+  return sycl::ctz(x);
 }
 } // namespace intel
 } // namespace ext
@@ -738,6 +744,7 @@ ctz(T x) __NOEXC {
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") intel {
   using namespace ext::intel;
 }
+
 
 // geninteger mad_hi (geninteger a, geninteger b, geninteger c)
 template <typename T>
