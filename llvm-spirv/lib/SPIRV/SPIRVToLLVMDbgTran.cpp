@@ -820,7 +820,7 @@ DINode *SPIRVToLLVMDbgTran::transModule(const SPIRVExtInst *DebugInst) {
 
 MDNode *SPIRVToLLVMDbgTran::transExpression(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Args = DebugInst->getArguments();
-  std::vector<int64_t> Ops;
+  std::vector<uint64_t> Ops;
   for (SPIRVId A : Args) {
     SPIRVExtInst *O = BM->get<SPIRVExtInst>(A);
     const SPIRVWordVec &Operands = O->getArguments();
@@ -830,7 +830,7 @@ MDNode *SPIRVToLLVMDbgTran::transExpression(const SPIRVExtInst *DebugInst) {
       Ops.push_back(Operands[I]);
     }
   }
-  ArrayRef<int64_t> Addr(Ops.data(), Ops.size());
+  ArrayRef<uint64_t> Addr(Ops.data(), Ops.size());
   return Builder.createExpression(Addr);
 }
 

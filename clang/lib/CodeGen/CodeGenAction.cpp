@@ -565,7 +565,6 @@ void BackendConsumer::SrcMgrDiagHandler(const llvm::DiagnosticInfoSrcMgr &DI) {
   // If Loc is invalid, we still need to report the issue, it just gets no
   // location info.
   Diags.Report(Loc, DiagID).AddString(Message);
-  return;
 }
 
 bool
