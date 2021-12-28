@@ -117,6 +117,7 @@ static pi_result redefinedKernelCreate(pi_program program,
                                        pi_kernel *ret_kernel) {
   return PI_SUCCESS;
 }
+
 static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
 
 class KernelAndProgramCacheTest : public ::testing::Test {

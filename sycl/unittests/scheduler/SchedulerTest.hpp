@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
+#include <CL/sycl/queue.hpp>
+
 #include <gtest/gtest.h>
 
 class SchedulerTest : public ::testing::Test {

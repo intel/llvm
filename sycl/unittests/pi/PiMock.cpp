@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+
 #include <detail/queue_impl.hpp>
+
+#include <gtest/gtest.h>
 
 using namespace cl::sycl;
 
