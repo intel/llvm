@@ -4,6 +4,7 @@
 // The test is written using conversion specifiers table from cppreference [1]
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
+// UNSUPPORTED: hip_amd
 // FIXME: The 'short' type gets overflown with sporadic values on CUDA.
 // XFAIL: cuda
 //
