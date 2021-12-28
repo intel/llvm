@@ -28,8 +28,8 @@
 // CHECK-NOT: piEventsWait
 // CHECK: ---> piEnqueueKernelLaunch
 // CHECK: ZE ---> zeCommandListAppendLaunchKernel
-// CHECK: ---> piEventsWait
-// Look for close and Execute after piEventsWait
+// CHECK: ---> piQueueFinish
+// Look for close and Execute after piQueueFinish
 // CHECK:  ZE ---> zeCommandListClose
 // CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
 // CHECK: ---> piEventGetInfo
