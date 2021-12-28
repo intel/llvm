@@ -52,8 +52,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | {docdate}
-| Revision           | B
+| Last Modified Date | 2021-12-28
+| Revision           | 3
 |========================================
 
 == Dependencies
@@ -491,6 +491,6 @@ Revision History
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-02-16|Alexey Sotkin|Initial revision
-|1|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
-|1|2021-12-28|Dmitry Sidorov|Add Joint Matrix to Composite definition
+|2|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
+|3|2021-12-28|Dmitry Sidorov|Add Joint Matrix to Composite definition
 |========================================
