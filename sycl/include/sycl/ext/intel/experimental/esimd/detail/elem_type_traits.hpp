@@ -152,7 +152,7 @@ struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
 // These are default implementations for wrapper types with native cpp
 // operations support for their corresponding raw type.
 template <class WrapperTy, class StdTy, int N>
-vector_type_t<__raw_t<WrapperTy>, N>
+ESIMD_INLINE vector_type_t<__raw_t<WrapperTy>, N>
 __esimd_convertvector_to(vector_type_t<StdTy, N> Val)
 #ifdef __SYCL_DEVICE_ONLY__
     ; // needs to be implemented for WrapperTy's for which
@@ -165,7 +165,7 @@ __esimd_convertvector_to(vector_type_t<StdTy, N> Val)
 #endif // __SYCL_DEVICE_ONLY__
 
 template <class WrapperTy, class StdTy, int N>
-vector_type_t<StdTy, N>
+ESIMD_INLINE vector_type_t<StdTy, N>
 __esimd_convertvector_from(vector_type_t<__raw_t<WrapperTy>, N> Val)
 #ifdef __SYCL_DEVICE_ONLY__
     ; // needs to be implemented for WrapperTy's for which
@@ -668,12 +668,12 @@ struct element_type_traits<T, std::enable_if_t<std::is_same_v<T, sycl::half>>> {
 
 using half_raw = __raw_t<sycl::half>;
 
-template <>
+template <> ESIMD_INLINE
 sycl::half __esimd_wrapper_type_bitcast_to<sycl::half>(half_raw Val) {
   return WrapperElementTypeProxy::bitcast_to_half(Val);
 }
 
-template <>
+template <> ESIMD_INLINE
 half_raw __esimd_wrapper_type_bitcast_from<sycl::half>(sycl::half Val) {
   return WrapperElementTypeProxy::bitcast_from_half(Val);
 }
