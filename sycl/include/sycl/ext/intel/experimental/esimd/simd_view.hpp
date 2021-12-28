@@ -119,22 +119,22 @@ public:
 ///   bool b = v[0] > v[1] && v[2] < 42;
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy>
-class simd_view<BaseTy, region1d_scalar_t<typename BaseTy::element_type>>
-    : public detail::simd_view_impl<
-          BaseTy, region1d_scalar_t<typename BaseTy::element_type>> {
+template <typename BaseTy, class ViewedElemT>
+class simd_view<BaseTy, region1d_scalar_t<ViewedElemT>>
+    : public detail::simd_view_impl<BaseTy, region1d_scalar_t<ViewedElemT>> {
   template <typename, int, class, class> friend class detail::simd_obj_impl;
   template <typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using RegionTy = region1d_scalar_t<typename BaseTy::element_type>;
+  using RegionTy = region1d_scalar_t<ViewedElemT>;
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");
+  static_assert(std::is_same_v<typename ShapeTy::element_type, ViewedElemT>);
   /// The element type of this class, which could be different from the element
   /// type of the base object type.
-  using element_type = typename ShapeTy::element_type;
+  using element_type = ViewedElemT;
   using base_type = BaseTy;
   template <typename ElT, int N>
   using get_simd_t = typename BaseClass::template get_simd_t<ElT, N>;
@@ -174,26 +174,23 @@ public:
 ///   simd<int, 4> v = 1;
 ///   auto v1 = v.select<2, 1>(0);
 ///   auto v2 = v1[0]; // simd_view of a nested region for a single element
-template <typename BaseTy, typename NestedRegion>
-class simd_view<
-    BaseTy,
-    std::pair<region1d_scalar_t<typename BaseTy::element_type>, NestedRegion>>
+template <typename BaseTy, typename NestedRegion, class ViewedElemT>
+class simd_view<BaseTy, std::pair<region1d_scalar_t<ViewedElemT>, NestedRegion>>
     : public detail::simd_view_impl<
-          BaseTy, std::pair<region1d_scalar_t<typename BaseTy::element_type>,
-                            NestedRegion>> {
+          BaseTy, std::pair<region1d_scalar_t<ViewedElemT>, NestedRegion>> {
   template <typename, int> friend class simd;
   template <typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using RegionTy =
-      std::pair<region1d_scalar_t<typename BaseTy::element_type>, NestedRegion>;
+  using RegionTy = std::pair<region1d_scalar_t<ViewedElemT>, NestedRegion>;
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");
+  static_assert(std::is_same_v<typename ShapeTy::element_type, ViewedElemT>);
   /// The element type of this class, which could be different from the element
   /// type of the base object type.
-  using element_type = typename ShapeTy::element_type;
+  using element_type = ViewedElemT;
 
 private:
   simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}

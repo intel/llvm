@@ -74,17 +74,6 @@ static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 
 namespace detail {
 
-// Determine element type of simd_obj_impl's Derived type w/o having to have
-// complete instantiation of the Derived type (is required by element_type_t,
-// hence can't be used here).
-template <class T> struct elem_type_of_derived;
-template <class T, int N> struct elem_type_of_derived<simd<T, N>> {
-  using type = T;
-};
-template <class T, int N> struct elem_type_of_derived<simd_mask_impl<T, N>> {
-  using type = simd_mask_elem_type; // equals T
-};
-
 /// The simd_obj_impl vector class.
 ///
 /// This is a base class for all ESIMD simd classes with real storage (simd,
@@ -113,7 +102,7 @@ class simd_obj_impl {
   template <typename, int> friend class simd;
   template <typename, int> friend class simd_mask_impl;
 
-  using element_type = typename elem_type_of_derived<Derived>::type;
+  using element_type = simd_like_obj_element_type_t<Derived>;
   using Ty = element_type;
 
 public:
@@ -296,7 +285,7 @@ public:
 
   /// View this simd_obj_impl object in a different element type.
   template <typename EltTy> auto bit_cast_view() &[[clang::lifetimebound]] {
-    using TopRegionTy = compute_format_type_t<simd_obj_impl, EltTy>;
+    using TopRegionTy = compute_format_type_t<Derived, EltTy>;
     using RetTy = simd_view<Derived, TopRegionTy>;
     return RetTy{cast_this_to_derived(), TopRegionTy{0}};
   }
@@ -310,8 +299,7 @@ public:
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width>
   auto bit_cast_view() &[[clang::lifetimebound]] {
-    using TopRegionTy =
-        compute_format_type_2d_t<simd_obj_impl, EltTy, Height, Width>;
+    using TopRegionTy = compute_format_type_2d_t<Derived, EltTy, Height, Width>;
     using RetTy = simd_view<Derived, TopRegionTy>;
     return RetTy{cast_this_to_derived(), TopRegionTy{0, 0}};
   }

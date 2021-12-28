@@ -29,10 +29,6 @@ template <typename Ty, int N, typename EltTy,
 struct compute_format_type<SimdT<Ty, N>, EltTy>
     : compute_format_type_impl<Ty, N, EltTy> {};
 
-template <typename Ty, int N, typename EltTy, class SimdT>
-struct compute_format_type<simd_obj_impl<Ty, N, SimdT>, EltTy>
-    : compute_format_type_impl<Ty, N, EltTy> {};
-
 template <typename BaseTy, typename RegionTy, typename EltTy>
 struct compute_format_type<simd_view<BaseTy, RegionTy>, EltTy> {
   using ShapeTy = typename shape_type<RegionTy>::type;
@@ -63,11 +59,6 @@ struct compute_format_type_2d_impl {
 template <typename Ty, int N, typename EltTy, int Height, int Width,
           template <typename, int> class SimdT>
 struct compute_format_type_2d<SimdT<Ty, N>, EltTy, Height, Width>
-    : compute_format_type_2d_impl<Ty, N, EltTy, Height, Width> {};
-
-template <typename Ty, int N, typename EltTy, int Height, int Width,
-          class SimdT>
-struct compute_format_type_2d<simd_obj_impl<Ty, N, SimdT>, EltTy, Height, Width>
     : compute_format_type_2d_impl<Ty, N, EltTy, Height, Width> {};
 
 template <typename BaseTy, typename RegionTy, typename EltTy, int Height,

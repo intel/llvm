@@ -75,7 +75,7 @@ public:
                 (T::length == 1) && detail::is_valid_simd_elem_type_v<To>>>
   operator To() const {
     __esimd_dbg_print(operator To());
-    return convert_scalar<To, element_type>(base_type::data()[0]);
+    return detail::convert_scalar<To, element_type>(base_type::data()[0]);
   }
 
   /// @{

@@ -310,6 +310,26 @@ struct element_type<T, std::enable_if_t<is_clang_vector_type_v<T>>> {
 };
 
 template <typename T> using element_type_t = typename element_type<T>::type;
+
+// Determine element type of simd_obj_impl's Derived type w/o having to have
+// complete instantiation of the Derived type (is required by element_type_t,
+// hence can't be used here).
+template <class T> struct simd_like_obj_info;
+template <class T, int N> struct simd_like_obj_info<simd<T, N>> {
+  using type = T;
+  static inline constexpr int length = N;
+};
+template <class T, int N> struct simd_like_obj_info<simd_mask_impl<T, N>> {
+  using type = simd_mask_elem_type; // equals T
+  static inline constexpr int length = N;
+};
+
+template <typename T>
+using simd_like_obj_element_type_t = typename simd_like_obj_info<T>::type;
+template <typename T>
+static inline constexpr int simd_like_obj_length =
+    simd_like_obj_info<T>::length;
+
 // @}
 
 template <typename To, typename From>
