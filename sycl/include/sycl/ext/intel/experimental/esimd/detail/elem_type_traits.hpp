@@ -668,13 +668,15 @@ struct element_type_traits<T, std::enable_if_t<std::is_same_v<T, sycl::half>>> {
 
 using half_raw = __raw_t<sycl::half>;
 
-template <> ESIMD_INLINE
-sycl::half __esimd_wrapper_type_bitcast_to<sycl::half>(half_raw Val) {
+template <>
+ESIMD_INLINE sycl::half
+__esimd_wrapper_type_bitcast_to<sycl::half>(half_raw Val) {
   return WrapperElementTypeProxy::bitcast_to_half(Val);
 }
 
-template <> ESIMD_INLINE
-half_raw __esimd_wrapper_type_bitcast_from<sycl::half>(sycl::half Val) {
+template <>
+ESIMD_INLINE half_raw
+__esimd_wrapper_type_bitcast_from<sycl::half>(sycl::half Val) {
   return WrapperElementTypeProxy::bitcast_from_half(Val);
 }
 
