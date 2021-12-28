@@ -78,12 +78,8 @@ static int convertSPIRVToLLVMIR(const char *Argv0) {
   return llvm::sys::ExecuteAndWait(LlvmSpirvBinary.get(), LlvmSpirvArgs);
 }
 
-static int copyInputToOutput(void) {
-  // When given an output file, just copy the input to the output
-  if (!Output.empty() && !InputFilename.empty()) {
-    llvm::sys::fs::copy_file(InputFilename, Output);
-  }
-  return 0;
+static int copyInputToOutput() {
+  return llvm::sys::fs::copy_file(InputFilename, Output).value();
 }
 
 static bool isSPIRVBinary(const std::string &File) {
