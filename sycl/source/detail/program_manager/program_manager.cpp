@@ -580,8 +580,7 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   if (std::get<0>(ret_tuple))
     return ret_tuple;
 
-  RT::PiProgram Program =
-      getBuiltPIProgram(M, ContextImpl, D, KernelName, Prg);
+  RT::PiProgram Program = getBuiltPIProgram(M, ContextImpl, D, KernelName, Prg);
 
   auto AcquireF = [](KernelProgramCache &Cache) {
     return Cache.acquireKernelsPerProgramCache();
