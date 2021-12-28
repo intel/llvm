@@ -155,6 +155,9 @@ public:
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
+  void constructorNotification(const detail::code_location &CodeLoc,
+                               void *UserObj);
+  void destructorNotification(void *UserObj);
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
@@ -163,6 +166,7 @@ public:
       BaseT::updateHostMemory();
     } catch (...) {
     }
+    destructorNotification(this);
   }
 
   void resize(size_t size) { BaseT::MSizeInBytes = size; }

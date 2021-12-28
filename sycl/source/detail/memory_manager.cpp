@@ -11,6 +11,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -222,6 +223,7 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   // dependency events and return empty event.
   waitForEvents(DepEvents);
   OutEvent = nullptr;
+  XPTIRegistry::bufferReleaseNotification(MemObj, MemAllocation);
   MemObj->releaseMem(TargetContext, MemAllocation);
 }
 
@@ -357,14 +359,19 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
                                        const ContextImplPtr &InteropContext,
                                        const sycl::property_list &PropsList,
                                        RT::PiEvent &OutEventToWait) {
+  void *MemPtr;
   if (TargetContext->is_host())
-    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
-                              PropsList);
-  if (UserPtr && InteropContext)
-    return allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
-                                    InteropContext, PropsList, OutEventToWait);
-  return allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size,
-                              PropsList);
+    MemPtr =
+        allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size, PropsList);
+  else if (UserPtr && InteropContext)
+    MemPtr =
+        allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
+                                 InteropContext, PropsList, OutEventToWait);
+  else
+    MemPtr = allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size,
+                                  PropsList);
+  XPTIRegistry::bufferAssociateNotification(MemObj, MemPtr);
+  return MemPtr;
 }
 
 void *MemoryManager::allocateMemImage(

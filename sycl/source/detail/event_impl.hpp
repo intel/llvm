@@ -201,6 +201,11 @@ public:
   /// \return true if this event is discarded.
   bool isDiscarded() const { return MState == HES_Discarded; }
 
+  void setNeedsCleanupAfterWait(bool NeedsCleanupAfterWait) {
+    MNeedsCleanupAfterWait = NeedsCleanupAfterWait;
+  }
+  bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -230,6 +235,12 @@ private:
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
+
+  // A temporary workaround for the current limitations of post enqueue graph
+  // cleanup. Indicates that the command associated with this event isn't
+  // handled by post enqueue cleanup yet and has to be deleted by cleanup after
+  // wait.
+  bool MNeedsCleanupAfterWait = false;
 
   std::mutex MMutex;
 };

@@ -28,6 +28,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <cassert>
 #include <string>
@@ -267,8 +268,9 @@ public:
     // of empty command.
     // Also, it's possible to have record deallocated prior to enqueue process.
     // Thus we employ read-lock of graph.
+    std::vector<Command *> ToCleanUp;
+    Scheduler &Sched = Scheduler::getInstance();
     {
-      Scheduler &Sched = Scheduler::getInstance();
       Scheduler::ReadLockT Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
@@ -279,8 +281,9 @@ public:
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
       for (const DepDesc &Dep : Deps)
-        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
+        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
     }
+    Sched.cleanupCommands(ToCleanUp);
   }
 };
 
@@ -523,7 +526,8 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
+Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
+                                  std::vector<Command *> &ToCleanUp) {
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
@@ -555,7 +559,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   // If contexts don't match we'll connect them using host task
   if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
+    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
 
@@ -570,11 +574,17 @@ const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
 
 bool Command::producesPiEvent() const { return true; }
 
-Command *Command::addDep(DepDesc NewDep) {
+bool Command::supportsPostEnqueueCleanup() const {
+  // Isolated commands are cleaned up separately
+  return !MUsers.empty() || !MDeps.empty();
+}
+
+Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
   Command *ConnectionCmd = nullptr;
 
   if (NewDep.MDepCommand) {
-    ConnectionCmd = processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
+    ConnectionCmd =
+        processDepEvent(NewDep.MDepCommand->getEvent(), NewDep, ToCleanUp);
   }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -586,7 +596,8 @@ Command *Command::addDep(DepDesc NewDep) {
   return ConnectionCmd;
 }
 
-Command *Command::addDep(EventImplPtr Event) {
+Command *Command::addDep(EventImplPtr Event,
+                         std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
@@ -596,7 +607,8 @@ Command *Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
+  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr},
+                         ToCleanUp);
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -622,7 +634,8 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #endif
 }
 
-bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
+bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+                      std::vector<Command *> &ToCleanUp) {
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
@@ -691,6 +704,12 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
+    if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
+        !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
+      assert(!MPostEnqueueCleanup);
+      MPostEnqueueCleanup = true;
+      ToCleanUp.push_back(this);
+    }
   }
 
   // Emit this correlation signal before the task end
@@ -783,6 +802,8 @@ void AllocaCommandBase::emitInstrumentationData() {
 
 bool AllocaCommandBase::producesPiEvent() const { return false; }
 
+bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
+
 AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
                              bool InitFromUserData,
                              AllocaCommandBase *LinkedAllocaCmd)
@@ -793,8 +814,11 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
   // so this call must be before the addDep() call.
   emitInstrumentationDataProxy();
   // "Nothing to depend on"
-  Command *ConnectionCmd = addDep(DepDesc(nullptr, getRequirement(), this));
+  std::vector<Command *> ToCleanUp;
+  Command *ConnectionCmd =
+      addDep(DepDesc(nullptr, getRequirement(), this), ToCleanUp);
   assert(ConnectionCmd == nullptr);
+  assert(ToCleanUp.empty());
   (void)ConnectionCmd;
 }
 
@@ -859,7 +883,8 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
 
 AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                                          AllocaCommandBase *ParentAlloca,
-                                         std::vector<Command *> &ToEnqueue)
+                                         std::vector<Command *> &ToEnqueue,
+                                         std::vector<Command *> &ToCleanUp)
     : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
                         std::move(Req),
                         /*LinkedAllocaCmd*/ nullptr),
@@ -868,8 +893,8 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
   // is added to this node, so this call must be before
   // the addDep() call.
   emitInstrumentationDataProxy();
-  Command *ConnectionCmd =
-      addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  Command *ConnectionCmd = addDep(
+      DepDesc(MParentAlloca, getRequirement(), MParentAlloca), ToCleanUp);
   if (ConnectionCmd)
     ToEnqueue.push_back(ConnectionCmd);
 }
@@ -916,6 +941,8 @@ cl_int AllocaSubBufCommand::enqueueImp() {
       MRequirement.MElemSize, MRequirement.MOffsetInBytes,
       MRequirement.MAccessRange, std::move(EventImpls), Event);
 
+  XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
+                                            MMemAllocation);
   return CL_SUCCESS;
 }
 
@@ -1048,6 +1075,8 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
 }
 
 bool ReleaseCommand::producesPiEvent() const { return false; }
+
+bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
 
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
                            void **DstPtr, QueueImplPtr Queue,
@@ -1441,8 +1470,11 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
   const Requirement *const StoredReq = &MRequirements.back();
 
   // EmptyCommand is always host one, so we believe that result of addDep is nil
-  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  std::vector<Command *> ToCleanUp;
+  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd}, ToCleanUp);
   assert(Cmd == nullptr && "Conection command should be null for EmptyCommand");
+  assert(ToCleanUp.empty() && "addDep should add a command for cleanup only if "
+                              "there's a connection command");
   (void)Cmd;
 }
 
@@ -1577,9 +1609,14 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr Queue)
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask)
+  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MSubmittedQueue =
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+    MEvent->setNeedsCleanupAfterWait(true);
+  } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
+             (static_cast<CGExecKernel *>(MCommandGroup.get()))->hasStreams())
+    MEvent->setNeedsCleanupAfterWait(true);
+
   emitInstrumentationDataProxy();
 }
 
@@ -2353,6 +2390,15 @@ cl_int ExecCGCommand::enqueueImp() {
 
 bool ExecCGCommand::producesPiEvent() const {
   return MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask;
+}
+
+bool ExecCGCommand::supportsPostEnqueueCleanup() const {
+  // TODO enable cleaning up host task commands and kernels with streams after
+  // enqueue
+  return Command::supportsPostEnqueueCleanup() &&
+         (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask) &&
+         (MCommandGroup->getType() != CG::CGTYPE::Kernel ||
+          !(static_cast<CGExecKernel *>(MCommandGroup.get()))->hasStreams());
 }
 
 } // namespace detail
