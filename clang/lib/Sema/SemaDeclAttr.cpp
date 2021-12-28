@@ -6513,17 +6513,32 @@ static void handleSYCLIntelNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
   S.AddSYCLIntelNoGlobalWorkOffsetAttr(D, A, E);
 }
 
-/// Handle the [[intel::doublepump]] and [[intel::singlepump]]
-/// attributes.
-template <typename AttrType>
-static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &A) {
-  checkForDuplicateAttribute<AttrType>(S, D, A);
+/// Handle the [[intel::singlepump]] attribute.
+static void handleSYCLIntelFPGASinglePumpAttr(Sema &S, Decl *D,
+                                              const ParsedAttr &AL) {
+  checkForDuplicateAttribute<IntelFPGASinglePumpAttr>(S, D, AL);
 
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
         S.Context, IntelFPGAMemoryAttr::Default));
 
-  handleSimpleAttribute<AttrType>(S, D, A);
+  D->addAttr(::new (S.Context) IntelFPGASinglePumpAttr(S.Context, AL));
+}
+
+/// Handle the [[intel::doublepump]] attribute.
+static void handleSYCLIntelFPGADoublePumpAttr(Sema &S, Decl *D,
+                                              const ParsedAttr &AL) {
+  checkForDuplicateAttribute<IntelFPGADoublePumpAttr>(S, D, AL);
+
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        S.Context, IntelFPGAMemoryAttr::Default));
+
+  D->addAttr(::new (S.Context) IntelFPGADoublePumpAttr(S.Context, AL));
 }
 
 /// Handle the [[intel::fpga_memory]] attribute.
@@ -9512,6 +9527,130 @@ static void handleOpenCLAccessAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) OpenCLAccessAttr(S.Context, AL));
 }
 
+static constexpr std::pair<Decl::Kind, StringRef>
+MakeDeclContextDesc(Decl::Kind K, StringRef SR) {
+  return std::pair<Decl::Kind, StringRef>{K, SR};
+}
+
+// FIXME: Refactor Util class in SemaSYCL.cpp to avoid following
+// code duplication.
+bool isDeviceAspectType(const QualType Ty) {
+  const EnumType *ET = Ty->getAs<EnumType>();
+  if (!ET)
+    return false;
+
+  std::array<std::pair<Decl::Kind, StringRef>, 3> Scopes = {
+      MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      MakeDeclContextDesc(Decl::Kind::Enum, "aspect")};
+
+  const auto *Ctx = cast<DeclContext>(ET->getDecl());
+  StringRef Name = "";
+
+  for (const auto &Scope : llvm::reverse(Scopes)) {
+    Decl::Kind DK = Ctx->getDeclKind();
+    if (DK != Scope.first)
+      return false;
+
+    switch (DK) {
+    case Decl::Kind::Enum:
+      Name = cast<EnumDecl>(Ctx)->getName();
+      break;
+    case Decl::Kind::Namespace:
+      Name = cast<NamespaceDecl>(Ctx)->getName();
+      break;
+    default:
+      llvm_unreachable("isDeviceAspectType: decl kind not supported");
+    }
+    if (Name != Scope.second)
+      return false;
+    Ctx = Ctx->getParent();
+  }
+  return Ctx->isTranslationUnit();
+}
+
+SYCLDeviceHasAttr *Sema::MergeSYCLDeviceHasAttr(Decl *D,
+                                                const SYCLDeviceHasAttr &A) {
+  if (const auto *ExistingAttr = D->getAttr<SYCLDeviceHasAttr>()) {
+    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
+    Diag(A.getLoc(), diag::note_previous_attribute);
+    return nullptr;
+  }
+
+  SmallVector<Expr *, 5> Args;
+  for (auto *E : A.aspects())
+    Args.push_back(E);
+  return ::new (Context)
+      SYCLDeviceHasAttr(Context, A, Args.data(), Args.size());
+}
+
+void Sema::AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr **Exprs, unsigned Size) {
+
+  SYCLDeviceHasAttr TmpAttr(Context, CI, Exprs, Size);
+  SmallVector<Expr *, 5> Aspects;
+  for (auto *E : TmpAttr.aspects())
+    if (!isDeviceAspectType(E->getType()))
+      Diag(E->getExprLoc(), diag::err_sycl_invalid_aspect_argument) << CI;
+
+  if (const auto *ExistingAttr = D->getAttr<SYCLDeviceHasAttr>()) {
+    Diag(CI.getLoc(), diag::warn_duplicate_attribute_exact) << CI;
+    Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+    return;
+  }
+
+  D->addAttr(::new (Context) SYCLDeviceHasAttr(Context, CI, Exprs, Size));
+}
+
+static void handleSYCLDeviceHasAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  SmallVector<Expr *, 5> Args;
+  for (unsigned I = 0; I < A.getNumArgs(); ++I)
+    Args.push_back(A.getArgAsExpr(I));
+
+  S.AddSYCLDeviceHasAttr(D, A, Args.data(), Args.size());
+}
+
+SYCLUsesAspectsAttr *
+Sema::MergeSYCLUsesAspectsAttr(Decl *D, const SYCLUsesAspectsAttr &A) {
+  if (const auto *ExistingAttr = D->getAttr<SYCLUsesAspectsAttr>()) {
+    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
+    Diag(A.getLoc(), diag::note_previous_attribute);
+    return nullptr;
+  }
+
+  SmallVector<Expr *, 5> Args;
+  for (auto *E : A.aspects())
+    Args.push_back(E);
+  return ::new (Context)
+      SYCLUsesAspectsAttr(Context, A, Args.data(), Args.size());
+}
+
+void Sema::AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                  Expr **Exprs, unsigned Size) {
+
+  SYCLUsesAspectsAttr TmpAttr(Context, CI, Exprs, Size);
+  SmallVector<Expr *, 5> Aspects;
+  for (auto *E : TmpAttr.aspects())
+    if (!isDeviceAspectType(E->getType()))
+      Diag(E->getExprLoc(), diag::err_sycl_invalid_aspect_argument) << CI;
+
+  if (const auto *ExistingAttr = D->getAttr<SYCLUsesAspectsAttr>()) {
+    Diag(CI.getLoc(), diag::warn_duplicate_attribute_exact) << CI;
+    Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+    return;
+  }
+
+  D->addAttr(::new (Context) SYCLUsesAspectsAttr(Context, CI, Exprs, Size));
+}
+
+static void handleSYCLUsesAspectsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  SmallVector<Expr *, 5> Args;
+  for (unsigned I = 0; I < A.getNumArgs(); ++I)
+    Args.push_back(A.getArgAsExpr(I));
+
+  S.AddSYCLUsesAspectsAttr(D, A, Args.data(), Args.size());
+}
+
 static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // The 'sycl_kernel' attribute applies only to function templates.
   const auto *FD = cast<FunctionDecl>(D);
@@ -10010,6 +10149,12 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLIntelESimdVectorize:
     handleSYCLIntelESimdVectorizeAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLDeviceHas:
+    handleSYCLDeviceHasAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLUsesAspects:
+    handleSYCLUsesAspectsAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);
     break;
@@ -10428,10 +10573,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 
   // Intel FPGA specific attributes
   case ParsedAttr::AT_IntelFPGADoublePump:
-    handleIntelFPGAPumpAttr<IntelFPGADoublePumpAttr>(S, D, AL);
+    handleSYCLIntelFPGADoublePumpAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGASinglePump:
-    handleIntelFPGAPumpAttr<IntelFPGASinglePumpAttr>(S, D, AL);
+    handleSYCLIntelFPGASinglePumpAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGAMemory:
     handleIntelFPGAMemoryAttr(S, D, AL);

@@ -1456,6 +1456,7 @@
 ?compile_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@AEBVproperty_list@23@@Z
 ?compile_with_kernel_name@program@sycl@cl@@AEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0_J@Z
 ?compile_with_source@program@sycl@cl@@QEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z
+?constructorNotification@buffer_impl@detail@sycl@cl@@QEAAXAEBUcode_location@234@PEAX@Z
 ?contains_specialization_constants@kernel_bundle_plain@detail@sycl@cl@@QEBA_NXZ
 ?contextSetExtendedDeleter@pi@detail@sycl@cl@@YAXAEBVcontext@34@P6AXPEAX@Z1@Z
 ?convertChannelOrder@detail@sycl@cl@@YA?AW4_pi_image_channel_order@@W4image_channel_order@23@@Z
@@ -1634,6 +1635,7 @@
 ?degrees@__host_std@cl@@YANN@Z
 ?depends_on@handler@sycl@cl@@QEAAXAEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@@Z
 ?depends_on@handler@sycl@cl@@QEAAXVevent@23@@Z
+?destructorNotification@buffer_impl@detail@sycl@cl@@QEAAXPEAX@Z
 ?determineHostPtr@SYCLMemObjT@detail@sycl@cl@@IEAAXAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@_NAEAPEAXAEA_N@Z
 ?device_has@queue@sycl@cl@@QEBA_NW4aspect@23@@Z
 ?die@pi@detail@sycl@cl@@YAXPEBD@Z

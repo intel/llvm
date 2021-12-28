@@ -429,6 +429,31 @@ type-legalization steps.
   }];
 }
 
+def SYCLDeviceHasDocs : Documentation {
+  let Category = DocCatStmt;
+  let Content = [{
+The ``[[sycl::device_has(aspect, ...)]]`` attribute is used to decorate either
+the declaration of a kernel function that is defined in the current translation
+unit or to decorate the declaration of a non-kernel device function. The
+parameter list to the sycl::device_has() attribute consists of zero or more
+constexpr integral expressions, where each integer is interpreted as one of the
+enumerated values in the sycl::aspect enumeration type.
+
+Specifying this attribute on a kernel has two effects. First, it causes the kernel
+invocation command to throw a synchronous exception with the errc::kernel_not_supported
+error code if the kernel is submitted to a device that does not have one of the
+listed aspects. Second, it causes the compiler to issue a diagnostic if the kernel
+(or any of the functions it calls) uses an optional feature that is associated with
+an aspect that is not listed in the attribute.
+
+.. code-block:: c++
+
+  [[sycl::device_has()]] int func1() {}
+  [[sycl::device_has(sycl::aspect1, sycl::aspect2)]] int func2() {}
+
+  }];
+}
+
 def SYCLSimdDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{

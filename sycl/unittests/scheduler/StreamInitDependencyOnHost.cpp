@@ -9,9 +9,14 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <detail/config.hpp>
 #include <detail/scheduler/scheduler_helpers.hpp>
+#include <helpers/ScopedEnvVar.hpp>
 
 using namespace cl::sycl;
+
+inline constexpr auto DisablePostEnqueueCleanupName =
+    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
 
 class MockHandler : public sycl::handler {
 public:
@@ -26,7 +31,7 @@ public:
             typename KernelName>
   void setHostKernel(KernelType Kernel) {
     static_cast<sycl::handler *>(this)->MHostKernel.reset(
-        new sycl::detail::HostKernel<KernelType, ArgType, Dims, false>(Kernel));
+        new sycl::detail::HostKernel<KernelType, ArgType, Dims>(Kernel));
   }
 
   template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
@@ -91,6 +96,11 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
 }
 
 TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
+  // Disable post enqueue cleanup so that it doesn't interfere with dependency
+  // checks.
+  unittest::ScopedEnvVar DisabledCleanup{
+      DisablePostEnqueueCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
   cl::sycl::queue HQueue(host_selector{});
   detail::QueueImplPtr HQueueImpl = detail::getSyclObjImpl(HQueue);
 
