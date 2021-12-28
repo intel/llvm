@@ -68,9 +68,9 @@ def Tensor_CastOp : Tensor_Op<"cast", [
 def Tensor_DimOp : Tensor_Op<"dim", [NoSideEffect]> {
   let summary = "dimension index operation";
   let description = [{
-    The `dim` operation takes a tensor and a dimension operand of type `index`.
-    It returns the size of the requested dimension of the given tensor.
-    If the dimension index is out of bounds, the behavior is undefined.
+    The `tensor.dim` operation takes a tensor and a dimension operand of type
+    `index`. It returns the size of the requested dimension of the given
+    tensor. If the dimension index is out of bounds, the behavior is undefined.
 
     The specified tensor type is that of the first operand.
 
@@ -312,22 +312,29 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
     NoSideEffect,
     TypesMatchWith<"operand types match result element type",
                    "result", "elements", "SmallVector<Type, 2>("
-                   "$_self.cast<ShapedType>().getDimSize(0), "
+                   "$_self.cast<ShapedType>().getNumElements(), "
                    "$_self.cast<ShapedType>().getElementType())">
   ]> {
   string summary = "tensor from elements operation.";
   string description = [{
-    Create a 1D tensor from a range of same-type arguments.
+    Create a N-D tensor from a range of same-type arguments. The number of
+    provided `elements` should equal to the number of the elements in the
+    result type. The `elements` correspond to a flattened tensor.
 
     Example:
 
     ```mlir
-    tensor.from_elements i_1, ..., i_N :  tensor<Nxindex>
+    tensor.from_elements %a, %b, %c, %d, %e, %f :  tensor<2x3xindex>
     ```
+
+    will result in a tensor
+
+    [[%a, %b, %c]
+     [%d, %e, %f]]
   }];
 
   let arguments = (ins Variadic<AnyType>:$elements);
-  let results = (outs 1DTensorOf<[AnyType]>:$result);
+  let results = (outs AnyStaticShapeTensor:$result);
 
   let assemblyFormat = "$elements attr-dict `:` type($result)";
 
@@ -336,7 +343,7 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<(ins "Type":$elementType, "ValueRange":$elements)>,
+    OpBuilder<(ins "Type":$resultType, "ValueRange":$elements)>,
     // Special case builder for when `elements` has size >=1.
     OpBuilder<(ins "ValueRange":$elements)>
   ];
@@ -559,6 +566,31 @@ def Tensor_InsertSliceOp : BaseOpWithOffsetSizesAndStrides<
 }
 
 //===----------------------------------------------------------------------===//
+// RankOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_RankOp : Tensor_Op<"rank", [NoSideEffect]> {
+  let summary = "rank operation";
+  let description = [{
+    The `tensor.rank` operation takes a tensor operand and returns its rank.
+
+    Example:
+
+    ```mlir
+    %0 = tensor.rank %arg0 : tensor<*xf32>
+    %1 = tensor.rank %arg1 : tensor<?x?xf32>
+    ```
+  }];
+
+  let arguments = (ins AnyTensor:$tensor);
+  let results = (outs Index);
+
+  let verifier = ?;
+  let hasFolder = 1;
+  let assemblyFormat = "$tensor attr-dict `:` type($tensor)";
+}
+
+//===----------------------------------------------------------------------===//
 // ReshapeOp
 //===----------------------------------------------------------------------===//
 
@@ -618,6 +650,133 @@ def Tensor_ReshapeOp: Tensor_Op<"reshape", [NoSideEffect]>  {
     $source `(` $shape `)` attr-dict `:` functional-type(operands, results)
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// ExpandShapeOp / CollapseShapeOp
+//===----------------------------------------------------------------------===//
+
+class Tensor_ReassociativeReshapeOp<string mnemonic, list<OpTrait> traits = []> :
+    Tensor_Op<mnemonic, !listconcat(traits, [NoSideEffect])>,
+    Arguments<(ins AnyTensor:$src, IndexListArrayAttr:$reassociation)>,
+    Results<(outs AnyTensor:$result)> {
+  let builders = [
+    // Builders for a contracting reshape whose result type is computed from
+    // `src` and `reassociation`.
+    OpBuilder<(ins "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilder<(ins "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, src, reassociationMaps, attrs);
+    }]>,
+
+    // Builders for a reshape whose result type is passed explicitly. This may
+    // be either a contracting or expanding reshape.
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      build($_builder, $_state, resultType, src, attrs);
+      $_state.addAttribute("reassociation",
+          getReassociationIndicesAttribute($_builder, reassociation));
+    }]>,
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, resultType, src, reassociationMaps, attrs);
+    }]>
+  ];
+
+  code commonExtraClassDeclaration = [{
+    static StringRef getReassociationAttrName() { return "reassociation"; }
+    SmallVector<AffineMap, 4> getReassociationMaps();
+    SmallVector<ReassociationExprs, 4> getReassociationExprs();
+    SmallVector<ReassociationIndices, 4> getReassociationIndices() {
+      SmallVector<ReassociationIndices, 4> reassociationIndices;
+      for (auto attr : reassociation())
+        reassociationIndices.push_back(llvm::to_vector<2>(
+            llvm::map_range(attr.cast<ArrayAttr>(), [&](Attribute indexAttr) {
+              return indexAttr.cast<IntegerAttr>().getInt();
+            })));
+      return reassociationIndices;
+    };
+    RankedTensorType getSrcType() {
+      return src().getType().cast<RankedTensorType>();
+    }
+    RankedTensorType getResultType() {
+      return result().getType().cast<RankedTensorType>();
+    }
+  }];
+
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+  let printer = [{ return ::print(p, *this); }];
+  let parser = [{ return ::parseReshapeLikeOp(parser, result); }];
+}
+
+def Tensor_ExpandShapeOp : Tensor_ReassociativeReshapeOp<"expand_shape"> {
+  let summary = "operation to produce a tensor with a higher rank";
+  let description = [{
+    The `tensor.expand_shape` op produces a new tensor with a higher
+    rank whose sizes are a reassociation of the original `src`.
+
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an array of I64ArrayAttr attribute.
+
+    The verification rule is that the reassociation maps are applied to the
+    result tensor with the higher rank to obtain the operand tensor with the
+    smaller rank.
+
+    The operand tensor type of a reshape can be zero-ranked if the result
+    tensor type is statically shaped with all dimensions being unit extent. In
+    such cases the reassociation map is empty.
+
+    Examples:
+
+    ```mlir
+    // Dimension expansion i -> (i', j') and (k) -> (k')
+    %b = tensor.expand_shape %a [[0, 1], [2]]
+        : tensor<?x?xf32> into tensor<?x?x?xf32>
+    ```
+  }];
+  let extraClassDeclaration = commonExtraClassDeclaration;
+}
+
+def Tensor_CollapseShapeOp : Tensor_ReassociativeReshapeOp<"collapse_shape"> {
+  let summary = "operation to produce a tensor with a smaller rank";
+  let description = [{
+    The `tensor.collapse_shape` op produces a new tensor with a smaller
+    rank whose sizes are a reassociation of the original `src`.
+
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an array of I64ArrayAttr attribute.
+
+    The verification rule is that the reassociation maps are applied to the
+    operand tensor with the higher rank to obtain the result tensor with the
+    smaller rank.
+
+    The result tensor type of a reshape can be zero-ranked if the operand
+    tensor type is statically shaped with all dimensions being unit extent. In
+    such case the reassociation map is empty.
+
+    Examples:
+
+    ```mlir
+    // Dimension collapse (i, j) -> i' and k -> k'
+    %b = tensor.collapse_shape %a [[0, 1], [2]]
+        : tensor<?x?x?xf32> into tensor<?x?xf32>
+    ```
+  }];
+  let extraClassDeclaration = commonExtraClassDeclaration;
+}
+
 
 //===----------------------------------------------------------------------===//
 // YieldOp

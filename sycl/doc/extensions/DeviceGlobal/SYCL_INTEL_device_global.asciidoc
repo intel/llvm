@@ -183,7 +183,7 @@ _T_ is restricted to types that have a trivial destructor and a trivial default 
 
 Since _T_ is restricted to types with trivial default constructors in this version of the specification, there are no non-default `device_global` constructors, and therefore no initialization values may be specified for the content of a `device_global` allocation on a device.
 
-The allocation of type _T_ is zero-initialized on each device prior to the first access to that `device_global` variable.
+The allocation of type _T_ for a given `device_global` is zero-initialized on a given device prior to the first access to that `device_global` on that device. For the purposes of this definition an access can be a direct access of the `device_global` in kernel code or a copy to or from that `device_global` enqueued to the given device.
 
 Properties may be specified for a `device_global` to provide semantic
 modification or optimization hint information to the compiler.  See the section

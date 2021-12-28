@@ -762,6 +762,11 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
               .getValueAsString();
       BA->addDecorate(new SPIRVDecorateFuncParamDescAttr(BA, Desc.str()));
     }
+    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCMediaBlockIO)) {
+      assert(BA->getType()->isTypeImage() &&
+             "VCMediaBlockIO attribute valid only on image parameters");
+      BA->addDecorate(DecorationMediaBlockIOINTEL);
+    }
   }
   if (!isKernel(F) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float_controls2) &&
@@ -830,8 +835,8 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
           F->getMetadata(kSPIR2MD::DisableLoopPipelining)) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
-      if (size_t Disable = getMDOperandAsInt(DisableLoopPipelining, 0))
-        BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, !Disable));
+      size_t Disable = getMDOperandAsInt(DisableLoopPipelining, 0);
+      BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, !Disable));
     }
   }
 }
@@ -968,7 +973,8 @@ SPIRVValue *LLVMToSPIRVBase::transValue(Value *V, SPIRVBasicBlock *BB,
 
   SPIRVDBG(dbgs() << "[transValue] " << *V << '\n');
   assert((!isa<Instruction>(V) || isa<GetElementPtrInst>(V) ||
-          isa<CastInst>(V) || BB) &&
+          isa<CastInst>(V) || isa<ExtractElementInst>(V) ||
+          isa<BinaryOperator>(V) || BB) &&
          "Invalid SPIRV BB");
 
   auto BV = transValueWithoutDecoration(V, BB, CreateForward, FuncTrans);
@@ -988,7 +994,9 @@ SPIRVInstruction *LLVMToSPIRVBase::transBinaryInst(BinaryOperator *B,
       transBoolOpCode(Op0, OpCodeMap::map(LLVMOC)), transType(B->getType()),
       Op0, transValue(B->getOperand(1), BB), BB);
 
-  if (isUnfusedMulAdd(B)) {
+  // BinaryOperator can have no parent if it is handled as an expression inside
+  // another instruction.
+  if (B->getParent() && isUnfusedMulAdd(B)) {
     Function *F = B->getFunction();
     SPIRVDBG(dbgs() << "[fp-contract] disabled for " << F->getName()
                     << ": possible fma candidate " << *B << '\n');
@@ -1541,7 +1549,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       return BVar;
     if (static_cast<uint32_t>(Builtin) >= internal::BuiltInSubDeviceIDINTEL &&
         static_cast<uint32_t>(Builtin) <=
-            internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL) {
+            internal::BuiltInGlobalHWThreadIDINTEL) {
       if (!BM->isAllowedToUseExtension(
               ExtensionID::SPV_INTEL_hw_thread_queries)) {
         std::string ErrorStr = "Intel HW thread queries must be enabled by "
@@ -4398,6 +4406,26 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     if (!CI->hasStructRetAttr())
       return APIntInst;
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
+  }
+  case OpLoad: {
+    std::vector<SPIRVWord> MemoryAccess;
+    assert(CI->arg_size() > 0 && "Expected at least 1 operand for OpLoad call");
+    for (size_t I = 1; I < CI->arg_size(); ++I)
+      MemoryAccess.push_back(
+          cast<ConstantInt>(CI->getArgOperand(I))->getZExtValue());
+    return BM->addLoadInst(transValue(CI->getArgOperand(0), BB), MemoryAccess,
+                           BB);
+  }
+  case OpStore: {
+    std::vector<SPIRVWord> MemoryAccess;
+    assert(CI->arg_size() > 1 &&
+           "Expected at least 2 operands for OpStore call");
+    for (size_t I = 2; I < CI->arg_size(); ++I)
+      MemoryAccess.push_back(
+          cast<ConstantInt>(CI->getArgOperand(I))->getZExtValue());
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB),
+                            transValue(CI->getArgOperand(1), BB), MemoryAccess,
                             BB);
   }
   default: {

@@ -21,8 +21,10 @@
 //   Previous write of size 8 at 0x7f1fa9bfcdd0 by thread T1:
 //     #0 __tsan_tls_initialization
 
-// Failing on bots: https://lab.llvm.org/buildbot#builders/184/builds/1580
-// UNSUPPORTED: aarch64
+// Failing on bots:
+// https://lab.llvm.org/buildbot#builders/184/builds/1580
+// https://lab.llvm.org/buildbot#builders/18/builds/3167
+// UNSUPPORTED: aarch64, powerpc64, powerpc64le
 
 #ifdef BUILD_SO
 
@@ -47,6 +49,7 @@ void *thread(void *arg) {
   barrier_wait(&barrier);
   if (__atomic_load_n(&ready, __ATOMIC_ACQUIRE))
     func();
+  barrier_wait(&barrier);
   if (dlclose(lib)) {
     printf("error in dlclose: %s\n", dlerror());
     exit(1);
@@ -71,6 +74,7 @@ int main(int argc, char *argv[]) {
   __atomic_store_n(&ready, 1, __ATOMIC_RELEASE);
   barrier_wait(&barrier);
   func();
+  barrier_wait(&barrier);
   pthread_join(th, 0);
   fprintf(stderr, "DONE\n");
   return 0;

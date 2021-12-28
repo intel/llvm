@@ -26,6 +26,7 @@ sycl/ReleaseNotes.md @pvchupin @tfzhu
 sycl/doc/ @pvchupin @bader
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 sycl/doc/extensions/SPIRV/ @AlexeySotkin @bashbaug @mbelicki
+sycl/doc/dev @bader @vladimirlaz
 
 # Sub-groups
 sycl/include/CL/sycl/detail/spirv.hpp @Pennycook @AlexeySachkov
@@ -108,3 +109,8 @@ sycl/doc/extensions/ExplicitSIMD/ @kbobrovs @v-klochkov @kychendev
 llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari
 llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims @vzakhari
 llvm/test/Transforms/SPIRITTAnnotations/* @MrSidims @vzakhari
+
+# Generic address space support for printf
+llvm/lib/SYCLLowerIR/MutatePrintfAddrspace.cpp @intel/dpcpp-tools-reviewers
+llvm/include/llvm/SYCLLowerIR/MutatePrintfAddrspace.h @intel/dpcpp-tools-reviewers
+llvm/test/SYCLLowerIR/printf_addrspace/* @intel/dpcpp-tools-reviewers

@@ -3,6 +3,13 @@ name: Generate Doxygen documentation
 on:
   schedule:
   - cron: 0 1 * * *
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - '.github/workflows/gh_pages.yml'
+    - 'clang/docs/**'
+    - 'sycl/doc/**'
 
 jobs:
   build:
@@ -11,12 +18,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
-        ref: sycl
         path: repo
     - name: Install deps
       run: |
         sudo apt-get install -y doxygen graphviz ssh ninja-build
-        sudo pip3 install 'sphinx==4.1.2' 'myst-parser==0.15.1'
+        sudo pip3 install 'sphinx==4.1.2' 'myst-parser==0.15.1' 'recommonmark==0.7.1'
     - name: Build Docs
       run: |
         mkdir -p $GITHUB_WORKSPACE/build
@@ -28,6 +34,7 @@ jobs:
         cmake --build . --target docs-sycl-html
         cmake --build . --target docs-clang-html
     - name: Deploy
+      if: ${{ github.event_name == 'schedule' }}
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run: |

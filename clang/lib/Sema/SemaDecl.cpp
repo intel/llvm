@@ -2717,6 +2717,10 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeIntelFPGABankWidthAttr(D, *A);
   else if (const auto *A = dyn_cast<IntelFPGANumBanksAttr>(Attr))
     NewAttr = S.MergeIntelFPGANumBanksAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(Attr))
+    NewAttr = S.MergeSYCLDeviceHasAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(Attr))
+    NewAttr = S.MergeSYCLUsesAspectsAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -8566,7 +8570,14 @@ static NamedDecl *DiagnoseInvalidRedeclaration(
         << NewFD->getParamDecl(Idx - 1)->getType();
     } else if (FDisConst != NewFDisConst) {
       SemaRef.Diag(FD->getLocation(), diag::note_member_def_close_const_match)
-          << NewFDisConst << FD->getSourceRange().getEnd();
+          << NewFDisConst << FD->getSourceRange().getEnd()
+          << (NewFDisConst
+                  ? FixItHint::CreateRemoval(ExtraArgs.D.getFunctionTypeInfo()
+                                                 .getConstQualifierLoc())
+                  : FixItHint::CreateInsertion(ExtraArgs.D.getFunctionTypeInfo()
+                                                   .getRParenLoc()
+                                                   .getLocWithOffset(1),
+                                               " const"));
     } else
       SemaRef.Diag(FD->getLocation(),
                    IsMember ? diag::note_member_def_close_match
@@ -9257,6 +9268,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
             << Name << RemoveRange
             << FixItHint::CreateRemoval(RemoveRange)
             << FixItHint::CreateInsertion(InsertLoc, "<>");
+          Invalid = true;
         }
       }
     } else {
@@ -15432,7 +15444,7 @@ bool Sema::CheckEnumUnderlyingType(TypeSourceInfo *TI) {
     if (BT->isInteger())
       return false;
 
-  if (T->isExtIntType())
+  if (T->isBitIntType())
     return false;
 
   return Diag(UnderlyingLoc, diag::err_enum_invalid_underlying) << T;
@@ -18350,7 +18362,7 @@ static void CheckForDuplicateEnumValues(Sema &S, ArrayRef<Decl *> Elements,
 
     // Emit one note for each of the remaining enum constants with
     // the same value.
-    for (auto *ECD : llvm::make_range(Vec->begin() + 1, Vec->end()))
+    for (auto *ECD : llvm::drop_begin(*Vec))
       S.Diag(ECD->getLocation(), diag::note_duplicate_element)
         << ECD << toString(ECD->getInitVal(), 10)
         << ECD->getSourceRange();
@@ -18717,15 +18729,13 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
                                                      bool Final) {
   assert(FD && "Expected non-null FunctionDecl");
 
-  // SYCL functions can be template, so we check if they have appropriate
-  // attribute prior to checking if it is a template.
-  if (LangOpts.SYCLIsDevice &&
-      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()))
-    return FunctionEmissionStatus::Emitted;
-
   // Templates are emitted when they're instantiated.
   if (FD->isDependentContext())
     return FunctionEmissionStatus::TemplateDiscarded;
+
+  if (LangOpts.SYCLIsDevice &&
+      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()))
+    return FunctionEmissionStatus::Emitted;
 
   // Check whether this function is an externally visible definition.
   auto IsEmittedForExternalSymbol = [this, FD]() {

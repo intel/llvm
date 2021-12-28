@@ -14,8 +14,7 @@
 #include "PassDetail.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -132,19 +131,7 @@ struct LinalgStrategyPadPass
       paddingPattern.add<LinalgPaddingPattern>(funcOp.getContext(), options,
                                                filter);
     }
-    // Traverse the operations top down to pad producers before consumers. The
-    // extract slice operation introduced after every padded operation enables
-    // padding its consumers. Padding an operation whose producers have not been
-    // padded before fails due to the missing extract slice operations. In this
-    // case, the padding pattern increments the transformation marker without
-    // padding the operation. The top down traversal is thus not only a
-    // performance optimization but also needed to pad all operations along the
-    // use-def chains.
-    GreedyRewriteConfig config;
-    config.useTopDownTraversal = true;
-    if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(paddingPattern),
-                                            config)))
-      signalPassFailure();
+    (void)applyPatternsAndFoldGreedily(funcOp, std::move(paddingPattern));
   }
 
   LinalgPaddingOptions options;
@@ -304,11 +291,22 @@ struct LinalgStrategyVectorizePass
     vectorizationPatterns.add<linalg::LinalgCopyVTRForwardingPattern,
                               linalg::LinalgCopyVTWForwardingPattern>(
         funcOp.getContext(), /*benefit=*/2);
-    if (vectorizePadding) {
-      linalg::populatePadTensorOpVectorizationPatterns(vectorizationPatterns);
-    }
+    TransferReadOp::getCanonicalizationPatterns(vectorizationPatterns,
+                                                funcOp.getContext());
+    TransferWriteOp::getCanonicalizationPatterns(vectorizationPatterns,
+                                                 funcOp.getContext());
     (void)applyPatternsAndFoldGreedily(funcOp,
                                        std::move(vectorizationPatterns));
+
+    // Apply the pad tensor op vectorization separately to avoid running the
+    // GenericPadTensorOpVectorizationPattern too early.
+    // TODO: Improve once we have better infrastructure to control pattern
+    // application.
+    if (vectorizePadding) {
+      RewritePatternSet patterns(funcOp.getContext());
+      linalg::populatePadTensorOpVectorizationPatterns(patterns);
+      (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
+    }
   }
 
   LinalgVectorizationOptions options;

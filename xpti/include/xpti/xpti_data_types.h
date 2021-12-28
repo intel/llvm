@@ -370,6 +370,14 @@ enum class trace_point_type_t : uint16_t {
   function_with_args_begin = XPTI_TRACE_POINT_BEGIN(14),
   /// Used to trace function call end.
   function_with_args_end = XPTI_TRACE_POINT_END(15),
+  /// Used to notify that a new memory allocation is about to start.
+  mem_alloc_begin = XPTI_TRACE_POINT_BEGIN(16),
+  /// Used to notify that a memory allocation took place.
+  mem_alloc_end = XPTI_TRACE_POINT_END(17),
+  /// Used to notify that memory chunk will be released.
+  mem_release_begin = XPTI_TRACE_POINT_BEGIN(18),
+  /// Used to notify that memory has been released.
+  mem_release_end = XPTI_TRACE_POINT_END(19),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -491,6 +499,29 @@ struct trace_event_data_t {
   /// User defined data, if required; owned by the user shared object and will
   /// not be deleted when event data is destroyed
   void *global_user_data = nullptr;
+};
+
+/// Describes memory allocation
+struct mem_alloc_data_t {
+  /// A platform-specific memory object handle. Some heterogeneous programming
+  /// models (like OpenCL and SYCL) have notion of memory objects, that are
+  /// universal across host and all devices. In such models, for each device a
+  /// new device-specific allocation must take place. This handle can be used to
+  /// tie different allocations across devices to their runtime-managed memory
+  /// objects.
+  uintptr_t mem_object_handle = 0;
+  /// A pointer to allocated piece of memory.
+  uintptr_t alloc_pointer = 0;
+  /// Size of memory allocation in bytes.
+  size_t alloc_size = 0;
+  /// Size of guard zone in bytes. Some analysis tools can ask allocators to add
+  /// some extra space in the end of memory allocation to catch out-of-bounds
+  /// memory accesses. Allocators, however, must honor rules of the programming
+  /// model when allocating memory. This value can be used to indicate the real
+  /// guard zone size, that has been used to perform allocation.
+  size_t guard_zone_size = 0;
+  /// Reserved for future needs
+  void *reserved = nullptr;
 };
 
 ///
