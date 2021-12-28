@@ -35,9 +35,18 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext::intel::experimental::esimd::detail {
+
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+namespace detail {
 class WrapperElementTypeProxy;
-}
+} // namespace detail
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
 
 namespace detail {
 
