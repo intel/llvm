@@ -8,6 +8,7 @@
 // The main header of the Explicit SIMD API.
 //===----------------------------------------------------------------------===//
 
+
 #pragma once
 
 /// \defgroup sycl_esimd DPC++ Explicit SIMD API
