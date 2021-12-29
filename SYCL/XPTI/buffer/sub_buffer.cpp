@@ -16,12 +16,12 @@ int main() {
   sycl::queue Queue{};
 
   {
-    sycl::range<1> NumOfWorkItems{4};
+    sycl::range<1> NumOfWorkItems{64};
     // CHECK:{{[0-9]+}}|Create buffer|[[#USERID1:]]|{{.*}}sub_buffer.cpp:21:26|{{.*}}sub_buffer.cpp:21:26
     sycl::buffer<int, 1> Buffer1(NumOfWorkItems);
     // CHECK:{{[0-9]+}}|Create buffer|[[#USERID1:]]|{{.*}}sub_buffer.cpp:23:26|{{.*}}sub_buffer.cpp:23:26
-    sycl::buffer<int, 1> SubBuffer{Buffer1, sycl::range<1>{1},
-                                   sycl::range<1>{2}};
+    sycl::buffer<int, 1> SubBuffer{Buffer1, sycl::range<1>{16},
+                                   sycl::range<1>{32}};
 
     // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID1:]]
     // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID2:]]
@@ -30,17 +30,17 @@ int main() {
       auto Accessor1 = SubBuffer.get_access<sycl::access::mode::write>(cgh);
       // Execute kernel.
       cgh.parallel_for<class FillBuffer>(
-          sycl::range<1>{2}, [=](sycl::id<1> WIid) {
+          sycl::range<1>{32}, [=](sycl::id<1> WIid) {
             Accessor1[WIid] = static_cast<int>(WIid.get(0));
           });
     });
 
     auto Accessor1 = Buffer1.get_access<sycl::access::mode::read>();
     // Check the results.
-    for (size_t I = 1; I < 3; ++I) {
-      if (Accessor1[I] != I - 1) {
+    for (size_t I = 16; I < 48; ++I) {
+      if (Accessor1[I] != I - 16) {
         std::cout << "The result is incorrect for element: " << I
-                  << " , expected: " << I - 1 << " , got: " << Accessor1[I]
+                  << " , expected: " << I - 16 << " , got: " << Accessor1[I]
                   << std::endl;
         MismatchFound = true;
       }
