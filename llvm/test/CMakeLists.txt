@@ -135,7 +135,7 @@ set(LLVM_TEST_DEPENDS
           opt
           sancov
           sanstats
-          spir-to-ir-wrapper
+          spirv-to-ir-wrapper
           sycl-post-link
           split-file
           verify-uselistorder

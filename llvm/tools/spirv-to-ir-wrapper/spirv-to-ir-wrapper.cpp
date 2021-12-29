@@ -1,4 +1,4 @@
-//===--- spir-to-ir-wrapper.cpp - Utility to convert to ir if needed ------===//
+//===--- spirv-to-ir-wrapper.cpp - Utility to convert to ir if needed -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This utility checks if the input file is SPIR based.  If so, convert to IR
+// This utility checks if the input file is SPIR-V based.  If so, convert to IR
 // The input can be either SPIR-V or LLVM-IR.  When LLVM-IR, copy the file to
 // the specified output.
 //
@@ -15,7 +15,7 @@
 // The output file is used to allow for proper input and output flow within
 // the driver toolchain.
 //
-// Usage: spir-to-ir-wrapper input.spv -o output.bc
+// Usage: spirv-to-ir-wrapper input.spv -o output.bc
 //
 //===----------------------------------------------------------------------===//
 
@@ -47,14 +47,14 @@ static cl::opt<std::string>
                   cl::desc("options to pass to llvm-spirv"));
 
 static void error(const Twine &Message) {
-  llvm::errs() << "spir-to-ir-wrapper: " << Message << '\n';
+  llvm::errs() << "spirv-to-ir-wrapper: " << Message << '\n';
   exit(1);
 }
 
 // Convert the SPIR-V to LLVM-IR.
 static int convertSPIRVToLLVMIR(const char *Argv0) {
   // Find llvm-spirv.  It is expected this resides in the same directory
-  // as spir-to-ir-wrapper.
+  // as spirv-to-ir-wrapper.
   StringRef ParentPath = llvm::sys::path::parent_path(Argv0);
   llvm::ErrorOr<std::string> LlvmSpirvBinary =
       llvm::sys::findProgramByName("llvm-spirv", ParentPath);
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
 
   LLVMContext Context;
-  cl::ParseCommandLineOptions(argc, argv, "spir-to-ir-wrapper\n");
+  cl::ParseCommandLineOptions(argc, argv, "spirv-to-ir-wrapper\n");
 
   if (InputFilename.empty())
     error("No input file provided");
