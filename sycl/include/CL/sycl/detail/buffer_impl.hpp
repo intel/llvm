@@ -158,6 +158,8 @@ public:
   void constructorNotification(const detail::code_location &CodeLoc,
                                void *UserObj);
   void destructorNotification(void *UserObj);
+  void accessorNotification(void *Accessor, uint32_t target, uint32_t mode,
+                            const detail::code_location &CodeLoc);
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 

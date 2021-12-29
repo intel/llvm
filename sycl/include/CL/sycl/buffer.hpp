@@ -331,39 +331,60 @@ public:
   template <access::mode Mode, access::target Target = access::target::device>
   accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
            ext::oneapi::accessor_property_list<>>
-  get_access(handler &CommandGroupHandler) {
-    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this,
-                                                           CommandGroupHandler);
+  get_access(
+      handler &CommandGroupHandler,
+      const detail::code_location CodeLoc = detail::code_location::current()) {
+    auto Accessor =
+        accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
+                 ext::oneapi::accessor_property_list<>>(*this,
+                                                        CommandGroupHandler);
+    impl->accessorNotification(&Accessor, (uint32_t)Target, (uint32_t)Mode,
+                               CodeLoc);
+    return Accessor;
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access() {
-    return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this);
+  get_access(
+      const detail::code_location CodeLoc = detail::code_location::current()) {
+    auto Accessor = accessor<T, dimensions, mode, access::target::host_buffer,
+                             access::placeholder::false_t,
+                             ext::oneapi::accessor_property_list<>>(*this);
+    impl->accessorNotification(&Accessor, (uint32_t)access::target::host_buffer,
+                               (uint32_t)mode, CodeLoc);
+    return Accessor;
   }
 
   template <access::mode mode, access::target target = access::target::device>
   accessor<T, dimensions, mode, target, access::placeholder::false_t,
            ext::oneapi::accessor_property_list<>>
-  get_access(handler &commandGroupHandler, range<dimensions> accessRange,
-             id<dimensions> accessOffset = {}) {
-    return accessor<T, dimensions, mode, target, access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(
-        *this, commandGroupHandler, accessRange, accessOffset);
+  get_access(
+      handler &commandGroupHandler, range<dimensions> accessRange,
+      id<dimensions> accessOffset = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
+    auto Accessor =
+        accessor<T, dimensions, mode, target, access::placeholder::false_t,
+                 ext::oneapi::accessor_property_list<>>(
+            *this, commandGroupHandler, accessRange, accessOffset);
+    impl->accessorNotification(&Accessor, (uint32_t)target, (uint32_t)mode,
+                               CodeLoc);
+    return Accessor;
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
-    return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this, accessRange,
-                                                           accessOffset);
+  get_access(
+      range<dimensions> accessRange, id<dimensions> accessOffset = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
+    auto Accessor = accessor<T, dimensions, mode, access::target::host_buffer,
+                             access::placeholder::false_t,
+                             ext::oneapi::accessor_property_list<>>(
+        *this, accessRange, accessOffset);
+    impl->accessorNotification(&Accessor, (uint32_t)access::target::host_buffer,
+                               (uint32_t)mode, CodeLoc);
+    return Accessor;
   }
 
 #if __cplusplus > 201402L

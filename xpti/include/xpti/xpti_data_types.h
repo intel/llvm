@@ -387,6 +387,8 @@ enum class trace_point_type_t : uint16_t {
   offload_alloc_destruct = XPTI_TRACE_POINT_BEGIN(22),
   /// Used to notify about releasing internal handle for offload buffer
   offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
+  /// Used to notify about creation accessor for ofload buffer
+  offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -451,6 +453,8 @@ enum class trace_event_type_t : uint16_t {
   offload_write = XPTI_EVENT(8),
   /// Indicates that the current event is an offload buffer related
   offload_buffer = XPTI_EVENT(9),
+  /// Indicates that the current event is an offload accessor related
+  offload_accessor = XPTI_EVENT(10),
   /// User defined event for extensibility and will have to be registered by
   /// the tool/runtime
   user_defined = 1 << 7
@@ -517,6 +521,19 @@ struct offload_buffer_data_t {
   /// A pointer to user level memory offload object.
   uintptr_t user_object_handle = 0;
 };
+
+/// Describes offload accessor
+struct offload_accessor_data_t {
+  /// A pointer to user level buffer offload object.
+  uintptr_t buffer_handle = 0;
+  /// A pointer to user level accessor offload object.
+  uintptr_t accessor_handle = 0;
+  /// Access target
+  uint32_t target = 0;
+  /// Access mode
+  uint32_t mode = 0;
+};
+
 /// Describes association between user level and platform specific
 /// offload buffer object
 struct offload_buffer_association_data_t {
@@ -632,6 +649,8 @@ constexpr uint16_t trace_offload_alloc_destruct =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_destruct);
 constexpr uint16_t trace_offload_alloc_release =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_release);
+constexpr uint16_t trace_offload_alloc_accessor =
+    static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_accessor);
 
 constexpr uint16_t trace_graph_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::graph);
@@ -639,6 +658,8 @@ constexpr uint16_t trace_algorithm_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::algorithm);
 constexpr uint16_t trace_offload_buffer_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_buffer);
+constexpr uint16_t trace_offload_accessor_event =
+    static_cast<uint16_t>(xpti::trace_event_type_t::offload_accessor);
 } // namespace xpti
 
 using xpti_tp = xpti::trace_point_type_t;
