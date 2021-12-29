@@ -13,6 +13,7 @@
 // values of integer template parameters they were instantiated with.
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/SYCLLowerIR/LowerESIMD.h"
 
 #include "llvm/ADT/DenseMap.h"
