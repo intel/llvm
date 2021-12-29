@@ -83,13 +83,25 @@ pi_result redefinedProgramBuild(
 
   return PI_SUCCESS;
 }
+
+pi_result redefinedContextCreate(const pi_context_properties *Properties,
+                                 pi_uint32 NumDevices, const pi_device *Devices,
+                                 void (*PFnNotify)(const char *ErrInfo,
+                                                   const void *PrivateInfo,
+                                                   size_t CB, void *UserData),
+                                 void *UserData, pi_context *RetContext) {
+  return PI_SUCCESS;
+}
 } // anonymous namespace
 
 // Check that program is built once for all sub-devices
-TEST(SubDevices, BuildProgramForSubdevices) {
+// FIXME: mock 3 devices (one root device + two sub-devices) within a single
+// context.
+TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
   sycl::platform Plt{sycl::default_selector()};
   // Host devices do not support sub-devices
-  if (Plt.is_host()) {
+  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on "
               << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";
     GTEST_SKIP(); // test is not supported on selected platform.
@@ -106,18 +118,22 @@ TEST(SubDevices, BuildProgramForSubdevices) {
   Mock.redefine<sycl::detail::PiApiKind::piDeviceRelease>(
       redefinedDeviceRelease);
   Mock.redefine<sycl::detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  Mock.redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
-  // Create 2 sub-devices and use first device as a root device
-  sycl::context Ctx{Plt};
+  // Create 2 sub-devices and use first platform device as a root device
   const sycl::device device = Plt.get_devices()[0];
   // Initialize root device
   rootDevice = sycl::detail::getSyclObjImpl(device)->getHandleRef();
   // Initialize sub-devices
   auto PltImpl = sycl::detail::getSyclObjImpl(Plt);
-  auto subDev1 = std::make_shared<sycl::detail::device_impl>(
-      piSubDev1, PltImpl->getPlugin());
-  auto subDev2 = std::make_shared<sycl::detail::device_impl>(
-      piSubDev2, PltImpl->getPlugin());
+  auto subDev1 =
+      std::make_shared<sycl::detail::device_impl>(piSubDev1, PltImpl);
+  auto subDev2 =
+      std::make_shared<sycl::detail::device_impl>(piSubDev2, PltImpl);
+  sycl::context Ctx{
+      {device, sycl::detail::createSyclObjFromImpl<sycl::device>(subDev1),
+       sycl::detail::createSyclObjFromImpl<sycl::device>(subDev2)}};
 
   // Create device binary description structures for getBuiltPIProgram API.
   auto devBin = Img.convertToNativeType();

@@ -470,16 +470,32 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg)
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
-  // Use root device image to avoid building for the same architecture.
-  DeviceImplPtr RootDev = DeviceImpl;
-  while (!RootDev->isRootDevice())
-    RootDev = detail::getSyclObjImpl(
-        RootDev->get_info<info::device::parent_device>());
+  // FIXME: the logic is modified to work-around unintuitive Intel OpenCL CPU
+  // implementation behavior. Kernels created with the program built for root
+  // device can be re-used on sub-devices, but other combinations doesn't work
+  // (e.g. clGetKernelWorkGroupInfo returns CL_INVALID_KERNEL if kernel was
+  // created from the program built for sub-device and re-used either on root or
+  // other sub-device).
+  // To workaround this case we optimize only one case: root device shares the
+  // same context with it's sub-device(s). We built for the root device and
+  // cache the results. The expected solution is to build for any sub-device and
+  // use root device handle as cache key to share build results for any other
+  // sub-device or even a root device.
+  // TODO: it might be worth testing if Level Zero plug-in supports all cases
+  // and enable more cases for Level Zero.
+  DeviceImplPtr Dev = DeviceImpl;
+  while (!Dev->isRootDevice()) {
+    auto ParentDev =
+        detail::getSyclObjImpl(Dev->get_info<info::device::parent_device>());
+    if (!ContextImpl->hasDevice(ParentDev))
+      break;
+    Dev = ParentDev;
+  }
 
-  auto BuildF = [this, &M, &KSId, &ContextImpl, &RootDev, Prg, &CompileOpts,
+  auto BuildF = [this, &M, &KSId, &ContextImpl, &Dev, Prg, &CompileOpts,
                  &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     auto Context = createSyclObjFromImpl<context>(ContextImpl);
-    auto Device = createSyclObjFromImpl<device>(RootDev);
+    auto Device = createSyclObjFromImpl<device>(Dev);
 
     const RTDeviceBinaryImage &Img =
         getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
@@ -529,7 +545,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     return BuiltProgram.release();
   };
 
-  const RT::PiDevice PiDevice = RootDev->getHandleRef();
+  const RT::PiDevice PiDevice = Dev->getHandleRef();
 
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
@@ -566,13 +582,7 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
-
-  // Use root device image to avoid building for the same architecture.
-  DeviceImplPtr D = DeviceImpl;
-  while (!D->isRootDevice())
-    D = detail::getSyclObjImpl(D->get_info<info::device::parent_device>());
-
-  const RT::PiDevice PiDevice = D->getHandleRef();
+  const RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
   auto key = std::make_tuple(std::move(SpecConsts), M, PiDevice,
                              CompileOpts + LinkOpts, KernelName);
@@ -580,7 +590,8 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
   if (std::get<0>(ret_tuple))
     return ret_tuple;
 
-  RT::PiProgram Program = getBuiltPIProgram(M, ContextImpl, D, KernelName, Prg);
+  RT::PiProgram Program =
+      getBuiltPIProgram(M, ContextImpl, DeviceImpl, KernelName, Prg);
 
   auto AcquireF = [](KernelProgramCache &Cache) {
     return Cache.acquireKernelsPerProgramCache();
@@ -841,13 +852,8 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   for (unsigned I = 0; I < Imgs.size(); I++)
     RawImgs[I] = const_cast<pi_device_binary>(&Imgs[I]->getRawData());
 
-  // Use root device image to avoid building for the same architecture.
-  device RootDevice = Device;
-  while (!getSyclObjImpl(RootDevice)->isRootDevice())
-    RootDevice = Device.get_info<info::device::parent_device>();
-
   Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
-      getSyclObjImpl(RootDevice)->getHandleRef(), RawImgs.data(),
+      getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
       (cl_uint)RawImgs.size(), &ImgInd);
 
   if (JITCompilationIsRequired) {
