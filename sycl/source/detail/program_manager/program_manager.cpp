@@ -470,17 +470,18 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg)
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
-  // FIXME: the logic is modified to work-around unintuitive Intel OpenCL CPU
+  // FIXME: the logic is modified to work around unintuitive Intel OpenCL CPU
   // implementation behavior. Kernels created with the program built for root
   // device can be re-used on sub-devices, but other combinations doesn't work
   // (e.g. clGetKernelWorkGroupInfo returns CL_INVALID_KERNEL if kernel was
   // created from the program built for sub-device and re-used either on root or
   // other sub-device).
-  // To workaround this case we optimize only one case: root device shares the
-  // same context with it's sub-device(s). We built for the root device and
-  // cache the results. The expected solution is to build for any sub-device and
-  // use root device handle as cache key to share build results for any other
-  // sub-device or even a root device.
+  // To work around this case we optimize only one case: root device shares the
+  // same context with its sub-device(s). We built for the root device and
+  // cache the results.
+  // The expected solution is to build for any sub-device and use root device
+  // handle as cache key to share build results for any other sub-device or even
+  // a root device.
   // TODO: it might be worth testing if Level Zero plug-in supports all cases
   // and enable more cases for Level Zero.
   DeviceImplPtr Dev = DeviceImpl;
