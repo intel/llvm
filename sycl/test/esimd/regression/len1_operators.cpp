@@ -4,6 +4,7 @@
 // This test checks that compiler does not report 'ambiguous operator' error
 // when compiling simd or simd_view operations with lenth = 1.
 
+
 #include <sycl/ext/intel/experimental/esimd.hpp>
 
 #include <cstdint>
