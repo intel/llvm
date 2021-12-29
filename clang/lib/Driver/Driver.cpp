@@ -2823,7 +2823,7 @@ static bool runBundler(const SmallVectorImpl<StringRef> &BundlerArgs,
   return !llvm::sys::ExecuteAndWait(BundlerBinary.get(), BundlerArgs);
 }
 
-bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
+static bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   assert(types::isFPGA(Type) && "unexpected Type for FPGA binary check");
   // Do not do the check if the file doesn't exist
   if (!llvm::sys::fs::exists(Object))
