@@ -4,7 +4,7 @@
 clang/ @intel/dpcpp-cfe-reviewers
 
 # Clang driver
-clang/**/Driver @intel/dpcpp-clang-driver-reviewers
+clang/**/Driver/ @intel/dpcpp-clang-driver-reviewers
 
 # LLVM-SPIRV translator
 llvm-spirv/ @intel/dpcpp-spirv-reviewers
@@ -27,10 +27,9 @@ sycl/doc/ @intel/dpcpp-doc-reviewers
 sycl/doc/design/ @intel/dpcpp-specification-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 sycl/doc/extensions/SPIRV/ @intel/dpcpp-spirv-doc-reviewers
-sycl/doc/dev @bader @vladimirlaz
 
 # Level Zero plugin
-sycl/sycl/plugins/level_zero @intel/dpcpp-l0-pi-reviewers
+sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
 
 # ESIMD CPU emulator plug-in
 sycl/plugins/esimd_cpu/ @intel/dpcpp-esimd-reviewers
@@ -39,8 +38,8 @@ sycl/plugins/esimd_cpu/ @intel/dpcpp-esimd-reviewers
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
-xpti/ @tovinkere @intel/llvm-reviewers-runtime
-xptifw/ @tovinkere @intel/llvm-reviewers-runtime
+xpti/ @intel/llvm-reviewers-runtime
+xptifw/ @intel/llvm-reviewers-runtime
 
 # DPC++ tools
 llvm/ @intel/dpcpp-tools-reviewers

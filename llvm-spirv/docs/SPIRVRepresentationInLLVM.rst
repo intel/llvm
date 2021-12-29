@@ -411,6 +411,56 @@ For example:
 are translated for image types, but they should be encoded in LLVM IR type name
 rather than function metadata.
 
+Function parameter and global variable decoration through metadata
+------------------------------------------------------------------
+
+Both function parameters and global variables can be decorated using LLVM
+metadata through the metadata names ``spirv.ParameterDecorations`` and
+``spirv.Decorations`` respectively. ``spirv.ParameterDecorations`` must be tied
+to the kernel function while ``spirv.Decorations`` is tied directly to the
+global variable.
+
+A "decoration-node" is a metadata node consisting of one or more operands. The
+first operand is an integer literal representing the SPIR-V decoration
+identifier. The other operands are either an integer or string literal
+representing the remaining extra operands of the corresponding SPIR-V
+decoration.
+
+A "decoration-list" is a metadata node consisting of references to zero or more
+decoration-nodes.
+
+``spirv.Decorations`` must refer to a decoration-list while
+``spirv.ParameterDecorations`` must refer to a metadata node that contains N
+references to decoration-lists, where N is the number of arguments of the
+function the metadata is tied to.
+
+``spirv.Decorations`` example:
+
+.. code-block:: llvm
+
+  @v = global i32 0, !spirv.Decorations !1
+  ...
+  !1 = !{!2, !3}               ; decoration-list with two decoration nodes
+  !2 = !{i32 22}               ; decoration-node with no extra operands
+  !3 = !{i32 41, !"v", i32 0}  ; decoration-node with 2 extra operands
+
+decorates a global variable ``v`` with ``Constant`` and ``LinkageAttributes``
+with extra operands ``"v"`` and ``Export`` in SPIR-V.
+
+``spirv.ParameterDecorations`` example:
+
+.. code-block:: llvm
+
+  define spir_kernel void @k(float %a, float %b) #0 !spirv.ParameterDecorations !1
+  ...
+  !1 = !{!2, !3} ; metadata node with 2 decoration-lists
+  !2 = !{}       ; empty decoration-list
+  !3 = !{!4}     ; decoration-list with one decoration node
+  !4 = !{i32 19} ; decoration-node with no extra operands
+
+decorates the argument ``b`` of ``k`` with ``Restrict`` in SPIR-V while not
+adding any decoration to argument ``a``.
+
 Debug information extension
 ===========================
 
