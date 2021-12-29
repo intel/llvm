@@ -1,3 +1,4 @@
+
 set(LLVM_LINK_COMPONENTS Core Object Support)
 
 add_clang_tool(clang-offload-extract
