@@ -4,9 +4,9 @@
 // The test is written using conversion specifiers table from cppreference [1]
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
-// FIXME: Once the Windows OpenCL CPU support is fixed, merge this test's
+// FIXME: Once the Windows OpenCL CPU/ACC support is fixed, merge this test's
 // contents into the common integer test.
-// UNSUPPORTED: (windows && cpu) || hip_amd
+// UNSUPPORTED: (windows && (cpu || accelerator)) || hip_amd
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
