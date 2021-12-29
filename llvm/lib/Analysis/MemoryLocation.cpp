@@ -120,34 +120,41 @@ MemoryLocation MemoryLocation::getForDest(const AnyMemIntrinsic *MI) {
 
 Optional<MemoryLocation>
 MemoryLocation::getForDest(const CallBase *CB, const TargetLibraryInfo &TLI) {
-  if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(CB)) {
-    if (auto *MemInst = dyn_cast<AnyMemIntrinsic>(CB))
-      return getForDest(MemInst);
+  if (!CB->onlyAccessesArgMemory())
+    return None;
 
-    switch (II->getIntrinsicID()) {
-    default:
+  if (CB->hasOperandBundles())
+    // TODO: remove implementation restriction
+    return None;
+
+  Value *UsedV = nullptr;
+  Optional<unsigned> UsedIdx;
+  for (unsigned i = 0; i < CB->arg_size(); i++) {
+    if (!CB->getArgOperand(i)->getType()->isPointerTy())
+      continue;
+     if (CB->onlyReadsMemory(i))
+       continue;
+    if (!UsedV) {
+      // First potentially writing parameter
+      UsedV = CB->getArgOperand(i);
+      UsedIdx = i;
+      continue;
+    }
+    UsedIdx = None;
+    if (UsedV != CB->getArgOperand(i))
+      // Can't describe writing to two distinct locations.
+      // TODO: This results in an inprecision when two values derived from the
+      // same object are passed as arguments to the same function.
       return None;
-    case Intrinsic::init_trampoline:
-      return MemoryLocation::getForArgument(CB, 0, TLI);
-    case Intrinsic::masked_store:
-      return MemoryLocation::getForArgument(CB, 1, TLI);
-    }
   }
+  if (!UsedV)
+    // We don't currently have a way to represent a "does not write" result
+    // and thus have to be conservative and return unknown.
+    return None;
 
-  LibFunc LF;
-  if (TLI.getLibFunc(*CB, LF) && TLI.has(LF)) {
-    switch (LF) {
-    case LibFunc_strncpy:
-    case LibFunc_strcpy:
-    case LibFunc_strcat:
-    case LibFunc_strncat:
-      return getForArgument(CB, 0, &TLI);
-    default:
-      break;
-    }
-  }
-
-  return None;
+  if (UsedIdx)
+    return getForArgument(CB, *UsedIdx, &TLI);
+  return MemoryLocation::getBeforeOrAfter(UsedV, CB->getAAMetadata());
 }
 
 MemoryLocation MemoryLocation::getForArgument(const CallBase *Call,
