@@ -4455,6 +4455,12 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                             transValue(CI->getArgOperand(1), BB), MemoryAccess,
                             BB);
   }
+  case OpCompositeConstruct: {
+    std::vector<SPIRVId> Operands = {
+        transValue(CI->getArgOperand(0), BB)->getId()};
+    return BM->addCompositeConstructInst(transType(CI->getType()), Operands,
+                                         BB);
+  }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       return BM->addUnaryInst(OC, transType(CI->getType()),

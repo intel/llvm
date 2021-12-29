@@ -22,6 +22,7 @@
 ; CHECK-SPIRV-DAG: Constant [[#IntTy]] [[#Two:]] 2
 ; CHECK-SPIRV-DAG: Constant [[#IntTy]] [[#Three:]] 3
 ; CHECK-SPIRV-DAG: Constant [[#IntTy]] [[#Sixteen:]] 16
+; CHECK-SPIRV-DAG: Constant [[#IntTy]] [[#FortyTwo:]] 42
 ; CHECK-SPIRV: TypeJointMatrixINTEL [[#CTy:]] [[#ShortTy]] [[#Two]] [[#Two]] [[#Zero]] [[#Three]]
 ; CHECK-SPIRV: TypeJointMatrixINTEL [[#ATy:]] [[#CharTy]] [[#Two]] [[#Sixteen]] [[#Zero]] [[#Three]]
 ; CHECK-SPIRV: TypeJointMatrixINTEL [[#BTy:]] [[#CharTy]] [[#Sixteen]] [[#Two]] [[#Three]] [[#Three]]
@@ -39,8 +40,12 @@
 ; CHECK-SPIRV: JointMatrixLoadINTEL [[#ATy]] [[#A:]] [[#Aptr:]] [[#Stride]] [[#Zero]] [[#Three]] [[#Zero]]
 ; CHECK-SPIRV: JointMatrixLoadINTEL [[#BTy]] [[#B:]] [[#Bptr:]] [[#Stride]] [[#Zero]] [[#Three]] [[#Zero]]
 ; CHECK-SPIRV: JointMatrixMadINTEL [[#CTy]] [[#CMad]] [[#A]] [[#B]] [[#C]] [[#Three]]
-
 ; CHECK-SPIRV: JointMatrixStoreINTEL [[#Cptr:]] [[#C]] [[#Stride]] [[#Zero]] [[#Three]] [[#Zero]]
+; CHECK-SPIRV: CompositeConstruct [[#CTy]] [[#Cnew:]] [[#FortyTwo]]
+; CHECK-SPIRV: Store [[#PtrToZero:]] [[#Zero]]
+; CHECK-SPIRV: Load [[#]] [[#ZeroLoad:]] [[#PtrToZero]]
+; CHECK-SPIRV: CompositeConstruct [[#CTy]] [[#CnewLoad:]] [[#ZeroLoad]]
+
 
 ; CHECK-LLVM: %spirv.JointMatrixINTEL._short_2_2_0_3
 ; CHECK-LLVM: %spirv.JointMatrixINTEL._char_2_16_0_3
@@ -51,9 +56,11 @@
 ; CHECK-LLVM: [[A:%.*]] = call spir_func %spirv.JointMatrixINTEL._char_2_16_0_3 addrspace(1)* @_Z77__spirv_JointMatrixLoadINTEL_RPU3AS139__spirv_JointMatrixINTEL__char_2_16_0_3PU3AS4cliii(i8 addrspace(4)* [[APtr:%.*]], i64 [[Stride]], i32 0, i32 3, i32 0)
 ; CHECK-LLVM: [[B:%.*]] = call spir_func %spirv.JointMatrixINTEL._char_16_2_3_3 addrspace(1)* @_Z77__spirv_JointMatrixLoadINTEL_RPU3AS139__spirv_JointMatrixINTEL__char_16_2_3_3PU3AS4cliii(i8 addrspace(4)* [[BPtr:%.*]], i64 [[Stride]], i32 0, i32 3, i32 0)
 ; CHECK-LLVM: [[CMad:%.*]] = call spir_func %spirv.JointMatrixINTEL._short_2_2_0_3 addrspace(1)* @_Z27__spirv_JointMatrixMadINTELPU3AS139__spirv_JointMatrixINTEL__char_2_16_0_3PU3AS139__spirv_JointMatrixINTEL__char_16_2_3_3PU3AS139__spirv_JointMatrixINTEL__short_2_2_0_3i(%spirv.JointMatrixINTEL._char_2_16_0_3 addrspace(1)* [[A]], %spirv.JointMatrixINTEL._char_16_2_3_3 addrspace(1)* [[B]], %spirv.JointMatrixINTEL._short_2_2_0_3 addrspace(1)* [[C]], i32 3)
-
 ; CHECK-LLVM: call spir_func void @_Z29__spirv_JointMatrixStoreINTELPU3AS4sPU3AS139__spirv_JointMatrixINTEL__short_2_2_0_3liii(i16 addrspace(4)* [[CPtr]], %spirv.JointMatrixINTEL._short_2_2_0_3 addrspace(1)* [[C]], i64 [[Stride]], i32 0, i32 3, i32 0)
-
+; CHECK-LLVM: call spir_func %spirv.JointMatrixINTEL._short_2_2_0_3 addrspace(1)* @_Z26__spirv_CompositeConstructi(i32 42)
+; CHECK-LLVM: store i32 0, i32 addrspace(4)* [[StoredZero:%.*]], align 4
+; CHECK-LLVM: [[LoadedZero:%.*]] = load i32, i32 addrspace(4)* [[StoredZero]], align 8
+; CHECK-LLVM: call spir_func %spirv.JointMatrixINTEL._short_2_2_0_3 addrspace(1)* @_Z26__spirv_CompositeConstructi(i32 [[LoadedZero]])
 
 ; ModuleID = 'joint_matrix_test-sycl-spir64-unknown-unknown.bc'
 source_filename = "./joint_matrix_test.cpp"
@@ -119,6 +126,13 @@ for.body.i:                                       ; preds = %for.cond.i
 
 _ZZ4mainENKUlN2cl4sycl7nd_itemILi2EEEE_clES2_.exit: ; preds = %for.cond.i
   tail call spir_func void @_Z29__spirv_JointMatrixStoreINTELIsLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEvPT_PNS0_24__spirv_JointMatrixINTELIS4_XT0_EXT1_EXT2_EXT3_EEEmS1_S3_i(i16 addrspace(4)* %add.ptr7.i, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %C.0.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
+  %C.0.i.new = call spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z26__spirv_CompositeConstructi(i32 42) #1
+  %ref.tmp = alloca i32, align 4
+  %ref.tmp.ascast = addrspacecast i32* %ref.tmp to i32 addrspace(4)*
+  store i32 0, i32 addrspace(4)* %ref.tmp.ascast, align 4
+  %zero = load i32, i32 addrspace(4)* %ref.tmp.ascast, align 8
+  %C.0.i.new.load = call spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z26__spirv_CompositeConstructi(i32 %zero) #1
+
   ret void
 }
 
@@ -136,6 +150,9 @@ declare dso_local spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(
 
 ; Function Attrs: convergent
 declare dso_local spir_func void @_Z29__spirv_JointMatrixStoreINTELIsLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEvPT_PNS0_24__spirv_JointMatrixINTELIS4_XT0_EXT1_EXT2_EXT3_EEEmS1_S3_i(i16 addrspace(4)*, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
+
+; Function Attrs: convergent
+declare dso_local spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z26__spirv_CompositeConstructi(i32) #1
 
 ; Function Attrs: inaccessiblememonly nofree nosync nounwind willreturn
 declare void @llvm.assume(i1 noundef) #2
