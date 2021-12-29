@@ -245,7 +245,10 @@ int main(int argc, char *argv[]) {
   writeHist(bins);
   writeHist(cpuHistogram);
   // Checking Histogram
-  if (checkHistogram(cpuHistogram, bins)) {
+  int result = checkHistogram(cpuHistogram, bins);
+  free(srcY, q);
+  free(bins, q);
+  if (result) {
     std::cerr << "PASSED\n";
     return 0;
   } else {
