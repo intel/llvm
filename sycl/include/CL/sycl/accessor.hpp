@@ -1748,27 +1748,27 @@ bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
 bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
 private:
-// supporting function for get_pointer()
-// when dim==1, MData will have been preadjusted for faster access with []
-// but for get_pointer() we must return the original pointer.
-// On device, getQualifiedPtr() returns MData, so we need to backjust it.
-// On host, getQualifiedPtr() does not return MData, no need to adjust.
-PtrType getPointerAdjusted() const {
+  // supporting function for get_pointer()
+  // when dim==1, MData will have been preadjusted for faster access with []
+  // but for get_pointer() we must return the original pointer.
+  // On device, getQualifiedPtr() returns MData, so we need to backjust it.
+  // On host, getQualifiedPtr() does not return MData, no need to adjust.
+  PtrType getPointerAdjusted() const {
 #ifdef __SYCL_DEVICE_ONLY__
-  if (1 == AdjustedDim)
-    return getQualifiedPtr() - impl.Offset[0];
+    if (1 == AdjustedDim)
+      return getQualifiedPtr() - impl.Offset[0];
 #endif
-  return getQualifiedPtr();
-}
+    return getQualifiedPtr();
+  }
 
-void checkDeviceAccessorBufferSize(const size_t elemInBuffer) {
-  if (!IsHostBuf && elemInBuffer == 0)
-    throw cl::sycl::invalid_object_error(
-        "SYCL buffer size is zero. To create a device accessor, SYCL "
-        "buffer size must be greater than zero.",
-        PI_INVALID_VALUE);
-}
-}; // namespace sycl
+  void checkDeviceAccessorBufferSize(const size_t elemInBuffer) {
+    if (!IsHostBuf && elemInBuffer == 0)
+      throw cl::sycl::invalid_object_error(
+          "SYCL buffer size is zero. To create a device accessor, SYCL "
+          "buffer size must be greater than zero.",
+          PI_INVALID_VALUE);
+  }
+  }; // namespace sycl
 
 #if __cplusplus > 201402L
 
@@ -2009,8 +2009,7 @@ public:
   accessor(handler &, const detail::code_location CodeLoc =
                           detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(range<AdjustedDim>{1}) {
-  }
+      : impl(range<AdjustedDim>{1}){}
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
@@ -2018,10 +2017,11 @@ public:
   }
 #endif
 
-  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
-  accessor(
-      handler &, const property_list &propList,
-      const detail::code_location CodeLoc = detail::code_location::current())
+        template <int Dims = Dimensions,
+                  typename = detail::enable_if_t<Dims == 0>>
+        accessor(handler &, const property_list &propList,
+                 const detail::code_location CodeLoc =
+		     detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
@@ -2039,8 +2039,7 @@ public:
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(AllocationSize) {
-  }
+      : impl(AllocationSize) {}
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
@@ -2049,11 +2048,12 @@ public:
   }
 #endif
 
-  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
-  accessor(
-      range<Dimensions> AllocationSize, handler &,
-      const property_list &propList,
-      const detail::code_location CodeLoc = detail::code_location::current())
+        template <int Dims = Dimensions,
+                  typename = detail::enable_if_t<(Dims > 0)>>
+        accessor(range<Dimensions> AllocationSize, handler &,
+                 const property_list &propList,
+                 const detail::code_location CodeLoc =
+		     detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
