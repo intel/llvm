@@ -1627,9 +1627,10 @@ public:
     static_assert(
         PropertyListT::template areSameCompileTimeProperties<NewPropsT...>(),
         "Compile-time-constant properties must be the same");
-    detail::constructorNotification(Other.MSYCLMemObj,
-                                    detail::AccessorBaseHost::impl.get(),
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::constructorNotification(impl.get()->MSYCLMemObj, impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+#endif
   }
 
   constexpr bool is_placeholder() const { return IsPlaceH; }
