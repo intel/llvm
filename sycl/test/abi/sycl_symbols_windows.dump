@@ -991,7 +991,6 @@
 ?accessGlobalFlushBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z
 ?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z
 ?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z
-?accessorNotification@buffer_impl@detail@sycl@cl@@QEAAXPEAXIIAEBUcode_location@234@@Z
 ?acos@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?acos@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?acos@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
@@ -1458,6 +1457,7 @@
 ?compile_with_kernel_name@program@sycl@cl@@AEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0_J@Z
 ?compile_with_source@program@sycl@cl@@QEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z
 ?constructorNotification@buffer_impl@detail@sycl@cl@@QEAAXAEBUcode_location@234@PEAX@Z
+?constructorNotification@detail@sycl@cl@@YAXPEAX0W4target@access@23@W4mode@523@AEBUcode_location@123@@Z
 ?contains_specialization_constants@kernel_bundle_plain@detail@sycl@cl@@QEBA_NXZ
 ?contextSetExtendedDeleter@pi@detail@sycl@cl@@YAXAEBVcontext@34@P6AXPEAX@Z1@Z
 ?convertChannelOrder@detail@sycl@cl@@YA?AW4_pi_image_channel_order@@W4image_channel_order@23@@Z
