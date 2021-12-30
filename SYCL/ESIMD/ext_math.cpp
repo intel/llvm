@@ -7,10 +7,6 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// TODO the test started failing on Linux apprently due to host-side changes in
-// code generation for log/exp, as device code remained the same as earlier,
-// when the test passed.
-// XFAIL: linux
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -58,7 +54,7 @@ struct InitDataInRange0_5 {
 
 // --- Math operation identification
 
-enum class MathOp { sin, cos, exp, sqrt, inv, log, rsqrt, trunc };
+enum class MathOp { sin, cos, exp, sqrt, inv, log, rsqrt, trunc, exp2, log2 };
 
 // --- Template functions calculating given math operation on host and device
 
@@ -95,14 +91,16 @@ template <MathOp Op> float HostMathFunc(float X);
     }                                                                          \
   }
 
-DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(sin, sin);
-DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(cos, cos);
-DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(exp, exp);
-DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(log, log);
+DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(sin, std::sin);
+DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(cos, std::cos);
+DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(exp, std::exp);
+DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(log, std::log);
 DEFINE_ESIMD_OP(inv, 1.0f /);
-DEFINE_ESIMD_OP(sqrt, sqrt);
-DEFINE_ESIMD_OP(rsqrt, 1.0f / sqrt);
-DEFINE_ESIMD_RT_OP(trunc, trunc);
+DEFINE_ESIMD_OP(sqrt, std::sqrt);
+DEFINE_ESIMD_OP(rsqrt, 1.0f / std::sqrt);
+DEFINE_ESIMD_OP(exp2, std::exp2);
+DEFINE_ESIMD_OP(log2, std::log2);
+DEFINE_ESIMD_RT_OP(trunc, std::trunc);
 
 // --- Generic kernel calculating an extended math operation on array elements
 
@@ -199,6 +197,8 @@ template <int VL> bool test(queue &Q) {
   Pass &= test<MathOp::exp, VL>(Q, "exp", InitDataInRange0_5{});
   Pass &= test<MathOp::log, VL>(Q, "log", InitDataFuncWide{});
   Pass &= test<MathOp::trunc, VL>(Q, "trunc", InitDataFuncWide{});
+  Pass &= test<MathOp::exp2, VL>(Q, "exp2", InitDataFuncWide{});
+  Pass &= test<MathOp::log2, VL>(Q, "log2", InitDataFuncWide{});
   return Pass;
 }
 
