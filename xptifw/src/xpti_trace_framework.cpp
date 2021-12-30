@@ -440,6 +440,7 @@ public:
       // Add source file information ot string table
       source_id =
           MStringTableRef.add(Payload->source_file, &Payload->source_file);
+      line_no = Payload->line_no;
     }
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::StackTraceAvailable))) {
@@ -448,7 +449,7 @@ public:
           MStringTableRef.add(Payload->stack_trace, &Payload->stack_trace);
     }
     // Pack the 1st 64-bit value with string ID from source file name and line
-    // number; pack the 2nd 54-bit value with stack backtrace string ID and the
+    // number; pack the 2nd 64-bit value with stack backtrace string ID and the
     // kernel name string ID
     Payload->uid.p1 = XPTI_PACK32_RET64(source_id, line_no);
     Payload->uid.p2 = XPTI_PACK32_RET64(stack_id, name_id);
@@ -456,7 +457,7 @@ public:
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)))
       Payload->uid.p3 = (uint64_t)Payload->code_ptr_va;
-    // Generate the had from the information available and this will be our
+    // Generate the hash from the information available and this will be our
     // unique ID for the trace point.
     HashValue = Payload->uid.hash();
     Payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
