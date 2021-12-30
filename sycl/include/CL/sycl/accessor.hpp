@@ -2021,7 +2021,7 @@ public:
                   typename = detail::enable_if_t<Dims == 0>>
         accessor(handler &, const property_list &propList,
                  const detail::code_location CodeLoc =
-		     detail::code_location::current())
+                     detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
