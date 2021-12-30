@@ -2039,7 +2039,7 @@ public:
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(AllocationSize) {}
+      : impl(AllocationSize){}
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
@@ -2053,7 +2053,7 @@ public:
         accessor(range<Dimensions> AllocationSize, handler &,
                  const property_list &propList,
                  const detail::code_location CodeLoc =
-		     detail::code_location::current())
+                     detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
