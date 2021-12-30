@@ -49,6 +49,7 @@
 ??$get_info@$0BABB@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABBA@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0BABBB@@device@sycl@cl@@QEBA?AV?$vector@W4memory_order@sycl@cl@@V?$allocator@W4memory_order@sycl@cl@@@std@@@std@@XZ
+??$get_info@$0BABBC@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0BABBC@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@$0BABC@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABD@@device@sycl@cl@@QEBA_KXZ
@@ -148,7 +149,6 @@
 ??$get_info@$0EBJD@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0EBJE@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0ECBD@@device@sycl@cl@@QEBA_NXZ
-??$get_info@$0BABBC@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0JAA@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0JAB@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0JAC@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
@@ -991,6 +991,7 @@
 ?accessGlobalFlushBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z
 ?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z
 ?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z
+?accessorNotification@buffer_impl@detail@sycl@cl@@QEAAXPEAXIIAEBUcode_location@234@@Z
 ?acos@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?acos@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?acos@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
