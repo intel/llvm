@@ -371,10 +371,10 @@ Tool *ToolChain::getTableTform() const {
   return FileTableTform.get();
 }
 
-Tool *ToolChain::getSpirToIrWrapper() const {
-  if (!SpirToIrWrapper)
-    SpirToIrWrapper.reset(new tools::SpirToIrWrapper(*this));
-  return SpirToIrWrapper.get();
+Tool *ToolChain::getSpirvToIrWrapper() const {
+  if (!SpirvToIrWrapper)
+    SpirvToIrWrapper.reset(new tools::SpirvToIrWrapper(*this));
+  return SpirvToIrWrapper.get();
 }
 
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
@@ -438,8 +438,8 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::FileTableTformJobClass:
     return getTableTform();
 
-  case Action::SpirToIrWrapperJobClass:
-    return getSpirToIrWrapper();
+  case Action::SpirvToIrWrapperJobClass:
+    return getSpirvToIrWrapper();
   }
 
   llvm_unreachable("Invalid tool kind.");

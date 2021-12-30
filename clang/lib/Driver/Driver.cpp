@@ -4629,7 +4629,7 @@ class OffloadingActionBuilder final {
               LinkObjects.push_back(Input);
               continue;
             }
-            Action *ConvertSPIRVAction = C.MakeAction<SpirToIrWrapperJobAction>(
+            Action *ConvertSPIRVAction = C.MakeAction<SpirvToIrWrapperJobAction>(
                 Input, Input->getType() == types::TY_Archive
                            ? types::TY_Tempfilelist
                            : types::TY_LLVM_BC);

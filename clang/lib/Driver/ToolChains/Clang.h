@@ -267,10 +267,10 @@ public:
 };
 
 /// SPIR-V to LLVM-IR wrapper tool
-class LLVM_LIBRARY_VISIBILITY SpirToIrWrapper final : public Tool {
+class LLVM_LIBRARY_VISIBILITY SpirvToIrWrapper final : public Tool {
 public:
-  SpirToIrWrapper(const ToolChain &TC)
-      : Tool("Convert SPIR-V to LLVM-IR if needed", "spir-to-ir-wrapper", TC) {}
+  SpirvToIrWrapper(const ToolChain &TC)
+      : Tool("Convert SPIR-V to LLVM-IR if needed", "spirv-to-ir-wrapper", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool hasGoodDiagnostics() const override { return true; }

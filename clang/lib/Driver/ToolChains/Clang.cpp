@@ -9397,7 +9397,7 @@ void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs, None));
 }
 
-void SpirToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
+void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                    const InputInfo &Output,
                                    const InputInfoList &Inputs,
                                    const llvm::opt::ArgList &TCArgs,
@@ -9405,7 +9405,7 @@ void SpirToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   InputInfoList ForeachInputs;
   ArgStringList CmdArgs;
 
-  assert(Inputs.size() == 1 && "Only one input expected to spir-to-ir-wrapper");
+  assert(Inputs.size() == 1 && "Only one input expected to spirv-to-ir-wrapper");
 
   // Input File
   for (const auto &I : Inputs) {

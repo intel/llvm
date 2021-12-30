@@ -19,7 +19,7 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir -foffload-static-lib=%t.a -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB: spir-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
 // FOFFLOAD_STATIC_LIB: llvm-link{{.*}} "@[[OUTLIST]]"
 
 /// Use of -foffload-static-lib and -foffload-whole-static-lib are deprecated
@@ -43,7 +43,7 @@
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-2.o"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-3.o"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB_MULTI_O: spir-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_MULTI_O: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
 // FOFFLOAD_STATIC_LIB_MULTI_O: llvm-link{{.*}} "@[[OUTLIST]]"
 
 /// ###########################################################################
@@ -69,7 +69,7 @@
 // FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 14: input, "[[INPUTA]]", archive
 // FOFFLOAD_STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, archive
-// FOFFLOAD_STATIC_LIB_SRC: 16: spir-to-ir-wrapper, {15}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 16: spirv-to-ir-wrapper, {15}, tempfilelist, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 17: linker, {6, 13, 16}, ir, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
@@ -87,7 +87,7 @@
 // FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "-o" "[[HOSTEXE:.+\.out]]"
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-deps{{.*}} "-outputs=[[OUTDEPS:.+\.bc]]" "[[HOSTEXE]]"
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB_SRC2: spir-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_SRC2: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{.*}} "[[OUTDEPS]]" "-o" "[[OUTTEMP:.+\.bc]]"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{.*}} "--only-needed" "[[OUTTEMP]]" "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "[[HOSTOBJ]]"
@@ -98,7 +98,7 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -o output_name -lOpenCL -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC3
 // FOFFLOAD_STATIC_LIB_SRC3: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB_SRC3: spir-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_SRC3: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
 // FOFFLOAD_STATIC_LIB_SRC3: llvm-link{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC3: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lOpenCL"
 
@@ -108,7 +108,7 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -o output_name -lstdc++ -z relro -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC4
 // FOFFLOAD_STATIC_LIB_SRC4: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB_SRC4: spir-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_SRC4: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
 // FOFFLOAD_STATIC_LIB_SRC4: llvm-link{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC4: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lstdc++" "-z" "relro"
 
@@ -122,9 +122,9 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_WHOLE_STATIC_LIB
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=o" {{.*}}
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs=[[INPUTA:.+\.a]]" "-outputs=[[OUTLIBA:.+\.a]]"
-// FOFFLOAD_WHOLE_STATIC_LIB: spir-to-ir-wrapper{{.*}} "[[OUTLIBA]]" "-o" "[[OUTLISTA:.+\.txt]]"
+// FOFFLOAD_WHOLE_STATIC_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIBA]]" "-o" "[[OUTLISTA:.+\.txt]]"
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs=[[INPUTB:.+\.a]]" "-outputs=[[OUTLIBB:.+\.a]]"
-// FOFFLOAD_WHOLE_STATIC_LIB: spir-to-ir-wrapper{{.*}} "[[OUTLIBB]]" "-o" "[[OUTLISTB:.+\.txt]]"
+// FOFFLOAD_WHOLE_STATIC_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIBB]]" "-o" "[[OUTLISTB:.+\.txt]]"
 // FOFFLOAD_WHOLE_STATIC_LIB: llvm-link{{.*}} "@[[OUTLISTA]]" "@[[OUTLISTB]]"
 // FOFFLOAD_WHOLE_STATIC_LIB: llvm-spirv{{.*}}
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-wrapper{{.*}}
@@ -144,7 +144,7 @@
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 3: clang-offload-deps, {2}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 4: input, "[[INPUTA]]", archive
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 5: clang-offload-unbundler, {4}, archive
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 6: spir-to-ir-wrapper, {5}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 6: spirv-to-ir-wrapper, {5}, tempfilelist, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 7: linker, {3, 6}, ir, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 8: sycl-post-link, {7}, tempfiletable, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 9: file-table-tform, {8}, tempfilelist, (device-sycl)
