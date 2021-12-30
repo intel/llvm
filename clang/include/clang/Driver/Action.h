@@ -82,6 +82,7 @@ public:
     BackendCompileJobClass,
     FileTableTformJobClass,
     AppendFooterJobClass,
+    SpirToIrWrapperJobClass,
     StaticLibJobClass,
 
     JobClassFirst = PreprocessJobClass,
@@ -855,6 +856,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == AppendFooterJobClass;
+  }
+};
+
+class SpirToIrWrapperJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  SpirToIrWrapperJobAction(Action *Input, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == SpirToIrWrapperJobClass;
   }
 };
 

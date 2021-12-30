@@ -371,6 +371,12 @@ Tool *ToolChain::getTableTform() const {
   return FileTableTform.get();
 }
 
+Tool *ToolChain::getSpirToIrWrapper() const {
+  if (!SpirToIrWrapper)
+    SpirToIrWrapper.reset(new tools::SpirToIrWrapper(*this));
+  return SpirToIrWrapper.get();
+}
+
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::AssembleJobClass:
@@ -431,6 +437,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::FileTableTformJobClass:
     return getTableTform();
+
+  case Action::SpirToIrWrapperJobClass:
+    return getSpirToIrWrapper();
   }
 
   llvm_unreachable("Invalid tool kind.");
