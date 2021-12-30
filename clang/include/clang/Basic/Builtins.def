@@ -649,6 +649,7 @@ BUILTIN(__builtin_elementwise_min, "v.", "nct")
 BUILTIN(__builtin_elementwise_ceil, "v.", "nct")
 BUILTIN(__builtin_reduce_max, "v.", "nct")
 BUILTIN(__builtin_reduce_min, "v.", "nct")
+BUILTIN(__builtin_reduce_xor, "v.", "nct")
 
 BUILTIN(__builtin_matrix_transpose, "v.", "nFt")
 BUILTIN(__builtin_matrix_column_major_load, "v.", "nFt")
@@ -1575,6 +1576,7 @@ BUILTIN(__builtin_smulll_overflow, "bSLLiCSLLiCSLLi*", "n")
 
 // Clang builtins (not available in GCC).
 BUILTIN(__builtin_addressof, "v*v&", "nct")
+BUILTIN(__builtin_function_start, "v*v&", "nct")
 BUILTIN(__builtin_operator_new, "v*z", "tc")
 BUILTIN(__builtin_operator_delete, "vv*", "tn")
 BUILTIN(__builtin_char_memchr, "c*cC*iz", "n")

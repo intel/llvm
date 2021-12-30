@@ -181,6 +181,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVEnqueueKernel(&CI, OC);
     return;
   }
+  if (OC == OpGenericPtrMemSemantics) {
+    visitCallSPIRVGenericPtrMemSemantics(&CI);
+    return;
+  }
   if (OCLSPIRVBuiltinMap::rfind(OC))
     visitCallSPIRVBuiltin(&CI, OC);
 }
@@ -942,6 +946,21 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
       &Attrs);
 }
 
+void SPIRVToOCLBase::visitCallSPIRVGenericPtrMemSemantics(CallInst *CI) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
+        return OCLSPIRVBuiltinMap::rmap(OpGenericPtrMemSemantics);
+      },
+      [=](CallInst *CI) -> Instruction * {
+        auto *Shl = BinaryOperator::CreateShl(CI, getInt32(M, 8), "");
+        Shl->insertAfter(CI);
+        return Shl;
+      },
+      &Attrs);
+}
+
 void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
@@ -1089,6 +1108,16 @@ SPIRVToOCLBase::getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes) {
   return OCLStructName;
 }
 
+std::string
+SPIRVToOCLBase::getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes) {
+  assert(Postfixes.size() == 1);
+  unsigned PipeAccess = atoi(Postfixes[0].c_str());
+  assert((PipeAccess == AccessQualifierReadOnly ||
+          PipeAccess == AccessQualifierWriteOnly) &&
+         "Invalid access qualifier");
+  return PipeAccess ? kSPR2TypeName::PipeWO : kSPR2TypeName::PipeRO;
+}
+
 void SPIRVToOCLBase::translateOpaqueTypes() {
   for (auto *S : M->getIdentifiedStructTypes()) {
     StringRef STName = S->getStructName();
@@ -1108,6 +1137,8 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
     std::string OCLOpaqueName;
     if (OP == OpTypeImage)
       OCLOpaqueName = getOCLImageOpaqueType(Postfixes);
+    else if (OP == OpTypePipe)
+      OCLOpaqueName = getOCLPipeOpaqueType(Postfixes);
     else if (isSubgroupAvcINTELTypeOpCode(OP))
       OCLOpaqueName = OCLSubgroupINTELTypeOpCodeMap::rmap(OP);
     else if (isOpaqueGenericTypeOpCode(OP))
