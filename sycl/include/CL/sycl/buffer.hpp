@@ -334,13 +334,9 @@ public:
   get_access(
       handler &CommandGroupHandler,
       const detail::code_location CodeLoc = detail::code_location::current()) {
-    auto Accessor =
-        accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-                 ext::oneapi::accessor_property_list<>>(*this,
-                                                        CommandGroupHandler);
-    impl->accessorNotification(&Accessor, (uint32_t)Target, (uint32_t)Mode,
-                               CodeLoc);
-    return Accessor;
+    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
+                    ext::oneapi::accessor_property_list<>>(
+        *this, CommandGroupHandler, {}, CodeLoc);
   }
 
   template <access::mode mode>
@@ -348,12 +344,9 @@ public:
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
   get_access(
       const detail::code_location CodeLoc = detail::code_location::current()) {
-    auto Accessor = accessor<T, dimensions, mode, access::target::host_buffer,
-                             access::placeholder::false_t,
-                             ext::oneapi::accessor_property_list<>>(*this);
-    impl->accessorNotification(&Accessor, (uint32_t)access::target::host_buffer,
-                               (uint32_t)mode, CodeLoc);
-    return Accessor;
+    return accessor<T, dimensions, mode, access::target::host_buffer,
+                    access::placeholder::false_t,
+                    ext::oneapi::accessor_property_list<>>(*this, {}, CodeLoc);
   }
 
   template <access::mode mode, access::target target = access::target::device>
@@ -363,13 +356,9 @@ public:
       handler &commandGroupHandler, range<dimensions> accessRange,
       id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
-    auto Accessor =
-        accessor<T, dimensions, mode, target, access::placeholder::false_t,
-                 ext::oneapi::accessor_property_list<>>(
-            *this, commandGroupHandler, accessRange, accessOffset);
-    impl->accessorNotification(&Accessor, (uint32_t)target, (uint32_t)mode,
-                               CodeLoc);
-    return Accessor;
+    return accessor<T, dimensions, mode, target, access::placeholder::false_t,
+                    ext::oneapi::accessor_property_list<>>(
+        *this, commandGroupHandler, accessRange, accessOffset, {}, CodeLoc);
   }
 
   template <access::mode mode>
@@ -378,13 +367,10 @@ public:
   get_access(
       range<dimensions> accessRange, id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
-    auto Accessor = accessor<T, dimensions, mode, access::target::host_buffer,
-                             access::placeholder::false_t,
-                             ext::oneapi::accessor_property_list<>>(
-        *this, accessRange, accessOffset);
-    impl->accessorNotification(&Accessor, (uint32_t)access::target::host_buffer,
-                               (uint32_t)mode, CodeLoc);
-    return Accessor;
+    return accessor<T, dimensions, mode, access::target::host_buffer,
+                    access::placeholder::false_t,
+                    ext::oneapi::accessor_property_list<>>(
+        *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
 #if __cplusplus > 201402L

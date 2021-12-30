@@ -38,12 +38,6 @@ void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
 void buffer_impl::destructorNotification(void *UserObj) {
   XPTIRegistry::bufferDestructorNotification(UserObj);
 }
-void buffer_impl::accessorNotification(void *AccessorObj, uint32_t Target,
-                                       uint32_t Mode,
-                                       const detail::code_location &CodeLoc) {
-  XPTIRegistry::bufferAccessorNotification((void *)this, AccessorObj, Target,
-                                           Mode, CodeLoc);
-}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
