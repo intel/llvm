@@ -549,7 +549,7 @@ StaticLibJobAction::StaticLibJobAction(ActionList &Inputs, types::ID Type)
 void SpirvToIrWrapperJobAction::anchor() {}
 
 SpirvToIrWrapperJobAction::SpirvToIrWrapperJobAction(Action *Input,
-                                                   types::ID Type)
+                                                     types::ID Type)
     : JobAction(SpirvToIrWrapperJobClass, Input, Type) {}
 
 ForEachWrappingAction::ForEachWrappingAction(JobAction *TFormInput,

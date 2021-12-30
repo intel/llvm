@@ -270,7 +270,8 @@ public:
 class LLVM_LIBRARY_VISIBILITY SpirvToIrWrapper final : public Tool {
 public:
   SpirvToIrWrapper(const ToolChain &TC)
-      : Tool("Convert SPIR-V to LLVM-IR if needed", "spirv-to-ir-wrapper", TC) {}
+      : Tool("Convert SPIR-V to LLVM-IR if needed", "spirv-to-ir-wrapper", TC) {
+  }
 
   bool hasIntegratedCPP() const override { return false; }
   bool hasGoodDiagnostics() const override { return true; }

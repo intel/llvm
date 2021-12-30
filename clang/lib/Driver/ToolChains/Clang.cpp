@@ -9398,14 +9398,15 @@ void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
 }
 
 void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
-                                   const InputInfo &Output,
-                                   const InputInfoList &Inputs,
-                                   const llvm::opt::ArgList &TCArgs,
-                                   const char *LinkingOutput) const {
+                                    const InputInfo &Output,
+                                    const InputInfoList &Inputs,
+                                    const llvm::opt::ArgList &TCArgs,
+                                    const char *LinkingOutput) const {
   InputInfoList ForeachInputs;
   ArgStringList CmdArgs;
 
-  assert(Inputs.size() == 1 && "Only one input expected to spirv-to-ir-wrapper");
+  assert(Inputs.size() == 1 &&
+         "Only one input expected to spirv-to-ir-wrapper");
 
   // Input File
   for (const auto &I : Inputs) {
