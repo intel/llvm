@@ -1154,7 +1154,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
       // If the negate has an NSW flag we can assume the sign bit of the result
       // will be 0 because that makes abs(INT_MIN) undefined.
       if (match(RHS, m_Neg(m_Specific(LHS))) &&
-          Q.IIQ.hasNoSignedWrap(cast<Instruction>(RHS)))
+          Q.IIQ.hasNoSignedWrap(cast<OverflowingBinaryOperator>(RHS)))
         Known.Zero.setSignBit();
     }
 
@@ -4678,8 +4678,8 @@ bool llvm::isSafeToSpeculativelyExecute(const Value *V,
       return false;
     const DataLayout &DL = LI->getModule()->getDataLayout();
     return isDereferenceableAndAlignedPointer(
-        LI->getPointerOperand(), LI->getType(), MaybeAlign(LI->getAlignment()),
-        DL, CtxI, DT, TLI);
+        LI->getPointerOperand(), LI->getType(), MaybeAlign(LI->getAlign()), DL,
+        CtxI, DT, TLI);
   }
   case Instruction::Call: {
     auto *CI = cast<const CallInst>(Inst);
@@ -4976,14 +4976,6 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly,
 
   if (ConsiderFlags && Op->hasPoisonGeneratingFlags())
     return true;
-
-  // TODO: this should really be under the ConsiderFlags block, but currently
-  // these are not dropped by dropPoisonGeneratingFlags
-  if (const auto *FP = dyn_cast<FPMathOperator>(Op)) {
-    auto FMF = FP->getFastMathFlags();
-    if (FMF.noNaNs() || FMF.noInfs())
-      return true;
-  }
 
   unsigned Opcode = Op->getOpcode();
 

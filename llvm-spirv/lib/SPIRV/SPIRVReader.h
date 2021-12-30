@@ -211,9 +211,7 @@ private:
   std::string transOCLImageTypeName(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLSampledImageTypeName(SPIRV::SPIRVTypeSampledImage *ST);
   std::string transVMEImageTypeName(SPIRV::SPIRVTypeVmeImageINTEL *VT);
-  std::string transOCLPipeTypeName(
-      SPIRV::SPIRVTypePipe *ST, bool UseSPIRVFriendlyFormat = false,
-      SPIRVAccessQualifierKind PipeAccess = AccessQualifierReadOnly);
+  std::string transPipeTypeName(SPIRV::SPIRVTypePipe *ST);
   std::string transOCLPipeStorageTypeName(SPIRV::SPIRVTypePipeStorage *PST);
   std::string transOCLImageTypeAccessQualifier(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLPipeTypeAccessQualifier(SPIRV::SPIRVTypePipe *ST);

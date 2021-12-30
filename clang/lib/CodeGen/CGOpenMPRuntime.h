@@ -162,10 +162,10 @@ private:
   /// Performs aggregate initialization.
   /// \param N Number of reduction item in the common list.
   /// \param PrivateAddr Address of the corresponding private item.
-  /// \param SharedLVal Address of the original shared variable.
+  /// \param SharedAddr Address of the original shared variable.
   /// \param DRD Declare reduction construct used for reduction item.
   void emitAggregateInitialization(CodeGenFunction &CGF, unsigned N,
-                                   Address PrivateAddr, LValue SharedLVal,
+                                   Address PrivateAddr, Address SharedAddr,
                                    const OMPDeclareReductionDecl *DRD);
 
 public:
@@ -187,10 +187,10 @@ public:
   /// \param PrivateAddr Address of the corresponding private item.
   /// \param DefaultInit Default initialization sequence that should be
   /// performed if no reduction specific initialization is found.
-  /// \param SharedLVal Address of the original shared variable.
+  /// \param SharedAddr Address of the original shared variable.
   void
   emitInitialization(CodeGenFunction &CGF, unsigned N, Address PrivateAddr,
-                     LValue SharedLVal,
+                     Address SharedAddr,
                      llvm::function_ref<bool(CodeGenFunction &)> DefaultInit);
   /// Returns true if the private copy requires cleanups.
   bool needCleanups(unsigned N);
@@ -471,8 +471,8 @@ private:
   /// <critical_section_name> + ".var" for "omp critical" directives; 2)
   /// <mangled_name_for_global_var> + ".cache." for cache for threadprivate
   /// variables.
-  llvm::StringMap<llvm::AssertingVH<llvm::Constant>, llvm::BumpPtrAllocator>
-      InternalVars;
+  llvm::StringMap<llvm::AssertingVH<llvm::GlobalVariable>,
+                  llvm::BumpPtrAllocator> InternalVars;
   /// Type typedef kmp_int32 (* kmp_routine_entry_t)(kmp_int32, void *);
   llvm::Type *KmpRoutineEntryPtrTy = nullptr;
   QualType KmpRoutineEntryPtrQTy;
@@ -829,9 +829,9 @@ private:
   /// \param Ty Type of the global variable. If it is exist already the type
   /// must be the same.
   /// \param Name Name of the variable.
-  llvm::Constant *getOrCreateInternalVariable(llvm::Type *Ty,
-                                              const llvm::Twine &Name,
-                                              unsigned AddressSpace = 0);
+  llvm::GlobalVariable *getOrCreateInternalVariable(llvm::Type *Ty,
+                                                    const llvm::Twine &Name,
+                                                    unsigned AddressSpace = 0);
 
   /// Set of threadprivate variables with the generated initializer.
   llvm::StringSet<> ThreadPrivateWithDefinition;

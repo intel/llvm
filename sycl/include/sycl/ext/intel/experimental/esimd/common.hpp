@@ -29,6 +29,9 @@
 #define ESIMD_REGISTER(n) __attribute__((register_num(n)))
 
 #define __ESIMD_API ESIMD_NODEBUG ESIMD_INLINE
+
+#define __ESIMD_UNSUPPORTED_ON_HOST
+
 #else // __SYCL_DEVICE_ONLY__
 #define SYCL_ESIMD_KERNEL
 #define SYCL_ESIMD_FUNCTION
@@ -41,6 +44,9 @@
 #define ESIMD_REGISTER(n)
 
 #define __ESIMD_API ESIMD_INLINE
+
+#define __ESIMD_UNSUPPORTED_ON_HOST throw cl::sycl::feature_not_supported()
+
 #endif // __SYCL_DEVICE_ONLY__
 
 // Mark a function being noinline

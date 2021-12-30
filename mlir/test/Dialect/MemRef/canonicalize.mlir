@@ -1,17 +1,38 @@
 // RUN: mlir-opt %s -canonicalize --split-input-file -allow-unregistered-dialect | FileCheck %s
 
-// CHECK-LABEL: func @subview_of_memcast
+// CHECK-LABEL: func @subview_of_size_memcast
 //  CHECK-SAME:   %[[ARG0:.[a-z0-9A-Z_]+]]: memref<4x6x16x32xi8>
-//       CHECK:   %[[S:.+]] = memref.subview %arg0[0, 1, 0] [1, 1, 16] [1, 1, 1] : memref<4x6x16x32xi8> to memref<16x32xi8, #{{.*}}>
+//       CHECK:   %[[S:.+]] = memref.subview %[[ARG0]][0, 1, 0] [1, 1, 16] [1, 1, 1] : memref<4x6x16x32xi8> to memref<16x32xi8, #{{.*}}>
 //       CHECK:   %[[M:.+]] = memref.cast %[[S]] : memref<16x32xi8, #{{.*}}> to memref<16x32xi8, #{{.*}}>
 //       CHECK:   return %[[M]] : memref<16x32xi8, #{{.*}}>
-func @subview_of_memcast(%arg : memref<4x6x16x32xi8>) ->
+func @subview_of_size_memcast(%arg : memref<4x6x16x32xi8>) ->
   memref<16x32xi8, affine_map<(d0, d1)[s0] -> (d0 * 32 + d1 + s0)>>{
   %0 = memref.cast %arg : memref<4x6x16x32xi8> to memref<?x?x16x32xi8>
   %1 = memref.subview %0[0, 1, 0] [1, 1, 16] [1, 1, 1] :
     memref<?x?x16x32xi8> to
     memref<16x32xi8, affine_map<(d0, d1)[s0] -> (d0 * 32 + d1 + s0)>>
   return %1 : memref<16x32xi8, affine_map<(d0, d1)[s0] -> (d0 * 32 + d1 + s0)>>
+}
+
+// -----
+
+//   CHECK-DAG: #[[MAP0:[0-9a-z]+]] = affine_map<(d0, d1)[s0] -> (d0 * 7 + s0 + d1)>
+//   CHECK-DAG: #[[MAP1:[0-9a-z]+]] = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
+#map0 = affine_map<(d0, d1, d2)[s0] -> (d0 * 35 + s0 + d1 * 7 + d2)>
+#map1 = affine_map<(d0, d1, d2)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3)>
+#map2 = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
+
+//       CHECK: func @subview_of_strides_memcast
+//  CHECK-SAME:   %[[ARG0:.[a-z0-9A-Z_]+]]: memref<1x1x?xf32, #{{.*}}>
+//       CHECK:   %[[S:.+]] = memref.subview %[[ARG0]][0, 0, 0] [1, 1, 4]
+//  CHECK-SAME:                    to memref<1x4xf32, #[[MAP0]]>
+//       CHECK:   %[[M:.+]] = memref.cast %[[S]]
+//  CHECK-SAME:                    to memref<1x4xf32, #[[MAP1]]>
+//       CHECK:   return %[[M]]
+func @subview_of_strides_memcast(%arg : memref<1x1x?xf32, #map0>) -> memref<1x4xf32, #map2> {
+  %0 = memref.cast %arg : memref<1x1x?xf32, #map0> to memref<1x1x?xf32, #map1>
+  %1 = memref.subview %0[0, 0, 0] [1, 1, 4] [1, 1, 1] : memref<1x1x?xf32, #map1> to memref<1x4xf32, #map2>
+  return %1 : memref<1x4xf32, #map2>
 }
 
 // -----
@@ -164,10 +185,10 @@ func @dim_of_alloca(%size: index) -> index {
 // Test case: Folding of memref.dim(memref.alloca(rank(%v)), %idx) -> rank(%v)
 // CHECK-LABEL: func @dim_of_alloca_with_dynamic_size(
 //  CHECK-SAME:     %[[MEM:[0-9a-z]+]]: memref<*xf32>
-//  CHECK-NEXT:   %[[RANK:.*]] = rank %[[MEM]] : memref<*xf32>
+//  CHECK-NEXT:   %[[RANK:.*]] = memref.rank %[[MEM]] : memref<*xf32>
 //  CHECK-NEXT:   return %[[RANK]] : index
 func @dim_of_alloca_with_dynamic_size(%arg0: memref<*xf32>) -> index {
-  %0 = rank %arg0 : memref<*xf32>
+  %0 = memref.rank %arg0 : memref<*xf32>
   %1 = memref.alloca(%0) : memref<?xindex>
   %c0 = arith.constant 0 : index
   %2 = memref.dim %1, %c0 : memref<?xindex>
@@ -417,3 +438,15 @@ func @reduced_memref(%arg0: memref<2x5x7x1xf32>, %arg1 :index)
 //       CHECK:   %[[RESULT:.+]] = memref.subview
 //  CHECK-SAME:       memref<2x5x7x1xf32> to memref<1x4x1xf32, #{{.+}}>
 //       CHECK:   return %[[RESULT]]
+
+// -----
+
+// CHECK-LABEL: func @fold_rank_memref
+func @fold_rank_memref(%arg0 : memref<?x?xf32>) -> (index) {
+  // Fold a rank into a constant
+  // CHECK-NEXT: [[C2:%.+]] = arith.constant 2 : index
+  %rank_0 = memref.rank %arg0 : memref<?x?xf32>
+
+  // CHECK-NEXT: return [[C2]]
+  return %rank_0 : index
+}

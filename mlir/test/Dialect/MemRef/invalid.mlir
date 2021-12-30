@@ -208,18 +208,6 @@ func @memref_reinterpret_cast_offset_mismatch(%in: memref<?xf32>) {
 
 // -----
 
-func @memref_reinterpret_cast_offset_mismatch(%in: memref<?xf32>) {
-  %c0 = arith.constant 0 : index
-  %c10 = arith.constant 10 : index
-  // expected-error @+1 {{expected result type with size = 10 instead of -1 in dim = 0}}
-  %out = memref.reinterpret_cast %in to
-           offset: [%c0], sizes: [10, %c10], strides: [%c10, 1]
-           : memref<?xf32> to memref<?x?xf32, offset: ?, strides: [?, 1]>
-  return
-}
-
-// -----
-
 func @memref_reshape_element_type_mismatch(
        %buf: memref<*xf32>, %shape: memref<1xi32>) {
   // expected-error @+1 {{element types of source and destination memref types should be the same}}
@@ -842,5 +830,13 @@ func @test_alloc_memref_map_rank_mismatch() {
 ^bb0:
   // expected-error@+1 {{memref layout mismatch between rank and affine map: 2 != 1}}
   %0 = memref.alloc() : memref<1024x64xf32, affine_map<(d0) -> (d0)>, 1>
+  return
+}
+
+// -----
+
+func @rank(%0: f32) {
+  // expected-error@+1 {{'memref.rank' op operand #0 must be unranked.memref of any type values or memref of any type values}}
+  "memref.rank"(%0): (f32)->index
   return
 }

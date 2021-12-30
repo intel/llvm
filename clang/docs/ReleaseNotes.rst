@@ -237,19 +237,24 @@ Floating Point Support in Clang
   rather than -ffp-contract=fast, and the documentation of these features has
   been clarified. Previously, the documentation claimed that -ffp-model=precise
   was the default, but this was incorrect because the precise model implied
-  -ffp-contract=fast, wheras the (now corrected) default behavior is
+  -ffp-contract=fast, whereas the (now corrected) default behavior is
   -ffp-contract=on.
   -ffp-model=precise is now exactly the default mode of the compiler.
 
 Internal API Changes
 --------------------
 
-- ...
+- A new sugar ``Type`` AST node represents types accessed via a C++ using
+  declaration. Given code ``using std::error_code; error_code x;``, ``x`` has
+  a ``UsingType`` which desugars to the previous ``RecordType``.
 
 Build System Changes
 --------------------
 
-- ...
+- Linux distros can specify ``-DCLANG_DEFAULT_PIE_ON_LINUX=On`` to use ``-fPIE`` and
+  ``-pie`` by default. This matches GCC installations on many Linux distros
+  (configured with ``--enable-default-pie``).
+  (`D113372 <https://reviews.llvm.org/D113372>`_)
 
 AST Matchers
 ------------
@@ -266,6 +271,12 @@ AST Matchers
 - The ``hasAnyCapture`` matcher now only accepts an inner matcher of type
   ``Matcher<LambdaCapture>``. The matcher originally accepted an inner matcher
   of type ``Matcher<CXXThisExpr>`` or ``Matcher<VarDecl>``.
+- The ``usingType`` matcher is now available and needed to refer to types that
+  are referred to via using C++ using declarations.
+  The associated ``UsingShadowDecl`` can be matched using ``throughUsingDecl``
+  and the underlying ``Type`` with ``hasUnderlyingType``.
+  ``hasDeclaration`` continues to see through the alias and apply to the
+  underlying type.
 
 clang-format
 ------------
@@ -273,7 +284,7 @@ clang-format
 - Option ``AllowShortEnumsOnASingleLine: false`` has been improved, it now
   correctly places the opening brace according to ``BraceWrapping.AfterEnum``.
 
-- Option ``QualifierAligment`` has been added in order to auto-arrange the
+- Option ``QualifierAlignment`` has been added in order to auto-arrange the
   positioning of specifiers/qualifiers
   `const` `volatile` `static` `inline` `constexpr` `restrict`
   in variable and parameter declarations to be either ``Right`` aligned

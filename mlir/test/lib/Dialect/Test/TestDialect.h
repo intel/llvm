@@ -18,7 +18,7 @@
 #include "TestInterfaces.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/DLTI/Traits.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -39,7 +39,6 @@ class DLTIDialect;
 class RewritePatternSet;
 } // namespace mlir
 
-#include "TestOpEnums.h.inc"
 #include "TestOpInterfaces.h.inc"
 #include "TestOpStructs.h.inc"
 #include "TestOpsDialect.h.inc"

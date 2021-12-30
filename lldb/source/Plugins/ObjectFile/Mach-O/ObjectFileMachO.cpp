@@ -5620,10 +5620,15 @@ addr_t ObjectFileMachO::GetAddressMask() {
   return mask;
 }
 
-bool ObjectFileMachO::GetCorefileMainBinaryInfo(addr_t &address, UUID &uuid,
+bool ObjectFileMachO::GetCorefileMainBinaryInfo(addr_t &value,
+                                                bool &value_is_offset,
+                                                UUID &uuid,
                                                 ObjectFile::BinaryType &type) {
-  address = LLDB_INVALID_ADDRESS;
+  value = LLDB_INVALID_ADDRESS;
+  value_is_offset = false;
   uuid.Clear();
+  uint32_t log2_pagesize = 0; // not currently passed up to caller
+  uint32_t platform = 0;      // not currently passed up to caller
   ModuleSP module_sp(GetModule());
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
@@ -5641,6 +5646,26 @@ bool ObjectFileMachO::GetCorefileMainBinaryInfo(addr_t &address, UUID &uuid,
         uint64_t fileoff = m_data.GetU64_unchecked(&offset);
         uint64_t size = m_data.GetU64_unchecked(&offset);
 
+        // struct main_bin_spec
+        // {
+        //     uint32_t version;       // currently 2
+        //     uint32_t type;          // 0 == unspecified, 1 == kernel,
+        //                             // 2 == user process,
+        //                             // 3 == standalone binary
+        //     uint64_t address;       // UINT64_MAX if address not specified
+        //     uint64_t slide;         // slide, UINT64_MAX if unspecified
+        //                             // 0 if no slide needs to be applied to
+        //                             // file address
+        //     uuid_t   uuid;          // all zero's if uuid not specified
+        //     uint32_t log2_pagesize; // process page size in log base 2,
+        //                             // e.g. 4k pages are 12.
+        //                             // 0 for unspecified
+        //     uint32_t platform;      // The Mach-O platform for this corefile.
+        //                             // 0 for unspecified.
+        //                             // The values are defined in
+        //                             // <mach-o/loader.h>, PLATFORM_*.
+        // } __attribute((packed));
+
         // "main bin spec" (main binary specification) data payload is
         // formatted:
         //    uint32_t version       [currently 1]
@@ -5656,14 +5681,25 @@ bool ObjectFileMachO::GetCorefileMainBinaryInfo(addr_t &address, UUID &uuid,
         if (strcmp("main bin spec", data_owner) == 0 && size >= 32) {
           offset = fileoff;
           uint32_t version;
-          if (m_data.GetU32(&offset, &version, 1) != nullptr && version == 1) {
+          if (m_data.GetU32(&offset, &version, 1) != nullptr && version <= 2) {
             uint32_t binspec_type = 0;
             uuid_t raw_uuid;
             memset(raw_uuid, 0, sizeof(uuid_t));
 
-            if (m_data.GetU32(&offset, &binspec_type, 1) &&
-                m_data.GetU64(&offset, &address, 1) &&
-                m_data.CopyData(offset, sizeof(uuid_t), raw_uuid) != 0) {
+            if (!m_data.GetU32(&offset, &binspec_type, 1))
+              return false;
+            if (!m_data.GetU64(&offset, &value, 1))
+              return false;
+            uint64_t slide = LLDB_INVALID_ADDRESS;
+            if (version > 1 && !m_data.GetU64(&offset, &slide, 1))
+              return false;
+            if (value == LLDB_INVALID_ADDRESS &&
+                slide != LLDB_INVALID_ADDRESS) {
+              value = slide;
+              value_is_offset = true;
+            }
+
+            if (m_data.CopyData(offset, sizeof(uuid_t), raw_uuid) != 0) {
               uuid = UUID::fromOptionalData(raw_uuid, sizeof(uuid_t));
               // convert the "main bin spec" type into our
               // ObjectFile::BinaryType enum
@@ -5681,6 +5717,10 @@ bool ObjectFileMachO::GetCorefileMainBinaryInfo(addr_t &address, UUID &uuid,
                 type = eBinaryTypeStandalone;
                 break;
               }
+              if (!m_data.GetU32(&offset, &log2_pagesize, 1))
+                return false;
+              if (version > 1 && !m_data.GetU32(&offset, &platform, 1))
+                return false;
               return true;
             }
           }
@@ -6973,6 +7013,23 @@ ObjectFileMachO::GetCorefileAllImageInfos() {
           }
           image_infos.all_image_infos.push_back(image_entry);
         }
+      } else if (strcmp("load binary", data_owner) == 0) {
+        uint32_t version = m_data.GetU32(&fileoff);
+        if (version == 1) {
+          uuid_t uuid;
+          memcpy(&uuid, m_data.GetData(&fileoff, sizeof(uuid_t)),
+                 sizeof(uuid_t));
+          uint64_t load_address = m_data.GetU64(&fileoff);
+          uint64_t slide = m_data.GetU64(&fileoff);
+          std::string filename = m_data.GetCStr(&fileoff);
+
+          MachOCorefileImageEntry image_entry;
+          image_entry.filename = filename;
+          image_entry.uuid = UUID::fromData(uuid, sizeof(uuid_t));
+          image_entry.load_address = load_address;
+          image_entry.slide = slide;
+          image_infos.all_image_infos.push_back(image_entry);
+        }
       }
     }
     offset = cmd_offset + lc.cmdsize;
@@ -6983,29 +7040,52 @@ ObjectFileMachO::GetCorefileAllImageInfos() {
 
 bool ObjectFileMachO::LoadCoreFileImages(lldb_private::Process &process) {
   MachOCorefileAllImageInfos image_infos = GetCorefileAllImageInfos();
-  bool added_images = false;
-  if (image_infos.IsValid()) {
-    for (const MachOCorefileImageEntry &image : image_infos.all_image_infos) {
-      ModuleSpec module_spec;
-      module_spec.GetUUID() = image.uuid;
+  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+
+  ModuleList added_modules;
+  for (const MachOCorefileImageEntry &image : image_infos.all_image_infos) {
+    ModuleSpec module_spec;
+    module_spec.GetUUID() = image.uuid;
+    if (image.filename.empty()) {
+      char namebuf[80];
+      if (image.load_address != LLDB_INVALID_ADDRESS)
+        snprintf(namebuf, sizeof(namebuf), "mem-image-0x%" PRIx64,
+                 image.load_address);
+      else
+        snprintf(namebuf, sizeof(namebuf), "mem-image+0x%" PRIx64, image.slide);
+      module_spec.GetFileSpec() = FileSpec(namebuf);
+    } else {
       module_spec.GetFileSpec() = FileSpec(image.filename.c_str());
-      if (image.currently_executing) {
-        Symbols::DownloadObjectAndSymbolFile(module_spec, true);
-        if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
-          process.GetTarget().GetOrCreateModule(module_spec, false);
-        }
+    }
+    if (image.currently_executing) {
+      Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+      if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
+        process.GetTarget().GetOrCreateModule(module_spec, false);
       }
-      Status error;
-      ModuleSP module_sp =
-          process.GetTarget().GetOrCreateModule(module_spec, false, &error);
-      if (!module_sp.get() || !module_sp->GetObjectFile()) {
-        if (image.load_address != LLDB_INVALID_ADDRESS) {
-          module_sp = process.ReadModuleFromMemory(module_spec.GetFileSpec(),
-                                                   image.load_address);
-        }
+    }
+    Status error;
+    ModuleSP module_sp =
+        process.GetTarget().GetOrCreateModule(module_spec, false, &error);
+    if (!module_sp.get() || !module_sp->GetObjectFile()) {
+      if (image.load_address != LLDB_INVALID_ADDRESS) {
+        module_sp = process.ReadModuleFromMemory(module_spec.GetFileSpec(),
+                                                 image.load_address);
       }
-      if (module_sp.get()) {
-        added_images = true;
+    }
+    if (module_sp.get()) {
+      // Will call ModulesDidLoad with all modules once they've all
+      // been added to the Target with load addresses.  Don't notify
+      // here, before the load address is set.
+      const bool notify = false;
+      process.GetTarget().GetImages().AppendIfNeeded(module_sp, notify);
+      added_modules.Append(module_sp, notify);
+      if (image.segment_load_addresses.size() > 0) {
+        if (log) {
+          std::string uuidstr = image.uuid.GetAsString();
+          log->Printf("ObjectFileMachO::LoadCoreFileImages adding binary '%s' "
+                      "UUID %s with section load addresses",
+                      image.filename.c_str(), uuidstr.c_str());
+        }
         for (auto name_vmaddr_tuple : image.segment_load_addresses) {
           SectionList *sectlist = module_sp->GetObjectFile()->GetSectionList();
           if (sectlist) {
@@ -7017,8 +7097,47 @@ bool ObjectFileMachO::LoadCoreFileImages(lldb_private::Process &process) {
             }
           }
         }
+      } else if (image.load_address != LLDB_INVALID_ADDRESS) {
+        if (log) {
+          std::string uuidstr = image.uuid.GetAsString();
+          log->Printf("ObjectFileMachO::LoadCoreFileImages adding binary '%s' "
+                      "UUID %s with load address 0x%" PRIx64,
+                      image.filename.c_str(), uuidstr.c_str(),
+                      image.load_address);
+        }
+        const bool address_is_slide = false;
+        bool changed = false;
+        module_sp->SetLoadAddress(process.GetTarget(), image.load_address,
+                                  address_is_slide, changed);
+      } else if (image.slide != 0) {
+        if (log) {
+          std::string uuidstr = image.uuid.GetAsString();
+          log->Printf("ObjectFileMachO::LoadCoreFileImages adding binary '%s' "
+                      "UUID %s with slide amount 0x%" PRIx64,
+                      image.filename.c_str(), uuidstr.c_str(), image.slide);
+        }
+        const bool address_is_slide = true;
+        bool changed = false;
+        module_sp->SetLoadAddress(process.GetTarget(), image.slide,
+                                  address_is_slide, changed);
+      } else {
+        if (log) {
+          std::string uuidstr = image.uuid.GetAsString();
+          log->Printf("ObjectFileMachO::LoadCoreFileImages adding binary '%s' "
+                      "UUID %s at its file address, no slide applied",
+                      image.filename.c_str(), uuidstr.c_str());
+        }
+        const bool address_is_slide = true;
+        bool changed = false;
+        module_sp->SetLoadAddress(process.GetTarget(), 0, address_is_slide,
+                                  changed);
       }
     }
   }
-  return added_images;
+  if (added_modules.GetSize() > 0) {
+    process.GetTarget().ModulesDidLoad(added_modules);
+    process.Flush();
+    return true;
+  }
+  return false;
 }

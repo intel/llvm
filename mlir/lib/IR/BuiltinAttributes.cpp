@@ -121,10 +121,10 @@ findDuplicateElement(ArrayRef<NamedAttribute> value) {
   if (value.size() == 2)
     return value[0].getName() == value[1].getName() ? value[0] : none;
 
-  auto it = std::adjacent_find(value.begin(), value.end(),
-                               [](NamedAttribute l, NamedAttribute r) {
-                                 return l.getName() == r.getName();
-                               });
+  const auto *it = std::adjacent_find(value.begin(), value.end(),
+                                      [](NamedAttribute l, NamedAttribute r) {
+                                        return l.getName() == r.getName();
+                                      });
   return it != value.end() ? *it : none;
 }
 
@@ -1165,8 +1165,9 @@ static ShapedType mappingHelper(Fn mapping, Attr &attr, ShapedType inType,
     newArrayType = RankedTensorType::get(inType.getShape(), newElementType);
   else if (inType.isa<UnrankedTensorType>())
     newArrayType = RankedTensorType::get(inType.getShape(), newElementType);
-  else if (inType.isa<VectorType>())
-    newArrayType = VectorType::get(inType.getShape(), newElementType);
+  else if (auto vType = inType.dyn_cast<VectorType>())
+    newArrayType = VectorType::get(vType.getShape(), newElementType,
+                                   vType.getNumScalableDims());
   else
     assert(newArrayType && "Unhandled tensor type");
 

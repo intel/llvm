@@ -1073,6 +1073,19 @@ LogicalResult PrefetchOp::fold(ArrayRef<Attribute> cstOperands,
 }
 
 //===----------------------------------------------------------------------===//
+// RankOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
+  // Constant fold rank when the rank of the operand is known.
+  auto type = getOperand().getType();
+  auto shapedType = type.dyn_cast<ShapedType>();
+  if (shapedType && shapedType.hasRank())
+    return IntegerAttr::get(IndexType::get(getContext()), shapedType.getRank());
+  return IntegerAttr();
+}
+
+//===----------------------------------------------------------------------===//
 // ReinterpretCastOp
 //===----------------------------------------------------------------------===//
 
@@ -1145,7 +1158,7 @@ static LogicalResult verify(ReinterpretCastOp op) {
                                  extractFromI64ArrayAttr(op.static_sizes())))) {
     int64_t resultSize = std::get<0>(en.value());
     int64_t expectedSize = std::get<1>(en.value());
-    if (resultSize != expectedSize)
+    if (!ShapedType::isDynamic(resultSize) && resultSize != expectedSize)
       return op.emitError("expected result type with size = ")
              << expectedSize << " instead of " << resultSize
              << " in dim = " << en.index();
@@ -1162,7 +1175,8 @@ static LogicalResult verify(ReinterpretCastOp op) {
     // Match offset in result memref type and in static_offsets attribute.
     int64_t expectedOffset =
         extractFromI64ArrayAttr(op.static_offsets()).front();
-    if (resultOffset != expectedOffset)
+    if (!ShapedType::isDynamicStrideOrOffset(resultOffset) &&
+        resultOffset != expectedOffset)
       return op.emitError("expected result type with offset = ")
              << resultOffset << " instead of " << expectedOffset;
 
@@ -1171,7 +1185,8 @@ static LogicalResult verify(ReinterpretCastOp op) {
              resultStrides, extractFromI64ArrayAttr(op.static_strides())))) {
       int64_t resultStride = std::get<0>(en.value());
       int64_t expectedStride = std::get<1>(en.value());
-      if (resultStride != expectedStride)
+      if (!ShapedType::isDynamicStrideOrOffset(resultStride) &&
+          resultStride != expectedStride)
         return op.emitError("expected result type with stride = ")
                << expectedStride << " instead of " << resultStride
                << " in dim = " << en.index();
@@ -1833,18 +1848,23 @@ SmallVector<Range, 8> mlir::getOrCreateRanges(OffsetSizeAndStrideOpInterface op,
   return res;
 }
 
-/// Infer the canonical type of the result of a subview operation. Returns a
-/// type with rank `resultRank` that is either the rank of the rank-reduced
-/// type, or the non-rank-reduced type.
+/// Compute the canonical result type of a SubViewOp. Call `inferResultType` to
+/// deduce the result type for the given `sourceType`. Additionally, reduce the
+/// rank of the inferred result type if `currentResultType` is lower rank than
+/// `currentSourceType`. Use this signature if `sourceType` is updated together
+/// with the result type. In this case, it is important to compute the dropped
+/// dimensions using `currentSourceType` whose strides align with
+/// `currentResultType`.
 static MemRefType getCanonicalSubViewResultType(
-    MemRefType currentResultType, MemRefType sourceType,
-    ArrayRef<OpFoldResult> mixedOffsets, ArrayRef<OpFoldResult> mixedSizes,
-    ArrayRef<OpFoldResult> mixedStrides) {
+    MemRefType currentResultType, MemRefType currentSourceType,
+    MemRefType sourceType, ArrayRef<OpFoldResult> mixedOffsets,
+    ArrayRef<OpFoldResult> mixedSizes, ArrayRef<OpFoldResult> mixedStrides) {
   auto nonRankReducedType = SubViewOp::inferResultType(sourceType, mixedOffsets,
                                                        mixedSizes, mixedStrides)
                                 .cast<MemRefType>();
   llvm::Optional<llvm::SmallDenseSet<unsigned>> unusedDims =
-      computeMemRefRankReductionMask(sourceType, currentResultType, mixedSizes);
+      computeMemRefRankReductionMask(currentSourceType, currentResultType,
+                                     mixedSizes);
   // Return nullptr as failure mode.
   if (!unusedDims)
     return nullptr;
@@ -1859,6 +1879,18 @@ static MemRefType getCanonicalSubViewResultType(
     layoutMap = getProjectedMap(layoutMap, unusedDims.getValue());
   return MemRefType::get(shape, nonRankReducedType.getElementType(), layoutMap,
                          nonRankReducedType.getMemorySpace());
+}
+
+/// Compute the canonical result type of a SubViewOp. Call `inferResultType` to
+/// deduce the result type. Additionally, reduce the rank of the inferred result
+/// type if `currentResultType` is lower rank than `sourceType`.
+static MemRefType getCanonicalSubViewResultType(
+    MemRefType currentResultType, MemRefType sourceType,
+    ArrayRef<OpFoldResult> mixedOffsets, ArrayRef<OpFoldResult> mixedSizes,
+    ArrayRef<OpFoldResult> mixedStrides) {
+  return getCanonicalSubViewResultType(currentResultType, sourceType,
+                                       sourceType, mixedOffsets, mixedSizes,
+                                       mixedStrides);
 }
 
 namespace {
@@ -1897,13 +1929,18 @@ public:
     if (!CastOp::canFoldIntoConsumerOp(castOp))
       return failure();
 
-    /// Deduce the resultType of the SubViewOp using `inferSubViewResultType` on
-    /// the cast source operand type and the SubViewOp static information. This
-    /// is the resulting type if the MemRefCastOp were folded.
+    // Compute the SubViewOp result type after folding the MemRefCastOp. Use the
+    // MemRefCastOp source operand type to infer the result type and the current
+    // SubViewOp source operand type to compute the dropped dimensions if the
+    // operation is rank-reducing.
     auto resultType = getCanonicalSubViewResultType(
-        subViewOp.getType(), castOp.source().getType().cast<MemRefType>(),
+        subViewOp.getType(), subViewOp.getSourceType(),
+        castOp.source().getType().cast<MemRefType>(),
         subViewOp.getMixedOffsets(), subViewOp.getMixedSizes(),
         subViewOp.getMixedStrides());
+    if (!resultType)
+      return failure();
+
     Value newSubView = rewriter.create<SubViewOp>(
         subViewOp.getLoc(), resultType, castOp.source(), subViewOp.offsets(),
         subViewOp.sizes(), subViewOp.strides(), subViewOp.static_offsets(),

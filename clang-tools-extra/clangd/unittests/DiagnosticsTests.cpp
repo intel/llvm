@@ -478,12 +478,13 @@ TEST(DiagnosticTest, ClangTidySuppressionComment) {
       #define BAD2 BAD
       double h = BAD2;  // NOLINT
       // NOLINTBEGIN
-      double x = BAD2;
-      double y = BAD2;
+      // FIXME: re-enable when NOLINTBEGIN suppresss block is enabled in clangd.
+      // double x = BAD2;
+      // double y = BAD2;
       // NOLINTEND
 
       // verify no crashes on unmatched nolints.
-      // NOLINTBEIGN
+      // NOLINTBEGIN
     }
   )cpp");
   TestTU TU = TestTU::withCode(Main.code());
