@@ -83,7 +83,7 @@ struct auto_await_suspend {
 
 struct DummyVoidTag {};
 DummyVoidTag no_specialization() { // expected-error {{this function cannot be a coroutine: 'std::experimental::coroutine_traits<DummyVoidTag>' has no member named 'promise_type'}}
-  co_await a;                      // expected-warning {{Please move from std::experimental::coroutine_traits to std::coroutine_traits}}
+  co_await a;                      // expected-warning {{support for std::experimental::coroutine_traits will be removed}}
 }
 
 template <typename... T>
@@ -976,19 +976,6 @@ struct std::experimental::coroutine_traits<int, mismatch_gro_type_tag4> {
 extern "C" int f(mismatch_gro_type_tag4) {
   // expected-error@-1 {{cannot initialize return object of type 'int' with an rvalue of type 'char *'}}
   co_return; //expected-note {{function is a coroutine due to use of 'co_return' here}}
-}
-
-struct bad_promise_no_return_func { // expected-note {{'bad_promise_no_return_func' defined here}}
-  coro<bad_promise_no_return_func> get_return_object();
-  suspend_always initial_suspend();
-  suspend_always final_suspend() noexcept;
-  void unhandled_exception();
-};
-// FIXME: The PDTS currently specifies this as UB, technically forbidding a
-// diagnostic.
-coro<bad_promise_no_return_func> no_return_value_or_return_void() {
-  // expected-error@-1 {{'bad_promise_no_return_func' must declare either 'return_value' or 'return_void'}}
-  co_await a;
 }
 
 struct bad_await_suspend_return {

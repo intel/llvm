@@ -141,6 +141,22 @@ set(files
   __coroutine/trivial_awaitables.h
   __debug
   __errc
+  __filesystem/copy_options.h
+  __filesystem/directory_entry.h
+  __filesystem/directory_iterator.h
+  __filesystem/directory_options.h
+  __filesystem/file_status.h
+  __filesystem/file_time_type.h
+  __filesystem/file_type.h
+  __filesystem/filesystem_error.h
+  __filesystem/operations.h
+  __filesystem/path_iterator.h
+  __filesystem/path.h
+  __filesystem/perm_options.h
+  __filesystem/perms.h
+  __filesystem/recursive_directory_iterator.h
+  __filesystem/space_info.h
+  __filesystem/u8path.h
   __format/format_arg.h
   __format/format_args.h
   __format/format_context.h
@@ -238,6 +254,7 @@ set(files
   __memory/uninitialized_algorithms.h
   __memory/unique_ptr.h
   __memory/uses_allocator.h
+  __memory/voidify.h
   __mutex_base
   __numeric/accumulate.h
   __numeric/adjacent_difference.h
@@ -343,8 +360,8 @@ set(files
   __tuple
   __undef_macros
   __utility/as_const.h
+  __utility/auto_cast.h
   __utility/cmp.h
-  __utility/decay_copy.h
   __utility/declval.h
   __utility/exchange.h
   __utility/forward.h
@@ -357,6 +374,7 @@ set(files
   __utility/rel_ops.h
   __utility/swap.h
   __utility/to_underlying.h
+  __utility/transaction.h
   __variant/monostate.h
   algorithm
   any
