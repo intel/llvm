@@ -40,9 +40,9 @@ using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 
 template <typename T, int N, typename Flags>
-bool testUSM(queue &Q, T *Src, T *Dst, unsigned Off, const std::string &Title,
-             Flags) {
-  std::cout << "  Running USM " << Title << " test, N=" << N << "...\n";
+bool testUSM(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
+  std::cout << "  Running USM test. T=" << typeid(T).name()
+            << ", Flags=" << typeid(Flags).name() << ", N=" << N << "...\n";
 
   for (int I = 0; I < N; ++I) {
     Src[I + Off] = I + 1;
@@ -74,9 +74,9 @@ bool testUSM(queue &Q, T *Src, T *Dst, unsigned Off, const std::string &Title,
 }
 
 template <typename T, int N, typename Flags>
-bool testAcc(queue &Q, T *Src, T *Dst, unsigned Off, const std::string &Title,
-             Flags) {
-  std::cout << "  Running accessor " << Title << " test, N=" << N << "...\n";
+bool testAcc(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
+  std::cout << "  Running accessor test. T=" << typeid(T).name()
+            << ", Flags=" << typeid(Flags).name() << ", N=" << N << "...\n";
 
   for (int I = 0; I < N; ++I) {
     Src[I + Off] = I + 1;
@@ -113,7 +113,7 @@ bool testAcc(queue &Q, T *Src, T *Dst, unsigned Off, const std::string &Title,
   return NumErrs == 0;
 }
 
-template <typename T, int N> bool testUSM(const std::string &Type, queue &Q) {
+template <typename T, int N> bool testUSM(queue &Q) {
   struct Deleter {
     queue Q;
     void operator()(T *Ptr) {
@@ -133,42 +133,44 @@ template <typename T, int N> bool testUSM(const std::string &Type, queue &Q) {
   bool Pass = true;
 
   Pass &= testUSM<T, N>(Q, Src.get(), Dst.get(), VecAlignOffset + 1u,
-                        Type + " element_aligned", element_aligned);
-  Pass &= testUSM<T, N>(Q, Src.get(), Dst.get(), VecAlignOffset,
-                        Type + " vector_aligned", vector_aligned);
+                        element_aligned);
+  Pass &=
+      testUSM<T, N>(Q, Src.get(), Dst.get(), VecAlignOffset, vector_aligned);
   Pass &= testUSM<T, N>(Q, Src.get(), Dst.get(), 128u / sizeof(T),
-                        Type + " overaligned<128>", overaligned<128u>);
+                        overaligned<128u>);
 
   return Pass;
 }
 
-template <typename T> bool testUSM(const std::string &Type, queue &Q) {
+template <typename T> bool testUSM(queue &Q) {
   bool Pass = true;
 
-  Pass &= testUSM<T, 1>(Type, Q);
-  Pass &= testUSM<T, 2>(Type, Q);
-  Pass &= testUSM<T, 3>(Type, Q);
-  Pass &= testUSM<T, 4>(Type, Q);
+  Pass &= testUSM<T, 1>(Q);
+  // TODO some of the sizes are commented out to speed-up testing - this test
+  // runs ~160 seconds in CI if all sizes are enabled
+  // Pass &= testUSM<T, 2>(Q);
+  // Pass &= testUSM<T, 3>(Q);
+  // Pass &= testUSM<T, 4>(Q);
 
-  Pass &= testUSM<T, 7>(Type, Q);
-  Pass &= testUSM<T, 8>(Type, Q);
+  Pass &= testUSM<T, 7>(Q);
+  Pass &= testUSM<T, 8>(Q);
 
-  Pass &= testUSM<T, 15>(Type, Q);
-  Pass &= testUSM<T, 16>(Type, Q);
+  // Pass &= testUSM<T, 15>(Q);
+  Pass &= testUSM<T, 16>(Q);
 
-  Pass &= testUSM<T, 24>(Type, Q);
-  Pass &= testUSM<T, 25>(Type, Q);
+  // Pass &= testUSM<T, 24>(Q);
+  Pass &= testUSM<T, 25>(Q);
 
-  Pass &= testUSM<T, 31>(Type, Q);
-  Pass &= testUSM<T, 32>(Type, Q);
+  // Pass &= testUSM<T, 31>(Q);
+  Pass &= testUSM<T, 32>(Q);
 
-  Pass &= testUSM<T, 91>(Type, Q);
-  Pass &= testUSM<T, 92>(Type, Q);
+  Pass &= testUSM<T, 91>(Q);
+  // Pass &= testUSM<T, 92>(Q);
 
   return Pass;
 }
 
-template <typename T, int N> bool testAcc(const std::string &Type, queue &Q) {
+template <typename T, int N> bool testAcc(queue &Q) {
   struct Deleter {
     void operator()(T *Ptr) {
       if (Ptr) {
@@ -187,37 +189,37 @@ template <typename T, int N> bool testAcc(const std::string &Type, queue &Q) {
   bool Pass = true;
 
   Pass &= testAcc<T, N>(Q, Src.get(), Dst.get(), VecAlignOffset + 1u,
-                        Type + " element_aligned", element_aligned);
-  Pass &= testAcc<T, N>(Q, Src.get(), Dst.get(), VecAlignOffset,
-                        Type + " vector_aligned", vector_aligned);
+                        element_aligned);
+  Pass &=
+      testAcc<T, N>(Q, Src.get(), Dst.get(), VecAlignOffset, vector_aligned);
   Pass &= testAcc<T, N>(Q, Src.get(), Dst.get(), 128u / sizeof(T),
-                        Type + " overaligned<128>", overaligned<128u>);
+                        overaligned<128u>);
 
   return Pass;
 }
 
-template <typename T> bool testAcc(const std::string &Type, queue &Q) {
+template <typename T> bool testAcc(queue &Q) {
   bool Pass = true;
 
-  Pass &= testAcc<T, 1>(Type, Q);
-  Pass &= testAcc<T, 2>(Type, Q);
-  Pass &= testAcc<T, 3>(Type, Q);
-  Pass &= testAcc<T, 4>(Type, Q);
+  Pass &= testAcc<T, 1>(Q);
+  // Pass &= testAcc<T, 2>(Q);
+  Pass &= testAcc<T, 3>(Q);
+  // Pass &= testAcc<T, 4>(Q);
 
-  Pass &= testAcc<T, 7>(Type, Q);
-  Pass &= testAcc<T, 8>(Type, Q);
+  // Pass &= testAcc<T, 7>(Q);
+  Pass &= testAcc<T, 8>(Q);
 
-  Pass &= testAcc<T, 15>(Type, Q);
-  Pass &= testAcc<T, 16>(Type, Q);
+  // Pass &= testAcc<T, 15>(Q);
+  Pass &= testAcc<T, 16>(Q);
 
-  Pass &= testAcc<T, 24>(Type, Q);
-  Pass &= testAcc<T, 25>(Type, Q);
+  // Pass &= testAcc<T, 24>(Q);
+  Pass &= testAcc<T, 25>(Q);
 
-  Pass &= testAcc<T, 31>(Type, Q);
-  Pass &= testAcc<T, 32>(Type, Q);
+  // Pass &= testAcc<T, 31>(Q);
+  Pass &= testAcc<T, 32>(Q);
 
-  Pass &= testAcc<T, 91>(Type, Q);
-  Pass &= testAcc<T, 92>(Type, Q);
+  // Pass &= testAcc<T, 91>(Q);
+  Pass &= testAcc<T, 92>(Q);
 
   return Pass;
 }
@@ -229,19 +231,21 @@ int main(void) {
 
   bool Pass = true;
 
-  Pass &= testUSM<int8_t>("int8_t", Q);
-  Pass &= testUSM<int16_t>("int16_t", Q);
-  Pass &= testUSM<int32_t>("int32_t", Q);
-  Pass &= testUSM<int64_t>("int64_t", Q);
-  Pass &= testUSM<float>("float", Q);
-  Pass &= testUSM<double>("double", Q);
+  Pass &= testUSM<int8_t>(Q);
+  Pass &= testUSM<uint16_t>(Q);
+  Pass &= testUSM<int32_t>(Q);
+  Pass &= testUSM<uint64_t>(Q);
+  Pass &= testUSM<float>(Q);
+  Pass &= testUSM<double>(Q);
+  Pass &= testUSM<half>(Q);
 
-  Pass &= testAcc<int8_t>("int8_t", Q);
-  Pass &= testAcc<int16_t>("int16_t", Q);
-  Pass &= testAcc<int32_t>("int32_t", Q);
-  Pass &= testAcc<int64_t>("int64_t", Q);
-  Pass &= testAcc<float>("float", Q);
-  Pass &= testAcc<double>("double", Q);
+  Pass &= testAcc<uint8_t>(Q);
+  Pass &= testAcc<int16_t>(Q);
+  Pass &= testAcc<uint32_t>(Q);
+  Pass &= testAcc<int64_t>(Q);
+  Pass &= testAcc<float>(Q);
+  Pass &= testAcc<double>(Q);
+  Pass &= testAcc<half>(Q);
 
   std::cout << (Pass ? "Test Passed\n" : "Test FAILED\n");
   return Pass ? 0 : 1;

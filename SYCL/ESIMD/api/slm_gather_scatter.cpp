@@ -138,5 +138,8 @@ int main(void) {
   passed &= test<float, 16>(q);
   passed &= test<float, 32>(q);
 
+  passed &= test<half, 16>(q);
+  passed &= test<half, 32>(q);
+
   return passed ? 0 : 1;
 }

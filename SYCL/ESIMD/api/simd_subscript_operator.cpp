@@ -25,19 +25,15 @@
 using namespace cl::sycl;
 using namespace sycl::ext::intel::experimental::esimd;
 
-int main(int argc, char **argv) {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
-
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
+template <class T> bool test(queue &q) {
+  std::cout << "Testing " << typeid(T).name() << "...\n";
   constexpr unsigned VL = 16;
 
-  int A[VL];
-  int B[VL];
-  int gold[VL];
+  T A[VL];
+  T B[VL];
+  T gold[VL];
 
-  for (unsigned i = 0; i < VL; ++i) {
+  for (int i = 0; i < VL; ++i) {
     A[i] = -i;
     B[i] = i;
     gold[i] = B[i];
@@ -47,20 +43,18 @@ int main(int argc, char **argv) {
   std::array<int, 5> indicesToCopy = {2, 5, 9, 10, 13};
 
   try {
-    buffer<int, 1> bufA(A, range<1>(VL));
-    buffer<int, 1> bufB(B, range<1>(VL));
+    buffer<T, 1> bufA(A, range<1>(VL));
+    buffer<T, 1> bufB(B, range<1>(VL));
     range<1> glob_range{1};
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufA.get_access<access::mode::read>(cgh);
+      auto PA = bufA.template get_access<access::mode::read>(cgh);
       auto PB = bufB.template get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<class Test>(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
+      cgh.parallel_for<T>(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
         using namespace sycl::ext::intel::experimental::esimd;
-        unsigned int offset = i * VL * sizeof(int);
-        simd<int, VL> va;
-        va.copy_from(PA, offset);
-        simd<int, VL> vb;
-        vb.copy_from(PB, offset);
+        unsigned int offset = i * VL * sizeof(T);
+        simd<T, VL> va(PA, offset);
+        simd<T, VL> vb(PB, offset);
         for (auto idx : indicesToCopy)
           vb[idx] = va[idx];
         vb.copy_to(PB, offset);
@@ -78,7 +72,7 @@ int main(int argc, char **argv) {
     gold[i] = A[i];
 
   for (unsigned i = 0; i < VL; ++i) {
-    int val = B[i];
+    T val = B[i];
 
     if (val != gold[i]) {
       if (++err_cnt < 10) {
@@ -94,5 +88,20 @@ int main(int argc, char **argv) {
 
   std::cout << (err_cnt > 0 ? "  FAILED\n" : "  Passed\n");
 
-  return err_cnt > 0 ? 1 : 0;
+  return err_cnt == 0;
+}
+
+int main(int argc, char **argv) {
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+
+  auto dev = q.get_device();
+  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+
+  bool passed = true;
+  passed &= test<char>(q);
+  passed &= test<unsigned int>(q);
+  passed &= test<float>(q);
+  passed &= test<half>(q);
+
+  return passed ? 0 : 1;
 }

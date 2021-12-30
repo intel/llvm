@@ -165,6 +165,7 @@ int main(int argc, char **argv) {
   passed &= test<int, 32, true>(q, size);
   passed &= test<unsigned int, 32, true>(q, size);
   passed &= test<float, 32, true>(q, size);
+  passed &= test<half, 32, true>(q, size);
 
   passed &= test<char, 32, false>(q, size);
   passed &= test<unsigned char, 16, false>(q, size);
@@ -174,6 +175,7 @@ int main(int argc, char **argv) {
   passed &= test<int, 32, false>(q, size);
   passed &= test<unsigned int, 32, false>(q, size);
   passed &= test<float, 32, false>(q, size);
+  passed &= test<half, 32, false>(q, size);
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;

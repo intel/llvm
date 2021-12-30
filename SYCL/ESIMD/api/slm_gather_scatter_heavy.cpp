@@ -114,7 +114,8 @@ struct GatherKernel : KernelBase<T, VL, STRIDE> {
 
     // first, read data w/o shuffling into SLM
     simd<T, VL> val;
-    val.copy_from(B::acc_in, B::get_wi_offset(i) * sizeof(T));
+    val.copy_from(B::acc_in, B::get_wi_offset(i) * sizeof(T),
+                  element_aligned_tag{});
     slm_block_store((unsigned)(B::get_wi_local_offset(i) * sizeof(T)), val);
 
     // wait for peers
@@ -464,6 +465,8 @@ int main(int argc, char **argv) {
   passed &= test<float, 16, 5>(q);
   passed &= test<float, 32, 3>(q);
   passed &= test_vl1<float, 7>(q);
+  passed &= test_vl1<half, 7>(q);
+  passed &= test<half, 16, 2>(q);
 
   std::cout << (!passed ? "TEST FAILED\n" : "TEST Passed\n");
   return passed ? 0 : 1;
