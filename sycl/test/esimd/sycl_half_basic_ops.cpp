@@ -12,6 +12,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 using namespace sycl::ext::intel::experimental;
 using namespace sycl;
 
+// clang-format off
 // --- Unary operation
 SYCL_EXTERNAL auto test_unary_op(simd<sycl::half, 8> val) SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z13test_unary_op{{.*}}(
@@ -85,3 +86,4 @@ SYCL_EXTERNAL auto test_cmp_op(simd<sycl::half, 8> val1, simd<long long, 8> val2
 // CHECK-NEXT: ret void
 // CHECK-LABEL: }
 }
+// clang-format on
