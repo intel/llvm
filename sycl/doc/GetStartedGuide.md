@@ -502,11 +502,6 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
-If testing with HIP for AMD make sure to specify the GPU being used
-by adding `-hip-amd-arch=<target>`to buildbot/configure.py or add 
-`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` 
-to the CMake variable `SYCL_CLANG_EXTRA_FLAGS`.
-
 #### Run DPC++ E2E test suite
 
 Follow instructions from the link below to build and run tests:
