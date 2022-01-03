@@ -647,8 +647,10 @@ struct _pi_kernel {
       const size_t alignment = std::min(max_alignment, size);
 
       // align the argument
-      size_t alignedLocalOffset =
-          localOffset + alignment - (localOffset % alignment);
+      size_t alignedLocalOffset = localOffset;
+      if (localOffset % alignment != 0) {
+        alignedLocalOffset += alignment - (localOffset % alignment);
+      }
 
       add_arg(index, sizeof(size_t), (const void *)&(alignedLocalOffset),
               size + (alignedLocalOffset - localOffset));
