@@ -672,17 +672,6 @@ struct _pi_kernel {
     assert(retError == PI_SUCCESS);
   }
 
-  _pi_kernel(CUfunction func, const char *name, pi_program program,
-             pi_context ctxt)
-      : _pi_kernel{func, nullptr, name, program, ctxt} {
-    /// Note: this code assumes that there is only one device per context
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
-    (void)retError;
-    assert(retError == PI_SUCCESS);
-  }
-
   ~_pi_kernel()
   {
     cuda_piProgramRelease(program_);
