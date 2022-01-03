@@ -1837,7 +1837,8 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   if (LangOpts.SYCLIsDevice && !IsEsimdFunction) {
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
-    // Generate this metadata only if atleast one kernel argument is an accessor.
+    // Generate this metadata only if atleast one kernel argument is an
+    // accessor.
     if (isKernelArgAnAccessor)
       Fn->setMetadata(
           "kernel_arg_runtime_aligned",
