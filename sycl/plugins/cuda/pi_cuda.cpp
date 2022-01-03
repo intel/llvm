@@ -1161,8 +1161,21 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_uint64{max_alloc});
   }
   case PI_DEVICE_INFO_IMAGE_SUPPORT: {
+    pi_bool enabled;
+
+    if (std::getenv("PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
+      enabled = PI_TRUE;
+    } else {
+      cl::sycl::detail::pi::cuPrint(
+          "Images are not fully supported by the CUDA BE, their support is "
+          "disabled by default. Their partial support can be activated by "
+          "setting PI_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
+          "runtime.");
+      enabled = PI_FALSE;
+    }
+
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
+                   enabled);
   }
   case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to CUDA as it doesn't have images, but instead
