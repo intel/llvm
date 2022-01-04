@@ -830,6 +830,12 @@ which contains all the symbols required.
   GPU (SM 71), but it should work on any GPU compatible with SM 50 or above
 * The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
   project and may cause compilation issues on some platforms
+* `sycl::sqrt` is not correctly rounded by default as the SYCL specification
+  allows lower precision, when porting from CUDA it may be helpful to use
+  `-Xclang -fcuda-prec-sqrt` to use the correctly rounded square root, this is
+  significantly slower but matches the default precision used by `nvcc`, and
+  this `clang++` flag is equivalent to the `nvcc` `-prec-sqrt` flag, except that
+  it defaults to `false`.
 
 ### HIP back-end limitations
 
