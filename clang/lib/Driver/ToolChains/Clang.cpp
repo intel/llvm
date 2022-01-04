@@ -9425,9 +9425,8 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
-    const Tool *Creator = &Cmd->getCreator();
     tools::SYCL::constructLLVMForeachCommand(
-        C, JA, std::move(Cmd), ForeachInputs, Output, Creator, "",
+        C, JA, std::move(Cmd), ForeachInputs, Output, this, "",
         types::getTypeTempSuffix(types::TY_Tempfilelist), ParallelJobs);
   } else
     C.addCommand(std::move(Cmd));
