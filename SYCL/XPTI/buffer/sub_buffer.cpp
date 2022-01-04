@@ -23,20 +23,18 @@ int main() {
     sycl::buffer<int, 1> SubBuffer{Buffer1, sycl::range<1>{32},
                                    sycl::range<1>{32}};
 
-    // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID1:]]
-    // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID2:]]
     Queue.submit([&](sycl::handler &cgh) {
-      // Get write only access to the buffer on a device.
+      // CHECK: {{[0-9]+}}|Construct accessor|[[#USERID1]]|[[#ACCID1:]]|2014|1025|{{.*}}sub_buffer.cpp:28:24|{{.*}}sub_buffer.cpp:28:24
       auto Accessor1 = SubBuffer.get_access<sycl::access::mode::write>(cgh);
-      // Execute kernel.
+      // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID1:]]
+      // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID2:]]
       cgh.parallel_for<class FillBuffer>(
           sycl::range<1>{32}, [=](sycl::id<1> WIid) {
             Accessor1[WIid] = static_cast<int>(WIid.get(0));
           });
     });
-
+    // CHECK: {{[0-9]+}}|Construct accessor|[[#USERID1]]|[[#ACCID2:]]|2018|1024|{{.*}}sub_buffer.cpp:37:22|{{.*}}sub_buffer.cpp:37:22
     auto Accessor1 = Buffer1.get_access<sycl::access::mode::read>();
-    // Check the results.
     for (size_t I = 32; I < 64; ++I) {
       if (Accessor1[I] != I - 32) {
         std::cout << "The result is incorrect for element: " << I
