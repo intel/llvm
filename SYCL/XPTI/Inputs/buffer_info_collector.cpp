@@ -59,6 +59,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
         StreamID,
         static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_destruct),
         syclBufferCallback);
+    xptiRegisterCallback(
+        StreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_accessor),
+        syclBufferCallback);
   }
 }
 
@@ -120,6 +124,17 @@ XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
     auto BufDestr = (xpti::offload_buffer_data_t *)UserData;
     std::cout << IId << "|Destruct buffer|" << BufDestr->user_object_handle
               << "\n";
+    break;
+  }
+  case xpti::trace_point_type_t::offload_alloc_accessor: {
+    auto BufAccessor = (xpti::offload_accessor_data_t *)UserData;
+    std::cout << IId << "|Construct accessor|" << BufAccessor->buffer_handle
+              << "|" << BufAccessor->accessor_handle << "|"
+              << BufAccessor->target << "|" << BufAccessor->mode << "|"
+              << Event->reserved.payload->name << "|"
+              << Event->reserved.payload->source_file << ":"
+              << Event->reserved.payload->line_no << ":"
+              << Event->reserved.payload->column_no << "\n";
     break;
   }
   default:
