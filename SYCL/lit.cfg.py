@@ -100,6 +100,11 @@ if lit_config.params.get('gpu-intel-dg1', False):
 if lit_config.params.get('matrix', False):
     config.available_features.add('matrix')
 
+#support for LIT parameter ze_debug<num>
+if lit_config.params.get('ze_debug'):
+    config.ze_debug = lit_config.params.get('ze_debug')
+    lit_config.note("ZE_DEBUG: "+config.ze_debug)
+
 # check if compiler supports CL command line options
 cl_options=False
 sp = subprocess.getstatusoutput(config.dpcpp_compiler+' /help')
@@ -293,6 +298,9 @@ if 'gpu' in config.target_devices.split(','):
 
     if config.sycl_be == "level_zero":
         gpu_l0_check_substitute = "| FileCheck %s"
+        if lit_config.params.get('ze_debug'):
+            gpu_run_substitute = " env ZE_DEBUG={ZE_DEBUG} SYCL_DEVICE_FILTER=level_zero:gpu,host ".format(ZE_DEBUG=config.ze_debug)
+            config.available_features.add('ze_debug'+config.ze_debug)
 
     if platform.system() == "Linux":
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_FILTER={SYCL_PLUGIN}:gpu,host ".format(SYCL_PLUGIN=config.sycl_be)
