@@ -71,6 +71,15 @@ int main() {
       acc3.use();
     });
   });
+
+  // kernel_acc_raw_ptr parameters : int*, sycl::range<1>, sycl::range<1>, sycl::id<1>, int*.
+  int *rawPtr;
+  q.submit([&](handler &h) {
+    h.single_task<class kernel_acc_raw_ptr>([=]() {
+      readOnlyAccessor.use();
+      *rawPtr = 10;
+    });
+  });
 }
 
 // Check kernel_A parameters
@@ -115,8 +124,18 @@ int main() {
 // CHECK-SAME: %"struct.cl::sycl::id.6"* byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]]
 // CHECK-SAME: !kernel_arg_runtime_aligned !14
 
+// Check kernel_acc_raw_ptr parameters
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_acc_raw_ptr
+// CHECK-SAME: i32 addrspace(1)* readonly [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %"struct.cl::sycl::range"* byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
+// CHECK-SAME: %"struct.cl::sycl::range"* byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
+// CHECK-SAME: %"struct.cl::sycl::id"* byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]]
+// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]]
+// CHECK-SAME: !kernel_arg_runtime_aligned !26
+
 // Check kernel-arg-runtime-aligned metadata.
 // The value of any metadata element is 1 for any kernel arguments
 // that corresponds to the base pointer of an accessor and 0 otherwise.
 // CHECK: !5 = !{i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false}
 // CHECK: !14 = !{i1 true, i1 false, i1 false, i1 false}
+// CHECK: !26 = !{i1 true, i1 false, i1 false, i1 false, i1 false}
