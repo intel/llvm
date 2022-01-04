@@ -16,7 +16,7 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o" "-targets=host-x86_64-pc-windows-msvc,sycl-spir64-unknown-unknown" "-inputs={{.*}}-orig.obj" "-outputs={{.+}}.{{(o|obj)}},{{.+}}.{{(o|obj)}}" "-unbundle"
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}-orig.lib" "-outputs=[[OUTLIB:.+\.a]]" "-unbundle"
-// FOFFLOAD_STATIC_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB: link{{(.exe)?}}{{.+}} "{{.*}}-orig.lib"
 
@@ -35,7 +35,7 @@
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs={{.*}}-2.obj"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs={{.*}}-3.obj"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}-orig.lib" "-outputs=[[OUTLIB:.+\.a]]" "-unbundle"
-// FOFFLOAD_STATIC_LIB_MULTI_O: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_MULTI_O: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_MULTI_O: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_MULTI_O: link{{(.exe)?}}{{.+}} "{{.*}}-orig.lib"
 
@@ -51,9 +51,9 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_MULTI_LIB
 // FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs={{.*}}-orig.obj"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}1.lib" "-outputs=[[OUTLIB1:.+\.a]]" "-unbundle"
-// FOFFLOAD_STATIC_MULTI_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIB1]]" "-o" "[[OUTLIST1:.+\.txt]]"
+// FOFFLOAD_STATIC_MULTI_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB1]]" "--in-replace=[[OUTLIB1]]" "--out-file-list=[[OUTLIST1:.+\.txt]]" "--out-replace=[[OUTLIST1]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB1]]" "-o" "[[OUTLIST1]]"
 // FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}2.lib" "-outputs=[[OUTLIB2:.+\.a]]" "-unbundle"
-// FOFFLOAD_STATIC_MULTI_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIB2]]" "-o" "[[OUTLIST2:.+\.txt]]"
+// FOFFLOAD_STATIC_MULTI_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB2]]" "--in-replace=[[OUTLIB2]]" "--out-file-list=[[OUTLIST2:.+\.txt]]" "--out-replace=[[OUTLIST2]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB2]]" "-o" "[[OUTLIST2:.+\.txt]]"
 // FOFFLOAD_STATIC_MULTI_LIB: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST1]]" "@[[OUTLIST2]]"
 // FOFFLOAD_STATIC_MULTI_LIB: link{{(.exe)?}}{{.+}} "{{.*}}1.lib" "{{.*}}2.lib"
 
@@ -98,7 +98,7 @@
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t-orig.lib %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-inputs={{.*}}-orig.lib" "-outputs=[[OUTLIB:.+\.a]]" "-unbundle"
-// FOFFLOAD_STATIC_LIB_SRC2: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_SRC2: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{(.exe)?}}{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC2: link{{(.exe)?}}{{.+}} "{{.*}}-orig.lib"
 

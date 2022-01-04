@@ -19,7 +19,7 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir -foffload-static-lib=%t.a -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB: llvm-link{{.*}} "@[[OUTLIST]]"
 
 /// Use of -foffload-static-lib and -foffload-whole-static-lib are deprecated
@@ -43,7 +43,7 @@
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-2.o"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" {{.*}} "-inputs={{.+}}-3.o"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB_MULTI_O: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_MULTI_O: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_MULTI_O: llvm-link{{.*}} "@[[OUTLIST]]"
 
 /// ###########################################################################
@@ -87,7 +87,7 @@
 // FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "-o" "[[HOSTEXE:.+\.out]]"
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-deps{{.*}} "-outputs=[[OUTDEPS:.+\.bc]]" "[[HOSTEXE]]"
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB_SRC2: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_SRC2: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{.*}} "[[OUTDEPS]]" "-o" "[[OUTTEMP:.+\.bc]]"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{.*}} "--only-needed" "[[OUTTEMP]]" "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "[[HOSTOBJ]]"
@@ -98,7 +98,7 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -o output_name -lOpenCL -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC3
 // FOFFLOAD_STATIC_LIB_SRC3: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB_SRC3: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_SRC3: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC3: llvm-link{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC3: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lOpenCL"
 
@@ -108,7 +108,7 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib=%t.a -o output_name -lstdc++ -z relro -### %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC4
 // FOFFLOAD_STATIC_LIB_SRC4: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
-// FOFFLOAD_STATIC_LIB_SRC4: spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST:.+\.txt]]"
+// FOFFLOAD_STATIC_LIB_SRC4: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIST:.+\.txt]]" "--out-replace=[[OUTLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC4: llvm-link{{.*}} "@[[OUTLIST]]"
 // FOFFLOAD_STATIC_LIB_SRC4: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lstdc++" "-z" "relro"
 
@@ -122,9 +122,9 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_WHOLE_STATIC_LIB
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=o" {{.*}}
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs=[[INPUTA:.+\.a]]" "-outputs=[[OUTLIBA:.+\.a]]"
-// FOFFLOAD_WHOLE_STATIC_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIBA]]" "-o" "[[OUTLISTA:.+\.txt]]"
+// FOFFLOAD_WHOLE_STATIC_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIBA]]" "--in-replace=[[OUTLIBA]]" "--out-file-list=[[OUTLISTA:.+\.txt]]" "--out-replace=[[OUTLISTA]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIBA]]" "-o" "[[OUTLISTA]]"
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs=[[INPUTB:.+\.a]]" "-outputs=[[OUTLIBB:.+\.a]]"
-// FOFFLOAD_WHOLE_STATIC_LIB: spirv-to-ir-wrapper{{.*}} "[[OUTLIBB]]" "-o" "[[OUTLISTB:.+\.txt]]"
+// FOFFLOAD_WHOLE_STATIC_LIB: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIBB]]" "--in-replace=[[OUTLIBB]]" "--out-file-list=[[OUTLISTB:.+\.txt]]" "--out-replace=[[OUTLISTB]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIBB]]" "-o" "[[OUTLISTB]]"
 // FOFFLOAD_WHOLE_STATIC_LIB: llvm-link{{.*}} "@[[OUTLISTA]]" "@[[OUTLISTB]]"
 // FOFFLOAD_WHOLE_STATIC_LIB: llvm-spirv{{.*}}
 // FOFFLOAD_WHOLE_STATIC_LIB: clang-offload-wrapper{{.*}}
