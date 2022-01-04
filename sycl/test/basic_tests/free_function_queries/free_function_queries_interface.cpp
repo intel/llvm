@@ -53,7 +53,7 @@ template <template <int, bool = true> class Item, int Dims> void test() {
       "Wrong return type of free function query for Item");
 }
 
-int main() {
+void test_all() {
   test<sycl::id>(this_id_caller<1>{});
   test<sycl::id>(this_id_caller<2>{});
   test<sycl::id>(this_id_caller<3>{});
@@ -74,4 +74,13 @@ int main() {
       std::is_same<decltype(sycl::ext::oneapi::experimental::this_sub_group()),
                    sycl::ext::oneapi::sub_group>::value,
       "Wrong return type of free function query for Sub Group");
+}
+
+int main() {
+  // Test on host.
+  test_all();
+
+  // Test on device.
+  sycl::queue Q;
+  Q.single_task([]() { test_all(); });
 }
