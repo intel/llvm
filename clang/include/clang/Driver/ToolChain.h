@@ -705,7 +705,8 @@ public:
 
   /// Get paths of HIP device libraries.
   virtual llvm::SmallVector<BitCodeLibraryInfo, 12>
-  getHIPDeviceLibs(const llvm::opt::ArgList &Args) const;
+  getHIPDeviceLibs(const llvm::opt::ArgList &Args,
+                   const Action::OffloadKind DeviceOffloadingKind) const;
 
   /// Return sanitizers which are available in this toolchain.
   virtual SanitizerMask getSupportedSanitizers() const;

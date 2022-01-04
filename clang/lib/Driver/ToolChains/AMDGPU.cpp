@@ -895,9 +895,9 @@ bool AMDGPUToolChain::shouldSkipArgument(const llvm::opt::Arg *A) const {
   return false;
 }
 
-llvm::SmallVector<std::string, 12>
-ROCMToolChain::getCommonDeviceLibNames(const llvm::opt::ArgList &DriverArgs,
-                                       const std::string &GPUArch) const {
+llvm::SmallVector<std::string, 12> ROCMToolChain::getCommonDeviceLibNames(
+    const llvm::opt::ArgList &DriverArgs, const std::string &GPUArch,
+    const Action::OffloadKind DeviceOffloadingKind) const {
   auto Kind = llvm::AMDGPU::parseArchAMDGCN(GPUArch);
   const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
 
@@ -923,6 +923,12 @@ ROCMToolChain::getCommonDeviceLibNames(const llvm::opt::ArgList &DriverArgs,
   bool CorrectSqrt = DriverArgs.hasFlag(
       options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
       options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt);
+
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    // When using SYCL, sqrt is only correctly rounded if the flag is specified
+    CorrectSqrt = DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt);
+  }
+
   bool Wave64 = isWave64(DriverArgs, Kind);
 
   return RocmInstallation.getCommonBitcodeLibs(
