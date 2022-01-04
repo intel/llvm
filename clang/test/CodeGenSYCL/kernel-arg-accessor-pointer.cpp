@@ -80,6 +80,14 @@ int main() {
       *rawPtr = 10;
     });
   });
+
+  // Check if kernel_arg_accessor_ptr metadata is generated for ESIMD kernels that capture 
+  // an accessor.
+  q.submit([&](handler &h) {
+    h.single_task<class esimd_kernel_with_acc>([=]() __attribute__((sycl_explicit_simd)){
+      readOnlyAccessor.use();
+    });
+  });
 }
 
 // Check kernel_A parameters
@@ -132,6 +140,10 @@ int main() {
 // CHECK-SAME: %"struct.cl::sycl::id"* byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]]
 // CHECK-SAME: i32 addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]]
 // CHECK-SAME: !kernel_arg_runtime_aligned !26
+
+// Check esimd_kernel_with_acc parameters
+// CHECK: define {{.*}}spir_kernel void @{{.*}}esimd_kernel_with_acc
+// CHECK-SAME: !kernel_arg_accessor_ptr
 
 // Check kernel-arg-runtime-aligned metadata.
 // The value of any metadata element is 1 for any kernel arguments
