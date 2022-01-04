@@ -38,7 +38,6 @@ void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
 void buffer_impl::destructorNotification(void *UserObj) {
   XPTIRegistry::bufferDestructorNotification(UserObj);
 }
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

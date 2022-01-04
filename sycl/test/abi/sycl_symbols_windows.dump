@@ -49,6 +49,7 @@
 ??$get_info@$0BABB@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABBA@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0BABBB@@device@sycl@cl@@QEBA?AV?$vector@W4memory_order@sycl@cl@@V?$allocator@W4memory_order@sycl@cl@@@std@@@std@@XZ
+??$get_info@$0BABBC@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0BABBC@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@$0BABC@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABD@@device@sycl@cl@@QEBA_KXZ
@@ -148,7 +149,6 @@
 ??$get_info@$0EBJD@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0EBJE@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0ECBD@@device@sycl@cl@@QEBA_NXZ
-??$get_info@$0BABBC@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0JAA@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0JAB@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0JAC@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
@@ -1457,6 +1457,7 @@
 ?compile_with_kernel_name@program@sycl@cl@@AEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0_J@Z
 ?compile_with_source@program@sycl@cl@@QEAAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z
 ?constructorNotification@buffer_impl@detail@sycl@cl@@QEAAXAEBUcode_location@234@PEAX@Z
+?constructorNotification@detail@sycl@cl@@YAXPEAX0W4target@access@23@W4mode@523@AEBUcode_location@123@@Z
 ?contains_specialization_constants@kernel_bundle_plain@detail@sycl@cl@@QEBA_NXZ
 ?contextSetExtendedDeleter@pi@detail@sycl@cl@@YAXAEBVcontext@34@P6AXPEAX@Z1@Z
 ?convertChannelOrder@detail@sycl@cl@@YA?AW4_pi_image_channel_order@@W4image_channel_order@23@@Z

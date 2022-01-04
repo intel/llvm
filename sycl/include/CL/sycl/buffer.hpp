@@ -331,39 +331,46 @@ public:
   template <access::mode Mode, access::target Target = access::target::device>
   accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
            ext::oneapi::accessor_property_list<>>
-  get_access(handler &CommandGroupHandler) {
+  get_access(
+      handler &CommandGroupHandler,
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this,
-                                                           CommandGroupHandler);
+                    ext::oneapi::accessor_property_list<>>(
+        *this, CommandGroupHandler, {}, CodeLoc);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access() {
+  get_access(
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this);
+                    ext::oneapi::accessor_property_list<>>(*this, {}, CodeLoc);
   }
 
   template <access::mode mode, access::target target = access::target::device>
   accessor<T, dimensions, mode, target, access::placeholder::false_t,
            ext::oneapi::accessor_property_list<>>
-  get_access(handler &commandGroupHandler, range<dimensions> accessRange,
-             id<dimensions> accessOffset = {}) {
+  get_access(
+      handler &commandGroupHandler, range<dimensions> accessRange,
+      id<dimensions> accessOffset = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
-        *this, commandGroupHandler, accessRange, accessOffset);
+        *this, commandGroupHandler, accessRange, accessOffset, {}, CodeLoc);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
+  get_access(
+      range<dimensions> accessRange, id<dimensions> accessOffset = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this, accessRange,
-                                                           accessOffset);
+                    ext::oneapi::accessor_property_list<>>(
+        *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
 #if __cplusplus > 201402L
