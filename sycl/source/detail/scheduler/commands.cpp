@@ -2240,6 +2240,19 @@ cl_int ExecCGCommand::enqueueImp() {
       }
     }
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled()) {
+      for (auto Arg : Args) {
+        if (Arg.MType == kernel_param_kind_t::kind_accessor) {
+          XPTIRegistry::kernelAccessorNotification(
+              Arg.MPtr, &SyclKernel,
+              {MCommandGroup->MFileName.c_str(), KernelName.c_str(),
+               MCommandGroup->MLine, MCommandGroup->MColumn});
+        }
+      }
+    }
+#endif
+
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
         KernelName, OSModuleHandle, RawEvents, Event, getMemAllocationFunc);

@@ -89,19 +89,19 @@ public:
 #endif // XPTI_ENABLE_INSTRUMENTATION
   }
 
-  static void
-  bufferConstructorNotification(void *UserObj,
-                                const detail::code_location &CodeLoc);
-  static void bufferAssociateNotification(void *UserObj, void *MemObj);
-  static void bufferReleaseNotification(void *UserObj, void *MemObj);
-  static void bufferDestructorNotification(void *UserObj);
-  static void bufferAccessorNotification(void *UserObj, void *AccessorObj,
-                                         uint32_t Target, uint32_t Mode,
-                                         const detail::code_location &CodeLoc);
+  static void bufferConstructorNotification(const void *,
+                                            const detail::code_location &);
+  static void bufferAssociateNotification(const void *, const void *);
+  static void bufferReleaseNotification(const void *, const void *);
+  static void bufferDestructorNotification(const void *);
+  static void bufferAccessorNotification(const void *, const void *, uint32_t,
+                                         uint32_t,
+                                         const detail::code_location &);
   static xpti::trace_event_data_t *
-  createTraceEvent(void *Obj, const char *ObjName, uint64_t &IId,
-                   const detail::code_location &CodeLoc,
-                   uint16_t TraceEventType);
+  createTraceEvent(const void *, const void *, uint64_t &,
+                   const detail::code_location &, uint16_t);
+  static void kernelAccessorNotification(const void *, const void *,
+                                         cl::sycl::detail::code_location);
 
 private:
   std::unordered_set<std::string> MActiveStreams;
