@@ -411,8 +411,12 @@ public:
   /// This method returns a null pointer if the transformation cannot be
   /// performed, otherwise it returns the last new instruction.
   ///
+  /// If \p LIS is not nullptr, the LiveIntervals info should be updated for
+  /// replacing \p MI with new instructions, even though this function does not
+  /// remove MI.
   virtual MachineInstr *convertToThreeAddress(MachineInstr &MI,
-                                              LiveVariables *LV) const {
+                                              LiveVariables *LV,
+                                              LiveIntervals *LIS) const {
     return nullptr;
   }
 
@@ -1186,8 +1190,6 @@ public:
                                      MachineInstr &NewMI1,
                                      MachineInstr &NewMI2) const {}
 
-  virtual void setSpecialOperandAttr(MachineInstr &MI, uint16_t Flags) const {}
-
   /// Return true when a target supports MachineCombiner.
   virtual bool useMachineCombiner() const { return false; }
 
@@ -1909,6 +1911,12 @@ public:
         "Target didn't implement TargetInstrInfo::getOutliningCandidateInfo!");
   }
 
+  /// Optional target hook to create the LLVM IR attributes for the outlined
+  /// function. If overridden, the overriding function must call the default
+  /// implementation.
+  virtual void mergeOutliningCandidateAttributes(
+      Function &F, std::vector<outliner::Candidate> &Candidates) const;
+
   /// Returns how or if \p MI should be outlined.
   virtual outliner::InstrType
   getOutliningType(MachineBasicBlock::iterator &MIT, unsigned Flags) const {
@@ -1919,9 +1927,7 @@ public:
   /// Optional target hook that returns true if \p MBB is safe to outline from,
   /// and returns any target-specific information in \p Flags.
   virtual bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
-                                      unsigned &Flags) const {
-    return true;
-  }
+                                      unsigned &Flags) const;
 
   /// Insert a custom frame for outlined functions.
   virtual void buildOutlinedFrame(MachineBasicBlock &MBB, MachineFunction &MF,

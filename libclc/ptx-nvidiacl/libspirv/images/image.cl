@@ -861,9 +861,9 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
   }
 
 #define _DEFINE_SAMPLED_LOADS(elem_t, elem_size)                               \
-  _DEFINE_COMMON_SAMPLED_LOAD_1D(elem_t, elem_size, none, trap)                \
-  _DEFINE_COMMON_SAMPLED_LOAD_2D(elem_t, elem_size, none, trap)                \
-  _DEFINE_COMMON_SAMPLED_LOAD_3D(elem_t, elem_size, none, trap)                \
+  _DEFINE_COMMON_SAMPLED_LOAD_1D(elem_t, elem_size, none, zero)                \
+  _DEFINE_COMMON_SAMPLED_LOAD_2D(elem_t, elem_size, none, zero)                \
+  _DEFINE_COMMON_SAMPLED_LOAD_3D(elem_t, elem_size, none, zero)                \
   _DEFINE_COMMON_SAMPLED_LOAD_1D(elem_t, elem_size, clamp, zero)               \
   _DEFINE_COMMON_SAMPLED_LOAD_2D(elem_t, elem_size, clamp, zero)               \
   _DEFINE_COMMON_SAMPLED_LOAD_3D(elem_t, elem_size, clamp, zero)               \

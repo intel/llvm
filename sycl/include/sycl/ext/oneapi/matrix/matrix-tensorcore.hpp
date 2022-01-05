@@ -75,23 +75,29 @@ __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 16, 16, int32_t, 8)
 } // namespace experimental::matrix
 
 namespace detail {
-using namespace experimental;
 
-template <typename T, matrix::matrix_use Use, size_t NumRows, size_t NumCols,
-          matrix::matrix_layout Layout, access::address_space Space,
-          typename Cond = void>
+template <typename T, sycl::ext::oneapi::experimental::matrix::matrix_use MT,
+          size_t NumRows, size_t NumCols,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
+          access::address_space Space, typename Cond = void>
 struct joint_matrix_load_impl {
-  void load(matrix::joint_matrix<T, Use, NumRows, NumCols, Layout> &res,
+  void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                T, MT, NumRows, NumCols, Layout> &res,
             multi_ptr<T, Space> src, size_t stride);
 };
 
-template <matrix::matrix_layout Layout> constexpr int get_layout_id();
+template <sycl::ext::oneapi::experimental::matrix::matrix_layout Layout>
+constexpr int get_layout_id();
 
-template <> constexpr int get_layout_id<matrix::matrix_layout::row_major>() {
+template <>
+constexpr int get_layout_id<
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::row_major>() {
   return 0;
 }
 
-template <> constexpr int get_layout_id<matrix::matrix_layout::col_major>() {
+template <>
+constexpr int get_layout_id<
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::col_major>() {
   return 1;
 }
 
@@ -238,14 +244,16 @@ struct joint_matrix_load_impl<
 };
 
 template <typename T, size_t NumRows, size_t NumCols,
-          matrix::matrix_layout Layout, access::address_space Space,
-          typename Cond = void>
+          sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
+          access::address_space Space, typename Cond = void>
 struct joint_matrix_store_impl {
-  void store(matrix::joint_matrix<T, matrix::matrix_use::accumulator, NumRows,
-                                  NumCols, Layout> &src,
-             multi_ptr<T, Space> dst, size_t stride);
+  void
+  store(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+            T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+            NumRows, NumCols, Layout> &src,
+        multi_ptr<T, Space> dst, size_t stride);
 };
-
+  
 template <typename T, size_t NumRows, size_t NumCols,
           matrix::matrix_layout Layout, access::address_space Space>
 struct joint_matrix_store_impl<
@@ -293,40 +301,57 @@ struct joint_matrix_store_impl<
 };
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
-          matrix::matrix_layout LayoutA, matrix::matrix_layout LayoutB,
-          matrix::matrix_layout LayoutC, typename Cond = void>
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC,
+          typename Cond = void>
 struct joint_matrix_mad_impl {
-  matrix::joint_matrix<T2, matrix::matrix_use::accumulator, M, N, LayoutC>
-  mad(matrix::joint_matrix<T1, matrix::matrix_use::a, M, K, LayoutA> A,
-      matrix::joint_matrix<T1, matrix::matrix_use::b, K, N, LayoutB> B,
-      matrix::joint_matrix<T2, matrix::matrix_use::accumulator, M, N, LayoutC>
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<
+      T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
+      N, LayoutC>
+  mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
+          LayoutA>
+          A,
+      sycl::ext::oneapi::experimental::matrix::joint_matrix<
+          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
+          LayoutB>
+          B,
+      sycl::ext::oneapi::experimental::matrix::joint_matrix<
+          T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+          M, N, LayoutC>
           C);
 };
 
-template <matrix::matrix_layout LayoutA, matrix::matrix_layout LayoutB>
+template <sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB>
 constexpr int get_layout_pair_id();
 
 template <>
-constexpr int get_layout_pair_id<matrix::matrix_layout::row_major,
-                                 matrix::matrix_layout::row_major>() {
+constexpr int get_layout_pair_id<
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::row_major,
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::row_major>() {
   return 0;
 }
 
 template <>
-constexpr int get_layout_pair_id<matrix::matrix_layout::row_major,
-                                 matrix::matrix_layout::col_major>() {
+constexpr int get_layout_pair_id<
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::row_major,
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::col_major>() {
   return 1;
 }
 
 template <>
-constexpr int get_layout_pair_id<matrix::matrix_layout::col_major,
-                                 matrix::matrix_layout::row_major>() {
+constexpr int get_layout_pair_id<
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::col_major,
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::row_major>() {
   return 2;
 }
 
 template <>
-constexpr int get_layout_pair_id<matrix::matrix_layout::col_major,
-                                 matrix::matrix_layout::col_major>() {
+constexpr int get_layout_pair_id<
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::col_major,
+    sycl::ext::oneapi::experimental::matrix::matrix_layout::col_major>() {
   return 3;
 }
 
@@ -412,8 +437,9 @@ template <typename Group, typename T, matrix_use MT, size_t NumRows,
 void joint_matrix_load(
     Group sg, joint_matrix<T, MT, NumRows, NumCols, Layout, Group> &res,
     multi_ptr<T, Space> src, size_t stride) {
-  detail::joint_matrix_load_impl<T, MT, NumRows, NumCols, Layout, Space>{}.load(
-      res, src, stride);
+  sycl::ext::oneapi::detail::joint_matrix_load_impl<T, MT, NumRows, NumCols,
+                                                    Layout, Space>{}
+      .load(res, src, stride);
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -422,8 +448,9 @@ void joint_matrix_store(Group sg,
                         joint_matrix<T, matrix_use::accumulator, NumRows,
                                      NumCols, Layout, Group> &src,
                         multi_ptr<T, Space> dst, size_t stride) {
-  detail::joint_matrix_store_impl<T, NumRows, NumCols, Layout, Space>{}.store(
-      src, dst, stride);
+  sycl::ext::oneapi::detail::joint_matrix_store_impl<T, NumRows, NumCols,
+                                                     Layout, Space>{}
+      .store(src, dst, stride);
 }
 
 template <typename Group, typename T1, typename T2, std::size_t M,
@@ -434,8 +461,8 @@ joint_matrix_mad(
     Group sg, joint_matrix<T1, matrix_use::a, M, K, LayoutA, Group> A,
     joint_matrix<T1, matrix_use::b, K, N, LayoutB, Group> B,
     joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group> C) {
-  return detail::joint_matrix_mad_impl<T1, T2, M, K, N, LayoutA, LayoutB,
-                                       LayoutC>{}
+  return sycl::ext::oneapi::detail::joint_matrix_mad_impl<
+             T1, T2, M, K, N, LayoutA, LayoutB, LayoutC>{}
       .mad(A, B, C);
 }
 

@@ -80,7 +80,7 @@ void Pass::printAsTextualPipeline(raw_ostream &os) {
 namespace mlir {
 namespace detail {
 struct OpPassManagerImpl {
-  OpPassManagerImpl(Identifier identifier, OpPassManager::Nesting nesting)
+  OpPassManagerImpl(StringAttr identifier, OpPassManager::Nesting nesting)
       : name(identifier.str()), identifier(identifier),
         initializationGeneration(0), nesting(nesting) {}
   OpPassManagerImpl(StringRef name, OpPassManager::Nesting nesting)
@@ -91,7 +91,7 @@ struct OpPassManagerImpl {
 
   /// Nest a new operation pass manager for the given operation kind under this
   /// pass manager.
-  OpPassManager &nest(Identifier nestedName);
+  OpPassManager &nest(StringAttr nestedName);
   OpPassManager &nest(StringRef nestedName);
 
   /// Add the given pass to this pass manager. If this pass has a concrete
@@ -107,9 +107,9 @@ struct OpPassManagerImpl {
   void coalesceAdjacentAdaptorPasses();
 
   /// Return the operation name of this pass manager as an identifier.
-  Identifier getOpName(MLIRContext &context) {
+  StringAttr getOpName(MLIRContext &context) {
     if (!identifier)
-      identifier = Identifier::get(name, &context);
+      identifier = StringAttr::get(name, &context);
     return *identifier;
   }
 
@@ -118,7 +118,7 @@ struct OpPassManagerImpl {
 
   /// The cached identifier (internalized in the context) for the name of the
   /// operation that passes of this pass manager operate on.
-  Optional<Identifier> identifier;
+  Optional<StringAttr> identifier;
 
   /// The set of passes to run as part of this pass manager.
   std::vector<std::unique_ptr<Pass>> passes;
@@ -131,8 +131,8 @@ struct OpPassManagerImpl {
   /// OpPassManager.
   OpPassManager::Nesting nesting;
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 void OpPassManagerImpl::mergeInto(OpPassManagerImpl &rhs) {
   assert(name == rhs.name && "merging unrelated pass managers");
@@ -141,7 +141,7 @@ void OpPassManagerImpl::mergeInto(OpPassManagerImpl &rhs) {
   passes.clear();
 }
 
-OpPassManager &OpPassManagerImpl::nest(Identifier nestedName) {
+OpPassManager &OpPassManagerImpl::nest(StringAttr nestedName) {
   OpPassManager nested(nestedName, nesting);
   auto *adaptor = new OpToOpPassAdaptor(std::move(nested));
   addPass(std::unique_ptr<Pass>(adaptor));
@@ -182,9 +182,9 @@ void OpPassManagerImpl::coalesceAdjacentAdaptorPasses() {
 
   // Walk the pass list and merge adjacent adaptors.
   OpToOpPassAdaptor *lastAdaptor = nullptr;
-  for (auto it = passes.begin(), e = passes.end(); it != e; ++it) {
+  for (auto &passe : passes) {
     // Check to see if this pass is an adaptor.
-    if (auto *currentAdaptor = dyn_cast<OpToOpPassAdaptor>(it->get())) {
+    if (auto *currentAdaptor = dyn_cast<OpToOpPassAdaptor>(passe.get())) {
       // If it is the first adaptor in a possible chain, remember it and
       // continue.
       if (!lastAdaptor) {
@@ -194,7 +194,7 @@ void OpPassManagerImpl::coalesceAdjacentAdaptorPasses() {
 
       // Otherwise, merge into the existing adaptor and delete the current one.
       currentAdaptor->mergeInto(*lastAdaptor);
-      it->reset();
+      passe.reset();
     } else if (lastAdaptor) {
       // If this pass is not an adaptor, then coalesce and forget any existing
       // adaptor.
@@ -219,14 +219,14 @@ void OpPassManagerImpl::coalesceAdjacentAdaptorPasses() {
 // OpPassManager
 //===----------------------------------------------------------------------===//
 
-OpPassManager::OpPassManager(Identifier name, Nesting nesting)
+OpPassManager::OpPassManager(StringAttr name, Nesting nesting)
     : impl(new OpPassManagerImpl(name, nesting)) {}
 OpPassManager::OpPassManager(StringRef name, Nesting nesting)
     : impl(new OpPassManagerImpl(name, nesting)) {}
 OpPassManager::OpPassManager(OpPassManager &&rhs) : impl(std::move(rhs.impl)) {}
 OpPassManager::OpPassManager(const OpPassManager &rhs) { *this = rhs; }
 OpPassManager &OpPassManager::operator=(const OpPassManager &rhs) {
-  impl.reset(new OpPassManagerImpl(rhs.impl->name, rhs.impl->nesting));
+  impl = std::make_unique<OpPassManagerImpl>(rhs.impl->name, rhs.impl->nesting);
   impl->initializationGeneration = rhs.impl->initializationGeneration;
   for (auto &pass : rhs.impl->passes) {
     auto newPass = pass->clone();
@@ -236,7 +236,7 @@ OpPassManager &OpPassManager::operator=(const OpPassManager &rhs) {
   return *this;
 }
 
-OpPassManager::~OpPassManager() {}
+OpPassManager::~OpPassManager() = default;
 
 OpPassManager::pass_iterator OpPassManager::begin() {
   return MutableArrayRef<std::unique_ptr<Pass>>{impl->passes}.begin();
@@ -254,7 +254,7 @@ OpPassManager::const_pass_iterator OpPassManager::end() const {
 
 /// Nest a new operation pass manager for the given operation kind under this
 /// pass manager.
-OpPassManager &OpPassManager::nest(Identifier nestedName) {
+OpPassManager &OpPassManager::nest(StringAttr nestedName) {
   return impl->nest(nestedName);
 }
 OpPassManager &OpPassManager::nest(StringRef nestedName) {
@@ -279,7 +279,7 @@ OpPassManagerImpl &OpPassManager::getImpl() { return *impl; }
 StringRef OpPassManager::getOpName() const { return impl->name; }
 
 /// Return the operation name that this pass manager operates on.
-Identifier OpPassManager::getOpName(MLIRContext &context) const {
+StringAttr OpPassManager::getOpName(MLIRContext &context) const {
   return impl->getOpName(context);
 }
 
@@ -358,8 +358,8 @@ LogicalResult OpToOpPassAdaptor::run(Pass *pass, Operation *op,
   PassInstrumentor *pi = am.getPassInstrumentor();
   PassInstrumentation::PipelineParentInfo parentInfo = {llvm::get_threadid(),
                                                         pass};
-  auto dynamic_pipeline_callback = [&](OpPassManager &pipeline,
-                                       Operation *root) -> LogicalResult {
+  auto dynamicPipelineCallback = [&](OpPassManager &pipeline,
+                                     Operation *root) -> LogicalResult {
     if (!op->isAncestor(root))
       return root->emitOpError()
              << "Trying to schedule a dynamic pipeline on an "
@@ -379,7 +379,7 @@ LogicalResult OpToOpPassAdaptor::run(Pass *pass, Operation *op,
                                           verifyPasses, parentInitGeneration,
                                           pi, &parentInfo);
   };
-  pass->passState.emplace(op, am, dynamic_pipeline_callback);
+  pass->passState.emplace(op, am, dynamicPipelineCallback);
 
   // Instrument before the pass has run.
   if (pi)
@@ -437,7 +437,7 @@ LogicalResult OpToOpPassAdaptor::runPipeline(
     const PassInstrumentation::PipelineParentInfo *parentInfo) {
   assert((!instrumentor || parentInfo) &&
          "expected parent info if instrumentor is provided");
-  auto scope_exit = llvm::make_scope_exit([&] {
+  auto scopeExit = llvm::make_scope_exit([&] {
     // Clear out any computed operation analyses. These analyses won't be used
     // any more in this pipeline, and this helps reduce the current working set
     // of memory. If preserving these analyses becomes important in the future
@@ -460,7 +460,7 @@ LogicalResult OpToOpPassAdaptor::runPipeline(
 /// type, or nullptr if one does not exist.
 static OpPassManager *findPassManagerFor(MutableArrayRef<OpPassManager> mgrs,
                                          StringRef name) {
-  auto it = llvm::find_if(
+  auto *it = llvm::find_if(
       mgrs, [&](OpPassManager &mgr) { return mgr.getOpName() == name; });
   return it == mgrs.end() ? nullptr : &*it;
 }
@@ -468,9 +468,9 @@ static OpPassManager *findPassManagerFor(MutableArrayRef<OpPassManager> mgrs,
 /// Find an operation pass manager that can operate on an operation of the given
 /// type, or nullptr if one does not exist.
 static OpPassManager *findPassManagerFor(MutableArrayRef<OpPassManager> mgrs,
-                                         Identifier name,
+                                         StringAttr name,
                                          MLIRContext &context) {
-  auto it = llvm::find_if(
+  auto *it = llvm::find_if(
       mgrs, [&](OpPassManager &mgr) { return mgr.getOpName(context) == name; });
   return it == mgrs.end() ? nullptr : &*it;
 }
@@ -630,11 +630,11 @@ void OpToOpPassAdaptor::runOnOperationAsyncImpl(bool verifyPasses) {
 
 PassManager::PassManager(MLIRContext *ctx, Nesting nesting,
                          StringRef operationName)
-    : OpPassManager(Identifier::get(operationName, ctx), nesting), context(ctx),
+    : OpPassManager(StringAttr::get(ctx, operationName), nesting), context(ctx),
       initializationKey(DenseMapInfo<llvm::hash_code>::getTombstoneKey()),
       passTiming(false), verifyPasses(true) {}
 
-PassManager::~PassManager() {}
+PassManager::~PassManager() = default;
 
 void PassManager::enableVerifier(bool enabled) { verifyPasses = enabled; }
 
@@ -771,7 +771,7 @@ void detail::NestedAnalysisMap::invalidate(
 // PassInstrumentation
 //===----------------------------------------------------------------------===//
 
-PassInstrumentation::~PassInstrumentation() {}
+PassInstrumentation::~PassInstrumentation() = default;
 
 //===----------------------------------------------------------------------===//
 // PassInstrumentor
@@ -786,15 +786,15 @@ struct PassInstrumentorImpl {
   /// Set of registered instrumentations.
   std::vector<std::unique_ptr<PassInstrumentation>> instrumentations;
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 PassInstrumentor::PassInstrumentor() : impl(new PassInstrumentorImpl()) {}
-PassInstrumentor::~PassInstrumentor() {}
+PassInstrumentor::~PassInstrumentor() = default;
 
 /// See PassInstrumentation::runBeforePipeline for details.
 void PassInstrumentor::runBeforePipeline(
-    Identifier name,
+    StringAttr name,
     const PassInstrumentation::PipelineParentInfo &parentInfo) {
   llvm::sys::SmartScopedLock<true> instrumentationLock(impl->mutex);
   for (auto &instr : impl->instrumentations)
@@ -803,7 +803,7 @@ void PassInstrumentor::runBeforePipeline(
 
 /// See PassInstrumentation::runAfterPipeline for details.
 void PassInstrumentor::runAfterPipeline(
-    Identifier name,
+    StringAttr name,
     const PassInstrumentation::PipelineParentInfo &parentInfo) {
   llvm::sys::SmartScopedLock<true> instrumentationLock(impl->mutex);
   for (auto &instr : llvm::reverse(impl->instrumentations))

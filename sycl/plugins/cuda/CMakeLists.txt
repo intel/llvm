@@ -1,3 +1,4 @@
+
 message(STATUS "Including the PI API CUDA backend.")
 
  # cannot rely on cmake support for CUDA; it assumes runtime API is being used.
@@ -49,6 +50,8 @@ if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
   # which are individually tagged for all pi* symbols in pi.h
   target_compile_definitions(pi_cuda PRIVATE __SYCL_BUILD_SYCL_DLL)
+  # Install stripped PDB
+  add_stripped_pdb(pi_cuda)
 else()
   # we set the visibility of all symbols 'hidden' by default.
   # In pi.h file, we set exported symbols with visibility==default individually

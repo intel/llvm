@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 
 #include <CL/sycl.hpp>
@@ -65,6 +65,7 @@ int main() {
 
   // Context is_property
   CHECK_IS_PROPERTY(property::context::cuda::use_primary_context);
+  CHECK_IS_PROPERTY(ext::oneapi::cuda::property::context::use_primary_context);
 
   // Image is_property
   CHECK_IS_PROPERTY(property::image::use_host_ptr);
@@ -75,6 +76,7 @@ int main() {
   CHECK_IS_PROPERTY(property::queue::in_order);
   CHECK_IS_PROPERTY(property::queue::enable_profiling);
   CHECK_IS_PROPERTY(property::queue::cuda::use_default_stream);
+  CHECK_IS_PROPERTY(ext::oneapi::cuda::property::queue::use_default_stream);
 
   // Reduction is_property
   CHECK_IS_PROPERTY(property::reduction::initialize_to_identity);
@@ -125,6 +127,8 @@ int main() {
 
   // Context is_property_of
   CHECK_IS_PROPERTY_OF(property::context::cuda::use_primary_context, context);
+  CHECK_IS_PROPERTY_OF(
+      ext::oneapi::cuda::property::context::use_primary_context, context);
 
   // Image is_property_of
   CHECK_IS_PROPERTY_OF(property::image::use_host_ptr, image<1>);
@@ -135,6 +139,8 @@ int main() {
   CHECK_IS_PROPERTY_OF(property::queue::in_order, queue);
   CHECK_IS_PROPERTY_OF(property::queue::enable_profiling, queue);
   CHECK_IS_PROPERTY_OF(property::queue::cuda::use_default_stream, queue);
+  CHECK_IS_PROPERTY_OF(ext::oneapi::cuda::property::queue::use_default_stream,
+                       queue);
 
   //----------------------------------------------------------------------------
   // is_property_of positive tests
@@ -156,6 +162,9 @@ int main() {
       ext::oneapi::property::buffer::use_pinned_host_memory, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::context::cuda::use_primary_context,
                            NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::cuda::property::context::use_primary_context,
+      NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::image::use_host_ptr, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::image::use_mutex, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::image::context_bound, NotASYCLObject);
@@ -163,6 +172,8 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF(property::queue::enable_profiling, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::queue::cuda::use_default_stream,
                            NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::cuda::property::queue::use_default_stream, NotASYCLObject);
 
   // Invalid properties with valid object type
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, accessor<int, 1>);
@@ -198,6 +209,8 @@ int main() {
 
   // Context is_property_v
   CHECK_IS_PROPERTY_V(property::context::cuda::use_primary_context);
+  CHECK_IS_PROPERTY_V(
+      ext::oneapi::cuda::property::context::use_primary_context);
 
   // Image is_property_v
   CHECK_IS_PROPERTY_V(property::image::use_host_ptr);
@@ -208,6 +221,7 @@ int main() {
   CHECK_IS_PROPERTY_V(property::queue::in_order);
   CHECK_IS_PROPERTY_V(property::queue::enable_profiling);
   CHECK_IS_PROPERTY_V(property::queue::cuda::use_default_stream);
+  CHECK_IS_PROPERTY_V(ext::oneapi::cuda::property::queue::use_default_stream);
 
   //----------------------------------------------------------------------------
   // is_property_v negative tests
@@ -255,6 +269,8 @@ int main() {
 
   // Context is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::context::cuda::use_primary_context, context);
+  CHECK_IS_PROPERTY_OF_V(
+      ext::oneapi::cuda::property::context::use_primary_context, context);
 
   // Image is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::image::use_host_ptr, image<1>);
@@ -265,6 +281,8 @@ int main() {
   CHECK_IS_PROPERTY_OF_V(property::queue::in_order, queue);
   CHECK_IS_PROPERTY_OF_V(property::queue::enable_profiling, queue);
   CHECK_IS_PROPERTY_OF_V(property::queue::cuda::use_default_stream, queue);
+  CHECK_IS_PROPERTY_OF_V(ext::oneapi::cuda::property::queue::use_default_stream,
+                         queue);
 
   // Reduction is_property_v
   CHECK_IS_PROPERTY_V(property::reduction::initialize_to_identity);
@@ -289,6 +307,9 @@ int main() {
       ext::oneapi::property::buffer::use_pinned_host_memory, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::context::cuda::use_primary_context,
                              NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::cuda::property::context::use_primary_context,
+      NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::image::use_host_ptr, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::image::use_mutex, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::image::context_bound, NotASYCLObject);
@@ -296,6 +317,8 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF_V(property::queue::enable_profiling, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::queue::cuda::use_default_stream,
                              NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::cuda::property::queue::use_default_stream, NotASYCLObject);
 
   // Invalid properties with valid object type
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, accessor<int, 1>);

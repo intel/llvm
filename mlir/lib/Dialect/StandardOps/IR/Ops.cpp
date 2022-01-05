@@ -94,33 +94,11 @@ struct StdInlinerInterface : public DialectInlinerInterface {
       valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 };
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // StandardOpsDialect
 //===----------------------------------------------------------------------===//
-
-/// A custom binary operation printer that omits the "std." prefix from the
-/// operation names.
-static void printStandardBinaryOp(Operation *op, OpAsmPrinter &p) {
-  assert(op->getNumOperands() == 2 && "binary op should have two operands");
-  assert(op->getNumResults() == 1 && "binary op should have one result");
-
-  // If not all the operand and result types are the same, just use the
-  // generic assembly form to avoid omitting information in printing.
-  auto resultType = op->getResult(0).getType();
-  if (op->getOperand(0).getType() != resultType ||
-      op->getOperand(1).getType() != resultType) {
-    p.printGenericOp(op);
-    return;
-  }
-
-  p << ' ' << op->getOperand(0) << ", " << op->getOperand(1);
-  p.printOptionalAttrDict(op->getAttrs());
-
-  // Now we can output only one type for all operands and the result.
-  p << " : " << op->getResult(0).getType();
-}
 
 void StandardOpsDialect::initialize() {
   addOperations<
@@ -251,17 +229,17 @@ Value mlir::getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
   case AtomicRMWKind::muli:
     return builder.create<arith::MulIOp>(loc, lhs, rhs);
   case AtomicRMWKind::maxf:
-    return builder.create<MaxFOp>(loc, lhs, rhs);
+    return builder.create<arith::MaxFOp>(loc, lhs, rhs);
   case AtomicRMWKind::minf:
-    return builder.create<MinFOp>(loc, lhs, rhs);
+    return builder.create<arith::MinFOp>(loc, lhs, rhs);
   case AtomicRMWKind::maxs:
-    return builder.create<MaxSIOp>(loc, lhs, rhs);
+    return builder.create<arith::MaxSIOp>(loc, lhs, rhs);
   case AtomicRMWKind::mins:
-    return builder.create<MinSIOp>(loc, lhs, rhs);
+    return builder.create<arith::MinSIOp>(loc, lhs, rhs);
   case AtomicRMWKind::maxu:
-    return builder.create<MaxUIOp>(loc, lhs, rhs);
+    return builder.create<arith::MaxUIOp>(loc, lhs, rhs);
   case AtomicRMWKind::minu:
-    return builder.create<MinUIOp>(loc, lhs, rhs);
+    return builder.create<arith::MinUIOp>(loc, lhs, rhs);
   // TODO: Add remaining reduction operations.
   default:
     (void)emitOptionalError(loc, "Reduction operation type not supported");
@@ -537,7 +515,8 @@ static Type getI1SameShape(Type type) {
   if (type.isa<UnrankedTensorType>())
     return UnrankedTensorType::get(i1Type);
   if (auto vectorType = type.dyn_cast<VectorType>())
-    return VectorType::get(vectorType.getShape(), i1Type);
+    return VectorType::get(vectorType.getShape(), i1Type,
+                           vectorType.getNumScalableDims());
   return i1Type;
 }
 
@@ -561,7 +540,8 @@ struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
                                             condbr.getTrueOperands());
       return success();
-    } else if (matchPattern(condbr.getCondition(), m_Zero())) {
+    }
+    if (matchPattern(condbr.getCondition(), m_Zero())) {
       // False branch taken.
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getFalseDest(),
                                             condbr.getFalseOperands());
@@ -771,7 +751,7 @@ struct CondBranchTruthPropagation : public OpRewritePattern<CondBranchOp> {
     return success(replaced);
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void CondBranchOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                MLIRContext *context) {
@@ -919,120 +899,6 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
            arrAttr[1].getType() == complexEltTy;
   }
   return value.isa<UnitAttr>();
-}
-
-//===----------------------------------------------------------------------===//
-// MaxSIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult MaxSIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // maxsi(x,x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
-
-  APInt intValue;
-  // maxsi(x,MAX_INT) -> MAX_INT
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) &&
-      intValue.isMaxSignedValue())
-    return getRhs();
-
-  // maxsi(x, MIN_INT) -> x
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) &&
-      intValue.isMinSignedValue())
-    return getLhs();
-
-  return constFoldBinaryOp<IntegerAttr>(
-      operands, [](APInt a, APInt b) { return llvm::APIntOps::smax(a, b); });
-}
-
-//===----------------------------------------------------------------------===//
-// MaxUIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult MaxUIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // maxui(x,x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
-
-  APInt intValue;
-  // maxui(x,MAX_INT) -> MAX_INT
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isMaxValue())
-    return getRhs();
-
-  // maxui(x, MIN_INT) -> x
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isMinValue())
-    return getLhs();
-
-  return constFoldBinaryOp<IntegerAttr>(
-      operands, [](APInt a, APInt b) { return llvm::APIntOps::umax(a, b); });
-}
-
-//===----------------------------------------------------------------------===//
-// MinSIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult MinSIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // minsi(x,x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
-
-  APInt intValue;
-  // minsi(x,MIN_INT) -> MIN_INT
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) &&
-      intValue.isMinSignedValue())
-    return getRhs();
-
-  // minsi(x, MAX_INT) -> x
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) &&
-      intValue.isMaxSignedValue())
-    return getLhs();
-
-  return constFoldBinaryOp<IntegerAttr>(
-      operands, [](APInt a, APInt b) { return llvm::APIntOps::smin(a, b); });
-}
-
-//===----------------------------------------------------------------------===//
-// MinUIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult MinUIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // minui(x,x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
-
-  APInt intValue;
-  // minui(x,MIN_INT) -> MIN_INT
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isMinValue())
-    return getRhs();
-
-  // minui(x, MAX_INT) -> x
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isMaxValue())
-    return getLhs();
-
-  return constFoldBinaryOp<IntegerAttr>(
-      operands, [](APInt a, APInt b) { return llvm::APIntOps::umin(a, b); });
-}
-
-//===----------------------------------------------------------------------===//
-// RankOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
-  // Constant fold rank when the rank of the operand is known.
-  auto type = getOperand().getType();
-  if (auto shapedType = type.dyn_cast<ShapedType>())
-    if (shapedType.hasRank())
-      return IntegerAttr::get(IndexType::get(getContext()),
-                              shapedType.getRank());
-  return IntegerAttr();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1304,13 +1170,14 @@ static void printSwitchOpCases(
   if (!caseValues)
     return;
 
-  for (int64_t i = 0, size = caseValues.size(); i < size; ++i) {
+  for (const auto &it : llvm::enumerate(caseValues.getValues<APInt>())) {
     p << ',';
     p.printNewline();
     p << "  ";
-    p << caseValues.getValue<APInt>(i).getLimitedValue();
+    p << it.value().getLimitedValue();
     p << ": ";
-    p.printSuccessorAndUseList(caseDestinations[i], caseOperands[i]);
+    p.printSuccessorAndUseList(caseDestinations[it.index()],
+                               caseOperands[it.index()]);
   }
   p.printNewline();
 }
@@ -1353,9 +1220,9 @@ Block *SwitchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
 
   SuccessorRange caseDests = getCaseDestinations();
   if (auto value = operands.front().dyn_cast_or_null<IntegerAttr>()) {
-    for (int64_t i = 0, size = getCaseValues()->size(); i < size; ++i)
-      if (value == caseValues->getValue<IntegerAttr>(i))
-        return caseDests[i];
+    for (const auto &it : llvm::enumerate(caseValues->getValues<APInt>()))
+      if (it.value() == value.getValue())
+        return caseDests[it.index()];
     return getDefaultDestination();
   }
   return nullptr;
@@ -1394,15 +1261,15 @@ dropSwitchCasesThatMatchDefault(SwitchOp op, PatternRewriter &rewriter) {
   auto caseValues = op.getCaseValues();
   auto caseDests = op.getCaseDestinations();
 
-  for (int64_t i = 0, size = caseValues->size(); i < size; ++i) {
-    if (caseDests[i] == op.getDefaultDestination() &&
-        op.getCaseOperands(i) == op.getDefaultOperands()) {
+  for (const auto &it : llvm::enumerate(caseValues->getValues<APInt>())) {
+    if (caseDests[it.index()] == op.getDefaultDestination() &&
+        op.getCaseOperands(it.index()) == op.getDefaultOperands()) {
       requiresChange = true;
       continue;
     }
-    newCaseDestinations.push_back(caseDests[i]);
-    newCaseOperands.push_back(op.getCaseOperands(i));
-    newCaseValues.push_back(caseValues->getValue<APInt>(i));
+    newCaseDestinations.push_back(caseDests[it.index()]);
+    newCaseOperands.push_back(op.getCaseOperands(it.index()));
+    newCaseValues.push_back(it.value());
   }
 
   if (!requiresChange)
@@ -1424,10 +1291,11 @@ dropSwitchCasesThatMatchDefault(SwitchOp op, PatternRewriter &rewriter) {
 static void foldSwitch(SwitchOp op, PatternRewriter &rewriter,
                        APInt caseValue) {
   auto caseValues = op.getCaseValues();
-  for (int64_t i = 0, size = caseValues->size(); i < size; ++i) {
-    if (caseValues->getValue<APInt>(i) == caseValue) {
-      rewriter.replaceOpWithNewOp<BranchOp>(op, op.getCaseDestinations()[i],
-                                            op.getCaseOperands(i));
+  for (const auto &it : llvm::enumerate(caseValues->getValues<APInt>())) {
+    if (it.value() == caseValue) {
+      rewriter.replaceOpWithNewOp<BranchOp>(
+          op, op.getCaseDestinations()[it.index()],
+          op.getCaseOperands(it.index()));
       return;
     }
   }
@@ -1551,22 +1419,16 @@ simplifySwitchFromSwitchOnSameCondition(SwitchOp op,
     return failure();
 
   // Fold this switch to an unconditional branch.
-  APInt caseValue;
-  bool isDefault = true;
   SuccessorRange predDests = predSwitch.getCaseDestinations();
-  Optional<DenseIntElementsAttr> predCaseValues = predSwitch.getCaseValues();
-  for (int64_t i = 0, size = predCaseValues->size(); i < size; ++i) {
-    if (currentBlock == predDests[i]) {
-      caseValue = predCaseValues->getValue<APInt>(i);
-      isDefault = false;
-      break;
-    }
-  }
-  if (isDefault)
+  auto it = llvm::find(predDests, currentBlock);
+  if (it != predDests.end()) {
+    Optional<DenseIntElementsAttr> predCaseValues = predSwitch.getCaseValues();
+    foldSwitch(op, rewriter,
+               predCaseValues->getValues<APInt>()[it - predDests.begin()]);
+  } else {
     rewriter.replaceOpWithNewOp<BranchOp>(op, op.getDefaultDestination(),
                                           op.getDefaultOperands());
-  else
-    foldSwitch(op, rewriter, caseValue);
+  }
   return success();
 }
 
@@ -1613,7 +1475,7 @@ simplifySwitchFromDefaultSwitchOnSameCondition(SwitchOp op,
   auto predCaseValues = predSwitch.getCaseValues();
   for (int64_t i = 0, size = predCaseValues->size(); i < size; ++i)
     if (currentBlock != predDests[i])
-      caseValuesToRemove.insert(predCaseValues->getValue<APInt>(i));
+      caseValuesToRemove.insert(predCaseValues->getValues<APInt>()[i]);
 
   SmallVector<Block *> newCaseDestinations;
   SmallVector<ValueRange> newCaseOperands;
@@ -1622,14 +1484,14 @@ simplifySwitchFromDefaultSwitchOnSameCondition(SwitchOp op,
 
   auto caseValues = op.getCaseValues();
   auto caseDests = op.getCaseDestinations();
-  for (int64_t i = 0, size = caseValues->size(); i < size; ++i) {
-    if (caseValuesToRemove.contains(caseValues->getValue<APInt>(i))) {
+  for (const auto &it : llvm::enumerate(caseValues->getValues<APInt>())) {
+    if (caseValuesToRemove.contains(it.value())) {
       requiresChange = true;
       continue;
     }
-    newCaseDestinations.push_back(caseDests[i]);
-    newCaseOperands.push_back(op.getCaseOperands(i));
-    newCaseValues.push_back(caseValues->getValue<APInt>(i));
+    newCaseDestinations.push_back(caseDests[it.index()]);
+    newCaseOperands.push_back(op.getCaseOperands(it.index()));
+    newCaseValues.push_back(it.value());
   }
 
   if (!requiresChange)

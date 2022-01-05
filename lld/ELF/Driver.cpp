@@ -71,8 +71,8 @@ using namespace llvm::support;
 using namespace lld;
 using namespace lld::elf;
 
-Configuration *elf::config;
-LinkerDriver *elf::driver;
+std::unique_ptr<Configuration> elf::config;
+std::unique_ptr<LinkerDriver> elf::driver;
 
 static void setConfigs(opt::InputArgList &args);
 static void readConfigs(opt::InputArgList &args);
@@ -90,7 +90,7 @@ bool elf::link(ArrayRef<const char *> args, bool canExitEarly,
     archiveFiles.clear();
     binaryFiles.clear();
     bitcodeFiles.clear();
-    lazyObjFiles.clear();
+    lazyBitcodeFiles.clear();
     objectFiles.clear();
     sharedFiles.clear();
     backwardReferences.clear();
@@ -111,10 +111,10 @@ bool elf::link(ArrayRef<const char *> args, bool canExitEarly,
   errorHandler().exitEarly = canExitEarly;
   stderrOS.enable_colors(stderrOS.has_colors());
 
-  config = make<Configuration>();
-  driver = make<LinkerDriver>();
-  script = make<LinkerScript>();
-  symtab = make<SymbolTable>();
+  config = std::make_unique<Configuration>();
+  driver = std::make_unique<LinkerDriver>();
+  script = std::make_unique<LinkerScript>();
+  symtab = std::make_unique<SymbolTable>();
 
   partitions = {Partition()};
 
@@ -248,7 +248,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
 
       for (const std::pair<MemoryBufferRef, uint64_t> &p :
            getArchiveMembers(mbref))
-        files.push_back(make<LazyObjFile>(p.first, path, p.second));
+        files.push_back(createLazyFile(p.first, path, p.second));
       return;
     }
 
@@ -273,7 +273,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
   case file_magic::bitcode:
   case file_magic::elf_relocatable:
     if (inLib)
-      files.push_back(make<LazyObjFile>(mbref, "", 0));
+      files.push_back(createLazyFile(mbref, "", 0));
     else
       files.push_back(createObjectFile(mbref));
     break;
@@ -368,7 +368,13 @@ static void checkOptions() {
       error("-z pac-plt only supported on AArch64");
     if (config->zForceBti)
       error("-z force-bti only supported on AArch64");
+    if (config->zBtiReport != "none")
+      error("-z bti-report only supported on AArch64");
   }
+
+  if (config->emachine != EM_386 && config->emachine != EM_X86_64 &&
+      config->zCetReport != "none")
+    error("-z cet-report only supported on X86 and X86_64");
 }
 
 static const char *getReproduceOption(opt::InputArgList &args) {
@@ -455,24 +461,27 @@ static bool isKnownZFlag(StringRef s) {
          s == "rela" || s == "relro" || s == "retpolineplt" ||
          s == "rodynamic" || s == "shstk" || s == "text" || s == "undefs" ||
          s == "wxneeded" || s.startswith("common-page-size=") ||
+         s.startswith("bti-report=") || s.startswith("cet-report=") ||
          s.startswith("dead-reloc-in-nonalloc=") ||
          s.startswith("max-page-size=") || s.startswith("stack-size=") ||
          s.startswith("start-stop-visibility=");
 }
 
-// Report an error for an unknown -z option.
+// Report a warning for an unknown -z option.
 static void checkZOptions(opt::InputArgList &args) {
   for (auto *arg : args.filtered(OPT_z))
     if (!isKnownZFlag(arg->getValue()))
-      error("unknown -z value: " + StringRef(arg->getValue()));
+      warn("unknown -z value: " + StringRef(arg->getValue()));
 }
 
 void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   ELFOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 
-  // Interpret this flag early because error() depends on them.
+  // Interpret the flags early because error()/warn() depend on them.
   errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
+  errorHandler().fatalWarnings =
+      args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
   checkZOptions(args);
 
   // Handle -help
@@ -750,20 +759,6 @@ static OrphanHandlingPolicy getOrphanHandling(opt::InputArgList &args) {
   return OrphanHandlingPolicy::Place;
 }
 
-// Parses --power10-stubs= flags, to disable or enable Power 10
-// instructions in stubs.
-static bool getP10StubOpt(opt::InputArgList &args) {
-
-  if (args.getLastArgValue(OPT_power10_stubs_eq)== "no")
-    return false;
-
-  if (!args.hasArg(OPT_power10_stubs_eq) &&
-      args.hasArg(OPT_no_power10_stubs))
-    return false;
-
-  return true;
-}
-
 // Parse --build-id or --build-id=<style>. We handle "tree" as a
 // synonym for "sha1" because all our hash functions including
 // --build-id=sha1 are actually tree hashes for performance reasons.
@@ -810,7 +805,7 @@ static std::pair<bool, bool> getPackDynRelocs(opt::InputArgList &args) {
 static void readCallGraph(MemoryBufferRef mb) {
   // Build a map from symbol name to section
   DenseMap<StringRef, Symbol *> map;
-  for (InputFile *file : objectFiles)
+  for (ELFFileBase *file : objectFiles)
     for (Symbol *sym : file->getSymbols())
       map[sym->getName()] = sym;
 
@@ -982,11 +977,14 @@ static void parseClangOption(StringRef opt, const Twine &msg) {
   error(msg + ": " + StringRef(err).trim());
 }
 
+// Checks the parameter of the bti-report and cet-report options.
+static bool isValidReportString(StringRef arg) {
+  return arg == "none" || arg == "warning" || arg == "error";
+}
+
 // Initializes Config members by the command line options.
 static void readConfigs(opt::InputArgList &args) {
   errorHandler().verbose = args.hasArg(OPT_verbose);
-  errorHandler().fatalWarnings =
-      args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
   errorHandler().vsDiagnostics =
       args.hasArg(OPT_visual_studio_diagnostics_format, false);
 
@@ -1115,6 +1113,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->printArchiveStats = args.getLastArgValue(OPT_print_archive_stats);
   config->printSymbolOrder =
       args.getLastArgValue(OPT_print_symbol_order);
+  config->relax = args.hasFlag(OPT_relax, OPT_no_relax, true);
   config->rpath = getRpath(args);
   config->relocatable = args.hasArg(OPT_relocatable);
   config->saveTemps = args.hasArg(OPT_save_temps);
@@ -1189,7 +1188,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->zText = getZFlag(args, "text", "notext", true);
   config->zWxneeded = hasZOption(args, "wxneeded");
   setUnresolvedSymbolPolicy(args);
-  config->Power10Stub = getP10StubOpt(args);
+  config->power10Stubs = args.getLastArgValue(OPT_power10_stubs_eq) != "no";
 
   if (opt::Arg *arg = args.getLastArg(OPT_eb, OPT_el)) {
     if (arg->getOption().matches(OPT_eb))
@@ -1214,6 +1213,23 @@ static void readConfigs(opt::InputArgList &args) {
       config->shuffleSections.emplace_back(std::move(*pat), uint32_t(v));
     else
       error(errPrefix + toString(pat.takeError()));
+  }
+
+  auto reports = {std::make_pair("bti-report", &config->zBtiReport),
+                  std::make_pair("cet-report", &config->zCetReport)};
+  for (opt::Arg *arg : args.filtered(OPT_z)) {
+    std::pair<StringRef, StringRef> option =
+        StringRef(arg->getValue()).split('=');
+    for (auto reportArg : reports) {
+      if (option.first != reportArg.first)
+        continue;
+      if (!isValidReportString(option.second)) {
+        error(Twine("-z ") + reportArg.first + "= parameter " + option.second +
+              " is not recognized");
+        continue;
+      }
+      *reportArg.second = option.second;
+    }
   }
 
   for (opt::Arg *arg : args.filtered(OPT_z)) {
@@ -1675,7 +1691,7 @@ static void excludeLibs(opt::InputArgList &args) {
             sym->versionId = VER_NDX_LOCAL;
   };
 
-  for (InputFile *file : objectFiles)
+  for (ELFFileBase *file : objectFiles)
     visit(file);
 
   for (BitcodeFile *file : bitcodeFiles)
@@ -1690,7 +1706,7 @@ static void handleUndefined(Symbol *sym, const char *option) {
 
   if (!sym->isLazy())
     return;
-  sym->fetch();
+  sym->extract();
   if (!config->whyExtract.empty())
     whyExtract.emplace_back(option, sym->file, *sym);
 }
@@ -1705,14 +1721,12 @@ static void handleUndefinedGlob(StringRef arg) {
     return;
   }
 
+  // Calling sym->extract() in the loop is not safe because it may add new
+  // symbols to the symbol table, invalidating the current iterator.
   std::vector<Symbol *> syms;
-  for (Symbol *sym : symtab->symbols()) {
-    // Calling Sym->fetch() from here is not safe because it may
-    // add new symbols to the symbol table, invalidating the
-    // current iterator. So we just keep a note.
+  for (Symbol *sym : symtab->symbols())
     if (pat->match(sym->getName()))
       syms.push_back(sym);
-  }
 
   for (Symbol *sym : syms)
     handleUndefined(sym, "--undefined-glob");
@@ -1730,7 +1744,7 @@ static void handleLibcall(StringRef name) {
     mb = cast<LazyArchive>(sym)->getMemberBuffer();
 
   if (isBitcode(mb))
-    sym->fetch();
+    sym->extract();
 }
 
 // Handle --dependency-file=<path>. If that option is given, lld creates a
@@ -1990,7 +2004,7 @@ template <class ELFT> void LinkerDriver::compileBitcodeFiles() {
     if (!config->relocatable)
       for (Symbol *sym : obj->getGlobalSymbols())
         sym->parseSymbolVersion();
-    objectFiles.push_back(file);
+    objectFiles.push_back(obj);
   }
 }
 
@@ -2118,6 +2132,16 @@ static void redirectSymbols(ArrayRef<WrappedSymbol> wrapped) {
     symtab->wrap(w.sym, w.real, w.wrap);
 }
 
+static void checkAndReportMissingFeature(StringRef config, uint32_t features,
+                                         uint32_t mask, const Twine &report) {
+  if (!(features & mask)) {
+    if (config == "error")
+      error(report);
+    else if (config == "warning")
+      warn(report);
+  }
+}
+
 // To enable CET (x86's hardware-assited control flow enforcement), each
 // source file must be compiled with -fcf-protection. Object files compiled
 // with the flag contain feature flags indicating that they are compatible
@@ -2134,14 +2158,32 @@ template <class ELFT> static uint32_t getAndFeatures() {
   uint32_t ret = -1;
   for (InputFile *f : objectFiles) {
     uint32_t features = cast<ObjFile<ELFT>>(f)->andFeatures;
+
+    checkAndReportMissingFeature(
+        config->zBtiReport, features, GNU_PROPERTY_AARCH64_FEATURE_1_BTI,
+        toString(f) + ": -z bti-report: file does not have "
+                      "GNU_PROPERTY_AARCH64_FEATURE_1_BTI property");
+
+    checkAndReportMissingFeature(
+        config->zCetReport, features, GNU_PROPERTY_X86_FEATURE_1_IBT,
+        toString(f) + ": -z cet-report: file does not have "
+                      "GNU_PROPERTY_X86_FEATURE_1_IBT property");
+
+    checkAndReportMissingFeature(
+        config->zCetReport, features, GNU_PROPERTY_X86_FEATURE_1_SHSTK,
+        toString(f) + ": -z cet-report: file does not have "
+                      "GNU_PROPERTY_X86_FEATURE_1_SHSTK property");
+
     if (config->zForceBti && !(features & GNU_PROPERTY_AARCH64_FEATURE_1_BTI)) {
-      warn(toString(f) + ": -z force-bti: file does not have "
-                         "GNU_PROPERTY_AARCH64_FEATURE_1_BTI property");
       features |= GNU_PROPERTY_AARCH64_FEATURE_1_BTI;
+      if (config->zBtiReport == "none")
+        warn(toString(f) + ": -z force-bti: file does not have "
+                           "GNU_PROPERTY_AARCH64_FEATURE_1_BTI property");
     } else if (config->zForceIbt &&
                !(features & GNU_PROPERTY_X86_FEATURE_1_IBT)) {
-      warn(toString(f) + ": -z force-ibt: file does not have "
-                         "GNU_PROPERTY_X86_FEATURE_1_IBT property");
+      if (config->zCetReport == "none")
+        warn(toString(f) + ": -z force-ibt: file does not have "
+                           "GNU_PROPERTY_X86_FEATURE_1_IBT property");
       features |= GNU_PROPERTY_X86_FEATURE_1_IBT;
     }
     if (config->zPacPlt && !(features & GNU_PROPERTY_AARCH64_FEATURE_1_PAC)) {
@@ -2206,7 +2248,7 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
     symtab->insert(arg->getValue())->traced = true;
 
   // Handle -u/--undefined before input files. If both a.a and b.so define foo,
-  // -u foo a.a b.so will fetch a.a.
+  // -u foo a.a b.so will extract a.a.
   for (StringRef name : config->undefined)
     addUnusedUndefined(name)->referenced = true;
 
@@ -2296,7 +2338,6 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Create elfHeader early. We need a dummy section in
   // addReservedSymbols to mark the created symbols as not absolute.
   Out::elfHeader = make<OutputSection>("", 0, SHF_ALLOC);
-  Out::elfHeader->size = sizeof(typename ELFT::Ehdr);
 
   std::vector<WrappedSymbol> wrapped = addWrappedSymbols(args);
 
@@ -2475,8 +2516,8 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
     // merging MergeInputSections into a single MergeSyntheticSection. From this
     // point onwards InputSectionDescription::sections should be used instead of
     // sectionBases.
-    for (BaseCommand *base : script->sectionCommands)
-      if (auto *sec = dyn_cast<OutputSection>(base))
+    for (SectionCommand *cmd : script->sectionCommands)
+      if (auto *sec = dyn_cast<OutputSection>(cmd))
         sec->finalizeInputSections();
     llvm::erase_if(inputSections, [](InputSectionBase *s) {
       return isa<MergeInputSection>(s);

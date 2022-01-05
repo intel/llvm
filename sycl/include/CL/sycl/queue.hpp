@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/assert_happened.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/service_kernel_names.hpp>
@@ -67,7 +67,7 @@
 
 // Helper macro to identify if fallback assert is needed
 // FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT)
 #define __SYCL_USE_FALLBACK_ASSERT 1
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
@@ -251,30 +251,29 @@ public:
   template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    event Event;
-
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
                                           event &E) {
         if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert) {
+            KernelUsesAssert && !device_has(aspect::accelerator)) {
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
           // performed by program manager class
+          // Fallback assert isn't supported for FPGA
           submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
                               CodeLoc);
         }
       };
 
-      Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      return discard_or_return(Event);
     } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
     {
-      Event = submit_impl(CGF, CodeLoc);
+      auto Event = submit_impl(CGF, CodeLoc);
+      return discard_or_return(Event);
     }
-
-    return Event;
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -292,14 +291,12 @@ public:
   event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    event Event;
-
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
       auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
                              bool IsKernel, bool KernelUsesAssert, event &E) {
         if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert) {
+            KernelUsesAssert && !device_has(aspect::accelerator)) {
           // Only secondary queues on devices need to be added to the assert
           // capture.
           // TODO: Handle case where primary queue is host but the secondary
@@ -309,19 +306,20 @@ public:
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
           // performed by program manager class
+          // Fallback assert isn't supported for FPGA
           submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
         }
       };
 
-      Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
-                                          PostProcess);
+      auto Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                               PostProcess);
+      return discard_or_return(Event);
     } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
     {
-      Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      return discard_or_return(Event);
     }
-
-    return Event;
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -688,8 +686,14 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
-
     return submit(
         [&](handler &CGH) {
           CGH.template single_task<KernelName, KernelType>(KernelFunc);
@@ -705,6 +709,13 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -723,6 +734,13 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const std::vector<event> &DepEvents,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -1038,11 +1056,10 @@ public:
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
+  template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> typename interop<BackendName, queue>::type {
-    return reinterpret_cast<typename interop<BackendName, queue>::type>(
-        getNative());
+  backend_return_t<Backend, queue> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, queue>>(getNative());
   }
 
 private:
@@ -1067,6 +1084,10 @@ private:
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+
+  /// Checks if the event needs to be discarded and if so, discards it and
+  /// returns a discarded event. Otherwise, it returns input event.
+  event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command
   // Arguments:
@@ -1188,11 +1209,11 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     auto Acc = Buffer.get_access<access::mode::write>(CGH);
 
     CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
       __devicelib_assert_read(&Acc[0]);
 #else
       (void)Acc;
-#endif // __SYCL_DEVICE_ONLY__
+#endif // defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
     });
   };
   auto CheckerCGF = [&CopierEv, &Buffer](handler &CGH) {

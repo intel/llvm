@@ -12,6 +12,8 @@
 #include "mlir/Pass/Pass.h"
 #include "gtest/gtest.h"
 
+#include <memory>
+
 using namespace mlir;
 using namespace mlir::detail;
 
@@ -87,7 +89,7 @@ struct InvalidPass : Pass {
         *static_cast<const InvalidPass *>(this));
   }
 };
-} // anonymous namespace
+} // namespace
 
 TEST(PassManagerTest, InvalidPass) {
   MLIRContext context;
@@ -105,7 +107,7 @@ TEST(PassManagerTest, InvalidPass) {
   // check it later.
   std::unique_ptr<Diagnostic> diagnostic;
   context.getDiagEngine().registerHandler([&](Diagnostic &diag) {
-    diagnostic.reset(new Diagnostic(std::move(diag)));
+    diagnostic = std::make_unique<Diagnostic>(std::move(diag));
   });
 
   // Instantiate and run our pass.
@@ -127,4 +129,4 @@ TEST(PassManagerTest, InvalidPass) {
   ASSERT_DEATH(pm.addPass(std::make_unique<InvalidPass>()), "");
 }
 
-} // end namespace
+} // namespace

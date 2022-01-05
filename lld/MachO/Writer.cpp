@@ -29,6 +29,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
 
@@ -64,6 +65,7 @@ public:
 
   template <class LP> void run();
 
+  ThreadPool threadPool;
   std::unique_ptr<FileOutputBuffer> &buffer;
   uint64_t addr = 0;
   uint64_t fileOff = 0;
@@ -227,7 +229,7 @@ public:
 
   void writeTo(uint8_t *buf) const override {
     using SegmentCommand = typename LP::segment_command;
-    using Section = typename LP::section;
+    using SectionHeader = typename LP::section;
 
     auto *c = reinterpret_cast<SegmentCommand *>(buf);
     buf += sizeof(SegmentCommand);
@@ -248,8 +250,8 @@ public:
       if (osec->isHidden())
         continue;
 
-      auto *sectHdr = reinterpret_cast<Section *>(buf);
-      buf += sizeof(Section);
+      auto *sectHdr = reinterpret_cast<SectionHeader *>(buf);
+      buf += sizeof(SectionHeader);
 
       memcpy(sectHdr->sectname, osec->name.data(), osec->name.size());
       memcpy(sectHdr->segname, name.data(), name.size());
@@ -1035,10 +1037,14 @@ void Writer::finalizeLinkEditSegment() {
       dataInCodeSection,
       functionStartsSection,
   };
-  parallelForEach(linkEditSections, [](LinkEditSection *osec) {
+  SmallVector<std::shared_future<void>> threadFutures;
+  threadFutures.reserve(linkEditSections.size());
+  for (LinkEditSection *osec : linkEditSections)
     if (osec)
-      osec->finalizeContents();
-  });
+      threadFutures.emplace_back(threadPool.async(
+          [](LinkEditSection *osec) { osec->finalizeContents(); }, osec));
+  for (std::shared_future<void> &future : threadFutures)
+    future.wait();
 
   // Now that __LINKEDIT is filled out, do a proper calculation of its
   // addresses and offsets.
@@ -1091,14 +1097,21 @@ void Writer::writeSections() {
 // values.
 void Writer::writeUuid() {
   TimeTraceScope timeScope("Computing UUID");
+
   ArrayRef<uint8_t> data{buffer->getBufferStart(), buffer->getBufferEnd()};
   unsigned chunkCount = parallel::strategy.compute_thread_count() * 10;
   // Round-up integer division
   size_t chunkSize = (data.size() + chunkCount - 1) / chunkCount;
   std::vector<ArrayRef<uint8_t>> chunks = split(data, chunkSize);
   std::vector<uint64_t> hashes(chunks.size());
-  parallelForEachN(0, chunks.size(),
-                   [&](size_t i) { hashes[i] = xxHash64(chunks[i]); });
+  SmallVector<std::shared_future<void>> threadFutures;
+  threadFutures.reserve(chunks.size());
+  for (size_t i = 0; i < chunks.size(); ++i)
+    threadFutures.emplace_back(threadPool.async(
+        [&](size_t i) { hashes[i] = xxHash64(chunks[i]); }, i));
+  for (std::shared_future<void> &future : threadFutures)
+    future.wait();
+
   uint64_t digest = xxHash64({reinterpret_cast<uint8_t *>(hashes.data()),
                               hashes.size() * sizeof(uint64_t)});
   uuidCommand->writeUuid(digest);
@@ -1147,8 +1160,8 @@ template <class LP> void Writer::run() {
   sortSegmentsAndSections();
   createLoadCommands<LP>();
   finalizeAddresses();
+  threadPool.async(writeMapFile);
   finalizeLinkEditSegment();
-  writeMapFile();
   writeOutputFile();
 }
 

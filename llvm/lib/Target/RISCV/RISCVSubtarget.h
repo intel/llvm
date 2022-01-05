@@ -51,7 +51,7 @@ class RISCVSubtarget : public RISCVGenSubtargetInfo {
   bool HasStdExtZbt = false;
   bool HasStdExtV = false;
   bool HasStdExtZvlsseg = false;
-  bool HasStdExtZvamo = false;
+  bool HasStdExtZfhmin = false;
   bool HasStdExtZfh = false;
   bool HasRV64 = false;
   bool IsRV32E = false;
@@ -117,7 +117,7 @@ public:
   bool hasStdExtZbt() const { return HasStdExtZbt; }
   bool hasStdExtV() const { return HasStdExtV; }
   bool hasStdExtZvlsseg() const { return HasStdExtZvlsseg; }
-  bool hasStdExtZvamo() const { return HasStdExtZvamo; }
+  bool hasStdExtZfhmin() const { return HasStdExtZfhmin; }
   bool hasStdExtZfh() const { return HasStdExtZfh; }
   bool is64Bit() const { return HasRV64; }
   bool isRV32E() const { return IsRV32E; }
@@ -138,8 +138,8 @@ public:
   bool hasVInstructionsF16() const { return HasStdExtV && hasStdExtZfh(); }
   bool hasVInstructionsF32() const { return HasStdExtV && hasStdExtF(); }
   bool hasVInstructionsF64() const { return HasStdExtV && hasStdExtD(); }
-  // D and Zfh imply F.
-  bool hasVInstructionsAnyF() const { return HasStdExtV && hasStdExtF(); }
+  // F16 and F64 both require F32.
+  bool hasVInstructionsAnyF() const { return hasVInstructionsF32(); }
   unsigned getMaxInterleaveFactor() const {
     return hasVInstructions() ? MaxInterleaveFactor : 1;
   }

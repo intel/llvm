@@ -31,7 +31,7 @@ using namespace mlir::shape;
 
 namespace {
 #include "ShapeCanonicalization.inc"
-}
+} // namespace
 
 RankedTensorType shape::getExtentTensorType(MLIRContext *ctx, int64_t rank) {
   return RankedTensorType::get({rank}, IndexType::get(ctx));
@@ -50,16 +50,17 @@ LogicalResult shape::getShapeVec(Value input,
       return failure();
     shapeValues = llvm::to_vector<6>(type.getShape());
     return success();
-  } else if (auto inputOp = input.getDefiningOp<ConstShapeOp>()) {
+  }
+  if (auto inputOp = input.getDefiningOp<ConstShapeOp>()) {
     shapeValues = llvm::to_vector<6>(inputOp.getShape().getValues<int64_t>());
     return success();
-  } else if (auto inputOp = input.getDefiningOp<arith::ConstantOp>()) {
+  }
+  if (auto inputOp = input.getDefiningOp<arith::ConstantOp>()) {
     shapeValues = llvm::to_vector<6>(
         inputOp.getValue().cast<DenseIntElementsAttr>().getValues<int64_t>());
     return success();
-  } else {
-    return failure();
   }
+  return failure();
 }
 
 static bool isErrorPropagationPossible(TypeRange operandTypes) {
@@ -188,12 +189,12 @@ void ShapeDialect::printType(Type type, DialectAsmPrinter &os) const {
 LogicalResult ShapeDialect::verifyOperationAttribute(Operation *op,
                                                      NamedAttribute attribute) {
   // Verify shape.lib attribute.
-  if (attribute.first == "shape.lib") {
+  if (attribute.getName() == "shape.lib") {
     if (!op->hasTrait<OpTrait::SymbolTable>())
       return op->emitError(
           "shape.lib attribute may only be on op implementing SymbolTable");
 
-    if (auto symbolRef = attribute.second.dyn_cast<SymbolRefAttr>()) {
+    if (auto symbolRef = attribute.getValue().dyn_cast<SymbolRefAttr>()) {
       auto *symbol = SymbolTable::lookupSymbolIn(op, symbolRef);
       if (!symbol)
         return op->emitError("shape function library ")
@@ -204,10 +205,10 @@ LogicalResult ShapeDialect::verifyOperationAttribute(Operation *op,
                        << symbolRef << " required to be shape function library";
     }
 
-    if (auto arr = attribute.second.dyn_cast<ArrayAttr>()) {
+    if (auto arr = attribute.getValue().dyn_cast<ArrayAttr>()) {
       // Verify all entries are function libraries and mappings in libraries
       // refer to unique ops.
-      DenseSet<Identifier> key;
+      DenseSet<StringAttr> key;
       for (auto it : arr) {
         if (!it.isa<SymbolRefAttr>())
           return op->emitError(
@@ -219,10 +220,10 @@ LogicalResult ShapeDialect::verifyOperationAttribute(Operation *op,
           return op->emitError()
                  << it << " does not refer to FunctionLibraryOp";
         for (auto mapping : shapeFnLib.getMapping()) {
-          if (!key.insert(mapping.first).second) {
+          if (!key.insert(mapping.getName()).second) {
             return op->emitError("only one op to shape mapping allowed, found "
                                  "multiple for `")
-                   << mapping.first << "`";
+                   << mapping.getName() << "`";
           }
         }
       }
@@ -1138,7 +1139,7 @@ OpFoldResult GetExtentOp::fold(ArrayRef<Attribute> operands) {
     return nullptr;
   if (dim.getValue() >= elements.getNumElements())
     return nullptr;
-  return elements.getValue({(uint64_t)dim.getValue()});
+  return elements.getValues<Attribute>()[(uint64_t)dim.getValue()];
 }
 
 void GetExtentOp::build(OpBuilder &builder, OperationState &result, Value shape,

@@ -89,12 +89,12 @@ __ESIMD_INTRIN
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
   __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)> V;
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
+  if (sizeof(Ty) == 2)
+    ElemsPerAddr = ElemsPerAddr / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) == 2)
-        ElemsPerAddr = ElemsPerAddr / 2;
       if (sizeof(Ty) <= 2) {
         for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
           V[I * NumBlkDecoded + J] = *(Addr + J);
@@ -121,12 +121,12 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
 {
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
+  if (sizeof(Ty) == 2)
+    ElemsPerAddr = ElemsPerAddr / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) == 2)
-        ElemsPerAddr = ElemsPerAddr / 2;
       if (sizeof(Ty) <= 2) {
         for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
           *(Addr + J) = vals[I * NumBlkDecoded + J];

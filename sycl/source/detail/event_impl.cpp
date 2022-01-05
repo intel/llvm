@@ -56,6 +56,11 @@ void event_impl::waitInternal() const {
     return;
   }
 
+  if (MState == HES_Discarded)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "waitInternal method cannot be used for a discarded event.");
+
   while (MState != HES_Complete)
     ;
 }
@@ -93,11 +98,13 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MState = HES_NotComplete;
 }
 
-event_impl::event_impl() : MState(HES_Complete) {}
+event_impl::event_impl(HostEventState State)
+    : MIsFlushed(true), MState(State) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
-      MOpenCLInterop(true), MHostEvent(false), MState(HES_Complete) {
+      MOpenCLInterop(true), MHostEvent(false), MIsFlushed(true),
+      MState(HES_Complete) {
 
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
@@ -120,7 +127,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
-event_impl::event_impl(QueueImplPtr Queue) {
+event_impl::event_impl(const QueueImplPtr &Queue) : MQueue{Queue} {
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
@@ -187,6 +194,10 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+  if (MState == HES_Discarded)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait method cannot be used for a discarded event.");
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -210,18 +221,24 @@ void event_impl::wait(
 
 void event_impl::wait_and_throw(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) {
-  Command *Cmd = static_cast<Command *>(Self->getCommand());
-  QueueImplPtr submittedQueue = nullptr;
-  if (Cmd)
-    submittedQueue = Cmd->getSubmittedQueue();
+  Scheduler &Sched = Scheduler::getInstance();
 
+  QueueImplPtr submittedQueue = nullptr;
+  {
+    Scheduler::ReadLockT Lock(Sched.MGraphLock);
+    Command *Cmd = static_cast<Command *>(Self->getCommand());
+    if (Cmd)
+      submittedQueue = Cmd->getSubmittedQueue();
+  }
   wait(Self);
 
-  for (auto &EventImpl :
-       detail::Scheduler::getInstance().getWaitList(std::move(Self))) {
-    Command *Cmd = (Command *)EventImpl->getCommand();
-    if (Cmd)
-      Cmd->getSubmittedQueue()->throw_asynchronous();
+  {
+    Scheduler::ReadLockT Lock(Sched.MGraphLock);
+    for (auto &EventImpl : getWaitList()) {
+      Command *Cmd = (Command *)EventImpl->getCommand();
+      if (Cmd)
+        Cmd->getSubmittedQueue()->throw_asynchronous();
+    }
   }
   if (submittedQueue)
     submittedQueue->throw_asynchronous();
@@ -297,6 +314,9 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
+  if (MState == HES_Discarded)
+    return info::event_command_status::ext_oneapi_unknown;
+
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef(), this->getPlugin());
@@ -323,6 +343,56 @@ pi_native_handle event_impl::getNative() const {
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
+}
+
+std::vector<EventImplPtr> event_impl::getWaitList() {
+  if (MState == HES_Discarded)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_wait_list() cannot be used for a discarded event.");
+
+  std::lock_guard<std::mutex> Lock(MMutex);
+
+  std::vector<EventImplPtr> Result;
+  Result.reserve(MPreparedDepsEvents.size() + MPreparedHostDepsEvents.size());
+  Result.insert(Result.end(), MPreparedDepsEvents.begin(),
+                MPreparedDepsEvents.end());
+  Result.insert(Result.end(), MPreparedHostDepsEvents.begin(),
+                MPreparedHostDepsEvents.end());
+
+  return Result;
+}
+
+void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
+  if (MIsFlushed)
+    return;
+
+  QueueImplPtr Queue = MQueue.lock();
+  // If the queue has been released, all of the commands have already been
+  // implicitly flushed by piQueueRelease.
+  if (!Queue) {
+    MIsFlushed = true;
+    return;
+  }
+  if (Queue == UserQueue)
+    return;
+
+  // Check if the task for this event has already been submitted.
+  assert(MEvent != nullptr);
+  pi_event_status Status = PI_EVENT_QUEUED;
+  getPlugin().call<PiApiKind::piEventGetInfo>(
+      MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
+      nullptr);
+  if (Status == PI_EVENT_QUEUED) {
+    getPlugin().call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+  }
+  MIsFlushed = true;
+}
+
+void event_impl::cleanupDependencyEvents() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  MPreparedDepsEvents.clear();
+  MPreparedHostDepsEvents.clear();
 }
 
 } // namespace detail
