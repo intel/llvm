@@ -2245,7 +2245,7 @@ def SYCLFPGAPipe : TypeAttr {
   let Documentation = [SYCLFPGAPipeDocs];
 }
 
-def SYCLIntelPipeIO : Attr {
+def SYCLIntelPipeIO : InheritableAttr {
   let Spellings = [GNU<"io_pipe_id">];
   let Args = [ExprArgument<"ID">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];

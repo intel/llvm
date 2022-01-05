@@ -7127,9 +7127,46 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI,
           << CI << /*non-negative*/ 1;
       return;
     }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getID())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
   }
 
   D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, CI, E));
+}
+
+SYCLIntelPipeIOAttr *Sema::MergeSYCLIntelPipeIOAttr(
+    Decl *D, const SYCLIntelPipeIOAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getID())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getID())) {
+        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+          Diag(A.getLoc(), diag::note_previous_attribute);
+        }
+        // Do not add a duplicate attribute.
+        return nullptr;
+      }
+    }
+  }
+
+  return ::new (Context)
+      SYCLIntelPipeIOAttr(Context, A, A.getID());
 }
 
 static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D, const ParsedAttr &A) {
