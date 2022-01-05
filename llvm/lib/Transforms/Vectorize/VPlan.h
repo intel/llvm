@@ -39,6 +39,7 @@
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/Analysis/VectorUtils.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/InstructionCost.h"
 #include <algorithm>
@@ -798,6 +799,7 @@ private:
   typedef unsigned char OpcodeTy;
   OpcodeTy Opcode;
   FastMathFlags FMF;
+  DebugLoc DL;
 
   /// Utility method serving execute(): generates a single instance of the
   /// modeled instruction.
@@ -807,12 +809,14 @@ protected:
   void setUnderlyingInstr(Instruction *I) { setUnderlyingValue(I); }
 
 public:
-  VPInstruction(unsigned Opcode, ArrayRef<VPValue *> Operands)
+  VPInstruction(unsigned Opcode, ArrayRef<VPValue *> Operands, DebugLoc DL)
       : VPRecipeBase(VPRecipeBase::VPInstructionSC, Operands),
-        VPValue(VPValue::VPVInstructionSC, nullptr, this), Opcode(Opcode) {}
+        VPValue(VPValue::VPVInstructionSC, nullptr, this), Opcode(Opcode),
+        DL(DL) {}
 
-  VPInstruction(unsigned Opcode, std::initializer_list<VPValue *> Operands)
-      : VPInstruction(Opcode, ArrayRef<VPValue *>(Operands)) {}
+  VPInstruction(unsigned Opcode, std::initializer_list<VPValue *> Operands,
+                DebugLoc DL = {})
+      : VPInstruction(Opcode, ArrayRef<VPValue *>(Operands), DL) {}
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
   static inline bool classof(const VPValue *V) {
@@ -821,7 +825,7 @@ public:
 
   VPInstruction *clone() const {
     SmallVector<VPValue *, 2> Operands(operands());
-    return new VPInstruction(Opcode, Operands);
+    return new VPInstruction(Opcode, Operands, DL);
   }
 
   /// Method to support type inquiry through isa, cast, and dyn_cast.
@@ -2348,18 +2352,23 @@ public:
 
   /// Insert disconnected VPBlockBase \p NewBlock after \p BlockPtr. Add \p
   /// NewBlock as successor of \p BlockPtr and \p BlockPtr as predecessor of \p
-  /// NewBlock, and propagate \p BlockPtr parent to \p NewBlock. If \p BlockPtr
-  /// has more than one successor, its conditional bit is propagated to \p
-  /// NewBlock. \p NewBlock must have neither successors nor predecessors.
+  /// NewBlock, and propagate \p BlockPtr parent to \p NewBlock. \p BlockPtr's
+  /// successors are moved from \p BlockPtr to \p NewBlock and \p BlockPtr's
+  /// conditional bit is propagated to \p NewBlock. \p NewBlock must have
+  /// neither successors nor predecessors.
   static void insertBlockAfter(VPBlockBase *NewBlock, VPBlockBase *BlockPtr) {
     assert(NewBlock->getSuccessors().empty() &&
-           "Can't insert new block with successors.");
-    // TODO: move successors from BlockPtr to NewBlock when this functionality
-    // is necessary. For now, setBlockSingleSuccessor will assert if BlockPtr
-    // already has successors.
-    BlockPtr->setOneSuccessor(NewBlock);
-    NewBlock->setPredecessors({BlockPtr});
+           NewBlock->getPredecessors().empty() &&
+           "Can't insert new block with predecessors or successors.");
     NewBlock->setParent(BlockPtr->getParent());
+    SmallVector<VPBlockBase *> Succs(BlockPtr->successors());
+    for (VPBlockBase *Succ : Succs) {
+      disconnectBlocks(BlockPtr, Succ);
+      connectBlocks(NewBlock, Succ);
+    }
+    NewBlock->setCondBit(BlockPtr->getCondBit());
+    BlockPtr->setCondBit(nullptr);
+    connectBlocks(BlockPtr, NewBlock);
   }
 
   /// Insert disconnected VPBlockBases \p IfTrue and \p IfFalse after \p
@@ -2400,6 +2409,31 @@ public:
     assert(To && "Successor to disconnect is null.");
     From->removeSuccessor(To);
     To->removePredecessor(From);
+  }
+
+  /// Try to merge \p Block into its single predecessor, if \p Block is a
+  /// VPBasicBlock and its predecessor has a single successor. Returns a pointer
+  /// to the predecessor \p Block was merged into or nullptr otherwise.
+  static VPBasicBlock *tryToMergeBlockIntoPredecessor(VPBlockBase *Block) {
+    auto *VPBB = dyn_cast<VPBasicBlock>(Block);
+    auto *PredVPBB =
+        dyn_cast_or_null<VPBasicBlock>(Block->getSinglePredecessor());
+    if (!VPBB || !PredVPBB || PredVPBB->getNumSuccessors() != 1)
+      return nullptr;
+
+    for (VPRecipeBase &R : make_early_inc_range(*VPBB))
+      R.moveBefore(*PredVPBB, PredVPBB->end());
+    VPBlockUtils::disconnectBlocks(PredVPBB, VPBB);
+    auto *ParentRegion = cast<VPRegionBlock>(Block->getParent());
+    if (ParentRegion->getExit() == Block)
+      ParentRegion->setExit(PredVPBB);
+    SmallVector<VPBlockBase *> Successors(Block->successors());
+    for (auto *Succ : Successors) {
+      VPBlockUtils::disconnectBlocks(Block, Succ);
+      VPBlockUtils::connectBlocks(PredVPBB, Succ);
+    }
+    delete Block;
+    return PredVPBB;
   }
 
   /// Returns true if the edge \p FromBlock -> \p ToBlock is a back-edge.
