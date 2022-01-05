@@ -3785,13 +3785,24 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
-  (void)Options;
-
   // We only support one device with Level Zero currently.
   pi_device Device = Context->Devices[0];
   if (NumDevices != 1) {
     zePrint("piProgramLink: level_zero supports only one device.");
     return PI_INVALID_VALUE;
+  }
+
+  // We do not support any link flags at this time because the Level Zero API
+  // does not have any way to pass flags that are specific to linking.
+  if (Options && *Options != '\0') {
+    std::string ErrorMessage(
+        "Level Zero does not support kernel link flags: \"");
+    ErrorMessage.append(Options);
+    ErrorMessage.push_back('\"');
+    pi_program Program =
+        new _pi_program(_pi_program::Invalid, Context, ErrorMessage);
+    *RetProgram = Program;
+    return PI_LINK_PROGRAM_FAILURE;
   }
 
   // Validate input parameters.
@@ -4051,16 +4062,26 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
     // with piProgramRegister?
     return ReturnValue("");
   } else if (ParamName == CL_PROGRAM_BUILD_LOG) {
-    // The OpenCL spec says an empty string is returned if there was no
-    // previous Compile, Build, or Link.
-    if (!Program->ZeBuildLog)
-      return ReturnValue("");
-    size_t LogSize = ParamValueSize;
-    ZE_CALL(zeModuleBuildLogGetString,
-            (Program->ZeBuildLog, &LogSize, pi_cast<char *>(ParamValue)));
-    if (ParamValueSizeRet) {
-      *ParamValueSizeRet = LogSize;
+    // Check first to see if the plugin code recorded an error message.
+    if (!Program->ErrorMessage.empty()) {
+      return ReturnValue(Program->ErrorMessage.c_str());
     }
+
+    // Next check if there is a Level Zero build log.
+    if (Program->ZeBuildLog) {
+      size_t LogSize = ParamValueSize;
+      ZE_CALL(zeModuleBuildLogGetString,
+              (Program->ZeBuildLog, &LogSize, pi_cast<char *>(ParamValue)));
+      if (ParamValueSizeRet) {
+        *ParamValueSizeRet = LogSize;
+      }
+      return PI_SUCCESS;
+    }
+
+    // Otherwise, there is no error.  The OpenCL spec says to return an empty
+    // string if there ws no previous attempt to compile, build, or link the
+    // program.
+    return ReturnValue("");
   } else {
     zePrint("piProgramGetBuildInfo: unsupported ParamName\n");
     return PI_INVALID_VALUE;
