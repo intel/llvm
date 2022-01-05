@@ -34,16 +34,6 @@ int main() {
   return 0;
 }
 
-// Checking of different argument values.
-// CHECK: VarDecl {{.*}} Storage3 'const pipe_storage' callinit
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'const pipe_storage' 'void () noexcept'
-// CHECK-NEXT: SYCLIntelPipeIOAttr
-// CHECK-NEXT: ConstantExpr{{.*}}'int'
-// CHECK-NEXT: value: Int 4
-// CHECK-NEXT: IntegerLiteral {{.*}} 'int' 4
-const pipe_storage Storage3 __attribute__((io_pipe_id(4))) // expected-note{{previous attribute is here}}
-__attribute__((io_pipe_id(8)));                            // expected-warning {{warning: attribute 'io_pipe_id' is already applied with different arguments}}
-
 // Test for Intel 'io_pipe_id' attribute duplication.
 // No diagnostic is emitted because the arguments match.
 // Duplicate attribute is silently ignored.
@@ -53,4 +43,5 @@ __attribute__((io_pipe_id(8)));                            // expected-warning {
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 1
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 1
+// CHECK-NOT: SYCLIntelPipeIOAttr
 const pipe_storage Storage4 __attribute__((io_pipe_id(1))) __attribute__((io_pipe_id(1)));
