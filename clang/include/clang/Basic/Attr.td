@@ -1265,7 +1265,7 @@ def SYCLRegisterNum : InheritableAttr {
 
 // Used by FE to mark SYCL kernel pointer parameters which correspond to the
 // original lambda's captured accessors. FE turns the attribute to some metadata
-// required by the FPGA back-end.
+// required by the device back-end.
 // This attribute does not require custom semantic handling 
 // hence we set the SemaHandler field to 0.
 // The attribute is not for public consumption, and is an implicitly-created attribute
