@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -pedantic %s
 
+// Diagnostic tests for __attribute__((io_pipe_id(..))) attribute.
+
 // no error expected
 using type1 = __attribute__((pipe("read_only"))) const int;
 

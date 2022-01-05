@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump %s | FileCheck %s
 
-// Tests for AST of SYCLIntelPipeIOAttr.
+// Tests for AST of __attribute__((io_pipe_id(..))) attribute.
 
 struct pipe_storage {};
 
