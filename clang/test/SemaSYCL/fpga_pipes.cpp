@@ -44,7 +44,7 @@ struct S {};
 // Test that checks template instantiations for different arg values.
 template <int A>
 pipe_storage Storage7 __attribute__((io_pipe_id(1))) // expected-note {{previous attribute is here}}
-                      __attribute__((io_pipe_id(A))); // expected-warning{{attribute 'io_pipe_id' is already applied with different arguments}}
+__attribute__((io_pipe_id(A)));                      // expected-warning{{attribute 'io_pipe_id' is already applied with different arguments}}
 
 void foo(pipe_storage PS) {}
 
@@ -55,20 +55,20 @@ int main() {
   foo(Storage5<-1>);
   // expected-note@+1{{in instantiation of variable template specialization 'Storage6' requested here}}
   foo(Storage6<S>);
-  //expected-note@+1{{in instantiation of variable template specialization 'Storage7' requested here}}
+  // expected-note@+1{{in instantiation of variable template specialization 'Storage7' requested here}}
   foo(Storage7<4>);
   return 0;
 }
 
 // Test for Intel 'io_pipe_id' attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
-const pipe_storage Storage8 __attribute__((io_pipe_id(1)))  __attribute__((io_pipe_id(1)));
+const pipe_storage Storage8 __attribute__((io_pipe_id(1))) __attribute__((io_pipe_id(1)));
 
 // Diagnostic is emitted because the arguments mismatch.
-const pipe_storage Storage9 __attribute__((io_pipe_id(1)))  // expected-note {{previous attribute is here}}
-                            __attribute__((io_pipe_id(5))); // expected-warning{{attribute 'io_pipe_id' is already applied with different arguments}}
+const pipe_storage Storage9 __attribute__((io_pipe_id(1))) // expected-note {{previous attribute is here}}
+__attribute__((io_pipe_id(5)));                            // expected-warning{{attribute 'io_pipe_id' is already applied with different arguments}}
 
-const pipe_storage Storage10 __attribute__((io_pipe_id(1))); // expected-note {{previous attribute is here}}
+const pipe_storage Storage10 __attribute__((io_pipe_id(1)));        // expected-note {{previous attribute is here}}
 extern const pipe_storage Storage10 __attribute__((io_pipe_id(3))); // expected-warning{{attribute 'io_pipe_id' is already applied with different arguments}}
 
 // Test that checks expression is not a constant expression.

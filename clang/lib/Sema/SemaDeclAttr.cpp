@@ -7148,8 +7148,8 @@ void Sema::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, CI, E));
 }
 
-SYCLIntelPipeIOAttr *Sema::MergeSYCLIntelPipeIOAttr(
-    Decl *D, const SYCLIntelPipeIOAttr &A) {
+SYCLIntelPipeIOAttr *
+Sema::MergeSYCLIntelPipeIOAttr(Decl *D, const SYCLIntelPipeIOAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
@@ -7165,8 +7165,7 @@ SYCLIntelPipeIOAttr *Sema::MergeSYCLIntelPipeIOAttr(
     }
   }
 
-  return ::new (Context)
-      SYCLIntelPipeIOAttr(Context, A, A.getID());
+  return ::new (Context) SYCLIntelPipeIOAttr(Context, A, A.getID());
 }
 
 static void handleSYCLIntelPipeIOAttr(Sema &S, Decl *D, const ParsedAttr &A) {
