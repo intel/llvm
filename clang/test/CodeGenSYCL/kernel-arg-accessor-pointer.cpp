@@ -81,10 +81,10 @@ int main() {
     });
   });
 
-  // Check if kernel_arg_accessor_ptr metadata is generated for ESIMD kernels that capture 
+  // Check if kernel_arg_accessor_ptr metadata is generated for ESIMD kernels that capture
   // an accessor.
   q.submit([&](handler &h) {
-    h.single_task<class esimd_kernel_with_acc>([=]() __attribute__((sycl_explicit_simd)){
+    h.single_task<class esimd_kernel_with_acc>([=]() __attribute__((sycl_explicit_simd)) {
       readOnlyAccessor.use();
     });
   });
