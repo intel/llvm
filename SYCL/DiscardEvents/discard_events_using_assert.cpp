@@ -1,6 +1,7 @@
 // FIXME unsupported on CUDA and HIP until fallback libdevice becomes available
 // UNSUPPORTED: cuda || hip
 //
+// XFAIL: ze_debug-1,ze_debug4
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out &> %t.txt

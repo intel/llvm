@@ -1,6 +1,7 @@
 // REQUIRES: gpu, level_zero
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// XFAIL: ze_debug-1,ze_debug4
 
 // Set batching to 4 explicitly
 // RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_TRACE=2 ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s

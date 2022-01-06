@@ -1,4 +1,5 @@
 // UNSUPPORTED: cuda || hip_nvidia
+// XFAIL: ze_debug-1,ze_debug4
 // REQUIRES: gpu,linux
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
