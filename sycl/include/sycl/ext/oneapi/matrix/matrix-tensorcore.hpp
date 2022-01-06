@@ -76,13 +76,13 @@ __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 16, 16, int32_t, 8)
 
 namespace detail {
 
-template <typename T, sycl::ext::oneapi::experimental::matrix::matrix_use MT,
+template <typename T, sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
           access::address_space Space, typename Cond = void>
 struct joint_matrix_load_impl {
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-                T, MT, NumRows, NumCols, Layout> &res,
+                T, Use, NumRows, NumCols, Layout> &res,
             multi_ptr<T, Space> src, size_t stride);
 };
 
@@ -101,13 +101,18 @@ constexpr int get_layout_id<
   return 1;
 }
 
-template <typename T, matrix::matrix_use Use, size_t NumRows, size_t NumCols,
-          matrix::matrix_layout Layout, access::address_space Space>
+template <typename T, sycl::ext::oneapi::experimental::matrix::matrix_use Use,
+          size_t NumRows, size_t NumCols,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
+          access::address_space Space>
 struct joint_matrix_load_impl<
     T, Use, NumRows, NumCols, Layout, Space,
-    typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
-                              Layout == matrix::matrix_layout::col_major>> {
-  void load(matrix::joint_matrix<T, Use, NumRows, NumCols, Layout> &res,
+    typename std::enable_if_t<Layout == sycl::ext::oneapi::experimental::
+                                            matrix::matrix_layout::row_major ||
+                              Layout == sycl::ext::oneapi::experimental::
+                                            matrix::matrix_layout::col_major>> {
+  void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                T, Use, NumRows, NumCols, Layout> &res,
             multi_ptr<T, Space> src, size_t stride) {
 #ifdef __NVPTX__
 #ifdef __SYCL_DEVICE_ONLY__
@@ -115,10 +120,12 @@ struct joint_matrix_load_impl<
     if constexpr (std::is_same<T, uint16_t>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 16) {
-        if constexpr (Use == matrix::matrix_use::a) {
+        if constexpr (Use ==
+                      sycl::ext::oneapi::experimental::matrix::matrix_use::a) {
           __mma_bf16_m16n16k16_ld_a(res.data, tileptr, stride,
                                     get_layout_id<Layout>());
-        } else if constexpr (Use == matrix::matrix_use::b) {
+        } else if constexpr (Use == sycl::ext::oneapi::experimental::matrix::
+                                        matrix_use::b) {
           __mma_bf16_m16n16k16_ld_b(res.data, tileptr, stride,
                                     get_layout_id<Layout>());
         }
@@ -138,10 +145,12 @@ struct joint_matrix_load_impl<
     } else if constexpr (std::is_same<T, uint8_t>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 16) {
-        if constexpr (Use == matrix::matrix_use::a) {
+        if constexpr (Use ==
+                      sycl::ext::oneapi::experimental::matrix::matrix_use::a) {
           __imma_m16n16k16_ld_a_u8(res.data, tileptr, stride,
                                    get_layout_id<Layout>());
-        } else if constexpr (Use == matrix::matrix_use::b) {
+        } else if constexpr (Use == sycl::ext::oneapi::experimental::matrix::
+                                        matrix_use::b) {
           __imma_m16n16k16_ld_b_u8(res.data, tileptr, stride,
                                    get_layout_id<Layout>());
         }
@@ -161,10 +170,12 @@ struct joint_matrix_load_impl<
     } else if constexpr (std::is_same<T, int8_t>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 16) {
-        if constexpr (Use == matrix::matrix_use::a) {
+        if constexpr (Use ==
+                      sycl::ext::oneapi::experimental::matrix::matrix_use::a) {
           __imma_m16n16k16_ld_a_s8(res.data, tileptr, stride,
                                    get_layout_id<Layout>());
-        } else if constexpr (Use == matrix::matrix_use::b) {
+        } else if constexpr (Use == sycl::ext::oneapi::experimental::matrix::
+                                        matrix_use::b) {
           __imma_m16n16k16_ld_b_s8(res.data, tileptr, stride,
                                    get_layout_id<Layout>());
         }
@@ -184,10 +195,12 @@ struct joint_matrix_load_impl<
     } else if constexpr (std::is_same<T, half>::value) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
       if constexpr (NumRows == 16 && NumCols == 16) {
-        if constexpr (Use == matrix::matrix_use::a) {
+        if constexpr (Use ==
+                      sycl::ext::oneapi::experimental::matrix::matrix_use::a) {
           __hmma_m16n16k16_ld_a(res.data, tileptr, stride,
                                 get_layout_id<Layout>());
-        } else if constexpr (Use == matrix::matrix_use::b) {
+        } else if constexpr (Use == sycl::ext::oneapi::experimental::matrix::
+                                        matrix_use::b) {
           __hmma_m16n16k16_ld_b(res.data, tileptr, stride,
                                 get_layout_id<Layout>());
         }
@@ -227,13 +240,16 @@ struct joint_matrix_load_impl<
                                  get_layout_id<Layout>());
       }
     } else if constexpr (std::is_same<T, double>::value) {
-      if constexpr (Use == matrix::matrix_use::a) {
+      if constexpr (Use ==
+                    sycl::ext::oneapi::experimental::matrix::matrix_use::a) {
         __dmma_m8n8k4_ld_a(res.data, src.get(), stride,
                            get_layout_id<Layout>());
-      } else if constexpr (Use == matrix::matrix_use::b) {
+      } else if constexpr (Use == sycl::ext::oneapi::experimental::matrix::
+                                      matrix_use::b) {
         __dmma_m8n8k4_ld_b(res.data, src.get(), stride,
                            get_layout_id<Layout>());
-      } else if constexpr (Use == matrix::matrix_use::accumulator) {
+      } else if constexpr (Use == sycl::ext::oneapi::experimental::matrix::
+                                      matrix_use::accumulator) {
         __dmma_m8n8k4_ld_c(res.data, src.get(), stride,
                            get_layout_id<Layout>());
       }
@@ -244,25 +260,28 @@ struct joint_matrix_load_impl<
 };
 
 template <typename T, size_t NumRows, size_t NumCols,
-          sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
-          access::address_space Space, typename Cond = void>
+          matrix::matrix_layout Layout, access::address_space Space,
+          typename Cond = void>
 struct joint_matrix_store_impl {
   void
   store(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-            T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
-            NumRows, NumCols, Layout> &src,
+            T, matrix::matrix_use::accumulator, NumRows, NumCols, Layout> &src,
         multi_ptr<T, Space> dst, size_t stride);
 };
-  
+
 template <typename T, size_t NumRows, size_t NumCols,
-          matrix::matrix_layout Layout, access::address_space Space>
+          sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
+          access::address_space Space>
 struct joint_matrix_store_impl<
     T, NumRows, NumCols, Layout, Space,
-    typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
-                              Layout == matrix::matrix_layout::col_major>> {
-  void store(matrix::joint_matrix<T, matrix::matrix_use::accumulator, NumRows,
-                                  NumCols, Layout> &src,
-             multi_ptr<T, Space> dst, size_t stride) {
+    typename std::enable_if_t<Layout == sycl::ext::oneapi::experimental::
+                                            matrix::matrix_layout::row_major ||
+                              Layout == sycl::ext::oneapi::experimental::
+                                            matrix::matrix_layout::col_major>> {
+  void
+  store(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+            T, matrix::matrix_use::accumulator, NumRows, NumCols, Layout> &src,
+        multi_ptr<T, Space> dst, size_t stride) {
 
 #ifdef __NVPTX__
 #ifdef __SYCL_DEVICE_ONLY__
@@ -310,16 +329,13 @@ struct joint_matrix_mad_impl {
       T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
       N, LayoutC>
   mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
-          LayoutA>
+          T1, matrix::matrix_use::a, M, K, LayoutA>
           A,
       sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
-          LayoutB>
+          T1, matrix::matrix_use::b, K, N, LayoutB>
           B,
       sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
-          M, N, LayoutC>
+          T2, matrix::matrix_use::accumulator, M, N, LayoutC>
           C);
 };
 
@@ -356,22 +372,43 @@ constexpr int get_layout_pair_id<
 }
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
-          matrix::matrix_layout LayoutA, matrix::matrix_layout LayoutB,
-          matrix::matrix_layout LayoutC>
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC>
 struct joint_matrix_mad_impl<
     T1, T2, M, K, N, LayoutA, LayoutB, LayoutC,
-    typename std::enable_if_t<(LayoutA == matrix::matrix_layout::row_major ||
-                               LayoutA == matrix::matrix_layout::col_major) &&
-                              (LayoutB == matrix::matrix_layout::row_major ||
-                               LayoutB == matrix::matrix_layout::col_major) &&
-                              (LayoutC == matrix::matrix_layout::row_major ||
-                               LayoutC == matrix::matrix_layout::col_major)>> {
-  matrix::joint_matrix<T2, matrix::matrix_use::accumulator, M, N, LayoutC>
-  mad(matrix::joint_matrix<T1, matrix::matrix_use::a, M, K, LayoutA> A,
-      matrix::joint_matrix<T1, matrix::matrix_use::b, K, N, LayoutB> B,
-      matrix::joint_matrix<T2, matrix::matrix_use::accumulator, M, N, LayoutC>
+    typename std::enable_if_t<
+        (LayoutA == sycl::ext::oneapi::experimental::matrix::matrix_layout::
+                        row_major ||
+         LayoutA == sycl::ext::oneapi::experimental::matrix::matrix_layout::
+                        col_major) &&
+        (LayoutB == sycl::ext::oneapi::experimental::matrix::matrix_layout::
+                        row_major ||
+         LayoutB == sycl::ext::oneapi::experimental::matrix::matrix_layout::
+                        col_major) &&
+        (LayoutC == sycl::ext::oneapi::experimental::matrix::matrix_layout::
+                        row_major ||
+         LayoutC == sycl::ext::oneapi::experimental::matrix::matrix_layout::
+                        col_major)>> {
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<
+      T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
+      N, LayoutC>
+  mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
+          LayoutA>
+          A,
+      sycl::ext::oneapi::experimental::matrix::joint_matrix<
+          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
+          LayoutB>
+          B,
+      sycl::ext::oneapi::experimental::matrix::joint_matrix<
+          T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+          M, N, LayoutC>
           C) {
-    matrix::joint_matrix<T2, matrix::matrix_use::accumulator, M, N, LayoutC> D;
+    sycl::ext::oneapi::experimental::matrix::joint_matrix<
+        T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
+        N, LayoutC>
+        D;
 
 #ifdef __NVPTX__
 #ifdef __SYCL_DEVICE_ONLY__
