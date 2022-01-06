@@ -422,6 +422,9 @@ class _LocalProcess(_BaseProcess):
     def poll(self):
         return self._proc.poll()
 
+    def wait(self, timeout=None):
+        return self._proc.wait(timeout)
+
 
 class _RemoteProcess(_BaseProcess):
 
@@ -1567,7 +1570,7 @@ class Base(unittest2.TestCase):
         return os.environ["CC"]
 
 
-    def yaml2obj(self, yaml_path, obj_path):
+    def yaml2obj(self, yaml_path, obj_path, max_size=None):
         """
         Create an object file at the given path from a yaml file.
 
@@ -1577,6 +1580,8 @@ class Base(unittest2.TestCase):
         if not yaml2obj_bin:
             self.assertTrue(False, "No valid yaml2obj executable specified")
         command = [yaml2obj_bin, "-o=%s" % obj_path, yaml_path]
+        if max_size is not None:
+            command += ["--max-size=%d" % max_size]
         self.runBuildCommand(command)
 
     def getBuildFlags(
@@ -2510,7 +2515,8 @@ FileCheck output:
             self.fail(self._formatMessage(msg,
                 "'{}' is not success".format(error)))
 
-    def createTestTarget(self, file_path=None, msg=None):
+    def createTestTarget(self, file_path=None, msg=None,
+                         load_dependent_modules=True):
         """
         Creates a target from the file found at the given file path.
         Asserts that the resulting target is valid.
@@ -2524,7 +2530,6 @@ FileCheck output:
         error = lldb.SBError()
         triple = ""
         platform = ""
-        load_dependent_modules = True
         target = self.dbg.CreateTarget(file_path, triple, platform,
                                        load_dependent_modules, error)
         if error.Fail():

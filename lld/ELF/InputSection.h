@@ -78,7 +78,7 @@ public:
   // These corresponds to the fields in Elf_Shdr.
   uint32_t alignment;
   uint64_t flags;
-  uint64_t entsize;
+  uint32_t entsize;
   uint32_t type;
   uint32_t link;
   uint32_t info;
@@ -99,9 +99,9 @@ public:
   void markDead() { partition = 0; }
 
 protected:
-  SectionBase(Kind sectionKind, StringRef name, uint64_t flags,
-              uint64_t entsize, uint64_t alignment, uint32_t type,
-              uint32_t info, uint32_t link)
+  constexpr SectionBase(Kind sectionKind, StringRef name, uint64_t flags,
+                        uint32_t entsize, uint32_t alignment, uint32_t type,
+                        uint32_t info, uint32_t link)
       : name(name), repl(this), sectionKind(sectionKind), bss(false),
         keepUnique(false), partition(0), alignment(alignment), flags(flags),
         entsize(entsize), type(type), link(link), info(info) {}
@@ -121,13 +121,13 @@ public:
 
   static bool classof(const SectionBase *s) { return s->kind() != Output; }
 
-  // Section index of the relocation section if exists.
-  uint32_t relSecIdx = 0;
-
   // The file which contains this section. Its dynamic type is always
   // ObjFile<ELFT>, but in order to avoid ELFT, we use InputFile as
   // its static type.
   InputFile *file;
+
+  // Section index of the relocation section if exists.
+  uint32_t relSecIdx = 0;
 
   template <class ELFT> ObjFile<ELFT> *getFile() const {
     return cast_or_null<ObjFile<ELFT>>(file);
@@ -250,7 +250,7 @@ protected:
 // be found by looking at the next one).
 struct SectionPiece {
   SectionPiece(size_t off, uint32_t hash, bool live)
-      : inputOff(off), live(live || !config->gcSections), hash(hash >> 1) {}
+      : inputOff(off), live(live), hash(hash >> 1) {}
 
   uint32_t inputOff;
   uint32_t live : 1;
@@ -278,7 +278,7 @@ public:
 
   // Splittable sections are handled as a sequence of data
   // rather than a single large blob of data.
-  std::vector<SectionPiece> pieces;
+  SmallVector<SectionPiece, 0> pieces;
 
   // Returns I'th piece's data. This function is very hot when
   // string merging is enabled, so we want to inline.
@@ -352,8 +352,6 @@ public:
   // beginning of the output section.
   template <class ELFT> void writeTo(uint8_t *buf);
 
-  uint64_t getOffset(uint64_t offset) const { return outSecOff + offset; }
-
   OutputSection *getParent() const;
 
   // This variable has two usages. Initially, it represents an index in the
@@ -396,7 +394,7 @@ inline bool isDebugSection(const InputSectionBase &sec) {
 }
 
 // The list of all input sections.
-extern std::vector<InputSectionBase *> inputSections;
+extern SmallVector<InputSectionBase *, 0> inputSections;
 
 // The set of TOC entries (.toc + addend) for which we should not apply
 // toc-indirect to toc-relative relaxation. const Symbol * refers to the

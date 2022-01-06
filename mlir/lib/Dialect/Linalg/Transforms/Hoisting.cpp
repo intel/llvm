@@ -16,7 +16,7 @@
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Utils.h"
@@ -286,9 +286,11 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
 
   // Update the source tensor.
   if (read.extractSliceOp)
-    read.extractSliceOp.sourceMutable().assign(forOp.initArgs()[initArgNumber]);
+    read.extractSliceOp.sourceMutable().assign(
+        forOp.getInitArgs()[initArgNumber]);
   else
-    read.transferReadOp.sourceMutable().assign(forOp.initArgs()[initArgNumber]);
+    read.transferReadOp.sourceMutable().assign(
+        forOp.getInitArgs()[initArgNumber]);
 
   // Hoist write after.
   if (write.insertSliceOp)
@@ -296,7 +298,7 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
   write.transferWriteOp->moveAfter(forOp);
 
   // Update the yield.
-  auto yieldOp = cast<scf::YieldOp>(forOp.region().front().getTerminator());
+  auto yieldOp = cast<scf::YieldOp>(forOp.getRegion().front().getTerminator());
   if (write.insertSliceOp)
     yieldOp->setOperand(initArgNumber, write.insertSliceOp.dest());
   else

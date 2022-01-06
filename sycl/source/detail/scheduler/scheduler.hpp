@@ -427,9 +427,6 @@ public:
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
 
-  /// \return a vector of "immediate" dependencies for the Event given.
-  std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
-
   /// Allocate buffers in the pool for a provided stream
   ///
   /// \param Impl to the stream object
@@ -462,7 +459,10 @@ protected:
   /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
   void acquireWriteLock(WriteLockT &Lock);
 
-  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
+  void cleanupCommands(const std::vector<Command *> &Cmds);
+
+  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
+                                         std::vector<Command *> &ToCleanUp);
 
   /// Graph builder class.
   ///
@@ -508,6 +508,8 @@ protected:
     /// with Event passed and its dependencies.
     void optimize(EventImplPtr Event);
 
+    void cleanupCommand(Command *Cmd);
+
     /// Removes finished non-leaf non-alloca commands from the subgraph
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
@@ -550,17 +552,21 @@ protected:
 
     /// Removes commands from leaves.
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                      access::mode AccessMode);
+                      access::mode AccessMode,
+                      std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
     /// \param DepEvent event to depend on
     /// \param Dep optional DepDesc to perform connection properly
+    /// \param ToCleanUp container for commands that can be cleaned up due to
+    /// their removal from leaves
     /// \returns the connecting command which is to be enqueued
     ///
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
     Command *connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
-                             const DepDesc &Dep);
+                             const DepDesc &Dep,
+                             std::vector<Command *> &ToCleanUp);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
@@ -612,7 +618,6 @@ protected:
                                         const ContextImplPtr &Context);
 
     friend class Command;
-    friend class Scheduler;
 
   private:
     friend class ::MockScheduler;
@@ -722,27 +727,27 @@ protected:
   /// \ingroup sycl_graph
   class GraphProcessor {
   public:
-    /// \return a list of events that represent immediate dependencies of the
-    /// command associated with Event passed.
-    static std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
-
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
+    /// \param ToCleanUp container for commands that can be cleaned up.
     /// \param LockTheLock selects if graph lock should be locked upon return
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
     static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
+                             std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
+    /// \param ToCleanUp container for commands that can be cleaned up.
     /// \return true if the command is successfully enqueued.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
+                               std::vector<Command *> &ToCleanUp,
                                BlockingT Blocking = NON_BLOCKING);
   };
 
@@ -759,11 +764,15 @@ protected:
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
 
+  std::vector<Command *> MDeferredCleanupCommands;
+  std::mutex MDeferredCleanupMutex;
+
   QueueImplPtr DefaultHostQueue;
 
   friend class Command;
   friend class DispatchHostTask;
   friend class queue_impl;
+  friend class event_impl;
 
   /// Stream buffers structure.
   ///

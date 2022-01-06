@@ -235,7 +235,7 @@ attributes #3 = { nounwind }
 ; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]], ![[#ID_COMPOS3:]], ![[#ID4:]], ![[#ID5:]]
 ;
 ; CHECK-DEF: !sycl.specialization-constants-default-values = !{![[#ID4:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]], ![[#ID_COMPOS3_DEFAULT:]], ![[#ID8:]], ![[#ID9:]]
-; CHECK-RT-NOT: !sycl.specialization-constants-default-values
+; CHECK-RT: !sycl.specialization-constants-default-values
 ;
 ; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2}
 ; CHECK: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}

@@ -6,6 +6,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_ENABLE_DIA_SDK
   LLVM_ENABLE_FFI
   LLVM_ENABLE_THREADS
+  LLVM_ENABLE_CURL
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_LIBXML2
   LLVM_INCLUDE_GO_TESTS
@@ -53,6 +54,7 @@ set(LLVM_TEST_DEPENDS
           FileCheck
           LLVMHello
           UnitTests
+          append-file
           bugpoint
           count
           file-table-tform
@@ -73,6 +75,7 @@ set(LLVM_TEST_DEPENDS
           llvm-cxxdump
           llvm-cxxfilt
           llvm-cxxmap
+          llvm-debuginfod-find
           llvm-diff
           llvm-dis
           llvm-dlltool
@@ -123,6 +126,7 @@ set(LLVM_TEST_DEPENDS
           llvm-symbolizer
           llvm-tblgen
           llvm-tapi-diff
+          llvm-tli-checker
           llvm-undname
           llvm-windres
           llvm-xray
@@ -131,6 +135,7 @@ set(LLVM_TEST_DEPENDS
           opt
           sancov
           sanstats
+          spirv-to-ir-wrapper
           sycl-post-link
           split-file
           verify-uselistorder

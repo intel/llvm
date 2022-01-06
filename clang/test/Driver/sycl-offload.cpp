@@ -95,13 +95,13 @@
 // NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown"{{.*}} "-check-section"
 // NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown{{.*}}" "-unbundle"
 
-// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
+// RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
-// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
+// RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
-// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
+// RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
-// RUN:  %clangxx -### -fsycl -fintelfpga %t_empty.o %s 2>&1 \
+// RUN:  %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fintelfpga %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
 // NO_IMPLIED_DEVICE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown"{{.*}} "-check-section"
 // NO_IMPLIED_DEVICE-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown{{.*}}" "-unbundle"

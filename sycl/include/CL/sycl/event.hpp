@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -130,11 +130,10 @@ public:
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
+  template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> typename interop<BackendName, event>::type {
-    return reinterpret_cast<typename interop<BackendName, event>::type>(
-        getNative());
+  backend_return_t<Backend, event> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, event>>(getNative());
   }
 
 private:

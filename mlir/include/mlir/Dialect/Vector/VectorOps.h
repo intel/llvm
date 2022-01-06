@@ -56,6 +56,9 @@ isBroadcastableTo(Type srcType, VectorType dstVectorType,
 void populateVectorToVectorCanonicalizationPatterns(
     RewritePatternSet &patterns);
 
+/// Collect a set of vector.shape_cast folding patterns.
+void populateShapeCastFoldingPatterns(RewritePatternSet &patterns);
+
 /// Collect a set of leading one dimension removal patterns.
 ///
 /// These patterns insert vector.shape_cast to remove leading one dimensions
@@ -63,6 +66,21 @@ void populateVectorToVectorCanonicalizationPatterns(
 /// With them, there are more chances that we can cancel out extract-insert
 /// pairs or forward write-read pairs.
 void populateCastAwayVectorLeadingOneDimPatterns(RewritePatternSet &patterns);
+
+/// Collect a set of one dimension removal patterns.
+///
+/// These patterns insert rank-reducing memref.subview ops to remove one
+/// dimensions. With them, there are more chances that we can avoid
+/// potentially exensive vector.shape_cast operations.
+void populateVectorTransferDropUnitDimsPatterns(RewritePatternSet &patterns);
+
+/// Collect a set of patterns to flatten n-D vector transfers on contiguous
+/// memref.
+///
+/// These patterns insert memref.collapse_shape + vector.shape_cast patterns
+/// to transform multiple small n-D transfers into a larger 1-D transfer where
+/// the memref contiguity properties allow it.
+void populateFlattenVectorTransferPatterns(RewritePatternSet &patterns);
 
 /// Collect a set of patterns that bubble up/down bitcast ops.
 ///
@@ -101,8 +119,8 @@ public:
 
   CombiningKind getKind() const;
 
-  void print(DialectAsmPrinter &p) const;
-  static Attribute parse(DialectAsmParser &parser);
+  void print(AsmPrinter &p) const;
+  static Attribute parse(AsmParser &parser, Type type);
 };
 
 /// Collects patterns to progressively lower vector.broadcast ops on high-D
@@ -141,8 +159,8 @@ namespace impl {
 AffineMap getTransferMinorIdentityMap(ShapedType shapedType,
                                       VectorType vectorType);
 } // namespace impl
-} // end namespace vector
-} // end namespace mlir
+} // namespace vector
+} // namespace mlir
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Vector/VectorOps.h.inc"

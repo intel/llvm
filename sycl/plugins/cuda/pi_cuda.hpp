@@ -668,6 +668,7 @@ struct _pi_kernel {
     pi_result retError = cuda_piKernelGetGroupInfo(
         this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
+    (void)retError;
     assert(retError == PI_SUCCESS);
   }
 
@@ -678,6 +679,7 @@ struct _pi_kernel {
     pi_result retError = cuda_piKernelGetGroupInfo(
         this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
+    (void)retError;
     assert(retError == PI_SUCCESS);
   }
 
