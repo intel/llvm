@@ -985,6 +985,10 @@ defm cuda_prec_sqrt : BoolFOption<"cuda-prec-sqrt",
   PosFlag<SetTrue, [CC1Option], "Specify">,
   NegFlag<SetFalse, [], "Don't specify">,
   BothFlags<[], " that sqrt is correctly rounded (for CUDA devices)">>;
+defm nvvm_cuda_approx_tanhf : BoolFOption<"cuda-approx-tanhf",
+  TargetOpts<"NVVMCudaApproxTanhf">, DefaultFalse,
+  PosFlag<SetTrue, [CC1Option], "Use the built-in fast approximation of tanhf function. Device needs to have a compute capability >= 7.5">,
+  NegFlag<SetFalse>>;
 def rocm_path_EQ : Joined<["--"], "rocm-path=">, Group<i_Group>,
   HelpText<"ROCm installation path, used for finding and automatically linking required bitcode libraries.">;
 def hip_path_EQ : Joined<["--"], "hip-path=">, Group<i_Group>,

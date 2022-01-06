@@ -176,6 +176,12 @@ static bool runNVVMReflect(Function &F, unsigned SmVersion) {
       if (auto *Flag = mdconst::extract_or_null<ConstantInt>(
               F.getParent()->getModuleFlag("nvvm-reflect-prec-sqrt")))
         ReflectVal = Flag->getSExtValue();
+    } else if (ReflectArg == "__CUDA_APPROX_TANHF") {
+      // Try to pull __CUDA_APPROX_TANHF from the nvvm-reflect-approx-tanhf
+      // module flag.
+      if (auto *Flag = mdconst::extract_or_null<ConstantInt>(
+              F.getParent()->getModuleFlag("nvvm-reflect-approx-tanhf")))
+        ReflectVal = Flag->getSExtValue();
     }
     Call->replaceAllUsesWith(ConstantInt::get(Call->getType(), ReflectVal));
     ToRemove.push_back(Call);
