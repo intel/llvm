@@ -21,8 +21,6 @@ IMPORTANT: This specification is a draft.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
-
 This extension adds limited support for `std::complex<float>` and
 `std::complex<double>` to several SYCL group functions and algorithms.
 
