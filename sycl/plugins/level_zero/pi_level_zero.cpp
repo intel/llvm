@@ -1831,9 +1831,12 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (NumPlatforms) {
     *NumPlatforms = PiPlatformsCache->size();
 
-    // Initialize availability of USM hostptr import feature.
-    // Since L0 is not platform-specific, just check the first Platform.
-    ZeUSMImport.setZeUSMImport(PiPlatformsCache->front());
+    // Check if import user ptr into USM feature has been requested.
+    if (USMHostPtrImport) {
+      // Initialize availability of USM hostptr import feature.
+      // Since L0 is not platform-specific, just check the first Platform.
+      ZeUSMImport.setZeUSMImport(PiPlatformsCache->front());
+    }
   }
 
   zePrint("Using %s events\n",
@@ -3353,24 +3356,26 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   pi_result Result;
   if (DeviceIsIntegrated) {
-    if (HostPtrImported)
+    if (HostPtrImported) {
       // When HostPtr is imported we use it for the buffer.
       Ptr = HostPtr;
-    else {
-      if (enableBufferPooling())
+    } else {
+      if (enableBufferPooling()) {
         PI_CALL(piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment));
-      else
+      } else {
         Result = ZeHostMemAllocHelper(&Ptr, Context, Size);
+      }
     }
   } else if (Context->SingleRootDevice) {
     // If we have a single discrete device or all devices in the context are
     // sub-devices of the same device then we can allocate on device
-    if (enableBufferPooling())
+    if (enableBufferPooling()) {
       PI_CALL(piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
                                   nullptr, Size, Alignment));
-    else
+    } else {
       Result = ZeDeviceMemAllocHelper(&Ptr, Context, Context->SingleRootDevice,
                                       Size);
+    }
   } else {
     // Context with several gpu cards. Temporarily use host allocation because
     // it is accessible by all devices. But it is not good in terms of
@@ -3378,14 +3383,15 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     // TODO: We need to either allow remote access to device memory using IPC,
     // or do explicit memory transfers from one device to another using host
     // resources as backing buffers to allow those transfers.
-    if (HostPtrImported)
+    if (HostPtrImported) {
       // When HostPtr is imported we use it for the buffer.
       Ptr = HostPtr;
-    else {
-      if (enableBufferPooling())
+    } else {
+      if (enableBufferPooling()) {
         PI_CALL(piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment));
-      else
+      } else {
         Result = ZeHostMemAllocHelper(&Ptr, Context, Size);
+      }
     }
   }
 
