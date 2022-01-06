@@ -190,5 +190,7 @@ int main() {
   KernelInfo<class nm1::KernelName8<nm1::nm2::C>>::getName();
   KernelInfo<class TmplClassInAnonNS<class ClassInAnonNS>>::getName();
   KernelInfo<class nm1::KernelName9<char>>::getName();
+//  KernelInfo<class KernelName>::codeLocation();
+//  add code location KernelInfo methods
 #endif //__SYCL_DEVICE_ONLY__
 }

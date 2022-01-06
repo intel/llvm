@@ -395,6 +395,18 @@ private:
     /// Whether this kernel is an ESIMD one.
     bool IsESIMDKernel;
 
+    /// Kernel source file name.
+    std::string FileName;
+
+    /// Kernel location function name.
+    std::string FunctionName;
+
+    /// Kernel location - line number.
+    unsigned LineNumber;
+
+    /// Kernel location - column number.
+    unsigned ColumnNumber;
+
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
 
@@ -405,7 +417,9 @@ private:
     KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
         : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
-          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel) {}
+          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel),// {}
+          LineNumber(KernelLocation.getPresumedLoc().getLine()), //getLineNumber()),
+          ColumnNumber(KernelLocation.getPresumedLoc().getColumn()) {} //ColumnNumber()) {}
 
     void updateKernelNames(StringRef Name, StringRef StableName) {
       this->Name = Name.str();
