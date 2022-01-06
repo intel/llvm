@@ -1210,12 +1210,14 @@ Currently, only the following parameter attributes are defined:
 .. _attr_align:
 
 ``align <n>`` or ``align(<n>)``
-    This indicates that the pointer value has the specified alignment.
-    If the pointer value does not have the specified alignment,
-    :ref:`poison value <poisonvalues>` is returned or passed instead. The
-    ``align`` attribute should be combined with the ``noundef`` attribute to
-    ensure a pointer is aligned, or otherwise the behavior is undefined. Note
-    that ``align 1`` has no effect on non-byval, non-preallocated arguments.
+    This indicates that the pointer value or vector of pointers has the
+    specified alignment. If applied to a vector of pointers, *all* pointers
+    (elements) have the specified alignment. If the pointer value does not have
+    the specified alignment, :ref:`poison value <poisonvalues>` is returned or
+    passed instead.  The ``align`` attribute should be combined with the
+    ``noundef`` attribute to ensure a pointer is aligned, or otherwise the
+    behavior is undefined. Note that ``align 1`` has no effect on non-byval,
+    non-preallocated arguments.
 
     Note that this attribute has additional semantics when combined with the
     ``byval`` or ``preallocated`` attribute, which are documented there.
@@ -4566,6 +4568,9 @@ functionality provides, compared to writing the store explicitly after the asm
 statement, and it can only produce worse code, since it bypasses many
 optimization passes. I would recommend not using it.)
 
+Call arguments for indirect constraints must have pointer type and must specify
+the :ref:`elementtype <attr_elementtype>` attribute to indicate the pointer
+element type.
 
 Clobber constraints
 """""""""""""""""""
@@ -23103,7 +23108,7 @@ Syntax:
 
 ::
 
-      declare void @llvm.sideeffect() inaccessiblememonly nounwind
+      declare void @llvm.sideeffect() inaccessiblememonly nounwind willreturn
 
 Overview:
 """""""""

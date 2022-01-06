@@ -1833,7 +1833,7 @@ bool TargetLowering::SimplifyDemandedBits(
     // If we only care about the highest bit, don't bother shifting right.
     if (DemandedBits.isSignMask()) {
       unsigned MinSignedBits =
-          TLO.DAG.ComputeMinSignedBits(Op0, DemandedElts, Depth + 1);
+          TLO.DAG.ComputeMaxSignificantBits(Op0, DemandedElts, Depth + 1);
       bool AlreadySignExtended = ExVTBits >= MinSignedBits;
       // However if the input is already sign extended we expect the sign
       // extension to be dropped altogether later and do not simplify.
@@ -3678,9 +3678,7 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
       }
 
       // Figure out how many bits we need to preserve this constant.
-      unsigned ReqdBits = Signed ?
-        C1.getBitWidth() - C1.getNumSignBits() + 1 :
-        C1.getActiveBits();
+      unsigned ReqdBits = Signed ? C1.getMinSignedBits() : C1.getActiveBits();
 
       // Make sure we're not losing bits from the constant.
       if (MinBits > 0 &&

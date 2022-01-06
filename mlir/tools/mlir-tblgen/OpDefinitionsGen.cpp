@@ -1756,7 +1756,7 @@ void OpEmitter::genCodeForAddingArgAndRegionForBuilder(
 
       // Add the segment attribute.
       body << "  {\n"
-           << "    SmallVector<int32_t> rangeSegments;\n"
+           << "    ::llvm::SmallVector<int32_t> rangeSegments;\n"
            << "    for (::mlir::ValueRange range : " << argName << ")\n"
            << "      rangeSegments.push_back(range.size());\n"
            << "    " << builderOpState << ".addAttribute("
@@ -2065,8 +2065,8 @@ void OpEmitter::genTypeInterfaceMethods() {
     return;
   // Generate 'inferReturnTypes' method declaration using the interface method
   // declared in 'InferTypeOpInterface' op interface.
-  const auto *trait = dyn_cast<InterfaceTrait>(
-      op.getTrait("::mlir::InferTypeOpInterface::Trait"));
+  const auto *trait =
+      cast<InterfaceTrait>(op.getTrait("::mlir::InferTypeOpInterface::Trait"));
   Interface interface = trait->getInterface();
   Method *method = [&]() -> Method * {
     for (const InterfaceMethod &interfaceMethod : interface.getMethods()) {
@@ -2267,7 +2267,7 @@ void OpEmitter::genOperandResultVerifier(MethodBody &body,
 
   body << "  {\n    unsigned index = 0; (void)index;\n";
 
-  for (auto staticValue : llvm::enumerate(values)) {
+  for (const auto &staticValue : llvm::enumerate(values)) {
     const NamedTypeConstraint &value = staticValue.value();
 
     bool hasPredicate = value.hasPredicate();
@@ -2332,7 +2332,7 @@ void OpEmitter::genRegionVerifier(MethodBody &body) {
     return;
 
   body << "  {\n    unsigned index = 0; (void)index;\n";
-  for (auto it : llvm::enumerate(regions)) {
+  for (const auto &it : llvm::enumerate(regions)) {
     const auto &region = it.value();
     if (canSkip(region))
       continue;

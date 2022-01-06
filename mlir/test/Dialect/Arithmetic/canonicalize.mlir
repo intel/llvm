@@ -50,6 +50,101 @@ func @cmpi_equal_vector_operands(%arg0: vector<1x8xi64>)
 
 // -----
 
+// CHECK-LABEL: @cmpOfExtSI
+//  CHECK-NEXT:   return %arg0
+func @cmpOfExtSI(%arg0: i1) -> i1 {
+  %ext = arith.extsi %arg0 : i1 to i64
+  %c0 = arith.constant 0 : i64
+  %res = arith.cmpi ne, %ext, %c0 : i64
+  return %res : i1
+}
+
+// CHECK-LABEL: @cmpOfExtUI
+//  CHECK-NEXT:   return %arg0
+func @cmpOfExtUI(%arg0: i1) -> i1 {
+  %ext = arith.extui %arg0 : i1 to i64
+  %c0 = arith.constant 0 : i64
+  %res = arith.cmpi ne, %ext, %c0 : i64
+  return %res : i1
+}
+
+// -----
+
+// CHECK-LABEL: @extSIOfExtUI
+//       CHECK:   %[[res:.+]] = arith.extui %arg0 : i1 to i64
+//       CHECK:   return %[[res]]
+func @extSIOfExtUI(%arg0: i1) -> i64 {
+  %ext1 = arith.extui %arg0 : i1 to i8
+  %ext2 = arith.extsi %ext1 : i8 to i64
+  return %ext2 : i64
+}
+
+// CHECK-LABEL: @extUIOfExtUI
+//       CHECK:   %[[res:.+]] = arith.extui %arg0 : i1 to i64
+//       CHECK:   return %[[res]]
+func @extUIOfExtUI(%arg0: i1) -> i64 {
+  %ext1 = arith.extui %arg0 : i1 to i8
+  %ext2 = arith.extui %ext1 : i8 to i64
+  return %ext2 : i64
+}
+
+// CHECK-LABEL: @extSIOfExtSI
+//       CHECK:   %[[res:.+]] = arith.extsi %arg0 : i1 to i64
+//       CHECK:   return %[[res]]
+func @extSIOfExtSI(%arg0: i1) -> i64 {
+  %ext1 = arith.extsi %arg0 : i1 to i8
+  %ext2 = arith.extsi %ext1 : i8 to i64
+  return %ext2 : i64
+}
+
+// -----
+
+// CHECK-LABEL: @andOfExtSI
+//       CHECK:  %[[comb:.+]] = arith.andi %arg0, %arg1 : i8
+//       CHECK:  %[[ext:.+]] = arith.extsi %[[comb]] : i8 to i64
+//       CHECK:   return %[[ext]]
+func @andOfExtSI(%arg0: i8, %arg1: i8) -> i64 {
+  %ext0 = arith.extsi %arg0 : i8 to i64
+  %ext1 = arith.extsi %arg1 : i8 to i64
+  %res = arith.andi %ext0, %ext1 : i64
+  return %res : i64
+}
+
+// CHECK-LABEL: @andOfExtUI
+//       CHECK:  %[[comb:.+]] = arith.andi %arg0, %arg1 : i8
+//       CHECK:  %[[ext:.+]] = arith.extui %[[comb]] : i8 to i64
+//       CHECK:   return %[[ext]]
+func @andOfExtUI(%arg0: i8, %arg1: i8) -> i64 {
+  %ext0 = arith.extui %arg0 : i8 to i64
+  %ext1 = arith.extui %arg1 : i8 to i64
+  %res = arith.andi %ext0, %ext1 : i64
+  return %res : i64
+}
+
+// CHECK-LABEL: @orOfExtSI
+//       CHECK:  %[[comb:.+]] = arith.ori %arg0, %arg1 : i8
+//       CHECK:  %[[ext:.+]] = arith.extsi %[[comb]] : i8 to i64
+//       CHECK:   return %[[ext]]
+func @orOfExtSI(%arg0: i8, %arg1: i8) -> i64 {
+  %ext0 = arith.extsi %arg0 : i8 to i64
+  %ext1 = arith.extsi %arg1 : i8 to i64
+  %res = arith.ori %ext0, %ext1 : i64
+  return %res : i64
+}
+
+// CHECK-LABEL: @orOfExtUI
+//       CHECK:  %[[comb:.+]] = arith.ori %arg0, %arg1 : i8
+//       CHECK:  %[[ext:.+]] = arith.extui %[[comb]] : i8 to i64
+//       CHECK:   return %[[ext]]
+func @orOfExtUI(%arg0: i8, %arg1: i8) -> i64 {
+  %ext0 = arith.extui %arg0 : i8 to i64
+  %ext1 = arith.extui %arg1 : i8 to i64
+  %res = arith.ori %ext0, %ext1 : i64
+  return %res : i64
+}
+
+// -----
+
 // CHECK-LABEL: @indexCastOfSignExtend
 //       CHECK:   %[[res:.+]] = arith.index_cast %arg0 : i8 to index
 //       CHECK:   return %[[res]]
@@ -202,6 +297,22 @@ func @tripleSubSub3(%arg0: index) -> index {
   %add1 = arith.subi %arg0, %c17 : index
   %add2 = arith.subi %add1, %c42 : index
   return %add2 : index
+}
+
+// CHECK-LABEL: @doubleAddSub1
+//  CHECK-NEXT:   return %arg0
+func @doubleAddSub1(%arg0: index, %arg1 : index) -> index {
+  %sub = arith.subi %arg0, %arg1 : index
+  %add = arith.addi %sub, %arg1 : index
+  return %add : index
+}
+
+// CHECK-LABEL: @doubleAddSub2
+//  CHECK-NEXT:   return %arg0
+func @doubleAddSub2(%arg0: index, %arg1 : index) -> index {
+  %sub = arith.subi %arg0, %arg1 : index
+  %add = arith.addi %arg1, %sub : index
+  return %add : index
 }
 
 // CHECK-LABEL: @notCmpEQ

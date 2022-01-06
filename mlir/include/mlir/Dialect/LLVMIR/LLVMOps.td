@@ -1395,6 +1395,12 @@ class LLVM_BinarySameArgsIntrinsicOp<string func, list<OpTrait> traits = []> :
   let arguments = (ins LLVM_Type:$a, LLVM_Type:$b);
 }
 
+class LLVM_BinaryIntrinsicOp<string func, list<OpTrait> traits = []> :
+    LLVM_OneResultIntrOp<func, [], [0,1],
+           !listconcat([NoSideEffect], traits)> {
+  let arguments = (ins LLVM_Type:$a, LLVM_Type:$b);
+}
+
 class LLVM_TernarySameArgsIntrinsicOp<string func, list<OpTrait> traits = []> :
     LLVM_OneResultIntrOp<func, [], [0],
            !listconcat([NoSideEffect, SameOperandsAndResultType], traits)> {
@@ -1426,6 +1432,7 @@ def LLVM_Prefetch : LLVM_ZeroResultIntrOp<"prefetch", [0]> {
 def LLVM_SinOp : LLVM_UnaryIntrinsicOp<"sin">;
 def LLVM_SqrtOp : LLVM_UnaryIntrinsicOp<"sqrt">;
 def LLVM_PowOp : LLVM_BinarySameArgsIntrinsicOp<"pow">;
+def LLVM_PowIOp : LLVM_BinaryIntrinsicOp<"powi">;
 def LLVM_BitReverseOp : LLVM_UnaryIntrinsicOp<"bitreverse">;
 def LLVM_CountLeadingZerosOp : LLVM_CountZerosIntrinsicOp<"ctlz">;
 def LLVM_CountTrailingZerosOp : LLVM_CountZerosIntrinsicOp<"cttz">;
@@ -1533,6 +1540,15 @@ def LLVM_CoroFreeOp : LLVM_IntrOp<"coro.free", [], [], [], 1> {
 def LLVM_CoroResumeOp : LLVM_IntrOp<"coro.resume", [], [], [], 0> {
   let arguments = (ins LLVM_i8Ptr:$handle);
   let assemblyFormat = "$handle attr-dict";
+}
+
+//
+// Exception handling intrinsics.
+//
+
+def LLVM_EhTypeidForOp : LLVM_OneResultIntrOp<"eh.typeid.for"> {
+    let arguments = (ins LLVM_i8Ptr:$type_info);
+    let assemblyFormat = "$type_info attr-dict `:` type($res)";
 }
 
 //
