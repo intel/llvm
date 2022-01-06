@@ -281,7 +281,8 @@ struct joint_matrix_store_impl<
                                             matrix::matrix_layout::col_major>> {
   void
   store(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-            T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, NumRows, NumCols, Layout> &src,
+            T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+            NumRows, NumCols, Layout> &src,
         multi_ptr<T, Space> dst, size_t stride) {
 
 #ifdef __NVPTX__
