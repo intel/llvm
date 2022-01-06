@@ -834,7 +834,7 @@ struct _pi_mem : _pi_object {
 
   // Get/set whether host ptr was imported into USM
   void setHostPtrImported(bool flag) { HostPtrImported = flag; }
-  bool getHostPtrImported() { return HostPtrImported; }
+  bool getHostPtrImported() const { return HostPtrImported; }
 
 protected:
   _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
