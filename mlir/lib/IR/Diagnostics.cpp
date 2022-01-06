@@ -257,7 +257,7 @@ void DiagnosticEngineImpl::emit(Diagnostic diag) {
 //===----------------------------------------------------------------------===//
 
 DiagnosticEngine::DiagnosticEngine() : impl(new DiagnosticEngineImpl()) {}
-DiagnosticEngine::~DiagnosticEngine() {}
+DiagnosticEngine::~DiagnosticEngine() = default;
 
 /// Register a new handler for diagnostics to the engine. This function returns
 /// a unique identifier for the registered handler, which can be used to
@@ -372,8 +372,8 @@ struct SourceMgrDiagnosticHandlerImpl {
   /// Mapping between file name and buffer ID's.
   llvm::StringMap<unsigned> filenameToBufId;
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 /// Return a processable FileLineColLoc from the given location.
 static Optional<FileLineColLoc> getFileLineColLoc(Location loc) {
@@ -434,7 +434,7 @@ SourceMgrDiagnosticHandler::SourceMgrDiagnosticHandler(
     : SourceMgrDiagnosticHandler(mgr, ctx, llvm::errs(),
                                  std::move(shouldShowLocFn)) {}
 
-SourceMgrDiagnosticHandler::~SourceMgrDiagnosticHandler() {}
+SourceMgrDiagnosticHandler::~SourceMgrDiagnosticHandler() = default;
 
 void SourceMgrDiagnosticHandler::emitDiagnostic(Location loc, Twine message,
                                                 DiagnosticSeverity kind,
@@ -610,8 +610,8 @@ struct SourceMgrDiagnosticVerifierHandlerImpl {
   llvm::Regex expected = llvm::Regex("expected-(error|note|remark|warning) "
                                      "*(@([+-][0-9]+|above|below))? *{{(.*)}}");
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 /// Given a diagnostic kind, return a human readable string for it.
 static StringRef getDiagKindStr(DiagnosticSeverity kind) {
@@ -947,12 +947,12 @@ struct ParallelDiagnosticHandlerImpl : public llvm::PrettyStackTraceEntry {
   /// The context to emit the diagnostics to.
   MLIRContext *context;
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 ParallelDiagnosticHandler::ParallelDiagnosticHandler(MLIRContext *ctx)
     : impl(new ParallelDiagnosticHandlerImpl(ctx)) {}
-ParallelDiagnosticHandler::~ParallelDiagnosticHandler() {}
+ParallelDiagnosticHandler::~ParallelDiagnosticHandler() = default;
 
 /// Set the order id for the current thread.
 void ParallelDiagnosticHandler::setOrderIDForThread(size_t orderID) {

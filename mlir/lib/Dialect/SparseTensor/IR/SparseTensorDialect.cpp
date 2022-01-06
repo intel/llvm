@@ -61,8 +61,8 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
                          "expected an array for dimension level types");
         return {};
       }
-      for (unsigned i = 0, e = arrayAttr.size(); i < e; i++) {
-        auto strAttr = arrayAttr[i].dyn_cast<StringAttr>();
+      for (auto i : arrayAttr) {
+        auto strAttr = i.dyn_cast<StringAttr>();
         if (!strAttr) {
           parser.emitError(parser.getNameLoc(),
                            "expected a string value in dimension level types");
@@ -302,6 +302,18 @@ static LogicalResult verify(ToValuesOp op) {
 static LogicalResult verify(LexInsertOp op) {
   if (!getSparseTensorEncoding(op.tensor().getType()))
     return op.emitError("expected a sparse tensor for insertion");
+  return success();
+}
+
+static LogicalResult verify(ExpandOp op) {
+  if (!getSparseTensorEncoding(op.tensor().getType()))
+    return op.emitError("expected a sparse tensor for expansion");
+  return success();
+}
+
+static LogicalResult verify(CompressOp op) {
+  if (!getSparseTensorEncoding(op.tensor().getType()))
+    return op.emitError("expected a sparse tensor for compression");
   return success();
 }
 

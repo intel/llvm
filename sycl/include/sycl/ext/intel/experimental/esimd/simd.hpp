@@ -39,15 +39,16 @@ namespace esimd {
 ///
 /// \ingroup sycl_esimd
 template <typename Ty, int N>
-class simd
-    : public detail::simd_obj_impl<
-          Ty, N, simd<Ty, N>, std::enable_if_t<detail::is_vectorizable_v<Ty>>> {
-  using base_type = detail::simd_obj_impl<Ty, N, simd<Ty, N>>;
+class simd : public detail::simd_obj_impl<
+                 detail::__raw_t<Ty>, N, simd<Ty, N>,
+                 std::enable_if_t<detail::is_valid_simd_elem_type_v<Ty>>> {
+  using base_type = detail::simd_obj_impl<detail::__raw_t<Ty>, N, simd<Ty, N>>;
 
 public:
   using base_type::base_type;
-  using element_type = typename base_type::element_type;
-  using vector_type = typename base_type::vector_type;
+  using element_type = Ty;
+  using raw_element_type = typename base_type::raw_element_type;
+  using raw_vector_type = typename base_type::raw_vector_type;
   static constexpr int length = N;
 
   // Implicit conversion constructor from another simd object of the same
@@ -56,24 +57,25 @@ public:
             class = std::enable_if_t<__SEIEED::is_simd_type_v<SimdT> &&
                                      (length == SimdT::length)>>
   simd(const SimdT &RHS)
-      : base_type(__builtin_convertvector(RHS.data(), vector_type)) {
+      : base_type(detail::convert_vector<Ty, detail::element_type_t<SimdT>, N>(
+            RHS.data())) {
     __esimd_dbg_print(simd(const SimdT &RHS));
   }
 
   // Broadcast constructor with conversion.
   template <typename T1,
-            class = std::enable_if_t<detail::is_vectorizable_v<T1>>>
-  simd(T1 Val) : base_type((Ty)Val) {
+            class = std::enable_if_t<detail::is_valid_simd_elem_type_v<T1>>>
+  simd(T1 Val) : base_type(Val) {
     __esimd_dbg_print(simd(T1 Val));
   }
 
-  /// Explicit conversion for simd_obj_impl<T, 1> into T.
+  /// Type conversion for simd<T, 1> into T.
   template <class To, class T = simd,
-            class = sycl::detail::enable_if_t<(T::length == 1) &&
-                                              detail::is_vectorizable_v<To>>>
+            class = sycl::detail::enable_if_t<
+                (T::length == 1) && detail::is_valid_simd_elem_type_v<To>>>
   operator To() const {
-    __esimd_dbg_print(explicit operator To());
-    return (To)base_type::data()[0];
+    __esimd_dbg_print(operator To());
+    return detail::convert_scalar<To, element_type>(base_type::data()[0]);
   }
 
   /// @{
@@ -101,15 +103,16 @@ public:
   }
   /// @}
 
-#define __ESIMD_DEF_SIMD_ARITH_UNARY_OP(ARITH_UNARY_OP)                        \
+#define __ESIMD_DEF_SIMD_ARITH_UNARY_OP(ARITH_UNARY_OP, ID)                    \
   template <class T1 = Ty> simd operator ARITH_UNARY_OP() const {              \
     static_assert(!std::is_unsigned_v<T1>,                                     \
                   #ARITH_UNARY_OP "doesn't apply to unsigned types");          \
-    return simd(ARITH_UNARY_OP(base_type::data()));                            \
+    return simd{detail::vector_unary_op<detail::UnaryOp::ID, T1, N>(           \
+        base_type::data())};                                                   \
   }
 
-  __ESIMD_DEF_SIMD_ARITH_UNARY_OP(-)
-  __ESIMD_DEF_SIMD_ARITH_UNARY_OP(+)
+  __ESIMD_DEF_SIMD_ARITH_UNARY_OP(-, minus)
+  __ESIMD_DEF_SIMD_ARITH_UNARY_OP(+, plus)
 #undef __ESIMD_DEF_SIMD_ARITH_UNARY_OP
 };
 
@@ -120,7 +123,8 @@ ESIMD_INLINE simd<To, N> convert(const simd<From, N> &val) {
   if constexpr (std::is_same_v<To, From>)
     return val;
   else
-    return __builtin_convertvector(val.data(), detail::vector_type_t<To, N>);
+    return detail::convert_vector<To, From, N>(val.data());
+  ;
 }
 
 #undef __ESIMD_DEF_RELOP

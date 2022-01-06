@@ -1379,7 +1379,7 @@ ESIMD_NODEBUG
 ////////////////////////////////////////////////////////////////////////////////
 // ESIMD arithmetic intrinsics:
 //
-// inv, log, exp, sqrt, rsqrt, sin, cos
+// inv, log2, exp2, sqrt, rsqrt, sin, cos
 //
 // share the same requirements.
 //
@@ -1427,8 +1427,8 @@ ESIMD_NODEBUG
   }
 
 ESIMD_INTRINSIC_DEF(float, inv, inv)
-ESIMD_INTRINSIC_DEF(float, log, log)
-ESIMD_INTRINSIC_DEF(float, exp, exp)
+ESIMD_INTRINSIC_DEF(float, log2, log)
+ESIMD_INTRINSIC_DEF(float, exp2, exp)
 ESIMD_INTRINSIC_DEF(float, sqrt, sqrt)
 ESIMD_INTRINSIC_DEF(float, ieee_sqrt, sqrt_ieee)
 ESIMD_INTRINSIC_DEF(float, rsqrt, rsqrt)
@@ -1590,6 +1590,41 @@ asin(T src0, int flag = saturation_off) {
   simd<T, 1> Src0 = src0;
   simd<T, 1> Result = esimd::asin(Src0, flag);
   return Result[0];
+}
+
+/// Computes the natural logarithm of the given argument. This is an
+/// emulated version based on the H/W supported log2.
+/// @param the source operand to compute base-e logarithm of.
+/// @return the base-e logarithm of \p src0.
+template <int SZ>
+ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ> log(simd<float, SZ> src0,
+                                               int flag = saturation_off) {
+  constexpr float ln2 = 0.69314718f; // std::numbers::ln2_v<float> in c++20
+  simd<float, SZ> Result = esimd::log2<SZ>(src0) * ln2;
+
+  if (flag != saturation_on)
+    return Result;
+
+  return esimd::saturate<float>(Result);
+}
+
+ESIMD_NODEBUG ESIMD_INLINE float log(float src0, int flag = saturation_off) {
+  return esimd::log<1>(src0, flag)[0];
+}
+
+/// Computes e raised to the power of the given argument. This is an
+/// emulated version based on the H/W supported exp2.
+/// @param the source operand to compute base-e exponential of.
+/// @return e raised to the power of \p src0.
+template <int SZ>
+ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ> exp(simd<float, SZ> src0,
+                                               int flag = saturation_off) {
+  constexpr float log2e = 1.442695f; // std::numbers::log2e_v<float> in c++20
+  return esimd::exp2<SZ>(src0 * log2e, flag);
+}
+
+ESIMD_NODEBUG ESIMD_INLINE float exp(float src0, int flag = saturation_off) {
+  return esimd::exp<1>(src0, flag)[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

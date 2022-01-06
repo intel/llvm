@@ -1679,6 +1679,15 @@ public:
   }
 
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
+    if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
+      if (auto *VD = dyn_cast<VarDecl>(D)) {
+        if (!S.checkAllowedSYCLInitializer(VD)) {
+          S.Diag(Loc, diag::err_sycl_restrict)
+              << Sema::KernelConstStaticVariable;
+          return;
+        }
+      }
+    }
     if (isa<VarDecl>(D))
       return;
     if (auto *FD = dyn_cast<FunctionDecl>(D)) {
@@ -1951,8 +1960,8 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
     if (Ty->isDependentType())
       return;
 
-    if (Ty->isExtIntType()) {
-      if (!Context.getTargetInfo().hasExtIntType()) {
+    if (Ty->isBitIntType()) {
+      if (!Context.getTargetInfo().hasBitIntType()) {
         PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
         if (D)
           PD << D;

@@ -485,7 +485,7 @@ private:
   /// Storage used when parsing elements that were stored as hex values.
   Optional<Token> hexStorage;
 };
-} // end anonymous namespace
+} // namespace
 
 /// Parse the elements of a tensor literal. If 'allowHex' is true, the parser
 /// may also parse a tensor literal that is store as a hex string.
@@ -670,7 +670,7 @@ DenseElementsAttr TensorLiteralParser::getStringAttr(llvm::SMLoc loc,
 
   for (auto val : storage) {
     stringValues.push_back(val.second.getStringValue());
-    stringRefValues.push_back(stringValues.back());
+    stringRefValues.emplace_back(stringValues.back());
   }
 
   return DenseStringElementsAttr::get(type, stringRefValues);

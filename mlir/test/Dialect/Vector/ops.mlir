@@ -376,6 +376,15 @@ func @create_vector_mask() {
   return
 }
 
+// CHECK-LABEL: @constant_vector_mask_0d
+func @constant_vector_mask_0d() {
+  // CHECK: vector.constant_mask [0] : vector<i1>
+  %0 = vector.constant_mask [0] : vector<i1>
+  // CHECK: vector.constant_mask [1] : vector<i1>
+  %1 = vector.constant_mask [1] : vector<i1>
+  return
+}
+
 // CHECK-LABEL: @constant_vector_mask
 func @constant_vector_mask() {
   // CHECK: vector.constant_mask [3, 2] : vector<4x3xi1>
@@ -569,6 +578,25 @@ func @vector_load_and_store_1d_vector_memref(%memref : memref<200x100xvector<8xf
   return
 }
 
+// CHECK-LABEL: @vector_load_and_store_scalable_vector_memref
+func @vector_load_and_store_scalable_vector_memref(%v: vector<[4]xi32>, %m: memref<?xi32>) -> vector<[4]xi32> {
+  %c0 = arith.constant 0 : index
+  // CHECK: vector.load {{.*}}: memref<?xi32>, vector<[4]xi32>
+  %0 = vector.load %m[%c0] : memref<?xi32>, vector<[4]xi32>
+  // CHECK: vector.store {{.*}}: memref<?xi32>, vector<[4]xi32>
+  vector.store %v, %m[%c0] : memref<?xi32>, vector<[4]xi32>
+  return %0 : vector<[4]xi32>
+}
+
+func @vector_load_and_store_1d_scalable_vector_memref(%memref : memref<200x100xvector<8xf32>>,
+                                                      %i : index, %j : index) {
+  // CHECK: %[[ld:.*]] = vector.load %{{.*}}[%{{.*}}] : memref<200x100xvector<8xf32>>, vector<8xf32>
+  %0 = vector.load %memref[%i, %j] : memref<200x100xvector<8xf32>>, vector<8xf32>
+  // CHECK: vector.store %[[ld]], %{{.*}}[%{{.*}}] : memref<200x100xvector<8xf32>>, vector<8xf32>
+  vector.store %0, %memref[%i, %j] : memref<200x100xvector<8xf32>>, vector<8xf32>
+  return
+}
+
 // CHECK-LABEL: @vector_load_and_store_out_of_bounds
 func @vector_load_and_store_out_of_bounds(%memref : memref<7xf32>) {
   %c0 = arith.constant 0 : index
@@ -676,9 +704,16 @@ func @extract_insert_map(%v: vector<32xf32>, %v2: vector<16x32xf32>,
 
 // CHECK-LABEL: @multi_reduction
 func @multi_reduction(%0: vector<4x8x16x32xf32>) -> f32 {
-  %1 = vector.multi_reduction #vector.kind<add>, %0 [1, 3] :
+  %1 = vector.multi_reduction <add>, %0 [1, 3] :
     vector<4x8x16x32xf32> to vector<4x16xf32>
-  %2 = vector.multi_reduction #vector.kind<add>, %1 [0, 1] :
+  %2 = vector.multi_reduction <add>, %1 [0, 1] :
     vector<4x16xf32> to f32
   return %2 : f32
+}
+
+// CHECK-LABEL: @get_vector_scale
+func @get_vector_scale() -> index {
+  // CHECK: vector.vscale
+  %0 = vector.vscale
+  return %0 : index
 }

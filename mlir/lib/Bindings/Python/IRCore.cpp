@@ -47,6 +47,9 @@ static const char kContextGetCallSiteLocationDocstring[] =
 static const char kContextGetFileLocationDocstring[] =
     R"(Gets a Location representing a file, line and column)";
 
+static const char kContextGetFusedLocationDocstring[] =
+    R"(Gets a Location representing a fused location with optional metadata)";
+
 static const char kContextGetNameLocationDocString[] =
     R"(Gets a Location representing a named location with optional child location)";
 
@@ -1264,7 +1267,7 @@ PyOpView::buildGeneric(py::object cls, py::list resultTypeList,
       if (segmentSpec == 1 || segmentSpec == 0) {
         // Unpack unary element.
         try {
-          auto operandValue = py::cast<PyValue *>(std::get<0>(it.value()));
+          auto *operandValue = py::cast<PyValue *>(std::get<0>(it.value()));
           if (operandValue) {
             operands.push_back(operandValue);
             operandSegmentLengths.push_back(1);
@@ -2012,7 +2015,7 @@ private:
   PyOperationRef operation;
 };
 
-} // end namespace
+} // namespace
 
 //------------------------------------------------------------------------------
 // Populates the core exports of the 'ir' submodule.
@@ -2198,6 +2201,23 @@ void mlir::python::populateIRCore(py::module &m) {
           py::arg("filename"), py::arg("line"), py::arg("col"),
           py::arg("context") = py::none(), kContextGetFileLocationDocstring)
       .def_static(
+          "fused",
+          [](const std::vector<PyLocation> &pyLocations, llvm::Optional<PyAttribute> metadata,
+             DefaultingPyMlirContext context) {
+            if (pyLocations.empty())
+              throw py::value_error("No locations provided");
+            llvm::SmallVector<MlirLocation, 4> locations;
+            locations.reserve(pyLocations.size());
+            for (auto &pyLocation : pyLocations)
+              locations.push_back(pyLocation.get());
+            MlirLocation location = mlirLocationFusedGet(
+                context->get(), locations.size(), locations.data(),
+                metadata ? metadata->get() : MlirAttribute{0});
+            return PyLocation(context->getRef(), location);
+          },
+          py::arg("locations"), py::arg("metadata") = py::none(),
+          py::arg("context") = py::none(), kContextGetFusedLocationDocstring)
+      .def_static(
           "name",
           [](std::string name, llvm::Optional<PyLocation> childLoc,
              DefaultingPyMlirContext context) {
@@ -2266,10 +2286,10 @@ void mlir::python::populateIRCore(py::module &m) {
       .def_property_readonly(
           "body",
           [](PyModule &self) {
-            PyOperationRef module_op = PyOperation::forOperation(
+            PyOperationRef moduleOp = PyOperation::forOperation(
                 self.getContext(), mlirModuleGetOperation(self.get()),
                 self.getRef().releaseObject());
-            PyBlock returnBlock(module_op, mlirModuleGetBody(self.get()));
+            PyBlock returnBlock(moduleOp, mlirModuleGetBody(self.get()));
             return returnBlock;
           },
           "Return the block for this module")

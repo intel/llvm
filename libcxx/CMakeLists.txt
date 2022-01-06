@@ -196,6 +196,7 @@ endif()
 
 option(LIBCXX_HIDE_FROM_ABI_PER_TU_BY_DEFAULT "Enable per TU ABI insulation by default. To be used by vendors." OFF)
 set(LIBCXX_ABI_DEFINES "" CACHE STRING "A semicolon separated list of ABI macros to define in the site config header.")
+option(LIBCXX_EXTRA_SITE_DEFINES "Extra defines to add into __config_site")
 option(LIBCXX_USE_COMPILER_RT "Use compiler-rt instead of libgcc" OFF)
 set(LIBCXX_LIBCPPABI_VERSION "2" CACHE STRING "Version of libc++abi's ABI to re-export from libc++ when re-exporting is enabled.
                                                Note that this is not related to the version of libc++'s ABI itself!")
@@ -765,6 +766,13 @@ function(cxx_link_system_libraries target)
     target_add_link_flags_if_supported(${target} PRIVATE "/nodefaultlib")
   endif()
 
+  if (LIBCXX_SUPPORTS_UNWINDLIB_NONE_FLAG AND LIBCXXABI_USE_LLVM_UNWINDER)
+    # If we're linking directly against the libunwind that we're building
+    # in the same invocation, don't try to link in the toolchain's
+    # default libunwind (which may be missing still).
+    target_add_link_flags_if_supported(${target} PRIVATE "--unwindlib=none")
+  endif()
+
   if (LIBCXX_HAS_SYSTEM_LIB)
     target_link_libraries(${target} PRIVATE System)
   endif()
@@ -900,6 +908,17 @@ if (LIBCXX_ABI_DEFINES)
   endforeach()
   string(REPLACE ";" "\n" abi_defines "${abi_defines}")
   config_define(${abi_defines} _LIBCPP_ABI_DEFINES)
+endif()
+
+if (LIBCXX_EXTRA_SITE_DEFINES)
+  set(extra_site_defines)
+  foreach (extra_site_define ${LIBCXX_EXTRA_SITE_DEFINES})
+    # Allow defines such as DEFINE=VAL, transformed into "#define DEFINE VAL".
+    string(REPLACE "=" " " extra_site_define "${extra_site_define}")
+    list(APPEND extra_site_defines "#define ${extra_site_define}")
+  endforeach()
+  string(REPLACE ";" "\n" extra_site_defines "${extra_site_defines}")
+  config_define(${extra_site_defines} _LIBCPP_EXTRA_SITE_DEFINES)
 endif()
 
 # By default libc++ on Windows expects to use a shared library, which requires

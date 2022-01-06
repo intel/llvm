@@ -12,7 +12,7 @@
 
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -329,12 +329,12 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
     SmallVector<Type> types = {elementTy, elementTy, elementTy};
 
     auto whileOp = rewriter.create<scf::WhileOp>(loc, types, operands);
-    Block *before = rewriter.createBlock(&whileOp.before(), {}, types);
-    Block *after = rewriter.createBlock(&whileOp.after(), {}, types);
+    Block *before = rewriter.createBlock(&whileOp.getBefore(), {}, types);
+    Block *after = rewriter.createBlock(&whileOp.getAfter(), {}, types);
 
     // The conditional block of the while loop.
     {
-      rewriter.setInsertionPointToStart(&whileOp.before().front());
+      rewriter.setInsertionPointToStart(&whileOp.getBefore().front());
       Value input = before->getArgument(0);
       Value zero = before->getArgument(2);
 
@@ -346,7 +346,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
     // The body of the while loop: shift right until reaching a value of 0.
     {
-      rewriter.setInsertionPointToStart(&whileOp.after().front());
+      rewriter.setInsertionPointToStart(&whileOp.getAfter().front());
       Value input = after->getArgument(0);
       Value leadingZeros = after->getArgument(1);
 
@@ -1606,7 +1606,7 @@ public:
           reshape, "tosa.reshape Cannot collapse into given shape");
     }
 
-    rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
         reshape, resultTy, adaptor.getOperands()[0], reassociationMap);
     return success();
   }
@@ -1649,7 +1649,7 @@ public:
       return rewriter.notifyMatchFailure(
           reshape, "tosa.reshape Cannot expand into given shape");
     }
-    rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
+    rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
         reshape, resultTy, adaptor.getOperands()[0], reassociationMap);
     return success();
   }
@@ -1770,6 +1770,14 @@ public:
 
     SmallVector<int8_t> shiftValues;
     getValuesFromIntArrayAttribute(op.shift(), shiftValues);
+
+    // If we shift by more than the bitwidth, this just sets to 0.
+    for (int i = 0, s = multiplierValues.size(); i < s; i++) {
+      if (shiftValues[i] > 63) {
+        shiftValues[i] = 0;
+        multiplierValues[i] = 0;
+      }
+    }
 
     // Double round only occurs if shift is greater than 31, check that this
     // is ever true.
@@ -2165,16 +2173,16 @@ public:
 
           rewriter.create<linalg::YieldOp>(loc, result);
           return success();
-        } else {
-          y0x0 = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, y0x0);
-          y0x1 = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, y0x1);
-          y1x0 = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, y1x0);
-          y1x1 = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, y1x1);
+        }
+        y0x0 = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, y0x0);
+        y0x1 = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, y0x1);
+        y1x0 = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, y1x0);
+        y1x1 = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, y1x1);
 
-          if (resultElementTy.getIntOrFloatBitWidth() > 32) {
-            dx = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, dx);
-            dy = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, dy);
-          }
+        if (resultElementTy.getIntOrFloatBitWidth() > 32) {
+          dx = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, dx);
+          dy = rewriter.create<arith::ExtSIOp>(loc, resultElementTy, dy);
+        }
 
           auto unitVal = rewriter.create<arith::ConstantOp>(
               loc, rewriter.getIntegerAttr(resultElementTy, 1 << shift));
@@ -2198,7 +2206,6 @@ public:
 
           rewriter.create<linalg::YieldOp>(loc, result);
           return success();
-        }
       }
 
       return failure();

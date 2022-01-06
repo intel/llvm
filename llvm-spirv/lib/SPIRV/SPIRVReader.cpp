@@ -332,21 +332,15 @@ SPIRVToLLVM::transVMEImageTypeName(SPIRV::SPIRVTypeVmeImageINTEL *VT) {
               : AccessQualifierReadOnly));
 }
 
-std::string
-SPIRVToLLVM::transOCLPipeTypeName(SPIRV::SPIRVTypePipe *PT,
-                                  bool UseSPIRVFriendlyFormat,
-                                  SPIRVAccessQualifierKind PipeAccess) {
+std::string SPIRVToLLVM::transPipeTypeName(SPIRV::SPIRVTypePipe *PT) {
+  SPIRVAccessQualifierKind PipeAccess = PT->getAccessQualifier();
+
   assert((PipeAccess == AccessQualifierReadOnly ||
           PipeAccess == AccessQualifierWriteOnly) &&
          "Invalid access qualifier");
 
-  if (!UseSPIRVFriendlyFormat)
-    return PipeAccess == AccessQualifierWriteOnly ? kSPR2TypeName::PipeWO
-                                                  : kSPR2TypeName::PipeRO;
-  else
-    return std::string(kSPIRVTypeName::PrefixAndDelim) + kSPIRVTypeName::Pipe +
-           kSPIRVTypeName::Delimiter + kSPIRVTypeName::PostfixDelim +
-           PipeAccess;
+  return std::string(kSPIRVTypeName::PrefixAndDelim) + kSPIRVTypeName::Pipe +
+         kSPIRVTypeName::Delimiter + kSPIRVTypeName::PostfixDelim + PipeAccess;
 }
 
 std::string
@@ -444,11 +438,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   }
   case OpTypePipe: {
     auto PT = static_cast<SPIRVTypePipe *>(T);
-    return mapType(T, getOrCreateOpaquePtrType(
-                          M,
-                          transOCLPipeTypeName(PT, IsClassMember,
-                                               PT->getAccessQualifier()),
-                          getOCLOpaqueTypeAddrSpace(T->getOpCode())));
+    return mapType(
+        T, getOrCreateOpaquePtrType(M, transPipeTypeName(PT),
+                                    getOCLOpaqueTypeAddrSpace(T->getOpCode())));
   }
   case OpTypePipeStorage: {
     auto PST = static_cast<SPIRVTypePipeStorage *>(T);
@@ -1495,6 +1487,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
     SPIRVStorageClassKind BS = BVar->getStorageClass();
     SPIRVValue *Init = BVar->getInitializer();
+
+    if (isSPIRVSamplerType(Ty) && BS == StorageClassUniformConstant) {
+      // Skip generating llvm code during translation of a variable definition,
+      // generate code only for its uses
+      if (!BB)
+        return nullptr;
+
+      assert(Init && "UniformConstant OpVariable with sampler type must have "
+                     "an initializer!");
+      return transValue(Init, F, BB);
+    }
+
     if (BS == StorageClassFunction && !Init) {
       assert(BB && "Invalid BB");
       return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
@@ -2626,11 +2630,12 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
 
   // Format of instruction PowN:
   //   LLVM arbitrary floating point functions return value: iN
-  //   Arguments: A(iN), MA(i32), B(iN), Mout(i32), EnableSubnormals(i32),
-  //              RoundingMode(i32), RoundingAccuracy(i32)
+  //   Arguments: A(iN), MA(i32), B(iN), SignOfB(i1), Mout(i32),
+  //              EnableSubnormals(i32), RoundingMode(i32),
+  //              RoundingAccuracy(i32)
   //   where A, B and return values are of arbitrary precision integer type.
   //   SPIR-V arbitrary floating point instruction layout:
-  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal Mout
+  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal SignOfB Literal Mout
   //       Literal EnableSubnormals Literal RoundingMode
   //       Literal RoundingAccuracy
 
@@ -2664,6 +2669,7 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   //       Literal RoundingMode Literal RoundingAccuracy
 
   Type *RetTy = transType(BI->getType());
+  IntegerType *Int1Ty = Type::getInt1Ty(*Context);
   IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
   auto Inst = static_cast<SPIRVArbFloatIntelInst *>(BI);
@@ -2697,7 +2703,6 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   Op OC = Inst->getOpCode();
   if (OC == OpArbitraryFloatCastFromIntINTEL ||
       OC == OpArbitraryFloatCastToIntINTEL) {
-    IntegerType *Int1Ty = Type::getInt1Ty(*Context);
     ArgTys.push_back(Int1Ty);
     Args.push_back(ConstantInt::get(Int1Ty, *WordsItr++)); /* ToSign/FromSign */
   }
@@ -2708,6 +2713,10 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
     ArgTys.push_back(BTy);
     Args.push_back(transValue(Inst->getOperand(2), BB->getParent(), BB));
     ++WordsItr; /* Skip word for B input id */
+    if (OC == OpArbitraryFloatPowNINTEL) {
+      ArgTys.push_back(Int1Ty);
+      Args.push_back(ConstantInt::get(Int1Ty, *WordsItr++)); /* SignOfB */
+    }
   }
 
   std::fill_n(std::back_inserter(ArgTys), Words.end() - WordsItr, Int32Ty);
@@ -2899,8 +2908,6 @@ SPIRVToLLVM::transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
     return CastInst::Create(Instruction::Trunc, CI, transType(BI->getType()),
                             "cvt", BB);
   }
-  if (OC == OpGenericPtrMemSemantics)
-    return BinaryOperator::CreateShl(CI, getInt32(M, 8), "", BB);
   if (SPIRVEnableStepExpansion &&
       (DemangledName == "smoothstep" || DemangledName == "step"))
     return expandOCLBuiltinWithScalarArg(CI, DemangledName);
@@ -3097,24 +3104,44 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
                                                     BasicBlock *BB) {
   assert(BB && "Invalid BB");
   const auto OC = BI->getOpCode();
-  bool AddRetTypePostfix = false;
-  if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize ||
-      OC == OpImageRead || OC == OpSubgroupImageBlockReadINTEL ||
-      OC == OpSubgroupBlockReadINTEL || OC == internal::OpJointMatrixLoadINTEL)
-    AddRetTypePostfix = true;
 
-  bool IsRetSigned = false;
-  if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
+  bool AddRetTypePostfix = false;
+  switch (static_cast<size_t>(OC)) {
+  case OpImageQuerySizeLod:
+  case OpImageQuerySize:
+  case OpImageRead:
+  case OpSubgroupImageBlockReadINTEL:
+  case OpSubgroupImageMediaBlockReadINTEL:
+  case OpSubgroupBlockReadINTEL:
+  case OpImageSampleExplicitLod:
+  case OpSDotKHR:
+  case OpUDotKHR:
+  case OpSUDotKHR:
+  case OpSDotAccSatKHR:
+  case OpUDotAccSatKHR:
+  case OpSUDotAccSatKHR:
+  case internal::OpJointMatrixLoadINTEL:
     AddRetTypePostfix = true;
-    if (OC == OpConvertUToF || OC == OpSatConvertUToS)
-      IsRetSigned = true;
+    break;
+  default: {
+    if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit)
+      AddRetTypePostfix = true;
+    break;
+  }
   }
 
-  if (OC == OpImageSampleExplicitLod)
-    AddRetTypePostfix = true;
-
-  if (OpSDotKHR <= BI->getOpCode() && BI->getOpCode() <= OpSUDotAccSatKHR)
-    AddRetTypePostfix = true;
+  bool IsRetSigned;
+  switch (OC) {
+  case OpConvertFToU:
+  case OpSatConvertSToU:
+  case OpUConvert:
+  case OpUDotKHR:
+  case OpUDotAccSatKHR:
+    IsRetSigned = false;
+    break;
+  default:
+    IsRetSigned = true;
+  }
 
   if (AddRetTypePostfix) {
     const Type *RetTy =
@@ -3913,6 +3940,12 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
       F->addParamAttr(ArgNo, Attr);
     }
+    if (BA->hasDecorate(DecorationMediaBlockIOINTEL)) {
+      assert(BA->getType()->isTypeImage() &&
+             "MediaBlockIOINTEL decoration is valid only on image parameters");
+      F->addParamAttr(ArgNo,
+                      Attribute::get(*Context, kVCMetadata::VCMediaBlockIO));
+    }
   }
 
   // Do not add float control if there is no any
@@ -4072,12 +4105,10 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (BF->hasDecorate(internal::DecorationPipelineEnableINTEL)) {
     auto Literals =
         BF->getDecorationLiterals(internal::DecorationPipelineEnableINTEL);
-    if (!Literals[0]) {
-      std::vector<Metadata *> MetadataVec;
-      MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, 1)));
-      F->setMetadata(kSPIR2MD::DisableLoopPipelining,
-                     MDNode::get(*Context, MetadataVec));
-    }
+    std::vector<Metadata *> MetadataVec;
+    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, !Literals[0])));
+    F->setMetadata(kSPIR2MD::DisableLoopPipelining,
+                   MDNode::get(*Context, MetadataVec));
   }
   return true;
 }

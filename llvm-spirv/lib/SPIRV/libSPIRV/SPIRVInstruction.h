@@ -2623,7 +2623,7 @@ _SPIRV_OP(ATanPi, true, 9)
 _SPIRV_OP(ATan2, true, 11)
 _SPIRV_OP(Pow, true, 11)
 _SPIRV_OP(PowR, true, 11)
-_SPIRV_OP(PowN, true, 10)
+_SPIRV_OP(PowN, true, 11)
 #undef _SPIRV_OP
 
 class SPIRVAtomicInstBase : public SPIRVInstTemplateBase {
@@ -2757,10 +2757,28 @@ _SPIRV_OP(ImageQuerySamples, true, 4)
 #define _SPIRV_OP(x, ...)                                                      \
   typedef SPIRVInstTemplate<SPIRVInstTemplateBase, Op##x, __VA_ARGS__> SPIRV##x;
 // Other instructions
-_SPIRV_OP(SpecConstantOp, true, 4, true, 0)
 _SPIRV_OP(GenericPtrMemSemantics, true, 4, false)
 _SPIRV_OP(GenericCastToPtrExplicit, true, 5, false, 1)
 #undef _SPIRV_OP
+
+class SPIRVSpecConstantOpBase : public SPIRVInstTemplateBase {
+public:
+  bool isOperandLiteral(unsigned I) const override {
+    // If SpecConstant results from CompositeExtract/Insert operation, then all
+    // operands are expected to be literals.
+    switch (Ops[0]) { // Opcode of underlying SpecConstant operation
+    case OpCompositeExtract:
+    case OpCompositeInsert:
+      return true;
+    default:
+      return SPIRVInstTemplateBase::isOperandLiteral(I);
+    }
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVSpecConstantOpBase, OpSpecConstantOp, true, 4,
+                          true, 0>
+    SPIRVSpecConstantOp;
 
 class SPIRVAssumeTrueKHR : public SPIRVInstruction {
 public:
