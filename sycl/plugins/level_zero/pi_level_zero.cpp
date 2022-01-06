@@ -3347,14 +3347,15 @@ pi_result piMemGetInfo(pi_mem Mem,
                        size_t ParamValueSize, void *ParamValue,
                        size_t *ParamValueSizeRet) {
   PI_ASSERT(Mem, PI_INVALID_VALUE);
+  // piMemImageGetInfo must be used for images
+  PI_ASSERT(!Mem->isImage(), PI_INVALID_VALUE);
+
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   switch (ParamName) {
   case CL_MEM_CONTEXT:
     return ReturnValue(Mem->Context);
   case CL_MEM_SIZE: {
-    if (Mem->isImage())
-      die("piMemGetInfo: CL_MEM_SIZE is not implemented for images");
     auto Buf = static_cast<_pi_buffer *>(Mem);
     return ReturnValue(Buf->Size);
   }

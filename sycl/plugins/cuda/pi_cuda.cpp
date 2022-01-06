@@ -2113,14 +2113,17 @@ pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] size Size of the allocation in bytes.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-// pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle, pi_mem *) {
-pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                              size_t Size, pi_context Context,
+pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                              size_t size, pi_context context,
                                               bool ownNativeHandle,
-                                              pi_mem *Mem) {
+                                              pi_mem *mem) {
   cl::sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};

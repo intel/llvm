@@ -169,6 +169,25 @@ struct {
 }
 ```
 </td>
+</tr><tr>
+<td>buffer</td>
+<td>
+
+``` C++
+void *
+```
+</td>
+<td>
+
+``` C++
+struct {
+  void *NativeHandle;
+  size_t Size;
+  ext::oneapi::level_zero::ownership Ownership{
+      ext::oneapi::level_zero::ownership::transfer};
+}
+```
+</td>
 </tr>
 </table>
 
@@ -293,6 +312,25 @@ should take ownership of the passed native handle. The default behavior is to
 transfer the ownership to the SYCL runtime. See section 4.4 for details. If
 the behavior is "transfer" then the runtime is going to destroy the input
 Level-Zero kernel</td>
+</tr><tr>
+<td>
+
+``` C++
+template <backend Backend, typename T, int Dimensions = 1,
+          typename AllocatorT = buffer_allocator>
+typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
+                        buffer<T, Dimensions, AllocatorT>>::type
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &BackendObject,
+    const context &TargetContext, event AvailableEvent = {})
+```
+</td>
+<td>Constructs a SYCL buffer instance from a Level-Zero memory allocation <code>void *</code>. 
+The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. 
+The <code>AvailableEvent</code> argument must be a valid SYCL event, the instance of the SYCL buffer class template being constructed must wait for the SYCL event parameter, signaled event means that the memory native handle is ready to be used.
+The <code>Size</code> input structure member specifies a size of a Level-Zero memory allocation in bytes.
+The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to destroy the input Level-Zero memory allocation</td>
 </tr>
 </table>
 
@@ -402,3 +440,4 @@ struct free_memory {
 |5|2021-07-25|Sergey Maslov|Introduced SYCL interop for events
 |6|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
 |7|2021-09-13|Sergey Maslov|Updated according to SYCL 2020 standard
+|7|2022-01-06|Artur Gainullin|Introduced SYCL 2020 interop for buffers

@@ -2065,12 +2065,13 @@ pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] size Size of the allocation in bytes.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-// pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
-//                                              pi_mem *mem) {
-
 pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
                                              size_t size, pi_context context,
                                              bool ownNativeHandle,
