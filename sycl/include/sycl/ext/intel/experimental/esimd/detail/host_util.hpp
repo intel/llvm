@@ -15,6 +15,8 @@
 #include <assert.h>
 #include <limits>
 
+#include <sycl/ext/intel/experimental/esimd/detail/elem_type_traits.hpp>
+
 #define SIMDCF_ELEMENT_SKIP(i)
 
 __SYCL_INLINE_NAMESPACE(cl) {
