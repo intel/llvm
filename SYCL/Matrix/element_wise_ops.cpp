@@ -1,4 +1,4 @@
-//==-------- joint_matrix_ss_int8.cpp  - DPC++ joint_matrix------------ ----==//
+//==----------- element_wise_ops.cpp  - DPC++ joint_matrix------------- ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +10,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// Two patches are not merged yet causing this test to fail
-// Will remove the XFAIL once these pacthes are merged
-// XFAIL: *
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -63,8 +59,9 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [ accA, accB, accC, M, N,
-           K ](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
+
+         {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
@@ -82,7 +79,12 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            joint_matrix<int8_t, TK, TN, matrix_layout::packed_b> sub_b(sg);
            joint_matrix<int32_t, TM, TN> sub_c(sg);
 
-           joint_matrix_fill(sg, sub_c, 0);
+           // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
+           // strideX = X's cols, so strideC = N, strideA = K, strideB = N*4
+           joint_matrix_load(sg, sub_c,
+                             accC.get_pointer() + (sg_startx * TM) * N +
+                                 sg_starty / SG_SZ * TN,
+                             N, matrix_layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
                  sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
@@ -93,6 +95,10 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                                    sg_starty / SG_SZ * TN * 4,
                                N * 4, matrix_layout::packed_b);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+           }
+           auto wi_slice_c = sub_c.get_wi_data();
+           for (int i = 0; i < wi_slice_c.length(); i++) {
+             wi_slice_c[i] *= 2;
            }
            joint_matrix_store(sg, sub_c,
                               accC.get_pointer() + (sg_startx * TM) * N +
@@ -124,6 +130,7 @@ void matrix_multiply_ref(int32_t *A_mem, int32_t *B_mem, int32_t *C_mem, int M,
         }
         *(C_mem + m * N + n) = acc;
       }
+      *(C_mem + m * N + n) *= 2;
     }
 }
 
@@ -140,8 +147,8 @@ int main() {
   }
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
-      C[i][j] = 0;
-      D[i][j] = 0;
+      C[i][j] = 1;
+      D[i][j] = 1;
     }
   }
 
