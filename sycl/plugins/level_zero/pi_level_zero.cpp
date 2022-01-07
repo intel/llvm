@@ -1589,6 +1589,10 @@ extern "C" {
 // Forward declarations
 decltype(piEventCreate) piEventCreate;
 
+static ze_result_t
+checkUnresolvedSymbols(ze_module_handle_t ZeModule,
+                       ze_module_build_log_handle_t *ZeBuildLog);
+
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 static bool setEnvVar(const char *name, const char *value) {
@@ -3887,6 +3891,22 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
       return PiResult;
     }
 
+    // The call to zeModuleCreate does not report an error if there are
+    // unresolved symbols because it thinks these could be resolved later via a
+    // call to zeModuleDynamicLink.  However, modules created with piProgramLink
+    // are supposed to be fully linked and ready to use.  Therefore, do an extra
+    // check now for unresolved symbols.  Note that we still create a
+    // _pi_program if there are unresolved symbols because the ZeBuildLog tells
+    // which symbols are unresolved.
+    if (ZeResult == ZE_RESULT_SUCCESS) {
+      ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
+      if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+        PiResult = PI_LINK_PROGRAM_FAILURE;
+      } else if (ZeResult != ZE_RESULT_SUCCESS) {
+        return mapError(ZeResult);
+      }
+    }
+
     _pi_program::state State =
         (PiResult == PI_SUCCESS) ? _pi_program::Exe : _pi_program::Invalid;
     *RetProgram = new _pi_program(State, Context, ZeModule, ZeBuildLog);
@@ -3984,6 +4004,18 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   ze_module_handle_t ZeModule = nullptr;
   ZE_CALL(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
                            &Program->ZeBuildLog));
+
+  // The call to zeModuleCreate does not report an error if there are
+  // unresolved symbols because it thinks these could be resolved later via a
+  // call to zeModuleDynamicLink.  However, modules created with piProgramBuild
+  // are supposed to be fully linked and ready to use.  Therefore, do an extra
+  // check now for unresolved symbols.
+  ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+  if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+    return PI_BUILD_PROGRAM_FAILURE;
+  } else if (ZeResult != ZE_RESULT_SUCCESS) {
+    return mapError(ZeResult);
+  }
 
   // We no longer need the IL / native code.
   Program->Code.reset();
@@ -4109,6 +4141,40 @@ _pi_program::~_pi_program() {
   if (ZeModule && OwnZeModule) {
     ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
   }
+}
+
+// Check to see if a Level Zero module has any unresolved symbols.
+//
+// @param ZeModule    The module handle to check.
+// @param ZeBuildLog  If there are unresolved symbols, this build log handle is
+//                     modified to receive information telling which symbols
+//                     are unresolved.
+//
+// @return ZE_RESULT_ERROR_MODULE_LINK_FAILURE indicates there are unresolved
+//  symbols.  ZE_RESULT_SUCCESS indicates all symbols are resolved.  Any other
+//  value indicates there was an error and we cannot tell if symbols are
+//  resolved.
+static ze_result_t
+checkUnresolvedSymbols(ze_module_handle_t ZeModule,
+                       ze_module_build_log_handle_t *ZeBuildLog) {
+
+  // First check to see if the module has any imported symbols.  If there are
+  // no imported symbols, it's not possible to have any unresolved symbols.  We
+  // do this check first because we assume it's faster than the call to
+  // zeModuleDynamicLink below.
+  ZeStruct<ze_module_properties_t> ZeModuleProps;
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeModuleGetProperties, (ZeModule, &ZeModuleProps));
+  if (ZeResult != ZE_RESULT_SUCCESS)
+    return ZeResult;
+
+  // If there are imported symbols, attempt to "link" the module with itself.
+  // As a side effect, this will return the error
+  // ZE_RESULT_ERROR_MODULE_LINK_FAILURE if there are any unresolved symbols.
+  if (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS) {
+    return ZE_CALL_NOCHECK(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog));
+  }
+  return ZE_RESULT_SUCCESS;
 }
 
 pi_result piKernelCreate(pi_program Program, const char *KernelName,
