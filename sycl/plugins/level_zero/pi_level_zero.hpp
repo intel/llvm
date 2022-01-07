@@ -28,6 +28,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -94,6 +95,10 @@ template <> ze_structure_type_t getZeStructureType<ze_image_desc_t>() {
 }
 template <> ze_structure_type_t getZeStructureType<ze_module_desc_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_module_program_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MODULE_PROGRAM_EXP_DESC;
 }
 template <> ze_structure_type_t getZeStructureType<ze_kernel_desc_t>() {
   return ZE_STRUCTURE_TYPE_KERNEL_DESC;
@@ -1001,7 +1006,7 @@ struct _pi_event : _pi_object {
 struct _pi_program : _pi_object {
   // Possible states of a program.
   typedef enum {
-    // The program has been created from intermediate language (SPIR-v), but it
+    // The program has been created from intermediate language (SPIR-V), but it
     // is not yet compiled.
     IL,
 
@@ -1010,179 +1015,99 @@ struct _pi_program : _pi_object {
     // is loaded via clCreateProgramWithBinary().
     Native,
 
-    // The program consists of native code (typically compiled from SPIR-v),
-    // but it has unresolved external dependencies which need to be resolved
-    // by linking with other Object state program(s).  Programs in this state
-    // have a single Level Zero module.
+    // The program was notionally compiled from SPIR-V form.  However, since we
+    // postpone compilation until the module is linked, the internal state
+    // still represents the module as SPIR-V.
     Object,
 
-    // The program consists of native code with no external dependencies.
-    // Programs in this state have a single Level Zero module, but no linking
-    // is needed in order to run kernels.
+    // The program has been built or linked, and it is represented as a Level
+    // Zero module.
     Exe,
 
-    // The program consists of several Level Zero modules, each of which
-    // contains native code.  Some modules may import external symbols and
-    // other modules may export definitions of those external symbols.  All of
-    // the modules have been linked together, so the imported references are
-    // resolved by the exported definitions.
-    //
-    // Module linking in Level Zero is quite different from program linking in
-    // OpenCL.  OpenCL statically links several program objects together to
-    // form a new program that contains the linked result.  Level Zero is more
-    // similar to shared libraries.  When several Level Zero modules are linked
-    // together, each module is modified "in place" such that external
-    // references from one are linked to external definitions in another.
-    // Linking in Level Zero does not produce a new Level Zero module that
-    // represents the linked result, therefore a program in LinkedExe state
-    // holds a list of all the pi_programs that were linked together.  Queries
-    // about the linked program need to query all the pi_programs in this list.
-    LinkedExe
+    // An error occurred during piProgramLink, but we created a _pi_program
+    // object anyways in order to hold the ZeBuildLog.  Note that the ZeModule
+    // may or may not be nullptr in this state, depending on the error.
+    Invalid
   } state;
 
-  // This is a wrapper class used for programs in LinkedExe state.  Such a
-  // program contains a list of pi_programs in Object state that have been
-  // linked together.  The program in LinkedExe state increments the reference
-  // counter for each of the Object state programs, thus "retaining" a
-  // reference to them, and it may also set the "HasImportsAndIsLinked" flag
-  // in these Object state programs.  The purpose of this wrapper is to
-  // decrement the reference count and clear the flag when the LinkedExe
-  // program is destroyed, so all the interesting code is in the wrapper's
-  // destructor.
-  //
-  // In order to ensure that the reference count is never decremented more
-  // than once, the wrapper has no copy constructor or copy assignment
-  // operator.  Instead, we only allow move semantics for the wrapper.
-  class LinkedReleaser {
+  // A utility class that converts specialization constants into the form
+  // required by the Level Zero driver.
+  class SpecConstantShim {
   public:
-    LinkedReleaser(pi_program Prog) : Prog(Prog) {}
-    LinkedReleaser(LinkedReleaser &&Other) {
-      Prog = Other.Prog;
-      Other.Prog = nullptr;
-    }
-    LinkedReleaser(const LinkedReleaser &Other) = delete;
-    LinkedReleaser &operator=(LinkedReleaser &&Other) {
-      std::swap(Prog, Other.Prog);
-      return *this;
-    }
-    LinkedReleaser &operator=(const LinkedReleaser &Other) = delete;
-    ~LinkedReleaser();
+    SpecConstantShim(pi_program Program) {
+      ZeSpecConstants.numConstants = Program->SpecConstants.size();
+      ZeSpecContantsIds.reserve(ZeSpecConstants.numConstants);
+      ZeSpecContantsValues.reserve(ZeSpecConstants.numConstants);
 
-    pi_program operator->() const { return Prog; }
+      for (auto &SpecConstant : Program->SpecConstants) {
+        ZeSpecContantsIds.push_back(SpecConstant.first);
+        ZeSpecContantsValues.push_back(SpecConstant.second);
+      }
+      ZeSpecConstants.pConstantIds = ZeSpecContantsIds.data();
+      ZeSpecConstants.pConstantValues = ZeSpecContantsValues.data();
+    }
+
+    const ze_module_constants_t *ze() { return &ZeSpecConstants; }
 
   private:
-    pi_program Prog;
-  };
-
-  // A utility class that iterates over the Level Zero modules contained by
-  // the program.  This helps hide the difference between programs in Object
-  // or Exe state (which have one module) and programs in LinkedExe state
-  // (which have several modules).
-  class ModuleIterator {
-  public:
-    ModuleIterator(pi_program Prog)
-        : Prog(Prog), It(Prog->LinkedPrograms.begin()) {
-      if (Prog->State == LinkedExe) {
-        NumMods = Prog->LinkedPrograms.size();
-        IsDone = (It == Prog->LinkedPrograms.end());
-        Mod = IsDone ? nullptr : (*It)->ZeModule;
-      } else if (Prog->State == IL || Prog->State == Native) {
-        NumMods = 0;
-        IsDone = true;
-        Mod = nullptr;
-      } else {
-        NumMods = 1;
-        IsDone = false;
-        Mod = Prog->ZeModule;
-      }
-    }
-
-    bool Done() const { return IsDone; }
-    size_t Count() const { return NumMods; }
-    ze_module_handle_t operator*() const { return Mod; }
-
-    void operator++(int) {
-      if (!IsDone && (Prog->State == LinkedExe) &&
-          (++It != Prog->LinkedPrograms.end())) {
-        Mod = (*It)->ZeModule;
-      } else {
-        Mod = nullptr;
-        IsDone = true;
-      }
-    }
-
-  private:
-    pi_program Prog;
-    ze_module_handle_t Mod;
-    size_t NumMods;
-    bool IsDone;
-    std::vector<LinkedReleaser>::iterator It;
+    std::vector<uint32_t> ZeSpecContantsIds;
+    std::vector<const void *> ZeSpecContantsValues;
+    ze_module_constants_t ZeSpecConstants;
   };
 
   // Construct a program in IL or Native state.
-  _pi_program(pi_context Context, const void *Input, size_t Length, state St)
-      : State(St), Context(Context), Code(new uint8_t[Length]),
-        CodeLength(Length), ZeModule(nullptr), OwnZeModule{true},
-        HasImports(false), HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {
-
+  _pi_program(state St, pi_context Context, const void *Input, size_t Length)
+      : Context{Context},
+        OwnZeModule{true}, State{St}, Code{new uint8_t[Length]},
+        CodeLength{Length}, ZeModule{nullptr}, ZeBuildLog{nullptr} {
     std::memcpy(Code.get(), Input, Length);
   }
 
-  // Construct a program in either Object or Exe state.
-  _pi_program(pi_context Context, ze_module_handle_t ZeModule, bool OwnZeModule,
-              state St, bool HasImports = false)
-      : State(St), Context(Context),
-        ZeModule(ZeModule), OwnZeModule{OwnZeModule}, HasImports(HasImports),
-        HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {}
+  // Construct a program in Exe or Invalid state.
+  _pi_program(state St, pi_context Context, ze_module_handle_t ZeModule,
+              ze_module_build_log_handle_t ZeBuildLog)
+      : Context{Context}, OwnZeModule{true}, State{St}, ZeModule{ZeModule},
+        ZeBuildLog{ZeBuildLog} {}
 
-  // Construct a program in LinkedExe state.
-  _pi_program(pi_context Context, std::vector<LinkedReleaser> &&Inputs,
-              ze_module_build_log_handle_t ZeLog)
-      : State(LinkedExe), Context(Context), ZeModule(nullptr),
-        OwnZeModule(true), HasImports(false), HasImportsAndIsLinked(false),
-        LinkedPrograms(std::move(Inputs)), ZeBuildLog(ZeLog) {}
+  // Construct a program in Exe state (interop).
+  _pi_program(state St, pi_context Context, ze_module_handle_t ZeModule,
+              bool OwnZeModule)
+      : Context{Context}, OwnZeModule{OwnZeModule}, State{St},
+        ZeModule{ZeModule}, ZeBuildLog{nullptr} {}
 
   ~_pi_program();
 
-  // Used for programs in all states.
-  state State;
-  pi_context Context; // Context of the program.
-
-  // Used for programs in IL or Native states.
-  std::unique_ptr<uint8_t[]> Code; // Array containing raw IL / native code.
-  size_t CodeLength;               // Size (bytes) of the array.
-
-  // Level Zero specialization constants, used for programs in IL state.
-  std::unordered_map<uint32_t, uint64_t> ZeSpecConstants;
-  std::mutex MutexZeSpecConstants; // Protects access to this field.
-
-  // Used for programs in Object or Exe state.
-  ze_module_handle_t ZeModule; // Level Zero module handle.
+  const pi_context Context; // Context of the program.
 
   // Indicates if we own the ZeModule or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
-  bool OwnZeModule;
+  const bool OwnZeModule;
 
-  // Tells if module imports any symbols.
-  bool HasImports;
+  // Protects accesses to all the non-const member variables.  Exclusive access
+  // is required to modify any of these members.
+  std::shared_mutex Mutex;
 
-  // Used for programs in Object state.  Tells if this module imports any
-  // symbols AND it is linked into some other program that has state LinkedExe.
-  // Such an Object is linked into exactly one other LinkedExe program.  Access
-  // to this field needs to be locked in case there are two threads that try to
-  // simultaneously link with this module.
-  bool HasImportsAndIsLinked;
-  std::mutex MutexHasImportsAndIsLinked; // Protects access to this field.
+  state State;
 
-  // Used for programs in LinkedExe state.  This is the set of Object programs
-  // that are linked together.
-  //
-  // Note that the Object programs in this vector might also be linked into
-  // other LinkedExe programs!
-  std::vector<LinkedReleaser> LinkedPrograms;
+  // In IL and Object states, this contains the SPIR-V representation of the
+  // module.  In Native state, it contains the native code.
+  std::unique_ptr<uint8_t[]> Code; // Array containing raw IL / native code.
+  size_t CodeLength;               // Size (bytes) of the array.
 
-  // Level Zero build or link log, used for programs in Obj, Exe, or LinkedExe
-  // state.
+  // Used only in IL and Object states.  Contains the SPIR-V specialization
+  // constants as a map from the SPIR-V "SpecID" to a buffer that contains the
+  // associated value.  The caller of the PI layer is responsible for
+  // maintaining the storage of this buffer.
+  std::unordered_map<uint32_t, const void *> SpecConstants;
+
+  // Used only in Object state.  Contains the build flags from the last call to
+  // piProgramCompile().
+  std::string BuildFlags;
+
+  // The Level Zero module handle.  Used primarily in Exe state.
+  ze_module_handle_t ZeModule;
+
+  // The Level Zero build log from the last call to zeModuleCreate().
   ze_module_build_log_handle_t ZeBuildLog;
 };
 
