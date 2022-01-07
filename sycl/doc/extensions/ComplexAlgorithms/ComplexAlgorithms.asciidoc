@@ -48,11 +48,7 @@ John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 4 and
-the following extensions:
-
-- https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/C-CXX-StandardLibrary/C-CXX-StandardLibrary.rst[C and C++ Standard libraries support]
-- https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst[Device library extensions]
+This extension is written against the SYCL 2020 specification, Revision 4.
 
 == Feature Test Macro
 
