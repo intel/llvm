@@ -133,7 +133,7 @@ static MemoryAccessKind checkFunctionMemoryAccess(Function &F, bool ThisBody,
     if (AliasAnalysis::onlyReadsMemory(MRB))
       return MAK_ReadOnly;
 
-    if (AliasAnalysis::doesNotReadMemory(MRB))
+    if (AliasAnalysis::onlyWritesMemory(MRB))
       return MAK_WriteOnly;
 
     // Conservatively assume it reads and writes to memory.
@@ -295,7 +295,7 @@ static void addReadAttrs(const SCCNodeSet &SCCNodes, AARGetterT &&AARGetter,
       // No change.
       continue;
 
-    if (F->doesNotReadMemory() && WritesMemory)
+    if (F->onlyWritesMemory() && WritesMemory)
       continue;
 
     Changed.insert(F);
@@ -720,10 +720,16 @@ determinePointerAccessAttrs(Argument *A,
 
       // The accessors used on call site here do the right thing for calls and
       // invokes with operand bundles.
-      if (!CB.onlyReadsMemory() && !CB.onlyReadsMemory(UseIndex))
-        return Attribute::None;
-      if (!CB.doesNotAccessMemory(UseIndex))
+      if (CB.doesNotAccessMemory(UseIndex)) {
+        /* nop */
+      } else if (CB.onlyReadsMemory() || CB.onlyReadsMemory(UseIndex)) {
         IsRead = true;
+      } else if (CB.hasFnAttr(Attribute::WriteOnly) ||
+                 CB.dataOperandHasImpliedAttr(UseIndex, Attribute::WriteOnly)) {
+        IsWrite = true;
+      } else {
+        return Attribute::None;
+      }
       break;
     }
 

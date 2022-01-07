@@ -3054,6 +3054,7 @@ struct FormatStyle {
   bool ReflowComments;
   // clang-format on
 
+  /// \brief The style if definition blocks should be separated.
   enum SeparateDefinitionStyle {
     /// Leave definition blocks as they are.
     SDS_Leave,
@@ -3429,6 +3430,14 @@ struct FormatStyle {
     ///      <conditional-body>                     <conditional-body>
     /// \endcode
     bool AfterIfMacros;
+    /// If ``true``, put a space between operator overloading and opening
+    /// parentheses.
+    /// \code
+    ///    true:                                  false:
+    ///    void operator++ (int a);        vs.    void operator++(int a);
+    ///    object.operator++ (10);                object.operator++(10);
+    /// \endcode
+    bool AfterOverloadedOperator;
     /// If ``true``, put a space before opening parentheses only if the
     /// parentheses are not empty.
     /// \code
@@ -3442,7 +3451,7 @@ struct FormatStyle {
         : AfterControlStatements(false), AfterForeachMacros(false),
           AfterFunctionDeclarationName(false),
           AfterFunctionDefinitionName(false), AfterIfMacros(false),
-          BeforeNonEmptyParentheses(false) {}
+          AfterOverloadedOperator(false), BeforeNonEmptyParentheses(false) {}
 
     bool operator==(const SpaceBeforeParensCustom &Other) const {
       return AfterControlStatements == Other.AfterControlStatements &&
@@ -3451,6 +3460,7 @@ struct FormatStyle {
                  Other.AfterFunctionDeclarationName &&
              AfterFunctionDefinitionName == Other.AfterFunctionDefinitionName &&
              AfterIfMacros == Other.AfterIfMacros &&
+             AfterOverloadedOperator == Other.AfterOverloadedOperator &&
              BeforeNonEmptyParentheses == Other.BeforeNonEmptyParentheses;
     }
   };
@@ -3853,6 +3863,7 @@ struct FormatStyle {
            QualifierOrder == R.QualifierOrder &&
            RawStringFormats == R.RawStringFormats &&
            ReferenceAlignment == R.ReferenceAlignment &&
+           SeparateDefinitionBlocks == R.SeparateDefinitionBlocks &&
            ShortNamespaceLines == R.ShortNamespaceLines &&
            SortIncludes == R.SortIncludes &&
            SortJavaStaticImport == R.SortJavaStaticImport &&

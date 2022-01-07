@@ -41,9 +41,9 @@ using namespace linalg::comprehensive_bufferize;
 
 /// Default allocation function that is used by the comprehensive bufferization
 /// pass. The default currently creates a ranked memref using `memref.alloc`.
-static Optional<Value> defaultAllocationFn(OpBuilder &b, Location loc,
-                                           MemRefType type,
-                                           ArrayRef<Value> dynShape) {
+static FailureOr<Value> defaultAllocationFn(OpBuilder &b, Location loc,
+                                            MemRefType type,
+                                            ArrayRef<Value> dynShape) {
   Value allocated = b.create<memref::AllocOp>(
       loc, type, dynShape, b.getI64IntegerAttr(kBufferAlignments));
   return allocated;
@@ -73,6 +73,21 @@ mlir::linalg::comprehensive_bufferize::defaultAllocationCallbacks() {
 // callbacks to their default functions.
 BufferizationOptions::BufferizationOptions()
     : allocationFns(defaultAllocationCallbacks()) {}
+
+BufferizableOpInterface mlir::linalg::comprehensive_bufferize::
+    BufferizationOptions::dynCastBufferizableOp(Operation *op) const {
+  if (isOpAllowed(op))
+    return dyn_cast<BufferizableOpInterface>(op);
+  return nullptr;
+}
+
+BufferizableOpInterface mlir::linalg::comprehensive_bufferize::
+    BufferizationOptions::dynCastBufferizableOp(Value value) const {
+  if (auto bufferizableOp = value.getDefiningOp<BufferizableOpInterface>())
+    if (isOpAllowed(bufferizableOp.getOperation()))
+      return bufferizableOp;
+  return nullptr;
+}
 
 //===----------------------------------------------------------------------===//
 // BufferizationAliasInfo
@@ -180,26 +195,11 @@ static void setInsertionPointAfter(OpBuilder &b, Value value) {
   }
 }
 
-BufferizableOpInterface mlir::linalg::comprehensive_bufferize::
-    BufferizationOptions::dynCastBufferizableOp(Operation *op) const {
-  if (isOpAllowed(op))
-    return dyn_cast<BufferizableOpInterface>(op);
-  return nullptr;
-}
-
-BufferizableOpInterface mlir::linalg::comprehensive_bufferize::
-    BufferizationOptions::dynCastBufferizableOp(Value value) const {
-  if (auto bufferizableOp = value.getDefiningOp<BufferizableOpInterface>())
-    if (isOpAllowed(bufferizableOp.getOperation()))
-      return bufferizableOp;
-  return nullptr;
-}
-
 /// Determine which OpOperand* will alias with `result` if the op is bufferized
 /// in place. Return an empty vector if the op is not bufferizable.
 SmallVector<OpOperand *>
 mlir::linalg::comprehensive_bufferize::BufferizationState::getAliasingOpOperand(
-    OpResult result) {
+    OpResult result) const {
   if (Operation *op = result.getDefiningOp())
     if (auto bufferizableOp = dyn_cast<BufferizableOpInterface>(op))
       return bufferizableOp.getAliasingOpOperand(result, *this);
@@ -210,7 +210,7 @@ mlir::linalg::comprehensive_bufferize::BufferizationState::getAliasingOpOperand(
 /// in place. Return an empty OpResult if the op is not bufferizable.
 OpResult
 mlir::linalg::comprehensive_bufferize::BufferizationState::getAliasingOpResult(
-    OpOperand &opOperand) {
+    OpOperand &opOperand) const {
   if (auto bufferizableOp =
           dyn_cast<BufferizableOpInterface>(opOperand.getOwner()))
     return bufferizableOp.getAliasingOpResult(opOperand, *this);
@@ -220,7 +220,7 @@ mlir::linalg::comprehensive_bufferize::BufferizationState::getAliasingOpResult(
 /// Return true if `opOperand` bufferizes to a memory read. Return `true` if the
 /// op is not bufferizable.
 bool mlir::linalg::comprehensive_bufferize::BufferizationState::
-    bufferizesToMemoryRead(OpOperand &opOperand) {
+    bufferizesToMemoryRead(OpOperand &opOperand) const {
   if (auto bufferizableOp =
           dyn_cast<BufferizableOpInterface>(opOperand.getOwner()))
     return bufferizableOp.bufferizesToMemoryRead(opOperand, *this);
@@ -233,7 +233,7 @@ bool mlir::linalg::comprehensive_bufferize::BufferizationState::
 /// Return true if `opOperand` bufferizes to a memory write. Return
 /// `true` if the op is not bufferizable.
 bool mlir::linalg::comprehensive_bufferize::BufferizationState::
-    bufferizesToMemoryWrite(OpOperand &opOperand) {
+    bufferizesToMemoryWrite(OpOperand &opOperand) const {
   if (auto bufferizableOp =
           dyn_cast<BufferizableOpInterface>(opOperand.getOwner()))
     return bufferizableOp.bufferizesToMemoryWrite(opOperand, *this);
@@ -246,7 +246,7 @@ bool mlir::linalg::comprehensive_bufferize::BufferizationState::
 /// Return true if `opOperand` does neither read nor write but bufferizes to an
 /// alias. Return false if the op is not bufferizable.
 bool mlir::linalg::comprehensive_bufferize::BufferizationState::
-    bufferizesToAliasOnly(OpOperand &opOperand) {
+    bufferizesToAliasOnly(OpOperand &opOperand) const {
   if (auto bufferizableOp =
           dyn_cast<BufferizableOpInterface>(opOperand.getOwner()))
     return bufferizableOp.bufferizesToAliasOnly(opOperand, *this);
@@ -260,7 +260,7 @@ bool mlir::linalg::comprehensive_bufferize::BufferizationState::
 /// read. Also takes into account ops that create an alias but do not read by
 /// themselves (e.g., ExtractSliceOp).
 bool mlir::linalg::comprehensive_bufferize::BufferizationState::isValueRead(
-    Value value) {
+    Value value) const {
   SmallVector<OpOperand *> workingSet;
   for (OpOperand &use : value.getUses())
     workingSet.push_back(&use);
@@ -282,10 +282,9 @@ bool mlir::linalg::comprehensive_bufferize::BufferizationState::isValueRead(
 // the aliasing OpOperands. Find and return Values for which `condition`
 // evaluates to true. OpOperands of such matching Values are not traversed any
 // further.
-llvm::SetVector<Value>
-mlir::linalg::comprehensive_bufferize::BufferizationState::
-    findValueInReverseUseDefChain(Value value,
-                                  llvm::function_ref<bool(Value)> condition) {
+llvm::SetVector<Value> mlir::linalg::comprehensive_bufferize::
+    BufferizationState::findValueInReverseUseDefChain(
+        Value value, llvm::function_ref<bool(Value)> condition) const {
   llvm::SetVector<Value> result, workingSet;
   workingSet.insert(value);
 
@@ -312,7 +311,7 @@ mlir::linalg::comprehensive_bufferize::BufferizationState::
 
 // Find the Value of the last preceding write of a given Value.
 Value mlir::linalg::comprehensive_bufferize::BufferizationState::
-    findLastPrecedingWrite(Value value) {
+    findLastPrecedingWrite(Value value) const {
   SetVector<Value> result =
       findValueInReverseUseDefChain(value, [&](Value value) {
         Operation *op = value.getDefiningOp();
@@ -334,7 +333,7 @@ Value mlir::linalg::comprehensive_bufferize::BufferizationState::
 
 mlir::linalg::comprehensive_bufferize::BufferizationState::BufferizationState(
     Operation *op, const BufferizationOptions &options)
-    : aliasInfo(op), options(options), builder(op->getContext()) {
+    : aliasInfo(op), options(options) {
   // Set up alias sets for OpResults that must bufferize in-place. This should
   // be done before making any other bufferization decisions.
   op->walk([&](BufferizableOpInterface bufferizableOp) {
@@ -359,15 +358,16 @@ mlir::linalg::comprehensive_bufferize::BufferizationState::BufferizationState(
 /// Return the result buffer (memref) for a given OpResult (tensor). Allocate
 /// a new buffer and copy over data from the existing buffer if out-of-place
 /// bufferization is necessary.
-Value mlir::linalg::comprehensive_bufferize::BufferizationState::
-    getResultBuffer(OpResult result) {
-  OpBuilder::InsertionGuard guard(builder);
+FailureOr<Value>
+mlir::linalg::comprehensive_bufferize::BufferizationState::getResultBuffer(
+    RewriterBase &rewriter, OpResult result) const {
+  OpBuilder::InsertionGuard guard(rewriter);
   Operation *op = result.getOwner();
   SmallVector<OpOperand *> aliasingOperands = getAliasingOpOperand(result);
   assert(!aliasingOperands.empty() && "could not get aliasing OpOperand");
   OpOperand *opOperand = aliasingOperands.front();
   Value operand = opOperand->get();
-  Value operandBuffer = lookupBuffer(operand);
+  Value operandBuffer = lookupBuffer(rewriter, operand);
   // Make sure that all OpOperands are the same buffer. If this is not the case,
   // we would have to materialize a memref value.
   // TODO: Should be looking for checking for "equivalent buffers" instead of
@@ -375,11 +375,9 @@ Value mlir::linalg::comprehensive_bufferize::BufferizationState::
   // set up yet.
   if (aliasingOperands.size() > 1 &&
       !llvm::all_of(aliasingOperands, [&](OpOperand *o) {
-        return lookupBuffer(o->get()) == operandBuffer;
-      })) {
-    op->emitError("result buffer is ambiguous");
-    return Value();
-  }
+        return lookupBuffer(rewriter, o->get()) == operandBuffer;
+      }))
+    return FailureOr<Value>(op->emitError("result buffer is ambiguous"));
 
   // If bufferizing out-of-place, allocate a new buffer.
   if (!aliasInfo.isInPlace(result)) {
@@ -391,9 +389,12 @@ Value mlir::linalg::comprehensive_bufferize::BufferizationState::
     Location loc = op->getLoc();
     // Move insertion point right after `operandBuffer`. That is where the
     // allocation should be inserted (in the absence of allocation hoisting).
-    setInsertionPointAfter(builder, operandBuffer);
+    setInsertionPointAfter(rewriter, operandBuffer);
     // Allocate the result buffer.
-    Value resultBuffer = createAllocDeallocPair(builder, loc, operandBuffer);
+    FailureOr<Value> resultBuffer =
+        createAlloc(rewriter, loc, operandBuffer, options.createDeallocs);
+    if (failed(resultBuffer))
+      return failure();
     bool skipCopy = false;
     // Do not copy if the last preceding write of `operand` is an op that does
     // not write (skipping ops that merely create aliases). E.g., InitTensorOp.
@@ -413,8 +414,8 @@ Value mlir::linalg::comprehensive_bufferize::BufferizationState::
       skipCopy = true;
     if (!skipCopy) {
       // The copy happens right before the op that is bufferized.
-      builder.setInsertionPoint(op);
-      createMemCpy(builder, loc, operandBuffer, resultBuffer);
+      rewriter.setInsertionPoint(op);
+      createMemCpy(rewriter, loc, operandBuffer, *resultBuffer);
     }
     return resultBuffer;
   }
@@ -423,10 +424,9 @@ Value mlir::linalg::comprehensive_bufferize::BufferizationState::
   return operandBuffer;
 }
 
-void mlir::linalg::comprehensive_bufferize::BufferizationState::replaceOp(
-    Operation *op, ValueRange values) {
-  OpBuilder &b = getBuilder();
-  OpBuilder::InsertionGuard g(b);
+void mlir::linalg::comprehensive_bufferize::replaceOpWithBufferizedValues(
+    RewriterBase &rewriter, Operation *op, ValueRange values) {
+  OpBuilder::InsertionGuard g(rewriter);
 
   // Replace all OpResults with the given values.
   for (OpResult opResult : op->getOpResults()) {
@@ -444,72 +444,14 @@ void mlir::linalg::comprehensive_bufferize::BufferizationState::replaceOp(
       // The existing uses of the OpResult still expect a tensor. Insert a
       // ToTensorOp. Throughout bufferization, this ToTensorOp will gradually
       // loose all of its users and eventually DCE away.
-      setInsertionPointAfter(b, replacement);
-      replacement = b.create<bufferization::ToTensorOp>(replacement.getLoc(),
-                                                        replacement);
+      setInsertionPointAfter(rewriter, replacement);
+      replacement = rewriter.create<bufferization::ToTensorOp>(
+          replacement.getLoc(), replacement);
     }
     opResult.replaceAllUsesWith(replacement);
   }
 
-  op->erase();
-}
-
-LogicalResult
-mlir::linalg::comprehensive_bufferize::bufferize(Region *region,
-                                                 BufferizationState &state) {
-  for (Block &block : *region)
-    if (failed(bufferize(&block, state)))
-      return failure();
-  return success();
-}
-
-LogicalResult
-mlir::linalg::comprehensive_bufferize::bufferize(Block *block,
-                                                 BufferizationState &state) {
-  // Ops may get deleted during the traversal, so do not iterate over `block`
-  // directly.
-  SmallVector<Operation *> ops;
-  ops.reserve(block->getOperations().size());
-  for (Operation &op : *block)
-    ops.push_back(&op);
-  for (Operation *op : ops)
-    if (failed(bufferize(op, state)))
-      return failure();
-  return success();
-}
-
-LogicalResult
-mlir::linalg::comprehensive_bufferize::bufferize(Operation *op,
-                                                 BufferizationState &state) {
-  OpBuilder &b = state.getBuilder();
-
-  // Check if op has tensor results or operands.
-  auto isaTensor = [](Type t) { return t.isa<TensorType>(); };
-  bool hasTensorResult = any_of(op->getResultTypes(), isaTensor);
-  bool hasTensorOperand = any_of(op->getOperandTypes(), isaTensor);
-  bool hasRegions = !op->getRegions().empty();
-
-  // No tensor results/operands or regions. We are done.
-  if (!hasTensorResult && !hasTensorOperand && !hasRegions)
-    return success();
-
-  // Bufferize using `BufferizableOpInterface`. Interface implementations are
-  // responsible for bufferizing nested ops.
-  if (auto bufferizableOp = state.getOptions().dynCastBufferizableOp(op)) {
-    b.setInsertionPoint(op);
-    return bufferizableOp.bufferize(b, state);
-  }
-
-  // `op` is an unbufferizable tensor op.
-  if (!state.getOptions().allowUnknownOps)
-    return op->emitError() << "unsupported op with tensors";
-
-  // Bufferize all regions.
-  for (Region &region : op->getRegions())
-    if (failed(bufferize(&region, state)))
-      return failure();
-
-  return success();
+  rewriter.eraseOp(op);
 }
 
 //===----------------------------------------------------------------------===//
@@ -594,11 +536,12 @@ static MemRefType getAllocationTypeAndShape(OpBuilder &b, Location loc,
   return allocMemRefType;
 }
 
-/// Create an Allocop/DeAllocOp pair, where the AllocOp is after
+/// Create an AllocOp/DeallocOp pair, where the AllocOp is after
 /// `shapedValue.getDefiningOp` (or at the top of the block in case of a
 /// bbArg) and the DeallocOp is at the end of the block.
-Value mlir::linalg::comprehensive_bufferize::BufferizationState::
-    createAllocDeallocPair(OpBuilder &b, Location loc, Value shapedValue) {
+FailureOr<Value>
+mlir::linalg::comprehensive_bufferize::BufferizationState::createAlloc(
+    OpBuilder &b, Location loc, Value shapedValue, bool deallocMemref) const {
   // Take a guard before anything else.
   OpBuilder::InsertionGuard g(b);
 
@@ -609,37 +552,40 @@ Value mlir::linalg::comprehensive_bufferize::BufferizationState::
   // Note: getAllocationTypeAndShape also sets the insertion point.
   MemRefType allocMemRefType =
       getAllocationTypeAndShape(b, loc, shapedValue, dynShape);
-  Optional<Value> allocated = createAlloc(b, loc, allocMemRefType, dynShape);
-  // TODO: For now just assert the value is returned. Eventually need to
-  // error-propagate.
-  assert(allocated && "allocation failed");
+  FailureOr<Value> allocated = createAlloc(b, loc, allocMemRefType, dynShape);
+  if (failed(allocated))
+    return failure();
   Value casted = allocated.getValue();
   if (memRefType && memRefType != allocMemRefType) {
     casted = b.create<memref::CastOp>(loc, memRefType, allocated.getValue());
   }
 
-  // 2. Create memory deallocation.
-  b.setInsertionPoint(allocated.getValue().getParentBlock()->getTerminator());
-  createDealloc(b, loc, allocated.getValue());
+  if (deallocMemref) {
+    // 2. Create memory deallocation.
+    b.setInsertionPoint(allocated.getValue().getParentBlock()->getTerminator());
+    createDealloc(b, loc, allocated.getValue());
+  }
+
   return casted;
 }
 
 /// Create a memref allocation.
-Optional<Value>
+FailureOr<Value>
 mlir::linalg::comprehensive_bufferize::BufferizationState::createAlloc(
-    OpBuilder &b, Location loc, MemRefType type, ArrayRef<Value> dynShape) {
+    OpBuilder &b, Location loc, MemRefType type,
+    ArrayRef<Value> dynShape) const {
   return options.allocationFns->allocationFn(b, loc, type, dynShape);
 }
 
 /// Create a memref deallocation.
 void mlir::linalg::comprehensive_bufferize::BufferizationState::createDealloc(
-    OpBuilder &b, Location loc, Value allocatedBuffer) {
+    OpBuilder &b, Location loc, Value allocatedBuffer) const {
   return options.allocationFns->deallocationFn(b, loc, allocatedBuffer);
 }
 
 /// Create a memory copy between two memref buffers.
 void mlir::linalg::comprehensive_bufferize::BufferizationState::createMemCpy(
-    OpBuilder &b, Location loc, Value from, Value to) {
+    OpBuilder &b, Location loc, Value from, Value to) const {
   return options.allocationFns->memCpyFn(b, loc, from, to);
 }
 
@@ -655,36 +601,25 @@ bool mlir::linalg::comprehensive_bufferize::isFunctionArgument(Value value) {
 }
 
 Value mlir::linalg::comprehensive_bufferize::BufferizationState::lookupBuffer(
-    Value tensor) {
+    RewriterBase &rewriter, Value tensor) const {
   assert(tensor.getType().isa<TensorType>() && "unexpected non-tensor type");
 
   // Replace "%t = to_tensor %m" with %m.
   if (auto toTensorOp = tensor.getDefiningOp<bufferization::ToTensorOp>())
     return toTensorOp.memref();
 
-  if (!isFunctionArgument(tensor)) {
-    if (static_cast<bool>(options.dynCastBufferizableOp(tensor))) {
-      // Dump tensor for easier debugging.
-      tensor.dump();
-      llvm_unreachable("op is known, but has not been bufferized yet");
-      return Value();
-    }
-    if (!options.allowUnknownOps) {
-      // Dump tensor for easier debugging.
-      tensor.dump();
-      // Note: An assertion should already have failed earlier.
-      llvm_unreachable("unknown ops are not allowed");
-      return Value();
-    }
-  }
-
   // Insert to_memref op.
-  OpBuilder &b = getBuilder();
-  OpBuilder::InsertionGuard g(b);
-  setInsertionPointAfter(b, tensor);
-  return b.create<bufferization::ToMemrefOp>(
-      tensor.getLoc(),
-      getDynamicMemRefType(tensor.getType().cast<RankedTensorType>()), tensor);
+  OpBuilder::InsertionGuard g(rewriter);
+  setInsertionPointAfter(rewriter, tensor);
+  Type memrefType;
+  if (auto rankedTensorType = tensor.getType().dyn_cast<RankedTensorType>()) {
+    memrefType = getDynamicMemRefType(rankedTensorType);
+  } else {
+    memrefType = getUnrankedMemRefType(
+        tensor.getType().cast<TensorType>().getElementType());
+  }
+  return rewriter.create<bufferization::ToMemrefOp>(tensor.getLoc(), memrefType,
+                                                    tensor);
 }
 
 bool mlir::linalg::comprehensive_bufferize::BufferizationState::isInPlace(
@@ -699,13 +634,9 @@ MemRefType mlir::linalg::comprehensive_bufferize::getContiguousMemRefType(
                          layout, memorySpace);
 }
 
-Type mlir::linalg::comprehensive_bufferize::getContiguousOrUnrankedMemRefType(
-    Type type, MemRefLayoutAttrInterface layout, Attribute memorySpace) {
-  if (type.isa<RankedTensorType, MemRefType>())
-    return getContiguousMemRefType(type.cast<ShapedType>(), layout,
-                                   memorySpace);
-  assert(!layout && "expected empty layout with UnrankedMemRefType");
-  return UnrankedMemRefType::get(getElementTypeOrSelf(type), memorySpace);
+UnrankedMemRefType mlir::linalg::comprehensive_bufferize::getUnrankedMemRefType(
+    Type elementType, Attribute memorySpace) {
+  return UnrankedMemRefType::get(elementType, memorySpace);
 }
 
 MemRefType mlir::linalg::comprehensive_bufferize::getDynamicMemRefType(

@@ -19,12 +19,14 @@ namespace linalg {
 namespace comprehensive_bufferize {
 namespace scf_ext {
 
+/// Bufferization of scf.execute_region. Can be analyzed, but bufferization not
+/// fully implemented at the moment.
 struct ExecuteRegionOpInterface
     : public BufferizableOpInterface::ExternalModel<ExecuteRegionOpInterface,
                                                     scf::ExecuteRegionOp> {
   SmallVector<OpOperand *>
   getAliasingOpOperand(Operation *op, OpResult opResult,
-                       BufferizationState &state) const {
+                       const BufferizationState &state) const {
     // ExecuteRegionOps do not have tensor OpOperands. The yielded value can be
     // any SSA value that is in scope. To allow for use-def chain traversal
     // through ExecuteRegionOps in the analysis, the corresponding yield value
@@ -41,7 +43,7 @@ struct ExecuteRegionOpInterface
   }
 
   bool mustBufferizeInPlace(Operation *op, OpResult opResult,
-                            BufferizationState &state) const {
+                            const BufferizationState &state) const {
     // ExecuteRegionOp results always bufferize in-place. Since they have no
     // OpOperands, they are mostly ignored by the analysis once alias sets are
     // set up.
@@ -51,7 +53,7 @@ struct ExecuteRegionOpInterface
   // TODO: For better bufferization results, this could return `true` only if
   // there is a memory write in the region.
   bool isMemoryWrite(Operation *op, OpResult opResult,
-                     BufferizationState &state) const {
+                     const BufferizationState &state) const {
     // Similar to scf.if, results of this op are always considered memory writes
     // in the analysis. This is a useful pattern for all ops that have tensor
     // OpResults but no tensor OpOperands. By default, `isMemoryWrite` is
@@ -60,32 +62,31 @@ struct ExecuteRegionOpInterface
     return true;
   }
 
-  LogicalResult bufferize(Operation *op, OpBuilder &b,
-                          BufferizationState &state) const {
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
     // TODO: Add bufferization support when needed. scf.execute_region should be
     // bufferized similar to scf.if.
-    auto executeRegionOp = cast<scf::ExecuteRegionOp>(op);
     bool hasTensorReturnType = any_of(
         op->getResultTypes(), [](Type t) { return t.isa<TensorType>(); });
     if (hasTensorReturnType)
       return op->emitError(
           "scf.execute_region with tensor result not supported");
-    return comprehensive_bufferize::bufferize(&executeRegionOp.getRegion(),
-                                              state);
+    return success();
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
                                 const BufferizationAliasInfo &aliasInfo,
-                                BufferizationState &state) const {
+                                const BufferizationState &state) const {
     return BufferRelation::Equivalent;
   }
 };
 
+/// Bufferization of scf.if. Replace with a new scf.if that yields memrefs.
 struct IfOpInterface
     : public BufferizableOpInterface::ExternalModel<IfOpInterface, scf::IfOp> {
   SmallVector<OpOperand *>
   getAliasingOpOperand(Operation *op, OpResult opResult,
-                       BufferizationState &state) const {
+                       const BufferizationState &state) const {
     // IfOps do not have tensor OpOperands. The yielded value can be any SSA
     // value that is in scope. To allow for use-def chain traversal through
     // IfOps in the analysis, both corresponding yield values from the then/else
@@ -102,7 +103,7 @@ struct IfOpInterface
   // allowed at the moment, we should never encounter scf.ifs that yield
   // unmodified tensors. Such scf.yield ops could just fold away.
   bool isMemoryWrite(Operation *op, OpResult opResult,
-                     BufferizationState &state) const {
+                     const BufferizationState &state) const {
     // IfOp results are always considered memory writes in the analysis. This
     // design decision simplifies the analysis considerably. E.g., consider the
     // following test case:
@@ -129,20 +130,15 @@ struct IfOpInterface
   }
 
   bool mustBufferizeInPlace(Operation *op, OpResult opResult,
-                            BufferizationState &state) const {
+                            const BufferizationState &state) const {
     // IfOp results always bufferize in-place. Since they have no OpOperands,
     // they are mostly ignored by the analysis once alias sets are set up.
     return true;
   }
 
-  LogicalResult bufferize(Operation *op, OpBuilder &b,
-                          BufferizationState &state) const {
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
     auto ifOp = cast<scf::IfOp>(op);
-
-    // Use IRRewriter instead of OpBuilder because it has additional helper
-    // functions.
-    IRRewriter rewriter(op->getContext());
-    rewriter.setInsertionPoint(ifOp);
 
     // Compute new types of the bufferized scf.if op.
     SmallVector<Type> newTypes;
@@ -199,20 +195,14 @@ struct IfOpInterface
     }
 
     // Replace op results.
-    state.replaceOp(op, newIfOp->getResults());
-
-    // Bufferize then/else blocks.
-    if (failed(comprehensive_bufferize::bufferize(newIfOp.thenBlock(), state)))
-      return failure();
-    if (failed(comprehensive_bufferize::bufferize(newIfOp.elseBlock(), state)))
-      return failure();
+    replaceOpWithBufferizedValues(rewriter, op, newIfOp->getResults());
 
     return success();
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
                                 const BufferizationAliasInfo &aliasInfo,
-                                BufferizationState &state) const {
+                                const BufferizationState &state) const {
     // IfOp results are equivalent to their corresponding yield values if both
     // yield values are equivalent to each other.
     auto bufferizableOp = cast<BufferizableOpInterface>(op);
@@ -225,11 +215,13 @@ struct IfOpInterface
   }
 };
 
+/// Bufferization of scf.for. Replace with a new scf.for that operates on
+/// memrefs.
 struct ForOpInterface
     : public BufferizableOpInterface::ExternalModel<ForOpInterface,
                                                     scf::ForOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
-                              BufferizationState &state) const {
+                              const BufferizationState &state) const {
     // scf::ForOp alone doesn't bufferize to a memory read, one of the uses of
     // its matching bbArg may.
     auto forOp = cast<scf::ForOp>(op);
@@ -237,7 +229,7 @@ struct ForOpInterface
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
-                               BufferizationState &state) const {
+                               const BufferizationState &state) const {
     // Tensor iter_args of scf::ForOps are always considered as a write. This is
     // to simplify the analysis.
     // TODO: Consider doing sth. like isValueWritten.
@@ -245,7 +237,7 @@ struct ForOpInterface
   }
 
   OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               BufferizationState &state) const {
+                               const BufferizationState &state) const {
     auto forOp = cast<scf::ForOp>(op);
     if (!opOperand.get().getType().isa<RankedTensorType>())
       return OpResult();
@@ -254,7 +246,7 @@ struct ForOpInterface
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
                                 const BufferizationAliasInfo &aliasInfo,
-                                BufferizationState &state) const {
+                                const BufferizationState &state) const {
     // ForOp results are equivalent to their corresponding init_args if the
     // corresponding iter_args and yield values are equivalent.
     auto forOp = cast<scf::ForOp>(op);
@@ -266,7 +258,8 @@ struct ForOpInterface
     return equivalentYield ? BufferRelation::Equivalent : BufferRelation::None;
   }
 
-  bool isWritable(Operation *op, Value value, BufferizationState &state) const {
+  bool isWritable(Operation *op, Value value,
+                  const BufferizationState &state) const {
     // Interestingly, scf::ForOp's bbArg can **always** be viewed
     // inplace from the perspective of ops nested under:
     //   1. Either the matching iter operand is not bufferized inplace and an
@@ -276,15 +269,10 @@ struct ForOpInterface
     return true;
   }
 
-  LogicalResult bufferize(Operation *op, OpBuilder & /*b*/,
-                          BufferizationState &state) const {
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
     auto forOp = cast<scf::ForOp>(op);
     Block *oldLoopBody = &forOp.getLoopBody().front();
-
-    // Use IRRewriter instead of OpBuilder because it has additional helper
-    // functions.
-    IRRewriter rewriter(op->getContext());
-    rewriter.setInsertionPoint(forOp);
 
     // Indices of all iter_args that have tensor type. These are the ones that
     // are bufferized.
@@ -307,10 +295,19 @@ struct ForOpInterface
     };
 
     // Construct a new scf.for op with memref instead of tensor values.
+    bool resultBufferFailure = false;
     SmallVector<Value> initArgs =
         convert(forOp.getInitArgs(), [&](Value val, int64_t index) {
-          return state.getResultBuffer(forOp->getOpResult(index));
+          FailureOr<Value> resultBuffer =
+              state.getResultBuffer(rewriter, forOp->getOpResult(index));
+          if (failed(resultBuffer)) {
+            resultBufferFailure = true;
+            return Value();
+          }
+          return *resultBuffer;
         });
+    if (resultBufferFailure)
+      return failure();
     auto newForOp = rewriter.create<scf::ForOp>(
         forOp.getLoc(), forOp.getLowerBound(), forOp.getUpperBound(),
         forOp.getStep(), initArgs);
@@ -343,11 +340,7 @@ struct ForOpInterface
     yieldOp.getResultsMutable().assign(yieldValues);
 
     // Replace loop results.
-    state.replaceOp(op, newForOp->getResults());
-
-    // Bufferize loop body.
-    if (failed(comprehensive_bufferize::bufferize(loopBody, state)))
-      return failure();
+    replaceOpWithBufferizedValues(rewriter, op, newForOp->getResults());
 
     return success();
   }
@@ -420,26 +413,28 @@ LogicalResult mlir::linalg::comprehensive_bufferize::scf_ext::
   return status;
 }
 
+/// Bufferization of scf.yield. Bufferized as part of their enclosing ops, so
+/// this is for analysis only.
 struct YieldOpInterface
     : public BufferizableOpInterface::ExternalModel<YieldOpInterface,
                                                     scf::YieldOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
-                              BufferizationState &state) const {
+                              const BufferizationState &state) const {
     return true;
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
-                               BufferizationState &state) const {
+                               const BufferizationState &state) const {
     return false;
   }
 
   OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
-                               BufferizationState &state) const {
+                               const BufferizationState &state) const {
     return OpResult();
   }
 
-  LogicalResult bufferize(Operation *op, OpBuilder &b,
-                          BufferizationState &state) const {
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
     auto yieldOp = cast<scf::YieldOp>(op);
     if (!isa<scf::ExecuteRegionOp, scf::IfOp, scf::ForOp>(
             yieldOp->getParentOp()))

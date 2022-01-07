@@ -1212,9 +1212,9 @@ findOrphanPos(SmallVectorImpl<SectionCommand *>::iterator b,
     auto *os = dyn_cast<OutputSection>(cmd);
     return os && os->hasInputSections;
   };
-  auto j = std::find_if(llvm::make_reverse_iterator(i),
-                        llvm::make_reverse_iterator(b),
-                        isOutputSecWithInputSections);
+  auto j =
+      std::find_if(std::make_reverse_iterator(i), std::make_reverse_iterator(b),
+                   isOutputSecWithInputSections);
   i = j.base();
 
   // As a special case, if the orphan section is the last section, put
@@ -1313,15 +1313,11 @@ static DenseMap<const InputSectionBase *, int> buildSectionOrder() {
   // We want both global and local symbols. We get the global ones from the
   // symbol table and iterate the object files for the local ones.
   for (Symbol *sym : symtab->symbols())
-    if (!sym->isLazy())
-      addSym(*sym);
+    addSym(*sym);
 
   for (ELFFileBase *file : objectFiles)
-    for (Symbol *sym : file->getSymbols()) {
-      if (!sym->isLocal())
-        break;
+    for (Symbol *sym : file->getLocalSymbols())
       addSym(*sym);
-    }
 
   if (config->warnSymbolOrdering)
     for (auto orderEntry : symbolOrder)
@@ -2175,7 +2171,7 @@ template <class ELFT> void Writer<ELFT>::checkExecuteOnly() {
         if (!(isec->flags & SHF_EXECINSTR))
           error("cannot place " + toString(isec) + " into " +
                 toString(osec->name) +
-                ": -execute-only does not support intermingling data and code");
+                ": --execute-only does not support intermingling data and code");
 }
 
 // The linker is expected to define SECNAME_start and SECNAME_end
