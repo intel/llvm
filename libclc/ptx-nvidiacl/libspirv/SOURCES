@@ -71,6 +71,7 @@ relational/isfinite.cl
 relational/isinf.cl
 relational/isnan.cl
 synchronization/barrier.cl
+synchronization/aw_barrier.cl
 workitem/get_global_id.cl
 workitem/get_global_offset.cl
 workitem/get_global_size.cl
