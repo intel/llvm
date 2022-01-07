@@ -126,6 +126,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 
 void queue_impl::addEvent(const event &Event) {
   EventImplPtr EImpl = getSyclObjImpl(Event);
+  assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
