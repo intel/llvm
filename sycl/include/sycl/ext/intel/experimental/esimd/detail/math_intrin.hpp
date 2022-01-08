@@ -266,8 +266,8 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
     __ESIMD_UNSUPPORTED_ON_HOST;
   __ESIMD_raw_vec_t(T, N) retv;
   for (auto i = 0; i != N; i += 4) {
-    T dp = (v1[i] * v2[i]) + (v1[i + 1] * v2[i + 1]) +
-            (v1[i + 2] * v2[i + 2]) + (v1[i + 3] * v2[i + 3]);
+    T dp = (v1[i] * v2[i]) + (v1[i + 1] * v2[i + 1]) + (v1[i + 2] * v2[i + 2]) +
+           (v1[i + 3] * v2[i + 3]);
     retv[i] = dp;
     retv[i + 1] = dp;
     retv[i + 2] = dp;
