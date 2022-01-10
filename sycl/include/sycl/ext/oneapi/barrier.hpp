@@ -88,7 +88,7 @@ public:
                         PI_INVALID_DEVICE);
 #endif
   }
-  
+
   void arrive_copy_async() {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_BarrierCopyAsyncArrive(&state);
@@ -97,7 +97,7 @@ public:
                         PI_INVALID_DEVICE);
 #endif
   }
-  
+
   void arrive_copy_async_no_inc() {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_BarrierCopyAsyncArriveNoInc(&state);
@@ -115,7 +115,7 @@ public:
                         PI_INVALID_DEVICE);
 #endif
   }
-  
+
   void test_wait(arrival_token arrival) {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_BarrierTestWait(&state, arrival);
@@ -124,7 +124,7 @@ public:
                         PI_INVALID_DEVICE);
 #endif
   }
-  
+
   arrival_token arrive_and_wait() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_BarrierArriveAndWait(&state);
@@ -134,9 +134,7 @@ public:
 #endif
   }
 
-  static constexpr uint64_t max(){
-    return 1 << 19;
-  }
+  static constexpr uint64_t max() { return (1 << 20) - 1; }
 };
 
 } // namespace sycl::ext::oneapi
