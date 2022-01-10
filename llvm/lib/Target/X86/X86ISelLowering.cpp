@@ -1654,6 +1654,8 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
       setOperationAction(ISD::SRL,              VT, Custom);
       setOperationAction(ISD::SHL,              VT, Custom);
       setOperationAction(ISD::SRA,              VT, Custom);
+      setOperationAction(ISD::ROTL,             VT, Custom);
+      setOperationAction(ISD::ROTR,             VT, Custom);
       setOperationAction(ISD::SETCC,            VT, Custom);
 
       // The condition codes aren't legal in SSE/AVX and under AVX512 we use
@@ -1668,20 +1670,9 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
       setOperationAction(ISD::UMIN,             VT, Legal);
       setOperationAction(ISD::ABS,              VT, Legal);
       setOperationAction(ISD::CTPOP,            VT, Custom);
-      setOperationAction(ISD::ROTL,             VT, Custom);
-      setOperationAction(ISD::ROTR,             VT, Custom);
       setOperationAction(ISD::STRICT_FSETCC,    VT, Custom);
       setOperationAction(ISD::STRICT_FSETCCS,   VT, Custom);
     }
-
-    // With BWI, expanding (and promoting the shifts) is the better.
-    if (!Subtarget.useBWIRegs()) {
-      setOperationAction(ISD::ROTL, MVT::v32i16, Custom);
-      setOperationAction(ISD::ROTR, MVT::v32i16, Custom);
-    }
-
-    setOperationAction(ISD::ROTL,   MVT::v64i8,  Custom);
-    setOperationAction(ISD::ROTR,   MVT::v64i8,  Custom);
 
     for (auto VT : { MVT::v64i8, MVT::v32i16 }) {
       setOperationAction(ISD::ABS,     VT, HasBWI ? Legal : Custom);
@@ -6859,8 +6850,8 @@ static SDValue getPack(SelectionDAG &DAG, const X86Subtarget &Subtarget,
         DAG.computeKnownBits(RHS).countMaxActiveBits() <= EltSizeInBits)
       return DAG.getNode(X86ISD::PACKUS, dl, VT, LHS, RHS);
 
-    if (DAG.ComputeMinSignedBits(LHS) <= EltSizeInBits &&
-        DAG.ComputeMinSignedBits(RHS) <= EltSizeInBits)
+    if (DAG.ComputeMaxSignificantBits(LHS) <= EltSizeInBits &&
+        DAG.ComputeMaxSignificantBits(RHS) <= EltSizeInBits)
       return DAG.getNode(X86ISD::PACKSS, dl, VT, LHS, RHS);
   }
 
@@ -23166,10 +23157,10 @@ static SDValue EmitCmp(SDValue Op0, SDValue Op1, unsigned X86CC,
         // For equality comparisons try to use SIGN_EXTEND if the input was
         // truncate from something with enough sign bits.
         if (Op0.getOpcode() == ISD::TRUNCATE) {
-          if (DAG.ComputeMinSignedBits(Op0.getOperand(0)) <= 16)
+          if (DAG.ComputeMaxSignificantBits(Op0.getOperand(0)) <= 16)
             ExtendOp = ISD::SIGN_EXTEND;
         } else if (Op1.getOpcode() == ISD::TRUNCATE) {
-          if (DAG.ComputeMinSignedBits(Op1.getOperand(0)) <= 16)
+          if (DAG.ComputeMaxSignificantBits(Op1.getOperand(0)) <= 16)
             ExtendOp = ISD::SIGN_EXTEND;
         }
       }
@@ -29894,12 +29885,12 @@ static SDValue LowerRotate(SDValue Op, const X86Subtarget &Subtarget,
   if (VT.is512BitVector() && !Subtarget.useBWIRegs())
     return splitVectorIntBinary(Op, DAG);
 
-  assert((VT == MVT::v4i32 || VT == MVT::v8i16 || VT == MVT::v16i8 ||
-          ((VT == MVT::v8i32 || VT == MVT::v16i16 || VT == MVT::v32i8) &&
-           Subtarget.hasAVX2()) ||
-          (VT == MVT::v32i16 && !Subtarget.useBWIRegs()) ||
-          (VT == MVT::v64i8 && Subtarget.useBWIRegs())) &&
-         "Only vXi32/vXi16/vXi8 vector rotates supported");
+  assert(
+      (VT == MVT::v4i32 || VT == MVT::v8i16 || VT == MVT::v16i8 ||
+       ((VT == MVT::v8i32 || VT == MVT::v16i16 || VT == MVT::v32i8) &&
+        Subtarget.hasAVX2()) ||
+       ((VT == MVT::v32i16 || VT == MVT::v64i8) && Subtarget.useBWIRegs())) &&
+      "Only vXi32/vXi16/vXi8 vector rotates supported");
 
   MVT ExtSVT = MVT::getIntegerVT(2 * EltSizeInBits);
   MVT ExtVT = MVT::getVectorVT(ExtSVT, NumElts / 2);
@@ -44126,7 +44117,7 @@ static SDValue combineSetCCMOVMSK(SDValue EFLAGS, X86::CondCode &CC,
         BCNumEltBits > NumEltBits &&
         DAG.ComputeNumSignBits(BC) > (BCNumEltBits - NumEltBits)) {
       SDLoc DL(EFLAGS);
-      unsigned CmpMask = IsAnyOf ? 0 : ((1 << BCNumElts) - 1);
+      APInt CmpMask = APInt::getLowBitsSet(32, IsAnyOf ? 0 : BCNumElts);
       return DAG.getNode(X86ISD::CMP, DL, MVT::i32,
                          DAG.getNode(X86ISD::MOVMSK, DL, MVT::i32, BC),
                          DAG.getConstant(CmpMask, DL, MVT::i32));
@@ -44741,7 +44732,8 @@ static SDValue combineMulToPMADDWD(SDNode *N, SelectionDAG &DAG,
     return SDValue();
 
   // Sign bits must extend down to the lowest i16.
-  if (DAG.ComputeMinSignedBits(N1) > 16 || DAG.ComputeMinSignedBits(N0) > 16)
+  if (DAG.ComputeMaxSignificantBits(N1) > 16 ||
+      DAG.ComputeMaxSignificantBits(N0) > 16)
     return SDValue();
 
   // At least one of the elements must be zero in the upper 17 bits, or can be
@@ -48723,7 +48715,7 @@ static SDValue combinePMULH(SDValue Src, EVT VT, const SDLoc &DL,
   // sequence or using AVX512 truncations. If the inputs are sext/zext then the
   // truncations may actually be free by peeking through to the ext source.
   auto IsSext = [&DAG](SDValue V) {
-    return DAG.ComputeMinSignedBits(V) <= 16;
+    return DAG.ComputeMaxSignificantBits(V) <= 16;
   };
   auto IsZext = [&DAG](SDValue V) {
     return DAG.computeKnownBits(V).countMaxActiveBits() <= 16;

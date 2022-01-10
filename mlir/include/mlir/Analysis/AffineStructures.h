@@ -59,9 +59,6 @@ struct MutableAffineMap;
 ///
 class FlatAffineConstraints : public IntegerPolyhedron {
 public:
-  /// All derived classes of FlatAffineConstraints.
-  enum class Kind { FlatAffineConstraints, FlatAffineValueConstraints };
-
   /// Constructs a constraint system reserving memory for the specified number
   /// of constraints and identifiers.
   FlatAffineConstraints(unsigned numReservedInequalities,
@@ -81,6 +78,9 @@ public:
                               1,
                           numDims, numSymbols, numLocals) {}
 
+  explicit FlatAffineConstraints(const IntegerPolyhedron &poly)
+      : IntegerPolyhedron(poly) {}
+
   /// Return a system with no constraints, i.e., one which is satisfied by all
   /// points.
   static FlatAffineConstraints getUniverse(unsigned numDims = 0,
@@ -96,9 +96,11 @@ public:
   virtual ~FlatAffineConstraints() = default;
 
   /// Return the kind of this FlatAffineConstraints.
-  virtual Kind getKind() const { return Kind::FlatAffineConstraints; }
+  Kind getKind() const override { return Kind::FlatAffineConstraints; }
 
-  static bool classof(const FlatAffineConstraints *cst) { return true; }
+  static bool classof(const IntegerPolyhedron *cst) {
+    return cst->getKind() == Kind::FlatAffineConstraints;
+  }
 
   /// Checks for emptiness by performing variable elimination on all
   /// identifiers, running the GCD test on each equality constraint, and
@@ -212,10 +214,6 @@ public:
   void projectOut(unsigned pos, unsigned num);
   inline void projectOut(unsigned pos) { return projectOut(pos, 1); }
 
-  /// Sets the `values.size()` identifiers starting at `po`s to the specified
-  /// values and removes them.
-  void setAndEliminate(unsigned pos, ArrayRef<int64_t> values);
-
   /// Changes the partition between dimensions and symbols. Depending on the new
   /// symbol count, either a chunk of trailing dimensional identifiers becomes
   /// symbols, or some of the leading symbols become dimensions.
@@ -251,7 +249,7 @@ public:
   LogicalResult unionBoundingBox(const FlatAffineConstraints &other);
 
   /// Replaces the contents of this FlatAffineConstraints with `other`.
-  virtual void clearAndCopyFrom(const FlatAffineConstraints &other);
+  void clearAndCopyFrom(const IntegerPolyhedron &other) override;
 
   /// Returns the smallest known constant bound for the extent of the specified
   /// identifier (pos^th), i.e., the smallest known constant that is greater
@@ -291,16 +289,6 @@ public:
   getLowerAndUpperBound(unsigned pos, unsigned offset, unsigned num,
                         unsigned symStartPos, ArrayRef<AffineExpr> localExprs,
                         MLIRContext *context) const;
-
-  /// Gather positions of all lower and upper bounds of the identifier at `pos`,
-  /// and optionally any equalities on it. In addition, the bounds are to be
-  /// independent of identifiers in position range [`offset`, `offset` + `num`).
-  void
-  getLowerAndUpperBoundIndices(unsigned pos,
-                               SmallVectorImpl<unsigned> *lbIndices,
-                               SmallVectorImpl<unsigned> *ubIndices,
-                               SmallVectorImpl<unsigned> *eqIndices = nullptr,
-                               unsigned offset = 0, unsigned num = 0) const;
 
   /// Removes constraints that are independent of (i.e., do not have a
   /// coefficient) identifiers in the range [pos, pos + num).
@@ -345,15 +333,7 @@ public:
   /// match.
   void mergeLocalIds(FlatAffineConstraints &other);
 
-  void print(raw_ostream &os) const;
-  void dump() const;
-
 protected:
-  /// Returns false if the fields corresponding to various identifier counts, or
-  /// equality/inequality buffer sizes aren't consistent; true otherwise. This
-  /// is meant to be used within an assert internally.
-  virtual bool hasConsistentState() const;
-
   /// Checks all rows of equality/inequality constraints for trivial
   /// contradictions (for example: 1 == 0, 0 >= 1), which may have surfaced
   /// after elimination. Returns true if an invalid constraint is found;
@@ -418,6 +398,21 @@ protected:
 
   /// Normalized each constraints by the GCD of its coefficients.
   void normalizeConstraintsByGCD();
+
+  /// Searches for a constraint with a non-zero coefficient at `colIdx` in
+  /// equality (isEq=true) or inequality (isEq=false) constraints.
+  /// Returns true and sets row found in search in `rowIdx`, false otherwise.
+  bool findConstraintWithNonZeroAt(unsigned colIdx, bool isEq,
+                                   unsigned *rowIdx) const;
+
+  /// Returns true if the pos^th column is all zero for both inequalities and
+  /// equalities.
+  bool isColZero(unsigned pos) const;
+
+  /// Prints the number of constraints, dimensions, symbols and locals in the
+  /// FlatAffineConstraints. Also, prints for each identifier whether there is
+  /// an SSA Value attached to it.
+  void printSpace(raw_ostream &os) const override;
 
   /// A parameter that controls detection of an unrealistic number of
   /// constraints. If the number of constraints is this many times the number of
@@ -503,7 +498,7 @@ public:
   /// Return the kind of this FlatAffineConstraints.
   Kind getKind() const override { return Kind::FlatAffineValueConstraints; }
 
-  static bool classof(const FlatAffineConstraints *cst) {
+  static bool classof(const IntegerPolyhedron *cst) {
     return cst->getKind() == Kind::FlatAffineValueConstraints;
   }
 
@@ -702,7 +697,7 @@ public:
   bool areIdsAlignedWithOther(const FlatAffineValueConstraints &other);
 
   /// Replaces the contents of this FlatAffineValueConstraints with `other`.
-  void clearAndCopyFrom(const FlatAffineConstraints &other) override;
+  void clearAndCopyFrom(const IntegerPolyhedron &other) override;
 
   /// Returns the Value associated with the pos^th identifier. Asserts if
   /// no Value identifier was associated.

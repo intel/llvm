@@ -531,9 +531,7 @@ class CFGBuilder {
 public:
   explicit CFGBuilder(ASTContext *astContext,
                       const CFG::BuildOptions &buildOpts)
-      : Context(astContext), cfg(new CFG()), // crew a new CFG
-        ConstructionContextMap(), BuildOpts(buildOpts) {}
-
+      : Context(astContext), cfg(new CFG()), BuildOpts(buildOpts) {}
 
   // buildCFG - Used by external clients to construct the CFG.
   std::unique_ptr<CFG> buildCFG(const Decl *D, Stmt *Statement);
@@ -1820,8 +1818,6 @@ void CFGBuilder::addScopesEnd(LocalScope::const_iterator B,
 
   for (VarDecl *VD : llvm::reverse(DeclsWithEndedScope))
     appendScopeEnd(Block, VD, S);
-
-  return;
 }
 
 /// addAutomaticObjDtors - Add to current block automatic objects destructors

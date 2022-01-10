@@ -4301,10 +4301,10 @@ public:
           PrivateDecls.push_back(VD);
     }
   }
-  void VisitOMPExecutableDirective(const OMPExecutableDirective *) { return; }
-  void VisitCapturedStmt(const CapturedStmt *) { return; }
-  void VisitLambdaExpr(const LambdaExpr *) { return; }
-  void VisitBlockExpr(const BlockExpr *) { return; }
+  void VisitOMPExecutableDirective(const OMPExecutableDirective *) {}
+  void VisitCapturedStmt(const CapturedStmt *) {}
+  void VisitLambdaExpr(const LambdaExpr *) {}
+  void VisitBlockExpr(const BlockExpr *) {}
   void VisitStmt(const Stmt *S) {
     if (!S)
       return;
@@ -5967,6 +5967,9 @@ static void emitOMPAtomicExpr(CodeGenFunction &CGF, OpenMPClauseKind Kind,
     emitOMPAtomicCaptureExpr(CGF, AO, IsPostfixUpdate, V, X, E, UE,
                              IsXLHSInRHSPart, Loc);
     break;
+  case OMPC_compare:
+    // Do nothing here as we already emit an error.
+    break;
   case OMPC_if:
   case OMPC_final:
   case OMPC_num_threads:
@@ -6786,7 +6789,7 @@ void CodeGenFunction::EmitOMPTargetDataDirective(
 
   public:
     explicit DevicePointerPrivActionTy(bool &PrivatizeDevicePointers)
-        : PrePostActionTy(), PrivatizeDevicePointers(PrivatizeDevicePointers) {}
+        : PrivatizeDevicePointers(PrivatizeDevicePointers) {}
     void Enter(CodeGenFunction &CGF) override {
       PrivatizeDevicePointers = true;
     }
