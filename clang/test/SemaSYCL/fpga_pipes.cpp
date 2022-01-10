@@ -70,8 +70,8 @@ const pipe_storage Storage8 __attribute__((io_pipe_id(1))) __attribute__((io_pip
 const pipe_storage Storage9 __attribute__((io_pipe_id(1))) // expected-note {{previous attribute is here}}
 __attribute__((io_pipe_id(5)));                            // expected-warning{{attribute 'io_pipe_id' is already applied with different arguments}}
 
-const pipe_storage Storage10 __attribute__((io_pipe_id(1)));        // expected-note {{previous attribute is here}}
-extern const pipe_storage Storage10 __attribute__((io_pipe_id(3))); // expected-warning{{attribute 'io_pipe_id' is already applied with different arguments}}
+const pipe_storage Storage10 __attribute__((io_pipe_id(1)));        // expected-note {{conflicting attribute is here}}
+extern const pipe_storage Storage10 __attribute__((io_pipe_id(3))); // expected-error{{attribute 'io_pipe_id' cannot appear more than once on a declaration}}
 
 // Test that checks expression is not a constant expression.
 // expected-note@+1{{declared here}}
