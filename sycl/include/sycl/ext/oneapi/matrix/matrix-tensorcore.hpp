@@ -33,6 +33,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD(double, b, 4, 8, double, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD(double, accumulator, 8, 8, double, 2)
 
 // m8n32k16
+// bf16 data format uses uint16_t data type
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 8, 16, int32_t, 2)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 32, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, a, 8, 16, int32_t, 8)
@@ -62,10 +63,10 @@ __SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 8, int32_t, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 32, 8, int32_t, 8)
 
 // m16n16k16
-__SYCL_JOINT_MATRIX_OVERLOAD(half, a, 16, 16, int32_t, 8)
-__SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, a, 16, 16, int32_t, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD(uint16_t, b, 16, 16, int32_t, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, a, 16, 16, int32_t, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD(half, b, 16, 16, int32_t, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(float, accumulator, 16, 16, float, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD(half, accumulator, 16, 16, int32_t, 4)
 
@@ -508,7 +509,7 @@ void joint_matrix_load(
     multi_ptr<T, Space> src, size_t stride) {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
-sycl::ext::oneapi::detail::joint_matrix_load_impl<T, Use, NumRows, NumCols,
+  sycl::ext::oneapi::detail::joint_matrix_load_impl<T, Use, NumRows, NumCols,
                                                     Layout, Space>{}
       .load(res, src, stride);
 #endif
@@ -530,7 +531,7 @@ void joint_matrix_store(Group sg,
                         multi_ptr<T, Space> dst, size_t stride) {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
-sycl::ext::oneapi::detail::joint_matrix_store_impl<T, NumRows, NumCols,
+  sycl::ext::oneapi::detail::joint_matrix_store_impl<T, NumRows, NumCols,
                                                      Layout, Space>{}
       .store(src, dst, stride);
 #endif
