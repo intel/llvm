@@ -203,7 +203,8 @@ public:
   void print(raw_ostream &Out, const ASTContext &Context,
              const PrintingPolicy &Policy, bool OmitTemplateKW = false) const;
 
-  static bool shouldIncludeTypeForArgument(const TemplateParameterList *TPL,
+  static bool shouldIncludeTypeForArgument(const PrintingPolicy &Policy,
+                                           const TemplateParameterList *TPL,
                                            unsigned Idx);
 };
 
@@ -728,6 +729,10 @@ public:
 
   /// Returns the number of explicit template arguments that were given.
   unsigned getNumTemplateArgs() const { return NumArgs; }
+
+  llvm::ArrayRef<TemplateArgumentLoc> arguments() const {
+    return llvm::makeArrayRef(getTemplateArgs(), getNumTemplateArgs());
+  }
 
   /// Returns the nth template argument.
   const TemplateArgumentLoc &getTemplateArg(unsigned I) const {

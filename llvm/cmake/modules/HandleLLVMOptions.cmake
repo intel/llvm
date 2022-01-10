@@ -167,9 +167,6 @@ else()
 endif()
 
 if(APPLE)
-  if(LLVM_ENABLE_LLD AND LLVM_ENABLE_LTO)
-    message(FATAL_ERROR "lld does not support LTO on Darwin")
-  endif()
   # Darwin-specific linker flags for loadable modules.
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-flat_namespace -Wl,-undefined -Wl,suppress")
 endif()
@@ -873,9 +870,11 @@ if(LLVM_USE_SANITIZER)
     append("-fsanitize=fuzzer-no-link" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif()
   if (LLVM_USE_SANITIZER MATCHES ".*Undefined.*")
-    set(BLACKLIST_FILE "${CMAKE_SOURCE_DIR}/utils/sanitizers/ubsan_blacklist.txt")
-    if (EXISTS "${BLACKLIST_FILE}")
-      append("-fsanitize-blacklist=${BLACKLIST_FILE}"
+    set(IGNORELIST_FILE "${CMAKE_SOURCE_DIR}/utils/sanitizers/ubsan_ignorelist.txt")
+    if (EXISTS "${IGNORELIST_FILE}")
+      # Use this option name version since -fsanitize-ignorelist is only
+      # accepted with clang 13.0 or newer.
+      append("-fsanitize-blacklist=${IGNORELIST_FILE}"
              CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
     endif()
   endif()

@@ -123,6 +123,25 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   if (!ParallelJobs.empty())
     ForeachArgs.push_back(C.getArgs().MakeArgString("--jobs=" + ParallelJobs));
 
+  if (C.getDriver().isSaveTempsEnabled()) {
+    SmallString<128> OutputDirName;
+    if (C.getDriver().isSaveTempsObj()) {
+      OutputDirName =
+          T->getToolChain().GetFilePath(OutputFileName.c_str()).c_str();
+      llvm::sys::path::remove_filename(OutputDirName);
+    }
+    // Use the current dir if the `GetFilePath` returned en empty string, which
+    // is the case when the `OutputFileName` does not contain any directory
+    // information, or if in CWD mode. This is necessary for `llvm-foreach`, as
+    // it would disregard the parameter without it. Otherwise append separator.
+    if (OutputDirName.empty())
+      llvm::sys::path::native(OutputDirName = "./");
+    else
+      OutputDirName.append(llvm::sys::path::get_separator());
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
+  }
+
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));
@@ -146,12 +165,15 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "crt",
     "cmath",
     "cmath-fp64",
     "complex",
     "complex-fp64",
+    "itt-compiler-wrappers",
+    "itt-stubs",
+    "itt-user-wrappers",
     "fallback-cassert",
     "fallback-cstring",
     "fallback-cmath",
@@ -188,14 +210,14 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         LibPostfix = ".obj";
       StringRef InputFilename =
           llvm::sys::path::filename(StringRef(II.getFilename()));
-      if (!InputFilename.startswith("libsycl-") ||
+      StringRef LibSyclPrefix("libsycl-");
+      if (!InputFilename.startswith(LibSyclPrefix) ||
           !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
         return false;
-      size_t PureLibNameLen = InputFilename.find_last_of('-');
       // Skip the prefix "libsycl-"
-      StringRef PureLibName = InputFilename.substr(8, PureLibNameLen - 8);
+      StringRef PureLibName = InputFilename.substr(LibSyclPrefix.size());
       for (const auto &L : SYCLDeviceLibList) {
-        if (PureLibName.compare(L) == 0)
+        if (PureLibName.startswith(L))
           return true;
       }
       return false;
@@ -731,7 +753,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     if (OptNoTriple) {
       // With multiple -fsycl-targets, a triple is required so we know where
       // the options should go.
-      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
+      const Arg *TargetArg = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+      if (TargetArg && TargetArg->getValues().size() != 1) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
         continue;

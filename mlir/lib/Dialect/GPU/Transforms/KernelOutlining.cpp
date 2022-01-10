@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/GPU/Utils.h"
@@ -19,6 +21,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/RegionUtils.h"
 
@@ -59,7 +62,8 @@ static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
 /// operations may not have side-effects, as otherwise sinking (and hence
 /// duplicating them) is not legal.
 static bool isSinkingBeneficiary(Operation *op) {
-  return isa<ConstantOp, memref::DimOp, SelectOp, CmpIOp>(op);
+  return isa<arith::ConstantOp, ConstantOp, memref::DimOp, SelectOp,
+             arith::CmpIOp>(op);
 }
 
 /// For a given operation `op`, computes whether it is beneficial to sink the
@@ -215,9 +219,12 @@ static void convertToLaunchFuncOp(gpu::LaunchOp launchOp,
                                   gpu::GPUFuncOp kernelFunc,
                                   ValueRange operands) {
   OpBuilder builder(launchOp);
+  // The launch op has an optional dynamic shared memory size. If it doesn't
+  // exist, we use zero.
   builder.create<gpu::LaunchFuncOp>(
       launchOp.getLoc(), kernelFunc, launchOp.getGridSizeOperandValues(),
-      launchOp.getBlockSizeOperandValues(), operands);
+      launchOp.getBlockSizeOperandValues(), launchOp.dynamicSharedMemorySize(),
+      operands);
   launchOp.erase();
 }
 
@@ -234,6 +241,31 @@ namespace {
 class GpuKernelOutliningPass
     : public GpuKernelOutliningBase<GpuKernelOutliningPass> {
 public:
+  GpuKernelOutliningPass(StringRef dlStr) {
+    if (!dlStr.empty() && !dataLayoutStr.hasValue())
+      dataLayoutStr = dlStr.str();
+  }
+
+  GpuKernelOutliningPass(const GpuKernelOutliningPass &other)
+      : dataLayoutSpec(other.dataLayoutSpec) {
+    dataLayoutStr = other.dataLayoutStr;
+  }
+
+  LogicalResult initialize(MLIRContext *context) override {
+    // Initialize the data layout specification from the data layout string.
+    if (!dataLayoutStr.empty()) {
+      Attribute resultAttr = mlir::parseAttribute(dataLayoutStr, context);
+      if (!resultAttr)
+        return failure();
+
+      dataLayoutSpec = resultAttr.dyn_cast<DataLayoutSpecInterface>();
+      if (!dataLayoutSpec)
+        return failure();
+    }
+
+    return success();
+  }
+
   void runOnOperation() override {
     SymbolTable symbolTable(getOperation());
     bool modified = false;
@@ -281,10 +313,16 @@ private:
     // a SymbolTable by the caller. SymbolTable needs to be refactored to
     // prevent manual building of Ops with symbols in code using SymbolTables
     // and then this needs to use the OpBuilder.
-    auto context = getOperation().getContext();
+    auto *context = getOperation().getContext();
     OpBuilder builder(context);
     auto kernelModule = builder.create<gpu::GPUModuleOp>(kernelFunc.getLoc(),
                                                          kernelFunc.getName());
+
+    // If a valid data layout spec was provided, attach it to the kernel module.
+    // Otherwise, the default data layout will be used.
+    if (dataLayoutSpec)
+      kernelModule->setAttr("dlspec", dataLayoutSpec);
+
     SymbolTable symbolTable(kernelModule);
     symbolTable.insert(kernelFunc);
 
@@ -308,10 +346,18 @@ private:
 
     return kernelModule;
   }
+
+  Option<std::string> dataLayoutStr{
+      *this, "data-layout-str",
+      llvm::cl::desc("String containing the data layout specification to be "
+                     "attached to the GPU kernel module")};
+
+  DataLayoutSpecInterface dataLayoutSpec;
 };
 
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>> mlir::createGpuKernelOutliningPass() {
-  return std::make_unique<GpuKernelOutliningPass>();
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::createGpuKernelOutliningPass(StringRef dataLayoutStr) {
+  return std::make_unique<GpuKernelOutliningPass>(dataLayoutStr);
 }

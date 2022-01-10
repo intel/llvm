@@ -18,21 +18,6 @@ namespace s = cl::sycl;
 namespace d = s::detail;
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
-
-// The declaration of this struct is in the CL/sycl/half_type.hpp
-template <typename T> struct builtins_helper {
-  using RetType = T;
-  static constexpr RetType get(T value) { return value; }
-};
-
-template <> struct builtins_helper<s::cl_half> {
-  using RetType = uint16_t;
-  static constexpr RetType get(s::cl_half value) { return value.Data.Buf; }
-};
-} // namespace detail
-} // namespace sycl
 namespace __host_std {
 namespace {
 
@@ -61,6 +46,14 @@ template <typename T> inline T __vFOrdLessThanEqual(T x, T y) {
 }
 
 template <typename T> inline T __sFOrdLessThanEqual(T x, T y) { return x <= y; }
+
+template <typename T> inline T __vFOrdNotEqual(T x, T y) {
+  return -((x < y) || (x > y));
+}
+
+template <typename T> inline T __sFOrdNotEqual(T x, T y) {
+  return ((x < y) || (x > y));
+}
 
 template <typename T> inline T __vLessOrGreater(T x, T y) {
   return -((x < y) || (x > y));
@@ -118,20 +111,19 @@ template <> union databitset<s::cl_double> {
 template <> union databitset<s::cl_half> {
   static_assert(sizeof(s::cl_short) == sizeof(s::cl_half),
                 "size of cl_half is not equal to 16 bits(cl_short).");
-  uint16_t f;
+  s::cl_half f;
   s::cl_short i;
 };
 
 template <typename T>
 typename sycl::detail::enable_if_t<d::is_sgenfloat<T>::value,
                                    T> inline __bitselect(T a, T b, T c) {
-  d::builtins_helper<T> helper;
   databitset<T> ba;
-  ba.f = helper.get(a);
+  ba.f = a;
   databitset<T> bb;
-  bb.f = helper.get(b);
+  bb.f = b;
   databitset<T> bc;
-  bc.f = helper.get(c);
+  bc.f = c;
   databitset<T> br;
   br.f = 0;
   br.i = ((ba.i & ~bc.i) | (bb.i & bc.i));
@@ -262,6 +254,23 @@ MAKE_1V_2V_FUNC(FOrdLessThanEqual, __vFOrdLessThanEqual, s::cl_long,
                 s::cl_double, s::cl_double)
 MAKE_1V_2V_FUNC(FOrdLessThanEqual, __vFOrdLessThanEqual, s::cl_short,
                 s::cl_half, s::cl_half)
+
+// (FOrdNotEqual)         // islessgreater
+__SYCL_EXPORT s::cl_int FOrdNotEqual(s::cl_float x, s::cl_float y) __NOEXC {
+  return __sFOrdNotEqual(x, y);
+}
+__SYCL_EXPORT s::cl_int FOrdNotEqual(s::cl_double x, s::cl_double y) __NOEXC {
+  return __sFOrdNotEqual(x, y);
+}
+__SYCL_EXPORT s::cl_int FOrdNotEqual(s::cl_half x, s::cl_half y) __NOEXC {
+  return __sFOrdNotEqual(x, y);
+}
+MAKE_1V_2V_FUNC(FOrdNotEqual, __vFOrdNotEqual, s::cl_int, s::cl_float,
+                s::cl_float)
+MAKE_1V_2V_FUNC(FOrdNotEqual, __vFOrdNotEqual, s::cl_long, s::cl_double,
+                s::cl_double)
+MAKE_1V_2V_FUNC(FOrdNotEqual, __vFOrdNotEqual, s::cl_short, s::cl_half,
+                s::cl_half)
 
 // (LessOrGreater)        // islessgreater
 __SYCL_EXPORT s::cl_int LessOrGreater(s::cl_float x, s::cl_float y) __NOEXC {

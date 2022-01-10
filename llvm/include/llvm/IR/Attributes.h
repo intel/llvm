@@ -37,7 +37,6 @@ class AttrBuilder;
 class AttributeImpl;
 class AttributeListImpl;
 class AttributeSetNode;
-template<typename T> struct DenseMapInfo;
 class FoldingSetNodeID;
 class Function;
 class LLVMContext;
@@ -78,6 +77,7 @@ public:
     TombstoneKey,          ///< Use as Tombstone key for DenseMap of AttrKind
   };
 
+  static const unsigned NumIntAttrKinds = LastIntAttr - FirstIntAttr + 1;
   static const unsigned NumTypeAttrKinds = LastTypeAttr - FirstTypeAttr + 1;
 
   static bool isEnumAttrKind(AttrKind Kind) {
@@ -216,9 +216,12 @@ public:
   /// if not known).
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
 
-  /// Returns the argument numbers for the vscale_range attribute (or pair(0, 0)
-  /// if not known).
-  std::pair<unsigned, unsigned> getVScaleRangeArgs() const;
+  /// Returns the minimum value for the vscale_range attribute.
+  unsigned getVScaleRangeMin() const;
+
+  /// Returns the maximum value for the vscale_range attribute or None when
+  /// unknown.
+  Optional<unsigned> getVScaleRangeMax() const;
 
   /// The Attribute is converted to a string of equivalent mnemonic. This
   /// is, presumably, for writing out the mnemonics for the assembly writer.
@@ -265,7 +268,7 @@ inline Attribute unwrap(LLVMAttributeRef Attr) {
 /// and removing string or integer attributes involves a FoldingSet lookup.
 class AttributeSet {
   friend AttributeListImpl;
-  template <typename Ty> friend struct DenseMapInfo;
+  template <typename Ty, typename Enable> friend struct DenseMapInfo;
 
   // TODO: Extract AvailableAttrs from AttributeSetNode and store them here.
   // This will allow an efficient implementation of addAttribute and
@@ -348,7 +351,8 @@ public:
   Type *getInAllocaType() const;
   Type *getElementType() const;
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
-  std::pair<unsigned, unsigned> getVScaleRangeArgs() const;
+  unsigned getVScaleRangeMin() const;
+  Optional<unsigned> getVScaleRangeMax() const;
   std::string getAsString(bool InAttrGrp = false) const;
 
   /// Return true if this attribute set belongs to the LLVMContext.
@@ -366,7 +370,7 @@ public:
 //===----------------------------------------------------------------------===//
 /// \class
 /// Provide DenseMapInfo for AttributeSet.
-template <> struct DenseMapInfo<AttributeSet> {
+template <> struct DenseMapInfo<AttributeSet, void> {
   static AttributeSet getEmptyKey() {
     auto Val = static_cast<uintptr_t>(-1);
     Val <<= PointerLikeTypeTraits<void *>::NumLowBitsAvailable;
@@ -408,7 +412,7 @@ private:
   friend class AttributeListImpl;
   friend class AttributeSet;
   friend class AttributeSetNode;
-  template <typename Ty> friend struct DenseMapInfo;
+  template <typename Ty, typename Enable> friend struct DenseMapInfo;
 
   /// The attributes that we are managing. This can be null to represent
   /// the empty attributes list.
@@ -451,6 +455,8 @@ public:
                            ArrayRef<uint64_t> Values);
   static AttributeList get(LLVMContext &C, unsigned Index,
                            ArrayRef<StringRef> Kind);
+  static AttributeList get(LLVMContext &C, unsigned Index,
+                           AttributeSet Attrs);
   static AttributeList get(LLVMContext &C, unsigned Index,
                            const AttrBuilder &B);
 
@@ -851,9 +857,32 @@ public:
 
   unsigned getNumAttrSets() const;
 
-  /// Use these to iterate over the valid attribute indices.
-  unsigned index_begin() const { return AttributeList::FunctionIndex; }
-  unsigned index_end() const { return getNumAttrSets() - 1; }
+  // Implementation of indexes(). Produces iterators that wrap an index. Mostly
+  // to hide the awkwardness of unsigned wrapping when iterating over valid
+  // indexes.
+  struct index_iterator {
+    unsigned NumAttrSets;
+    index_iterator(int NumAttrSets) : NumAttrSets(NumAttrSets) {}
+    struct int_wrapper {
+      int_wrapper(unsigned i) : i(i) {}
+      unsigned i;
+      unsigned operator*() { return i; }
+      bool operator!=(const int_wrapper &Other) { return i != Other.i; }
+      int_wrapper &operator++() {
+        // This is expected to undergo unsigned wrapping since FunctionIndex is
+        // ~0 and that's where we start.
+        ++i;
+        return *this;
+      }
+    };
+
+    int_wrapper begin() { return int_wrapper(AttributeList::FunctionIndex); }
+
+    int_wrapper end() { return int_wrapper(NumAttrSets - 1); }
+  };
+
+  /// Use this to iterate over the valid attribute indexes.
+  index_iterator indexes() const { return index_iterator(getNumAttrSets()); }
 
   /// operator==/!= - Provide equality predicates.
   bool operator==(const AttributeList &RHS) const { return pImpl == RHS.pImpl; }
@@ -875,7 +904,7 @@ public:
 //===----------------------------------------------------------------------===//
 /// \class
 /// Provide DenseMapInfo for AttributeList.
-template <> struct DenseMapInfo<AttributeList> {
+template <> struct DenseMapInfo<AttributeList, void> {
   static AttributeList getEmptyKey() {
     auto Val = static_cast<uintptr_t>(-1);
     Val <<= PointerLikeTypeTraits<void*>::NumLowBitsAvailable;
@@ -907,18 +936,16 @@ template <> struct DenseMapInfo<AttributeList> {
 class AttrBuilder {
   std::bitset<Attribute::EndAttrKinds> Attrs;
   std::map<SmallString<32>, SmallString<32>, std::less<>> TargetDepAttrs;
-  MaybeAlign Alignment;
-  MaybeAlign StackAlignment;
-  uint64_t DerefBytes = 0;
-  uint64_t DerefOrNullBytes = 0;
-  uint64_t AllocSizeArgs = 0;
-  uint64_t VScaleRangeArgs = 0;
+  std::array<uint64_t, Attribute::NumIntAttrKinds> IntAttrs = {};
   std::array<Type *, Attribute::NumTypeAttrKinds> TypeAttrs = {};
 
+  Optional<unsigned> kindToIntIndex(Attribute::AttrKind Kind) const;
   Optional<unsigned> kindToTypeIndex(Attribute::AttrKind Kind) const;
 
 public:
   AttrBuilder() = default;
+  AttrBuilder(const AttrBuilder &) = delete;
+  AttrBuilder(AttrBuilder &&) = default;
 
   AttrBuilder(const Attribute &A) {
     addAttribute(A);
@@ -984,19 +1011,31 @@ public:
   /// Return true if the builder has an alignment attribute.
   bool hasAlignmentAttr() const;
 
+  /// Return raw (possibly packed/encoded) value of integer attribute or 0 if
+  /// not set.
+  uint64_t getRawIntAttr(Attribute::AttrKind Kind) const;
+
   /// Retrieve the alignment attribute, if it exists.
-  MaybeAlign getAlignment() const { return Alignment; }
+  MaybeAlign getAlignment() const {
+    return MaybeAlign(getRawIntAttr(Attribute::Alignment));
+  }
 
   /// Retrieve the stack alignment attribute, if it exists.
-  MaybeAlign getStackAlignment() const { return StackAlignment; }
+  MaybeAlign getStackAlignment() const {
+    return MaybeAlign(getRawIntAttr(Attribute::StackAlignment));
+  }
 
   /// Retrieve the number of dereferenceable bytes, if the
   /// dereferenceable attribute exists (zero is returned otherwise).
-  uint64_t getDereferenceableBytes() const { return DerefBytes; }
+  uint64_t getDereferenceableBytes() const {
+    return getRawIntAttr(Attribute::Dereferenceable);
+  }
 
   /// Retrieve the number of dereferenceable_or_null bytes, if the
   /// dereferenceable_or_null attribute exists (zero is returned otherwise).
-  uint64_t getDereferenceableOrNullBytes() const { return DerefOrNullBytes; }
+  uint64_t getDereferenceableOrNullBytes() const {
+    return getRawIntAttr(Attribute::DereferenceableOrNull);
+  }
 
   /// Retrieve type for the given type attribute.
   Type *getTypeAttr(Attribute::AttrKind Kind) const;
@@ -1022,9 +1061,14 @@ public:
   /// doesn't exist, pair(0, 0) is returned.
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
 
-  /// Retrieve the vscale_range args, if the vscale_range attribute exists.  If
-  /// it doesn't exist, pair(0, 0) is returned.
-  std::pair<unsigned, unsigned> getVScaleRangeArgs() const;
+  /// Retrieve the minimum value of 'vscale_range'.
+  unsigned getVScaleRangeMin() const;
+
+  /// Retrieve the maximum value of 'vscale_range' or None when unknown.
+  Optional<unsigned> getVScaleRangeMax() const;
+
+  /// Add integer attribute with raw value (packed/encoded if necessary).
+  AttrBuilder &addRawIntAttr(Attribute::AttrKind Kind, uint64_t Value);
 
   /// This turns an alignment into the form used internally in Attribute.
   /// This call has no effect if Align is not set.
@@ -1063,7 +1107,8 @@ public:
                                 const Optional<unsigned> &NumElemsArg);
 
   /// This turns two ints into the form used internally in Attribute.
-  AttrBuilder &addVScaleRangeAttr(unsigned MinValue, unsigned MaxValue);
+  AttrBuilder &addVScaleRangeAttr(unsigned MinValue,
+                                  Optional<unsigned> MaxValue);
 
   /// Add a type attribute with the given type.
   AttrBuilder &addTypeAttr(Attribute::AttrKind Kind, Type *Ty);

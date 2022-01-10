@@ -90,16 +90,16 @@ void foo() {
 // CHECK-NEXT: 208 |   class sycl::detail::NDRDescT MNDRDesc
 // CHECK-NEXT: 208 |     class sycl::range<3> GlobalSize
 // CHECK-NEXT: 208 |       class sycl::detail::array<3> (base)
-// CHECK-NEXT: 208 |         size_t [3] common_array
+// CHECK-NEXT: 208 |         size_t[3] common_array
 // CHECK-NEXT: 232 |     class sycl::range<3> LocalSize
 // CHECK-NEXT: 232 |       class sycl::detail::array<3> (base)
-// CHECK-NEXT: 232 |         size_t [3] common_array
+// CHECK-NEXT: 232 |         size_t[3] common_array
 // CHECK-NEXT: 256 |     class sycl::id<3> GlobalOffset
 // CHECK-NEXT: 256 |       class sycl::detail::array<3> (base)
-// CHECK-NEXT: 256 |         size_t [3] common_array
+// CHECK-NEXT: 256 |         size_t[3] common_array
 // CHECK-NEXT: 280 |     class sycl::range<3> NumWorkGroups
 // CHECK-NEXT: 280 |       class sycl::detail::array<3> (base)
-// CHECK-NEXT: 280 |         size_t [3] common_array
+// CHECK-NEXT: 280 |         size_t[3] common_array
 // CHECK-NEXT: 304 |     size_t Dims
 // CHECK-NEXT: 312 |   class std::basic_string<char> MKernelName
 // CHECK-NEXT: 312 |     struct std::basic_string<char>::_Alloc_hider _M_dataplus
@@ -107,8 +107,8 @@ void foo() {
 // CHECK-NEXT: 312 |         class __gnu_cxx::new_allocator<char> (base) (empty)
 // CHECK-NEXT: 312 |       std::basic_string<char>::pointer _M_p
 // CHECK-NEXT: 320 |     std::basic_string<char>::size_type _M_string_length
-// CHECK-NEXT: 328 |     union std::basic_string<char>::(anonymous at {{.*}}) 
-// CHECK-NEXT: 328 |       char [16] _M_local_buf
+// CHECK-NEXT: 328 |     union std::basic_string<char>::(anonymous at {{.*}})
+// CHECK-NEXT: 328 |       char[16] _M_local_buf
 // CHECK-NEXT: 328 |       std::basic_string<char>::size_type _M_allocated_capacity
 // CHECK-NEXT: 344 |   class std::shared_ptr<class sycl::detail::kernel_impl> MKernel
 // CHECK-NEXT: 344 |     class std::__shared_ptr<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic> (base)

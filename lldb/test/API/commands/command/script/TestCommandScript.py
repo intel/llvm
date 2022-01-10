@@ -14,7 +14,6 @@ class CmdPythonTestCase(TestBase):
     mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
-    @skipIfReproducer # FIXME: Unexpected packet during (active) replay
     def test(self):
         self.build()
         self.pycmd_tests()
@@ -148,7 +147,7 @@ class CmdPythonTestCase(TestBase):
         self.expect('my_command Blah', substrs=['Hello Blah, welcome to LLDB'])
 
         self.runCmd(
-            'command script add my_command --class welcome.TargetnameCommand')
+            'command script add my_command -o --class welcome.TargetnameCommand')
         self.expect('my_command', substrs=['a.out'])
 
         self.runCmd("command script clear")
@@ -166,3 +165,9 @@ class CmdPythonTestCase(TestBase):
         self.runCmd('command script add -f bug11569 bug11569')
         # This should not crash.
         self.runCmd('bug11569', check=False)
+
+    def test_persistence(self):
+        self.runCmd("command script import persistence.py")
+        self.runCmd("command script add -f persistence.save_debugger save_debugger")
+        self.expect("save_debugger", substrs=[str(self.dbg)])
+        self.expect("script str(persistence.debugger_copy)", substrs=[str(self.dbg)])

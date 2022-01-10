@@ -38,10 +38,9 @@ public:
     // For structured bindings, print canonical types. This is important because
     // for bindings that use the tuple_element protocol, the non-canonical types
     // would be "tuple_element<I, A>::type".
-    // For "auto", we often prefer sugared types, but the AST doesn't currently
-    // retain them in DeducedType. However, not setting PrintCanonicalTypes for
-    // "auto" at least allows SuppressDefaultTemplateArgs (set by default) to
-    // have an effect.
+    // For "auto", we often prefer sugared types.
+    // Not setting PrintCanonicalTypes for "auto" allows
+    // SuppressDefaultTemplateArgs (set by default) to have an effect.
     StructuredBindingPolicy = TypeHintPolicy;
     StructuredBindingPolicy.PrintCanonicalTypes = true;
   }
@@ -366,6 +365,12 @@ std::vector<InlayHint> inlayHints(ParsedAST &AST) {
   std::vector<InlayHint> Results;
   InlayHintVisitor Visitor(Results, AST);
   Visitor.TraverseAST(AST.getASTContext());
+
+  // De-duplicate hints. Duplicates can sometimes occur due to e.g. explicit
+  // template instantiations.
+  llvm::sort(Results);
+  Results.erase(std::unique(Results.begin(), Results.end()), Results.end());
+
   return Results;
 }
 

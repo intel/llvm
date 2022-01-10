@@ -32,17 +32,13 @@ static bool requiresGOTAccess(const Symbol *sym) {
 }
 
 static bool allowUndefined(const Symbol* sym) {
-  // Undefined functions and globals with explicit import name are allowed to be
-  // undefined at link time.
-  if (auto *f = dyn_cast<UndefinedFunction>(sym))
-    if (f->importName || config->importUndefined)
-      return true;
-  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
-    if (g->importName)
-      return true;
-  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
-    if (g->importName)
-      return true;
+  // Symbols with explicit import names are always allowed to be undefined at
+  // link time.
+  if (sym->importName)
+    return true;
+  if (isa<UndefinedFunction>(sym) && config->importUndefined)
+    return true;
+
   return config->allowUndefinedSymbols.count(sym->getName()) != 0;
 }
 
@@ -158,7 +154,7 @@ void scanRelocations(InputChunk *chunk) {
       case R_WASM_MEMORY_ADDR_I64:
         // These relocation types are only present in the data section and
         // will be converted into code by `generateRelocationCode`.  This code
-        // requires the symbols to have GOT entires.
+        // requires the symbols to have GOT entries.
         if (requiresGOTAccess(sym))
           addGOTEntry(sym);
         break;

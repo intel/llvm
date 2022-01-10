@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "membermask.h"
+
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-int __nvvm_reflect(const char __constant *);
+int __clc_nvvm_reflect_arch();
 
 // CLC helpers
 __local bool *
@@ -40,11 +42,10 @@ __clc__get_group_scratch_float() __asm("__clc__get_group_scratch_float");
 __local double *
 __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
 
-_CLC_DEF _CLC_CONVERGENT uint __clc__membermask() {
-  uint FULL_MASK = 0xFFFFFFFF;
-  uint max_size = __spirv_SubgroupMaxSize();
-  uint sg_size = __spirv_SubgroupSize();
-  return FULL_MASK >> (max_size - sg_size);
+_CLC_DEF uint inline __clc__membermask() {
+  // use a full mask as sync operations are required to be convergent and
+  // exited threads can safely be in the mask
+  return 0xFFFFFFFF;
 }
 
 #define __CLC_SUBGROUP_SHUFFLE_I32(TYPE)                                       \
@@ -191,7 +192,7 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
       __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {                  \
     /* Fast path for warp reductions for sm_80+ */                             \
-    if (__nvvm_reflect("__CUDA_ARCH") >= 800 && op == Reduce) {                \
+    if (__clc_nvvm_reflect_arch() >= 800 && op == Reduce) {                    \
       TYPE result = __nvvm_redux_sync_##REDUX_OP(x, __clc__membermask());      \
       *carry = result;                                                         \
       return result;                                                           \
@@ -369,16 +370,16 @@ __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
 
 // half requires additional mangled entry points
-_CLC_DECL _CLC_CONVERGENT half _Z17__spirv_GroupFAddjjDF16_(uint scope, uint op,
-                                                            half x) {
+_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFAddjjDF16_(uint scope, uint op,
+                                                           half x) {
   return __spirv_GroupFAdd(scope, op, x);
 }
-_CLC_DECL _CLC_CONVERGENT half _Z17__spirv_GroupFMinjjDF16_(uint scope, uint op,
-                                                            half x) {
+_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFMinjjDF16_(uint scope, uint op,
+                                                           half x) {
   return __spirv_GroupFMin(scope, op, x);
 }
-_CLC_DECL _CLC_CONVERGENT half _Z17__spirv_GroupFMaxjjDF16_(uint scope, uint op,
-                                                            half x) {
+_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFMaxjjDF16_(uint scope, uint op,
+                                                           half x) {
   return __spirv_GroupFMax(scope, op, x);
 }
 
@@ -461,20 +462,21 @@ __CLC_GROUP_BROADCAST(float)
 __CLC_GROUP_BROADCAST(double)
 
 // half requires additional mangled entry points
-_CLC_DECL _CLC_CONVERGENT half
+_CLC_DEF _CLC_CONVERGENT half
 _Z17__spirv_GroupBroadcastjDF16_m(uint scope, half x, ulong local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
-_CLC_DECL _CLC_CONVERGENT half
+_CLC_DEF _CLC_CONVERGENT half
 _Z17__spirv_GroupBroadcastjDF16_Dv2_m(uint scope, half x, ulong2 local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
-_CLC_DECL _CLC_CONVERGENT half
+_CLC_DEF _CLC_CONVERGENT half
 _Z17__spirv_GroupBroadcastjDF16_Dv3_m(uint scope, half x, ulong3 local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
-_CLC_DECL _CLC_CONVERGENT half
-_Z22__spirv_GroupBroadcastjDF16_j(uint scope, half x, uint local_id) {
+_CLC_DEF _CLC_CONVERGENT half _Z22__spirv_GroupBroadcastjDF16_j(uint scope,
+                                                                half x,
+                                                                uint local_id) {
   return __spirv_GroupBroadcast(scope, x, (ulong)local_id);
 }
 

@@ -41,10 +41,18 @@ def HasStdExtD : Predicate<"Subtarget->hasStdExtD()">,
                            AssemblerPredicate<(all_of FeatureStdExtD),
                            "'D' (Double-Precision Floating-Point)">;
 
+def FeatureStdExtZfhmin
+    : SubtargetFeature<"experimental-zfhmin", "HasStdExtZfhmin", "true",
+                       "'Zfhmin' (Half-Precision Floating-Point Minimal)",
+                       [FeatureStdExtF]>;
+def HasStdExtZfhmin : Predicate<"Subtarget->hasStdExtZfhmin()">,
+                             AssemblerPredicate<(all_of FeatureStdExtZfhmin),
+                             "'Zfhmin' (Half-Precision Floating-Point Minimal)">;
+
 def FeatureStdExtZfh
     : SubtargetFeature<"experimental-zfh", "HasStdExtZfh", "true",
                        "'Zfh' (Half-Precision Floating-Point)",
-                       [FeatureStdExtF]>;
+                       [FeatureStdExtZfhmin, FeatureStdExtF]>;
 def HasStdExtZfh : Predicate<"Subtarget->hasStdExtZfh()">,
                              AssemblerPredicate<(all_of FeatureStdExtZfh),
                              "'Zfh' (Half-Precision Floating-Point)">;
@@ -135,30 +143,6 @@ def HasStdExtZbbOrZbp
                                    "'Zbb' (Base 'B' Instructions) or "
                                    "'Zbp' (Permutation 'B' Instructions)">;
 
-def FeatureStdExtZbproposedc
-    : SubtargetFeature<"experimental-zbproposedc", "HasStdExtZbproposedc", "true",
-                       "'Zbproposedc' (Proposed Compressed 'B' Instructions)">;
-def HasStdExtZbproposedc : Predicate<"Subtarget->hasStdExtZbproposedc()">,
-                           AssemblerPredicate<(all_of FeatureStdExtZbproposedc),
-                           "'Zbproposedc' (Proposed Compressed 'B' Instructions)">;
-
-def FeatureStdExtB
-    : SubtargetFeature<"experimental-b", "HasStdExtB", "true",
-                       "'B' (Bit Manipulation Instructions)",
-                       [FeatureStdExtZba,
-                        FeatureStdExtZbb,
-                        FeatureStdExtZbc,
-                        FeatureStdExtZbe,
-                        FeatureStdExtZbf,
-                        FeatureStdExtZbm,
-                        FeatureStdExtZbp,
-                        FeatureStdExtZbr,
-                        FeatureStdExtZbs,
-                        FeatureStdExtZbt]>;
-def HasStdExtB : Predicate<"Subtarget->hasStdExtB()">,
-                           AssemblerPredicate<(all_of FeatureStdExtB),
-                           "'B' (Bit Manipulation Instructions)">;
-
 def FeatureNoRVCHints
     : SubtargetFeature<"no-rvc-hints", "EnableRVCHintInstrs", "false",
                        "Disable RVC Hint Instructions.">;
@@ -173,6 +157,9 @@ def HasStdExtV : Predicate<"Subtarget->hasStdExtV()">,
                            AssemblerPredicate<(all_of FeatureStdExtV),
                            "'V' (Vector Instructions)">;
 
+def HasVInstructions    : Predicate<"Subtarget->hasVInstructions()">;
+def HasVInstructionsAnyF : Predicate<"Subtarget->hasVInstructionsAnyF()">;
+
 def FeatureStdExtZvlsseg
     : SubtargetFeature<"experimental-zvlsseg", "HasStdExtZvlsseg", "true",
                        "'Zvlsseg' (Vector segment load/store instructions)",
@@ -180,14 +167,6 @@ def FeatureStdExtZvlsseg
 def HasStdExtZvlsseg : Predicate<"Subtarget->hasStdExtZvlsseg()">,
                                  AssemblerPredicate<(all_of FeatureStdExtZvlsseg),
                                  "'Zvlsseg' (Vector segment load/store instructions)">;
-
-def FeatureStdExtZvamo
-    : SubtargetFeature<"experimental-zvamo", "HasStdExtZvamo", "true",
-                       "'Zvamo' (Vector AMO Operations)",
-                       [FeatureStdExtV]>;
-def HasStdExtZvamo : Predicate<"Subtarget->hasStdExtZvamo()">,
-                               AssemblerPredicate<(all_of FeatureStdExtZvamo),
-                               "'Zvamo' (Vector AMO Operations)">;
 
 def Feature64Bit
     : SubtargetFeature<"64bit", "HasRV64", "true", "Implements RV64">;

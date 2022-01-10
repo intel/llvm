@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-def FlatOffset : ComplexPattern<i64, 2, "SelectFlatOffset", [], [SDNPWantRoot], -10>;
-def GlobalOffset : ComplexPattern<i64, 2, "SelectGlobalOffset", [], [SDNPWantRoot], -10>;
-def ScratchOffset : ComplexPattern<i32, 2, "SelectScratchOffset", [], [SDNPWantRoot], -10>;
+def FlatOffset : ComplexPattern<iPTR, 2, "SelectFlatOffset", [], [SDNPWantRoot], -10>;
+def GlobalOffset : ComplexPattern<iPTR, 2, "SelectGlobalOffset", [], [SDNPWantRoot], -10>;
+def ScratchOffset : ComplexPattern<iPTR, 2, "SelectScratchOffset", [], [SDNPWantRoot], -10>;
 
-def GlobalSAddr : ComplexPattern<i64, 3, "SelectGlobalSAddr", [], [SDNPWantRoot], -10>;
-def ScratchSAddr : ComplexPattern<i32, 2, "SelectScratchSAddr", [], [SDNPWantRoot], -10>;
+def GlobalSAddr : ComplexPattern<iPTR, 3, "SelectGlobalSAddr", [], [SDNPWantRoot], -10>;
+def ScratchSAddr : ComplexPattern<iPTR, 2, "SelectScratchSAddr", [], [SDNPWantRoot], -10>;
 
 //===----------------------------------------------------------------------===//
 // FLAT classes
@@ -352,8 +352,6 @@ class FLAT_AtomicNoRet_Pseudo<string opName, dag outs, dag ins,
     let mayStore = 1;
     let has_glc  = 0;
     let glcValue = 0;
-    let has_dlc  = 0;
-    let dlcValue = 0;
     let has_vdst = 0;
     let has_sccb  = 1;
     let sccbValue = 0;
@@ -367,7 +365,6 @@ class FLAT_AtomicRet_Pseudo<string opName, dag outs, dag ins,
   let hasPostISelHook = 1;
   let has_vdst = 1;
   let glcValue = 1;
-  let dlcValue = 0;
   let sccbValue = 0;
   let IsAtomicNoRet = 0;
   let IsAtomicRet = 1;
@@ -782,13 +779,13 @@ defm SCRATCH_STORE_SHORT_D16_HI : FLAT_Scratch_Store_Pseudo <"scratch_store_shor
 
 let SubtargetPredicate = isGFX10Plus, is_flat_global = 1 in {
   defm GLOBAL_ATOMIC_FCMPSWAP :
-    FLAT_Global_Atomic_Pseudo<"global_atomic_fcmpswap", VGPR_32, f32>;
+    FLAT_Global_Atomic_Pseudo<"global_atomic_fcmpswap", VGPR_32, f32, null_frag, v2f32, VReg_64>;
   defm GLOBAL_ATOMIC_FMIN :
     FLAT_Global_Atomic_Pseudo<"global_atomic_fmin", VGPR_32, f32, int_amdgcn_global_atomic_fmin>;
   defm GLOBAL_ATOMIC_FMAX :
     FLAT_Global_Atomic_Pseudo<"global_atomic_fmax", VGPR_32, f32, int_amdgcn_global_atomic_fmax>;
   defm GLOBAL_ATOMIC_FCMPSWAP_X2 :
-    FLAT_Global_Atomic_Pseudo<"global_atomic_fcmpswap_x2", VReg_64, f64>;
+    FLAT_Global_Atomic_Pseudo<"global_atomic_fcmpswap_x2", VReg_64, f64, null_frag, v2f64, VReg_128>;
   defm GLOBAL_ATOMIC_FMIN_X2 :
     FLAT_Global_Atomic_Pseudo<"global_atomic_fmin_x2", VReg_64, f64, int_amdgcn_global_atomic_fmin>;
   defm GLOBAL_ATOMIC_FMAX_X2 :

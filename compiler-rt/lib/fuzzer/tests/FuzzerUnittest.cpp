@@ -591,6 +591,42 @@ TEST(FuzzerUtil, Base64) {
   EXPECT_EQ("YWJjeHl6", Base64({'a', 'b', 'c', 'x', 'y', 'z'}));
 }
 
+#ifdef __GLIBC__
+class PrintfCapture {
+ public:
+  PrintfCapture() {
+    OldOutputFile = GetOutputFile();
+    SetOutputFile(open_memstream(&Buffer, &Size));
+  }
+  ~PrintfCapture() {
+    fclose(GetOutputFile());
+    SetOutputFile(OldOutputFile);
+    free(Buffer);
+  }
+  std::string str() { return std::string(Buffer, Size); }
+
+ private:
+  char *Buffer;
+  size_t Size;
+  FILE *OldOutputFile;
+};
+
+TEST(FuzzerUtil, PrintASCII) {
+  auto f = [](const char *Str, const char *PrintAfter = "") {
+    PrintfCapture Capture;
+    PrintASCII(reinterpret_cast<const uint8_t*>(Str), strlen(Str), PrintAfter);
+    return Capture.str();
+  };
+  EXPECT_EQ("hello", f("hello"));
+  EXPECT_EQ("c:\\\\", f("c:\\"));
+  EXPECT_EQ("\\\"hi\\\"", f("\"hi\""));
+  EXPECT_EQ("\\011a", f("\ta"));
+  EXPECT_EQ("\\0111", f("\t1"));
+  EXPECT_EQ("hello\\012", f("hello\n"));
+  EXPECT_EQ("hello\n", f("hello", "\n"));
+}
+#endif
+
 TEST(Corpus, Distribution) {
   DataFlowTrace DFT;
   Random Rand(0);
@@ -614,6 +650,45 @@ TEST(Corpus, Distribution) {
     // A weak sanity check that every unit gets invoked.
     EXPECT_GT(Hist[i], TriesPerUnit / N / 3);
   }
+}
+
+TEST(Corpus, Replace) {
+  DataFlowTrace DFT;
+  struct EntropicOptions Entropic = {false, 0xFF, 100, false};
+  std::unique_ptr<InputCorpus> C(
+      new InputCorpus(/*OutputCorpus*/ "", Entropic));
+  InputInfo *FirstII =
+      C->AddToCorpus(Unit{0x01, 0x00}, /*NumFeatures*/ 1,
+                     /*MayDeleteFile*/ false, /*HasFocusFunction*/ false,
+                     /*ForceAddToCorpus*/ false,
+                     /*TimeOfUnit*/ std::chrono::microseconds(1234),
+                     /*FeatureSet*/ {}, DFT,
+                     /*BaseII*/ nullptr);
+  InputInfo *SecondII =
+      C->AddToCorpus(Unit{0x02}, /*NumFeatures*/ 1,
+                     /*MayDeleteFile*/ false, /*HasFocusFunction*/ false,
+                     /*ForceAddToCorpus*/ false,
+                     /*TimeOfUnit*/ std::chrono::microseconds(5678),
+                     /*FeatureSet*/ {}, DFT,
+                     /*BaseII*/ nullptr);
+  Unit ReplacedU = Unit{0x03};
+
+  C->Replace(FirstII, ReplacedU,
+             /*TimeOfUnit*/ std::chrono::microseconds(321));
+
+  // FirstII should be replaced.
+  EXPECT_EQ(FirstII->U, Unit{0x03});
+  EXPECT_EQ(FirstII->Reduced, true);
+  EXPECT_EQ(FirstII->TimeOfUnit, std::chrono::microseconds(321));
+  std::vector<uint8_t> ExpectedSha1(kSHA1NumBytes);
+  ComputeSHA1(ReplacedU.data(), ReplacedU.size(), ExpectedSha1.data());
+  std::vector<uint8_t> IISha1(FirstII->Sha1, FirstII->Sha1 + kSHA1NumBytes);
+  EXPECT_EQ(IISha1, ExpectedSha1);
+
+  // SecondII should not be replaced.
+  EXPECT_EQ(SecondII->U, Unit{0x02});
+  EXPECT_EQ(SecondII->Reduced, false);
+  EXPECT_EQ(SecondII->TimeOfUnit, std::chrono::microseconds(5678));
 }
 
 template <typename T>

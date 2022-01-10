@@ -133,7 +133,7 @@ bool ModuleLinker::getComdatLeader(Module &M, StringRef ComdatName,
                                    const GlobalVariable *&GVar) {
   const GlobalValue *GVal = M.getNamedValue(ComdatName);
   if (const auto *GA = dyn_cast_or_null<GlobalAlias>(GVal)) {
-    GVal = GA->getBaseObject();
+    GVal = GA->getAliaseeObject();
     if (!GVal)
       // We cannot resolve the size of the aliasee yet.
       return emitError("Linking COMDATs named '" + ComdatName +
@@ -485,20 +485,14 @@ bool ModuleLinker::run() {
 
   // Alias have to go first, since we are not able to find their comdats
   // otherwise.
-  for (auto I = DstM.alias_begin(), E = DstM.alias_end(); I != E;) {
-    GlobalAlias &GV = *I++;
+  for (GlobalAlias &GV : llvm::make_early_inc_range(DstM.aliases()))
     dropReplacedComdat(GV, ReplacedDstComdats);
-  }
 
-  for (auto I = DstM.global_begin(), E = DstM.global_end(); I != E;) {
-    GlobalVariable &GV = *I++;
+  for (GlobalVariable &GV : llvm::make_early_inc_range(DstM.globals()))
     dropReplacedComdat(GV, ReplacedDstComdats);
-  }
 
-  for (auto I = DstM.begin(), E = DstM.end(); I != E;) {
-    Function &GV = *I++;
+  for (Function &GV : llvm::make_early_inc_range(DstM))
     dropReplacedComdat(GV, ReplacedDstComdats);
-  }
 
   for (GlobalVariable &GV : SrcM->globals())
     if (GV.hasLinkOnceLinkage())

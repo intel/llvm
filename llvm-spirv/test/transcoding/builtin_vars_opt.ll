@@ -39,9 +39,9 @@
 ; clang -fsycl -fsycl-device-only -Xclang -fsycl-enable-optimizations tmp.cpp -o tmp.bc
 ; llvm-spirv tmp.bc -s -o builtin_vars_opt.ll
 
-; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] BuiltIn 37
-; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] Constant
-; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] LinkageAttributes "__spirv_BuiltInSubgroupMaxSize" Import
+; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] BuiltIn 37
+; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] Constant
+; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] LinkageAttributes "__spirv_BuiltInSubgroupMaxSize" Import
 ;
 ; CHECK-LLVM-OCL-NOT: @__spirv_BuiltInSubgroupMaxSize
 ; CHECK-LLVM-NOT: addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to i32 addrspace(4)*

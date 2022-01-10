@@ -67,9 +67,6 @@ int main() {
     device MovedDevice(std::move(Device));
     assert(hash == std::hash<device>()(MovedDevice));
     assert(deviceA.is_host() == MovedDevice.is_host());
-    if (!deviceA.is_host()) {
-      assert(MovedDevice.get() != nullptr);
-    }
   }
   {
     std::cout << "move assignment operator" << std::endl;
@@ -79,9 +76,6 @@ int main() {
     WillMovedDevice = std::move(Device);
     assert(hash == std::hash<device>()(WillMovedDevice));
     assert(deviceA.is_host() == WillMovedDevice.is_host());
-    if (!deviceA.is_host()) {
-      assert(WillMovedDevice.get() != nullptr);
-    }
   }
   {
     std::cout << "copy constructor" << std::endl;

@@ -466,7 +466,14 @@ TEST(TypeHints, NoQualifiers) {
       }
     }
   )cpp",
-                  ExpectedHint{": S1", "x"}, ExpectedHint{": Inner<int>", "y"});
+                  ExpectedHint{": S1", "x"},
+                  // FIXME: We want to suppress scope specifiers
+                  //        here because we are into the whole
+                  //        brevity thing, but the ElaboratedType
+                  //        printer does not honor the SuppressScope
+                  //        flag by design, so we need to extend the
+                  //        PrintingPolicy to support this use case.
+                  ExpectedHint{": S2::Inner<int>", "y"});
 }
 
 TEST(TypeHints, Lambda) {
@@ -610,6 +617,18 @@ TEST(TypeHints, DefaultTemplateArgs) {
     auto $var[[var]] = foo();
   )cpp",
                   ExpectedHint{": A<float>", "var"});
+}
+
+TEST(TypeHints, Deduplication) {
+  assertTypeHints(R"cpp(
+    template <typename T>
+    void foo() {
+      auto $var[[var]] = 42;
+    }
+    template void foo<int>();
+    template void foo<float>();
+  )cpp",
+                  ExpectedHint{": int", "var"});
 }
 
 // FIXME: Low-hanging fruit where we could omit a type hint:

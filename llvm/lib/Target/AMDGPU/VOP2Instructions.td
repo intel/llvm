@@ -270,12 +270,11 @@ multiclass VOP2eInstAliases<VOP2_Pseudo ps, VOP2_Real inst> {
 class VOP_MADAK <ValueType vt> : VOPProfile <[vt, vt, vt, vt]> {
   field Operand ImmOpType = !if(!eq(vt.Size, 32), f32kimm, f16kimm);
   field dag Ins32 = !if(!eq(vt.Size, 32),
-                        (ins VCSrc_f32:$src0, VGPR_32:$src1, ImmOpType:$imm),
-                        (ins VCSrc_f16:$src0, VGPR_32:$src1, ImmOpType:$imm));
+                        (ins VSrc_f32_Deferred:$src0, VGPR_32:$src1, ImmOpType:$imm),
+                        (ins VSrc_f16_Deferred:$src0, VGPR_32:$src1, ImmOpType:$imm));
+  field string Asm32 = "$vdst, $src0, $src1, $imm";
   field bit HasExt = 0;
   let IsSingle = 1;
-
-  field string Asm32 = "$vdst, $src0, $src1, $imm";
 }
 
 def VOP_MADAK_F16 : VOP_MADAK <f16>;
@@ -283,11 +282,10 @@ def VOP_MADAK_F32 : VOP_MADAK <f32>;
 
 class VOP_MADMK <ValueType vt> : VOPProfile <[vt, vt, vt, vt]> {
   field Operand ImmOpType = !if(!eq(vt.Size, 32), f32kimm, f16kimm);
-  field dag Ins32 = (ins VCSrc_f32:$src0, ImmOpType:$imm, VGPR_32:$src1);
+  field dag Ins32 = (ins VSrc_f32_Deferred:$src0, ImmOpType:$imm, VGPR_32:$src1);
+  field string Asm32 = "$vdst, $src0, $imm, $src1";
   field bit HasExt = 0;
   let IsSingle = 1;
-
-  field string Asm32 = "$vdst, $src0, $imm, $src1";
 }
 
 def VOP_MADMK_F16 : VOP_MADMK <f16>;
@@ -494,18 +492,18 @@ defm V_SUBREV_F32 : VOP2Inst <"v_subrev_f32", VOP_F32_F32_F32, null_frag, "v_sub
 defm V_MUL_LEGACY_F32 : VOP2Inst <"v_mul_legacy_f32", VOP_F32_F32_F32, AMDGPUfmul_legacy>;
 defm V_MUL_F32 : VOP2Inst <"v_mul_f32", VOP_F32_F32_F32, any_fmul>;
 defm V_MUL_I32_I24 : VOP2Inst <"v_mul_i32_i24", VOP_I32_I32_I32_ARITH, AMDGPUmul_i24>;
-defm V_MUL_HI_I32_I24 : VOP2Inst <"v_mul_hi_i32_i24", VOP_PAT_GEN<VOP_I32_I32_I32, 2>, AMDGPUmulhi_i24>;
+defm V_MUL_HI_I32_I24 : VOP2Inst <"v_mul_hi_i32_i24", VOP_I32_I32_I32, AMDGPUmulhi_i24>;
 defm V_MUL_U32_U24 : VOP2Inst <"v_mul_u32_u24", VOP_I32_I32_I32_ARITH, AMDGPUmul_u24>;
-defm V_MUL_HI_U32_U24 : VOP2Inst <"v_mul_hi_u32_u24", VOP_PAT_GEN<VOP_I32_I32_I32, 2>, AMDGPUmulhi_u24>;
+defm V_MUL_HI_U32_U24 : VOP2Inst <"v_mul_hi_u32_u24", VOP_I32_I32_I32, AMDGPUmulhi_u24>;
 defm V_MIN_F32 : VOP2Inst <"v_min_f32", VOP_F32_F32_F32, fminnum_like>;
 defm V_MAX_F32 : VOP2Inst <"v_max_f32", VOP_F32_F32_F32, fmaxnum_like>;
 defm V_MIN_I32 : VOP2Inst <"v_min_i32", VOP_PAT_GEN<VOP_I32_I32_I32>, smin>;
 defm V_MAX_I32 : VOP2Inst <"v_max_i32", VOP_PAT_GEN<VOP_I32_I32_I32>, smax>;
 defm V_MIN_U32 : VOP2Inst <"v_min_u32", VOP_PAT_GEN<VOP_I32_I32_I32>, umin>;
 defm V_MAX_U32 : VOP2Inst <"v_max_u32", VOP_PAT_GEN<VOP_I32_I32_I32>, umax>;
-defm V_LSHRREV_B32 : VOP2Inst <"v_lshrrev_b32", VOP_I32_I32_I32, lshr_rev, "v_lshr_b32">;
-defm V_ASHRREV_I32 : VOP2Inst <"v_ashrrev_i32", VOP_I32_I32_I32, ashr_rev, "v_ashr_i32">;
-defm V_LSHLREV_B32 : VOP2Inst <"v_lshlrev_b32", VOP_I32_I32_I32, lshl_rev, "v_lshl_b32">;
+defm V_LSHRREV_B32 : VOP2Inst <"v_lshrrev_b32", VOP_I32_I32_I32, clshr_rev_32, "v_lshr_b32">;
+defm V_ASHRREV_I32 : VOP2Inst <"v_ashrrev_i32", VOP_I32_I32_I32, cashr_rev_32, "v_ashr_i32">;
+defm V_LSHLREV_B32 : VOP2Inst <"v_lshlrev_b32", VOP_I32_I32_I32, clshl_rev_32, "v_lshl_b32">;
 defm V_AND_B32 : VOP2Inst <"v_and_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, and>;
 defm V_OR_B32 : VOP2Inst <"v_or_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, or>;
 defm V_XOR_B32 : VOP2Inst <"v_xor_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, xor>;
@@ -580,9 +578,9 @@ defm V_MAX_LEGACY_F32 : VOP2Inst <"v_max_legacy_f32", VOP_F32_F32_F32, AMDGPUfma
 
 let isCommutable = 1 in {
 let SubtargetPredicate = isGFX6GFX7 in {
-defm V_LSHR_B32 : VOP2Inst <"v_lshr_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, srl>;
-defm V_ASHR_I32 : VOP2Inst <"v_ashr_i32", VOP_PAT_GEN<VOP_I32_I32_I32>, sra>;
-defm V_LSHL_B32 : VOP2Inst <"v_lshl_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, shl>;
+defm V_LSHR_B32 : VOP2Inst <"v_lshr_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, csrl_32>;
+defm V_ASHR_I32 : VOP2Inst <"v_ashr_i32", VOP_PAT_GEN<VOP_I32_I32_I32>, csra_32>;
+defm V_LSHL_B32 : VOP2Inst <"v_lshl_b32", VOP_PAT_GEN<VOP_I32_I32_I32>, cshl_32>;
 } // End SubtargetPredicate = isGFX6GFX7
 } // End isCommutable = 1
 } // End isReMaterializable = 1
@@ -607,9 +605,9 @@ class DivergentClampingBinOp<SDPatternOperator Op, VOP_Pseudo Inst> :
       )
   >;
 
-def : DivergentBinOp<srl, V_LSHRREV_B32_e64>;
-def : DivergentBinOp<sra, V_ASHRREV_I32_e64>;
-def : DivergentBinOp<shl, V_LSHLREV_B32_e64>;
+def : DivergentBinOp<csrl_32, V_LSHRREV_B32_e64>;
+def : DivergentBinOp<csra_32, V_ASHRREV_I32_e64>;
+def : DivergentBinOp<cshl_32, V_LSHLREV_B32_e64>;
 
 let SubtargetPredicate = HasAddNoCarryInsts in {
   def : DivergentClampingBinOp<add, V_ADD_U32_e64>;
@@ -650,9 +648,9 @@ def V_MADMK_F16 : VOP2_Pseudo <"v_madmk_f16", VOP_MADMK_F16, [], "">;
 defm V_LDEXP_F16 : VOP2Inst <"v_ldexp_f16", VOP_F16_F16_I32, AMDGPUldexp>;
 } // End FPDPRounding = 1
 
-defm V_LSHLREV_B16 : VOP2Inst <"v_lshlrev_b16", VOP_I16_I16_I16, lshl_rev>;
-defm V_LSHRREV_B16 : VOP2Inst <"v_lshrrev_b16", VOP_I16_I16_I16, lshr_rev>;
-defm V_ASHRREV_I16 : VOP2Inst <"v_ashrrev_i16", VOP_I16_I16_I16, ashr_rev>;
+defm V_LSHLREV_B16 : VOP2Inst <"v_lshlrev_b16", VOP_I16_I16_I16, clshl_rev_16>;
+defm V_LSHRREV_B16 : VOP2Inst <"v_lshrrev_b16", VOP_I16_I16_I16, clshr_rev_16>;
+defm V_ASHRREV_I16 : VOP2Inst <"v_ashrrev_i16", VOP_I16_I16_I16, cashr_rev_16>;
 
 let isCommutable = 1 in {
 let FPDPRounding = 1 in {
@@ -854,9 +852,9 @@ defm : Arithmetic_i16_0Hi_Pats<smin, V_MIN_I16_e64>;
 defm : Arithmetic_i16_0Hi_Pats<smax, V_MAX_I16_e64>;
 defm : Arithmetic_i16_0Hi_Pats<umin, V_MIN_U16_e64>;
 defm : Arithmetic_i16_0Hi_Pats<umax, V_MAX_U16_e64>;
-defm : Arithmetic_i16_0Hi_Pats<lshl_rev, V_LSHLREV_B16_e64>;
-defm : Arithmetic_i16_0Hi_Pats<lshr_rev, V_LSHRREV_B16_e64>;
-defm : Arithmetic_i16_0Hi_Pats<ashr_rev, V_ASHRREV_I16_e64>;
+defm : Arithmetic_i16_0Hi_Pats<clshl_rev_16, V_LSHLREV_B16_e64>;
+defm : Arithmetic_i16_0Hi_Pats<clshr_rev_16, V_LSHRREV_B16_e64>;
+defm : Arithmetic_i16_0Hi_Pats<cashr_rev_16, V_ASHRREV_I16_e64>;
 }  // End Predicates = [Has16BitInsts, isGFX7GFX8GFX9]
 
 def : ZExt_i16_i1_Pat<zext>;

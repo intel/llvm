@@ -107,8 +107,9 @@ int main() {
 // Test AST for default SPIR architecture
 
 // Check test_kernel_handler parameters
-// NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int)'
+// NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, __global char *)'
 // NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
+// NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
 // Check declaration and initialization of kernel object local clone
 // NATIVESUPPORT-NEXT: CompoundStmt

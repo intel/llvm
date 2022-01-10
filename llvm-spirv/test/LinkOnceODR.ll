@@ -10,8 +10,8 @@
 
 ; CHECK-SPIRV: Capability Linkage
 ; CHECK-SPIRV: Extension "SPV_KHR_linkonce_odr"
-; CHECK-SPIRV: Decorate {{[0-9]+}} LinkageAttributes "GV" LinkOnceODR 
-; CHECK-SPIRV: Decorate {{[0-9]+}} LinkageAttributes "square" LinkOnceODR 
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} LinkageAttributes "GV" LinkOnceODR 
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} LinkageAttributes "square" LinkOnceODR 
 
 ; CHECK-SPIRV-NOEXT-NOT: Extension "SPV_KHR_linkonce_odr"
 ; CHECK-SPIRV-NOEXT-NOT: Decorate {{[0-9]+}} LinkageAttributes "GV" LinkOnceODR 

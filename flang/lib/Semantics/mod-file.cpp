@@ -531,15 +531,15 @@ void PutEntity(llvm::raw_ostream &os, const Symbol &symbol) {
 }
 
 void PutShapeSpec(llvm::raw_ostream &os, const ShapeSpec &x) {
-  if (x.lbound().isAssumed()) {
-    CHECK(x.ubound().isAssumed());
-    os << "..";
+  if (x.lbound().isStar()) {
+    CHECK(x.ubound().isStar());
+    os << ".."; // assumed rank
   } else {
-    if (!x.lbound().isDeferred()) {
+    if (!x.lbound().isColon()) {
       PutBound(os, x.lbound());
     }
     os << ':';
-    if (!x.ubound().isDeferred()) {
+    if (!x.ubound().isColon()) {
       PutBound(os, x.ubound());
     }
   }
@@ -639,9 +639,9 @@ void PutInit(llvm::raw_ostream &os, const MaybeIntExpr &init) {
 }
 
 void PutBound(llvm::raw_ostream &os, const Bound &x) {
-  if (x.isAssumed()) {
+  if (x.isStar()) {
     os << '*';
-  } else if (x.isDeferred()) {
+  } else if (x.isColon()) {
     os << ':';
   } else {
     x.GetExplicit()->AsFortran(os);
@@ -805,7 +805,8 @@ static bool VerifyHeader(llvm::ArrayRef<char> content) {
   return expectSum == actualSum;
 }
 
-Scope *ModFileReader::Read(const SourceName &name, Scope *ancestor) {
+Scope *ModFileReader::Read(
+    const SourceName &name, Scope *ancestor, bool silent) {
   std::string ancestorName; // empty for module
   if (ancestor) {
     if (auto *scope{ancestor->FindSubmodule(name)}) {
@@ -826,10 +827,12 @@ Scope *ModFileReader::Read(const SourceName &name, Scope *ancestor) {
   auto path{ModFileName(name, ancestorName, context_.moduleFileSuffix())};
   const auto *sourceFile{parsing.Prescan(path, options)};
   if (parsing.messages().AnyFatalError()) {
-    for (auto &msg : parsing.messages().messages()) {
-      std::string str{msg.ToString()};
-      Say(name, ancestorName, parser::MessageFixedText{str.c_str(), str.size()},
-          path);
+    if (!silent) {
+      for (auto &msg : parsing.messages().messages()) {
+        std::string str{msg.ToString()};
+        Say(name, ancestorName,
+            parser::MessageFixedText{str.c_str(), str.size()}, path);
+      }
     }
     return nullptr;
   }

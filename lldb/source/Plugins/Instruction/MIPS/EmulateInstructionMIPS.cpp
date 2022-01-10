@@ -29,7 +29,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -193,17 +193,7 @@ void EmulateInstructionMIPS::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-ConstString EmulateInstructionMIPS::GetPluginNameStatic() {
-  ConstString g_plugin_name("lldb.emulate-instruction.mips32");
-  return g_plugin_name;
-}
-
-lldb_private::ConstString EmulateInstructionMIPS::GetPluginName() {
-  static ConstString g_plugin_name("EmulateInstructionMIPS");
-  return g_plugin_name;
-}
-
-const char *EmulateInstructionMIPS::GetPluginDescriptionStatic() {
+llvm::StringRef EmulateInstructionMIPS::GetPluginDescriptionStatic() {
   return "Emulate instructions for the MIPS32 architecture.";
 }
 

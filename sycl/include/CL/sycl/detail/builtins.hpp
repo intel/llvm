@@ -265,6 +265,7 @@ __SYCL_MAKE_CALL_ARG2_SAME(FOrdGreaterThanEqual,
                            __FUNC_PREFIX_CORE)               // isgreaterequal
 __SYCL_MAKE_CALL_ARG2_SAME(FOrdLessThan, __FUNC_PREFIX_CORE) // isless
 __SYCL_MAKE_CALL_ARG2_SAME(FOrdLessThanEqual, __FUNC_PREFIX_CORE) // islessequal
+__SYCL_MAKE_CALL_ARG2_SAME(FOrdNotEqual, __FUNC_PREFIX_CORE)  // islessgreater
 __SYCL_MAKE_CALL_ARG2_SAME(LessOrGreater, __FUNC_PREFIX_CORE) // islessgreater
 __SYCL_MAKE_CALL_ARG1(IsFinite, __FUNC_PREFIX_CORE)           // isfinite
 __SYCL_MAKE_CALL_ARG1(IsInf, __FUNC_PREFIX_CORE)              // isinf

@@ -21,7 +21,6 @@
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/MC/StringTableBuilder.h"
-#include "llvm/Object/MachO.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -346,6 +345,7 @@ public:
   ExportSection();
   void finalizeContents() override;
   uint64_t getRawSize() const override { return size; }
+  bool isNeeded() const override { return size; }
   void writeTo(uint8_t *buf) const override;
 
   bool hasWeakSymbol = false;
@@ -477,15 +477,26 @@ public:
 // The code signature comes at the very end of the linked output file.
 class CodeSignatureSection final : public LinkEditSection {
 public:
+  // NOTE: These values are duplicated in llvm-objcopy's MachO/Object.h file
+  // and any changes here, should be repeated there.
+  static constexpr uint8_t blockSizeShift = 12;
+  static constexpr size_t blockSize = (1 << blockSizeShift); // 4 KiB
+  static constexpr size_t hashSize = 256 / 8;
+  static constexpr size_t blobHeadersSize = llvm::alignTo<8>(
+      sizeof(llvm::MachO::CS_SuperBlob) + sizeof(llvm::MachO::CS_BlobIndex));
+  static constexpr uint32_t fixedHeadersSize =
+      blobHeadersSize + sizeof(llvm::MachO::CS_CodeDirectory);
+
+  uint32_t fileNamePad = 0;
+  uint32_t allHeadersSize = 0;
+  StringRef fileName;
+
   CodeSignatureSection();
   uint64_t getRawSize() const override;
   bool isNeeded() const override { return true; }
   void writeTo(uint8_t *buf) const override;
+  uint32_t getBlockCount() const;
   void writeHashes(uint8_t *buf) const;
-  void finalize() override;
-
-private:
-  std::unique_ptr<llvm::object::CodeSignatureSection> sectionBuilder;
 };
 
 class BitcodeBundleSection final : public SyntheticSection {
@@ -552,16 +563,16 @@ public:
            !literal8Map.empty();
   }
 
-  uint64_t getLiteral16Offset(const uint8_t *buf) const {
+  uint64_t getLiteral16Offset(uintptr_t buf) const {
     return literal16Map.at(*reinterpret_cast<const UInt128 *>(buf)) * 16;
   }
 
-  uint64_t getLiteral8Offset(const uint8_t *buf) const {
+  uint64_t getLiteral8Offset(uintptr_t buf) const {
     return literal16Map.size() * 16 +
            literal8Map.at(*reinterpret_cast<const uint64_t *>(buf)) * 8;
   }
 
-  uint64_t getLiteral4Offset(const uint8_t *buf) const {
+  uint64_t getLiteral4Offset(uintptr_t buf) const {
     return literal16Map.size() * 16 + literal8Map.size() * 8 +
            literal4Map.at(*reinterpret_cast<const uint32_t *>(buf)) * 4;
   }

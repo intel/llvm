@@ -612,10 +612,7 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     for (auto *Block : L->blocks())
       for (Instruction &I : *Block) {
         auto *Undef = UndefValue::get(I.getType());
-        for (Value::use_iterator UI = I.use_begin(), E = I.use_end();
-             UI != E;) {
-          Use &U = *UI;
-          ++UI;
+        for (Use &U : llvm::make_early_inc_range(I.uses())) {
           if (auto *Usr = dyn_cast<Instruction>(U.getUser()))
             if (L->contains(Usr->getParent()))
               continue;
@@ -666,9 +663,8 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     // about ordering because we already dropped the references.
     // NOTE: This iteration is safe because erasing the block does not remove
     // its entry from the loop's block list.  We do that in the next section.
-    for (Loop::block_iterator LpI = L->block_begin(), LpE = L->block_end();
-         LpI != LpE; ++LpI)
-      (*LpI)->eraseFromParent();
+    for (BasicBlock *BB : L->blocks())
+      BB->eraseFromParent();
 
     // Finally, the blocks from loopinfo.  This has to happen late because
     // otherwise our loop iterators won't work.
@@ -777,8 +773,8 @@ void llvm::breakLoopBackedge(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
 }
 
 
-/// Checks if \p L has single exit through latch block except possibly
-/// "deoptimizing" exits. Returns branch instruction terminating the loop
+/// Checks if \p L has an exiting latch branch.  There may also be other
+/// exiting blocks.  Returns branch instruction terminating the loop
 /// latch if above check is successful, nullptr otherwise.
 static BranchInst *getExpectedExitLoopLatchBranch(Loop *L) {
   BasicBlock *Latch = L->getLoopLatch();
@@ -793,53 +789,61 @@ static BranchInst *getExpectedExitLoopLatchBranch(Loop *L) {
           LatchBR->getSuccessor(1) == L->getHeader()) &&
          "At least one edge out of the latch must go to the header");
 
-  SmallVector<BasicBlock *, 4> ExitBlocks;
-  L->getUniqueNonLatchExitBlocks(ExitBlocks);
-  if (any_of(ExitBlocks, [](const BasicBlock *EB) {
-        return !EB->getTerminatingDeoptimizeCall();
-      }))
-    return nullptr;
-
   return LatchBR;
+}
+
+/// Return the estimated trip count for any exiting branch which dominates
+/// the loop latch.
+static Optional<uint64_t>
+getEstimatedTripCount(BranchInst *ExitingBranch, Loop *L,
+                      uint64_t &OrigExitWeight) {
+  // To estimate the number of times the loop body was executed, we want to
+  // know the number of times the backedge was taken, vs. the number of times
+  // we exited the loop.
+  uint64_t LoopWeight, ExitWeight;
+  if (!ExitingBranch->extractProfMetadata(LoopWeight, ExitWeight))
+    return None;
+
+  if (L->contains(ExitingBranch->getSuccessor(1)))
+    std::swap(LoopWeight, ExitWeight);
+
+  if (!ExitWeight)
+    // Don't have a way to return predicated infinite
+    return None;
+
+  OrigExitWeight = ExitWeight;
+
+  // Estimated exit count is a ratio of the loop weight by the weight of the
+  // edge exiting the loop, rounded to nearest.
+  uint64_t ExitCount = llvm::divideNearest(LoopWeight, ExitWeight);
+  // Estimated trip count is one plus estimated exit count.
+  return ExitCount + 1;
 }
 
 Optional<unsigned>
 llvm::getLoopEstimatedTripCount(Loop *L,
                                 unsigned *EstimatedLoopInvocationWeight) {
-  // Support loops with an exiting latch and other existing exists only
-  // deoptimize.
-  BranchInst *LatchBranch = getExpectedExitLoopLatchBranch(L);
-  if (!LatchBranch)
-    return None;
-
-  // To estimate the number of times the loop body was executed, we want to
-  // know the number of times the backedge was taken, vs. the number of times
-  // we exited the loop.
-  uint64_t BackedgeTakenWeight, LatchExitWeight;
-  if (!LatchBranch->extractProfMetadata(BackedgeTakenWeight, LatchExitWeight))
-    return None;
-
-  if (LatchBranch->getSuccessor(0) != L->getHeader())
-    std::swap(BackedgeTakenWeight, LatchExitWeight);
-
-  if (!LatchExitWeight)
-    return None;
-
-  if (EstimatedLoopInvocationWeight)
-    *EstimatedLoopInvocationWeight = LatchExitWeight;
-
-  // Estimated backedge taken count is a ratio of the backedge taken weight by
-  // the weight of the edge exiting the loop, rounded to nearest.
-  uint64_t BackedgeTakenCount =
-      llvm::divideNearest(BackedgeTakenWeight, LatchExitWeight);
-  // Estimated trip count is one plus estimated backedge taken count.
-  return BackedgeTakenCount + 1;
+  // Currently we take the estimate exit count only from the loop latch,
+  // ignoring other exiting blocks.  This can overestimate the trip count
+  // if we exit through another exit, but can never underestimate it.
+  // TODO: incorporate information from other exits
+  if (BranchInst *LatchBranch = getExpectedExitLoopLatchBranch(L)) {
+    uint64_t ExitWeight;
+    if (Optional<uint64_t> EstTripCount =
+        getEstimatedTripCount(LatchBranch, L, ExitWeight)) {
+      if (EstimatedLoopInvocationWeight)
+        *EstimatedLoopInvocationWeight = ExitWeight;
+      return *EstTripCount;
+    }
+  }
+  return None;
 }
 
 bool llvm::setLoopEstimatedTripCount(Loop *L, unsigned EstimatedTripCount,
                                      unsigned EstimatedloopInvocationWeight) {
-  // Support loops with an exiting latch and other existing exists only
-  // deoptimize.
+  // At the moment, we currently support changing the estimate trip count of
+  // the latch branch only.  We could extend this API to manipulate estimated
+  // trip counts for any exit.
   BranchInst *LatchBranch = getExpectedExitLoopLatchBranch(L);
   if (!LatchBranch)
     return false;
@@ -889,32 +893,37 @@ bool llvm::hasIterationCountInvariantInParent(Loop *InnerLoop,
   return true;
 }
 
-Value *llvm::createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
-                            Value *Right) {
-  CmpInst::Predicate Pred;
+CmpInst::Predicate llvm::getMinMaxReductionPredicate(RecurKind RK) {
   switch (RK) {
   default:
     llvm_unreachable("Unknown min/max recurrence kind");
   case RecurKind::UMin:
-    Pred = CmpInst::ICMP_ULT;
-    break;
+    return CmpInst::ICMP_ULT;
   case RecurKind::UMax:
-    Pred = CmpInst::ICMP_UGT;
-    break;
+    return CmpInst::ICMP_UGT;
   case RecurKind::SMin:
-    Pred = CmpInst::ICMP_SLT;
-    break;
+    return CmpInst::ICMP_SLT;
   case RecurKind::SMax:
-    Pred = CmpInst::ICMP_SGT;
-    break;
+    return CmpInst::ICMP_SGT;
   case RecurKind::FMin:
-    Pred = CmpInst::FCMP_OLT;
-    break;
+    return CmpInst::FCMP_OLT;
   case RecurKind::FMax:
-    Pred = CmpInst::FCMP_OGT;
-    break;
+    return CmpInst::FCMP_OGT;
   }
+}
 
+Value *llvm::createSelectCmpOp(IRBuilderBase &Builder, Value *StartVal,
+                               RecurKind RK, Value *Left, Value *Right) {
+  if (auto VTy = dyn_cast<VectorType>(Left->getType()))
+    StartVal = Builder.CreateVectorSplat(VTy->getElementCount(), StartVal);
+  Value *Cmp =
+      Builder.CreateCmp(CmpInst::ICMP_NE, Left, StartVal, "rdx.select.cmp");
+  return Builder.CreateSelect(Cmp, Left, Right, "rdx.select");
+}
+
+Value *llvm::createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
+                            Value *Right) {
+  CmpInst::Predicate Pred = getMinMaxReductionPredicate(RK);
   Value *Cmp = Builder.CreateCmp(Pred, Left, Right, "rdx.minmax.cmp");
   Value *Select = Builder.CreateSelect(Cmp, Left, Right, "rdx.minmax.select");
   return Select;
@@ -922,8 +931,7 @@ Value *llvm::createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
 
 // Helper to generate an ordered reduction.
 Value *llvm::getOrderedReduction(IRBuilderBase &Builder, Value *Acc, Value *Src,
-                                 unsigned Op, RecurKind RdxKind,
-                                 ArrayRef<Value *> RedOps) {
+                                 unsigned Op, RecurKind RdxKind) {
   unsigned VF = cast<FixedVectorType>(Src->getType())->getNumElements();
 
   // Extract and apply reduction ops in ascending order:
@@ -941,9 +949,6 @@ Value *llvm::getOrderedReduction(IRBuilderBase &Builder, Value *Acc, Value *Src,
              "Invalid min/max");
       Result = createMinMaxOp(Builder, RdxKind, Result, Ext);
     }
-
-    if (!RedOps.empty())
-      propagateIRFlags(Result, RedOps);
   }
 
   return Result;
@@ -951,14 +956,20 @@ Value *llvm::getOrderedReduction(IRBuilderBase &Builder, Value *Acc, Value *Src,
 
 // Helper to generate a log2 shuffle reduction.
 Value *llvm::getShuffleReduction(IRBuilderBase &Builder, Value *Src,
-                                 unsigned Op, RecurKind RdxKind,
-                                 ArrayRef<Value *> RedOps) {
+                                 unsigned Op, RecurKind RdxKind) {
   unsigned VF = cast<FixedVectorType>(Src->getType())->getNumElements();
   // VF is a power of 2 so we can emit the reduction using log2(VF) shuffles
   // and vector ops, reducing the set of values being computed by half each
   // round.
   assert(isPowerOf2_32(VF) &&
          "Reduction emission only supported for pow2 vectors!");
+  // Note: fast-math-flags flags are controlled by the builder configuration
+  // and are assumed to apply to all generated arithmetic instructions.  Other
+  // poison generating flags (nsw/nuw/inbounds/inrange/exact) are not part
+  // of the builder configuration, and since they're not passed explicitly,
+  // will never be relevant here.  Note that it would be generally unsound to
+  // propagate these from an intrinsic call to the expansion anyways as we/
+  // change the order of operations.
   Value *TmpVec = Src;
   SmallVector<int, 32> ShuffleMask(VF);
   for (unsigned i = VF; i != 1; i >>= 1) {
@@ -972,7 +983,6 @@ Value *llvm::getShuffleReduction(IRBuilderBase &Builder, Value *Src,
     Value *Shuf = Builder.CreateShuffleVector(TmpVec, ShuffleMask, "rdx.shuf");
 
     if (Op != Instruction::ICmp && Op != Instruction::FCmp) {
-      // The builder propagates its fast-math-flags setting.
       TmpVec = Builder.CreateBinOp((Instruction::BinaryOps)Op, TmpVec, Shuf,
                                    "bin.rdx");
     } else {
@@ -980,22 +990,54 @@ Value *llvm::getShuffleReduction(IRBuilderBase &Builder, Value *Src,
              "Invalid min/max");
       TmpVec = createMinMaxOp(Builder, RdxKind, TmpVec, Shuf);
     }
-    if (!RedOps.empty())
-      propagateIRFlags(TmpVec, RedOps);
-
-    // We may compute the reassociated scalar ops in a way that does not
-    // preserve nsw/nuw etc. Conservatively, drop those flags.
-    if (auto *ReductionInst = dyn_cast<Instruction>(TmpVec))
-      ReductionInst->dropPoisonGeneratingFlags();
   }
   // The result is in the first element of the vector.
   return Builder.CreateExtractElement(TmpVec, Builder.getInt32(0));
 }
 
+Value *llvm::createSelectCmpTargetReduction(IRBuilderBase &Builder,
+                                            const TargetTransformInfo *TTI,
+                                            Value *Src,
+                                            const RecurrenceDescriptor &Desc,
+                                            PHINode *OrigPhi) {
+  assert(RecurrenceDescriptor::isSelectCmpRecurrenceKind(
+             Desc.getRecurrenceKind()) &&
+         "Unexpected reduction kind");
+  Value *InitVal = Desc.getRecurrenceStartValue();
+  Value *NewVal = nullptr;
+
+  // First use the original phi to determine the new value we're trying to
+  // select from in the loop.
+  SelectInst *SI = nullptr;
+  for (auto *U : OrigPhi->users()) {
+    if ((SI = dyn_cast<SelectInst>(U)))
+      break;
+  }
+  assert(SI && "One user of the original phi should be a select");
+
+  if (SI->getTrueValue() == OrigPhi)
+    NewVal = SI->getFalseValue();
+  else {
+    assert(SI->getFalseValue() == OrigPhi &&
+           "At least one input to the select should be the original Phi");
+    NewVal = SI->getTrueValue();
+  }
+
+  // Create a splat vector with the new value and compare this to the vector
+  // we want to reduce.
+  ElementCount EC = cast<VectorType>(Src->getType())->getElementCount();
+  Value *Right = Builder.CreateVectorSplat(EC, InitVal);
+  Value *Cmp =
+      Builder.CreateCmp(CmpInst::ICMP_NE, Src, Right, "rdx.select.cmp");
+
+  // If any predicate is true it means that we want to select the new value.
+  Cmp = Builder.CreateOrReduce(Cmp);
+  return Builder.CreateSelect(Cmp, NewVal, InitVal, "rdx.select");
+}
+
 Value *llvm::createSimpleTargetReduction(IRBuilderBase &Builder,
                                          const TargetTransformInfo *TTI,
-                                         Value *Src, RecurKind RdxKind,
-                                         ArrayRef<Value *> RedOps) {
+                                         Value *Src, RecurKind RdxKind) {
   auto *SrcVecEltTy = cast<VectorType>(Src->getType())->getElementType();
   switch (RdxKind) {
   case RecurKind::Add:
@@ -1008,6 +1050,7 @@ Value *llvm::createSimpleTargetReduction(IRBuilderBase &Builder,
     return Builder.CreateOrReduce(Src);
   case RecurKind::Xor:
     return Builder.CreateXorReduce(Src);
+  case RecurKind::FMulAdd:
   case RecurKind::FAdd:
     return Builder.CreateFAddReduce(ConstantFP::getNegativeZero(SrcVecEltTy),
                                     Src);
@@ -1032,20 +1075,26 @@ Value *llvm::createSimpleTargetReduction(IRBuilderBase &Builder,
 
 Value *llvm::createTargetReduction(IRBuilderBase &B,
                                    const TargetTransformInfo *TTI,
-                                   const RecurrenceDescriptor &Desc,
-                                   Value *Src) {
+                                   const RecurrenceDescriptor &Desc, Value *Src,
+                                   PHINode *OrigPhi) {
   // TODO: Support in-order reductions based on the recurrence descriptor.
   // All ops in the reduction inherit fast-math-flags from the recurrence
   // descriptor.
   IRBuilderBase::FastMathFlagGuard FMFGuard(B);
   B.setFastMathFlags(Desc.getFastMathFlags());
-  return createSimpleTargetReduction(B, TTI, Src, Desc.getRecurrenceKind());
+
+  RecurKind RK = Desc.getRecurrenceKind();
+  if (RecurrenceDescriptor::isSelectCmpRecurrenceKind(RK))
+    return createSelectCmpTargetReduction(B, TTI, Src, Desc, OrigPhi);
+
+  return createSimpleTargetReduction(B, TTI, Src, RK);
 }
 
 Value *llvm::createOrderedReduction(IRBuilderBase &B,
                                     const RecurrenceDescriptor &Desc,
                                     Value *Src, Value *Start) {
-  assert(Desc.getRecurrenceKind() == RecurKind::FAdd &&
+  assert((Desc.getRecurrenceKind() == RecurKind::FAdd ||
+          Desc.getRecurrenceKind() == RecurKind::FMulAdd) &&
          "Unexpected reduction kind");
   assert(Src->getType()->isVectorTy() && "Expected a vector type");
   assert(!Start->getType()->isVectorTy() && "Expected a scalar type");
@@ -1239,13 +1288,6 @@ int llvm::rewriteLoopExitValues(Loop *L, LoopInfo *LI, TargetLibraryInfo *TLI,
       if (!SE->isSCEVable(PN->getType()))
         continue;
 
-      // It's necessary to tell ScalarEvolution about this explicitly so that
-      // it can walk the def-use list and forget all SCEVs, as it may not be
-      // watching the PHI itself. Once the new exit value is in place, there
-      // may not be a def-use connection between the loop and every instruction
-      // which got a SCEVAddRecExpr for that loop.
-      SE->forgetValue(PN);
-
       // Iterate over all of the values in all the PHI nodes.
       for (unsigned i = 0; i != NumPreds; ++i) {
         // If the value being merged in is not integer or is not defined
@@ -1351,6 +1393,12 @@ int llvm::rewriteLoopExitValues(Loop *L, LoopInfo *LI, TargetLibraryInfo *TLI,
     NumReplaced++;
     Instruction *Inst = cast<Instruction>(PN->getIncomingValue(Phi.Ith));
     PN->setIncomingValue(Phi.Ith, ExitVal);
+    // It's necessary to tell ScalarEvolution about this explicitly so that
+    // it can walk the def-use list and forget all SCEVs, as it may not be
+    // watching the PHI itself. Once the new exit value is in place, there
+    // may not be a def-use connection between the loop and every instruction
+    // which got a SCEVAddRecExpr for that loop.
+    SE->forgetValue(PN);
 
     // If this instruction is dead now, delete it. Don't do it now to avoid
     // invalidating iterators.
@@ -1455,10 +1503,9 @@ Loop *llvm::cloneLoop(Loop *L, Loop *PL, ValueToValueMapTy &VM,
     LPM->addLoop(New);
 
   // Add all of the blocks in L to the new loop.
-  for (Loop::block_iterator I = L->block_begin(), E = L->block_end();
-       I != E; ++I)
-    if (LI->getLoopFor(*I) == L)
-      New.addBasicBlockToLoop(cast<BasicBlock>(VM[*I]), *LI);
+  for (BasicBlock *BB : L->blocks())
+    if (LI->getLoopFor(BB) == L)
+      New.addBasicBlockToLoop(cast<BasicBlock>(VM[BB]), *LI);
 
   // Add all of the subloops to the new loop.
   for (Loop *I : *L)
@@ -1511,7 +1558,7 @@ expandBounds(const SmallVectorImpl<RuntimePointerCheck> &PointerChecks, Loop *L,
   return ChecksWithBounds;
 }
 
-std::pair<Instruction *, Instruction *> llvm::addRuntimeChecks(
+Value *llvm::addRuntimeChecks(
     Instruction *Loc, Loop *TheLoop,
     const SmallVectorImpl<RuntimePointerCheck> &PointerChecks,
     SCEVExpander &Exp) {
@@ -1520,21 +1567,9 @@ std::pair<Instruction *, Instruction *> llvm::addRuntimeChecks(
   auto ExpandedChecks = expandBounds(PointerChecks, TheLoop, Loc, Exp);
 
   LLVMContext &Ctx = Loc->getContext();
-  Instruction *FirstInst = nullptr;
   IRBuilder<> ChkBuilder(Loc);
   // Our instructions might fold to a constant.
   Value *MemoryRuntimeCheck = nullptr;
-
-  // FIXME: this helper is currently a duplicate of the one in
-  // LoopVectorize.cpp.
-  auto GetFirstInst = [](Instruction *FirstInst, Value *V,
-                         Instruction *Loc) -> Instruction * {
-    if (FirstInst)
-      return FirstInst;
-    if (Instruction *I = dyn_cast<Instruction>(V))
-      return I->getParent() == Loc->getParent() ? I : nullptr;
-    return nullptr;
-  };
 
   for (const auto &Check : ExpandedChecks) {
     const PointerBounds &A = Check.first, &B = Check.second;
@@ -1564,30 +1599,16 @@ std::pair<Instruction *, Instruction *> llvm::addRuntimeChecks(
     // bound1 = (A.Start < B.End)
     //  IsConflict = bound0 & bound1
     Value *Cmp0 = ChkBuilder.CreateICmpULT(Start0, End1, "bound0");
-    FirstInst = GetFirstInst(FirstInst, Cmp0, Loc);
     Value *Cmp1 = ChkBuilder.CreateICmpULT(Start1, End0, "bound1");
-    FirstInst = GetFirstInst(FirstInst, Cmp1, Loc);
     Value *IsConflict = ChkBuilder.CreateAnd(Cmp0, Cmp1, "found.conflict");
-    FirstInst = GetFirstInst(FirstInst, IsConflict, Loc);
     if (MemoryRuntimeCheck) {
       IsConflict =
           ChkBuilder.CreateOr(MemoryRuntimeCheck, IsConflict, "conflict.rdx");
-      FirstInst = GetFirstInst(FirstInst, IsConflict, Loc);
     }
     MemoryRuntimeCheck = IsConflict;
   }
 
-  if (!MemoryRuntimeCheck)
-    return std::make_pair(nullptr, nullptr);
-
-  // We have to do this trickery because the IRBuilder might fold the check to a
-  // constant expression in which case there is no Instruction anchored in a
-  // the block.
-  Instruction *Check =
-      BinaryOperator::CreateAnd(MemoryRuntimeCheck, ConstantInt::getTrue(Ctx));
-  ChkBuilder.Insert(Check, "memcheck.conflict");
-  FirstInst = GetFirstInst(FirstInst, Check, Loc);
-  return std::make_pair(FirstInst, Check);
+  return MemoryRuntimeCheck;
 }
 
 Optional<IVConditionInfo> llvm::hasPartialIVCondition(Loop &L,

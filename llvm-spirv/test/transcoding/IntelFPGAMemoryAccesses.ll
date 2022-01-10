@@ -52,12 +52,12 @@
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_accesses"
 ; Check that the semantically meaningless decoration was
 ; translated as a mere annotation
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "{params:0}{cache-size:127}"
-; CHECK-SPIRV: Decorate {{[0-9]+}} BurstCoalesceINTEL
-; CHECK-SPIRV: Decorate {{[0-9]+}} CacheSizeINTEL 0
-; CHECK-SPIRV: Decorate {{[0-9]+}} CacheSizeINTEL 127
-; CHECK-SPIRV: Decorate {{[0-9]+}} DontStaticallyCoalesceINTEL
-; CHECK-SPIRV: Decorate {{[0-9]+}} PrefetchINTEL 0
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "{params:0}{cache-size:127}"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BurstCoalesceINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} CacheSizeINTEL 0
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} CacheSizeINTEL 127
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} DontStaticallyCoalesceINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} PrefetchINTEL 0
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

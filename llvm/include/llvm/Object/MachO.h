@@ -311,6 +311,9 @@ public:
   bool isSectionBitcode(DataRefImpl Sec) const override;
   bool isDebugSection(DataRefImpl Sec) const override;
 
+  /// Return the raw contents of an entire segment.
+  ArrayRef<uint8_t> getSegmentContents(StringRef SegmentName) const;
+
   /// When dsymutil generates the companion file, it strips all unnecessary
   /// sections (e.g. everything in the _TEXT segment) by omitting their body
   /// and setting the offset in their corresponding load command to zero.
@@ -649,6 +652,13 @@ public:
     return std::string(std::string(Version.str()));
   }
 
+  /// If the input path is a .dSYM bundle (as created by the dsymutil tool),
+  /// return the paths to the object files found in the bundle, otherwise return
+  /// an empty vector. If the path appears to be a .dSYM bundle but no objects
+  /// were found or there was a filesystem error, then return an error.
+  static Expected<std::vector<std::string>>
+  findDsymObjectMembers(StringRef Path);
+
 private:
   MachOObjectFile(MemoryBufferRef Object, bool IsLittleEndian, bool Is64Bits,
                   Error &Err, uint32_t UniversalCputype = 0,
@@ -732,44 +742,6 @@ inline DataRefImpl DiceRef::getRawDataRefImpl() const {
 inline const ObjectFile *DiceRef::getObjectFile() const {
   return OwningObject;
 }
-
-class CodeSignatureSection {
-public:
-  uint32_t getRawSize() const;
-  uint32_t getSize() const;
-
-  static constexpr int Align = 16;
-  static constexpr uint8_t BlockSizeShift = 12;
-  static constexpr size_t BlockSize = (1 << BlockSizeShift); // 4 KiB
-  static constexpr size_t HashSize = 256 / 8;
-  static constexpr size_t BlobHeadersSize =
-      alignTo<8>(sizeof(MachO::CS_SuperBlob) + sizeof(MachO::CS_BlobIndex));
-  static constexpr uint32_t FixedHeadersSize =
-      BlobHeadersSize + sizeof(MachO::CS_CodeDirectory);
-
-  CodeSignatureSection(uint64_t FileOff, StringRef OutputFilePath,
-                       MachO::HeaderFileType OutputFileType,
-                       uint64_t TextSegmentFileOff,
-                       uint64_t TextSegmentFileSize);
-
-  void write(uint8_t *Buf) const;
-
-private:
-  uint32_t getAllHeadersSize() const;
-  uint32_t getBlockCount() const;
-  uint32_t getFileNamePad() const;
-
-  StringRef stripOutputFilePath(const StringRef OutputFilePath);
-
-  // FileOff is the offset relative to the start of the file
-  // used to access the start of code signature section
-  // in __LINKEDIT segment
-  uint64_t FileOff;
-  StringRef OutputFileName;
-  MachO::HeaderFileType OutputFileType;
-  uint64_t TextSegmentFileOff;
-  uint64_t TextSegmentFileSize;
-};
 
 } // end namespace object
 } // end namespace llvm

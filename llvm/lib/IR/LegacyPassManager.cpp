@@ -886,9 +886,8 @@ void PMDataManager::recordAvailableAnalysis(Pass *P) {
   // implements as well.
   const PassInfo *PInf = TPM->findAnalysisPassInfo(PI);
   if (!PInf) return;
-  const std::vector<const PassInfo*> &II = PInf->getInterfacesImplemented();
-  for (unsigned i = 0, e = II.size(); i != e; ++i)
-    AvailableAnalysis[II[i]->getTypeInfo()] = P;
+  for (const PassInfo *PI : PInf->getInterfacesImplemented())
+    AvailableAnalysis[PI->getTypeInfo()] = P;
 }
 
 // Return true if P preserves high level analysis used by other
@@ -1013,10 +1012,9 @@ void PMDataManager::freePass(Pass *P, StringRef Msg,
 
     // Remove all interfaces this pass implements, for which it is also
     // listed as the available implementation.
-    const std::vector<const PassInfo*> &II = PInf->getInterfacesImplemented();
-    for (unsigned i = 0, e = II.size(); i != e; ++i) {
-      DenseMap<AnalysisID, Pass*>::iterator Pos =
-        AvailableAnalysis.find(II[i]->getTypeInfo());
+    for (const PassInfo *PI : PInf->getInterfacesImplemented()) {
+      DenseMap<AnalysisID, Pass *>::iterator Pos =
+          AvailableAnalysis.find(PI->getTypeInfo());
       if (Pos != AvailableAnalysis.end() && Pos->second == P)
         AvailableAnalysis.erase(Pos);
     }
@@ -1351,7 +1349,7 @@ void FunctionPassManager::add(Pass *P) {
 ///
 bool FunctionPassManager::run(Function &F) {
   handleAllErrors(F.materialize(), [&](ErrorInfoBase &EIB) {
-    report_fatal_error("Error reading bitcode file: " + EIB.message());
+    report_fatal_error(Twine("Error reading bitcode file: ") + EIB.message());
   });
   return FPM->run(F);
 }

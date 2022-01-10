@@ -815,7 +815,7 @@ bool NoStoreFuncVisitor::prettyPrintRegionName(const RegionVector &FieldChain,
 
     // Just keep going up to the base region.
     // Element regions may appear due to casts.
-    if (isa<CXXBaseObjectRegion>(R) || isa<CXXTempObjectRegion>(R))
+    if (isa<CXXBaseObjectRegion, CXXTempObjectRegion>(R))
       continue;
 
     if (Sep.empty())
@@ -1670,9 +1670,10 @@ PathDiagnosticPieceRef TrackConstraintBRVisitor::VisitNode(
   if (isUnderconstrained(PrevN)) {
     IsSatisfied = true;
 
-    // As a sanity check, make sure that the negation of the constraint
-    // was infeasible in the current state.  If it is feasible, we somehow
-    // missed the transition point.
+    // At this point, the negation of the constraint should be infeasible. If it
+    // is feasible, make sure that the negation of the constrainti was
+    // infeasible in the current state.  If it is feasible, we somehow missed
+    // the transition point.
     assert(!isUnderconstrained(N));
 
     // We found the transition point for the constraint.  We now need to
@@ -2735,9 +2736,8 @@ bool ConditionBRVisitor::patternMatch(const Expr *Ex,
   const Expr *OriginalExpr = Ex;
   Ex = Ex->IgnoreParenCasts();
 
-  if (isa<GNUNullExpr>(Ex) || isa<ObjCBoolLiteralExpr>(Ex) ||
-      isa<CXXBoolLiteralExpr>(Ex) || isa<IntegerLiteral>(Ex) ||
-      isa<FloatingLiteral>(Ex)) {
+  if (isa<GNUNullExpr, ObjCBoolLiteralExpr, CXXBoolLiteralExpr, IntegerLiteral,
+          FloatingLiteral>(Ex)) {
     // Use heuristics to determine if the expression is a macro
     // expanding to a literal and if so, use the macro's name.
     SourceLocation BeginLoc = OriginalExpr->getBeginLoc();

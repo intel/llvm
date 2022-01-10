@@ -10,8 +10,8 @@ func @inline_notation() -> i32 {
   // CHECK: -> i32 loc("foo")
   %1 = "foo"() : () -> i32 loc("foo")
 
-  // CHECK: constant 4 : index loc(callsite("foo" at "mysource.cc":10:8))
-  %2 = constant 4 : index loc(callsite("foo" at "mysource.cc":10:8))
+  // CHECK: arith.constant 4 : index loc(callsite("foo" at "mysource.cc":10:8))
+  %2 = arith.constant 4 : index loc(callsite("foo" at "mysource.cc":10:8))
 
   // CHECK: } loc(fused["foo", "mysource.cc":10:8])
   affine.for %i0 = 0 to 8 {
@@ -65,9 +65,15 @@ func @argLocs(%x: i32,
 // CHECK-SAME: %arg2: i32 loc("out_of_line_location2")):
 // CHECK-ALIAS-SAME: %arg2: i32 loc("out_of_line_location2")):
       %z: i32 loc("out_of_line_location2")):
-    %1 = addi %x, %y : i32
+    %1 = arith.addi %x, %y : i32
     "foo.yield"(%1) : (i32) -> ()
   }) : () -> ()
+
+// CHECK-LABEL: func @location_name_child_is_name
+func @location_name_child_is_name() {
+  // CHECK: "foo"("foo")
+  return loc("foo"("foo"))
+}
 
 // CHECK-ALIAS: #[[LOC]] = loc("out_of_line_location")
 #loc = loc("out_of_line_location")

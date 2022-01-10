@@ -346,7 +346,7 @@ private:
             SM.getTopMacroCallerLoc(Batch.back().location());
         return testTokenRange(SM.getFileOffset(ArgStart),
                               SM.getFileOffset(ArgEnd));
-      } else {
+      } else { // NOLINT(llvm-else-after-return)
         /* fall through and treat as part of the macro body */
       }
     }
@@ -357,8 +357,7 @@ private:
     if (Expansion.first == SelFile)
       // FIXME: also check ( and ) for function-like macros?
       return testToken(Expansion.second);
-    else
-      return NoTokens;
+    return NoTokens;
   }
 
   // Is the closed token range [Begin, End] selected?
@@ -443,6 +442,15 @@ bool isImplicit(const Stmt *S) {
   if (auto *CTI = llvm::dyn_cast<CXXThisExpr>(S))
     if (CTI->isImplicit())
       return true;
+  // Make sure implicit access of anonymous structs don't end up owning tokens.
+  if (auto *ME = llvm::dyn_cast<MemberExpr>(S)) {
+    if (auto *FD = llvm::dyn_cast<FieldDecl>(ME->getMemberDecl()))
+      if (FD->isAnonymousStructOrUnion())
+        // If Base is an implicit CXXThis, then the whole MemberExpr has no
+        // tokens. If it's a normal e.g. DeclRef, we treat the MemberExpr like
+        // an implicit cast.
+        return isImplicit(ME->getBase());
+  }
   // Refs to operator() and [] are (almost?) always implicit as part of calls.
   if (auto *DRE = llvm::dyn_cast<DeclRefExpr>(S)) {
     if (auto *FD = llvm::dyn_cast<FunctionDecl>(DRE->getDecl())) {
@@ -492,7 +500,7 @@ public:
   //  - those without source range information, we don't record those
   //  - those that can't be stored in DynTypedNode.
   bool TraverseDecl(Decl *X) {
-    if (X && isa<TranslationUnitDecl>(X))
+    if (llvm::isa_and_nonnull<TranslationUnitDecl>(X))
       return Base::TraverseDecl(X); // Already pushed by constructor.
     // Base::TraverseDecl will suppress children, but not this node itself.
     if (X && X->isImplicit())
@@ -888,7 +896,7 @@ const DeclContext &SelectionTree::Node::getDeclContext() const {
       if (CurrentNode != this)
         if (auto *DC = dyn_cast<DeclContext>(Current))
           return *DC;
-      return *Current->getDeclContext();
+      return *Current->getLexicalDeclContext();
     }
   }
   llvm_unreachable("A tree must always be rooted at TranslationUnitDecl.");

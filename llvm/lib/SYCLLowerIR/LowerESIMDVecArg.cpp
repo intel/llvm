@@ -15,7 +15,7 @@
 // Parameter %0 is of type simd*
 // define dso_local spir_func void @_Z3fooPiN2cm3gen4simdIiLi16EEE(i32
 // addrspace(4)* %C,
-//      "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" * %0)
+//      "class.cm::gen::simd" * %0)
 //      local_unnamed_addr #2 {
 //
 // New IR:
@@ -29,7 +29,7 @@
 //      <16 x i32>* %0) local_unnamed_addr #2 {
 // entry:
 // % 1 = bitcast<16 x i32> * % 0 to %
-// "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" *
+// "class.cm::gen::simd" *
 //
 // It is OK not to rewrite a function (for example, when its address is taken)
 // since it does not affect correctness. But that may lead to vector backend
@@ -39,15 +39,15 @@
 //
 // Old IR:
 // ======
-// @vc = global %"class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd"
+// @vc = global %"class.cm::gen::simd"
 //          zeroinitializer, align 64 #0
 //
 // % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
 //    <16 x i32> addrspace(4) * getelementptr(
-//    % "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd",
-//    % "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" addrspace(4) *
-//    addrspacecast(% "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" * @vc to
-//    % "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" addrspace(4) *), i64 0,
+//    % "class.cm::gen::simd",
+//    % "class.cm::gen::simd" addrspace(4) *
+//    addrspacecast(% "class.cm::gen::simd" * @vc to
+//    % "class.cm::gen::simd" addrspace(4) *), i64 0,
 //    i32 0))
 //
 // New IR:
@@ -58,12 +58,12 @@
 //
 // % call.cm.i.i = tail call<16 x i32> @llvm.genx.vload.v16i32.p4v16i32(
 //        <16 x i32> addrspace(4) * getelementptr(
-//        % "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd",
-//        % "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" addrspace(4) *
-//        addrspacecast(% "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" *
+//        % "class.cm::gen::simd",
+//        % "class.cm::gen::simd" addrspace(4) *
+//        addrspacecast(% "class.cm::gen::simd" *
 //        bitcast(<16 x i32> * @0 to
-//        %"class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" *) to %
-//        "class._ZTSN2cm3gen4simdIiLi16EEE.cm::gen::simd" addrspace(4) *),
+//        %"class.cm::gen::simd" *) to %
+//        "class.cm::gen::simd" addrspace(4) *),
 //        i64 0, i32 0))
 //===----------------------------------------------------------------------===//
 
@@ -188,7 +188,7 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
     // Variadic functions not supported
     assert(!Call->getFunction()->isVarArg() &&
            "Variadic functions not supported");
-    for (unsigned int I = 0; I < Call->getNumArgOperands(); I++) {
+    for (unsigned int I = 0; I < Call->arg_size(); I++) {
       auto SrcOpnd = Call->getOperand(I);
       auto NewTy = getSimdArgPtrTyOrNull(SrcOpnd);
       if (NewTy) {

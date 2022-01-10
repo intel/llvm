@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
+#include "xpti/xpti_trace_framework.h"
 #include "xpti_timers.hpp"
-#include "xpti_trace_framework.h"
 
 #include <chrono>
 #include <cstdio>
@@ -50,7 +50,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // registered stream ID
     GStreamID = xptiRegisterStream(stream_name);
     xpti::string_id_t dev_id = xptiRegisterString("sycl_device", &tstr);
-
+    (void)dev_id;
     // Register our lone callback to all pre-defined trace point types
     xptiRegisterCallback(GStreamID,
                          (uint16_t)xpti::trace_point_type_t::graph_create,

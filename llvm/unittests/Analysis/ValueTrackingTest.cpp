@@ -12,6 +12,7 @@
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
@@ -1597,6 +1598,32 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsAddWithRange) {
   EXPECT_EQ(Known.getMaxValue(), 131071);
 }
 
+TEST_F(ComputeKnownBitsTest, ComputeKnownBitsUnknownVScale) {
+  Module M("", Context);
+  IRBuilder<> Builder(Context);
+  Function *TheFn =
+      Intrinsic::getDeclaration(&M, Intrinsic::vscale, {Builder.getInt32Ty()});
+  CallInst *CI = Builder.CreateCall(TheFn, {}, {}, "");
+
+  KnownBits Known = computeKnownBits(CI, M.getDataLayout(), /* Depth */ 0);
+  // There is no parent function so we cannot look up the vscale_range
+  // attribute to determine the number of bits.
+  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+  EXPECT_EQ(Known.Zero.getZExtValue(), 0u);
+
+  BasicBlock *BB = BasicBlock::Create(Context);
+  BB->getInstList().push_back(CI);
+  Known = computeKnownBits(CI, M.getDataLayout(), /* Depth */ 0);
+  // There is no parent function so we cannot look up the vscale_range
+  // attribute to determine the number of bits.
+  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+  EXPECT_EQ(Known.Zero.getZExtValue(), 0u);
+
+  CI->removeFromParent();
+  delete CI;
+  delete BB;
+}
+
 // 512 + [32, 64) doesn't produce overlapping bits.
 // Make sure we get all the individual bits properly.
 TEST_F(ComputeKnownBitsTest, ComputeKnownBitsAddWithRangeNoOverlap) {
@@ -1682,6 +1709,20 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsGEPWithRangeNoOverlap) {
   // with the masks of zeros and ones, not the ranges.
   EXPECT_EQ(Known.getMinValue(), 544);
   EXPECT_EQ(Known.getMaxValue(), 575);
+}
+
+TEST_F(ComputeKnownBitsTest, ComputeKnownBitsCrash) {
+  parseAssembly(
+      "@g.a = external global i16, align 1\n"
+      "define i16 @test(i16 %i) {\n"
+      "entry:\n"
+      "  %0 = icmp slt i16 sub (i16 0, i16 trunc (i32 udiv (i32 ptrtoint (i16* @g.a to i32), i32 -1) to i16)), 0\n"
+      "  %A = select i1 %0, i16 trunc (i32 udiv (i32 ptrtoint (i16* @g.a to i32), i32 -1) to i16), i16 sub (i16 0, i16 trunc (i32 udiv (i32 ptrtoint (i16* @g.a to i32), i32 -1) to i16))\n"
+      "  ret i16 %A\n"
+      "}\n");
+  AssumptionCache AC(*F);
+  KnownBits Known = computeKnownBits(
+      A, M->getDataLayout(), /* Depth */ 0, &AC, F->front().getTerminator());
 }
 
 class IsBytewiseValueTest : public ValueTrackingTest,
@@ -2103,7 +2144,7 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
 
     // Check the depth cutoff results in a conservative result (full set) by
     // passing Depth == MaxDepth == 6.
-    ConstantRange CR3 = computeConstantRange(X2, true, &AC, I, 6);
+    ConstantRange CR3 = computeConstantRange(X2, true, &AC, I, nullptr, 6);
     EXPECT_TRUE(CR3.isFullSet());
   }
   {

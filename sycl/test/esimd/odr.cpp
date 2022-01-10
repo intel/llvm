@@ -2,7 +2,7 @@
 // two SYCL sources including ESIMD headers can be compiled and linked into a
 // single executable w/o linker complaining about multiple symbol definitions.
 // Template functions must have the same instantiation in both sources to cause
-// ODR problems potentially - esimd_min is used for that purpose.
+// ODR problems potentially - esimd::min is used for that purpose.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSOURCE1 -c %s -o %t1.o
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSOURCE2 -c %s -o %t2.o
@@ -16,6 +16,7 @@
 #include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace cl::sycl;
+using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 
 #define VLEN 8
@@ -36,7 +37,7 @@ int main() {
       cgh.single_task<class my_kernel0>([=]() SYCL_ESIMD_KERNEL {
         simd<int, VLEN> v0{0, 1, 2, 3, 4, 5, 6, 7};
         simd<int, VLEN> v1 = block_load<int, VLEN>(data);
-        v0 = esimd_min(v0, v1); // v0 becomes 0,1,2,3,4,4,4,4
+        v0 = esimd::min(v0, v1); // v0 becomes 0,1,2,3,4,4,4,4
         block_store(data, v0);
       });
     });
@@ -67,7 +68,7 @@ void run_kernel2(queue &q, int *data) {
         simd<int, VLEN> v0{7, 6, 5, 4, 3, 2, 1, 0};
         simd<int, VLEN> v1 =
             block_load<int, VLEN>(data); // v1 = 0,1,2,3,4,4,4,4
-        v0 = esimd_min(v0, v1);          // v0 becomes 0,1,2,3,3,2,1,0
+        v0 = esimd::min(v0, v1);         // v0 becomes 0,1,2,3,3,2,1,0
         block_store(data, v0);
       });
     });

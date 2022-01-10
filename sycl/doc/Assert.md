@@ -93,8 +93,8 @@ Implementation of this function is supplied by Native Device Compiler for
 safe approach or by DPCPP Compiler for fallback one.
 
 In order to distinguish which implementation to use, DPCPP Runtime checks for
-`PI_INTEL_DEVICELIB_CASSERT` extension. If the extension isn't available, then
-fallback implementation is used.
+`PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT` extension. If the extension isn't
+available, then fallback implementation is used.
 
 
 ## Safe approach
@@ -103,7 +103,7 @@ This is the preferred approach and implementations should use it when possible.
 It guarantees assertion failure notification delivery to the host regardless of
 kernel behavior which hit the assertion. If backend suports the safe approach,
 it must report this capability to DPCPP Runtime via the
-`PI_INTEL_DEVICELIB_CASSERT` extension query.
+`PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT` extension query.
 
 The Native Device Compiler is responsible for providing implementation of
 `__devicelib_assert_fail` which completely hides details of communication
@@ -128,9 +128,10 @@ The following sequence of events describes how user code gets notified:
 ## Fallback approach
 
 If Device-side Runtime doesn't support `__devicelib_assert_fail` (as reported
-via `PI_INTEL_DEVICELIB_CASSERT` extension query) then a fallback approach comes
-in place. The approach doesn't require any support from Device-side Runtime and
-Native Device Compiler. Neither it does from Low-level Runtime.
+via `PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT` extension query) then a fallback
+approach comes in place. The approach doesn't require any support from
+Device-side Runtime and Native Device Compiler. Neither it does from Low-level
+Runtime.
 
 Within this approach, a mutable program scope variable is introduced. This
 variable stores a flag which says if an assert failure was encountered. Fallback

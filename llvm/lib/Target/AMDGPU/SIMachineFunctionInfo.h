@@ -433,6 +433,8 @@ private:
   // Current recorded maximum possible occupancy.
   unsigned Occupancy;
 
+  mutable Optional<bool> UsesAGPRs;
+
   MCPhysReg getNextUserSGPR() const;
 
   MCPhysReg getNextSystemSGPR() const;
@@ -463,6 +465,7 @@ public:
   struct VGPRSpillToAGPR {
     SmallVector<MCPhysReg, 32> Lanes;
     bool FullyAllocated = false;
+    bool IsDead = false;
   };
 
   // Map WWM VGPR to a stack slot that is used to save/restore it in the
@@ -542,6 +545,12 @@ public:
     auto I = VGPRToAGPRSpills.find(FrameIndex);
     return (I == VGPRToAGPRSpills.end()) ? (MCPhysReg)AMDGPU::NoRegister
                                          : I->second.Lanes[Lane];
+  }
+
+  void setVGPRToAGPRSpillDead(int FrameIndex) {
+    auto I = VGPRToAGPRSpills.find(FrameIndex);
+    if (I != VGPRToAGPRSpills.end())
+      I->second.IsDead = true;
   }
 
   bool haveFreeLanesForSGPRSpill(const MachineFunction &MF,
@@ -946,6 +955,9 @@ public:
       Occupancy = Limit;
     limitOccupancy(MF);
   }
+
+  // \returns true if a function needs or may need AGPRs.
+  bool usesAGPRs(const MachineFunction &MF) const;
 };
 
 } // end namespace llvm

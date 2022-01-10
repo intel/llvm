@@ -536,7 +536,7 @@ auto AlignVectors::createAddressGroups() -> bool {
   erase_if(AddrGroups, [](auto &G) { return G.second.size() == 1; });
   // Remove groups that don't use HVX types.
   erase_if(AddrGroups, [&](auto &G) {
-    return !llvm::any_of(
+    return llvm::none_of(
         G.second, [&](auto &I) { return HVC.HST.isTypeForHVX(I.ValTy); });
   });
 
@@ -749,7 +749,6 @@ auto AlignVectors::realignGroup(const MoveGroup &Move) const -> bool {
                                       WithMaxAlign.ValTy, Adjust);
     int Diff = Start - (OffAtMax + Adjust);
     AlignVal = HVC.getConstInt(Diff);
-    // Sanity.
     assert(Diff >= 0);
     assert(static_cast<decltype(MinNeeded.value())>(Diff) < MinNeeded.value());
   } else {
@@ -1348,7 +1347,7 @@ auto HexagonVectorCombine::calculatePointerDifference(Value *Ptr0,
   KnownBits Known0 = computeKnownBits(Idx0, DL, 0, &AC, Gep0, &DT);
   KnownBits Known1 = computeKnownBits(Idx1, DL, 0, &AC, Gep1, &DT);
   APInt Unknown = ~(Known0.Zero | Known0.One) | ~(Known1.Zero | Known1.One);
-  if (Unknown.isAllOnesValue())
+  if (Unknown.isAllOnes())
     return None;
 
   Value *MaskU = ConstantInt::get(Idx0->getType(), Unknown);

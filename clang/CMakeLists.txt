@@ -227,6 +227,11 @@ set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL
 set(CLANG_SPAWN_CC1 OFF CACHE BOOL
     "Whether clang should use a new process for the CC1 invocation")
 
+option(CLANG_DEFAULT_PIE_ON_LINUX "Default to -fPIE and -pie on Linux" OFF)
+if(CLANG_DEFAULT_PIE_ON_LINUX)
+  set(CLANG_DEFAULT_PIE_ON_LINUX 1)
+endif()
+
 # TODO: verify the values against LangStandards.def?
 set(CLANG_DEFAULT_STD_C "" CACHE STRING
   "Default standard to use for C/ObjC code (IDENT from LangStandards.def, empty for platform default)")
@@ -465,19 +470,12 @@ option(CLANG_ENABLE_STATIC_ANALYZER
 
 option(CLANG_ENABLE_PROTO_FUZZER "Build Clang protobuf fuzzer." OFF)
 
-option(CLANG_ROUND_TRIP_CC1_ARGS
-  "Round-trip command line arguments in -cc1." ${LLVM_ENABLE_ASSERTIONS})
-
 if(NOT CLANG_ENABLE_STATIC_ANALYZER AND CLANG_ENABLE_ARCMT)
   message(FATAL_ERROR "Cannot disable static analyzer while enabling ARCMT or Z3")
 endif()
 
 if(CLANG_ENABLE_ARCMT)
   set(CLANG_ENABLE_OBJC_REWRITER ON)
-endif()
-
-if (CLANG_ROUND_TRIP_CC1_ARGS)
-  add_definitions(-DCLANG_ROUND_TRIP_CC1_ARGS=ON)
 endif()
 
 # Clang version information
@@ -642,7 +640,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
     # adding lld to clang-bootstrap-deps without having it enabled in
     # LLVM_ENABLE_PROJECTS just generates a cryptic error message.
     if (NOT "lld" IN_LIST LLVM_ENABLE_PROJECTS)
-      message(FATAL_ERROR "LLD is enabled in the boostrap build, but lld is not in LLVM_ENABLE_PROJECTS")
+      message(FATAL_ERROR "LLD is enabled in the bootstrap build, but lld is not in LLVM_ENABLE_PROJECTS")
     endif()
     add_dependencies(clang-bootstrap-deps lld)
   endif()
@@ -709,6 +707,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
     CMAKE_CXX_COMPILER_LAUNCHER
     CMAKE_MAKE_PROGRAM
     CMAKE_OSX_ARCHITECTURES
+    CMAKE_BUILD_TYPE
     LLVM_ENABLE_PROJECTS
     LLVM_ENABLE_RUNTIMES)
 
@@ -761,6 +760,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
       add_dependencies(clang-bootstrap-deps llvm-objcopy llvm-strip)
       set(${CLANG_STAGE}_OBJCOPY -DCMAKE_OBJCOPY=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-objcopy)
       set(${CLANG_STAGE}_STRIP -DCMAKE_STRIP=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-strip)
+      set(${CLANG_STAGE}_READELF -DCMAKE_READELF=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-readelf)
     endif()
   endif()
 

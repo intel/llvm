@@ -1177,6 +1177,13 @@ void ASTDeclReader::ReadObjCDefinitionData(
 
 void ASTDeclReader::MergeDefinitionData(ObjCInterfaceDecl *D,
          struct ObjCInterfaceDecl::DefinitionData &&NewDD) {
+  struct ObjCInterfaceDecl::DefinitionData &DD = D->data();
+  if (DD.Definition != NewDD.Definition) {
+    Reader.MergedDeclContexts.insert(
+        std::make_pair(NewDD.Definition, DD.Definition));
+    Reader.mergeDefinitionVisibility(DD.Definition, NewDD.Definition);
+  }
+
   // FIXME: odr checking?
 }
 
@@ -1243,6 +1250,13 @@ void ASTDeclReader::ReadObjCDefinitionData(
 
 void ASTDeclReader::MergeDefinitionData(ObjCProtocolDecl *D,
          struct ObjCProtocolDecl::DefinitionData &&NewDD) {
+  struct ObjCProtocolDecl::DefinitionData &DD = D->data();
+  if (DD.Definition != NewDD.Definition) {
+    Reader.MergedDeclContexts.insert(
+        std::make_pair(NewDD.Definition, DD.Definition));
+    Reader.mergeDefinitionVisibility(DD.Definition, NewDD.Definition);
+  }
+
   // FIXME: odr checking?
 }
 
@@ -2934,6 +2948,7 @@ uint64_t ASTReader::getGlobalBitOffset(ModuleFile &M, uint64_t LocalOffset) {
 static bool isSameTemplateParameterList(const ASTContext &C,
                                         const TemplateParameterList *X,
                                         const TemplateParameterList *Y);
+static bool isSameEntity(NamedDecl *X, NamedDecl *Y);
 
 /// Determine whether two template parameters are similar enough
 /// that they may be used in declarations of the same template.
@@ -2953,7 +2968,9 @@ static bool isSameTemplateParameter(const NamedDecl *X,
     if (!TXTC != !TYTC)
       return false;
     if (TXTC && TYTC) {
-      if (TXTC->getNamedConcept() != TYTC->getNamedConcept())
+      auto *NCX = TXTC->getNamedConcept();
+      auto *NCY = TYTC->getNamedConcept();
+      if (!NCX || !NCY || !isSameEntity(NCX, NCY))
         return false;
       if (TXTC->hasExplicitTemplateArgs() != TYTC->hasExplicitTemplateArgs())
         return false;
@@ -3097,10 +3114,11 @@ static bool hasSameOverloadableAttrs(const FunctionDecl *A,
 
 /// Determine whether the two declarations refer to the same entity.
 static bool isSameEntity(NamedDecl *X, NamedDecl *Y) {
-  assert(X->getDeclName() == Y->getDeclName() && "Declaration name mismatch!");
-
   if (X == Y)
     return true;
+
+  if (X->getDeclName() != Y->getDeclName())
+    return false;
 
   // Must be in the same context.
   //
@@ -3349,6 +3367,9 @@ DeclContext *ASTDeclReader::getPrimaryContextForMerging(ASTReader &Reader,
   if (auto *ED = dyn_cast<EnumDecl>(DC))
     return ED->getASTContext().getLangOpts().CPlusPlus? ED->getDefinition()
                                                       : nullptr;
+
+  if (auto *OID = dyn_cast<ObjCInterfaceDecl>(DC))
+    return OID->getDefinition();
 
   // We can see the TU here only if we have no Sema object. In that case,
   // there's no TU scope to look in, so using the DC alone is sufficient.
@@ -3851,7 +3872,7 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
   Expected<unsigned> MaybeDeclCode = Record.readRecord(DeclsCursor, Code);
   if (!MaybeDeclCode)
     llvm::report_fatal_error(
-        "ASTReader::readDeclRecord failed reading decl code: " +
+        Twine("ASTReader::readDeclRecord failed reading decl code: ") +
         toString(MaybeDeclCode.takeError()));
   switch ((DeclCode)MaybeDeclCode.get()) {
   case DECL_CONTEXT_LEXICAL:
@@ -4236,12 +4257,12 @@ void ASTReader::loadDeclUpdateRecords(PendingUpdateRecord &Record) {
       if (llvm::Error JumpFailed = Cursor.JumpToBit(Offset))
         // FIXME don't do a fatal error.
         llvm::report_fatal_error(
-            "ASTReader::loadDeclUpdateRecords failed jumping: " +
+            Twine("ASTReader::loadDeclUpdateRecords failed jumping: ") +
             toString(std::move(JumpFailed)));
       Expected<unsigned> MaybeCode = Cursor.ReadCode();
       if (!MaybeCode)
         llvm::report_fatal_error(
-            "ASTReader::loadDeclUpdateRecords failed reading code: " +
+            Twine("ASTReader::loadDeclUpdateRecords failed reading code: ") +
             toString(MaybeCode.takeError()));
       unsigned Code = MaybeCode.get();
       ASTRecordReader Record(*this, *F);
@@ -4250,7 +4271,7 @@ void ASTReader::loadDeclUpdateRecords(PendingUpdateRecord &Record) {
                "Expected DECL_UPDATES record!");
       else
         llvm::report_fatal_error(
-            "ASTReader::loadDeclUpdateRecords failed reading rec code: " +
+            Twine("ASTReader::loadDeclUpdateRecords failed reading rec code: ") +
             toString(MaybeCode.takeError()));
 
       ASTDeclReader Reader(*this, Record, RecordLocation(F, Offset), ID,
@@ -4317,14 +4338,14 @@ void ASTReader::loadPendingDeclChain(Decl *FirstLocal, uint64_t LocalOffset) {
   SavedStreamPosition SavedPosition(Cursor);
   if (llvm::Error JumpFailed = Cursor.JumpToBit(LocalOffset))
     llvm::report_fatal_error(
-        "ASTReader::loadPendingDeclChain failed jumping: " +
+        Twine("ASTReader::loadPendingDeclChain failed jumping: ") +
         toString(std::move(JumpFailed)));
 
   RecordData Record;
   Expected<unsigned> MaybeCode = Cursor.ReadCode();
   if (!MaybeCode)
     llvm::report_fatal_error(
-        "ASTReader::loadPendingDeclChain failed reading code: " +
+        Twine("ASTReader::loadPendingDeclChain failed reading code: ") +
         toString(MaybeCode.takeError()));
   unsigned Code = MaybeCode.get();
   if (Expected<unsigned> MaybeRecCode = Cursor.readRecord(Code, Record))
@@ -4332,7 +4353,7 @@ void ASTReader::loadPendingDeclChain(Decl *FirstLocal, uint64_t LocalOffset) {
            "expected LOCAL_REDECLARATIONS record!");
   else
     llvm::report_fatal_error(
-        "ASTReader::loadPendingDeclChain failed reading rec code: " +
+        Twine("ASTReader::loadPendingDeclChain failed reading rec code: ") +
         toString(MaybeCode.takeError()));
 
   // FIXME: We have several different dispatches on decl kind here; maybe
@@ -4740,9 +4761,10 @@ void ASTDeclReader::UpdateDecl(Decl *D,
       auto AllocatorKind =
           static_cast<OMPAllocateDeclAttr::AllocatorTypeTy>(Record.readInt());
       Expr *Allocator = Record.readExpr();
+      Expr *Alignment = Record.readExpr();
       SourceRange SR = readSourceRange();
       D->addAttr(OMPAllocateDeclAttr::CreateImplicit(
-          Reader.getContext(), AllocatorKind, Allocator, SR,
+          Reader.getContext(), AllocatorKind, Allocator, Alignment, SR,
           AttributeCommonInfo::AS_Pragma));
       break;
     }

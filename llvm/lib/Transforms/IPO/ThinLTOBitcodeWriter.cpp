@@ -87,7 +87,8 @@ void promoteInternals(Module &ExportM, Module &ImportM, StringRef ModuleId,
     if (isa<Function>(&ExportGV) && allowPromotionAlias(OldName)) {
       // Create a local alias with the original name to avoid breaking
       // references from inline assembly.
-      std::string Alias = ".set " + OldName + "," + NewName + "\n";
+      std::string Alias =
+          ".lto_set_conditional " + OldName + "," + NewName + "\n";
       ExportM.appendModuleInlineAsm(Alias);
     }
   }
@@ -323,7 +324,8 @@ void splitAndWriteThinLTOBitcode(
             return true;
         if (auto *F = dyn_cast<Function>(GV))
           return EligibleVirtualFns.count(F);
-        if (auto *GVar = dyn_cast_or_null<GlobalVariable>(GV->getBaseObject()))
+        if (auto *GVar =
+                dyn_cast_or_null<GlobalVariable>(GV->getAliaseeObject()))
           return HasTypeMetadata(GVar);
         return false;
       }));
@@ -352,7 +354,7 @@ void splitAndWriteThinLTOBitcode(
   // Remove all globals with type metadata, globals with comdats that live in
   // MergedM, and aliases pointing to such globals from the thin LTO module.
   filterModule(&M, [&](const GlobalValue *GV) {
-    if (auto *GVar = dyn_cast_or_null<GlobalVariable>(GV->getBaseObject()))
+    if (auto *GVar = dyn_cast_or_null<GlobalVariable>(GV->getAliaseeObject()))
       if (HasTypeMetadata(GVar))
         return false;
     if (const auto *C = GV->getComdat())

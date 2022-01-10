@@ -47,5 +47,5 @@ __kernel void testAtomicCompareExchangeExplicit_cl20(
 
 //CHECK-LLVM: call spir_func i1 @_Z39atomic_compare_exchange_strong_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(i32 addrspace(4)* %0, i32 addrspace(4)* %expected1.as, i32 %desired, i32 3, i32 0, i32 2)
 //CHECK-LLVM: call spir_func i1 @_Z39atomic_compare_exchange_strong_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(i32 addrspace(4)* %0, i32 addrspace(4)* %expected3.as, i32 %desired, i32 4, i32 0, i32 1)
-//CHECK-LLVM: call spir_func i1 @_Z37atomic_compare_exchange_weak_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(i32 addrspace(4)* %0, i32 addrspace(4)* %expected5.as, i32 %desired, i32 3, i32 0, i32 2)
-//CHECK-LLVM: call spir_func i1 @_Z37atomic_compare_exchange_weak_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(i32 addrspace(4)* %0, i32 addrspace(4)* %expected7.as, i32 %desired, i32 4, i32 0, i32 1)
+//CHECK-LLVM: call spir_func i1 @_Z39atomic_compare_exchange_strong_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(i32 addrspace(4)* %0, i32 addrspace(4)* %expected5.as, i32 %desired, i32 3, i32 0, i32 2)
+//CHECK-LLVM: call spir_func i1 @_Z39atomic_compare_exchange_strong_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(i32 addrspace(4)* %0, i32 addrspace(4)* %expected7.as, i32 %desired, i32 4, i32 0, i32 1)

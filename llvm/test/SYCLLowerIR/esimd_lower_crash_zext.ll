@@ -13,3 +13,13 @@ define spir_func <32 x i16> @_Z3foov() {
 }
 
 declare dso_local spir_func <32 x i16> @_Z19__esimd_unpack_maskILi32EEN2cl4sycl5INTEL3gpu11vector_typeItXT_EE4typeEj(i32)
+
+define spir_func <16 x i16> @_Z3barv() {
+; CHECK-LABEL: @_Z3barv(
+; CHECK:    ret <16 x i16> zext (<16 x i1> bitcast (<1 x i16> <i16 15> to <16 x i1>) to <16 x i16>)
+;
+  %call.i.i = call spir_func <16 x i16> @_Z19__esimd_unpack_maskILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeItXT_EE4typeEj(i32 15)
+  ret <16 x i16> %call.i.i
+}
+
+declare dso_local spir_func <16 x i16> @_Z19__esimd_unpack_maskILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeItXT_EE4typeEj(i32)

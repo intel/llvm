@@ -15,7 +15,9 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -60,6 +62,8 @@ Register llvm::constrainOperandRegClass(
   if (ConstrainedReg != Reg) {
     MachineBasicBlock::iterator InsertIt(&InsertPt);
     MachineBasicBlock &MBB = *InsertPt.getParent();
+    // FIXME: The copy needs to have the classes constrained for its operands.
+    // Use operand's regbank to get the class for old register (Reg).
     if (RegMO.isUse()) {
       BuildMI(MBB, InsertIt, InsertPt.getDebugLoc(),
               TII.get(TargetOpcode::COPY), ConstrainedReg)
@@ -99,19 +103,25 @@ Register llvm::constrainOperandRegClass(
   // Assume physical registers are properly constrained.
   assert(Register::isVirtualRegister(Reg) && "PhysReg not implemented");
 
-  const TargetRegisterClass *RegClass = TII.getRegClass(II, OpIdx, &TRI, MF);
+  const TargetRegisterClass *OpRC = TII.getRegClass(II, OpIdx, &TRI, MF);
   // Some of the target independent instructions, like COPY, may not impose any
   // register class constraints on some of their operands: If it's a use, we can
   // skip constraining as the instruction defining the register would constrain
   // it.
 
-  // We can't constrain unallocatable register classes, because we can't create
-  // virtual registers for these classes, so we need to let targets handled this
-  // case.
-  if (RegClass && !RegClass->isAllocatable())
-    RegClass = TRI.getConstrainedRegClassForOperand(RegMO, MRI);
+  if (OpRC) {
+    // Obtain the RC from incoming regbank if it is a proper sub-class. Operands
+    // can have multiple regbanks for a superclass that combine different
+    // register types (E.g., AMDGPU's VGPR and AGPR). The regbank ambiguity
+    // resolved by targets during regbankselect should not be overridden.
+    if (const auto *SubRC = TRI.getCommonSubClass(
+            OpRC, TRI.getConstrainedRegClassForOperand(RegMO, MRI)))
+      OpRC = SubRC;
 
-  if (!RegClass) {
+    OpRC = TRI.getAllocatableClass(OpRC);
+  }
+
+  if (!OpRC) {
     assert((!isTargetSpecificOpcode(II.getOpcode()) || RegMO.isUse()) &&
            "Register class constraint is required unless either the "
            "instruction is target independent or the operand is a use");
@@ -127,7 +137,7 @@ Register llvm::constrainOperandRegClass(
     // and they never reach this function.
     return Reg;
   }
-  return constrainOperandRegClass(MF, TRI, MRI, TII, RBI, InsertPt, *RegClass,
+  return constrainOperandRegClass(MF, TRI, MRI, TII, RBI, InsertPt, *OpRC,
                                   RegMO);
 }
 
@@ -236,7 +246,7 @@ static void reportGISelDiagnostic(DiagnosticSeverity Severity,
     R << (" (in function: " + MF.getName() + ")").str();
 
   if (IsFatal)
-    report_fatal_error(R.getMsg());
+    report_fatal_error(Twine(R.getMsg()));
   else
     MORE.emit(R);
 }
@@ -582,6 +592,35 @@ Optional<APFloat> llvm::ConstantFoldFPBinOp(unsigned Opcode, const Register Op1,
   return None;
 }
 
+Optional<MachineInstr *>
+llvm::ConstantFoldVectorBinop(unsigned Opcode, const Register Op1,
+                              const Register Op2,
+                              const MachineRegisterInfo &MRI,
+                              MachineIRBuilder &MIB) {
+  auto *SrcVec1 = getOpcodeDef<GBuildVector>(Op1, MRI);
+  if (!SrcVec1)
+    return None;
+  auto *SrcVec2 = getOpcodeDef<GBuildVector>(Op2, MRI);
+  if (!SrcVec2)
+    return None;
+
+  const LLT EltTy = MRI.getType(SrcVec1->getSourceReg(0));
+
+  SmallVector<Register, 16> FoldedElements;
+  for (unsigned Idx = 0, E = SrcVec1->getNumSources(); Idx < E; ++Idx) {
+    auto MaybeCst = ConstantFoldBinOp(Opcode, SrcVec1->getSourceReg(Idx),
+                                      SrcVec2->getSourceReg(Idx), MRI);
+    if (!MaybeCst)
+      return None;
+    auto FoldedCstReg = MIB.buildConstant(EltTy, *MaybeCst).getReg(0);
+    FoldedElements.emplace_back(FoldedCstReg);
+  }
+  // Create the new vector constant.
+  auto CstVec =
+      MIB.buildBuildVector(MRI.getType(SrcVec1->getReg(0)), FoldedElements);
+  return &*CstVec;
+}
+
 bool llvm::isKnownNeverNaN(Register Val, const MachineRegisterInfo &MRI,
                            bool SNaN) {
   const MachineInstr *DefMI = MRI.getVRegDef(Val);
@@ -725,6 +764,37 @@ Optional<APFloat> llvm::ConstantFoldIntToFloat(unsigned Opcode, LLT DstTy,
   return None;
 }
 
+Optional<SmallVector<unsigned>>
+llvm::ConstantFoldCTLZ(Register Src, const MachineRegisterInfo &MRI) {
+  LLT Ty = MRI.getType(Src);
+  SmallVector<unsigned> FoldedCTLZs;
+  auto tryFoldScalar = [&](Register R) -> Optional<unsigned> {
+    auto MaybeCst = getIConstantVRegVal(R, MRI);
+    if (!MaybeCst)
+      return None;
+    return MaybeCst->countLeadingZeros();
+  };
+  if (Ty.isVector()) {
+    // Try to constant fold each element.
+    auto *BV = getOpcodeDef<GBuildVector>(Src, MRI);
+    if (!BV)
+      return None;
+    for (unsigned SrcIdx = 0; SrcIdx < BV->getNumSources(); ++SrcIdx) {
+      if (auto MaybeFold = tryFoldScalar(BV->getSourceReg(SrcIdx))) {
+        FoldedCTLZs.emplace_back(*MaybeFold);
+        continue;
+      }
+      return None;
+    }
+    return FoldedCTLZs;
+  }
+  if (auto MaybeCst = tryFoldScalar(Src)) {
+    FoldedCTLZs.emplace_back(*MaybeCst);
+    return FoldedCTLZs;
+  }
+  return None;
+}
+
 bool llvm::isKnownToBeAPowerOfTwo(Register Reg, const MachineRegisterInfo &MRI,
                                   GISelKnownBits *KB) {
   Optional<DefinitionAndSourceRegister> DefSrcReg =
@@ -764,10 +834,9 @@ bool llvm::isKnownToBeAPowerOfTwo(Register Reg, const MachineRegisterInfo &MRI,
   case TargetOpcode::G_BUILD_VECTOR: {
     // TODO: Probably should have a recursion depth guard since you could have
     // bitcasted vector elements.
-    for (unsigned I = 1, E = MI.getNumOperands(); I != E; ++I) {
-      if (!isKnownToBeAPowerOfTwo(MI.getOperand(I).getReg(), MRI, KB))
+    for (const MachineOperand &MO : llvm::drop_begin(MI.operands()))
+      if (!isKnownToBeAPowerOfTwo(MO.getReg(), MRI, KB))
         return false;
-    }
 
     return true;
   }
@@ -775,8 +844,8 @@ bool llvm::isKnownToBeAPowerOfTwo(Register Reg, const MachineRegisterInfo &MRI,
     // Only handle constants since we would need to know if number of leading
     // zeros is greater than the truncation amount.
     const unsigned BitWidth = Ty.getScalarSizeInBits();
-    for (unsigned I = 1, E = MI.getNumOperands(); I != E; ++I) {
-      auto Const = getIConstantVRegVal(MI.getOperand(I).getReg(), MRI);
+    for (const MachineOperand &MO : llvm::drop_begin(MI.operands())) {
+      auto Const = getIConstantVRegVal(MO.getReg(), MRI);
       if (!Const || !Const->zextOrTrunc(BitWidth).isPowerOf2())
         return false;
     }
@@ -854,6 +923,21 @@ LLT llvm::getLCMType(LLT OrigTy, LLT TargetTy) {
   return LLT::scalar(LCMSize);
 }
 
+LLT llvm::getCoverTy(LLT OrigTy, LLT TargetTy) {
+  if (!OrigTy.isVector() || !TargetTy.isVector() || OrigTy == TargetTy ||
+      (OrigTy.getScalarSizeInBits() != TargetTy.getScalarSizeInBits()))
+    return getLCMType(OrigTy, TargetTy);
+
+  unsigned OrigTyNumElts = OrigTy.getNumElements();
+  unsigned TargetTyNumElts = TargetTy.getNumElements();
+  if (OrigTyNumElts % TargetTyNumElts == 0)
+    return OrigTy;
+
+  unsigned NumElts = alignTo(OrigTyNumElts, TargetTyNumElts);
+  return LLT::scalarOrVector(ElementCount::getFixed(NumElts),
+                             OrigTy.getElementType());
+}
+
 LLT llvm::getGCDType(LLT OrigTy, LLT TargetTy) {
   const unsigned OrigSize = OrigTy.getSizeInBits();
   const unsigned TargetSize = TargetTy.getSizeInBits();
@@ -924,53 +1008,87 @@ static bool isBuildVectorOp(unsigned Opcode) {
          Opcode == TargetOpcode::G_BUILD_VECTOR_TRUNC;
 }
 
-// TODO: Handle mixed undef elements.
-static bool isBuildVectorConstantSplat(const MachineInstr &MI,
-                                       const MachineRegisterInfo &MRI,
-                                       int64_t SplatValue) {
-  if (!isBuildVectorOp(MI.getOpcode()))
-    return false;
+namespace {
 
-  const unsigned NumOps = MI.getNumOperands();
-  for (unsigned I = 1; I != NumOps; ++I) {
-    Register Element = MI.getOperand(I).getReg();
-    if (!mi_match(Element, MRI, m_SpecificICst(SplatValue)))
-      return false;
+Optional<ValueAndVReg> getAnyConstantSplat(Register VReg,
+                                           const MachineRegisterInfo &MRI,
+                                           bool AllowUndef) {
+  MachineInstr *MI = getDefIgnoringCopies(VReg, MRI);
+  if (!MI)
+    return None;
+
+  if (!isBuildVectorOp(MI->getOpcode()))
+    return None;
+
+  Optional<ValueAndVReg> SplatValAndReg = None;
+  for (MachineOperand &Op : MI->uses()) {
+    Register Element = Op.getReg();
+    auto ElementValAndReg =
+        getAnyConstantVRegValWithLookThrough(Element, MRI, true, true);
+
+    // If AllowUndef, treat undef as value that will result in a constant splat.
+    if (!ElementValAndReg) {
+      if (AllowUndef && isa<GImplicitDef>(MRI.getVRegDef(Element)))
+        continue;
+      return None;
+    }
+
+    // Record splat value
+    if (!SplatValAndReg)
+      SplatValAndReg = ElementValAndReg;
+
+    // Different constant then the one already recorded, not a constant splat.
+    if (SplatValAndReg->Value != ElementValAndReg->Value)
+      return None;
   }
 
-  return true;
+  return SplatValAndReg;
+}
+
+} // end anonymous namespace
+
+bool llvm::isBuildVectorConstantSplat(const Register Reg,
+                                      const MachineRegisterInfo &MRI,
+                                      int64_t SplatValue, bool AllowUndef) {
+  if (auto SplatValAndReg = getAnyConstantSplat(Reg, MRI, AllowUndef))
+    return mi_match(SplatValAndReg->VReg, MRI, m_SpecificICst(SplatValue));
+  return false;
+}
+
+bool llvm::isBuildVectorConstantSplat(const MachineInstr &MI,
+                                      const MachineRegisterInfo &MRI,
+                                      int64_t SplatValue, bool AllowUndef) {
+  return isBuildVectorConstantSplat(MI.getOperand(0).getReg(), MRI, SplatValue,
+                                    AllowUndef);
 }
 
 Optional<int64_t>
 llvm::getBuildVectorConstantSplat(const MachineInstr &MI,
                                   const MachineRegisterInfo &MRI) {
-  if (!isBuildVectorOp(MI.getOpcode()))
-    return None;
+  if (auto SplatValAndReg =
+          getAnyConstantSplat(MI.getOperand(0).getReg(), MRI, false))
+    return getIConstantVRegSExtVal(SplatValAndReg->VReg, MRI);
+  return None;
+}
 
-  const unsigned NumOps = MI.getNumOperands();
-  Optional<int64_t> Scalar;
-  for (unsigned I = 1; I != NumOps; ++I) {
-    Register Element = MI.getOperand(I).getReg();
-    int64_t ElementValue;
-    if (!mi_match(Element, MRI, m_ICst(ElementValue)))
-      return None;
-    if (!Scalar)
-      Scalar = ElementValue;
-    else if (*Scalar != ElementValue)
-      return None;
-  }
-
-  return Scalar;
+Optional<FPValueAndVReg> llvm::getFConstantSplat(Register VReg,
+                                                 const MachineRegisterInfo &MRI,
+                                                 bool AllowUndef) {
+  if (auto SplatValAndReg = getAnyConstantSplat(VReg, MRI, AllowUndef))
+    return getFConstantVRegValWithLookThrough(SplatValAndReg->VReg, MRI);
+  return None;
 }
 
 bool llvm::isBuildVectorAllZeros(const MachineInstr &MI,
-                                 const MachineRegisterInfo &MRI) {
-  return isBuildVectorConstantSplat(MI, MRI, 0);
+                                 const MachineRegisterInfo &MRI,
+                                 bool AllowUndef) {
+  return isBuildVectorConstantSplat(MI, MRI, 0, AllowUndef);
 }
 
 bool llvm::isBuildVectorAllOnes(const MachineInstr &MI,
-                                const MachineRegisterInfo &MRI) {
-  return isBuildVectorConstantSplat(MI, MRI, -1);
+                                const MachineRegisterInfo &MRI,
+                                bool AllowUndef) {
+  return isBuildVectorConstantSplat(MI, MRI, -1, AllowUndef);
 }
 
 Optional<RegOrConstant> llvm::getVectorSplat(const MachineInstr &MI,
@@ -985,6 +1103,36 @@ Optional<RegOrConstant> llvm::getVectorSplat(const MachineInstr &MI,
              [&Reg](const MachineOperand &Op) { return Op.getReg() != Reg; }))
     return None;
   return RegOrConstant(Reg);
+}
+
+bool llvm::isConstantOrConstantVector(MachineInstr &MI,
+                                      const MachineRegisterInfo &MRI) {
+  Register Def = MI.getOperand(0).getReg();
+  if (auto C = getIConstantVRegValWithLookThrough(Def, MRI))
+    return true;
+  GBuildVector *BV = dyn_cast<GBuildVector>(&MI);
+  if (!BV)
+    return false;
+  for (unsigned SrcIdx = 0; SrcIdx < BV->getNumSources(); ++SrcIdx) {
+    if (getIConstantVRegValWithLookThrough(BV->getSourceReg(SrcIdx), MRI) ||
+        getOpcodeDef<GImplicitDef>(BV->getSourceReg(SrcIdx), MRI))
+      continue;
+    return false;
+  }
+  return true;
+}
+
+Optional<APInt>
+llvm::isConstantOrConstantSplatVector(MachineInstr &MI,
+                                      const MachineRegisterInfo &MRI) {
+  Register Def = MI.getOperand(0).getReg();
+  if (auto C = getIConstantVRegValWithLookThrough(Def, MRI))
+    return C->Value;
+  auto MaybeCst = getBuildVectorConstantSplat(MI, MRI);
+  if (!MaybeCst)
+    return None;
+  const unsigned ScalarSize = MRI.getType(Def).getScalarSizeInBits();
+  return APInt(ScalarSize, *MaybeCst, true);
 }
 
 bool llvm::matchUnaryPredicate(
@@ -1060,7 +1208,7 @@ void llvm::saveUsesAndErase(MachineInstr &MI, MachineRegisterInfo &MRI,
   }
   LLVM_DEBUG(dbgs() << MI << "Is dead; erasing.\n");
   DeadInstChain.remove(&MI);
-  MI.eraseFromParentAndMarkDBGValuesForRemoval();
+  MI.eraseFromParent();
   if (LocObserver)
     LocObserver->checkpoint(false);
 }

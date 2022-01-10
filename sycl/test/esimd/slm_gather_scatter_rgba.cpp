@@ -9,7 +9,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 void caller() SYCL_ESIMD_FUNCTION {
-  simd<uint32_t, 32> offsets(0, 1);
+  simd<uint32_t, 32> offsets(0, sizeof(int) * 4);
   simd<int, 128> v1(0, 1);
 
   slm_init(1024);
@@ -23,8 +23,8 @@ void caller() SYCL_ESIMD_FUNCTION {
 
   // CHECK: slm_gather_scatter_rgba.cpp:26{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
   // CHECK: sycl/ext/intel/experimental/esimd/common.hpp:{{.*}}note:
-  slm_scatter_rgba<int, 32, ESIMD_ABGR_ENABLE>(v0, offsets);
-  slm_scatter_rgba<int, 32, rgba_channel_mask::ABGR>(v0, offsets);
+  slm_scatter_rgba<int, 32, ESIMD_ABGR_ENABLE>(offsets, v0);
+  slm_scatter_rgba<int, 32, rgba_channel_mask::ABGR>(offsets, v0);
 }
 
 // A "border" between host and device compilations

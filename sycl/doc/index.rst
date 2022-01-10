@@ -2,7 +2,7 @@ Data Parallel C++ Documentation
 ===============================
 
 Using oneAPI DPC++ for Application Development
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------------------------
 
 .. toctree::
    :maxdepth: 1
@@ -15,9 +15,10 @@ Using oneAPI DPC++ for Application Development
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
    FAQ
    User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
+   EnvironmentVariables
 
 Developing oneAPI DPC++ Compiler
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------
 
 .. toctree::
    :maxdepth: 1
@@ -27,7 +28,6 @@ Developing oneAPI DPC++ Compiler
    Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
    CompilerAndRuntimeDesign
    KernelParameterPassing
-   EnvironmentVariables
    PluginInterface
    ABIPolicyGuide
    SpecializationConstants
@@ -41,3 +41,10 @@ Developing oneAPI DPC++ Compiler
    SYCLInstrumentationUsingXPTI
    ITTAnnotations
 
+Development BKMs
+~~~~~~~~~~~~~~~~
+
+.. toctree::
+   :maxdepth: 1
+
+   dev/DockerBKMs

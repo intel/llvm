@@ -1,12 +1,14 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s -o %t.out
 
 // Test for SYCL-2020 Level Zero interop API
 
-#include <sycl/sycl.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
+
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -18,10 +20,10 @@ using namespace sycl;
 // queue,
 // event,
 // kernel_bundle,
+// kernel,
 // TODO:
 // buffer,
 // device_image,
-// kernel,
 // sampled_image,
 // unsampled_image.
 
@@ -33,10 +35,9 @@ int main() {
   context Context(Device);
   queue Queue(Device);
   event Event;
-  // expected-warning@+1 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
-  program Program(Context);
   kernel_bundle<bundle_state::executable> KernelBundle =
       get_kernel_bundle<bundle_state::executable>(Context);
+  kernel Kernel = KernelBundle.get_kernel(get_kernel_ids().front());
 
   // 4.5.1.1 For each SYCL runtime class T which supports SYCL application
   // interoperability with the SYCL backend, a specialization of return_type
@@ -54,12 +55,10 @@ int main() {
       ZeContext;
   backend_traits<backend::ext_oneapi_level_zero>::return_type<queue> ZeQueue;
   backend_traits<backend::ext_oneapi_level_zero>::return_type<event> ZeEvent;
-  // expected-warning@+1 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
-  backend_traits<backend::ext_oneapi_level_zero>::return_type<program>
-      ZeProgram;
   backend_traits<backend::ext_oneapi_level_zero>::return_type<
       kernel_bundle<bundle_state::executable>>
       ZeKernelBundle;
+  backend_traits<backend::ext_oneapi_level_zero>::return_type<kernel> ZeKernel;
 
   // 4.5.1.2 For each SYCL runtime class T which supports SYCL application
   // interoperability, a specialization of get_native must be defined, which
@@ -74,6 +73,7 @@ int main() {
   ZeQueue = get_native<backend::ext_oneapi_level_zero>(Queue);
   ZeEvent = get_native<backend::ext_oneapi_level_zero>(Event);
   ZeKernelBundle = get_native<backend::ext_oneapi_level_zero>(KernelBundle);
+  ZeKernel = get_native<backend::ext_oneapi_level_zero>(Kernel);
 
   // Check deprecated
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
@@ -91,13 +91,13 @@ int main() {
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   ZeEvent = Event.get_native<backend::ext_oneapi_level_zero>();
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  ZeProgram = Program.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+3 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   // expected-warning@+2 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   /*ZeKernelBundle*/ (
       void)KernelBundle.get_native<backend::ext_oneapi_level_zero>();
+  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  ZeKernel = Kernel.get_native<backend::ext_oneapi_level_zero>();
 
   // 4.5.1.1 For each SYCL runtime class T which supports SYCL application
   // interoperability with the SYCL backend, a specialization of input_type must
@@ -140,6 +140,9 @@ int main() {
                          bundle_state::executable>(
           {ZeKernelBundle.front(), ext::oneapi::level_zero::ownership::keep},
           Context);
+  kernel InteropKernel = make_kernel<backend::ext_oneapi_level_zero>(
+      {KernelBundle, ZeKernel, ext::oneapi::level_zero::ownership::keep},
+      Context);
 
   // Check deprecated
   // expected-warning@+1 {{'make<sycl::platform, nullptr>' is deprecated: Use SYCL 2020 sycl::make_platform free function}}
@@ -156,9 +159,6 @@ int main() {
   // expected-warning@+1 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
   auto E = ext::oneapi::level_zero::make<event>(
       Context, ZeEvent, ext::oneapi::level_zero::ownership::keep);
-  // expected-warning@+2 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
-  // expected-warning@+1 {{'make<sycl::program, nullptr>' is deprecated: Use SYCL 2020 sycl::make_kernel_bundle free function}}
-  auto PR = ext::oneapi::level_zero::make<program>(Context, ZeProgram);
 
   return 0;
 }

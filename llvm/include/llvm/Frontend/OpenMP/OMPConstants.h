@@ -120,12 +120,24 @@ enum class OMPScheduleType {
   Runtime = 37,
   Auto = 38, // auto
 
+  StaticBalancedChunked = 45, // static with chunk adjustment (e.g., simd)
+  GuidedSimd = 46,            // guided with chunk adjustment
+  RuntimeSimd = 47,           // runtime with chunk adjustment
+
   ModifierMonotonic =
       (1 << 29), // Set if the monotonic schedule modifier was present
   ModifierNonmonotonic =
       (1 << 30), // Set if the nonmonotonic schedule modifier was present
   ModifierMask = ModifierMonotonic | ModifierNonmonotonic,
   LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue */ ModifierMask)
+};
+
+enum OMPTgtExecModeFlags : int8_t {
+  OMP_TGT_EXEC_MODE_GENERIC = 1 << 0,
+  OMP_TGT_EXEC_MODE_SPMD = 1 << 1,
+  OMP_TGT_EXEC_MODE_GENERIC_SPMD =
+      OMP_TGT_EXEC_MODE_GENERIC | OMP_TGT_EXEC_MODE_SPMD,
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue */ OMP_TGT_EXEC_MODE_GENERIC_SPMD)
 };
 
 } // end namespace omp

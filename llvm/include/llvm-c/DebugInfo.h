@@ -22,6 +22,13 @@
 LLVM_C_EXTERN_C_BEGIN
 
 /**
+ * @defgroup LLVMCCoreDebugInfo Debug Information
+ * @ingroup LLVMCCore
+ *
+ * @{
+ */
+
+/**
  * Debug info flags.
  */
 typedef enum {
@@ -225,6 +232,13 @@ void LLVMDisposeDIBuilder(LLVMDIBuilderRef Builder);
  * Construct any deferred debug info descriptors.
  */
 void LLVMDIBuilderFinalize(LLVMDIBuilderRef Builder);
+
+/**
+ * Finalize a specific subprogram.
+ * No new variables may be added to this subprogram afterwards.
+ */
+void LLVMDIBuilderFinalizeSubprogram(LLVMDIBuilderRef Builder,
+                                     LLVMMetadataRef Subprogram);
 
 /**
  * A CompileUnit provides an anchor for all debugging
@@ -1359,6 +1373,10 @@ void LLVMInstructionSetDebugLoc(LLVMValueRef Inst, LLVMMetadataRef Loc);
  * @see llvm::Metadata::getMetadataID()
  */
 LLVMMetadataKind LLVMGetMetadataKind(LLVMMetadataRef Metadata);
+
+/**
+ * @}
+ */
 
 LLVM_C_EXTERN_C_END
 

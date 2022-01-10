@@ -569,7 +569,7 @@ static bool isVectorAllOnes(SDValue N) {
   // Endianness doesn't matter in this context because we are looking for
   // an all-ones value.
   if (BVN->isConstantSplat(SplatValue, SplatUndef, SplatBitSize, HasAnyUndefs))
-    return SplatValue.isAllOnesValue();
+    return SplatValue.isAllOnes();
 
   return false;
 }
@@ -701,7 +701,7 @@ static SDValue performORCombine(SDNode *N, SelectionDAG &DAG,
 
     // Fold degenerate cases.
     if (IsConstantMask) {
-      if (Mask.isAllOnesValue())
+      if (Mask.isAllOnes())
         return IfSet;
       else if (Mask == 0)
         return IfClr;
@@ -3581,8 +3581,8 @@ MipsSETargetLowering::emitLD_F16_PSEUDO(MachineInstr &MI,
 
   MachineInstrBuilder MIB =
       BuildMI(*BB, MI, DL, TII->get(UsingMips32 ? Mips::LH : Mips::LH64), Rt);
-  for (unsigned i = 1; i < MI.getNumOperands(); i++)
-    MIB.add(MI.getOperand(i));
+  for (const MachineOperand &MO : llvm::drop_begin(MI.operands()))
+    MIB.add(MO);
 
   if(!UsingMips32) {
     Register Tmp = RegInfo.createVirtualRegister(&Mips::GPR32RegClass);

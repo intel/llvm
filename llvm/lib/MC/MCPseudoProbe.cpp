@@ -17,6 +17,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <limits>
 #include <memory>
+#include <sstream>
 
 #define DEBUG_TYPE "mcpseudoprobe"
 
@@ -150,8 +151,8 @@ void MCPseudoProbeInlineTree::emit(MCObjectStreamer *MCOS,
   // InlineSite is unique for each pair,
   // so there will be no ordering of Inlinee based on MCPseudoProbeInlineTree*
   std::map<InlineSite, MCPseudoProbeInlineTree *> Inlinees;
-  for (auto Child = Children.begin(); Child != Children.end(); ++Child)
-    Inlinees[Child->first] = Child->second.get();
+  for (auto &Child : Children)
+    Inlinees[Child.first] = Child.second.get();
 
   for (const auto &Inlinee : Inlinees) {
     if (Guid) {

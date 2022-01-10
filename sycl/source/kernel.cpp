@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 
@@ -19,7 +20,7 @@ namespace sycl {
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
           detail::pi::cast<detail::RT::PiKernel>(ClKernel),
-          detail::getSyclObjImpl(SyclContext))) {}
+          detail::getSyclObjImpl(SyclContext), nullptr)) {}
 
 cl_kernel kernel::get() const { return impl->get(); }
 
@@ -28,6 +29,8 @@ bool kernel::is_host() const { return impl->is_host(); }
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();
 }
+
+backend kernel::get_backend() const noexcept { return getImplBackend(impl); }
 
 kernel_bundle<sycl::bundle_state::executable>
 kernel::get_kernel_bundle() const {
@@ -124,6 +127,8 @@ kernel::get_sub_group_info(
 #undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
+
+pi_native_handle kernel::getNative() const { return impl->getNative(); }
 
 pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 

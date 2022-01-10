@@ -11,7 +11,7 @@
 #pragma once
 
 #include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/type_format.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -25,7 +25,10 @@ namespace detail {
 /// It is an internal class implementing basic functionality of simd_view.
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename RegionTy> class simd_view_impl {
+template <typename BaseTy,
+          typename RegionTy =
+              region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
+class simd_view_impl {
   using Derived = simd_view<BaseTy, RegionTy>;
   template <typename, int, class, class> friend class simd_obj_impl;
   template <typename, int> friend class simd;
@@ -48,12 +51,13 @@ public:
   /// The element type of this class, which could be different from the element
   /// type of the base object type.
   using element_type = typename ShapeTy::element_type;
+  using raw_element_type = __raw_t<element_type>;
 
   /// The simd type if reading the object.
   using value_type = get_simd_t<element_type, length>;
 
   /// The underlying builtin vector type backing the value read from the object.
-  using vector_type = vector_type_t<element_type, length>;
+  using raw_vector_type = vector_type_t<__raw_t<element_type>, length>;
 
 private:
   Derived &cast_this_to_derived() { return reinterpret_cast<Derived &>(*this); }
@@ -65,6 +69,8 @@ protected:
       : M_base(Base), M_region(Region) {}
   simd_view_impl(BaseTy &&Base, RegionTy Region)
       : M_base(Base), M_region(Region) {}
+
+  simd_view_impl(BaseTy &Base) : M_base(Base), M_region(RegionTy(0)) {}
   /// @}
 public:
   // Default copy and move constructors.
@@ -78,7 +84,7 @@ public:
     if constexpr (std::is_same_v<element_type, ToTy>)
       return read();
     else
-      return convert<ToTy, element_type, length>(read());
+      return convert_vector<ToTy, element_type, length>(read().data());
   }
 
   /// Implicit conversion to simd_mask_impl type, if element type is compatible.
@@ -112,7 +118,7 @@ public:
     return value_type{readRegion<BT, BN>(M_base.data(), M_region)};
   }
 
-  typename value_type::vector_type data() const { return read().data(); }
+  typename value_type::raw_vector_type data() const { return read().data(); }
 
   /// Write to this object.
   Derived &write(const value_type &Val) {
@@ -254,7 +260,8 @@ public:
 #undef __ESIMD_SHIFT_OP_FILTER
 
 #define __ESIMD_ARITH_OP_FILTER                                                \
-  is_vectorizable_v<T> &&is_vectorizable_v<T1> &&is_simd_type_v<SimdT>
+  is_valid_simd_elem_type_v<T> &&is_valid_simd_elem_type_v<T1>                 \
+      &&is_simd_type_v<SimdT>
 
   __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(+, +=, __ESIMD_ARITH_OP_FILTER)
   __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(-, -=, __ESIMD_ARITH_OP_FILTER)
@@ -281,7 +288,7 @@ public:
   template <class T = element_type,
             class = std::enable_if_t<std::is_integral_v<T>>>
   auto operator!() {
-    using MaskVecT = typename simd_mask_type<length>::vector_type;
+    using MaskVecT = typename simd_mask_type<length>::raw_vector_type;
     auto V = read().data() == 0;
     return simd_mask_type<length>{__builtin_convertvector(V, MaskVecT) &
                                   MaskVecT(1)};
@@ -308,12 +315,13 @@ public:
                                       is_simd_type_v<BaseTy>)&&(length ==
                                                                 SimdT::length)>>
   Derived &operator=(const simd_obj_impl<T, N, SimdT> &Other) {
-    return write(convert<element_type>(reinterpret_cast<const SimdT &>(Other)));
+    return write(convert_vector<element_type, typename SimdT::element_type, N>(
+        Other.data()));
   }
 
-  template <class T1, class = std::enable_if_t<detail::is_vectorizable_v<T1>>>
+  template <class T1, class = std::enable_if_t<is_valid_simd_elem_type_v<T1>>>
   Derived &operator=(T1 RHS) {
-    return write(value_type((element_type)RHS));
+    return write(value_type(convert_scalar<element_type>(RHS)));
   }
 
   /// @}

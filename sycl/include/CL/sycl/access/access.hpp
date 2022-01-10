@@ -55,6 +55,7 @@ enum class address_space : int {
   global_host_space __SYCL2020_DEPRECATED(
       "use 'ext_intel_host_device_space' instead") =
       ext_intel_host_device_space,
+  generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
 } // namespace access
@@ -159,6 +160,11 @@ struct DecoratedType;
 template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::private_space> {
   using type = __OPENCL_PRIVATE_AS__ ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = ElementType;
 };
 
 template <typename ElementType>

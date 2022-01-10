@@ -13,6 +13,7 @@ piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
 piKernelCreate
+piKernelGetGroupInfo
 piKernelGetSubGroupInfo
 piKernelSetExecInfo
 piMemBufferCreate

@@ -31,7 +31,7 @@ class raw_ostream;
 template <typename T> class SmallVectorImpl;
 template <typename T> class ArrayRef;
 template <typename T> class Optional;
-template <typename T> struct DenseMapInfo;
+template <typename T, typename Enable> struct DenseMapInfo;
 
 class APInt;
 
@@ -183,13 +183,11 @@ public:
   static APInt getZeroWidth() { return getZero(0); }
 
   /// Gets maximum unsigned value of APInt for specific bit width.
-  static APInt getMaxValue(unsigned numBits) {
-    return getAllOnesValue(numBits);
-  }
+  static APInt getMaxValue(unsigned numBits) { return getAllOnes(numBits); }
 
   /// Gets maximum signed value of APInt for a specific bit width.
   static APInt getSignedMaxValue(unsigned numBits) {
-    APInt API = getAllOnesValue(numBits);
+    APInt API = getAllOnes(numBits);
     API.clearBit(numBits - 1);
     return API;
   }
@@ -345,14 +343,12 @@ public:
   /// \returns true if this APInt is non-positive.
   bool isNonPositive() const { return !isStrictlyPositive(); }
 
-  /// Determine if all bits are set.
+  /// Determine if all bits are set.  This is true for zero-width values.
   bool isAllOnes() const {
-    if (isSingleWord()) {
-      // Calculate the shift amount, handling the zero-bit wide case without UB.
-      unsigned ShiftAmt =
-          (APINT_BITS_PER_WORD - BitWidth) % APINT_BITS_PER_WORD;
-      return U.VAL == WORDTYPE_MAX >> ShiftAmt;
-    }
+    if (BitWidth == 0)
+      return true;
+    if (isSingleWord())
+      return U.VAL == WORDTYPE_MAX >> (APINT_BITS_PER_WORD - BitWidth);
     return countTrailingOnesSlowCase() == BitWidth;
   }
 
@@ -432,6 +428,17 @@ public:
       return isPowerOf2_64(U.VAL);
     }
     return countPopulationSlowCase() == 1;
+  }
+
+  /// Check if this APInt's negated value is a power of two greater than zero.
+  bool isNegatedPowerOf2() const {
+    assert(BitWidth && "zero width values not allowed");
+    if (isNonNegative())
+      return false;
+    // NegatedPowerOf2 - shifted mask in the top bits.
+    unsigned LO = countLeadingOnes();
+    unsigned TZ = countTrailingZeros();
+    return (LO + TZ) == BitWidth;
   }
 
   /// Check if the APInt's value is returned by getSignMask.
@@ -1451,10 +1458,8 @@ public:
   /// uint64_t. The bitwidth must be <= 64 or the value must fit within a
   /// uint64_t. Otherwise an assertion will result.
   uint64_t getZExtValue() const {
-    if (isSingleWord()) {
-      assert(BitWidth && "zero width values not allowed");
+    if (isSingleWord())
       return U.VAL;
-    }
     assert(getActiveBits() <= 64 && "Too many bits for uint64_t");
     return U.pVal[0];
   }
@@ -1810,7 +1815,7 @@ private:
 
   unsigned BitWidth; ///< The number of bits in this APInt.
 
-  friend struct DenseMapInfo<APInt>;
+  friend struct DenseMapInfo<APInt, void>;
   friend class APSInt;
 
   /// This constructor is used only internally for speed of construction of
@@ -2244,7 +2249,7 @@ void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst, unsigned StoreBytes);
 void LoadIntFromMemory(APInt &IntVal, const uint8_t *Src, unsigned LoadBytes);
 
 /// Provide DenseMapInfo for APInt.
-template <> struct DenseMapInfo<APInt> {
+template <> struct DenseMapInfo<APInt, void> {
   static inline APInt getEmptyKey() {
     APInt V(nullptr, 0);
     V.U.VAL = 0;

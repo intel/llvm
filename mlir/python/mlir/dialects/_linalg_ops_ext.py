@@ -10,6 +10,7 @@ try:
 except ImportError as e:
   raise RuntimeError("Error loading imports from extension module") from e
 
+from ._ods_common import get_op_result_or_value as _get_op_result_or_value
 
 def isa(cls: Type, ty: Type):
   try:
@@ -26,23 +27,15 @@ class FillOp:
     results = []
     if isa(RankedTensorType, output.type):
       results = [output.type]
-    op = self.build_generic(results=results,
-                            operands=[value, output],
-                            attributes=None,
-                            loc=loc,
-                            ip=ip)
+    op = self.build_generic(
+        results=results,
+        operands=[_get_op_result_or_value(o) for o in [value, output]],
+        attributes=None,
+        loc=loc,
+        ip=ip)
     OpView.__init__(self, op)
     linalgDialect = Context.current.get_dialect_descriptor("linalg")
     fill_builtin_region(linalgDialect, self.operation)
-    # TODO: self.result is None. When len(results) == 1 we expect it to be
-    # results[0] as per _linalg_ops_gen.py. This seems like an orthogonal bug
-    # in the generator of _linalg_ops_gen.py where we have:
-    # ```
-    # def result(self):
-    #   return self.operation.results[0] \
-    #     if len(self.operation.results) > 1 else None
-    # ```
-
 
 class InitTensorOp:
   """Extends the linalg.init_tensor op."""

@@ -91,7 +91,7 @@ device_filter::device_filter(const std::string &FilterString) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
           "\nPossible backend values are "
-          "{host,opencl,level_zero,cuda,hip,*}.\n"
+          "{host,opencl,level_zero,cuda,hip,esimd_emulator*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
       throw cl::sycl::invalid_parameter_error(Message, PI_INVALID_VALUE);

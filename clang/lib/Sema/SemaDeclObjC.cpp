@@ -611,7 +611,7 @@ ActOnSuperClassOfClassInterface(Scope *S,
       }
     }
 
-    if (!dyn_cast_or_null<TypedefNameDecl>(PrevDecl)) {
+    if (!isa_and_nonnull<TypedefNameDecl>(PrevDecl)) {
       if (!SuperClassDecl)
         Diag(SuperLoc, diag::err_undef_superclass)
           << SuperName << ClassName << SourceRange(AtInterfaceLoc, ClassLoc);
@@ -2614,7 +2614,7 @@ void Sema::WarnExactTypedMethods(ObjCMethodDecl *ImpMethodDecl,
   if (MethodDecl->getImplementationControl() == ObjCMethodDecl::Optional)
     return;
   // don't issue warning when primary class's method is
-  // depecated/unavailable.
+  // deprecated/unavailable.
   if (MethodDecl->hasAttr<UnavailableAttr>() ||
       MethodDecl->hasAttr<DeprecatedAttr>())
     return;
@@ -2711,8 +2711,7 @@ static void CheckProtocolMethodDefs(Sema &S,
       ProtocolsExplictImpl.reset(new ProtocolNameSet);
       findProtocolsWithExplicitImpls(Super, *ProtocolsExplictImpl);
     }
-    if (ProtocolsExplictImpl->find(PDecl->getIdentifier()) !=
-        ProtocolsExplictImpl->end())
+    if (ProtocolsExplictImpl->contains(PDecl->getIdentifier()))
       return;
 
     // If no super class conforms to the protocol, we should not search
@@ -4834,7 +4833,7 @@ Decl *Sema::ActOnMethodDeclaration(
     // If this method overrides a previous @synthesize declaration,
     // register it with the property.  Linear search through all
     // properties here, because the autosynthesized stub hasn't been
-    // made visible yet, so it can be overriden by a later
+    // made visible yet, so it can be overridden by a later
     // user-specified implementation.
     for (ObjCPropertyImplDecl *PropertyImpl : ImpDecl->property_impls()) {
       if (auto *Setter = PropertyImpl->getSetterMethodDecl())

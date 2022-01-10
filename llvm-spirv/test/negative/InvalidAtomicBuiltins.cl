@@ -34,20 +34,12 @@ double __attribute__((overloadable)) atom_and(volatile __global double *p, doubl
 double __attribute__((overloadable)) atom_or(volatile __global double *p, double val);
 double __attribute__((overloadable)) atom_xor(volatile __global double *p, double val);
 
-float __attribute__((overloadable)) atomic_fetch_add(volatile generic atomic_float *object, float operand, memory_order order);
-float __attribute__((overloadable)) atomic_fetch_sub(volatile generic atomic_float *object, float operand, memory_order order);
 float __attribute__((overloadable)) atomic_fetch_or(volatile generic atomic_float *object, float operand, memory_order order);
 float __attribute__((overloadable)) atomic_fetch_xor(volatile generic atomic_float *object, float operand, memory_order order);
 double __attribute__((overloadable)) atomic_fetch_and(volatile generic atomic_double *object, double operand, memory_order order);
-double __attribute__((overloadable)) atomic_fetch_max(volatile generic atomic_double *object, double operand, memory_order order);
-double __attribute__((overloadable)) atomic_fetch_min(volatile generic atomic_double *object, double operand, memory_order order);
-float __attribute__((overloadable)) atomic_fetch_add_explicit(volatile generic atomic_float *object, float operand, memory_order order);
-float __attribute__((overloadable)) atomic_fetch_sub_explicit(volatile generic atomic_float *object, float operand, memory_order order);
 float __attribute__((overloadable)) atomic_fetch_or_explicit(volatile generic atomic_float *object, float operand, memory_order order);
 float __attribute__((overloadable)) atomic_fetch_xor_explicit(volatile generic atomic_float *object, float operand, memory_order order);
 double __attribute__((overloadable)) atomic_fetch_and_explicit(volatile generic atomic_double *object, double operand, memory_order order);
-double __attribute__((overloadable)) atomic_fetch_max_explicit(volatile generic atomic_double *object, double operand, memory_order order);
-double __attribute__((overloadable)) atomic_fetch_min_explicit(volatile generic atomic_double *object, double operand, memory_order order);
 
 __kernel void test_atomic_fn(volatile __global float *p,
                              volatile __global double *pp,
@@ -79,18 +71,10 @@ __kernel void test_atomic_fn(volatile __global float *p,
     d = atom_or(pp, val);
     d = atom_xor(pp, val);
 
-    f = atomic_fetch_add(p, val, order);
-    f = atomic_fetch_sub(p, val, order);
     f = atomic_fetch_or(p, val, order);
     f = atomic_fetch_xor(p, val, order);
     d = atomic_fetch_and(pp, val, order);
-    d = atomic_fetch_min(pp, val, order);
-    d = atomic_fetch_max(pp, val, order);
-    f = atomic_fetch_add_explicit(p, val, order);
-    f = atomic_fetch_sub_explicit(p, val, order);
     f = atomic_fetch_or_explicit(p, val, order);
     f = atomic_fetch_xor_explicit(p, val, order);
     d = atomic_fetch_and_explicit(pp, val, order);
-    d = atomic_fetch_min_explicit(pp, val, order);
-    d = atomic_fetch_max_explicit(pp, val, order);
 }

@@ -24,10 +24,17 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/SHA256.h"
+
+#if defined(__APPLE__)
+#include <sys/mman.h>
+#endif
 
 #ifdef LLVM_HAVE_LIBXAR
 #include <fcntl.h>
+extern "C" {
 #include <xar/xar.h>
+}
 #endif
 
 using namespace llvm;
@@ -252,7 +259,7 @@ void NonLazyPointerSectionBase::writeTo(uint8_t *buf) const {
 }
 
 GotSection::GotSection()
-    : NonLazyPointerSectionBase(segment_names::dataConst, section_names::got) {
+    : NonLazyPointerSectionBase(segment_names::data, section_names::got) {
   flags = S_NON_LAZY_SYMBOL_POINTERS;
 }
 
@@ -614,14 +621,14 @@ void StubHelperSection::setup() {
       ConcatOutputSection::getOrCreateForInput(in.imageLoaderCache);
   inputSections.push_back(in.imageLoaderCache);
   // Since this isn't in the symbol table or in any input file, the noDeadStrip
-  // argument doesn't matter. It's kept alive by ImageLoaderCacheSection()
-  // setting `live` to true on the backing InputSection.
+  // argument doesn't matter.
   dyldPrivate =
       make<Defined>("__dyld_private", nullptr, in.imageLoaderCache, 0, 0,
                     /*isWeakDef=*/false,
                     /*isExternal=*/false, /*isPrivateExtern=*/false,
                     /*isThumb=*/false, /*isReferencedDynamically=*/false,
                     /*noDeadStrip=*/false);
+  dyldPrivate->used = true;
 }
 
 LazyPointerSection::LazyPointerSection()
@@ -726,36 +733,30 @@ DataInCodeSection::DataInCodeSection()
 
 template <class LP>
 static std::vector<MachO::data_in_code_entry> collectDataInCodeEntries() {
-  using SegmentCommand = typename LP::segment_command;
-  using Section = typename LP::section;
-
   std::vector<MachO::data_in_code_entry> dataInCodeEntries;
   for (const InputFile *inputFile : inputFiles) {
     if (!isa<ObjFile>(inputFile))
       continue;
     const ObjFile *objFile = cast<ObjFile>(inputFile);
-    const auto *c = reinterpret_cast<const SegmentCommand *>(
-        findCommand(objFile->mb.getBufferStart(), LP::segmentLCType));
-    if (!c)
-      continue;
-    ArrayRef<Section> sections{reinterpret_cast<const Section *>(c + 1),
-                               c->nsects};
-
-    ArrayRef<MachO::data_in_code_entry> entries = objFile->dataInCodeEntries;
+    ArrayRef<MachO::data_in_code_entry> entries = objFile->getDataInCode();
     if (entries.empty())
       continue;
+
+    assert(is_sorted(dataInCodeEntries, [](const data_in_code_entry &lhs,
+                                           const data_in_code_entry &rhs) {
+      return lhs.offset < rhs.offset;
+    }));
     // For each code subsection find 'data in code' entries residing in it.
     // Compute the new offset values as
     // <offset within subsection> + <subsection address> - <__TEXT address>.
-    for (size_t i = 0, n = sections.size(); i < n; ++i) {
-      const SubsectionMap &subsecMap = objFile->subsections[i];
-      for (const SubsectionEntry &subsecEntry : subsecMap) {
-        const InputSection *isec = subsecEntry.isec;
+    for (const Section &section : objFile->sections) {
+      for (const Subsection &subsec : section.subsections) {
+        const InputSection *isec = subsec.isec;
         if (!isCodeSection(isec))
           continue;
         if (cast<ConcatInputSection>(isec)->shouldOmitFromOutput())
           continue;
-        const uint64_t beginAddr = sections[i].addr + subsecEntry.offset;
+        const uint64_t beginAddr = section.address + subsec.offset;
         auto it = llvm::lower_bound(
             entries, beginAddr,
             [](const MachO::data_in_code_entry &entry, uint64_t addr) {
@@ -790,16 +791,18 @@ FunctionStartsSection::FunctionStartsSection()
 void FunctionStartsSection::finalizeContents() {
   raw_svector_ostream os{contents};
   std::vector<uint64_t> addrs;
-  for (const Symbol *sym : symtab->getSymbols()) {
-    if (const auto *defined = dyn_cast<Defined>(sym)) {
-      if (!defined->isec || !isCodeSection(defined->isec) || !defined->isLive())
-        continue;
-      if (const auto *concatIsec = dyn_cast<ConcatInputSection>(defined->isec))
-        if (concatIsec->shouldOmitFromOutput())
-          continue;
-      // TODO: Add support for thumbs, in that case
-      // the lowest bit of nextAddr needs to be set to 1.
-      addrs.push_back(defined->getVA());
+  for (const InputFile *file : inputFiles) {
+    if (auto *objFile = dyn_cast<ObjFile>(file)) {
+      for (const Symbol *sym : objFile->symbols) {
+        if (const auto *defined = dyn_cast_or_null<Defined>(sym)) {
+          if (!defined->isec || !isCodeSection(defined->isec) ||
+              !defined->isLive())
+            continue;
+          // TODO: Add support for thumbs, in that case
+          // the lowest bit of nextAddr needs to be set to 1.
+          addrs.push_back(defined->getVA());
+        }
+      }
     }
   }
   llvm::sort(addrs);
@@ -853,7 +856,10 @@ void SymtabSection::emitObjectFileStab(ObjFile *file) {
   if (!file->archiveName.empty())
     path.append({"(", file->getName(), ")"});
 
-  stab.strx = stringTableSection.addString(saver.save(path.str()));
+  StringRef adjustedPath = saver.save(path.str());
+  adjustedPath.consume_front(config->osoPrefix);
+
+  stab.strx = stringTableSection.addString(adjustedPath);
   stab.desc = 1;
   stab.value = file->modTime;
   stabs.emplace_back(std::move(stab));
@@ -866,6 +872,9 @@ void SymtabSection::emitEndFunStab(Defined *defined) {
 }
 
 void SymtabSection::emitStabs() {
+  if (config->omitDebugInfo)
+    return;
+
   for (const std::string &s : config->astPaths) {
     StabsEntry astStab(N_AST);
     astStab.strx = stringTableSection.addString(s);
@@ -911,7 +920,7 @@ void SymtabSection::emitStabs() {
     }
 
     StabsEntry symStab;
-    symStab.sect = defined->isec->canonical()->parent->index;
+    symStab.sect = defined->isec->parent->index;
     symStab.strx = stringTableSection.addString(defined->getName());
     symStab.value = defined->getVA();
 
@@ -1036,7 +1045,7 @@ template <class LP> void SymtabSectionImpl<LP>::writeTo(uint8_t *buf) const {
         nList->n_value = defined->value;
       } else {
         nList->n_type = scope | N_SECT;
-        nList->n_sect = defined->isec->canonical()->parent->index;
+        nList->n_sect = defined->isec->parent->index;
         // For the N_SECT symbol type, n_value is the address of the symbol
         nList->n_value = defined->getVA();
       }
@@ -1097,8 +1106,12 @@ void IndirectSymtabSection::finalizeContents() {
 }
 
 static uint32_t indirectValue(const Symbol *sym) {
-  return sym->symtabIndex != UINT32_MAX ? sym->symtabIndex
-                                        : INDIRECT_SYMBOL_LOCAL;
+  if (sym->symtabIndex == UINT32_MAX)
+    return INDIRECT_SYMBOL_LOCAL;
+  if (auto *defined = dyn_cast<Defined>(sym))
+    if (defined->privateExtern)
+      return INDIRECT_SYMBOL_LOCAL;
+  return sym->symtabIndex;
 }
 
 void IndirectSymtabSection::writeTo(uint8_t *buf) const {
@@ -1144,30 +1157,104 @@ void StringTableSection::writeTo(uint8_t *buf) const {
   }
 }
 
+static_assert((CodeSignatureSection::blobHeadersSize % 8) == 0, "");
+static_assert((CodeSignatureSection::fixedHeadersSize % 8) == 0, "");
+
 CodeSignatureSection::CodeSignatureSection()
     : LinkEditSection(segment_names::linkEdit, section_names::codeSignature) {
-  align = object::CodeSignatureSection::Align; // required by libstuff
+  align = 16; // required by libstuff
+  // FIXME: Consider using finalOutput instead of outputFile.
+  fileName = config->outputFile;
+  size_t slashIndex = fileName.rfind("/");
+  if (slashIndex != std::string::npos)
+    fileName = fileName.drop_front(slashIndex + 1);
+
+  // NOTE: Any changes to these calculations should be repeated
+  // in llvm-objcopy's MachOLayoutBuilder::layoutTail.
+  allHeadersSize = alignTo<16>(fixedHeadersSize + fileName.size() + 1);
+  fileNamePad = allHeadersSize - fixedHeadersSize - fileName.size();
+}
+
+uint32_t CodeSignatureSection::getBlockCount() const {
+  return (fileOff + blockSize - 1) / blockSize;
 }
 
 uint64_t CodeSignatureSection::getRawSize() const {
-  return static_cast<uint64_t>(sectionBuilder->getRawSize());
+  return allHeadersSize + getBlockCount() * hashSize;
 }
 
 void CodeSignatureSection::writeHashes(uint8_t *buf) const {
-  sectionBuilder->write(buf);
+  // NOTE: Changes to this functionality should be repeated in llvm-objcopy's
+  // MachOWriter::writeSignatureData.
+  uint8_t *code = buf;
+  uint8_t *codeEnd = buf + fileOff;
+  uint8_t *hashes = codeEnd + allHeadersSize;
+  while (code < codeEnd) {
+    StringRef block(reinterpret_cast<char *>(code),
+                    std::min(codeEnd - code, static_cast<ssize_t>(blockSize)));
+    SHA256 hasher;
+    hasher.update(block);
+    StringRef hash = hasher.final();
+    assert(hash.size() == hashSize);
+    memcpy(hashes, hash.data(), hashSize);
+    code += blockSize;
+    hashes += hashSize;
+  }
+#if defined(__APPLE__)
+  // This is macOS-specific work-around and makes no sense for any
+  // other host OS. See https://openradar.appspot.com/FB8914231
+  //
+  // The macOS kernel maintains a signature-verification cache to
+  // quickly validate applications at time of execve(2).  The trouble
+  // is that for the kernel creates the cache entry at the time of the
+  // mmap(2) call, before we have a chance to write either the code to
+  // sign or the signature header+hashes.  The fix is to invalidate
+  // all cached data associated with the output file, thus discarding
+  // the bogus prematurely-cached signature.
+  msync(buf, fileOff + getSize(), MS_INVALIDATE);
+#endif
 }
 
 void CodeSignatureSection::writeTo(uint8_t *buf) const {
-  // The entire code section including header is written
-  // in CodeSignatureSection::writeHashes above.
-}
-
-void CodeSignatureSection::finalize() {
+  // NOTE: Changes to this functionality should be repeated in llvm-objcopy's
+  // MachOWriter::writeSignatureData.
+  uint32_t signatureSize = static_cast<uint32_t>(getSize());
+  auto *superBlob = reinterpret_cast<CS_SuperBlob *>(buf);
+  write32be(&superBlob->magic, CSMAGIC_EMBEDDED_SIGNATURE);
+  write32be(&superBlob->length, signatureSize);
+  write32be(&superBlob->count, 1);
+  auto *blobIndex = reinterpret_cast<CS_BlobIndex *>(&superBlob[1]);
+  write32be(&blobIndex->type, CSSLOT_CODEDIRECTORY);
+  write32be(&blobIndex->offset, blobHeadersSize);
+  auto *codeDirectory =
+      reinterpret_cast<CS_CodeDirectory *>(buf + blobHeadersSize);
+  write32be(&codeDirectory->magic, CSMAGIC_CODEDIRECTORY);
+  write32be(&codeDirectory->length, signatureSize - blobHeadersSize);
+  write32be(&codeDirectory->version, CS_SUPPORTSEXECSEG);
+  write32be(&codeDirectory->flags, CS_ADHOC | CS_LINKER_SIGNED);
+  write32be(&codeDirectory->hashOffset,
+            sizeof(CS_CodeDirectory) + fileName.size() + fileNamePad);
+  write32be(&codeDirectory->identOffset, sizeof(CS_CodeDirectory));
+  codeDirectory->nSpecialSlots = 0;
+  write32be(&codeDirectory->nCodeSlots, getBlockCount());
+  write32be(&codeDirectory->codeLimit, fileOff);
+  codeDirectory->hashSize = static_cast<uint8_t>(hashSize);
+  codeDirectory->hashType = kSecCodeSignatureHashSHA256;
+  codeDirectory->platform = 0;
+  codeDirectory->pageSize = blockSizeShift;
+  codeDirectory->spare2 = 0;
+  codeDirectory->scatterOffset = 0;
+  codeDirectory->teamOffset = 0;
+  codeDirectory->spare3 = 0;
+  codeDirectory->codeLimit64 = 0;
   OutputSegment *textSeg = getOrCreateOutputSegment(segment_names::text);
-  // NOTE: ld64 seems to also use outputFile instead of finalOutput
-  sectionBuilder = std::make_unique<object::CodeSignatureSection>(
-      fileOff, config->outputFile, config->outputType, textSeg->fileOff,
-      textSeg->fileSize);
+  write64be(&codeDirectory->execSegBase, textSeg->fileOff);
+  write64be(&codeDirectory->execSegLimit, textSeg->fileSize);
+  write64be(&codeDirectory->execSegFlags,
+            config->outputType == MH_EXECUTE ? CS_EXECSEG_MAIN_BINARY : 0);
+  auto *id = reinterpret_cast<char *>(&codeDirectory[1]);
+  memcpy(id, fileName.begin(), fileName.size());
+  memset(id + fileName.size(), 0, fileNamePad);
 }
 
 BitcodeBundleSection::BitcodeBundleSection()

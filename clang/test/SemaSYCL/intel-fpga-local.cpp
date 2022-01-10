@@ -430,7 +430,7 @@ void diagnostics()
   [[intel::simple_dual_port]] unsigned int sdp_reg[64];
 
   // Checking of different argument values.
-  //CHECK: VarDecl{{.*}}bw_bw 'unsigned int [64]'
+  //CHECK: VarDecl{{.*}}bw_bw 'unsigned int[64]'
   //CHECK:IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGABankWidthAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
@@ -509,7 +509,7 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int nb_reg[64];
 
-  //CHECK: VarDecl{{.*}}nb_nb 'unsigned int [64]'
+  //CHECK: VarDecl{{.*}}nb_nb 'unsigned int[64]'
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK:IntelFPGANumBanksAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
@@ -595,7 +595,7 @@ void diagnostics()
   //CHECK-NEXT: IntegerLiteral{{.*}}5{{$}}
   [[intel::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
 
-  //CHECK: VarDecl{{.*}} bb_reg 'unsigned int [4]'
+  //CHECK: VarDecl{{.*}} bb_reg 'unsigned int[4]'
   //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default

@@ -127,6 +127,16 @@ std::vector<platform> platform_impl::get_platforms() {
     }
   }
 
+  // Register default context release handler after plugins have been loaded and
+  // after the first calls to each plugin. This initializes a function-local
+  // variable that should be destroyed before any global variables in the
+  // plugins are destroyed. This is done after the first call to the backends to
+  // ensure any lazy-loaded dependencies are loaded prior to the handler
+  // variable's initialization. Note: The default context release handler is not
+  // guaranteed to be destroyed before function-local static variables as they
+  // may be initialized after.
+  GlobalHandler::registerDefaultContextReleaseHandler();
+
   // The host platform should always be available unless not allowed by the
   // SYCL_DEVICE_FILTER
   detail::device_filter_list *FilterList =

@@ -383,6 +383,8 @@ extern const int wordexp_wrde_dooffs;
 
 extern unsigned path_max;
 
+extern int struct_ttyent_sz;
+
 struct __sanitizer_wordexp_t {
   uptr we_wordc;
   char **we_wordv;
@@ -410,6 +412,16 @@ struct __sanitizer_ifconf {
   union {
     void *ifcu_req;
   } ifc_ifcu;
+};
+
+struct __sanitizer__ttyent {
+  char *ty_name;
+  char *ty_getty;
+  char *ty_type;
+  int ty_status;
+  char *ty_window;
+  char *ty_comment;
+  char *ty_group;
 };
 
 #  define IOC_NRBITS 8
@@ -634,6 +646,22 @@ extern unsigned IOCTL_KDSKBMODE;
 
 extern const int si_SEGV_MAPERR;
 extern const int si_SEGV_ACCERR;
+
+extern const unsigned MD5_CTX_sz;
+extern const unsigned MD5_return_length;
+
+#define SHA2_EXTERN(LEN)                          \
+  extern const unsigned SHA##LEN##_CTX_sz;        \
+  extern const unsigned SHA##LEN##_return_length; \
+  extern const unsigned SHA##LEN##_block_length;  \
+  extern const unsigned SHA##LEN##_digest_length
+
+SHA2_EXTERN(224);
+SHA2_EXTERN(256);
+SHA2_EXTERN(384);
+SHA2_EXTERN(512);
+
+#undef SHA2_EXTERN
 
 struct __sanitizer_cap_rights {
   u64 cr_rights[2];

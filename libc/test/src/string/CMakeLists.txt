@@ -3,6 +3,26 @@ add_libc_testsuite(libc_string_unittests)
 add_subdirectory(memory_utils)
 
 add_libc_unittest(
+  memccpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    memccpy_test.cpp
+  DEPENDS
+    libc.src.string.memccpy
+)
+
+add_libc_unittest(
+  mempcpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    mempcpy_test.cpp
+  DEPENDS
+    libc.src.string.mempcpy
+)
+
+add_libc_unittest(
   memchr_test
   SUITE
     libc_string_unittests
@@ -20,6 +40,26 @@ add_libc_unittest(
     memrchr_test.cpp
   DEPENDS
     libc.src.string.memrchr
+)
+
+add_libc_unittest(
+  stpcpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    stpcpy_test.cpp
+  DEPENDS
+    libc.src.string.stpcpy
+)
+
+add_libc_unittest(
+  stpncpy_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    stpncpy_test.cpp
+  DEPENDS
+    libc.src.string.stpncpy
 )
 
 add_libc_unittest(
@@ -73,6 +113,17 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
+  strdup_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strdup_test.cpp
+  DEPENDS
+    libc.include.stdlib
+    libc.src.string.strdup
+)
+
+add_libc_unittest(
   strlen_test
   SUITE
     libc_string_unittests
@@ -80,6 +131,16 @@ add_libc_unittest(
     strlen_test.cpp
   DEPENDS
     libc.src.string.strlen
+)
+
+add_libc_unittest(
+  strncat_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strncat_test.cpp
+  DEPENDS
+    libc.src.string.strncat
 )
 
 add_libc_unittest(
@@ -100,6 +161,17 @@ add_libc_unittest(
     strncpy_test.cpp
   DEPENDS
     libc.src.string.strncpy
+)
+
+add_libc_unittest(
+  strndup_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    strndup_test.cpp
+  DEPENDS
+    libc.include.stdlib
+    libc.src.string.strndup
 )
 
 add_libc_unittest(

@@ -30,7 +30,8 @@ _CLC_OVERLOAD _CLC_DEF ulong __spirv_ocl_u_mul_hi(ulong x, ulong y) {
 
 #define __CLC_MUL_HI_IMPL(BGENTYPE, SPV_MUL_HI, GENTYPE, GENSIZE)              \
   _CLC_OVERLOAD _CLC_DEF GENTYPE SPV_MUL_HI(GENTYPE x, GENTYPE y) {            \
-    return (GENTYPE)(SPV_MUL_HI((BGENTYPE)x, (BGENTYPE)y) >> GENSIZE);         \
+    return (GENTYPE)SPV_MUL_HI((BGENTYPE)(((BGENTYPE)x) << GENSIZE),           \
+                               (BGENTYPE)y);                                   \
   }
 
 __CLC_MUL_HI_IMPL(short, __spirv_ocl_s_mul_hi, char, 8)

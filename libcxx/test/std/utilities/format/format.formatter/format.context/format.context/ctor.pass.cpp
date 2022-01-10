@@ -47,9 +47,11 @@ void test() {
       !std::is_move_assignable_v<std::basic_format_context<OutIt, CharT>>);
 
   std::basic_string<CharT> string = MAKE_STRING(CharT, "string");
-  std::basic_format_args args =
-      std::make_format_args<std::basic_format_context<OutIt, CharT>>(
-          true, CharT('a'), 42, string);
+  // The type of the object is an exposition only type. The temporary is needed
+  // to extend the lifetype of the object since args stores a pointer to the
+  // data in this object.
+  auto format_arg_store = std::make_format_args<std::basic_format_context<OutIt, CharT>>(true, CharT('a'), 42, string);
+  std::basic_format_args args = format_arg_store;
 
   {
     std::basic_string<CharT> output;
@@ -122,7 +124,9 @@ void test() {
 
 void test() {
   test<std::back_insert_iterator<std::basic_string<char>>, char>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test<std::back_insert_iterator<std::basic_string<wchar_t>>, wchar_t>();
+#endif
 #ifndef _LIBCPP_HAS_NO_CHAR8_T
   test<std::back_insert_iterator<std::basic_string<char8_t>>, char8_t>();
 #endif

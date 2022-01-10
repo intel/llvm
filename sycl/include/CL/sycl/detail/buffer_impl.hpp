@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "CL/sycl/detail/pi.h"
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
@@ -141,11 +142,22 @@ public:
               const size_t SizeInBytes,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
+      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                    SizeInBytes, std::move(Allocator),
+                    std::move(AvailableEvent)) {}
+
+  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
+              const size_t SizeInBytes,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
       : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
               std::move(Allocator)) {}
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
+  void constructorNotification(const detail::code_location &CodeLoc,
+                               void *UserObj);
+  void destructorNotification(void *UserObj);
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
@@ -154,6 +166,7 @@ public:
       BaseT::updateHostMemory();
     } catch (...) {
     }
+    destructorNotification(this);
   }
 
   void resize(size_t size) { BaseT::MSizeInBytes = size; }

@@ -211,20 +211,18 @@ protected:
     ostrm.Printf("Available platforms:\n");
 
     PlatformSP host_platform_sp(Platform::GetHostPlatform());
-    ostrm.Printf("%s: %s\n", host_platform_sp->GetPluginName().GetCString(),
+    ostrm.Format("{0}: {1}\n", host_platform_sp->GetPluginName(),
                  host_platform_sp->GetDescription());
 
     uint32_t idx;
     for (idx = 0; true; ++idx) {
-      const char *plugin_name =
+      llvm::StringRef plugin_name =
           PluginManager::GetPlatformPluginNameAtIndex(idx);
-      if (plugin_name == nullptr)
+      if (plugin_name.empty())
         break;
-      const char *plugin_desc =
+      llvm::StringRef plugin_desc =
           PluginManager::GetPlatformPluginDescriptionAtIndex(idx);
-      if (plugin_desc == nullptr)
-        break;
-      ostrm.Printf("%s: %s\n", plugin_name, plugin_desc);
+      ostrm.Format("{0}: {1}\n", plugin_name, plugin_desc);
     }
 
     if (idx == 0) {
@@ -346,8 +344,8 @@ protected:
           if (error.Success()) {
             Stream &ostrm = result.GetOutputStream();
             if (hostname.empty())
-              ostrm.Printf("Disconnected from \"%s\"\n",
-                           platform_sp->GetPluginName().GetCString());
+              ostrm.Format("Disconnected from \"{0}\"\n",
+                           platform_sp->GetPluginName());
             else
               ostrm.Printf("Disconnected from \"%s\"\n", hostname.c_str());
             result.SetStatus(eReturnStatusSuccessFinishResult);
@@ -356,9 +354,8 @@ protected:
           }
         } else {
           // Not connected...
-          result.AppendErrorWithFormat(
-              "not connected to '%s'",
-              platform_sp->GetPluginName().GetCString());
+          result.AppendErrorWithFormatv("not connected to '{0}'",
+                                        platform_sp->GetPluginName());
         }
       } else {
         // Bad args
@@ -1067,7 +1064,18 @@ public:
   CommandObjectPlatformPutFile(CommandInterpreter &interpreter)
       : CommandObjectParsed(
             interpreter, "platform put-file",
-            "Transfer a file from this system to the remote end.", nullptr, 0) {
+            "Transfer a file from this system to the remote end.",
+            "platform put-file <source> [<destination>]", 0) {
+    SetHelpLong(
+        R"(Examples:
+
+(lldb) platform put-file /source/foo.txt /destination/bar.txt
+
+(lldb) platform put-file /source/foo.txt
+
+    Relative source file paths are resolved against lldb's local working directory.
+
+    Omitting the destination places the file in the platform working directory.)");
   }
 
   ~CommandObjectPlatformPutFile() override = default;
@@ -1278,15 +1286,14 @@ protected:
 
             if (matches == 0) {
               if (match_desc)
-                result.AppendErrorWithFormat(
-                    "no processes were found that %s \"%s\" on the \"%s\" "
+                result.AppendErrorWithFormatv(
+                    "no processes were found that {0} \"{1}\" on the \"{2}\" "
                     "platform\n",
-                    match_desc, match_name,
-                    platform_sp->GetPluginName().GetCString());
+                    match_desc, match_name, platform_sp->GetPluginName());
               else
-                result.AppendErrorWithFormat(
-                    "no processes were found on the \"%s\" platform\n",
-                    platform_sp->GetPluginName().GetCString());
+                result.AppendErrorWithFormatv(
+                    "no processes were found on the \"{0}\" platform\n",
+                    platform_sp->GetPluginName());
             } else {
               result.AppendMessageWithFormat(
                   "%u matching process%s found on \"%s\"", matches,
@@ -1532,9 +1539,8 @@ protected:
           }
         } else {
           // Not connected...
-          result.AppendErrorWithFormat(
-              "not connected to '%s'",
-              platform_sp->GetPluginName().GetCString());
+          result.AppendErrorWithFormatv("not connected to '{0}'",
+                                        platform_sp->GetPluginName());
         }
       } else {
         // No args

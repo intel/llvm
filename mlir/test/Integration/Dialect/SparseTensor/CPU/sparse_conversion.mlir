@@ -28,62 +28,21 @@
 // Integration test that tests conversions between sparse tensors.
 //
 module {
-  func private @exit(index) -> ()
-
   //
-  // Verify utilities.
-  //
-  func @checkf64(%arg0: memref<?xf64>, %arg1: memref<?xf64>) {
-    %c0 = constant 0 : index
-    %c1 = constant 1 : index
-    // Same lengths?
-    %0 = memref.dim %arg0, %c0 : memref<?xf64>
-    %1 = memref.dim %arg1, %c0 : memref<?xf64>
-    %2 = cmpi ne, %0, %1 : index
-    scf.if %2 {
-      call @exit(%c1) : (index) -> ()
-    }
-    // Same content?
-    scf.for %i = %c0 to %0 step %c1 {
-      %a = memref.load %arg0[%i] : memref<?xf64>
-      %b = memref.load %arg1[%i] : memref<?xf64>
-      %c = cmpf une, %a, %b : f64
-      scf.if %c {
-        call @exit(%c1) : (index) -> ()
-      }
-    }
-    return
-  }
-  func @check(%arg0: memref<?xindex>, %arg1: memref<?xindex>) {
-    %c0 = constant 0 : index
-    %c1 = constant 1 : index
-    // Same lengths?
-    %0 = memref.dim %arg0, %c0 : memref<?xindex>
-    %1 = memref.dim %arg1, %c0 : memref<?xindex>
-    %2 = cmpi ne, %0, %1 : index
-    scf.if %2 {
-      call @exit(%c1) : (index) -> ()
-    }
-    // Same content?
-    scf.for %i = %c0 to %0 step %c1 {
-      %a = memref.load %arg0[%i] : memref<?xindex>
-      %b = memref.load %arg1[%i] : memref<?xindex>
-      %c = cmpi ne, %a, %b : index
-      scf.if %c {
-        call @exit(%c1) : (index) -> ()
-      }
-    }
-    return
-  }
-
-  //
-  // Output utility.
+  // Output utilities.
   //
   func @dumpf64(%arg0: memref<?xf64>) {
-    %c0 = constant 0 : index
-    %d0 = constant 0.0 : f64
-    %0 = vector.transfer_read %arg0[%c0], %d0: memref<?xf64>, vector<24xf64>
-    vector.print %0 : vector<24xf64>
+    %c0 = arith.constant 0 : index
+    %d0 = arith.constant -1.0 : f64
+    %0 = vector.transfer_read %arg0[%c0], %d0: memref<?xf64>, vector<25xf64>
+    vector.print %0 : vector<25xf64>
+    return
+  }
+  func @dumpidx(%arg0: memref<?xindex>) {
+    %c0 = arith.constant 0 : index
+    %d0 = arith.constant 0 : index
+    %0 = vector.transfer_read %arg0[%c0], %d0: memref<?xindex>, vector<25xindex>
+    vector.print %0 : vector<25xindex>
     return
   }
 
@@ -91,14 +50,14 @@ module {
   // Main driver.
   //
   func @entry() {
-    %c0 = constant 0 : index
-    %c1 = constant 1 : index
-    %c2 = constant 2 : index
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c2 = arith.constant 2 : index
 
     //
     // Initialize a 3-dim dense tensor.
     //
-    %t = constant dense<[
+    %t = arith.constant dense<[
        [  [  1.0,  2.0,  3.0,  4.0 ],
           [  5.0,  6.0,  7.0,  8.0 ],
           [  9.0, 10.0, 11.0, 12.0 ] ],
@@ -133,13 +92,24 @@ module {
     %i = sparse_tensor.convert %3 : tensor<2x3x4xf64, #Tensor3> to tensor<2x3x4xf64, #Tensor3>
 
     //
-    // Check values equality.
+    // Check values.
     //
-
+    // CHECK:      ( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, -1 )
+    // CHECK-NEXT: ( 1, 13, 2, 14, 3, 15, 4, 16, 5, 17, 6, 18, 7, 19, 8, 20, 9, 21, 10, 22, 11, 23, 12, 24, -1 )
+    // CHECK-NEXT: ( 1, 5, 9, 13, 17, 21, 2, 6, 10, 14, 18, 22, 3, 7, 11, 15, 19, 23, 4, 8, 12, 16, 20, 24, -1 )
+    // CHECK-NEXT: ( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, -1 )
+    // CHECK-NEXT: ( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, -1 )
+    // CHECK-NEXT: ( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, -1 )
+    // CHECK-NEXT: ( 1, 13, 2, 14, 3, 15, 4, 16, 5, 17, 6, 18, 7, 19, 8, 20, 9, 21, 10, 22, 11, 23, 12, 24, -1 )
+    // CHECK-NEXT: ( 1, 13, 2, 14, 3, 15, 4, 16, 5, 17, 6, 18, 7, 19, 8, 20, 9, 21, 10, 22, 11, 23, 12, 24, -1 )
+    // CHECK-NEXT: ( 1, 13, 2, 14, 3, 15, 4, 16, 5, 17, 6, 18, 7, 19, 8, 20, 9, 21, 10, 22, 11, 23, 12, 24, -1 )
+    // CHECK-NEXT: ( 1, 5, 9, 13, 17, 21, 2, 6, 10, 14, 18, 22, 3, 7, 11, 15, 19, 23, 4, 8, 12, 16, 20, 24, -1 )
+    // CHECK-NEXT: ( 1, 5, 9, 13, 17, 21, 2, 6, 10, 14, 18, 22, 3, 7, 11, 15, 19, 23, 4, 8, 12, 16, 20, 24, -1 )
+    // CHECK-NEXT: ( 1, 5, 9, 13, 17, 21, 2, 6, 10, 14, 18, 22, 3, 7, 11, 15, 19, 23, 4, 8, 12, 16, 20, 24, -1 )
+    //
     %v1 = sparse_tensor.values %1 : tensor<2x3x4xf64, #Tensor1> to memref<?xf64>
     %v2 = sparse_tensor.values %2 : tensor<2x3x4xf64, #Tensor2> to memref<?xf64>
     %v3 = sparse_tensor.values %3 : tensor<2x3x4xf64, #Tensor3> to memref<?xf64>
-
     %av = sparse_tensor.values %a : tensor<2x3x4xf64, #Tensor1> to memref<?xf64>
     %bv = sparse_tensor.values %b : tensor<2x3x4xf64, #Tensor1> to memref<?xf64>
     %cv = sparse_tensor.values %c : tensor<2x3x4xf64, #Tensor1> to memref<?xf64>
@@ -150,20 +120,59 @@ module {
     %hv = sparse_tensor.values %h : tensor<2x3x4xf64, #Tensor3> to memref<?xf64>
     %iv = sparse_tensor.values %i : tensor<2x3x4xf64, #Tensor3> to memref<?xf64>
 
-    call @checkf64(%v1, %av) : (memref<?xf64>, memref<?xf64>) -> ()
-    call @checkf64(%v1, %bv) : (memref<?xf64>, memref<?xf64>) -> ()
-    call @checkf64(%v1, %cv) : (memref<?xf64>, memref<?xf64>) -> ()
-    call @checkf64(%v2, %dv) : (memref<?xf64>, memref<?xf64>) -> ()
-    call @checkf64(%v2, %ev) : (memref<?xf64>, memref<?xf64>) -> ()
-    call @checkf64(%v2, %fv) : (memref<?xf64>, memref<?xf64>) -> ()
-    call @checkf64(%v3, %gv) : (memref<?xf64>, memref<?xf64>) -> ()
-    call @checkf64(%v3, %hv) : (memref<?xf64>, memref<?xf64>) -> ()
-    call @checkf64(%v3, %iv) : (memref<?xf64>, memref<?xf64>) -> ()
+    call @dumpf64(%v1) : (memref<?xf64>) -> ()
+    call @dumpf64(%v2) : (memref<?xf64>) -> ()
+    call @dumpf64(%v3) : (memref<?xf64>) -> ()
+    call @dumpf64(%av) : (memref<?xf64>) -> ()
+    call @dumpf64(%bv) : (memref<?xf64>) -> ()
+    call @dumpf64(%cv) : (memref<?xf64>) -> ()
+    call @dumpf64(%dv) : (memref<?xf64>) -> ()
+    call @dumpf64(%ev) : (memref<?xf64>) -> ()
+    call @dumpf64(%fv) : (memref<?xf64>) -> ()
+    call @dumpf64(%gv) : (memref<?xf64>) -> ()
+    call @dumpf64(%hv) : (memref<?xf64>) -> ()
+    call @dumpf64(%iv) : (memref<?xf64>) -> ()
 
     //
-    // Check index equality.
+    // Check indices.
     //
-
+    // CHECK-NEXT: ( 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 )
+    // CHECK-NEXT: ( 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0 )
+    //
     %v10 = sparse_tensor.indices %1, %c0 : tensor<2x3x4xf64, #Tensor1> to memref<?xindex>
     %v11 = sparse_tensor.indices %1, %c1 : tensor<2x3x4xf64, #Tensor1> to memref<?xindex>
     %v12 = sparse_tensor.indices %1, %c2 : tensor<2x3x4xf64, #Tensor1> to memref<?xindex>
@@ -184,68 +193,77 @@ module {
     %c11 = sparse_tensor.indices %c, %c1 : tensor<2x3x4xf64, #Tensor1> to memref<?xindex>
     %c12 = sparse_tensor.indices %c, %c2 : tensor<2x3x4xf64, #Tensor1> to memref<?xindex>
 
-    %d10 = sparse_tensor.indices %d, %c0 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
-    %d11 = sparse_tensor.indices %d, %c1 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
-    %d12 = sparse_tensor.indices %d, %c2 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
-    %e10 = sparse_tensor.indices %e, %c0 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
-    %e11 = sparse_tensor.indices %e, %c1 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
-    %e12 = sparse_tensor.indices %e, %c2 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
-    %f10 = sparse_tensor.indices %f, %c0 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
-    %f11 = sparse_tensor.indices %f, %c1 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
-    %f12 = sparse_tensor.indices %f, %c2 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %d20 = sparse_tensor.indices %d, %c0 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %d21 = sparse_tensor.indices %d, %c1 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %d22 = sparse_tensor.indices %d, %c2 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %e20 = sparse_tensor.indices %e, %c0 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %e21 = sparse_tensor.indices %e, %c1 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %e22 = sparse_tensor.indices %e, %c2 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %f20 = sparse_tensor.indices %f, %c0 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %f21 = sparse_tensor.indices %f, %c1 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
+    %f22 = sparse_tensor.indices %f, %c2 : tensor<2x3x4xf64, #Tensor2> to memref<?xindex>
 
-    %g10 = sparse_tensor.indices %g, %c0 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
-    %g11 = sparse_tensor.indices %g, %c1 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
-    %g12 = sparse_tensor.indices %g, %c2 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
-    %h10 = sparse_tensor.indices %h, %c0 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
-    %h11 = sparse_tensor.indices %h, %c1 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
-    %h12 = sparse_tensor.indices %h, %c2 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
-    %i10 = sparse_tensor.indices %i, %c0 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
-    %i11 = sparse_tensor.indices %i, %c1 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
-    %i12 = sparse_tensor.indices %i, %c2 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %g30 = sparse_tensor.indices %g, %c0 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %g31 = sparse_tensor.indices %g, %c1 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %g32 = sparse_tensor.indices %g, %c2 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %h30 = sparse_tensor.indices %h, %c0 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %h31 = sparse_tensor.indices %h, %c1 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %h32 = sparse_tensor.indices %h, %c2 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %i30 = sparse_tensor.indices %i, %c0 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %i31 = sparse_tensor.indices %i, %c1 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
+    %i32 = sparse_tensor.indices %i, %c2 : tensor<2x3x4xf64, #Tensor3> to memref<?xindex>
 
-    call @check(%v10, %a10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v11, %a11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v12, %a12) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v10, %b10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v11, %b11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v12, %b12) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v10, %c10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v11, %c11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v12, %c12) : (memref<?xindex>, memref<?xindex>) -> ()
+    call @dumpidx(%v10) : (memref<?xindex>) -> ()
+    call @dumpidx(%v11) : (memref<?xindex>) -> ()
+    call @dumpidx(%v12) : (memref<?xindex>) -> ()
+    call @dumpidx(%v10) : (memref<?xindex>) -> ()
+    call @dumpidx(%v11) : (memref<?xindex>) -> ()
+    call @dumpidx(%v12) : (memref<?xindex>) -> ()
+    call @dumpidx(%v10) : (memref<?xindex>) -> ()
+    call @dumpidx(%v11) : (memref<?xindex>) -> ()
+    call @dumpidx(%v12) : (memref<?xindex>) -> ()
 
-    call @check(%v20, %d10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v21, %d11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v22, %d12) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v20, %e10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v21, %e11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v22, %e12) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v20, %f10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v21, %f11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v22, %f12) : (memref<?xindex>, memref<?xindex>) -> ()
+    call @dumpidx(%a10) : (memref<?xindex>) -> ()
+    call @dumpidx(%a11) : (memref<?xindex>) -> ()
+    call @dumpidx(%a12) : (memref<?xindex>) -> ()
+    call @dumpidx(%b10) : (memref<?xindex>) -> ()
+    call @dumpidx(%b11) : (memref<?xindex>) -> ()
+    call @dumpidx(%b12) : (memref<?xindex>) -> ()
+    call @dumpidx(%c10) : (memref<?xindex>) -> ()
+    call @dumpidx(%c11) : (memref<?xindex>) -> ()
+    call @dumpidx(%c12) : (memref<?xindex>) -> ()
 
-    call @check(%v30, %g10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v31, %g11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v32, %g12) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v30, %h10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v31, %h11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v32, %h12) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v30, %i10) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v31, %i11) : (memref<?xindex>, memref<?xindex>) -> ()
-    call @check(%v32, %i12) : (memref<?xindex>, memref<?xindex>) -> ()
+    call @dumpidx(%d20) : (memref<?xindex>) -> ()
+    call @dumpidx(%d21) : (memref<?xindex>) -> ()
+    call @dumpidx(%d22) : (memref<?xindex>) -> ()
+    call @dumpidx(%e20) : (memref<?xindex>) -> ()
+    call @dumpidx(%e21) : (memref<?xindex>) -> ()
+    call @dumpidx(%e22) : (memref<?xindex>) -> ()
+    call @dumpidx(%f20) : (memref<?xindex>) -> ()
+    call @dumpidx(%f21) : (memref<?xindex>) -> ()
+    call @dumpidx(%f22) : (memref<?xindex>) -> ()
 
-    //
-    // Sanity check direct results.
-    //
-    // CHECK:      ( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 )
-    // CHECK-NEXT: ( 1, 13, 2, 14, 3, 15, 4, 16, 5, 17, 6, 18, 7, 19, 8, 20, 9, 21, 10, 22, 11, 23, 12, 24 )
-    // CHECK-NEXT: ( 1, 5, 9, 13, 17, 21, 2, 6, 10, 14, 18, 22, 3, 7, 11, 15, 19, 23, 4, 8, 12, 16, 20, 24 )
-    //
-    call @dumpf64(%v1) : (memref<?xf64>) -> ()
-    call @dumpf64(%v2) : (memref<?xf64>) -> ()
-    call @dumpf64(%v3) : (memref<?xf64>) -> ()
+    call @dumpidx(%g30) : (memref<?xindex>) -> ()
+    call @dumpidx(%g31) : (memref<?xindex>) -> ()
+    call @dumpidx(%g32) : (memref<?xindex>) -> ()
+    call @dumpidx(%h30) : (memref<?xindex>) -> ()
+    call @dumpidx(%h31) : (memref<?xindex>) -> ()
+    call @dumpidx(%h32) : (memref<?xindex>) -> ()
+    call @dumpidx(%i30) : (memref<?xindex>) -> ()
+    call @dumpidx(%i31) : (memref<?xindex>) -> ()
+    call @dumpidx(%i32) : (memref<?xindex>) -> ()
+
+    // Release the resources.
+    sparse_tensor.release %1 : tensor<2x3x4xf64, #Tensor1>
+    sparse_tensor.release %2 : tensor<2x3x4xf64, #Tensor2>
+    sparse_tensor.release %3 : tensor<2x3x4xf64, #Tensor3>
+    sparse_tensor.release %b : tensor<2x3x4xf64, #Tensor1>
+    sparse_tensor.release %c : tensor<2x3x4xf64, #Tensor1>
+    sparse_tensor.release %d : tensor<2x3x4xf64, #Tensor2>
+    sparse_tensor.release %f : tensor<2x3x4xf64, #Tensor2>
+    sparse_tensor.release %g : tensor<2x3x4xf64, #Tensor3>
+    sparse_tensor.release %h : tensor<2x3x4xf64, #Tensor3>
 
     return
   }
 }
-

@@ -74,12 +74,6 @@ protected:
 
     detail::plugin plugin = GetParam();
 
-    if (plugin.getBackend() == sycl::backend::hip && sizeof(T) > 4) {
-      std::cerr << "HIP plugin doesn't support patterns larger than 4 bytes, "
-                   "skipping\n";
-      GTEST_SKIP();
-    }
-
     T inValues[_numElementsX] = {};
 
     for (size_t i = 0; i < _numElementsX; ++i) {
@@ -111,7 +105,7 @@ protected:
   }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     EnqueueMemTestImpl, EnqueueMemTest,
     testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<EnqueueMemTest::ParamType> &info) {

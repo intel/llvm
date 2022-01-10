@@ -1082,7 +1082,7 @@ const MCExpr *TargetLoweringObjectFileELF::lowerRelativeReference(
   if (!LHS->hasGlobalUnnamedAddr() || !LHS->getValueType()->isFunctionTy())
     return nullptr;
 
-  // Basic sanity checks.
+  // Basic correctness checks.
   if (LHS->getType()->getPointerAddressSpace() != 0 ||
       RHS->getType()->getPointerAddressSpace() != 0 || LHS->isThreadLocal() ||
       RHS->isThreadLocal())
@@ -1495,7 +1495,7 @@ void TargetLoweringObjectFileMachO::getNameWithPrefix(
     SmallVectorImpl<char> &OutName, const GlobalValue *GV,
     const TargetMachine &TM) const {
   bool CannotUsePrivateLabel = true;
-  if (auto *GO = GV->getBaseObject()) {
+  if (auto *GO = GV->getAliaseeObject()) {
     SectionKind GOKind = TargetLoweringObjectFile::getKindForGlobal(GO, TM);
     const MCSection *TheSection = SectionForGlobal(GO, GOKind, TM);
     CannotUsePrivateLabel =
@@ -1566,7 +1566,7 @@ static int getSelectionForCOFF(const GlobalValue *GV) {
   if (const Comdat *C = GV->getComdat()) {
     const GlobalValue *ComdatKey = getComdatGVForCOFF(GV);
     if (const auto *GA = dyn_cast<GlobalAlias>(ComdatKey))
-      ComdatKey = GA->getBaseObject();
+      ComdatKey = GA->getAliaseeObject();
     if (ComdatKey == GV) {
       switch (C->getSelectionKind()) {
       case Comdat::Any:
@@ -2135,7 +2135,7 @@ const MCExpr *TargetLoweringObjectFileWasm::lowerRelativeReference(
   if (!LHS->hasGlobalUnnamedAddr() || !LHS->getValueType()->isFunctionTy())
     return nullptr;
 
-  // Basic sanity checks.
+  // Basic correctness checks.
   if (LHS->getType()->getPointerAddressSpace() != 0 ||
       RHS->getType()->getPointerAddressSpace() != 0 || LHS->isThreadLocal() ||
       RHS->isThreadLocal())
@@ -2490,12 +2490,12 @@ TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(const GlobalValue *GV) {
 
 MCSymbol *TargetLoweringObjectFileXCOFF::getFunctionEntryPointSymbol(
     const GlobalValue *Func, const TargetMachine &TM) const {
-  assert(
-      (isa<Function>(Func) ||
-       (isa<GlobalAlias>(Func) &&
-        isa_and_nonnull<Function>(cast<GlobalAlias>(Func)->getBaseObject()))) &&
-      "Func must be a function or an alias which has a function as base "
-      "object.");
+  assert((isa<Function>(Func) ||
+          (isa<GlobalAlias>(Func) &&
+           isa_and_nonnull<Function>(
+               cast<GlobalAlias>(Func)->getAliaseeObject()))) &&
+         "Func must be a function or an alias which has a function as base "
+         "object.");
 
   SmallString<128> NameStr;
   NameStr.push_back('.');

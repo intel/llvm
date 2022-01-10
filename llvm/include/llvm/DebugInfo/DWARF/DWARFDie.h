@@ -182,6 +182,8 @@ public:
   DWARFDie getAttributeValueAsReferencedDie(dwarf::Attribute Attr) const;
   DWARFDie getAttributeValueAsReferencedDie(const DWARFFormValue &V) const;
 
+  DWARFDie resolveTypeUnitReference() const;
+
   /// Extract the range base attribute from this DIE as absolute section offset.
   ///
   /// This is a utility function that checks for either the DW_AT_rnglists_base
@@ -236,6 +238,8 @@ public:
   /// for ShortName if LinkageName is not found.
   /// Returns null if no name is found.
   const char *getName(DINameKind Kind) const;
+  void getFullName(raw_string_ostream &,
+                   std::string *OriginalFullName = nullptr) const;
 
   /// Return the DIE short name resolving DW_AT_specification or
   /// DW_AT_abstract_origin references if necessary. Returns null if no name
