@@ -225,7 +225,7 @@ typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
-    const context &TargetContext, event AvailableEvent = {}) {
+    const context &TargetContext, event AvailableEvent) {
   detail::pi::PiMem PiBuffer = detail::make_pi_mem(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       BackendObject.Size, TargetContext,
@@ -234,6 +234,23 @@ make_buffer(
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
       detail::pi::cast<pi_native_handle>(PiBuffer), TargetContext,
       AvailableEvent);
+}
+
+template <backend Backend, typename T, int Dimensions = 1,
+          typename AllocatorT = buffer_allocator>
+typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
+                        buffer<T, Dimensions, AllocatorT>>::type
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &BackendObject,
+    const context &TargetContext) {
+  detail::pi::PiMem PiBuffer = detail::make_pi_mem(
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Size, TargetContext,
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      Backend);
+  return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(PiBuffer), TargetContext);
 }
 
 template <backend Backend>

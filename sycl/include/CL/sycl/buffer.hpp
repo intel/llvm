@@ -26,7 +26,8 @@ template <int dimensions> class range;
 namespace detail {
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt) {
+make_buffer_helper(pi_native_handle Handle, const context &Ctx,
+                   event Evt = {}) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, Evt);
 }
 } // namespace detail

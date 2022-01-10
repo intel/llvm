@@ -320,7 +320,7 @@ Level-Zero kernel</td>
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &,
-    const context &Context, event AvailableEvent = {})
+    const context &Context)
 ```
 </td>
 <td>This API is available starting with revision 2 of this specification.
@@ -328,12 +328,24 @@ make_buffer(
 Construct a SYCL buffer instance from a pointer to a Level Zero memory buffer. The pointer must be the value returned from a previous call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>, or <code>zeMemAllocHost()</code>. If pointer is the value returned from <code>zeMemAllocDevice()</code> or <code>zeMemAllocShared()</code> then SYCL context <code>Context</code> must be associated with a single device.
 The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. Created SYCL buffer is
 associated only with the single SYCL context <code>Context</code>, the buffer can't be accessed on another contexts.
-The <code>AvailableEvent</code> argument must be a valid SYCL event, the instance of the SYCL buffer class template being constructed must wait for the SYCL event parameter, signaled event means that the memory native handle is ready to be used.
 The <code>Size</code> input structure member specifies a size of a Level-Zero memory buffer in bytes. It must be the same value that was passed to <code>zeMemAllocShared</code> / <code>zeMemAllocDevice</code> / <code>zeMemAllocHost</code>.
 The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory buffer. 
 Synchronization rules for a buffer that is created with this API are described in Section 4.5</td>
+</tr><tr>
+<td>
 
+``` C++
+make_buffer(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          buffer<T, Dimensions, AllocatorT>> &,
+    const context &Context, event AvailableEvent)
+```
+</td>
+<td>This API is available starting with revision 2 of this specification.
 
+Construct a SYCL buffer instance from a pointer to a Level Zero memory buffer. Please refer to <code>make_buffer</code>
+description above for semantics and restrictions.
+The additional <code>AvailableEvent</code> argument must be a valid SYCL event, the instance of the SYCL buffer class template being constructed must wait for the SYCL event parameter, signaled event means that the memory native handle is ready to be used.
 </tr>
 </table>
 
