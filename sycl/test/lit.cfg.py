@@ -112,7 +112,6 @@ if config.esimd_emulator_be == "ON":
 if triple == 'nvptx64-nvidia-cuda':
     config.available_features.add('cuda')
 
-
 if triple == 'amdgcn-amd-amdhsa':
     config.available_features.add('hip_amd')
     # For AMD the specific GPU has to be specified with --offload-arch, only
