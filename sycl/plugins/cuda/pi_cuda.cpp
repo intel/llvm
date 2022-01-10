@@ -1171,7 +1171,6 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
           "disabled by default. Their partial support can be activated by "
           "setting PI_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
           "runtime.");
-      enabled = PI_FALSE;
     }
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
