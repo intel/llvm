@@ -1161,7 +1161,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_uint64{max_alloc});
   }
   case PI_DEVICE_INFO_IMAGE_SUPPORT: {
-    pi_bool enabled;
+    pi_bool enabled = PI_FALSE;
 
     if (std::getenv("PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
       enabled = PI_TRUE;
