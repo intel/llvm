@@ -8,55 +8,19 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include "HelperKernelInfo.hpp"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
-#include <CL/sycl.hpp>
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <helpers/TestKernel.hpp>
 
 #include <gtest/gtest.h>
 
 #include <iostream>
 
 using namespace sycl;
-
-class MultTestKernel;
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
-template <> struct KernelInfo<MultTestKernel> : public MockKernelInfo {
-  static constexpr const char *getName() { return "MultTestKernel"; }
-};
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-
-static sycl::unittest::PiImage generateDefaultImage() {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"MultTestKernel"});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::PiImage Img = generateDefaultImage();
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 static pi_result redefinedContextCreate(
     const pi_context_properties *properties, pi_uint32 num_devices,
@@ -188,11 +152,11 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     auto Bundle = cl::sycl::get_kernel_bundle<sycl::bundle_state::input>(
         Queue.get_context());
     Queue.submit([&](cl::sycl::handler &cgh) {
-      cgh.single_task<MultTestKernel>([]() {});
+      cgh.single_task<TestKernel>([]() {});
     });
 
     auto BundleObject = cl::sycl::build(Bundle, Bundle.get_devices());
-    auto KernelID = cl::sycl::get_kernel_id<MultTestKernel>();
+    auto KernelID = cl::sycl::get_kernel_id<TestKernel>();
     auto Kernel = BundleObject.get_kernel(KernelID);
 
     // Because of emulating 2 devices program is retained for each one in

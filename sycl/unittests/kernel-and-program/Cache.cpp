@@ -9,7 +9,6 @@
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 #include "CL/sycl/detail/pi.h"
-#include "HelperKernelInfo.hpp"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
@@ -38,14 +37,24 @@ public:
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+struct MockKernelInfo {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() { return "TestKernel2"; }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
+
 template <> struct KernelInfo<TestKernel> : public MockKernelInfo {
   static constexpr const char *getName() { return "TestKernel"; }
 };
-
 template <> struct KernelInfo<TestKernel2> : public MockKernelInfo {
   static constexpr const char *getName() { return "TestKernel2"; }
 };
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
