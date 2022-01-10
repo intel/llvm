@@ -4940,7 +4940,7 @@ def analyzer_checker : Separate<["-"], "analyzer-checker">,
     #define GET_PACKAGES
     #define PACKAGE(FULLNAME)  FULLNAME ","
     #include "clang/StaticAnalyzer/Checkers/Checkers.inc"
-    #undef GET_PACKAGES
+#undef GET_PACKAGES
     ;
   }]>;
 def analyzer_checker_EQ : Joined<["-"], "analyzer-checker=">,
@@ -6065,6 +6065,12 @@ def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
 def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics that require the SYCL integration header.">,
   MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;
+
+// FIXME: the option probably needs better name
+def fsycl_overide_main_fileid : Flag<["-"], "fsycl-override-main-file-id">,
+  HelpText<"Tells compiler that -mail-file-name contains an absolute path and "
+           "file specified there should be used for checksum calculation.">,
+  MarshallingInfoFlag<CodeGenOpts<"SYCLOverrideMainFileId">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 

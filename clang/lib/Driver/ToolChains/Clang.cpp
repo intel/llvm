@@ -5214,6 +5214,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     SmallString<256> AbsPath = llvm::StringRef(Input.getBaseInput());
     D.getVFS().makeAbsolute(AbsPath);
     CmdArgs.push_back(Args.MakeArgString(AbsPath));
+    CmdArgs.push_back("-fsycl-override-main-file-id");
   }
 
   // Some flags which affect the language (via preprocessor
