@@ -43,7 +43,6 @@ struct MockKernelInfo {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }
-  static constexpr const char *getName() { return "TestKernel2"; }
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
