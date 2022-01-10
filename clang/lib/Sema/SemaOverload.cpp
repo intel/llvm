@@ -10264,7 +10264,8 @@ static bool checkAddressOfFunctionIsAvailable(Sema &S, const FunctionDecl *FD,
       S.getLangOpts().SYCLAllowFuncPtr) {
     if (!FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>()) {
       S.SYCLDiagIfDeviceCode(Loc,
-                             diag::err_sycl_taking_address_of_wrong_function);
+                             diag::err_sycl_taking_address_of_wrong_function,
+                             Sema::DeviceDiagnosticReason::Sycl);
     }
   }
 
