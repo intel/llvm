@@ -62,6 +62,7 @@ int main() {
 
       unsigned char *HostAlloc = (unsigned char *)malloc_host(1, c);
       auto e = q.memset(HostAlloc, 42, 1);
+      free(HostAlloc, c);
       if (e.get_backend() != plt.get_backend()) {
         return_fail();
       }
