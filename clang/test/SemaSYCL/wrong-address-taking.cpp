@@ -135,7 +135,6 @@ int main() {
           // expected-note@+2 {{called by 'operator()'}}
           // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
           templateCaller1<badFoo>(1);
-
         });
   });
   myQueue.submit([&](sycl::handler &h) {
