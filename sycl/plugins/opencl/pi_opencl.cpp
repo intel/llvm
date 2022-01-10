@@ -710,9 +710,8 @@ pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                         size_t size, pi_context context,
+                                         pi_context context,
                                          bool ownNativeHandle, pi_mem *piMem) {
-  (void)size;
   (void)context;
   (void)ownNativeHandle;
   assert(piMem != nullptr);

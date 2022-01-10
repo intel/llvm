@@ -965,8 +965,8 @@ pi_result piextMemGetNativeHandle(pi_mem, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextMemCreateWithNativeHandle(pi_native_handle, size_t, pi_context,
-                                         bool, pi_mem *) {
+pi_result piextMemCreateWithNativeHandle(pi_native_handle, pi_context, bool,
+                                         pi_mem *) {
   DIE_NO_IMPLEMENTATION;
 }
 

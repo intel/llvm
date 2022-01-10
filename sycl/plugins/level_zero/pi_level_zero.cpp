@@ -3616,7 +3616,7 @@ pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
-                                         size_t Size, pi_context Context,
+                                         pi_context Context,
                                          bool ownNativeHandle, pi_mem *Mem) {
   PI_ASSERT(Mem, PI_INVALID_VALUE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
@@ -3624,7 +3624,14 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Context->Devices.size() > 0, PI_INVALID_CONTEXT);
 
   try {
+    // Get size of the allocation
+    void *Base;
+    size_t Size;
+    ZE_CALL(zeMemGetAddressRange,
+            (Context->ZeContext, pi_cast<void *>(NativeHandle), &Base, &Size));
     ZeStruct<ze_memory_allocation_properties_t> ZeMemProps;
+
+    // Check type of the allocation
     ze_device_handle_t ZeDevice;
     ZE_CALL(zeMemGetAllocProperties,
             (Context->ZeContext, pi_cast<void *>(NativeHandle), &ZeMemProps,

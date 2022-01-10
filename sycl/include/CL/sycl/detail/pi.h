@@ -1148,14 +1148,13 @@ __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI mem from.
-/// \param size Size of the allocation in bytes.
 /// \param context The PI context of the memory allocation.
 /// \param ownNativeHandle Indicates if we own the native memory handle or it
 /// came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param mem is the PI mem created from the native handle.
 __SYCL_EXPORT pi_result piextMemCreateWithNativeHandle(
-    pi_native_handle nativeHandle, size_t size, pi_context context,
-    bool ownNativeHandle, pi_mem *mem);
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_mem *mem);
 
 //
 // Program

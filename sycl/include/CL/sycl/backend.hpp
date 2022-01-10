@@ -122,8 +122,7 @@ __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
                    bool KeepOwnership, bundle_state State, backend Backend);
 __SYCL_EXPORT detail::pi::PiMem make_pi_mem(pi_native_handle NativeHandle,
-                                            size_t Size, context Context,
-                                            bool KeepOwnership,
+                                            context Context, bool KeepOwnership,
                                             backend Backend);
 } // namespace detail
 
@@ -228,7 +227,7 @@ make_buffer(
     const context &TargetContext, event AvailableEvent) {
   detail::pi::PiMem PiBuffer = detail::make_pi_mem(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Size, TargetContext,
+      TargetContext,
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
       Backend);
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
@@ -246,7 +245,7 @@ make_buffer(
     const context &TargetContext) {
   detail::pi::PiMem PiBuffer = detail::make_pi_mem(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Size, TargetContext,
+      TargetContext,
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
       Backend);
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(

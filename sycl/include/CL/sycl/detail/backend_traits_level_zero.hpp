@@ -143,7 +143,6 @@ struct BackendInput<backend::ext_oneapi_level_zero,
                     buffer<DataT, Dimensions, AllocatorT>> {
   struct type {
     void *NativeHandle;
-    size_t Size;
     ext::oneapi::level_zero::ownership Ownership{
         ext::oneapi::level_zero::ownership::transfer};
   };

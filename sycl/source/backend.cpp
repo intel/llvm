@@ -253,14 +253,13 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
 }
 
 // Helper function to create a pi memory object
-detail::pi::PiMem make_pi_mem(pi_native_handle NativeHandle, size_t Size,
-                              context Context, bool KeepOwnership,
-                              backend Backend) {
+detail::pi::PiMem make_pi_mem(pi_native_handle NativeHandle, context Context,
+                              bool KeepOwnership, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   detail::pi::PiMem PiMem;
 
   Plugin.call<detail::PiApiKind::piextMemCreateWithNativeHandle>(
-      NativeHandle, Size, detail::getSyclObjImpl(Context)->getHandleRef(),
+      NativeHandle, detail::getSyclObjImpl(Context)->getHandleRef(),
       !KeepOwnership, &PiMem);
   return PiMem;
 }
