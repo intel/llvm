@@ -70,19 +70,27 @@ This extension introduces asynchronous barrier. This extends `group_barrier` by 
 
 Implementing this requires some space in local memory, where the state of the barrier is kept (this is true even for the CUDA compute capability 8 that support this functionality in hardware).
 
-This extension introduces `barrier` class. It must be used only in local memory. Once a `barrier` is initialized it can be reused for multiple cycles of arrivals and waits. However one cycle of arrivals and waits must be completed (at least one arrival and at least one wait) before arrive and wait corresponding to the next cycle can be called on the same barrier object.
+This extension introduces `barrier` class. It must be used only in local memory. Once a `barrier` is initialized it can be reused for multiple cycles of arrivals and waits.
+
+=== Cycle of arrivals and waits
+
+When predetermined number of arrivals happen, the barrier moves into the next cycle. That unblocks the waits for current cycle. That is any wait that was previously called with the arrival token from this cycle stops blocking and future calls to wait with arrival token from this cycle will not block. The pending count is also reset and any future arrivals happen in the next cycle. However, at least one wait (or test wait returning `true`) must happen with arrival token from current cycle before any arrivals can happen in the next cycle. Another arrival happening before the wait is undefined behavior.
+
+Wait and test wait can only be called with an arrival token from current cycle (in which case wait will block until the barrier moves into next cycle) or the previous cycle (in which case wait will not block). Calling wait or test wait with an arrival token from any other cycle is undefined behavior.
+
+=== Interface
 
 `barrier` class has the follwing member functions:
 
 `void initialize(uint32_t expected_count)` : Initializes the barrier with given count of arrivals before wait unblocks. It only needs to be called by one thread in work group. After the initialization a barrier operation (such as `group_barrier()`)needs to be executed by all threads using the `barrier` object before they can use the newly initialized `barrier` object.
 
-`void invalidate()` : This must be called on an initializted barrier before the memory it is using can be repurposed for any other use. It only needs to be called by one thread in work group. Before the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by all threads using the `barrier` object, after the last call on the `barrier`. After the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by any threads reusing the memory before the memory is reused.
+`void invalidate()` : This must be called on an initializted barrier before the memory it is using can be repurposed for any other use. It only needs to be called by one thread in work group. Before the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by all threads using the `barrier` object, after the last call on the `barrier`. After the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by any threads reusing the memory before the memory is reused. Calling any member function, except `initialize()` on an invalidated barrier is undefined behavior.
 
 `arrival_token arrive()` : Executes arrival operation and returns a token that is needed for the wait call corresponding to this arrival.
 
 `arrival_token arrive_and_drop()` : Reduces expected arrival count for future cycles by one, executes arrival operation and returns a token that is needed for the wait call corresponding to this arrival.
 
-`arrival_token arrive_no_complete(int32_t count)` : Executes arrival operation that counts as `count` arrivals and returns a token that is needed for the wait call corresponding to this arrival. This must not be the last arrival thet causes the cycle to complete - it would be undefined behavior.
+`arrival_token arrive_no_complete(int32_t count)` : Executes arrival operation that counts as `count` arrivals and returns a token that is needed for the wait call corresponding to this arrival. This must not be the last arrival that causes the cycle to complete - it would be undefined behavior.
 
 `arrival_token arrive_drop_no_complete(int32_t count)` : Reduces expected arrival count for future cycles by one, executes arrival operation that counts as `count` arrivals and returns a token that is needed for the wait call corresponding to this arrival. This must not be the last arrival thet causes the cycle to complete - it would be undefined behavior.
 
@@ -92,7 +100,7 @@ This extension introduces `barrier` class. It must be used only in local memory.
 
 `void arrive_copy_async_no_inc()` : Schedules arrive operation to be triggered asynchronously when all previous asynchronous memory copies initiated by the calling work item complete.
 
-`void wait(arrival_token arrival)` : Executes wait operation, blocking until the predetermined number of work items reach arrive. Resets the barrier for the next cycle before returning.
+`void wait(arrival_token arrival)` : Executes wait operation, blocking until the predetermined number of work items reach arrive.
 
 `void test_wait(arrival_token arrival)` : Checks whether all the arrivals have already happened for the current cycle, returning `true` if they did and `false` if `wait(arrival)` would block.
 
