@@ -617,11 +617,10 @@ private:
   ///
   /// Will cache ToolChains for the life of the driver object, and create them
   /// on-demand.
-  const ToolChain &getOffloadingDeviceToolChain(const llvm::opt::ArgList &Args,
-                                                const llvm::Triple &Target,
-                                                const ToolChain &HostTC,
-                                                const Action::OffloadKind
-                                                &TargetDeviceOffloadKind) const;
+  const ToolChain &getOffloadingDeviceToolChain(
+      const llvm::opt::ArgList &Args, const llvm::Triple &Target,
+      const ToolChain &HostTC,
+      const Action::OffloadKind &TargetDeviceOffloadKind) const;
 
   /// Get bitmasks for which option flags to include and exclude based on
   /// the driver mode.

@@ -169,6 +169,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
   add(DecorationVectorComputeCallableFunctionINTEL,
       "VectorComputeCallableFunctionINTEL");
+  add(DecorationMediaBlockIOINTEL, "MediaBlockIOINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
@@ -308,9 +309,7 @@ template <> inline void SPIRVMap<BuiltIn, std::string>::init() {
   add(BuiltInSMIDNV, "BuiltInSMIDNV");
   add(BuiltInMax, "BuiltInMax");
   add(internal::BuiltInSubDeviceIDINTEL, "BuiltInSubDeviceIDINTEL");
-  add(internal::BuiltInHWThreadIDINTEL, "BuiltInHWThreadIDINTEL");
-  add(internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL,
-      "BuiltInMaxHWThreadIDPerSubDeviceINTEL");
+  add(internal::BuiltInGlobalHWThreadIDINTEL, "BuiltInGlobalHWThreadIDINTEL");
 }
 SPIRV_DEF_NAMEMAP(BuiltIn, SPIRVBuiltInNameMap)
 

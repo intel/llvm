@@ -191,15 +191,11 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  } else if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  } else if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
+  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cerr << "Test is not supported on "
+              << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";
+    GTEST_SKIP(); // test is not supported on selected platform.
   }
 
   sycl::unittest::PiMock Mock{Plt};

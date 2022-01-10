@@ -163,6 +163,11 @@ struct DecoratedType<ElementType, access::address_space::private_space> {
 };
 
 template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = ElementType;
+};
+
+template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::global_space> {
   using type = __OPENCL_GLOBAL_AS__ ElementType;
 };

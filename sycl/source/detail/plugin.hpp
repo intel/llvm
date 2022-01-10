@@ -150,11 +150,16 @@ public:
     // the per_instance_user_data field.
     const char *PIFnName = PiCallInfo.getFuncName();
     uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
-    auto ArgsData =
-        packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
-    uint64_t CorrelationIDWithArgs =
-        pi::emitFunctionWithArgsBeginTrace(static_cast<uint32_t>(PiApiOffset),
-                                           PIFnName, ArgsData.data(), *MPlugin);
+    uint64_t CorrelationIDWithArgs = 0;
+    unsigned char *ArgsDataPtr = nullptr;
+    // TODO check if stream is observed when corresponding API is present.
+    if (xptiTraceEnabled()) {
+      auto ArgsData =
+          packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
+      ArgsDataPtr = ArgsData.data();
+      CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
+          static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
+    }
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
@@ -175,7 +180,7 @@ public:
     pi::emitFunctionEndTrace(CorrelationID, PIFnName);
     pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
                                      static_cast<uint32_t>(PiApiOffset),
-                                     PIFnName, ArgsData.data(), R, *MPlugin);
+                                     PIFnName, ArgsDataPtr, R, *MPlugin);
 #endif
     return R;
   }

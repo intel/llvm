@@ -1,7 +1,7 @@
 ; REQUIRES: asserts
-; RUN: opt -mtriple=aarch64-none-linux-gnu -mattr=+sve -loop-vectorize -S -scalable-vectorization=on < %s 2>&1 | FileCheck %s
-; RUN: opt -mtriple=aarch64-none-linux-gnu -mattr=+sve -loop-vectorize -pass-remarks-analysis=loop-vectorize -debug-only=loop-vectorize -S -scalable-vectorization=on < %s 2>&1 | FileCheck --check-prefix=CHECK-DBG %s
-; RUN: opt -mtriple=aarch64-none-linux-gnu -loop-vectorize -pass-remarks-analysis=loop-vectorize -debug-only=loop-vectorize -S -scalable-vectorization=on < %s 2>%t | FileCheck --check-prefix=CHECK-NO-SVE %s
+; RUN: opt -mtriple=aarch64-none-linux-gnu -mattr=+sve -loop-vectorize -S < %s 2>&1 | FileCheck %s
+; RUN: opt -mtriple=aarch64-none-linux-gnu -mattr=+sve -loop-vectorize -pass-remarks-analysis=loop-vectorize -debug-only=loop-vectorize -S < %s 2>&1 | FileCheck --check-prefix=CHECK-DBG %s
+; RUN: opt -mtriple=aarch64-none-linux-gnu -loop-vectorize -pass-remarks-analysis=loop-vectorize -debug-only=loop-vectorize -S < %s 2>%t | FileCheck --check-prefix=CHECK-NO-SVE %s
 ; RUN: cat %t | FileCheck %s -check-prefix=CHECK-NO-SVE-REMARKS
 
 target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
@@ -378,7 +378,7 @@ exit:
   ret void
 }
 
-attributes #0 = { vscale_range(0, 16) }
+attributes #0 = { vscale_range(1, 16) }
 !21 = !{!21, !22, !23}
 !22 = !{!"llvm.loop.vectorize.width", i32 4}
 !23 = !{!"llvm.loop.vectorize.scalable.enable", i1 true}

@@ -56,6 +56,9 @@ public:
         parallelDims.push_back(i);
 
     // Add transpose only if inner-most/outer-most dimensions are not parallel
+    // and there are parallel dims.
+    if (parallelDims.empty())
+      return failure();
     if (useInnerDimsForReduction &&
         (parallelDims ==
          llvm::to_vector<4>(llvm::seq<int64_t>(0, parallelDims.size()))))
