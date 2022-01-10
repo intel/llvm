@@ -54,6 +54,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerESIMDVecArg.cpp
   LowerWGLocalMemory.cpp
   ESIMDVerifier.cpp
+  MutatePrintfAddrspace.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -72,6 +73,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMTransformUtils
   
   LINK_COMPONENTS
+  Analysis
   Core
   Support
   )

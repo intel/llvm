@@ -299,7 +299,7 @@ int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
 }
 /// \endcond
 
-void simpleGuessLocalWorkSize(int *threadsPerBlock,
+void simpleGuessLocalWorkSize(size_t *threadsPerBlock,
                               const size_t *global_work_size,
                               const size_t maxThreadsPerBlock[3],
                               pi_kernel kernel) {
@@ -314,8 +314,7 @@ void simpleGuessLocalWorkSize(int *threadsPerBlock,
 
   //(void)minGrid; // Not used, avoid warnings
 
-  threadsPerBlock[0] = std::min(static_cast<int>(maxThreadsPerBlock[0]),
-                                static_cast<int>(global_work_size[0]));
+  threadsPerBlock[0] = std::min(maxThreadsPerBlock[0], global_work_size[0]);
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
@@ -366,6 +365,10 @@ pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event);
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event);
 pi_result hip_piEventRelease(pi_event event);
 pi_result hip_piEventRetain(pi_event event);
 
@@ -2501,7 +2504,7 @@ pi_result hip_piEnqueueKernelLaunch(
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
-  int threadsPerBlock[3] = {32, 1, 1};
+  size_t threadsPerBlock[3] = {32u, 1u, 1u};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
@@ -2531,7 +2534,7 @@ pi_result hip_piEnqueueKernelLaunch(
           return PI_INVALID_WORK_GROUP_SIZE;
         if (0u != (global_work_size[dim] % local_work_size[dim]))
           return PI_INVALID_WORK_GROUP_SIZE;
-        threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
+        threadsPerBlock[dim] = local_work_size[dim];
         return PI_SUCCESS;
       };
 
@@ -2551,12 +2554,11 @@ pi_result hip_piEnqueueKernelLaunch(
     return PI_INVALID_WORK_GROUP_SIZE;
   }
 
-  int blocksPerGrid[3] = {1, 1, 1};
+  size_t blocksPerGrid[3] = {1u, 1u, 1u};
 
   for (size_t i = 0; i < work_dim; i++) {
     blocksPerGrid[i] =
-        static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
-        threadsPerBlock[i];
+        (global_work_size[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
   }
 
   pi_result retError = PI_SUCCESS;
@@ -3438,13 +3440,30 @@ pi_result hip_piEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-/// Enqueues a wait on the given CUstream for all events.
+/// Enqueues a wait on the given queue for all events.
 /// See \ref enqueueEventWait
 ///
+/// Currently queues are represented by a single in-order stream, therefore
+/// every command is an implicit barrier and so hip_piEnqueueEventsWait has the
+/// same behavior as hip_piEnqueueEventsWaitWithBarrier. So
+/// hip_piEnqueueEventsWait can just call hip_piEnqueueEventsWaitWithBarrier.
 pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event) {
+  return hip_piEnqueueEventsWaitWithBarrier(
+      command_queue, num_events_in_wait_list, event_wait_list, event);
+}
+
+/// Enqueues a wait on the given queue for all specified events.
+/// See \ref enqueueEventWaitWithBarrier
+///
+/// If the events list is empty, the enqueued wait will wait on all previous
+/// events in the queue.
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event) {
   if (!command_queue) {
     return PI_INVALID_QUEUE;
   }
@@ -4888,6 +4907,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueKernelLaunch, hip_piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, hip_piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, hip_piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, hip_piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, hip_piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, hip_piEnqueueMemBufferReadRect)
   _PI_CL(piEnqueueMemBufferWrite, hip_piEnqueueMemBufferWrite)

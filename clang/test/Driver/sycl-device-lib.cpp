@@ -128,7 +128,7 @@
 
 /// ###########################################################################
 /// test llvm-link behavior for fno-sycl-device-lib
-// RUN: %clangxx -fsycl -fno-sycl-device-lib=all %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fno-sycl-dead-args-optimization -fno-sycl-device-lib=all %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_NO_DEVICE_LIB
 // SYCL_LLVM_LINK_NO_DEVICE_LIB: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 // SYCL_LLVM_LINK_NO_DEVICE_LIB-NOT: llvm-link{{.*}}  "-only-needed"

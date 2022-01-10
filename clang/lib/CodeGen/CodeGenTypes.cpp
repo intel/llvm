@@ -824,6 +824,8 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
   if (!Entry) {
     Entry = llvm::StructType::create(getLLVMContext());
     addRecordTypeName(RD, Entry, "");
+    if (RD->hasAttr<SYCLUsesAspectsAttr>())
+      CGM.addTypeWithAspects(Entry->getName(), RD);
   }
   llvm::StructType *Ty = Entry;
 

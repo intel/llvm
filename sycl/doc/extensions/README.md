@@ -37,7 +37,7 @@ DPC++ extensions status:
 | [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
 | [Platform Context](PlatformContext/PlatformContext.adoc) | Proposal | |
 | [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
-| [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
+| [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Experimental. Partially supported         | |
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
 | [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc)                                                                                | Proposal                                  | |

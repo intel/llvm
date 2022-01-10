@@ -2190,11 +2190,8 @@ static llvm::Value *emitInterWarpCopyFunction(CodeGenModule &CGM,
       // elemptr = ((CopyType*)(elemptrptr)) + I
       Address ElemPtr = Address(ElemPtrPtr, Align);
       ElemPtr = Bld.CreateElementBitCast(ElemPtr, CopyType);
-      if (NumIters > 1) {
-        ElemPtr = Address(Bld.CreateGEP(ElemPtr.getElementType(),
-                                        ElemPtr.getPointer(), Cnt),
-                          ElemPtr.getAlignment());
-      }
+      if (NumIters > 1)
+        ElemPtr = Bld.CreateGEP(ElemPtr, Cnt);
 
       // Get pointer to location in transfer medium.
       // MediumPtr = &medium[warp_id]
@@ -2260,11 +2257,8 @@ static llvm::Value *emitInterWarpCopyFunction(CodeGenModule &CGM,
           TargetElemPtrPtr, /*Volatile=*/false, C.VoidPtrTy, Loc);
       Address TargetElemPtr = Address(TargetElemPtrVal, Align);
       TargetElemPtr = Bld.CreateElementBitCast(TargetElemPtr, CopyType);
-      if (NumIters > 1) {
-        TargetElemPtr = Address(Bld.CreateGEP(TargetElemPtr.getElementType(),
-                                              TargetElemPtr.getPointer(), Cnt),
-                                TargetElemPtr.getAlignment());
-      }
+      if (NumIters > 1)
+        TargetElemPtr = Bld.CreateGEP(TargetElemPtr, Cnt);
 
       // *TargetElemPtr = SrcMediumVal;
       llvm::Value *SrcMediumValue =
@@ -3903,6 +3897,7 @@ void CGOpenMPRuntimeGPU::processRequiresDirective(
       case CudaArch::GFX1033:
       case CudaArch::GFX1034:
       case CudaArch::GFX1035:
+      case CudaArch::Generic:
       case CudaArch::UNUSED:
       case CudaArch::UNKNOWN:
         break;

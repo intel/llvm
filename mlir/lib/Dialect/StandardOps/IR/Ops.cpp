@@ -515,7 +515,8 @@ static Type getI1SameShape(Type type) {
   if (type.isa<UnrankedTensorType>())
     return UnrankedTensorType::get(i1Type);
   if (auto vectorType = type.dyn_cast<VectorType>())
-    return VectorType::get(vectorType.getShape(), i1Type);
+    return VectorType::get(vectorType.getShape(), i1Type,
+                           vectorType.getNumScalableDims());
   return i1Type;
 }
 
@@ -539,7 +540,8 @@ struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
                                             condbr.getTrueOperands());
       return success();
-    } else if (matchPattern(condbr.getCondition(), m_Zero())) {
+    }
+    if (matchPattern(condbr.getCondition(), m_Zero())) {
       // False branch taken.
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getFalseDest(),
                                             condbr.getFalseOperands());
@@ -897,20 +899,6 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
            arrAttr[1].getType() == complexEltTy;
   }
   return value.isa<UnitAttr>();
-}
-
-//===----------------------------------------------------------------------===//
-// RankOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
-  // Constant fold rank when the rank of the operand is known.
-  auto type = getOperand().getType();
-  if (auto shapedType = type.dyn_cast<ShapedType>())
-    if (shapedType.hasRank())
-      return IntegerAttr::get(IndexType::get(getContext()),
-                              shapedType.getRank());
-  return IntegerAttr();
 }
 
 //===----------------------------------------------------------------------===//

@@ -195,6 +195,29 @@ static bool SemaBuiltinAddressof(Sema &S, CallExpr *TheCall) {
   return false;
 }
 
+/// Check that the argument to __builtin_function_start is a function.
+static bool SemaBuiltinFunctionStart(Sema &S, CallExpr *TheCall) {
+  if (checkArgCount(S, TheCall, 1))
+    return true;
+
+  ExprResult Arg = S.DefaultFunctionArrayLvalueConversion(TheCall->getArg(0));
+  if (Arg.isInvalid())
+    return true;
+
+  TheCall->setArg(0, Arg.get());
+  const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(
+      Arg.get()->getAsBuiltinConstantDeclRef(S.getASTContext()));
+
+  if (!FD) {
+    S.Diag(TheCall->getBeginLoc(), diag::err_function_start_invalid_type)
+        << TheCall->getSourceRange();
+    return true;
+  }
+
+  return !S.checkAddressOfFunctionIsAvailable(FD, /*Complain=*/true,
+                                              TheCall->getBeginLoc());
+}
+
 /// Check the number of arguments and set the result type to
 /// the argument type.
 static bool SemaBuiltinPreserveAI(Sema &S, CallExpr *TheCall) {
@@ -446,14 +469,14 @@ public:
       break;
     }
 
-    auto OptionalFW = FS.getFieldWidth();
-    if (OptionalFW.getHowSpecified() !=
+    analyze_format_string::OptionalAmount FW = FS.getFieldWidth();
+    if (FW.getHowSpecified() !=
         analyze_format_string::OptionalAmount::HowSpecified::Constant)
       return true;
 
-    unsigned SourceSize = OptionalFW.getConstantAmount() + NulByte;
+    unsigned SourceSize = FW.getConstantAmount() + NulByte;
 
-    auto DestSizeAPS = ComputeSizeArgument(FS.getArgIndex());
+    Optional<llvm::APSInt> DestSizeAPS = ComputeSizeArgument(FS.getArgIndex());
     if (!DestSizeAPS)
       return true;
 
@@ -652,20 +675,53 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
       isConstantEvaluated())
     return;
 
-  unsigned BuiltinID = FD->getBuiltinID(/*ConsiderWrappers=*/true);
+  bool UseDABAttr = false;
+  const FunctionDecl *UseDecl = FD;
+
+  const auto *DABAttr = FD->getAttr<DiagnoseAsBuiltinAttr>();
+  if (DABAttr) {
+    UseDecl = DABAttr->getFunction();
+    assert(UseDecl && "Missing FunctionDecl in DiagnoseAsBuiltin attribute!");
+    UseDABAttr = true;
+  }
+
+  unsigned BuiltinID = UseDecl->getBuiltinID(/*ConsiderWrappers=*/true);
+
   if (!BuiltinID)
     return;
 
   const TargetInfo &TI = getASTContext().getTargetInfo();
   unsigned SizeTypeWidth = TI.getTypeWidth(TI.getSizeType());
 
+  auto TranslateIndex = [&](unsigned Index) -> Optional<unsigned> {
+    // If we refer to a diagnose_as_builtin attribute, we need to change the
+    // argument index to refer to the arguments of the called function. Unless
+    // the index is out of bounds, which presumably means it's a variadic
+    // function.
+    if (!UseDABAttr)
+      return Index;
+    unsigned DABIndices = DABAttr->argIndices_size();
+    unsigned NewIndex = Index < DABIndices
+                            ? DABAttr->argIndices_begin()[Index]
+                            : Index - DABIndices + FD->getNumParams();
+    if (NewIndex >= TheCall->getNumArgs())
+      return llvm::None;
+    return NewIndex;
+  };
+
   auto ComputeExplicitObjectSizeArgument =
       [&](unsigned Index) -> Optional<llvm::APSInt> {
+    Optional<unsigned> IndexOptional = TranslateIndex(Index);
+    if (!IndexOptional)
+      return llvm::None;
+    unsigned NewIndex = IndexOptional.getValue();
     Expr::EvalResult Result;
-    Expr *SizeArg = TheCall->getArg(Index);
+    Expr *SizeArg = TheCall->getArg(NewIndex);
     if (!SizeArg->EvaluateAsInt(Result, getASTContext()))
       return llvm::None;
-    return Result.Val.getInt();
+    llvm::APSInt Integer = Result.Val.getInt();
+    Integer.setIsUnsigned(true);
+    return Integer;
   };
 
   auto ComputeSizeArgument = [&](unsigned Index) -> Optional<llvm::APSInt> {
@@ -680,7 +736,12 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
         BOSType = POS->getType();
     }
 
-    const Expr *ObjArg = TheCall->getArg(Index);
+    Optional<unsigned> IndexOptional = TranslateIndex(Index);
+    if (!IndexOptional)
+      return llvm::None;
+    unsigned NewIndex = IndexOptional.getValue();
+
+    const Expr *ObjArg = TheCall->getArg(NewIndex);
     uint64_t Result;
     if (!ObjArg->tryEvaluateObjectSize(Result, getASTContext(), BOSType))
       return llvm::None;
@@ -690,7 +751,12 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   };
 
   auto ComputeStrLenArgument = [&](unsigned Index) -> Optional<llvm::APSInt> {
-    Expr *ObjArg = TheCall->getArg(Index);
+    Optional<unsigned> IndexOptional = TranslateIndex(Index);
+    if (!IndexOptional)
+      return llvm::None;
+    unsigned NewIndex = IndexOptional.getValue();
+
+    const Expr *ObjArg = TheCall->getArg(NewIndex);
     uint64_t Result;
     if (!ObjArg->tryEvaluateStrLen(Result, getASTContext()))
       return llvm::None;
@@ -898,7 +964,8 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   }
 
   if (!SourceSize || !DestinationSize ||
-      SourceSize.getValue().ule(DestinationSize.getValue()))
+      llvm::APSInt::compareValues(SourceSize.getValue(),
+                                  DestinationSize.getValue()) <= 0)
     return;
 
   StringRef FunctionName = GetFunctionName();
@@ -1874,6 +1941,10 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (SemaBuiltinAddressof(*this, TheCall))
       return ExprError();
     break;
+  case Builtin::BI__builtin_function_start:
+    if (SemaBuiltinFunctionStart(*this, TheCall))
+      return ExprError();
+    break;
   case Builtin::BI__builtin_is_aligned:
   case Builtin::BI__builtin_align_up:
   case Builtin::BI__builtin_align_down:
@@ -2165,10 +2236,38 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     break;
   case Builtin::BI__builtin_reduce_max:
-  case Builtin::BI__builtin_reduce_min:
-    if (SemaBuiltinReduceMath(TheCall))
+  case Builtin::BI__builtin_reduce_min: {
+    if (PrepareBuiltinReduceMathOneArgCall(TheCall))
       return ExprError();
+
+    const Expr *Arg = TheCall->getArg(0);
+    const auto *TyA = Arg->getType()->getAs<VectorType>();
+    if (!TyA) {
+      Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
+          << 1 << /* vector ty*/ 4 << Arg->getType();
+      return ExprError();
+    }
+
+    TheCall->setType(TyA->getElementType());
     break;
+  }
+
+  // __builtin_reduce_xor supports vector of integers only.
+  case Builtin::BI__builtin_reduce_xor: {
+    if (PrepareBuiltinReduceMathOneArgCall(TheCall))
+      return ExprError();
+
+    const Expr *Arg = TheCall->getArg(0);
+    const auto *TyA = Arg->getType()->getAs<VectorType>();
+    if (!TyA || !TyA->getElementType()->isIntegerType()) {
+      Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
+          << 1  << /* vector of integers */ 6 << Arg->getType();
+      return ExprError();
+    }
+    TheCall->setType(TyA->getElementType());
+    break;
+  }
+
   case Builtin::BI__builtin_matrix_transpose:
     return SemaBuiltinMatrixTranspose(TheCall, TheCallResult);
 
@@ -16950,7 +17049,7 @@ bool Sema::SemaBuiltinElementwiseMath(CallExpr *TheCall) {
   return false;
 }
 
-bool Sema::SemaBuiltinReduceMath(CallExpr *TheCall) {
+bool Sema::PrepareBuiltinReduceMathOneArgCall(CallExpr *TheCall) {
   if (checkArgCount(*this, TheCall, 1))
     return true;
 
@@ -16959,14 +17058,6 @@ bool Sema::SemaBuiltinReduceMath(CallExpr *TheCall) {
     return true;
 
   TheCall->setArg(0, A.get());
-  const VectorType *TyA = A.get()->getType()->getAs<VectorType>();
-  if (!TyA) {
-    SourceLocation ArgLoc = TheCall->getArg(0)->getBeginLoc();
-    return Diag(ArgLoc, diag::err_builtin_invalid_arg_type)
-           << 1 << /* vector ty*/ 4 << A.get()->getType();
-  }
-
-  TheCall->setType(TyA->getElementType());
   return false;
 }
 
