@@ -2490,25 +2490,7 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
   Value *StepCompare = Builder.CreateICmp(ICmpInst::ICMP_SLT, StepValue, Zero);
   Value *AbsStep = Builder.CreateSelect(StepCompare, NegStepValue, StepValue);
 
-  // Get the backedge taken count and truncate or extended to the AR type.
-  Value *TruncTripCount = Builder.CreateZExtOrTrunc(TripCountVal, Ty);
-
   // Compute |Step| * Backedge
-  Value *MulV, *OfMul;
-  if (Step->isOne()) {
-    // Special-case Step of one. Potentially-costly `umul_with_overflow` isn't
-    // needed, there is never an overflow, so to avoid artificially inflating
-    // the cost of the check, directly emit the optimized IR.
-    MulV = TruncTripCount;
-    OfMul = ConstantInt::getFalse(MulV->getContext());
-  } else {
-    auto *MulF = Intrinsic::getDeclaration(Loc->getModule(),
-                                           Intrinsic::umul_with_overflow, Ty);
-    CallInst *Mul = Builder.CreateCall(MulF, {AbsStep, TruncTripCount}, "mul");
-    MulV = Builder.CreateExtractValue(Mul, 0, "mul.result");
-    OfMul = Builder.CreateExtractValue(Mul, 1, "mul.overflow");
-  }
-
   // Compute:
   //   1. Start + |Step| * Backedge < Start
   //   2. Start - |Step| * Backedge > Start
@@ -2520,6 +2502,25 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
     // Checking <u 0 is always false.
     if (!Signed && Start->isZero() && SE.isKnownPositive(Step))
       return ConstantInt::getFalse(Loc->getContext());
+
+    // Get the backedge taken count and truncate or extended to the AR type.
+    Value *TruncTripCount = Builder.CreateZExtOrTrunc(TripCountVal, Ty);
+
+    Value *MulV, *OfMul;
+    if (Step->isOne()) {
+      // Special-case Step of one. Potentially-costly `umul_with_overflow` isn't
+      // needed, there is never an overflow, so to avoid artificially inflating
+      // the cost of the check, directly emit the optimized IR.
+      MulV = TruncTripCount;
+      OfMul = ConstantInt::getFalse(MulV->getContext());
+    } else {
+      auto *MulF = Intrinsic::getDeclaration(Loc->getModule(),
+                                             Intrinsic::umul_with_overflow, Ty);
+      CallInst *Mul =
+          Builder.CreateCall(MulF, {AbsStep, TruncTripCount}, "mul");
+      MulV = Builder.CreateExtractValue(Mul, 0, "mul.result");
+      OfMul = Builder.CreateExtractValue(Mul, 1, "mul.overflow");
+    }
 
     Value *Add = nullptr, *Sub = nullptr;
     bool NeedPosCheck = !SE.isKnownNegative(Step);
@@ -2553,7 +2554,7 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
       // Select the answer based on the sign of Step.
       EndCheck = Builder.CreateSelect(StepCompare, EndCompareGT, EndCompareLT);
     }
-    return EndCheck;
+    return Builder.CreateOr(EndCheck, OfMul);
   };
   Value *EndCheck = ComputeEndCheck();
 
@@ -2571,7 +2572,7 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
     EndCheck = Builder.CreateOr(EndCheck, BackedgeCheck);
   }
 
-  return Builder.CreateOr(EndCheck, OfMul);
+  return EndCheck;
 }
 
 Value *SCEVExpander::expandWrapPredicate(const SCEVWrapPredicate *Pred,
@@ -2742,13 +2743,8 @@ void SCEVExpanderCleaner::cleanup() {
   // Remove sets with value handles.
   Expander.clear();
 
-  // Sort so that earlier instructions do not dominate later instructions.
-  stable_sort(InsertedInstructions, [this](Instruction *A, Instruction *B) {
-    return DT.dominates(B, A);
-  });
   // Remove all inserted instructions.
-  for (Instruction *I : InsertedInstructions) {
-
+  for (Instruction *I : reverse(InsertedInstructions)) {
 #ifndef NDEBUG
     assert(all_of(I->users(),
                   [&InsertedSet](Value *U) {
