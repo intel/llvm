@@ -26,11 +26,6 @@ public:
   barrier &operator=(const barrier &other) = delete;
   barrier &operator=(barrier &&other) noexcept = delete;
 
-  // the valid range of count for PTX is [1,2^20 -1] -
-  // https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-contents
-  // expected to sync after this so all threads see the initialized barrier
-  // (maybe the sync should be part of the constructor)
-  // TODO only one thread needs to initialize, but many init is fine
   void initialize(uint32_t expected_count) {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_BarrierInitialize(&state, expected_count);
@@ -58,6 +53,60 @@ public:
 #endif
   }
 
+  arrival_token arrive_and_drop() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_BarrierArriveAndDrop(&state);
+#else
+    throw runtime_error("Barrier is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  arrival_token arrive_no_complete(int32_t count) {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_BarrierArriveNoComplete(&state, count);
+#else
+    throw runtime_error("Barrier is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  arrival_token arrive_drop_no_complete(int32_t count) {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_BarrierArriveDropNoComplete(&state, count);
+#else
+    throw runtime_error("Barrier is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
+  int32_t pending_count(arrival_token arrival) {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_BarrierPendingCount(arrival);
+#else
+    throw runtime_error("Barrier is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+  
+  void arrive_copy_async() {
+#ifdef __SYCL_DEVICE_ONLY__
+    __spirv_BarrierCopyAsyncArrive(&state);
+#else
+    throw runtime_error("Barrier is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+  
+  void arrive_copy_async_no_inc() {
+#ifdef __SYCL_DEVICE_ONLY__
+    __spirv_BarrierCopyAsyncArriveNoInc(&state);
+#else
+    throw runtime_error("Barrier is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+
   void wait(arrival_token arrival) {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_BarrierWait(&state, arrival);
@@ -66,17 +115,28 @@ public:
                         PI_INVALID_DEVICE);
 #endif
   }
+  
+  void test_wait(arrival_token arrival) {
+#ifdef __SYCL_DEVICE_ONLY__
+    __spirv_BarrierTestWait(&state, arrival);
+#else
+    throw runtime_error("Barrier is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
+  
+  arrival_token arrive_and_wait() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_BarrierArriveAndWait(&state);
+#else
+    throw runtime_error("Barrier is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
+  }
 
-  /*
-  // equivalent to wait(arrive());
-  void arrive_and_wait();
-  // arrive and also drop the expected count by one
-  void arrive_and_drop();
-
-
-  // returns the maximum value of expected count that is supported by the
-  implementation. static constexpr std::uint32_t max() noexcept();
-  */
+  static constexpr uint64_t max(){
+    return 1 << 19;
+  }
 };
 
 } // namespace sycl::ext::oneapi

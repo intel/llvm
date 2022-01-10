@@ -21,8 +21,7 @@ IMPORTANT: This specification is a draft.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
-This document describes an extension which adds `barrier` which acts similarly
-to https://en.cppreference.com/w/cpp/thread/barrier[`std::barrier`].
+This document describes an extension that adds `barrier`, which acts similarly to https://en.cppreference.com/w/cpp/thread/barrier[`std::barrier`].
 
 NOTE: CUDA can hardware accelerate from compute capability 8.
 
@@ -79,9 +78,25 @@ This extension introduces `barrier` class. It must be used only in local memory.
 
 `void invalidate()` : This must be called on an initializted barrier before the memory it is using can be repurposed for any other use. It only needs to be called by one thread in work group. Before the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by all threads using the `barrier` object, after the last call on the `barrier`. After the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by any threads reusing the memory before the memory is reused.
 
-`arrival_token arrive();` : Executes arrival operation and returns a token that must be passed to the wait call corresponding to this arrival.
+`arrival_token arrive()` : Executes arrival operation and returns a token that is needed for the wait call corresponding to this arrival.
 
- `void wait(arrival_token arrival)` : Executes wait operation, blocking until predetermined number of threads reach arrive.
+`arrival_token arrive_and_drop()` : Reduces expected arrival count for future cycles by one, executes arrival operation and returns a token that is needed for the wait call corresponding to this arrival.
+
+`arrival_token arrive_no_complete(int32_t count)` : Executes arrival operation that counts as `count` arrivals and returns a token that is needed for the wait call corresponding to this arrival. This must not be the last arrival thet causes the cycle to complete - it would be undefined behavior.
+
+`arrival_token arrive_drop_no_complete(int32_t count)` : Reduces expected arrival count for future cycles by one, executes arrival operation that counts as `count` arrivals and returns a token that is needed for the wait call corresponding to this arrival. This must not be the last arrival thet causes the cycle to complete - it would be undefined behavior.
+
+`int32_t pending_count(arrival_token arrival)` : Returns the number of arrivals needed before the current cycle is completed. This can only be called using an `arrival` token form a no_complete variant of arrive operation - either `arrive_no_complete` or `arrive_drop_no_complete`. Otherwise the behavior is undefined.
+
+`void arrive_copy_async()` : Schedules arrive operation to be triggered asynchronously when all previous asynchronous memory copies initiated by the calling work item complete. Before the arrive operation is triggered, the pending count on the barrier is increased by 1, so after the arrival there is no change to the pending count.
+
+`void arrive_copy_async_no_inc()` : Schedules arrive operation to be triggered asynchronously when all previous asynchronous memory copies initiated by the calling work item complete.
+
+`void wait(arrival_token arrival)` : Executes wait operation, blocking until the predetermined number of work items reach arrive. Resets the barrier for the next cycle before returning.
+
+`void test_wait(arrival_token arrival)` : Checks whether all the arrivals have already happened for the current cycle, returning `true` if they did and `false` if `wait(arrival)` would block.
+
+`static constexpr uint64_t max()` : Returns the maximum value of the expected and pending counts supported by the implementation. Exceeding this in the internal state of the barrier is undefined behavior.
 
 ==== Sample Header
 
@@ -92,35 +107,30 @@ namespace ext {
 namespace oneapi {
 
 class barrier {
-    public:
-        using arrival_token = [implementation defined];
+  [implementation defined internal state]
 
-        // barriers cannot be moved or copied
-        barrier(const barrier& other) = delete;
-        barrier(barrier&& other) noexcept = delete;
-        barrier& operator=(const barrier& other) = delete;
-        barrier& operator=(barrier&& other) noexcept = delete;
+public:
+  using arrival_token = [implementation defined];
 
-        // the valid range of count for PTX is [1,2^20 -1] - 
-        // https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-contents
-        // expected to sync after this so all threads see the initialized barrier 
-        // (maybe the sync should be part of the constructor)
-        // TODO only one thread needs to initialize, but many init is fine
-        void initialize(uint32_t expected_count);
-        void invalidate();
-        arrival_token arrive();
-        void wait(arrival_token arrival);
+  // barriers cannot be moved or copied
+  barrier(const barrier &other) = delete;
+  barrier(barrier &&other) noexcept = delete;
+  barrier &operator=(const barrier &other) = delete;
+  barrier &operator=(barrier &&other) noexcept = delete;
 
-        /*
-        // equivalent to wait(arrive());
-        void arrive_and_wait();
-        // arrive and also drop the expected count by one
-        void arrive_and_drop();
-
-
-        // returns the maximum value of expected count that is supported by the implementation.
-        static constexpr std::uint32_t max() noexcept();
-        */
+  void initialize(uint32_t expected_count);
+  void invalidate();
+  arrival_token arrive();
+  arrival_token arrive_and_drop();
+  arrival_token arrive_no_complete(int32_t count);
+  arrival_token arrive_drop_no_complete(int32_t count);
+  int32_t pending_count(arrival_token arrival);
+  void arrive_copy_async();
+  void arrive_copy_async_no_inc();
+  void wait(arrival_token arrival);
+  void test_wait(arrival_token arrival);
+  arrival_token arrive_and_wait();
+  static constexpr uint64_t max();
 };
 
 } // namespace oneapi
@@ -138,7 +148,7 @@ None.
 //*RESOLUTION*: Not resolved.
 //--
 
-. Is `barrier` the best name? Reasons for that name are that it is mostly in line with c+\+20 `std::barrier` and CUDA has the same name for this functionality. However it might be confusing with `group_barrier`, which is not present in c++20 and has a different name in CUDA - `__syncthreads`. Earlier version of CUDA docs called this `awbarrier`. Now they call it asynchronous barrier in text and `barrier` in code. Related PTX instructions use `mbarrier`.
+. Is `barrier` the best name? Reasons for that name are that it is mostly in line with c+\+20 `std::barrier` and CUDA has the same name for this functionality. However it might be confusing with `group_barrier`, which is not present in c++20 and has a different name in CUDA - `__syncthreads`. Earlier version of CUDA docs called this `awbarrier`. Now that name is deprecated and they call it asynchronous barrier in text and `barrier` in code. Related PTX instructions use `mbarrier`.
 --
 *RESOLUTION*: Not resolved.
 --
