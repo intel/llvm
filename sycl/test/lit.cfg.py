@@ -114,10 +114,12 @@ if triple == 'nvptx64-nvidia-cuda':
 
 if triple == 'amdgcn-amd-amdhsa':
     config.available_features.add('hip_amd')
-    # For AMD the specific GPU has to be specified with --offload-arch, only
-    # compiler tests are run so hardcode the offload arch to gfx906
-    additional_flags += ['-Xsycl-target-backend=amdgcn-amd-amdhsa',
-                         '--offload-arch=gfx906']
+    # For AMD the specific GPU has to be specified with --offload-arch
+    if not any([f.startswith('--offload-arch') for f in additional_flags]):
+        # If the offload arch wasn't specified in SYCL_CLANG_EXTRA_FLAGS,
+        # hardcode it to gfx906, this is fine because only compiler tests
+        additional_flags += ['-Xsycl-target-backend=amdgcn-amd-amdhsa',
+                            '--offload-arch=gfx906']
 
 llvm_config.use_clang(additional_flags=additional_flags)
 
