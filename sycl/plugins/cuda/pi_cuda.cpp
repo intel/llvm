@@ -1169,7 +1169,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
       cl::sycl::detail::pi::cuPrint(
           "Images are not fully supported by the CUDA BE, their support is "
           "disabled by default. Their partial support can be activated by "
-          "setting PI_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
+          "setting SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
           "runtime.");
     }
 
