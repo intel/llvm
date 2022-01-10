@@ -70,6 +70,16 @@ struct InstructionPointer {
   void update(uint64_t Addr);
 };
 
+// The special frame addresses.
+enum SpecialFrameAddr {
+  // Dummy root of frame trie.
+  DummyRoot = 0,
+  // Represent all the addresses outside of current binary.
+  // This's also used to indicate the call stack should be truncated since this
+  // isn't a real call context the compiler will see.
+  ExternalAddr = 1,
+};
+
 using RangesTy = std::vector<std::pair<uint64_t, uint64_t>>;
 
 struct BinaryFunction {
@@ -332,6 +342,13 @@ public:
     return TextSegmentOffsets;
   }
 
+  uint64_t getInstSize(uint64_t Offset) const {
+    auto I = Offset2InstSizeMap.find(Offset);
+    if (I == Offset2InstSizeMap.end())
+      return 0;
+    return I->second;
+  }
+
   bool offsetIsCode(uint64_t Offset) const {
     return Offset2InstSizeMap.find(Offset) != Offset2InstSizeMap.end();
   }
@@ -379,6 +396,8 @@ public:
   }
 
   uint64_t getCallAddrFromFrameAddr(uint64_t FrameAddr) const {
+    if (FrameAddr == ExternalAddr)
+      return ExternalAddr;
     auto I = getIndexForAddr(FrameAddr);
     FrameAddr = I ? getAddressforIndex(I - 1) : 0;
     if (FrameAddr && addressIsCall(FrameAddr))

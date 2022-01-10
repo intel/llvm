@@ -56,7 +56,7 @@ New Features
   randomization of both sides of partition for ``std::nth_element``)
 
 - Floating-point support for ``std::to_chars`` support has been added.
-  Thanks to Stephan T. Lavavej and Microsoft for providing their implemention
+  Thanks to Stephan T. Lavavej and Microsoft for providing their implementation
   to libc++.
 
 API Changes
@@ -65,11 +65,11 @@ API Changes
 - The functions ``std::atomic<T*>::fetch_(add|sub)`` and
   ``std::atomic_fetch_(add|sub)`` no longer accept a function pointer. While
   this is technically an API break, the invalid syntax isn't supported by
-  libstc++ and MSVC STL.  See https://godbolt.org/z/49fvzz98d.
+  libstdc++ and MSVC STL.  See https://godbolt.org/z/49fvzz98d.
 
 - The call of the functions ``std::atomic_(add|sub)(std::atomic<T*>*, ...)``
   with the explicit template argument ``T`` are now ill-formed. While this is
-  technically an API break, the invalid syntax isn't supported by libstc++ and
+  technically an API break, the invalid syntax isn't supported by libstdc++ and
   MSVC STL. See https://godbolt.org/z/v9959re3v.
 
   Due to this change it's now possible to call these functions with the
@@ -125,7 +125,7 @@ Build System Changes
   culminated in over 5 different ways to build the runtimes, which made it impossible to
   maintain with a good level of support. Starting with this release, the runtimes support
   exactly two ways of being built, which should cater to all use-cases. Furthermore,
-  these builds are as lightweight as possible and will work consistently even when targetting
+  these builds are as lightweight as possible and will work consistently even when targeting
   embedded platforms, which used not to be the case. Please see the documentation on building
   libc++ to see those two ways of building and migrate over to the appropriate build instructions
   as soon as possible.
@@ -153,11 +153,17 @@ Build System Changes
 
         $ cmake -S <monorepo>/runtimes -B build -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" <LIBCXX-OPTIONS> <LIBCXXABI-OPTIONS>
 
-  - Support for building the runtimes using the GCC 32 bit multilib flag (``-m32``) has been removed. Support
-    for this had been flaky for a while, and we didn't know of anyone depending on this. Instead, please perform
-    a normal cross-compilation of the runtimes using the appropriate target, such as passing the following to
-    your bootstrapping build:
+- Support for building the runtimes using the GCC 32 bit multilib flag (``-m32``) has been removed. Support
+  for this had been flaky for a while, and we didn't know of anyone depending on this. Instead, please perform
+  a normal cross-compilation of the runtimes using the appropriate target, such as passing the following to
+  your bootstrapping build:
 
-    .. code-block:: bash
+  .. code-block:: bash
 
-        -DLLVM_RUNTIME_TARGETS=i386-unknown-linux
+      -DLLVM_RUNTIME_TARGETS=i386-unknown-linux
+
+- Libc++, libc++abi and libunwind will not be built with ``-fPIC`` by default anymore.
+  If you want to build those runtimes with position independent code, please specify
+  ``-DCMAKE_POSITION_INDEPENDENT_CODE=ON`` explicitly when configuring the build, or
+  ``-DRUNTIMES_<target-name>_CMAKE_POSITION_INDEPENDENT_CODE=ON`` if using the
+  bootstrapping build.

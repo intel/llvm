@@ -1283,6 +1283,13 @@ get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
       PI_INVALID_DEVICE);
 }
 template <>
+inline cl_uint
+get_device_info_host<info::device::ext_intel_gpu_hw_threads_per_eu>() {
+  throw runtime_error(
+      "Obtaining the HW threads count per EU is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <>
 inline cl_ulong
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(

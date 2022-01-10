@@ -250,7 +250,7 @@ func @empty_if2(%cond: i1) {
 // CHECK-NOT:       scf.if
 // CHECK:           return
 
-// ----
+// -----
 
 func @empty_else(%cond: i1, %v : memref<i1>) {
   scf.if %cond {
@@ -424,6 +424,24 @@ func @replace_false_if_with_values() {
   }
   // CHECK: "test.consume"(%[[VAL]])
   "test.consume"(%0) : (i32) -> ()
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @merge_nested_if
+// CHECK-SAME: (%[[ARG0:.*]]: i1, %[[ARG1:.*]]: i1)
+func @merge_nested_if(%arg0: i1, %arg1: i1) {
+// CHECK: %[[COND:.*]] = arith.andi %[[ARG0]], %[[ARG1]]
+// CHECK: scf.if %[[COND]] {
+// CHECK-NEXT: "test.op"()
+  scf.if %arg0 {
+    scf.if %arg1 {
+      "test.op"() : () -> ()
+      scf.yield
+    }
+    scf.yield
+  }
   return
 }
 

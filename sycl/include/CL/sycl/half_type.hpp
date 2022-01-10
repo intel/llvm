@@ -35,6 +35,19 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+namespace detail {
+class WrapperElementTypeProxy;
+} // namespace detail
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
+
 namespace detail {
 
 inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
@@ -255,6 +268,9 @@ public:
   // Initialize underlying data
   constexpr explicit half_v2(uint16_t x) : Buf(x) {}
 
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      WrapperElementTypeProxy;
+
 private:
   uint16_t Buf;
 };
@@ -390,6 +406,9 @@ public:
   }
 
   template <typename Key> friend struct std::hash;
+
+  friend class sycl::ext::intel::experimental::esimd::detail::
+      WrapperElementTypeProxy;
 
 private:
   StorageT Data;

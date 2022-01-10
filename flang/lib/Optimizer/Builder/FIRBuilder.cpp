@@ -594,3 +594,13 @@ fir::factory::createExtents(fir::FirOpBuilder &builder, mlir::Location loc,
             : builder.createIntegerConstant(loc, idxTy, ext));
   return extents;
 }
+
+mlir::TupleType
+fir::factory::getRaggedArrayHeaderType(fir::FirOpBuilder &builder) {
+  mlir::IntegerType i64Ty = builder.getIntegerType(64);
+  auto arrTy = fir::SequenceType::get(builder.getIntegerType(8), 1);
+  auto buffTy = fir::HeapType::get(arrTy);
+  auto extTy = fir::SequenceType::get(i64Ty, 1);
+  auto shTy = fir::HeapType::get(extTy);
+  return mlir::TupleType::get(builder.getContext(), {i64Ty, buffTy, shTy});
+}

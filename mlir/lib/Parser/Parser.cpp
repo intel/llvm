@@ -487,7 +487,7 @@ private:
   /// The top level operation that holds all of the parsed operations.
   Operation *topLevelOp;
 };
-} // end anonymous namespace
+} // namespace
 
 OperationParser::OperationParser(ParserState &state, ModuleOp topLevelOp)
     : Parser(state), opBuilder(topLevelOp.getRegion()), topLevelOp(topLevelOp) {
@@ -1233,8 +1233,7 @@ public:
   std::pair<StringRef, unsigned>
   getResultName(unsigned resultNo) const override {
     // Scan for the resultID that contains this result number.
-    for (unsigned nameID = 0, e = resultIDs.size(); nameID != e; ++nameID) {
-      const auto &entry = resultIDs[nameID];
+    for (const auto &entry : resultIDs) {
       if (resultNo < std::get<1>(entry)) {
         // Don't pass on the leading %.
         StringRef name = std::get<0>(entry).drop_front();
@@ -1588,7 +1587,7 @@ private:
   /// The backing operation parser.
   OperationParser &parser;
 };
-} // end anonymous namespace.
+} // namespace
 
 FailureOr<OperationName> OperationParser::parseCustomOperationName() {
   std::string opName = getTokenSpelling().str();
@@ -2025,7 +2024,7 @@ private:
   /// Parse an attribute alias declaration.
   ParseResult parseTypeAliasDef();
 };
-} // end anonymous namespace
+} // namespace
 
 /// Parses an attribute alias declaration.
 ///
