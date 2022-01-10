@@ -7171,8 +7171,8 @@ Sema::MergeSYCLIntelPipeIOAttr(Decl *D, const SYCLIntelPipeIOAttr &A) {
     if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getID())) {
       if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getID())) {
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-	  Diag(DeclAttr->getLoc(), diag::err_disallowed_duplicate_attribute)
-	      << &A;
+          Diag(DeclAttr->getLoc(), diag::err_disallowed_duplicate_attribute)
+              << &A;
           Diag(A.getLoc(), diag::note_conflicting_attribute);
         }
         // Do not add a duplicate attribute.
