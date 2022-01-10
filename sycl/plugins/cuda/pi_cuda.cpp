@@ -1163,7 +1163,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE_SUPPORT: {
     pi_bool enabled = PI_FALSE;
 
-    if (std::getenv("PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
+    if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
       enabled = PI_TRUE;
     } else {
       cl::sycl::detail::pi::cuPrint(
