@@ -116,7 +116,7 @@ if triple == 'nvptx64-nvidia-cuda':
 if triple == 'amdgcn-amd-amdhsa':
     config.available_features.add('hip_amd')
     # For AMD the specific GPU has to be specified with --offload-arch, only
-    # compiler tests are run so hardcode the offload arch to gfx908
+    # compiler tests are run so hardcode the offload arch to gfx906
     additional_flags += ['-Xsycl-target-backend=amdgcn-amd-amdhsa',
                          '--offload-arch=gfx906']
 
