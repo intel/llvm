@@ -7339,7 +7339,7 @@ attribute requires a string literal argument to identify the handle being releas
 def DiagnoseAsBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-The ``diagnose_as_builtin` attribute indicates that Fortify diagnostics are to
+The ``diagnose_as_builtin`` attribute indicates that Fortify diagnostics are to
 be applied to the declared function as if it were the function specified by the
 attribute. The builtin function whose diagnostics are to be mimicked should be
 given. In addition, the order in which arguments should be applied must also
@@ -7368,10 +7368,11 @@ to diagnose a new function as if it were `sscanf`, we can use the attribute as
 follows.
 
   .. code-block:: c
-  __attribute__((diagnose_as_builtin(sscanf, 1, 2)))
-  int mysscanf(const char *str, const char *format, ...)  {
-    // ...
-  }
+
+    __attribute__((diagnose_as_builtin(sscanf, 1, 2)))
+    int mysscanf(const char *str, const char *format, ...)  {
+      // ...
+    }
 
 Then the call `mysscanf("abc def", "%4s %4s", buf1, buf2)` will be diagnosed as
 if it were the call `sscanf("abc def", "%4s %4s", buf1, buf2)`.

@@ -195,6 +195,29 @@ static bool SemaBuiltinAddressof(Sema &S, CallExpr *TheCall) {
   return false;
 }
 
+/// Check that the argument to __builtin_function_start is a function.
+static bool SemaBuiltinFunctionStart(Sema &S, CallExpr *TheCall) {
+  if (checkArgCount(S, TheCall, 1))
+    return true;
+
+  ExprResult Arg = S.DefaultFunctionArrayLvalueConversion(TheCall->getArg(0));
+  if (Arg.isInvalid())
+    return true;
+
+  TheCall->setArg(0, Arg.get());
+  const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(
+      Arg.get()->getAsBuiltinConstantDeclRef(S.getASTContext()));
+
+  if (!FD) {
+    S.Diag(TheCall->getBeginLoc(), diag::err_function_start_invalid_type)
+        << TheCall->getSourceRange();
+    return true;
+  }
+
+  return !S.checkAddressOfFunctionIsAvailable(FD, /*Complain=*/true,
+                                              TheCall->getBeginLoc());
+}
+
 /// Check the number of arguments and set the result type to
 /// the argument type.
 static bool SemaBuiltinPreserveAI(Sema &S, CallExpr *TheCall) {
@@ -1918,6 +1941,10 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (SemaBuiltinAddressof(*this, TheCall))
       return ExprError();
     break;
+  case Builtin::BI__builtin_function_start:
+    if (SemaBuiltinFunctionStart(*this, TheCall))
+      return ExprError();
+    break;
   case Builtin::BI__builtin_is_aligned:
   case Builtin::BI__builtin_align_up:
   case Builtin::BI__builtin_align_down:
@@ -2209,10 +2236,38 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     break;
   case Builtin::BI__builtin_reduce_max:
-  case Builtin::BI__builtin_reduce_min:
-    if (SemaBuiltinReduceMath(TheCall))
+  case Builtin::BI__builtin_reduce_min: {
+    if (PrepareBuiltinReduceMathOneArgCall(TheCall))
       return ExprError();
+
+    const Expr *Arg = TheCall->getArg(0);
+    const auto *TyA = Arg->getType()->getAs<VectorType>();
+    if (!TyA) {
+      Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
+          << 1 << /* vector ty*/ 4 << Arg->getType();
+      return ExprError();
+    }
+
+    TheCall->setType(TyA->getElementType());
     break;
+  }
+
+  // __builtin_reduce_xor supports vector of integers only.
+  case Builtin::BI__builtin_reduce_xor: {
+    if (PrepareBuiltinReduceMathOneArgCall(TheCall))
+      return ExprError();
+
+    const Expr *Arg = TheCall->getArg(0);
+    const auto *TyA = Arg->getType()->getAs<VectorType>();
+    if (!TyA || !TyA->getElementType()->isIntegerType()) {
+      Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
+          << 1  << /* vector of integers */ 6 << Arg->getType();
+      return ExprError();
+    }
+    TheCall->setType(TyA->getElementType());
+    break;
+  }
+
   case Builtin::BI__builtin_matrix_transpose:
     return SemaBuiltinMatrixTranspose(TheCall, TheCallResult);
 
@@ -16994,7 +17049,7 @@ bool Sema::SemaBuiltinElementwiseMath(CallExpr *TheCall) {
   return false;
 }
 
-bool Sema::SemaBuiltinReduceMath(CallExpr *TheCall) {
+bool Sema::PrepareBuiltinReduceMathOneArgCall(CallExpr *TheCall) {
   if (checkArgCount(*this, TheCall, 1))
     return true;
 
@@ -17003,14 +17058,6 @@ bool Sema::SemaBuiltinReduceMath(CallExpr *TheCall) {
     return true;
 
   TheCall->setArg(0, A.get());
-  const VectorType *TyA = A.get()->getType()->getAs<VectorType>();
-  if (!TyA) {
-    SourceLocation ArgLoc = TheCall->getArg(0)->getBeginLoc();
-    return Diag(ArgLoc, diag::err_builtin_invalid_arg_type)
-           << 1 << /* vector ty*/ 4 << A.get()->getType();
-  }
-
-  TheCall->setType(TyA->getElementType());
   return false;
 }
 

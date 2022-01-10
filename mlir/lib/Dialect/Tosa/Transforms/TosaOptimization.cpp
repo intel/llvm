@@ -39,7 +39,7 @@ struct Conv2DIsFullyConnected : public OpRewritePattern<tosa::Conv2DOp> {
       : OpRewritePattern(context) {}
 
   LogicalResult matchAndRewrite(tosa::Conv2DOp op,
-                                PatternRewriter &rewriter) const {
+                                PatternRewriter &rewriter) const override {
     Value input = op.input();
     Value weight = op.weight();
     ShapedType inputType = input.getType().cast<ShapedType>();
@@ -126,7 +126,7 @@ struct DepthwiseConv2DIsMul : public OpRewritePattern<tosa::DepthwiseConv2DOp> {
       : OpRewritePattern(context) {}
 
   LogicalResult matchAndRewrite(tosa::DepthwiseConv2DOp op,
-                                PatternRewriter &rewriter) const {
+                                PatternRewriter &rewriter) const override {
     Value input = op.input();
     Value weight = op.weight();
     ShapedType inputType = input.getType().cast<ShapedType>();
@@ -215,7 +215,7 @@ struct DepthwiseConv2DIsMul : public OpRewritePattern<tosa::DepthwiseConv2DOp> {
 
 class TosaOptimization : public PassWrapper<TosaOptimization, FunctionPass> {
 public:
-  explicit TosaOptimization() {}
+  explicit TosaOptimization() = default;
   void runOnFunction() override;
 
   StringRef getArgument() const final { return PASS_NAME; }

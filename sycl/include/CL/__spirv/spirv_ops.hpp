@@ -697,13 +697,13 @@ __spirv_ArbitraryFloatPowRINTEL(cl::sycl::detail::ap_int<WA> A, int32_t MA,
                                 int32_t RoundingAccuracy = 0) noexcept;
 
 // PowN built-in calculates `A^B` where `A` is arbitrary precision floating
-// point number and `B` is arbitrary precision integer, i.e. its width doesn't
-// depend on sum of exponent and mantissa.
+// point number and `B` is signed or unsigned arbitrary precision integer,
+// i.e. its width doesn't depend on sum of exponent and mantissa.
 template <int WA, int WB, int Wout>
 extern SYCL_EXTERNAL cl::sycl::detail::ap_int<Wout>
 __spirv_ArbitraryFloatPowNINTEL(cl::sycl::detail::ap_int<WA> A, int32_t MA,
-                                cl::sycl::detail::ap_int<WB> B, int32_t Mout,
-                                int32_t EnableSubnormals = 0,
+                                cl::sycl::detail::ap_int<WB> B, bool SignOfB,
+                                int32_t Mout, int32_t EnableSubnormals = 0,
                                 int32_t RoundingMode = 0,
                                 int32_t RoundingAccuracy = 0) noexcept;
 
