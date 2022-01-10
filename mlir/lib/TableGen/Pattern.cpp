@@ -649,7 +649,7 @@ std::vector<AppliedConstraint> Pattern::getConstraints() const {
   std::vector<AppliedConstraint> ret;
   ret.reserve(listInit->size());
 
-  for (auto it : *listInit) {
+  for (auto *it : *listInit) {
     auto *dagInit = dyn_cast<llvm::DagInit>(it);
     if (!dagInit)
       PrintFatalError(&def, "all elements in Pattern multi-entity "
@@ -663,7 +663,7 @@ std::vector<AppliedConstraint> Pattern::getConstraints() const {
             &def,
             "operands to additional constraints can only be symbol references");
       }
-      entities.push_back(std::string(argName->getValue()));
+      entities.emplace_back(argName->getValue());
     }
 
     ret.emplace_back(cast<llvm::DefInit>(dagInit->getOperator())->getDef(),

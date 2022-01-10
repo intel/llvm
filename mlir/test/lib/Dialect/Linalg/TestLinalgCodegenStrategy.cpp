@@ -12,7 +12,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/CodegenStrategy.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -120,6 +120,10 @@ struct TestLinalgCodegenStrategy
       *this, "vectorize",
       llvm::cl::desc("Rewrite the linalg op as a vector operation."),
       llvm::cl::init(false)};
+  Option<bool> vectorizePadding{
+      *this, "vectorize-padding",
+      llvm::cl::desc("Rewrite pad tensor ops as vector operations."),
+      llvm::cl::init(false)};
   Option<std::string> splitVectorTransfersTo{
       *this, "split-transfers",
       llvm::cl::desc(
@@ -186,7 +190,7 @@ void TestLinalgCodegenStrategy::runStrategy(
       .decomposeIf(decompose)
       .generalizeIf(generalize, "")
       .interchangeIf(!iteratorInterchange.empty(), iteratorInterchange)
-      .vectorizeIf(vectorize, "")
+      .vectorizeIf(vectorize, "", nullptr, vectorizePadding)
       .vectorLowering(
           LinalgVectorLoweringOptions()
               .setVectorTransformsOptions(

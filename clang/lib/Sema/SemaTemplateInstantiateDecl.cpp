@@ -643,6 +643,37 @@ static void instantiateIntelFPGABankBitsAttr(
   S.AddIntelFPGABankBitsAttr(New, *Attr, Args.data(), Args.size());
 }
 
+static void
+instantiateSYCLDeviceHasAttr(Sema &S,
+                             const MultiLevelTemplateArgumentList &TemplateArgs,
+                             const SYCLDeviceHasAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 8> Args;
+  for (auto I : Attr->aspects()) {
+    ExprResult Result = S.SubstExpr(I, TemplateArgs);
+    if (Result.isInvalid())
+      return;
+    Args.push_back(Result.getAs<Expr>());
+  }
+  S.AddSYCLDeviceHasAttr(New, *Attr, Args.data(), Args.size());
+}
+
+static void instantiateSYCLUsesAspectsAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLUsesAspectsAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 8> Args;
+  for (auto I : Attr->aspects()) {
+    ExprResult Result = S.SubstExpr(I, TemplateArgs);
+    if (Result.isInvalid())
+      return;
+    Args.push_back(Result.getAs<Expr>());
+  }
+  S.AddSYCLUsesAspectsAttr(New, *Attr, Args.data(), Args.size());
+}
+
 static void instantiateSYCLIntelPipeIOAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelPipeIOAttr *Attr, Decl *New) {
@@ -1037,6 +1068,14 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {
       instantiateWorkGroupSizeHintAttr(*this, TemplateArgs, A, New);
+      continue;
+    }
+    if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(TmplAttr)) {
+      instantiateSYCLDeviceHasAttr(*this, TemplateArgs, A, New);
+      continue;
+    }
+    if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(TmplAttr)) {
+      instantiateSYCLUsesAspectsAttr(*this, TemplateArgs, A, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.
@@ -5678,10 +5717,6 @@ void Sema::InstantiateVariableInitializer(
 
   if (getLangOpts().CUDA)
     checkAllowedCUDAInitializer(Var);
-
-  if (getLangOpts().SYCLIsDevice && !checkAllowedSYCLInitializer(Var))
-    SYCLDiagIfDeviceCode(Var->getLocation(), diag::err_sycl_restrict)
-        << Sema::KernelConstStaticVariable;
 }
 
 /// Instantiate the definition of the given variable from its

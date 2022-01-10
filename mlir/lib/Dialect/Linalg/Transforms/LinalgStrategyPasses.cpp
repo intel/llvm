@@ -14,8 +14,7 @@
 #include "PassDetail.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -292,11 +291,22 @@ struct LinalgStrategyVectorizePass
     vectorizationPatterns.add<linalg::LinalgCopyVTRForwardingPattern,
                               linalg::LinalgCopyVTWForwardingPattern>(
         funcOp.getContext(), /*benefit=*/2);
-    if (vectorizePadding) {
-      linalg::populatePadTensorOpVectorizationPatterns(vectorizationPatterns);
-    }
+    TransferReadOp::getCanonicalizationPatterns(vectorizationPatterns,
+                                                funcOp.getContext());
+    TransferWriteOp::getCanonicalizationPatterns(vectorizationPatterns,
+                                                 funcOp.getContext());
     (void)applyPatternsAndFoldGreedily(funcOp,
                                        std::move(vectorizationPatterns));
+
+    // Apply the pad tensor op vectorization separately to avoid running the
+    // GenericPadTensorOpVectorizationPattern too early.
+    // TODO: Improve once we have better infrastructure to control pattern
+    // application.
+    if (vectorizePadding) {
+      RewritePatternSet patterns(funcOp.getContext());
+      linalg::populatePadTensorOpVectorizationPatterns(patterns);
+      (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
+    }
   }
 
   LinalgVectorizationOptions options;

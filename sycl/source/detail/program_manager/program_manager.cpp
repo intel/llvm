@@ -963,8 +963,11 @@ ProgramManager::ProgramPtr ProgramManager::build(
                                         DeviceLibReqMask);
   }
 
+  static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
+  static bool ForceLink = ForceLinkEnv && (*ForceLinkEnv == '1');
+
   const detail::plugin &Plugin = Context->getPlugin();
-  if (LinkPrograms.empty()) {
+  if (LinkPrograms.empty() && !ForceLink) {
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
         Program.get(), /*num devices =*/1, &Device, CompileOptions.c_str(),
         nullptr, nullptr);

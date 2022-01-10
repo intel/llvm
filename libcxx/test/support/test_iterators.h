@@ -449,14 +449,15 @@ struct ThrowingIterator {
 
     enum ThrowingAction { TAIncrement, TADecrement, TADereference, TAAssignment, TAComparison };
 
-    ThrowingIterator()
+    TEST_CONSTEXPR ThrowingIterator()
         : begin_(nullptr), end_(nullptr), current_(nullptr), action_(TADereference), index_(0) {}
-    explicit ThrowingIterator(const T *first, const T *last, int index = 0, ThrowingAction action = TADereference)
+    TEST_CONSTEXPR explicit ThrowingIterator(const T* first, const T* last, int index = 0,
+                                                   ThrowingAction action = TADereference)
         : begin_(first), end_(last), current_(first), action_(action), index_(index) {}
-    ThrowingIterator(const ThrowingIterator &rhs)
+    TEST_CONSTEXPR ThrowingIterator(const ThrowingIterator &rhs)
         : begin_(rhs.begin_), end_(rhs.end_), current_(rhs.current_), action_(rhs.action_), index_(rhs.index_) {}
 
-    ThrowingIterator& operator=(const ThrowingIterator& rhs) {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator& operator=(const ThrowingIterator& rhs) {
         if (action_ == TAAssignment && --index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator assignment");
@@ -472,7 +473,7 @@ struct ThrowingIterator {
         return *this;
     }
 
-    reference operator*() const {
+    TEST_CONSTEXPR_CXX14 reference operator*() const {
         if (action_ == TADereference && --index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator dereference");
@@ -483,7 +484,7 @@ struct ThrowingIterator {
         return *current_;
     }
 
-    ThrowingIterator& operator++() {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator& operator++() {
         if (action_ == TAIncrement && --index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator increment");
@@ -495,13 +496,13 @@ struct ThrowingIterator {
         return *this;
     }
 
-    ThrowingIterator operator++(int) {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator operator++(int) {
         ThrowingIterator temp = *this;
         ++(*this);
         return temp;
     }
 
-    ThrowingIterator& operator--() {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator& operator--() {
         if (action_ == TADecrement && --index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator decrement");
@@ -513,13 +514,13 @@ struct ThrowingIterator {
         return *this;
     }
 
-    ThrowingIterator operator--(int) {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator operator--(int) {
         ThrowingIterator temp = *this;
         --(*this);
         return temp;
     }
 
-    friend bool operator==(const ThrowingIterator& a, const ThrowingIterator& b) {
+    TEST_CONSTEXPR_CXX14 friend bool operator==(const ThrowingIterator& a, const ThrowingIterator& b) {
         if (a.action_ == TAComparison && --a.index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator comparison");
@@ -534,7 +535,7 @@ struct ThrowingIterator {
         return a.current_ == b.current_;
     }
 
-    friend bool operator!=(const ThrowingIterator& a, const ThrowingIterator& b) {
+    TEST_CONSTEXPR friend bool operator!=(const ThrowingIterator& a, const ThrowingIterator& b) {
         return !(a == b);
     }
 
@@ -837,68 +838,29 @@ private:
     difference_type stride_displacement_ = 0;
 };
 
-template<class T, class U>
-concept sentinel_for_base = requires(U const& u) {
-    u.base();
-    requires std::input_or_output_iterator<std::remove_cvref_t<decltype(u.base())>>;
-    requires std::equality_comparable_with<T, decltype(u.base())>;
-};
-
-template <std::input_or_output_iterator I>
+template <class It>
 class sentinel_wrapper {
 public:
-    sentinel_wrapper() = default;
-    constexpr explicit sentinel_wrapper(I base) : base_(std::move(base)) {}
-
-    constexpr bool operator==(const I& other) const requires std::equality_comparable<I> {
-        return base_ == other;
-    }
-
-    constexpr const I& base() const& { return base_; }
-    constexpr I base() && { return std::move(base_); }
-
-    template<std::input_or_output_iterator I2>
-        requires sentinel_for_base<I, I2>
-    constexpr bool operator==(const I2& other) const {
-        return base_ == other.base();
-    }
-
+    explicit sentinel_wrapper() = default;
+    constexpr explicit sentinel_wrapper(const It& it) : base_(base(it)) {}
+    constexpr bool operator==(const It& other) const { return base_ == base(other); }
+    friend constexpr It base(const sentinel_wrapper& s) { return It(s.base_); }
 private:
-    I base_ = I();
+    decltype(base(std::declval<It>())) base_;
 };
 
-template <std::input_or_output_iterator I>
+template <class It>
 class sized_sentinel {
 public:
-    sized_sentinel() = default;
-    constexpr explicit sized_sentinel(I base) : base_(std::move(base)) {}
-
-    constexpr bool operator==(const I& other) const requires std::equality_comparable<I> {
-        return base_ == other;
-    }
-
-    constexpr const I& base() const& { return base_; }
-    constexpr I base() && { return std::move(base_); }
-
-    template<std::input_or_output_iterator I2>
-        requires sentinel_for_base<I, I2>
-    constexpr bool operator==(const I2& other) const {
-        return base_ == other.base();
-    }
-
+    explicit sized_sentinel() = default;
+    constexpr explicit sized_sentinel(const It& it) : base_(base(it)) {}
+    constexpr bool operator==(const It& other) const { return base_ == base(other); }
+    friend constexpr auto operator-(const sized_sentinel& s, const It& i) { return s.base_ - base(i); }
+    friend constexpr auto operator-(const It& i, const sized_sentinel& s) { return base(i) - s.base_; }
+    friend constexpr It base(const sized_sentinel& s) { return It(s.base_); }
 private:
-    I base_ = I();
+    decltype(base(std::declval<It>())) base_;
 };
-
-template <std::input_or_output_iterator I>
-constexpr auto operator-(sized_sentinel<I> sent, std::input_or_output_iterator auto iter) {
-  return sent.base() - iter;
-}
-
-template <std::input_or_output_iterator I>
-constexpr auto operator-(std::input_or_output_iterator auto iter, sized_sentinel<I> sent) {
-  return iter - sent.base();
-}
 
 template <class It>
 class three_way_contiguous_iterator

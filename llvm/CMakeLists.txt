@@ -396,7 +396,7 @@ endif()
 
 set(LLVM_ENABLE_ZLIB "ON" CACHE STRING "Use zlib for compression/decompression if available. Can be ON, OFF, or FORCE_ON")
 
-set(LLVM_ENABLE_CURL "ON" CACHE STRING "Use libcurl for the HTTP client if available. Can be ON, OFF, or FORCE_ON")
+set(LLVM_ENABLE_CURL "OFF" CACHE STRING "Use libcurl for the HTTP client if available. Can be ON, OFF, or FORCE_ON")
 
 set(LLVM_Z3_INSTALL_DIR "" CACHE STRING "Install directory of the Z3 solver.")
 
@@ -789,6 +789,9 @@ foreach(t ${LLVM_TARGETS_TO_BUILD})
       "${LLVM_ENUM_TARGETMCAS}LLVM_TARGETMCA(${t})\n")
   endif()
 endforeach(t)
+
+# Provide an LLVM_ namespaced alias for use in #cmakedefine.
+set(LLVM_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
 
 # Produce the target definition files, which provide a way for clients to easily
 # include various classes of targets.
@@ -1211,6 +1214,8 @@ if (LLVM_INCLUDE_BENCHMARKS)
   set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "Don't install benchmark" FORCE)
   set(BENCHMARK_DOWNLOAD_DEPENDENCIES OFF CACHE BOOL "Don't download dependencies" FORCE)
   set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable Google Test in benchmark" FORCE)
+  set(BENCHMARK_ENABLE_WERROR ${LLVM_ENABLE_WERROR} CACHE BOOL 
+    "Handle -Werror for Google Benchmark based on LLVM_ENABLE_WERROR" FORCE)
   # Since LLVM requires C++11 it is safe to assume that std::regex is available.
   set(HAVE_STD_REGEX ON CACHE BOOL "OK" FORCE)
   add_subdirectory(${LLVM_THIRD_PARTY_DIR}/benchmark 
