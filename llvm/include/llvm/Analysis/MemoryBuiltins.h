@@ -44,7 +44,6 @@ class IntToPtrInst;
 class LLVMContext;
 class LoadInst;
 class PHINode;
-class PointerType;
 class SelectInst;
 class Type;
 class UndefValue;
@@ -114,6 +113,16 @@ const CallInst *isFreeCall(const Value *I, const TargetLibraryInfo *TLI);
 inline CallInst *isFreeCall(Value *I, const TargetLibraryInfo *TLI) {
   return const_cast<CallInst*>(isFreeCall((const Value*)I, TLI));
 }
+
+//===----------------------------------------------------------------------===//
+//  Properties of allocation functions
+//
+
+/// If this allocation function initializes memory to a fixed value, return
+/// said value in the requested type.  Otherwise, return nullptr.
+Constant *getInitialValueOfAllocation(const CallBase *Alloc,
+                                      const TargetLibraryInfo *TLI,
+                                      Type *Ty);
 
 //===----------------------------------------------------------------------===//
 //  Utility functions to compute size of objects.
