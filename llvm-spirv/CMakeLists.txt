@@ -79,6 +79,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       Analysis
       BitReader
       BitWriter
+      CodeGen
       Core
       Support
       TransformUtils

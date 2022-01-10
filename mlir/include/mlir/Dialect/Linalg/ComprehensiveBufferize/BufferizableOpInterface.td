@@ -32,7 +32,8 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         }],
         /*retType=*/"bool",
         /*methodName=*/"bufferizesToMemoryRead",
-        /*args=*/(ins "OpOperand &":$opOperand),
+        /*args=*/(ins "OpOperand &":$opOperand,
+                      "BufferizationState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           // Does not have to be implemented for ops without tensor OpOperands.
@@ -60,7 +61,8 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         }],
         /*retType=*/"bool",
         /*methodName=*/"bufferizesToMemoryWrite",
-        /*args=*/(ins "OpOperand &":$opOperand),
+        /*args=*/(ins "OpOperand &":$opOperand,
+                      "BufferizationState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           // Does not have to be implemented for ops without tensor OpOperands.
@@ -82,19 +84,21 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           }],
           /*retType=*/"bool",
           /*methodName=*/"isMemoryWrite",
-          /*args=*/(ins "OpResult":$opResult),
+          /*args=*/(ins "OpResult":$opResult,
+                        "BufferizationState &":$state),
           /*methodBody=*/"",
           /*defaultImplementation=*/[{
             auto bufferizableOp =
                 cast<BufferizableOpInterface>($_op.getOperation());
             SmallVector<OpOperand*> opOperands =
-              bufferizableOp.getAliasingOpOperand(opResult);
+              bufferizableOp.getAliasingOpOperand(opResult, state);
             if (opOperands.empty())
               return true;
             return llvm::any_of(
                 opOperands,
                 [&](OpOperand *operand) {
-                  return bufferizableOp.bufferizesToMemoryWrite(*operand);
+                  return bufferizableOp.bufferizesToMemoryWrite(*operand,
+                                                                state);
                 });
           }]
       >,
@@ -111,7 +115,8 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         }],
         /*retType=*/"bool",
         /*methodName=*/"mustBufferizeInPlace",
-        /*args=*/(ins "OpResult":$opResult),
+        /*args=*/(ins "OpResult":$opResult,
+                      "BufferizationState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           return false;
@@ -125,7 +130,8 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         }],
         /*retType=*/"OpResult",
         /*methodName=*/"getAliasingOpResult",
-        /*args=*/(ins "OpOperand &":$opOperand),
+        /*args=*/(ins "OpOperand &":$opOperand,
+                      "BufferizationState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           // Does not have to be implemented for ops without tensor OpOperands.
@@ -148,7 +154,8 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         }],
         /*retType=*/"SmallVector<OpOperand *>",
         /*methodName=*/"getAliasingOpOperand",
-        /*args=*/(ins "OpResult":$opResult),
+        /*args=*/(ins "OpResult":$opResult,
+                      "BufferizationState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           assert(opResult.getType().isa<TensorType>() &&
@@ -159,7 +166,8 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           for (OpOperand &opOperand : $_op.getOperation()->getOpOperands()) {
             if (!opOperand.get().getType().isa<TensorType>())
               continue;
-            if (bufferizableOp.getAliasingOpResult(opOperand) == opResult)
+            if (bufferizableOp.getAliasingOpResult(opOperand, state) ==
+                    opResult)
               result.push_back(&opOperand);
           }
           return result;
@@ -179,7 +187,8 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*retType=*/"BufferRelation",
         /*methodName=*/"bufferRelation",
         /*args=*/(ins "OpResult":$opResult,
-                      "const BufferizationAliasInfo &":$aliasInfo),
+                      "const BufferizationAliasInfo &":$aliasInfo,
+                      "BufferizationState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           // Does not have to be implemented for ops without tensor OpResults
@@ -196,7 +205,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           before returning. Otherwise, nested ops will not be bufferized.
 
           This method will never be called on ops that do not have at least one
-          tensor operand or result.
+          tensor operand/result or a region.
         }],
         /*retType=*/"LogicalResult",
         /*methodName=*/"bufferize",
@@ -226,7 +235,8 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         }],
         /*retType=*/"bool",
         /*methodName=*/"isWritable",
-        /*args=*/(ins "Value":$value),
+        /*args=*/(ins "Value":$value,
+                      "BufferizationState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           return value.isa<OpResult>();
@@ -265,6 +275,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*methodName=*/"isNotConflicting",
         /*args=*/(ins "OpOperand *":$uRead,
                       "OpOperand *":$uWrite,
+                      "BufferizationState &":$state,
                       "const BufferizationAliasInfo &":$aliasInfo),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
@@ -280,13 +291,14 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
     /// be called on OpOperands that do not have a tensor type.
     ///
     /// Examples of such ops are `tensor.extract_slice` and `tensor.cast`.
-    bool bufferizesToAliasOnly(OpOperand &opOperand) {
+    bool bufferizesToAliasOnly(OpOperand &opOperand,
+                               BufferizationState &state) {
       auto bufferizableOp =
           cast<BufferizableOpInterface>(getOperation());
-      return !bufferizableOp.bufferizesToMemoryRead(opOperand)
-          && !bufferizableOp.bufferizesToMemoryWrite(opOperand)
+      return !bufferizableOp.bufferizesToMemoryRead(opOperand, state)
+          && !bufferizableOp.bufferizesToMemoryWrite(opOperand, state)
           && static_cast<bool>(
-              bufferizableOp.getAliasingOpResult(opOperand));
+              bufferizableOp.getAliasingOpResult(opOperand, state));
     }
 
     // TODO: The following two attributes should belong to the tensor dialect.

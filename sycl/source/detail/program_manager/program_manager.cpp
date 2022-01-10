@@ -155,6 +155,8 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
 ///         locked version. Accepts reference to locked version of cache.
 /// \tparam BuildFT type of function which will build the entity if it is not in
 ///         cache. Accepts nothing. Return pointer to built entity.
+///
+/// \return a pointer to cached build result, return value must not be nullptr.
 template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
           typename GetCacheFT, typename BuildFT>
 KernelProgramCache::BuildResult<RetT> *
@@ -528,6 +530,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
       std::make_pair(std::make_pair(std::move(SpecConsts), KSId),
                      std::make_pair(PiDevice, CompileOpts + LinkOpts)),
       AcquireF, GetF, BuildF);
+  // getOrBuild is not supposed to return nullptr
+  assert(BuildResult != nullptr && "Invalid build result");
   return BuildResult->Ptr.load();
 }
 
@@ -593,6 +597,8 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
 
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
       Cache, KernelName, AcquireF, GetF, BuildF);
+  // getOrBuild is not supposed to return nullptr
+  assert(BuildResult != nullptr && "Invalid build result");
   auto ret_val = std::make_tuple(BuildResult->Ptr.load(),
                                  &(BuildResult->MBuildResultMutex), Program);
   Cache.saveKernel(key, ret_val);
@@ -957,8 +963,11 @@ ProgramManager::ProgramPtr ProgramManager::build(
                                         DeviceLibReqMask);
   }
 
+  static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
+  static bool ForceLink = ForceLinkEnv && (*ForceLinkEnv == '1');
+
   const detail::plugin &Plugin = Context->getPlugin();
-  if (LinkPrograms.empty()) {
+  if (LinkPrograms.empty() && !ForceLink) {
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
         Program.get(), /*num devices =*/1, &Device, CompileOptions.c_str(),
         nullptr, nullptr);
@@ -1796,6 +1805,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
                      std::make_pair(PiDevice, CompileOpts + LinkOpts)),
       AcquireF, GetF, BuildF);
+  // getOrBuild is not supposed to return nullptr
+  assert(BuildResult != nullptr && "Invalid build result");
 
   RT::PiProgram ResProgram = BuildResult->Ptr.load();
 
@@ -1815,6 +1826,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
                        std::make_pair(PiDeviceAdd, CompileOpts + LinkOpts)),
         AcquireF, GetF, CacheOtherDevices);
+    // getOrBuild is not supposed to return nullptr
+    assert(BuildResult != nullptr && "Invalid build result");
   }
 
   // devive_image_impl shares ownership of PIProgram with, at least, program
@@ -1868,6 +1881,8 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
       Cache, KernelName, AcquireF, GetF, BuildF);
+  // getOrBuild is not supposed to return nullptr
+  assert(BuildResult != nullptr && "Invalid build result");
   return std::make_pair(BuildResult->Ptr.load(),
                         &(BuildResult->MBuildResultMutex));
 }

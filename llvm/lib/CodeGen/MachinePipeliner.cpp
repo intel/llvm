@@ -649,7 +649,7 @@ void SwingSchedulerDAG::schedule() {
 /// Clean up after the software pipeliner runs.
 void SwingSchedulerDAG::finishBlock() {
   for (auto &KV : NewMIs)
-    MF.DeleteMachineInstr(KV.second);
+    MF.deleteMachineInstr(KV.second);
   NewMIs.clear();
 
   // Call the superclass.
@@ -1101,17 +1101,15 @@ unsigned SwingSchedulerDAG::calculateResMII() {
   // Sort the instructions by the number of available choices for scheduling,
   // least to most. Use the number of critical resources as the tie breaker.
   FuncUnitSorter FUS = FuncUnitSorter(MF.getSubtarget());
-  for (MachineBasicBlock::iterator I = MBB->getFirstNonPHI(),
-                                   E = MBB->getFirstTerminator();
-       I != E; ++I)
-    FUS.calcCriticalResources(*I);
+  for (MachineInstr &MI :
+       llvm::make_range(MBB->getFirstNonPHI(), MBB->getFirstTerminator()))
+    FUS.calcCriticalResources(MI);
   PriorityQueue<MachineInstr *, std::vector<MachineInstr *>, FuncUnitSorter>
       FuncUnitOrder(FUS);
 
-  for (MachineBasicBlock::iterator I = MBB->getFirstNonPHI(),
-                                   E = MBB->getFirstTerminator();
-       I != E; ++I)
-    FuncUnitOrder.push(&*I);
+  for (MachineInstr &MI :
+       llvm::make_range(MBB->getFirstNonPHI(), MBB->getFirstTerminator()))
+    FuncUnitOrder.push(&MI);
 
   while (!FuncUnitOrder.empty()) {
     MachineInstr *MI = FuncUnitOrder.top();
@@ -2193,7 +2191,7 @@ bool SwingSchedulerDAG::canUseLastOffsetValue(MachineInstr *MI,
   MachineInstr *NewMI = MF.CloneMachineInstr(MI);
   NewMI->getOperand(OffsetPosLd).setImm(LoadOffset + StoreOffset);
   bool Disjoint = TII->areMemAccessesTriviallyDisjoint(*NewMI, *PrevDef);
-  MF.DeleteMachineInstr(NewMI);
+  MF.deleteMachineInstr(NewMI);
   if (!Disjoint)
     return false;
 
@@ -2876,10 +2874,8 @@ void SMSchedule::finalizeSchedule(SwingSchedulerDAG *SSD) {
          ++stage) {
       std::deque<SUnit *> &cycleInstrs =
           ScheduledInstrs[cycle + (stage * InitiationInterval)];
-      for (std::deque<SUnit *>::reverse_iterator I = cycleInstrs.rbegin(),
-                                                 E = cycleInstrs.rend();
-           I != E; ++I)
-        ScheduledInstrs[cycle].push_front(*I);
+      for (SUnit *SU : llvm::reverse(cycleInstrs))
+        ScheduledInstrs[cycle].push_front(SU);
     }
   }
 
