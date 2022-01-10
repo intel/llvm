@@ -13,6 +13,7 @@ This extension provides a feature-test macro as described in the core SYCL speci
 |Value|Description|
 |---|:---|
 |1|Initial extension version.
+|2|Added support for the make_buffer() API.
 
 NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
       as deprecated and will be removed in the next release.
@@ -316,21 +317,23 @@ Level-Zero kernel</td>
 <td>
 
 ``` C++
-template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = buffer_allocator>
-typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
-                        buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
-                          buffer<T, Dimensions, AllocatorT>> &BackendObject,
-    const context &TargetContext, event AvailableEvent = {})
+                          buffer<T, Dimensions, AllocatorT>> &,
+    const context &Context, event AvailableEvent = {})
 ```
 </td>
-<td>Constructs a SYCL buffer instance from a Level-Zero memory allocation <code>void *</code>. 
-The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. 
+<td>This API is available starting with revision 2 of this specification.
+
+Construct a SYCL buffer instance from a pointer to a Level Zero memory buffer. The pointer must be the value returned from a previous call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>, or <code>zeMemAllocHost()</code>. If pointer is the value returned from <code>zeMemAllocDevice()</code> or <code>zeMemAllocShared()</code> then SYCL context <code>Context</code> must be associated with a single device.
+The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. Created SYCL buffer is
+associated only with the single SYCL context <code>Context</code>, the buffer can't be accessed on another contexts.
 The <code>AvailableEvent</code> argument must be a valid SYCL event, the instance of the SYCL buffer class template being constructed must wait for the SYCL event parameter, signaled event means that the memory native handle is ready to be used.
-The <code>Size</code> input structure member specifies a size of a Level-Zero memory allocation in bytes.
-The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to destroy the input Level-Zero memory allocation</td>
+The <code>Size</code> input structure member specifies a size of a Level-Zero memory buffer in bytes. It must be the same value that was passed to <code>zeMemAllocShared</code> / <code>zeMemAllocDevice</code> / <code>zeMemAllocHost</code>.
+The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory buffer. 
+Synchronization rules for a buffer that is created with this API are described in Section 4.5</td>
+
+
 </tr>
 </table>
 
@@ -385,6 +388,16 @@ The Level-Zero API is not thread-safe, refer to <https://spec.oneapi.com/level-z
 Applications must make sure that the Level-Zero handles themselves aren't used simultaneously from different threads.
 Practically speaking, and taking into account that SYCL runtime takes ownership of the Level-Zero handles,
 the application should not attempt further direct use of those handles.
+
+### 4.5 Interoperability buffer synchronization rules
+
+A SYCL buffer that is constructed with this interop API uses the Level Zero memory buffer for its full lifetime, and the contents of the Level Zero memory buffer are unspecified for the lifetime of the SYCL buffer. If the application modifies the contents of that Level Zero memory buffer during the lifetime of the SYCL buffer, the behavior is undefined. The initial contents of the SYCL buffer will be the initial contents of the Level Zero memory buffer at the time of the SYCL buffer's construction.
+
+The behavior of the SYCL buffer destructor depends on the Ownership flag. As with other SYCL buffers, this behavior is triggered only when the last reference count to the buffer is dropped, as described in the core SYCL specification section 4.7.2.3, "Buffer synchronization rules".
+
+* If the ownership is keep (i.e. the application retains ownership of the Level Zero memory buffer), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents are written to the Level Zero memory buffer by the time the destructor completes.
+
+* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory buffer), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The SYCL runtime frees the Level Zero memory buffer asynchronously when it is no longer in use in queues.
 
 ## 5 Level-Zero additional functionality
 

@@ -3624,12 +3624,33 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Context->Devices.size() > 0, PI_INVALID_CONTEXT);
 
   try {
-    bool DeviceIsIntegrated = Context->Devices.size() == 1 &&
-                              Context->Devices[0]->ZeDeviceProperties->flags &
-                                  ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+    ZeStruct<ze_memory_allocation_properties_t> ZeMemProps;
+    ze_device_handle_t ZeDevice;
+    ZE_CALL(zeMemGetAllocProperties,
+            (Context->ZeContext, pi_cast<void *>(NativeHandle), &ZeMemProps,
+             &ZeDevice));
+    bool OnHost = false;
+    switch (ZeMemProps.type) {
+    case ZE_MEMORY_TYPE_HOST:
+      OnHost = true;
+      break;
+    case ZE_MEMORY_TYPE_SHARED:
+    case ZE_MEMORY_TYPE_DEVICE:
+      // Currently the Level Zero plugin doesn't support handling of the
+      // allocations associated with a device.
+      if (Context->Devices.size() > 1)
+        die("Interoperability is not yet supported in Level Zero for shared "
+            "and device allocations in a multi-device contexts");
+      break;
+    case ZE_MEMORY_TYPE_UNKNOWN:
+      // Memory allocation is unrelated to the context
+      return PI_INVALID_CONTEXT;
+    default:
+      die("Unexpected memory type");
+    }
     *Mem = new _pi_buffer(Context, Size, pi_cast<char *>(NativeHandle),
                           nullptr /* HostPtr */, ownNativeHandle, nullptr, 0, 0,
-                          DeviceIsIntegrated);
+                          OnHost);
 
     pi_platform Plt = Context->Devices[0]->Platform;
     std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
