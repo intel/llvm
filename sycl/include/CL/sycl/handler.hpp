@@ -730,7 +730,8 @@ private:
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
     if (IsCallableWithKernelHandler) {
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+      getOrInsertFilteredHandlerKernelBundle(/*Insert=*/true,
+                                             {get_kernel_id<KernelName>()});
     }
   }
 
@@ -1271,6 +1272,9 @@ private:
 
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
+
+  std::shared_ptr<detail::kernel_bundle_impl>
+  getOrInsertFilteredHandlerKernelBundle(bool Insert, kernel_id KernelId) const;
 
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);

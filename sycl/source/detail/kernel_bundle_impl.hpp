@@ -496,6 +496,16 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
+  void filterImages(const kernel_id &KernelId) {
+    std::vector<device_image_plain> FilteredDeviceImages;
+    std::copy_if(MDeviceImages.begin(), MDeviceImages.end(),
+                 std::back_inserter(FilteredDeviceImages),
+                 [&KernelId](const device_image_plain &Img) {
+                   return Img.has_kernel(KernelId);
+                 });
+    MDeviceImages = FilteredDeviceImages;
+  }
+
 private:
   context MContext;
   std::vector<device> MDevices;

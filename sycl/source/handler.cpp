@@ -128,6 +128,67 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   return KernelBundleImpPtr;
 }
 
+// Returns a shared_ptr to kernel_bundle stored in the extended members vector.
+//
+// If there is no kernel_bundle created:
+// returns newly created kernel_bundle with KernelId if Insert is true
+// returns shared_ptr(nullptr) if Insert is false
+//
+// If there already existed a kernel_bundle, the underlying device images are
+// filtered such that only the ones containing KernelId remain in the
+// kernel_bundle.
+std::shared_ptr<detail::kernel_bundle_impl>
+handler::getOrInsertFilteredHandlerKernelBundle(bool Insert,
+                                                kernel_id KernelId) const {
+
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+  // Look for the kernel bundle in extended members
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
+  for (const detail::ExtendedMemberT &EMember : *ExtendedMembersVec)
+    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+      KernelBundleImpPtr =
+          std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
+      break;
+    }
+
+  // No kernel bundle yet, create one
+  if (!KernelBundleImpPtr) {
+    if (Insert) {
+      KernelBundleImpPtr =
+          detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+              MQueue->get_context(), {KernelId}));
+      if (KernelBundleImpPtr->empty()) {
+        KernelBundleImpPtr =
+            detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
+                MQueue->get_context(), {KernelId}));
+      }
+
+      detail::ExtendedMemberT EMember = {
+          detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
+          KernelBundleImpPtr};
+      ExtendedMembersVec->push_back(EMember);
+    }
+    return KernelBundleImpPtr;
+  }
+
+  auto HandlerImplMember = (*ExtendedMembersVec)[0];
+  assert(detail::ExtendedMembersType::HANDLER_IMPL == HandlerImplMember.MType);
+  auto HandlerImpl =
+      std::static_pointer_cast<detail::handler_impl>(HandlerImplMember.MData);
+
+  // Kernel bundles set explicitly by the user must not be filtered
+  if (!HandlerImpl->isStateExplicitKernelBundle())
+    KernelBundleImpPtr->filterImages(KernelId);
+
+  return KernelBundleImpPtr;
+}
+
 // Sets kernel bundle to the provided one. Either replaces existing one or
 // create a new entry in the extended members vector.
 void handler::setHandlerKernelBundle(
