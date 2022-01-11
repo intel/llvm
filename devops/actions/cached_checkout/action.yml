@@ -13,6 +13,9 @@ inputs:
     default: 1
   cache_path:
     description: 'Path to cache location for all repos'
+  default_branch:
+    description: 'Name of the default branch'
+    default: 'sycl'
 
 runs:
   using: 'composite'
@@ -43,5 +46,8 @@ runs:
       GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
     run: |
       cd ${{ inputs.path }}
-      git fetch origin sycl
-      git merge --no-edit --commit origin/sycl
+      git fetch origin ${{ inputs.default_branch }}
+      while [ -z $( git merge-base ${{ inputs.default_branch }} ${{ inputs.ref }} ) ]; do
+        git fetch -q --deepen=10 origin ${{ inputs.default_branch }} ${{ inputs.ref }};
+      done
+      git merge --no-edit --commit ${{ inputs.default_branch }}
