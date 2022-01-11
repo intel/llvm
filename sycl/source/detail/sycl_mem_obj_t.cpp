@@ -25,11 +25,16 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
 SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
                          const size_t SizeInBytes, event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator)
+    : SYCLMemObjT(MemObject, SyclContext, true, AvailableEvent,
+                  std::move(Allocator)) {}
+
+SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+                         bool OwnNativeHandle, event AvailableEvent,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
-      MInteropMemObject(pi::cast<RT::PiMem>(MemObject)), MOpenCLInterop(true),
-      MHostPtrReadOnly(false), MNeedWriteBack(true), MSizeInBytes(SizeInBytes),
+      MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
@@ -40,6 +45,15 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
 
   RT::PiContext Context = nullptr;
   const plugin &Plugin = getPlugin();
+
+  Plugin.call<detail::PiApiKind::piextMemCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), OwnNativeHandle,
+      &MInteropMemObject);
+
+  // Get the size of the buffer in bytes
+  Plugin.call<detail::PiApiKind::piMemGetInfo>(
+      MInteropMemObject, CL_MEM_SIZE, sizeof(size_t), &MSizeInBytes, nullptr);
+
   Plugin.call<PiApiKind::piMemGetInfo>(MInteropMemObject, CL_MEM_CONTEXT,
                                        sizeof(Context), &Context, nullptr);
 

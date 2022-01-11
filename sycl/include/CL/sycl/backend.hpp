@@ -160,9 +160,6 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
                    bool KeepOwnership, bundle_state State, backend Backend);
-__SYCL_EXPORT detail::pi::PiMem make_pi_mem(pi_native_handle NativeHandle,
-                                            context Context, bool KeepOwnership,
-                                            backend Backend);
 } // namespace detail
 
 template <backend Backend>

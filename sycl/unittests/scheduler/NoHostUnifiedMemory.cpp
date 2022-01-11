@@ -69,6 +69,14 @@ static pi_result redefinedMemGetInfo(pi_mem mem, cl_mem_info param_name,
   auto *Result = reinterpret_cast<pi_context *>(param_value);
   *Result = InteropPiContext;
   return PI_SUCCESS;
+
+  if (param_name == CL_MEM_CONTEXT) {
+    auto *Result = reinterpret_cast<pi_context *>(param_value);
+    *Result = InteropPiContext;
+  } else if (param_name == CL_MEM_SIZE) {
+    auto *Result = reinterpret_cast<size_t *>(param_value);
+    *Result = 8;
+  }
 }
 
 TEST_F(SchedulerTest, NoHostUnifiedMemory) {
@@ -206,9 +214,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     std::shared_ptr<detail::buffer_impl> BufI = std::make_shared<
         detail::buffer_impl>(
         detail::pi::cast<pi_native_handle>(MockInteropBuffer), Q.get_context(),
-        /*BufSize*/ 8,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<buffer_allocator>>(),
-        event());
+        /* OwnNativeHandle */ true, event());
 
     detail::Requirement Req = getMockRequirement();
     Req.MSYCLMemObj = BufI.get();

@@ -3864,18 +3864,16 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Get base of the allocation
   void *Base;
   size_t Size;
-  ZE_CALL(zeMemGetAddressRange,
-          (Mem->Context->ZeContext, pi_cast<void *>(Mem->getZeHandle()), &Base,
-           &Size));
+  void *Ptr = pi_cast<void *>(NativeHandle);
+  ZE_CALL(zeMemGetAddressRange, (Context->ZeContext, Ptr, &Base, &Size));
 
-  PI_ASSERT(NativeHandle == Base, PI_INVALID_VALUE);
+  PI_ASSERT(Ptr == Base, PI_INVALID_VALUE);
 
   // Check type of the allocation
   ZeStruct<ze_memory_allocation_properties_t> ZeMemProps;
   ze_device_handle_t ZeDevice;
   ZE_CALL(zeMemGetAllocProperties,
-          (Context->ZeContext, pi_cast<void *>(NativeHandle), &ZeMemProps,
-           &ZeDevice));
+          (Context->ZeContext, Ptr, &ZeMemProps, &ZeDevice));
   bool OnHost = false;
   switch (ZeMemProps.type) {
   case ZE_MEMORY_TYPE_HOST:
@@ -3912,8 +3910,7 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
       PI_CALL(piContextRetain(Context));
 
       Context->MemAllocs.emplace(
-          std::piecewise_construct,
-          std::forward_as_tuple(pi_cast<void *>(NativeHandle)),
+          std::piecewise_construct, std::forward_as_tuple(Ptr),
           std::forward_as_tuple(Context, ownNativeHandle));
     }
   } catch (const std::bad_alloc &) {

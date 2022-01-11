@@ -90,6 +90,10 @@ public:
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
                     std::move(Allocator)) {}
 
+  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+              bool OwmNativeHandle, event AvailableEvent,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator);
+
   virtual ~SYCLMemObjT() = default;
 
   const plugin &getPlugin() const;

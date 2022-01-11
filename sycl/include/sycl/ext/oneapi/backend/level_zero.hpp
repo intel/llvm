@@ -193,14 +193,10 @@ make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext, event AvailableEvent) {
-  detail::pi::PiMem PiBuffer = detail::make_pi_mem(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      TargetContext,
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
-      Backend);
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(PiBuffer), TargetContext,
-      AvailableEvent);
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      TargetContext, AvailableEvent,
+      !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
 
 // Specialization of sycl::make_buffer for Level-Zero backend.
@@ -212,13 +208,10 @@ make_buffer(
     const backend_input_t<backend::ext_oneapi_level_zero,
                           buffer<T, Dimensions, AllocatorT>> &BackendObject,
     const context &TargetContext) {
-  detail::pi::PiMem PiBuffer = detail::make_pi_mem(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      TargetContext,
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
-      Backend);
   return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
-      detail::pi::cast<pi_native_handle>(PiBuffer), TargetContext);
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      TargetContext, {},
+      !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
 }
 
 // TODO: remove this specialization when generic is changed to call
