@@ -3,9 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.run
 // RUN: %ACC_RUN_PLACEHOLDER %t.run
 // RUN: env SYCL_DEVICE_FILTER=host %t.run
-//
-// Crashes on AMD
-// XFAIL: hip_amd
 
 #include <CL/sycl.hpp>
 #include <iostream>
