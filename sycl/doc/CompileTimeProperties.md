@@ -159,7 +159,7 @@ template <typename dataT,
           access::target accessTarget,
           access::placeholder isPlaceholder,
           typename PropertyListT = ext::oneapi::property_list<>>
-class accessor {/* ... */};
+class __attribute__((sycl_special_class)) accessor {/* ... */};
 
 } // namespace sycl
 ```
@@ -176,7 +176,8 @@ accessor acc(buf, cgh, property_list{no_alias_v, foo_v<32>});
 
 As before, the header file represents the properties with an internal C++
 attribute, where the initial parameters are the names of the properties and
-the subsequent parameters are the property values.
+the subsequent parameters are the property values.  However, this time the
+attribute decorates one of the member variables.
 
 ```
 namespace sycl {
@@ -187,7 +188,7 @@ template <typename dataT,
           access::target accessTarget,
           access::placeholder isPlaceholder,
           typename PropertyListT = ext::oneapi::property_list<>>
-class accessor {/* ... */};
+class __attribute__((sycl_special_class)) accessor {/* ... */};
 
 // Partial specialization to make PropertyListT visible as a parameter pack
 // of properties.
@@ -197,18 +198,20 @@ template <typename dataT,
           access::target accessTarget,
           access::placeholder isPlaceholder,
           typename ...Props>
-class
+class __attribute__((sycl_special_class)) accessor<dataT,
+                                                   dimensions,
+                                                   accessmode,
+                                                   accessTarget,
+                                                   isPlaceholder,
+                                                   property_list<Props...>> {
+  dataT *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_kernel_parameter_attributes(
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
-  accessor<dataT,
-           dimensions,
-           accessmode,
-           accessTarget,
-           isPlaceholder,
-           property_list<Props...>> {/*...*/};
+  ;
+};
 
 } // namespace sycl
 ```
@@ -218,7 +221,9 @@ Illustrating this with the previous example:
 ```
 namespace sycl {
 
-template </* ... */> class
+template </* ... */>
+class __attribute__((sycl_special_class)) accessor</* ... */> {
+  dataT *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_kernel_parameter_attributes(
     "sycl-no-alias",  // Name of first property
@@ -227,46 +232,33 @@ template </* ... */> class
     32                // Value of second property
     )]]
 #endif
-  accessor</* ... */> {/* ... */};
+  ;
+};
 
 } // namespace sycl
 ```
 
-As the name of the C++ attribute suggests, the device compiler front-end uses
-the attribute only when the decorated type is the type of a kernel argument,
+As the name implies, this C++ attribute is only used to decorate a member
+variable of a class type that is as SYCL "special class" (i.e. a class that is
+decorated with `__attribute__((sycl_special_class))`).  The device compiler
+front-end ignores the attribute when it is used in any other syntactic
+position.
+
+The device compiler front-end uses this attribute only when the class type
+containing the decorated member variable is the type of a kernel argument,
 and it silently ignores the attribute when the class is used in any other way.
 
-When the device compiler front-end creates a kernel argument in this way, it
-adds one LLVM IR attribute to the kernel function's parameter for each property
-in the list.  For example, this can be done by calling
+When the front-end creates a kernel argument from a SYCL "special class", it
+passes each member variable of the class as a separate kernel argument.  If the
+member variable is decorated with
+`[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`, the front-end adds
+one LLVM IR attribute to the kernel function's parameter for each property in
+the list.  For example, this can be done by calling
 [`Function::addParamAttrs(unsigned ArgNo, const AttrBuilder &)`][7].  As
 before, the IR attributes are added as strings, so the front-end must convert
 the property value to a string if it is not already a string.
 
 [7]: <https://llvm.org/doxygen/classllvm_1_1Function.html#a092beb46ecce99e6b39628ee92ccd95a>
-
-**TODO**: There are a number of open issues with this attribute and with the
-semantics of properties that are represented as attributes on kernel
-arguments.  Suppose there are two SYCL types that take properties: _A_ and
-_B_.  (For example, this could be two specializations of `annotated_ptr`, each
-decorated with different properties.)  Now suppose the application creates a
-struct that contains members with both of these types, and it passes that
-struct as a kernel argument.  What is the intended semantic?  Does the argument
-get decorated with the union of the properties on both _A_ and _B_?  What if
-those properties are mutually exclusive?  A similar case exists when the
-application creates a struct that inherits from both _A_ and _B_.
-
-The previous example shows a case when a single kernel argument gets properties
-from two (or more) types.  However, the opposite can also occur.  Certain SYCL
-classes are decorated with `__attribute__((sycl_special_class))`, which causes
-the compiler to pass each member of that class as a separate kernel argument.
-What should happen with the properties that decorate the class?  Should the
-compiler duplicate the properties on each such kernel argument?  Or, maybe it
-should be the header file's responsibility not to decorate such a class with
-`[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`, and instead it
-should decorate specific member variable(s) with this attribute?  How does the
-header decide which properties are used to decorate which member variables,
-though?
 
 
 ## Properties on kernel functions
@@ -402,8 +394,8 @@ void foo(int *p) {
 }
 ```
 
-We again implement the property list in the header via a C++ attribute, though
-this time the attribute decorates a member variable of the class:
+We again implement the property list in the header via a C++ attribute, where
+the attribute decorates a member variable of the class:
 
 ```
 namespace sycl::ext::oneapi {
@@ -652,24 +644,21 @@ template <typename dataT,
           access::target accessTarget,
           access::placeholder isPlaceholder,
           typename ...Props>
-class
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_kernel_parameter_attributes(
-
-    // The properties in this list are "kernel parameter attributes".
-    {"sycl-no-alias", "sycl-foo"},
-
-    Props::meta_name..., Props::meta_value...
-    )]]
-#endif
-  accessor<dataT,
-           dimensions,
-           accessmode,
-           accessTarget,
-           isPlaceholder,
-           property_list<Props...>> {
+class __attribute__((sycl_special_class)) accessor<dataT,
+                                                   dimensions,
+                                                   accessmode,
+                                                   accessTarget,
+                                                   isPlaceholder,
+                                                   property_list<Props...>> {
     T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
+    [[__sycl_detail__::add_ir_kernel_parameter_attributes(
+
+      // The properties in this list are "kernel parameter attributes".
+      {"sycl-no-alias", "sycl-foo"},
+
+      Props::meta_name..., Props::meta_value...
+      )]]
     [[__sycl_detail__::add_ir_member_annotation(
 
       // The properties in this list are "member annotations".
