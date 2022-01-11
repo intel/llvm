@@ -324,7 +324,7 @@ make_buffer(
 </td>
 <td>This API is available starting with revision 2 of this specification.
 
-Construct a SYCL buffer instance from a pointer to a Level Zero memory buffer. The pointer must be the value returned from a previous call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>, or <code>zeMemAllocHost()</code>. If pointer is the value returned from <code>zeMemAllocDevice()</code> or <code>zeMemAllocShared()</code> then SYCL context <code>Context</code> must be associated with a single device.
+Construct a SYCL buffer instance from a pointer to a Level Zero memory buffer. The pointer must be the value returned from a previous call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>, or <code>zeMemAllocHost()</code>. If pointer is the value returned from <code>zeMemAllocDevice()</code> or <code>zeMemAllocShared()</code> then SYCL context <code>Context</code> must be associated with a single device, matching the device used at the prior allocation.
 The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. Created SYCL buffer can accessed on another contexts.
 The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory buffer. 
 Synchronization rules for a buffer that is created with this API are described in Section 4.5</td>
@@ -406,7 +406,7 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 
 * If the ownership is keep (i.e. the application retains ownership of the Level Zero memory buffer), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents are written to the Level Zero memory buffer by the time the destructor completes.
 
-* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory buffer), then the SYCL buffer destructor does not block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory buffer asynchronously when it is no longer in use in queues.
+* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory buffer), then the SYCL buffer destructor does not need to block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory buffer asynchronously when it is no longer in use in queues.
 
 ## 5 Level-Zero additional functionality
 
