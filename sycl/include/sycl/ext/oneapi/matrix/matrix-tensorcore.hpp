@@ -14,9 +14,7 @@ template <typename T, matrix_use Use, size_t Rows = sycl::dynamic_extent,
           size_t Cols = sycl::dynamic_extent,
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group, typename Cond = void>
-struct joint_matrix {
-  joint_matrix(Group g) {}
-};
+struct joint_matrix;
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD(type, use, M, N, frag_type, frag_size)    \
   template <matrix_layout Layout>                                              \
