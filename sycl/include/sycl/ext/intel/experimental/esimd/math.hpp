@@ -1643,8 +1643,8 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ> log(simd<T, SZ> src0) {
 
   if constexpr (Flag != saturation_on)
     return Result;
-
-  return esimd::saturate<T>(Result);
+  else
+    return esimd::saturate<T>(Result);
 }
 
 template <class T> ESIMD_NODEBUG ESIMD_INLINE T log(T src0, int flag) {

@@ -262,7 +262,7 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
         ;
 #else
 {
-  if (__SEIEED::is_wrapper_elem_type_v<T>)
+  if constexpr (__SEIEED::is_wrapper_elem_type_v<T>)
     __ESIMD_UNSUPPORTED_ON_HOST;
   __ESIMD_raw_vec_t(T, N) retv;
   for (auto i = 0; i != N; i += 4) {
