@@ -5,9 +5,9 @@
 // TODO: nd_item::barrier() is not implemented on HOST
 // RUNx: %HOST_RUN_PLACEHOLDER %t.run
 //
-// Returns error "Barrier is not supported on the host device
+// Crashes on AMD, returns error "Barrier is not supported on the host device
 // yet." with Nvidia.
-// XFAIL: hip_nvidia
+// XFAIL: hip_amd || hip_nvidia
 
 //==--------device_event.cpp - SYCL class device_event test ----------------==//
 //
