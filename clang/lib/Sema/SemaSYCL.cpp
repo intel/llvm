@@ -4574,6 +4574,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   Policy.SuppressUnwrittenScope = true;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020) {
+    O << "#ifndef SYCL_LANGUAGE_VERSION \n";
+    O << "#define SYCL_LANGUAGE_VERSION 202001";
+    O << "#endif //SYCL_LANGUAGE_VERSION\n\n";
+  }
+
   if (S.getLangOpts().SYCLDisableRangeRounding) {
     O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
     O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
