@@ -42,10 +42,12 @@
 //   piextEventCreateWithNativeHandle
 // 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle. Added
 // piQueueFlush function.
+// 7.9 Added new context and ownership arguments to
+// piextMemCreateWithNativeHandle.
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 6
-#define _PI_H_VERSION_MINOR 8
+#define _PI_H_VERSION_MAJOR 7
+#define _PI_H_VERSION_MINOR 9
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
