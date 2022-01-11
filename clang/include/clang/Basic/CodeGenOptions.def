@@ -461,7 +461,7 @@ CODEGENOPT(SkipRaxSetup, 1, 0)
 
 /// Whether to expect -main-file-name to be an absolute path to use it for
 /// checksum calculations or not.
-CODEGENOPT(SYCLOverrideMainFileId, 1, 0)
+CODEGENOPT(SYCLUseMainFileName, 1, 0)
 
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
