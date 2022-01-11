@@ -3,9 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//
-// Hits a terminate on HIP AMD
-// XFAIL: hip_amd
 
 //==----------------info.cpp - SYCL objects get_info() test ----------------==//
 //
