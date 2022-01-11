@@ -973,11 +973,11 @@ protected:
 
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_context Ctx, size_t BufSize, char *Mem, char *HostPtr,
-             bool OwnZeMemHandle, _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
+  _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr, bool OwnZeMemHandle,
+             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
              bool MemOnHost = false, bool ImportedHostPtr = false)
-      : _pi_mem(Ctx, HostPtr, OwnZeMemHandle, MemOnHost), Size{BufSize},
-        ZeMem{Mem}, SubBuffer{Parent, Origin, Size} {}
+      : _pi_mem(Ctx, HostPtr, OwnZeMemHandle, MemOnHost), ZeMem{Mem},
+        SubBuffer{Parent, Origin, Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 
@@ -986,8 +986,6 @@ struct _pi_buffer final : _pi_mem {
   bool isImage() const override { return false; }
 
   bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
-
-  size_t Size;
 
   // Level Zero memory handle is really just a naked pointer.
   // It is just convenient to have it char * to simplify offset arithmetics.

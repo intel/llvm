@@ -3546,7 +3546,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
   try {
     *RetMem = new _pi_buffer(
-        Context, Size, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
+        Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
         HostPtrOrNull, true /* OwnZeMemHandle */, nullptr, 0, 0,
         DeviceIsIntegrated /* allocation in host memory */, HostPtrImported);
   } catch (const std::bad_alloc &) {
@@ -3572,8 +3572,14 @@ pi_result piMemGetInfo(pi_mem Mem,
   case CL_MEM_CONTEXT:
     return ReturnValue(Mem->Context);
   case CL_MEM_SIZE: {
-    auto Buf = static_cast<_pi_buffer *>(Mem);
-    return ReturnValue(Buf->Size);
+    // Get size of the allocation
+    void *Base;
+    size_t Size;
+    ZE_CALL(zeMemGetAddressRange,
+            (Mem->Context->ZeContext, pi_cast<void *>(Mem->getZeHandle()),
+             &Base, &Size));
+
+    return ReturnValue(Size);
   }
   default:
     die("piMemGetInfo: Parameter is not implemented");
@@ -3855,39 +3861,43 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(Context->Devices.size() > 0, PI_INVALID_CONTEXT);
 
-  try {
-    // Get size of the allocation
-    void *Base;
-    size_t Size;
-    ZE_CALL(zeMemGetAddressRange,
-            (Context->ZeContext, pi_cast<void *>(NativeHandle), &Base, &Size));
-    ZeStruct<ze_memory_allocation_properties_t> ZeMemProps;
+  // Get base of the allocation
+  void *Base;
+  size_t Size;
+  ZE_CALL(zeMemGetAddressRange,
+          (Mem->Context->ZeContext, pi_cast<void *>(Mem->getZeHandle()), &Base,
+           &Size));
 
-    // Check type of the allocation
-    ze_device_handle_t ZeDevice;
-    ZE_CALL(zeMemGetAllocProperties,
-            (Context->ZeContext, pi_cast<void *>(NativeHandle), &ZeMemProps,
-             &ZeDevice));
-    bool OnHost = false;
-    switch (ZeMemProps.type) {
-    case ZE_MEMORY_TYPE_HOST:
-      OnHost = true;
-      break;
-    case ZE_MEMORY_TYPE_SHARED:
-    case ZE_MEMORY_TYPE_DEVICE:
-      // Currently the Level Zero plugin doesn't support handling of the
-      // allocations associated with a device.
-      if (Context->Devices.size() > 1)
-        die("Interoperability is not yet supported in Level Zero for shared "
-            "and device allocations in a multi-device contexts");
-      break;
-    case ZE_MEMORY_TYPE_UNKNOWN:
-      // Memory allocation is unrelated to the context
-      return PI_INVALID_CONTEXT;
-    default:
-      die("Unexpected memory type");
-    }
-    *Mem = new _pi_buffer(Context, Size, pi_cast<char *>(NativeHandle),
+  PI_ASSERT(NativeHandle == Base, PI_INVALID_VALUE);
+
+  // Check type of the allocation
+  ZeStruct<ze_memory_allocation_properties_t> ZeMemProps;
+  ze_device_handle_t ZeDevice;
+  ZE_CALL(zeMemGetAllocProperties,
+          (Context->ZeContext, pi_cast<void *>(NativeHandle), &ZeMemProps,
+           &ZeDevice));
+  bool OnHost = false;
+  switch (ZeMemProps.type) {
+  case ZE_MEMORY_TYPE_HOST:
+    OnHost = true;
+    break;
+  case ZE_MEMORY_TYPE_SHARED:
+  case ZE_MEMORY_TYPE_DEVICE:
+    // Currently the Level Zero plugin doesn't support handling of the
+    // allocations associated with a device.
+    if (Context->Devices.size() > 1)
+      die("Interoperability is not yet supported in Level Zero for shared "
+          "and device allocations in a multi-device contexts");
+    break;
+  case ZE_MEMORY_TYPE_UNKNOWN:
+    // Memory allocation is unrelated to the context
+    return PI_INVALID_CONTEXT;
+  default:
+    die("Unexpected memory type");
+  }
+
+  try {
+    *Mem = new _pi_buffer(Context, pi_cast<char *>(NativeHandle),
                           nullptr /* HostPtr */, ownNativeHandle, nullptr, 0, 0,
                           OnHost);
 
@@ -6780,7 +6790,7 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
 
   try {
     *RetMem = new _pi_buffer(
-        Buffer->Context, Region->size,
+        Buffer->Context,
         pi_cast<char *>(Buffer->getZeHandle()) +
             Region->origin /* Level Zero memory handle */,
         nullptr /* Host pointer */, true /* OwnZeMemHandle */,
