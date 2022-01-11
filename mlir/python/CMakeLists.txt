@@ -20,6 +20,11 @@ declare_mlir_python_sources(MLIRPythonSources.Core
     ir.py
     passmanager.py
     dialects/_ods_common.py
+
+    # The main _mlir module has submodules: include stubs from each.
+    _mlir_libs/_mlir/__init__.pyi
+    _mlir_libs/_mlir/ir.pyi
+    _mlir_libs/_mlir/passmanager.pyi
 )
 
 declare_mlir_python_sources(MLIRPythonSources.ExecutionEngine
@@ -27,6 +32,7 @@ declare_mlir_python_sources(MLIRPythonSources.ExecutionEngine
   ADD_TO_PARENT MLIRPythonSources
   SOURCES
     execution_engine.py
+    _mlir_libs/_mlirExecutionEngine.pyi
   SOURCES_GLOB
     runtime/*.py
 )
@@ -174,18 +180,26 @@ set(PYTHON_SOURCE_DIR "${MLIR_SOURCE_DIR}/lib/Bindings/Python")
 declare_mlir_python_extension(MLIRPythonExtension.Core
   MODULE_NAME _mlir
   ADD_TO_PARENT MLIRPythonSources.Core
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/DialectLinalg.cpp  # TODO: Break this out.
-    ${PYTHON_SOURCE_DIR}/DialectSparseTensor.cpp  # TODO: Break this out.
-    ${PYTHON_SOURCE_DIR}/MainModule.cpp
-    ${PYTHON_SOURCE_DIR}/IRAffine.cpp
-    ${PYTHON_SOURCE_DIR}/IRAttributes.cpp
-    ${PYTHON_SOURCE_DIR}/IRCore.cpp
-    ${PYTHON_SOURCE_DIR}/IRInterfaces.cpp
-    ${PYTHON_SOURCE_DIR}/IRModule.cpp
-    ${PYTHON_SOURCE_DIR}/IRTypes.cpp
-    ${PYTHON_SOURCE_DIR}/PybindUtils.cpp
-    ${PYTHON_SOURCE_DIR}/Pass.cpp
+    DialectLinalg.cpp  # TODO: Break this out.
+    DialectSparseTensor.cpp  # TODO: Break this out.
+    MainModule.cpp
+    IRAffine.cpp
+    IRAttributes.cpp
+    IRCore.cpp
+    IRInterfaces.cpp
+    IRModule.cpp
+    IRTypes.cpp
+    PybindUtils.cpp
+    Pass.cpp
+
+    # Headers must be included explicitly so they are installed.
+    Dialects.h
+    Globals.h
+    IRModule.h
+    Pass.h
+    PybindUtils.h
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -202,8 +216,9 @@ declare_mlir_python_extension(MLIRPythonExtension.Core
 
 declare_mlir_python_extension(MLIRPythonExtension.AllPassesRegistration
   MODULE_NAME _mlirAllPassesRegistration
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/AllPassesRegistration.cpp
+    AllPassesRegistration.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -214,8 +229,9 @@ declare_mlir_python_extension(MLIRPythonExtension.AllPassesRegistration
 declare_mlir_python_extension(MLIRPythonExtension.AsyncDialectPasses
   MODULE_NAME _mlirAsyncPasses
   ADD_TO_PARENT MLIRPythonSources.Dialects.async_dialect
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/AsyncPasses.cpp
+    AsyncPasses.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -225,8 +241,9 @@ declare_mlir_python_extension(MLIRPythonExtension.AsyncDialectPasses
 declare_mlir_python_extension(MLIRPythonExtension.Conversions
   MODULE_NAME _mlirConversions
   ADD_TO_PARENT MLIRPythonSources.Passes
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/Conversions/Conversions.cpp
+    Conversions/Conversions.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -236,19 +253,21 @@ declare_mlir_python_extension(MLIRPythonExtension.Conversions
 declare_mlir_python_extension(MLIRPythonExtension.ExecutionEngine
   MODULE_NAME _mlirExecutionEngine
   ADD_TO_PARENT MLIRPythonSources.ExecutionEngine
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/ExecutionEngineModule.cpp
+    ExecutionEngineModule.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
-    MLIRCEXECUTIONENGINE
+    MLIRCAPIExecutionEngine
 )
 
 declare_mlir_python_extension(MLIRPythonExtension.GPUDialectPasses
   MODULE_NAME _mlirGPUPasses
   ADD_TO_PARENT MLIRPythonSources.Dialects.gpu
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/GPUPasses.cpp
+    GPUPasses.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -258,8 +277,9 @@ declare_mlir_python_extension(MLIRPythonExtension.GPUDialectPasses
 declare_mlir_python_extension(MLIRPythonExtension.LinalgPasses
   MODULE_NAME _mlirLinalgPasses
   ADD_TO_PARENT MLIRPythonSources.Dialects.linalg
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/LinalgPasses.cpp
+    LinalgPasses.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -269,8 +289,9 @@ declare_mlir_python_extension(MLIRPythonExtension.LinalgPasses
 declare_mlir_python_extension(MLIRPythonExtension.SparseTensorDialectPasses
   MODULE_NAME _mlirSparseTensorPasses
   ADD_TO_PARENT MLIRPythonSources.Dialects.sparse_tensor
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/SparseTensorPasses.cpp
+    SparseTensorPasses.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -280,8 +301,9 @@ declare_mlir_python_extension(MLIRPythonExtension.SparseTensorDialectPasses
 declare_mlir_python_extension(MLIRPythonExtension.Transforms
   MODULE_NAME _mlirTransforms
   ADD_TO_PARENT MLIRPythonSources.Passes
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
-    ${PYTHON_SOURCE_DIR}/Transforms/Transforms.cpp
+    Transforms/Transforms.cpp
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -322,8 +344,9 @@ if(MLIR_INCLUDE_TESTS)
   declare_mlir_python_extension(MLIRPythonTestSources.PythonTestExtension
     MODULE_NAME _mlirPythonTest
     ADD_TO_PARENT MLIRPythonTestSources.Dialects
+    ROOT_DIR "${MLIR_SOURCE_DIR}/test/python/lib"
     SOURCES
-      ${MLIR_SOURCE_DIR}/test/python/lib/PythonTestModule.cpp
+      PythonTestModule.cpp
     PRIVATE_LINK_LIBS
       LLVMSupport
     EMBED_CAPI_LINK_LIBS

@@ -2,14 +2,6 @@
 
 // Tests for IR of Intel FPGA [[intel::use_stall_enable_clusters]] function attribute on Host (no-op in IR-CodeGen for host-mode).
 
-// This test uses SYCL host only mode without integration header, so
-// forward declare used kernel name class, otherwise it will be diagnosed by
-// the diagnostic implemented in https://github.com/intel/llvm/pull/4945.
-// The error happens because in host mode it is assumed that all kernel names
-// are forward declared at global or namespace scope because of integration
-// header.
-class kernel_name_1;
-
 [[intel::use_stall_enable_clusters]] void test() {}
 
 void test1() {

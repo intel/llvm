@@ -14,7 +14,7 @@ include(AddSYCLExecutable)
 include(SYCLUtils)
 
 set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 4)
+set(SYCL_MINOR_VERSION 5)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
@@ -48,6 +48,8 @@ if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
   # never throw C++ exceptions.
+  set(LLVM_REQUIRES_EH ON)
+  set(LLVM_REQUIRES_RTTI ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 
   # Add PDB debug information
@@ -57,6 +59,12 @@ if(MSVC)
   if(LINKER_SUPPORTS_DEBUG)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
     add_link_options("/DEBUG")
+
+    # Enable unreferenced removal and ICF in Release mode.
+    llvm_check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
+      add_link_options("/OPT:REF" "/OPT:ICF")
+    endif()
   endif()
 endif()
 
@@ -120,7 +128,7 @@ file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*"
 file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
-string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
+string(REPLACE "${sycl_inc_dir}/CL" "${SYCL_INCLUDE_BUILD_DIR}/sycl/CL"
   OUT_HEADERS_IN_CL_DIR "${HEADERS_IN_CL_DIR}")
 
 # Copy SYCL headers from sources to build directory
@@ -221,6 +229,7 @@ add_custom_target(sycl-compiler
           llvm-spirv
           llvm-link
           llvm-objcopy
+          spirv-to-ir-wrapper
           sycl-post-link
           opencl-aot
 )
@@ -242,6 +251,11 @@ endif()
 option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
+
+# Ensure that HIP platform is uppercase, to match buildbot's output.
+if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+endif()
 
 # Plugin Library
 add_subdirectory( plugins )
@@ -279,6 +293,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llvm-spirv
      llvm-link
      llvm-objcopy
+     spirv-to-ir-wrapper
      sycl-post-link
      sycl-ls
      clang-resource-headers
@@ -321,17 +336,17 @@ if(SYCL_BUILD_PI_HIP)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
 endif()
 
-# TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
-# environment
-if (NOT MSVC)
-  if (SYCL_BUILD_PI_ESIMD_EMULATOR)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
-    if (MSVC)
-      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
-    else()
-      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
-    endif()
+if (SYCL_BUILD_PI_ESIMD_EMULATOR)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
+  if (MSVC)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
+  else()
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
   endif()
+else()
+  # TODO/FIXME : Removing empty header file (cm_rt.h) generation when
+  # the ESIMD_EMULATOR support is enabled by default
+  file (TOUCH ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL/cm_rt.h)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

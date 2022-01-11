@@ -85,6 +85,14 @@ ModuleListProperties::ModuleListProperties() {
   if (clang::driver::Driver::getDefaultModuleCachePath(path)) {
     lldbassert(SetClangModulesCachePath(FileSpec(path)));
   }
+
+  path.clear();
+  if (llvm::sys::path::cache_directory(path)) {
+    llvm::sys::path::append(path, "lldb");
+    llvm::sys::path::append(path, "IndexCache");
+    lldbassert(SetLLDBIndexCachePath(FileSpec(path)));
+  }
+
 }
 
 bool ModuleListProperties::GetEnableExternalLookup() const {
@@ -110,6 +118,47 @@ bool ModuleListProperties::SetClangModulesCachePath(const FileSpec &path) {
       nullptr, ePropertyClangModulesCachePath, path);
 }
 
+FileSpec ModuleListProperties::GetLLDBIndexCachePath() const {
+  return m_collection_sp
+      ->GetPropertyAtIndexAsOptionValueFileSpec(nullptr, false,
+                                                ePropertyLLDBIndexCachePath)
+      ->GetCurrentValue();
+}
+
+bool ModuleListProperties::SetLLDBIndexCachePath(const FileSpec &path) {
+  return m_collection_sp->SetPropertyAtIndexAsFileSpec(
+      nullptr, ePropertyLLDBIndexCachePath, path);
+}
+
+bool ModuleListProperties::GetEnableLLDBIndexCache() const {
+  const uint32_t idx = ePropertyEnableLLDBIndexCache;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_modulelist_properties[idx].default_uint_value != 0);
+}
+
+bool ModuleListProperties::SetEnableLLDBIndexCache(bool new_value) {
+  return m_collection_sp->SetPropertyAtIndexAsBoolean(
+      nullptr, ePropertyEnableLLDBIndexCache, new_value);
+}
+
+uint64_t ModuleListProperties::GetLLDBIndexCacheMaxByteSize() {
+  const uint32_t idx = ePropertyLLDBIndexCacheMaxByteSize;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_modulelist_properties[idx].default_uint_value);
+}
+
+uint64_t ModuleListProperties::GetLLDBIndexCacheMaxPercent() {
+  const uint32_t idx = ePropertyLLDBIndexCacheMaxPercent;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_modulelist_properties[idx].default_uint_value);
+}
+
+uint64_t ModuleListProperties::GetLLDBIndexCacheExpirationDays() {
+  const uint32_t idx = ePropertyLLDBIndexCacheExpirationDays;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_modulelist_properties[idx].default_uint_value);
+}
+
 void ModuleListProperties::UpdateSymlinkMappings() {
   FileSpecList list = m_collection_sp
                           ->GetPropertyAtIndexAsOptionValueFileSpecList(
@@ -122,8 +171,7 @@ void ModuleListProperties::UpdateSymlinkMappings() {
     FileSpec resolved;
     Status status = FileSystem::Instance().Readlink(symlink, resolved);
     if (status.Success())
-      m_symlink_paths.Append(ConstString(symlink.GetPath()),
-                             ConstString(resolved.GetPath()), notify);
+      m_symlink_paths.Append(symlink.GetPath(), resolved.GetPath(), notify);
   }
 }
 

@@ -10,7 +10,7 @@ configure_file(
   @ONLY)
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  if (NOT EXISTS ${LLVM_EXTERNAL_XPTI_SOURCE_DIR})
+  if (NOT DEFINED LLVM_EXTERNAL_XPTI_SOURCE_DIR)
     message (FATAL_ERROR "Undefined LLVM_EXTERNAL_XPTI_SOURCE_DIR variable: Must be set when XPTI tracing is set to ON")
   endif()
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
@@ -156,6 +156,7 @@ set(SYCL_SOURCES
     "detail/sycl_mem_obj_t.cpp"
     "detail/usm/usm_impl.cpp"
     "detail/util.cpp"
+    "detail/xpti_registry.cpp"
     "accessor.cpp"
     "context.cpp"
     "device.cpp"
@@ -176,6 +177,7 @@ set(SYCL_SOURCES
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
+    "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
     "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"

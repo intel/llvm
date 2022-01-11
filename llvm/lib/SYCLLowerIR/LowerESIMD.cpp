@@ -978,6 +978,39 @@ static Instruction *generateGenXCall(ExtractElementInst *EEI,
   return Inst;
 }
 
+// Translates the following intrinsics:
+//   %res = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
+//   %res = call double @llvm.fmuladd.f64(double %a, double %b, double %c)
+// To
+//   %mul = fmul <type> %a, <type> %b
+//   %res = fadd <type> %mul, <type> %c
+void translateFmuladd(CallInst *CI) {
+  assert(CI->getIntrinsicID() == Intrinsic::fmuladd);
+  IRBuilder<> Bld(CI);
+  auto *Mul = Bld.CreateFMul(CI->getOperand(0), CI->getOperand(1));
+  auto *Res = Bld.CreateFAdd(Mul, CI->getOperand(2));
+  CI->replaceAllUsesWith(Res);
+}
+
+// Translates an LLVM intrinsic to a form, digestable by the BE.
+bool translateLLVMIntrinsic(CallInst *CI) {
+  Function *F = CI->getCalledFunction() ? CI->getCalledFunction() : nullptr;
+  assert(F && F->isIntrinsic());
+
+  switch (F->getIntrinsicID()) {
+  case Intrinsic::assume:
+    // no translation - it will be simply removed.
+    // TODO: make use of 'assume' info in the BE
+    break;
+  case Intrinsic::fmuladd:
+    translateFmuladd(CI);
+    break;
+  default:
+    return false; // "intrinsic wasn't translated, keep the original call"
+  }
+  return true; // "intrinsic has been translated, erase the original call"
+}
+
 /// Replaces the load \p LI of SPIRV global with corresponding call(s) of GenX
 /// intrinsic(s). The users of \p LI may also be transformed if needed for
 /// def/use type correctness.
@@ -1469,8 +1502,10 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     Function *Callee = nullptr;
     if (CI && (Callee = CI->getCalledFunction())) {
       // TODO workaround for ESIMD BE until it starts supporting @llvm.assume
-      if (match(&I, PatternMatch::m_Intrinsic<Intrinsic::assume>())) {
-        ToErase.push_back(CI);
+      if (Callee->isIntrinsic()) {
+        if (translateLLVMIntrinsic(CI)) {
+          ToErase.push_back(CI);
+        }
         continue;
       }
       StringRef Name = Callee->getName();

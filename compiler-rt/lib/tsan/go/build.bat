@@ -1,7 +1,6 @@
 type ^
   tsan_go.cpp ^
   ..\rtl\tsan_interface_atomic.cpp ^
-  ..\rtl\tsan_clock.cpp ^
   ..\rtl\tsan_flags.cpp ^
   ..\rtl\tsan_md5.cpp ^
   ..\rtl\tsan_report.cpp ^
@@ -14,6 +13,7 @@ type ^
   ..\rtl\tsan_suppressions.cpp ^
   ..\rtl\tsan_sync.cpp ^
   ..\rtl\tsan_stack_trace.cpp ^
+  ..\rtl\tsan_vector_clock.cpp ^
   ..\..\sanitizer_common\sanitizer_allocator.cpp ^
   ..\..\sanitizer_common\sanitizer_common.cpp ^
   ..\..\sanitizer_common\sanitizer_flags.cpp ^
@@ -25,6 +25,7 @@ type ^
   ..\rtl\tsan_platform_windows.cpp ^
   ..\..\sanitizer_common\sanitizer_win.cpp ^
   ..\..\sanitizer_common\sanitizer_deadlock_detector1.cpp ^
+  ..\..\sanitizer_common\sanitizer_stack_store.cpp ^
   ..\..\sanitizer_common\sanitizer_stackdepot.cpp ^
   ..\..\sanitizer_common\sanitizer_flag_parser.cpp ^
   ..\..\sanitizer_common\sanitizer_symbolizer.cpp ^

@@ -338,10 +338,9 @@ namespace {
         return false;
 
       // Walk all the users of the immediate.
-      for (SDNode::use_iterator UI = N->use_begin(),
-           UE = N->use_end(); (UI != UE) && (UseCount < 2); ++UI) {
-
-        SDNode *User = *UI;
+      for (const SDNode *User : N->uses()) {
+        if (UseCount >= 2)
+          break;
 
         // This user is already selected. Count it as a legitimate use and
         // move on.
@@ -433,6 +432,18 @@ namespace {
       uint64_t Index = N->getConstantOperandVal(2);
       MVT VecVT = N->getSimpleValueType(0);
       return getI8Imm((Index * VecVT.getScalarSizeInBits()) / VecWidth, DL);
+    }
+
+    SDValue getPermuteVINSERTCommutedImmediate(SDNode *N, unsigned VecWidth,
+                                               const SDLoc &DL) {
+      assert(VecWidth == 128 && "Unexpected vector width");
+      uint64_t Index = N->getConstantOperandVal(2);
+      MVT VecVT = N->getSimpleValueType(0);
+      uint64_t InsertIdx = (Index * VecVT.getScalarSizeInBits()) / VecWidth;
+      assert((InsertIdx == 0 || InsertIdx == 1) && "Bad insertf128 index");
+      // vinsert(0,sub,vec) -> [sub0][vec1] -> vperm2x128(0x30,vec,sub)
+      // vinsert(1,sub,vec) -> [vec0][sub0] -> vperm2x128(0x02,vec,sub)
+      return getI8Imm(InsertIdx ? 0x02 : 0x30, DL);
     }
 
     // Helper to detect unneeded and instructions on shift amounts. Called

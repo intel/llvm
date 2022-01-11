@@ -198,25 +198,45 @@ event handler::finalize() {
     // bypassing scheduler and avoiding CommandGroup, Command objects creation.
 
     std::vector<RT::PiEvent> RawEvents;
-    detail::EventImplPtr NewEvent =
-        std::make_shared<detail::event_impl>(MQueue);
-    NewEvent->setContextImpl(MQueue->getContextImplPtr());
+    detail::EventImplPtr NewEvent;
+    RT::PiEvent *OutEvent = nullptr;
 
-    cl_int Res = CL_SUCCESS;
-    if (MQueue->is_host()) {
-      MHostKernel->call(MNDRDesc, NewEvent->getHostProfilingInfo());
-    } else {
-      Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                             MKernel, MKernelName, MOSModuleHandle, RawEvents,
-                             NewEvent, nullptr);
+    auto EnqueueKernel = [&]() {
+      if (MQueue->is_host()) {
+        MHostKernel->call(
+            MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
+        return CL_SUCCESS;
+      }
+      return enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                              MKernel, MKernelName, MOSModuleHandle, RawEvents,
+                              OutEvent, nullptr);
+    };
+
+    bool DiscardEvent = false;
+    if (MQueue->has_discard_events_support()) {
+      // Kernel only uses assert if it's non interop one
+      bool KernelUsesAssert =
+          !(MKernel && MKernel->isInterop()) &&
+          detail::ProgramManager::getInstance().kernelUsesAssert(
+              MOSModuleHandle, MKernelName);
+      DiscardEvent = !KernelUsesAssert;
     }
 
-    if (CL_SUCCESS != Res)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-    else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
-      NewEvent->setComplete();
+    if (DiscardEvent) {
+      if (CL_SUCCESS != EnqueueKernel())
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    } else {
+      NewEvent = std::make_shared<detail::event_impl>(MQueue);
+      NewEvent->setContextImpl(MQueue->getContextImplPtr());
+      OutEvent = &NewEvent->getHandleRef();
 
-    MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+      if (CL_SUCCESS != EnqueueKernel())
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+      else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+        NewEvent->setComplete();
+
+      MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+    }
     return MLastEvent;
   }
 
@@ -414,9 +434,20 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
     detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
     detail::Requirement *GFlushReq = GFlushImpl.get();
+
+    size_t GlobalSize = MNDRDesc.GlobalSize.size();
+    // If work group size wasn't set explicitly then it must be recieved
+    // from kernel attribute or set to default values.
+    // For now we can't get this attribute here.
+    // So we just suppose that WG size is always default for stream.
+    // TODO adjust MNDRDesc when device image contains kernel's attribute
+    if (GlobalSize == 0) {
+      // Suppose that work group size is 1 for every dimension
+      GlobalSize = MNDRDesc.NumWorkGroups.size();
+    }
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource,
-                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
+                             IsKernelCreatedFromSource, GlobalSize, MArgs,
+                             IsESIMD);
     ++IndexShift;
     MArgs.emplace_back(kernel_param_kind_t::kind_std_layout,
                        &S->FlushBufferSize, sizeof(S->FlushBufferSize),
@@ -690,6 +721,27 @@ void handler::use_kernel_bundle(
 
   setStateExplicitKernelBundle();
   setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+}
+
+void handler::depends_on(event Event) {
+  auto EventImpl = detail::getSyclObjImpl(Event);
+  if (EventImpl->isDiscarded()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Queue operation cannot depend on discarded event.");
+  }
+  MEvents.push_back(EventImpl);
+}
+
+void handler::depends_on(const std::vector<event> &Events) {
+  for (const event &Event : Events) {
+    auto EventImpl = detail::getSyclObjImpl(Event);
+    if (EventImpl->isDiscarded()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Queue operation cannot depend on discarded event.");
+    }
+    MEvents.push_back(EventImpl);
+  }
 }
 
 } // namespace sycl

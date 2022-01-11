@@ -41,7 +41,7 @@ struct NormalizeMemRefs : public NormalizeMemRefsBase<NormalizeMemRefs> {
   Operation *createOpResultsNormalized(FuncOp funcOp, Operation *oldOp);
 };
 
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>> mlir::createNormalizeMemRefsPass() {
   return std::make_unique<NormalizeMemRefs>();
@@ -460,7 +460,6 @@ void NormalizeMemRefs::normalizeFuncOpMemRefs(FuncOp funcOp,
       MemRefType newMemRefType = normalizeMemRefType(memrefType, b,
                                                      /*numSymbolicOperands=*/0);
       resultTypes.push_back(newMemRefType);
-      continue;
     }
 
     FunctionType newFuncType =
@@ -518,6 +517,6 @@ Operation *NormalizeMemRefs::createOpResultsNormalized(FuncOp funcOp,
       newRegion->takeBody(oldRegion);
     }
     return bb.createOperation(result);
-  } else
-    return oldOp;
+  }
+  return oldOp;
 }

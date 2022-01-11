@@ -62,8 +62,9 @@ TEST_P(CudaInteropGetNativeTests, interopTaskGetMem) {
   buffer<int, 1> syclBuffer(range<1>{1});
   syclQueue_->submit([&](handler &cgh) {
     auto syclAccessor = syclBuffer.get_access<access::mode::read>(cgh);
-    cgh.interop_task([=](interop_handler ih) {
-      CUdeviceptr cudaPtr = ih.get_mem<backend::ext_oneapi_cuda>(syclAccessor);
+    cgh.host_task([=](interop_handle ih) {
+      CUdeviceptr cudaPtr =
+          ih.get_native_mem<backend::ext_oneapi_cuda>(syclAccessor);
       CUdeviceptr cudaPtrBase;
       size_t cudaPtrSize = 0;
       CUcontext cudaContext =
@@ -80,8 +81,9 @@ TEST_P(CudaInteropGetNativeTests, interopTaskGetMem) {
 TEST_P(CudaInteropGetNativeTests, interopTaskGetQueue) {
   CUstream cudaStream = get_native<backend::ext_oneapi_cuda>(*syclQueue_);
   syclQueue_->submit([&](handler &cgh) {
-    cgh.interop_task([=](interop_handler ih) {
-      CUstream cudaInteropStream = ih.get_queue<backend::ext_oneapi_cuda>();
+    cgh.host_task([=](interop_handle ih) {
+      CUstream cudaInteropStream =
+          ih.get_native_queue<backend::ext_oneapi_cuda>();
       ASSERT_EQ(cudaInteropStream, cudaStream);
     });
   });
@@ -130,6 +132,6 @@ TEST_P(CudaInteropGetNativeTests, hostTaskGetNativeContext) {
   });
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     OnCudaPlatform, CudaInteropGetNativeTests,
     ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")));

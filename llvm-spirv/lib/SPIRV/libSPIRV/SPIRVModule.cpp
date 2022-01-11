@@ -180,6 +180,7 @@ public:
   void setGeneratorId(unsigned short Id) override { GeneratorId = Id; }
   void setGeneratorVer(unsigned short Ver) override { GeneratorVer = Ver; }
   void resolveUnknownStructFields() override;
+  void insertEntryNoId(SPIRVEntry *Entry) override { EntryNoId.insert(Entry); }
 
   void setSPIRVVersion(SPIRVWord Ver) override {
     assert(this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver)));
@@ -272,8 +273,8 @@ public:
                            const std::vector<SPIRVValue *> &Elements) override;
   SPIRVEntry *addSpecConstantCompositeContinuedINTEL(
       const std::vector<SPIRVValue *> &) override;
-  SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                           SPIRVFunction *F) override;
+  SPIRVValue *addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                              SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
   SPIRVValue *addConstant(SPIRVType *, uint64_t) override;
   SPIRVValue *addConstant(SPIRVType *, llvm::APInt) override;
@@ -1153,9 +1154,10 @@ SPIRVEntry *SPIRVModuleImpl::addSpecConstantCompositeContinuedINTEL(
   return add(new SPIRVSpecConstantCompositeContinuedINTEL(this, Elements));
 }
 
-SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                                          SPIRVFunction *F) {
-  return addConstant(new SPIRVConstFunctionPointerINTEL(getId(), Ty, F, this));
+SPIRVValue *SPIRVModuleImpl::addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                                             SPIRVFunction *F) {
+  return addConstant(
+      new SPIRVConstantFunctionPointerINTEL(getId(), Ty, F, this));
 }
 
 SPIRVValue *SPIRVModuleImpl::addUndef(SPIRVType *TheType) {

@@ -28,8 +28,7 @@ class MachOHeaderMaterializationUnit : public MaterializationUnit {
 public:
   MachOHeaderMaterializationUnit(MachOPlatform &MOP,
                                  const SymbolStringPtr &HeaderStartSymbol)
-      : MaterializationUnit(createHeaderSymbols(MOP, HeaderStartSymbol),
-                            HeaderStartSymbol),
+      : MaterializationUnit(createHeaderInterface(MOP, HeaderStartSymbol)),
         MOP(MOP) {}
 
   StringRef getName() const override { return "MachOHeaderMU"; }
@@ -110,9 +109,9 @@ private:
     return G.createContentBlock(HeaderSection, HeaderContent, 0, 8, 0);
   }
 
-  static SymbolFlagsMap
-  createHeaderSymbols(MachOPlatform &MOP,
-                      const SymbolStringPtr &HeaderStartSymbol) {
+  static MaterializationUnit::Interface
+  createHeaderInterface(MachOPlatform &MOP,
+                        const SymbolStringPtr &HeaderStartSymbol) {
     SymbolFlagsMap HeaderSymbolFlags;
 
     HeaderSymbolFlags[HeaderStartSymbol] = JITSymbolFlags::Exported;
@@ -120,7 +119,8 @@ private:
       HeaderSymbolFlags[MOP.getExecutionSession().intern(HS.Name)] =
           JITSymbolFlags::Exported;
 
-    return HeaderSymbolFlags;
+    return MaterializationUnit::Interface(std::move(HeaderSymbolFlags),
+                                          HeaderStartSymbol);
   }
 
   MachOPlatform &MOP;
@@ -136,13 +136,14 @@ StringRef ObjCImageInfoSectionName = "__DATA,__objc_image_info";
 StringRef ObjCSelRefsSectionName = "__DATA,__objc_selrefs";
 StringRef Swift5ProtoSectionName = "__TEXT,__swift5_proto";
 StringRef Swift5ProtosSectionName = "__TEXT,__swift5_protos";
+StringRef Swift5TypesSectionName = "__TEXT,__swift5_types";
 StringRef ThreadBSSSectionName = "__DATA,__thread_bss";
 StringRef ThreadDataSectionName = "__DATA,__thread_data";
 StringRef ThreadVarsSectionName = "__DATA,__thread_vars";
 
 StringRef InitSectionNames[] = {
     ModInitFuncSectionName, ObjCSelRefsSectionName, ObjCClassListSectionName,
-    Swift5ProtosSectionName, Swift5ProtoSectionName};
+    Swift5ProtosSectionName, Swift5ProtoSectionName, Swift5TypesSectionName};
 
 } // end anonymous namespace
 

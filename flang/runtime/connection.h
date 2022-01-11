@@ -17,6 +17,8 @@
 
 namespace Fortran::runtime::io {
 
+class IoStatementState;
+
 enum class Direction { Output, Input };
 enum class Access { Sequential, Direct, Stream };
 
@@ -28,8 +30,7 @@ struct ConnectionAttributes {
   Access access{Access::Sequential}; // ACCESS='SEQUENTIAL', 'DIRECT', 'STREAM'
   std::optional<bool> isUnformatted; // FORM='UNFORMATTED' if true
   bool isUTF8{false}; // ENCODING='UTF-8'
-  bool isFixedRecordLength{false}; // RECL= on OPEN
-  std::optional<std::int64_t> recordLength; // RECL= or current record
+  std::optional<std::int64_t> openRecl; // RECL= on OPEN
 };
 
 struct ConnectionState : public ConnectionAttributes {
@@ -45,6 +46,15 @@ struct ConnectionState : public ConnectionAttributes {
     leftTabLimit.reset();
   }
 
+  std::optional<std::int64_t> EffectiveRecordLength() const {
+    // When an input record is longer than an explicit RECL= from OPEN
+    // it is effectively truncated on input.
+    return openRecl && recordLength && *openRecl < *recordLength ? openRecl
+                                                                 : recordLength;
+  }
+
+  std::optional<std::int64_t> recordLength;
+
   // Positions in a record file (sequential or direct, not stream)
   std::int64_t currentRecordNumber{1}; // 1 is first
   std::int64_t positionInRecord{0}; // offset in current record
@@ -57,40 +67,25 @@ struct ConnectionState : public ConnectionAttributes {
   // or an end-of-file READ condition on a sequential access file
   std::optional<std::int64_t> endfileRecordNumber;
 
+  // Mutable modes set at OPEN() that can be overridden in READ/WRITE & FORMAT
+  MutableModes modes; // BLANK=, DECIMAL=, SIGN=, ROUND=, PAD=, DELIM=, kP
+
   // Set when processing repeated items during list-directed & NAMELIST input
   // in order to keep a span of records in frame on a non-positionable file,
   // so that backspacing to the beginning of the repeated item doesn't require
   // repositioning the external storage medium when that's impossible.
-  std::optional<std::int64_t> resumptionRecordNumber;
-
-  // Mutable modes set at OPEN() that can be overridden in READ/WRITE & FORMAT
-  MutableModes modes; // BLANK=, DECIMAL=, SIGN=, ROUND=, PAD=, DELIM=, kP
+  bool pinnedFrame{false};
 };
 
 // Utility class for capturing and restoring a position in an input stream.
 class SavedPosition {
 public:
-  explicit SavedPosition(ConnectionState &c)
-      : connection_{c}, positionInRecord_{c.positionInRecord},
-        furthestPositionInRecord_{c.furthestPositionInRecord},
-        leftTabLimit_{c.leftTabLimit}, previousResumptionRecordNumber_{
-                                           c.resumptionRecordNumber} {
-    c.resumptionRecordNumber = c.currentRecordNumber;
-  }
-  ~SavedPosition() {
-    connection_.currentRecordNumber = *connection_.resumptionRecordNumber;
-    connection_.resumptionRecordNumber = previousResumptionRecordNumber_;
-    connection_.leftTabLimit = leftTabLimit_;
-    connection_.furthestPositionInRecord = furthestPositionInRecord_;
-    connection_.positionInRecord = positionInRecord_;
-  }
+  explicit SavedPosition(IoStatementState &);
+  ~SavedPosition();
 
 private:
-  ConnectionState &connection_;
-  std::int64_t positionInRecord_;
-  std::int64_t furthestPositionInRecord_;
-  std::optional<std::int64_t> leftTabLimit_;
-  std::optional<std::int64_t> previousResumptionRecordNumber_;
+  IoStatementState &io_;
+  ConnectionState saved_;
 };
 
 } // namespace Fortran::runtime::io

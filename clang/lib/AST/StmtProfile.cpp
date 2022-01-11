@@ -452,6 +452,11 @@ void OMPClauseProfiler::VisitOMPNumThreadsClause(const OMPNumThreadsClause *C) {
     Profiler->VisitStmt(C->getNumThreads());
 }
 
+void OMPClauseProfiler::VisitOMPAlignClause(const OMPAlignClause *C) {
+  if (C->getAlignment())
+    Profiler->VisitStmt(C->getAlignment());
+}
+
 void OMPClauseProfiler::VisitOMPSafelenClause(const OMPSafelenClause *C) {
   if (C->getSafelen())
     Profiler->VisitStmt(C->getSafelen());
@@ -878,6 +883,7 @@ void OMPClauseProfiler::VisitOMPAffinityClause(const OMPAffinityClause *C) {
     Profiler->VisitStmt(E);
 }
 void OMPClauseProfiler::VisitOMPOrderClause(const OMPOrderClause *C) {}
+void OMPClauseProfiler::VisitOMPBindClause(const OMPBindClause *C) {}
 } // namespace
 
 void
