@@ -12,10 +12,8 @@ endif()
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    # FIXME: temporarily use a fork of intel/vc-intrinsics.git which is aimed at using the new interface of
-    # removeAttributesAtIndex after https://reviews.llvm.org/D116110
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/yubingex007-a11y/vc-intrinsics.git)
-    set(LLVMGenXIntrinsics_GIT_TAG 612e2eeb324f002ddcae6c4534a31c1ba283d7c5)
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
