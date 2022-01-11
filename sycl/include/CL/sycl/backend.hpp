@@ -74,7 +74,9 @@ auto get_native(const SyclObjectT &Obj)
   return Obj.template get_native<BackendName>();
 }
 
-#ifndef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
+// define SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_VEC_CL_EVENT to correspond
+// SYCL 2020 spec and return vector<cl_event> from get_native instead of just cl_event
+#ifdef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_VEC_CL_EVENT
 template <>
 inline backend_return_t<backend::opencl, event>
 get_native<backend::opencl, event>(const event &Obj) {
@@ -90,6 +92,23 @@ get_native<backend::opencl, event>(const event &Obj) {
             element));
   }
   return ReturnValue;
+}
+#else
+// Specialization for cl_event with deprecation message
+template <>
+__SYCL_DEPRECATED("get_native<backend::opencl, event>, which only returns "
+                  "cl_event is deprecated. "
+                  "According to SYCL 2020 spec, please define "
+                  "SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_VEC_CL_EVENT and "
+                  "use vector<cl_event> instead.")
+inline backend_return_t<backend::opencl, event> get_native<
+    backend::opencl, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::opencl) {
+    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+  }
+  return reinterpret_cast<
+      typename detail::interop<backend::opencl, event>::type>(Obj.getNative());
 }
 #endif
 
