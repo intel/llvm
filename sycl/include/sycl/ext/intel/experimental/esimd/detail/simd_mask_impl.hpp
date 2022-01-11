@@ -34,9 +34,10 @@ class simd_mask_impl
   using base_type = detail::simd_obj_impl<T, N, simd_mask_impl<T, N>>;
 
 public:
+  using raw_element_type = T;
   using element_type = T;
-  using vector_type = typename base_type::vector_type;
-  static_assert(std::is_same_v<vector_type, simd_mask_storage_t<N>> &&
+  using raw_vector_type = typename base_type::raw_vector_type;
+  static_assert(std::is_same_v<raw_vector_type, simd_mask_storage_t<N>> &&
                 "mask impl type mismatch");
 
   simd_mask_impl() = default;
@@ -48,7 +49,7 @@ public:
 
   /// Implicit conversion constructor from a raw vector object.
   // TODO this should be made inaccessible from user code.
-  simd_mask_impl(const vector_type &Val) : base_type(Val) {}
+  simd_mask_impl(const raw_vector_type &Val) : base_type(Val) {}
 
   /// Initializer list constructor.
   __SYCL_DEPRECATED("use constructor from array, e.g: simd_mask<3> x({0,1,1});")
@@ -56,7 +57,7 @@ public:
 
   /// Construct from an array. To allow e.g. simd_mask<N> m({1,0,0,1,...}).
   template <int N1, class = std::enable_if_t<N1 == N>>
-  simd_mask_impl(const element_type(&&Arr)[N1]) {
+  simd_mask_impl(const raw_element_type (&&Arr)[N1]) {
     base_type::template init_from_array<N1>(std::move(Arr));
   }
 

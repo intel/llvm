@@ -186,8 +186,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     const ArgList &Args, StringRef SubArchName, StringRef OutputFilePrefix,
     const InputInfoList &InputFiles) const {
   // Split inputs into libraries which have 'archive' type and other inputs
-  // which can be either objects or list files. Objects/list files are linked
-  // together in a usual way, but the libraries need to be linked differently.
+  // which can be either objects or list files. Object files are linked together
+  // in a usual way, but the libraries/list files need to be linked differently.
   // We need to fetch only required symbols from the libraries. With the current
   // llvm-link command line interface that can be achieved with two step
   // linking: at the first step we will link objects into an intermediate
@@ -236,7 +236,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.
         std::string FileName(II.getFilename());
-        Objs.push_back(C.getArgs().MakeArgString("@" + FileName));
+        Libs.push_back(C.getArgs().MakeArgString("@" + FileName));
       } else if (II.getType() == types::TY_Archive && !LinkSYCLDeviceLibs) {
         Libs.push_back(II.getFilename());
       } else

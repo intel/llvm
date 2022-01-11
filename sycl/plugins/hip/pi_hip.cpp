@@ -365,6 +365,10 @@ pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event);
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event);
 pi_result hip_piEventRelease(pi_event event);
 pi_result hip_piEventRetain(pi_event event);
 
@@ -3436,13 +3440,30 @@ pi_result hip_piEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-/// Enqueues a wait on the given CUstream for all events.
+/// Enqueues a wait on the given queue for all events.
 /// See \ref enqueueEventWait
 ///
+/// Currently queues are represented by a single in-order stream, therefore
+/// every command is an implicit barrier and so hip_piEnqueueEventsWait has the
+/// same behavior as hip_piEnqueueEventsWaitWithBarrier. So
+/// hip_piEnqueueEventsWait can just call hip_piEnqueueEventsWaitWithBarrier.
 pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event) {
+  return hip_piEnqueueEventsWaitWithBarrier(
+      command_queue, num_events_in_wait_list, event_wait_list, event);
+}
+
+/// Enqueues a wait on the given queue for all specified events.
+/// See \ref enqueueEventWaitWithBarrier
+///
+/// If the events list is empty, the enqueued wait will wait on all previous
+/// events in the queue.
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event) {
   if (!command_queue) {
     return PI_INVALID_QUEUE;
   }
@@ -4886,6 +4907,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueKernelLaunch, hip_piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, hip_piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, hip_piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, hip_piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, hip_piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, hip_piEnqueueMemBufferReadRect)
   _PI_CL(piEnqueueMemBufferWrite, hip_piEnqueueMemBufferWrite)

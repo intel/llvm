@@ -261,7 +261,7 @@ bool ToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
 
 Tool *ToolChain::getClang() const {
   if (!Clang)
-    Clang.reset(new tools::Clang(*this));
+    Clang.reset(new tools::Clang(*this, useIntegratedBackend()));
   return Clang.get();
 }
 
@@ -371,6 +371,12 @@ Tool *ToolChain::getTableTform() const {
   return FileTableTform.get();
 }
 
+Tool *ToolChain::getSpirvToIrWrapper() const {
+  if (!SpirvToIrWrapper)
+    SpirvToIrWrapper.reset(new tools::SpirvToIrWrapper(*this));
+  return SpirvToIrWrapper.get();
+}
+
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::AssembleJobClass:
@@ -431,6 +437,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::FileTableTformJobClass:
     return getTableTform();
+
+  case Action::SpirvToIrWrapperJobClass:
+    return getSpirvToIrWrapper();
   }
 
   llvm_unreachable("Invalid tool kind.");

@@ -81,10 +81,10 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   //
   // If C is blocked, we should not try to enqueue D.
 
-  EXPECT_CALL(A, enqueue(_, _)).Times(0);
-  EXPECT_CALL(B, enqueue(_, _)).Times(1);
-  EXPECT_CALL(C, enqueue(_, _)).Times(0);
-  EXPECT_CALL(D, enqueue(_, _)).Times(0);
+  EXPECT_CALL(A, enqueue).Times(0);
+  EXPECT_CALL(B, enqueue).Times(1);
+  EXPECT_CALL(C, enqueue).Times(0);
+  EXPECT_CALL(D, enqueue).Times(0);
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
@@ -113,8 +113,8 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   //
   // If A is blocked, we should not try to enqueue B.
 
-  EXPECT_CALL(A, enqueue(_, _)).Times(0);
-  EXPECT_CALL(B, enqueue(_, _)).Times(0);
+  EXPECT_CALL(A, enqueue).Times(0);
+  EXPECT_CALL(B, enqueue).Times(0);
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
@@ -127,8 +127,8 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
 
   // But if the enqueue type is blocking we should not exit early.
 
-  EXPECT_CALL(A, enqueue(_, _)).Times(0);
-  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+  EXPECT_CALL(A, enqueue).Times(0);
+  EXPECT_CALL(B, enqueue).Times(1);
 
   Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
@@ -154,7 +154,8 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
       new cl::sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
   DepEvent->setCommand(&B);
 
-  (void)A.addDep(DepEvent);
+  std::vector<detail::Command *> ToCleanUp;
+  (void)A.addDep(DepEvent, ToCleanUp);
 
   // We have such a "graph":
   //
@@ -166,8 +167,8 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   // "Graph" is quoted as we don't have this dependency in MDeps. Instead, we
   // have this dependecy as result of handler::depends_on() call.
 
-  EXPECT_CALL(A, enqueue(_, _)).Times(1);
-  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+  EXPECT_CALL(A, enqueue).Times(1);
+  EXPECT_CALL(B, enqueue).Times(1);
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
