@@ -37,3 +37,11 @@ runs:
       ref: ${{ inputs.ref }}
       path: ${{ inputs.path }}
       fetch-depth: ${{ inputs.fetch-depth }}
+  - name: Merge sycl HEAD into current branch
+    shell: bash
+    env:
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
+    run: |
+      cd ${{ inputs.path }}
+      git fetch origin sycl
+      git merge --no-edit --commit origin/sycl

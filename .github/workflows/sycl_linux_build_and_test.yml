@@ -115,7 +115,10 @@ jobs:
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+    - uses: actions/checkout@v2
+      with:
+        path: test
+    - uses: ./test/devops/actions/cached_checkout
       with:
         path: src
         cache_path: "/__w/repo_cache/"
