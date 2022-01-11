@@ -407,7 +407,7 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 
 * If the ownership is keep (i.e. the application retains ownership of the Level Zero memory buffer), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents are written to the Level Zero memory buffer by the time the destructor completes.
 
-* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory buffer), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The SYCL runtime frees the Level Zero memory buffer asynchronously when it is no longer in use in queues.
+* If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory buffer), then the SYCL buffer destructor does not block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory buffer asynchronously when it is no longer in use in queues.
 
 ## 5 Level-Zero additional functionality
 
