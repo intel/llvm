@@ -43,6 +43,9 @@ xptifw/ @intel/llvm-reviewers-runtime
 
 # DPC++ tools
 llvm/ @intel/dpcpp-tools-reviewers
+llvm/include/llvm/SYCLLowerIR/MutatePrintfAddrspace.h @intel/dpcpp-tools-reviewers
+llvm/lib/SYCLLowerIR/MutatePrintfAddrspace.cpp @intel/dpcpp-tools-reviewers
+llvm/test/SYCLLowerIR/printf_addrspace/ @intel/dpcpp-tools-reviewers
 
 # Clang offload tools
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
