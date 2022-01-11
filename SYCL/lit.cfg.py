@@ -155,7 +155,12 @@ else:
     config.substitutions.append( ('%include_option',  '-include' ) )
     config.substitutions.append( ('%debug_option',  '-g' ) )
     config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
-    config.substitutions.append( ('%fPIC', '-fPIC') )
+    # Position-independent code does not make sence on Windows. At the same
+    # time providing this option for compilation targeting 
+    # x86_64-pc-windows-msvc will cause compile time error on some
+    # configurations
+    if platform.system() != "Windows":
+        config.substitutions.append( ('%fPIC', '-fPIC') )
     config.substitutions.append( ('%shared_lib', '-shared') )
 
 if not config.gpu_aot_target_opts:
