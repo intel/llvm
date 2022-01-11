@@ -9,7 +9,6 @@
 // RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER --check-prefixes=CHECK-BUILD
 // RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_PI_TRACE=-1 %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER --check-prefixes=CHECK-CACHE
 //
-// XFAIL: ze_debug-1,ze_debug4
 // The test checks that caching works properly.
 #include "basic.hpp"
 

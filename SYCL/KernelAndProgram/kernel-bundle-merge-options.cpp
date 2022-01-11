@@ -5,7 +5,8 @@
 
 // Debug option -g is not passed to device code compiler when CL-style driver
 // is used and /DEBUG options is passed.
-// XFAIL: cl_options,ze_debug-1,ze_debug4
+// XFAIL: cl_options
+// UNSUPPORTED: ze_debug-1,ze_debug4
 #include "kernel-bundle-merge-options.hpp"
 
 // CHECK: piProgramBuild

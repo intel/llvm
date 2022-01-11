@@ -1,6 +1,6 @@
 // FIXME: Fails on HIP and OpenCL accelerator
 // UNSUPPORTED: hip, (opencl && accelerator)
-// XFAIL: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
 // RUN: %HOST_RUN_PLACEHOLDER %t.out

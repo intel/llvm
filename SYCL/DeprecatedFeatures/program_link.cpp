@@ -9,7 +9,6 @@
 //
 // Hits an assertion on AMD with multiple GPUs available, fails trace on Nvidia.
 // XFAIL: hip_amd || hip_nvidia
-// XFAIL: ze_debug-1,ze_debug4
 
 #include <CL/sycl.hpp>
 #include <iostream>

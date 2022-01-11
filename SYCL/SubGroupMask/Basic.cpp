@@ -3,7 +3,7 @@
 // UNSUPPORTED: cuda, hip
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4
 
 //==---------- Basic.cpp - sub-group mask basic test -----------*- C++ -*---==//
 //

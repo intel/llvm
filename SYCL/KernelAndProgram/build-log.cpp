@@ -1,5 +1,5 @@
 // XFAIL: cuda || hip
-// XFAIL: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DGPU %s -o %t_gpu.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

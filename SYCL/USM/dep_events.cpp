@@ -15,7 +15,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
-// XFAIL: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug-1,ze_debug4
 
 #include <CL/sycl.hpp>
 
