@@ -37,7 +37,7 @@ DPC++ extensions status:
 | [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
 | [Platform Context](PlatformContext/PlatformContext.adoc) | Proposal | |
 | [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
-| [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
+| [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Experimental. Partially supported         | |
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
 | [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc)                                                                                | Proposal                                  | |
@@ -48,6 +48,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_bf16_conversion](Bf16Conversion/SYCL_INTEL_bf16_conversion.asciidoc)                                            | Partially supported (Level Zero: GPU)     | Currently available only on Xe HP GPU. ext_intel_bf16_conversion aspect is not supported. |
 | [Property List](PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc)                                                        | Proposal                                  | |
 | [KernelProperties](KernelProperties/KernelProperties.asciidoc)                                                              | Proposal                                  | |
+| [DiscardQueueEvents](DiscardQueueEvents/SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS.asciidoc) | Proposal | |
 
 Legend:
 

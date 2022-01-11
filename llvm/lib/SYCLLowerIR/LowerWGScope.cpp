@@ -623,7 +623,9 @@ using CaptureDesc = std::pair<AllocaInst *, GetElementPtrInst *>;
 static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // Lambda object is always the last argument to the PFWI lambda function:
   auto NArgs = PFWICall->arg_size();
-  assert(PFWICall->arg_size() > 1 && "invalid PFWI call");
+  if (PFWICall->arg_size() == 1)
+    return;
+
   Value *LambdaObj =
       PFWICall->getArgOperand(NArgs - 1 /*lambda object parameter*/);
   // First go through all stores through the LambdaObj pointer - those are
@@ -912,7 +914,7 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Return a value equals to 0 if and only if the local linear id is 0.
 Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX()) {
+  if (TT.isNVPTX() || TT.isAMDGCN()) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 

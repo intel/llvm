@@ -43,7 +43,6 @@ linux_defines = posix_defines + [
     "HAVE_LINK_H=1",
     "HAVE_LSEEK64=1",
     "HAVE_MALLINFO=1",
-    "HAVE_POSIX_FALLOCATE=1",
     "HAVE_SBRK=1",
     "HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC=1",
 ]
@@ -57,9 +56,15 @@ macos_defines = posix_defines + [
 ]
 
 win32_defines = [
-    # MSVC specific
-    "stricmp=_stricmp",
-    "strdup=_strdup",
+    # Windows system library specific defines.
+    "_CRT_SECURE_NO_DEPRECATE",
+    "_CRT_SECURE_NO_WARNINGS",
+    "_CRT_NONSTDC_NO_DEPRECATE",
+    "_CRT_NONSTDC_NO_WARNINGS",
+    "_SCL_SECURE_NO_DEPRECATE",
+    "_SCL_SECURE_NO_WARNINGS",
+    "UNICODE",
+    "_UNICODE",
 
     # LLVM features
     r'LTDL_SHLIB_EXT=\".dll\"',

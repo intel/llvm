@@ -945,11 +945,11 @@ uint32_t SymbolFileNativePDB::ResolveSymbolContext(
     llvm::Optional<uint16_t> modi = m_index->GetModuleIndexForVa(file_addr);
     if (!modi)
       return 0;
-    CompilandIndexItem *cci = m_index->compilands().GetCompiland(*modi);
-    if (!cci)
+    CompUnitSP cu_sp = GetCompileUnitAtIndex(modi.getValue());
+    if (!cu_sp)
       return 0;
 
-    sc.comp_unit = GetOrCreateCompileUnit(*cci).get();
+    sc.comp_unit = cu_sp.get();
     resolved_flags |= eSymbolContextCompUnit;
   }
 
@@ -1182,8 +1182,9 @@ void SymbolFileNativePDB::FindFunctions(
     FunctionNameType name_type_mask, bool include_inlines,
     SymbolContextList &sc_list) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
-  // For now we only support lookup by method name.
-  if (!(name_type_mask & eFunctionNameTypeMethod))
+  // For now we only support lookup by method name or full name.
+  if (!(name_type_mask & eFunctionNameTypeFull ||
+        name_type_mask & eFunctionNameTypeMethod))
     return;
 
   using SymbolAndOffset = std::pair<uint32_t, llvm::codeview::CVSymbol>;

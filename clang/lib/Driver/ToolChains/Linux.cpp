@@ -282,14 +282,11 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     // Android sysroots contain a library directory for each supported OS
     // version as well as some unversioned libraries in the usual multiarch
     // directory.
-    unsigned Major;
-    unsigned Minor;
-    unsigned Micro;
-    Triple.getEnvironmentVersion(Major, Minor, Micro);
-    addPathIfExists(D,
-                    SysRoot + "/usr/lib/" + MultiarchTriple + "/" +
-                        llvm::to_string(Major),
-                    Paths);
+    addPathIfExists(
+        D,
+        SysRoot + "/usr/lib/" + MultiarchTriple + "/" +
+            llvm::to_string(Triple.getEnvironmentVersion().getMajor()),
+        Paths);
   }
 
   addPathIfExists(D, SysRoot + "/usr/lib/" + MultiarchTriple, Paths);
@@ -426,6 +423,9 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
         (Triple.getEnvironment() == llvm::Triple::MuslEABIHF ||
          tools::arm::getARMFloatABI(*this, Args) == tools::arm::FloatABI::Hard))
       ArchName += "hf";
+    if (Arch == llvm::Triple::ppc &&
+        Triple.getSubArch() == llvm::Triple::PPCSubArch_spe)
+      ArchName = "powerpc-sf";
 
     return "/lib/ld-musl-" + ArchName + ".so.1";
   }
@@ -667,9 +667,9 @@ void Linux::AddIAMCUIncludeArgs(const ArgList &DriverArgs,
   }
 }
 
-bool Linux::isPIEDefault() const {
-  return (getTriple().isAndroid() && !getTriple().isAndroidVersionLT(16)) ||
-          getTriple().isMusl() || getSanitizerArgs().requiresPIE();
+bool Linux::isPIEDefault(const llvm::opt::ArgList &Args) const {
+  return CLANG_DEFAULT_PIE_ON_LINUX || getTriple().isAndroid() ||
+         getTriple().isMusl() || getSanitizerArgs(Args).requiresPIE();
 }
 
 bool Linux::IsAArch64OutlineAtomicsDefault(const ArgList &Args) const {
@@ -683,10 +683,6 @@ bool Linux::IsAArch64OutlineAtomicsDefault(const ArgList &Args) const {
   if (GCCInstallation.getVersion().isOlderThan(9, 3, 1))
     return false;
   return true;
-}
-
-bool Linux::isNoExecStackDefault() const {
-    return getTriple().isAndroid();
 }
 
 bool Linux::IsMathErrnoDefault() const {

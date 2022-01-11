@@ -121,7 +121,7 @@ public:
 
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override {
     for (int i = static_cast<int>(CudaArch::SM_20);
-         i < static_cast<int>(CudaArch::LAST); ++i)
+         i < static_cast<int>(CudaArch::Generic); ++i)
       Values.emplace_back(CudaArchToString(static_cast<CudaArch>(i)));
   }
 
@@ -189,7 +189,7 @@ public:
     TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 };
 } // namespace targets
 } // namespace clang

@@ -179,9 +179,9 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 //   level of testing strength
 // 2. Test cases above should be refactored not to use user-level APIs like
 //   gather and use __esimd* calls instead.
-template <class T, int N> using vec = typename simd<T, N>::vector_type;
+template <class T, int N> using vec = typename simd<T, N>::raw_vector_type;
 
-template <int N> using mask = typename simd_mask<N>::vector_type;
+template <int N> using mask = typename simd_mask<N>::raw_vector_type;
 
 SYCL_EXTERNAL void use(const vec<float, 8> &x) SYCL_ESIMD_FUNCTION;
 SYCL_EXTERNAL void use(const vec<int, 8> &x) SYCL_ESIMD_FUNCTION;

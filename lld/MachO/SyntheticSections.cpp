@@ -733,36 +733,30 @@ DataInCodeSection::DataInCodeSection()
 
 template <class LP>
 static std::vector<MachO::data_in_code_entry> collectDataInCodeEntries() {
-  using SegmentCommand = typename LP::segment_command;
-  using Section = typename LP::section;
-
   std::vector<MachO::data_in_code_entry> dataInCodeEntries;
   for (const InputFile *inputFile : inputFiles) {
     if (!isa<ObjFile>(inputFile))
       continue;
     const ObjFile *objFile = cast<ObjFile>(inputFile);
-    const auto *c = reinterpret_cast<const SegmentCommand *>(
-        findCommand(objFile->mb.getBufferStart(), LP::segmentLCType));
-    if (!c)
-      continue;
-    ArrayRef<Section> sections{reinterpret_cast<const Section *>(c + 1),
-                               c->nsects};
-
-    ArrayRef<MachO::data_in_code_entry> entries = objFile->dataInCodeEntries;
+    ArrayRef<MachO::data_in_code_entry> entries = objFile->getDataInCode();
     if (entries.empty())
       continue;
+
+    assert(is_sorted(dataInCodeEntries, [](const data_in_code_entry &lhs,
+                                           const data_in_code_entry &rhs) {
+      return lhs.offset < rhs.offset;
+    }));
     // For each code subsection find 'data in code' entries residing in it.
     // Compute the new offset values as
     // <offset within subsection> + <subsection address> - <__TEXT address>.
-    for (size_t i = 0, n = sections.size(); i < n; ++i) {
-      const SubsectionMap &subsecMap = objFile->subsections[i];
-      for (const SubsectionEntry &subsecEntry : subsecMap) {
-        const InputSection *isec = subsecEntry.isec;
+    for (const Section &section : objFile->sections) {
+      for (const Subsection &subsec : section.subsections) {
+        const InputSection *isec = subsec.isec;
         if (!isCodeSection(isec))
           continue;
         if (cast<ConcatInputSection>(isec)->shouldOmitFromOutput())
           continue;
-        const uint64_t beginAddr = sections[i].addr + subsecEntry.offset;
+        const uint64_t beginAddr = section.address + subsec.offset;
         auto it = llvm::lower_bound(
             entries, beginAddr,
             [](const MachO::data_in_code_entry &entry, uint64_t addr) {
@@ -797,16 +791,18 @@ FunctionStartsSection::FunctionStartsSection()
 void FunctionStartsSection::finalizeContents() {
   raw_svector_ostream os{contents};
   std::vector<uint64_t> addrs;
-  for (const Symbol *sym : symtab->getSymbols()) {
-    if (const auto *defined = dyn_cast<Defined>(sym)) {
-      if (!defined->isec || !isCodeSection(defined->isec) || !defined->isLive())
-        continue;
-      if (const auto *concatIsec = dyn_cast<ConcatInputSection>(defined->isec))
-        if (concatIsec->shouldOmitFromOutput())
-          continue;
-      // TODO: Add support for thumbs, in that case
-      // the lowest bit of nextAddr needs to be set to 1.
-      addrs.push_back(defined->getVA());
+  for (const InputFile *file : inputFiles) {
+    if (auto *objFile = dyn_cast<ObjFile>(file)) {
+      for (const Symbol *sym : objFile->symbols) {
+        if (const auto *defined = dyn_cast_or_null<Defined>(sym)) {
+          if (!defined->isec || !isCodeSection(defined->isec) ||
+              !defined->isLive())
+            continue;
+          // TODO: Add support for thumbs, in that case
+          // the lowest bit of nextAddr needs to be set to 1.
+          addrs.push_back(defined->getVA());
+        }
+      }
     }
   }
   llvm::sort(addrs);
