@@ -75,7 +75,8 @@ auto get_native(const SyclObjectT &Obj)
 }
 
 // define SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_VEC_CL_EVENT to correspond
-// SYCL 2020 spec and return vector<cl_event> from get_native instead of just cl_event
+// SYCL 2020 spec and return vector<cl_event> from get_native instead of just
+// cl_event
 #ifdef SYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_VEC_CL_EVENT
 template <>
 inline backend_return_t<backend::opencl, event>
