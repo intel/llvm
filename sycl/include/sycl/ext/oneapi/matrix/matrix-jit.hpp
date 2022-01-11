@@ -287,7 +287,8 @@ public:
   wi_element &operator+=(const T &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) + rhs, idx);
+        M.spvm, static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx) + rhs),
+        idx);
     return *this;
 #else
     (void)rhs;
@@ -311,7 +312,8 @@ public:
   wi_element &operator-=(const T &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) - rhs, idx);
+        M.spvm, static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx) - rhs),
+        idx);
     return *this;
 #else
     (void)rhs;
@@ -335,7 +337,8 @@ public:
   wi_element &operator*=(const T &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) * rhs, idx);
+        M.spvm, static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx) * rhs),
+        idx);
     return *this;
 #else
     (void)rhs;
@@ -359,7 +362,8 @@ public:
   wi_element &operator/=(const T &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) / rhs, idx);
+        M.spvm, static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx) / rhs),
+        idx);
     return *this;
 #else
     (void)rhs;
