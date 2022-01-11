@@ -40,7 +40,6 @@ enum class tested_types { all, fp, uint, sint };
 // default type coverage over the tests
 template <tested_types required> auto get_tested_types() {
   if constexpr (required == tested_types::all) {
-#ifdef TEST_HALF
     return named_type_pack<char, unsigned char, signed char, short,
                            unsigned short, int, unsigned int, long,
                            unsigned long, float, sycl::half, double, long long,
@@ -48,22 +47,9 @@ template <tested_types required> auto get_tested_types() {
         {"char", "unsigned char", "signed char", "short", "unsigned short",
          "int", "unsigned int", "long", "unsigned long", "float", "sycl::half",
          "double", "long long", "unsigned long long"});
-#else
-    return named_type_pack<char, unsigned char, signed char, short,
-                           unsigned short, int, unsigned int, long,
-                           unsigned long, float, double, long long,
-                           unsigned long long>(
-        {"char", "unsigned char", "signed char", "short", "unsigned short",
-         "int", "unsigned int", "long", "unsigned long", "float", "double",
-         "long long", "unsigned long long"});
-#endif
   } else if constexpr (required == tested_types::fp) {
-#ifdef TEST_HALF
     return named_type_pack<float, sycl::half, double>(
         {"float", "sycl::half", "double"});
-#else
-    return named_type_pack<float, double>({"float", "double"});
-#endif
   } else if constexpr (required == tested_types::uint) {
     if constexpr (!std::is_signed_v<char>) {
       return named_type_pack<unsigned char, unsigned short, unsigned int,
