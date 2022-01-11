@@ -325,8 +325,7 @@ make_buffer(
 <td>This API is available starting with revision 2 of this specification.
 
 Construct a SYCL buffer instance from a pointer to a Level Zero memory buffer. The pointer must be the value returned from a previous call to <code>zeMemAllocShared()</code>, <code>zeMemAllocDevice()</code>, or <code>zeMemAllocHost()</code>. If pointer is the value returned from <code>zeMemAllocDevice()</code> or <code>zeMemAllocShared()</code> then SYCL context <code>Context</code> must be associated with a single device.
-The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. Created SYCL buffer is
-associated only with the single SYCL context <code>Context</code>, the buffer can't be accessed on another contexts.
+The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context, and the Level-Zero memory must be allocated on the same context. Created SYCL buffer can accessed on another contexts.
 The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then the runtime is going to free the input Level-Zero memory buffer. 
 Synchronization rules for a buffer that is created with this API are described in Section 4.5</td>
 </tr><tr>
