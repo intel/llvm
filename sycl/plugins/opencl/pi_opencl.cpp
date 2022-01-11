@@ -86,8 +86,7 @@ typedef CL_API_ENTRY cl_int(CL_API_CALL *clSetProgramSpecializationConstant_fn)(
 // There's another way. A mapping of context to collection of function pointers.
 // Though, the former design allows for simultaneous access for different
 // function pointer for different contexts.
-template <const char *FuncName, typename FuncT>
-struct ExtFuncCache {
+template <const char *FuncName, typename FuncT> struct ExtFuncCache {
   std::map<pi_context, FuncT> Cache;
   // FIXME Use spin-lock to make lock/unlock faster and w/o context switching
   std::mutex Mtx;
@@ -96,8 +95,8 @@ struct ExtFuncCache {
 struct ExtFuncCacheCollection;
 
 namespace detail {
-  template <const char *FuncName, typename FuncT>
-  ExtFuncCache<FuncName, FuncT> &get(::ExtFuncCacheCollection &);
+template <const char *FuncName, typename FuncT>
+ExtFuncCache<FuncName, FuncT> &get(::ExtFuncCacheCollection &);
 } // namespace detail
 
 struct ExtFuncCacheCollection {
@@ -106,10 +105,9 @@ struct ExtFuncCacheCollection {
     return detail::get<FuncName, FuncT>(*this);
   }
 
-#define DEFINE_INTEL(t_pfx) \
-  ExtFuncCache<t_pfx ## Name, t_pfx ## INTEL_fn> t_pfx ## _Cache
-#define DEFINE(t_pfx) \
-  ExtFuncCache<t_pfx ## Name, t_pfx ## _fn> t_pfx ## _Cache
+#define DEFINE_INTEL(t_pfx)                                                    \
+  ExtFuncCache<t_pfx##Name, t_pfx##INTEL_fn> t_pfx##_Cache
+#define DEFINE(t_pfx) ExtFuncCache<t_pfx##Name, t_pfx##_fn> t_pfx##_Cache
 
   DEFINE_INTEL(clHostMemAlloc);
   DEFINE_INTEL(clDeviceMemAlloc);
@@ -128,27 +126,31 @@ struct ExtFuncCacheCollection {
 };
 
 namespace detail {
-#define DEFINE_GETTER_INTEL(t_pfx)                                        \
-  template<> ExtFuncCache<t_pfx ## Name, t_pfx ## INTEL_fn> &get<t_pfx ## Name, t_pfx ## INTEL_fn>(::ExtFuncCacheCollection &C) { \
-    return C.t_pfx ## _Cache;                                       \
+#define DEFINE_GETTER_INTEL(t_pfx)                                             \
+  template <>                                                                  \
+  ExtFuncCache<t_pfx##Name, t_pfx##INTEL_fn>                                   \
+      &get<t_pfx##Name, t_pfx##INTEL_fn>(::ExtFuncCacheCollection & C) {       \
+    return C.t_pfx##_Cache;                                                    \
   }
-#define DEFINE_GETTER(t_pfx)                                        \
-  template<> ExtFuncCache<t_pfx ## Name, t_pfx ## _fn> &get<t_pfx ## Name, t_pfx ## _fn>(::ExtFuncCacheCollection &C) { \
-    return C.t_pfx ## _Cache;                                       \
+#define DEFINE_GETTER(t_pfx)                                                   \
+  template <>                                                                  \
+  ExtFuncCache<t_pfx##Name, t_pfx##_fn> &get<t_pfx##Name, t_pfx##_fn>(         \
+      ::ExtFuncCacheCollection & C) {                                          \
+    return C.t_pfx##_Cache;                                                    \
   }
 
-  DEFINE_GETTER_INTEL(clHostMemAlloc)
-  DEFINE_GETTER_INTEL(clDeviceMemAlloc)
-  DEFINE_GETTER_INTEL(clSharedMemAlloc)
-  DEFINE_GETTER_INTEL(clCreateBufferWithProperties)
-  DEFINE_GETTER_INTEL(clMemBlockingFree)
-  DEFINE_GETTER_INTEL(clMemFree)
-  DEFINE_GETTER_INTEL(clSetKernelArgMemPointer)
-  DEFINE_GETTER_INTEL(clEnqueueMemset)
-  DEFINE_GETTER_INTEL(clEnqueueMemcpy)
-  DEFINE_GETTER_INTEL(clGetMemAllocInfo)
-  DEFINE_GETTER(clGetDeviceFunctionPointer)
-  DEFINE_GETTER(clSetProgramSpecializationConstant)
+DEFINE_GETTER_INTEL(clHostMemAlloc)
+DEFINE_GETTER_INTEL(clDeviceMemAlloc)
+DEFINE_GETTER_INTEL(clSharedMemAlloc)
+DEFINE_GETTER_INTEL(clCreateBufferWithProperties)
+DEFINE_GETTER_INTEL(clMemBlockingFree)
+DEFINE_GETTER_INTEL(clMemFree)
+DEFINE_GETTER_INTEL(clSetKernelArgMemPointer)
+DEFINE_GETTER_INTEL(clEnqueueMemset)
+DEFINE_GETTER_INTEL(clEnqueueMemcpy)
+DEFINE_GETTER_INTEL(clGetMemAllocInfo)
+DEFINE_GETTER(clGetDeviceFunctionPointer)
+DEFINE_GETTER(clSetProgramSpecializationConstant)
 #undef DEFINE_GETTER
 #undef DEFINE_GETTER_INTEL
 } // namespace detail
@@ -1470,23 +1472,24 @@ pi_result piTearDown(void *PluginParameter) {
 }
 
 pi_result piContextRelease(pi_context Context) {
-#define RELEASE_EXT_FUNCS_CACHE_INTEL(t_pfx)                                      \
-  {                                                                         \
-    ExtFuncCache<t_pfx ## Name, t_pfx ## INTEL_fn> &Cache = ExtFuncCaches->get<t_pfx ## Name, t_pfx ## INTEL_fn>(); \
-    std::lock_guard<std::mutex> CacheLock{Cache.Mtx};                       \
-    auto It = Cache.Cache.find(Context);                                    \
-    if (It != Cache.Cache.end())                                            \
-      Cache.Cache.erase(It);                                                \
+#define RELEASE_EXT_FUNCS_CACHE_INTEL(t_pfx)                                   \
+  {                                                                            \
+    ExtFuncCache<t_pfx##Name, t_pfx##INTEL_fn> &Cache =                        \
+        ExtFuncCaches->get<t_pfx##Name, t_pfx##INTEL_fn>();                    \
+    std::lock_guard<std::mutex> CacheLock{Cache.Mtx};                          \
+    auto It = Cache.Cache.find(Context);                                       \
+    if (It != Cache.Cache.end())                                               \
+      Cache.Cache.erase(It);                                                   \
   }
-#define RELEASE_EXT_FUNCS_CACHE(t_pfx)                                      \
-  {                                                                         \
-    ExtFuncCache<t_pfx ## Name, t_pfx ## _fn> &Cache = ExtFuncCaches->get<t_pfx ## Name, t_pfx ## _fn>(); \
-    std::lock_guard<std::mutex> CacheLock{Cache.Mtx};                       \
-    auto It = Cache.Cache.find(Context);                                    \
-    if (It != Cache.Cache.end())                                            \
-      Cache.Cache.erase(It);                                                \
+#define RELEASE_EXT_FUNCS_CACHE(t_pfx)                                         \
+  {                                                                            \
+    ExtFuncCache<t_pfx##Name, t_pfx##_fn> &Cache =                             \
+        ExtFuncCaches->get<t_pfx##Name, t_pfx##_fn>();                         \
+    std::lock_guard<std::mutex> CacheLock{Cache.Mtx};                          \
+    auto It = Cache.Cache.find(Context);                                       \
+    if (It != Cache.Cache.end())                                               \
+      Cache.Cache.erase(It);                                                   \
   }
-
 
   RELEASE_EXT_FUNCS_CACHE_INTEL(clHostMemAlloc);
   RELEASE_EXT_FUNCS_CACHE_INTEL(clDeviceMemAlloc);
