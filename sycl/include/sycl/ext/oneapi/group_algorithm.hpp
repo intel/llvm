@@ -12,14 +12,12 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/feature_test.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/group_algorithm.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <sycl/ext/oneapi/atomic.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
-#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -86,6 +84,7 @@ struct dest_stride {
   std::size_t value;
 };
 
+// true when the type can be used with __SYCL_OpGroupAsyncCopy
 template <typename T>
 struct NativeAsyncCopyable
     : std::integral_constant<
@@ -96,6 +95,7 @@ struct NativeAsyncCopyable
 namespace detail {
 template <typename Group>
 using is_sub_group = std::is_same<Group, sycl::ext::oneapi::sub_group>;
+
 template <typename Group> constexpr auto group_to_scope() {
   if constexpr (is_sub_group<Group>::value) {
     return __spv::Scope::Subgroup;
@@ -127,7 +127,9 @@ std::enable_if_t<std::is_trivially_copyable<T>::value, async_copy_event<Group>>
 synchronous_copy(Group g, multi_ptr<T, SrcS> src, multi_ptr<T, DestS> dest,
                  size_t NumElements, src_stride SrcStride,
                  dest_stride DestStride) {
+  // number of work-items copying values
   const auto size = get_local_linear_range(g);
+  // id of work-item in group
   const auto id = [&g]() {
     if constexpr (is_sub_group<Group>::value) {
       return g.get_local_linear_id();
@@ -143,9 +145,8 @@ synchronous_copy(Group g, multi_ptr<T, SrcS> src, multi_ptr<T, DestS> dest,
 } // namespace detail
 
 template <typename Group, typename... eventT>
-std::enable_if_t<
-    sycl::is_group_v<Group> &&
-    std::conjunction_v<std::is_same<eventT, async_copy_event<Group>>...>>
+std::enable_if_t<sycl::is_group_v<Group> &&
+                 (std::is_same_v<eventT, async_copy_event<Group>> && ...)>
 wait_for(Group, eventT... Events) {
   (__spirv_GroupWaitEvents(detail::group_to_scope<Group>(), 1, &Events.Event),
    ...);
@@ -155,7 +156,8 @@ wait_for(Group, eventT... Events) {
 /// from the source pointed by \p src to destination pointed by \p dest
 /// with a source stride specified by \p srcStride, and returns a SYCL
 /// device_event which can be used to wait on the completion of the copy.
-/// Permitted types for dataT are all scalar and vector types, except boolean.
+/// Permitted types for dataT are all trivially copyable and vector types,
+/// except boolean.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !sycl::detail::is_bool<dataT>::value,
                  async_copy_event<Group>>
@@ -170,6 +172,10 @@ async_group_copy(Group g, global_ptr<dataT> src, local_ptr<dataT> dest,
         NumElements, SrcStride.value, 0);
     return async_copy_event<Group>(E);
   } else {
+    // fall back on synchronous copy when there isn't a SPIR-V implementation.
+    // This is needed since it would be impossible to calculate the spacing
+    // between values when using a stride. The spacing calculation requires the
+    // size of the type, which can't be an arbitrary value for SPIR-V.
     return detail::synchronous_copy(g, src, dest, NumElements, SrcStride,
                                     dest_stride{1});
   }
@@ -179,7 +185,8 @@ async_group_copy(Group g, global_ptr<dataT> src, local_ptr<dataT> dest,
 /// from the source pointed by \p src to destination pointed by \p dest with
 /// the destination stride specified by \p destStride, and returns a SYCL
 /// device_event which can be used to wait on the completion of the copy.
-/// Permitted types for dataT are all scalar and vector types, except boolean.
+/// Permitted types for dataT are all trivially copyable and vector types,
+/// except boolean.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !sycl::detail::is_bool<dataT>::value,
                  async_copy_event<Group>>
@@ -194,6 +201,10 @@ async_group_copy(Group g, local_ptr<dataT> src, global_ptr<dataT> dest,
         NumElements, DestStride.value, 0);
     return async_copy_event<Group>(E);
   } else {
+    // fall back on synchronous copy when there isn't a SPIR-V implementation.
+    // This is needed since it would be impossible to calculate the spacing
+    // between values when using a stride. The spacing calculation requires the
+    // size of the type, which can't be an arbitrary value for SPIR-V.
     return detail::synchronous_copy(g, src, dest, NumElements, src_stride{1},
                                     DestStride);
   }
