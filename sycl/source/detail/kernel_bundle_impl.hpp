@@ -497,12 +497,15 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   void filterImages(const kernel_id &KernelId) {
+    auto ImgHasKernelPred = [&KernelId](const device_image_plain &Img) {
+      return Img.has_kernel(KernelId);
+    };
+    const size_t NumRequiredDevImgs = std::count_if(
+        MDeviceImages.begin(), MDeviceImages.end(), ImgHasKernelPred);
     std::vector<device_image_plain> FilteredDeviceImages;
+    FilteredDeviceImages.reserve(NumRequiredDevImgs);
     std::copy_if(MDeviceImages.begin(), MDeviceImages.end(),
-                 std::back_inserter(FilteredDeviceImages),
-                 [&KernelId](const device_image_plain &Img) {
-                   return Img.has_kernel(KernelId);
-                 });
+                 std::back_inserter(FilteredDeviceImages), ImgHasKernelPred);
     MDeviceImages = FilteredDeviceImages;
   }
 
