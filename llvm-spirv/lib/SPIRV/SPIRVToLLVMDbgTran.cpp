@@ -199,15 +199,35 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
   size_t TotalCount = 1;
   SmallVector<llvm::Metadata *, 8> Subscripts;
-  for (size_t I = ComponentCountIdx, E = Ops.size(); I < E; ++I) {
-    if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[I])) {
-      Subscripts.push_back(Builder.getOrCreateSubrange(1, nullptr));
+  // Ops looks like: { BaseType, count1|upperBound1, count2|upperBound2, ...,
+  // countN|upperBoundN, lowerBound1, lowerBound2, ..., lowerBoundN }
+  for (size_t I = ComponentCountIdx, E = Ops.size() / 2 + 1; I < E; ++I) {
+    if (auto *LocalVar = getDbgInst<SPIRVDebug::LocalVariable>(Ops[I])) {
+      auto *UpperBound = transDebugInst<DILocalVariable>(LocalVar);
+      SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[Ops.size() / 2 + I]);
+      int64_t ConstantAsInt = static_cast<int64_t>(C->getZExtIntValue());
+      auto *LowerBound = ConstantAsMetadata::get(
+          ConstantInt::get(M->getContext(), APInt(64, ConstantAsInt)));
+      Subscripts.push_back(Builder.getOrCreateSubrange(nullptr, LowerBound,
+                                                       UpperBound, nullptr));
       continue;
     }
-    SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
-    int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
-    Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
-    TotalCount *= static_cast<uint64_t>(Count);
+    if (auto *ExprUB = getDbgInst<SPIRVDebug::Expression>(Ops[I])) {
+      auto *UpperBound = transDebugInst<DIExpression>(ExprUB);
+      auto *ExprLB =
+          getDbgInst<SPIRVDebug::Expression>(Ops[Ops.size() / 2 + I]);
+      auto *LowerBound = transDebugInst<DIExpression>(ExprLB);
+      Subscripts.push_back(Builder.getOrCreateSubrange(nullptr, LowerBound,
+                                                       UpperBound, nullptr));
+      continue;
+    }
+    if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[I])) {
+      SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
+      int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
+      Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
+      TotalCount *= static_cast<uint64_t>(Count);
+      continue;
+    }
   }
   DINodeArray SubscriptArray = Builder.getOrCreateArray(Subscripts);
   size_t Size = getDerivedSizeInBits(BaseTy) * TotalCount;
@@ -509,7 +529,8 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
   llvm::DITemplateParameterArray TParamsArray = TParams.get();
 
   DISubprogram *DIS = nullptr;
-  if ((isa<DICompositeType>(Scope) || isa<DINamespace>(Scope)) && !IsDefinition)
+  if (Scope && (isa<DICompositeType>(Scope) || isa<DINamespace>(Scope)) &&
+      !IsDefinition)
     DIS = Builder.createMethod(Scope, Name, LinkageName, File, LineNo, Ty, 0, 0,
                                nullptr, Flags, SPFlags, TParamsArray);
   else

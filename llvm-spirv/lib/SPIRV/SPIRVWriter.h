@@ -75,7 +75,8 @@ public:
   // a function, that is necessary for a convenient function pointers handling.
   // By default transValue uses 'Decl' mode, which means every function
   // we meet during the translation should result in its declaration generated.
-  // In 'Pointer' mode we generate OpConstFunctionPointerINTEL constant instead.
+  // In 'Pointer' mode we generate OpConstantFunctionPointerINTEL constant
+  // instead.
   enum class FuncTransMode { Decl, Pointer };
 
   SPIRVType *transType(Type *T);

@@ -814,6 +814,9 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
         Linkage,
         /*Initializer=*/llvm::ConstantPointerNull::get(VoidPtrPtrTy),
         "__hip_gpubin_handle");
+    if (Linkage == llvm::GlobalValue::LinkOnceAnyLinkage)
+      GpuBinaryHandle->setComdat(
+          CGM.getModule().getOrInsertComdat(GpuBinaryHandle->getName()));
     GpuBinaryHandle->setAlignment(CGM.getPointerAlign().getAsAlign());
     // Prevent the weak symbol in different shared libraries being merged.
     if (Linkage != llvm::GlobalValue::InternalLinkage)
@@ -1147,6 +1150,7 @@ llvm::GlobalValue *CGNVCUDARuntime::getKernelHandle(llvm::Function *F,
   Var->setAlignment(CGM.getPointerAlign().getAsAlign());
   Var->setDSOLocal(F->isDSOLocal());
   Var->setVisibility(F->getVisibility());
+  CGM.maybeSetTrivialComdat(*GD.getDecl(), *Var);
   KernelHandles[F] = Var;
   KernelStubs[Var] = F;
   return Var;

@@ -123,6 +123,25 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   if (!ParallelJobs.empty())
     ForeachArgs.push_back(C.getArgs().MakeArgString("--jobs=" + ParallelJobs));
 
+  if (C.getDriver().isSaveTempsEnabled()) {
+    SmallString<128> OutputDirName;
+    if (C.getDriver().isSaveTempsObj()) {
+      OutputDirName =
+          T->getToolChain().GetFilePath(OutputFileName.c_str()).c_str();
+      llvm::sys::path::remove_filename(OutputDirName);
+    }
+    // Use the current dir if the `GetFilePath` returned en empty string, which
+    // is the case when the `OutputFileName` does not contain any directory
+    // information, or if in CWD mode. This is necessary for `llvm-foreach`, as
+    // it would disregard the parameter without it. Otherwise append separator.
+    if (OutputDirName.empty())
+      llvm::sys::path::native(OutputDirName = "./");
+    else
+      OutputDirName.append(llvm::sys::path::get_separator());
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
+  }
+
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));
@@ -167,8 +186,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     const ArgList &Args, StringRef SubArchName, StringRef OutputFilePrefix,
     const InputInfoList &InputFiles) const {
   // Split inputs into libraries which have 'archive' type and other inputs
-  // which can be either objects or list files. Objects/list files are linked
-  // together in a usual way, but the libraries need to be linked differently.
+  // which can be either objects or list files. Object files are linked together
+  // in a usual way, but the libraries/list files need to be linked differently.
   // We need to fetch only required symbols from the libraries. With the current
   // llvm-link command line interface that can be achieved with two step
   // linking: at the first step we will link objects into an intermediate
@@ -217,7 +236,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.
         std::string FileName(II.getFilename());
-        Objs.push_back(C.getArgs().MakeArgString("@" + FileName));
+        Libs.push_back(C.getArgs().MakeArgString("@" + FileName));
       } else if (II.getType() == types::TY_Archive && !LinkSYCLDeviceLibs) {
         Libs.push_back(II.getFilename());
       } else
@@ -331,9 +350,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   for (const auto &II : Inputs) {
     if (!II.isFilename())
       continue;
-    if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
-                     options::OPT_fno_sycl_use_bitcode, true) ||
-        Args.hasArg(options::OPT_foffload_static_lib_EQ))
+    if (!Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+             .equals_insensitive("spirv"))
       SpirvInputs.push_back(II);
     else {
       const char *LLVMSpirvOutputFile = constructLLVMSpirvCommand(

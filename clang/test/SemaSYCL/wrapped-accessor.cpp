@@ -44,7 +44,7 @@ int main() {
 // CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
 // CHECK-NEXT: MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>':'sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>' lvalue .accessor {{.*}}
-// CHECK-NEXT: MemberExpr {{.*}} 'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>':'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>' lvalue .
+// CHECK-NEXT: MemberExpr {{.*}} 'AccWrapper<decltype(acc)>':'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>>' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 
 // Parameters of the _init method

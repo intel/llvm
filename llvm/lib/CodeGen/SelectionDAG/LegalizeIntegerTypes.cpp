@@ -622,10 +622,13 @@ SDValue DAGTypeLegalizer::PromoteIntRes_CTTZ(SDNode *N) {
 
   // If the larger CTTZ isn't supported by the target, try to expand now.
   // If we expand later we'll end up with more operations since we lost the
-  // original type.
+  // original type. Don't expand if we can use CTPOP or CTLZ expansion on the
+  // larger type.
   if (!OVT.isVector() && TLI.isTypeLegal(NVT) &&
       !TLI.isOperationLegalOrCustomOrPromote(ISD::CTTZ, NVT) &&
-      !TLI.isOperationLegalOrCustomOrPromote(ISD::CTTZ_ZERO_UNDEF, NVT)) {
+      !TLI.isOperationLegalOrCustomOrPromote(ISD::CTTZ_ZERO_UNDEF, NVT) &&
+      !TLI.isOperationLegal(ISD::CTPOP, NVT) &&
+      !TLI.isOperationLegal(ISD::CTLZ, NVT)) {
     if (SDValue Result = TLI.expandCTTZ(N, DAG)) {
       Result = DAG.getNode(ISD::ANY_EXTEND, dl, NVT, Result);
       return Result;
@@ -1274,8 +1277,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SRL(SDNode *N, bool IsVP) {
 
 SDValue DAGTypeLegalizer::PromoteIntRes_Rotate(SDNode *N) {
   // Lower the rotate to shifts and ORs which can be promoted.
-  SDValue Res;
-  TLI.expandROT(N, true /*AllowVectorOps*/, Res, DAG);
+  SDValue Res = TLI.expandROT(N, true /*AllowVectorOps*/, DAG);
   ReplaceValueWith(SDValue(N, 0), Res);
   return SDValue();
 }
@@ -1283,7 +1285,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_Rotate(SDNode *N) {
 SDValue DAGTypeLegalizer::PromoteIntRes_FunnelShift(SDNode *N) {
   SDValue Hi = GetPromotedInteger(N->getOperand(0));
   SDValue Lo = GetPromotedInteger(N->getOperand(1));
-  SDValue Amount = GetPromotedInteger(N->getOperand(2));
+  SDValue Amt = GetPromotedInteger(N->getOperand(2));
 
   SDLoc DL(N);
   EVT OldVT = N->getOperand(0).getValueType();
@@ -1294,21 +1296,20 @@ SDValue DAGTypeLegalizer::PromoteIntRes_FunnelShift(SDNode *N) {
   unsigned NewBits = VT.getScalarSizeInBits();
 
   // Amount has to be interpreted modulo the old bit width.
-  Amount =
-      DAG.getNode(ISD::UREM, DL, VT, Amount, DAG.getConstant(OldBits, DL, VT));
+  Amt = DAG.getNode(ISD::UREM, DL, VT, Amt, DAG.getConstant(OldBits, DL, VT));
 
   // If the promoted type is twice the size (or more), then we use the
   // traditional funnel 'double' shift codegen. This isn't necessary if the
   // shift amount is constant.
   // fshl(x,y,z) -> (((aext(x) << bw) | zext(y)) << (z % bw)) >> bw.
   // fshr(x,y,z) -> (((aext(x) << bw) | zext(y)) >> (z % bw)).
-  if (NewBits >= (2 * OldBits) && !isa<ConstantSDNode>(Amount) &&
+  if (NewBits >= (2 * OldBits) && !isa<ConstantSDNode>(Amt) &&
       !TLI.isOperationLegalOrCustom(Opcode, VT)) {
     SDValue HiShift = DAG.getConstant(OldBits, DL, VT);
     Hi = DAG.getNode(ISD::SHL, DL, VT, Hi, HiShift);
     Lo = DAG.getZeroExtendInReg(Lo, DL, OldVT);
     SDValue Res = DAG.getNode(ISD::OR, DL, VT, Hi, Lo);
-    Res = DAG.getNode(IsFSHR ? ISD::SRL : ISD::SHL, DL, VT, Res, Amount);
+    Res = DAG.getNode(IsFSHR ? ISD::SRL : ISD::SHL, DL, VT, Res, Amt);
     if (!IsFSHR)
       Res = DAG.getNode(ISD::SRL, DL, VT, Res, HiShift);
     return Res;
@@ -1321,9 +1322,9 @@ SDValue DAGTypeLegalizer::PromoteIntRes_FunnelShift(SDNode *N) {
   // Increase Amount to shift the result into the lower bits of the promoted
   // type.
   if (IsFSHR)
-    Amount = DAG.getNode(ISD::ADD, DL, VT, Amount, ShiftOffset);
+    Amt = DAG.getNode(ISD::ADD, DL, VT, Amt, ShiftOffset);
 
-  return DAG.getNode(Opcode, DL, VT, Hi, Lo, Amount);
+  return DAG.getNode(Opcode, DL, VT, Hi, Lo, Amt);
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_TRUNCATE(SDNode *N) {
@@ -1719,10 +1720,8 @@ void DAGTypeLegalizer::PromoteSetCCOperands(SDValue &NewLHS,SDValue &NewRHS,
     // If the width of OpL/OpR excluding the duplicated sign bits is no greater
     // than the width of NewLHS/NewRH, we can avoid inserting real truncate
     // instruction, which is redundant eventually.
-    unsigned OpLEffectiveBits =
-        OpL.getScalarValueSizeInBits() - DAG.ComputeNumSignBits(OpL) + 1;
-    unsigned OpREffectiveBits =
-        OpR.getScalarValueSizeInBits() - DAG.ComputeNumSignBits(OpR) + 1;
+    unsigned OpLEffectiveBits = DAG.ComputeMinSignedBits(OpL);
+    unsigned OpREffectiveBits = DAG.ComputeMinSignedBits(OpR);
     if (OpLEffectiveBits <= NewLHS.getScalarValueSizeInBits() &&
         OpREffectiveBits <= NewRHS.getScalarValueSizeInBits()) {
       NewLHS = OpL;
@@ -4377,18 +4376,45 @@ void DAGTypeLegalizer::ExpandIntRes_VECREDUCE(SDNode *N,
 
 void DAGTypeLegalizer::ExpandIntRes_Rotate(SDNode *N,
                                            SDValue &Lo, SDValue &Hi) {
-  // Lower the rotate to shifts and ORs which can be expanded.
-  SDValue Res;
-  TLI.expandROT(N, true /*AllowVectorOps*/, Res, DAG);
+  // Delegate to funnel-shift expansion.
+  SDLoc DL(N);
+  unsigned Opcode = N->getOpcode() == ISD::ROTL ? ISD::FSHL : ISD::FSHR;
+  SDValue Res = DAG.getNode(Opcode, DL, N->getValueType(0), N->getOperand(0),
+                            N->getOperand(0), N->getOperand(1));
   SplitInteger(Res, Lo, Hi);
 }
 
-void DAGTypeLegalizer::ExpandIntRes_FunnelShift(SDNode *N,
-                                                SDValue &Lo, SDValue &Hi) {
-  // Lower the funnel shift to shifts and ORs which can be expanded.
-  SDValue Res;
-  TLI.expandFunnelShift(N, Res, DAG);
-  SplitInteger(Res, Lo, Hi);
+void DAGTypeLegalizer::ExpandIntRes_FunnelShift(SDNode *N, SDValue &Lo,
+                                                SDValue &Hi) {
+  // Values numbered from least significant to most significant.
+  SDValue In1, In2, In3, In4;
+  GetExpandedInteger(N->getOperand(0), In3, In4);
+  GetExpandedInteger(N->getOperand(1), In1, In2);
+  EVT HalfVT = In1.getValueType();
+
+  SDLoc DL(N);
+  unsigned Opc = N->getOpcode();
+  SDValue ShAmt = N->getOperand(2);
+  EVT ShAmtVT = ShAmt.getValueType();
+  EVT ShAmtCCVT = getSetCCResultType(ShAmtVT);
+
+  // If the shift amount is at least half the bitwidth, swap the inputs.
+  unsigned HalfVTBits = HalfVT.getScalarSizeInBits();
+  SDValue AndNode = DAG.getNode(ISD::AND, DL, ShAmtVT, ShAmt,
+                                DAG.getConstant(HalfVTBits, DL, ShAmtVT));
+  SDValue Cond =
+      DAG.getSetCC(DL, ShAmtCCVT, AndNode, DAG.getConstant(0, DL, ShAmtVT),
+                   Opc == ISD::FSHL ? ISD::SETNE : ISD::SETEQ);
+
+  // Expand to a pair of funnel shifts.
+  EVT NewShAmtVT = TLI.getShiftAmountTy(HalfVT, DAG.getDataLayout());
+  SDValue NewShAmt = DAG.getAnyExtOrTrunc(ShAmt, DL, NewShAmtVT);
+
+  SDValue Select1 = DAG.getNode(ISD::SELECT, DL, HalfVT, Cond, In1, In2);
+  SDValue Select2 = DAG.getNode(ISD::SELECT, DL, HalfVT, Cond, In2, In3);
+  SDValue Select3 = DAG.getNode(ISD::SELECT, DL, HalfVT, Cond, In3, In4);
+  Lo = DAG.getNode(Opc, DL, HalfVT, Select2, Select1, NewShAmt);
+  Hi = DAG.getNode(Opc, DL, HalfVT, Select3, Select2, NewShAmt);
 }
 
 void DAGTypeLegalizer::ExpandIntRes_VSCALE(SDNode *N, SDValue &Lo,

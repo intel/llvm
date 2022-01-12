@@ -202,17 +202,17 @@ public:
 
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  typename backend_traits<Backend>::template return_type<kernel> get_native()
-      const {
-    return detail::pi::cast<
-        typename backend_traits<Backend>::template return_type<kernel>>(
-        getNativeImpl());
+  backend_return_t<Backend, kernel> get_native() const {
+    return detail::pi::cast<backend_return_t<Backend, kernel>>(getNative());
   }
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
+  pi_native_handle getNative() const;
+
+  __SYCL_DEPRECATED("Use getNative() member function")
   pi_native_handle getNativeImpl() const;
 
   std::shared_ptr<detail::kernel_impl> impl;

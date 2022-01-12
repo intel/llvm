@@ -139,7 +139,7 @@ convertDenseElementsAttr(Location loc, DenseElementsAttr denseElementsAttr,
   if (denseElementsAttr.isSplat() &&
       (type.isa<VectorType>() || hasVectorElementType)) {
     llvm::Constant *splatValue = LLVM::detail::getLLVMConstant(
-        innermostLLVMType, denseElementsAttr.getSplatValue(), loc,
+        innermostLLVMType, denseElementsAttr.getSplatValue<Attribute>(), loc,
         moduleTranslation, /*isTopLevel=*/false);
     llvm::Constant *splatVector =
         llvm::ConstantDataVector::getSplat(0, splatValue);
@@ -242,10 +242,14 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
     if (auto *arrayTy = dyn_cast<llvm::ArrayType>(llvmType)) {
       elementType = arrayTy->getElementType();
       numElements = arrayTy->getNumElements();
+    } else if (auto *fVectorTy = dyn_cast<llvm::FixedVectorType>(llvmType)) {
+      elementType = fVectorTy->getElementType();
+      numElements = fVectorTy->getNumElements();
+    } else if (auto *sVectorTy = dyn_cast<llvm::ScalableVectorType>(llvmType)) {
+      elementType = sVectorTy->getElementType();
+      numElements = sVectorTy->getMinNumElements();
     } else {
-      auto *vectorTy = cast<llvm::FixedVectorType>(llvmType);
-      elementType = vectorTy->getElementType();
-      numElements = vectorTy->getNumElements();
+      llvm_unreachable("unrecognized constant vector type");
     }
     // Splat value is a scalar. Extract it only if the element type is not
     // another sequence type. The recursion terminates because each step removes
@@ -254,8 +258,9 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
         isa<llvm::ArrayType, llvm::VectorType>(elementType);
     llvm::Constant *child = getLLVMConstant(
         elementType,
-        elementTypeSequential ? splatAttr : splatAttr.getSplatValue(), loc,
-        moduleTranslation, false);
+        elementTypeSequential ? splatAttr
+                              : splatAttr.getSplatValue<Attribute>(),
+        loc, moduleTranslation, false);
     if (!child)
       return nullptr;
     if (llvmType->isVectorTy())
@@ -443,29 +448,6 @@ llvm::Value *mlir::LLVM::detail::createIntrinsicCall(
   return builder.CreateCall(fn, args);
 }
 
-llvm::Value *
-mlir::LLVM::detail::createNvvmIntrinsicCall(llvm::IRBuilderBase &builder,
-                                            llvm::Intrinsic::ID intrinsic,
-                                            ArrayRef<llvm::Value *> args) {
-  llvm::Module *module = builder.GetInsertBlock()->getModule();
-  llvm::Function *fn;
-  if (llvm::Intrinsic::isOverloaded(intrinsic)) {
-    if (intrinsic != llvm::Intrinsic::nvvm_wmma_m16n16k16_mma_row_row_f16_f16 &&
-        intrinsic != llvm::Intrinsic::nvvm_wmma_m16n16k16_mma_row_row_f32_f32) {
-      // NVVM load and store instrinsic names are overloaded on the
-      // source/destination pointer type. Pointer is the first argument in the
-      // corresponding NVVM Op.
-      fn = llvm::Intrinsic::getDeclaration(module, intrinsic,
-                                           {args[0]->getType()});
-    } else {
-      fn = llvm::Intrinsic::getDeclaration(module, intrinsic, {});
-    }
-  } else {
-    fn = llvm::Intrinsic::getDeclaration(module, intrinsic);
-  }
-  return builder.CreateCall(fn, args);
-}
-
 /// Given a single MLIR operation, create the corresponding LLVM IR operation
 /// using the `builder`.
 LogicalResult
@@ -632,8 +614,8 @@ LogicalResult ModuleTranslation::convertGlobals() {
     auto dtorOp = dyn_cast<GlobalDtorsOp>(op);
     if (!ctorOp && !dtorOp)
       continue;
-    auto range = ctorOp ? llvm::zip(ctorOp.ctors(), ctorOp.priorities())
-                        : llvm::zip(dtorOp.dtors(), dtorOp.priorities());
+    auto range = ctorOp ? llvm::zip(ctorOp.getCtors(), ctorOp.getPriorities())
+                        : llvm::zip(dtorOp.getDtors(), dtorOp.getPriorities());
     auto appendGlobalFn =
         ctorOp ? llvm::appendToGlobalCtors : llvm::appendToGlobalDtors;
     for (auto symbolAndPriority : range) {

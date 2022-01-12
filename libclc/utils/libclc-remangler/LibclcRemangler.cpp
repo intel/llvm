@@ -12,14 +12,28 @@
 // `unsigned long long`, and `signed char`, as is consistent with the primitive
 // types defined by OpenCL C. Following a remangling, the original function
 // mangling will be made an alias to either the remangled function or a function
-// with a suitable function if any exists.
+// with a suitable function if any exists. In some cases an alias of the
+// remangled function is created for functions where multiple parameters have
+// been replaced, and the replaced values are aliases.
 //
-// Example: If libclc defined a function `f(long)` the mangled name would be
+// Original Alias Example:
+//          If libclc defined a function `f(long)` the mangled name would be
 //          `_Z1fl`. The remangler would rename this function to `_Z1fx`
 //          (`f(long long)`.) If the target uses 64-bit `long`, `_Z1fl` is made
 //          an alias to the old function now under the name `_Z1fx`, whereas if
 //          the target uses 32-bit `long`, `_Z1fl` is made an alias to `_Z1fi`
 //          (`f(int)`) if such a function exists.
+//
+// Remangled Alias Example:
+//          In cases where the remangled name squashes valid versions of a
+//          function an alias is created. `f(long, char, signed char)` would be
+//          mangled to
+//          `_Z1flca`. The remangler would rename this function to `_Z1fyaa`
+//          (`f(long long, signed char, signed char)`). If the target uses a
+//          signed char then a valid alias `_Z1fyca`,
+//          (`f(long long, char, signed char)`), is not defined. The remangler
+//          creates an alias of the renamed function,`_Z1fyaa` , to this
+//          permutation, `_Z1fyca`.
 //
 //===----------------------------------------------------------------------===//
 
@@ -465,6 +479,20 @@ public:
 class TargetTypeReplacements {
   SmallDenseMap<const char *, const char *> ParameterTypeReplacements;
   SmallDenseMap<const char *, const char *> AliasTypeReplacements;
+  SmallDenseMap<const char *, const char *> RemangledAliasTypeReplacements;
+
+  void CreateRemangledTypeReplacements() {
+    // RemangleTypes which are not aliases or not the exact same alias type
+    for (auto &TypeReplacementPair : ParameterTypeReplacements)
+      if (AliasTypeReplacements.find(TypeReplacementPair.getFirst()) ==
+          AliasTypeReplacements.end())
+        RemangledAliasTypeReplacements[TypeReplacementPair.getFirst()] =
+            TypeReplacementPair.getSecond();
+      else if (AliasTypeReplacements[TypeReplacementPair.getFirst()] !=
+               TypeReplacementPair.getSecond())
+        RemangledAliasTypeReplacements[TypeReplacementPair.getFirst()] =
+            TypeReplacementPair.getSecond();
+  }
 
 public:
   TargetTypeReplacements() {
@@ -492,6 +520,8 @@ public:
     } else {
       AliasTypeReplacements["char"] = "unsigned char";
     }
+
+    CreateRemangledTypeReplacements();
   }
 
   SmallDenseMap<const char *, const char *> getParameterTypeReplacements() {
@@ -501,28 +531,63 @@ public:
   SmallDenseMap<const char *, const char *> getAliasTypeReplacements() {
     return AliasTypeReplacements;
   }
+
+  SmallDenseMap<const char *, const char *>
+  getRemangledAliasTypeReplacements() {
+    return RemangledAliasTypeReplacements;
+  }
 };
 
-bool createAlias(Module *M, std::string originalMangledName,
-                 const itanium_demangle::Node *functionTree,
-                 TargetTypeReplacements replacements) {
-  Remangler ATR{functionTree, replacements.getAliasTypeReplacements()};
-  std::string RemangledAliasName = ATR.remangle();
+bool createAliasFromMap(
+    Module *M, std::string originalName,
+    const itanium_demangle::Node *functionTree,
+    SmallDenseMap<const char *, const char *> TypeReplacements,
+    bool AliaseeTypeReplacement = false) {
+  Remangler ATR{functionTree, TypeReplacements};
+  std::string RemangledName = ATR.remangle();
 
   if (ATR.hasFailed())
     return false;
 
   // Name has not changed from the original name.
-  if (RemangledAliasName == originalMangledName)
+  if (RemangledName == originalName)
     return true;
 
-  Function *Alias = M->getFunction(RemangledAliasName);
-  if (Alias) {
-    GlobalAlias::create(originalMangledName, Alias);
-  } else if (Verbose) {
-    std::cout << "Could not create alias " << originalMangledName
-              << " : missing " << RemangledAliasName << std::endl;
+  StringRef AliasName, AliaseeName;
+  if (AliaseeTypeReplacement) {
+    AliasName = originalName;
+    AliaseeName = RemangledName;
+  } else {
+    AliasName = RemangledName;
+    AliaseeName = originalName;
   }
+
+  Function *Aliasee = M->getFunction(AliaseeName);
+  if (Aliasee) {
+    GlobalAlias::create(AliasName, Aliasee);
+  } else if (Verbose) {
+    std::cout << "Could not create alias " << AliasName.data() << " : missing "
+              << AliaseeName.data() << std::endl;
+  }
+
+  return true;
+}
+
+bool createAliases(Module *M, std::string originalMangledName,
+                   std::string remangledName,
+                   const itanium_demangle::Node *functionTree,
+                   TargetTypeReplacements replacements) {
+  // create alias of original function
+  if (!createAliasFromMap(M, originalMangledName, functionTree,
+                          replacements.getAliasTypeReplacements(),
+                          /* AliaseeTypeReplacement= */ true))
+    return false;
+
+  // create alias from remangled function
+  if (!createAliasFromMap(M, remangledName, functionTree,
+                          replacements.getRemangledAliasTypeReplacements()))
+    return false;
+
   return true;
 }
 
@@ -558,7 +623,8 @@ bool remangleFunction(Function &func, Module *M,
 
     // Make an alias to a suitable function using the old name if there is a
     // type-mapping and the corresponding aliasee function exists.
-    if (!createAlias(M, MangledName, FunctionTree, replacements))
+    if (!createAliases(M, MangledName, RemangledName, FunctionTree,
+                       replacements))
       return false;
   }
 

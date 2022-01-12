@@ -161,7 +161,7 @@ static llvm::FastMathFlags getFastmathFlags(FastmathFlagsInterface &op) {
       // clang-format on
   };
   llvm::FastMathFlags ret;
-  auto fmf = op.fastmathFlags();
+  auto fmf = op.getFastmathFlags();
   for (auto it : handlers)
     if (bitEnumContains(fmf, it.first))
       (ret.*(it.second))(true);
@@ -224,9 +224,9 @@ static void setLoopMetadata(Operation &opInst, llvm::Instruction &llvmInst,
         SmallVector<llvm::Metadata *> parallelAccess;
         parallelAccess.push_back(
             llvm::MDString::get(ctx, "llvm.loop.parallel_accesses"));
-        for (SymbolRefAttr accessGroupRef :
-             parallelAccessGroup->second.cast<ArrayAttr>()
-                 .getAsRange<SymbolRefAttr>())
+        for (SymbolRefAttr accessGroupRef : parallelAccessGroup->getValue()
+                                                .cast<ArrayAttr>()
+                                                .getAsRange<SymbolRefAttr>())
           parallelAccess.push_back(
               moduleTranslation.getAccessGroup(opInst, accessGroupRef));
         loopOptions.push_back(llvm::MDNode::get(ctx, parallelAccess));
@@ -386,14 +386,12 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
     return success();
   }
   if (auto condbrOp = dyn_cast<LLVM::CondBrOp>(opInst)) {
-    auto weights = condbrOp.getBranchWeights();
     llvm::MDNode *branchWeights = nullptr;
-    if (weights) {
+    if (auto weights = condbrOp.getBranchWeights()) {
       // Map weight attributes to LLVM metadata.
-      auto trueWeight =
-          weights.getValue().getValue(0).cast<IntegerAttr>().getInt();
-      auto falseWeight =
-          weights.getValue().getValue(1).cast<IntegerAttr>().getInt();
+      auto weightValues = weights->getValues<APInt>();
+      auto trueWeight = weightValues[0].getSExtValue();
+      auto falseWeight = weightValues[1].getSExtValue();
       branchWeights =
           llvm::MDBuilder(moduleTranslation.getLLVMContext())
               .createBranchWeights(static_cast<uint32_t>(trueWeight),
@@ -473,7 +471,7 @@ public:
     return convertOperationImpl(*op, builder, moduleTranslation);
   }
 };
-} // end namespace
+} // namespace
 
 void mlir::registerLLVMDialectTranslation(DialectRegistry &registry) {
   registry.insert<LLVM::LLVMDialect>();

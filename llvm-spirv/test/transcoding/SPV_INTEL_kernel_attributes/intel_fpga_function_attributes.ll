@@ -43,6 +43,7 @@
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_cluster_attributes"
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_invocation_pipelining_attributes"
 ; CHECK-SPIRV: Extension "SPV_INTEL_loop_fuse"
+; CHECK-SPIRV: EntryPoint {{.*}} [[FUNCENTRY2:[0-9]+]] "_ZTSZ3barvE11kernel_name3"
 ; CHECK-SPIRV: ExecutionMode [[FUNCENTRY:[0-9]+]] 5893 1 1 1
 ; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5894 1
 ; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5895
@@ -53,7 +54,9 @@
 ; CHECK-SPIRV-DAG: Decorate [[FUNCENTRY]] InitiationIntervalINTEL 10
 ; CHECK-SPIRV-DAG: Decorate [[FUNCENTRY]] MaxConcurrencyINTEL 12
 ; CHECK-SPIRV-DAG: Decorate [[FUNCENTRY]] PipelineEnableINTEL 0
+; CHECK-SPIRV: Decorate [[FUNCENTRY2]] PipelineEnableINTEL 1
 ; CHECK-SPIRV: Function {{.*}} [[FUNCENTRY]] {{.*}}
+; CHECK-SPIRV: Function {{.*}} [[FUNCENTRY2]] {{.*}}
 
 ; CHECK-LLVM: define spir_kernel void {{.*}}kernel_name()
 ; CHECK-LLVM-SAME: !stall_enable ![[ONEMD:[0-9]+]] !loop_fuse ![[FUSE:[0-9]+]]
@@ -65,6 +68,8 @@
 ; CHECK-LLVM-SAME: !max_global_work_dim ![[ONEMD]] !num_simd_work_items ![[NUMSIMD:[0-9]+]]
 ; CHECK-LLVM-SAME: !scheduler_target_fmax_mhz ![[MAXMHZ:[0-9]+]]
 ; CHECK-LLVM-NOT: define spir_kernel void {{.*}}kernel_name2 {{.*}} !no_global_work_offset {{.*}}
+; CHECK-LLVM: define spir_kernel void {{.*}}kernel_name3()
+; CHECK-LLVM-SAME: !disable_loop_pipelining ![[ONEMD2:[0-9]+]]
 ; CHECK-LLVM: ![[OFFSET]] = !{}
 ; CHECK-LLVM: ![[ONEMD]] = !{i32 1}
 ; CHECK-LLVM: ![[FUSE]] = !{i32 3, i32 1}
@@ -73,6 +78,7 @@
 ; CHECK-LLVM: ![[MAXWG]] = !{i32 1, i32 1, i32 1}
 ; CHECK-LLVM: ![[NUMSIMD]] = !{i32 8}
 ; CHECK-LLVM: ![[MAXMHZ]] = !{i32 1000}
+; CHECK-LLVM: ![[ONEMD2]] = !{i32 0}
 
 ; ModuleID = 'kernel-attrs.cpp'
 source_filename = "kernel-attrs.cpp"
@@ -132,6 +138,19 @@ entry:
   ret void
 }
 
+; Function Attrs: nounwind
+define spir_kernel void @_ZTSZ3barvE11kernel_name3() #0 !disable_loop_pipelining !16 {
+entry:
+  %Foo = alloca %class._ZTS3Foo.Foo, align 1
+  %0 = bitcast %class._ZTS3Foo.Foo* %Foo to i8*
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %0) #4
+  %1 = addrspacecast %class._ZTS3Foo.Foo* %Foo to %class._ZTS3Foo.Foo addrspace(4)*
+  call spir_func void @_ZN3FooclEv(%class._ZTS3Foo.Foo addrspace(4)* %1)
+  %2 = bitcast %class._ZTS3Foo.Foo* %Foo to i8*
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #4
+  ret void
+}
+
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "sycl-module-id"="kernel-attrs.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }
 attributes #2 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -159,3 +178,4 @@ attributes #4 = { nounwind }
 !13 = !{i32 3, i32 1}
 !14 = !{i32 10}
 !15 = !{i32 12}
+!16 = !{i32 0}

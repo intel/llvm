@@ -38,7 +38,7 @@ if (NOT DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
   endif()
 endif()
 
-add_executable(XPTIFWUnitTests
+add_executable(XPTIFWUnitTests EXCLUDE_FROM_ALL
   xpti_api_tests.cpp
   xpti_correctness_tests.cpp
 )

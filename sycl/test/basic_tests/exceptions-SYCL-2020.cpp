@@ -82,22 +82,22 @@ int main() {
   sycl::backend_traits<sycl::backend::opencl>::errc someOpenCLErrCode{EC};
   sycl::errc_for<sycl::backend::opencl> anotherOpenCLErrCode{EC};
   assert(someOpenCLErrCode == anotherOpenCLErrCode);
-  sycl::backend_traits<sycl::backend::level_zero>::errc someL0ErrCode{EC};
-  sycl::errc_for<sycl::backend::level_zero> anotherL0ErrCode{EC};
+  sycl::backend_traits<sycl::backend::ext_oneapi_level_zero>::errc someL0ErrCode{EC};
+  sycl::errc_for<sycl::backend::ext_oneapi_level_zero> anotherL0ErrCode{EC};
   assert(someL0ErrCode == anotherL0ErrCode);
   sycl::backend_traits<sycl::backend::host>::errc someHOSTErrCode{EC};
   sycl::errc_for<sycl::backend::host> anotherHOSTErrCode{EC};
   assert(someHOSTErrCode == anotherHOSTErrCode);
-  sycl::backend_traits<sycl::backend::cuda>::errc someCUDAErrCode{EC};
-  sycl::errc_for<sycl::backend::cuda> anotherCUDAErrCode{EC};
+  sycl::backend_traits<sycl::backend::ext_oneapi_cuda>::errc someCUDAErrCode{EC};
+  sycl::errc_for<sycl::backend::ext_oneapi_cuda> anotherCUDAErrCode{EC};
   assert(someCUDAErrCode == anotherCUDAErrCode);
   sycl::backend_traits<sycl::backend::ext_intel_esimd_emulator>::errc
       someESIMDErrCode{EC};
   sycl::errc_for<sycl::backend::ext_intel_esimd_emulator> anotherESIMDErrCode{
       EC};
   assert(someESIMDErrCode == anotherESIMDErrCode);
-  sycl::backend_traits<sycl::backend::hip>::errc someHIPErrCode{EC};
-  sycl::errc_for<sycl::backend::hip> anotherHIPErrCode{EC};
+  sycl::backend_traits<sycl::backend::ext_oneapi_hip>::errc someHIPErrCode{EC};
+  sycl::errc_for<sycl::backend::ext_oneapi_hip> anotherHIPErrCode{EC};
   assert(someHIPErrCode == anotherHIPErrCode);
 
   std::cout << "OK" << std::endl;

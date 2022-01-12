@@ -128,7 +128,7 @@
 
 /// ###########################################################################
 /// test llvm-link behavior for fno-sycl-device-lib
-// RUN: %clangxx -fsycl -fno-sycl-device-lib=all %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fno-sycl-dead-args-optimization -fno-sycl-device-lib=all %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_NO_DEVICE_LIB
 // SYCL_LLVM_LINK_NO_DEVICE_LIB: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 // SYCL_LLVM_LINK_NO_DEVICE_LIB-NOT: llvm-link{{.*}}  "-only-needed"
@@ -139,5 +139,5 @@
 // RUN: touch libsycl-crt.o
 // RUN: %clangxx -fsycl libsycl-crt.o --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_USER_ONLY_NEEDED
-// SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "{{.*}}.o" "-o" "{{.*}}.bc" "--suppress-warnings"
+// SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
 // SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"

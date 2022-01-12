@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/sycl/aspects.hpp>
-#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -186,10 +186,14 @@ public:
   /// Gets the native handle of the SYCL device.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
+  template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> typename interop<BackendName, device>::type {
-    return (typename interop<BackendName, device>::type)getNative();
+  backend_return_t<Backend, device> get_native() const {
+    // In CUDA CUdevice isn't an opaque pointer, unlike a lot of the others,
+    // but instead a 32-bit int (on all relevant systems). Different
+    // backends use the same function for this purpose so static_cast is
+    // needed in some cases but not others, so a C-style cast was chosen.
+    return (backend_return_t<Backend, device>)getNative();
   }
 
   /// Indicates if the SYCL device has the given feature.
