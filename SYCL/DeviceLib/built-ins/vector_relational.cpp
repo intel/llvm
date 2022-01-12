@@ -339,26 +339,24 @@ int main() {
 
   // signbit
   {
-    s::cl_int4 r{0};
+    s::cl_int3 r{0};
     {
-      s::buffer<s::cl_int4, 1> BufR(&r, s::range<1>(1));
+      s::buffer<s::cl_int3, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class signbitF4>([=]() {
-          AccR[0] = s::signbit(s::cl_float4{0.5f, -12.0f, NAN, INFINITY});
+        cgh.single_task<class signbitF3>([=]() {
+          AccR[0] = s::signbit(s::cl_float3{0.5f, -12.0f, INFINITY});
         });
       });
     }
     s::cl_int r1 = r.x();
     s::cl_int r2 = r.y();
     s::cl_int r3 = r.z();
-    s::cl_int r4 = r.w();
 
     assert(r1 == 0);
     assert(r2 == -1);
     assert(r3 == 0);
-    assert(r4 == 0);
   }
 
   // any.

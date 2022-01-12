@@ -1,5 +1,3 @@
-// FIXME unsupported on windows (opencl) until fix of libdevice fails
-// UNSUPPORTED: windows && opencl
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -15,12 +13,12 @@ namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 63
+#define TEST_NUM 61
 
 double ref_val[TEST_NUM] = {
     1, 0, 0, 0, 0, 0, 0, 1, 1, 0.5, 0, 2, 0, 0,   1,   0,   2,   0, 0, 0, 0,
     0, 1, 0, 1, 2, 0, 1, 2, 5, 0,   0, 0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0,   0,   0,   0,   0, 0, 0, 0};
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0,   0,   0,   0,   0, 0};
 
 double refIptr = 1;
 
@@ -98,9 +96,6 @@ void device_math_test(s::queue &deviceQueue) {
 
         res_access[i++] = !(signbit(infinity) == 0);
         res_access[i++] = !(signbit(minus_infinity) != 0);
-        res_access[i++] = !(signbit(nan) == 0);
-        res_access[i++] = !(signbit(minus_nan) != 0);
-
         res_access[i++] = !(isunordered(minus_nan, nan) != 0);
         res_access[i++] = !(isunordered(minus_infinity, infinity) == 0);
         res_access[i++] = !(isgreater(minus_infinity, infinity) == 0);

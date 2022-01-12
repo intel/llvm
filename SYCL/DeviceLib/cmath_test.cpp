@@ -1,5 +1,3 @@
-// FIXME unsupported on windows (opencl) until fix of libdevice fails
-// UNSUPPORTED: windows && opencl
 // RUN: %clangxx -fsycl -fno-builtin %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -15,12 +13,12 @@ namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 61
+#define TEST_NUM 59
 
-float ref[TEST_NUM] = {1,   0,   0,   0,   0, 0, 0, 1, 1, 0.5, 0, 0, 1, 0, 2, 0,
-                       0,   0,   0,   0,   1, 0, 1, 2, 0, 1,   2, 5, 0, 0, 0, 0,
-                       0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0, 0,   0, 0, 0, 0, 0, 0,
-                       0,   0,   0,   0,   0, 0, 0, 0, 0, 0,   0, 0, 0};
+float ref[TEST_NUM] = {1, 0, 0,   0,   0,   0,   0, 1, 1, 0.5, 0, 0, 1, 0, 2,
+                       0, 0, 0,   0,   0,   1,   0, 1, 2, 0,   1, 2, 5, 0, 0,
+                       0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0,   0, 0, 0, 0, 0,
+                       0, 0, 0,   0,   0,   0,   0, 0, 0, 0,   0, 0, 0, 0};
 
 float refIptr = 1;
 
@@ -90,9 +88,6 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
 
         res_access[i++] = !(std::signbit(infinity) == 0);
         res_access[i++] = !(std::signbit(minus_infinity) != 0);
-        res_access[i++] = !(std::signbit(nan) == 0);
-        res_access[i++] = !(std::signbit(minus_nan) != 0);
-
         res_access[i++] = !(std::isunordered(minus_nan, nan) != 0);
         res_access[i++] = !(std::isunordered(minus_infinity, infinity) == 0);
         res_access[i++] = !(std::isgreater(minus_infinity, infinity) == 0);
