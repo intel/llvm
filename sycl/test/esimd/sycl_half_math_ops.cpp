@@ -17,9 +17,8 @@ SYCL_EXTERNAL auto test_ext_math_op(simd<sycl::half, 8> val) SYCL_ESIMD_FUNCTION
 // CHECK: define dso_local spir_func void @_Z16test_ext_math_op{{[^\(]*}}(
 //   CHECK: <8 x half>{{[^,]*}}* %[[RET_VEC_ADDR:[a-zA-Z0-9_\.]+]],
 //   CHECK: <8 x half>* %[[VAL_PTR:[a-zA-Z0-9_\.]+]]){{.*}} {
-// CHECK-LABEL: entry:
   return esimd::cos(val);
-// CHECK-NEXT: %[[VAL_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL_PTR]]
+// CHECK: %[[VAL_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL_PTR]]
 // CHECK-NEXT: %[[VAL_VEC:[a-zA-Z0-9_\.]+]] = load <8 x half>{{.*}} %[[VAL_VEC_ADDR]]
 // CHECK-NEXT: %[[RES:[a-zA-Z0-9_\.]+]] = call <8 x half> @llvm.genx.cos.v8f16(<8 x half> %[[VAL_VEC]])
 // CHECK-NEXT: store <8 x half>{{.*}}%[[RES]], {{.*}}%[[RET_VEC_ADDR]]
