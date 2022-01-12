@@ -126,8 +126,8 @@ struct ESIMDIntrinDesc {
                                 // -1 denotes return value
         GenXArgConversion Conv; // GenXArgConversion
       } Arg;
-      int NRemArgs;           // SRC_CALL_ALL: number of remaining args
-      unsigned int ArgConst;  // CONST_I16 OR CONST_I32: constant value
+      int NRemArgs;          // SRC_CALL_ALL: number of remaining args
+      unsigned int ArgConst; // CONST_I16 OR CONST_I32: constant value
     } I;
   };
 
@@ -546,7 +546,7 @@ public:
     Ptrs.resize(0);
   }
 
-  template <typename T, typename... Args> T *makeNode(Args &&... args) {
+  template <typename T, typename... Args> T *makeNode(Args &&...args) {
     void *Ptr = std::calloc(1, sizeof(T));
     Ptrs.push_back(Ptr);
     return new (Ptr) T(std::forward<Args>(args)...);
