@@ -7,11 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: gpu-intel-dg1,cuda,hip
 // UNSUPPORTED: ze_debug-1,ze_debug4
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+
+// The test checks raw send functionality with atomic write implementation
+// on SKL. It does not work on DG1 due to send instruction incompatibility.
 
 #include "esimd_test_utils.hpp"
 

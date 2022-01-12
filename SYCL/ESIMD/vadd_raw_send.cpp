@@ -7,9 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: gpu-intel-dg1,cuda,hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+
+// The test checks raw send functionality with block read/write implementation
+// on SKL. It does not work on DG1 due to send instruction incompatibility.
 
 #include "esimd_test_utils.hpp"
 
