@@ -4576,7 +4576,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2020) {
     O << "#ifndef SYCL_LANGUAGE_VERSION \n";
-    O << "#define SYCL_LANGUAGE_VERSION 202001";
+    O << "#define SYCL_LANGUAGE_VERSION 202001\n";
     O << "#endif //SYCL_LANGUAGE_VERSION\n\n";
   }
 
