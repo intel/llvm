@@ -4574,7 +4574,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   Policy.SuppressUnwrittenScope = true;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
-  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020) {
+  if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2020) {
     O << "#ifndef SYCL_LANGUAGE_VERSION \n";
     O << "#define SYCL_LANGUAGE_VERSION 202001";
     O << "#endif //SYCL_LANGUAGE_VERSION\n\n";
