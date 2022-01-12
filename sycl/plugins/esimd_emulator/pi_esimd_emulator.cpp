@@ -473,9 +473,9 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   // REF - $CM_EMU/common/cm_version_defs.h - 'CURRENT_CM_VERSION'
   // e.g. CM version 7.3 => Device version = 703
 
-  if (((Version / 10) % 10) == 0) {
+  if (((Version / 10) % 10) != 0) {
     if (PrintPiTrace) {
-      std::cerr << "CM_EMU Device version info is incorrect" << std::endl;
+      std::cerr << "CM_EMU Device version info is incorrect : " << Version << std::endl;
     }
     return PI_INVALID_DEVICE;
   }
