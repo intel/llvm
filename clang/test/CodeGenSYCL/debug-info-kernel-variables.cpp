@@ -1,4 +1,3 @@
-  
 // RUN: %clang_cc1 %s -o - -O0 -emit-llvm                                     \
 // RUN:            -triple spir64-unknown-unknown                             \
 // RUN:            -aux-triple x86_64-unknown-linux-gnu                       \
