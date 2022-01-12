@@ -1319,12 +1319,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_uint64{bytes});
   }
   case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
-    int constant_memory = 0;
+    unsigned int constant_memory = 0;
+
+    // hipDeviceGetAttribute takes a int*, however the size of the constant
+    // memory on AMD GPU may be larger than what can fit in the positive part
+    // of a signed integer, so use an unsigned integer and cast the pointer to
+    // int*.
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&constant_memory,
+        hipDeviceGetAttribute(reinterpret_cast<int *>(&constant_memory),
                               hipDeviceAttributeTotalConstantMemory,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(constant_memory >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(constant_memory));
