@@ -102,7 +102,7 @@ class simd_obj_impl {
   template <typename, int> friend class simd;
   template <typename, int> friend class simd_mask_impl;
 
-  using element_type = simd_like_obj_element_type_t<Derived>;
+  using element_type = get_vector_element_type<Derived>;
   using Ty = element_type;
 
 public:

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
