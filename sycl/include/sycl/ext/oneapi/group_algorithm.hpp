@@ -19,6 +19,7 @@
 #include <sycl/ext/oneapi/atomic.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
+#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -68,15 +69,6 @@ using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
 
 #if (SYCL_EXT_ONEAPI_ASYNC_GROUP_COPY == 1)
 namespace experimental {
-namespace detail {
-template <typename Group> constexpr auto group_to_scope() {
-  if constexpr (std::is_same<Group, sycl::ext::oneapi::sub_group>::value) {
-    return __spv::Scope::Subgroup;
-  } else {
-    return __spv::Scope::Workgroup;
-  }
-}
-} // namespace detail
 
 template <typename Group,
           std::enable_if_t<sycl::is_group_v<Group>, bool> = true>
@@ -87,22 +79,77 @@ public:
   async_copy_event(__ocl_event_t Event) : Event(Event) {}
 };
 
-template <typename Group, typename eventT, typename... eventsT>
-std::enable_if_t<sycl::is_group_v<Group> &&
-                 std::is_same_v<eventT, async_copy_event<Group>> &&
-                 (std::is_same_v<eventT, eventsT> && ...)>
-wait_for(Group, eventT event, eventsT... Events) {
-  constexpr auto scope = detail::group_to_scope<Group>();
-  __spirv_GroupWaitEvents(scope, 1, &event.Event);
-  (__spirv_GroupWaitEvents(scope, 1, &Events.Event), ...);
-}
-
 struct src_stride {
   std::size_t value;
 };
 struct dest_stride {
   std::size_t value;
 };
+
+template <typename T>
+struct NativeAsyncCopyable
+    : std::integral_constant<
+          bool, std::is_arithmetic<T>::value ||
+                    std::is_same<std::remove_const<T>, half>::value ||
+                    sycl::detail::is_vec<T>::value> {};
+
+namespace detail {
+template <typename Group>
+using is_sub_group = std::is_same<Group, sycl::ext::oneapi::sub_group>;
+template <typename Group> constexpr auto group_to_scope() {
+  if constexpr (is_sub_group<Group>::value) {
+    return __spv::Scope::Subgroup;
+  } else {
+    return __spv::Scope::Workgroup;
+  }
+}
+
+// ---- get_local_linear_range
+template <typename Group> size_t get_local_linear_range(Group g);
+template <> inline size_t get_local_linear_range<group<1>>(group<1> g) {
+  return g.get_local_range(0);
+}
+template <> inline size_t get_local_linear_range<group<2>>(group<2> g) {
+  return g.get_local_range(0) * g.get_local_range(1);
+}
+template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
+  return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
+}
+template <>
+inline size_t
+get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+  return g.get_local_range()[0];
+}
+
+template <typename Group, typename T, access::address_space DestS,
+          access::address_space SrcS>
+std::enable_if_t<std::is_trivially_copyable<T>::value, async_copy_event<Group>>
+synchronous_copy(Group g, multi_ptr<T, SrcS> src, multi_ptr<T, DestS> dest,
+                 size_t NumElements, src_stride SrcStride,
+                 dest_stride DestStride) {
+  const auto size = get_local_linear_range(g);
+  const auto id = [&g]() {
+    if constexpr (is_sub_group<Group>::value) {
+      return g.get_local_linear_id();
+    } else {
+      return g.get_linear_id();
+    }
+  }();
+  for (size_t i = id; i < NumElements; i += size) {
+    dest[i * DestStride.value] = src[i * SrcStride.value];
+  }
+  return async_copy_event<Group>{0};
+}
+} // namespace detail
+
+template <typename Group, typename... eventT>
+std::enable_if_t<
+    sycl::is_group_v<Group> &&
+    std::conjunction_v<std::is_same<eventT, async_copy_event<Group>>...>>
+wait_for(Group, eventT... Events) {
+  (__spirv_GroupWaitEvents(detail::group_to_scope<Group>(), 1, &Events.Event),
+   ...);
+}
 
 /// Asynchronously copies a number of elements specified by \p numElements
 /// from the source pointed by \p src to destination pointed by \p dest
@@ -112,15 +159,20 @@ struct dest_stride {
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !sycl::detail::is_bool<dataT>::value,
                  async_copy_event<Group>>
-async_group_copy(Group, global_ptr<dataT> src, local_ptr<dataT> dest,
-                 size_t numElements, src_stride srcStride) {
-  using DestT = sycl::detail::ConvertToOpenCLType_t<decltype(dest)>;
-  using SrcT = sycl::detail::ConvertToOpenCLType_t<decltype(src)>;
+async_group_copy(Group g, global_ptr<dataT> src, local_ptr<dataT> dest,
+                 size_t NumElements, src_stride SrcStride) {
+  if constexpr (NativeAsyncCopyable<dataT>::value) {
+    using DestT = sycl::detail::ConvertToOpenCLType_t<decltype(dest)>;
+    using SrcT = sycl::detail::ConvertToOpenCLType_t<decltype(src)>;
 
-  __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
-      detail::group_to_scope<Group>(), DestT(dest.get()), SrcT(src.get()),
-      numElements, srcStride.value, 0);
-  return async_copy_event<Group>(E);
+    __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
+        detail::group_to_scope<Group>(), DestT(dest.get()), SrcT(src.get()),
+        NumElements, SrcStride.value, 0);
+    return async_copy_event<Group>(E);
+  } else {
+    return detail::synchronous_copy(g, src, dest, NumElements, SrcStride,
+                                    dest_stride{1});
+  }
 }
 
 /// Asynchronously copies a number of elements specified by \p numElements
@@ -131,15 +183,20 @@ async_group_copy(Group, global_ptr<dataT> src, local_ptr<dataT> dest,
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !sycl::detail::is_bool<dataT>::value,
                  async_copy_event<Group>>
-async_group_copy(Group, local_ptr<dataT> src, global_ptr<dataT> dest,
-                 size_t numElements, dest_stride destStride) {
-  using DestT = sycl::detail::ConvertToOpenCLType_t<decltype(dest)>;
-  using SrcT = sycl::detail::ConvertToOpenCLType_t<decltype(src)>;
+async_group_copy(Group g, local_ptr<dataT> src, global_ptr<dataT> dest,
+                 size_t NumElements, dest_stride DestStride) {
+  if constexpr (NativeAsyncCopyable<dataT>::value) {
+    using DestT = sycl::detail::ConvertToOpenCLType_t<decltype(dest)>;
+    using SrcT = sycl::detail::ConvertToOpenCLType_t<decltype(src)>;
 
-  __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
-      detail::group_to_scope<Group>(), DestT(dest.get()), SrcT(src.get()),
-      numElements, destStride.value, 0);
-  return async_copy_event<Group>(E);
+    __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
+        detail::group_to_scope<Group>(), DestT(dest.get()), SrcT(src.get()),
+        NumElements, DestStride.value, 0);
+    return async_copy_event<Group>(E);
+  } else {
+    return detail::synchronous_copy(g, src, dest, NumElements, src_stride{1},
+                                    DestStride);
+  }
 }
 
 /// Specialization for bool type.
@@ -153,7 +210,8 @@ std::enable_if_t<is_group_v<Group> && sycl::detail::is_bool<dataT>::value,
 async_group_copy(Group g, global_ptr<dataT> Src, local_ptr<dataT> Dest,
                  size_t NumElements, src_stride srcStride) {
   static_assert(sizeof(bool) == sizeof(char),
-                "Async copy to/from bool memory is not supported.");
+                "Async copy to/from bool memory is not supported since sizeof "
+                "bool is greater than 1.");
   using BoolType =
       std::conditional_t<sycl::detail::is_vector_bool<dataT>::value,
                          sycl::detail::change_base_type_t<dataT, char>, char>;
@@ -173,7 +231,8 @@ std::enable_if_t<is_group_v<Group> && sycl::detail::is_bool<dataT>::value,
 async_group_copy(Group g, local_ptr<dataT> Src, global_ptr<dataT> Dest,
                  size_t NumElements, dest_stride destStride) {
   static_assert(sizeof(bool) == sizeof(char),
-                "Async copy to/from bool memory is not supported.");
+                "Async copy to/from bool memory is not supported since sizeof "
+                "bool is greater than 1.");
   using BoolType =
       std::conditional_t<sycl::detail::is_vector_bool<dataT>::value,
                          sycl::detail::change_base_type_t<dataT, char>, char>;
