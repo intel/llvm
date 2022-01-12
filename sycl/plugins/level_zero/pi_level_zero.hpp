@@ -690,6 +690,14 @@ struct _pi_queue : _pi_object {
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
 
+  // Since event is not necessarily created for tracking during
+  // piEnqueueKernelLaunch, it is optional. But we have to do piKernelRetain on
+  // enqueued kernel and currently save the kernel in the list, so to have the
+  // ability to do a piKernelRelease on this kernel in
+  // piQueueFinish/piQueueRelease, we need to save the kernel in this variable
+  // for cases when event is not created.
+  std::list<pi_kernel> EventlessKernelsInUse;
+
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;
 

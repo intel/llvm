@@ -97,11 +97,8 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
-        MHasDiscardEventsSupport(
-            MDiscardEvents &&
-            (MHostQueue ? true
-                        : (MIsInorder && getPlugin().getBackend() !=
-                                             backend::ext_oneapi_level_zero))) {
+        MHasDiscardEventsSupport(MDiscardEvents &&
+                                 (MHostQueue ? true : MIsInorder)) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -135,11 +132,8 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
-        MHasDiscardEventsSupport(
-            MDiscardEvents &&
-            (MHostQueue ? true
-                        : (MIsInorder && getPlugin().getBackend() !=
-                                             backend::ext_oneapi_level_zero))) {
+        MHasDiscardEventsSupport(MDiscardEvents &&
+                                 (MHostQueue ? true : MIsInorder)) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
