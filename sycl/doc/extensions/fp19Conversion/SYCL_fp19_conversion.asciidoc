@@ -1,0 +1,328 @@
+= SYCL_fp19_conversion
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Notice
+
+IMPORTANT: This specification is a draft.
+
+Copyright (c) 2021 Intel Corporation. All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 4.
+
+== Status
+
+Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Revision: 1
+
+== Introduction
+
+This extension adds functionality to convert value of single-precision
+floating-point type(`float`) to `fp19` aka `tf32` aka `tfloat32` type and vice versa. The extension
+doesn't add support for `fp19` type as such, instead it uses 32-bit integer
+type(`uint32_t`) as a storage for `fp19` values.
+
+The purpose of conversion from float to fp19 is to reduce ammount of memory
+required to store floating-point numbers. Computations are expected to be done with
+32-bit floating-point values.  The advantage of fp19 over bf16 is that fp19 provides greater precision.
+
+This extension is an optional kernel feature as described in
+https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features[section 5.7]
+of the SYCL 2020 spec. Therefore, attempting to submit a kernel using this
+feature to a device that does not support it should cause a synchronous
+`errc::kernel_not_supported` exception to be thrown from the kernel invocation
+command (e.g. from `parallel_for`).
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro
+`SYCL_EXT_FP19_CONVERSION` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro’s
+ value to determine which of the extension’s APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_fp19_conversion
+}
+}
+----
+
+If a SYCL device has the `ext_fp19_conversion` aspect, then it natively
+supports conversion of values of `float` type to `fp19` and back.
+
+If the device doesn't have the aspect, objects of `fp19` class must not be
+used in the device code.
+
+== New `fp19` class
+
+The `fp19` class below provides the conversion functionality. Conversion
+from `float` to `fp19` is done with rounds to nearest (odd or even), ties away from zero(RNA) rounding
+mode.
+
+[source]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+class fp19 {
+  using storage_t = uint32_t;
+  storage_t value;
+
+public:
+  fp19() = default;
+  fp19(const fp19 &) = default;
+  ~fp19() = default;
+
+  // Explicit conversion functions
+  static storage_t from_float(const float &a);
+  static float to_float(const storage_t &a);
+
+  // Convert from float to fp19
+  fp19(const float &a);
+  fp19 &operator=(const float &a);
+
+  // Convert from fp19 to float
+  operator float() const;
+
+  // Get fp19 as uint32.
+  operator storage_t() const;
+
+  // Convert to bool type
+  explicit operator bool();
+
+  friend fp19 operator-(fp19 &val) { /* ... */ }
+
+  // OP is: prefix ++, --
+  friend fp19 &operatorOP(fp19 &val) { /* ... */ }
+
+  // OP is: postfix ++, --
+  friend fp19 operatorOP(fp19 &val, int) { /* ... */ }
+
+  // OP is: +=, -=, *=, /=
+  friend fp19 &operatorOP(fp19 &lhs, const fp19 &rhs) { /* ... */ }
+
+  // OP is +, -, *, /
+  friend fp19 operatorOP(const fp19 &lhs, const fp19 &rhs) { /* ... */ }
+  template <typename T>
+  friend fp19 operatorOP(const fp19 &lhs, const T &rhs) { /* ... */ }
+  template <typename T>
+  friend fp19 operatorOP(const T &lhs, const fp19 &rhs) { /* ... */ }
+
+  // OP is ==,!=, <, >, <=, >=
+  friend bool operatorOP(const fp19 &lhs, const fp19 &rhs) { /* ... */ }
+  template <typename T>
+  friend bool operatorOP(const fp19 &lhs, const T &rhs) { /* ... */ }
+  template <typename T>
+  friend bool operatorOP(const T &lhs, const fp19 &rhs) { /* ... */ }
+};
+
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+Table 1. Member functions of `fp19` class.
+|===
+| Member Function | Description
+
+|  `static storage_t from_float(const float &a);`
+|  Explicitly convert from `float` to `fp19`.
+
+|  `static float to_float(const storage_t &a);`
+|  Interpret `a` as `fp19` and explicitly convert it to `float`.
+
+| `fp19(const float& a);`
+| Construct `fp19` from `float`. Converts `float` to `fp19`.
+
+| `fp19 &operator=(const float &a);`
+| Replace the value with `a` converted to `fp19`
+
+| `operator float() const;`
+|  Return `fp19` value converted to `float`.
+
+| `operator storage_t() const;`
+| Return `uint32_t` value, whose bits represent `fp19` value.
+
+| `explicit operator bool() { /* ... */ }`
+| Convert `fp19` to `bool` type. Return `false` if the value equals to
+  zero, return `true` otherwise.
+
+| `friend fp19 operator-(fp19 &val) { /* ... */ }`
+| Construct new instance of `fp19` class with negated value of the `val`.
+
+| `friend fp19 &operatorOP(fp19 &val) { /* ... */ }`
+| Perform an in-place `OP` prefix arithmetic operation on the `val`,
+  assigning the result to the `val` and return the `val`.
+
+  OP is: `++, --`
+
+| `friend fp19 operatorOP(fp19 &val, int) { /* ... */ }`
+| Perform an in-place `OP` postfix arithmetic operation on `val`, assigning
+  the result to the `val` and return a copy of `val` before the operation is
+  performed.
+
+  OP is: `++, --`
+
+| `friend fp19 operatorOP(const fp19 &lhs, const fp19 &rhs) { /* ... */ }`
+| Perform an in-place `OP` arithmetic operation between the `lhs` and the `rhs`
+  and return the `lhs`.
+
+  OP is: `+=, -=, *=, /=`
+
+| `friend type operatorOP(const fp19 &lhs, const fp19 &rhs) { /* ... */ }`
+| Construct a new instance of the `fp19` class with the value of the new
+  `fp19` instance being the result of an OP arithmetic operation between
+  the `lhs` `fp19` and `rhs` `fp19` values.
+
+  OP is `+, -, *, /`
+
+| `template <typename T>
+  friend fp19 operatorOP(const fp19 &lhs, const T &rhs) { /* ... */ }`
+| Construct a new instance of the `fp19` class with the value of the new
+  `fp19` instance being the result of an OP arithmetic operation between
+  the `lhs` `fp19` value and `rhs` of template type `T`. Type `T` must be
+  convertible to `float`.
+
+  OP is `+, -, *, /`
+
+| `template <typename T>
+  friend fp19 operatorOP(const T &lhs, const fp19 &rhs) { /* ... */ }`
+| Construct a new instance of the `fp19` class with the value of the new
+  `fp19` instance being the result of an OP arithmetic operation between
+  the `lhs` of template type `T` and `rhs` `fp19` value. Type `T` must be
+  convertible to `float`.
+
+  OP is `+, -, *, /`
+
+| `friend bool operatorOP(const fp19 &lhs, const fp19 &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` `fp19` and `rhs` `fp19`
+  values and return the result as a boolean value.
+
+OP is `==, !=, <, >, <=, >=`
+
+| `template <typename T>
+  friend bool operatorOP(const fp19 &lhs, const T &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` `fp19` and `rhs` of
+  template type `T` and return the result as a boolean value. Type `T` must be
+  convertible to `float`.
+
+OP is `==, !=, <, >, <=, >=`
+
+| `template <typename T>
+  friend bool operatorOP(const T &lhs, const fp19 &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` of template type `T` and `rhs`
+  `fp19` value and return the result as a boolean value. Type `T` must be
+  convertible to `float`.
+
+OP is `==, !=, <, >, <=, >=`
+|===
+
+== Example
+
+[source]
+----
+#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/fp19.hpp>
+
+using sycl::ext::oneapi::experimental::fp19;
+
+fp19 operator+(const fp19 &lhs, const fp19 &rhs) {
+  return static_cast<float>(lhs) + static_cast<float>(rhs);
+}
+
+float foo(float a, float b) {
+  // Convert from float to fp19.
+  fp19 A {a};
+  fp19 B {b};
+
+  // Convert A and B from fp19 to float, do addition on floating-pointer
+  // numbers, then convert the result to fp19 and store it in C.
+  fp19 C = A + B;
+
+  // Return the result converted from fp19 to float.
+  return C;
+}
+
+int main (int argc, char *argv[]) {
+  float data[3] = {7.0, 8.1, 0.0};
+  sycl::device dev;
+  sycl::queue deviceQueue{dev};
+  sycl::buffer<float, 1> buf {data, sycl::range<1> {3}};
+
+  if (dev.has(sycl::aspect::ext_fp19_conversion)) {
+    deviceQueue.submit ([&] (sycl::handler& cgh) {
+      auto numbers = buf.get_access<sycl::access::mode::read_write> (cgh);
+      cgh.single_task<class simple_kernel> ([=] () {
+        numbers[2] = foo(numbers[0], numbers[1]);
+      });
+    });
+  }
+  return 0;
+}
+----
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-12-01|Jack Kirk |Initial public working draft
+|========================================
