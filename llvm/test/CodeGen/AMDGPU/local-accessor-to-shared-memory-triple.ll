@@ -1,5 +1,5 @@
 ; This test checks that the Local Accessor to Shared Memory pass runs with the
-; `amdgcn-amd-amdhsa` triple, but not with `amdgcn-amd-amdpas`.
+; `amdgcn-amd-amdhsa` triple, but not with `amdgcn-amd-amdpal`.
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -sycl-enable-local-accessor < %s | FileCheck --check-prefix=CHECK-VALID %s
 ; RUN: llc -mtriple=amdgcn-amd-amdpal -sycl-enable-local-accessor < %s | FileCheck --check-prefix=CHECK-INVALID %s
 
