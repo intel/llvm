@@ -1,4 +1,4 @@
-; RUN: opt -S -sycllowerwglocalmemory < %s | FileCheck %s
+; RUN: opt -S -passes=sycllowerwglocalmemory < %s | FileCheck %s
 
 ; CHECK-DAG: [[WGLOCALMEM_1:@WGLocalMem.*]] = internal addrspace(3) global [128 x i8] undef, align 4
 ; CHECK-DAG: [[WGLOCALMEM_2:@WGLocalMem.*]] = internal addrspace(3) global [4 x i8] undef, align 4
