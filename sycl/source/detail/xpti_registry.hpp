@@ -98,14 +98,16 @@ public:
   static void bufferAccessorNotification(void *UserObj, void *AccessorObj,
                                          uint32_t Target, uint32_t Mode,
                                          const detail::code_location &CodeLoc);
+private:
+  std::unordered_set<std::string> MActiveStreams;
+  std::once_flag MInitialized;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   static xpti::trace_event_data_t *
   createTraceEvent(void *Obj, const char *ObjName, uint64_t &IId,
                    const detail::code_location &CodeLoc,
                    uint16_t TraceEventType);
-
-private:
-  std::unordered_set<std::string> MActiveStreams;
-  std::once_flag MInitialized;
+#endif // XPTI_ENABLE_INSTRUMENTATION
 };
 } // namespace detail
 } // namespace sycl
