@@ -407,13 +407,17 @@ struct pi_command_list_info_t {
   int CopyQueueIndex{-1};
   bool isCopy() const { return CopyQueueIndex != -1; }
 
+  // Keeps a number of commands submitted into this command-list that don't have
+  // events.
+  int NumEventlessCommands{0};
+
   // Keeps events created by commands submitted into this command-list.
   // TODO: use this for explicit wait/cleanup of events at command-list
   // completion.
   // TODO: use this for optimizing events in the same command-list, e.g.
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
-  size_t size() const { return EventList.size(); }
+  size_t size() const { return EventList.size() + NumEventlessCommands; }
   void append(pi_event Event) { EventList.push_back(Event); }
 };
 

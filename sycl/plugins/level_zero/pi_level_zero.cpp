@@ -841,6 +841,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
   ZE_CALL(zeCommandListReset, (CommandList->first));
   CommandList->second.InUse = false;
+  CommandList->second.NumEventlessCommands = 0;
 
   // Finally release/cleanup all the events in this command list.
   // Note, we don't need to synchronize the events since the fence
@@ -3169,7 +3170,7 @@ static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
   }
 
   ze_device_mem_alloc_desc_t ZeDesc = {};
-  ZeDesc.flags = 0;
+  ZeDesc.flags = ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_UNCACHED;
   ZeDesc.ordinal = 0;
   ZE_CALL(zeMemAllocDevice,
           (Context->ZeContext, &ZeDesc, Size, 1, Device->ZeDevice, ResultPtr));
@@ -3204,7 +3205,7 @@ static pi_result ZeHostMemAllocHelper(void **ResultPtr, pi_context Context,
   }
 
   ze_host_mem_alloc_desc_t ZeDesc = {};
-  ZeDesc.flags = 0;
+  ZeDesc.flags = ZE_HOST_MEM_ALLOC_FLAG_BIAS_UNCACHED;
   ZE_CALL(zeMemAllocHost, (Context->ZeContext, &ZeDesc, Size, 1, ResultPtr));
 
   if (IndirectAccessTrackingEnabled) {
@@ -4585,6 +4586,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     // the code can do a piKernelRelease on this kernel.
     (*Event)->CommandData = (void *)Kernel;
   } else {
+    ++CommandList->second.NumEventlessCommands;
     // Save the kernel in the queue, so that when piQueueFinish/piQueueRelease
     // is called the code can do a piKernelRelease on this kernel.
     Queue->EventlessKernelsInUse.emplace_back(Kernel);
@@ -5361,6 +5363,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
       ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
     } else {
+      ++CommandList->second.NumEventlessCommands;
       ZE_CALL(
           zeCommandListAppendWaitOnEvents,
           (CommandList->first, TmpWaitList.Length, TmpWaitList.ZeEventList));
@@ -5427,7 +5430,8 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       return Res;
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
-  }
+  } else
+    ++CommandList->second.NumEventlessCommands;
 
   ZE_CALL(zeCommandListAppendBarrier,
           (CommandList->first, ZeEvent, TmpWaitList.Length,
@@ -5515,7 +5519,8 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
       return Res;
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
-  }
+  } else
+    ++CommandList->second.NumEventlessCommands;
 
   const auto &ZeCommandList = CommandList->first;
   if (TmpWaitList.Length) {
@@ -5780,7 +5785,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
       return Res;
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
-  }
+  } else
+    ++CommandList->second.NumEventlessCommands;
 
   const auto &ZeCommandList = CommandList->first;
   if (TmpWaitList.Length) {
@@ -6504,7 +6510,7 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
 
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_device_mem_alloc_desc_t> ZeDesc;
-  ZeDesc.flags = 0;
+  ZeDesc.flags = ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_UNCACHED;
   ZeDesc.ordinal = 0;
 
   ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
@@ -6539,7 +6545,7 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
   ZeHostDesc.flags = 0;
   ZeStruct<ze_device_mem_alloc_desc_t> ZeDevDesc;
-  ZeDevDesc.flags = 0;
+  ZeDevDesc.flags = ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_UNCACHED;
   ZeDevDesc.ordinal = 0;
 
   ZeStruct<ze_relaxed_allocation_limits_exp_desc_t> RelaxedDesc;
@@ -6570,7 +6576,7 @@ static pi_result USMHostAllocImpl(void **ResultPtr, pi_context Context,
 
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
-  ZeHostDesc.flags = 0;
+  ZeHostDesc.flags = ZE_HOST_MEM_ALLOC_FLAG_BIAS_UNCACHED;
   ZE_CALL(zeMemAllocHost,
           (Context->ZeContext, &ZeHostDesc, Size, Alignment, ResultPtr));
 
@@ -7076,7 +7082,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
       return Res;
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
-  }
+  } else
+    ++CommandList->second.NumEventlessCommands;
 
   const auto &ZeCommandList = CommandList->first;
   if (TmpWaitList.Length) {
@@ -7137,7 +7144,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
       return Res;
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
-  }
+  } else
+    ++CommandList->second.NumEventlessCommands;
 
   const auto &ZeCommandList = CommandList->first;
   if (TmpWaitList.Length) {
