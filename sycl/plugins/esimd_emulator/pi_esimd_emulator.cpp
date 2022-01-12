@@ -475,7 +475,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   if (((Version / 10) % 10) != 0) {
     if (PrintPiTrace) {
-      std::cerr << "CM_EMU Device version info is incorrect : " << Version << std::endl;
+      std::cerr << "CM_EMU Device version info is incorrect : " << Version
+                << std::endl;
     }
     return PI_INVALID_DEVICE;
   }
