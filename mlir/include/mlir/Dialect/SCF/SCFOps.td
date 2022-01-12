@@ -411,7 +411,7 @@ def IfOp : SCF_Op<"if",
     void getNumRegionInvocations(ArrayRef<Attribute> operands,
                                  SmallVectorImpl<int64_t> &countPerRegion);
   }];
-
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -686,6 +686,8 @@ def WhileOp : SCF_Op<"while",
   let extraClassDeclaration = [{
     OperandRange getSuccessorEntryOperands(unsigned index);
     ConditionOp getConditionOp();
+    YieldOp getYieldOp();
+    Block::BlockArgListType getBeforeArguments();
     Block::BlockArgListType getAfterArguments();
   }];
 

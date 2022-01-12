@@ -3893,6 +3893,51 @@ ScalarEvolution::getSequentialMinMaxExpr(SCEVTypes Kind,
 
   // FIXME: there are *some* simplifications that we can do here.
 
+  // Keep only the first instance of an operand.
+  {
+    SmallPtrSet<const SCEV *, 16> SeenOps;
+    unsigned Idx = 0;
+    bool Changed = false;
+    while (Idx < Ops.size()) {
+      // Has the whole operand been seen already?
+      if (!SeenOps.insert(Ops[Idx]).second) {
+        Ops.erase(Ops.begin() + Idx);
+        Changed = true;
+        continue; // Look at operand under this index again.
+      }
+
+      // Look into non-sequential same-typed min/max expressions,
+      // drop any of it's operands that we have already seen.
+      // FIXME: once there are other sequential min/max types, generalize.
+      if (const auto *CommUMinExpr = dyn_cast<SCEVUMinExpr>(Ops[Idx])) {
+        SmallVector<const SCEV *> InnerOps;
+        InnerOps.reserve(CommUMinExpr->getNumOperands());
+        for (const SCEV *InnerOp : CommUMinExpr->operands()) {
+          if (SeenOps.insert(InnerOp).second) // Operand not seen before?
+            InnerOps.emplace_back(InnerOp);   // Keep this inner operand.
+        }
+        // Were any operands of this 'umin' themselves redundant?
+        if (InnerOps.size() != CommUMinExpr->getNumOperands()) {
+          Changed = true;
+          // Was the whole operand effectively redundant? Note that it can
+          // happen even when the operand itself wasn't redundant as a whole.
+          if (InnerOps.empty()) {
+            Ops.erase(Ops.begin() + Idx);
+            continue; // Look at operand under this index again.
+          }
+          // Recreate our operand.
+          Ops[Idx] = getMinMaxExpr(Ops[Idx]->getSCEVType(), InnerOps);
+        }
+      }
+
+      // Ok, can't do anything else about this operand, move onto the next one.
+      ++Idx;
+    }
+
+    if (Changed)
+      return getSequentialMinMaxExpr(Kind, Ops);
+  }
+
   // Check to see if one of the operands is of the same kind. If so, expand its
   // operands onto our operand list, and recurse to simplify.
   {
@@ -9185,7 +9230,8 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
     return V;
   }
 
-  if (const SCEVCommutativeExpr *Comm = dyn_cast<SCEVCommutativeExpr>(V)) {
+  if (isa<SCEVCommutativeExpr>(V) || isa<SCEVSequentialMinMaxExpr>(V)) {
+    const auto *Comm = cast<SCEVNAryExpr>(V);
     // Avoid performing the look-up in the common case where the specified
     // expression has no loop-variant portions.
     for (unsigned i = 0, e = Comm->getNumOperands(); i != e; ++i) {
@@ -9207,7 +9253,9 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
           return getMulExpr(NewOps, Comm->getNoWrapFlags());
         if (isa<SCEVMinMaxExpr>(Comm))
           return getMinMaxExpr(Comm->getSCEVType(), NewOps);
-        llvm_unreachable("Unknown commutative SCEV type!");
+        if (isa<SCEVSequentialMinMaxExpr>(Comm))
+          return getSequentialMinMaxExpr(Comm->getSCEVType(), NewOps);
+        llvm_unreachable("Unknown commutative / sequential min/max SCEV type!");
       }
     }
     // If we got here, all operands are loop invariant.
