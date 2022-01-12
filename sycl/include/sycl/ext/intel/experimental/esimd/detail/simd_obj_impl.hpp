@@ -14,6 +14,7 @@
 #include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/type_format.hpp>
 #include <sycl/ext/intel/experimental/esimd/simd_view.hpp>
 
@@ -729,11 +730,17 @@ public:
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(/, /=, __ESIMD_ARITH_OP_FILTER)
 #undef __ESIMD_ARITH_OP_FILTER
 
+  // Getter for the test proxy member, if enabled
+  __ESIMD_DECLARE_TEST_PROXY_ACCESS
+
 private:
   // The underlying data for this vector.
   raw_vector_type M_data;
 
 protected:
+  // The test proxy if enabled
+  __ESIMD_DECLARE_TEST_PROXY
+
   void set(const raw_vector_type &Val) {
 #ifndef __SYCL_DEVICE_ONLY__
     M_data = Val;
