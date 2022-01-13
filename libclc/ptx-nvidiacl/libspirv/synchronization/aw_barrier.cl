@@ -31,7 +31,7 @@ _CLC_OVERLOAD _CLC_DEF long __spirv_BarrierArriveNoComplete(long* state, int cou
   return __nvvm_mbarrier_arrive_noComplete(state, count);
 }
 
-_CLC_OVERLOAD _CLC_DEF long __spirv_BarrierArriveDropNoComplete(long* state, int count) {
+_CLC_OVERLOAD _CLC_DEF long __spirv_BarrierArriveAndDropNoComplete(long* state, int count) {
   return __nvvm_mbarrier_arrive_drop_noComplete(state, count);
 }
 
