@@ -158,6 +158,7 @@ private:
   mutable std::unique_ptr<Tool> BackendCompiler;
   mutable std::unique_ptr<Tool> AppendFooter;
   mutable std::unique_ptr<Tool> FileTableTform;
+  mutable std::unique_ptr<Tool> SpirvToIrWrapper;
 
   Tool *getClang() const;
   Tool *getFlang() const;
@@ -175,6 +176,7 @@ private:
   Tool *getBackendCompiler() const;
   Tool *getAppendFooter() const;
   Tool *getTableTform() const;
+  Tool *getSpirvToIrWrapper() const;
 
   mutable bool SanitizerArgsChecked = false;
   mutable std::unique_ptr<XRayArgs> XRayArguments;
@@ -400,6 +402,9 @@ public:
 
   /// Check if the toolchain should use the integrated assembler.
   virtual bool useIntegratedAs() const;
+
+  /// Check if the toolchain should use the integrated backend.
+  virtual bool useIntegratedBackend() const { return true; }
 
   /// Check if the toolchain should use AsmParser to parse inlineAsm when
   /// integrated assembler is not default.

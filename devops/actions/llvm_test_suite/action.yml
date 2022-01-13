@@ -33,12 +33,15 @@ post-if: false
 runs:
   using: "composite"
   steps:
+  - run: cp -r /actions .
+    shell: bash
   - name: Checkout LLVM Test Suite
-    uses: actions/checkout@v2
+    uses: ./actions/cached_checkout
     with:
       path: llvm_test_suite
       repository: 'intel/llvm-test-suite'
       ref: ${{ inputs.test_ref }}
+      cache_path: "/__w/repo_cache/"
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
     with:

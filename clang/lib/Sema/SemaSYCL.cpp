@@ -114,12 +114,6 @@ public:
   /// \param Tmpl  whether the class is template instantiation or simple record
   static bool isSyclType(QualType Ty, StringRef Name, bool Tmpl = false);
 
-  /// Checks whether given function is a standard SYCL API function with given
-  /// name.
-  /// \param FD    the function being checked.
-  /// \param Name  the function name to be checked against.
-  static bool isSyclFunction(const FunctionDecl *FD, StringRef Name);
-
   /// Checks whether given clang type is a full specialization of the SYCL
   /// specialization constant class.
   static bool isSyclSpecConstantType(QualType Ty);
@@ -3143,60 +3137,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
 
-  // Sets a flag if the kernel is a parallel_for that calls the
-  // free function API "this_item".
-  void setThisItemIsCalled(FunctionDecl *KernelFunc) {
-    if (getKernelInvocationKind(KernelFunc) != InvokeParallelFor)
-      return;
-
-    // The call graph for this translation unit.
-    CallGraph SYCLCG;
-    SYCLCG.addToCallGraph(SemaRef.getASTContext().getTranslationUnitDecl());
-    using ChildParentPair =
-        std::pair<const FunctionDecl *, const FunctionDecl *>;
-    llvm::SmallPtrSet<const FunctionDecl *, 16> Visited;
-    llvm::SmallVector<ChildParentPair, 16> WorkList;
-    WorkList.push_back({KernelFunc, nullptr});
-
-    while (!WorkList.empty()) {
-      const FunctionDecl *FD = WorkList.back().first;
-      WorkList.pop_back();
-      if (!Visited.insert(FD).second)
-        continue; // We've already seen this Decl
-
-      // Check whether this call is to free functions (sycl::this_item(),
-      // this_id, etc.).
-      if (Util::isSyclFunction(FD, "this_id")) {
-        Header.setCallsThisId(true);
-        return;
-      }
-      if (Util::isSyclFunction(FD, "this_item")) {
-        Header.setCallsThisItem(true);
-        return;
-      }
-      if (Util::isSyclFunction(FD, "this_nd_item")) {
-        Header.setCallsThisNDItem(true);
-        return;
-      }
-      if (Util::isSyclFunction(FD, "this_group")) {
-        Header.setCallsThisGroup(true);
-        return;
-      }
-
-      CallGraphNode *N = SYCLCG.getNode(FD);
-      if (!N)
-        continue;
-
-      for (const CallGraphNode *CI : *N) {
-        if (auto *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
-          Callee = Callee->getMostRecentDecl();
-          if (!Visited.count(Callee))
-            WorkList.push_back({Callee, FD});
-        }
-      }
-    }
-  }
-
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
@@ -3206,7 +3146,6 @@ public:
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
     Header.startKernel(KernelFunc, NameType, KernelObj->getLocation(),
                        IsSIMDKernel, IsSYCLUnnamedKernel(S, KernelFunc));
-    setThisItemIsCalled(KernelFunc);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *RD,
@@ -4111,11 +4050,6 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
                                        const FunctionDecl *Callee,
                                        SourceLocation Loc,
                                        DeviceDiagnosticReason Reason) {
-  // Somehow an unspecialized template appears to be in callgraph or list of
-  // device functions. We don't want to emit diagnostic here.
-  if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
-    return;
-
   Callee = Callee->getMostRecentDecl();
 
   // If the reason for the emission of this diagnostic is not SYCL-specific,
@@ -4687,16 +4621,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr bool callsThisItem() { return ";
-    O << K.FreeFunctionCalls.CallsThisItem << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr bool callsAnyThisFreeFunction() { return ";
-    O << (K.FreeFunctionCalls.CallsThisId ||
-          K.FreeFunctionCalls.CallsThisItem ||
-          K.FreeFunctionCalls.CallsThisNDItem ||
-          K.FreeFunctionCalls.CallsThisGroup)
-      << "; }\n";
     O << "};\n";
     CurStart += N;
   }
@@ -4749,30 +4673,6 @@ void SYCLIntegrationHeader::endKernel() {
 
 void SYCLIntegrationHeader::addSpecConstant(StringRef IDName, QualType IDType) {
   SpecConsts.emplace_back(std::make_pair(IDType, IDName.str()));
-}
-
-void SYCLIntegrationHeader::setCallsThisId(bool B) {
-  KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernel");
-  K->FreeFunctionCalls.CallsThisId = B;
-}
-
-void SYCLIntegrationHeader::setCallsThisItem(bool B) {
-  KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernel");
-  K->FreeFunctionCalls.CallsThisItem = B;
-}
-
-void SYCLIntegrationHeader::setCallsThisNDItem(bool B) {
-  KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernel");
-  K->FreeFunctionCalls.CallsThisNDItem = B;
-}
-
-void SYCLIntegrationHeader::setCallsThisGroup(bool B) {
-  KernelDesc *K = getCurKernelDesc();
-  assert(K && "no kernel");
-  K->FreeFunctionCalls.CallsThisGroup = B;
 }
 
 SYCLIntegrationHeader::SYCLIntegrationHeader(Sema &S) : S(S) {}
@@ -5097,28 +4997,6 @@ bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
       Util::MakeDeclContextDesc(ClassDeclKind, Name)};
   return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
-  if (!FD->isFunctionOrMethod() || !FD->getIdentifier() ||
-      FD->getName().empty() || Name != FD->getName())
-    return false;
-
-  const DeclContext *DC = FD->getDeclContext();
-  if (DC->isTranslationUnit())
-    return false;
-
-  std::array<DeclContextDesc, 2> ScopesSycl = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl")};
-  std::array<DeclContextDesc, 5> ScopesOneapiExp = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental")};
-
-  return matchContext(DC, ScopesSycl) || matchContext(DC, ScopesOneapiExp);
 }
 
 bool Util::isAccessorPropertyListType(QualType Ty) {

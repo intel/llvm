@@ -543,7 +543,7 @@ private:
 
   void verifySwiftErrorCall(CallBase &Call, const Value *SwiftErrorVal);
   void verifySwiftErrorValue(const Value *SwiftErrorVal);
-  void verifyTailCCMustTailAttrs(AttrBuilder Attrs, StringRef Context);
+  void verifyTailCCMustTailAttrs(const AttrBuilder &Attrs, StringRef Context);
   void verifyMustTailCall(CallInst &CI);
   bool verifyAttributeCount(AttributeList Attrs, unsigned Params);
   void verifyAttributeTypes(AttributeSet Attrs, const Value *V);
@@ -602,17 +602,22 @@ void Verifier::visit(Instruction &I) {
   InstVisitor<Verifier>::visit(I);
 }
 
-// Helper to recursively iterate over indirect users. By
-// returning false, the callback can ask to stop recursing
-// further.
+// Helper to iterate over indirect users. By returning false, the callback can ask to stop traversing further.
 static void forEachUser(const Value *User,
                         SmallPtrSet<const Value *, 32> &Visited,
                         llvm::function_ref<bool(const Value *)> Callback) {
   if (!Visited.insert(User).second)
     return;
-  for (const Value *TheNextUser : User->materialized_users())
-    if (Callback(TheNextUser))
-      forEachUser(TheNextUser, Visited, Callback);
+
+  SmallVector<const Value *> WorkList;
+  append_range(WorkList, User->materialized_users());
+  while (!WorkList.empty()) {
+   const Value *Cur = WorkList.pop_back_val();
+    if (!Visited.insert(Cur).second)
+      continue;
+    if (Callback(Cur))
+      append_range(WorkList, Cur->materialized_users());
+  }
 }
 
 void Verifier::visitGlobalValue(const GlobalValue &GV) {
@@ -3314,7 +3319,7 @@ void Verifier::visitCallBase(CallBase &Call) {
   visitInstruction(Call);
 }
 
-void Verifier::verifyTailCCMustTailAttrs(AttrBuilder Attrs,
+void Verifier::verifyTailCCMustTailAttrs(const AttrBuilder &Attrs,
                                          StringRef Context) {
   Assert(!Attrs.contains(Attribute::InAlloca),
          Twine("inalloca attribute not allowed in ") + Context);

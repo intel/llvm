@@ -871,6 +871,9 @@ def warn_fortify_scanf_overflow : Warning<
   "%2, but the corresponding specifier may require size %3">,
   InGroup<FortifySource>;
 
+def err_function_start_invalid_type: Error<
+  "argument must be a function">;
+
 /// main()
 // static main() is not an error in C, just in C++.
 def warn_static_main : Warning<"'main' should not be declared static">,
@@ -11092,14 +11095,12 @@ def err_implied_coroutine_type_not_found : Error<
   "a coroutine; include <experimental/coroutine> if your version "
   "of libcxx is less than 14.0">;
 def warn_deprecated_coroutine_namespace : Warning<
-  "Please move from std::experimental::%0 to std::%0. "
-  "Support for std::experimental::%0 will be removed in LLVM 15.">,
+  "support for std::experimental::%0 will be removed in LLVM 15; "
+  "use std::%0 instead">,
   InGroup<DeprecatedExperimentalCoroutine>;
-def err_mixed_use_std_and_experimental_namespace_for_coroutine : Error <
-  "Found mixed use of std namespace and std::experimental namespace for "
-  "coroutine, which is disallowed. The coroutine components in "
-  "std::experimental namespace is deprecated. Please use coroutine components "
-  "under std namespace.">;
+def err_mixed_use_std_and_experimental_namespace_for_coroutine : Error<
+  "mixed use of std and std::experimental namespaces for "
+  "coroutine components">;
 def err_implicit_coroutine_std_nothrow_type_not_found : Error<
   "std::nothrow was not found; include <new> before defining a coroutine which "
   "uses get_return_object_on_allocation_failure()">;
@@ -11122,8 +11123,6 @@ def err_coroutine_type_missing_specialization : Error<
   "specialization %0">;
 def err_coroutine_promise_incompatible_return_functions : Error<
   "the coroutine promise type %0 declares both 'return_value' and 'return_void'">;
-def err_coroutine_promise_requires_return_function : Error<
-  "the coroutine promise type %0 must declare either 'return_value' or 'return_void'">;
 def note_coroutine_promise_implicit_await_transform_required_here : Note<
   "call to 'await_transform' implicitly required by 'co_await' here">;
 def note_coroutine_promise_suspend_implicitly_required : Note<
@@ -11429,7 +11428,8 @@ def err_builtin_invalid_arg_type: Error <
   "%select{vector, integer or floating point type|matrix|"
   "pointer to a valid matrix element type|"
   "signed integer or floating point type|vector type|"
-  "floating point type}1 (was %2)">;
+  "floating point type|"
+  "vector of integers}1 (was %2)">;
 
 def err_builtin_matrix_disabled: Error<
   "matrix types extension is disabled. Pass -fenable-matrix to enable it">;
@@ -11588,6 +11588,8 @@ def err_sycl_invalid_accessor_property_list_template_param : Error<
   "%select{parameter pack|type|non-negative integer}1">;
 def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
   "%0 attribute must evenly divide the work-group size for the %1 attribute">;
+def err_sycl_invalid_aspect_argument : Error<
+  "%0 attribute argument is invalid; argument must be device aspect of type sycl::aspect">;
 
 def warn_sycl_pass_by_value_deprecated 
     : Warning<"passing kernel functions by value is deprecated in SYCL 2020">,

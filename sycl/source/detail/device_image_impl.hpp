@@ -186,9 +186,14 @@ public:
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      // Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
+      // since post-enqueue cleanup might trigger destruction of
+      // device_image_impl and, as a result, destruction of MSpecConstsBlob
+      // while MSpecConstsBuffer is still in use.
+      // TODO consider changing the lifetime of device_image_impl instead
       memBufferCreateHelper(Plugin,
                             detail::getSyclObjImpl(MContext)->getHandleRef(),
-                            PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_USE,
+                            PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
                             MSpecConstsBlob.size(), MSpecConstsBlob.data(),
                             &MSpecConstsBuffer, nullptr);
     }
@@ -220,6 +225,11 @@ public:
     if (MProgram) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin.call<PiApiKind::piProgramRelease>(MProgram);
+    }
+    if (MSpecConstsBuffer) {
+      std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      memReleaseHelper(Plugin, MSpecConstsBuffer);
     }
   }
 

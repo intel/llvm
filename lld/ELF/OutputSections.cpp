@@ -40,7 +40,7 @@ OutputSection *Out::preinitArray;
 OutputSection *Out::initArray;
 OutputSection *Out::finiArray;
 
-std::vector<OutputSection *> elf::outputSections;
+SmallVector<OutputSection *, 0> elf::outputSections;
 
 uint32_t OutputSection::getPhdrFlags() const {
   uint32_t ret = 0;
@@ -332,6 +332,7 @@ static void writeInt(uint8_t *buf, uint64_t data, uint64_t size) {
 }
 
 template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
+  llvm::TimeTraceScope timeScope("Write sections", name);
   if (type == SHT_NOBITS)
     return;
 
@@ -559,7 +560,7 @@ void OutputSection::checkDynRelAddends(const uint8_t *bufStart) {
     if (!sec)
       return;
     for (const DynamicReloc &rel : sec->relocs) {
-      int64_t addend = rel.computeAddend();
+      int64_t addend = rel.addend;
       const OutputSection *relOsec = rel.inputSec->getOutputSection();
       assert(relOsec != nullptr && "missing output section for relocation");
       const uint8_t *relocTarget =

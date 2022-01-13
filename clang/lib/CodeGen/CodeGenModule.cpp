@@ -508,6 +508,19 @@ static void setVisibilityFromDLLStorageClass(const clang::LangOptions &LO,
   }
 }
 
+static llvm::MDNode *getAspectsMD(ASTContext &ASTContext,
+                                  llvm::LLVMContext &Ctx, StringRef Name,
+                                  const SYCLUsesAspectsAttr *A) {
+  SmallVector<llvm::Metadata *, 4> AspectsMD;
+  AspectsMD.push_back(llvm::MDString::get(Ctx, Name));
+  for (auto *Aspect : A->aspects()) {
+    llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(ASTContext);
+    AspectsMD.push_back(llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+        llvm::Type::getInt32Ty(Ctx), AspectInt.getZExtValue())));
+  }
+  return llvm::MDNode::get(Ctx, AspectsMD);
+}
+
 void CodeGenModule::Release() {
   EmitDeferred();
   EmitVTablesOpportunistically();
@@ -758,13 +771,15 @@ void CodeGenModule::Release() {
         llvm::MDString::get(Ctx, CodeGenOpts.MemoryProfileOutput));
   }
 
-  if (LangOpts.CUDAIsDevice && getTriple().isNVPTX()) {
+  if ((LangOpts.CUDAIsDevice || LangOpts.isSYCL()) && getTriple().isNVPTX()) {
     // Indicate whether __nvvm_reflect should be configured to flush denormal
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
     // property.)
     getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-ftz",
                               CodeGenOpts.FP32DenormalMode.Output !=
                                   llvm::DenormalMode::IEEE);
+    getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-prec-sqrt",
+                              getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
 
   if (LangOpts.EHAsynch)
@@ -799,7 +814,8 @@ void CodeGenModule::Release() {
     }
   }
 
-  // Emit SYCL specific module metadata: OpenCL/SPIR version, OpenCL language.
+  // Emit SYCL specific module metadata: OpenCL/SPIR version, OpenCL language,
+  // metadata for optional features (device aspects).
   if (LangOpts.SYCLIsDevice) {
     llvm::LLVMContext &Ctx = TheModule.getContext();
     llvm::Metadata *SPIRVerElts[] = {
@@ -824,6 +840,19 @@ void CodeGenModule::Release() {
     llvm::NamedMDNode *SPIRVSourceMD =
         TheModule.getOrInsertNamedMetadata("spirv.Source");
     SPIRVSourceMD->addOperand(llvm::MDNode::get(Ctx, SPIRVSourceElts));
+
+    // Emit type name with list of associated device aspects.
+    if (TypesWithAspects.size() > 0) {
+      llvm::NamedMDNode *AspectsMD =
+          TheModule.getOrInsertNamedMetadata("intel_types_that_use_aspects");
+      for (const auto &Type : TypesWithAspects) {
+        StringRef Name = Type.first;
+        const RecordDecl *RD = Type.second;
+        AspectsMD->addOperand(getAspectsMD(Context, TheModule.getContext(),
+                                           Name,
+                                           RD->getAttr<SYCLUsesAspectsAttr>()));
+      }
+    }
   }
 
   if (uint32_t PLevel = Context.getLangOpts().PICLevel) {
@@ -4009,6 +4038,14 @@ llvm::Constant *CodeGenModule::GetAddrOfFunction(GlobalDecl GD,
   return F;
 }
 
+llvm::Constant *CodeGenModule::GetFunctionStart(const ValueDecl *Decl) {
+  llvm::GlobalValue *F =
+      cast<llvm::GlobalValue>(GetAddrOfFunction(Decl)->stripPointerCasts());
+
+  return llvm::ConstantExpr::getBitCast(llvm::NoCFIValue::get(F),
+                                        llvm::Type::getInt8PtrTy(VMContext));
+}
+
 static const FunctionDecl *
 GetRuntimeFunctionDecl(ASTContext &C, StringRef Name) {
   TranslationUnitDecl *TUDecl = C.getTranslationUnitDecl();
@@ -4117,11 +4154,10 @@ static void maybeEmitPipeStorageMetadata(const VarDecl *D,
   if (!PipeTy->isStructureType())
     return;
 
-  if (auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-    Optional<llvm::APSInt> ID =
-        IOAttr->getID()->getIntegerConstantExpr(D->getASTContext());
+  if (const auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
+    const auto *CE = cast<ConstantExpr>(IOAttr->getID());
+    Optional<llvm::APSInt> ID = CE->getResultAsAPSInt();
     llvm::LLVMContext &Context = CGM.getLLVMContext();
-    assert(bool(ID) && "Not an integer constant expression");
 
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
