@@ -84,8 +84,8 @@ typedef CL_API_ENTRY cl_int(CL_API_CALL *clSetProgramSpecializationConstant_fn)(
 struct ExtFuncsPerContextT;
 
 namespace detail {
-  template <const char *FuncName, typename FuncT>
-  std::pair<FuncT &, bool &> get(ExtFuncsPerContextT &);
+template <const char *FuncName, typename FuncT>
+std::pair<FuncT &, bool &> get(ExtFuncsPerContextT &);
 } // namespace detail
 
 struct ExtFuncsPerContextT {
@@ -114,20 +114,20 @@ namespace detail {
 #define _EXT_FUNCTION_INTEL(t_pfx)                                             \
   template <>                                                                  \
   std::pair<t_pfx##INTEL_fn &, bool &> get<t_pfx##Name, t_pfx##INTEL_fn>(      \
-      ExtFuncsPerContextT &Funcs) {                                            \
+      ExtFuncsPerContextT & Funcs) {                                           \
     using FPtrT = t_pfx##INTEL_fn;                                             \
-    std::pair<FPtrT &, bool &> Ret{                                            \
-        Funcs.t_pfx##Func, Funcs.t_pfx##Initialized};                          \
+    std::pair<FPtrT &, bool &> Ret{Funcs.t_pfx##Func,                          \
+                                   Funcs.t_pfx##Initialized};                  \
     return Ret;                                                                \
   }
 
 #define _EXT_FUNCTION(t_pfx)                                                   \
   template <>                                                                  \
   std::pair<t_pfx##_fn &, bool &> get<t_pfx##Name, t_pfx##_fn>(                \
-      ExtFuncsPerContextT &Funcs) {                                            \
+      ExtFuncsPerContextT & Funcs) {                                           \
     using FPtrT = t_pfx##_fn;                                                  \
-    std::pair<FPtrT &, bool &> Ret{                                            \
-        Funcs.t_pfx##Func, Funcs.t_pfx##Initialized};                          \
+    std::pair<FPtrT &, bool &> Ret{Funcs.t_pfx##Func,                          \
+                                   Funcs.t_pfx##Initialized};                  \
     return Ret;                                                                \
   }
 
