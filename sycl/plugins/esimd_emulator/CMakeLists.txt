@@ -63,10 +63,18 @@ else ()
     if (MSVC)
       message(FATAL_ERROR "Online-building of CM_EMU library is not supported under Windows environment")
     else()
+      # Arguments for online patching to suppress log message from CM_EMU
+      # 1. Replacing CM_EMU's log print-out macro controlled by 'GFX_EMU_WITH_FLAGS_'
+      #    with blank space from $CM_EMU_SRC/common/emu_log.h
+      set (replacing_pattern s/{\ ?GFX_EMU_WITH_FLAGS_.*//g)
+      # 2. Range of lines to be removed printing out unnecessary log messages
+      #    from $CM_EMU_SRC/libcmrt/cm_device_emumode.cpp
+      set (removed_range 130,132d)
       ExternalProject_Add(cm-emu
         GIT_REPOSITORY    https://github.com/intel/cm-cpu-emulation.git
         BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
         INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
+        PATCH_COMMAND     perl -pi.back -e ${replacing_pattern} ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/common/emu_log.h && sed --in-place ${removed_range} ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/libcmrt/cm_device_emumode.cpp
         CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
                           -D__SYCL_EXPLICIT_SIMD_PLUGIN__=true
                           -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
