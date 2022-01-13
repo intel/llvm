@@ -30,15 +30,10 @@ template <typename Fn, typename... Args> void templateCaller(Fn F, Args... As) {
 }
 
 template <auto Fn, typename... Args> void templateCaller1(Args... As) {
-  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
+  // expected-error@+1 2{{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   Fn(As...);
-  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
+  // expected-error@+1 2{{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   runFn(*Fn);
-}
-
-template <auto Fn, typename... Args> void templateCaller2(Args... As) {
-  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
-  Fn(As...);
 }
 
 void basicUsage() {
@@ -59,7 +54,7 @@ template <typename T> void templatedContext() {
   auto p1 = &ForMembers::badMember;
 
   // expected-note@+1 {{called by 'templatedContext<int>'}}
-  templateCaller2<badFoo>(1);
+  templateCaller1<badFoo>(1);
 }
 
 int main() {
