@@ -1481,6 +1481,16 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     MPM.addPass(SYCLMutatePrintfAddrspacePass());
   }
 
+  // Add SPIRITTAnnotations pass to the pass manager if
+  // -fsycl-instrument-device-code option was passed. This option can be used
+  // only with spir triple.
+  if (CodeGenOpts.SPIRITTAnnotations) {
+    if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
+      llvm::report_fatal_error(
+          "ITT annotations can only by added to a module with spir target");
+    MPM.addPass(SPIRITTAnnotationsPass());
+  }
+
   // Add a verifier pass if requested. We don't have to do this if the action
   // requires code generation because there will already be a verifier pass in
   // the code-generation pipeline.
