@@ -10,14 +10,19 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// This test checks extended math operations.
+// This test checks extended math operations. Combinations of
+// - argument type - half, float
+// - math function - sin, cos, ..., div_ieee, pow
+// - SYCL vs ESIMD APIs
 
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/builtins_esimd.hpp>
-#include <iostream>
 #include <sycl/ext/intel/experimental/esimd.hpp>
+
+#include <cmath>
+#include <iostream>
 
 using namespace cl::sycl;
 using namespace sycl::ext::intel::experimental;
@@ -25,118 +30,223 @@ using namespace sycl::ext::intel::experimental::esimd;
 
 // --- Data initialization functions
 
-struct InitDataFuncWide {
-  void operator()(float *In, float *Out, size_t Size) const {
+// Initialization data for trigonometric functions' input.
+// H/w supports only limited range of sin/cos arguments with decent accuracy:
+// absolute error <= 0.0008 for the range of +/- 32767*pi (+/- 102941).
+
+constexpr int accuracy_limit = 32767 * 3.14 - 1;
+
+template <class T> struct InitDataFuncTrig {
+  void operator()(T *In, T *Out, size_t Size) const {
+    for (auto I = 0; I < Size; ++I) {
+      In[I] = (I + 1) % accuracy_limit;
+      Out[I] = (T)0;
+    }
+  }
+};
+
+template <class T> struct InitDataFuncWide {
+  void operator()(T *In, T *Out, size_t Size) const {
     for (auto I = 0; I < Size; ++I) {
       In[I] = I + 1.0;
-      Out[I] = (float)0.0;
+      Out[I] = (T)0;
     }
   }
 };
 
-struct InitDataFuncNarrow {
-  void operator()(float *In, float *Out, size_t Size) const {
+template <class T> struct InitDataFuncNarrow {
+  void operator()(T *In, T *Out, size_t Size) const {
     for (auto I = 0; I < Size; ++I) {
-      In[I] = 2.0f + 16.0f * ((float)I / (float)(Size - 1)); // in [2..18] range
-      Out[I] = (float)0.0;
+      In[I] = 2.0f + 16.0f * ((T)I / (T)(Size - 1)); // in [2..18] range
+      Out[I] = (T)0;
     }
   }
 };
 
-struct InitDataInRange0_5 {
-  void operator()(float *In, float *Out, size_t Size) const {
+template <class T> struct InitDataInRange0_5 {
+  void operator()(T *In, T *Out, size_t Size) const {
     for (auto I = 0; I < Size; ++I) {
-      In[I] = 5.0f * ((float)I / (float)(Size - 1)); // in [0..5] range
-      Out[I] = (float)0.0;
+      In[I] = 5.0f * ((T)I / (T)(Size - 1)); // in [0..5] range
+      Out[I] = (T)0;
+    }
+  }
+};
+
+template <class T> struct InitDataBinFuncNarrow {
+  void operator()(T *In1, T *In2, T *Out, size_t Size) const {
+    for (auto I = 0; I < Size; ++I) {
+      In1[I] = I % 17 + 1;
+      In2[I] = 4.0f * ((T)I / (T)(Size - 1)); // in [0..4] range
+      Out[I] = (T)0;
     }
   }
 };
 
 // --- Math operation identification
 
-enum class MathOp { sin, cos, exp, sqrt, inv, log, rsqrt, trunc, exp2, log2 };
+enum class MathOp {
+  sin,
+  cos,
+  exp,
+  sqrt,
+  sqrt_ieee,
+  inv,
+  log,
+  rsqrt,
+  trunc,
+  exp2,
+  log2,
+  div_ieee,
+  pow
+};
 
 // --- Template functions calculating given math operation on host and device
 
-template <int VL, MathOp Op> struct DeviceMathFunc;
-template <MathOp Op> float HostMathFunc(float X);
+template <class T, int VL, MathOp Op> struct FuncESIMD;
+template <class T, int VL, MathOp Op> struct BinFuncESIMD;
+template <class T, int VL, MathOp Op> struct FuncSYCL;
+template <class T, MathOp Op> struct HostFunc;
+
+#define DEFINE_HOST_OP(Op, HostOp)                                             \
+  template <class T> struct HostFunc<T, MathOp::Op> {                          \
+    T operator()(T X) { return HostOp; }                                       \
+  };
+
+DEFINE_HOST_OP(sin, std::sin(X));
+DEFINE_HOST_OP(cos, std::cos(X));
+DEFINE_HOST_OP(exp, std::exp(X));
+DEFINE_HOST_OP(log, std::log(X));
+DEFINE_HOST_OP(inv, 1.0f / X);
+DEFINE_HOST_OP(sqrt, std::sqrt(X));
+DEFINE_HOST_OP(sqrt_ieee, std::sqrt(X));
+DEFINE_HOST_OP(rsqrt, 1.0f / std::sqrt(X));
+DEFINE_HOST_OP(trunc, std::trunc(X));
+DEFINE_HOST_OP(exp2, std::exp2(X));
+DEFINE_HOST_OP(log2, std::log2(X));
+
+#define DEFINE_HOST_BIN_OP(Op, HostOp)                                         \
+  template <class T> struct HostFunc<T, MathOp::Op> {                          \
+    T operator()(T X, T Y) { return HostOp; }                                  \
+  };
+
+DEFINE_HOST_BIN_OP(div_ieee, X / Y);
+DEFINE_HOST_BIN_OP(pow, std::pow(X, Y));
 
 // --- Specializations per each extended math operation
 
-#define DEFINE_ESIMD_OP(Op, HostOp)                                            \
-  template <> float HostMathFunc<MathOp::Op>(float X) { return HostOp(X); }    \
-  template <int VL> struct DeviceMathFunc<VL, MathOp::Op> {                    \
-    simd<float, VL>                                                            \
-    operator()(const simd<float, VL> &X) const SYCL_ESIMD_FUNCTION {           \
-      return esimd::Op<VL>(X);                                                 \
+#define DEFINE_ESIMD_DEVICE_OP(Op)                                             \
+  template <class T, int VL> struct FuncESIMD<T, VL, MathOp::Op> {             \
+    simd<T, VL> operator()(const simd<T, VL> &X) const SYCL_ESIMD_FUNCTION {   \
+      return esimd::Op<T, VL>(X);                                              \
     }                                                                          \
-  }
+  };
 
-// The same as above but adds explicit template parameter for esimd::Op.
-#define DEFINE_ESIMD_RT_OP(Op, HostOp)                                         \
-  template <> float HostMathFunc<MathOp::Op>(float X) { return HostOp(X); }    \
-  template <int VL> struct DeviceMathFunc<VL, MathOp::Op> {                    \
-    simd<float, VL>                                                            \
-    operator()(const simd<float, VL> &X) const SYCL_ESIMD_FUNCTION {           \
-      return esimd::Op<float, VL>(X);                                          \
+DEFINE_ESIMD_DEVICE_OP(sin);
+DEFINE_ESIMD_DEVICE_OP(cos);
+DEFINE_ESIMD_DEVICE_OP(exp);
+DEFINE_ESIMD_DEVICE_OP(log);
+DEFINE_ESIMD_DEVICE_OP(inv);
+DEFINE_ESIMD_DEVICE_OP(sqrt);
+DEFINE_ESIMD_DEVICE_OP(sqrt_ieee);
+DEFINE_ESIMD_DEVICE_OP(rsqrt);
+DEFINE_ESIMD_DEVICE_OP(trunc);
+DEFINE_ESIMD_DEVICE_OP(exp2);
+DEFINE_ESIMD_DEVICE_OP(log2);
+
+#define DEFINE_ESIMD_DEVICE_BIN_OP(Op)                                         \
+  template <class T, int VL> struct BinFuncESIMD<T, VL, MathOp::Op> {          \
+    simd<T, VL> operator()(const simd<T, VL> &X,                               \
+                           const simd<T, VL> &Y) const SYCL_ESIMD_FUNCTION {   \
+      return esimd::Op<T, VL>(X, Y);                                           \
     }                                                                          \
-  }
+  };
 
-#define DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(Op, HostOp)                         \
-  template <> float HostMathFunc<MathOp::Op>(float X) { return HostOp(X); }    \
-  template <int VL> struct DeviceMathFunc<VL, MathOp::Op> {                    \
-    simd<float, VL>                                                            \
-    operator()(const simd<float, VL> &X) const SYCL_ESIMD_FUNCTION {           \
+DEFINE_ESIMD_DEVICE_BIN_OP(div_ieee);
+DEFINE_ESIMD_DEVICE_BIN_OP(pow);
+
+#define DEFINE_SYCL_DEVICE_OP(Op)                                              \
+  template <class T, int VL> struct FuncSYCL<T, VL, MathOp::Op> {              \
+    simd<T, VL> operator()(const simd<T, VL> &X) const SYCL_ESIMD_FUNCTION {   \
+      /* T must be float for SYCL, so not a template parameter for sycl::Op*/  \
       return sycl::Op<VL>(X);                                                  \
     }                                                                          \
-  }
+  };
 
-DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(sin, std::sin);
-DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(cos, std::cos);
-DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(exp, std::exp);
-DEFINE_SIMD_OVERLOADED_STD_SYCL_OP(log, std::log);
-DEFINE_ESIMD_OP(inv, 1.0f /);
-DEFINE_ESIMD_OP(sqrt, std::sqrt);
-DEFINE_ESIMD_OP(rsqrt, 1.0f / std::sqrt);
-DEFINE_ESIMD_OP(exp2, std::exp2);
-DEFINE_ESIMD_OP(log2, std::log2);
-DEFINE_ESIMD_RT_OP(trunc, std::trunc);
+DEFINE_SYCL_DEVICE_OP(sin);
+DEFINE_SYCL_DEVICE_OP(cos);
+DEFINE_SYCL_DEVICE_OP(exp);
+DEFINE_SYCL_DEVICE_OP(log);
 
 // --- Generic kernel calculating an extended math operation on array elements
 
-template <MathOp Op, int VL, typename AccIn, typename AccOut>
-struct DeviceFunc {
+template <class T, int VL, MathOp Op,
+          template <class, int, MathOp> class Kernel, typename AccIn,
+          typename AccOut>
+struct UnaryDeviceFunc {
   AccIn In;
   AccOut Out;
 
-  DeviceFunc(AccIn &In, AccOut &Out) : In(In), Out(Out) {}
+  UnaryDeviceFunc(AccIn &In, AccOut &Out) : In(In), Out(Out) {}
 
   void operator()(id<1> I) const SYCL_ESIMD_KERNEL {
-    unsigned int Offset = I * VL * sizeof(float);
-    simd<float, VL> Vx;
+    unsigned int Offset = I * VL * sizeof(T);
+    simd<T, VL> Vx;
     Vx.copy_from(In, Offset);
-    DeviceMathFunc<VL, Op> DevF{};
+    Kernel<T, VL, Op> DevF{};
     Vx = DevF(Vx);
     Vx.copy_to(Out, Offset);
   };
 };
 
+template <class T, int VL, MathOp Op,
+          template <class, int, MathOp> class Kernel, typename AccIn,
+          typename AccOut>
+struct BinaryDeviceFunc {
+  AccIn In1;
+  AccIn In2;
+  AccOut Out;
+
+  BinaryDeviceFunc(AccIn &In1, AccIn &In2, AccOut &Out)
+      : In1(In1), In2(In2), Out(Out) {}
+
+  void operator()(id<1> I) const SYCL_ESIMD_KERNEL {
+    unsigned int Offset = I * VL * sizeof(T);
+    simd<T, VL> V1(In1, Offset);
+    simd<T, VL> V2(In2, Offset);
+    Kernel<T, VL, Op> DevF{};
+    simd<T, VL> V = DevF(V1, V2);
+    V.copy_to(Out, Offset);
+  };
+};
+
 // --- Generic test function for an extended math operation
 
-template <MathOp Op, int VL, typename InitF = InitDataFuncNarrow>
+template <class T, int VL, MathOp Op,
+          template <class, int, MathOp> class Kernel,
+          typename InitF = InitDataFuncNarrow<T>>
 bool test(queue &Q, const std::string &Name,
-          InitF InitData = InitDataFuncNarrow{}) {
+          InitF InitData = InitDataFuncNarrow<T>{}, float delta = 0.0f) {
 
   constexpr size_t Size = 1024 * 128;
+  constexpr bool IsBinOp = (Op == MathOp::div_ieee) || (Op == MathOp::pow);
 
-  float *A = new float[Size];
-  float *B = new float[Size];
-  InitData(A, B, Size);
-  std::cout << "  Running " << Name << " test, VL=" << VL << "...\n";
+  T *A = new T[Size];
+  T *B = new T[Size];
+  T *C = new T[Size];
+  if constexpr (IsBinOp) {
+    InitData(A, B, C, Size);
+  } else {
+    InitData(A, B, Size);
+  }
+  const char *kind = std::is_same_v<Kernel<T, VL, Op>, FuncESIMD<T, VL, Op>>
+                         ? "ESIMD"
+                         : "SYCL";
+  std::cout << "  " << Name << " test, kind=" << kind << "...\n";
 
   try {
-    buffer<float, 1> BufA(A, range<1>(Size));
-    buffer<float, 1> BufB(B, range<1>(Size));
+    buffer<T, 1> BufA(A, range<1>(Size));
+    buffer<T, 1> BufB(B, range<1>(Size));
+    buffer<T, 1> BufC(C, range<1>(Size));
 
     // number of workgroups
     cl::sycl::range<1> GlobalRange{Size / VL};
@@ -145,10 +255,18 @@ bool test(queue &Q, const std::string &Name,
     cl::sycl::range<1> LocalRange{1};
 
     auto E = Q.submit([&](handler &CGH) {
-      auto PA = BufA.get_access<access::mode::read>(CGH);
-      auto PB = BufB.get_access<access::mode::write>(CGH);
-      DeviceFunc<Op, VL, decltype(PA), decltype(PB)> Kernel(PA, PB);
-      CGH.parallel_for(nd_range<1>{GlobalRange, LocalRange}, Kernel);
+      auto PA = BufA.template get_access<access::mode::read>(CGH);
+      auto PC = BufC.template get_access<access::mode::write>(CGH);
+      if constexpr (IsBinOp) {
+        auto PB = BufB.template get_access<access::mode::read>(CGH);
+        BinaryDeviceFunc<T, VL, Op, Kernel, decltype(PA), decltype(PC)> F(
+            PA, PB, PC);
+        CGH.parallel_for(nd_range<1>{GlobalRange, LocalRange}, F);
+      } else {
+        UnaryDeviceFunc<T, VL, Op, Kernel, decltype(PA), decltype(PC)> F(PA,
+                                                                         PC);
+        CGH.parallel_for(nd_range<1>{GlobalRange, LocalRange}, F);
+      }
     });
     E.wait();
   } catch (sycl::exception &Exc) {
@@ -160,11 +278,20 @@ bool test(queue &Q, const std::string &Name,
   int ErrCnt = 0;
 
   for (unsigned I = 0; I < Size; ++I) {
-    float Gold = A[I];
-    Gold = HostMathFunc<Op>(Gold);
-    float Test = B[I];
+    T Gold;
 
-    if (abs(Test - Gold) > 0.0001) {
+    if constexpr (IsBinOp) {
+      Gold = HostFunc<T, Op>{}((T)A[I], (T)B[I]);
+    } else {
+      Gold = HostFunc<T, Op>{}((T)A[I]);
+    }
+    T Test = C[I];
+
+    if (delta == 0.0f) {
+      delta = sizeof(T) > 2 ? 0.0001 : 0.01;
+    }
+
+    if (abs(Test - Gold) > delta) {
       if (++ErrCnt < 10) {
         std::cout << "    failed at index " << I << ", " << Test
                   << " != " << Gold << " (gold)\n";
@@ -173,6 +300,7 @@ bool test(queue &Q, const std::string &Name,
   }
   delete[] A;
   delete[] B;
+  delete[] C;
 
   if (ErrCnt > 0) {
     std::cout << "    pass rate: "
@@ -186,19 +314,69 @@ bool test(queue &Q, const std::string &Name,
 
 // --- Tests all extended math operations with given vector length
 
-template <int VL> bool test(queue &Q) {
+template <class T, int VL> bool testESIMD(queue &Q) {
   bool Pass = true;
 
-  Pass &= test<MathOp::sqrt, VL>(Q, "sqrt", InitDataFuncWide{});
-  Pass &= test<MathOp::inv, VL>(Q, "inv");
-  Pass &= test<MathOp::rsqrt, VL>(Q, "rsqrt");
-  Pass &= test<MathOp::sin, VL>(Q, "sin", InitDataFuncWide{});
-  Pass &= test<MathOp::cos, VL>(Q, "cos", InitDataFuncWide{});
-  Pass &= test<MathOp::exp, VL>(Q, "exp", InitDataInRange0_5{});
-  Pass &= test<MathOp::log, VL>(Q, "log", InitDataFuncWide{});
-  Pass &= test<MathOp::trunc, VL>(Q, "trunc", InitDataFuncWide{});
-  Pass &= test<MathOp::exp2, VL>(Q, "exp2", InitDataFuncWide{});
-  Pass &= test<MathOp::log2, VL>(Q, "log2", InitDataFuncWide{});
+  std::cout << "--- TESTING ESIMD functions, T=" << typeid(T).name()
+            << ", VL = " << VL << "...\n";
+
+  Pass &=
+      test<T, VL, MathOp::sqrt, FuncESIMD>(Q, "sqrt", InitDataFuncWide<T>{});
+  Pass &= test<T, VL, MathOp::inv, FuncESIMD>(Q, "inv");
+  Pass &= test<T, VL, MathOp::rsqrt, FuncESIMD>(Q, "rsqrt");
+  Pass &= test<T, VL, MathOp::sin, FuncESIMD>(Q, "sin", InitDataFuncTrig<T>{});
+  Pass &= test<T, VL, MathOp::cos, FuncESIMD>(Q, "cos", InitDataFuncTrig<T>{});
+  Pass &=
+      test<T, VL, MathOp::exp, FuncESIMD>(Q, "exp", InitDataInRange0_5<T>{});
+  Pass &= test<T, VL, MathOp::log, FuncESIMD>(Q, "log", InitDataFuncWide<T>{});
+  Pass &=
+      test<T, VL, MathOp::exp2, FuncESIMD>(Q, "exp2", InitDataInRange0_5<T>{});
+  Pass &=
+      test<T, VL, MathOp::log2, FuncESIMD>(Q, "log2", InitDataFuncWide<T>{});
+  Pass &=
+      test<T, VL, MathOp::trunc, FuncESIMD>(Q, "trunc", InitDataFuncWide<T>{});
+  return Pass;
+}
+
+template <class T, int VL> bool testESIMDSqrtIEEE(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD sqrt_ieee, T=" << typeid(T).name()
+            << ", VL = " << VL << "...\n";
+  Pass &= test<T, VL, MathOp::sqrt_ieee, FuncESIMD>(Q, "sqrt_ieee",
+                                                    InitDataFuncWide<T>{});
+  return Pass;
+}
+
+template <class T, int VL> bool testESIMDDivIEEE(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD div_ieee, T=" << typeid(T).name()
+            << ", VL = " << VL << "...\n";
+  Pass &= test<T, VL, MathOp::div_ieee, BinFuncESIMD>(
+      Q, "div_ieee", InitDataBinFuncNarrow<T>{});
+  return Pass;
+}
+
+template <class T, int VL> bool testESIMDPow(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD pow, T=" << typeid(T).name()
+            << ", VL = " << VL << "...\n";
+  Pass &= test<T, VL, MathOp::pow, BinFuncESIMD>(
+      Q, "pow", InitDataBinFuncNarrow<T>{}, 0.1);
+  return Pass;
+}
+
+template <class T, int VL> bool testSYCL(queue &Q) {
+  bool Pass = true;
+  // TODO SYCL currently supports only these 4 functions, extend the test when
+  // more are available.
+  std::cout << "--- TESTING SYCL functions, T=" << typeid(T).name()
+            << ", VL = " << VL << "...\n";
+  // SYCL functions will have good accuracy for any argument, unlike bare h/w
+  // ESIMD versions, so init with "wide" data set.
+  Pass &= test<T, VL, MathOp::sin, FuncSYCL>(Q, "sin", InitDataFuncWide<T>{});
+  Pass &= test<T, VL, MathOp::cos, FuncSYCL>(Q, "cos", InitDataFuncWide<T>{});
+  Pass &= test<T, VL, MathOp::exp, FuncSYCL>(Q, "exp", InitDataInRange0_5<T>{});
+  Pass &= test<T, VL, MathOp::log, FuncSYCL>(Q, "log", InitDataFuncWide<T>{});
   return Pass;
 }
 
@@ -209,9 +387,17 @@ int main(void) {
   auto Dev = Q.get_device();
   std::cout << "Running on " << Dev.get_info<info::device::name>() << "\n";
   bool Pass = true;
-  Pass &= test<8>(Q);
-  Pass &= test<16>(Q);
-  Pass &= test<32>(Q);
+  Pass &= testESIMD<half, 8>(Q);
+  Pass &= testESIMD<float, 16>(Q);
+  Pass &= testESIMD<float, 32>(Q);
+  Pass &= testSYCL<float, 8>(Q);
+  Pass &= testSYCL<float, 32>(Q);
+  Pass &= testESIMDSqrtIEEE<float, 16>(Q);
+  Pass &= testESIMDSqrtIEEE<double, 32>(Q);
+  Pass &= testESIMDDivIEEE<float, 8>(Q);
+  Pass &= testESIMDDivIEEE<double, 32>(Q);
+  Pass &= testESIMDPow<float, 8>(Q);
+  Pass &= testESIMDPow<half, 32>(Q);
   std::cout << (Pass ? "Test Passed\n" : "Test FAILED\n");
   return Pass ? 0 : 1;
 }
