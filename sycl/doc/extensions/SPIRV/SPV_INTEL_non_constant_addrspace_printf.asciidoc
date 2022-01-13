@@ -43,7 +43,7 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | {docdate}
+| Last Modified Date | 2022-01-13
 | Revision           | A
 |========================================
 
@@ -133,7 +133,7 @@ _printf_ returns 0 if it was executed successfully and -1 otherwise
 
 _Result Type_ must be _i32_.
 
-_format_ must be a _pointer(constant, generic, private, local or global address space)_ to _i8_.
+_format_ must be a _pointer(constant, generic, private, local, global)_ to _i8_.
 
 | 6 + variable | 12 | _<id>_ +
  _Result Type_ | _Result <id>_ | extended +
@@ -157,5 +157,5 @@ Revision History
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|1|{docdate}|Leonid Pauzin|Initial revision
+|1|2022-01-13|Leonid Pauzin|Initial revision
 |========================================
