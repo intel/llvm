@@ -14,4 +14,9 @@ _CLC_DEF void _Z23__spirv_GroupWaitEventsjiP9ocl_event(unsigned int scope,
   __spirv_ControlBarrier(scope, Workgroup, SequentiallyConsistent);
 }
 
+_CLC_OVERLOAD _CLC_DEF void __spirv_GroupWaitEvents(unsigned int scope,
+                                                    int num_events,
+                                                    event_t *event_list) {
+  __spirv_ControlBarrier(scope, Workgroup, SequentiallyConsistent);
+}
 
