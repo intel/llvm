@@ -4,7 +4,8 @@
 // RUN: %clangxx -fsycl -fno-legacy-pass-manager %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
-// Check that the code compiles with -O0 and -g on both legacy and new Pass Managers
+// Check that the code compiles with -O0 and -g on both legacy and new Pass
+// Managers
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -fno-legacy-pass-manager -O0
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -flegacy-pass-manager -O0
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -fno-legacy-pass-manager -O0 -g
