@@ -9,4 +9,3 @@
 // RUN: FileCheck %s
 
 // CHECK: Found CUDA installation: {{.*}}Inputs\CUDA_111\usr\local\cuda, version 11.1
-
