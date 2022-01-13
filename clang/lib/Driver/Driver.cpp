@@ -928,12 +928,18 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   if (SYCLTargets && SYCLfpga)
     Diag(clang::diag::err_drv_option_conflict)
         << SYCLTargets->getSpelling() << SYCLfpga->getSpelling();
+
+  auto argSYCLIncompatible = [&](OptSpecifier OptId) {
+    if (!HasValidSYCLRuntime)
+      return;
+    if (Arg *IncompatArg = C.getInputArgs().getLastArg(OptId))
+      Diag(clang::diag::err_drv_fsycl_unsupported_with_opt)
+          << IncompatArg->getSpelling();
+  };
+  // -static-libstdc++ is not compatible with -fsycl.
+  argSYCLIncompatible(options::OPT_static_libstdcxx);
   // -ffreestanding cannot be used with -fsycl
-  if (HasValidSYCLRuntime &&
-      C.getInputArgs().hasArg(options::OPT_ffreestanding)) {
-    Diag(clang::diag::err_drv_option_conflict) << "-fsycl"
-                                               << "-ffreestanding";
-  }
+  argSYCLIncompatible(options::OPT_ffreestanding);
 
   // Diagnose incorrect inputs to SYCL options.
   // FIXME: Since the option definition includes the list of possible values,
