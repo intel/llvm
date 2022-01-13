@@ -236,7 +236,8 @@ ESIMD_INLINE void transpose16(int *buf, int MZ, int block_col, int block_row) {
   }
 }
 
-bool runTest(unsigned MZ, unsigned block_size) {
+bool runTest(unsigned MZ, unsigned block_size, unsigned num_iters,
+             double &kernel_times, double &total_times) {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
   int *M = malloc_shared<int>(MZ * MZ, q);
@@ -262,8 +263,6 @@ bool runTest(unsigned MZ, unsigned block_size) {
   double start;
 
   // Launches the task on the GPU.
-  double kernel_times = 0;
-  unsigned num_iters = 10;
 
   try {
     // num_iters + 1, iteration#0 is for warmup
@@ -303,18 +302,7 @@ bool runTest(unsigned MZ, unsigned block_size) {
   // End timer.
   double end = timer.Elapsed();
 
-  float total_time = (end - start) * 1000.0f / num_iters;
-  float kernel_time = kernel_times / num_iters;
-
-  float bandwidth_total =
-      2.0f * 1000 * sizeof(int) * MZ * MZ / (1024 * 1024 * 1024) / total_time;
-  float bandwidth_kernel =
-      2.0f * 1000 * sizeof(int) * MZ * MZ / (1024 * 1024 * 1024) / kernel_time;
-
-  cerr << "GPU transposition time = " << total_time << " msec\n";
-  cerr << "GPU transposition bandwidth = " << bandwidth_total << " GB/s\n";
-  cerr << "GPU kernel time = " << kernel_time << " msec\n";
-  cerr << "GPU kernel bandwidth = " << bandwidth_kernel << " GB/s\n";
+  total_times += (end - start) * 1000.0f;
 
   // printMatrix("\nTransposed matrix:", M, MZ);
   bool success = checkResult(M, MZ);
@@ -330,18 +318,24 @@ int main(int argc, char *argv[]) {
     MZ = (MZ < (1U << 12)) ? MZ : (1U << 12);
   }
 
+  unsigned num_iters = 10;
+  double kernel_times = 0;
+  double total_times = 0;
+
   bool success = true;
-  success &= runTest(MZ, 16);
+  success &= runTest(MZ, 16, num_iters, kernel_times, total_times);
   if (argc == 1) {
-    success &= runTest(1U << 10, 8);
-    success &= runTest(1U << 11, 8);
-    success &= runTest(1U << 12, 8);
-    // success &= runTest(1U << 13, 8);
-    success &= runTest(1U << 10, 16);
-    success &= runTest(1U << 11, 16);
-    success &= runTest(1U << 12, 16);
-    // success &= runTest(1U << 13, 16);
+    success &= runTest(1U << 10, 8, num_iters, kernel_times, total_times);
+    success &= runTest(1U << 11, 8, num_iters, kernel_times, total_times);
+    success &= runTest(1U << 12, 8, num_iters, kernel_times, total_times);
+    // success &= runTest(1U << 13, 8, num_iters, kernel_times, total_times);
+    success &= runTest(1U << 10, 16, num_iters, kernel_times, total_times);
+    success &= runTest(1U << 11, 16, num_iters, kernel_times, total_times);
+    success &= runTest(1U << 12, 16, num_iters, kernel_times, total_times);
+    // success &= runTest(1U << 13, 16, num_iters, kernel_times, total_times);
   }
+
+  esimd_test::display_timing_stats(kernel_times, num_iters, total_times);
 
   cerr << (success ? "PASSED\n" : "FAILED\n");
   return !success;
