@@ -65,7 +65,7 @@ device_global<int,
 ```
 
 The header file represents these properties with an internal C++ attribute
-named `[[__sycl_detail__::add_ir_global_variable_attributes()]]` whose value
+named `[[__sycl_detail__::add_ir_attributes_global_variable()]]` whose value
 is a list that is created through a template parameter pack expansion:
 
 ```
@@ -79,7 +79,7 @@ class device_global {/*...*/};
 template <typename T, typename ...Props>
 class
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_global_variable_attributes(
+  [[__sycl_detail__::add_ir_attributes_global_variable(
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
@@ -88,7 +88,7 @@ class
 } // namespace sycl::ext::oneapi
 ```
 
-The `[[__sycl_detail__::add_ir_global_variable_attributes()]]` attribute has an
+The `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute has an
 even number of parameters, assuming that the optional "filter list" parameter
 is not specified (see below for a description of this parameter).  The first
 half of the parameters are the names of the properties, and the second half of
@@ -102,7 +102,7 @@ namespace sycl::ext::oneapi {
 
 template </* ... */> class
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_global_variable_attributes(
+  [[__sycl_detail__::add_ir_attributes_global_variable(
     "sycl-device-image-scope",  // Name of first property
     "sycl-host-access",         // Name of second property
     nullptr,                    // First property has no parameter
@@ -115,7 +115,7 @@ template </* ... */> class
 ```
 
 The device compiler only uses the
-`[[__sycl_detail__::add_ir_global_variable_attributes()]]` attribute when the
+`[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute when the
 decorated type is used to create an [LLVM IR global variable][3] and the global
 variable's type is either:
 
@@ -175,7 +175,7 @@ accessor acc(buf, cgh, property_list{no_alias_v, foo_v<32>});
 ```
 
 The implementation in the header file is similar to the previous case.  The
-C++ attribute `[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`
+C++ attribute `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
 decorates one of the member variables of the class, and the parameters to this
 attribute represent the properties.  As before, the initial parameters are the
 names of the properties and the subsequent parameters are the property values.
@@ -207,7 +207,7 @@ class __attribute__((sycl_special_class)) accessor<dataT,
                                                    property_list<Props...>> {
   dataT *ptr
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_kernel_parameter_attributes(
+  [[__sycl_detail__::add_ir_attributes_kernel_parameter(
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
@@ -226,7 +226,7 @@ template </* ... */>
 class __attribute__((sycl_special_class)) accessor</* ... */> {
   dataT *ptr
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_kernel_parameter_attributes(
+  [[__sycl_detail__::add_ir_attributes_kernel_parameter(
     "sycl-no-alias",  // Name of first property
     "sycl-foo",       // Name of second property
     nullptr,          // First property has no parameter
@@ -252,7 +252,7 @@ and it silently ignores the attribute when the class is used in any other way.
 When the front-end creates a kernel argument from a SYCL "special class", it
 passes each member variable of the class as a separate kernel argument.  If the
 member variable is decorated with
-`[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`, the front-end adds
+`[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`, the front-end adds
 one LLVM IR attribute to the kernel function's parameter for each property in
 the list.  For example, this can be done by calling
 [`Function::addParamAttrs(unsigned ArgNo, const AttrBuilder &)`][7].  As
@@ -320,7 +320,7 @@ Internally, the header lowers both cases to a wrapper class which defines
 `operator()`, and that operator function becomes the "top level" kernel
 function that is recognized by the front-end.  The definition of this operator
 is decorated with the C++ attribute
-`[[__sycl_detail__::add_ir_function_attributes()]]`, and the parameters to this
+`[[__sycl_detail__::add_ir_attributes_function()]]`, and the parameters to this
 attribute represent the properties.
 
 ```
@@ -338,7 +338,7 @@ class KernelSingleTaskWrapper<KernelType, property_list<Props...>> {
 
 #ifdef __SYCL_DEVICE_ONLY__
   __attribute__((sycl_kernel))
-  [[__sycl_detail__::add_ir_function_attributes(
+  [[__sycl_detail__::add_ir_attributes_function(
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
@@ -347,7 +347,7 @@ class KernelSingleTaskWrapper<KernelType, property_list<Props...>> {
 ```
 
 Although the DPC++ headers only use the
-`[[__sycl_detail__::add_ir_function_attributes()]]` attribute on the definition
+`[[__sycl_detail__::add_ir_attributes_function()]]` attribute on the definition
 of a kernel function as shown above, the front-end recognizes it for any
 function definition.  The front-end adds one LLVM IR function attribute for
 each property in the list.  For example, this can be done by calling
@@ -399,7 +399,7 @@ void foo(int *p) {
 ```
 
 We again use a C++ attribute to represent the properties in the header.  The
-attribute `[[__sycl_detail__::add_ir_member_annotation()]]` decorates one of
+attribute `[[__sycl_detail__::add_ir_annotations_member()]]` decorates one of
 the member variables of the class, and the parameters to this attribute
 represent the properties.
 
@@ -415,7 +415,7 @@ template <typename T, typename ...Props>
 class annotated_ptr<T, property_list<Props...>> {
   T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_member_annotation(
+  [[__sycl_detail__::add_ir_annotations_member(
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
@@ -441,7 +441,7 @@ template <typename T, typename ...Props>
 class annotated_ptr<T, property_list<Props...>> {
   T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_member_annotation(
+  [[__sycl_detail__::add_ir_annotations_member(
     "sycl-foo",   // Name of first property
     "sycl-bar",   // Name of second property
     nullptr,      // First property has no parameter
@@ -501,7 +501,7 @@ define void @foo(i32* %ptr) {
 ```
 
 The front-end encodes the properties from the C++ attribute
-`[[__sycl_detail__::add_ir_member_annotation()]]` into the
+`[[__sycl_detail__::add_ir_annotations_member()]]` into the
 `@llvm.ptr.annotation` call as follows:
 
 * The first parameter to `@llvm.ptr.annotation` is the pointer to annotate (as
@@ -529,10 +529,10 @@ to perform these optimizations.
 As noted above, there are several C++ attributes that convey property names and
 values to the front-end:
 
-* `[[__sycl_detail__::add_ir_global_variable_attributes()]]`
-* `[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`
-* `[[__sycl_detail__::add_ir_function_attributes()]]`
-* `[[__sycl_detail__::add_ir_member_annotation()]]`
+* `[[__sycl_detail__::add_ir_attributes_global_variable()]]`
+* `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
+* `[[__sycl_detail__::add_ir_attributes_function()]]`
+* `[[__sycl_detail__::add_ir_annotations_member()]]`
 
 All of these attributes take a parameter list with the same format.  There are
 always an even number of parameters, where the first half are the property
@@ -562,9 +562,9 @@ SYCL property has no value the header passes `nullptr`.
 Properties that are implemented using the following C++ attributes are
 represented in LLVM IR as IR attributes:
 
-* `[[__sycl_detail__::add_ir_global_variable_attributes()]]`
-* `[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`
-* `[[__sycl_detail__::add_ir_function_attributes()]]`
+* `[[__sycl_detail__::add_ir_attributes_global_variable()]]`
+* `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
+* `[[__sycl_detail__::add_ir_attributes_function()]]`
 
 When the front-end consumes these C++ attributes and produces IR, each property
 name becomes an IR attribute name and each property value becomes the
@@ -591,7 +591,7 @@ types listed above.
 ### IR representation via `@llvm.ptr.annotation`
 
 Properties that are implemented using
-`[[__sycl_detail__::add_ir_member_annotation()]]`, are represented in LLVM IR
+`[[__sycl_detail__::add_ir_annotations_member()]]`, are represented in LLVM IR
 as the fifth metadata parameter to the `@llvm.ptr.annotation` intrinsic
 function.  This parameter is a tuple of metadata values with the following
 sequence:
@@ -620,8 +620,8 @@ that the front-end does not generate an IR representation.
 Another case is when a class wants to represent some properties one way in the
 IR while representing other properties in another way.  For example, a future
 version of `accessor` might pass some properties to
-`[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]` while passing other
-properties to `[[__sycl_detail__::add_ir_member_annotation()]]`.  Again, the
+`[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]` while passing other
+properties to `[[__sycl_detail__::add_ir_annotations_member()]]`.  Again, the
 header wants some way to "filter" the properties, such that some properties are
 interpreted as "kernel parameter attributes" while other are interpreted as
 "member annotations".
@@ -629,10 +629,10 @@ interpreted as "kernel parameter attributes" while other are interpreted as
 To handle these cases, each of the following C++ attributes takes an optional
 first parameter that is a brace-enclosed list of property names:
 
-* `[[__sycl_detail__::add_ir_global_variable_attributes()]]`
-* `[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`
-* `[[__sycl_detail__::add_ir_function_attributes()]]`
-* `[[__sycl_detail__::add_ir_member_annotation()]]`
+* `[[__sycl_detail__::add_ir_attributes_global_variable()]]`
+* `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
+* `[[__sycl_detail__::add_ir_attributes_function()]]`
+* `[[__sycl_detail__::add_ir_annotations_member()]]`
 
 Since this brace-enclosed list acts somewhat like an initializer list, the
 header must include `<initializer_list>` prior to passing this optional first
@@ -658,14 +658,14 @@ class __attribute__((sycl_special_class)) accessor<dataT,
                                                    property_list<Props...>> {
     T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
-    [[__sycl_detail__::add_ir_kernel_parameter_attributes(
+    [[__sycl_detail__::add_ir_attributes_kernel_parameter(
 
       // The properties in this list are "kernel parameter attributes".
       {"sycl-no-alias", "sycl-foo"},
 
       Props::meta_name..., Props::meta_value...
       )]]
-    [[__sycl_detail__::add_ir_member_annotation(
+    [[__sycl_detail__::add_ir_annotations_member(
 
       // The properties in this list are "member annotations".
       {"sycl-bar"},
