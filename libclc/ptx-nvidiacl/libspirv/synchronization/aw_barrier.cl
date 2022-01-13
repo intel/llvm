@@ -43,10 +43,6 @@ _CLC_OVERLOAD _CLC_DEF void __spirv_BarrierCopyAsyncArriveNoInc(long* state) {
   return __nvvm_cp_async_mbarrier_arrive_noinc(state);
 }
 
-_CLC_OVERLOAD _CLC_DEF int __spirv_BarrierPendingCount(long arrival) {
-  return __nvvm_mbarrier_pending_count(arrival);
-}
-
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void __spirv_BarrierWait(long* state, long arrival) {
   while(!__nvvm_mbarrier_test_wait(state, arrival)){}
 }

@@ -766,9 +766,6 @@ __spirv_BarrierCopyAsyncArrive(int64_t *state) noexcept;
 extern SYCL_EXTERNAL __SYCL_EXPORT void
 __spirv_BarrierCopyAsyncArriveNoInc(int64_t *state) noexcept;
 
-extern SYCL_EXTERNAL __SYCL_EXPORT int32_t
-__spirv_BarrierPendingCount(int64_t arrival) noexcept;
-
 __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT void
 __spirv_BarrierWait(int64_t *state, int64_t arrival) noexcept;
 

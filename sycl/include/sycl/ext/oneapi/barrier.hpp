@@ -80,15 +80,6 @@ public:
 #endif
   }
 
-  int32_t pending_count(arrival_token arrival) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BarrierPendingCount(arrival);
-#else
-    throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif
-  }
-
   void arrive_copy_async() {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_BarrierCopyAsyncArrive(&state);

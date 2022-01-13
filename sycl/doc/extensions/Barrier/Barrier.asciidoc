@@ -94,8 +94,6 @@ Wait and test wait can only be called with an arrival token from current cycle (
 
 `arrival_token arrive_and_drop_no_complete(int32_t count)` : Reduces expected arrival count for future cycles by one, executes arrival operation that counts as `count` arrivals and returns a token that is needed for the wait call corresponding to this arrival. This must not be the last arrival thet causes the cycle to complete - it would be undefined behavior.
 
-`int32_t pending_count(arrival_token arrival)` : Returns the number of arrivals needed before the current cycle is completed. This can only be called using an `arrival` token form a no_complete variant of arrive operation - either `arrive_no_complete` or `arrive_and_drop_no_complete`. Otherwise the behavior is undefined.
-
 `void arrive_copy_async()` : Schedules arrive operation to be triggered asynchronously when all previous asynchronous memory copies initiated by the calling work item complete. Before the arrive operation is triggered, the pending count on the barrier is increased by 1, so after the arrival there is no change to the pending count.
 
 `void arrive_copy_async_no_inc()` : Schedules arrive operation to be triggered asynchronously when all previous asynchronous memory copies initiated by the calling work item complete.
@@ -132,7 +130,6 @@ public:
   arrival_token arrive_and_drop();
   arrival_token arrive_no_complete(int32_t count);
   arrival_token arrive_and_drop_no_complete(int32_t count);
-  int32_t pending_count(arrival_token arrival);
   void arrive_copy_async();
   void arrive_copy_async_no_inc();
   void wait(arrival_token arrival);
