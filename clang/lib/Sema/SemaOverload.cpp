@@ -1817,12 +1817,12 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
         // performed - it may end up here checking validity of a conversion.
         // If false is returned from here, initialization sequence is marked as
         // invalid, then checkAddressOfFunctionIsAvailable is called again
-        // to understand the reason of invaid initialization and and the end
-        // it is called with `Complain` parameter to emit diagnostics.
+        // to understand the reason of invaid initialization and in the end
+        // it is called with 'Complain' parameter to emit diagnostics.
         // We cannot mark an initialization permanently invalid for SYCL device,
         // because we may not know yet where the device code is.
-        // So, just call `checkAddressOfFunctionIsAvailable` again but with
-        // `Complain` parameter to issue a deferred diagnostic.
+        // So, just call 'checkAddressOfFunctionIsAvailable' again but with
+        // 'Complain' parameter to issue a deferred diagnostic.
         if (S.getLangOpts().SYCLIsDevice)
           S.checkAddressOfFunctionIsAvailable(FD, /*Complain=*/true,
                                               DRE->getExprLoc());

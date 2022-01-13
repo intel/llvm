@@ -11632,7 +11632,7 @@ def ext_sycl_2020_attr_spelling : ExtWarn<
   InGroup<Sycl2017Compat>;
 def err_sycl_taking_address_of_wrong_function : Error<
   "taking address of a function not marked with "
-  "`intel::device_indirectly_callable attribute` is not allowed in SYCL device "
+  "'intel::device_indirectly_callable' attribute is not allowed in SYCL device "
   "code">;
 
 // errors of expect.with.probability

@@ -30,21 +30,21 @@ template <typename Fn, typename... Args> void templateCaller(Fn F, Args... As) {
 }
 
 template <auto Fn, typename... Args> void templateCaller1(Args... As) {
-  // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   Fn(As...);
-  // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   runFn(*Fn);
 }
 
 template <auto Fn, typename... Args> void templateCaller2(Args... As) {
-  // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   Fn(As...);
 }
 
 void basicUsage() {
-  // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   int (*p)(int) = &badFoo;
-  // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   int (*p2)(int) = badFoo;
 }
 
@@ -68,32 +68,32 @@ int main() {
     // expected-note@#KernelSingleTaskKernelFuncCall 2{{called by 'kernel_single_task<Basic}}
     h.single_task<class Basic>(
         [=]() {
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           int (*p)(int) = &badFoo;
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           int (*p2)(int) = badFoo;
 
           // OK
           int (*p3)(int) = &goodFoo;
           int (*p4)(int) = goodFoo;
 
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           auto p5 = &externalBadFoo;
           auto *p6 = &externalGoodFoo;
 
           // Make sure that assignment is diagnosed correctly;
           int (*a)(int);
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           a = badFoo;
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           a = &badFoo;
 
           a = goodFoo;
           a = &goodFoo;
 
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           constexpr auto b = badFoo;
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           constexpr auto c = &badFoo;
           // expected-note@+1 {{called by 'operator()'}}
           basicUsage();
@@ -104,10 +104,10 @@ int main() {
     // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<Members}}
     h.single_task<class Members>(
         [=]() {
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           auto p = &ForMembers::badMember;
           auto p1 = &ForMembers::goodMember;
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           auto *p2 = &ForMembers::badStaticMember;
         });
   });
@@ -116,24 +116,24 @@ int main() {
     // expected-note@#KernelSingleTaskKernelFuncCall 2{{called by 'kernel_single_task<RunVia}}
     h.single_task<class RunVia>(
         [=]() {
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           int baz = runFn(badFoo);
 
           baz = runFn(goodFoo);
 
-          // expected-error@+1 2{{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 2{{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           baz = runFn1(badFoo);
 
           baz = runFn1(goodFoo);
 
-          // expected-error@+1 2{{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 2{{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           templateCaller(badFoo, 2);
           templateCaller(goodFoo, 1);
 
           templateCaller1<goodFoo>(1);
 
           // expected-note@+2 {{called by 'operator()'}}
-          // expected-error@+1 {{taking address of a function not marked with `intel::device_indirectly_callable attribute` is not allowed in SYCL device code}}
+          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
           templateCaller1<badFoo>(1);
 
         });
