@@ -54,8 +54,6 @@
 #include "llvm/Support/X86TargetParser.h"
 #include <sstream>
 
-#include <iostream>
-
 using namespace clang;
 using namespace CodeGen;
 using namespace llvm;
