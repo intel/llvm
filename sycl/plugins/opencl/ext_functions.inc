@@ -1,9 +1,9 @@
 #ifndef _EXT_FUNCTION_INTEL
-#error Undefined _EXT_FUNCTION_INTEL macro expanstion
+#error Undefined _EXT_FUNCTION_INTEL macro expansion
 #endif
 
 #ifndef _EXT_FUNCTION
-#error Undefined _EXT_FUNCTION macro expanstion
+#error Undefined _EXT_FUNCTION macro expansion
 #endif
 
 _EXT_FUNCTION_INTEL(clHostMemAlloc)
