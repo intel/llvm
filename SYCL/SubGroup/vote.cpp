@@ -3,10 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//
-// Missing __spirv_SubgroupLocalInvocationId, __spirv_GroupAny, __spirv_GroupAll
-// on AMD
-// XFAIL: hip_amd
 
 //==--------------- vote.cpp - SYCL sub_group vote test --*- C++ -*---------==//
 //

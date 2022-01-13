@@ -3,10 +3,11 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// Missing __spirv_GroupFAdd, __spirv_GroupFMin, __spirv_GroupFMax on AMD, error
+// Error
 // message `The implementation handling parallel_for with reduction requires
 // work group size not bigger than 1` on Nvidia.
-// XFAIL: hip_amd || hip_nvidia
+
+// XFAIL: hip_nvidia
 // UNSUPPORTED: ze_debug-1,ze_debug4
 
 // TODO: Enable the test for HOST when it supports intel::reduce() and barrier()

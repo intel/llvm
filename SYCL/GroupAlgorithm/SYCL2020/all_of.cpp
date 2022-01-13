@@ -2,9 +2,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//
-// Missing __spirv_GroupAll on AMD:
-// XFAIL: hip_amd
 
 #include "support.h"
 #include <CL/sycl.hpp>

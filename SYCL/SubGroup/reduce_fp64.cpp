@@ -7,9 +7,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//
-// Missing __spirv_GroupFAdd, __spirv_GroupFMin, __spirv_GroupFMax on AMD
-// XFAIL: hip_amd
 
 // This test verifies the correct work of the sub-group algorithm reduce().
 

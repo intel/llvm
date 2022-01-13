@@ -3,9 +3,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// Missing __spirv_GroupFAdd on AMD, error message `Group algorithms are not
+// Error message `Group algorithms are not
 // supported on host device.` on Nvidia.
-// XFAIL: hip_amd || hip_nvidia
+// XFAIL: hip_nvidia
 
 // TODO: test disabled due to sporadic fails in level_zero:gpu RT.
 // UNSUPPORTED: linux && level_zero
