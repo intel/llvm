@@ -210,7 +210,7 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
           "passing format strings directly into experimental::printf calls, "
           "avoiding indirection via wrapper function arguments.";
       if (!WrapperFunc->getName().contains("6oneapi12experimental6printf")) {
-        emitError(WrapperFunc, CI, BadWrapperErrorMsg);
+        emitError(F, CI, BadWrapperErrorMsg);
         return 0;
       }
       for (User *WrapperU : WrapperFunc->users()) {
@@ -239,7 +239,7 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
           F, CI,
           "Make sure each format string literal is "
           "known at compile time or use OpenCL constant address space literals "
-          "for device-side printf calls");
+          "for device-side printf calls.");
       return 0;
     }
   }
