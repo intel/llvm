@@ -174,10 +174,11 @@ using sycl::ext::oneapi;
 accessor acc(buf, cgh, property_list{no_alias_v, foo_v<32>});
 ```
 
-As before, the header file represents the properties with an internal C++
-attribute, where the initial parameters are the names of the properties and
-the subsequent parameters are the property values.  However, this time the
-attribute decorates one of the member variables.
+The implementation in the header file is similar to the previous case.  The
+C++ attribute `[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`
+decorates one of the member variables of the class, and the parameters to this
+attribute represent the properties.  As before, the initial parameters are the
+names of the properties and the subsequent parameters are the property values.
 
 ```
 namespace sycl {
@@ -315,9 +316,12 @@ void foo(handler &cgh) {
 }
 ```
 
-Internally, the headers lower both cases to a wrapper class that expresses the
-properties as an internal C++ attribute, and the `operator()` of this class
-becomes the "top level" kernel function that is recognized by the front-end.
+Internally, the header lowers both cases to a wrapper class which defines
+`operator()`, and that operator function becomes the "top level" kernel
+function that is recognized by the front-end.  The definition of this operator
+is decorated with the C++ attribute
+`[[__sycl_detail__::add_ir_function_attributes()]]`, and the parameters to this
+attribute represent the properties.
 
 ```
 template<typename KernelType, typename PropertyListT>
@@ -394,8 +398,10 @@ void foo(int *p) {
 }
 ```
 
-We again implement the property list in the header via a C++ attribute, where
-the attribute decorates a member variable of the class:
+We again use a C++ attribute to represent the properties in the header.  The
+attribute `[[__sycl_detail__::add_ir_member_annotation()]]` decorates one of
+the member variables of the class, and the parameters to this attribute
+represent the properties.
 
 ```
 namespace sycl::ext::oneapi {
