@@ -449,8 +449,26 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   // CM has single-root-device without sub-device support.
+  pi_uint32 DeviceCount =
+      (DeviceType == PI_DEVICE_TYPE_GPU || DeviceType == PI_DEVICE_TYPE_DEFAULT)
+          ? 1
+          : 0;
+
   if (NumDevices) {
-    *NumDevices = 1;
+    *NumDevices = DeviceCount;
+  }
+
+  if (NumEntries == 0) {
+    /// Runtime queries number of devices
+    assert(Devices == nullptr &&
+           "Devices should be nullptr when querying the number of devices");
+
+    return PI_SUCCESS;
+  }
+
+  if (DeviceCount == 0) {
+    /// No GPU entry to fill 'Device' array
+    return PI_SUCCESS;
   }
 
   cm_support::CmDevice *CmDevice = nullptr;
