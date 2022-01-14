@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/property_list/properties.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>
 
 #include <tuple>
 
@@ -20,7 +20,7 @@ namespace oneapi {
 namespace experimental {
 
 // Forward declaration
-template <class PropertyT, class T, class... Ts> struct property_value;
+template <typename PropertyT, typename T, typename... Ts> struct property_value;
 
 namespace detail {
 

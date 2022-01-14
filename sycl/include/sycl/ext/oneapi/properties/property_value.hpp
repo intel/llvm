@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/property_list/properties.hpp>
-#include <sycl/ext/oneapi/property_list/property_utils.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_utils.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -25,12 +25,12 @@ struct SingleTypePropertyValueBase {};
 struct EmptyPropertyValueBase {};
 
 // Base class for property values with a single non-type value
-template <class T> struct SingleNontypePropertyValueBase {
+template <typename T> struct SingleNontypePropertyValueBase {
   static constexpr auto value = T::value;
 };
 
 // Helper class for property values with a single value
-template <class T>
+template <typename T>
 struct SinglePropertyValue
     : public sycl::detail::conditional_t<HasValue<T>::value,
                                          SingleNontypePropertyValueBase<T>,
@@ -40,13 +40,15 @@ struct SinglePropertyValue
 
 } // namespace detail
 
-template <class PropertyT, class T = void, class... Ts>
+template <typename PropertyT, typename T = void, typename... Ts>
 struct property_value
     : public sycl::detail::conditional_t<
           sizeof...(Ts) == 0 && !std::is_same<T, void>::value,
-          detail::SinglePropertyValue<T>, detail::EmptyPropertyValueBase> {};
+          detail::SinglePropertyValue<T>, detail::EmptyPropertyValueBase> {
+  using key_t = PropertyT;
+};
 
-template <class PropertyT, class... A, class... B>
+template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
                            bool>
 operator==(const property_value<PropertyT, A...> &LHS,
@@ -54,13 +56,29 @@ operator==(const property_value<PropertyT, A...> &LHS,
   return (std::is_same<A, B>::value && ...);
 }
 
-template <class PropertyT, class... A, class... B>
+template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
                            bool>
 operator!=(const property_value<PropertyT, A...> &LHS,
            const property_value<PropertyT, B...> &RHS) {
   return (!std::is_same<A, B>::value || ...);
 }
+
+template <typename V, typename = void> struct is_property_value {
+  static constexpr bool value =
+      detail::IsRuntimeProperty<V>::value && is_property_key<V>::value;
+};
+template <typename V, typename O, typename = void> struct is_property_value_of {
+  static constexpr bool value =
+      detail::IsRuntimeProperty<V>::value && is_property_key_of<V, O>::value;
+};
+// Specialization for compile-time-constant properties
+template <typename V>
+struct is_property_value<V, sycl::detail::void_t<typename V::key_t>>
+    : is_property_key<typename V::key_t> {};
+template <typename V, typename O>
+struct is_property_value_of<V, O, sycl::detail::void_t<typename V::key_t>>
+    : is_property_key_of<typename V::key_t, O> {};
 
 namespace detail {
 

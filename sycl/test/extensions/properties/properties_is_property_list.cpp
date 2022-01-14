@@ -7,37 +7,37 @@
 
 int main() {
   // Check is_property_list for empty property list
-  using EmptyP = sycl::ext::oneapi::experimental::property_list_t<>;
+  using EmptyP = decltype(sycl::ext::oneapi::experimental::properties());
   static_assert(
       sycl::ext::oneapi::experimental::is_property_list<EmptyP>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_list_v<EmptyP>);
 
   // Check is_property_list for compile-time properties
-  using P1 = sycl::ext::oneapi::experimental::property_list_t<
-      sycl::ext::oneapi::experimental::baz::value_t<1>,
-      sycl::ext::oneapi::experimental::bar::value_t>;
+  using P1 = decltype(sycl::ext::oneapi::experimental::properties(
+      sycl::ext::oneapi::experimental::baz<1>,
+      sycl::ext::oneapi::experimental::bar));
   static_assert(sycl::ext::oneapi::experimental::is_property_list<P1>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_list_v<P1>);
 
   // Check is_property_list for runtime properties
-  using P2 = sycl::ext::oneapi::experimental::property_list_t<
-      sycl::ext::oneapi::experimental::foo,
-      sycl::ext::oneapi::experimental::foz>;
+  using P2 = decltype(sycl::ext::oneapi::experimental::properties(
+      sycl::ext::oneapi::experimental::foo{42},
+      sycl::ext::oneapi::experimental::foz{3.14159265, false}));
   static_assert(sycl::ext::oneapi::experimental::is_property_list<P2>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_list_v<P2>);
 
   // Check is_property_list for a mix properties
-  using P3 = sycl::ext::oneapi::experimental::property_list_t<
-      sycl::ext::oneapi::experimental::foo,
-      sycl::ext::oneapi::experimental::baz::value_t<1>,
-      sycl::ext::oneapi::experimental::foz>;
+  using P3 = decltype(sycl::ext::oneapi::experimental::properties(
+      sycl::ext::oneapi::experimental::foo{0},
+      sycl::ext::oneapi::experimental::baz<1>,
+      sycl::ext::oneapi::experimental::foz{1.2, true}));
   static_assert(sycl::ext::oneapi::experimental::is_property_list<P3>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_list_v<P3>);
 
   // Check is_property_list for compile-time properties on object
-  auto PropertyList1 = sycl::ext::oneapi::experimental::property_list(
-      sycl::ext::oneapi::experimental::baz_v<1>,
-      sycl::ext::oneapi::experimental::bar_v);
+  auto PropertyList1 = sycl::ext::oneapi::experimental::properties(
+      sycl::ext::oneapi::experimental::baz<1>,
+      sycl::ext::oneapi::experimental::bar);
   static_assert(sycl::ext::oneapi::experimental::is_property_list<
                 decltype(PropertyList1)>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_list_v<
@@ -45,7 +45,7 @@ int main() {
 
   // Check is_property_list for runtime properties on object
   sycl::queue Q;
-  auto PropertyList2 = sycl::ext::oneapi::experimental::property_list(
+  auto PropertyList2 = sycl::ext::oneapi::experimental::properties(
       sycl::ext::oneapi::experimental::foo{1},
       sycl::ext::oneapi::experimental::foz{.123f, false});
   static_assert(sycl::ext::oneapi::experimental::is_property_list<
@@ -54,9 +54,9 @@ int main() {
                 decltype(PropertyList2)>);
 
   // Check is_property_list for a mix properties on object
-  auto PropertyList3 = sycl::ext::oneapi::experimental::property_list(
+  auto PropertyList3 = sycl::ext::oneapi::experimental::properties(
       sycl::ext::oneapi::experimental::foo{42},
-      sycl::ext::oneapi::experimental::baz_v<1>);
+      sycl::ext::oneapi::experimental::baz<1>);
   static_assert(sycl::ext::oneapi::experimental::is_property_list<
                 decltype(PropertyList3)>::value);
   static_assert(sycl::ext::oneapi::experimental::is_property_list_v<

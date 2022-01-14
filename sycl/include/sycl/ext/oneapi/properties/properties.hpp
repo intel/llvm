@@ -1,4 +1,4 @@
-//==-------- property_list.hpp --- SYCL extended property list -------------==//
+//==---------- properties.hpp --- SYCL extended property list --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,9 +10,9 @@
 
 #include <CL/sycl/detail/property_helper.hpp>
 #include <CL/sycl/types.hpp>
-#include <sycl/ext/oneapi/property_list/properties.hpp>
-#include <sycl/ext/oneapi/property_list/property_utils.hpp>
-#include <sycl/ext/oneapi/property_list/property_value.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_utils.hpp>
+#include <sycl/ext/oneapi/properties/property_value.hpp>
 
 #include <tuple>
 #include <type_traits>
@@ -112,7 +112,7 @@ struct ExtractProperties<std::tuple<PropertyT, PropertiesTs...>> {
 
 } // namespace detail
 
-template <typename PropertiesT> class property_list {
+template <typename PropertiesT> class properties {
   static_assert(detail::IsTuple<PropertiesT>::value,
                 "Properties must be in a tuple.");
   static_assert(detail::AllPropertyValues<PropertiesT>::value,
@@ -124,7 +124,7 @@ template <typename PropertiesT> class property_list {
 
 public:
   template <typename... PropertyValueTs>
-  property_list(PropertyValueTs... props)
+  properties(PropertyValueTs... props)
       : Storage(detail::ExtractProperties<StorageT>::Extract(
             std::tuple<PropertyValueTs...>{props...})) {}
 
@@ -163,25 +163,21 @@ private:
 #ifdef __cpp_deduction_guides
 // Deduction guides
 template <typename... PropertyValueTs>
-property_list(PropertyValueTs... props)
-    -> property_list<typename detail::Sorted<PropertyValueTs...>::type>;
+properties(PropertyValueTs... props)
+    -> properties<typename detail::Sorted<PropertyValueTs...>::type>;
 #endif
 
-template <typename... PropertyValueTs>
-using property_list_t =
-    property_list<typename detail::Sorted<PropertyValueTs...>::type>;
-
 // Property list traits
-template <typename propertyListT> struct is_property_list : std::false_type {};
+template <typename propertiesT> struct is_property_list : std::false_type {};
 template <typename... PropertyValueTs>
-struct is_property_list<property_list<std::tuple<PropertyValueTs...>>>
-    : std::is_same<property_list<std::tuple<PropertyValueTs...>>,
-                   property_list_t<PropertyValueTs...>> {};
+struct is_property_list<properties<std::tuple<PropertyValueTs...>>>
+    : std::is_same<
+          properties<std::tuple<PropertyValueTs...>>,
+          properties<typename detail::Sorted<PropertyValueTs...>::type>> {};
 
 #if __cplusplus > 201402L
-template <typename propertyListT>
-inline constexpr bool is_property_list_v =
-    is_property_list<propertyListT>::value;
+template <typename propertiesT>
+inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
 #endif
 
 } // namespace experimental
@@ -192,9 +188,9 @@ inline constexpr bool is_property_list_v =
 // is_device_copyable
 template <typename PropertiesT>
 struct is_device_copyable<
-    ext::oneapi::experimental::property_list<PropertiesT>,
+    ext::oneapi::experimental::properties<PropertiesT>,
     std::enable_if_t<!std::is_trivially_copyable<
-        ext::oneapi::experimental::property_list<PropertiesT>>::value>>
+        ext::oneapi::experimental::properties<PropertiesT>>::value>>
     : is_device_copyable<PropertiesT> {};
 
 } // namespace sycl

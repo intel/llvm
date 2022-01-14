@@ -17,17 +17,17 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-struct bar {
-  using value_t = property_value<bar>;
+struct bar_key {
+  using value_t = property_value<bar_key>;
 };
 
-struct baz {
+struct baz_key {
   template <int K>
-  using value_t = property_value<baz, std::integral_constant<int, K>>;
+  using value_t = property_value<baz_key, std::integral_constant<int, K>>;
 };
 
-struct boo {
-  template <typename... Ts> using value_t = property_value<boo, Ts...>;
+struct boo_key {
+  template <typename... Ts> using value_t = property_value<boo_key, Ts...>;
 };
 
 struct foo {
@@ -56,69 +56,60 @@ inline bool operator==(const foz &lhs, const foz &rhs) {
 }
 inline bool operator!=(const foz &lhs, const foz &rhs) { return !(lhs == rhs); }
 
+inline constexpr bar_key::value_t bar;
+template <int K> inline constexpr baz_key::value_t<K> baz;
+template <typename... Ts> inline constexpr boo_key::value_t<Ts...> boo;
+
+using foo_key = foo;
+using foz_key = foz;
+
+template <> struct is_property_key<bar_key> : std::true_type {};
+template <> struct is_property_key<baz_key> : std::true_type {};
+template <> struct is_property_key<boo_key> : std::true_type {};
+template <> struct is_property_key<foo_key> : std::true_type {};
+template <> struct is_property_key<foz_key> : std::true_type {};
+
+template <typename syclObjectT>
+struct is_property_key_of<bar_key, syclObjectT> : std::true_type {};
+template <typename syclObjectT>
+struct is_property_key_of<baz_key, syclObjectT> : std::true_type {};
+template <typename syclObjectT>
+struct is_property_key_of<boo_key, syclObjectT> : std::true_type {};
+template <typename syclObjectT>
+struct is_property_key_of<foo_key, syclObjectT> : std::true_type {};
+template <typename syclObjectT>
+struct is_property_key_of<foz_key, syclObjectT> : std::true_type {};
+
 namespace detail {
-template <> struct PropertyToKind<bar> {
+template <> struct PropertyToKind<bar_key> {
   static constexpr PropKind Kind =
       static_cast<enum PropKind>(PropKind::PropKindSize + 0);
 };
-template <> struct PropertyToKind<baz> {
+template <> struct PropertyToKind<baz_key> {
   static constexpr PropKind Kind =
       static_cast<enum PropKind>(PropKind::PropKindSize + 1);
 };
-template <> struct PropertyToKind<foo> {
+template <> struct PropertyToKind<foo_key> {
   static constexpr PropKind Kind =
       static_cast<enum PropKind>(PropKind::PropKindSize + 2);
 };
-template <> struct PropertyToKind<boo> {
+template <> struct PropertyToKind<boo_key> {
   static constexpr PropKind Kind =
       static_cast<enum PropKind>(PropKind::PropKindSize + 3);
 };
-template <> struct PropertyToKind<foz> {
+template <> struct PropertyToKind<foz_key> {
   static constexpr PropKind Kind =
       static_cast<enum PropKind>(PropKind::PropKindSize + 4);
 };
 
-template <> struct IsCompileTimeProperty<bar> : std::true_type {};
-template <> struct IsCompileTimeProperty<baz> : std::true_type {};
-template <> struct IsCompileTimeProperty<boo> : std::true_type {};
+template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<baz_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<boo_key> : std::true_type {};
 
-template <> struct IsRuntimeProperty<foo> : std::true_type {};
-template <> struct IsRuntimeProperty<foz> : std::true_type {};
+template <> struct IsRuntimeProperty<foo_key> : std::true_type {};
+template <> struct IsRuntimeProperty<foz_key> : std::true_type {};
 } // namespace detail
-
-inline constexpr bar::value_t bar_v;
-template <int K> inline constexpr baz::value_t<K> baz_v;
-template <typename... Ts> inline constexpr boo::value_t<Ts...> boo_v;
-
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
-template <>
-struct is_property<ext::oneapi::experimental::bar> : std::true_type {};
-template <>
-struct is_property<ext::oneapi::experimental::baz> : std::true_type {};
-template <>
-struct is_property<ext::oneapi::experimental::boo> : std::true_type {};
-template <>
-struct is_property<ext::oneapi::experimental::foo> : std::true_type {};
-template <>
-struct is_property<ext::oneapi::experimental::foz> : std::true_type {};
-
-template <typename syclObjectT>
-struct is_property_of<ext::oneapi::experimental::bar, syclObjectT>
-    : std::true_type {};
-template <typename syclObjectT>
-struct is_property_of<ext::oneapi::experimental::baz, syclObjectT>
-    : std::true_type {};
-template <typename syclObjectT>
-struct is_property_of<ext::oneapi::experimental::boo, syclObjectT>
-    : std::true_type {};
-template <typename syclObjectT>
-struct is_property_of<ext::oneapi::experimental::foo, syclObjectT>
-    : std::true_type {};
-template <typename syclObjectT>
-struct is_property_of<ext::oneapi::experimental::foz, syclObjectT>
-    : std::true_type {};
-
 } // namespace sycl
