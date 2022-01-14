@@ -353,13 +353,10 @@ xptifw_includes = os.path.join(config.dpcpp_root_dir, 'include')
 if os.path.exists(xptifw_lib_dir) and os.path.exists(os.path.join(xptifw_includes, 'xpti', 'xpti_trace_framework.h')):
     config.available_features.add('xptifw')
     config.substitutions.append(('%xptifw_dispatcher', xptifw_dispatcher))
-    if platform.system() == "Linux":
+    if cl_options:
+        config.substitutions.append(('%xptifw_lib', " {}/xptifw.lib /I{} ".format(xptifw_lib_dir, xptifw_includes)))
+    else:
         config.substitutions.append(('%xptifw_lib', " -L{} -lxptifw -I{} ".format(xptifw_lib_dir, xptifw_includes)))
-    elif platform.system() == "Windows":
-        if cl_options:
-            config.substitutions.append(('%xptifw_lib', " {}/xptifw.lib /I{} ".format(xptifw_lib_dir, xptifw_includes)))
-        else:
-            config.substitutions.append(('%xptifw_lib', " {}/xptifw.lib -I{} ".format(xptifw_lib_dir, xptifw_includes)))
 
 
 llvm_tools = ["llvm-spirv", "llvm-link"]
