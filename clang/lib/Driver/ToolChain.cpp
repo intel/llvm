@@ -1098,7 +1098,7 @@ void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 ToolChain::getHIPDeviceLibs(const ArgList &DriverArgs,
-                            const Action::OffloadKind OffloadKind) const {
+                            const Action::OffloadKind DeviceOffloadingKind) const {
   return {};
 }
 
