@@ -186,6 +186,7 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
                                  FunctionVecTy &FunctionsToDrop) {
   size_t MutatedCallsCount = 0;
   SmallVector<std::pair<CallInst *, Constant *>, 16> CallsToMutate;
+  FunctionVecTy WrapperFunctionsToDrop;
   for (User *U : F->users()) {
     if (!isa<CallInst>(U))
       continue;
@@ -225,13 +226,14 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
       }
       // We're certain that the wrapper won't have any uses, since we've just
       // marked all its calls for replacement with __spirv_ocl_printf.
-      FunctionsToDrop.emplace_back(WrapperFunc);
-      // Similar certainty for the generic AS version of __spirv_ocl_printf
-      // itself - we've determined it only gets called inside the
-      // soon-to-be-removed wrapper.
-      assert(F->hasOneUse() && "Unexpected __spirv_ocl_printf call outside of "
-                               "SYCL wrapper function");
-      FunctionsToDrop.emplace_back(F);
+      WrapperFunctionsToDrop.emplace_back(WrapperFunc);
+      // __spirv_ocl_printf itself only gets called inside the
+      // soon-to-be-removed wrappers and will be marked for removal once these
+      // are removed. The builtin may only have n>1 uses in case it's variadic -
+      // in that scenario, all wrapper instances will be referencing it.
+      assert((F->hasOneUse() || F->isVarArg()) &&
+             "Unexpected __spirv_ocl_printf call outside of "
+             "SYCL wrapper function");
     } else {
       emitError(
           F, CI,
@@ -246,6 +248,8 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
                             CASPrintfFunc);
     ++MutatedCallsCount;
   }
+  for (Function *WF : WrapperFunctionsToDrop)
+    WF->eraseFromParent();
   if (F->hasNUses(0))
     FunctionsToDrop.emplace_back(F);
   return MutatedCallsCount;
