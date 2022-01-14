@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/stream.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
@@ -32,8 +33,12 @@ static size_t CheckMaxStatementSize(const size_t &MaxStatementSize) {
 }
 
 stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)
+    : stream(BufferSize, MaxStatementSize, CGH, {}) {}
+
+stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH,
+               const property_list &PropList)
     : impl(std::make_shared<detail::stream_impl>(
-          BufferSize, CheckMaxStatementSize(MaxStatementSize), CGH)),
+          BufferSize, CheckMaxStatementSize(MaxStatementSize), PropList)),
       GlobalBuf(impl->accessGlobalBuf(CGH)),
       GlobalOffset(impl->accessGlobalOffset(CGH)),
       // Allocate the flush buffer, which contains space for each work item
@@ -58,6 +63,24 @@ size_t stream::get_max_statement_size() const {
 bool stream::operator==(const stream &RHS) const { return (impl == RHS.impl); }
 
 bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
+
+#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
+  template <>                                                                  \
+  __SYCL_EXPORT bool stream::has_property<param_type>() const noexcept {       \
+    return impl->has_property<param_type>();                                   \
+  }
+#include <CL/sycl/detail/properties_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
+  template <>                                                                  \
+  __SYCL_EXPORT param_type stream::get_property<param_type>() const {          \
+    return impl->get_property<param_type>();                                   \
+  }
+#include <CL/sycl/detail/properties_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
