@@ -28,7 +28,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
-#include "llvm/SYCLLowerIR/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Scalar.h"
 

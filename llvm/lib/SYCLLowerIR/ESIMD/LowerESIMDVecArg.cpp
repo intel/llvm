@@ -67,7 +67,7 @@
 //        i64 0, i32 0))
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
