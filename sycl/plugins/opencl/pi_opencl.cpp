@@ -111,30 +111,24 @@ struct ExtFuncsPerContextT {
 };
 
 namespace detail {
-#define _EXT_FUNCTION_INTEL(t_pfx)                                             \
-  template <>                                                                  \
-  std::pair<t_pfx##INTEL_fn &, bool &> get<t_pfx##Name, t_pfx##INTEL_fn>(      \
-      ExtFuncsPerContextT & Funcs) {                                           \
-    using FPtrT = t_pfx##INTEL_fn;                                             \
-    std::pair<FPtrT &, bool &> Ret{Funcs.t_pfx##Func,                          \
-                                   Funcs.t_pfx##Initialized};                  \
-    return Ret;                                                                \
-  }
 
-#define _EXT_FUNCTION(t_pfx)                                                   \
+#define _EXT_FUNCTION_COMMON(t_pfx, t_pfx_suff)                                \
   template <>                                                                  \
-  std::pair<t_pfx##_fn &, bool &> get<t_pfx##Name, t_pfx##_fn>(                \
+  std::pair<t_pfx_suff##_fn &, bool &> get<t_pfx##Name, t_pfx_suff##_fn>(      \
       ExtFuncsPerContextT & Funcs) {                                           \
-    using FPtrT = t_pfx##_fn;                                                  \
+    using FPtrT = t_pfx_suff##_fn;                                             \
     std::pair<FPtrT &, bool &> Ret{Funcs.t_pfx##Func,                          \
                                    Funcs.t_pfx##Initialized};                  \
     return Ret;                                                                \
   }
+#define _EXT_FUNCTION_INTEL(t_pfx) _EXT_FUNCTION_COMMON(t_pfx, t_pfx##INTEL)
+#define _EXT_FUNCTION(t_pfx) _EXT_FUNCTION_COMMON(t_pfx, t_pfx)
 
 #include "ext_functions.inc"
 
 #undef _EXT_FUNCTION
 #undef _EXT_FUNCTION_INTEL
+#undef _EXT_FUNCTION_COMMON
 } // namespace detail
 
 struct ExtFuncsCachesT {
@@ -196,15 +190,16 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   T FuncPtr =
       (T)clGetExtensionFunctionAddressForPlatform(curPlatform, FuncName);
 
+  // We're about to store the cached value. Mark this cache entry initialized.
+  FuncInitialized.second = true;
+
   if (!FuncPtr) {
     // Cache that the extension is not available
     FuncInitialized.first = nullptr;
-    FuncInitialized.second = true;
     return PI_INVALID_VALUE;
   }
 
   FuncInitialized.first = FuncPtr;
-  FuncInitialized.second = true;
   *fptr = FuncPtr;
 
   return cast<pi_result>(ret_err);
