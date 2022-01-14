@@ -167,7 +167,7 @@ using safealias_t = int;
 
 //struct
 struct frankenStruct {
-  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  // expected-error@+1 {{zero-length arrays are not permitted in SYCL device code}}
   int mosterArr[0];
   // expected-error@+1 {{'__float128' is not supported on this target}}
   __float128 scaryQuad;
@@ -302,9 +302,9 @@ void usage(myFuncDef functionPtr) {
   safealias_t<long double> notALD = 55;
 
   // ======= Zero Length Arrays Not Allowed in Kernel ==========
-  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  // expected-error@+1 {{zero-length arrays are not permitted in SYCL device code}}
   int MalArray[0];
-  // expected-error@+1 {{zero-length arrays are not permitted in C++}}
+  // expected-error@+1 {{zero-length arrays are not permitted in SYCL device code}}
   intDef MalArrayDef[0];
   // ---- false positive tests. These should not generate any errors.
   foo<int[0]>();

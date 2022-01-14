@@ -1,3 +1,6 @@
+
+group/collectives.cl
+group/collectives_helpers.ll
 atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 synchronization/barrier.cl
