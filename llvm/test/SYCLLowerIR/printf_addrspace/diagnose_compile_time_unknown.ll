@@ -3,24 +3,9 @@
 ;; to __spirv_ocl_printf - as a result, moving the function into the constant AS
 ;; becomes impossible.
 
-;; The IR is based on the following SYCL code:
-;;
-;; #include <CL/sycl.hpp>
-;; using namespace sycl;
-;; int foo(int k) {
-;;   queue q;
-;;   buffer<int, 1> buf(k);
-;;   q.submit([&](handler &cgh) {
-;;     auto acc = buf.get_access(cgh);
-;;     cgh.single_task([=]() {
-;;       if (acc[0] == 0)
-;;         ext::oneapi::experimental::printf("String 0\n");
-;;       else
-;;         ext::oneapi::experimental::printf("String 1\n");
-;;     });
-;;   });
-;;   return 0;
-;; }
+;; The IR is based on the following source/compilation (custom
+;; build of SYCL Clang with SYCLMutatePrintfAddrspacePass turned off):
+;; clang++ -fsycl -fsycl-device-only Inputs/experimental-printf-compile-time-unknown.cpp -S -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
 
 ; RUN: not opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=0 2>&1 | FileCheck %s
 ; RUN: not opt < %s --passes=SYCLMutatePrintfAddrspace -S 2>&1 | FileCheck %s
