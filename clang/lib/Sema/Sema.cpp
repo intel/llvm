@@ -1808,7 +1808,6 @@ public:
         FirstDiag = false;
       }
     }
-    return;
   }
 };
 } // namespace
