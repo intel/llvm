@@ -15,6 +15,7 @@
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 
 struct bar {
   using value_t = property_value<bar>;
@@ -89,24 +90,35 @@ inline constexpr bar::value_t bar_v;
 template <int K> inline constexpr baz::value_t<K> baz_v;
 template <typename... Ts> inline constexpr boo::value_t<Ts...> boo_v;
 
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 
-template <> struct is_property<ext::oneapi::bar> : std::true_type {};
-template <> struct is_property<ext::oneapi::baz> : std::true_type {};
-template <> struct is_property<ext::oneapi::boo> : std::true_type {};
-template <> struct is_property<ext::oneapi::foo> : std::true_type {};
-template <> struct is_property<ext::oneapi::foz> : std::true_type {};
+template <>
+struct is_property<ext::oneapi::experimental::bar> : std::true_type {};
+template <>
+struct is_property<ext::oneapi::experimental::baz> : std::true_type {};
+template <>
+struct is_property<ext::oneapi::experimental::boo> : std::true_type {};
+template <>
+struct is_property<ext::oneapi::experimental::foo> : std::true_type {};
+template <>
+struct is_property<ext::oneapi::experimental::foz> : std::true_type {};
 
 template <typename syclObjectT>
-struct is_property_of<ext::oneapi::bar, syclObjectT> : std::true_type {};
+struct is_property_of<ext::oneapi::experimental::bar, syclObjectT>
+    : std::true_type {};
 template <typename syclObjectT>
-struct is_property_of<ext::oneapi::baz, syclObjectT> : std::true_type {};
+struct is_property_of<ext::oneapi::experimental::baz, syclObjectT>
+    : std::true_type {};
 template <typename syclObjectT>
-struct is_property_of<ext::oneapi::boo, syclObjectT> : std::true_type {};
+struct is_property_of<ext::oneapi::experimental::boo, syclObjectT>
+    : std::true_type {};
 template <typename syclObjectT>
-struct is_property_of<ext::oneapi::foo, syclObjectT> : std::true_type {};
+struct is_property_of<ext::oneapi::experimental::foo, syclObjectT>
+    : std::true_type {};
 template <typename syclObjectT>
-struct is_property_of<ext::oneapi::foz, syclObjectT> : std::true_type {};
+struct is_property_of<ext::oneapi::experimental::foz, syclObjectT>
+    : std::true_type {};
 
 } // namespace sycl

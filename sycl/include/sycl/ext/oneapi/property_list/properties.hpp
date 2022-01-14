@@ -137,6 +137,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 namespace detail {
 
 // List of all properties.
@@ -161,6 +162,7 @@ template <typename PropertyT> struct IsRuntimeProperty : std::false_type {};
 template <typename PropertyT> struct IsCompileTimeProperty : std::false_type {};
 
 } // namespace detail
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl

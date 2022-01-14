@@ -7,31 +7,32 @@
 
 int main() {
   // Check has_property for compile-time properties
-  using P1 =
-      sycl::ext::oneapi::property_list_t<sycl::ext::oneapi::baz::value_t<1>,
-                                         sycl::ext::oneapi::bar::value_t>;
-  static_assert(P1::has_property<sycl::ext::oneapi::bar>());
-  static_assert(P1::has_property<sycl::ext::oneapi::baz>());
-  static_assert(!P1::has_property<sycl::ext::oneapi::boo>());
-  static_assert(!P1::has_property<sycl::ext::oneapi::foo>());
-  static_assert(!P1::has_property<sycl::ext::oneapi::foz>());
+  using P1 = sycl::ext::oneapi::experimental::property_list_t<
+      sycl::ext::oneapi::experimental::baz::value_t<1>,
+      sycl::ext::oneapi::experimental::bar::value_t>;
+  static_assert(P1::has_property<sycl::ext::oneapi::experimental::bar>());
+  static_assert(P1::has_property<sycl::ext::oneapi::experimental::baz>());
+  static_assert(!P1::has_property<sycl::ext::oneapi::experimental::boo>());
+  static_assert(!P1::has_property<sycl::ext::oneapi::experimental::foo>());
+  static_assert(!P1::has_property<sycl::ext::oneapi::experimental::foz>());
 
   // Check has_property for runtime properties
-  using P2 = sycl::ext::oneapi::property_list_t<sycl::ext::oneapi::foo,
-                                                sycl::ext::oneapi::foz>;
-  static_assert(!P2::has_property<sycl::ext::oneapi::bar>());
-  static_assert(!P2::has_property<sycl::ext::oneapi::baz>());
-  static_assert(!P2::has_property<sycl::ext::oneapi::boo>());
-  static_assert(P2::has_property<sycl::ext::oneapi::foo>());
-  static_assert(P2::has_property<sycl::ext::oneapi::foz>());
+  using P2 = sycl::ext::oneapi::experimental::property_list_t<
+      sycl::ext::oneapi::experimental::foo,
+      sycl::ext::oneapi::experimental::foz>;
+  static_assert(!P2::has_property<sycl::ext::oneapi::experimental::bar>());
+  static_assert(!P2::has_property<sycl::ext::oneapi::experimental::baz>());
+  static_assert(!P2::has_property<sycl::ext::oneapi::experimental::boo>());
+  static_assert(P2::has_property<sycl::ext::oneapi::experimental::foo>());
+  static_assert(P2::has_property<sycl::ext::oneapi::experimental::foz>());
 
   // Check has_property for a mix properties
-  using P3 =
-      sycl::ext::oneapi::property_list_t<sycl::ext::oneapi::foo,
-                                         sycl::ext::oneapi::baz::value_t<1>>;
-  static_assert(!P3::has_property<sycl::ext::oneapi::bar>());
-  static_assert(P3::has_property<sycl::ext::oneapi::baz>());
-  static_assert(!P3::has_property<sycl::ext::oneapi::boo>());
-  static_assert(P3::has_property<sycl::ext::oneapi::foo>());
-  static_assert(!P3::has_property<sycl::ext::oneapi::foz>());
+  using P3 = sycl::ext::oneapi::experimental::property_list_t<
+      sycl::ext::oneapi::experimental::foo,
+      sycl::ext::oneapi::experimental::baz::value_t<1>>;
+  static_assert(!P3::has_property<sycl::ext::oneapi::experimental::bar>());
+  static_assert(P3::has_property<sycl::ext::oneapi::experimental::baz>());
+  static_assert(!P3::has_property<sycl::ext::oneapi::experimental::boo>());
+  static_assert(P3::has_property<sycl::ext::oneapi::experimental::foo>());
+  static_assert(!P3::has_property<sycl::ext::oneapi::experimental::foz>());
 }

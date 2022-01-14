@@ -13,19 +13,21 @@
 
 int main() {
 #if (TEST_CASE == 1)
-  auto InvalidPropertyList = sycl::ext::oneapi::property_list(1);
+  auto InvalidPropertyList = sycl::ext::oneapi::experimental::property_list(1);
   // CHECK-ERROR-1: Unrecognized property in property list.
 #elif (TEST_CASE == 2)
-  auto InvalidPropertyList =
-      sycl::ext::oneapi::property_list(sycl::ext::oneapi::foo{1}, true);
+  auto InvalidPropertyList = sycl::ext::oneapi::experimental::property_list(
+      sycl::ext::oneapi::experimental::foo{1}, true);
   // CHECK-ERROR-2: Unrecognized property in property list.
 #elif (TEST_CASE == 3)
-  auto InvalidPropertyList = sycl::ext::oneapi::property_list(
-      sycl::ext::oneapi::foo{0}, sycl::ext::oneapi::foo{1});
+  auto InvalidPropertyList = sycl::ext::oneapi::experimental::property_list(
+      sycl::ext::oneapi::experimental::foo{0},
+      sycl::ext::oneapi::experimental::foo{1});
   // CHECK-ERROR-3: Duplicate properties in property list.
 #elif (TEST_CASE == 4)
-  auto InvalidPropertyList = sycl::ext::oneapi::property_list(
-      sycl::ext::oneapi::bar_v, sycl::ext::oneapi::bar_v);
+  auto InvalidPropertyList = sycl::ext::oneapi::experimental::property_list(
+      sycl::ext::oneapi::experimental::bar_v,
+      sycl::ext::oneapi::experimental::bar_v);
   // CHECK-ERROR-4: Duplicate properties in property list.
 #endif
 }

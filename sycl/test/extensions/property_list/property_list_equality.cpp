@@ -6,11 +6,11 @@
 #include "mock_compile_time_properties.hpp"
 
 int main() {
-  using P1 =
-      sycl::ext::oneapi::property_list_t<sycl::ext::oneapi::baz::value_t<1>,
-                                         sycl::ext::oneapi::bar::value_t>;
-  using P2 =
-      sycl::ext::oneapi::property_list_t<sycl::ext::oneapi::bar::value_t,
-                                         sycl::ext::oneapi::baz::value_t<1>>;
+  using P1 = sycl::ext::oneapi::experimental::property_list_t<
+      sycl::ext::oneapi::experimental::baz::value_t<1>,
+      sycl::ext::oneapi::experimental::bar::value_t>;
+  using P2 = sycl::ext::oneapi::experimental::property_list_t<
+      sycl::ext::oneapi::experimental::bar::value_t,
+      sycl::ext::oneapi::experimental::baz::value_t<1>>;
   static_assert(std::is_same<P1, P2>::value);
 }

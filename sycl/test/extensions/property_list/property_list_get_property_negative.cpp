@@ -12,23 +12,26 @@
 #include "mock_compile_time_properties.hpp"
 
 int main() {
-  auto EmptyPropertyList = sycl::ext::oneapi::property_list();
+  auto EmptyPropertyList = sycl::ext::oneapi::experimental::property_list();
 #if (TEST_CASE == 1)
-  decltype(EmptyPropertyList)::get_property<sycl::ext::oneapi::boo>();
+  decltype(EmptyPropertyList)::get_property<
+      sycl::ext::oneapi::experimental::boo>();
   // CHECK-ERROR-1: Property list does not contain the requested property.
 #elif (TEST_CASE == 2)
-  EmptyPropertyList.get_property<sycl::ext::oneapi::foo>();
+  EmptyPropertyList.get_property<sycl::ext::oneapi::experimental::foo>();
   // CHECK-ERROR-2: Property list does not contain the requested property.
 #endif
 
   sycl::queue Q;
-  auto PopulatedPropertyList = sycl::ext::oneapi::property_list(
-      sycl::ext::oneapi::foz{.0f, true}, sycl::ext::oneapi::bar_v);
+  auto PopulatedPropertyList = sycl::ext::oneapi::experimental::property_list(
+      sycl::ext::oneapi::experimental::foz{.0f, true},
+      sycl::ext::oneapi::experimental::bar_v);
 #if (TEST_CASE == 3)
-  decltype(PopulatedPropertyList)::get_property<sycl::ext::oneapi::boo>();
+  decltype(PopulatedPropertyList)::get_property<
+      sycl::ext::oneapi::experimental::boo>();
   // CHECK-ERROR-3: Property list does not contain the requested property.
 #elif (TEST_CASE == 4)
-  PopulatedPropertyList.get_property<sycl::ext::oneapi::foo>();
+  PopulatedPropertyList.get_property<sycl::ext::oneapi::experimental::foo>();
   // CHECK-ERROR-4: Property list does not contain the requested property.
 #endif
 }

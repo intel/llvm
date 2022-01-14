@@ -21,6 +21,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 
 namespace detail {
 
@@ -65,10 +66,11 @@ template <typename... Ts> struct RuntimePropertyStorage<std::tuple<Ts...>> {
 };
 template <typename T, typename... Ts>
 struct RuntimePropertyStorage<std::tuple<T, Ts...>>
-    : detail::conditional_t<IsRuntimeProperty<T>::value,
-                            PrependTuple<T, typename RuntimePropertyStorage<
-                                                std::tuple<Ts...>>::type>,
-                            RuntimePropertyStorage<std::tuple<Ts...>>> {};
+    : sycl::detail::conditional_t<
+          IsRuntimeProperty<T>::value,
+          PrependTuple<
+              T, typename RuntimePropertyStorage<std::tuple<Ts...>>::type>,
+          RuntimePropertyStorage<std::tuple<Ts...>>> {};
 
 // Helper class to extract a subset of elements from a tuple.
 // NOTES: This assumes no duplicate properties and that all properties in the
@@ -127,15 +129,14 @@ public:
             std::tuple<PropertyValueTs...>{props...})) {}
 
   template <typename PropertyT>
-  static constexpr detail::enable_if_t<detail::IsProperty<PropertyT>::value,
-                                       bool>
+  static constexpr std::enable_if_t<detail::IsProperty<PropertyT>::value, bool>
   has_property() {
     return detail::ContainsProperty<PropertyT, PropertiesT>::value;
   }
 
   template <typename PropertyT>
-  typename detail::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value,
-                               PropertyT>
+  typename std::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value,
+                            PropertyT>
   get_property() const {
     static_assert(has_property<PropertyT>(),
                   "Property list does not contain the requested property.");
@@ -183,15 +184,17 @@ inline constexpr bool is_property_list_v =
     is_property_list<propertyListT>::value;
 #endif
 
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 
 // If property_list is not trivially copyable, allow properties to propagate
 // is_device_copyable
 template <typename PropertiesT>
-struct is_device_copyable<ext::oneapi::property_list<PropertiesT>,
-                          std::enable_if_t<!std::is_trivially_copyable<
-                              ext::oneapi::property_list<PropertiesT>>::value>>
+struct is_device_copyable<
+    ext::oneapi::experimental::property_list<PropertiesT>,
+    std::enable_if_t<!std::is_trivially_copyable<
+        ext::oneapi::experimental::property_list<PropertiesT>>::value>>
     : is_device_copyable<PropertiesT> {};
 
 } // namespace sycl

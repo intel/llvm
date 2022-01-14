@@ -17,6 +17,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 
 // Forward declaration
 template <class PropertyT, class T, class... Ts> struct property_value;
@@ -54,9 +55,9 @@ struct AllUnique<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct AllUnique<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct AllUnique<std::tuple<L, R, Rest...>>
-    : detail::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
-                            AllUnique<std::tuple<R, Rest...>>,
-                            std::false_type> {};
+    : sycl::detail::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
+                                  AllUnique<std::tuple<R, Rest...>>,
+                                  std::false_type> {};
 
 //******************************************************************************
 // Property identification
@@ -87,9 +88,9 @@ template <typename... Ts>
 struct AllPropertyValues<std::tuple<Ts...>> : std::true_type {};
 template <typename T, typename... Ts>
 struct AllPropertyValues<std::tuple<T, Ts...>>
-    : detail::conditional_t<IsPropertyValue<T>::value,
-                            AllPropertyValues<std::tuple<Ts...>>,
-                            std::false_type> {};
+    : sycl::detail::conditional_t<IsPropertyValue<T>::value,
+                                  AllPropertyValues<std::tuple<Ts...>>,
+                                  std::false_type> {};
 
 //******************************************************************************
 // Property type sorting
@@ -208,11 +209,12 @@ struct IsSorted<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct IsSorted<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct IsSorted<std::tuple<L, R, Rest...>>
-    : detail::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
-                            IsSorted<std::tuple<R, Rest...>>, std::false_type> {
-};
+    : sycl::detail::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
+                                  IsSorted<std::tuple<R, Rest...>>,
+                                  std::false_type> {};
 
 } // namespace detail
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl

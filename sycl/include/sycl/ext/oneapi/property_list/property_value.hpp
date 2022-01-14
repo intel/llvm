@@ -15,6 +15,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 namespace detail {
 
 // Base class for property values with a single type value.
@@ -31,9 +32,9 @@ template <class T> struct SingleNontypePropertyValueBase {
 // Helper class for property values with a single value
 template <class T>
 struct SinglePropertyValue
-    : public detail::conditional_t<HasValue<T>::value,
-                                   SingleNontypePropertyValueBase<T>,
-                                   SingleTypePropertyValueBase> {
+    : public sycl::detail::conditional_t<HasValue<T>::value,
+                                         SingleNontypePropertyValueBase<T>,
+                                         SingleTypePropertyValueBase> {
   using value_t = T;
 };
 
@@ -41,21 +42,21 @@ struct SinglePropertyValue
 
 template <class PropertyT, class T = void, class... Ts>
 struct property_value
-    : public detail::conditional_t<
+    : public sycl::detail::conditional_t<
           sizeof...(Ts) == 0 && !std::is_same<T, void>::value,
           detail::SinglePropertyValue<T>, detail::EmptyPropertyValueBase> {};
 
 template <class PropertyT, class... A, class... B>
-constexpr detail::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
-                              bool>
+constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
+                           bool>
 operator==(const property_value<PropertyT, A...> &LHS,
            const property_value<PropertyT, B...> &RHS) {
   return (std::is_same<A, B>::value && ...);
 }
 
 template <class PropertyT, class... A, class... B>
-constexpr detail::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
-                              bool>
+constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
+                           bool>
 operator!=(const property_value<PropertyT, A...> &LHS,
            const property_value<PropertyT, B...> &RHS) {
   return (!std::is_same<A, B>::value || ...);
@@ -74,6 +75,7 @@ struct IsCompileTimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
     : IsCompileTimeProperty<PropertyT> {};
 
 } // namespace detail
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
