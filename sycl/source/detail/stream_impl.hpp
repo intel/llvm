@@ -12,6 +12,7 @@
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/handler.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stream.hpp>
 
@@ -23,9 +24,12 @@ namespace detail {
 
 class __SYCL_EXPORT stream_impl {
 public:
-  // TODO: Handler argument is not used in constructor.
+  // TODO: This constructor is unused.
   // To be removed when API/ABI changes are allowed.
   stream_impl(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
+
+  stream_impl(size_t BufferSize, size_t MaxStatementSize,
+              const property_list &PropList);
 
   // Method to provide an access to the global stream buffer
   GlobalBufAccessorT accessGlobalBuf(handler &CGH);
@@ -44,6 +48,14 @@ public:
 
   size_t get_max_statement_size() const;
 
+  template <typename propertyT> bool has_property() const noexcept {
+    return PropList_.has_property<propertyT>();
+  }
+
+  template <typename propertyT> propertyT get_property() const {
+    return PropList_.get_property<propertyT>();
+  }
+
 private:
   // Size of the stream buffer
   size_t BufferSize_;
@@ -51,6 +63,9 @@ private:
   // Maximum number of symbols which could be streamed from the beginning of a
   // statement till the semicolon
   unsigned MaxStatementSize_;
+
+  // Property list
+  property_list PropList_;
 
   // Additinonal memory is allocated in the beginning of the stream buffer for
   // 2 variables: offset in the stream buffer and offset in the flush buffer.

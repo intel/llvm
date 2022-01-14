@@ -1,10 +1,12 @@
-;; This tests replacement of string literal address space for __spirv_ocl_printf
-;; when no optimizations (inlining, constant propagation) have been performed prior
-;; to the pass scheduling.
+;; This tests replacement of string literal address space for the variadic version of
+;; __spirv_ocl_printf when no optimizations (inlining, constant propagation) have been
+;; performed prior to the pass scheduling.
+;; Note: this test's checks are identical to those for the non-variadic version
+;; of pre-transformation printf functions in non-optimized mode.
 
 ;; Compiled with the following command (custom build of SYCL Clang with
 ;; SYCLMutatePrintfAddrspacePass turned off):
-;; clang++ -fsycl -fsycl-device-only Inputs/experimental-printf.cpp -S -O0 -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+;; clang++ -fsycl -fsycl-device-only Inputs/experimental-printf.cpp -S -O0
 
 ; RUN: opt < %s --SYCLMutatePrintfAddrspace -S | FileCheck %s
 ; RUN: opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=1 | FileCheck %s
@@ -80,7 +82,7 @@ entry:
   store float %args, float addrspace(4)* %args.addr.ascast, align 4
   %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
   %1 = load float, float addrspace(4)* %args.addr.ascast, align 4
-  %call = call spir_func i32 @_Z18__spirv_ocl_printfIJfEEiPKcDpT_(i8 addrspace(4)* %0, float %1) #8
+  %call = call spir_func i32 (i8 addrspace(4)*, ...) @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)* %0, float %1) #8
   ret i32 %call
 }
 
@@ -97,15 +99,12 @@ entry:
   store i32 %args, i32 addrspace(4)* %args.addr.ascast, align 4
   %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
   %1 = load i32, i32 addrspace(4)* %args.addr.ascast, align 4
-  %call = call spir_func i32 @_Z18__spirv_ocl_printfIJiEEiPKcDpT_(i8 addrspace(4)* %0, i32 %1) #8
+  %call = call spir_func i32 (i8 addrspace(4)*, ...) @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)* %0, i32 %1) #8
   ret i32 %call
 }
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJfEEiPKcDpT_(i8 addrspace(4)*, float) #7
-
-; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJiEEiPKcDpT_(i8 addrspace(4)*, i32) #7
+declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)*, ...) #7
 
 attributes #0 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="experimental-printf.cpp" "uniform-work-group-size"="true" }
 attributes #1 = { convergent noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
