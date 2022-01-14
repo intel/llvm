@@ -61,7 +61,8 @@ int main() {
                  "Printing hard-coded output from the host side:\n"
               << "3.140000e+00, 3.140000E+00\n"
                  "0x1.91eb86p+1, 0X1.91EB86P+1\n"
-                 "3.14, 3.14\n";
+                 "3.14, 3.14"
+              << std::endl;
     return 0;
   }
 #endif // !__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__

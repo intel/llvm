@@ -80,6 +80,7 @@ int main() {
                  "double -0x1.b4154d8cccccdp+2, -0X1.B4154D8CCCCCDP+2\n"
                  "mixed 0x1.91eb86p+1, -0X1.B4154D8CCCCCDP+2\n"
                  "double -6.8138, -6.8138\n"
-                 "mixed 3.14, -6.8138\n";
+                 "mixed 3.14, -6.8138"
+              << std::endl;
   return 0;
 }
