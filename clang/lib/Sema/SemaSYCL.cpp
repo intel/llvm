@@ -1567,6 +1567,7 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 // A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
+  bool IsSIMD = false;
   DiagnosticsEngine &Diag;
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
@@ -1663,7 +1664,12 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       if (TAL.size() > 5)
         return checkPropertyListType(TAL.get(5), Loc.getBegin());
     }
-    return false;
+    if (IsSIMD && !Util::isSyclType(Ty, "accessor", true /*Tmp*/))
+      return SemaRef.Diag(Loc.getBegin(),
+                          diag::err_sycl_esimd_not_supported_for_type)
+             << RecD;
+    else
+      return false;
   }
 
 public:
