@@ -34,3 +34,11 @@
 // SPIRV_DEVICE_OBJ_PHASES: 10: backend, {9}, assembler, (host-sycl)
 // SPIRV_DEVICE_OBJ_PHASES: 11: assembler, {10}, object, (host-sycl)
 // SPIRV_DEVICE_OBJ_PHASES: 12: clang-offload-bundler, {4, 11}, object, (host-sycl)
+
+/// Use of -fsycl-device-obj=spirv should not be effective during linking
+// RUN: touch %t.o
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-obj=spirv -### %t.o 2>&1 | \
+// RUN:  FileCheck %s -check-prefixes=OPT_WARNING,LLVM_SPIRV_R
+// OPT_WARNING: warning: argument unused during compilation: '-fsycl-device-obj=spirv'
+// LLVM_SPIRV_R: spirv-to-ir-wrapper{{.*}}
+// LLVM_SPIRV_R-NOT: llvm-spirv{{.*}} "-r"
