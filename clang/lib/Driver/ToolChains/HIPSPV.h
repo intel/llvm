@@ -70,7 +70,7 @@ public:
                          llvm::opt::ArgStringList &CC1Args) const override;
   llvm::SmallVector<BitCodeLibraryInfo, 12>
   getHIPDeviceLibs(const llvm::opt::ArgList &Args,
-                   const Action::OffloadKind DeviceOffloadKind) const override;
+                   const Action::OffloadKind DeviceOffloadingKind) const override;
 
   SanitizerMask getSupportedSanitizers() const override;
 
