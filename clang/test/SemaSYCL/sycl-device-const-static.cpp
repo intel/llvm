@@ -51,6 +51,7 @@ void usage() {
 
 template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+  // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
   static int z;
   // expected-note-re@+3{{called by 'kernel_single_task<fake_kernel, (lambda at {{.*}})>}}
   // expected-note-re@+2{{called by 'kernel_single_task<fake_kernel, (lambda at {{.*}})>}}
@@ -66,6 +67,9 @@ template <typename T>
 struct D {
   static T d;
 };
+
+template <typename T>
+T D<T>::d = T();
 
 template <typename T>
 void test() {
