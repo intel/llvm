@@ -5379,6 +5379,22 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
+  // Submit dependent open command lists for execution, if any
+  // Only do it for queues other than the current, since the barrier
+  // will go into current queue submission together with the waited event.
+  for (uint32_t I = 0; I < NumEventsInWaitList; I++) {
+    auto EventQueue = EventWaitList[I]->Queue;
+    if (EventQueue && EventQueue != Queue) {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+      if (EventQueue->RefCount > 0) {
+        if (auto Res = EventQueue->executeAllOpenCommandLists())
+          return Res;
+      }
+    }
+  }
+
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
@@ -5388,8 +5404,10 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     return Res;
 
   // Get a new command list to be used on this call
+  bool OkToBatch = true;
   pi_command_list_ptr_t CommandList{};
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, CommandList, false /*copy*/, OkToBatch))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5406,7 +5424,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
   // Execute command list asynchronously as the event will be used
   // to track down its completion.
-  return Queue->executeCommandList(CommandList);
+  return Queue->executeCommandList(CommandList, false, OkToBatch);
 }
 
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
