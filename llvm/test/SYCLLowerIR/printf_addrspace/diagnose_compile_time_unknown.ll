@@ -22,8 +22,8 @@
 ;;   return 0;
 ;; }
 
-; RUN: not opt < %s --SYCLMutatePrintfAddrspace -S 2>&1 | FileCheck %s
-; RUN: not opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=1 2>&1 | FileCheck %s
+; RUN: not opt < %s --SYCLMutatePrintfAddrspace -S --enable-new-pm=0 2>&1 | FileCheck %s
+; RUN: not opt < %s --passes=SYCLMutatePrintfAddrspace -S 2>&1 | FileCheck %s
 ; CHECK: error: experimental::printf requires format string to reside in constant address space. The compiler wasn't able to automatically convert your format string into constant address space when processing builtin _Z18__spirv_ocl_printf{{.*}} called in function {{.*}}foo{{.*}}.
 ; CHECK-NEXT: Make sure each format string literal is known at compile time or use OpenCL constant address space literals for device-side printf calls.
 
