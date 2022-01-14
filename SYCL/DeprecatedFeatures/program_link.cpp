@@ -9,6 +9,10 @@
 //
 // Hits an assertion on AMD with multiple GPUs available, fails trace on Nvidia.
 // XFAIL: hip_amd || hip_nvidia
+//
+// Unsupported on Level Zero because the test passes OpenCL specific compiler
+// and linker switches.
+// UNSUPPORTED: level_zero
 
 #include <CL/sycl.hpp>
 #include <iostream>
