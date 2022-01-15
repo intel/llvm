@@ -382,9 +382,23 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     PrintPiTrace = true;
   }
 
-  if (NumEntries == 0 && Platforms != nullptr) {
-    return PI_INVALID_VALUE;
+  if (NumPlatforms) {
+    *NumPlatforms = 1;
   }
+
+  if (NumEntries == 0) {
+    /// Runtime queries number of Platforms
+    if (Platforms != nullptr) {
+      if (PrintPiTrace) {
+        std::cerr << "Invalid Arguments for piPlatformsGet of esimd_emultor "
+                     "(Platforms!=nullptr) while querying number of platforms"
+                  << std::endl;
+      }
+      return PI_INVALID_VALUE;
+    }
+    return PI_SUCCESS;
+  }
+
   if (Platforms == nullptr && NumPlatforms == nullptr) {
     return PI_INVALID_VALUE;
   }
@@ -392,10 +406,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (Platforms && NumEntries > 0) {
     *Platforms = new _pi_platform();
     Platforms[0]->CmEmuVersion = std::string("0.0.1");
-  }
-
-  if (NumPlatforms) {
-    *NumPlatforms = 1;
   }
 
   return PI_SUCCESS;
@@ -448,11 +458,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_PLATFORM;
   }
 
-  // CM has single-root-device without sub-device support.
-  pi_uint32 DeviceCount =
-      (DeviceType == PI_DEVICE_TYPE_GPU || DeviceType == PI_DEVICE_TYPE_DEFAULT)
-          ? 1
-          : 0;
+  // CM has single-root-GPU-device without sub-device support.
+  pi_uint32 DeviceCount = (DeviceType & PI_DEVICE_TYPE_GPU) ? 1 : 0;
 
   if (NumDevices) {
     *NumDevices = DeviceCount;
@@ -460,9 +467,14 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   if (NumEntries == 0) {
     /// Runtime queries number of devices
-    assert(Devices == nullptr &&
-           "Devices should be nullptr when querying the number of devices");
-
+    if (Devices != nullptr) {
+      if (PrintPiTrace) {
+        std::cerr << "Invalid Arguments for piDevicesGet of esimd_emultor "
+                     "(Devices!=nullptr) while querying number of platforms"
+                  << std::endl;
+      }
+      return PI_INVALID_VALUE;
+    }
     return PI_SUCCESS;
   }
 
