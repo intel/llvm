@@ -203,10 +203,12 @@ event handler::finalize() {
     RT::PiEvent *OutEvent = nullptr;
 
     auto EnqueueKernel = [&]() {
+      // 'Result' for single point of return
+      cl_int Result = CL_INVALID_VALUE;
       if (MQueue->is_host()) {
         MHostKernel->call(
             MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
-        return CL_SUCCESS;
+        Result = CL_SUCCESS;
       } else {
         if (MQueue->getPlugin().getBackend() ==
             backend::ext_intel_esimd_emulator) {
@@ -216,13 +218,15 @@ event handler::finalize() {
               nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()), Dims,
               &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
               &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
-          return CL_SUCCESS;
+          Result = CL_SUCCESS;
         } else {
-          return enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                  MKernel, MKernelName, MOSModuleHandle,
-                                  RawEvents, OutEvent, nullptr);
+          Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                    MKernel, MKernelName, MOSModuleHandle,
+                                    RawEvents, OutEvent, nullptr);
         }
       }
+      // assert(Result != CL_INVALID_VALUE);
+      return Result;
     };
 
     bool DiscardEvent = false;
