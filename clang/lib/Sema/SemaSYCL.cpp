@@ -444,7 +444,8 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
 
   // zero length arrays
   if (isZeroSizedArray(Ty)) {
-    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size)
+        << 1;
     Emitting = true;
   }
 
@@ -1274,7 +1275,6 @@ class KernelObjVisitor {
     assert(CAT && "Should only be called on constant-size array.");
     QualType ET = CAT->getElementType();
     uint64_t ElemCount = CAT->getSize().getZExtValue();
-    assert(ElemCount > 0 && "SYCL prohibits 0 sized arrays");
 
     (void)std::initializer_list<int>{
         (Handlers.enterArray(Field, ArrayTy, ET), 0)...};
@@ -3072,10 +3072,6 @@ public:
     CollectionInitExprs.pop_back();
     ArrayInfos.pop_back();
 
-    assert(
-        !SemaRef.getASTContext().getAsConstantArrayType(ArrayType)->getSize() ==
-            0 &&
-        "Constant arrays must have at least 1 element");
     // Remove the IndexExpr.
     MemberExprBases.pop_back();
 
