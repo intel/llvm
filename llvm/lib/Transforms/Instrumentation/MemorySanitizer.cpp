@@ -1220,7 +1220,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       Value *Shadow = SI->isAtomic() ? getCleanShadow(Val) : getShadow(Val);
       Value *ShadowPtr, *OriginPtr;
       Type *ShadowTy = Shadow->getType();
-      const Align Alignment = assumeAligned(SI->getAlignment());
+      const Align Alignment = SI->getAlign();
       const Align OriginAlignment = std::max(kMinOriginAlignment, Alignment);
       std::tie(ShadowPtr, OriginPtr) =
           getShadowOriginPtr(Addr, IRB, ShadowTy, Alignment, /*isStore*/ true);
@@ -3664,7 +3664,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       // will become a non-readonly function after it is instrumented by us. To
       // prevent this code from being optimized out, mark that function
       // non-readonly in advance.
-      AttrBuilder B;
+      AttributeMask B;
       B.addAttribute(Attribute::ReadOnly)
           .addAttribute(Attribute::ReadNone)
           .addAttribute(Attribute::WriteOnly)
@@ -5359,7 +5359,7 @@ bool MemorySanitizer::sanitizeFunction(Function &F, TargetLibraryInfo &TLI) {
   MemorySanitizerVisitor Visitor(F, *this, TLI);
 
   // Clear out readonly/readnone attributes.
-  AttrBuilder B;
+  AttributeMask B;
   B.addAttribute(Attribute::ReadOnly)
       .addAttribute(Attribute::ReadNone)
       .addAttribute(Attribute::WriteOnly)

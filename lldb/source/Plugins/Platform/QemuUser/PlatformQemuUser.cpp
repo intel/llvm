@@ -55,6 +55,13 @@ public:
     return result;
   }
 
+  Environment GetEmulatorEnvVars() {
+    Args args;
+    m_collection_sp->GetPropertyAtIndexAsArgs(nullptr, ePropertyEmulatorEnvVars,
+                                              args);
+    return Environment(args);
+  }
+
   Environment GetTargetEnvVars() {
     Args args;
     m_collection_sp->GetPropertyAtIndexAsArgs(nullptr, ePropertyTargetEnvVars,
@@ -155,7 +162,10 @@ lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
                                                Target &target, Status &error) {
   Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM);
 
-  std::string qemu = GetGlobalProperties().GetEmulatorPath().GetPath();
+  FileSpec qemu = GetGlobalProperties().GetEmulatorPath();
+  if (!qemu)
+    qemu.SetPath(("qemu-" + GetGlobalProperties().GetArchitecture()).str());
+  FileSystem::Instance().ResolveExecutableLocation(qemu);
 
   llvm::SmallString<0> socket_model, socket_path;
   HostInfo::GetProcessTempDir().GetPath(socket_model);
@@ -164,7 +174,11 @@ lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
     llvm::sys::fs::createUniquePath(socket_model, socket_path, false);
   } while (FileSystem::Instance().Exists(socket_path));
 
-  Args args({qemu, "-g", socket_path});
+  Args args({qemu.GetPath(), "-g", socket_path});
+  if (!launch_info.GetArg0().empty()) {
+    args.AppendArgument("-0");
+    args.AppendArgument(launch_info.GetArg0());
+  }
   args.AppendArguments(GetGlobalProperties().GetEmulatorArgs());
   args.AppendArgument("--");
   args.AppendArgument(launch_info.GetExecutableFile().GetPath());
@@ -175,8 +189,15 @@ lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
            get_arg_range(args));
 
   launch_info.SetArguments(args, true);
+
+  Environment emulator_env = Host::GetEnvironment();
+  if (ConstString sysroot = GetSDKRootDirectory())
+    emulator_env["QEMU_LD_PREFIX"] = sysroot.GetStringRef().str();
+  for (const auto &KV : GetGlobalProperties().GetEmulatorEnvVars())
+    emulator_env[KV.first()] = KV.second;
   launch_info.GetEnvironment() = ComputeLaunchEnvironment(
-      std::move(launch_info.GetEnvironment()), Host::GetEnvironment());
+      std::move(launch_info.GetEnvironment()), std::move(emulator_env));
+
   launch_info.SetLaunchInSeparateProcessGroup(true);
   launch_info.GetFlags().Clear(eLaunchFlagDebug);
   launch_info.SetMonitorProcessCallback(ProcessLaunchInfo::NoOpMonitorCallback,

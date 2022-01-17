@@ -242,10 +242,14 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
     if (auto *arrayTy = dyn_cast<llvm::ArrayType>(llvmType)) {
       elementType = arrayTy->getElementType();
       numElements = arrayTy->getNumElements();
+    } else if (auto *fVectorTy = dyn_cast<llvm::FixedVectorType>(llvmType)) {
+      elementType = fVectorTy->getElementType();
+      numElements = fVectorTy->getNumElements();
+    } else if (auto *sVectorTy = dyn_cast<llvm::ScalableVectorType>(llvmType)) {
+      elementType = sVectorTy->getElementType();
+      numElements = sVectorTy->getMinNumElements();
     } else {
-      auto *vectorTy = cast<llvm::FixedVectorType>(llvmType);
-      elementType = vectorTy->getElementType();
-      numElements = vectorTy->getNumElements();
+      llvm_unreachable("unrecognized constant vector type");
     }
     // Splat value is a scalar. Extract it only if the element type is not
     // another sequence type. The recursion terminates because each step removes
@@ -377,13 +381,20 @@ static Value getPHISourceValue(Block *current, Block *pred,
     // the case branch that was taken.
     if (switchOp.getDefaultDestination() == current)
       return switchOp.getDefaultOperands()[index];
-    for (auto i : llvm::enumerate(switchOp.getCaseDestinations()))
+    for (const auto &i : llvm::enumerate(switchOp.getCaseDestinations()))
       if (i.value() == current)
         return switchOp.getCaseOperands(i.index())[index];
   }
 
-  llvm_unreachable("only branch or switch operations can be terminators of a "
-                   "block that has successors");
+  if (auto invokeOp = dyn_cast<LLVM::InvokeOp>(terminator)) {
+    return invokeOp.getNormalDest() == current
+               ? invokeOp.getNormalDestOperands()[index]
+               : invokeOp.getUnwindDestOperands()[index];
+  }
+
+  llvm_unreachable(
+      "only branch, switch or invoke operations can be terminators "
+      "of a block that has successors");
 }
 
 /// Connect the PHI nodes to the results of preceding blocks.

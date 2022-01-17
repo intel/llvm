@@ -71,10 +71,10 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
       : FIndex(FIndex), ServerCallbacks(ServerCallbacks) {}
 
   void onPreambleAST(PathRef Path, llvm::StringRef Version, ASTContext &Ctx,
-                     std::shared_ptr<clang::Preprocessor> PP,
+                     Preprocessor &PP,
                      const CanonicalIncludes &CanonIncludes) override {
     if (FIndex)
-      FIndex->updatePreamble(Path, Version, Ctx, std::move(PP), CanonIncludes);
+      FIndex->updatePreamble(Path, Version, Ctx, PP, CanonIncludes);
   }
 
   void onMainAST(PathRef Path, ParsedAST &AST, PublishFn Publish) override {
@@ -759,12 +759,13 @@ void ClangdServer::incomingCalls(
                      });
 }
 
-void ClangdServer::inlayHints(PathRef File,
+void ClangdServer::inlayHints(PathRef File, llvm::Optional<Range> RestrictRange,
                               Callback<std::vector<InlayHint>> CB) {
-  auto Action = [CB = std::move(CB)](Expected<InputsAndAST> InpAST) mutable {
+  auto Action = [RestrictRange(std::move(RestrictRange)),
+                 CB = std::move(CB)](Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
       return CB(InpAST.takeError());
-    CB(clangd::inlayHints(InpAST->AST));
+    CB(clangd::inlayHints(InpAST->AST, std::move(RestrictRange)));
   };
   WorkScheduler->runWithAST("InlayHints", File, std::move(Action));
 }

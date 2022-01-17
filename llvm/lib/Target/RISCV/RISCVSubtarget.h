@@ -51,7 +51,6 @@ class RISCVSubtarget : public RISCVGenSubtargetInfo {
   bool HasStdExtZbt = false;
   bool HasStdExtV = false;
   bool HasStdExtZvlsseg = false;
-  bool HasStdExtZvamo = false;
   bool HasStdExtZfhmin = false;
   bool HasStdExtZfh = false;
   bool HasRV64 = false;
@@ -118,7 +117,6 @@ public:
   bool hasStdExtZbt() const { return HasStdExtZbt; }
   bool hasStdExtV() const { return HasStdExtV; }
   bool hasStdExtZvlsseg() const { return HasStdExtZvlsseg; }
-  bool hasStdExtZvamo() const { return HasStdExtZvamo; }
   bool hasStdExtZfhmin() const { return HasStdExtZfhmin; }
   bool hasStdExtZfh() const { return HasStdExtZfh; }
   bool is64Bit() const { return HasRV64; }
@@ -158,6 +156,12 @@ public:
   InstructionSelector *getInstructionSelector() const override;
   const LegalizerInfo *getLegalizerInfo() const override;
   const RegisterBankInfo *getRegBankInfo() const override;
+
+  bool useConstantPoolForLargeInts() const;
+
+  // Maximum cost used for building integers, integers will be put into constant
+  // pool if exceeded.
+  unsigned getMaxBuildIntsCost() const;
 
   // Return the known range for the bit length of RVV data registers. A value
   // of 0 means nothing is known about that particular limit beyond what's

@@ -6,6 +6,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_ENABLE_DIA_SDK
   LLVM_ENABLE_FFI
   LLVM_ENABLE_THREADS
+  LLVM_ENABLE_CURL
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_LIBXML2
   LLVM_INCLUDE_GO_TESTS
@@ -74,6 +75,7 @@ set(LLVM_TEST_DEPENDS
           llvm-cxxdump
           llvm-cxxfilt
           llvm-cxxmap
+          llvm-debuginfod-find
           llvm-diff
           llvm-dis
           llvm-dlltool
@@ -133,6 +135,7 @@ set(LLVM_TEST_DEPENDS
           opt
           sancov
           sanstats
+          spirv-to-ir-wrapper
           sycl-post-link
           split-file
           verify-uselistorder
@@ -231,6 +234,7 @@ set_target_properties(check-llvm PROPERTIES FOLDER "Tests")
 add_lit_testsuites(LLVM ${CMAKE_CURRENT_SOURCE_DIR}
   ${exclude_from_check_all}
   DEPENDS ${LLVM_TEST_DEPENDS}
+  FOLDER "Tests/Subdirectories"
   )
 
 # Setup an alias for 'check-all'.

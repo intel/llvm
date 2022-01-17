@@ -537,7 +537,6 @@ static bool hasNoInterveningEffect(Operation *start, T memOp) {
     // Otherwise, conservatively assume generic operations have the effect
     // on the operation
     hasSideEffect = true;
-    return;
   };
 
   // Check all paths from ancestor op `parent` to the operation `to` for the
@@ -591,7 +590,7 @@ static bool hasNoInterveningEffect(Operation *start, T memOp) {
 
         SmallPtrSet<Block *, 4> done;
         // Traverse the CFG until hitting `to`.
-        while (todoBlocks.size()) {
+        while (!todoBlocks.empty()) {
           Block *blk = todoBlocks.pop_back_val();
           if (done.count(blk))
             continue;

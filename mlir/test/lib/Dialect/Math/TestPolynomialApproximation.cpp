@@ -26,7 +26,8 @@ struct TestMathPolynomialApproximationPass
     : public PassWrapper<TestMathPolynomialApproximationPass, FunctionPass> {
   TestMathPolynomialApproximationPass() = default;
   TestMathPolynomialApproximationPass(
-      const TestMathPolynomialApproximationPass &pass) {}
+      const TestMathPolynomialApproximationPass &pass)
+      : PassWrapper(pass) {}
 
   void runOnFunction() override;
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -52,9 +53,9 @@ struct TestMathPolynomialApproximationPass
 
 void TestMathPolynomialApproximationPass::runOnFunction() {
   RewritePatternSet patterns(&getContext());
-  MathPolynomialApproximationOptions approx_options;
-  approx_options.enableAvx2 = enableAvx2;
-  populateMathPolynomialApproximationPatterns(patterns, approx_options);
+  MathPolynomialApproximationOptions approxOptions;
+  approxOptions.enableAvx2 = enableAvx2;
+  populateMathPolynomialApproximationPatterns(patterns, approxOptions);
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
 }
 

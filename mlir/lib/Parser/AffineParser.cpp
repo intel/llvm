@@ -17,9 +17,7 @@
 
 using namespace mlir;
 using namespace mlir::detail;
-using llvm::MemoryBuffer;
 using llvm::SMLoc;
-using llvm::SourceMgr;
 
 namespace {
 
@@ -525,13 +523,14 @@ ParseResult AffineParser::parseAffineMapOrIntegerSetInline(AffineMap &map,
   bool isColon = getToken().is(Token::colon);
   if (!isArrow && !isColon) {
     return emitError("expected '->' or ':'");
-  } else if (isArrow) {
+  }
+  if (isArrow) {
     parseToken(Token::arrow, "expected '->' or '['");
     map = parseAffineMapRange(numDims, numSymbols);
     return map ? success() : failure();
-  } else if (parseToken(Token::colon, "expected ':' or '['")) {
-    return failure();
   }
+  if (parseToken(Token::colon, "expected ':' or '['"))
+    return failure();
 
   if ((set = parseIntegerSetConstraints(numDims, numSymbols)))
     return success();

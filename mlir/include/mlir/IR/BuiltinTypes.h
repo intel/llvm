@@ -315,13 +315,18 @@ class VectorType::Builder {
 public:
   /// Build from another VectorType.
   explicit Builder(VectorType other)
-      : shape(other.getShape()), elementType(other.getElementType()) {}
+      : shape(other.getShape()), elementType(other.getElementType()),
+        numScalableDims(other.getNumScalableDims()) {}
 
   /// Build from scratch.
-  Builder(ArrayRef<int64_t> shape, Type elementType)
-      : shape(shape), elementType(elementType) {}
+  Builder(ArrayRef<int64_t> shape, Type elementType,
+          unsigned numScalableDims = 0)
+      : shape(shape), elementType(elementType),
+        numScalableDims(numScalableDims) {}
 
-  Builder &setShape(ArrayRef<int64_t> newShape) {
+  Builder &setShape(ArrayRef<int64_t> newShape,
+                    unsigned newNumScalableDims = 0) {
+    numScalableDims = newNumScalableDims;
     shape = newShape;
     return *this;
   }
@@ -334,6 +339,8 @@ public:
   /// Erase a dim from shape @pos.
   Builder &dropDim(unsigned pos) {
     assert(pos < shape.size() && "overflow");
+    if (pos >= shape.size() - numScalableDims)
+      numScalableDims--;
     if (storage.empty())
       storage.append(shape.begin(), shape.end());
     storage.erase(storage.begin() + pos);
@@ -347,7 +354,7 @@ public:
   operator Type() {
     if (shape.empty())
       return elementType;
-    return VectorType::get(shape, elementType);
+    return VectorType::get(shape, elementType, numScalableDims);
   }
 
 private:
@@ -355,6 +362,7 @@ private:
   // Owning shape data for copy-on-write operations.
   SmallVector<int64_t> storage;
   Type elementType;
+  unsigned numScalableDims;
 };
 
 /// Given an `originalShape` and a `reducedShape` assumed to be a subset of
@@ -530,6 +538,11 @@ bool isStrided(MemRefType t);
 /// Return the layout map in strided linear layout AffineMap form.
 /// Return null if the layout is not compatible with a strided layout.
 AffineMap getStridedLinearLayoutMap(MemRefType t);
+
+/// Helper determining if a memref is static-shape and contiguous-row-major
+/// layout, while still allowing for an arbitrary offset (any static or
+/// dynamic value).
+bool isStaticShapeAndContiguousRowMajor(MemRefType memrefType);
 
 } // namespace mlir
 

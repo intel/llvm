@@ -63,7 +63,6 @@
 
 namespace llvm {
 
-class BranchProbability;
 class CCState;
 class CCValAssign;
 class Constant;
@@ -850,6 +849,20 @@ public:
 
   BooleanContent getBooleanContents(EVT Type) const {
     return getBooleanContents(Type.isVector(), Type.isFloatingPoint());
+  }
+
+  /// Promote the given target boolean to a target boolean of the given type.
+  /// A target boolean is an integer value, not necessarily of type i1, the bits
+  /// of which conform to getBooleanContents.
+  ///
+  /// ValVT is the type of values that produced the boolean.
+  SDValue promoteTargetBoolean(SelectionDAG &DAG, SDValue Bool,
+                               EVT ValVT) const {
+    SDLoc dl(Bool);
+    EVT BoolVT =
+        getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), ValVT);
+    ISD::NodeType ExtendCode = getExtendForContent(getBooleanContents(ValVT));
+    return DAG.getNode(ExtendCode, dl, BoolVT, Bool);
   }
 
   /// Return target scheduling preference.
@@ -1788,11 +1801,14 @@ public:
   /// Return the preferred loop alignment.
   virtual Align getPrefLoopAlignment(MachineLoop *ML = nullptr) const;
 
+  /// Return the maximum amount of bytes allowed to be emitted when padding for
+  /// alignment
+  virtual unsigned
+  getMaxPermittedBytesForAlignment(MachineBasicBlock *MBB) const;
+
   /// Should loops be aligned even when the function is marked OptSize (but not
   /// MinSize).
-  virtual bool alignLoopsWithOptSize() const {
-    return false;
-  }
+  virtual bool alignLoopsWithOptSize() const { return false; }
 
   /// If the target has a standard location for the stack protector guard,
   /// returns the address of that location. Otherwise, returns nullptr.
@@ -1822,8 +1838,8 @@ public:
   virtual Function *getSSPStackGuardCheck(const Module &M) const;
 
   /// \returns true if a constant G_UBFX is legal on the target.
-  virtual bool isConstantUnsignedBitfieldExtactLegal(unsigned Opc, LLT Ty1,
-                                                     LLT Ty2) const {
+  virtual bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
+                                                      LLT Ty2) const {
     return false;
   }
 
@@ -2327,6 +2343,9 @@ protected:
   /// means the target does not care about loop alignment. The target may also
   /// override getPrefLoopAlignment to provide per-loop values.
   void setPrefLoopAlignment(Align Alignment) { PrefLoopAlignment = Alignment; }
+  void setMaxBytesForAlignment(unsigned MaxBytes) {
+    MaxBytesForAlignment = MaxBytes;
+  }
 
   /// Set the minimum stack alignment of an argument.
   void setMinStackArgumentAlignment(Align Alignment) {
@@ -3016,6 +3035,8 @@ private:
 
   /// The preferred loop alignment (in log2 bot in bytes).
   Align PrefLoopAlignment;
+  /// The maximum amount of bytes permitted to be emitted for alignment.
+  unsigned MaxBytesForAlignment;
 
   /// Size in bits of the maximum atomics size the backend supports.
   /// Accesses larger than this will be expanded by AtomicExpandPass.
@@ -3606,6 +3627,13 @@ public:
                                             const SelectionDAG &DAG,
                                             bool SNaN = false,
                                             unsigned Depth = 0) const;
+
+  /// Return true if vector \p Op has the same value across all \p DemandedElts,
+  /// indicating any elements which may be undef in the output \p UndefElts.
+  virtual bool isSplatValueForTargetNode(SDValue Op, const APInt &DemandedElts,
+                                         APInt &UndefElts,
+                                         unsigned Depth = 0) const;
+
   struct DAGCombinerInfo {
     void *DC;  // The DAG Combiner object.
     CombineLevel Level;

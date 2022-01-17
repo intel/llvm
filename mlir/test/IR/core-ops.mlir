@@ -99,12 +99,6 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   // CHECK: %{{.*}} = arith.cmpf oeq, %{{.*}}, %{{.*}}: vector<4xf32>
   %70 = arith.cmpf oeq, %vcf32, %vcf32 : vector<4 x f32>
 
-  // CHECK: %{{.*}} = rank %arg0 : tensor<4x4x?xf32>
-  %71 = "std.rank"(%t) : (tensor<4x4x?xf32>) -> index
-
-  // CHECK: %{{.*}} = rank %arg0 : tensor<4x4x?xf32>
-  %72 = rank %t : tensor<4x4x?xf32>
-
   // CHECK: = constant unit
   %73 = constant unit
 
@@ -328,14 +322,6 @@ func @unranked_tensor_load_store(%0 : memref<*xi32>, %1 : tensor<*xi32>) {
   // CHECK-SAME:  %[[TENSOR:.*]]: tensor<*xi32>)
   // CHECK: memref.tensor_store %[[TENSOR]], %[[MEMREF]] : memref<*xi32>
   memref.tensor_store %1, %0 : memref<*xi32>
-  return
-}
-
-// CHECK-LABEL: func @atomic_rmw
-// CHECK-SAME: ([[BUF:%.*]]: memref<10xf32>, [[VAL:%.*]]: f32, [[I:%.*]]: index)
-func @atomic_rmw(%I: memref<10xf32>, %val: f32, %i : index) {
-  %x = atomic_rmw addf %val, %I[%i] : (f32, memref<10xf32>) -> f32
-  // CHECK: atomic_rmw addf [[VAL]], [[BUF]]{{\[}}[[I]]]
   return
 }
 

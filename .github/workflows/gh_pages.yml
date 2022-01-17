@@ -9,7 +9,7 @@ on:
     paths:
     - '.github/workflows/gh_pages.yml'
     - 'clang/docs/**'
-    - 'sycl/docs/**'
+    - 'sycl/doc/**'
 
 jobs:
   build:
@@ -18,7 +18,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
-        ref: sycl
         path: repo
     - name: Install deps
       run: |

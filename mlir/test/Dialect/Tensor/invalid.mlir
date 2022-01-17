@@ -33,7 +33,7 @@ func @insert_too_many_indices(%arg0: f32, %arg1: tensor<?xf32>) {
 // -----
 
 func @tensor.from_elements_wrong_result_type() {
-  // expected-error@+2 {{'result' must be 1D tensor of any type values, but got 'tensor<*xi32>'}}
+  // expected-error@+2 {{'result' must be statically shaped tensor of any type values, but got 'tensor<*xi32>'}}
   %c0 = arith.constant 0 : i32
   %0 = tensor.from_elements %c0 : tensor<*xi32>
   return
@@ -291,4 +291,29 @@ func @illegal_collapsing_reshape_mixed_tensor_2(%arg0 : tensor<?x4x5xf32>)
   %0 = tensor.collapse_shape %arg0 [[0], [1, 2]]
       : tensor<?x4x5xf32> into tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
+}
+
+// -----
+
+func @rank(%0: f32) {
+  // expected-error@+1 {{'tensor.rank' op operand #0 must be tensor of any type values}}
+  "tensor.rank"(%0): (f32)->index
+  return
+}
+
+// -----
+
+func @illegal_num_offsets(%arg0 : tensor<?x?x?xf32>, %arg1 : index, %arg2 : index) {
+  // expected-error@+1 {{expected 3 offset values}}
+  %0 = tensor.extract_slice %arg0[0, 0] [%arg1, %arg2] [1, 1] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+  return
+}
+
+// -----
+
+func @illegal_num_offsets(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?x?xf32>,
+    %arg2 : index, %arg3 : index) {
+  // expected-error@+1 {{expected 3 offset values}}
+  %0 = tensor.insert_slice %arg0 into %arg1[0, 0] [%arg2, %arg3] [1, 1] : tensor<?x?xf32> into tensor<?x?x?xf32>
+  return
 }

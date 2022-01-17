@@ -29,6 +29,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
 
@@ -64,6 +65,7 @@ public:
 
   template <class LP> void run();
 
+  ThreadPool threadPool;
   std::unique_ptr<FileOutputBuffer> &buffer;
   uint64_t addr = 0;
   uint64_t fileOff = 0;
@@ -906,13 +908,28 @@ static void sortSegmentsAndSections() {
   uint32_t sectionIndex = 0;
   for (OutputSegment *seg : outputSegments) {
     seg->sortOutputSections();
+    // References from thread-local variable sections are treated as offsets
+    // relative to the start of the thread-local data memory area, which
+    // is initialized via copying all the TLV data sections (which are all
+    // contiguous). If later data sections require a greater alignment than
+    // earlier ones, the offsets of data within those sections won't be
+    // guaranteed to aligned unless we normalize alignments. We therefore use
+    // the largest alignment for all TLV data sections.
+    uint32_t tlvAlign = 0;
+    for (const OutputSection *osec : seg->getSections())
+      if (isThreadLocalData(osec->flags) && osec->align > tlvAlign)
+        tlvAlign = osec->align;
+
     for (OutputSection *osec : seg->getSections()) {
       // Now that the output sections are sorted, assign the final
       // output section indices.
       if (!osec->isHidden())
         osec->index = ++sectionIndex;
-      if (!firstTLVDataSection && isThreadLocalData(osec->flags))
-        firstTLVDataSection = osec;
+      if (isThreadLocalData(osec->flags)) {
+        if (!firstTLVDataSection)
+          firstTLVDataSection = osec;
+        osec->align = tlvAlign;
+      }
 
       if (!isecPriorities.empty()) {
         if (auto *merged = dyn_cast<ConcatOutputSection>(osec)) {
@@ -1035,10 +1052,14 @@ void Writer::finalizeLinkEditSegment() {
       dataInCodeSection,
       functionStartsSection,
   };
-  parallelForEach(linkEditSections, [](LinkEditSection *osec) {
+  SmallVector<std::shared_future<void>> threadFutures;
+  threadFutures.reserve(linkEditSections.size());
+  for (LinkEditSection *osec : linkEditSections)
     if (osec)
-      osec->finalizeContents();
-  });
+      threadFutures.emplace_back(threadPool.async(
+          [](LinkEditSection *osec) { osec->finalizeContents(); }, osec));
+  for (std::shared_future<void> &future : threadFutures)
+    future.wait();
 
   // Now that __LINKEDIT is filled out, do a proper calculation of its
   // addresses and offsets.
@@ -1091,14 +1112,21 @@ void Writer::writeSections() {
 // values.
 void Writer::writeUuid() {
   TimeTraceScope timeScope("Computing UUID");
+
   ArrayRef<uint8_t> data{buffer->getBufferStart(), buffer->getBufferEnd()};
   unsigned chunkCount = parallel::strategy.compute_thread_count() * 10;
   // Round-up integer division
   size_t chunkSize = (data.size() + chunkCount - 1) / chunkCount;
   std::vector<ArrayRef<uint8_t>> chunks = split(data, chunkSize);
   std::vector<uint64_t> hashes(chunks.size());
-  parallelForEachN(0, chunks.size(),
-                   [&](size_t i) { hashes[i] = xxHash64(chunks[i]); });
+  SmallVector<std::shared_future<void>> threadFutures;
+  threadFutures.reserve(chunks.size());
+  for (size_t i = 0; i < chunks.size(); ++i)
+    threadFutures.emplace_back(threadPool.async(
+        [&](size_t i) { hashes[i] = xxHash64(chunks[i]); }, i));
+  for (std::shared_future<void> &future : threadFutures)
+    future.wait();
+
   uint64_t digest = xxHash64({reinterpret_cast<uint8_t *>(hashes.data()),
                               hashes.size() * sizeof(uint64_t)});
   uuidCommand->writeUuid(digest);
@@ -1147,8 +1175,8 @@ template <class LP> void Writer::run() {
   sortSegmentsAndSections();
   createLoadCommands<LP>();
   finalizeAddresses();
+  threadPool.async(writeMapFile);
   finalizeLinkEditSegment();
-  writeMapFile();
   writeOutputFile();
 }
 

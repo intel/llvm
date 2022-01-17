@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/TableGen/Pattern.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
@@ -217,7 +219,7 @@ StringRef SymbolInfoMap::getValuePackName(StringRef symbol, int *index) {
 
 SymbolInfoMap::SymbolInfo::SymbolInfo(const Operator *op, SymbolInfo::Kind kind,
                                       Optional<DagAndConstant> dagAndConstant)
-    : op(op), kind(kind), dagAndConstant(dagAndConstant) {}
+    : op(op), kind(kind), dagAndConstant(std::move(dagAndConstant)) {}
 
 int SymbolInfoMap::SymbolInfo::getStaticValueCount() const {
   switch (kind) {
@@ -502,7 +504,8 @@ SymbolInfoMap::findBoundSymbol(StringRef key, DagNode node, const Operator &op,
 }
 
 SymbolInfoMap::const_iterator
-SymbolInfoMap::findBoundSymbol(StringRef key, SymbolInfo symbolInfo) const {
+SymbolInfoMap::findBoundSymbol(StringRef key,
+                               const SymbolInfo &symbolInfo) const {
   std::string name = getValuePackName(key).str();
   auto range = symbolInfoMap.equal_range(name);
 
@@ -649,7 +652,7 @@ std::vector<AppliedConstraint> Pattern::getConstraints() const {
   std::vector<AppliedConstraint> ret;
   ret.reserve(listInit->size());
 
-  for (auto it : *listInit) {
+  for (auto *it : *listInit) {
     auto *dagInit = dyn_cast<llvm::DagInit>(it);
     if (!dagInit)
       PrintFatalError(&def, "all elements in Pattern multi-entity "
@@ -663,7 +666,7 @@ std::vector<AppliedConstraint> Pattern::getConstraints() const {
             &def,
             "operands to additional constraints can only be symbol references");
       }
-      entities.push_back(std::string(argName->getValue()));
+      entities.emplace_back(argName->getValue());
     }
 
     ret.emplace_back(cast<llvm::DefInit>(dagInit->getOperator())->getDef(),

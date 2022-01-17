@@ -144,6 +144,61 @@ template <typename ReturnType, typename... Args>
 struct function_traits<ReturnType (&)(Args...), false>
     : public function_traits<ReturnType (*)(Args...)> {};
 
+/// traits class for checking whether type T is one of any of the given
+/// types in the variadic list.
+template <typename T, typename... Ts>
+using is_one_of = disjunction<std::is_same<T, Ts>...>;
+
+/// traits class for checking whether type T is a base class for all
+///  the given types in the variadic list.
+template <typename T, typename... Ts>
+using are_base_of = conjunction<std::is_base_of<T, Ts>...>;
+
+namespace detail {
+template <typename T, typename... Us> struct TypesAreDistinct;
+template <typename T, typename... Us>
+struct TypesAreDistinct
+    : std::integral_constant<bool, !is_one_of<T, Us...>::value &&
+                                       TypesAreDistinct<Us...>::value> {};
+template <typename T> struct TypesAreDistinct<T> : std::true_type {};
+} // namespace detail
+
+/// Determine if all types in Ts are distinct.
+///
+/// Useful to statically assert when Ts is intended to describe a non-multi set
+/// of types.
+///
+/// Expensive (currently quadratic in sizeof(Ts...)), and so should only be
+/// asserted once per instantiation of a type which requires it.
+template <typename... Ts> struct TypesAreDistinct;
+template <> struct TypesAreDistinct<> : std::true_type {};
+template <typename... Ts>
+struct TypesAreDistinct
+    : std::integral_constant<bool, detail::TypesAreDistinct<Ts...>::value> {};
+
+/// Find the first index where a type appears in a list of types.
+///
+/// FirstIndexOfType<T, Us...>::value is the first index of T in Us.
+///
+/// Typically only meaningful when it is otherwise statically known that the
+/// type pack has no duplicate types. This should be guaranteed explicitly with
+/// static_assert(TypesAreDistinct<Us...>::value).
+///
+/// It is a compile-time error to instantiate when T is not present in Us, i.e.
+/// if is_one_of<T, Us...>::value is false.
+template <typename T, typename... Us> struct FirstIndexOfType;
+template <typename T, typename U, typename... Us>
+struct FirstIndexOfType<T, U, Us...>
+    : std::integral_constant<size_t, 1 + FirstIndexOfType<T, Us...>::value> {};
+template <typename T, typename... Us>
+struct FirstIndexOfType<T, T, Us...> : std::integral_constant<size_t, 0> {};
+
+/// Find the type at a given index in a list of types.
+///
+/// TypeAtIndex<I, Ts...> is the type at index I in Ts.
+template <size_t I, typename... Ts>
+using TypeAtIndex = std::tuple_element_t<I, std::tuple<Ts...>>;
+
 //===----------------------------------------------------------------------===//
 //     Extra additions to <functional>
 //===----------------------------------------------------------------------===//
@@ -361,20 +416,14 @@ auto reverse(ContainerTy &&C,
   return make_range(C.rbegin(), C.rend());
 }
 
-// Returns a std::reverse_iterator wrapped around the given iterator.
-template <typename IteratorTy>
-std::reverse_iterator<IteratorTy> make_reverse_iterator(IteratorTy It) {
-  return std::reverse_iterator<IteratorTy>(It);
-}
-
 // Returns an iterator_range over the given container which iterates in reverse.
 // Note that the container must have begin()/end() methods which return
 // bidirectional iterators for this to work.
 template <typename ContainerTy>
 auto reverse(ContainerTy &&C,
              std::enable_if_t<!has_rbegin<ContainerTy>::value> * = nullptr) {
-  return make_range(llvm::make_reverse_iterator(std::end(C)),
-                    llvm::make_reverse_iterator(std::begin(C)));
+  return make_range(std::make_reverse_iterator(std::end(C)),
+                    std::make_reverse_iterator(std::begin(C)));
 }
 
 /// An iterator adaptor that filters the elements of given inner iterators.
