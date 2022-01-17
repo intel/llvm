@@ -11,4 +11,11 @@ target_include_directories(pi_trace PRIVATE
     "${sycl_src_dir}"
 )
 
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_dependencies( pi_trace xpti xptifw)
+  if (MSVC)
+    add_dependencies( pi_trace xptid xptifwd)
+  endif()
+endif()
+
 add_dependencies(sycl-toolchain pi_trace)

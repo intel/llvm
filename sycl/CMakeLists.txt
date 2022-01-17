@@ -241,13 +241,6 @@ add_custom_target( sycl-toolchain
   COMMENT "Building SYCL compiler toolchain..."
 )
 
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_dependencies( sycl-toolchain xpti)
-  if (MSVC)
-    add_dependencies( sycl-toolchain xptid)
-  endif()
-endif()
-
 option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})

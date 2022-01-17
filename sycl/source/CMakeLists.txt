@@ -218,6 +218,13 @@ if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
   add_dependencies(sycl libsycldevice)
 endif()
 
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_dependencies( sycl xpti)
+  if (MSVC)
+    add_dependencies( sycl xptid)
+  endif()
+endif()
+
 install(TARGETS ${SYCL_RT_LIBS}
   ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
   LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
