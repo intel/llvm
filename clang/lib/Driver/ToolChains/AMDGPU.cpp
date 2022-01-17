@@ -926,8 +926,8 @@ llvm::SmallVector<std::string, 12> ROCMToolChain::getCommonDeviceLibNames(
     CorrectSqrt = DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt);
   } else
     CorrectSqrt = DriverArgs.hasFlag(
-                      options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
-                      options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt);
+        options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
+        options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt);
 
   bool Wave64 = isWave64(DriverArgs, Kind);
 
