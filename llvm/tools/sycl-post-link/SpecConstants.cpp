@@ -285,6 +285,13 @@ void collectCompositeElementsInfoRecursive(
   }
 }
 
+Constant *getConstantElement(Constant *C, unsigned i, Type *elementType) {
+  if (C->isZeroValue())
+    return Constant::getNullValue(elementType);
+  else
+    return cast<Constant>(C->getOperand(i));
+}
+
 /// Recursively iterates over a composite type in order to collect information
 /// about default values of its scalar elements.
 /// TODO: processing of composite spec constants here is similar to
@@ -304,7 +311,7 @@ void collectCompositeElementsDefaultValuesRecursive(
   } else if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     // This branch handles arrays of composite types (structs, arrays, etc.)
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
-      Constant *El = cast<Constant>(C->getOperand(I));
+      Constant *El = getConstantElement(C, I, ArrTy->getElementType());
       collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
                                                      DefaultValues);
     }
@@ -312,11 +319,7 @@ void collectCompositeElementsDefaultValuesRecursive(
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     const size_t BaseDefaultValueOffset = DefaultValues.size();
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
-      Constant *El = nullptr;
-      if (C->isZeroValue())
-        El = Constant::getNullValue(StructTy->getElementType(I));
-      else
-        El = cast<Constant>(C->getOperand(I));
+      Constant *El = getConstantElement(C, I, StructTy->getElementType(I));
       // When handling elements of a structure, we do not use manually
       // calculated offsets (which are sum of sizes of all previously
       // encountered elements), but instead rely on data provided for us by
