@@ -1,6 +1,5 @@
 // REQUIRES: clang-driver
 // REQUIRES: nvptx-registered-target
-// REQUIRES: !system-windows
 
 // RUN: %clang -### \
 // RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
