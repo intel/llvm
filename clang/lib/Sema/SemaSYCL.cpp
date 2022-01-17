@@ -1668,13 +1668,13 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       return SemaRef.Diag(Loc.getBegin(),
                           diag::err_sycl_esimd_not_supported_for_type)
              << RecD;
-    else
-      return false;
+    return false;
   }
 
 public:
-  SyclKernelFieldChecker(Sema &S)
-      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
+  SyclKernelFieldChecker(Sema &S, bool isSIMD)
+      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()),
+        IsSIMD(isSIMD) {}
   static constexpr const bool VisitNthArrayElement = false;
   bool isValid() { return !IsInvalid; }
 
@@ -3619,11 +3619,12 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   if (KernelObj->isInvalidDecl())
     return;
 
+  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
+
   SyclKernelDecompMarker DecompMarker(*this);
-  SyclKernelFieldChecker FieldChecker(*this);
+  SyclKernelFieldChecker FieldChecker(*this, IsSIMDKernel);
   SyclKernelUnionChecker UnionChecker(*this);
 
-  bool IsSIMDKernel = isESIMDKernelType(KernelObj);
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc(),
                                             IsSIMDKernel);
 
