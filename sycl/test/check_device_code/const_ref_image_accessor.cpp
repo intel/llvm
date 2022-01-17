@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -O0 -S -emit-llvm -x c++ %s -o - | FileCheck %s --check-prefix CHECK-O0
+// RUN: %clangxx -S -fsycl -fsycl-device-only %s
 
 #include <CL/sycl.hpp>
 
