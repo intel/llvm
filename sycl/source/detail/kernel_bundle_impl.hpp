@@ -267,7 +267,8 @@ public:
 
   // C'tor matches sycl::join API
   kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
-                     bundle_state State) : MInitialState(State) {
+                     bundle_state State)
+      : MInitialState(State) {
     if (Bundles.empty())
       return;
 
