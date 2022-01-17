@@ -332,9 +332,23 @@ namespace clang {
       // happens.
       if (LangOpts.SYCLIsDevice) {
         PrettyStackTraceString CrashInfo("Pre-linking SYCL passes");
-        legacy::PassManager PreLinkingSyclPasses;
-        PreLinkingSyclPasses.add(llvm::createSYCLLowerWGScopePass());
-        PreLinkingSyclPasses.run(*getModule());
+
+        LoopAnalysisManager LAM;
+        FunctionAnalysisManager FAM;
+        CGSCCAnalysisManager CGAM;
+        ModuleAnalysisManager MAM;
+
+        PassBuilder PB;
+
+        PB.registerModuleAnalyses(MAM);
+        PB.registerCGSCCAnalyses(CGAM);
+        PB.registerFunctionAnalyses(FAM);
+        PB.registerLoopAnalyses(LAM);
+        PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+        ModulePassManager PreLinkingSyclPasses;
+        PreLinkingSyclPasses.addPass(createModuleToFunctionPassAdaptor(SYCLLowerWGScopePass()));
+        PreLinkingSyclPasses.run(*getModule(), MAM);
       }
 
       // Link each LinkModule into our module.
