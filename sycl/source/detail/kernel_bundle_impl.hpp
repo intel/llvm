@@ -79,7 +79,8 @@ class kernel_bundle_impl {
 
 public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)),
+        MInitialState(State) {
 
     common_ctor_checks(State);
 
@@ -89,7 +90,7 @@ public:
 
   // Interop constructor used by make_kernel
   kernel_bundle_impl(context Ctx, std::vector<device> Devs)
-      : MContext(Ctx), MDevices(Devs) {
+      : MContext(Ctx), MDevices(Devs), MInitialState(bundle_state::executable) {
     if (!checkAllDevicesAreInContext(Devs, Ctx))
       throw sycl::exception(
           make_error_code(errc::invalid),
@@ -111,7 +112,8 @@ public:
   kernel_bundle_impl(const kernel_bundle<bundle_state::input> &InputBundle,
                      std::vector<device> Devs, const property_list &PropList,
                      bundle_state TargetState)
-      : MContext(InputBundle.get_context()), MDevices(std::move(Devs)) {
+      : MContext(InputBundle.get_context()), MDevices(std::move(Devs)),
+        MInitialState(TargetState) {
 
     MSpecConstValues = getSyclObjImpl(InputBundle)->get_spec_const_map_ref();
 
@@ -161,7 +163,7 @@ public:
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
       std::vector<device> Devs, const property_list &PropList)
-      : MDevices(std::move(Devs)) {
+      : MDevices(std::move(Devs)), MInitialState(bundle_state::executable) {
 
     if (MDevices.empty())
       throw sycl::exception(make_error_code(errc::invalid),
@@ -241,7 +243,8 @@ public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
                      bundle_state State)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)),
+        MInitialState(State) {
 
     // TODO: Add a check that all kernel ids are compatible with at least one
     // device in Devs
@@ -253,7 +256,8 @@ public:
 
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const DevImgSelectorImpl &Selector, bundle_state State)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)),
+        MInitialState(State) {
 
     common_ctor_checks(State);
 
@@ -262,7 +266,8 @@ public:
   }
 
   // C'tor matches sycl::join API
-  kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
+  kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
+                     bundle_state State) : MInitialState(State) {
     if (Bundles.empty())
       return;
 
@@ -486,7 +491,7 @@ public:
       return bundle_state::executable;
     // All device images are expected to have the same state
     return MDeviceImages.empty()
-               ? bundle_state::input
+               ? MInitialState
                : detail::getSyclObjImpl(MDeviceImages[0])->get_state();
   }
 
@@ -496,17 +501,38 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
-  void filterImages(const kernel_id &KernelId) {
-    auto ImgHasKernelPred = [&KernelId](const device_image_plain &Img) {
-      return Img.has_kernel(KernelId);
-    };
-    const size_t NumRequiredDevImgs = std::count_if(
-        MDeviceImages.begin(), MDeviceImages.end(), ImgHasKernelPred);
-    std::vector<device_image_plain> FilteredDeviceImages;
-    FilteredDeviceImages.reserve(NumRequiredDevImgs);
-    std::copy_if(MDeviceImages.begin(), MDeviceImages.end(),
-                 std::back_inserter(FilteredDeviceImages), ImgHasKernelPred);
-    MDeviceImages = FilteredDeviceImages;
+  void add_kernel(const kernel_id &KernelID, const device &Dev) {
+    // Skip if kernel is already there
+    if (has_kernel(KernelID, Dev))
+      return;
+
+    // First try and get images in current bundle state
+    const bundle_state BundleState = get_bundle_state();
+    std::vector<device_image_plain> NewDevImgs =
+        detail::ProgramManager::getInstance().getSYCLDeviceImages(
+            MContext, {Dev}, {KernelID}, BundleState);
+
+    // If no images were found and the bundle is in input state we try and get
+    // the image in executable state and then bring the existing binaries into
+    // executable as well
+    if (NewDevImgs.empty() && BundleState == bundle_state::input) {
+      NewDevImgs = detail::ProgramManager::getInstance().getSYCLDeviceImages(
+          MContext, {Dev}, {KernelID}, bundle_state::executable);
+      detail::ProgramManager::getInstance().bringSYCLDeviceImagesToState(
+          MDeviceImages, bundle_state::executable);
+    }
+
+    assert(!NewDevImgs.empty() && "Device images for kernel was not found.");
+
+    // Propagate already set specialization constants to the new images
+    for (device_image_plain DevImg : NewDevImgs)
+      for (auto SpecConst : MSpecConstValues)
+        getSyclObjImpl(DevImg)->set_specialization_constant_raw_value(
+            SpecConst.first.c_str(), SpecConst.second.data());
+
+    // Add the images to the collection
+    MDeviceImages.insert(MDeviceImages.end(), NewDevImgs.begin(),
+                         NewDevImgs.end());
   }
 
 private:
@@ -517,6 +543,7 @@ private:
   // from any device image.
   SpecConstMapT MSpecConstValues;
   bool MIsInterop = false;
+  bundle_state MInitialState;
 };
 
 } // namespace detail

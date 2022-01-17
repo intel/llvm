@@ -113,12 +113,10 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 
   // No kernel bundle yet, create one
   if (!KernelBundleImpPtr && Insert) {
-    KernelBundleImpPtr = detail::getSyclObjImpl(
-        get_kernel_bundle<bundle_state::input>(MQueue->get_context()));
-    if (KernelBundleImpPtr->empty()) {
-      KernelBundleImpPtr = detail::getSyclObjImpl(
-          get_kernel_bundle<bundle_state::executable>(MQueue->get_context()));
-    }
+    // Create an empty kernel bundle to add kernels to later
+    KernelBundleImpPtr =
+        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+            MQueue->get_context(), {MQueue->get_device()}, {}));
 
     detail::ExtendedMemberT EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
@@ -134,12 +132,11 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 // returns newly created kernel_bundle with KernelId if Insert is true
 // returns shared_ptr(nullptr) if Insert is false
 //
-// If there already existed a kernel_bundle, the underlying device images are
-// filtered such that only the ones containing KernelId remain in the
-// kernel_bundle.
+// If there already existed an implicitly created kernel_bundle, the kernel is
+// inserted into that bundle.
 std::shared_ptr<detail::kernel_bundle_impl>
-handler::getOrInsertFilteredHandlerKernelBundle(bool Insert,
-                                                kernel_id KernelId) const {
+handler::getOrInsertHandlerKernelBundle(bool Insert,
+                                        const kernel_id &KernelId) const {
 
   std::lock_guard<std::mutex> Lock(
       detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
@@ -162,11 +159,11 @@ handler::getOrInsertFilteredHandlerKernelBundle(bool Insert,
     if (Insert) {
       KernelBundleImpPtr =
           detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-              MQueue->get_context(), {KernelId}));
+              MQueue->get_context(), {MQueue->get_device()}, {KernelId}));
       if (KernelBundleImpPtr->empty()) {
         KernelBundleImpPtr =
             detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
-                MQueue->get_context(), {KernelId}));
+                MQueue->get_context(), {MQueue->get_device()}, {KernelId}));
       }
 
       detail::ExtendedMemberT EMember = {
@@ -184,7 +181,7 @@ handler::getOrInsertFilteredHandlerKernelBundle(bool Insert,
 
   // Kernel bundles set explicitly by the user must not be filtered
   if (!HandlerImpl->isStateExplicitKernelBundle())
-    KernelBundleImpPtr->filterImages(KernelId);
+    KernelBundleImpPtr->add_kernel(KernelId, MQueue->get_device());
 
   return KernelBundleImpPtr;
 }
@@ -230,6 +227,13 @@ event handler::finalize() {
     // If there were uses of set_specialization_constant build the kernel_bundle
     KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
+      // Make sure implicit kernel bundles has the kernel
+      if (!getHandlerImpl()->isStateExplicitKernelBundle()) {
+        kernel_id KernelID =
+            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
+        KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+      }
+
       switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
         // Underlying level expects kernel_bundle to be in executable state
@@ -677,6 +681,10 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
+    return;
+
+  // Implicit kernel bundles are populated late so we ignore them
+  if (!getHandlerImpl()->isStateExplicitKernelBundle())
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
