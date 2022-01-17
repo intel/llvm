@@ -347,7 +347,8 @@ namespace clang {
         PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
         ModulePassManager PreLinkingSyclPasses;
-        PreLinkingSyclPasses.addPass(createModuleToFunctionPassAdaptor(SYCLLowerWGScopePass()));
+        PreLinkingSyclPasses.addPass(
+            createModuleToFunctionPassAdaptor(SYCLLowerWGScopePass()));
         PreLinkingSyclPasses.run(*getModule(), MAM);
       }
 
