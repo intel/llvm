@@ -1,11 +1,10 @@
 add_mlir_library(MLIRPresburger
   IntegerPolyhedron.cpp
+  LinearTransform.cpp
   Matrix.cpp
   Simplex.cpp
-
-  DEPENDS
-  MLIRBuiltinLocationAttributesIncGen
+  Utils.cpp
 
   LINK_LIBS PUBLIC
-  MLIRIR
+  MLIRSupport
   )
