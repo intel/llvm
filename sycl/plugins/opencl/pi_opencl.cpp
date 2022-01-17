@@ -145,6 +145,7 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   // Potentially redo caching as PI interface changes.
   ExtFuncsPerContextT *PerContext = nullptr;
   {
+    assert(ExtFuncsCaches);
     std::lock_guard<std::mutex> Lock{ExtFuncsCaches->Mtx};
 
     PerContext = &ExtFuncsCaches->Caches[context];
