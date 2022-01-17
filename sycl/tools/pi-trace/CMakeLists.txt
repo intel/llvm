@@ -14,7 +14,7 @@ target_include_directories(pi_trace PRIVATE
 if (SYCL_ENABLE_XPTI_TRACING)
   add_dependencies( pi_trace xpti xptifw)
   if (MSVC)
-    add_dependencies( pi_trace xptid xptifwd)
+    add_dependencies( pi_trace xptid xptifw)
   endif()
 endif()
 
