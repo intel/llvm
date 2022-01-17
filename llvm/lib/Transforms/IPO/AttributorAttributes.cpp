@@ -5771,13 +5771,6 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
     /// The call that allocates the memory.
     CallBase *const CB;
 
-    /// The kind of allocation.
-    const enum class AllocationKind {
-      MALLOC,
-      CALLOC,
-      ALIGNED_ALLOC,
-    } Kind;
-
     /// The library function id for the allocation.
     LibFunc LibraryFunctionId = NotLibFunc;
 
@@ -5834,20 +5827,17 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
         DeallocationInfos[CB] = new (A.Allocator) DeallocationInfo{CB};
         return true;
       }
-      bool IsMalloc = isMallocLikeFn(CB, TLI);
-      bool IsAlignedAllocLike = !IsMalloc && isAlignedAllocLikeFn(CB, TLI);
-      bool IsCalloc =
-          !IsMalloc && !IsAlignedAllocLike && isCallocLikeFn(CB, TLI);
-      if (!IsMalloc && !IsAlignedAllocLike && !IsCalloc)
-        return true;
-      auto Kind =
-          IsMalloc ? AllocationInfo::AllocationKind::MALLOC
-                   : (IsCalloc ? AllocationInfo::AllocationKind::CALLOC
-                               : AllocationInfo::AllocationKind::ALIGNED_ALLOC);
-
-      AllocationInfo *AI = new (A.Allocator) AllocationInfo{CB, Kind};
-      AllocationInfos[CB] = AI;
-      TLI->getLibFunc(*CB, AI->LibraryFunctionId);
+      // To do heap to stack, we need to know that the allocation itself is
+      // removable once uses are rewritten, and that we can initialize the
+      // alloca to the same pattern as the original allocation result.
+      if (isAllocationFn(CB, TLI) && isAllocRemovable(CB, TLI)) {
+        auto *I8Ty = Type::getInt8Ty(CB->getParent()->getContext());
+        if (nullptr != getInitialValueOfAllocation(CB, TLI, I8Ty)) {
+          AllocationInfo *AI = new (A.Allocator) AllocationInfo{CB};
+          AllocationInfos[CB] = AI;
+          TLI->getLibFunc(*CB, AI->LibraryFunctionId);
+        }
+      }
       return true;
     };
 
@@ -6017,22 +6007,17 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
 
   Optional<APInt> getSize(Attributor &A, const AbstractAttribute &AA,
                           AllocationInfo &AI) {
+    auto Mapper = [&](const Value *V) -> const Value* {
+      bool UsedAssumedInformation = false;
+      if (Optional<Constant *> SimpleV = A.getAssumedConstant(*V, AA, UsedAssumedInformation))
+        if (*SimpleV)
+          return *SimpleV;
+      return V;
+    };
 
-    if (AI.Kind == AllocationInfo::AllocationKind::MALLOC)
-      return getAPInt(A, AA, *AI.CB->getArgOperand(0));
-
-    if (AI.Kind == AllocationInfo::AllocationKind::ALIGNED_ALLOC)
-      return getAPInt(A, AA, *AI.CB->getArgOperand(1));
-
-    assert(AI.Kind == AllocationInfo::AllocationKind::CALLOC &&
-           "Expected only callocs are left");
-    Optional<APInt> Num = getAPInt(A, AA, *AI.CB->getArgOperand(0));
-    Optional<APInt> Size = getAPInt(A, AA, *AI.CB->getArgOperand(1));
-    if (!Num.hasValue() || !Size.hasValue())
-      return llvm::None;
-    bool Overflow = false;
-    Size = Size.getValue().umul_ov(Num.getValue(), Overflow);
-    return Overflow ? llvm::None : Size;
+    const Function *F = getAnchorScope();
+    const auto *TLI = A.getInfoCache().getTargetLibraryInfoForFunction(*F);
+    return getAllocSize(AI.CB, TLI, Mapper);
   }
 
   /// Collection of all malloc-like calls in a function with associated

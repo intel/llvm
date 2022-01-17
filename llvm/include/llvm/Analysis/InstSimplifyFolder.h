@@ -60,6 +60,15 @@ public:
     return SimplifyICmpInst(P, LHS, RHS, SQ);
   }
 
+  Value *FoldGEP(Type *Ty, Value *Ptr, ArrayRef<Value *> IdxList,
+                 bool IsInBounds = false) const override {
+    return SimplifyGEPInst(Ty, Ptr, IdxList, IsInBounds, SQ);
+  }
+
+  Value *FoldSelect(Value *C, Value *True, Value *False) const override {
+    return SimplifySelectInst(C, True, False, SQ);
+  }
+
   //===--------------------------------------------------------------------===//
   // Binary Operators
   //===--------------------------------------------------------------------===//
@@ -145,43 +154,6 @@ public:
   }
 
   //===--------------------------------------------------------------------===//
-  // Memory Instructions
-  //===--------------------------------------------------------------------===//
-
-  Value *CreateGetElementPtr(Type *Ty, Constant *C,
-                             ArrayRef<Constant *> IdxList) const override {
-    return ConstFolder.CreateGetElementPtr(Ty, C, IdxList);
-  }
-  Value *CreateGetElementPtr(Type *Ty, Constant *C,
-                             Constant *Idx) const override {
-    // This form of the function only exists to avoid ambiguous overload
-    // warnings about whether to convert Idx to ArrayRef<Constant *> or
-    // ArrayRef<Value *>.
-    return ConstFolder.CreateGetElementPtr(Ty, C, Idx);
-  }
-  Value *CreateGetElementPtr(Type *Ty, Constant *C,
-                             ArrayRef<Value *> IdxList) const override {
-    return ConstFolder.CreateGetElementPtr(Ty, C, IdxList);
-  }
-
-  Value *
-  CreateInBoundsGetElementPtr(Type *Ty, Constant *C,
-                              ArrayRef<Constant *> IdxList) const override {
-    return ConstFolder.CreateInBoundsGetElementPtr(Ty, C, IdxList);
-  }
-  Value *CreateInBoundsGetElementPtr(Type *Ty, Constant *C,
-                                     Constant *Idx) const override {
-    // This form of the function only exists to avoid ambiguous overload
-    // warnings about whether to convert Idx to ArrayRef<Constant *> or
-    // ArrayRef<Value *>.
-    return ConstFolder.CreateInBoundsGetElementPtr(Ty, C, Idx);
-  }
-  Value *CreateInBoundsGetElementPtr(Type *Ty, Constant *C,
-                                     ArrayRef<Value *> IdxList) const override {
-    return ConstFolder.CreateInBoundsGetElementPtr(Ty, C, IdxList);
-  }
-
-  //===--------------------------------------------------------------------===//
   // Cast/Conversion Operators
   //===--------------------------------------------------------------------===//
 
@@ -251,11 +223,6 @@ public:
   //===--------------------------------------------------------------------===//
   // Other Instructions
   //===--------------------------------------------------------------------===//
-
-  Value *CreateSelect(Constant *C, Constant *True,
-                      Constant *False) const override {
-    return ConstFolder.CreateSelect(C, True, False);
-  }
 
   Value *CreateExtractElement(Constant *Vec, Constant *Idx) const override {
     return ConstFolder.CreateExtractElement(Vec, Idx);

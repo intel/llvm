@@ -2772,6 +2772,7 @@ void SITargetLowering::passSpecialInputs(
 
   SelectionDAG &DAG = CLI.DAG;
   const SDLoc &DL = CLI.DL;
+  const Function &F = DAG.getMachineFunction().getFunction();
 
   const SIRegisterInfo *TRI = Subtarget->getRegisterInfo();
   const AMDGPUFunctionArgInfo &CallerArgInfo = Info.getArgInfo();
@@ -2883,11 +2884,16 @@ void SITargetLowering::passSpecialInputs(
 
   // If incoming ids are not packed we need to pack them.
   if (IncomingArgX && !IncomingArgX->isMasked() && CalleeArgInfo->WorkItemIDX &&
-      NeedWorkItemIDX)
-    InputReg = loadInputValue(DAG, ArgRC, MVT::i32, DL, *IncomingArgX);
+      NeedWorkItemIDX) {
+    if (Subtarget->getMaxWorkitemID(F, 0) != 0) {
+      InputReg = loadInputValue(DAG, ArgRC, MVT::i32, DL, *IncomingArgX);
+    } else {
+      InputReg = DAG.getConstant(0, DL, MVT::i32);
+    }
+  }
 
   if (IncomingArgY && !IncomingArgY->isMasked() && CalleeArgInfo->WorkItemIDY &&
-      NeedWorkItemIDY) {
+      NeedWorkItemIDY && Subtarget->getMaxWorkitemID(F, 1) != 0) {
     SDValue Y = loadInputValue(DAG, ArgRC, MVT::i32, DL, *IncomingArgY);
     Y = DAG.getNode(ISD::SHL, SL, MVT::i32, Y,
                     DAG.getShiftAmountConstant(10, MVT::i32, SL));
@@ -2896,7 +2902,7 @@ void SITargetLowering::passSpecialInputs(
   }
 
   if (IncomingArgZ && !IncomingArgZ->isMasked() && CalleeArgInfo->WorkItemIDZ &&
-      NeedWorkItemIDZ) {
+      NeedWorkItemIDZ && Subtarget->getMaxWorkitemID(F, 2) != 0) {
     SDValue Z = loadInputValue(DAG, ArgRC, MVT::i32, DL, *IncomingArgZ);
     Z = DAG.getNode(ISD::SHL, SL, MVT::i32, Z,
                     DAG.getShiftAmountConstant(20, MVT::i32, SL));
@@ -6750,14 +6756,23 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     return getPreloadedValue(DAG, *MFI, VT,
                              AMDGPUFunctionArgInfo::WORKGROUP_ID_Z);
   case Intrinsic::amdgcn_workitem_id_x:
+    if (Subtarget->getMaxWorkitemID(MF.getFunction(), 0) == 0)
+      return DAG.getConstant(0, DL, MVT::i32);
+
     return loadInputValue(DAG, &AMDGPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDX);
   case Intrinsic::amdgcn_workitem_id_y:
+    if (Subtarget->getMaxWorkitemID(MF.getFunction(), 1) == 0)
+      return DAG.getConstant(0, DL, MVT::i32);
+
     return loadInputValue(DAG, &AMDGPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDY);
   case Intrinsic::amdgcn_workitem_id_z:
+    if (Subtarget->getMaxWorkitemID(MF.getFunction(), 2) == 0)
+      return DAG.getConstant(0, DL, MVT::i32);
+
     return loadInputValue(DAG, &AMDGPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDZ);
@@ -11745,9 +11760,9 @@ SITargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI_,
       if (RegName.consume_front("[")) {
         uint32_t End;
         bool Failed = RegName.consumeInteger(10, Idx);
-        Failed &= !RegName.consume_front(":");
-        Failed &= RegName.consumeInteger(10, End);
-        Failed &= !RegName.consume_back("]");
+        Failed |= !RegName.consume_front(":");
+        Failed |= RegName.consumeInteger(10, End);
+        Failed |= !RegName.consume_back("]");
         if (!Failed) {
           uint32_t Width = (End - Idx + 1) * 32;
           MCRegister Reg = RC->getRegister(Idx);
