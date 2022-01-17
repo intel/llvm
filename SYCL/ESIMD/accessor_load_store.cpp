@@ -22,8 +22,7 @@
 using namespace cl::sycl;
 
 template <typename T>
-using Acc =
-    accessor<T, 1, access_mode::read_write, access::target::global_buffer>;
+using Acc = accessor<T, 1, access_mode::read_write, access::target::device>;
 
 template <typename T> struct Kernel {
   Acc<T> acc;

@@ -26,8 +26,7 @@
 using namespace cl::sycl;
 using namespace sycl::ext::intel::experimental::esimd;
 
-using Acc =
-    accessor<int, 1, access_mode::read_write, access::target::global_buffer>;
+using Acc = accessor<int, 1, access_mode::read_write, access::target::device>;
 
 constexpr int VL = 8;
 constexpr int MASKED_LANE = 4;

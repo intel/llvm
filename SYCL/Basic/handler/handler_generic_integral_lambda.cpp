@@ -26,7 +26,7 @@ int main() {
       sycl::queue q;
       q.submit([&](cl::sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class GenericLambda>(
             length, [=](auto item) { acc[item.get_id()] = item; });
@@ -44,7 +44,7 @@ int main() {
       sycl::queue q;
       q.submit([&](cl::sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class SizeTLambda>(
             length, [=](std::size_t item) { acc[item] = item; });
@@ -62,7 +62,7 @@ int main() {
       sycl::queue q;
       q.submit([&](cl::sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class IntLambda>(length,
                                           [=](int item) { acc[item] = item; });

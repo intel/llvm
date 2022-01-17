@@ -39,7 +39,7 @@ int test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems) {
 
   (OutBuf.template get_access<access::mode::write>())[0] = Init;
 
-  auto Out = accessor<T, Dim, Mode, access::target::global_buffer,
+  auto Out = accessor<T, Dim, Mode, access::target::device,
                       access::placeholder::true_t>(OutBuf);
   // Compute.
   Q.submit([&](handler &CGH) {

@@ -216,8 +216,7 @@ void test6(queue &Q) {
   try {
     size_t size = 1;
     buffer<int, 1> Buf{size};
-    accessor<int, 1, mode::write, target::global_buffer,
-             access::placeholder::true_t>
+    accessor<int, 1, mode::write, target::device, access::placeholder::true_t>
         PHAcc(Buf);
     Q.submit([&](sycl::handler &CGH) {
       CGH.require(PHAcc);
@@ -233,8 +232,7 @@ void test6(queue &Q) {
   try {
     size_t size = 1;
     buffer<int, 1> Buf{size};
-    accessor<int, 1, mode::write, target::global_buffer,
-             access::placeholder::true_t>
+    accessor<int, 1, mode::write, target::device, access::placeholder::true_t>
         PHAcc(Buf);
     Q.submit([&](sycl::handler &CGH) {
       auto Func = [=](interop_handle IH) { (void)IH.get_native_mem(PHAcc); };

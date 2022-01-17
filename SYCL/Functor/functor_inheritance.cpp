@@ -8,7 +8,7 @@
 #include <cassert>
 
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
-constexpr auto sycl_global_buffer = cl::sycl::access::target::global_buffer;
+constexpr auto sycl_device = cl::sycl::access::target::device;
 
 struct SecondBase {
   SecondBase(int _E) : E(_E) {}
@@ -33,14 +33,14 @@ struct Base {
 
 struct Derived : public Base, public SecondBase {
   Derived(int _A, int _B, int _C, int _D, int _E,
-          cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> &_Acc)
+          cl::sycl::accessor<int, 1, sycl_read_write, sycl_device> &_Acc)
       : A(_A), Acc(_Acc), /*Out(_Out),*/ Base(_B, _C, _D), SecondBase(_E) {}
   void operator()() const {
     Acc[0] = this->A + this->B + this->InnerObj.C + this->InnerObj.D + this->E;
   }
 
   int A;
-  cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> Acc;
+  cl::sycl::accessor<int, 1, sycl_read_write, sycl_device> Acc;
 };
 
 int main() {
@@ -50,7 +50,7 @@ int main() {
     cl::sycl::buffer<int, 1> Buf(A, 1);
 
     Q.submit([&](cl::sycl::handler &cgh) {
-      auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      auto Acc = Buf.get_access<sycl_read_write, sycl_device>(cgh);
       Derived F = {1, 2, 3, 4, 5, Acc /*, Out*/};
       cgh.single_task(F);
     });

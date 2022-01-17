@@ -14,8 +14,7 @@
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
-using acc_w =
-    accessor<int, 2, access::mode::write, access::target::global_buffer>;
+using acc_w = accessor<int, 2, access::mode::write, access::target::device>;
 
 int main() {
 

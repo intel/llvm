@@ -50,7 +50,7 @@ struct MyStruct {
 };
 
 using AccTy = accessor<int, 1, access::mode::read_write,
-                       cl::sycl::access::target::global_buffer>;
+                       cl::sycl::access::target::device>;
 
 struct PFWIFunctor {
   PFWIFunctor(size_t wg_chunk, size_t wg_size, size_t wg_offset,

@@ -34,8 +34,7 @@
 using namespace cl::sycl;
 
 template <class T>
-using Acc =
-    accessor<T, 1, access_mode::read_write, access::target::global_buffer>;
+using Acc = accessor<T, 1, access_mode::read_write, access::target::device>;
 
 using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;

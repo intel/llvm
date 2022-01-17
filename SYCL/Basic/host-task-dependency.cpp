@@ -85,8 +85,7 @@ void Thread1Fn(Context *Ctx) {
 
   // 1. submit task writing to buffer 1
   Ctx->Queue.submit([&](S::handler &CGH) {
-    S::accessor<int, 1, S::access::mode::write,
-                S::access::target::global_buffer>
+    S::accessor<int, 1, S::access::mode::write, S::access::target::device>
         GeneratorAcc(Ctx->Buf1, CGH);
 
     auto GeneratorKernel = [GeneratorAcc] {
@@ -102,10 +101,9 @@ void Thread1Fn(Context *Ctx) {
 
   // 3. submit simple task to move data between two buffers
   Ctx->Queue.submit([&](S::handler &CGH) {
-    S::accessor<int, 1, S::access::mode::read, S::access::target::global_buffer>
+    S::accessor<int, 1, S::access::mode::read, S::access::target::device>
         SrcAcc(Ctx->Buf2, CGH);
-    S::accessor<int, 1, S::access::mode::write,
-                S::access::target::global_buffer>
+    S::accessor<int, 1, S::access::mode::write, S::access::target::device>
         DstAcc(Ctx->Buf3, CGH);
 
     CGH.depends_on(HostTaskEvent);

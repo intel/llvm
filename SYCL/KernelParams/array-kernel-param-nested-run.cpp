@@ -60,8 +60,9 @@ bool test_accessor_array_in_struct(queue &myQueue) {
   auto out_buffer = buffer<int, 1>(output.data(), num_items);
 
   myQueue.submit([&](handler &cgh) {
-    using Accessor = accessor<int, 1, access::mode::read_write,
-                              access::target::global_buffer>;
+    using Accessor =
+        accessor<int, 1, access::mode::read_write, access::target::device>;
+
     struct S {
       int w;
       int x;
@@ -103,8 +104,8 @@ bool test_templated_array_in_struct(queue &myQueue) {
   init(sll.a, 2, 2);
 
   myQueue.submit([&](handler &cgh) {
-    using Accessor = accessor<int, 1, access::mode::read_write,
-                              access::target::global_buffer>;
+    using Accessor =
+        accessor<int, 1, access::mode::read_write, access::target::device>;
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
     cgh.parallel_for<class templated_array_in_struct>(

@@ -396,12 +396,12 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
           local_acc(sycl::range<1>(16), cgh);
 
       sycl::accessor<char, 1, sycl::access::mode::write,
-                     sycl::access::target::global_buffer,
+                     sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           dst_acc(buffer2, cgh);
 
       sycl::accessor<char, 1, sycl::access::mode::write,
-                     sycl::access::target::global_buffer,
+                     sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           dst1_acc(buffer3, cgh);
       cgh.single_task<class KernelTestMemcpyAddrSpace>([=]() {

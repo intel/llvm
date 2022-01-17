@@ -277,8 +277,7 @@ auto createReduction(BufferT ReduBuf, handler &CGH, T Identity,
     property_list PropList = getPropertyList<AccMode>();
     return sycl::reduction(ReduBuf, CGH, Identity, BOp, PropList);
   } else {
-    accessor<T, AccDim, AccMode, access::target::global_buffer> Out(ReduBuf,
-                                                                    CGH);
+    accessor<T, AccDim, AccMode, access::target::device> Out(ReduBuf, CGH);
     return ext::oneapi::reduction(Out, Identity, BOp);
   }
 }

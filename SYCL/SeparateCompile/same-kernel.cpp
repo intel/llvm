@@ -25,7 +25,7 @@ class TestFnObj {
 public:
   TestFnObj(buffer<int> &buf, handler &cgh)
       : data(buf.get_access<access::mode::write>(cgh)) {}
-  accessor<int, 1, access::mode::write, access::target::global_buffer> data;
+  accessor<int, 1, access::mode::write, access::target::device> data;
   void operator()(id<1> item) const { data[item] = item[0]; }
 };
 

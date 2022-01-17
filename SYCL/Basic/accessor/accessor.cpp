@@ -32,7 +32,7 @@ struct IdxID3 {
 
 template <typename T>
 using AccAlias = cl::sycl::accessor<T, 1, cl::sycl::access::mode::write,
-                                    cl::sycl::access::target::global_buffer>;
+                                    cl::sycl::access::target::device>;
 template <typename T> struct InheritedAccessor : public AccAlias<T> {
 
   using AccAlias<T>::AccAlias;
@@ -431,7 +431,7 @@ int main() {
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
           sycl::accessor<int, 0, sycl::access::mode::read_write,
-                         sycl::access::target::global_buffer>
+                         sycl::access::target::device>
               B(b, cgh);
           cgh.single_task<class acc_with_zero_dim>([=]() {
             auto B2 = B;
@@ -463,13 +463,13 @@ int main() {
     sycl::queue queue;
     queue.submit([&](sycl::handler &cgh) {
       sycl::accessor<int, 0, sycl::access::mode::read_write,
-                     sycl::access::target::global_buffer>
+                     sycl::access::target::device>
           acc1(buf1, cgh);
       sycl::accessor<int, 1, sycl::access::mode::read_write,
-                     sycl::access::target::global_buffer>
+                     sycl::access::target::device>
           acc2(buf2, cgh);
       sycl::accessor<int, 1, sycl::access::mode::read_write,
-                     sycl::access::target::global_buffer>
+                     sycl::access::target::device>
           acc3(buf3, cgh, sycl::range<1>(1));
       cgh.single_task<class acc_alloc_buf>([=]() {
         acc1 *= 2;
@@ -506,7 +506,7 @@ int main() {
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
           sycl::accessor<int, 1, sycl::access::mode::write,
-                         sycl::access::target::global_buffer>
+                         sycl::access::target::device>
               D(d, cgh);
           sycl::accessor<int, 1, sycl::access::mode::read,
                          sycl::access::target::constant_buffer>
@@ -536,7 +536,7 @@ int main() {
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer,
+                       sycl::access::target::device,
                        sycl::access::placeholder::true_t>
             D(d);
         sycl::accessor<int, 1, sycl::access::mode::read,
@@ -574,7 +574,7 @@ int main() {
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
           sycl::accessor<int, 1, sycl::access::mode::write,
-                         sycl::access::target::global_buffer>
+                         sycl::access::target::device>
               AccA(A, cgh);
           sycl::accessor<int, 1, sycl::access::mode::read,
                          sycl::access::target::constant_buffer>
@@ -609,7 +609,7 @@ int main() {
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
           sycl::accessor<int, 1, sycl::access::mode::read_write,
-                         sycl::access::target::global_buffer>
+                         sycl::access::target::device>
               B(b, cgh);
           auto B1 = b1.template get_access<sycl::access::mode::read_write>(cgh);
 

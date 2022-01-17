@@ -18,7 +18,7 @@
 #include <cassert>
 
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
-constexpr auto sycl_global_buffer = cl::sycl::access::target::global_buffer;
+constexpr auto sycl_device = cl::sycl::access::target::device;
 
 // Case 1:
 // - functor class is defined in an anonymous namespace
@@ -28,16 +28,15 @@ constexpr auto sycl_global_buffer = cl::sycl::access::target::global_buffer;
 namespace {
 class Functor1 {
 public:
-  Functor1(
-      int X_,
-      cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> &Acc_)
+  Functor1(int X_,
+           cl::sycl::accessor<int, 1, sycl_read_write, sycl_device> &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()() const { Acc[0] += X; }
 
 private:
   int X;
-  cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> Acc;
+  cl::sycl::accessor<int, 1, sycl_read_write, sycl_device> Acc;
 };
 } // namespace
 
@@ -49,9 +48,8 @@ private:
 namespace ns {
 class Functor2 {
 public:
-  Functor2(
-      int X_,
-      cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> &Acc_)
+  Functor2(int X_,
+           cl::sycl::accessor<int, 1, sycl_read_write, sycl_device> &Acc_)
       : X(X_), Acc(Acc_) {}
 
   // cl::sycl::accessor's operator [] is const, hence 'const' is possible below
@@ -59,7 +57,7 @@ public:
 
 private:
   int X;
-  cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> Acc;
+  cl::sycl::accessor<int, 1, sycl_read_write, sycl_device> Acc;
 };
 } // namespace ns
 
@@ -70,15 +68,15 @@ private:
 //   * has the 'const' qualifier
 template <typename T> class TmplFunctor {
 public:
-  TmplFunctor(
-      T X_, cl::sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> &Acc_)
+  TmplFunctor(T X_,
+              cl::sycl::accessor<T, 1, sycl_read_write, sycl_device> &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()(cl::sycl::id<1> id) const { Acc[id] += X; }
 
 private:
   T X;
-  cl::sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> Acc;
+  cl::sycl::accessor<T, 1, sycl_read_write, sycl_device> Acc;
 };
 
 // Case 3:
@@ -88,15 +86,15 @@ private:
 //   * has the 'const' qualifier
 template <typename T> class TmplConstFunctor {
 public:
-  TmplConstFunctor(
-      T X_, cl::sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> &Acc_)
+  TmplConstFunctor(T X_,
+                   cl::sycl::accessor<T, 1, sycl_read_write, sycl_device> &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()(cl::sycl::id<1> id) const { Acc[id] += X; }
 
 private:
   T X;
-  cl::sycl::accessor<T, 1, sycl_read_write, sycl_global_buffer> Acc;
+  cl::sycl::accessor<T, 1, sycl_read_write, sycl_device> Acc;
 };
 
 // Exercise non-templated functors in 'single_task'.
@@ -107,20 +105,20 @@ int foo(int X) {
     cl::sycl::buffer<int, 1> Buf(A, 1);
 
     Q.submit([&](cl::sycl::handler &cgh) {
-      auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      auto Acc = Buf.get_access<sycl_read_write, sycl_device>(cgh);
       Functor1 F(X, Acc);
 
       cgh.single_task(F);
     });
 
     Q.submit([&](cl::sycl::handler &cgh) {
-      auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      auto Acc = Buf.get_access<sycl_read_write, sycl_device>(cgh);
       ns::Functor2 F(X, Acc);
 
       cgh.single_task(F);
     });
     Q.submit([&](cl::sycl::handler &cgh) {
-      auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      auto Acc = Buf.get_access<sycl_read_write, sycl_device>(cgh);
       ns::Functor2 F(X, Acc);
 
       cgh.single_task(F);
@@ -139,23 +137,20 @@ template <typename T> T bar(T X) {
     cl::sycl::buffer<T, 1> Buf(A, ARR_LEN(A));
 
     Q.submit([&](cl::sycl::handler &cgh) {
-      auto Acc =
-          Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      auto Acc = Buf.template get_access<sycl_read_write, sycl_device>(cgh);
       TmplFunctor<T> F(X, Acc);
 
       cgh.parallel_for(cl::sycl::range<1>(ARR_LEN(A)), F);
     });
     // Spice with lambdas to make sure functors and lambdas work together.
     Q.submit([&](cl::sycl::handler &cgh) {
-      auto Acc =
-          Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      auto Acc = Buf.template get_access<sycl_read_write, sycl_device>(cgh);
       cgh.parallel_for<class LambdaKernel>(
           cl::sycl::range<1>(ARR_LEN(A)),
           [=](cl::sycl::id<1> id) { Acc[id] += X; });
     });
     Q.submit([&](cl::sycl::handler &cgh) {
-      auto Acc =
-          Buf.template get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      auto Acc = Buf.template get_access<sycl_read_write, sycl_device>(cgh);
       TmplConstFunctor<T> F(X, Acc);
 
       cgh.parallel_for(cl::sycl::range<1>(ARR_LEN(A)), F);

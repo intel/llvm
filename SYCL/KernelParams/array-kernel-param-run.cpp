@@ -122,8 +122,8 @@ bool test_accessor_arrays_1(queue &myQueue) {
   auto in_buffer2 = buffer<int, 1>(input2.data(), num_items);
 
   myQueue.submit([&](handler &cgh) {
-    using Accessor = accessor<int, 1, access::mode::read_write,
-                              access::target::global_buffer>;
+    using Accessor =
+        accessor<int, 1, access::mode::read_write, access::target::device>;
     Accessor a[2] = {
         in_buffer1.get_access<access::mode::read_write>(cgh),
         in_buffer2.get_access<access::mode::read_write>(cgh),
@@ -155,8 +155,8 @@ bool test_accessor_arrays_2(queue &myQueue) {
   auto out_buffer = buffer<int, 1>(output.data(), num_items);
 
   myQueue.submit([&](handler &cgh) {
-    using Accessor = accessor<int, 1, access::mode::read_write,
-                              access::target::global_buffer>;
+    using Accessor =
+        accessor<int, 1, access::mode::read_write, access::target::device>;
     Accessor a[4] = {in_buffer1.get_access<access::mode::read_write>(cgh),
                      in_buffer2.get_access<access::mode::read_write>(cgh),
                      in_buffer1.get_access<access::mode::read_write>(cgh),

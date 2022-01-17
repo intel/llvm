@@ -37,10 +37,10 @@ int main() {
       sycl::queue q;
       q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class IdTest>(n, [=](sycl::id<1> i) {
           auto that_id = sycl::ext::oneapi::experimental::this_id<1>();
@@ -71,10 +71,10 @@ int main() {
       sycl::queue q;
       q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class ItemTest>(n, [=](auto i) {
           static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
@@ -106,10 +106,10 @@ int main() {
       sycl::id<1> offset(1);
       q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class ItemOffsetTest>(
             sycl::range<1>{n}, offset, [=](sycl::item<1, true> i) {
@@ -140,10 +140,10 @@ int main() {
       sycl::nd_range<1> NDR(sycl::range<1>{n}, sycl::range<1>{2});
       q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
         sycl::accessor<int, 1, sycl::access::mode::write,
-                       sycl::access::target::global_buffer>
+                       sycl::access::target::device>
             results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class NdItemTest>(NDR, [=](auto nd_i) {
           static_assert(std::is_same<decltype(nd_i), sycl::nd_item<1>>::value,

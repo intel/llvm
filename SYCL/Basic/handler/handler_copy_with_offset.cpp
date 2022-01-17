@@ -22,7 +22,7 @@
 using namespace cl::sycl;
 constexpr access::mode read = access::mode::read;
 constexpr access::mode write = access::mode::write;
-constexpr access::target global_buffer = access::target::global_buffer;
+constexpr access::target ondevice = access::target::device;
 
 int main() {
   {
@@ -39,8 +39,8 @@ int main() {
       Queue.submit([&](handler &CGH) {
         range<1> AccessRange{4};
         id<1> AccessOffset{2};
-        auto Accessor = Buffer.get_access<write, global_buffer>(
-            CGH, AccessRange, AccessOffset);
+        auto Accessor =
+            Buffer.get_access<write, ondevice>(CGH, AccessRange, AccessOffset);
         CGH.copy(DataGold.data(), Accessor);
       });
       Queue.wait();
@@ -63,8 +63,8 @@ int main() {
       Queue.submit([&](handler &CGH) {
         range<1> AccessRange{4};
         id<1> AccessOffset{2};
-        auto Accessor = Buffer.get_access<read, global_buffer>(CGH, AccessRange,
-                                                               AccessOffset);
+        auto Accessor =
+            Buffer.get_access<read, ondevice>(CGH, AccessRange, AccessOffset);
         CGH.copy(Accessor, DataRaw.data());
       });
       Queue.wait();

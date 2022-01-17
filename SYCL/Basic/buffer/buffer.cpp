@@ -392,7 +392,7 @@ int main() {
       });
 
       myQueue.submit([&](handler &cgh) {
-        accessor<int, 2, access::mode::write, access::target::global_buffer,
+        accessor<int, 2, access::mode::write, access::target::device,
                  access::placeholder::false_t>
             B(Buffer, cgh, range<2>(20, 20), id<2>(10, 10));
         cgh.parallel_for<class bufferByRangeOffset>(
@@ -621,10 +621,10 @@ int main() {
     {
       buffer<int, 1> a(data1.data(), range<1>(10));
       buffer<int, 1> b(data2);
-      accessor<int, 1, access::mode::read_write, access::target::global_buffer,
+      accessor<int, 1, access::mode::read_write, access::target::device,
                access::placeholder::true_t>
           A(a);
-      accessor<int, 1, access::mode::read_write, access::target::global_buffer,
+      accessor<int, 1, access::mode::read_write, access::target::device,
                access::placeholder::true_t>
           B(b);
       queue myQueue;
@@ -679,10 +679,12 @@ int main() {
 
     queue Queue;
     Queue.submit([&](handler &CGH) {
-      auto AK0 = accessor<char, 0, access::mode::read_write,
-                          access::target::global_buffer>(Buf_1, CGH);
-      auto BK0 = accessor<char, 0, access::mode::read_write,
-                          access::target::global_buffer>(Buf_2, CGH);
+      auto AK0 =
+          accessor<char, 0, access::mode::read_write, access::target::device>(
+              Buf_1, CGH);
+      auto BK0 =
+          accessor<char, 0, access::mode::read_write, access::target::device>(
+              Buf_2, CGH);
       assert(AK0.get_size() == sizeof(char));
       assert(BK0.get_size() == sizeof(char));
       assert(AK0.get_count() == 1);

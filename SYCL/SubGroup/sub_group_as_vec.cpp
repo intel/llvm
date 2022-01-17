@@ -36,9 +36,8 @@ int main(int argc, char *argv[]) {
   {
     cl::sycl::buffer<sycl::vec<int, 2>, 1> buf(host_mem, N);
     queue.submit([&](cl::sycl::handler &cgh) {
-      auto global =
-          buf.get_access<cl::sycl::access::mode::read_write,
-                         cl::sycl::access::target::global_buffer>(cgh);
+      auto global = buf.get_access<cl::sycl::access::mode::read_write,
+                                   cl::sycl::access::target::device>(cgh);
       sycl::accessor<sycl::vec<int, 2>, 1, sycl::access::mode::read_write,
                      sycl::access::target::local>
           local(N, cgh);

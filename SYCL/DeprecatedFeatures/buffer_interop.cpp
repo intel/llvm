@@ -275,11 +275,11 @@ int main() {
       {
         buffer<int, 1> BufferA(Data1.data(), range<1>(10));
         buffer<int, 1> BufferB(Data2);
-        accessor<int, 1, access::mode::read_write,
-                 access::target::global_buffer, access::placeholder::true_t>
+        accessor<int, 1, access::mode::read_write, access::target::device,
+                 access::placeholder::true_t>
             AccA(BufferA);
-        accessor<int, 1, access::mode::read_write,
-                 access::target::global_buffer, access::placeholder::true_t>
+        accessor<int, 1, access::mode::read_write, access::target::device,
+                 access::placeholder::true_t>
             AccB(BufferB);
 
         program Program(Queue.get_context());
