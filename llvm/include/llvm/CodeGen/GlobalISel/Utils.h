@@ -44,7 +44,6 @@ class TargetLowering;
 class TargetPassConfig;
 class TargetRegisterInfo;
 class TargetRegisterClass;
-class ConstantInt;
 class ConstantFP;
 class APFloat;
 class MachineIRBuilder;
@@ -322,6 +321,11 @@ Register getFunctionLiveInPhysReg(MachineFunction &MF, const TargetInstrInfo &TI
 /// \p OrigTy elements, and unmerged into \p TargetTy
 LLVM_READNONE
 LLT getLCMType(LLT OrigTy, LLT TargetTy);
+
+LLVM_READNONE
+/// Return smallest type that covers both \p OrigTy and \p TargetTy and is
+/// multiple of TargetTy.
+LLT getCoverTy(LLT OrigTy, LLT TargetTy);
 
 /// Return a type where the total size is the greatest common divisor of \p
 /// OrigTy and \p TargetTy. This will try to either change the number of vector

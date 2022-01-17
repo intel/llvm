@@ -198,7 +198,7 @@ public:
   // The next unique identifier to use for newly created graph nodes.
   unsigned nextNodeId = 0;
 
-  MemRefDependenceGraph() {}
+  MemRefDependenceGraph() = default;
 
   // Initializes the dependence graph based on operations in 'f'.
   // Returns true on success, false otherwise.
@@ -301,14 +301,15 @@ public:
       memrefEdgeCount[value]--;
     }
     // Remove 'srcId' from 'inEdges[dstId]'.
-    for (auto it = inEdges[dstId].begin(); it != inEdges[dstId].end(); ++it) {
+    for (auto *it = inEdges[dstId].begin(); it != inEdges[dstId].end(); ++it) {
       if ((*it).id == srcId && (*it).value == value) {
         inEdges[dstId].erase(it);
         break;
       }
     }
     // Remove 'dstId' from 'outEdges[srcId]'.
-    for (auto it = outEdges[srcId].begin(); it != outEdges[srcId].end(); ++it) {
+    for (auto *it = outEdges[srcId].begin(); it != outEdges[srcId].end();
+         ++it) {
       if ((*it).id == dstId && (*it).value == value) {
         outEdges[srcId].erase(it);
         break;
@@ -981,7 +982,7 @@ static Value createPrivateMemRef(AffineForOp forOp, Operation *srcStoreOpInst,
       replaceAllMemRefUsesWith(oldMemRef, newMemRef, {}, indexRemap,
                                /*extraOperands=*/outerIVs,
                                /*symbolOperands=*/{},
-                               /*domInstFilter=*/&*forOp.getBody()->begin());
+                               /*domOpFilter=*/&*forOp.getBody()->begin());
   assert(succeeded(res) &&
          "replaceAllMemrefUsesWith should always succeed here");
   (void)res;

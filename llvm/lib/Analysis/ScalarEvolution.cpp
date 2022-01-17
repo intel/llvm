@@ -6060,35 +6060,30 @@ ScalarEvolution::getRangeRef(const SCEV *S,
                     ConservativeResult.intersectWith(X, RangeType));
   }
 
-  if (const SCEVSMaxExpr *SMax = dyn_cast<SCEVSMaxExpr>(S)) {
-    ConstantRange X = getRangeRef(SMax->getOperand(0), SignHint);
-    for (unsigned i = 1, e = SMax->getNumOperands(); i != e; ++i)
-      X = X.smax(getRangeRef(SMax->getOperand(i), SignHint));
-    return setRange(SMax, SignHint,
-                    ConservativeResult.intersectWith(X, RangeType));
-  }
+  if (isa<SCEVMinMaxExpr>(S)) {
+    Intrinsic::ID ID;
+    switch (S->getSCEVType()) {
+    case scUMaxExpr:
+      ID = Intrinsic::umax;
+      break;
+    case scSMaxExpr:
+      ID = Intrinsic::smax;
+      break;
+    case scUMinExpr:
+      ID = Intrinsic::umin;
+      break;
+    case scSMinExpr:
+      ID = Intrinsic::smin;
+      break;
+    default:
+      llvm_unreachable("Unknown SCEVMinMaxExpr.");
+    }
 
-  if (const SCEVUMaxExpr *UMax = dyn_cast<SCEVUMaxExpr>(S)) {
-    ConstantRange X = getRangeRef(UMax->getOperand(0), SignHint);
-    for (unsigned i = 1, e = UMax->getNumOperands(); i != e; ++i)
-      X = X.umax(getRangeRef(UMax->getOperand(i), SignHint));
-    return setRange(UMax, SignHint,
-                    ConservativeResult.intersectWith(X, RangeType));
-  }
-
-  if (const SCEVSMinExpr *SMin = dyn_cast<SCEVSMinExpr>(S)) {
-    ConstantRange X = getRangeRef(SMin->getOperand(0), SignHint);
-    for (unsigned i = 1, e = SMin->getNumOperands(); i != e; ++i)
-      X = X.smin(getRangeRef(SMin->getOperand(i), SignHint));
-    return setRange(SMin, SignHint,
-                    ConservativeResult.intersectWith(X, RangeType));
-  }
-
-  if (const SCEVUMinExpr *UMin = dyn_cast<SCEVUMinExpr>(S)) {
-    ConstantRange X = getRangeRef(UMin->getOperand(0), SignHint);
-    for (unsigned i = 1, e = UMin->getNumOperands(); i != e; ++i)
-      X = X.umin(getRangeRef(UMin->getOperand(i), SignHint));
-    return setRange(UMin, SignHint,
+    const auto *NAry = cast<SCEVNAryExpr>(S);
+    ConstantRange X = getRangeRef(NAry->getOperand(0), SignHint);
+    for (unsigned i = 1, e = NAry->getNumOperands(); i != e; ++i)
+      X = X.intrinsic(ID, {X, getRangeRef(NAry->getOperand(i), SignHint)});
+    return setRange(S, SignHint,
                     ConservativeResult.intersectWith(X, RangeType));
   }
 
@@ -8093,6 +8088,29 @@ ScalarEvolution::ExitLimit ScalarEvolution::computeExitLimitFromCondImpl(
       return getZero(CI->getType());
   }
 
+  // If we're exiting based on the overflow flag of an x.with.overflow intrinsic
+  // with a constant step, we can form an equivalent icmp predicate and figure
+  // out how many iterations will be taken before we exit.
+  const WithOverflowInst *WO;
+  const APInt *C;
+  if (match(ExitCond, m_ExtractValue<1>(m_WithOverflowInst(WO))) &&
+      match(WO->getRHS(), m_APInt(C))) {
+    ConstantRange NWR =
+      ConstantRange::makeExactNoWrapRegion(WO->getBinaryOp(), *C,
+                                           WO->getNoWrapKind());
+    CmpInst::Predicate Pred;
+    APInt NewRHSC, Offset;
+    NWR.getEquivalentICmp(Pred, NewRHSC, Offset);
+    if (!ExitIfTrue)
+      Pred = ICmpInst::getInversePredicate(Pred);
+    auto *LHS = getSCEV(WO->getLHS());
+    if (Offset != 0)
+      LHS = getAddExpr(LHS, getConstant(Offset));
+    auto EL = computeExitLimitFromICmp(L, Pred, LHS, getConstant(NewRHSC),
+                                       ControlsExit, AllowPredicates);
+    if (EL.hasAnyInfo()) return EL;
+  }
+
   // If it's not an integer or pointer comparison then compute it the hard way.
   return computeExitCountExhaustively(L, ExitCond, ExitIfTrue);
 }
@@ -8203,6 +8221,26 @@ ScalarEvolution::computeExitLimitFromICmp(const Loop *L,
   const SCEV *LHS = getSCEV(ExitCond->getOperand(0));
   const SCEV *RHS = getSCEV(ExitCond->getOperand(1));
 
+  ExitLimit EL = computeExitLimitFromICmp(L, Pred, LHS, RHS, ControlsExit,
+                                          AllowPredicates);
+  if (EL.hasAnyInfo()) return EL;
+
+  auto *ExhaustiveCount =
+      computeExitCountExhaustively(L, ExitCond, ExitIfTrue);
+
+  if (!isa<SCEVCouldNotCompute>(ExhaustiveCount))
+    return ExhaustiveCount;
+
+  return computeShiftCompareExitLimit(ExitCond->getOperand(0),
+                                      ExitCond->getOperand(1), L, OriginalPred);
+}
+ScalarEvolution::ExitLimit
+ScalarEvolution::computeExitLimitFromICmp(const Loop *L,
+                                          ICmpInst::Predicate Pred,
+                                          const SCEV *LHS, const SCEV *RHS,
+                                          bool ControlsExit,
+                                          bool AllowPredicates) {
+
   // Try to evaluate any dependencies out of the loop.
   LHS = getSCEVAtScope(LHS, L);
   RHS = getSCEVAtScope(RHS, L);
@@ -8312,14 +8350,7 @@ ScalarEvolution::computeExitLimitFromICmp(const Loop *L,
     break;
   }
 
-  auto *ExhaustiveCount =
-      computeExitCountExhaustively(L, ExitCond, ExitIfTrue);
-
-  if (!isa<SCEVCouldNotCompute>(ExhaustiveCount))
-    return ExhaustiveCount;
-
-  return computeShiftCompareExitLimit(ExitCond->getOperand(0),
-                                      ExitCond->getOperand(1), L, OriginalPred);
+  return getCouldNotCompute();
 }
 
 ScalarEvolution::ExitLimit
@@ -13959,11 +13990,12 @@ const SCEV *ScalarEvolution::applyLoopGuards(const SCEV *Expr, const Loop *L) {
         ExprsToRewrite.push_back(LHS);
     }
   };
-  // Starting at the loop predecessor, climb up the predecessor chain, as long
-  // as there are predecessors that can be found that have unique successors
-  // leading to the original header.
+  // First, collect conditions from dominating branches. Starting at the loop
+  // predecessor, climb up the predecessor chain, as long as there are
+  // predecessors that can be found that have unique successors leading to the
+  // original header.
   // TODO: share this logic with isLoopEntryGuardedByCond.
-  DenseMap<const SCEV *, const SCEV *> RewriteMap;
+  SmallVector<std::pair<Value *, bool>> Terms;
   for (std::pair<const BasicBlock *, const BasicBlock *> Pair(
            L->getLoopPredecessor(), L->getHeader());
        Pair.first; Pair = getPredecessorWithUniqueSuccessorForBB(Pair.first)) {
@@ -13973,10 +14005,20 @@ const SCEV *ScalarEvolution::applyLoopGuards(const SCEV *Expr, const Loop *L) {
     if (!LoopEntryPredicate || LoopEntryPredicate->isUnconditional())
       continue;
 
-    bool EnterIfTrue = LoopEntryPredicate->getSuccessor(0) == Pair.second;
+    Terms.emplace_back(LoopEntryPredicate->getCondition(),
+                       LoopEntryPredicate->getSuccessor(0) == Pair.second);
+  }
+
+  // Now apply the information from the collected conditions to RewriteMap.
+  // Conditions are processed in reverse order, so the earliest conditions is
+  // processed first. This ensures the SCEVs with the shortest dependency chains
+  // are constructed first.
+  DenseMap<const SCEV *, const SCEV *> RewriteMap;
+  for (auto &E : reverse(Terms)) {
+    bool EnterIfTrue = E.second;
     SmallVector<Value *, 8> Worklist;
     SmallPtrSet<Value *, 8> Visited;
-    Worklist.push_back(LoopEntryPredicate->getCondition());
+    Worklist.push_back(E.first);
     while (!Worklist.empty()) {
       Value *Cond = Worklist.pop_back_val();
       if (!Visited.insert(Cond).second)

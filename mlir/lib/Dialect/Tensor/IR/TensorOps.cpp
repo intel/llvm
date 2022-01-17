@@ -364,17 +364,17 @@ OpFoldResult ExtractOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 void FromElementsOp::build(OpBuilder &builder, OperationState &result,
-                           Type elementType, ValueRange elements) {
-  Type resultTy = RankedTensorType::get({static_cast<int64_t>(elements.size())},
-                                        elementType);
+                           Type resultType, ValueRange elements) {
   result.addOperands(elements);
-  result.addTypes(resultTy);
+  result.addTypes(resultType);
 }
 
 void FromElementsOp::build(OpBuilder &builder, OperationState &result,
                            ValueRange elements) {
   assert(!elements.empty() && "expected at least one element");
-  build(builder, result, elements.front().getType(), elements);
+  Type resultType = RankedTensorType::get(
+      {static_cast<int64_t>(elements.size())}, elements.front().getType());
+  build(builder, result, resultType, elements);
 }
 
 OpFoldResult FromElementsOp::fold(ArrayRef<Attribute> operands) {
@@ -397,23 +397,31 @@ struct ExtractElementFromTensorFromElements
 
   LogicalResult matchAndRewrite(tensor::ExtractOp extract,
                                 PatternRewriter &rewriter) const final {
-    if (extract.indices().size() != 1)
-      return failure();
-
     auto tensorFromElements = extract.tensor().getDefiningOp<FromElementsOp>();
-    if (tensorFromElements == nullptr)
+    if (!tensorFromElements)
       return failure();
-
-    APInt index;
-    if (!matchPattern(*extract.indices().begin(), m_ConstantInt(&index)))
-      return failure();
+    auto tensorType = tensorFromElements.getType().cast<RankedTensorType>();
+    auto rank = tensorType.getRank();
+    if (rank == 0) {
+      rewriter.replaceOp(extract, tensorFromElements.getOperand(0));
+      return success();
+    }
+    SmallVector<APInt, 3> indices(rank);
+    int64_t flatIndex = 0;
+    int64_t stride = 1;
+    for (int i = rank - 1; i >= 0; --i) {
+      APInt index;
+      if (!matchPattern(extract.indices()[i], m_ConstantInt(&index)))
+        return failure();
+      if (i < rank - 1)
+        stride *= tensorType.getDimSize(i);
+      flatIndex += index.getSExtValue() * stride;
+    }
     // Prevent out of bounds accesses. This can happen in invalid code that will
     // never execute.
-    if (tensorFromElements->getNumOperands() <= index.getZExtValue() ||
-        index.getSExtValue() < 0)
+    if (tensorFromElements->getNumOperands() <= flatIndex || flatIndex < 0)
       return failure();
-    rewriter.replaceOp(extract,
-                       tensorFromElements.getOperand(index.getZExtValue()));
+    rewriter.replaceOp(extract, tensorFromElements.getOperand(flatIndex));
     return success();
   }
 };
@@ -610,10 +618,23 @@ void GenerateOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 //===----------------------------------------------------------------------===//
+// RankOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
+  // Constant fold rank when the rank of the operand is known.
+  auto type = getOperand().getType();
+  auto shapedType = type.dyn_cast<ShapedType>();
+  if (shapedType && shapedType.hasRank())
+    return IntegerAttr::get(IndexType::get(getContext()), shapedType.getRank());
+  return IntegerAttr();
+}
+
+//===----------------------------------------------------------------------===//
 // ReshapeOp
 //===----------------------------------------------------------------------===//
 
-static int64_t GetNumElements(ShapedType type) {
+static int64_t getNumElements(ShapedType type) {
   int64_t numElements = 1;
   for (auto dim : type.getShape())
     numElements *= dim;
@@ -636,7 +657,7 @@ static LogicalResult verify(ReshapeOp op) {
   if (resultRankedType) {
     if (operandRankedType && resultRankedType.hasStaticShape() &&
         operandRankedType.hasStaticShape()) {
-      if (GetNumElements(operandRankedType) != GetNumElements(resultRankedType))
+      if (getNumElements(operandRankedType) != getNumElements(resultRankedType))
         return op.emitOpError("source and destination tensor should have the "
                               "same number of elements");
     }
@@ -806,38 +827,31 @@ OpFoldResult CollapseShapeOp::fold(ArrayRef<Attribute> operands) {
 /// An extract_slice op result type can be fully inferred from the source type
 /// and the static representation of offsets, sizes and strides. Special
 /// sentinels encode the dynamic case.
-RankedTensorType
-ExtractSliceOp::inferResultType(RankedTensorType sourceRankedTensorType,
-                                ArrayRef<int64_t> leadingStaticOffsets,
-                                ArrayRef<int64_t> leadingStaticSizes,
-                                ArrayRef<int64_t> leadingStaticStrides) {
+RankedTensorType ExtractSliceOp::inferResultType(
+    RankedTensorType sourceRankedTensorType, ArrayRef<int64_t> staticOffsets,
+    ArrayRef<int64_t> staticSizes, ArrayRef<int64_t> staticStrides) {
   // An extract_slice op may specify only a leading subset of offset/sizes/
   // strides in which case we complete with offset=0, sizes from memref type and
   // strides=1.
   unsigned rank = sourceRankedTensorType.getRank();
-  assert(leadingStaticSizes.size() <= rank &&
-         "unexpected leadingStaticSizes overflow");
-  auto staticSizes = llvm::to_vector<4>(leadingStaticSizes);
-  unsigned numTrailingSizes = rank - staticSizes.size();
-  llvm::append_range(staticSizes, sourceRankedTensorType.getShape().take_back(
-                                      numTrailingSizes));
+  (void)rank;
+  assert(staticSizes.size() == rank &&
+         "unexpected staticSizes not equal to rank of source");
   return RankedTensorType::get(staticSizes,
                                sourceRankedTensorType.getElementType());
 }
 
-RankedTensorType
-ExtractSliceOp::inferResultType(RankedTensorType sourceRankedTensorType,
-                                ArrayRef<OpFoldResult> leadingStaticOffsets,
-                                ArrayRef<OpFoldResult> leadingStaticSizes,
-                                ArrayRef<OpFoldResult> leadingStaticStrides) {
+RankedTensorType ExtractSliceOp::inferResultType(
+    RankedTensorType sourceRankedTensorType, ArrayRef<OpFoldResult> offsets,
+    ArrayRef<OpFoldResult> sizes, ArrayRef<OpFoldResult> strides) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(leadingStaticOffsets, dynamicOffsets,
-                             staticOffsets, ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(leadingStaticSizes, dynamicSizes, staticSizes,
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
+                             ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
                              ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(leadingStaticStrides, dynamicStrides,
-                             staticStrides, ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
+                             ShapedType::kDynamicStrideOrOffset);
   return ExtractSliceOp::inferResultType(sourceRankedTensorType, staticOffsets,
                                          staticSizes, staticStrides);
 }
@@ -847,12 +861,10 @@ ExtractSliceOp::inferResultType(RankedTensorType sourceRankedTensorType,
 /// sentinels encode the dynamic case.
 RankedTensorType ExtractSliceOp::inferRankReducedResultType(
     unsigned resultRank, RankedTensorType sourceRankedTensorType,
-    ArrayRef<int64_t> leadingStaticOffsets,
-    ArrayRef<int64_t> leadingStaticSizes,
-    ArrayRef<int64_t> leadingStaticStrides) {
+    ArrayRef<int64_t> offsets, ArrayRef<int64_t> sizes,
+    ArrayRef<int64_t> strides) {
   auto inferredType =
-      inferResultType(sourceRankedTensorType, leadingStaticOffsets,
-                      leadingStaticSizes, leadingStaticStrides)
+      inferResultType(sourceRankedTensorType, offsets, sizes, strides)
           .cast<RankedTensorType>();
   int rankDiff = inferredType.getRank() - resultRank;
   if (rankDiff > 0) {
@@ -871,17 +883,16 @@ RankedTensorType ExtractSliceOp::inferRankReducedResultType(
 
 RankedTensorType ExtractSliceOp::inferRankReducedResultType(
     unsigned resultRank, RankedTensorType sourceRankedTensorType,
-    ArrayRef<OpFoldResult> leadingStaticOffsets,
-    ArrayRef<OpFoldResult> leadingStaticSizes,
-    ArrayRef<OpFoldResult> leadingStaticStrides) {
+    ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes,
+    ArrayRef<OpFoldResult> strides) {
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(leadingStaticOffsets, dynamicOffsets,
-                             staticOffsets, ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(leadingStaticSizes, dynamicSizes, staticSizes,
+  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
+                             ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
                              ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(leadingStaticStrides, dynamicStrides,
-                             staticStrides, ShapedType::kDynamicStrideOrOffset);
+  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
+                             ShapedType::kDynamicStrideOrOffset);
   return ExtractSliceOp::inferRankReducedResultType(
       resultRank, sourceRankedTensorType, staticOffsets, staticSizes,
       staticStrides);
@@ -898,12 +909,10 @@ void ExtractSliceOp::build(OpBuilder &b, OperationState &result,
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
   dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-
                              ShapedType::kDynamicStrideOrOffset);
   dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
                              ShapedType::kDynamicSize);
   dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-
                              ShapedType::kDynamicStrideOrOffset);
   auto sourceRankedTensorType = source.getType().cast<RankedTensorType>();
   // Structuring implementation this way avoids duplication between builders.
@@ -1008,7 +1017,7 @@ llvm::SmallDenseSet<unsigned> ExtractSliceOp::getDroppedDims() {
   ArrayRef<int64_t> resultShape = getType().getShape();
   SmallVector<OpFoldResult> mixedSizes = getMixedSizes();
   unsigned shapePos = 0;
-  for (auto size : enumerate(mixedSizes)) {
+  for (const auto &size : enumerate(mixedSizes)) {
     Optional<int64_t> sizeVal = getConstantIntValue(size.value());
     // If the size is not 1, or if the current matched dimension of the result
     // is the same static shape as the size value (which is 1), then the
@@ -1030,7 +1039,7 @@ LogicalResult ExtractSliceOp::reifyResultShapes(
   SmallVector<OpFoldResult> mixedSizes = getMixedSizes();
   llvm::SmallDenseSet<unsigned> droppedDims = getDroppedDims();
   Location loc = getLoc();
-  for (auto size : enumerate(mixedSizes)) {
+  for (const auto &size : enumerate(mixedSizes)) {
     if (droppedDims.count(size.index()))
       continue;
     if (auto attr = size.value().dyn_cast<Attribute>()) {
@@ -1204,12 +1213,10 @@ void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
   SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
   SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
   dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-
                              ShapedType::kDynamicStrideOrOffset);
   dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
                              ShapedType::kDynamicSize);
   dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-
                              ShapedType::kDynamicStrideOrOffset);
   build(b, result, dest.getType(), source, dest, dynamicOffsets, dynamicSizes,
         dynamicStrides, b.getI64ArrayAttr(staticOffsets),

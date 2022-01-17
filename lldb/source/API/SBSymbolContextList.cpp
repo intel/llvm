@@ -20,8 +20,7 @@ SBSymbolContextList::SBSymbolContextList()
   LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBSymbolContextList);
 }
 
-SBSymbolContextList::SBSymbolContextList(const SBSymbolContextList &rhs)
-    : m_opaque_up() {
+SBSymbolContextList::SBSymbolContextList(const SBSymbolContextList &rhs) {
   LLDB_RECORD_CONSTRUCTOR(SBSymbolContextList,
                           (const lldb::SBSymbolContextList &), rhs);
 
@@ -56,9 +55,8 @@ SBSymbolContext SBSymbolContextList::GetContextAtIndex(uint32_t idx) {
   SBSymbolContext sb_sc;
   if (m_opaque_up) {
     SymbolContext sc;
-    if (m_opaque_up->GetContextAtIndex(idx, sc)) {
-      sb_sc.SetSymbolContext(&sc);
-    }
+    if (m_opaque_up->GetContextAtIndex(idx, sc))
+      sb_sc = sc;
   }
   return LLDB_RECORD_RESULT(sb_sc);
 }

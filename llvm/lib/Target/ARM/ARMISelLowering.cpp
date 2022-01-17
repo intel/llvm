@@ -7732,6 +7732,46 @@ static SDValue LowerBUILD_VECTORToVIDUP(SDValue Op, SelectionDAG &DAG,
                      DAG.getConstant(N, DL, MVT::i32));
 }
 
+// Returns true if the operation N can be treated as qr instruction variant at
+// operand Op.
+static bool IsQRMVEInstruction(const SDNode *N, const SDNode *Op) {
+  switch (N->getOpcode()) {
+  case ISD::ADD:
+  case ISD::MUL:
+  case ISD::SADDSAT:
+  case ISD::UADDSAT:
+    return true;
+  case ISD::SUB:
+  case ISD::SSUBSAT:
+  case ISD::USUBSAT:
+    return N->getOperand(1).getNode() == Op;
+  case ISD::INTRINSIC_WO_CHAIN:
+    switch (N->getConstantOperandVal(0)) {
+    case Intrinsic::arm_mve_add_predicated:
+    case Intrinsic::arm_mve_mul_predicated:
+    case Intrinsic::arm_mve_qadd_predicated:
+    case Intrinsic::arm_mve_vhadd:
+    case Intrinsic::arm_mve_hadd_predicated:
+    case Intrinsic::arm_mve_vqdmulh:
+    case Intrinsic::arm_mve_qdmulh_predicated:
+    case Intrinsic::arm_mve_vqrdmulh:
+    case Intrinsic::arm_mve_qrdmulh_predicated:
+    case Intrinsic::arm_mve_vqdmull:
+    case Intrinsic::arm_mve_vqdmull_predicated:
+      return true;
+    case Intrinsic::arm_mve_sub_predicated:
+    case Intrinsic::arm_mve_qsub_predicated:
+    case Intrinsic::arm_mve_vhsub:
+    case Intrinsic::arm_mve_hsub_predicated:
+      return N->getOperand(2).getNode() == Op;
+    default:
+      return false;
+    }
+  default:
+    return false;
+  }
+}
+
 // If this is a case we can't handle, return null and let the default
 // expansion code take care of it.
 SDValue ARMTargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
@@ -7752,6 +7792,20 @@ SDValue ARMTargetLowering::LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
   if (BVN->isConstantSplat(SplatBits, SplatUndef, SplatBitSize, HasAnyUndefs)) {
     if (SplatUndef.isAllOnes())
       return DAG.getUNDEF(VT);
+
+    // If all the users of this constant splat are qr instruction variants,
+    // generate a vdup of the constant.
+    if (ST->hasMVEIntegerOps() && VT.getScalarSizeInBits() == SplatBitSize &&
+        (SplatBitSize == 8 || SplatBitSize == 16 || SplatBitSize == 32) &&
+        all_of(BVN->uses(),
+               [BVN](const SDNode *U) { return IsQRMVEInstruction(U, BVN); })) {
+      EVT DupVT = SplatBitSize == 32   ? MVT::v4i32
+                  : SplatBitSize == 16 ? MVT::v8i16
+                                       : MVT::v16i8;
+      SDValue Const = DAG.getConstant(SplatBits.getZExtValue(), dl, MVT::i32);
+      SDValue VDup = DAG.getNode(ARMISD::VDUP, dl, DupVT, Const);
+      return DAG.getNode(ARMISD::VECTOR_REG_CAST, dl, VT, VDup);
+    }
 
     if ((ST->hasNEON() && SplatBitSize <= 64) ||
         (ST->hasMVEIntegerOps() && SplatBitSize <= 64)) {
@@ -8346,9 +8400,8 @@ static SDValue LowerVECTOR_SHUFFLEv8i8(SDValue Op,
   SDLoc DL(Op);
 
   SmallVector<SDValue, 8> VTBLMask;
-  for (ArrayRef<int>::iterator
-         I = ShuffleMask.begin(), E = ShuffleMask.end(); I != E; ++I)
-    VTBLMask.push_back(DAG.getConstant(*I, DL, MVT::i32));
+  for (int I : ShuffleMask)
+    VTBLMask.push_back(DAG.getConstant(I, DL, MVT::i32));
 
   if (V2.getNode()->isUndef())
     return DAG.getNode(ARMISD::VTBL1, DL, MVT::v8i8, V1,
@@ -10628,25 +10681,23 @@ void ARMTargetLowering::EmitSjLjDispatchBlock(MachineInstr &MI,
   // associated with.
   DenseMap<unsigned, SmallVector<MachineBasicBlock*, 2>> CallSiteNumToLPad;
   unsigned MaxCSNum = 0;
-  for (MachineFunction::iterator BB = MF->begin(), E = MF->end(); BB != E;
-       ++BB) {
-    if (!BB->isEHPad()) continue;
+  for (MachineBasicBlock &BB : *MF) {
+    if (!BB.isEHPad())
+      continue;
 
     // FIXME: We should assert that the EH_LABEL is the first MI in the landing
     // pad.
-    for (MachineBasicBlock::iterator
-           II = BB->begin(), IE = BB->end(); II != IE; ++II) {
-      if (!II->isEHLabel()) continue;
+    for (MachineInstr &II : BB) {
+      if (!II.isEHLabel())
+        continue;
 
-      MCSymbol *Sym = II->getOperand(0).getMCSymbol();
+      MCSymbol *Sym = II.getOperand(0).getMCSymbol();
       if (!MF->hasCallSiteLandingPad(Sym)) continue;
 
       SmallVectorImpl<unsigned> &CallSiteIdxs = MF->getCallSiteLandingPad(Sym);
-      for (SmallVectorImpl<unsigned>::iterator
-             CSI = CallSiteIdxs.begin(), CSE = CallSiteIdxs.end();
-           CSI != CSE; ++CSI) {
-        CallSiteNumToLPad[*CSI].push_back(&*BB);
-        MaxCSNum = std::max(MaxCSNum, *CSI);
+      for (unsigned Idx : CallSiteIdxs) {
+        CallSiteNumToLPad[Idx].push_back(&BB);
+        MaxCSNum = std::max(MaxCSNum, Idx);
       }
       break;
     }
@@ -14631,7 +14682,9 @@ static SDValue PerformBFICombine(SDNode *N, SelectionDAG &DAG) {
   return SDValue();
 }
 
-// Check that N is CMPZ(CSINC(0, 0, CC, X)), return X if valid.
+// Check that N is CMPZ(CSINC(0, 0, CC, X)),
+//              or CMPZ(CMOV(1, 0, CC, $cpsr, X))
+// return X if valid.
 static SDValue IsCMPZCSINC(SDNode *Cmp, ARMCC::CondCodes &CC) {
   if (Cmp->getOpcode() != ARMISD::CMPZ || !isNullConstant(Cmp->getOperand(1)))
     return SDValue();
@@ -14645,12 +14698,24 @@ static SDValue IsCMPZCSINC(SDNode *Cmp, ARMCC::CondCodes &CC) {
          CSInc.getConstantOperandVal(1) == 1 && CSInc->hasOneUse())
     CSInc = CSInc.getOperand(0);
 
-  if (CSInc.getOpcode() != ARMISD::CSINC ||
-      !isNullConstant(CSInc.getOperand(0)) ||
-      !isNullConstant(CSInc.getOperand(1)) || !CSInc->hasOneUse())
-    return SDValue();
-  CC = (ARMCC::CondCodes)CSInc.getConstantOperandVal(2);
-  return CSInc.getOperand(3);
+  if (CSInc.getOpcode() == ARMISD::CSINC &&
+      isNullConstant(CSInc.getOperand(0)) &&
+      isNullConstant(CSInc.getOperand(1)) && CSInc->hasOneUse()) {
+    CC = (ARMCC::CondCodes)CSInc.getConstantOperandVal(2);
+    return CSInc.getOperand(3);
+  }
+  if (CSInc.getOpcode() == ARMISD::CMOV && isOneConstant(CSInc.getOperand(0)) &&
+      isNullConstant(CSInc.getOperand(1)) && CSInc->hasOneUse()) {
+    CC = (ARMCC::CondCodes)CSInc.getConstantOperandVal(2);
+    return CSInc.getOperand(4);
+  }
+  if (CSInc.getOpcode() == ARMISD::CMOV && isOneConstant(CSInc.getOperand(1)) &&
+      isNullConstant(CSInc.getOperand(0)) && CSInc->hasOneUse()) {
+    CC = ARMCC::getOppositeCondition(
+        (ARMCC::CondCodes)CSInc.getConstantOperandVal(2));
+    return CSInc.getOperand(4);
+  }
+  return SDValue();
 }
 
 static SDValue PerformCMPZCombine(SDNode *N, SelectionDAG &DAG) {
@@ -15361,13 +15426,13 @@ static SDValue PerformShuffleVMOVNCombine(ShuffleVectorSDNode *N,
     return SDValue();
 
   SDLoc DL(Trunc);
-  if (isVMOVNTruncMask(N->getMask(), VT, 0))
+  if (isVMOVNTruncMask(N->getMask(), VT, false))
     return DAG.getNode(
         ARMISD::VMOVN, DL, VT,
         DAG.getNode(ARMISD::VECTOR_REG_CAST, DL, VT, Trunc.getOperand(0)),
         DAG.getNode(ARMISD::VECTOR_REG_CAST, DL, VT, Trunc.getOperand(1)),
         DAG.getConstant(1, DL, MVT::i32));
-  else if (isVMOVNTruncMask(N->getMask(), VT, 1))
+  else if (isVMOVNTruncMask(N->getMask(), VT, true))
     return DAG.getNode(
         ARMISD::VMOVN, DL, VT,
         DAG.getNode(ARMISD::VECTOR_REG_CAST, DL, VT, Trunc.getOperand(1)),
@@ -17973,6 +18038,23 @@ ARMTargetLowering::PerformCMOVCombine(SDNode *N, SelectionDAG &DAG) const {
   if (!VT.isInteger())
       return SDValue();
 
+  // Fold away an unneccessary CMPZ/CMOV
+  // CMOV A, B, C1, $cpsr, (CMPZ (CMOV 1, 0, C2, D), 0) ->
+  // if C1==EQ -> CMOV A, B, C2, $cpsr, D
+  // if C1==NE -> CMOV A, B, NOT(C2), $cpsr, D
+  if (N->getConstantOperandVal(2) == ARMCC::EQ ||
+      N->getConstantOperandVal(2) == ARMCC::NE) {
+    ARMCC::CondCodes Cond;
+    if (SDValue C = IsCMPZCSINC(N->getOperand(4).getNode(), Cond)) {
+      if (N->getConstantOperandVal(2) == ARMCC::NE)
+        Cond = ARMCC::getOppositeCondition(Cond);
+      return DAG.getNode(N->getOpcode(), SDLoc(N), MVT::i32, N->getOperand(0),
+                         N->getOperand(1),
+                         DAG.getTargetConstant(Cond, SDLoc(N), MVT::i32),
+                         N->getOperand(3), C);
+    }
+  }
+
   // Materialize a boolean comparison for integers so we can avoid branching.
   if (isNullConstant(FalseVal)) {
     if (CC == ARMCC::EQ && isOneConstant(TrueVal)) {
@@ -18150,13 +18232,13 @@ SDValue ARMTargetLowering::PerformMVETruncCombine(
       SmallVector<int, 8> Mask(S0->getMask().begin(), S0->getMask().end());
       Mask.append(S1->getMask().begin(), S1->getMask().end());
 
-      if (isVMOVNTruncMask(Mask, VT, 0))
+      if (isVMOVNTruncMask(Mask, VT, false))
         return DAG.getNode(
             ARMISD::VMOVN, DL, VT,
             DAG.getNode(ARMISD::VECTOR_REG_CAST, DL, VT, S0->getOperand(0)),
             DAG.getNode(ARMISD::VECTOR_REG_CAST, DL, VT, S0->getOperand(1)),
             DAG.getConstant(1, DL, MVT::i32));
-      if (isVMOVNTruncMask(Mask, VT, 1))
+      if (isVMOVNTruncMask(Mask, VT, true))
         return DAG.getNode(
             ARMISD::VMOVN, DL, VT,
             DAG.getNode(ARMISD::VECTOR_REG_CAST, DL, VT, S0->getOperand(1)),

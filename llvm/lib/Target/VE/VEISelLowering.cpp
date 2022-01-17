@@ -1720,7 +1720,7 @@ SDValue VETargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::EXTRACT_VECTOR_ELT:
     return lowerEXTRACT_VECTOR_ELT(Op, DAG);
 
-#define ADD_BINARY_VVP_OP(VVP_NAME, ISD_NAME) case ISD::ISD_NAME:
+#define ADD_BINARY_VVP_OP(VVP_NAME, VP_NAME, ISD_NAME) case ISD::ISD_NAME:
 #include "VVPNodes.def"
     return lowerToVVP(Op, DAG);
   }
@@ -2750,7 +2750,7 @@ SDValue VETargetLowering::lowerEXTRACT_VECTOR_ELT(SDValue Op,
   SDValue Idx = Op.getOperand(1);
   SDLoc DL(Op);
   SDValue Result = Op;
-  if (0 /* Idx->isConstant() */) {
+  if (false /* Idx->isConstant() */) {
     // TODO: optimized implementation using constant values
   } else {
     SDValue Const1 = DAG.getConstant(1, DL, MVT::i64);
@@ -2808,7 +2808,7 @@ SDValue VETargetLowering::lowerINSERT_VECTOR_ELT(SDValue Op,
   Val = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, Val);
 
   SDValue Result = Op;
-  if (0 /* Idx->isConstant()*/) {
+  if (false /* Idx->isConstant()*/) {
     // TODO: optimized implementation using constant values
   } else {
     SDValue Const1 = DAG.getConstant(1, DL, MVT::i64);

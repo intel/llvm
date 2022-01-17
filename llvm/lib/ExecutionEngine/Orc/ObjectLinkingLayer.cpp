@@ -217,7 +217,7 @@ public:
           Flags |= JITSymbolFlags::Exported;
 
         InternedResult[InternedName] =
-            JITEvaluatedSymbol(Sym->getAddress(), Flags);
+            JITEvaluatedSymbol(Sym->getAddress().getValue(), Flags);
         if (AutoClaim && !MR->getSymbols().count(InternedName)) {
           assert(!ExtraSymbolsToClaim.count(InternedName) &&
                  "Duplicate symbol to claim?");
@@ -235,7 +235,7 @@ public:
         if (Sym->getLinkage() == Linkage::Weak)
           Flags |= JITSymbolFlags::Weak;
         InternedResult[InternedName] =
-            JITEvaluatedSymbol(Sym->getAddress(), Flags);
+            JITEvaluatedSymbol(Sym->getAddress().getValue(), Flags);
         if (AutoClaim && !MR->getSymbols().count(InternedName)) {
           assert(!ExtraSymbolsToClaim.count(InternedName) &&
                  "Duplicate symbol to claim?");
@@ -249,7 +249,8 @@ public:
 
     {
 
-      // Check that InternedResult matches up with MR->getSymbols().
+      // Check that InternedResult matches up with MR->getSymbols(), overriding
+      // flags if requested.
       // This guards against faulty transformations / compilers / object caches.
 
       // First check that there aren't any missing symbols.
@@ -258,16 +259,20 @@ public:
       SymbolNameVector MissingSymbols;
       for (auto &KV : MR->getSymbols()) {
 
+        auto I = InternedResult.find(KV.first);
+
         // If this is a materialization-side-effects only symbol then bump
         // the counter and make sure it's *not* defined, otherwise make
         // sure that it is defined.
         if (KV.second.hasMaterializationSideEffectsOnly()) {
           ++NumMaterializationSideEffectsOnlySymbols;
-          if (InternedResult.count(KV.first))
+          if (I != InternedResult.end())
             ExtraSymbols.push_back(KV.first);
           continue;
-        } else if (!InternedResult.count(KV.first))
+        } else if (I == InternedResult.end())
           MissingSymbols.push_back(KV.first);
+        else if (Layer.OverrideObjectFlags)
+          I->second.setFlags(KV.second);
       }
 
       // If there were missing symbols then report the error.
@@ -738,7 +743,7 @@ void EHFrameRegistrationPlugin::modifyPassConfig(
     PassConfiguration &PassConfig) {
 
   PassConfig.PostFixupPasses.push_back(createEHFrameRecorderPass(
-      G.getTargetTriple(), [this, &MR](JITTargetAddress Addr, size_t Size) {
+      G.getTargetTriple(), [this, &MR](ExecutorAddr Addr, size_t Size) {
         if (Addr) {
           std::lock_guard<std::mutex> Lock(EHFramePluginMutex);
           assert(!InProcessLinks.count(&MR) &&

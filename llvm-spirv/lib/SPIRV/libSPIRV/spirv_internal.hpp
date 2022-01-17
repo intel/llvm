@@ -99,8 +99,7 @@ enum InternalJointMatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
 
 enum InternalBuiltIn {
   IBuiltInSubDeviceIDINTEL = 6135,
-  IBuiltInHWThreadIDINTEL = 6136,
-  IBuiltInMaxHWThreadIDPerSubDeviceINTEL = 6137
+  IBuiltInGlobalHWThreadIDINTEL = 6136,
 };
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
@@ -112,8 +111,7 @@ _SPIRV_OP(Op, JointMatrixMadINTEL)
 
 _SPIRV_OP(Capability, HWThreadQueryINTEL)
 _SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
-_SPIRV_OP(BuiltIn, HWThreadIDINTEL)
-_SPIRV_OP(BuiltIn, MaxHWThreadIDPerSubDeviceINTEL)
+_SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
 #undef _SPIRV_OP
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);

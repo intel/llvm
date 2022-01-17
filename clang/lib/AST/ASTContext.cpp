@@ -2361,6 +2361,9 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   case Type::ObjCTypeParam:
     return getTypeInfo(cast<ObjCTypeParamType>(T)->desugar().getTypePtr());
 
+  case Type::Using:
+    return getTypeInfo(cast<UsingType>(T)->desugar().getTypePtr());
+
   case Type::Typedef: {
     const TypedefNameDecl *Typedef = cast<TypedefType>(T)->getDecl();
     TypeInfo Info = getTypeInfo(Typedef->getUnderlyingType().getTypePtr());
@@ -4580,9 +4583,7 @@ QualType ASTContext::getTypeDeclTypeSlow(const TypeDecl *Decl) const {
     assert(Enum->isFirstDecl() && "enum has previous declaration");
     return getEnumType(Enum);
   } else if (const auto *Using = dyn_cast<UnresolvedUsingTypenameDecl>(Decl)) {
-    Type *newType = new (*this, TypeAlignment) UnresolvedUsingType(Using);
-    Decl->TypeForDecl = newType;
-    Types.push_back(newType);
+    return getUnresolvedUsingType(Using);
   } else
     llvm_unreachable("TypeDecl without a type?");
 
@@ -4603,6 +4604,27 @@ QualType ASTContext::getTypedefType(const TypedefNameDecl *Decl,
   Decl->TypeForDecl = newType;
   Types.push_back(newType);
   return QualType(newType, 0);
+}
+
+QualType ASTContext::getUsingType(const UsingShadowDecl *Found,
+                                  QualType Underlying) const {
+  llvm::FoldingSetNodeID ID;
+  UsingType::Profile(ID, Found);
+
+  void *InsertPos = nullptr;
+  UsingType *T = UsingTypes.FindNodeOrInsertPos(ID, InsertPos);
+  if (T)
+    return QualType(T, 0);
+
+  assert(!Underlying.hasLocalQualifiers());
+  assert(Underlying == getTypeDeclType(cast<TypeDecl>(Found->getTargetDecl())));
+  QualType Canon = Underlying.getCanonicalType();
+
+  UsingType *NewType =
+      new (*this, TypeAlignment) UsingType(Found, Underlying, Canon);
+  Types.push_back(NewType);
+  UsingTypes.InsertNode(NewType, InsertPos);
+  return QualType(NewType, 0);
 }
 
 QualType ASTContext::getRecordType(const RecordDecl *Decl) const {
@@ -4626,6 +4648,22 @@ QualType ASTContext::getEnumType(const EnumDecl *Decl) const {
       return QualType(Decl->TypeForDecl = PrevDecl->TypeForDecl, 0);
 
   auto *newType = new (*this, TypeAlignment) EnumType(Decl);
+  Decl->TypeForDecl = newType;
+  Types.push_back(newType);
+  return QualType(newType, 0);
+}
+
+QualType ASTContext::getUnresolvedUsingType(
+    const UnresolvedUsingTypenameDecl *Decl) const {
+  if (Decl->TypeForDecl)
+    return QualType(Decl->TypeForDecl, 0);
+
+  if (const UnresolvedUsingTypenameDecl *CanonicalDecl =
+          Decl->getCanonicalDecl())
+    if (CanonicalDecl->TypeForDecl)
+      return QualType(Decl->TypeForDecl = CanonicalDecl->TypeForDecl, 0);
+
+  Type *newType = new (*this, TypeAlignment) UnresolvedUsingType(Decl);
   Decl->TypeForDecl = newType;
   Types.push_back(newType);
   return QualType(newType, 0);
@@ -8461,8 +8499,8 @@ static TypedefDecl *CreateHexagonBuiltinVaListDecl(const ASTContext *Context) {
     FieldDecl *Field = FieldDecl::Create(
         const_cast<ASTContext &>(*Context), VaListTagDecl, SourceLocation(),
         SourceLocation(), &Context->Idents.get(FieldNames[i]), FieldTypes[i],
-        /*TInfo=*/0,
-        /*BitWidth=*/0,
+        /*TInfo=*/nullptr,
+        /*BitWidth=*/nullptr,
         /*Mutable=*/false, ICIS_NoInit);
     Field->setAccess(AS_public);
     VaListTagDecl->addDecl(Field);
@@ -9257,7 +9295,7 @@ void getIntersectionOfProtocols(ASTContext &Context,
   // Remove any implied protocols from the list of inherited protocols.
   if (!ImpliedProtocols.empty()) {
     llvm::erase_if(IntersectionSet, [&](ObjCProtocolDecl *proto) -> bool {
-      return ImpliedProtocols.count(proto) > 0;
+      return ImpliedProtocols.contains(proto);
     });
   }
 
@@ -9804,12 +9842,13 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   // designates the object or function denoted by the reference, and the
   // expression is an lvalue unless the reference is an rvalue reference and
   // the expression is a function call (possibly inside parentheses).
-  if (LangOpts.OpenMP && LHS->getAs<ReferenceType>() &&
-      RHS->getAs<ReferenceType>() && LHS->getTypeClass() == RHS->getTypeClass())
-    return mergeTypes(LHS->getAs<ReferenceType>()->getPointeeType(),
-                      RHS->getAs<ReferenceType>()->getPointeeType(),
+  auto *LHSRefTy = LHS->getAs<ReferenceType>();
+  auto *RHSRefTy = RHS->getAs<ReferenceType>();
+  if (LangOpts.OpenMP && LHSRefTy && RHSRefTy &&
+      LHS->getTypeClass() == RHS->getTypeClass())
+    return mergeTypes(LHSRefTy->getPointeeType(), RHSRefTy->getPointeeType(),
                       OfBlockPointer, Unqualified, BlockReturnType);
-  if (LHS->getAs<ReferenceType>() || RHS->getAs<ReferenceType>())
+  if (LHSRefTy || RHSRefTy)
     return {};
 
   if (Unqualified) {

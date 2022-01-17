@@ -1625,6 +1625,9 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
     if (const auto *Equiv = dyn_cast<DSOLocalEquivalent>(C))
       return getValue(Equiv->getGlobalValue());
 
+    if (const auto *NC = dyn_cast<NoCFIValue>(C))
+      return getValue(NC->getGlobalValue());
+
     VectorType *VecTy = cast<VectorType>(V->getType());
 
     // Now that we know the number and type of the elements, get that number of
@@ -1920,8 +1923,8 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
                         DAG.getDataLayout().getAllocaAddrSpace()),
                     PtrValueVTs);
 
-    SDValue RetPtr = DAG.getCopyFromReg(DAG.getEntryNode(), getCurSDLoc(),
-                                        DemoteReg, PtrValueVTs[0]);
+    SDValue RetPtr =
+        DAG.getCopyFromReg(Chain, getCurSDLoc(), DemoteReg, PtrValueVTs[0]);
     SDValue RetOp = getValue(I.getOperand(0));
 
     SmallVector<EVT, 4> ValueVTs, MemVTs;
@@ -3111,6 +3114,8 @@ void SelectionDAGBuilder::visitUnreachable(const UnreachableInst &I) {
 
 void SelectionDAGBuilder::visitUnary(const User &I, unsigned Opcode) {
   SDNodeFlags Flags;
+  if (auto *FPOp = dyn_cast<FPMathOperator>(&I))
+    Flags.copyFMF(*FPOp);
 
   SDValue Op = getValue(I.getOperand(0));
   SDValue UnNodeValue = DAG.getNode(Opcode, getCurSDLoc(), Op.getValueType(),
@@ -8245,7 +8250,8 @@ public:
   /// corresponds to.  If there is no Value* for this operand, it returns
   /// MVT::Other.
   EVT getCallOperandValEVT(LLVMContext &Context, const TargetLowering &TLI,
-                           const DataLayout &DL) const {
+                           const DataLayout &DL,
+                           llvm::Type *ParamElemType) const {
     if (!CallOperandVal) return MVT::Other;
 
     if (isa<BasicBlock>(CallOperandVal))
@@ -8257,10 +8263,8 @@ public:
     // If this is an indirect operand, the operand is a pointer to the
     // accessed type.
     if (isIndirect) {
-      PointerType *PtrTy = dyn_cast<PointerType>(OpTy);
-      if (!PtrTy)
-        report_fatal_error("Indirect operand for inline asm not a pointer!");
-      OpTy = PtrTy->getElementType();
+      OpTy = ParamElemType;
+      assert(OpTy && "Indirect opernad must have elementtype attribute");
     }
 
     // Look for vector wrapped in a struct. e.g. { <16 x i8> }.
@@ -8560,19 +8564,17 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
     SDISelAsmOperandInfo &OpInfo = ConstraintOperands.back();
 
     // Compute the value type for each operand.
-    if (OpInfo.Type == InlineAsm::isInput ||
-        (OpInfo.Type == InlineAsm::isOutput && OpInfo.isIndirect)) {
-      OpInfo.CallOperandVal = Call.getArgOperand(ArgNo++);
+    if (OpInfo.hasArg()) {
+      OpInfo.CallOperandVal = Call.getArgOperand(ArgNo);
 
       // Process the call argument. BasicBlocks are labels, currently appearing
       // only in asm's.
       if (isa<CallBrInst>(Call) &&
-          ArgNo - 1 >= (cast<CallBrInst>(&Call)->arg_size() -
+          ArgNo >= (cast<CallBrInst>(&Call)->arg_size() -
                         cast<CallBrInst>(&Call)->getNumIndirectDests() -
                         NumMatchingOps) &&
           (NumMatchingOps == 0 ||
-           ArgNo - 1 <
-               (cast<CallBrInst>(&Call)->arg_size() - NumMatchingOps))) {
+           ArgNo < (cast<CallBrInst>(&Call)->arg_size() - NumMatchingOps))) {
         const auto *BA = cast<BlockAddress>(OpInfo.CallOperandVal);
         EVT VT = TLI.getValueType(DAG.getDataLayout(), BA->getType(), true);
         OpInfo.CallOperand = DAG.getTargetBlockAddress(BA, VT);
@@ -8582,9 +8584,11 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
         OpInfo.CallOperand = getValue(OpInfo.CallOperandVal);
       }
 
+      Type *ParamElemTy = Call.getAttributes().getParamElementType(ArgNo);
       EVT VT = OpInfo.getCallOperandValEVT(*DAG.getContext(), TLI,
-                                           DAG.getDataLayout());
+                                           DAG.getDataLayout(), ParamElemTy);
       OpInfo.ConstraintVT = VT.isSimple() ? VT.getSimpleVT() : MVT::Other;
+      ArgNo++;
     } else if (OpInfo.Type == InlineAsm::isOutput && !OpInfo.isIndirect) {
       // The return value of the call is this value.  As such, there is no
       // corresponding argument.

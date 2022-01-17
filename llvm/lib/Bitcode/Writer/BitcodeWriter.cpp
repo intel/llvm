@@ -1066,6 +1066,7 @@ static uint64_t getEncodedFFlags(FunctionSummary::FFlags Flags) {
   RawFlags |= (Flags.NoUnwind << 6);
   RawFlags |= (Flags.MayThrow << 7);
   RawFlags |= (Flags.HasUnknownCall << 8);
+  RawFlags |= (Flags.MustBeUnreachable << 9);
   return RawFlags;
 }
 
@@ -2457,6 +2458,7 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
     }
 
     if (const InlineAsm *IA = dyn_cast<InlineAsm>(V)) {
+      Record.push_back(VE.getTypeID(IA->getFunctionType()));
       Record.push_back(
           unsigned(IA->hasSideEffects()) | unsigned(IA->isAlignStack()) << 1 |
           unsigned(IA->getDialect() & 1) << 2 | unsigned(IA->canThrow()) << 3);
@@ -2656,6 +2658,10 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
       Code = bitc::CST_CODE_DSO_LOCAL_EQUIVALENT;
       Record.push_back(VE.getTypeID(Equiv->getGlobalValue()->getType()));
       Record.push_back(VE.getValueID(Equiv->getGlobalValue()));
+    } else if (const auto *NC = dyn_cast<NoCFIValue>(C)) {
+      Code = bitc::CST_CODE_NO_CFI_VALUE;
+      Record.push_back(VE.getTypeID(NC->getGlobalValue()->getType()));
+      Record.push_back(VE.getValueID(NC->getGlobalValue()));
     } else {
 #ifndef NDEBUG
       C->dump();

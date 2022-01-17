@@ -55,7 +55,6 @@
 
 using namespace clang;
 using namespace sema;
-using llvm::RoundingMode;
 
 /// Determine whether the use of this declaration is valid, without
 /// emitting diagnostics.
@@ -246,12 +245,6 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
         SYCLDiagIfDeviceCode(*Locs.begin(),
                              diag::err_esimd_global_in_sycl_context,
                              Sema::DeviceDiagnosticReason::Sycl);
-      // Disallow const statics and globals that are not zero-initialized
-      // or constant-initialized.
-      else if (IsRuntimeEvaluated && IsConst && VD->hasGlobalStorage() &&
-               !VD->isConstexpr() && !checkAllowedSYCLInitializer(VD))
-        SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
-            << Sema::KernelConstStaticVariable;
     } else if (auto *FDecl = dyn_cast<FunctionDecl>(D)) {
       // SYCL device function cannot be called from an ESIMD context. However,
       // funcitons that start with '__spirv_' or '__sycl_' are exceptions to
@@ -4527,6 +4520,9 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
     case Type::Decltype:
       T = cast<DecltypeType>(Ty)->desugar();
       break;
+    case Type::Using:
+      T = cast<UsingType>(Ty)->desugar();
+      break;
     case Type::Auto:
     case Type::DeducedTemplateSpecialization:
       T = cast<DeducedType>(Ty)->getDeducedType();
@@ -4727,6 +4723,38 @@ static bool isMSPropertySubscriptExpr(Sema &S, Expr *Base) {
   return isa<MSPropertySubscriptExpr>(BaseNoParens);
 }
 
+// Returns the type used for LHS[RHS], given one of LHS, RHS is type-dependent.
+// Typically this is DependentTy, but can sometimes be more precise.
+//
+// There are cases when we could determine a non-dependent type:
+//  - LHS and RHS may have non-dependent types despite being type-dependent
+//    (e.g. unbounded array static members of the current instantiation)
+//  - one may be a dependent-sized array with known element type
+//  - one may be a dependent-typed valid index (enum in current instantiation)
+//
+// We *always* return a dependent type, in such cases it is DependentTy.
+// This avoids creating type-dependent expressions with non-dependent types.
+// FIXME: is this important to avoid? See https://reviews.llvm.org/D107275
+static QualType getDependentArraySubscriptType(Expr *LHS, Expr *RHS,
+                                               const ASTContext &Ctx) {
+  assert(LHS->isTypeDependent() || RHS->isTypeDependent());
+  QualType LTy = LHS->getType(), RTy = RHS->getType();
+  QualType Result = Ctx.DependentTy;
+  if (RTy->isIntegralOrUnscopedEnumerationType()) {
+    if (const PointerType *PT = LTy->getAs<PointerType>())
+      Result = PT->getPointeeType();
+    else if (const ArrayType *AT = LTy->getAsArrayTypeUnsafe())
+      Result = AT->getElementType();
+  } else if (LTy->isIntegralOrUnscopedEnumerationType()) {
+    if (const PointerType *PT = RTy->getAs<PointerType>())
+      Result = PT->getPointeeType();
+    else if (const ArrayType *AT = RTy->getAsArrayTypeUnsafe())
+      Result = AT->getElementType();
+  }
+  // Ensure we return a dependent type.
+  return Result->isDependentType() ? Result : Ctx.DependentTy;
+}
+
 ExprResult
 Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base, SourceLocation lbLoc,
                               Expr *idx, SourceLocation rbLoc) {
@@ -4819,8 +4847,9 @@ Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base, SourceLocation lbLoc,
   // Build an unanalyzed expression if either operand is type-dependent.
   if (getLangOpts().CPlusPlus &&
       (base->isTypeDependent() || idx->isTypeDependent())) {
-    return new (Context) ArraySubscriptExpr(base, idx, Context.DependentTy,
-                                            VK_LValue, OK_Ordinary, rbLoc);
+    return new (Context) ArraySubscriptExpr(
+        base, idx, getDependentArraySubscriptType(base, idx, getASTContext()),
+        VK_LValue, OK_Ordinary, rbLoc);
   }
 
   // MSDN, property (C++)
@@ -5574,7 +5603,8 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
   if (LHSTy->isDependentType() || RHSTy->isDependentType()) {
     BaseExpr = LHSExp;
     IndexExpr = RHSExp;
-    ResultType = Context.DependentTy;
+    ResultType =
+        getDependentArraySubscriptType(LHSExp, RHSExp, getASTContext());
   } else if (const PointerType *PTy = LHSTy->getAs<PointerType>()) {
     BaseExpr = LHSExp;
     IndexExpr = RHSExp;
@@ -12350,27 +12380,32 @@ QualType Sema::GetSignedVectorType(QualType V) {
   if (isa<ExtVectorType>(VTy)) {
     if (TypeSize == Context.getTypeSize(Context.CharTy))
       return Context.getExtVectorType(Context.CharTy, VTy->getNumElements());
-    else if (TypeSize == Context.getTypeSize(Context.ShortTy))
+    if (TypeSize == Context.getTypeSize(Context.ShortTy))
       return Context.getExtVectorType(Context.ShortTy, VTy->getNumElements());
-    else if (TypeSize == Context.getTypeSize(Context.IntTy))
+    if (TypeSize == Context.getTypeSize(Context.IntTy))
       return Context.getExtVectorType(Context.IntTy, VTy->getNumElements());
-    else if (TypeSize == Context.getTypeSize(Context.LongTy))
+    if (TypeSize == Context.getTypeSize(Context.Int128Ty))
+      return Context.getExtVectorType(Context.Int128Ty, VTy->getNumElements());
+    if (TypeSize == Context.getTypeSize(Context.LongTy))
       return Context.getExtVectorType(Context.LongTy, VTy->getNumElements());
     assert(TypeSize == Context.getTypeSize(Context.LongLongTy) &&
            "Unhandled vector element size in vector compare");
     return Context.getExtVectorType(Context.LongLongTy, VTy->getNumElements());
   }
 
+  if (TypeSize == Context.getTypeSize(Context.Int128Ty))
+    return Context.getVectorType(Context.Int128Ty, VTy->getNumElements(),
+                                 VectorType::GenericVector);
   if (TypeSize == Context.getTypeSize(Context.LongLongTy))
     return Context.getVectorType(Context.LongLongTy, VTy->getNumElements(),
                                  VectorType::GenericVector);
-  else if (TypeSize == Context.getTypeSize(Context.LongTy))
+  if (TypeSize == Context.getTypeSize(Context.LongTy))
     return Context.getVectorType(Context.LongTy, VTy->getNumElements(),
                                  VectorType::GenericVector);
-  else if (TypeSize == Context.getTypeSize(Context.IntTy))
+  if (TypeSize == Context.getTypeSize(Context.IntTy))
     return Context.getVectorType(Context.IntTy, VTy->getNumElements(),
                                  VectorType::GenericVector);
-  else if (TypeSize == Context.getTypeSize(Context.ShortTy))
+  if (TypeSize == Context.getTypeSize(Context.ShortTy))
     return Context.getVectorType(Context.ShortTy, VTy->getNumElements(),
                                  VectorType::GenericVector);
   assert(TypeSize == Context.getTypeSize(Context.CharTy) &&
@@ -15994,7 +16029,7 @@ ExprResult Sema::BuildVAArgExpr(SourceLocation BuiltinLoc,
       // promoted type and the underlying type are the same except for
       // signedness. Ask the AST for the correctly corresponding type and see
       // if that's compatible.
-      if (!PromoteType.isNull() &&
+      if (!PromoteType.isNull() && !UnderlyingType->isBooleanType() &&
           PromoteType->isUnsignedIntegerType() !=
               UnderlyingType->isUnsignedIntegerType()) {
         UnderlyingType =

@@ -81,10 +81,10 @@ enum NodeType : unsigned {
   FADD_PRED,
   FDIV_PRED,
   FMA_PRED,
-  FMAXNM_PRED,
-  FMINNM_PRED,
   FMAX_PRED,
+  FMAXNM_PRED,
   FMIN_PRED,
+  FMINNM_PRED,
   FMUL_PRED,
   FSUB_PRED,
   MUL_PRED,
@@ -324,6 +324,8 @@ enum NodeType : unsigned {
 
   BITREVERSE_MERGE_PASSTHRU,
   BSWAP_MERGE_PASSTHRU,
+  REVH_MERGE_PASSTHRU,
+  REVW_MERGE_PASSTHRU,
   CTLZ_MERGE_PASSTHRU,
   CTPOP_MERGE_PASSTHRU,
   DUP_MERGE_PASSTHRU,
@@ -485,7 +487,6 @@ const unsigned RoundingBitsPos = 22;
 } // namespace AArch64
 
 class AArch64Subtarget;
-class AArch64TargetMachine;
 
 class AArch64TargetLowering : public TargetLowering {
 public:
@@ -1135,8 +1136,8 @@ private:
   // with BITCAST used otherwise.
   SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
 
-  bool isConstantUnsignedBitfieldExtactLegal(unsigned Opc, LLT Ty1,
-                                             LLT Ty2) const override;
+  bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
+                                              LLT Ty2) const override;
 };
 
 namespace AArch64 {

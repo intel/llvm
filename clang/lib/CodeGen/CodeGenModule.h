@@ -312,7 +312,7 @@ private:
   const TargetInfo &Target;
   std::unique_ptr<CGCXXABI> ABI;
   llvm::LLVMContext &VMContext;
-  std::string ModuleNameHash = "";
+  std::string ModuleNameHash;
 
   std::unique_ptr<CodeGenTBAA> TBAA;
 
@@ -585,6 +585,8 @@ private:
   MetadataTypeMap MetadataIdMap;
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
+
+  llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
 
 public:
   CodeGenModule(ASTContext &C, const HeaderSearchOptions &headersearchopts,
@@ -895,6 +897,9 @@ public:
                                     ForDefinition_t IsForDefinition
                                       = NotForDefinition);
 
+  // Return the function body address of the given function.
+  llvm::Constant *GetFunctionStart(const ValueDecl *Decl);
+
   /// Get the address of the RTTI descriptor for the given type.
   llvm::Constant *GetAddrOfRTTIDescriptor(QualType Ty, bool ForEH = false);
 
@@ -1047,6 +1052,10 @@ public:
       GlobalDecl GD, const CGFunctionInfo *FnInfo = nullptr,
       llvm::FunctionType *FnType = nullptr, bool DontDefer = false,
       ForDefinition_t IsForDefinition = NotForDefinition);
+
+  void addTypeWithAspects(StringRef TypeName, const RecordDecl *RD) {
+    TypesWithAspects[TypeName] = RD;
+  }
 
   void generateIntelFPGAAnnotation(const Decl *D,
                                      llvm::SmallString<256> &AnnotStr);

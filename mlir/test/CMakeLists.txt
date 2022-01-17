@@ -74,10 +74,12 @@ set(MLIR_TEST_DEPENDS
   mlir-capi-llvm-test
   mlir-capi-pass-test
   mlir-capi-sparse-tensor-test
+  mlir-capi-quant-test
   mlir-cpu-runner
   mlir-linalg-ods-yaml-gen
   mlir-lsp-server
   mlir-opt
+  mlir-pdll
   mlir-reduce
   mlir-tblgen
   mlir-translate

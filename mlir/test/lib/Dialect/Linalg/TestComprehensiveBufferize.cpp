@@ -23,7 +23,7 @@
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/SCFInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/TensorInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/VectorInterfaceImpl.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
@@ -49,7 +49,8 @@ struct TestComprehensiveFunctionBufferize
 
   TestComprehensiveFunctionBufferize() = default;
   TestComprehensiveFunctionBufferize(
-      const TestComprehensiveFunctionBufferize &pass) {}
+      const TestComprehensiveFunctionBufferize &pass)
+      : PassWrapper(pass) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<bufferization::BufferizationDialect, linalg::LinalgDialect,
@@ -93,29 +94,27 @@ struct TestComprehensiveFunctionBufferize
 } // namespace
 
 void TestComprehensiveFunctionBufferize::runOnFunction() {
-  BufferizationOptions options;
+  auto options = std::make_unique<BufferizationOptions>();
 
   // Enable InitTensorOp elimination.
-  options.addPostAnalysisStep<
+  options->addPostAnalysisStep<
       linalg_ext::InsertSliceAnchoredInitTensorEliminationStep>();
-  // TODO: Find a way to enable this step automatically when bufferizing
-  // tensor dialect ops.
-  options.addPostAnalysisStep<tensor_ext::InplaceInsertSliceOpAnalysis>();
-  options.addPostAnalysisStep<scf_ext::AssertDestinationPassingStyle>();
+  if (!allowReturnMemref)
+    options->addPostAnalysisStep<scf_ext::AssertDestinationPassingStyle>();
 
-  options.allowReturnMemref = allowReturnMemref;
-  options.allowUnknownOps = allowUnknownOps;
-  options.testAnalysisOnly = testAnalysisOnly;
-  options.analysisFuzzerSeed = analysisFuzzerSeed;
+  options->allowReturnMemref = allowReturnMemref;
+  options->allowUnknownOps = allowUnknownOps;
+  options->testAnalysisOnly = testAnalysisOnly;
+  options->analysisFuzzerSeed = analysisFuzzerSeed;
 
   if (dialectFilter.hasValue()) {
-    options.dialectFilter.emplace();
+    options->dialectFilter.emplace();
     for (const std::string &dialectNamespace : dialectFilter)
-      options.dialectFilter->insert(dialectNamespace);
+      options->dialectFilter->insert(dialectNamespace);
   }
 
   Operation *op = getFunction().getOperation();
-  if (failed(runComprehensiveBufferize(op, options)))
+  if (failed(runComprehensiveBufferize(op, std::move(options))))
     return;
 
   OpPassManager cleanupPipeline("builtin.func");

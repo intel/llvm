@@ -1833,7 +1833,7 @@ bool TargetLowering::SimplifyDemandedBits(
     // If we only care about the highest bit, don't bother shifting right.
     if (DemandedBits.isSignMask()) {
       unsigned MinSignedBits =
-          TLO.DAG.ComputeMinSignedBits(Op0, DemandedElts, Depth + 1);
+          TLO.DAG.ComputeMaxSignificantBits(Op0, DemandedElts, Depth + 1);
       bool AlreadySignExtended = ExVTBits >= MinSignedBits;
       // However if the input is already sign extended we expect the sign
       // extension to be dropped altogether later and do not simplify.
@@ -3136,6 +3136,19 @@ bool TargetLowering::isKnownNeverNaNForTargetNode(SDValue Op,
   return false;
 }
 
+bool TargetLowering::isSplatValueForTargetNode(SDValue Op,
+                                               const APInt &DemandedElts,
+                                               APInt &UndefElts,
+                                               unsigned Depth) const {
+  assert((Op.getOpcode() >= ISD::BUILTIN_OP_END ||
+          Op.getOpcode() == ISD::INTRINSIC_WO_CHAIN ||
+          Op.getOpcode() == ISD::INTRINSIC_W_CHAIN ||
+          Op.getOpcode() == ISD::INTRINSIC_VOID) &&
+         "Should use isSplatValue if you don't know whether Op"
+         " is a target node!");
+  return false;
+}
+
 // FIXME: Ideally, this would use ISD::isConstantSplatVector(), but that must
 // work with truncating build vectors and vectors with elements of less than
 // 8 bits.
@@ -3665,9 +3678,7 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
       }
 
       // Figure out how many bits we need to preserve this constant.
-      unsigned ReqdBits = Signed ?
-        C1.getBitWidth() - C1.getNumSignBits() + 1 :
-        C1.getActiveBits();
+      unsigned ReqdBits = Signed ? C1.getMinSignedBits() : C1.getActiveBits();
 
       // Make sure we're not losing bits from the constant.
       if (MinBits > 0 &&
@@ -4602,7 +4613,7 @@ void TargetLowering::LowerAsmOperandForConstraint(SDValue Op,
     // SelectionDAG::FoldSymbolOffset because it expects the GA to be accessible
     // while in this case the GA may be furthest from the root node which is
     // likely an ISD::ADD.
-    while (1) {
+    while (true) {
       if ((GA = dyn_cast<GlobalAddressSDNode>(Op)) && ConstraintLetter != 'n') {
         Ops.push_back(DAG.getTargetGlobalAddress(GA->getGlobal(), SDLoc(Op),
                                                  GA->getValueType(0),
@@ -4740,7 +4751,7 @@ TargetLowering::ParseConstraints(const DataLayout &DL,
     case InlineAsm::isOutput:
       // Indirect outputs just consume an argument.
       if (OpInfo.isIndirect) {
-        OpInfo.CallOperandVal = Call.getArgOperand(ArgNo++);
+        OpInfo.CallOperandVal = Call.getArgOperand(ArgNo);
         break;
       }
 
@@ -4758,7 +4769,7 @@ TargetLowering::ParseConstraints(const DataLayout &DL,
       ++ResNo;
       break;
     case InlineAsm::isInput:
-      OpInfo.CallOperandVal = Call.getArgOperand(ArgNo++);
+      OpInfo.CallOperandVal = Call.getArgOperand(ArgNo);
       break;
     case InlineAsm::isClobber:
       // Nothing to do.
@@ -4768,10 +4779,8 @@ TargetLowering::ParseConstraints(const DataLayout &DL,
     if (OpInfo.CallOperandVal) {
       llvm::Type *OpTy = OpInfo.CallOperandVal->getType();
       if (OpInfo.isIndirect) {
-        llvm::PointerType *PtrTy = dyn_cast<PointerType>(OpTy);
-        if (!PtrTy)
-          report_fatal_error("Indirect operand for inline asm not a pointer!");
-        OpTy = PtrTy->getElementType();
+        OpTy = Call.getAttributes().getParamElementType(ArgNo);
+        assert(OpTy && "Indirect opernad must have elementtype attribute");
       }
 
       // Look for vector wrapped in a struct. e.g. { <16 x i8> }.
@@ -4801,6 +4810,8 @@ TargetLowering::ParseConstraints(const DataLayout &DL,
       } else {
         OpInfo.ConstraintVT = MVT::getVT(OpTy, true);
       }
+
+      ArgNo++;
     }
   }
 
@@ -6425,12 +6436,6 @@ bool TargetLowering::expandMUL_LOHI(unsigned Opcode, EVT VT, const SDLoc &dl,
 
   unsigned ShiftAmount = OuterBitSize - InnerBitSize;
   EVT ShiftAmountTy = getShiftAmountTy(VT, DAG.getDataLayout());
-  if (APInt::getMaxValue(ShiftAmountTy.getSizeInBits()).ult(ShiftAmount)) {
-    // FIXME getShiftAmountTy does not always return a sensible result when VT
-    // is an illegal type, and so the type may be too small to fit the shift
-    // amount. Override it with i32. The shift will have to be legalized.
-    ShiftAmountTy = MVT::i32;
-  }
   SDValue Shift = DAG.getConstant(ShiftAmount, dl, ShiftAmountTy);
 
   if (!LH.getNode() && !RH.getNode() &&
@@ -6644,9 +6649,10 @@ SDValue TargetLowering::expandROT(SDNode *Node, bool AllowVectorOps,
   EVT ShVT = Op1.getValueType();
   SDValue Zero = DAG.getConstant(0, DL, ShVT);
 
-  // If a rotate in the other direction is supported, use it.
+  // If a rotate in the other direction is more supported, use it.
   unsigned RevRot = IsLeft ? ISD::ROTR : ISD::ROTL;
-  if (isOperationLegalOrCustom(RevRot, VT) && isPowerOf2_32(EltSizeInBits)) {
+  if (!isOperationLegalOrCustom(Node->getOpcode(), VT) &&
+      isOperationLegalOrCustom(RevRot, VT) && isPowerOf2_32(EltSizeInBits)) {
     SDValue Sub = DAG.getNode(ISD::SUB, DL, ShVT, Zero, Op1);
     return DAG.getNode(RevRot, DL, VT, Op0, Sub);
   }

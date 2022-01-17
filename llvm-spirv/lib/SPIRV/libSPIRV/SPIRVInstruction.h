@@ -1863,7 +1863,7 @@ public:
   // Incomplete constructor
   SPIRVCompositeConstruct() : SPIRVInstruction(OC) {}
 
-  const std::vector<SPIRVValue *> getConstituents() const {
+  std::vector<SPIRVValue *> getOperands() override {
     return getValues(Constituents);
   }
 
@@ -1875,13 +1875,15 @@ protected:
   _SPIRV_DEF_ENCDEC3(Type, Id, Constituents)
   void validate() const override {
     SPIRVInstruction::validate();
-    switch (getValueType(this->getId())->getOpCode()) {
+    size_t TypeOpCode = this->getType()->getOpCode();
+    switch (TypeOpCode) {
     case OpTypeVector:
-      assert(getConstituents().size() > 1 &&
+      assert(Constituents.size() > 1 &&
              "There must be at least two Constituent operands in vector");
       break;
     case OpTypeArray:
     case OpTypeStruct:
+    case internal::OpTypeJointMatrixINTEL:
       break;
     default:
       assert(false && "Invalid type");
@@ -2623,7 +2625,7 @@ _SPIRV_OP(ATanPi, true, 9)
 _SPIRV_OP(ATan2, true, 11)
 _SPIRV_OP(Pow, true, 11)
 _SPIRV_OP(PowR, true, 11)
-_SPIRV_OP(PowN, true, 10)
+_SPIRV_OP(PowN, true, 11)
 #undef _SPIRV_OP
 
 class SPIRVAtomicInstBase : public SPIRVInstTemplateBase {
@@ -2757,10 +2759,28 @@ _SPIRV_OP(ImageQuerySamples, true, 4)
 #define _SPIRV_OP(x, ...)                                                      \
   typedef SPIRVInstTemplate<SPIRVInstTemplateBase, Op##x, __VA_ARGS__> SPIRV##x;
 // Other instructions
-_SPIRV_OP(SpecConstantOp, true, 4, true, 0)
 _SPIRV_OP(GenericPtrMemSemantics, true, 4, false)
 _SPIRV_OP(GenericCastToPtrExplicit, true, 5, false, 1)
 #undef _SPIRV_OP
+
+class SPIRVSpecConstantOpBase : public SPIRVInstTemplateBase {
+public:
+  bool isOperandLiteral(unsigned I) const override {
+    // If SpecConstant results from CompositeExtract/Insert operation, then all
+    // operands are expected to be literals.
+    switch (Ops[0]) { // Opcode of underlying SpecConstant operation
+    case OpCompositeExtract:
+    case OpCompositeInsert:
+      return true;
+    default:
+      return SPIRVInstTemplateBase::isOperandLiteral(I);
+    }
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVSpecConstantOpBase, OpSpecConstantOp, true, 4,
+                          true, 0>
+    SPIRVSpecConstantOp;
 
 class SPIRVAssumeTrueKHR : public SPIRVInstruction {
 public:

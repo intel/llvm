@@ -68,9 +68,9 @@ def Tensor_CastOp : Tensor_Op<"cast", [
 def Tensor_DimOp : Tensor_Op<"dim", [NoSideEffect]> {
   let summary = "dimension index operation";
   let description = [{
-    The `dim` operation takes a tensor and a dimension operand of type `index`.
-    It returns the size of the requested dimension of the given tensor.
-    If the dimension index is out of bounds, the behavior is undefined.
+    The `tensor.dim` operation takes a tensor and a dimension operand of type
+    `index`. It returns the size of the requested dimension of the given
+    tensor. If the dimension index is out of bounds, the behavior is undefined.
 
     The specified tensor type is that of the first operand.
 
@@ -312,22 +312,29 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
     NoSideEffect,
     TypesMatchWith<"operand types match result element type",
                    "result", "elements", "SmallVector<Type, 2>("
-                   "$_self.cast<ShapedType>().getDimSize(0), "
+                   "$_self.cast<ShapedType>().getNumElements(), "
                    "$_self.cast<ShapedType>().getElementType())">
   ]> {
   string summary = "tensor from elements operation.";
   string description = [{
-    Create a 1D tensor from a range of same-type arguments.
+    Create a N-D tensor from a range of same-type arguments. The number of
+    provided `elements` should equal to the number of the elements in the
+    result type. The `elements` correspond to a flattened tensor.
 
     Example:
 
     ```mlir
-    tensor.from_elements i_1, ..., i_N :  tensor<Nxindex>
+    tensor.from_elements %a, %b, %c, %d, %e, %f :  tensor<2x3xindex>
     ```
+
+    will result in a tensor
+
+    [[%a, %b, %c]
+     [%d, %e, %f]]
   }];
 
   let arguments = (ins Variadic<AnyType>:$elements);
-  let results = (outs 1DTensorOf<[AnyType]>:$result);
+  let results = (outs AnyStaticShapeTensor:$result);
 
   let assemblyFormat = "$elements attr-dict `:` type($result)";
 
@@ -336,7 +343,7 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<(ins "Type":$elementType, "ValueRange":$elements)>,
+    OpBuilder<(ins "Type":$resultType, "ValueRange":$elements)>,
     // Special case builder for when `elements` has size >=1.
     OpBuilder<(ins "ValueRange":$elements)>
   ];
@@ -556,6 +563,31 @@ def Tensor_InsertSliceOp : BaseOpWithOffsetSizesAndStrides<
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// RankOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_RankOp : Tensor_Op<"rank", [NoSideEffect]> {
+  let summary = "rank operation";
+  let description = [{
+    The `tensor.rank` operation takes a tensor operand and returns its rank.
+
+    Example:
+
+    ```mlir
+    %0 = tensor.rank %arg0 : tensor<*xf32>
+    %1 = tensor.rank %arg1 : tensor<?x?xf32>
+    ```
+  }];
+
+  let arguments = (ins AnyTensor:$tensor);
+  let results = (outs Index);
+
+  let verifier = ?;
+  let hasFolder = 1;
+  let assemblyFormat = "$tensor attr-dict `:` type($tensor)";
 }
 
 //===----------------------------------------------------------------------===//

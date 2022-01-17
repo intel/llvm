@@ -40,7 +40,7 @@ OutputSection *Out::preinitArray;
 OutputSection *Out::initArray;
 OutputSection *Out::finiArray;
 
-std::vector<OutputSection *> elf::outputSections;
+SmallVector<OutputSection *, 0> elf::outputSections;
 
 uint32_t OutputSection::getPhdrFlags() const {
   uint32_t ret = 0;
@@ -153,6 +153,15 @@ void OutputSection::commitSection(InputSection *isec) {
   // set sh_entsize to 0.
   if (entsize != isec->entsize)
     entsize = 0;
+}
+
+static MergeSyntheticSection *createMergeSynthetic(StringRef name,
+                                                   uint32_t type,
+                                                   uint64_t flags,
+                                                   uint32_t alignment) {
+  if ((flags & SHF_STRINGS) && config->optimize >= 2)
+    return make<MergeTailSection>(name, type, flags, alignment);
+  return make<MergeNoTailSection>(name, type, flags, alignment);
 }
 
 // This function scans over the InputSectionBase list sectionBases to create
@@ -323,6 +332,7 @@ static void writeInt(uint8_t *buf, uint64_t data, uint64_t size) {
 }
 
 template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
+  llvm::TimeTraceScope timeScope("Write sections", name);
   if (type == SHT_NOBITS)
     return;
 
@@ -337,7 +347,7 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
   }
 
   // Write leading padding.
-  std::vector<InputSection *> sections = getInputSections(this);
+  SmallVector<InputSection *, 0> sections = getInputSections(*this);
   std::array<uint8_t, 4> filler = getFiller();
   bool nonZeroFiller = read32(filler.data()) != 0;
   if (nonZeroFiller)
@@ -345,7 +355,7 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
 
   parallelForEachN(0, sections.size(), [&](size_t i) {
     InputSection *isec = sections[i];
-    isec->writeTo<ELFT>(buf);
+    isec->writeTo<ELFT>(buf + isec->outSecOff);
 
     // Fill gaps between sections.
     if (nonZeroFiller) {
@@ -510,9 +520,9 @@ InputSection *elf::getFirstInputSection(const OutputSection *os) {
   return nullptr;
 }
 
-std::vector<InputSection *> elf::getInputSections(const OutputSection *os) {
-  std::vector<InputSection *> ret;
-  for (SectionCommand *cmd : os->commands)
+SmallVector<InputSection *, 0> elf::getInputSections(const OutputSection &os) {
+  SmallVector<InputSection *, 0> ret;
+  for (SectionCommand *cmd : os.commands)
     if (auto *isd = dyn_cast<InputSectionDescription>(cmd))
       ret.insert(ret.end(), isd->sections.begin(), isd->sections.end());
   return ret;
@@ -540,7 +550,7 @@ std::array<uint8_t, 4> OutputSection::getFiller() {
 void OutputSection::checkDynRelAddends(const uint8_t *bufStart) {
   assert(config->writeAddends && config->checkDynamicRelocs);
   assert(type == SHT_REL || type == SHT_RELA);
-  std::vector<InputSection *> sections = getInputSections(this);
+  SmallVector<InputSection *, 0> sections = getInputSections(*this);
   parallelForEachN(0, sections.size(), [&](size_t i) {
     // When linking with -r or --emit-relocs we might also call this function
     // for input .rel[a].<sec> sections which we simply pass through to the
@@ -550,7 +560,7 @@ void OutputSection::checkDynRelAddends(const uint8_t *bufStart) {
     if (!sec)
       return;
     for (const DynamicReloc &rel : sec->relocs) {
-      int64_t addend = rel.computeAddend();
+      int64_t addend = rel.addend;
       const OutputSection *relOsec = rel.inputSec->getOutputSection();
       assert(relOsec != nullptr && "missing output section for relocation");
       const uint8_t *relocTarget =

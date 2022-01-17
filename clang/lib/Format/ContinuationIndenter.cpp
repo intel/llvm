@@ -422,8 +422,7 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
       //     ...
       //   }.bind(...));
       // FIXME: We should find a more generic solution to this problem.
-      !(State.Column <= NewLineColumn &&
-        Style.Language == FormatStyle::LK_JavaScript) &&
+      !(State.Column <= NewLineColumn && Style.isJavaScript()) &&
       !(Previous.closesScopeAfterBlock() && State.Column <= NewLineColumn))
     return true;
 
@@ -493,8 +492,8 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
       return true;
   }
 
-  if (Style.Language == FormatStyle::LK_JavaScript &&
-      Previous.is(tok::r_paren) && Previous.is(TT_JavaAnnotation)) {
+  if (Style.isJavaScript() && Previous.is(tok::r_paren) &&
+      Previous.is(TT_JavaAnnotation)) {
     // Break after the closing parenthesis of TypeScript decorators before
     // functions, getters and setters.
     static const llvm::StringSet<> BreakBeforeDecoratedTokens = {"get", "set",
@@ -510,7 +509,7 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
          Style.AlwaysBreakAfterReturnType != FormatStyle::RTBS_None) &&
         // Don't always break between a JavaScript `function` and the function
         // name.
-        Style.Language != FormatStyle::LK_JavaScript) ||
+        !Style.isJavaScript()) ||
        (Current.is(tok::kw_operator) && !Previous.is(tok::coloncolon))) &&
       !Previous.is(tok::kw_template) && State.Stack.back().BreakBeforeParameter)
     return true;
@@ -827,9 +826,8 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
   // is common and should be formatted like a free-standing function. The same
   // goes for wrapping before the lambda return type arrow.
   if (!Current.is(TT_LambdaArrow) &&
-      (Style.Language != FormatStyle::LK_JavaScript ||
-       Current.NestingLevel != 0 || !PreviousNonComment ||
-       !PreviousNonComment->is(tok::equal) ||
+      (!Style.isJavaScript() || Current.NestingLevel != 0 ||
+       !PreviousNonComment || !PreviousNonComment->is(tok::equal) ||
        !Current.isOneOf(Keywords.kw_async, Keywords.kw_function)))
     State.Stack.back().NestedBlockIndent = State.Column;
 
@@ -1290,10 +1288,9 @@ unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
         State.Stack[i].NoLineBreak = true;
     State.Stack[State.Stack.size() - 2].NestedBlockInlined = false;
   }
-  if (Previous &&
-      (Previous->isOneOf(tok::l_paren, tok::comma, tok::colon) ||
-       Previous->isOneOf(TT_BinaryOperator, TT_ConditionalExpr)) &&
-      !Previous->isOneOf(TT_DictLiteral, TT_ObjCMethodExpr)) {
+  if (Previous && (Previous->isOneOf(TT_BinaryOperator, TT_ConditionalExpr) ||
+                   (Previous->isOneOf(tok::l_paren, tok::comma, tok::colon) &&
+                    !Previous->isOneOf(TT_DictLiteral, TT_ObjCMethodExpr)))) {
     State.Stack.back().NestedBlockInlined =
         !Newline && hasNestedBlockInlined(Previous, Current, Style);
   }
@@ -1519,7 +1516,7 @@ void ContinuationIndenter::moveStatePastScopeOpener(LineState &State,
 
     AvoidBinPacking =
         (State.Stack.back().IsCSharpGenericTypeConstraint) ||
-        (Style.Language == FormatStyle::LK_JavaScript && EndsInComma) ||
+        (Style.isJavaScript() && EndsInComma) ||
         (State.Line->MustBeDeclaration && !BinPackDeclaration) ||
         (!State.Line->MustBeDeclaration && !Style.BinPackArguments) ||
         (Style.ExperimentalAutoDetectBinPacking &&
@@ -1548,7 +1545,7 @@ void ContinuationIndenter::moveStatePastScopeOpener(LineState &State,
       }
     }
 
-    if (Style.Language == FormatStyle::LK_JavaScript && EndsInComma)
+    if (Style.isJavaScript() && EndsInComma)
       BreakBeforeParameter = true;
   }
   // Generally inherit NoLineBreak from the current scope to nested scope.
@@ -1925,9 +1922,9 @@ ContinuationIndenter::createBreakableToken(const FormatToken &Current,
     // FIXME: String literal breaking is currently disabled for C#, Java, Json
     // and JavaScript, as it requires strings to be merged using "+" which we
     // don't support.
-    if (Style.Language == FormatStyle::LK_Java ||
-        Style.Language == FormatStyle::LK_JavaScript || Style.isCSharp() ||
-        Style.isJson() || !Style.BreakStringLiterals || !AllowBreak)
+    if (Style.Language == FormatStyle::LK_Java || Style.isJavaScript() ||
+        Style.isCSharp() || Style.isJson() || !Style.BreakStringLiterals ||
+        !AllowBreak)
       return nullptr;
 
     // Don't break string literals inside preprocessor directives (except for

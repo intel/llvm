@@ -13,8 +13,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_SUPPORT_HTTP_CLIENT_H
-#define LLVM_SUPPORT_HTTP_CLIENT_H
+#ifndef LLVM_DEBUGINFOD_HTTPCLIENT_H
+#define LLVM_DEBUGINFOD_HTTPCLIENT_H
 
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -79,12 +79,13 @@ public:
 class HTTPClient {
 #ifdef LLVM_ENABLE_CURL
   void *Curl = nullptr;
-  static bool IsInitialized;
 #endif
 
 public:
   HTTPClient();
   ~HTTPClient();
+
+  static bool IsInitialized;
 
   /// Returns true only if LLVM has been compiled with a working HTTPClient.
   static bool isAvailable();
@@ -115,4 +116,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_SUPPORT_HTTP_CLIENT_H
+#endif // LLVM_DEBUGINFOD_HTTPCLIENT_H

@@ -38,12 +38,12 @@ func @swappy(%cond1 : i1, %cond2 : i1, %t1 : tensor<f32>, %t2 : tensor<f32>)
 func @scf_if_not_equivalent(
     %cond: i1, %t1: tensor<?xf32> {linalg.inplaceable = true},
     %idx: index) -> tensor<?xf32> {
-  // expected-error @+1 {{result buffer is ambiguous}}
   %r = scf.if %cond -> (tensor<?xf32>) {
     scf.yield %t1 : tensor<?xf32>
   } else {
     // This buffer aliases, but is not equivalent.
     %t2 = tensor.extract_slice %t1 [%idx] [%idx] [1] : tensor<?xf32> to tensor<?xf32>
+    // expected-error @+1 {{Yield operand #0 does not bufferize to a buffer that is equivalent to a buffer defined outside of the scf::if op}}
     scf.yield %t2 : tensor<?xf32>
   }
   return %r : tensor<?xf32>
@@ -127,9 +127,9 @@ func @extract_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = true})
 
 // -----
 
+// expected-error @+1 {{memref return type is unsupported}}
 func @scf_yield(%b : i1, %A : tensor<4xf32>, %B : tensor<4xf32>) -> tensor<4xf32>
 {
-  // expected-error @+1 {{result buffer is ambiguous}}
   %r = scf.if %b -> (tensor<4xf32>) {
     scf.yield %A : tensor<4xf32>
   } else {
@@ -142,7 +142,7 @@ func @scf_yield(%b : i1, %A : tensor<4xf32>, %B : tensor<4xf32>) -> tensor<4xf32
 
 func @unknown_op(%A : tensor<4xf32>) -> tensor<4xf32>
 {
-  // expected-error @+1 {{unsupported op with tensors}}
+  // expected-error @+1 {{op was not bufferized}}
   %r = "marklar"(%A) : (tensor<4xf32>) -> (tensor<4xf32>)
   return %r: tensor<4xf32>
 }
@@ -186,4 +186,29 @@ func @to_memref_op_is_writing(
   %r2 = vector.transfer_read %0[%idx3], %cst : memref<?xf32>, vector<5xf32>
 
   return %r1, %r2 : vector<5xf32>, vector<5xf32>
+}
+
+// -----
+
+func private @foo(%t : tensor<?xf32>) -> (f32, tensor<?xf32>, f32)
+
+func @call_to_unknown_tensor_returning_func(%t : tensor<?xf32>) {
+  // expected-error @+2 {{call to FuncOp that returns non-equivalent tensors not supported}}
+  // expected-error @+1 {{op was not bufferized}}
+  call @foo(%t) : (tensor<?xf32>) -> (f32, tensor<?xf32>, f32)
+  return
+}
+
+// -----
+
+func @foo(%t : tensor<5xf32>) -> (tensor<5xf32>) {
+  %0 = linalg.init_tensor [5] : tensor<5xf32>
+  return %0 : tensor<5xf32>
+}
+
+func @call_to_func_returning_non_equiv_tensor(%t : tensor<5xf32>) {
+  // expected-error @+2 {{call to FuncOp that returns non-equivalent tensors not supported}}
+  // expected-error @+1 {{op was not bufferized}}
+  call @foo(%t) : (tensor<5xf32>) -> (tensor<5xf32>)
+  return
 }

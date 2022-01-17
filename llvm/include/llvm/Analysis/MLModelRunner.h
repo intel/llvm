@@ -17,6 +17,9 @@ namespace llvm {
 
 /// MLModelRunner interface: abstraction of a mechanism for evaluating a
 /// tensorflow "saved model".
+/// NOTE: feature indices are expected to be consistent all accross
+/// MLModelRunners (pertaining to the same model), and also Loggers (see
+/// TFUtils.h)
 class MLModelRunner {
 public:
   // Disallows copy and assign.
@@ -38,15 +41,22 @@ public:
         getTensorUntyped(static_cast<size_t>(FeatureID)));
   }
 
-protected:
-  MLModelRunner(LLVMContext &Ctx) : Ctx(Ctx) {}
-  virtual void *evaluateUntyped() = 0;
   virtual void *getTensorUntyped(size_t Index) = 0;
   const void *getTensorUntyped(size_t Index) const {
     return (const_cast<MLModelRunner *>(this))->getTensorUntyped(Index);
   }
 
+  enum class Kind : int { Unknown, Release, Development, NoOp };
+  Kind getKind() const { return Type; }
+
+protected:
+  MLModelRunner(LLVMContext &Ctx, Kind Type) : Ctx(Ctx), Type(Type) {
+    assert(Type != Kind::Unknown);
+  }
+  virtual void *evaluateUntyped() = 0;
+
   LLVMContext &Ctx;
+  const Kind Type;
 };
 } // namespace llvm
 
