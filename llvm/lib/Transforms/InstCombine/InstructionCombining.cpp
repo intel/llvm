@@ -2567,10 +2567,6 @@ static bool isNeverEqualToUnescapedAlloc(Value *V, const TargetLibraryInfo &TLI,
   if (auto *LI = dyn_cast<LoadInst>(V))
     return isa<GlobalVariable>(LI->getPointerOperand());
   // Two distinct allocations will never be equal.
-  // We rely on LookThroughBitCast in isAllocLikeFn being false, since looking
-  // through bitcasts of V can cause
-  // the result statement below to be true, even when AI and V (ex:
-  // i8* ->i32* ->i8* of AI) are the same allocations.
   return isAllocLikeFn(V, &TLI) && V != AI;
 }
 
@@ -2696,6 +2692,8 @@ static bool isAllocSiteRemovable(Instruction *AI,
 }
 
 Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
+  assert(isa<AllocaInst>(MI) || isAllocRemovable(&cast<CallBase>(MI), &TLI));
+
   // If we have a malloc call which is only used in any amount of comparisons to
   // null and free calls, delete the calls and replace the comparisons with true
   // or false as appropriate.
@@ -3723,6 +3721,50 @@ Instruction *InstCombinerImpl::visitFreeze(FreezeInst &I) {
   return nullptr;
 }
 
+/// Check for case where the call writes to an otherwise dead alloca.  This
+/// shows up for unused out-params in idiomatic C/C++ code.   Note that this
+/// helper *only* analyzes the write; doesn't check any other legality aspect.
+static bool SoleWriteToDeadLocal(Instruction *I, TargetLibraryInfo &TLI) {
+  auto *CB = dyn_cast<CallBase>(I);
+  if (!CB)
+    // TODO: handle e.g. store to alloca here - only worth doing if we extend
+    // to allow reload along used path as described below.  Otherwise, this
+    // is simply a store to a dead allocation which will be removed.
+    return false;
+  Optional<MemoryLocation> Dest = MemoryLocation::getForDest(CB, TLI);
+  if (!Dest)
+    return false;
+  auto *AI = dyn_cast<AllocaInst>(getUnderlyingObject(Dest->Ptr));
+  if (!AI)
+    // TODO: allow malloc?
+    return false;
+  // TODO: allow memory access dominated by move point?  Note that since AI
+  // could have a reference to itself captured by the call, we would need to
+  // account for cycles in doing so.
+  SmallVector<const User *> AllocaUsers;
+  SmallPtrSet<const User *, 4> Visited;
+  auto pushUsers = [&](const Instruction &I) {
+    for (const User *U : I.users()) {
+      if (Visited.insert(U).second)
+        AllocaUsers.push_back(U);
+    }
+  };
+  pushUsers(*AI);
+  while (!AllocaUsers.empty()) {
+    auto *UserI = cast<Instruction>(AllocaUsers.pop_back_val());
+    if (isa<BitCastInst>(UserI) || isa<GetElementPtrInst>(UserI) ||
+        isa<AddrSpaceCastInst>(UserI)) {
+      pushUsers(*UserI);
+      continue;
+    }
+    if (UserI == CB)
+      continue;
+    // TODO: support lifetime.start/end here
+    return false;
+  }
+  return true;
+}
+
 /// Try to move the specified instruction from its current block into the
 /// beginning of DestBlock, which can only happen if it's safe to move the
 /// instruction past all of the instructions between it and the end of its
@@ -3757,45 +3799,8 @@ static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock,
   // Unless we can prove that the memory write isn't visibile except on the
   // path we're sinking to, we must bail.
   if (I->mayWriteToMemory()) {
-    // Check for case where the call writes to an otherwise dead alloca.  This
-    // shows up for unused out-params in idiomatic C/C++ code.
-    auto *CB = dyn_cast<CallBase>(I);
-    if (!CB)
-      // TODO: handle e.g. store to alloca here - only worth doing if we extend
-      // to allow reload along used path as described below.  Otherwise, this
-      // is simply a store to a dead allocation which will be removed.
+    if (!SoleWriteToDeadLocal(I, TLI))
       return false;
-    Optional<MemoryLocation> Dest = MemoryLocation::getForDest(CB, TLI);
-    if (!Dest)
-      return false;
-    auto *AI = dyn_cast<AllocaInst>(getUnderlyingObject(Dest->Ptr));
-    if (!AI)
-      // TODO: allow malloc?
-      return false;
-    // TODO: allow memory access dominated by move point?  Note that since AI
-    // could have a reference to itself captured by the call, we would need to
-    // account for cycles in doing so.
-    SmallVector<const User *> AllocaUsers;
-    SmallPtrSet<const User *, 4> Visited;
-    auto pushUsers = [&](const Instruction &I) {
-      for (const User *U : I.users()) {
-        if (Visited.insert(U).second)
-          AllocaUsers.push_back(U);
-      }
-    };
-    pushUsers(*AI);
-    while (!AllocaUsers.empty()) {
-      auto *UserI = cast<Instruction>(AllocaUsers.pop_back_val());
-      if (isa<BitCastInst>(UserI) || isa<GetElementPtrInst>(UserI) ||
-          isa<AddrSpaceCastInst>(UserI)) {
-        pushUsers(*UserI);
-        continue;
-      }
-      if (UserI == CB)
-        continue;
-      // TODO: support lifetime.start/end here
-      return false;
-    }
   }
 
   // We can only sink load instructions if there is nothing between the load and

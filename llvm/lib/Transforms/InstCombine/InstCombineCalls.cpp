@@ -2571,12 +2571,17 @@ static IntrinsicInst *findInitTrampoline(Value *Callee) {
 }
 
 void InstCombinerImpl::annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI) {
+  // Note: We only handle cases which can't be driven from generic attributes
+  // here.  So, for example, nonnull and noalias (which are common properties
+  // of some allocation functions) are expected to be handled via annotation
+  // of the respective allocator declaration with generic attributes.
 
   uint64_t Size;
   ObjectSizeOpts Opts;
   if (getObjectSize(&Call, Size, DL, TLI, Opts) && Size > 0) {
-    // TODO: should be annotating these nonnull
-    if (isOpNewLikeFn(&Call, TLI))
+    // TODO: We really should just emit deref_or_null here and then
+    // let the generic inference code combine that with nonnull.
+    if (Call.hasRetAttr(Attribute::NonNull))
       Call.addRetAttr(Attribute::getWithDereferenceableBytes(
           Call.getContext(), Size));
     else
@@ -2585,13 +2590,13 @@ void InstCombinerImpl::annotateAnyAllocSite(CallBase &Call, const TargetLibraryI
   }
 
   // Add alignment attribute if alignment is a power of two constant.
-  if (!isAlignedAllocLikeFn(&Call, TLI))
+  Value *Alignment = getAllocAlignment(&Call, TLI);
+  if (!Alignment)
     return;
 
-  ConstantInt *Op0C = dyn_cast<ConstantInt>(Call.getOperand(0));
-  if (Op0C && Op0C->getValue().ult(llvm::Value::MaximumAlignment) &&
-      isKnownNonZero(Call.getOperand(1), DL, 0, &AC, &Call, &DT)) {
-    uint64_t AlignmentVal = Op0C->getZExtValue();
+  ConstantInt *AlignOpC = dyn_cast<ConstantInt>(Alignment);
+  if (AlignOpC && AlignOpC->getValue().ult(llvm::Value::MaximumAlignment)) {
+    uint64_t AlignmentVal = AlignOpC->getZExtValue();
     if (llvm::isPowerOf2_64(AlignmentVal)) {
       Call.removeRetAttr(Attribute::Alignment);
       Call.addRetAttr(Attribute::getWithAlignment(Call.getContext(),
@@ -2756,7 +2761,8 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
             Call, Builder.CreateBitOrPointerCast(ReturnedArg, CallTy));
     }
 
-  if (isAllocLikeFn(&Call, &TLI))
+  if (isAllocationFn(&Call, &TLI) &&
+      isAllocRemovable(&cast<CallBase>(Call), &TLI))
     return visitAllocSite(Call);
 
   // Handle intrinsics which can be used in both call and invoke context.
@@ -2908,7 +2914,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     }
 
     if (!CallerPAL.isEmpty() && !Caller->use_empty()) {
-      AttrBuilder RAttrs(CallerPAL, AttributeList::ReturnIndex);
+      AttrBuilder RAttrs(FT->getContext(), CallerPAL, AttributeList::ReturnIndex);
       if (RAttrs.overlaps(AttributeFuncs::typeIncompatible(NewRetTy)))
         return false;   // Attribute not compatible with transformed value.
     }
@@ -2954,7 +2960,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     if (!CastInst::isBitOrNoopPointerCastable(ActTy, ParamTy, DL))
       return false;   // Cannot transform this parameter value.
 
-    if (AttrBuilder(CallerPAL.getParamAttrs(i))
+    if (AttrBuilder(FT->getContext(), CallerPAL.getParamAttrs(i))
             .overlaps(AttributeFuncs::typeIncompatible(ParamTy)))
       return false;   // Attribute not compatible with transformed value.
 
@@ -3019,7 +3025,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
   ArgAttrs.reserve(NumActualArgs);
 
   // Get any return attributes.
-  AttrBuilder RAttrs(CallerPAL, AttributeList::ReturnIndex);
+  AttrBuilder RAttrs(FT->getContext(), CallerPAL, AttributeList::ReturnIndex);
 
   // If the return value is not being used, the type may not be compatible
   // with the existing attributes.  Wipe out any problematic attributes.
@@ -3037,7 +3043,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
 
     // Add any parameter attributes.
     if (CallerPAL.hasParamAttr(i, Attribute::ByVal)) {
-      AttrBuilder AB(CallerPAL.getParamAttrs(i));
+      AttrBuilder AB(FT->getContext(), CallerPAL.getParamAttrs(i));
       AB.addByValAttr(NewArg->getType()->getPointerElementType());
       ArgAttrs.push_back(AttributeSet::get(Ctx, AB));
     } else

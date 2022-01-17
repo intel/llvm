@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Writer.h"
+#include "CallGraphSort.h"
 #include "ConcatOutputSection.h"
 #include "Config.h"
 #include "InputFiles.h"
@@ -865,6 +866,8 @@ static size_t getSymbolPriority(const SymbolPriorityEntry &entry,
 // Each section gets assigned the priority of the highest-priority symbol it
 // contains.
 static DenseMap<const InputSection *, size_t> buildInputSectionPriorities() {
+  if (config->callGraphProfileSort)
+    return computeCallGraphProfileOrder();
   DenseMap<const InputSection *, size_t> sectionPriorities;
 
   if (config->priorities.empty())
@@ -1123,7 +1126,7 @@ void Writer::writeUuid() {
   threadFutures.reserve(chunks.size());
   for (size_t i = 0; i < chunks.size(); ++i)
     threadFutures.emplace_back(threadPool.async(
-        [&](size_t i) { hashes[i] = xxHash64(chunks[i]); }, i));
+        [&](size_t j) { hashes[j] = xxHash64(chunks[j]); }, i));
   for (std::shared_future<void> &future : threadFutures)
     future.wait();
 
@@ -1175,7 +1178,13 @@ template <class LP> void Writer::run() {
   sortSegmentsAndSections();
   createLoadCommands<LP>();
   finalizeAddresses();
-  threadPool.async(writeMapFile);
+  threadPool.async([&] {
+    if (LLVM_ENABLE_THREADS && config->timeTraceEnabled)
+      timeTraceProfilerInitialize(config->timeTraceGranularity, "writeMapFile");
+    writeMapFile();
+    if (LLVM_ENABLE_THREADS && config->timeTraceEnabled)
+      timeTraceProfilerFinishThread();
+  });
   finalizeLinkEditSegment();
   writeOutputFile();
 }

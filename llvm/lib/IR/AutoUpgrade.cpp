@@ -4569,27 +4569,38 @@ std::string llvm::UpgradeDataLayoutString(StringRef DL, StringRef TT) {
     return DL.empty() ? std::string("G1") : (DL + "-G1").str();
   }
 
+  std::string Res = DL.str();
   std::string AddrSpaces = "-p270:32:32-p271:32:32-p272:64:64";
   // If X86, and the datalayout matches the expected format, add pointer size
   // address spaces to the datalayout.
   if (!T.isX86() || DL.contains(AddrSpaces))
-    return std::string(DL);
+    return Res;
 
   SmallVector<StringRef, 4> Groups;
   Regex R("(e-m:[a-z](-p:32:32)?)(-[if]64:.*$)");
-  if (!R.match(DL, &Groups))
-    return std::string(DL);
+  if (R.match(DL, &Groups))
+    Res = (Groups[1] + AddrSpaces + Groups[3]).str();
 
-  return (Groups[1] + AddrSpaces + Groups[3]).str();
+  // For 32-bit MSVC targets, raise the alignment of f80 values to 16 bytes.
+  // Raising the alignment is safe because Clang did not produce f80 values in
+  // the MSVC environment before this upgrade was added.
+  if (T.isWindowsMSVCEnvironment() && !T.isArch64Bit()) {
+    StringRef Ref = Res;
+    auto I = Ref.find("-f80:32-");
+    if (I != StringRef::npos)
+      Res = (Ref.take_front(I) + "-f80:128-" + Ref.drop_front(I + 8)).str();
+  }
+
+  return Res;
 }
 
 void llvm::UpgradeAttributes(AttrBuilder &B) {
   StringRef FramePointer;
   if (B.contains("no-frame-pointer-elim")) {
     // The value can be "true" or "false".
-    for (const auto &I : B.td_attrs())
-      if (I.first == "no-frame-pointer-elim")
-        FramePointer = I.second == "true" ? "all" : "none";
+    for (const auto &A : B.td_attrs())
+      if (A.getKindAsString() == "no-frame-pointer-elim")
+        FramePointer = A.getValueAsString() == "true" ? "all" : "none";
     B.removeAttribute("no-frame-pointer-elim");
   }
   if (B.contains("no-frame-pointer-elim-non-leaf")) {
@@ -4604,9 +4615,9 @@ void llvm::UpgradeAttributes(AttrBuilder &B) {
   if (B.contains("null-pointer-is-valid")) {
     // The value can be "true" or "false".
     bool NullPointerIsValid = false;
-    for (const auto &I : B.td_attrs())
-      if (I.first == "null-pointer-is-valid")
-        NullPointerIsValid = I.second == "true";
+    for (const auto &A : B.td_attrs())
+      if (A.getKindAsString() == "null-pointer-is-valid")
+        NullPointerIsValid = A.getValueAsString() == "true";
     B.removeAttribute("null-pointer-is-valid");
     if (NullPointerIsValid)
       B.addAttribute(Attribute::NullPointerIsValid);

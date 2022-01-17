@@ -17220,10 +17220,11 @@ For example:
 Arguments:
 """"""""""
 
-The first two operands are vectors with the same type. The third argument
-``imm`` is the start index, modulo VL, where VL is the runtime vector length of
-the source/result vector. The ``imm`` is a signed integer constant in the range
-``-VL <= imm < VL``. For values outside of this range the result is poison.
+The first two operands are vectors with the same type. The start index is imm
+modulo the runtime number of elements in the source vector. For a fixed-width
+vector <N x eltty>, imm is a signed integer constant in the range
+-N <= imm < N. For a scalable vector <vscale x N x eltty>, imm is a signed
+integer constant in the range -X <= imm < X where X=vscale_range_min * N.
 
 '``llvm.experimental.stepvector``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -17853,6 +17854,67 @@ Example:
       ;;; Expansion.
       ;; Any result is legal on lanes at and above %evl.
       %also.r = select <4 x i1> %cond, <4 x i32> %on_true, <4 x i32> %on_false
+
+
+.. _int_vp_merge:
+
+'``llvm.vp.merge.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.merge.v16i32 (<16 x i1> <condition>, <16 x i32> <on_true>, <16 x i32> <on_false>, i32 <pivot>)
+      declare <vscale x 4 x i64>  @llvm.vp.merge.nxv4i64 (<vscale x 4 x i1> <condition>, <vscale x 4 x i64> <on_true>, <vscale x 4 x i64> <on_false>, i32 <pivot>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.merge``' intrinsic is used to choose one value based on a
+condition vector and an index operand, without IR-level branching.
+
+Arguments:
+""""""""""
+
+The first operand is a vector of ``i1`` and indicates the condition.  The
+second operand is the value that is merged where the condition vector is true.
+The third operand is the value that is selected where the condition vector is
+false or the lane position is greater equal than the pivot. The fourth operand
+is the pivot.
+
+#. The optional ``fast-math flags`` marker indicates that the merge has one or
+   more :ref:`fast-math flags <fastmath>`. These are optimization hints to
+   enable otherwise unsafe floating-point optimizations. Fast-math flags are
+   only valid for merges that return a floating-point scalar or vector type,
+   or an array (nested to any depth) of floating-point scalar or vector types.
+
+Semantics:
+""""""""""
+
+The intrinsic selects lanes from the second and third operand depending on a
+condition vector and pivot value.
+
+For all lanes where the condition vector is true and the lane position is less
+than ``%pivot`` the lane is taken from the second operand.  Otherwise, the lane
+is taken from the third operand.
+
+Example:
+""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.merge.v4i32(<4 x i1> %cond, <4 x i32> %on_true, <4 x i32> %on_false, i32 %pivot)
+
+      ;;; Expansion.
+      ;; Lanes at and above %pivot are taken from %on_false
+      %atfirst = insertelement <4 x i32> undef, i32 %pivot, i32 0
+      %splat = shufflevector <4 x i32> %atfirst, <4 x i32> poison, <4 x i32> zeroinitializer
+      %pivotmask = icmp ult <4 x i32> %splat, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+      %mergemask = and <4 x i1> %cond, <4 x i1> %pivotmask
+      %also.r = select <4 x i1> %mergemask, <4 x i32> %on_true, <4 x i32> %on_false
 
 
 

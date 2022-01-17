@@ -9459,6 +9459,11 @@ TEST_F(FormatTest, UnderstandsNewAndDelete) {
                "    new (aaaaaaaaaaaaaaaaaaaaaaaaaa(aaaaaaaaaaaaaaaaaaaaaaa))\n"
                "        typename aaaaaaaaaaaaaaaaaaaaaaaa();");
   verifyFormat("delete[] h->p;");
+
+  verifyFormat("void operator delete(void *foo) ATTRIB;");
+  verifyFormat("void operator new(void *foo) ATTRIB;");
+  verifyFormat("void operator delete[](void *foo) ATTRIB;");
+  verifyFormat("void operator delete(void *ptr) noexcept;");
 }
 
 TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
@@ -23210,6 +23215,15 @@ TEST_F(FormatTest, EmptyShortBlock) {
                "  doA();\n"
                "} catch (Exception &e) {}\n",
                Style);
+}
+
+TEST_F(FormatTest, ShortTemplatedArgumentLists) {
+  auto Style = getLLVMStyle();
+
+  verifyFormat("struct Y : X<[] { return 0; }> {};", Style);
+  verifyFormat("struct Y<[] { return 0; }> {};", Style);
+
+  verifyFormat("struct Z : X<decltype([] { return 0; }){}> {};", Style);
 }
 
 } // namespace

@@ -1045,14 +1045,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
       UR.UpdatedC = nullptr;
 
     // And delete the actual function from the module.
-    // The Advisor may use Function pointers to efficiently index various
-    // internal maps, e.g. for memoization. Function cleanup passes like
-    // argument promotion create new functions. It is possible for a new
-    // function to be allocated at the address of a deleted function. We could
-    // index using names, but that's inefficient. Alternatively, we let the
-    // Advisor free the functions when it sees fit.
-    DeadF->getBasicBlockList().clear();
-    M.getFunctionList().remove(DeadF);
+    M.getFunctionList().erase(DeadF);
 
     ++NumDeleted;
   }
@@ -1073,8 +1066,7 @@ ModuleInlinerWrapperPass::ModuleInlinerWrapperPass(InlineParams Params,
                                                    bool MandatoryFirst,
                                                    InliningAdvisorMode Mode,
                                                    unsigned MaxDevirtIterations)
-    : Params(Params), Mode(Mode), MaxDevirtIterations(MaxDevirtIterations),
-      PM(), MPM() {
+    : Params(Params), Mode(Mode), MaxDevirtIterations(MaxDevirtIterations) {
   // Run the inliner first. The theory is that we are walking bottom-up and so
   // the callees have already been fully optimized, and we want to inline them
   // into the callers so that our optimizations can reflect that.

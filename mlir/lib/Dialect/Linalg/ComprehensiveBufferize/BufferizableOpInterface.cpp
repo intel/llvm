@@ -256,6 +256,7 @@ bool mlir::linalg::comprehensive_bufferize::BufferizationState::
 /// themselves (e.g., ExtractSliceOp).
 bool mlir::linalg::comprehensive_bufferize::BufferizationState::isValueRead(
     Value value) const {
+  assert(value.getType().isa<TensorType>() && "expected TensorType");
   SmallVector<OpOperand *> workingSet;
   for (OpOperand &use : value.getUses())
     workingSet.push_back(&use);
@@ -304,26 +305,18 @@ llvm::SetVector<Value> mlir::linalg::comprehensive_bufferize::
   return result;
 }
 
-// Find the Value of the last preceding write of a given Value.
-Value mlir::linalg::comprehensive_bufferize::BufferizationState::
-    findLastPrecedingWrite(Value value) const {
-  SetVector<Value> result =
-      findValueInReverseUseDefChain(value, [&](Value value) {
-        Operation *op = value.getDefiningOp();
-        if (!op)
-          return true;
-        auto bufferizableOp = options.dynCastBufferizableOp(op);
-        if (!bufferizableOp)
-          return true;
-        return bufferizableOp.isMemoryWrite(value.cast<OpResult>(), *this);
-      });
-
-  // To simplify the analysis, `scf.if` ops are considered memory writes. There
-  // are currently no other ops where one OpResult may alias with multiple
-  // OpOperands. Therefore, this function should return exactly one result at
-  // the moment.
-  assert(result.size() == 1 && "expected exactly one result");
-  return result.front();
+// Find the Values of the last preceding write of a given Value.
+llvm::SetVector<Value> mlir::linalg::comprehensive_bufferize::
+    BufferizationState::findLastPrecedingWrite(Value value) const {
+  return findValueInReverseUseDefChain(value, [&](Value value) {
+    Operation *op = value.getDefiningOp();
+    if (!op)
+      return true;
+    auto bufferizableOp = options.dynCastBufferizableOp(op);
+    if (!bufferizableOp)
+      return true;
+    return bufferizableOp.isMemoryWrite(value.cast<OpResult>(), *this);
+  });
 }
 
 mlir::linalg::comprehensive_bufferize::BufferizationState::BufferizationState(
@@ -347,6 +340,16 @@ mlir::linalg::comprehensive_bufferize::BufferizationState::BufferizationState(
   });
 }
 
+// bufferization.to_memref is not allowed to change the rank.
+static void ensureToMemrefOpIsValid(Value tensor, Type memrefType) {
+#ifndef NDEBUG
+  auto rankedTensorType = tensor.getType().dyn_cast<RankedTensorType>();
+  assert((!rankedTensorType || memrefType.cast<MemRefType>().getRank() ==
+                                   rankedTensorType.getRank()) &&
+         "to_memref would be invalid: mismatching ranks");
+#endif
+}
+
 static Value lookupBuffer(RewriterBase &rewriter, Value tensor) {
   assert(tensor.getType().isa<TensorType>() && "unexpected non-tensor type");
 
@@ -364,6 +367,7 @@ static Value lookupBuffer(RewriterBase &rewriter, Value tensor) {
     memrefType = getUnrankedMemRefType(
         tensor.getType().cast<TensorType>().getElementType());
   }
+  ensureToMemrefOpIsValid(tensor, memrefType);
   return rewriter.create<bufferization::ToMemrefOp>(tensor.getLoc(), memrefType,
                                                     tensor);
 }
@@ -392,15 +396,19 @@ mlir::linalg::comprehensive_bufferize::BufferizationState::getBuffer(
       createAlloc(rewriter, loc, operandBuffer, options.createDeallocs);
   if (failed(resultBuffer))
     return failure();
-  // Do not copy if the last preceding write of `operand` is an op that does
+  // Do not copy if the last preceding writes of `operand` are ops that do
   // not write (skipping ops that merely create aliases). E.g., InitTensorOp.
   // Note: If `findLastPrecedingWrite` reaches the end of the reverse SSA
   // use-def chain, it returns that value, regardless of whether it is a
   // memory write or not.
-  Value lastWrite = findLastPrecedingWrite(operand);
-  if (auto bufferizableOp = options.dynCastBufferizableOp(lastWrite))
-    if (!bufferizableOp.isMemoryWrite(lastWrite.cast<OpResult>(), *this))
-      return resultBuffer;
+  SetVector<Value> lastWrites = findLastPrecedingWrite(operand);
+  if (llvm::none_of(lastWrites, [&](Value lastWrite) {
+        if (auto bufferizableOp = options.dynCastBufferizableOp(lastWrite))
+          return bufferizableOp.isMemoryWrite(lastWrite.cast<OpResult>(),
+                                              *this);
+        return true;
+      }))
+    return resultBuffer;
   // Do not copy if the copied data is never read.
   OpResult aliasingOpResult = getAliasingOpResult(opOperand);
   if (aliasingOpResult && !bufferizesToMemoryRead(opOperand) &&
@@ -549,6 +557,9 @@ mlir::linalg::comprehensive_bufferize::BufferizationState::createAlloc(
     return failure();
   Value casted = allocated.getValue();
   if (memRefType && memRefType != allocMemRefType) {
+    assert(memref::CastOp::areCastCompatible(allocated.getValue().getType(),
+                                             memRefType) &&
+           "createAlloc: cast incompatible");
     casted = b.create<memref::CastOp>(loc, memRefType, allocated.getValue());
   }
 

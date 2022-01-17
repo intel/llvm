@@ -27,6 +27,7 @@
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/CmpInstAnalysis.h"
 #include "llvm/Analysis/ConstantFolding.h"
+#include "llvm/Analysis/InstSimplifyFolder.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/OverflowInstAnalysis.h"
@@ -1078,6 +1079,16 @@ static bool isDivZero(Value *X, Value *Y, const SimplifyQuery &Q,
   }
 
   // IsSigned == false.
+
+  // Is the unsigned dividend known to be less than a constant divisor?
+  // TODO: Convert this (and above) to range analysis
+  //      ("computeConstantRangeIncludingKnownBits")?
+  const APInt *C;
+  if (match(Y, m_APInt(C)) &&
+      computeKnownBits(X, Q.DL, 0, Q.AC, Q.CxtI, Q.DT).getMaxValue().ult(*C))
+    return true;
+
+  // Try again for any divisor:
   // Is the dividend unsigned less than the divisor?
   return isICmpTrue(ICmpInst::ICMP_ULT, X, Y, Q, MaxRecurse);
 }
@@ -2696,7 +2707,9 @@ computePointerICmp(CmpInst::Predicate Pred, Value *LHS, Value *RHS,
 
     // Fold comparisons for non-escaping pointer even if the allocation call
     // cannot be elided. We cannot fold malloc comparison to null. Also, the
-    // dynamic allocation call could be either of the operands.
+    // dynamic allocation call could be either of the operands.  Note that
+    // the other operand can not be based on the alloc - if it were, then
+    // the cmp itself would be a capture.
     Value *MI = nullptr;
     if (isAllocLikeFn(LHS, TLI) &&
         llvm::isKnownNonZero(RHS, DL, 0, nullptr, CxtI, DT))
@@ -4457,7 +4470,8 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops, bool InBounds,
     return PoisonValue::get(GEPTy);
 
   if (Q.isUndefValue(Ops[0]))
-    return UndefValue::get(GEPTy);
+    // If inbounds, we can choose an out-of-bounds pointer as a base pointer.
+    return InBounds ? PoisonValue::get(GEPTy) : UndefValue::get(GEPTy);
 
   bool IsScalableVec =
       isa<ScalableVectorType>(SrcTy) || any_of(Ops, [](const Value *V) {
@@ -6454,3 +6468,5 @@ const SimplifyQuery getBestSimplifyQuery(AnalysisManager<T, TArgs...> &AM,
 template const SimplifyQuery getBestSimplifyQuery(AnalysisManager<Function> &,
                                                   Function &);
 }
+
+void InstSimplifyFolder::anchor() {}

@@ -543,6 +543,7 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   HasMatmulFP64 = false;
   HasMatmulFP32 = false;
   HasLSE = false;
+  HasHBC = false;
 
   ArchKind = llvm::AArch64::ArchKind::INVALID;
 
@@ -551,36 +552,36 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       FPU |= NeonMode;
     if (Feature == "+sve") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
+      HasFullFP16 = true;
     }
     if (Feature == "+sve2") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
     }
     if (Feature == "+sve2-aes") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2AES = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2AES = true;
     }
     if (Feature == "+sve2-sha3") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2SHA3 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2SHA3 = true;
     }
     if (Feature == "+sve2-sm4") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2SM4 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2SM4 = true;
     }
     if (Feature == "+sve2-bitperm") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2BitPerm = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2BitPerm = true;
     }
     if (Feature == "+f32mm") {
       FPU |= SveMode;
@@ -658,6 +659,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasRandGen = true;
     if (Feature == "+flagm")
       HasFlagM = true;
+    if (Feature == "+hbc")
+      HasHBC = true;
   }
 
   setDataLayout();
