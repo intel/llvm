@@ -130,6 +130,12 @@ public:
     MKernelFastCache.emplace(CacheKey, CacheVal);
   }
 
+  void reset() {
+    MCachedPrograms = ProgramCacheT{};
+    MKernelsPerProgramCache = KernelCacheT{};
+    MKernelFastCache = KernelFastCacheT{};
+  }
+
 private:
   std::mutex MProgramCacheMutex;
   std::mutex MKernelsPerProgramCacheMutex;
