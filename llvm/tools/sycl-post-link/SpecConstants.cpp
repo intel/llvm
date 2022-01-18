@@ -321,7 +321,7 @@ void collectCompositeElementsDefaultValuesRecursive(
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
       // We are shure the structure is not a zeroinitializer.
       Constant *El = cast<Constant>(C->getOperand(I));
-      
+
       // When handling elements of a structure, we do not use manually
       // calculated offsets (which are sum of sizes of all previously
       // encountered elements), but instead rely on data provided for us by
