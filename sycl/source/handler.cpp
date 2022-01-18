@@ -227,8 +227,9 @@ event handler::finalize() {
     // If there were uses of set_specialization_constant build the kernel_bundle
     KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
-      // Make sure implicit kernel bundles has the kernel
-      if (!getHandlerImpl()->isStateExplicitKernelBundle()) {
+      // Make sure implicit non-interop kernel bundles have the kernel
+      if (!KernelBundleImpPtr->isInterop() &&
+          !getHandlerImpl()->isStateExplicitKernelBundle()) {
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
         KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
