@@ -419,9 +419,9 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   return false;
 }
 
-static bool isZeroSizedArray(QualType Ty) {
-  if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty))
-    return CATy->getSize() == 0;
+static bool isZeroSizedArray(Sema &SemaRef, QualType Ty) {
+  if (const auto *CAT = SemaRef.getASTContext().getAsConstantArrayType(Ty))
+    return CAT->getSize() == 0;
   return false;
 }
 
@@ -443,7 +443,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
   //--- check types ---
 
   // zero length arrays
-  if (isZeroSizedArray(Ty)) {
+  if (isZeroSizedArray(S, Ty)) {
     S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size)
         << 1;
     Emitting = true;
@@ -4040,12 +4040,6 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
 
   return DiagKind != SemaDiagnosticBuilder::K_Immediate &&
          DiagKind != SemaDiagnosticBuilder::K_ImmediateWithCallStack;
-}
-
-static bool isZeroSizedArray(Sema &SemaRef, QualType Ty) {
-  if (const auto *CAT = SemaRef.getASTContext().getAsConstantArrayType(Ty))
-    return CAT->getSize() == 0;
-  return false;
 }
 
 void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
