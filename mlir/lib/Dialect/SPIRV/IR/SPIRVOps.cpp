@@ -669,7 +669,7 @@ getElementType(Type type, Attribute indices,
     emitErrorFn("expected a 32-bit integer array attribute for 'indices'");
     return nullptr;
   }
-  if (!indicesArrayAttr.size()) {
+  if (indicesArrayAttr.empty()) {
     emitErrorFn("expected at least one index for spv.CompositeExtract");
     return nullptr;
   }
@@ -1929,7 +1929,7 @@ static void print(spirv::ExecutionModeOp execModeOp, OpAsmPrinter &printer) {
   printer << " \"" << stringifyExecutionMode(execModeOp.execution_mode())
           << "\"";
   auto values = execModeOp.values();
-  if (!values.size())
+  if (values.empty())
     return;
   printer << ", ";
   llvm::interleaveComma(values, printer, [&](Attribute a) {
@@ -3250,13 +3250,13 @@ static ParseResult parseCooperativeMatrixLoadNVOp(OpAsmParser &parser,
   return success();
 }
 
-static void print(spirv::CooperativeMatrixLoadNVOp M, OpAsmPrinter &printer) {
-  printer << " " << M.pointer() << ", " << M.stride() << ", "
-          << M.columnmajor();
+static void print(spirv::CooperativeMatrixLoadNVOp m, OpAsmPrinter &printer) {
+  printer << " " << m.pointer() << ", " << m.stride() << ", "
+          << m.columnmajor();
   // Print optional memory access attribute.
-  if (auto memAccess = M.memory_access())
+  if (auto memAccess = m.memory_access())
     printer << " [\"" << stringifyMemoryAccess(*memAccess) << "\"]";
-  printer << " : " << M.pointer().getType() << " as " << M.getType();
+  printer << " : " << m.pointer().getType() << " as " << m.getType();
 }
 
 static LogicalResult verifyPointerAndCoopMatrixType(Operation *op, Type pointer,

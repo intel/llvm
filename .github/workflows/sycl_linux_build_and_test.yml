@@ -109,11 +109,16 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
       options: -u 1001:1001
     steps:
-    - uses: actions/checkout@v2
+    # GHA requires relative paths for actions. Copy actions from container root
+    # to CWD.
+    - run: cp -r /actions .
+    # Cleanup will be run after all actions are completed.
+    - name: Register cleanup after job is finished
+      uses: ./actions/cleanup
+    - uses: ./actions/cached_checkout
       with:
         path: src
-    - name: Register cleanup after job is finished
-      uses: ./src/devops/actions/cleanup
+        cache_path: "/__w/repo_cache/"
     - name: Setup Cache
       uses: actions/cache@v2
       if: ${{ steps.parameters.build_github_cache }}
@@ -213,11 +218,14 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001 --device=/dev/dri
     steps:
+    - run: cp -r /actions .
+    - name: Register cleanup after job is finished
+      uses: ./actions/cleanup
+    # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v2
       with:
         path: llvm
-    - name: Register cleanup after job is finished
-      uses: ./llvm/devops/actions/cleanup
+    # TODO should this action be packed into container as well?
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
@@ -240,11 +248,13 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001 --device=/dev/dri
     steps:
+    - run: cp -r /actions .
+    - name: Register cleanup after job is finished
+      uses: ./actions/cleanup
+    # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v2
       with:
         path: llvm
-    - name: Register cleanup after job is finished
-      uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
@@ -267,11 +277,13 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001
     steps:
+    - run: cp -r /actions .
+    - name: Register cleanup after job is finished
+      uses: ./actions/cleanup
+    # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v2
       with:
         path: llvm
-    - name: Register cleanup after job is finished
-      uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
@@ -293,11 +305,15 @@ jobs:
       image: ${{ fromJSON(needs.configure.outputs.params).amdgpu_image }}
       options: --device=/dev/dri --device=/dev/kfd
     steps:
+    - run: cp -r /actions .
+    - name: Register cleanup after job is finished
+      uses: ./actions/cleanup
+    # TODO remove this step one LLVM Test Suite action is settled and packed
+    # into container.
+    # FIXME cached_checkout fails here, but works everywhere else
     - uses: actions/checkout@v2
       with:
         path: llvm
-    - name: Register cleanup after job is finished
-      uses: ./llvm/devops/actions/cleanup
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:

@@ -962,6 +962,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setMinFunctionAlignment(Align(4));
   // Set preferred alignments.
   setPrefLoopAlignment(Align(1ULL << STI.getPrefLoopLogAlignment()));
+  setMaxBytesForAlignment(STI.getMaxBytesForLoopAlignment());
   setPrefFunctionAlignment(Align(1ULL << STI.getPrefFunctionLogAlignment()));
 
   // Only change the limit for entries in a jump table if specified by
@@ -9631,14 +9632,12 @@ static SDValue constructDup(SDValue V, int Lane, SDLoc dl, EVT VT,
   MVT CastVT;
   if (getScaledOffsetDup(V, Lane, CastVT)) {
     V = DAG.getBitcast(CastVT, V.getOperand(0).getOperand(0));
-  } else if (V.getOpcode() == ISD::EXTRACT_SUBVECTOR) {
+  } else if (V.getOpcode() == ISD::EXTRACT_SUBVECTOR &&
+             V.getOperand(0).getValueType().is128BitVector()) {
     // The lane is incremented by the index of the extract.
     // Example: dup v2f32 (extract v4f32 X, 2), 1 --> dup v4f32 X, 3
-    auto VecVT = V.getOperand(0).getValueType();
-    if (VecVT.isFixedLengthVector() && VecVT.getFixedSizeInBits() <= 128) {
-      Lane += V.getConstantOperandVal(1);
-      V = V.getOperand(0);
-    }
+    Lane += V.getConstantOperandVal(1);
+    V = V.getOperand(0);
   } else if (V.getOpcode() == ISD::CONCAT_VECTORS) {
     // The lane is decremented if we are splatting from the 2nd operand.
     // Example: dup v4i32 (concat v2i32 X, v2i32 Y), 3 --> dup v4i32 Y, 1
@@ -19618,12 +19617,72 @@ SDValue AArch64TargetLowering::LowerFixedLengthVECTOR_SHUFFLEToSVE(
     }
   }
 
+  unsigned WhichResult;
+  if (isZIPMask(ShuffleMask, VT, WhichResult) && WhichResult == 0)
+    return convertFromScalableVector(
+        DAG, VT, DAG.getNode(AArch64ISD::ZIP1, DL, ContainerVT, Op1, Op2));
+
+  if (isTRNMask(ShuffleMask, VT, WhichResult)) {
+    unsigned Opc = (WhichResult == 0) ? AArch64ISD::TRN1 : AArch64ISD::TRN2;
+    return convertFromScalableVector(
+        DAG, VT, DAG.getNode(Opc, DL, ContainerVT, Op1, Op2));
+  }
+
+  if (isZIP_v_undef_Mask(ShuffleMask, VT, WhichResult) && WhichResult == 0)
+    return convertFromScalableVector(
+        DAG, VT, DAG.getNode(AArch64ISD::ZIP1, DL, ContainerVT, Op1, Op1));
+
+  if (isTRN_v_undef_Mask(ShuffleMask, VT, WhichResult)) {
+    unsigned Opc = (WhichResult == 0) ? AArch64ISD::TRN1 : AArch64ISD::TRN2;
+    return convertFromScalableVector(
+        DAG, VT, DAG.getNode(Opc, DL, ContainerVT, Op1, Op1));
+  }
+
+  // Functions like isZIPMask return true when a ISD::VECTOR_SHUFFLE's mask
+  // represents the same logical operation as performed by a ZIP instruction. In
+  // isolation these functions do not mean the ISD::VECTOR_SHUFFLE is exactly
+  // equivalent to an AArch64 instruction. There's the extra component of
+  // ISD::VECTOR_SHUFFLE's value type to consider. Prior to SVE these functions
+  // only operated on 64/128bit vector types that have a direct mapping to a
+  // target register and so an exact mapping is implied.
+  // However, when using SVE for fixed length vectors, most legal vector types
+  // are actually sub-vectors of a larger SVE register. When mapping
+  // ISD::VECTOR_SHUFFLE to an SVE instruction care must be taken to consider
+  // how the mask's indices translate. Specifically, when the mapping requires
+  // an exact meaning for a specific vector index (e.g. Index X is the last
+  // vector element in the register) then such mappings are often only safe when
+  // the exact SVE register size is know. The main exception to this is when
+  // indices are logically relative to the first element of either
+  // ISD::VECTOR_SHUFFLE operand because these relative indices don't change
+  // when converting from fixed-length to scalable vector types (i.e. the start
+  // of a fixed length vector is always the start of a scalable vector).
   unsigned MinSVESize = Subtarget->getMinSVEVectorSizeInBits();
   unsigned MaxSVESize = Subtarget->getMaxSVEVectorSizeInBits();
-  if (MinSVESize == MaxSVESize && MaxSVESize == VT.getSizeInBits() &&
-      ShuffleVectorInst::isReverseMask(ShuffleMask) && Op2.isUndef()) {
-    Op = DAG.getNode(ISD::VECTOR_REVERSE, DL, ContainerVT, Op1);
-    return convertFromScalableVector(DAG, VT, Op);
+  if (MinSVESize == MaxSVESize && MaxSVESize == VT.getSizeInBits()) {
+    if (ShuffleVectorInst::isReverseMask(ShuffleMask) && Op2.isUndef()) {
+      Op = DAG.getNode(ISD::VECTOR_REVERSE, DL, ContainerVT, Op1);
+      return convertFromScalableVector(DAG, VT, Op);
+    }
+
+    if (isZIPMask(ShuffleMask, VT, WhichResult) && WhichResult != 0)
+      return convertFromScalableVector(
+          DAG, VT, DAG.getNode(AArch64ISD::ZIP2, DL, ContainerVT, Op1, Op2));
+
+    if (isUZPMask(ShuffleMask, VT, WhichResult)) {
+      unsigned Opc = (WhichResult == 0) ? AArch64ISD::UZP1 : AArch64ISD::UZP2;
+      return convertFromScalableVector(
+          DAG, VT, DAG.getNode(Opc, DL, ContainerVT, Op1, Op2));
+    }
+
+    if (isZIP_v_undef_Mask(ShuffleMask, VT, WhichResult) && WhichResult != 0)
+      return convertFromScalableVector(
+          DAG, VT, DAG.getNode(AArch64ISD::ZIP2, DL, ContainerVT, Op1, Op1));
+
+    if (isUZP_v_undef_Mask(ShuffleMask, VT, WhichResult)) {
+      unsigned Opc = (WhichResult == 0) ? AArch64ISD::UZP1 : AArch64ISD::UZP2;
+      return convertFromScalableVector(
+          DAG, VT, DAG.getNode(Opc, DL, ContainerVT, Op1, Op1));
+    }
   }
 
   return SDValue();
@@ -19717,7 +19776,7 @@ bool AArch64TargetLowering::SimplifyDemandedBitsForTargetNode(
       Op, OriginalDemandedBits, OriginalDemandedElts, Known, TLO, Depth);
 }
 
-bool AArch64TargetLowering::isConstantUnsignedBitfieldExtactLegal(
+bool AArch64TargetLowering::isConstantUnsignedBitfieldExtractLegal(
     unsigned Opc, LLT Ty1, LLT Ty2) const {
   return Ty1 == Ty2 && (Ty1 == LLT::scalar(32) || Ty1 == LLT::scalar(64));
 }

@@ -83,7 +83,7 @@ static Value broadcast(ImplicitLocOpBuilder &builder, Value value,
 static Value
 handleMultidimensionalVectors(ImplicitLocOpBuilder &builder,
                               ValueRange operands, int64_t vectorWidth,
-                              std::function<Value(ValueRange)> compute) {
+                              llvm::function_ref<Value(ValueRange)> compute) {
   assert(!operands.empty() && "operands must be not empty");
   assert(vectorWidth > 0 && "vector width must be larger than 0");
 
@@ -134,7 +134,7 @@ handleMultidimensionalVectors(ImplicitLocOpBuilder &builder,
     auto offsets = delinearize(strides, i);
 
     SmallVector<Value> extracted(expandedOperands.size());
-    for (auto tuple : llvm::enumerate(expandedOperands))
+    for (const auto &tuple : llvm::enumerate(expandedOperands))
       extracted[tuple.index()] =
           builder.create<vector::ExtractOp>(tuple.value(), offsets);
 
@@ -195,7 +195,7 @@ static Value clamp(ImplicitLocOpBuilder &builder, Value value, Value lowerBound,
 // Decomposes given floating point value `arg` into a normalized fraction and
 // an integral power of two (see std::frexp). Returned values have float type.
 static std::pair<Value, Value> frexp(ImplicitLocOpBuilder &builder, Value arg,
-                                     bool is_positive = false) {
+                                     bool isPositive = false) {
   assert(getElementTypeOrSelf(arg).isF32() && "arg must be f32 type");
   ArrayRef<int64_t> shape = vectorShape(arg);
 
@@ -222,7 +222,7 @@ static std::pair<Value, Value> frexp(ImplicitLocOpBuilder &builder, Value arg,
   Value normalizedFraction = builder.create<arith::BitcastOp>(f32Vec, tmp1);
 
   // Compute exponent.
-  Value arg0 = is_positive ? arg : builder.create<math::AbsOp>(arg);
+  Value arg0 = isPositive ? arg : builder.create<math::AbsOp>(arg);
   Value biasedExponentBits = builder.create<arith::ShRUIOp>(
       builder.create<arith::BitcastOp>(i32Vec, arg0),
       bcast(i32Cst(builder, 23)));
@@ -421,7 +421,7 @@ LogApproximationBase<Op>::logMatchAndRewrite(Op op, PatternRewriter &rewriter,
   x = max(builder, x, cstMinNormPos);
 
   // Extract significant in the range [0.5,1) and exponent.
-  std::pair<Value, Value> pair = frexp(builder, x, /*is_positive=*/true);
+  std::pair<Value, Value> pair = frexp(builder, x, /*isPositive=*/true);
   x = pair.first;
   Value e = pair.second;
 

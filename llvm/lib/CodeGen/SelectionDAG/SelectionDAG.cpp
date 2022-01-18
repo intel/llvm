@@ -2499,7 +2499,8 @@ bool SelectionDAG::MaskedValueIsAllOnes(SDValue V, const APInt &Mask,
 /// sense to specify which elements are demanded or undefined, therefore
 /// they are simply ignored.
 bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
-                                APInt &UndefElts, unsigned Depth) {
+                                APInt &UndefElts, unsigned Depth) const {
+  unsigned Opcode = V.getOpcode();
   EVT VT = V.getValueType();
   assert(VT.isVector() && "Vector type expected");
 
@@ -2511,7 +2512,7 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
 
   // Deal with some common cases here that work for both fixed and scalable
   // vector types.
-  switch (V.getOpcode()) {
+  switch (Opcode) {
   case ISD::SPLAT_VECTOR:
     UndefElts = V.getOperand(0).isUndef()
                     ? APInt::getAllOnes(DemandedElts.getBitWidth())
@@ -2537,7 +2538,12 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
   case ISD::SIGN_EXTEND:
   case ISD::ZERO_EXTEND:
     return isSplatValue(V.getOperand(0), DemandedElts, UndefElts, Depth + 1);
-  }
+  default:
+    if (Opcode >= ISD::BUILTIN_OP_END || Opcode == ISD::INTRINSIC_WO_CHAIN ||
+        Opcode == ISD::INTRINSIC_W_CHAIN || Opcode == ISD::INTRINSIC_VOID)
+      return TLI->isSplatValueForTargetNode(V, DemandedElts, UndefElts, Depth);
+    break;
+}
 
   // We don't support other cases than those above for scalable vectors at
   // the moment.
@@ -2548,7 +2554,7 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
   assert(NumElts == DemandedElts.getBitWidth() && "Vector size mismatch");
   UndefElts = APInt::getZero(NumElts);
 
-  switch (V.getOpcode()) {
+  switch (Opcode) {
   case ISD::BUILD_VECTOR: {
     SDValue Scl;
     for (unsigned i = 0; i != NumElts; ++i) {
@@ -2623,7 +2629,7 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
 }
 
 /// Helper wrapper to main isSplatValue function.
-bool SelectionDAG::isSplatValue(SDValue V, bool AllowUndefs) {
+bool SelectionDAG::isSplatValue(SDValue V, bool AllowUndefs) const {
   EVT VT = V.getValueType();
   assert(VT.isVector() && "Vector type expected");
 
@@ -4288,31 +4294,18 @@ unsigned SelectionDAG::ComputeNumSignBits(SDValue Op, const APInt &DemandedElts,
   // Finally, if we can prove that the top bits of the result are 0's or 1's,
   // use this information.
   KnownBits Known = computeKnownBits(Op, DemandedElts, Depth);
-
-  APInt Mask;
-  if (Known.isNonNegative()) {        // sign bit is 0
-    Mask = Known.Zero;
-  } else if (Known.isNegative()) {  // sign bit is 1;
-    Mask = Known.One;
-  } else {
-    // Nothing known.
-    return FirstAnswer;
-  }
-
-  // Okay, we know that the sign bit in Mask is set.  Use CLO to determine
-  // the number of identical bits in the top of the input value.
-  Mask <<= Mask.getBitWidth()-VTBits;
-  return std::max(FirstAnswer, Mask.countLeadingOnes());
+  return std::max(FirstAnswer, Known.countMinSignBits());
 }
 
-unsigned SelectionDAG::ComputeMinSignedBits(SDValue Op, unsigned Depth) const {
+unsigned SelectionDAG::ComputeMaxSignificantBits(SDValue Op,
+                                                 unsigned Depth) const {
   unsigned SignBits = ComputeNumSignBits(Op, Depth);
   return Op.getScalarValueSizeInBits() - SignBits + 1;
 }
 
-unsigned SelectionDAG::ComputeMinSignedBits(SDValue Op,
-                                            const APInt &DemandedElts,
-                                            unsigned Depth) const {
+unsigned SelectionDAG::ComputeMaxSignificantBits(SDValue Op,
+                                                 const APInt &DemandedElts,
+                                                 unsigned Depth) const {
   unsigned SignBits = ComputeNumSignBits(Op, DemandedElts, Depth);
   return Op.getScalarValueSizeInBits() - SignBits + 1;
 }
@@ -6352,7 +6345,7 @@ static SDValue getMemsetStringVal(EVT VT, const SDLoc &dl, SelectionDAG &DAG,
   Type *Ty = VT.getTypeForEVT(*DAG.getContext());
   if (TLI.shouldConvertConstantLoadToIntImm(Val, Ty))
     return DAG.getConstant(Val, dl, VT);
-  return SDValue(nullptr, 0);
+  return SDValue();
 }
 
 SDValue SelectionDAG::getMemBasePlusOffset(SDValue Base, TypeSize Offset,
@@ -10652,6 +10645,23 @@ SelectionDAG::SplitVector(const SDValue &N, const SDLoc &DL, const EVT &LoVT,
   // fixed-width result vectors, that runtime scaling factor is 1.
   Hi = getNode(ISD::EXTRACT_SUBVECTOR, DL, HiVT, N,
                getVectorIdxConstant(LoVT.getVectorMinNumElements(), DL));
+  return std::make_pair(Lo, Hi);
+}
+
+std::pair<SDValue, SDValue> SelectionDAG::SplitEVL(SDValue N, EVT VecVT,
+                                                   const SDLoc &DL) {
+  // Split the vector length parameter.
+  // %evl -> umin(%evl, %halfnumelts) and usubsat(%evl - %halfnumelts).
+  EVT VT = N.getValueType();
+  assert(VecVT.getVectorElementCount().isKnownEven() &&
+         "Expecting the mask to be an evenly-sized vector");
+  unsigned HalfMinNumElts = VecVT.getVectorMinNumElements() / 2;
+  SDValue HalfNumElts =
+      VecVT.isFixedLengthVector()
+          ? getConstant(HalfMinNumElts, DL, VT)
+          : getVScale(DL, VT, APInt(VT.getScalarSizeInBits(), HalfMinNumElts));
+  SDValue Lo = getNode(ISD::UMIN, DL, VT, N, HalfNumElts);
+  SDValue Hi = getNode(ISD::USUBSAT, DL, VT, N, HalfNumElts);
   return std::make_pair(Lo, Hi);
 }
 

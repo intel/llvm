@@ -429,6 +429,31 @@ type-legalization steps.
   }];
 }
 
+def SYCLDeviceHasDocs : Documentation {
+  let Category = DocCatStmt;
+  let Content = [{
+The ``[[sycl::device_has(aspect, ...)]]`` attribute is used to decorate either
+the declaration of a kernel function that is defined in the current translation
+unit or to decorate the declaration of a non-kernel device function. The
+parameter list to the sycl::device_has() attribute consists of zero or more
+constexpr integral expressions, where each integer is interpreted as one of the
+enumerated values in the sycl::aspect enumeration type.
+
+Specifying this attribute on a kernel has two effects. First, it causes the kernel
+invocation command to throw a synchronous exception with the errc::kernel_not_supported
+error code if the kernel is submitted to a device that does not have one of the
+listed aspects. Second, it causes the compiler to issue a diagnostic if the kernel
+(or any of the functions it calls) uses an optional feature that is associated with
+an aspect that is not listed in the attribute.
+
+.. code-block:: c++
+
+  [[sycl::device_has()]] int func1() {}
+  [[sycl::device_has(sycl::aspect1, sycl::aspect2)]] int func2() {}
+
+  }];
+}
+
 def SYCLSimdDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -7314,7 +7339,7 @@ attribute requires a string literal argument to identify the handle being releas
 def DiagnoseAsBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-The ``diagnose_as_builtin` attribute indicates that Fortify diagnostics are to
+The ``diagnose_as_builtin`` attribute indicates that Fortify diagnostics are to
 be applied to the declared function as if it were the function specified by the
 attribute. The builtin function whose diagnostics are to be mimicked should be
 given. In addition, the order in which arguments should be applied must also
@@ -7322,12 +7347,12 @@ be given.
 
 For example, the attribute can be used as follows.
 
-  .. code-block:: c
+.. code-block:: c
 
-    __attribute__((diagnose_as_builtin(__builtin_memset, 3, 2, 1)))
-    void *mymemset(int n, int c, void *s) {
-      // ...
-    }
+  __attribute__((diagnose_as_builtin(__builtin_memset, 3, 2, 1)))
+  void *mymemset(int n, int c, void *s) {
+    // ...
+  }
 
 This indicates that calls to ``mymemset`` should be diagnosed as if they were
 calls to ``__builtin_memset``. The arguments ``3, 2, 1`` indicate by index the
@@ -7342,7 +7367,8 @@ they would to the builtin function, after all normal arguments. For instance,
 to diagnose a new function as if it were `sscanf`, we can use the attribute as
 follows.
 
-  .. code-block:: c
+.. code-block:: c
+
   __attribute__((diagnose_as_builtin(sscanf, 1, 2)))
   int mysscanf(const char *str, const char *format, ...)  {
     // ...

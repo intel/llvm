@@ -382,7 +382,10 @@ def ConversionCallOp : TEST_Op<"conversion_call_op",
 
   let extraClassDeclaration = [{
     /// Return the callee of this operation.
-    ::mlir::CallInterfaceCallable getCallableForCallee() {
+    ::mlir::CallInterfaceCallable getCallableForCallee();
+  }];
+  let extraClassDefinition = [{
+    ::mlir::CallInterfaceCallable $cppClass::getCallableForCallee() {
       return (*this)->getAttrOfType<::mlir::SymbolRefAttr>("callee");
     }
   }];
@@ -808,7 +811,7 @@ def OpFuncRef : TEST_Op<"op_funcref"> {
 // That way, we will know if operations is called once or twice.
 def OpMGetNullAttr : NativeCodeCall<"Attribute()">;
 def OpMAttributeIsNull : Constraint<CPred<"! ($_self)">, "Attribute is null">;
-def OpMVal : NativeCodeCall<"OpMTest($_builder, $0)">;
+def OpMVal : NativeCodeCall<"opMTest($_builder, $0)">;
 def : Pat<(OpM $attr, $optAttr), (OpM $attr, (OpMVal $attr) ),
     [(OpMAttributeIsNull:$optAttr)]>;
 
@@ -1667,13 +1670,16 @@ def PrettyPrintedRegionOp : TEST_Op<"pretty_printed_region",
   let printer = [{ return ::print(p, *this); }];
 }
 
-def PolyForOp : TEST_Op<"polyfor">
+def PolyForOp : TEST_Op<"polyfor", [OpAsmOpInterface]>
 {
   let summary =  "polyfor operation";
   let description = [{
     Test op with multiple region arguments, each argument of index type.
   }];
-
+  let extraClassDeclaration = [{
+    void getAsmBlockArgumentNames(mlir::Region &region,
+                                  mlir::OpAsmSetValueNameFn setNameFn);
+  }];
   let regions = (region SizedRegion<1>:$region);
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
@@ -2134,6 +2140,12 @@ def FormatInferTypeOp : TEST_Op<"format_infer_type", [InferTypeOpInterface]> {
       return ::mlir::success();
     }
    }];
+}
+
+// Check that formatget supports DeclareOpInterfaceMethods.
+def FormatInferType2Op : TEST_Op<"format_infer_type2", [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let results = (outs AnyType);
+  let assemblyFormat = "attr-dict";
 }
 
 // Base class for testing mixing allOperandTypes, allOperands, and

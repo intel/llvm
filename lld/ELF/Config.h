@@ -22,6 +22,7 @@
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include <atomic>
+#include <memory>
 #include <vector>
 
 namespace lld {
@@ -86,8 +87,8 @@ struct SymbolVersion {
 struct VersionDefinition {
   llvm::StringRef name;
   uint16_t id;
-  std::vector<SymbolVersion> nonLocalPatterns;
-  std::vector<SymbolVersion> localPatterns;
+  SmallVector<SymbolVersion, 0> nonLocalPatterns;
+  SmallVector<SymbolVersion, 0> localPatterns;
 };
 
 // This struct contains the global configuration for the linker.
@@ -343,7 +344,7 @@ struct Configuration {
 };
 
 // The only instance of Configuration struct.
-extern Configuration *config;
+extern std::unique_ptr<Configuration> config;
 
 // The first two elements of versionDefinitions represent VER_NDX_LOCAL and
 // VER_NDX_GLOBAL. This helper returns other elements.

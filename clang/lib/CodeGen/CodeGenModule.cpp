@@ -508,6 +508,19 @@ static void setVisibilityFromDLLStorageClass(const clang::LangOptions &LO,
   }
 }
 
+static llvm::MDNode *getAspectsMD(ASTContext &ASTContext,
+                                  llvm::LLVMContext &Ctx, StringRef Name,
+                                  const SYCLUsesAspectsAttr *A) {
+  SmallVector<llvm::Metadata *, 4> AspectsMD;
+  AspectsMD.push_back(llvm::MDString::get(Ctx, Name));
+  for (auto *Aspect : A->aspects()) {
+    llvm::APSInt AspectInt = Aspect->EvaluateKnownConstInt(ASTContext);
+    AspectsMD.push_back(llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+        llvm::Type::getInt32Ty(Ctx), AspectInt.getZExtValue())));
+  }
+  return llvm::MDNode::get(Ctx, AspectsMD);
+}
+
 void CodeGenModule::Release() {
   EmitDeferred();
   EmitVTablesOpportunistically();
@@ -758,13 +771,15 @@ void CodeGenModule::Release() {
         llvm::MDString::get(Ctx, CodeGenOpts.MemoryProfileOutput));
   }
 
-  if (LangOpts.CUDAIsDevice && getTriple().isNVPTX()) {
+  if ((LangOpts.CUDAIsDevice || LangOpts.isSYCL()) && getTriple().isNVPTX()) {
     // Indicate whether __nvvm_reflect should be configured to flush denormal
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
     // property.)
     getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-ftz",
                               CodeGenOpts.FP32DenormalMode.Output !=
                                   llvm::DenormalMode::IEEE);
+    getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-prec-sqrt",
+                              getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
 
   if (LangOpts.EHAsynch)
@@ -799,7 +814,8 @@ void CodeGenModule::Release() {
     }
   }
 
-  // Emit SYCL specific module metadata: OpenCL/SPIR version, OpenCL language.
+  // Emit SYCL specific module metadata: OpenCL/SPIR version, OpenCL language,
+  // metadata for optional features (device aspects).
   if (LangOpts.SYCLIsDevice) {
     llvm::LLVMContext &Ctx = TheModule.getContext();
     llvm::Metadata *SPIRVerElts[] = {
@@ -824,6 +840,19 @@ void CodeGenModule::Release() {
     llvm::NamedMDNode *SPIRVSourceMD =
         TheModule.getOrInsertNamedMetadata("spirv.Source");
     SPIRVSourceMD->addOperand(llvm::MDNode::get(Ctx, SPIRVSourceElts));
+
+    // Emit type name with list of associated device aspects.
+    if (TypesWithAspects.size() > 0) {
+      llvm::NamedMDNode *AspectsMD =
+          TheModule.getOrInsertNamedMetadata("intel_types_that_use_aspects");
+      for (const auto &Type : TypesWithAspects) {
+        StringRef Name = Type.first;
+        const RecordDecl *RD = Type.second;
+        AspectsMD->addOperand(getAspectsMD(Context, TheModule.getContext(),
+                                           Name,
+                                           RD->getAttr<SYCLUsesAspectsAttr>()));
+      }
+    }
   }
 
   if (uint32_t PLevel = Context.getLangOpts().PICLevel) {
@@ -1699,9 +1728,15 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   // MDNode for the intel_buffer_location attribute.
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
+  // MDNode for listing SYCL kernel pointer arguments originating from
+  // accessors.
+  SmallVector<llvm::Metadata *, 8> argSYCLKernelRuntimeAligned;
+
   // MDNode for listing ESIMD kernel pointer arguments originating from
-  // accessors
+  // accessors.
   SmallVector<llvm::Metadata *, 8> argESIMDAccPtrs;
+
+  bool isKernelArgAnAccessor = false;
 
   if (FD && CGF)
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
@@ -1806,17 +1841,38 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
 
+      // If a kernel pointer argument comes from an accessor, we generate
+      // a new metadata(kernel_arg_runtime_aligned) to the kernel to indicate
+      // that this pointer has runtime allocated alignment. The value of any
+      // "kernel_arg_runtime_aligned" metadata element is 'true' for any kernel
+      // arguments that corresponds to the base pointer of an accessor and
+      // 'false' otherwise.
+      if (parm->hasAttr<SYCLAccessorPtrAttr>()) {
+        isKernelArgAnAccessor = true;
+        argSYCLKernelRuntimeAligned.push_back(
+            llvm::ConstantAsMetadata::get(CGF->Builder.getTrue()));
+      } else {
+        argSYCLKernelRuntimeAligned.push_back(
+            llvm::ConstantAsMetadata::get(CGF->Builder.getFalse()));
+      }
+
       if (FD->hasAttr<SYCLSimdAttr>())
         argESIMDAccPtrs.push_back(llvm::ConstantAsMetadata::get(
-            CGF->Builder.getInt1(parm->hasAttr<SYCLSimdAccessorPtrAttr>())));
+            CGF->Builder.getInt1(parm->hasAttr<SYCLAccessorPtrAttr>())));
     }
 
   bool IsEsimdFunction = FD && FD->hasAttr<SYCLSimdAttr>();
 
-  if (LangOpts.SYCLIsDevice && !IsEsimdFunction)
+  if (LangOpts.SYCLIsDevice && !IsEsimdFunction) {
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
-  else {
+    // Generate this metadata only if atleast one kernel argument is an
+    // accessor.
+    if (isKernelArgAnAccessor)
+      Fn->setMetadata(
+          "kernel_arg_runtime_aligned",
+          llvm::MDNode::get(VMContext, argSYCLKernelRuntimeAligned));
+  } else {
     Fn->setMetadata("kernel_arg_addr_space",
                     llvm::MDNode::get(VMContext, addressQuals));
     Fn->setMetadata("kernel_arg_access_qual",
@@ -2164,7 +2220,7 @@ void CodeGenModule::setNonAliasAttributes(GlobalDecl GD,
         // We know that GetCPUAndFeaturesAttributes will always have the
         // newest set, since it has the newest possible FunctionDecl, so the
         // new ones should replace the old.
-        llvm::AttrBuilder RemoveAttrs;
+        llvm::AttributeMask RemoveAttrs;
         RemoveAttrs.addAttribute("target-cpu");
         RemoveAttrs.addAttribute("target-features");
         RemoveAttrs.addAttribute("tune-cpu");
@@ -4009,6 +4065,14 @@ llvm::Constant *CodeGenModule::GetAddrOfFunction(GlobalDecl GD,
   return F;
 }
 
+llvm::Constant *CodeGenModule::GetFunctionStart(const ValueDecl *Decl) {
+  llvm::GlobalValue *F =
+      cast<llvm::GlobalValue>(GetAddrOfFunction(Decl)->stripPointerCasts());
+
+  return llvm::ConstantExpr::getBitCast(llvm::NoCFIValue::get(F),
+                                        llvm::Type::getInt8PtrTy(VMContext));
+}
+
 static const FunctionDecl *
 GetRuntimeFunctionDecl(ASTContext &C, StringRef Name) {
   TranslationUnitDecl *TUDecl = C.getTranslationUnitDecl();
@@ -4117,11 +4181,10 @@ static void maybeEmitPipeStorageMetadata(const VarDecl *D,
   if (!PipeTy->isStructureType())
     return;
 
-  if (auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-    Optional<llvm::APSInt> ID =
-        IOAttr->getID()->getIntegerConstantExpr(D->getASTContext());
+  if (const auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
+    const auto *CE = cast<ConstantExpr>(IOAttr->getID());
+    Optional<llvm::APSInt> ID = CE->getResultAsAPSInt();
     llvm::LLVMContext &Context = CGM.getLLVMContext();
-    assert(bool(ID) && "Not an integer constant expression");
 
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(

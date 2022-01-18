@@ -438,7 +438,7 @@ static T extractMaskValue(T KeyPath) {
     }(EXTRACTOR(KEYPATH));                                                     \
   }
 
-static const StringRef GetInputKindName(InputKind IK);
+static StringRef GetInputKindName(InputKind IK);
 
 static bool FixupInvocation(CompilerInvocation &Invocation,
                             DiagnosticsEngine &Diags, const ArgList &Args,
@@ -1900,6 +1900,13 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Opts.EnableAIXExtendedAltivecABI = O.matches(OPT_mabi_EQ_vec_extabi);
   }
 
+  if (Arg *A = Args.getLastArg(OPT_fsycl_instrument_device_code)) {
+    if (!T.isSPIR())
+      Diags.Report(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << T.str();
+    Opts.SPIRITTAnnotations = true;
+  }
+
   bool NeedLocTracking = false;
 
   if (!Opts.OptRecordFile.empty())
@@ -3304,7 +3311,7 @@ static bool IsInputCompatibleWithStandard(InputKind IK,
 }
 
 /// Get language name for given input kind.
-static const StringRef GetInputKindName(InputKind IK) {
+static StringRef GetInputKindName(InputKind IK) {
   switch (IK.getLanguage()) {
   case Language::C:
     return "C";
@@ -4618,7 +4625,7 @@ bool CompilerInvocation::CreateFromArgsImpl(
 
   // Store the command-line for using in the CodeView backend.
   Res.getCodeGenOpts().Argv0 = Argv0;
-  Res.getCodeGenOpts().CommandLineArgs = CommandLineArgs;
+  append_range(Res.getCodeGenOpts().CommandLineArgs, CommandLineArgs);
 
   FixupInvocation(Res, Diags, Args, DashX);
 

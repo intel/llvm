@@ -1210,12 +1210,14 @@ Currently, only the following parameter attributes are defined:
 .. _attr_align:
 
 ``align <n>`` or ``align(<n>)``
-    This indicates that the pointer value has the specified alignment.
-    If the pointer value does not have the specified alignment,
-    :ref:`poison value <poisonvalues>` is returned or passed instead. The
-    ``align`` attribute should be combined with the ``noundef`` attribute to
-    ensure a pointer is aligned, or otherwise the behavior is undefined. Note
-    that ``align 1`` has no effect on non-byval, non-preallocated arguments.
+    This indicates that the pointer value or vector of pointers has the
+    specified alignment. If applied to a vector of pointers, *all* pointers
+    (elements) have the specified alignment. If the pointer value does not have
+    the specified alignment, :ref:`poison value <poisonvalues>` is returned or
+    passed instead.  The ``align`` attribute should be combined with the
+    ``noundef`` attribute to ensure a pointer is aligned, or otherwise the
+    behavior is undefined. Note that ``align 1`` has no effect on non-byval,
+    non-preallocated arguments.
 
     Note that this attribute has additional semantics when combined with the
     ``byval`` or ``preallocated`` attribute, which are documented there.
@@ -4222,6 +4224,20 @@ may not be ``dso_local``.
 
 This is currently only supported for ELF binary formats.
 
+.. _no_cfi:
+
+No CFI
+------
+
+``no_cfi @func``
+
+With `Control-Flow Integrity (CFI)
+<https://clang.llvm.org/docs/ControlFlowIntegrity.html>`_, a '``no_cfi``'
+constant represents a function reference that does not get replaced with a
+reference to the CFI jump table in the ``LowerTypeTests`` pass. These constants
+may be useful in low-level programs, such as operating system kernels, which
+need to refer to the actual function body.
+
 .. _constantexprs:
 
 Constant Expressions
@@ -4552,6 +4568,9 @@ functionality provides, compared to writing the store explicitly after the asm
 statement, and it can only produce worse code, since it bypasses many
 optimization passes. I would recommend not using it.)
 
+Call arguments for indirect constraints must have pointer type and must specify
+the :ref:`elementtype <attr_elementtype>` attribute to indicate the pointer
+element type.
 
 Clobber constraints
 """""""""""""""""""
@@ -5309,6 +5328,7 @@ The following ``tag:`` values are valid:
   DW_TAG_volatile_type      = 53
   DW_TAG_restrict_type      = 55
   DW_TAG_atomic_type        = 71
+  DW_TAG_immutable_type     = 75
 
 .. _DIDerivedTypeMember:
 
@@ -5325,8 +5345,8 @@ friends.
 ``DW_TAG_typedef`` is used to provide a name for the ``baseType:``.
 
 ``DW_TAG_pointer_type``, ``DW_TAG_reference_type``, ``DW_TAG_const_type``,
-``DW_TAG_volatile_type``, ``DW_TAG_restrict_type`` and ``DW_TAG_atomic_type``
-are used to qualify the ``baseType:``.
+``DW_TAG_volatile_type``, ``DW_TAG_restrict_type``, ``DW_TAG_atomic_type`` and
+``DW_TAG_immutable_type`` are used to qualify the ``baseType:``.
 
 Note that the ``void *`` type is expressed as a type derived from NULL.
 
@@ -23089,7 +23109,7 @@ Syntax:
 
 ::
 
-      declare void @llvm.sideeffect() inaccessiblememonly nounwind
+      declare void @llvm.sideeffect() inaccessiblememonly nounwind willreturn
 
 Overview:
 """""""""

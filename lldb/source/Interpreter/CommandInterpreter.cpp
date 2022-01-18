@@ -2216,7 +2216,6 @@ void CommandInterpreter::BuildAliasCommandArgs(CommandObject *alias_cmd_obj,
   }
 
   result.SetStatus(eReturnStatusSuccessFinishNoResult);
-  return;
 }
 
 int CommandInterpreter::GetOptionArgumentPosition(const char *in_string) {
@@ -2260,13 +2259,15 @@ static void GetHomeInitFile(llvm::SmallVectorImpl<char> &init_file,
   FileSystem::Instance().Resolve(init_file);
 }
 
-static void GetHomeREPLInitFile(llvm::SmallVectorImpl<char> &init_file) {
-  LanguageSet repl_languages = Language::GetLanguagesSupportingREPLs();
-  LanguageType language = eLanguageTypeUnknown;
-  if (auto main_repl_language = repl_languages.GetSingularLanguage())
-    language = *main_repl_language;
-  else
-    return;
+static void GetHomeREPLInitFile(llvm::SmallVectorImpl<char> &init_file,
+                                LanguageType language) {
+  if (language == eLanguageTypeUnknown) {
+    LanguageSet repl_languages = Language::GetLanguagesSupportingREPLs();
+    if (auto main_repl_language = repl_languages.GetSingularLanguage())
+      language = *main_repl_language;
+    else
+      return;
+  }
 
   std::string init_file_name =
       (llvm::Twine(".lldbinit-") +
@@ -2356,7 +2357,7 @@ void CommandInterpreter::SourceInitFileHome(CommandReturnObject &result,
   llvm::SmallString<128> init_file;
 
   if (is_repl)
-    GetHomeREPLInitFile(init_file);
+    GetHomeREPLInitFile(init_file, GetDebugger().GetREPLLanguage());
 
   if (init_file.empty())
     GetHomeInitFile(init_file);
@@ -2563,8 +2564,6 @@ void CommandInterpreter::HandleCommands(const StringList &commands,
 
   result.SetStatus(eReturnStatusSuccessFinishResult);
   m_debugger.SetAsyncExecution(old_async_execution);
-
-  return;
 }
 
 // Make flags that we can pass into the IOHandler so our delegates can do the

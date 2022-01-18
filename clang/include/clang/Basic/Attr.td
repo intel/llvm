@@ -1240,6 +1240,23 @@ def SYCLSpecialClass: InheritableAttr {
   let Documentation = [SYCLSpecialClassDocs];
 }
 
+def SYCLDeviceHas : InheritableAttr {
+  let Spellings = [CXX11<"sycl", "device_has">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Args = [VariadicExprArgument<"Aspects">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLDeviceHasDocs];
+}
+
+def SYCLUsesAspects : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "__uses_aspects__">];
+  let Subjects = SubjectList<[CXXRecord, Function], ErrorDiag>;
+  let Args = [VariadicExprArgument<"Aspects">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by the SYCL implementation
+  let Documentation = [Undocumented];
+}
+
 // Marks functions which must not be vectorized via horizontal SIMT widening,
 // e.g. because the function is already vectorized. Used to mark SYCL
 // explicit SIMD kernels and functions.
@@ -1263,15 +1280,17 @@ def SYCLRegisterNum : InheritableAttr {
   let Documentation = [SYCLRegisterNumDocs];
 }
 
-// Used by FE to mark ESIMD kernel pointer parameters which correspond to the
+// Used by FE to mark SYCL kernel pointer parameters which correspond to the
 // original lambda's captured accessors. FE turns the attribute to some metadata
-// required by the ESIMD Back-End.
-// Not supposed to be used directly in the source - SYCL device compiler FE
-// automatically adds it for ESIMD kernels, hence undocumented.
-def SYCLSimdAccessorPtr : InheritableAttr {
-  // No spelling, as this attribute can't be created in the source code.
+// required by the device back-end.
+// This attribute does not require custom semantic handling 
+// hence we set the SemaHandler field to 0.
+// The attribute is not for public consumption, and is an implicitly-created attribute
+// that has no visible spelling, hence undocumented.
+def SYCLAccessorPtr : Attr {
+  // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
-  let Subjects = SubjectList<[ParmVar]>;
+  let SemaHandler = 0;
   let Documentation = [Undocumented];
 }
 
@@ -2228,10 +2247,10 @@ def SYCLFPGAPipe : TypeAttr {
   let Documentation = [SYCLFPGAPipeDocs];
 }
 
-def SYCLIntelPipeIO : Attr {
+def SYCLIntelPipeIO : InheritableAttr {
   let Spellings = [GNU<"io_pipe_id">];
   let Args = [ExprArgument<"ID">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Var]>;
   let Documentation = [SYCLIntelPipeIOAttrDocs];
 }

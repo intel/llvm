@@ -137,21 +137,18 @@ public:
   int getFPReg() const { return FPReg; }
 
   void emitFnStartLocNotes() const {
-    for (Locs::const_iterator FI = FnStartLocs.begin(), FE = FnStartLocs.end();
-         FI != FE; ++FI)
-      Parser.Note(*FI, ".fnstart was specified here");
+    for (const SMLoc &Loc : FnStartLocs)
+      Parser.Note(Loc, ".fnstart was specified here");
   }
 
   void emitCantUnwindLocNotes() const {
-    for (Locs::const_iterator UI = CantUnwindLocs.begin(),
-                              UE = CantUnwindLocs.end(); UI != UE; ++UI)
-      Parser.Note(*UI, ".cantunwind was specified here");
+    for (const SMLoc &Loc : CantUnwindLocs)
+      Parser.Note(Loc, ".cantunwind was specified here");
   }
 
   void emitHandlerDataLocNotes() const {
-    for (Locs::const_iterator HI = HandlerDataLocs.begin(),
-                              HE = HandlerDataLocs.end(); HI != HE; ++HI)
-      Parser.Note(*HI, ".handlerdata was specified here");
+    for (const SMLoc &Loc : HandlerDataLocs)
+      Parser.Note(Loc, ".handlerdata was specified here");
   }
 
   void emitPersonalityLocNotes() const {
@@ -924,7 +921,7 @@ class ARMOperand : public MCParsedAsmOperand {
   };
 
 public:
-  ARMOperand(KindTy K) : MCParsedAsmOperand(), Kind(K) {}
+  ARMOperand(KindTy K) : Kind(K) {}
 
   /// getStartLoc - Get the location of the first token of this operand.
   SMLoc getStartLoc() const override { return StartLoc; }
@@ -1873,7 +1870,7 @@ public:
   }
 
   template <int shift> bool isMemRegRQOffset() const {
-    if (!isMVEMem() || Memory.OffsetImm != 0 || Memory.Alignment != 0)
+    if (!isMVEMem() || Memory.OffsetImm != nullptr || Memory.Alignment != 0)
       return false;
 
     if (!ARMMCRegisterClasses[ARM::GPRnopcRegClassID].contains(
@@ -2573,17 +2570,15 @@ public:
   void addRegListOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     const SmallVectorImpl<unsigned> &RegList = getRegList();
-    for (SmallVectorImpl<unsigned>::const_iterator
-           I = RegList.begin(), E = RegList.end(); I != E; ++I)
-      Inst.addOperand(MCOperand::createReg(*I));
+    for (unsigned Reg : RegList)
+      Inst.addOperand(MCOperand::createReg(Reg));
   }
 
   void addRegListWithAPSROperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     const SmallVectorImpl<unsigned> &RegList = getRegList();
-    for (SmallVectorImpl<unsigned>::const_iterator
-           I = RegList.begin(), E = RegList.end(); I != E; ++I)
-      Inst.addOperand(MCOperand::createReg(*I));
+    for (unsigned Reg : RegList)
+      Inst.addOperand(MCOperand::createReg(Reg));
   }
 
   void addDPRRegListOperands(MCInst &Inst, unsigned N) const {

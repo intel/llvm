@@ -435,7 +435,7 @@ struct InstructionsState {
   }
 
   /// Some of the instructions in the list have alternate opcodes.
-  bool isAltShuffle() const { return getOpcode() != getAltOpcode(); }
+  bool isAltShuffle() const { return AltOp != MainOp; }
 
   bool isOpcodeOrAlt(Instruction *I) const {
     unsigned CheckedOpcode = I->getOpcode();
@@ -1417,7 +1417,11 @@ public:
           HashMap[NumFreeOpsHash.Hash] = std::make_pair(1, Lane);
         } else if (NumFreeOpsHash.NumOfAPOs == Min &&
                    NumFreeOpsHash.NumOpsWithSameOpcodeParent == SameOpNumber) {
-          ++HashMap[NumFreeOpsHash.Hash].first;
+          auto It = HashMap.find(NumFreeOpsHash.Hash);
+          if (It == HashMap.end())
+            HashMap[NumFreeOpsHash.Hash] = std::make_pair(1, Lane);
+          else
+            ++It->second.first;
         }
       }
       // Select the lane with the minimum counter.
@@ -2019,9 +2023,7 @@ private:
     }
 
     /// Some of the instructions in the list have alternate opcodes.
-    bool isAltShuffle() const {
-      return getOpcode() != getAltOpcode();
-    }
+    bool isAltShuffle() const { return MainOp != AltOp; }
 
     bool isOpcodeOrAlt(Instruction *I) const {
       unsigned CheckedOpcode = I->getOpcode();
@@ -3040,7 +3042,7 @@ Optional<BoUpSLP::OrdersType> BoUpSLP::getReorderingData(const TreeEntry &TE,
 
 void BoUpSLP::reorderTopToBottom() {
   // Maps VF to the graph nodes.
-  DenseMap<unsigned, SmallPtrSet<TreeEntry *, 4>> VFToOrderedEntries;
+  DenseMap<unsigned, SetVector<TreeEntry *>> VFToOrderedEntries;
   // ExtractElement gather nodes which can be vectorized and need to handle
   // their ordering.
   DenseMap<const TreeEntry *, OrdersType> GathersToOrders;
@@ -3051,6 +3053,29 @@ void BoUpSLP::reorderTopToBottom() {
                                  const std::unique_ptr<TreeEntry> &TE) {
     if (Optional<OrdersType> CurrentOrder =
             getReorderingData(*TE.get(), /*TopToBottom=*/true)) {
+      // Do not include ordering for nodes used in the alt opcode vectorization,
+      // better to reorder them during bottom-to-top stage. If follow the order
+      // here, it causes reordering of the whole graph though actually it is
+      // profitable just to reorder the subgraph that starts from the alternate
+      // opcode vectorization node. Such nodes already end-up with the shuffle
+      // instruction and it is just enough to change this shuffle rather than
+      // rotate the scalars for the whole graph.
+      unsigned Cnt = 0;
+      const TreeEntry *UserTE = TE.get();
+      while (UserTE && Cnt < RecursionMaxDepth) {
+        if (UserTE->UserTreeIndices.size() != 1)
+          break;
+        if (all_of(UserTE->UserTreeIndices, [](const EdgeInfo &EI) {
+              return EI.UserTE->State == TreeEntry::Vectorize &&
+                     EI.UserTE->isAltShuffle() && EI.UserTE->Idx != 0;
+            }))
+          return;
+        if (UserTE->UserTreeIndices.empty())
+          UserTE = nullptr;
+        else
+          UserTE = UserTE->UserTreeIndices.back().UserTE;
+        ++Cnt;
+      }
       VFToOrderedEntries[TE->Scalars.size()].insert(TE.get());
       if (TE->State != TreeEntry::Vectorize)
         GathersToOrders.try_emplace(TE.get(), *CurrentOrder);
@@ -3066,7 +3091,7 @@ void BoUpSLP::reorderTopToBottom() {
     // Try to find the most profitable order. We just are looking for the most
     // used order and reorder scalar elements in the nodes according to this
     // mostly used order.
-    const SmallPtrSetImpl<TreeEntry *> &OrderedEntries = It->getSecond();
+    ArrayRef<TreeEntry *> OrderedEntries = It->second.getArrayRef();
     // All operands are reordered and used only in this node - propagate the
     // most used order to the user node.
     MapVector<OrdersType, unsigned,
@@ -3568,8 +3593,11 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     } else {
       LLVM_DEBUG(dbgs() << "SLP: Shuffle for reused scalars.\n");
       if (NumUniqueScalarValues <= 1 ||
-          (NumUniqueScalarValues == 2 &&
-           any_of(UniqueValues, UndefValue::classof)) ||
+          (UniquePositions.size() == 1 && all_of(UniqueValues,
+                                                 [](Value *V) {
+                                                   return isa<UndefValue>(V) ||
+                                                          !isConstant(V);
+                                                 })) ||
           !llvm::isPowerOf2_32(NumUniqueScalarValues)) {
         LLVM_DEBUG(dbgs() << "SLP: Scalar used twice in bundle.\n");
         newTreeEntry(VL, None /*not vectorized*/, S, UserTreeIdx);
@@ -4456,6 +4484,8 @@ bool BoUpSLP::canReuseExtract(ArrayRef<Value *> VL, Value *OpValue,
     CurrentOrder.clear();
     return false;
   }
+  if (ShouldKeepOrder)
+    CurrentOrder.clear();
 
   return ShouldKeepOrder;
 }
@@ -9568,8 +9598,7 @@ bool SLPVectorizerPass::vectorizeInsertValueInst(InsertValueInst *IVI,
     return false;
 
   LLVM_DEBUG(dbgs() << "SLP: array mappable to vector: " << *IVI << "\n");
-  // Aggregate value is unlikely to be processed in vector register, we need to
-  // extract scalars into scalar registers, so NeedExtraction is set true.
+  // Aggregate value is unlikely to be processed in vector register.
   return tryToVectorizeList(BuildVectorOpds, R);
 }
 
@@ -9812,10 +9841,15 @@ bool SLPVectorizerPass::vectorizeChainsInBlock(BasicBlock *BB, BoUpSLP &R) {
       return true;
     if (Opcodes1.size() > Opcodes2.size())
       return false;
+    Optional<bool> ConstOrder;
     for (int I = 0, E = Opcodes1.size(); I < E; ++I) {
       // Undefs are compatible with any other value.
-      if (isa<UndefValue>(Opcodes1[I]) || isa<UndefValue>(Opcodes2[I]))
+      if (isa<UndefValue>(Opcodes1[I]) || isa<UndefValue>(Opcodes2[I])) {
+        if (!ConstOrder)
+          ConstOrder =
+              !isa<UndefValue>(Opcodes1[I]) && isa<UndefValue>(Opcodes2[I]);
         continue;
+      }
       if (auto *I1 = dyn_cast<Instruction>(Opcodes1[I]))
         if (auto *I2 = dyn_cast<Instruction>(Opcodes2[I])) {
           DomTreeNodeBase<BasicBlock> *NodeI1 = DT->getNode(I1->getParent());
@@ -9834,14 +9868,17 @@ bool SLPVectorizerPass::vectorizeChainsInBlock(BasicBlock *BB, BoUpSLP &R) {
             continue;
           return I1->getOpcode() < I2->getOpcode();
         }
-      if (isa<Constant>(Opcodes1[I]) && isa<Constant>(Opcodes2[I]))
+      if (isa<Constant>(Opcodes1[I]) && isa<Constant>(Opcodes2[I])) {
+        if (!ConstOrder)
+          ConstOrder = Opcodes1[I]->getValueID() < Opcodes2[I]->getValueID();
         continue;
+      }
       if (Opcodes1[I]->getValueID() < Opcodes2[I]->getValueID())
         return true;
       if (Opcodes1[I]->getValueID() > Opcodes2[I]->getValueID())
         return false;
     }
-    return false;
+    return ConstOrder && *ConstOrder;
   };
   auto AreCompatiblePHIs = [&PHIToOpcodes](Value *V1, Value *V2) {
     if (V1 == V2)

@@ -7,6 +7,7 @@ namespace std {
 namespace experimental {
 template <class Ret, typename... T>
 struct coroutine_traits { using promise_type = typename Ret::promise_type; };
+// expected-note@-1{{declared here}}
 
 template <class Promise = void>
 struct coroutine_handle {
@@ -56,7 +57,7 @@ struct coro_t {
 
 coro_t f(int n) { // expected-error {{the expression 'co_await __promise.final_suspend()' is required to be non-throwing}}
   A a{};
-  co_await a; // expected-warning {{Please move from std::experimental::coroutine_traits to std::coroutine_traits}}
+  co_await a; // expected-warning {{support for std::experimental::coroutine_traits will be removed}}
 }
 
 template <typename T>

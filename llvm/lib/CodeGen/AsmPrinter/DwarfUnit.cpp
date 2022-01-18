@@ -1189,7 +1189,7 @@ bool DwarfUnit::applySubprogramDefinitionAttributes(const DISubprogram *SP,
       DefinitionArgs = SP->getType()->getTypeArray();
 
       if (DeclArgs.size() && DefinitionArgs.size())
-        if (DefinitionArgs[0] != NULL && DeclArgs[0] != DefinitionArgs[0])
+        if (DefinitionArgs[0] != nullptr && DeclArgs[0] != DefinitionArgs[0])
           addType(SPDie, DefinitionArgs[0]);
 
       DeclDie = getDIE(SPDecl);
@@ -1219,7 +1219,7 @@ bool DwarfUnit::applySubprogramDefinitionAttributes(const DISubprogram *SP,
          "decl has a linkage name and it is different");
   if (DeclLinkageName.empty() &&
       // Always emit it for abstract subprograms.
-      (DD->useAllLinkageNames() || DU->getAbstractScopeDIEs().lookup(SP)))
+      (DD->useAllLinkageNames() || DU->getAbstractSPDies().lookup(SP)))
     addLinkageName(SPDie, LinkageName);
 
   if (!DeclDie)
