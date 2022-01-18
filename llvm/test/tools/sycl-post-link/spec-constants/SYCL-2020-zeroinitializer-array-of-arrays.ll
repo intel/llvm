@@ -19,17 +19,15 @@ target triple = "spir64-unknown-unknown"
 define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
   %3 = alloca %"class.cl::sycl::kernel_handler" addrspace(4)*, align 8
   %4 = alloca i8 addrspace(4)*, align 8
-  %5 = alloca i32, align 4
-  %6 = addrspacecast %"class.cl::sycl::kernel_handler" addrspace(4)** %3 to %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)*
-  %7 = addrspacecast i8 addrspace(4)** %4 to i8 addrspace(4)* addrspace(4)*
-  store %"class.cl::sycl::kernel_handler" addrspace(4)* %1, %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)* %6, align 8, !tbaa !4
-  %8 = load %"class.cl::sycl::kernel_handler" addrspace(4)*, %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)* %6, align 8
-  %9 = bitcast i8 addrspace(4)** %4 to i8*
-  store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([32 x i8], [32 x i8]* @__usid_str, i32 0, i32 0) to i8 addrspace(4)*), i8 addrspace(4)* addrspace(4)* %7, align 8, !tbaa !4
-  %10 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %7, align 8, !tbaa !4
-  %11 = getelementptr inbounds %"class.cl::sycl::kernel_handler", %"class.cl::sycl::kernel_handler" addrspace(4)* %8, i32 0, i32 0
-  %12 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %11, align 8, !tbaa !8
-  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueISt5arrayIS0_IfLy3EELy3EEET_PKcPKvS7_(%"class.std::array" addrspace(4)* sret(%"class.std::array") align 4 %0, i8 addrspace(4)* %10, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::specialization_id" addrspace(1)* @_ZL8coeff_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* %12) #13
+  %5 = addrspacecast %"class.cl::sycl::kernel_handler" addrspace(4)** %3 to %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)*
+  %6 = addrspacecast i8 addrspace(4)** %4 to i8 addrspace(4)* addrspace(4)*
+  store %"class.cl::sycl::kernel_handler" addrspace(4)* %1, %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)* %5, align 8, !tbaa !4
+  %7 = load %"class.cl::sycl::kernel_handler" addrspace(4)*, %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)* %5, align 8
+  store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([32 x i8], [32 x i8]* @__usid_str, i32 0, i32 0) to i8 addrspace(4)*), i8 addrspace(4)* addrspace(4)* %6, align 8, !tbaa !4
+  %8 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %6, align 8, !tbaa !4
+  %9 = getelementptr inbounds %"class.cl::sycl::kernel_handler", %"class.cl::sycl::kernel_handler" addrspace(4)* %7, i32 0, i32 0
+  %10 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %9, align 8, !tbaa !8
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueISt5arrayIS0_IfLy3EELy3EEET_PKcPKvS7_(%"class.std::array" addrspace(4)* sret(%"class.std::array") align 4 %0, i8 addrspace(4)* %8, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::specialization_id" addrspace(1)* @_ZL8coeff_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* %10) #13
 ; CHECK: %[[#NS0:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID0:]], float 0.000000e+00)
 ; CHECK: %[[#NS1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID1:]], float 0.000000e+00)
 ; CHECK: %[[#NS2:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID2:]], float 0.000000e+00)
@@ -47,8 +45,6 @@ define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationCo
 ; CHECK: %[[#NS14:]] = call %"class.std::array.1" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array.1"([3 x float] %[[#NS13]])
 ; CHECK: %[[#NS15:]] = call [3 x %"class.std::array.1"] @"_Z29__spirv_SpecConstantCompositeclass.std::array.1class.std::array.1class.std::array.1_RA3_class.std::array.1"(%"class.std::array.1" %[[#NS4]], %"class.std::array.1" %[[#NS9]], %"class.std::array.1" %[[#NS14]])
 ; CHECK: %[[#NS16:]] = call %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_class.std::array.1_Rclass.std::array"([3 x %"class.std::array.1"] %[[#NS15]])
-
-  %13 = bitcast i8 addrspace(4)** %4 to i8*
   ret void
 }
 
@@ -58,9 +54,9 @@ declare dso_local spir_func void @_Z40__sycl_getComposite2020SpecConstantValueIS
 attributes #0 = { convergent mustprogress norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #1 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 
-!opencl.spir.version = !{!1, !1, !1, !1, !1, !1, !1, !1, !1, !1, !1, !1}
-!spirv.Source = !{!2, !2, !2, !2, !2, !2, !2, !2, !2, !2, !2, !2}
-!llvm.ident = !{!3, !3, !3, !3, !3, !3, !3, !3, !3, !3, !3, !3}
+!opencl.spir.version = !{!1}
+!spirv.Source = !{!2}
+!llvm.ident = !{!3}
 
 !1 = !{i32 1, i32 2}
 !2 = !{i32 4, i32 100000}
