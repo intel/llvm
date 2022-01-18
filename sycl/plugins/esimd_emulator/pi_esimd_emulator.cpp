@@ -29,7 +29,7 @@
 #include <CL/sycl/range.hpp>
 
 // TODO : Rename esimdcpu to esimdemu for next CM_EMU release
-#include <esimdcpu_support.h>
+#include <esimdemu_support.h>
 
 #include <cstdarg>
 #include <cstdio>
@@ -249,9 +249,7 @@ public:
       GroupDim[I] = (uint32_t)(GlobalSize[I] / LocalSize[I]);
     }
 
-    // TODO : Replace ESimdCPUKernel with EsimdemuKernel for next
-    // CM_EMU release
-    ESimdCPUKernel Esimdemu((fptrVoid)InvokeLambda<DIMS>, GroupDim, SpaceDim);
+    EsimdemuKernel Esimdemu((fptrVoid)InvokeLambda<DIMS>, GroupDim, SpaceDim);
 
     Esimdemu.launchMT(sizeof(struct LambdaWrapper<DIMS>), WrappedLambda.get());
   }
