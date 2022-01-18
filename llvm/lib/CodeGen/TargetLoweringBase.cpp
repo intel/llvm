@@ -715,6 +715,7 @@ TargetLoweringBase::TargetLoweringBase(const TargetMachine &tm) : TM(tm) {
   SchedPreferenceInfo = Sched::ILP;
   GatherAllAliasesMaxDepth = 18;
   IsStrictFPEnabled = DisableStrictNodeMutation;
+  MaxBytesForAlignment = 0;
   // TODO: the default will be switched to 0 in the next commit, along
   // with the Target-specific changes necessary.
   MaxAtomicSizeInBitsSupported = 1024;
@@ -1187,7 +1188,7 @@ TargetLoweringBase::emitPatchPoint(MachineInstr &InitialMI,
   // all stack slots), but we need to handle the different type of stackmap
   // operands and memory effects here.
 
-  if (!llvm::any_of(MI->operands(),
+  if (llvm::none_of(MI->operands(),
                     [](MachineOperand &Operand) { return Operand.isFI(); }))
     return MBB;
 
@@ -2038,6 +2039,11 @@ Align TargetLoweringBase::getPrefLoopAlignment(MachineLoop *ML) const {
   if (TM.Options.LoopAlignment)
     return Align(TM.Options.LoopAlignment);
   return PrefLoopAlignment;
+}
+
+unsigned TargetLoweringBase::getMaxPermittedBytesForAlignment(
+    MachineBasicBlock *MBB) const {
+  return MaxBytesForAlignment;
 }
 
 //===----------------------------------------------------------------------===//

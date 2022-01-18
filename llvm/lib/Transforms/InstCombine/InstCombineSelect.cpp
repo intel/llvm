@@ -1482,7 +1482,12 @@ tryToReuseConstantFromSelectInComparison(SelectInst &Sel, ICmpInst &Cmp,
   if (C0->getType() != Sel.getType())
     return nullptr;
 
-  // FIXME: are there any magic icmp predicate+constant pairs we must not touch?
+  // ULT with 'add' of a constant is canonical. See foldICmpAddConstant().
+  // FIXME: Are there more magic icmp predicate+constant pairs we must avoid?
+  //        Or should we just abandon this transform entirely?
+  if (Pred == CmpInst::ICMP_ULT && match(X, m_Add(m_Value(), m_Constant())))
+    return nullptr;
+
 
   Value *SelVal0, *SelVal1; // We do not care which one is from where.
   match(&Sel, m_Select(m_Value(), m_Value(SelVal0), m_Value(SelVal1)));
@@ -2320,8 +2325,9 @@ Instruction *InstCombinerImpl::matchSAddSubSat(Instruction &MinMax1) {
 
   // The two operands of the add/sub must be nsw-truncatable to the NewTy. This
   // is usually achieved via a sext from a smaller type.
-  if (ComputeMinSignedBits(AddSub->getOperand(0), 0, AddSub) > NewBitWidth ||
-      ComputeMinSignedBits(AddSub->getOperand(1), 0, AddSub) > NewBitWidth)
+  if (ComputeMaxSignificantBits(AddSub->getOperand(0), 0, AddSub) >
+          NewBitWidth ||
+      ComputeMaxSignificantBits(AddSub->getOperand(1), 0, AddSub) > NewBitWidth)
     return nullptr;
 
   // Finally create and return the sat intrinsic, truncated to the new type

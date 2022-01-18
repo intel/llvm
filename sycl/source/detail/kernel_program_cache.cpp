@@ -33,6 +33,7 @@ KernelProgramCache::~KernelProgramCache() {
           Plugin.call<PiApiKind::piKernelRelease>(Kern);
         }
       }
+      MKernelsPerProgramCache.erase(KernIt);
     }
 
     const detail::plugin &Plugin = MParentContext->getPlugin();

@@ -216,7 +216,7 @@ private:
       // The operator on the top of the stack has higher precedence than the
       // new operator.
       unsigned ParenCount = 0;
-      while (1) {
+      while (true) {
         // Nothing to process.
         if (InfixOperatorStack.empty())
           break;
@@ -1759,7 +1759,8 @@ bool X86AsmParser::CreateMemForMSInlineAsm(
   // registers in a mmory expression, and though unaccessible via rip/eip.
   if (IsGlobalLV && (BaseReg || IndexReg)) {
     Operands.push_back(X86Operand::CreateMem(getPointerWidth(), Disp, Start,
-                                             End, Size, Identifier, Decl));
+                                             End, Size, Identifier, Decl,
+                                             FrontendSize));
     return false;
   }
   // Otherwise, we set the base register to a non-zero value
@@ -3029,7 +3030,7 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   ForcedDispEncoding = DispEncoding_Default;
 
   // Parse pseudo prefixes.
-  while (1) {
+  while (true) {
     if (Name == "{") {
       if (getLexer().isNot(AsmToken::Identifier))
         return Error(Parser.getTok().getLoc(), "Unexpected token after '{'");
@@ -3369,7 +3370,7 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
       Operands.push_back(X86Operand::CreateToken("*", consumeToken()));
 
     // Read the operands.
-    while(1) {
+    while (true) {
       if (ParseOperand(Operands))
         return true;
       if (HandleAVX512Operand(Operands))

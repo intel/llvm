@@ -1161,6 +1161,10 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
       return true;
     };
 
+    const auto *TLI = getAnchorScope()
+                          ? A.getInfoCache().getTargetLibraryInfoForFunction(
+                                *getAnchorScope())
+                          : nullptr;
     auto UsePred = [&](const Use &U, bool &Follow) -> bool {
       Value *CurPtr = U.get();
       User *Usr = U.getUser();
@@ -1275,6 +1279,8 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
       if (auto *CB = dyn_cast<CallBase>(Usr)) {
         if (CB->isLifetimeStartOrEnd())
           return true;
+        if (TLI && isFreeCall(CB, TLI))
+          return true;
         if (CB->isArgOperand(&U)) {
           unsigned ArgNo = CB->getArgOperandNo(&U);
           const auto &CSArgPI = A.getAAFor<AAPointerInfo>(
@@ -1293,8 +1299,15 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
       LLVM_DEBUG(dbgs() << "[AAPointerInfo] User not handled " << *Usr << "\n");
       return false;
     };
+    auto EquivalentUseCB = [&](const Use &OldU, const Use &NewU) {
+      if (OffsetInfoMap.count(NewU))
+        return OffsetInfoMap[NewU] == OffsetInfoMap[OldU];
+      OffsetInfoMap[NewU] = OffsetInfoMap[OldU];
+      return true;
+    };
     if (!A.checkForAllUses(UsePred, *this, AssociatedValue,
-                           /* CheckBBLivenessOnly */ true))
+                           /* CheckBBLivenessOnly */ true, DepClassTy::OPTIONAL,
+                           EquivalentUseCB))
       return indicatePessimisticFixpoint();
 
     LLVM_DEBUG({
@@ -2325,6 +2338,8 @@ struct AANoRecurseFunction final : AANoRecurseImpl {
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
     AANoRecurseImpl::initialize(A);
+    // TODO: We should build a call graph ourselves to enable this in the module
+    // pass as well.
     if (const Function *F = getAnchorScope())
       if (A.getInfoCache().getSccSize(*F) != 1)
         indicatePessimisticFixpoint();
@@ -5236,6 +5251,8 @@ struct AAValueSimplifyImpl : AAValueSimplify {
     if (!AA::getAssumedUnderlyingObjects(A, Ptr, Objects, AA, &L))
       return false;
 
+    const auto *TLI =
+        A.getInfoCache().getTargetLibraryInfoForFunction(*L.getFunction());
     for (Value *Obj : Objects) {
       LLVM_DEBUG(dbgs() << "Visit underlying object " << *Obj << "\n");
       if (isa<UndefValue>(Obj))
@@ -5250,9 +5267,10 @@ struct AAValueSimplifyImpl : AAValueSimplify {
           continue;
         return false;
       }
-      if (!isa<AllocaInst>(Obj) && !isa<GlobalVariable>(Obj))
+      if (!isa<AllocaInst>(Obj) && !isa<GlobalVariable>(Obj) &&
+          !isNoAliasFn(Obj, TLI))
         return false;
-      Constant *InitialVal = AA::getInitialValueForObj(*Obj, *L.getType());
+      Constant *InitialVal = AA::getInitialValueForObj(*Obj, *L.getType(), TLI);
       if (!InitialVal || !Union(*InitialVal))
         return false;
 
@@ -5929,6 +5947,8 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
       }
 
       Align Alignment(1);
+      if (MaybeAlign RetAlign = AI.CB->getRetAlign())
+        Alignment = max(Alignment, RetAlign);
       if (AI.Kind == AllocationInfo::AllocationKind::ALIGNED_ALLOC) {
         Optional<APInt> AlignmentAPI =
             getAPInt(A, *this, *AI.CB->getArgOperand(0));
@@ -6414,30 +6434,35 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
       return indicatePessimisticFixpoint();
     }
 
+    // Collect the types that will replace the privatizable type in the function
+    // signature.
+    SmallVector<Type *, 16> ReplacementTypes;
+    identifyReplacementTypes(PrivatizableType.getValue(), ReplacementTypes);
+
     // Verify callee and caller agree on how the promoted argument would be
     // passed.
-    // TODO: The use of the ArgumentPromotion interface here is ugly, we need a
-    // specialized form of TargetTransformInfo::areFunctionArgsABICompatible
-    // which doesn't require the arguments ArgumentPromotion wanted to pass.
     Function &Fn = *getIRPosition().getAnchorScope();
-    SmallPtrSet<Argument *, 1> ArgsToPromote, Dummy;
-    ArgsToPromote.insert(getAssociatedArgument());
     const auto *TTI =
         A.getInfoCache().getAnalysisResultForFunction<TargetIRAnalysis>(Fn);
-    if (!TTI ||
-        !ArgumentPromotionPass::areFunctionArgsABICompatible(
-            Fn, *TTI, ArgsToPromote, Dummy) ||
-        ArgsToPromote.empty()) {
+    if (!TTI) {
+      LLVM_DEBUG(dbgs() << "[AAPrivatizablePtr] Missing TTI for function "
+                        << Fn.getName() << "\n");
+      return indicatePessimisticFixpoint();
+    }
+
+    auto CallSiteCheck = [&](AbstractCallSite ACS) {
+      CallBase *CB = ACS.getInstruction();
+      return TTI->areTypesABICompatible(
+          CB->getCaller(), CB->getCalledFunction(), ReplacementTypes);
+    };
+    bool AllCallSitesKnown;
+    if (!A.checkForAllCallSites(CallSiteCheck, *this, true,
+                                AllCallSitesKnown)) {
       LLVM_DEBUG(
           dbgs() << "[AAPrivatizablePtr] ABI incompatibility detected for "
                  << Fn.getName() << "\n");
       return indicatePessimisticFixpoint();
     }
-
-    // Collect the types that will replace the privatizable type in the function
-    // signature.
-    SmallVector<Type *, 16> ReplacementTypes;
-    identifyReplacementTypes(PrivatizableType.getValue(), ReplacementTypes);
 
     // Register a rewrite of the argument.
     Argument *Arg = getAssociatedArgument();
@@ -6558,7 +6583,6 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
       return false;
     };
 
-    bool AllCallSitesKnown;
     if (!A.checkForAllCallSites(IsCompatiblePrivArgOfOtherCallSite, *this, true,
                                 AllCallSitesKnown))
       return indicatePessimisticFixpoint();

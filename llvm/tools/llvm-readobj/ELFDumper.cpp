@@ -1583,7 +1583,8 @@ const EnumEntry<unsigned> ElfHeaderRISCVFlags[] = {
   ENUM_ENT(EF_RISCV_FLOAT_ABI_SINGLE, "single-float ABI"),
   ENUM_ENT(EF_RISCV_FLOAT_ABI_DOUBLE, "double-float ABI"),
   ENUM_ENT(EF_RISCV_FLOAT_ABI_QUAD, "quad-float ABI"),
-  ENUM_ENT(EF_RISCV_RVE, "RVE")
+  ENUM_ENT(EF_RISCV_RVE, "RVE"),
+  ENUM_ENT(EF_RISCV_TSO, "TSO"),
 };
 
 const EnumEntry<unsigned> ElfHeaderAVRFlags[] = {
@@ -5492,7 +5493,7 @@ StringRef getNoteTypeName(const typename ELFT::Note &Note, unsigned ELFType) {
       return Result;
     return FindNote(CoreNoteTypes);
   }
-  if (Name.startswith("OpenBSD") && ELFType == ELF::ET_CORE) {
+  if (ELFType == ELF::ET_CORE && Name.startswith("OpenBSD")) {
     // OpenBSD also places the generic core notes in the OpenBSD namespace.
     StringRef Result = FindNote(OpenBSDCoreNoteTypes);
     if (!Result.empty())

@@ -1185,10 +1185,10 @@ void OperationFormat::genParser(Operator &op, OpClass &opClass) {
 
   // Generate the code to resolve the operand/result types and successors now
   // that they have been parsed.
-  genParserTypeResolution(op, body);
   genParserRegionResolution(op, body);
   genParserSuccessorResolution(op, body);
   genParserVariadicSegmentResolution(op, body);
+  genParserTypeResolution(op, body);
 
   body << "  return ::mlir::success();\n";
 }
@@ -1291,7 +1291,7 @@ void OperationFormat::genElementParser(Element *element, MethodBody &body,
       llvm::raw_string_ostream os(attrTypeStr);
       os << tgfmt(*typeBuilder, &attrTypeCtx);
     } else {
-      attrTypeStr = "Type{}";
+      attrTypeStr = "::mlir::Type{}";
     }
     if (var->attr.isOptional()) {
       body << formatv(optionalAttrParserCode, var->name, attrTypeStr);
@@ -1375,7 +1375,7 @@ void OperationFormat::genElementParser(Element *element, MethodBody &body,
                             listName);
           })
           .Default([&](auto operand) {
-            body << formatv(typeParserCode, "Type", listName);
+            body << formatv(typeParserCode, "::mlir::Type", listName);
           });
     }
   } else if (auto *dir = dyn_cast<FunctionalTypeDirective>(element)) {
@@ -1517,7 +1517,7 @@ void OperationFormat::genParserOperandTypeResolution(
     // once. Use llvm::concat to perform the merge. llvm::concat does not allow
     // the case of a single range, so guard it here.
     if (op.getNumOperands() > 1) {
-      body << "::llvm::concat<const Type>(";
+      body << "::llvm::concat<const ::mlir::Type>(";
       llvm::interleaveComma(
           llvm::seq<int>(0, op.getNumOperands()), body, [&](int i) {
             body << "::llvm::ArrayRef<::mlir::Type>(";
@@ -2217,7 +2217,7 @@ private:
   /// attribute.
   void handleTypesMatchConstraint(
       llvm::StringMap<TypeResolutionInstance> &variableTyResolver,
-      llvm::Record def);
+      const llvm::Record &def);
 
   /// Returns an argument or attribute with the given name that has been seen
   /// within the format.
@@ -2345,9 +2345,16 @@ LogicalResult FormatParser::parse() {
       handleSameTypesConstraint(variableTyResolver, /*includeResults=*/true);
     } else if (def.isSubClassOf("TypesMatchWith")) {
       handleTypesMatchConstraint(variableTyResolver, def);
-    } else if (def.getName() == "InferTypeOpInterface" &&
-               !op.allResultTypesKnown()) {
-      canInferResultTypes = true;
+    } else if (!op.allResultTypesKnown()) {
+      // This doesn't check the name directly to handle
+      //    DeclareOpInterfaceMethods<InferTypeOpInterface>
+      // and the like.
+      // TODO: Add hasCppInterface check.
+      if (auto name = def.getValueAsOptionalString("cppClassName")) {
+        if (*name == "InferTypeOpInterface" &&
+            def.getValueAsString("cppNamespace") == "::mlir")
+          canInferResultTypes = true;
+      }
     }
   }
 
@@ -2621,7 +2628,7 @@ void FormatParser::handleSameTypesConstraint(
 
 void FormatParser::handleTypesMatchConstraint(
     llvm::StringMap<TypeResolutionInstance> &variableTyResolver,
-    llvm::Record def) {
+    const llvm::Record &def) {
   StringRef lhsName = def.getValueAsString("lhs");
   StringRef rhsName = def.getValueAsString("rhs");
   StringRef transformer = def.getValueAsString("transformer");

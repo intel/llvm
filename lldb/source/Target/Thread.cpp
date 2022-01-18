@@ -471,9 +471,7 @@ void Thread::SetStopInfoToNothing() {
       StopInfo::CreateStopReasonWithSignal(*this, LLDB_INVALID_SIGNAL_NUMBER));
 }
 
-bool Thread::ThreadStoppedForAReason(void) {
-  return (bool)GetPrivateStopInfo();
-}
+bool Thread::ThreadStoppedForAReason() { return (bool)GetPrivateStopInfo(); }
 
 bool Thread::CheckpointThreadState(ThreadStateCheckpoint &saved_state) {
   saved_state.register_backup_sp.reset();
@@ -1370,15 +1368,9 @@ lldb::ThreadPlanSP Thread::QueueThreadPlanForStepScripted(
     bool abort_other_plans, const char *class_name, 
     StructuredData::ObjectSP extra_args_sp,  bool stop_other_threads,
     Status &status) {
-    
-  StructuredDataImpl *extra_args_impl = nullptr; 
-  if (extra_args_sp) {
-    extra_args_impl = new StructuredDataImpl();
-    extra_args_impl->SetObjectSP(extra_args_sp);
-  }
 
-  ThreadPlanSP thread_plan_sp(new ThreadPlanPython(*this, class_name, 
-                                                   extra_args_impl));
+  ThreadPlanSP thread_plan_sp(new ThreadPlanPython(
+      *this, class_name, StructuredDataImpl(extra_args_sp)));
   thread_plan_sp->SetStopOthers(stop_other_threads);
   status = QueueThreadPlan(thread_plan_sp, abort_other_plans);
   return thread_plan_sp;

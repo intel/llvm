@@ -2201,7 +2201,7 @@ void ExecutionSession::dump(raw_ostream &OS) {
 
 void ExecutionSession::dispatchOutstandingMUs() {
   LLVM_DEBUG(dbgs() << "Dispatching MaterializationUnits...\n");
-  while (1) {
+  while (true) {
     Optional<std::pair<std::unique_ptr<MaterializationUnit>,
                        std::unique_ptr<MaterializationResponsibility>>>
         JMU;
@@ -2491,10 +2491,19 @@ void ExecutionSession::OL_applyQueryPhase1(
       }
     }
 
-    // If we get here then we've moved on to the next JITDylib.
-    LLVM_DEBUG(dbgs() << "Phase 1 moving to next JITDylib.\n");
-    ++IPLS->CurSearchOrderIndex;
-    IPLS->NewJITDylib = true;
+    if (IPLS->DefGeneratorCandidates.empty() &&
+        IPLS->DefGeneratorNonCandidates.empty()) {
+      // Early out if there are no remaining symbols.
+      LLVM_DEBUG(dbgs() << "All symbols matched.\n");
+      IPLS->CurSearchOrderIndex = IPLS->SearchOrder.size();
+      break;
+    } else {
+      // If we get here then we've moved on to the next JITDylib with candidates
+      // remaining.
+      LLVM_DEBUG(dbgs() << "Phase 1 moving to next JITDylib.\n");
+      ++IPLS->CurSearchOrderIndex;
+      IPLS->NewJITDylib = true;
+    }
   }
 
   // Remove any weakly referenced candidates that could not be found/generated.

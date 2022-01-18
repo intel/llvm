@@ -1159,6 +1159,10 @@ namespace llvm {
         SDValue Op, const APInt &DemandedBits, const APInt &DemandedElts,
         SelectionDAG &DAG, unsigned Depth) const override;
 
+    bool isSplatValueForTargetNode(SDValue Op, const APInt &DemandedElts,
+                                   APInt &UndefElts,
+                                   unsigned Depth) const override;
+
     const Constant *getTargetConstantFromLoad(LoadSDNode *LD) const override;
 
     SDValue unwrapAddress(SDValue N) const override;
@@ -1536,7 +1540,7 @@ namespace llvm {
     unsigned GetAlignedArgumentStackSize(unsigned StackSize,
                                          SelectionDAG &DAG) const;
 
-    unsigned getAddressSpace(void) const;
+    unsigned getAddressSpace() const;
 
     SDValue FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG, bool IsSigned,
                             SDValue &Chain) const;

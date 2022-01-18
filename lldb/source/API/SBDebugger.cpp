@@ -749,6 +749,9 @@ SBStructuredData SBDebugger::GetBuildConfiguration() {
   AddBoolConfigEntry(
       *config_up, "lua", LLDB_ENABLE_LUA,
       "A boolean value that indicates if lua support is enabled in LLDB");
+  AddBoolConfigEntry(*config_up, "fbsdvmcore", LLDB_ENABLE_FBSDVMCORE,
+                     "A boolean value that indicates if fbsdvmcore support is "
+                     "enabled in LLDB");
   AddLLVMTargets(*config_up);
 
   SBStructuredData data;
@@ -1422,6 +1425,22 @@ void SBDebugger::SetScriptLanguage(ScriptLanguage script_lang) {
   }
 }
 
+LanguageType SBDebugger::GetREPLLanguage() const {
+  LLDB_RECORD_METHOD_CONST_NO_ARGS(lldb::LanguageType, SBDebugger,
+                                   GetREPLLanguage);
+
+  return (m_opaque_sp ? m_opaque_sp->GetREPLLanguage() : eLanguageTypeUnknown);
+}
+
+void SBDebugger::SetREPLLanguage(LanguageType repl_lang) {
+  LLDB_RECORD_METHOD(void, SBDebugger, SetREPLLanguage, (lldb::LanguageType),
+                     repl_lang);
+
+  if (m_opaque_sp) {
+    m_opaque_sp->SetREPLLanguage(repl_lang);
+  }
+}
+
 bool SBDebugger::SetUseExternalEditor(bool value) {
   LLDB_RECORD_METHOD(bool, SBDebugger, SetUseExternalEditor, (bool), value);
 
@@ -1867,6 +1886,9 @@ template <> void RegisterMethods<SBDebugger>(Registry &R) {
                              GetScriptLanguage, ());
   LLDB_REGISTER_METHOD(void, SBDebugger, SetScriptLanguage,
                        (lldb::ScriptLanguage));
+  LLDB_REGISTER_METHOD_CONST(lldb::LanguageType, SBDebugger, GetREPLLanguage,
+                             ());
+  LLDB_REGISTER_METHOD(void, SBDebugger, SetREPLLanguage, (lldb::LanguageType));
   LLDB_REGISTER_METHOD(bool, SBDebugger, SetUseExternalEditor, (bool));
   LLDB_REGISTER_METHOD(bool, SBDebugger, GetUseExternalEditor, ());
   LLDB_REGISTER_METHOD(bool, SBDebugger, SetUseColor, (bool));

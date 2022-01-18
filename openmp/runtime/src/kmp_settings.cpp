@@ -4978,10 +4978,20 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
       char *attr_ptr;
       int offset = 0;
       kmp_hw_attr_t attr;
-      int num =
-          atoi(core_components[j]); // each component should start with a number
-      if (num <= 0) {
-        goto err; // only positive integers are valid for count
+      int num;
+      // components may begin with an optional count of the number of resources
+      if (isdigit(*core_components[j])) {
+        num = atoi(core_components[j]);
+        if (num <= 0) {
+          goto err; // only positive integers are valid for count
+        }
+        pos = core_components[j] + strspn(core_components[j], digits);
+      } else if (*core_components[j] == '*') {
+        num = kmp_hw_subset_t::USE_ALL;
+        pos = core_components[j] + 1;
+      } else {
+        num = kmp_hw_subset_t::USE_ALL;
+        pos = core_components[j];
       }
 
       offset_ptr = strchr(core_components[j], '@');
@@ -4994,11 +5004,14 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
       if (attr_ptr) {
         attr.clear();
         // save the attribute
+#if KMP_ARCH_X86 || KMP_ARCH_X86_64
         if (__kmp_str_match("intel_core", -1, attr_ptr + 1)) {
           attr.set_core_type(KMP_HW_CORE_TYPE_CORE);
         } else if (__kmp_str_match("intel_atom", -1, attr_ptr + 1)) {
           attr.set_core_type(KMP_HW_CORE_TYPE_ATOM);
-        } else if (__kmp_str_match("eff", 3, attr_ptr + 1)) {
+        }
+#endif
+        if (__kmp_str_match("eff", 3, attr_ptr + 1)) {
           const char *number = attr_ptr + 1;
           // skip the eff[iciency] token
           while (isalpha(*number))
@@ -5012,10 +5025,6 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
           goto err;
         }
         *attr_ptr = '\0'; // cut the attribute from the component
-      }
-      pos = core_components[j] + strspn(core_components[j], digits);
-      if (pos == core_components[j]) {
-        goto err;
       }
       // detect the component type
       kmp_hw_t type = __kmp_stg_parse_hw_subset_name(pos);

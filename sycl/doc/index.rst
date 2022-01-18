@@ -40,10 +40,13 @@ Developing oneAPI DPC++ Compiler
    OptionalDeviceFeatures
    SYCLInstrumentationUsingXPTI
    ITTAnnotations
+   DeviceGlobal
+   CompileTimeProperties
 
 Development BKMs
 ~~~~~~~~~~~~~~~~
 
 .. toctree::
    :maxdepth: 1
+
    dev/DockerBKMs

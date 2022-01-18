@@ -18,19 +18,17 @@
 using namespace lldb;
 using namespace lldb_private;
 
-SBSymbolContext::SBSymbolContext() : m_opaque_up() {
+SBSymbolContext::SBSymbolContext() {
   LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBSymbolContext);
 }
 
-SBSymbolContext::SBSymbolContext(const SymbolContext *sc_ptr) : m_opaque_up() {
+SBSymbolContext::SBSymbolContext(const SymbolContext &sc)
+    : m_opaque_up(std::make_unique<SymbolContext>(sc)) {
   LLDB_RECORD_CONSTRUCTOR(SBSymbolContext,
-                          (const lldb_private::SymbolContext *), sc_ptr);
-
-  if (sc_ptr)
-    m_opaque_up = std::make_unique<SymbolContext>(*sc_ptr);
+                          (const lldb_private::SymbolContext &), sc);
 }
 
-SBSymbolContext::SBSymbolContext(const SBSymbolContext &rhs) : m_opaque_up() {
+SBSymbolContext::SBSymbolContext(const SBSymbolContext &rhs) {
   LLDB_RECORD_CONSTRUCTOR(SBSymbolContext, (const lldb::SBSymbolContext &),
                           rhs);
 
@@ -47,13 +45,6 @@ const SBSymbolContext &SBSymbolContext::operator=(const SBSymbolContext &rhs) {
   if (this != &rhs)
     m_opaque_up = clone(rhs.m_opaque_up);
   return LLDB_RECORD_RESULT(*this);
-}
-
-void SBSymbolContext::SetSymbolContext(const SymbolContext *sc_ptr) {
-  if (sc_ptr)
-    m_opaque_up = std::make_unique<SymbolContext>(*sc_ptr);
-  else
-    m_opaque_up->Clear(true);
 }
 
 bool SBSymbolContext::IsValid() const {
@@ -237,7 +228,7 @@ template <>
 void RegisterMethods<SBSymbolContext>(Registry &R) {
   LLDB_REGISTER_CONSTRUCTOR(SBSymbolContext, ());
   LLDB_REGISTER_CONSTRUCTOR(SBSymbolContext,
-                            (const lldb_private::SymbolContext *));
+                            (const lldb_private::SymbolContext &));
   LLDB_REGISTER_CONSTRUCTOR(SBSymbolContext, (const lldb::SBSymbolContext &));
   LLDB_REGISTER_METHOD(
       const lldb::SBSymbolContext &,

@@ -135,6 +135,73 @@ func @extract_from_tensor.from_elements(%element : index) -> index {
 
 // -----
 
+// CHECK-LABEL: func @extract_from_tensor.from_elements_0d
+func @extract_from_tensor.from_elements_0d(%element : index) -> index {
+  // CHECK-SAME: ([[ARG:%.*]]: index)
+  %c0 = arith.constant 0 : index
+  %tensor = tensor.from_elements %element : tensor<index>
+  %extracted_element = tensor.extract %tensor[] : tensor<index>
+  // CHECK: [[ARG]] : index
+  return %extracted_element : index
+}
+
+// -----
+
+// CHECK-LABEL: func @extract_from_tensor.from_elements_3d
+func @extract_from_tensor.from_elements_3d()
+    -> (f32, f32, f32, f32, f32, f32, f32, f32, f32, f32, f32, f32) {
+  %f0 = arith.constant 0.0 : f32
+  %f1 = arith.constant 1.0 : f32
+  %f2 = arith.constant 2.0 : f32
+  %f3 = arith.constant 3.0 : f32
+  %f4 = arith.constant 4.0 : f32
+  %f5 = arith.constant 5.0 : f32
+  %f6 = arith.constant 6.0 : f32
+  %f7 = arith.constant 7.0 : f32
+  %f8 = arith.constant 8.0 : f32
+  %f9 = arith.constant 9.0 : f32
+  %f10 = arith.constant 10.0 : f32
+  %f11 = arith.constant 11.0 : f32
+
+  %tensor = tensor.from_elements %f0,%f1,%f2,%f3,%f4,%f5,%f6,%f7,%f8,%f9,%f10,%f11
+         : tensor<3x2x2xf32>
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+
+  %r0 = tensor.extract %tensor[%c0, %c0, %c0] : tensor<3x2x2xf32>
+  %r1 = tensor.extract %tensor[%c0, %c0, %c1] : tensor<3x2x2xf32>
+  %r2 = tensor.extract %tensor[%c0, %c1, %c0] : tensor<3x2x2xf32>
+  %r3 = tensor.extract %tensor[%c0, %c1, %c1] : tensor<3x2x2xf32>
+  %r4 = tensor.extract %tensor[%c1, %c0, %c0] : tensor<3x2x2xf32>
+  %r5 = tensor.extract %tensor[%c1, %c0, %c1] : tensor<3x2x2xf32>
+  %r6 = tensor.extract %tensor[%c1, %c1, %c0] : tensor<3x2x2xf32>
+  %r7 = tensor.extract %tensor[%c1, %c1, %c1] : tensor<3x2x2xf32>
+  %r8 = tensor.extract %tensor[%c2, %c0, %c0] : tensor<3x2x2xf32>
+  %r9 = tensor.extract %tensor[%c2, %c0, %c1] : tensor<3x2x2xf32>
+  %r10 = tensor.extract %tensor[%c2, %c1, %c0] : tensor<3x2x2xf32>
+  %r11 = tensor.extract %tensor[%c2, %c1, %c1] : tensor<3x2x2xf32>
+  return %r0,%r1,%r2,%r3,%r4,%r5,%r6,%r7,%r8,%r9,%r10,%r11
+         : f32,f32,f32,f32,f32,f32,f32,f32,f32,f32,f32,f32
+}
+// CHECK-DAG: %[[F0:.*]] = arith.constant 0.0
+// CHECK-DAG: %[[F1:.*]] = arith.constant 1.0{{0+}}e+00
+// CHECK-DAG: %[[F2:.*]] = arith.constant 2.0
+// CHECK-DAG: %[[F3:.*]] = arith.constant 3.0
+// CHECK-DAG: %[[F4:.*]] = arith.constant 4.0
+// CHECK-DAG: %[[F5:.*]] = arith.constant 5.0
+// CHECK-DAG: %[[F6:.*]] = arith.constant 6.0
+// CHECK-DAG: %[[F7:.*]] = arith.constant 7.0
+// CHECK-DAG: %[[F8:.*]] = arith.constant 8.0
+// CHECK-DAG: %[[F9:.*]] = arith.constant 9.0
+// CHECK-DAG: %[[F10:.*]] = arith.constant 1.0{{0+}}e+01
+// CHECK-DAG: %[[F11:.*]] = arith.constant 1.1{{0+}}e+01
+
+// CHECK: return %[[F0]], %[[F1]], %[[F2]], %[[F3]], %[[F4]], %[[F5]],
+// CHECK-SAME:   %[[F6]], %[[F7]], %[[F8]], %[[F9]], %[[F10]], %[[F11]]
+
+// -----
+
 // Ensure the optimization doesn't segfault from bad constants
 // CHECK-LABEL: func @extract_negative_from_tensor.from_elements
 func @extract_negative_from_tensor.from_elements(%element : index) -> index {
@@ -183,7 +250,7 @@ func @extract_oob_from_tensor.from_elements(%element : index) -> index {
 // CHECK-LABEL: func @extract_from_tensor.generate
 // CHECK-SAME: %[[IDX:.*]]: index, %[[TENSOR:.*]]: tensor<*xf32>
 func @extract_from_tensor.generate(%idx: index, %tensor: tensor<*xf32>) -> index {
-  %size = rank %tensor : tensor<*xf32>
+  %size = tensor.rank %tensor : tensor<*xf32>
   // CHECK-NEXT: %[[RES:.*]] = tensor.dim %[[TENSOR]], %[[IDX]]
   %0 = tensor.generate %size {
     ^bb0(%arg0: index):
@@ -200,7 +267,7 @@ func @extract_from_tensor.generate(%idx: index, %tensor: tensor<*xf32>) -> index
 // CHECK-LABEL: func @extract_from_tensor.generate_2d
 // CHECK-SAME: %[[IDX0:.*]]: index, %[[IDX1:.*]]: index, %[[TENSOR:.*]]: tensor<*xf32>
 func @extract_from_tensor.generate_2d(%idx0: index, %idx1: index, %tensor: tensor<*xf32>) -> index {
-  %size = rank %tensor : tensor<*xf32>
+  %size = tensor.rank %tensor : tensor<*xf32>
   // CHECK-NEXT: %[[DIM0:.*]] = tensor.dim %[[TENSOR]], %[[IDX0]]
   // CHECK-NEXT: %[[DIM1:.*]] = tensor.dim %[[TENSOR]], %[[IDX1]]
   // CHECK-NEXT: %[[RES:.*]] = arith.addi %[[DIM0]], %[[DIM1]]
@@ -221,7 +288,7 @@ func @extract_from_tensor.generate_2d(%idx0: index, %idx1: index, %tensor: tenso
 // CHECK-LABEL: func @extract_from_tensor.generate_sideeffects
 // CHECK-SAME: %[[IDX:.*]]: index
 func @extract_from_tensor.generate_sideeffects(%idx: index, %tensor: tensor<*xf32>, %mem: memref<?xindex>) -> index {
-  %size = rank %tensor : tensor<*xf32>
+  %size = tensor.rank %tensor : tensor<*xf32>
   // CHECK: %[[DTENSOR:.*]] = tensor.generate
   %0 = tensor.generate %size {
     ^bb0(%arg0: index):
@@ -328,13 +395,13 @@ func @trivial_insert_slice(%arg0 : tensor<4x6x16x32xi8>, %arg1 : tensor<4x6x16x3
 
 // CHECK-LABEL: func @rank_reducing_tensor_of_cast
 //  CHECK-SAME:   %[[ARG0:.[a-z0-9A-Z_]+]]: tensor<4x6x16x32xi8>
-//       CHECK:   %[[S:.+]] = tensor.extract_slice %arg0[0, 1, 0] [1, 1, 16] [1, 1, 1] : tensor<4x6x16x32xi8> to tensor<16x32xi8>
+//       CHECK:   %[[S:.+]] = tensor.extract_slice %arg0[0, 1, 0, 0] [1, 1, 16, 32] [1, 1, 1, 1] : tensor<4x6x16x32xi8> to tensor<16x32xi8>
 // Tensor cast is moved after slice and then gets canonicalized away.
 //   CHECK-NOT:   tensor.cast
 //       CHECK:   return %[[S]] : tensor<16x32xi8>
 func @rank_reducing_tensor_of_cast(%arg : tensor<4x6x16x32xi8>) -> tensor<16x32xi8> {
   %0 = tensor.cast %arg : tensor<4x6x16x32xi8> to tensor<?x?x16x32xi8>
-  %1 = tensor.extract_slice %0[0, 1, 0] [1, 1, 16] [1, 1, 1] : tensor<?x?x16x32xi8> to tensor<16x32xi8>
+  %1 = tensor.extract_slice %0[0, 1, 0, 0] [1, 1, 16, 32] [1, 1, 1, 1] : tensor<?x?x16x32xi8> to tensor<16x32xi8>
   return %1 : tensor<16x32xi8>
 }
 
@@ -343,7 +410,7 @@ func @rank_reducing_tensor_of_cast(%arg : tensor<4x6x16x32xi8>) -> tensor<16x32x
 // CHECK-LABEL: func @rank_reducing_insert_slice_of_cast
 //  CHECK-SAME:   %[[A:.[a-z0-9A-Z_]+]]: tensor<16x32xi8>
 //  CHECK-SAME:   %[[B:.[a-z0-9A-Z_]+]]: tensor<4x6x16x32xi8>
-//       CHECK:   %[[S:.+]] = tensor.insert_slice %[[A]] into %[[B]][0, 1, 0] [1, 1, 16] [1, 1, 1] : tensor<16x32xi8> into tensor<4x6x16x32xi8>
+//       CHECK:   %[[S:.+]] = tensor.insert_slice %[[A]] into %[[B]][0, 1, 0, 0] [1, 1, 16, 32] [1, 1, 1, 1] : tensor<16x32xi8> into tensor<4x6x16x32xi8>
 // Tensor cast is folded away.
 //   CHECK-NOT:   tensor.cast
 //       CHECK:   return %[[S]] : tensor<4x6x16x32xi8>
@@ -351,7 +418,7 @@ func @rank_reducing_insert_slice_of_cast(%a : tensor<16x32xi8>, %b : tensor<4x6x
   %c0 = arith.constant 0: index
   %cast = tensor.cast %a : tensor<16x32xi8> to tensor<?x32xi8>
   %sz = tensor.dim %cast, %c0: tensor<?x32xi8>
-  %res = tensor.insert_slice %cast into %b[0, 1, 0] [1, 1, %sz] [1, 1, 1] : tensor<?x32xi8> into tensor<4x6x16x32xi8>
+  %res = tensor.insert_slice %cast into %b[0, 1, 0, 0] [1, 1, %sz, 32] [1, 1, 1, 1] : tensor<?x32xi8> into tensor<4x6x16x32xi8>
   return %res : tensor<4x6x16x32xi8>
 }
 
@@ -900,3 +967,18 @@ func @reshape_splat_constant_float64() -> tensor<2x4x2xf64> {
 //       CHECK:   %[[CST:.*]] = arith.constant dense<{{.*}}> : tensor<2x4x2xf64>
 //   CHECK-NOT:   tensor.expand_shape
 //       CHECK:   return %[[CST]]
+
+// -----
+
+// CHECK-LABEL: func @fold_rank
+func @fold_rank() -> (index) {
+  %const_0 = arith.constant dense<[[[1, -2, 1, 36]], [[0, 2, -1, 64]]]>
+    : tensor<2x1x4xi32>
+
+  // Fold a ank into a constant
+  // CHECK-NEXT: [[C3:%.+]] = arith.constant 3 : index
+  %rank_0 = tensor.rank %const_0 : tensor<2x1x4xi32>
+
+  // CHECK-NEXT: return [[C3]]
+  return %rank_0 : index
+}

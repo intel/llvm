@@ -194,7 +194,7 @@ void ConstantArrayType::Profile(llvm::FoldingSetNodeID &ID,
   ID.AddInteger(ArraySize.getZExtValue());
   ID.AddInteger(SizeMod);
   ID.AddInteger(TypeQuals);
-  ID.AddBoolean(SizeExpr != 0);
+  ID.AddBoolean(SizeExpr != nullptr);
   if (SizeExpr)
     SizeExpr->Profile(ID, Context, true);
 }
@@ -3411,6 +3411,17 @@ TypedefType::TypedefType(TypeClass tc, const TypedefNameDecl *D,
 
 QualType TypedefType::desugar() const {
   return getDecl()->getUnderlyingType();
+}
+
+UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
+                     QualType Canon)
+    : Type(Using, Canon, Underlying->getDependence()),
+      Found(const_cast<UsingShadowDecl *>(Found)) {
+  assert(Underlying == getUnderlyingType());
+}
+
+QualType UsingType::getUnderlyingType() const {
+  return QualType(cast<TypeDecl>(Found->getTargetDecl())->getTypeForDecl(), 0);
 }
 
 QualType MacroQualifiedType::desugar() const { return getUnderlyingType(); }

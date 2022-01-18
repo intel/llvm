@@ -148,6 +148,7 @@ public:
   Instruction *SliceUpIllegalIntegerPHI(PHINode &PN);
   Instruction *visitPHINode(PHINode &PN);
   Instruction *visitGetElementPtrInst(GetElementPtrInst &GEP);
+  Instruction *visitGEPOfGEP(GetElementPtrInst &GEP, GEPOperator *Src);
   Instruction *visitAllocaInst(AllocaInst &AI);
   Instruction *visitAllocSite(Instruction &FI);
   Instruction *visitFree(CallInst &FI);
@@ -600,6 +601,7 @@ public:
   /// Canonicalize the position of binops relative to shufflevector.
   Instruction *foldVectorBinop(BinaryOperator &Inst);
   Instruction *foldVectorSelect(SelectInst &Sel);
+  Instruction *foldSelectShuffle(ShuffleVectorInst &Shuf);
 
   /// Given a binary operator, cast instruction, or select which has a PHI node
   /// as operand #0, see if we can fold the instruction into the PHI (which is

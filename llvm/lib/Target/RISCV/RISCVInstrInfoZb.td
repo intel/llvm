@@ -791,6 +791,9 @@ def : Pat<(xor GPR:$rs1, BSETINVMask:$mask),
 def : Pat<(and (srl GPR:$rs1, uimmlog2xlen:$shamt), (XLenVT 1)),
           (BEXTI GPR:$rs1, uimmlog2xlen:$shamt)>;
 
+def : Pat<(and (not (srl GPR:$rs1, uimmlog2xlen:$shamt)), (XLenVT 1)),
+          (XORI (BEXTI GPR:$rs1, uimmlog2xlen:$shamt), (XLenVT 1))>;
+
 def : Pat<(or GPR:$r, BSETINVTwoBitsMask:$i),
           (BSETI (BSETI GPR:$r, (TrailingZerosXForm BSETINVTwoBitsMask:$i)),
                  (BSETINVTwoBitsMaskHigh BSETINVTwoBitsMask:$i))>;
@@ -936,10 +939,14 @@ def : Pat<(i64 (or (and GPR:$rs1, 0x00000000FFFFFFFF), (shl GPR:$rs2, (i64 32)))
 def : Pat<(i64 (or (and GPR:$rs2, 0xFFFFFFFF00000000), (srl GPR:$rs1, (i64 32)))),
           (PACKU GPR:$rs1, GPR:$rs2)>;
 }
-let Predicates = [HasStdExtZbp] in
+let Predicates = [HasStdExtZbp] in {
 def : Pat<(or (and (shl GPR:$rs2, (XLenVT 8)), 0xFFFF),
               (and GPR:$rs1, 0x00FF)),
           (PACKH GPR:$rs1, GPR:$rs2)>;
+def : Pat<(or (shl (and GPR:$rs2, 0x00FF), (XLenVT 8)),
+              (and GPR:$rs1, 0x00FF)),
+          (PACKH GPR:$rs1, GPR:$rs2)>;
+}
 
 let Predicates = [HasStdExtZbbOrZbp, IsRV32] in
 def : Pat<(i32 (and GPR:$rs, 0xFFFF)), (ZEXTH_RV32 GPR:$rs)>;

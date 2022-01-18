@@ -14,8 +14,7 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -187,7 +186,7 @@ struct FoldUnitDimLoops : public OpRewritePattern<GenericOp> {
     DenseSet<unsigned> unitDims;
     SmallVector<unsigned, 4> unitDimsReductionLoops;
     ArrayAttr iteratorTypes = genericOp.iterator_types();
-    for (auto expr : enumerate(invertedMap.getResults())) {
+    for (const auto &expr : enumerate(invertedMap.getResults())) {
       if (AffineDimExpr dimExpr = expr.value().dyn_cast<AffineDimExpr>())
         if (dims[dimExpr.getPosition()] == 1)
           unitDims.insert(expr.index());
@@ -206,7 +205,7 @@ struct FoldUnitDimLoops : public OpRewritePattern<GenericOp> {
     // Compute the iterator types of the modified op by dropping the one-trip
     // count loops.
     SmallVector<Attribute, 4> newIteratorTypes;
-    for (auto attr : llvm::enumerate(iteratorTypes)) {
+    for (const auto &attr : llvm::enumerate(iteratorTypes)) {
       if (!unitDims.count(attr.index()))
         newIteratorTypes.push_back(attr.value());
     }
@@ -440,7 +439,7 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
     // If any result tensor has a modified shape, then add reshape to recover
     // the original shape.
     SmallVector<Value, 4> resultReplacements;
-    for (auto result : llvm::enumerate(replacementOp.getResults())) {
+    for (const auto &result : llvm::enumerate(replacementOp.getResults())) {
       unsigned index = result.index() + replacementOp.getNumInputs();
       auto origResultType = genericOp.getResult(result.index()).getType();
 
@@ -466,7 +465,7 @@ static Optional<SmallVector<ReassociationIndices>>
 getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes) {
   SmallVector<ReassociationIndices> reassociation;
   ReassociationIndices curr;
-  for (auto it : llvm::enumerate(mixedSizes)) {
+  for (const auto &it : llvm::enumerate(mixedSizes)) {
     auto dim = it.index();
     auto size = it.value();
     curr.push_back(dim);
@@ -558,20 +557,19 @@ namespace {
 /// Pass that removes unit-extent dims within generic ops.
 struct LinalgFoldUnitExtentDimsPass
     : public LinalgFoldUnitExtentDimsBase<LinalgFoldUnitExtentDimsPass> {
-  void runOnFunction() override {
-    FuncOp funcOp = getFunction();
-    MLIRContext *context = funcOp.getContext();
+  void runOnOperation() override {
+    Operation *op = getOperation();
+    MLIRContext *context = op->getContext();
     RewritePatternSet patterns(context);
     if (foldOneTripLoopsOnly)
       patterns.add<FoldUnitDimLoops>(context);
     else
       populateFoldUnitExtentDimsPatterns(patterns);
-    (void)applyPatternsAndFoldGreedily(funcOp.getBody(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(op, std::move(patterns));
   }
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::createLinalgFoldUnitExtentDimsPass() {
+std::unique_ptr<Pass> mlir::createLinalgFoldUnitExtentDimsPass() {
   return std::make_unique<LinalgFoldUnitExtentDimsPass>();
 }

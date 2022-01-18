@@ -154,6 +154,24 @@ class TestQemuLaunch(TestBase):
             state = json.load(s)
         self.assertEqual(state["stdin"], "STDIN CONTENT")
 
+    def test_find_in_PATH(self):
+        emulator = self.getBuildArtifact("qemu-" + self.getArchitecture())
+        os.rename(self.getBuildArtifact("qemu.py"), emulator)
+        self.set_emulator_setting("emulator-path", "''")
+
+        original_path = os.environ["PATH"]
+        os.environ["PATH"] = (self.getBuildDir() +
+            self.platformContext.shlib_path_separator + original_path)
+        def cleanup():
+            os.environ["PATH"] = original_path
+
+        self.addTearDownHook(cleanup)
+        state = self._run_and_get_state()
+
+        self.assertEqual(state["program"], self.getBuildArtifact())
+        self.assertEqual(state["args"],
+                ["dump:" + self.getBuildArtifact("state.log")])
+
     def test_bad_emulator_path(self):
         self.set_emulator_setting("emulator-path",
                 self.getBuildArtifact("nonexistent.file"))
@@ -171,7 +189,7 @@ class TestQemuLaunch(TestBase):
 
         self.assertEqual(state["fake-arg"], "fake-value")
 
-    def test_target_env_vars(self):
+    def test_env_vars(self):
         # First clear any global environment to have a clean slate for this test
         self.runCmd("settings clear target.env-vars")
         self.runCmd("settings clear target.unset-env-vars")
@@ -187,6 +205,10 @@ class TestQemuLaunch(TestBase):
                 del os.environ[var(i)]
         self.addTearDownHook(cleanup)
 
+        # Set some emulator-only variables.
+        self.set_emulator_setting("emulator-env-vars",
+                "%s='emulator only'"%var(4))
+
         # And through the platform setting.
         self.set_emulator_setting("target-env-vars",
                 "%s='from platform' %s='from platform'" % (var(1), var(2)))
@@ -195,16 +217,18 @@ class TestQemuLaunch(TestBase):
         info = target.GetLaunchInfo()
         env = info.GetEnvironment()
 
-        # Platform settings should trump host values.
+        # Platform settings should trump host values. Emulator-only variables
+        # should not be visible.
         self.assertEqual(env.Get(var(0)), "from host")
         self.assertEqual(env.Get(var(1)), "from platform")
         self.assertEqual(env.Get(var(2)), "from platform")
         self.assertEqual(env.Get(var(3)), "from host")
+        self.assertIsNone(env.Get(var(4)))
 
         # Finally, make some launch_info specific changes.
-        env.Set(var(2), "from target", overwrite=True)
+        env.Set(var(2), "from target", True)
         env.Unset(var(3))
-        info.SetEnvironment(env, append=False)
+        info.SetEnvironment(env, False)
 
         # Now check everything. Launch info changes should trump everything, but
         # only for the target environment -- the emulator should still get the
@@ -212,7 +236,24 @@ class TestQemuLaunch(TestBase):
         state = self._run_and_get_state(target, info)
         for i in range(4):
             self.assertEqual(state["environ"][var(i)], "from host")
+        self.assertEqual(state["environ"][var(4)], "emulator only")
         self.assertEqual(state["environ"]["QEMU_SET_ENV"],
                 "%s=from platform,%s=from target" % (var(1), var(2)))
         self.assertEqual(state["environ"]["QEMU_UNSET_ENV"],
-                "%s,QEMU_SET_ENV,QEMU_UNSET_ENV" % var(3))
+                "%s,%s,QEMU_SET_ENV,QEMU_UNSET_ENV" % (var(3), var(4)))
+
+    def test_arg0(self):
+        target = self._create_target()
+        self.runCmd("settings set target.arg0 ARG0")
+        state = self._run_and_get_state(target)
+
+        self.assertEqual(state["program"], self.getBuildArtifact())
+        self.assertEqual(state["0"], "ARG0")
+
+    def test_sysroot(self):
+        sysroot = self.getBuildArtifact("sysroot")
+        self.runCmd("platform select qemu-user --sysroot %s" % sysroot)
+        state = self._run_and_get_state()
+        self.assertEqual(state["environ"]["QEMU_LD_PREFIX"], sysroot)
+        self.assertIn("QEMU_LD_PREFIX",
+                state["environ"]["QEMU_UNSET_ENV"].split(","))

@@ -105,7 +105,7 @@ static void printOperandAndTypeList(OpAsmPrinter &p, OperandRange operands) {
 /// Print data variables corresponding to a data-sharing clause `name`
 static void printDataVars(OpAsmPrinter &p, OperandRange operands,
                           StringRef name) {
-  if (operands.size()) {
+  if (!operands.empty()) {
     p << name;
     printOperandAndTypeList(p, operands);
   }
@@ -249,7 +249,7 @@ verifyScheduleModifiers(OpAsmParser &parser,
                         SmallVectorImpl<SmallString<12>> &modifiers) {
   if (modifiers.size() > 2)
     return parser.emitError(parser.getNameLoc()) << " unexpected modifier(s)";
-  for (auto mod : modifiers) {
+  for (const auto &mod : modifiers) {
     // Translate the string. If it has no value, then it was not a valid
     // modifier!
     auto symbol = symbolizeScheduleModifier(mod);
@@ -375,13 +375,13 @@ parseReductionVarList(OpAsmParser &parser,
 /// Print Reduction clause
 static void printReductionVarList(OpAsmPrinter &p,
                                   Optional<ArrayAttr> reductions,
-                                  OperandRange reduction_vars) {
+                                  OperandRange reductionVars) {
   p << "reduction(";
   for (unsigned i = 0, e = reductions->size(); i < e; ++i) {
     if (i != 0)
       p << ", ";
-    p << (*reductions)[i] << " -> " << reduction_vars[i] << " : "
-      << reduction_vars[i].getType();
+    p << (*reductions)[i] << " -> " << reductionVars[i] << " : "
+      << reductionVars[i].getType();
   }
   p << ") ";
 }
@@ -389,9 +389,9 @@ static void printReductionVarList(OpAsmPrinter &p,
 /// Verifies Reduction Clause
 static LogicalResult verifyReductionVarList(Operation *op,
                                             Optional<ArrayAttr> reductions,
-                                            OperandRange reduction_vars) {
-  if (reduction_vars.size() != 0) {
-    if (!reductions || reductions->size() != reduction_vars.size())
+                                            OperandRange reductionVars) {
+  if (!reductionVars.empty()) {
+    if (!reductions || reductions->size() != reductionVars.size())
       return op->emitOpError()
              << "expected as many reduction symbol references "
                 "as reduction variables";
@@ -402,7 +402,7 @@ static LogicalResult verifyReductionVarList(Operation *op,
   }
 
   DenseSet<Value> accumulators;
-  for (auto args : llvm::zip(reduction_vars, *reductions)) {
+  for (auto args : llvm::zip(reductionVars, *reductions)) {
     Value accum = std::get<0>(args);
 
     if (!accumulators.insert(accum).second)
@@ -863,7 +863,7 @@ static ParseResult parseClauses(OpAsmParser &parser, OperationState &result,
     schedule[0] = llvm::toUpper(schedule[0]);
     auto attr = parser.getBuilder().getStringAttr(schedule);
     result.addAttribute("schedule_val", attr);
-    if (modifiers.size() > 0) {
+    if (!modifiers.empty()) {
       auto mod = parser.getBuilder().getStringAttr(modifiers[0]);
       result.addAttribute("schedule_modifier", mod);
       // Only SIMD attribute is allowed here!
@@ -1072,7 +1072,7 @@ static void printWsLoopOp(OpAsmPrinter &p, WsLoopOp op) {
   printDataVars(p, op.firstprivate_vars(), "firstprivate");
   printDataVars(p, op.lastprivate_vars(), "lastprivate");
 
-  if (op.linear_vars().size())
+  if (!op.linear_vars().empty())
     printLinearClause(p, op.linear_vars(), op.linear_step_vars());
 
   if (auto sched = op.schedule_val())
@@ -1185,8 +1185,8 @@ void WsLoopOp::build(OpBuilder &builder, OperationState &state,
                      ValueRange lowerBound, ValueRange upperBound,
                      ValueRange step, ArrayRef<NamedAttribute> attributes) {
   build(builder, state, TypeRange(), lowerBound, upperBound, step,
-        /*private_vars=*/ValueRange(),
-        /*firstprivate_vars=*/ValueRange(), /*lastprivate_vars=*/ValueRange(),
+        /*privateVars=*/ValueRange(),
+        /*firstprivateVars=*/ValueRange(), /*lastprivate_vars=*/ValueRange(),
         /*linear_vars=*/ValueRange(), /*linear_step_vars=*/ValueRange(),
         /*reduction_vars=*/ValueRange(), /*schedule_val=*/nullptr,
         /*schedule_chunk_var=*/nullptr, /*collapse_val=*/nullptr,
@@ -1359,7 +1359,6 @@ static void printAtomicReadOp(OpAsmPrinter &p, AtomicReadOp op) {
   if (op.hintAttr())
     printSynchronizationHint(p << " ", op, op.hintAttr());
   p << ": " << op.address().getType() << " -> " << op.getType();
-  return;
 }
 
 /// Verifier for AtomicReadOp
@@ -1390,7 +1389,7 @@ static ParseResult parseAtomicWriteOp(OpAsmParser &parser,
   SmallVector<ClauseType> clauses = {memoryOrderClause, hintClause};
   SmallVector<int> segments;
 
-  if (parser.parseOperand(address) || parser.parseComma() ||
+  if (parser.parseOperand(address) || parser.parseEqual() ||
       parser.parseOperand(value) ||
       parseClauses(parser, result, clauses, segments) ||
       parser.parseColonType(addrType) || parser.parseComma() ||
@@ -1403,13 +1402,12 @@ static ParseResult parseAtomicWriteOp(OpAsmParser &parser,
 
 /// Printer for AtomicWriteOp
 static void printAtomicWriteOp(OpAsmPrinter &p, AtomicWriteOp op) {
-  p << " " << op.address() << ", " << op.value() << " ";
+  p << " " << op.address() << " = " << op.value() << " ";
   if (op.memory_order())
     p << "memory_order(" << op.memory_order() << ") ";
   if (op.hintAttr())
     printSynchronizationHint(p, op, op.hintAttr());
   p << ": " << op.address().getType() << ", " << op.value().getType();
-  return;
 }
 
 /// Verifier for AtomicWriteOp
