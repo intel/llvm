@@ -10,6 +10,9 @@ int main() {
       const char *IntFormatString = "String No. %i\n";
       ext::oneapi::experimental::printf(IntFormatString, 2);
       ext::oneapi::experimental::printf(IntFormatString, 3);
+      signed char c = 1;
+      short s = 1;
+      ext::oneapi::experimental::printf("signed char %hhd, short %hd\n", c, s);
     });
   });
 

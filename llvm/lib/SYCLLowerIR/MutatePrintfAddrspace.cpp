@@ -244,8 +244,21 @@ size_t setFuncCallsOntoCASPrintf(Function *F, Function *CASPrintfFunc,
     }
   }
   for (auto &CallConstantPair : CallsToMutate) {
-    setCallArgOntoCASPrintf(CallConstantPair.first, CallConstantPair.second,
-                            CASPrintfFunc);
+    auto *CI = CallConstantPair.first;
+    setCallArgOntoCASPrintf(CI, CallConstantPair.second, CASPrintfFunc);
+
+    // Promote i8 and i16 arguments.
+    for (unsigned Idx = 1, E = CI->arg_size(); Idx != E; ++Idx) {
+      Value *Op = CI->getArgOperand(Idx);
+      auto *Ty = dyn_cast<IntegerType>(Op->getType());
+      if (!Ty || Ty->getBitWidth() >= 32)
+        continue;
+      auto *Int32Type = Type::getInt32Ty(F->getContext());
+      auto *SE = new SExtInst(Op, Int32Type, "", CI);
+      CI->setArgOperand(Idx, SE);
+      CI->removeParamAttr(Idx, Attribute::SExt);
+    }
+
     ++MutatedCallsCount;
   }
   for (Function *WF : WrapperFunctionsToDrop)

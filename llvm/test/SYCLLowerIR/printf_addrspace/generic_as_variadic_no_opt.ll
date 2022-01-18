@@ -29,10 +29,14 @@ $_ZN2cl4sycl3ext6oneapi12experimental6printfIcJfEEEiPKT_DpT0_ = comdat any
 
 $_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_ = comdat any
 
+$_ZN2cl4sycl3ext6oneapi12experimental6printfIcJasEEEiPKT_DpT0_ = comdat any
+
 ; CHECK-DAG: @.str._AS2 = internal addrspace(2) constant [15 x i8] c"String No. %f\0A\00", align 1
 @.str = private unnamed_addr addrspace(1) constant [15 x i8] c"String No. %f\0A\00", align 1
 ; CHECK-DAG: @.str.1._AS2 = internal addrspace(2) constant [15 x i8] c"String No. %i\0A\00", align 1
 @.str.1 = private unnamed_addr addrspace(1) constant [15 x i8] c"String No. %i\0A\00", align 1
+; CHECK-DAG: @.str.2._AS2 = internal addrspace(2) constant [29 x i8] c"signed char %hhd, short %hd\0A\00", align 1
+@.str.2 = private unnamed_addr addrspace(1) constant [29 x i8] c"signed char %hhd, short %hd\0A\00", align 1
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_() #0 comdat !kernel_arg_buffer_location !9 {
@@ -49,8 +53,12 @@ define internal spir_func void @_ZZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_ENKUlvE
 entry:
   %this.addr = alloca %class.anon.0 addrspace(4)*, align 8
   %IntFormatString = alloca i8 addrspace(4)*, align 8
+  %c = alloca i8, align 1
+  %s = alloca i16, align 2
   %this.addr.ascast = addrspacecast %class.anon.0 addrspace(4)** %this.addr to %class.anon.0 addrspace(4)* addrspace(4)*
   %IntFormatString.ascast = addrspacecast i8 addrspace(4)** %IntFormatString to i8 addrspace(4)* addrspace(4)*
+  %c.ascast = addrspacecast i8* %c to i8 addrspace(4)*
+  %s.ascast = addrspacecast i16* %s to i16 addrspace(4)*
   store %class.anon.0 addrspace(4)* %this, %class.anon.0 addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
   %this1 = load %class.anon.0 addrspace(4)*, %class.anon.0 addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
   ; In particular, make sure that no argument promotion has been done for float
@@ -64,6 +72,14 @@ entry:
   %1 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %IntFormatString.ascast, align 8
   ; CHECK: call spir_func i32 (i8 addrspace(2)*, ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(2)* @.str.1._AS2, i32 0, i32 0), i32 3)
   %call3 = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_(i8 addrspace(4)* %1, i32 3) #8
+  store i8 1, i8 addrspace(4)* %c.ascast, align 1
+  store i16 1, i16 addrspace(4)* %s.ascast, align 2
+  %2 = load i8, i8 addrspace(4)* %c.ascast, align 1
+  %3 = load i16, i16 addrspace(4)* %s.ascast, align 2
+  ; CHECK: [[C:%[0-9]+]] = sext i8 %2 to i32
+  ; CHECK-NEXT: [[S:%[0-9]+]] = sext i16 %3 to i32
+  ; CHECK-NEXT: %call4 = call spir_func i32 (i8 addrspace(2)*, ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)* getelementptr inbounds ([29 x i8], [29 x i8] addrspace(2)* @.str.2._AS2, i32 0, i32 0), i32 [[C]], i32 [[S]])
+  %call4 = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJasEEEiPKT_DpT0_(i8 addrspace(4)* getelementptr inbounds ([29 x i8], [29 x i8] addrspace(4)* addrspacecast ([29 x i8] addrspace(1)* @.str.2 to [29 x i8] addrspace(4)*), i64 0, i64 0), i8 signext %2, i16 signext %3) #8
   ret void
 }
 
@@ -100,6 +116,29 @@ entry:
   %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
   %1 = load i32, i32 addrspace(4)* %args.addr.ascast, align 4
   %call = call spir_func i32 (i8 addrspace(4)*, ...) @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)* %0, i32 %1) #8
+  ret i32 %call
+}
+
+; Function Attrs: convergent mustprogress noinline norecurse optnone
+define linkonce_odr dso_local spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJasEEEiPKT_DpT0_(i8 addrspace(4)* %__format, i8 signext %args, i16 signext %args1) #2 comdat {
+entry:
+  %retval = alloca i32, align 4
+  %__format.addr = alloca i8 addrspace(4)*, align 8
+  %args.addr = alloca i8, align 1
+  %args.addr2 = alloca i16, align 2
+  %retval.ascast = addrspacecast i32* %retval to i32 addrspace(4)*
+  %__format.addr.ascast = addrspacecast i8 addrspace(4)** %__format.addr to i8 addrspace(4)* addrspace(4)*
+  %args.addr.ascast = addrspacecast i8* %args.addr to i8 addrspace(4)*
+  %args.addr2.ascast = addrspacecast i16* %args.addr2 to i16 addrspace(4)*
+  store i8 addrspace(4)* %__format, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
+  store i8 %args, i8 addrspace(4)* %args.addr.ascast, align 1
+  store i16 %args1, i16 addrspace(4)* %args.addr2.ascast, align 2
+  %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
+  %1 = load i8, i8 addrspace(4)* %args.addr.ascast, align 1
+  %conv = sext i8 %1 to i32
+  %2 = load i16, i16 addrspace(4)* %args.addr2.ascast, align 2
+  %conv3 = sext i16 %2 to i32
+  %call = call spir_func i32 (i8 addrspace(4)*, ...) @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)* %0, i32 %conv, i32 %conv3) #8
   ret i32 %call
 }
 

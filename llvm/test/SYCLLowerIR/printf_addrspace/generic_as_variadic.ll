@@ -24,6 +24,8 @@ $_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_ = comdat any
 @.str = private unnamed_addr addrspace(1) constant [15 x i8] c"String No. %f\0A\00", align 1
 ; CHECK-DAG: @.str.1._AS2 = internal addrspace(2) constant [15 x i8] c"String No. %i\0A\00", align 1
 @.str.1 = private unnamed_addr addrspace(1) constant [15 x i8] c"String No. %i\0A\00", align 1
+; CHECK-DAG: @.str.2._AS2 = internal addrspace(2) constant [29 x i8] c"signed char %hhd, short %hd\0A\00", align 1
+@.str.2 = private unnamed_addr addrspace(1) constant [29 x i8] c"signed char %hhd, short %hd\0A\00", align 1
 
 ; Function Attrs: convergent mustprogress norecurse
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_() local_unnamed_addr #2 comdat !kernel_arg_buffer_location !6 {
@@ -34,6 +36,8 @@ entry:
   %call.i1.i = tail call spir_func i32 (i8 addrspace(4)*, ...) @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(4)* addrspacecast ([15 x i8] addrspace(1)* @.str.1 to [15 x i8] addrspace(4)*), i64 0, i64 0), i32 2) #3
   ; CHECK-NEXT: tail call spir_func i32 (i8 addrspace(2)*, ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(2)* @.str.1._AS2, i32 0, i32 0), i32 3)
   %call.i2.i = tail call spir_func i32 (i8 addrspace(4)*, ...) @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(4)* addrspacecast ([15 x i8] addrspace(1)* @.str.1 to [15 x i8] addrspace(4)*), i64 0, i64 0), i32 3) #3
+  ; CHECK-NEXT: %call.i3.i = tail call spir_func i32 (i8 addrspace(2)*, ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)* getelementptr inbounds ([29 x i8], [29 x i8] addrspace(2)* @.str.2._AS2, i32 0, i32 0), i32 1, i32 1)
+  %call.i3.i = tail call spir_func i32 (i8 addrspace(4)*, ...) @_Z18__spirv_ocl_printfPKcz(i8 addrspace(4)* getelementptr inbounds ([29 x i8], [29 x i8] addrspace(4)* addrspacecast ([29 x i8] addrspace(1)* @.str.2 to [29 x i8] addrspace(4)*), i64 0, i64 0), i32 1, i32 1)
   ret void
 }
 
