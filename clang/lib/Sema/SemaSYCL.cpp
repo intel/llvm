@@ -4594,6 +4594,18 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   Policy.SuppressUnwrittenScope = true;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
+  if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2020) {
+    O << "#ifndef SYCL_LANGUAGE_VERSION \n";
+    O << "#define SYCL_LANGUAGE_VERSION 202001\n";
+    O << "#endif //SYCL_LANGUAGE_VERSION\n\n";
+  }
+
+  if (S.getLangOpts().SYCLDisableRangeRounding) {
+    O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+  }
+
   if (SpecConsts.size() > 0) {
     O << "// Forward declarations of templated spec constant types:\n";
     for (const auto &SC : SpecConsts)
