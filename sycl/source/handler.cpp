@@ -126,66 +126,6 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   return KernelBundleImpPtr;
 }
 
-// Returns a shared_ptr to kernel_bundle stored in the extended members vector.
-//
-// If there is no kernel_bundle created:
-// returns newly created kernel_bundle with KernelId if Insert is true
-// returns shared_ptr(nullptr) if Insert is false
-//
-// If there already existed an implicitly created kernel_bundle, the kernel is
-// inserted into that bundle.
-std::shared_ptr<detail::kernel_bundle_impl>
-handler::getOrInsertHandlerKernelBundle(bool Insert,
-                                        const kernel_id &KernelId) const {
-
-  std::lock_guard<std::mutex> Lock(
-      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
-
-  assert(!MSharedPtrStorage.empty());
-
-  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
-      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
-  // Look for the kernel bundle in extended members
-  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
-  for (const detail::ExtendedMemberT &EMember : *ExtendedMembersVec)
-    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
-      KernelBundleImpPtr =
-          std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
-      break;
-    }
-
-  // No kernel bundle yet, create one
-  if (!KernelBundleImpPtr) {
-    if (Insert) {
-      KernelBundleImpPtr =
-          detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-              MQueue->get_context(), {MQueue->get_device()}, {KernelId}));
-      if (KernelBundleImpPtr->empty()) {
-        KernelBundleImpPtr =
-            detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
-                MQueue->get_context(), {MQueue->get_device()}, {KernelId}));
-      }
-
-      detail::ExtendedMemberT EMember = {
-          detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
-          KernelBundleImpPtr};
-      ExtendedMembersVec->push_back(EMember);
-    }
-    return KernelBundleImpPtr;
-  }
-
-  auto HandlerImplMember = (*ExtendedMembersVec)[0];
-  assert(detail::ExtendedMembersType::HANDLER_IMPL == HandlerImplMember.MType);
-  auto HandlerImpl =
-      std::static_pointer_cast<detail::handler_impl>(HandlerImplMember.MData);
-
-  // Kernel bundles set explicitly by the user must not be filtered
-  if (!HandlerImpl->isStateExplicitKernelBundle())
-    KernelBundleImpPtr->add_kernel(KernelId, MQueue->get_device());
-
-  return KernelBundleImpPtr;
-}
-
 // Sets kernel bundle to the provided one. Either replaces existing one or
 // create a new entry in the extended members vector.
 void handler::setHandlerKernelBundle(
@@ -232,7 +172,26 @@ event handler::finalize() {
           !getHandlerImpl()->isStateExplicitKernelBundle()) {
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
-        KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        bool KernelInserted =
+            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        // If kernel was not inserted and the bundle is in input mode we try
+        // building it and trying to find the kernel in executable mode
+        if (!KernelInserted &&
+            KernelBundleImpPtr->get_bundle_state() == bundle_state::input) {
+          auto KernelBundle =
+              detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+                  KernelBundleImpPtr);
+          kernel_bundle<bundle_state::executable> ExecKernelBundle =
+              build(KernelBundle);
+          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
+          setHandlerKernelBundle(KernelBundleImpPtr);
+          KernelInserted =
+            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        }
+        // If the kernel was not found in executable mode we throw an exception
+        if (!KernelInserted)
+          throw runtime_error("Failed to add kernel to kernel bundle.",
+                              PI_INVALID_KERNEL_NAME);
       }
 
       switch (KernelBundleImpPtr->get_bundle_state()) {

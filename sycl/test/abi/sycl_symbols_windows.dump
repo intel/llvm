@@ -2132,7 +2132,6 @@
 ?getOSModuleHandle@OSUtil@detail@sycl@cl@@SA_JPEBX@Z
 ?getOrCreateSampler@sampler_impl@detail@sycl@cl@@QEAAPEAU_pi_sampler@@AEBVcontext@34@@Z
 ?getOrInsertHandlerKernelBundle@handler@sycl@cl@@AEBA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@_N@Z
-?getOrInsertHandlerKernelBundle@handler@sycl@cl@@AEBA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@_NAEBVkernel_id@23@@Z
 ?getOrWaitEvents@detail@sycl@cl@@YA?AV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@std@@V?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@5@V?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@5@@Z
 ?getPixelCoordLinearFiltMode@detail@sycl@cl@@YA?AV?$vec@H$07@23@V?$vec@M$03@23@W4addressing_mode@23@V?$range@$02@23@AEAV523@@Z
 ?getPixelCoordNearestFiltMode@detail@sycl@cl@@YA?AV?$vec@H$03@23@V?$vec@M$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
