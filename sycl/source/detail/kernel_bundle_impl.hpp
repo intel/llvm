@@ -484,13 +484,7 @@ public:
   size_t size() const noexcept { return MDeviceImages.size(); }
 
   bundle_state get_bundle_state() const {
-    // Interop kernel-bundles are always in executable state
-    if (MIsInterop)
-      return bundle_state::executable;
-    // All device images are expected to have the same state
-    return MDeviceImages.empty()
-               ? MState
-               : detail::getSyclObjImpl(MDeviceImages[0])->get_state();
+    return MState;
   }
 
   const SpecConstMapT &get_spec_const_map_ref() const noexcept {
