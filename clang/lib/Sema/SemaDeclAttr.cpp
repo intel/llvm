@@ -6885,8 +6885,6 @@ static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 /// If the user later adds a numbanks attribute the implicit one is removed.
 /// The values must be consecutive values (i.e. 3,4,5 or 2,1).
 static void handleIntelFPGABankBitsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
-  checkForDuplicateAttribute<IntelFPGABankBitsAttr>(S, D, A);
-
   if (!A.checkAtLeastNumArgs(S, 1))
     return;
 
@@ -6923,6 +6921,12 @@ void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
     Values.push_back(Value.getExtValue());
   }
 
+  if (const auto *ExistingAttr = D->getAttr<IntelFPGABankBitsAttr>()) {
+    Diag(CI.getLoc(), diag::warn_duplicate_attribute_exact) << CI;
+    Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+    return;
+  }
+
   // Check that the list is consecutive.
   if (!ListIsValueDep && Values.size() > 1) {
     bool ListIsAscending = Values[0] < Values[1];
@@ -6953,12 +6957,29 @@ void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
     D->addAttr(IntelFPGANumBanksAttr::CreateImplicit(Context, NBE));
   }
 
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
         Context, IntelFPGAMemoryAttr::Default));
 
   D->addAttr(::new (Context)
                  IntelFPGABankBitsAttr(Context, CI, Args.data(), Args.size()));
+}
+
+IntelFPGABankBitsAttr *Sema::MergeIntelFPGABankBitsAttr(Decl *D,
+                                                        const IntelFPGABankBitsAttr &A) {
+  if (const auto *ExistingAttr = D->getAttr<IntelFPGABankBitsAttr>()) {
+    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
+    Diag(A.getLoc(), diag::note_previous_attribute);
+    return nullptr;
+  }
+
+  SmallVector<Expr *, 8> Args;
+  for (auto *E : A.args())
+    Args.push_back(E);
+  return ::new (Context)
+      IntelFPGABankBitsAttr(Context, A, Args.data(), Args.size());
 }
 
 void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,

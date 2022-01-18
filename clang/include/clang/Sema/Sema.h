@@ -10482,6 +10482,8 @@ public:
 
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
+  IntelFPGABankBitsAttr *
+  MergeIntelFPGABankBitsAttr(Decl *D, const IntelFPGABankBitsAttr &A);
   template <typename AttrType>
   void addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
                              Expr *XDimExpr, Expr *YDimExpr, Expr *ZDimExpr);

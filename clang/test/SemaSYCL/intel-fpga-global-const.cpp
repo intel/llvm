@@ -115,3 +115,11 @@
 //expected-note@+1{{conflicting attribute is here}}
 [[intel::bankwidth(8)]] extern const int var_bankwidth_2;
 [[intel::fpga_register]] const int var_bankwidth_2 =0;
+
+// Test that checks global constant variable (which allows the redeclaration) since
+// IntelFPGAConstVar is one of the subjects listed for [[intel::bank_bits()]] attribute.
+// Merging of different arg values.
+// expected-warning@+3{{attribute 'bank_bits' is already applied}}
+//expected-note@+1{{previous attribute is here}}
+[[intel::bank_bits(2, 3, 4, 5)]] extern const int bankbits_1;
+[[intel::bank_bits(41, 42, 43, 44)]] const int bankbits_1 = 0;
