@@ -11,13 +11,8 @@
 // The current "REQUIRES" should be replaced with "gpu" only as mentioned in
 // "XREQUIRES".
 // UNSUPPORTED: cuda, hip
-// XRUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// XRUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: false
-// XFAIL: *
-// TODO Unexpected static_assert was retrieved while calling simd::copy_from()
-// function. The issue was created (https://github.com/intel/llvm/issues/5112)
-// and the test must be enabled when it is resolved.
+// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // Test for esimd copy constructor.
 
