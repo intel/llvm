@@ -12,8 +12,11 @@ target triple = "spir64-unknown-unknown"
 %"class.std::array.1" = type { [3 x float] }
 %"class.cl::sycl::kernel_handler" = type { i8 addrspace(4)* }
 
-@__usid_str = private unnamed_addr constant [32 x i8] c"9f47062a80eecfa7____ZL8coeff_id\00", align 1
+@__usid_str.1 = private unnamed_addr constant [32 x i8] c"9f47062a80eecfa7____ZL8coeff_id\00", align 1
 @_ZL8coeff_id = internal addrspace(1) constant %"class.cl::sycl::specialization_id" zeroinitializer, align 4
+
+@__usid_str.2 = private unnamed_addr constant [33 x i8] c"405761736d5a1797____ZL9coeff_id2\00", align 1
+@_ZL9coeff_id2 = internal addrspace(1) constant %"class.cl::sycl::specialization_id" { %"class.std::array" { [3 x %"class.std::array.1"] [%"class.std::array.1" zeroinitializer, %"class.std::array.1" { [3 x float] [float 0.000000e+00, float 1.000000e+00, float 2.000000e+00] }, %"class.std::array.1" { [3 x float] [float 0x4010666660000000, float 0x4014666660000000, float 0x4018CCCCC0000000] }] } }, align 4
 
 ; Function Attrs: convergent mustprogress norecurse
 define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
@@ -23,7 +26,7 @@ define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationCo
   %6 = addrspacecast i8 addrspace(4)** %4 to i8 addrspace(4)* addrspace(4)*
   store %"class.cl::sycl::kernel_handler" addrspace(4)* %1, %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)* %5, align 8, !tbaa !4
   %7 = load %"class.cl::sycl::kernel_handler" addrspace(4)*, %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)* %5, align 8
-  store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([32 x i8], [32 x i8]* @__usid_str, i32 0, i32 0) to i8 addrspace(4)*), i8 addrspace(4)* addrspace(4)* %6, align 8, !tbaa !4
+  store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([32 x i8], [32 x i8]* @__usid_str.1, i32 0, i32 0) to i8 addrspace(4)*), i8 addrspace(4)* addrspace(4)* %6, align 8, !tbaa !4
   %8 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %6, align 8, !tbaa !4
   %9 = getelementptr inbounds %"class.cl::sycl::kernel_handler", %"class.cl::sycl::kernel_handler" addrspace(4)* %7, i32 0, i32 0
   %10 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %9, align 8, !tbaa !8
@@ -45,6 +48,27 @@ define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationCo
 ; CHECK: %[[#NS14:]] = call %"class.std::array.1" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array.1"([3 x float] %[[#NS13]])
 ; CHECK: %[[#NS15:]] = call [3 x %"class.std::array.1"] @"_Z29__spirv_SpecConstantCompositeclass.std::array.1class.std::array.1class.std::array.1_RA3_class.std::array.1"(%"class.std::array.1" %[[#NS4]], %"class.std::array.1" %[[#NS9]], %"class.std::array.1" %[[#NS14]])
 ; CHECK: %[[#NS16:]] = call %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_class.std::array.1_Rclass.std::array"([3 x %"class.std::array.1"] %[[#NS15]])
+
+  %11 = alloca %"class.std::array", align 4
+  %12 = addrspacecast %"class.std::array"* %11 to %"class.std::array" addrspace(4)*
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueISt5arrayIS0_IfLy3EELy3EEET_PKcPKvS7_(%"class.std::array" addrspace(4)* sret(%"class.std::array") align 4 %12, i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([33 x i8], [33 x i8]* @__usid_str.2, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::specialization_id" addrspace(1)* @_ZL9coeff_id2 to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* null) #13
+; CHECK: %[[#NS17:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID9:]], float 0.000000e+00)
+; CHECK: %[[#NS18:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID10:]], float 0.000000e+00)
+; CHECK: %[[#NS19:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID11:]], float 0.000000e+00)
+; CHECK: %[[#NS20:]] = call [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS17]], float %[[#NS18]], float %[[#NS19]])
+; CHECK: %[[#NS21:]] = call %"class.std::array.1" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array.1"([3 x float] %[[#NS20]])
+; CHECK: %[[#NS22:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID12:]], float 0.000000e+00)
+; CHECK: %[[#NS23:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID13:]], float 1.000000e+00)
+; CHECK: %[[#NS24:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID14:]], float 2.000000e+00)
+; CHECK: %[[#NS25:]] = call [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS22]], float %[[#NS23]], float %[[#NS24]])
+; CHECK: %[[#NS26:]] = call %"class.std::array.1" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array.1"([3 x float] %[[#NS25]])
+; CHECK: %[[#NS27:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID15:]], float 0x4010666660000000)
+; CHECK: %[[#NS28:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID16:]], float 0x4014666660000000)
+; CHECK: %[[#NS29:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID17:]], float 0x4018CCCCC0000000)
+; CHECK: %[[#NS30:]] = call [3 x float] @_Z29__spirv_SpecConstantCompositefff_RA3_f(float %[[#NS27]], float %[[#NS28]], float %[[#NS29]])
+; CHECK: %[[#NS31:]] = call %"class.std::array.1" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array.1"([3 x float] %[[#NS30]])
+; CHECK: %[[#NS32:]] = call [3 x %"class.std::array.1"] @"_Z29__spirv_SpecConstantCompositeclass.std::array.1class.std::array.1class.std::array.1_RA3_class.std::array.1"(%"class.std::array.1" %[[#NS21]], %"class.std::array.1" %[[#NS26]], %"class.std::array.1" %[[#NS31]])
+; CHECK: %[[#NS33:]] = call %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_class.std::array.1_Rclass.std::array"([3 x %"class.std::array.1"] %[[#NS32]])
   ret void
 }
 
