@@ -151,7 +151,8 @@ bool SPIRVType::isTypeArray() const { return OpCode == OpTypeArray; }
 bool SPIRVType::isTypeBool() const { return OpCode == OpTypeBool; }
 
 bool SPIRVType::isTypeComposite() const {
-  return isTypeVector() || isTypeArray() || isTypeStruct();
+  return isTypeVector() || isTypeArray() || isTypeStruct() ||
+         isTypeJointMatrixINTEL();
 }
 
 bool SPIRVType::isTypeFloat(unsigned Bits) const {
@@ -192,6 +193,10 @@ bool SPIRVType::isTypeImage() const { return OpCode == OpTypeImage; }
 bool SPIRVType::isTypeStruct() const { return OpCode == OpTypeStruct; }
 
 bool SPIRVType::isTypeVector() const { return OpCode == OpTypeVector; }
+
+bool SPIRVType::isTypeJointMatrixINTEL() const {
+  return OpCode == internal::OpTypeJointMatrixINTEL;
+}
 
 bool SPIRVType::isTypeVectorBool() const {
   return isTypeVector() && getVectorComponentType()->isTypeBool();

@@ -42,7 +42,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
-#include "llvm/SYCLLowerIR/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/Support/BuryPointer.h"
@@ -201,8 +201,7 @@ public:
   PassManagerBuilderWrapper(const Triple &TargetTriple,
                             const CodeGenOptions &CGOpts,
                             const LangOptions &LangOpts)
-      : PassManagerBuilder(), TargetTriple(TargetTriple), CGOpts(CGOpts),
-        LangOpts(LangOpts) {}
+      : TargetTriple(TargetTriple), CGOpts(CGOpts), LangOpts(LangOpts) {}
   const Triple &getTargetTriple() const { return TargetTriple; }
   const CodeGenOptions &getCGOpts() const { return CGOpts; }
   const LangOptions &getLangOpts() const { return LangOpts; }
@@ -1045,9 +1044,8 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
   // -fsycl-instrument-device-code option was passed. This option can be
   // used only with spir triple.
   if (CodeGenOpts.SPIRITTAnnotations) {
-    if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
-      llvm::report_fatal_error(
-          "ITT annotations can only by added to a module with spir target");
+    assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
+           "ITT annotations can only by added to a module with spir target");
     PerModulePasses.add(createSPIRITTAnnotationsLegacyPass());
   }
 
