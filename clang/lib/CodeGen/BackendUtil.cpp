@@ -1484,7 +1484,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   // only with spir triple.
   if (CodeGenOpts.SPIRITTAnnotations) {
     assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
-           "ITT annotations can only by added to a module with spir target");
+           "ITT annotations can only be added to a module with spir target");
     MPM.addPass(SPIRITTAnnotationsPass());
   }
 
