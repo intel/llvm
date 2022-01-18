@@ -32,6 +32,7 @@ def do_configure(args):
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_cuda = 'OFF'
+    sycl_build_pi_esimd_emulator = 'ON'
     sycl_build_pi_hip = 'OFF'
     sycl_build_pi_hip_platform = 'AMD'
     sycl_clang_extra_flags = ''
@@ -48,6 +49,9 @@ def do_configure(args):
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
+
+    if args.disable_esimd_emulator:
+        sycl_build_pi_esimd_emulator = 'OFF'
 
     if args.cuda or args.hip:
         llvm_enable_projects += ';libclc'
@@ -143,6 +147,7 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
+        "-DSYCL_BUILD_PI_ESIMD_EMULATOR={}".format(sycl_build_pi_esimd_emulator),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags)
     ]
@@ -208,6 +213,7 @@ def main():
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--hip-amd-arch", type=str, help="Sets AMD gpu architecture for llvm lit tests, this is only needed for the HIP backend and AMD platform")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
+    parser.add_argument("--disable-esimd-emulator", action='store_true', help="exclude ESIMD_EMULATOR support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
