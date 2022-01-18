@@ -613,17 +613,17 @@ void diagnostics()
   unsigned int bb_reg[4];
 
   // Checking of different argument values.
-  //CHECK: VarDecl{{.*}}bb_bb
-  //CHECK: IntelFPGABankBitsAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}42
-  //CHECK-NEXT: IntegerLiteral{{.*}}42{{$}}
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}43
-  //CHECK-NEXT: IntegerLiteral{{.*}}43{{$}}
-  //CHECK-NOT: IntelFPGABankBitsAttr
-  //expected-warning@+2{{attribute 'bank_bits' is already applied}}
-  [[intel::bank_bits(42, 43)]] //expected-note{{previous attribute is here}}
+  // CHECK: VarDecl{{.*}}bb_bb
+  // CHECK: IntelFPGABankBitsAttr
+  // CHECK-NEXT: ConstantExpr
+  // CHECK-NEXT: value:{{.*}}42
+  // CHECK-NEXT: IntegerLiteral{{.*}}42{{$}}
+  // CHECK-NEXT: ConstantExpr
+  // CHECK-NEXT: value:{{.*}}43
+  // CHECK-NEXT: IntegerLiteral{{.*}}43{{$}}
+  // CHECK-NOT: IntelFPGABankBitsAttr
+  // expected-warning@+2{{attribute 'bank_bits' is already applied}}
+  [[intel::bank_bits(42, 43)]] // expected-note{{previous attribute is here}}
   [[intel::bank_bits(1, 2)]] unsigned int bb_bb[4];
 
   //expected-error@+1{{the number of bank_bits must be equal to ceil(log2(numbanks))}}
@@ -870,26 +870,26 @@ void check_template_parameters() {
   [[intel::bank_bits(A, 3), intel::bankwidth(C)]] unsigned int bank_bits_width;
 
   // Test that checks template instantiations for different arg values.
-  //CHECK: VarDecl{{.*}}bank_bits_args 'unsigned int'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
-  //CHECK: IntelFPGANumBanksAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}4
-  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
-  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit
-  //CHECK-NEXT: IntegerLiteral{{.*}} 'int' 4
-  //CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
-  //CHECK-NEXT: IntelFPGABankBitsAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}2
-  //CHECK-NEXT: SubstNonTypeTemplateParmExpr
-  //CHECK-NEXT: NonTypeTemplateParmDecl
-  //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}3
-  //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
-  //expected-note@+2{{previous attribute is here}}
-  //expected-warning@+1{{attribute 'bank_bits' is already applied}}
+  // CHECK: VarDecl{{.*}}bank_bits_args 'unsigned int'
+  // CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
+  // CHECK: IntelFPGANumBanksAttr
+  // CHECK-NEXT: ConstantExpr
+  // CHECK-NEXT: value:{{.*}}4
+  // CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
+  // CHECK: IntelFPGANumBanksAttr{{.*}}Implicit
+  // CHECK-NEXT: IntegerLiteral{{.*}} 'int' 4
+  // CHECK-NEXT: IntelFPGAMemoryAttr{{.*}}Implicit
+  // CHECK-NEXT: IntelFPGABankBitsAttr
+  // CHECK-NEXT: ConstantExpr
+  // CHECK-NEXT: value:{{.*}}2
+  // CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  // CHECK-NEXT: NonTypeTemplateParmDecl
+  // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+  // CHECK-NEXT: ConstantExpr
+  // CHECK-NEXT: value:{{.*}}3
+  // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
+  // expected-note@+2{{previous attribute is here}}
+  // expected-warning@+1{{attribute 'bank_bits' is already applied}}
   [[intel::bank_bits(A, 3), intel::bank_bits(42, 43)]] unsigned int bank_bits_args;
 
   // Add implicit memory attribute.

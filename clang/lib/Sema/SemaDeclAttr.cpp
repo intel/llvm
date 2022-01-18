@@ -6967,8 +6967,8 @@ void Sema::AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                  IntelFPGABankBitsAttr(Context, CI, Args.data(), Args.size()));
 }
 
-IntelFPGABankBitsAttr *Sema::MergeIntelFPGABankBitsAttr(Decl *D,
-                                                        const IntelFPGABankBitsAttr &A) {
+IntelFPGABankBitsAttr *
+Sema::MergeIntelFPGABankBitsAttr(Decl *D, const IntelFPGABankBitsAttr &A) {
   if (const auto *ExistingAttr = D->getAttr<IntelFPGABankBitsAttr>()) {
     Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
     Diag(A.getLoc(), diag::note_previous_attribute);
