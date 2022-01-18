@@ -631,9 +631,16 @@ public:
       }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
                !e->isTypeDependent() &&
-               !isa<CXXPseudoDestructorExpr>(e->getCallee()))
-      SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-          << Sema::KernelCallFunctionPointer;
+               !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
+      bool MaybeConstantExpr = false;
+      Expr *NonDirectCallee = e->getCallee();
+      if (!NonDirectCallee->isValueDependent())
+        MaybeConstantExpr =
+            NonDirectCallee->isEvaluatable(SemaRef.getASTContext());
+      if (!MaybeConstantExpr)
+        SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
+            << Sema::KernelCallFunctionPointer;
+    }
     return true;
   }
 
