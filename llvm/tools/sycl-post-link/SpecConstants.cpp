@@ -285,13 +285,6 @@ void collectCompositeElementsInfoRecursive(
   }
 }
 
-Constant *getConstantElement(Constant *C, unsigned i, Type *elementType) {
-  if (C->isZeroValue())
-    return Constant::getNullValue(elementType);
-  else
-    return cast<Constant>(C->getOperand(i));
-}
-
 /// Recursively iterates over a composite type in order to collect information
 /// about default values of its scalar elements.
 /// TODO: processing of composite spec constants here is similar to
@@ -300,26 +293,35 @@ Constant *getConstantElement(Constant *C, unsigned i, Type *elementType) {
 void collectCompositeElementsDefaultValuesRecursive(
     const Module &M, Constant *C, unsigned &Offset,
     std::vector<char> &DefaultValues) {
-  Type *Ty = C->getType();
-  if (auto *DataSeqC = dyn_cast<ConstantDataSequential>(C)) {
+  if (isa<ConstantAggregateZero>(C)) {
+    // This code is generic for zeroinitializer for both arrays and structs
+    size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
+    std::fill_n(std::back_inserter(DefaultValues), NumBytes, 0);
+    Offset += NumBytes;
+  } else if (auto *DataSeqC = dyn_cast<ConstantDataSequential>(C)) {
     // This code is generic for both vectors and arrays of scalars
     for (size_t I = 0; I < DataSeqC->getNumElements(); ++I) {
       Constant *El = cast<Constant>(DataSeqC->getElementAsConstant(I));
       collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
                                                      DefaultValues);
     }
-  } else if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+  } else if (auto *ArrayC = dyn_cast<ConstantArray>(C)) {
     // This branch handles arrays of composite types (structs, arrays, etc.)
+    auto *ArrTy = ArrayC->getType();
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
-      Constant *El = getConstantElement(C, I, ArrTy->getElementType());
+      // We are shure the array is not a zeroinitializer.
+      Constant *El = cast<Constant>(C->getOperand(I));
       collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
                                                      DefaultValues);
     }
-  } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+  } else if (auto *StructC = dyn_cast<ConstantStruct>(C)) {
+    auto *StructTy = StructC->getType();
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     const size_t BaseDefaultValueOffset = DefaultValues.size();
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
-      Constant *El = getConstantElement(C, I, StructTy->getElementType(I));
+      // We are shure the structure is not a zeroinitializer.
+      Constant *El = cast<Constant>(C->getOperand(I));
+      
       // When handling elements of a structure, we do not use manually
       // calculated offsets (which are sum of sizes of all previously
       // encountered elements), but instead rely on data provided for us by
@@ -345,8 +347,7 @@ void collectCompositeElementsDefaultValuesRecursive(
     // type.
     Offset += SLSize;
   } else { // Assume that we encountered some scalar element
-    int NumBytes = M.getDataLayout().getTypeStoreSize(Ty);
-
+    size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
     if (auto IntConst = dyn_cast<ConstantInt>(C)) {
       auto Val = IntConst->getValue().getZExtValue();
       std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
