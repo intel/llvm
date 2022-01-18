@@ -2,7 +2,7 @@
 
 // expected-no-diagnostics
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   long long int a = -9223372034707292160ll;
