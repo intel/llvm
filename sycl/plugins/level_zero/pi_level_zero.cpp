@@ -1228,7 +1228,15 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // either that no command has ever been issued to the queue
   // or it means that the LastCommandEvent has been signalled and
   // therefore that this Queue is idle.
-  bool CurrentlyEmpty = this->LastCommandEvent == nullptr;
+  //
+  // NOTE: this behavior adds some flakyness to the batching
+  // since last command's event may or may not be completed by the
+  // time we get here depending on timings and system/gpu load.
+  // So, disable it for modes where we print PI traces. Printing
+  // traces incurs much different timings than real execution
+  // ansyway, and many regression tests use it.
+  //
+  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
