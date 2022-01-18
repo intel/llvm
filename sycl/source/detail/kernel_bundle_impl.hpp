@@ -483,9 +483,7 @@ public:
 
   size_t size() const noexcept { return MDeviceImages.size(); }
 
-  bundle_state get_bundle_state() const {
-    return MState;
-  }
+  bundle_state get_bundle_state() const { return MState; }
 
   const SpecConstMapT &get_spec_const_map_ref() const noexcept {
     return MSpecConstValues;

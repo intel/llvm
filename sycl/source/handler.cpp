@@ -186,7 +186,7 @@ event handler::finalize() {
           KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
           setHandlerKernelBundle(KernelBundleImpPtr);
           KernelInserted =
-            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+              KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
         }
         // If the kernel was not found in executable mode we throw an exception
         if (!KernelInserted)
