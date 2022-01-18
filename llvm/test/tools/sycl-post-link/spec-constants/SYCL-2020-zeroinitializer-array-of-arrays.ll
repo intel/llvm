@@ -1,4 +1,5 @@
-; RUN: sycl-post-link --ir-output-only --spec-const=rt %s -S -o - | FileCheck %s
+; RUN: sycl-post-link --ir-output-only --spec-const=rt %s -S -o - | FileCheck %s --check-prefix CHECK
+; RUN: sycl-post-link --spec-const=rt %s -o %t.files.table | FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants with complex types such as arrays
@@ -11,12 +12,17 @@ target triple = "spir64-unknown-unknown"
 %"class.std::array" = type { [3 x %"class.std::array.1"] }
 %"class.std::array.1" = type { [3 x float] }
 %"class.cl::sycl::kernel_handler" = type { i8 addrspace(4)* }
+%"class.cl::sycl::specialization_id.1" = type { %struct.coeff_str_t }
+%struct.coeff_str_t = type { %"class.std::array.1", i64 }
 
 @__usid_str.1 = private unnamed_addr constant [32 x i8] c"9f47062a80eecfa7____ZL8coeff_id\00", align 1
 @_ZL8coeff_id = internal addrspace(1) constant %"class.cl::sycl::specialization_id" zeroinitializer, align 4
 
 @__usid_str.2 = private unnamed_addr constant [33 x i8] c"405761736d5a1797____ZL9coeff_id2\00", align 1
 @_ZL9coeff_id2 = internal addrspace(1) constant %"class.cl::sycl::specialization_id" { %"class.std::array" { [3 x %"class.std::array.1"] [%"class.std::array.1" zeroinitializer, %"class.std::array.1" { [3 x float] [float 0.000000e+00, float 1.000000e+00, float 2.000000e+00] }, %"class.std::array.1" { [3 x float] [float 0x4010666660000000, float 0x4014666660000000, float 0x4018CCCCC0000000] }] } }, align 4
+
+@__usid_str.3 = private unnamed_addr constant [33 x i8] c"6da74a122db9f35d____ZL9coeff_id3\00", align 1
+@_ZL9coeff_id3 = internal addrspace(1) constant %"class.cl::sycl::specialization_id.1" zeroinitializer, align 8
 
 ; Function Attrs: convergent mustprogress norecurse
 define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
@@ -69,14 +75,22 @@ define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationCo
 ; CHECK: %[[#NS31:]] = call %"class.std::array.1" @"_Z29__spirv_SpecConstantCompositeA3_f_Rclass.std::array.1"([3 x float] %[[#NS30]])
 ; CHECK: %[[#NS32:]] = call [3 x %"class.std::array.1"] @"_Z29__spirv_SpecConstantCompositeclass.std::array.1class.std::array.1class.std::array.1_RA3_class.std::array.1"(%"class.std::array.1" %[[#NS21]], %"class.std::array.1" %[[#NS26]], %"class.std::array.1" %[[#NS31]])
 ; CHECK: %[[#NS33:]] = call %"class.std::array" @"_Z29__spirv_SpecConstantCompositeA3_class.std::array.1_Rclass.std::array"([3 x %"class.std::array.1"] %[[#NS32]])
+  
+  %13 = alloca %struct.coeff_str_t, align 8
+  %14 = addrspacecast %struct.coeff_str_t* %13 to %struct.coeff_str_t addrspace(4)*
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI11coeff_str_tET_PKcPKvS5_(%struct.coeff_str_t addrspace(4)* sret(%struct.coeff_str_t) align 8 %14, i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([33 x i8], [33 x i8]* @__usid_str.3, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class.cl::sycl::specialization_id.1" addrspace(1)* @_ZL9coeff_id3 to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* null) #13
   ret void
 }
 
 ; Function Attrs: convergent
 declare dso_local spir_func void @_Z40__sycl_getComposite2020SpecConstantValueISt5arrayIS0_IfLy3EELy3EEET_PKcPKvS7_(%"class.std::array" addrspace(4)* sret(%"class.std::array") align 4, i8 addrspace(4)*, i8 addrspace(4)*, i8 addrspace(4)*) #1
 
+; Function Attrs: convergent
+declare dso_local spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI11coeff_str_tET_PKcPKvS5_(%struct.coeff_str_t addrspace(4)* sret(%struct.coeff_str_t) align 8, i8 addrspace(4)*, i8 addrspace(4)*, i8 addrspace(4)*) local_unnamed_addr #2
+
 attributes #0 = { convergent mustprogress norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #1 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #2 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 
 !opencl.spir.version = !{!1}
 !spirv.Source = !{!2}
@@ -91,3 +105,11 @@ attributes #1 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "st
 !7 = !{!"Simple C++ TBAA"}
 !8 = !{!9, !5, i64 0}
 !9 = !{!"_ZTSN2cl4sycl14kernel_handlerE", !5, i64 0}
+
+; CHECK-PROP: [SYCL/specialization constants]
+; CHECK-PROP-NEXT: 9f47062a80eecfa7____ZL8coeff_id=2|gNAAAAAAAAAAAAAAAAAAAQAAAAQAAAAAEAAAAQAAAAgAAAAAIAAAAQAAAAwAAAAAMAAAAQAAAAABAAAAQAAAAQAAAAQBAAAAUAAAAQAAAAgBAAAAYAAAAQAAAAwBAAAAcAAAAQAAAAACAAAAgAAAAQAAAAA
+; CHECK-PROP-NEXT: 405761736d5a1797____ZL9coeff_id2=2|gNAAAAAAAAQCAAAAAAAAAQAAAAgCAAAAEAAAAQAAAAwCAAAAIAAAAQAAAAADAAAAMAAAAQAAAAQDAAAAQAAAAQAAAAgDAAAAUAAAAQAAAAwDAAAAYAAAAQAAAAAEAAAAcAAAAQAAAAQEAAAAgAAAAQAAAAA
+; CHECK-PROP-NEXT: 6da74a122db9f35d____ZL9coeff_id3=2|AGAAAAAAAAgEAAAAAAAAAQAAAAwEAAAAEAAAAQAAAAAFAAAAIAAAAQAAAAQFAAAAQAAAAgAAAAA
+
+; CHECK-PROP: [SYCL/specialization constants default values]
+; CHECK-PROP-NEXT: all=2|AMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAg/AAAAA0MzMIQzMzoAZmZGDEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
