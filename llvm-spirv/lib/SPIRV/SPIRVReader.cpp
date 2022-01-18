@@ -2117,12 +2117,12 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCompositeConstruct: {
     auto CC = static_cast<SPIRVCompositeConstruct *>(BV);
-    auto Constituents = transValue(CC->getConstituents(), F, BB);
+    auto Constituents = transValue(CC->getOperands(), F, BB);
     std::vector<Constant *> CV;
     for (const auto &I : Constituents) {
       CV.push_back(dyn_cast<Constant>(I));
     }
-    switch (BV->getType()->getOpCode()) {
+    switch (static_cast<size_t>(BV->getType()->getOpCode())) {
     case OpTypeVector:
       return mapValue(BV, ConstantVector::get(CV));
     case OpTypeArray:
@@ -2133,6 +2133,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return mapValue(BV,
                       ConstantStruct::get(
                           dyn_cast<StructType>(transType(CC->getType())), CV));
+    case internal::OpTypeJointMatrixINTEL:
+      return mapValue(BV, transSPIRVBuiltinFromInst(CC, BB));
     default:
       llvm_unreachable("Unhandled type!");
     }

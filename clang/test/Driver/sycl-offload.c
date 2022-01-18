@@ -1137,10 +1137,12 @@
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"{{.*}}
 
-/// Check for an incompatibility error when -fsycl and -ffreestanding used
+/// Check for option incompatibility with -fsycl
 // RUN:   %clang -### -fsycl -ffreestanding %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s
-// CHK-INCOMPATIBILITY: error: The option -fsycl conflicts with -ffreestanding
+// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
+// RUN:   %clang -### -fsycl -static-libstdc++ %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
+// CHK-INCOMPATIBILITY: error: '[[INCOMPATOPT]]' is not supported with '-fsycl'
 
 /// Using -fsyntax-only with -fsycl should not emit IR
 // RUN:   %clang -### -fsycl -fsyntax-only %s 2>&1 \

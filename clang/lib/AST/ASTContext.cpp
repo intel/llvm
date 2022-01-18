@@ -8499,8 +8499,8 @@ static TypedefDecl *CreateHexagonBuiltinVaListDecl(const ASTContext *Context) {
     FieldDecl *Field = FieldDecl::Create(
         const_cast<ASTContext &>(*Context), VaListTagDecl, SourceLocation(),
         SourceLocation(), &Context->Idents.get(FieldNames[i]), FieldTypes[i],
-        /*TInfo=*/0,
-        /*BitWidth=*/0,
+        /*TInfo=*/nullptr,
+        /*BitWidth=*/nullptr,
         /*Mutable=*/false, ICIS_NoInit);
     Field->setAccess(AS_public);
     VaListTagDecl->addDecl(Field);
@@ -9295,7 +9295,7 @@ void getIntersectionOfProtocols(ASTContext &Context,
   // Remove any implied protocols from the list of inherited protocols.
   if (!ImpliedProtocols.empty()) {
     llvm::erase_if(IntersectionSet, [&](ObjCProtocolDecl *proto) -> bool {
-      return ImpliedProtocols.count(proto) > 0;
+      return ImpliedProtocols.contains(proto);
     });
   }
 
@@ -9842,12 +9842,13 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   // designates the object or function denoted by the reference, and the
   // expression is an lvalue unless the reference is an rvalue reference and
   // the expression is a function call (possibly inside parentheses).
-  if (LangOpts.OpenMP && LHS->getAs<ReferenceType>() &&
-      RHS->getAs<ReferenceType>() && LHS->getTypeClass() == RHS->getTypeClass())
-    return mergeTypes(LHS->getAs<ReferenceType>()->getPointeeType(),
-                      RHS->getAs<ReferenceType>()->getPointeeType(),
+  auto *LHSRefTy = LHS->getAs<ReferenceType>();
+  auto *RHSRefTy = RHS->getAs<ReferenceType>();
+  if (LangOpts.OpenMP && LHSRefTy && RHSRefTy &&
+      LHS->getTypeClass() == RHS->getTypeClass())
+    return mergeTypes(LHSRefTy->getPointeeType(), RHSRefTy->getPointeeType(),
                       OfBlockPointer, Unqualified, BlockReturnType);
-  if (LHS->getAs<ReferenceType>() || RHS->getAs<ReferenceType>())
+  if (LHSRefTy || RHSRefTy)
     return {};
 
   if (Unqualified) {

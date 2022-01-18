@@ -380,6 +380,19 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
                                   transType(ET)));
       }
     } else {
+      // JointMatrixINTEL type is not necessarily an opaque type, it can be
+      // represented as a structure with pointer to a multidimensional array
+      // member.
+      if (ST && ST->hasName()) {
+        StringRef STName = ST->getName();
+        if (STName.startswith(kSPIRVTypeName::PrefixAndDelim)) {
+          SmallVector<std::string, 8> Postfixes;
+          auto TN = decodeSPIRVTypeName(STName, Postfixes);
+          if (TN == kSPIRVTypeName::JointMatrixINTEL) {
+            return transSPIRVJointMatrixINTELType(T, Postfixes);
+          }
+        }
+      }
       SPIRVType *ElementType = transType(ET);
       // ET, as a recursive type, may contain exactly the same pointer T, so it
       // may happen that after translation of ET we already have translated T,
@@ -504,6 +517,56 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   return 0;
 }
 
+// Representation in LLVM IR before the translator is a pointer array wrapped
+// in a structure:
+// %struct.__spirv_JointMatrixINTEL = type { [R x [C x [L x [S x type]]]]* }
+// where R = Rows, C = Columnts, L = Layout + 1, S = Scope + 1
+// this '+1' for the Layout and Scope is required because both of them can
+// be '0', but array size can not be '0'.
+// The result should look like SPIR-V friendly LLVM IR:
+// %spirv.JointMatrixINTEL._char_2_2_0_3
+// Here we check the structure name yet again. Another option would be to
+// check SPIR-V friendly function calls (by their name) and obtain return
+// or their parameter types, assuming, that the appropriate types are Matrix
+// structure type. But in the near future, we will reuse Composite
+// instructions to do, for example, matrix initialization directly on AMX
+// register by OpCompositeConstruct. And we can't claim, that the Result type
+// of OpCompositeConstruct instruction is always the joint matrix type, it's
+// simply not true.
+SPIRVType *LLVMToSPIRVBase::transSPIRVJointMatrixINTELType(
+    Type *T, SmallVector<std::string, 8> Postfixes) {
+  Type *ElemTy = nullptr;
+  StringRef Ty{Postfixes[0]};
+  auto NumBits = llvm::StringSwitch<unsigned>(Ty)
+                     .Case("char", 8)
+                     .Case("short", 16)
+                     .Case("int", 32)
+                     .Case("long", 64)
+                     .Default(0);
+  if (NumBits)
+    ElemTy = IntegerType::get(M->getContext(), NumBits);
+  else if (Ty == "half")
+    ElemTy = Type::getHalfTy(M->getContext());
+  else if (Ty == "float")
+    ElemTy = Type::getFloatTy(M->getContext());
+  else if (Ty == "double")
+    ElemTy = Type::getDoubleTy(M->getContext());
+  else
+    llvm_unreachable("Unexpected type for matrix!");
+
+  auto ParseInteger = [this](StringRef Postfix) -> ConstantInt * {
+    unsigned long long N = 0;
+    consumeUnsignedInteger(Postfix, 10, N);
+    return getUInt32(M, N);
+  };
+  SPIRVValue *Rows = transConstant(ParseInteger(Postfixes[1]));
+  SPIRVValue *Columns = transConstant(ParseInteger(Postfixes[2]));
+  SPIRVValue *Layout = transConstant(ParseInteger(Postfixes[3]));
+  SPIRVValue *Scope = transConstant(ParseInteger(Postfixes[4]));
+  return mapType(T, BM->addJointMatrixINTELType(transType(ElemTy), Rows,
+                                                Columns, Layout, Scope));
+}
+
 SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(Type *T) {
   auto ET = T->getPointerElementType();
   auto ST = cast<StructType>(ET);
@@ -555,36 +618,7 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(Type *T) {
   else if (TN == kSPIRVTypeName::PipeStorage)
     return mapType(T, BM->addPipeStorageType());
   else if (TN == kSPIRVTypeName::JointMatrixINTEL) {
-    Type *ElemTy = nullptr;
-    StringRef Ty{Postfixes[0]};
-    auto NumBits = llvm::StringSwitch<unsigned>(Ty)
-                       .Case("char", 8)
-                       .Case("short", 16)
-                       .Case("int", 32)
-                       .Case("long", 64)
-                       .Default(0);
-    if (NumBits)
-      ElemTy = IntegerType::get(M->getContext(), NumBits);
-    else if (Ty == "half")
-      ElemTy = Type::getHalfTy(M->getContext());
-    else if (Ty == "float")
-      ElemTy = Type::getFloatTy(M->getContext());
-    else if (Ty == "double")
-      ElemTy = Type::getDoubleTy(M->getContext());
-    else
-      llvm_unreachable("Unexpected type for matrix!");
-
-    auto ParseInteger = [this](StringRef Postfix) -> ConstantInt * {
-      unsigned long long N = 0;
-      consumeUnsignedInteger(Postfix, 10, N);
-      return getUInt32(M, N);
-    };
-    SPIRVValue *Rows = transConstant(ParseInteger(Postfixes[1]));
-    SPIRVValue *Columns = transConstant(ParseInteger(Postfixes[2]));
-    SPIRVValue *Layout = transConstant(ParseInteger(Postfixes[3]));
-    SPIRVValue *Scope = transConstant(ParseInteger(Postfixes[4]));
-    return mapType(T, BM->addJointMatrixINTELType(transType(ElemTy), Rows,
-                                                  Columns, Layout, Scope));
+    return transSPIRVJointMatrixINTELType(T, Postfixes);
   } else
     return mapType(T,
                    BM->addOpaqueGenericType(SPIRVOpaqueTypeOpCodeMap::map(TN)));
@@ -4420,6 +4454,12 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB),
                             transValue(CI->getArgOperand(1), BB), MemoryAccess,
                             BB);
+  }
+  case OpCompositeConstruct: {
+    std::vector<SPIRVId> Operands = {
+        transValue(CI->getArgOperand(0), BB)->getId()};
+    return BM->addCompositeConstructInst(transType(CI->getType()), Operands,
+                                         BB);
   }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {

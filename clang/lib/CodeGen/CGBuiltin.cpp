@@ -532,13 +532,13 @@ static Value *emitCallMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type.
-static Value *emitUnaryBuiltin(CodeGenFunction &CGF,
-                               const CallExpr *E,
-                               unsigned IntrinsicID) {
+static Value *emitUnaryBuiltin(CodeGenFunction &CGF, const CallExpr *E,
+                               unsigned IntrinsicID,
+                               llvm::StringRef Name = "") {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
 
   Function *F = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
-  return CGF.Builder.CreateCall(F, Src0);
+  return CGF.Builder.CreateCall(F, Src0, Name);
 }
 
 // Emit an intrinsic that has 2 operands of the same type as its result.
@@ -1060,7 +1060,10 @@ static llvm::Value *emitPPCLoadReserveIntrinsic(CodeGenFunction &CGF,
 
   llvm::InlineAsm *IA =
       llvm::InlineAsm::get(FTy, Asm, Constraints, /*hasSideEffects=*/true);
-  return CGF.Builder.CreateCall(IA, {Addr});
+  llvm::CallInst *CI = CGF.Builder.CreateCall(IA, {Addr});
+  CI->addParamAttr(
+      0, Attribute::get(CGF.getLLVMContext(), Attribute::ElementType, RetType));
+  return CI;
 }
 
 namespace {
@@ -3122,23 +3125,33 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
 
   case Builtin::BI__builtin_elementwise_abs: {
-    Value *Op0 = EmitScalarExpr(E->getArg(0));
     Value *Result;
-    if (Op0->getType()->isIntOrIntVectorTy())
+    QualType QT = E->getArg(0)->getType();
+
+    if (auto *VecTy = QT->getAs<VectorType>())
+      QT = VecTy->getElementType();
+    if (QT->isIntegerType())
       Result = Builder.CreateBinaryIntrinsic(
-          llvm::Intrinsic::abs, Op0, Builder.getFalse(), nullptr, "elt.abs");
+          llvm::Intrinsic::abs, EmitScalarExpr(E->getArg(0)),
+          Builder.getFalse(), nullptr, "elt.abs");
     else
-      Result = Builder.CreateUnaryIntrinsic(llvm::Intrinsic::fabs, Op0, nullptr,
-                                            "elt.abs");
+      Result = emitUnaryBuiltin(*this, E, llvm::Intrinsic::fabs, "elt.abs");
+
     return RValue::get(Result);
   }
 
-  case Builtin::BI__builtin_elementwise_ceil: {
-    Value *Op0 = EmitScalarExpr(E->getArg(0));
-    Value *Result = Builder.CreateUnaryIntrinsic(llvm::Intrinsic::ceil, Op0,
-                                                 nullptr, "elt.ceil");
-    return RValue::get(Result);
-  }
+  case Builtin::BI__builtin_elementwise_ceil:
+    return RValue::get(
+        emitUnaryBuiltin(*this, E, llvm::Intrinsic::ceil, "elt.ceil"));
+  case Builtin::BI__builtin_elementwise_floor:
+    return RValue::get(
+        emitUnaryBuiltin(*this, E, llvm::Intrinsic::floor, "elt.floor"));
+  case Builtin::BI__builtin_elementwise_roundeven:
+    return RValue::get(emitUnaryBuiltin(*this, E, llvm::Intrinsic::roundeven,
+                                        "elt.roundeven"));
+  case Builtin::BI__builtin_elementwise_trunc:
+    return RValue::get(
+        emitUnaryBuiltin(*this, E, llvm::Intrinsic::trunc, "elt.trunc"));
 
   case Builtin::BI__builtin_elementwise_max: {
     Value *Op0 = EmitScalarExpr(E->getArg(0));
@@ -3174,49 +3187,39 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
 
   case Builtin::BI__builtin_reduce_max: {
-    auto GetIntrinsicID = [](QualType QT, llvm::Type *IrTy) {
-      if (IrTy->isIntOrIntVectorTy()) {
-        if (auto *VecTy = QT->getAs<VectorType>())
-          QT = VecTy->getElementType();
-        if (QT->isSignedIntegerType())
-          return llvm::Intrinsic::vector_reduce_smax;
-        else
-          return llvm::Intrinsic::vector_reduce_umax;
-      }
+    auto GetIntrinsicID = [](QualType QT) {
+      if (auto *VecTy = QT->getAs<VectorType>())
+        QT = VecTy->getElementType();
+      if (QT->isSignedIntegerType())
+        return llvm::Intrinsic::vector_reduce_smax;
+      if (QT->isUnsignedIntegerType())
+        return llvm::Intrinsic::vector_reduce_umax;
+      assert(QT->isFloatingType() && "must have a float here");
       return llvm::Intrinsic::vector_reduce_fmax;
     };
-    Value *Op0 = EmitScalarExpr(E->getArg(0));
-    Value *Result = Builder.CreateUnaryIntrinsic(
-        GetIntrinsicID(E->getArg(0)->getType(), Op0->getType()), Op0, nullptr,
-        "rdx.min");
-    return RValue::get(Result);
+    return RValue::get(emitUnaryBuiltin(
+        *this, E, GetIntrinsicID(E->getArg(0)->getType()), "rdx.min"));
   }
 
   case Builtin::BI__builtin_reduce_min: {
-    auto GetIntrinsicID = [](QualType QT, llvm::Type *IrTy) {
-      if (IrTy->isIntOrIntVectorTy()) {
-        if (auto *VecTy = QT->getAs<VectorType>())
-          QT = VecTy->getElementType();
-        if (QT->isSignedIntegerType())
-          return llvm::Intrinsic::vector_reduce_smin;
-        else
-          return llvm::Intrinsic::vector_reduce_umin;
-      }
+    auto GetIntrinsicID = [](QualType QT) {
+      if (auto *VecTy = QT->getAs<VectorType>())
+        QT = VecTy->getElementType();
+      if (QT->isSignedIntegerType())
+        return llvm::Intrinsic::vector_reduce_smin;
+      if (QT->isUnsignedIntegerType())
+        return llvm::Intrinsic::vector_reduce_umin;
+      assert(QT->isFloatingType() && "must have a float here");
       return llvm::Intrinsic::vector_reduce_fmin;
     };
-    Value *Op0 = EmitScalarExpr(E->getArg(0));
-    Value *Result = Builder.CreateUnaryIntrinsic(
-        GetIntrinsicID(E->getArg(0)->getType(), Op0->getType()), Op0, nullptr,
-        "rdx.min");
-    return RValue::get(Result);
+
+    return RValue::get(emitUnaryBuiltin(
+        *this, E, GetIntrinsicID(E->getArg(0)->getType()), "rdx.min"));
   }
 
-  case Builtin::BI__builtin_reduce_xor: {
-    Value *Op0 = EmitScalarExpr(E->getArg(0));
-    Value *Result = Builder.CreateUnaryIntrinsic(
-        llvm::Intrinsic::vector_reduce_xor, Op0, nullptr, "rdx.xor");
-    return RValue::get(Result);
-  }
+  case Builtin::BI__builtin_reduce_xor:
+    return RValue::get(emitUnaryBuiltin(
+        *this, E, llvm::Intrinsic::vector_reduce_xor, "rdx.xor"));
 
   case Builtin::BI__builtin_matrix_transpose: {
     const auto *MatrixTy = E->getArg(0)->getType()->getAs<ConstantMatrixType>();
@@ -17489,6 +17492,21 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
                                        Ptr->getType()}),
         {Ptr, ConstantInt::get(Builder.getInt32Ty(), Align.getQuantity())});
   };
+  auto MakeScopedLd = [&](unsigned IntrinsicID) {
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    return Builder.CreateCall(
+        CGM.getIntrinsic(IntrinsicID, {Ptr->getType()->getPointerElementType(),
+                                       Ptr->getType()}),
+        {Ptr});
+  };
+  auto MakeScopedSt = [&](unsigned IntrinsicID) {
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    return Builder.CreateCall(
+        CGM.getIntrinsic(
+            IntrinsicID,
+            {Ptr->getType(), Ptr->getType()->getPointerElementType()}),
+        {Ptr, EmitScalarExpr(E->getArg(1))});
+  };
   auto MakeScopedAtomic = [&](unsigned IntrinsicID) {
     Value *Ptr = EmitScalarExpr(E->getArg(0));
     return Builder.CreateCall(
@@ -17504,6 +17522,85 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
         {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
   };
   switch (BuiltinID) {
+
+#define LD_VOLATILE_CASES(ADDR_SPACE)                                          \
+  case NVPTX::BI__nvvm_volatile_ld##ADDR_SPACE##_i:                            \
+  case NVPTX::BI__nvvm_volatile_ld##ADDR_SPACE##_l:                            \
+  case NVPTX::BI__nvvm_volatile_ld##ADDR_SPACE##_ll:                           \
+    return MakeScopedLd(Intrinsic::nvvm_ld##ADDR_SPACE##_i_volatile);          \
+  case NVPTX::BI__nvvm_volatile_ld##ADDR_SPACE##_f:                            \
+  case NVPTX::BI__nvvm_volatile_ld##ADDR_SPACE##_d:                            \
+    return MakeScopedLd(Intrinsic::nvvm_ld##ADDR_SPACE##_f_volatile);
+
+#define LD_CASES(ORDER, SCOPE, ADDR_SPACE)                                     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_i:                     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_l:                     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_ll:                    \
+    return MakeScopedLd(Intrinsic::nvvm_ld##ADDR_SPACE##_i##ORDER##SCOPE);     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_f:                     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_d:                     \
+    return MakeScopedLd(Intrinsic::nvvm_ld##ADDR_SPACE##_f##ORDER##SCOPE);
+
+#define LD_CASES_AS(ORDER, SCOPE)                                              \
+  LD_CASES(ORDER, SCOPE, _gen)                                                 \
+  LD_CASES(ORDER, SCOPE, _global)                                              \
+  LD_CASES(ORDER, SCOPE, _shared)
+
+#define LD_CASES_AS_SCOPES(ORDER)                                              \
+  LD_CASES_AS(ORDER, )                                                         \
+  LD_CASES_AS(ORDER, _cta)                                                     \
+  LD_CASES_AS(ORDER, _sys)
+
+    LD_CASES_AS_SCOPES()
+    LD_CASES_AS_SCOPES(_acquire)
+    LD_VOLATILE_CASES(_gen)
+    LD_VOLATILE_CASES(_global)
+    LD_VOLATILE_CASES(_shared)
+
+#undef LD_VOLATILE_CASES
+#undef LD_CASES
+#undef LD_CASES_AS
+#undef LD_CASES_AS_SCOPES
+
+#define ST_VOLATILE_CASES(ADDR_SPACE)                                          \
+  case NVPTX::BI__nvvm_volatile_st##ADDR_SPACE##_i:                            \
+  case NVPTX::BI__nvvm_volatile_st##ADDR_SPACE##_l:                            \
+  case NVPTX::BI__nvvm_volatile_st##ADDR_SPACE##_ll:                           \
+    return MakeScopedSt(Intrinsic::nvvm_st##ADDR_SPACE##_i_volatile);          \
+  case NVPTX::BI__nvvm_volatile_st##ADDR_SPACE##_f:                            \
+  case NVPTX::BI__nvvm_volatile_st##ADDR_SPACE##_d:                            \
+    return MakeScopedSt(Intrinsic::nvvm_st##ADDR_SPACE##_f_volatile);
+
+#define ST_CASES(ORDER, SCOPE, ADDR_SPACE)                                     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_i:                     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_l:                     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_ll:                    \
+    return MakeScopedSt(Intrinsic::nvvm_st##ADDR_SPACE##_i##ORDER##SCOPE);     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_f:                     \
+  case NVPTX::BI__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_d:                     \
+    return MakeScopedSt(Intrinsic::nvvm_st##ADDR_SPACE##_f##ORDER##SCOPE);
+
+#define ST_CASES_AS(ORDER, SCOPE)                                              \
+  ST_CASES(ORDER, SCOPE, _gen)                                                 \
+  ST_CASES(ORDER, SCOPE, _global)                                              \
+  ST_CASES(ORDER, SCOPE, _shared)
+
+#define ST_CASES_AS_SCOPES(ORDER)                                              \
+  ST_CASES_AS(ORDER, )                                                         \
+  ST_CASES_AS(ORDER, _cta)                                                     \
+  ST_CASES_AS(ORDER, _sys)
+
+    ST_CASES_AS_SCOPES()
+    ST_CASES_AS_SCOPES(_release)
+    ST_VOLATILE_CASES(_gen)
+    ST_VOLATILE_CASES(_global)
+    ST_VOLATILE_CASES(_shared)
+
+#undef ST_VOLATILE_CASES
+#undef ST_CASES
+#undef ST_CASES_AS
+#undef ST_CASES_AS_SCOPES
+
   case NVPTX::BI__nvvm_atom_add_gen_i:
   case NVPTX::BI__nvvm_atom_add_gen_l:
   case NVPTX::BI__nvvm_atom_add_gen_ll:
