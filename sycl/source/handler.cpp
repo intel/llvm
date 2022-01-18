@@ -190,8 +190,8 @@ event handler::finalize() {
         }
         // If the kernel was not found in executable mode we throw an exception
         if (!KernelInserted)
-          throw runtime_error("Failed to add kernel to kernel bundle.",
-                              PI_INVALID_KERNEL_NAME);
+          throw sycl::exception(make_error_code(errc::runtime),
+                                "Failed to add kernel to kernel bundle.");
       }
 
       switch (KernelBundleImpPtr->get_bundle_state()) {
