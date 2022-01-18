@@ -1228,7 +1228,15 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // either that no command has ever been issued to the queue
   // or it means that the LastCommandEvent has been signalled and
   // therefore that this Queue is idle.
-  bool CurrentlyEmpty = this->LastCommandEvent == nullptr;
+  //
+  // NOTE: this behavior adds some flakyness to the batching
+  // since last command's event may or may not be completed by the
+  // time we get here depending on timings and system/gpu load.
+  // So, disable it for modes where we print PI traces. Printing
+  // traces incurs much different timings than real execution
+  // ansyway, and many regression tests use it.
+  //
+  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
@@ -1434,6 +1442,23 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
   if (getOrCreateCopyCommandQueue(*CopyQueueIndex, ZeCopyCommandQueue))
     return nullptr;
   return ZeCopyCommandQueue;
+}
+
+pi_result _pi_queue::executeOpenCommandListWithEvent(pi_event Event) {
+  // TODO: see if we can reliably tell if the event is copy or compute.
+  // Meanwhile check both open command-lists.
+  using IsCopy = bool;
+  if (hasOpenCommandList(IsCopy{false}) &&
+      ComputeCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
+    if (auto Res = executeOpenCommandList(IsCopy{false}))
+      return Res;
+  }
+  if (hasOpenCommandList(IsCopy{true}) &&
+      CopyCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
+    if (auto Res = executeOpenCommandList(IsCopy{true}))
+      return Res;
+  }
+  return PI_SUCCESS;
 }
 
 pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
@@ -4797,23 +4822,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     if (Event->Queue) {
       // Lock automatically releases when this goes out of scope.
       std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
-
-      // Only do the execute of the open command list if the event that
-      // is being queried and event that is to be signalled by something
-      // currently in that open command list.
-      using IsCopy = bool;
-      if (Event->Queue->hasOpenCommandList(IsCopy{false}) &&
-          Event->Queue->ComputeCommandBatch.OpenCommandList->first ==
-              Event->ZeCommandList) {
-        if (auto Res = Event->Queue->executeOpenCommandList(IsCopy{false}))
-          return Res;
-      }
-      if (Event->Queue->hasOpenCommandList(IsCopy{true}) &&
-          Event->Queue->CopyCommandBatch.OpenCommandList->first ==
-              Event->ZeCommandList) {
-        if (auto Res = Event->Queue->executeOpenCommandList(IsCopy{true}))
-          return Res;
-      }
+      Event->Queue->executeOpenCommandListWithEvent(Event);
     }
 
     // Make sure that we query a host-visible event only.
@@ -5145,6 +5154,14 @@ pi_result piextEventGetNativeHandle(pi_event Event,
 
   auto *ZeEvent = pi_cast<ze_event_handle_t *>(NativeHandle);
   *ZeEvent = Event->ZeEvent;
+
+  // Event can potentially be in an open command-list, make sure that
+  // it is submitted for execution to avoid potential deadlock if
+  // interop app is going to wait for it.
+  if (Event->Queue) {
+    std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
+    Event->Queue->executeOpenCommandListWithEvent(Event);
+  }
   return PI_SUCCESS;
 }
 
