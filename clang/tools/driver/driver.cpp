@@ -120,7 +120,7 @@ static void ApplyOneQAOverride(raw_ostream &OS,
     OS << "### Adding argument " << Str << " at end\n";
     Args.push_back(Str);
   } else if (Edit[0] == 's' && Edit[1] == '/' && Edit.endswith("/") &&
-             Edit.slice(2, Edit.size()-1).find('/') != StringRef::npos) {
+             Edit.slice(2, Edit.size() - 1).contains('/')) {
     StringRef MatchPattern = Edit.substr(2).split('/').first;
     StringRef ReplPattern = Edit.substr(2).split('/').second;
     ReplPattern = ReplPattern.slice(0, ReplPattern.size()-1);
@@ -377,8 +377,8 @@ int main(int Argc, const char **Argv) {
 
   // Handle -cc1 integrated tools, even if -cc1 was expanded from a response
   // file.
-  auto FirstArg = std::find_if(Args.begin() + 1, Args.end(),
-                               [](const char *A) { return A != nullptr; });
+  auto FirstArg = llvm::find_if(llvm::drop_begin(Args),
+                                [](const char *A) { return A != nullptr; });
   if (FirstArg != Args.end() && StringRef(*FirstArg).startswith("-cc1")) {
     // If -cc1 came from a response file, remove the EOL sentinels.
     if (MarkEOLs) {

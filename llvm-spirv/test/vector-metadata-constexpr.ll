@@ -8,27 +8,57 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind ssp uwtable
 define void @foo() #0 !dbg !4 {
 entry:
-  call void @llvm.dbg.value(metadata <3 x i8> <i8 add (i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 0), i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 0)), i8 add (i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 1), i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 1)), i8 add (i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 2), i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 2))>, metadata !12, metadata !DIExpression()), !dbg !18
-  ret void, !dbg !20
-; CHECK: %0 = bitcast <2 x i32> <i32 65793, i32 65793> to <8 x i8>
-; CHECK: %1 = extractelement <8 x i8> %0, i32 0
-; CHECK: %2 = bitcast <2 x i32> <i32 131586, i32 131586> to <8 x i8>
-; CHECK: %3 = extractelement <8 x i8> %2, i32 0
-; CHECK: %4 = add i8 %1, %3
-; CHECK: %5 = bitcast <2 x i32> <i32 65793, i32 65793> to <8 x i8>
-; CHECK: %6 = extractelement <8 x i8> %5, i32 1
-; CHECK: %7 = bitcast <2 x i32> <i32 131586, i32 131586> to <8 x i8>
-; CHECK: %8 = extractelement <8 x i8> %7, i32 1
-; CHECK: %9 = add i8 %6, %8
-; CHECK: %10 = bitcast <2 x i32> <i32 65793, i32 65793> to <8 x i8>
-; CHECK: %11 = extractelement <8 x i8> %10, i32 2
-; CHECK: %12 = bitcast <2 x i32> <i32 131586, i32 131586> to <8 x i8>
-; CHECK: %13 = extractelement <8 x i8> %12, i32 2
-; CHECK: %14 = add i8 %11, %13
-; CHECK: %15 = insertelement <3 x i8> undef, i8 %4, i32 0
-; CHECK: %16 = insertelement <3 x i8> %15, i8 %9, i32 1
-; CHECK: %17 = insertelement <3 x i8> %16, i8 %14, i32 2
-; CHECK: call void @llvm.dbg.value(metadata <3 x i8> %17, metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg !{{[0-9]+}}
+  call void @llvm.dbg.value(
+    metadata <3 x i8> <
+      i8 add (
+        i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 0),
+        i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 0)),
+      i8 add (
+        i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 1),
+        i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 1)),
+      i8 add (
+        i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 2),
+        i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 2))>,
+      metadata !12, metadata !DIExpression()), !dbg !18
+; CHECK: call void @llvm.dbg.value(
+; CHECK-SAME:   metadata <3 x i8> <
+; CHECK-SAME:     i8 add (
+; CHECK-SAME:       i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 0),
+; CHECK-SAME:       i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 0)),
+; CHECK-SAME:     i8 add (
+; CHECK-SAME:       i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 1),
+; CHECK-SAME:       i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 1)),
+; CHECK-SAME:     i8 add (
+; CHECK-SAME:       i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 65793, i32 65793> to <8 x i8>), i32 2),
+; CHECK-SAME:       i8 extractelement (<8 x i8> bitcast (<2 x i32> <i32 131586, i32 131586> to <8 x i8>), i32 2))>,
+; CHECK-SAME:     metadata ![[#]], metadata !DIExpression()), !dbg ![[#]]
+  call void @llvm.dbg.value(
+    metadata <4 x half> <
+    half fadd (
+      half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 0),
+      half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 0)),
+    half fadd (
+      half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 1),
+      half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 1)),
+    half fadd (
+      half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 2),
+      half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 2)),
+    half undef>,
+    metadata !23, metadata !DIExpression()), !dbg !20
+; CHECK: call void @llvm.dbg.value(
+; CHECK-SAME:   metadata <4 x half> <
+; CHECK-SAME:   half fadd (
+; CHECK-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 0),
+; CHECK-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 0)),
+; CHECK-SAME:   half fadd (
+; CHECK-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 1),
+; CHECK-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 1)),
+; CHECK-SAME:   half fadd (
+; CHECK-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 65793, i32 65793> to <4 x half>), i32 2),
+; CHECK-SAME:     half extractelement (<4 x half> bitcast (<2 x i32> <i32 131586, i32 131586> to <4 x half>), i32 2)),
+; CHECK-SAME:   half undef>,
+; CHECK-SAME:   metadata ![[#]], metadata !DIExpression()), !dbg ![[#]]
+  ret void, !dbg !22
 }
 
 ; Function Attrs: nounwind readnone
@@ -38,7 +68,7 @@ attributes #0 = { nounwind ssp uwtable  }
 attributes #2 = { nounwind readnone }
 attributes #3 = { nounwind }
 
-!llvm.dbg.cu = !{!0}
+!llvm.dbg.cu = !{!0, !26}
 !llvm.module.flags = !{!13, !14, !15}
 !llvm.ident = !{!16}
 
@@ -61,4 +91,10 @@ attributes #3 = { nounwind }
 !17 = !DIExpression()
 !18 = !DILocation(line: 2, column: 52, scope: !7, inlinedAt: !19)
 !19 = distinct !DILocation(line: 4, column: 3, scope: !4)
-!20 = !DILocation(line: 6, column: 1, scope: !4)
+!20 = !DILocation(line: 5, scope: !4, inlinedAt: !21)
+!21 = !DILocation(line: 1, column: 0, scope: !4)
+!22 = !DILocation(line: 6, column: 1, scope: !4)
+!23 = !DILocalVariable(name: "resVec", scope: !4, file: !24, line: 1, type: !25)
+!24 = !DIFile(filename: "main.cpp", directory: "/export/users")
+!25 = distinct !DICompositeType(tag: DW_TAG_class_type, name: "vec<cl::sycl::detail::half_impl::half, 3>", scope: !4, file: !24, line: 1, size: 64, flags: DIFlagTypePassByValue, elements: !2)
+!26 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !24, producer: "clang version 13.0.0 (https://github.com/intel/llvm.git)", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, nameTableKind: None)

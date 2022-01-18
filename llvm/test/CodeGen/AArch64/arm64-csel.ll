@@ -106,7 +106,6 @@ define i32 @foo7(i32 %a, i32 %b) nounwind {
 ; CHECK-NEXT:    csel w0, w10, w9, ge
 ; CHECK-NEXT:    ret
 entry:
-; FIXME: Misspelled CHECK-NEXT
   %sub = sub nsw i32 %a, %b
   %cmp = icmp sgt i32 %sub, -1
   %sub3 = sub nsw i32 0, %sub
@@ -138,8 +137,8 @@ entry:
 define i32 @foo9(i32 %v) nounwind readnone optsize ssp {
 ; CHECK-LABEL: foo9:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    cmp w0, #0
 ; CHECK-NEXT:    mov w8, #4
+; CHECK-NEXT:    cmp w0, #0
 ; CHECK-NEXT:    cinv w0, w8, eq
 ; CHECK-NEXT:    ret
 entry:
@@ -151,8 +150,8 @@ entry:
 define i64 @foo10(i64 %v) nounwind readnone optsize ssp {
 ; CHECK-LABEL: foo10:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    cmp x0, #0
 ; CHECK-NEXT:    mov w8, #4
+; CHECK-NEXT:    cmp x0, #0
 ; CHECK-NEXT:    cinv x0, x8, eq
 ; CHECK-NEXT:    ret
 entry:
@@ -164,8 +163,8 @@ entry:
 define i32 @foo11(i32 %v) nounwind readnone optsize ssp {
 ; CHECK-LABEL: foo11:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    cmp w0, #0
 ; CHECK-NEXT:    mov w8, #4
+; CHECK-NEXT:    cmp w0, #0
 ; CHECK-NEXT:    cneg w0, w8, eq
 ; CHECK-NEXT:    ret
 entry:
@@ -177,8 +176,8 @@ entry:
 define i64 @foo12(i64 %v) nounwind readnone optsize ssp {
 ; CHECK-LABEL: foo12:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    cmp x0, #0
 ; CHECK-NEXT:    mov w8, #4
+; CHECK-NEXT:    cmp x0, #0
 ; CHECK-NEXT:    cneg x0, x8, eq
 ; CHECK-NEXT:    ret
 entry:
@@ -281,8 +280,8 @@ entry:
 define i32 @foo20(i32 %x) {
 ; CHECK-LABEL: foo20:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    cmp w0, #5
 ; CHECK-NEXT:    mov w8, #6
+; CHECK-NEXT:    cmp w0, #5
 ; CHECK-NEXT:    csinc w0, w8, wzr, eq
 ; CHECK-NEXT:    ret
   %cmp = icmp eq i32 %x, 5
@@ -293,8 +292,8 @@ define i32 @foo20(i32 %x) {
 define i64 @foo21(i64 %x) {
 ; CHECK-LABEL: foo21:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    cmp x0, #5
 ; CHECK-NEXT:    mov w8, #6
+; CHECK-NEXT:    cmp x0, #5
 ; CHECK-NEXT:    csinc x0, x8, xzr, eq
 ; CHECK-NEXT:    ret
   %cmp = icmp eq i64 %x, 5
@@ -305,8 +304,8 @@ define i64 @foo21(i64 %x) {
 define i32 @foo22(i32 %x) {
 ; CHECK-LABEL: foo22:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    cmp w0, #5
 ; CHECK-NEXT:    mov w8, #6
+; CHECK-NEXT:    cmp w0, #5
 ; CHECK-NEXT:    csinc w0, w8, wzr, ne
 ; CHECK-NEXT:    ret
   %cmp = icmp eq i32 %x, 5
@@ -317,8 +316,8 @@ define i32 @foo22(i32 %x) {
 define i64 @foo23(i64 %x) {
 ; CHECK-LABEL: foo23:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    cmp x0, #5
 ; CHECK-NEXT:    mov w8, #6
+; CHECK-NEXT:    cmp x0, #5
 ; CHECK-NEXT:    csinc x0, x8, xzr, ne
 ; CHECK-NEXT:    ret
   %cmp = icmp eq i64 %x, 5

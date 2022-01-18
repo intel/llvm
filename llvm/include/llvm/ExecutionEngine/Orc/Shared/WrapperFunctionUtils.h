@@ -23,23 +23,17 @@ namespace llvm {
 namespace orc {
 namespace shared {
 
-namespace detail {
-
-// DO NOT USE DIRECTLY.
 // Must be kept in-sync with compiler-rt/lib/orc/c-api.h.
 union CWrapperFunctionResultDataUnion {
   char *ValuePtr;
   char Value[sizeof(ValuePtr)];
 };
 
-// DO NOT USE DIRECTLY.
 // Must be kept in-sync with compiler-rt/lib/orc/c-api.h.
 typedef struct {
   CWrapperFunctionResultDataUnion Data;
   size_t Size;
 } CWrapperFunctionResult;
-
-} // end namespace detail
 
 /// C++ wrapper function result: Same as CWrapperFunctionResult but
 /// auto-releases memory.
@@ -49,11 +43,11 @@ public:
   WrapperFunctionResult() { init(R); }
 
   /// Create a WrapperFunctionResult by taking ownership of a
-  /// detail::CWrapperFunctionResult.
+  /// CWrapperFunctionResult.
   ///
   /// Warning: This should only be used by clients writing wrapper-function
   /// caller utilities (like TargetProcessControl).
-  WrapperFunctionResult(detail::CWrapperFunctionResult R) : R(R) {
+  WrapperFunctionResult(CWrapperFunctionResult R) : R(R) {
     // Reset R.
     init(R);
   }
@@ -78,12 +72,12 @@ public:
       free(R.Data.ValuePtr);
   }
 
-  /// Release ownership of the contained detail::CWrapperFunctionResult.
+  /// Release ownership of the contained CWrapperFunctionResult.
   /// Warning: Do not use -- this method will be removed in the future. It only
   /// exists to temporarily support some code that will eventually be moved to
   /// the ORC runtime.
-  detail::CWrapperFunctionResult release() {
-    detail::CWrapperFunctionResult Tmp;
+  CWrapperFunctionResult release() {
+    CWrapperFunctionResult Tmp;
     init(Tmp);
     std::swap(R, Tmp);
     return Tmp;
@@ -164,12 +158,12 @@ public:
   }
 
 private:
-  static void init(detail::CWrapperFunctionResult &R) {
+  static void init(CWrapperFunctionResult &R) {
     R.Data.ValuePtr = nullptr;
     R.Size = 0;
   }
 
-  detail::CWrapperFunctionResult R;
+  CWrapperFunctionResult R;
 };
 
 namespace detail {
@@ -492,6 +486,12 @@ public:
       RetT RetVal = detail::ResultDeserializer<SPSRetTagT, RetT>::makeValue();
       detail::ResultDeserializer<SPSRetTagT, RetT>::makeSafe(RetVal);
 
+      if (auto *ErrMsg = R.getOutOfBandError()) {
+        SDR(make_error<StringError>(ErrMsg, inconvertibleErrorCode()),
+            std::move(RetVal));
+        return;
+      }
+
       SPSInputBuffer IB(R.data(), R.size());
       if (auto Err = detail::ResultDeserializer<SPSRetTagT, RetT>::deserialize(
               RetVal, R.data(), R.size()))
@@ -555,7 +555,7 @@ public:
                         SendDeserializedResultFn &&SendDeserializedResult,
                         const ArgTs &...Args) {
     WrapperFunction<SPSEmpty(SPSTagTs...)>::callAsync(
-        Caller,
+        std::forward<AsyncCallerFn>(Caller),
         [SDR = std::move(SendDeserializedResult)](Error SerializeErr,
                                                   SPSEmpty E) mutable {
           SDR(std::move(SerializeErr));
@@ -567,7 +567,7 @@ public:
   using WrapperFunction<SPSEmpty(SPSTagTs...)>::handleAsync;
 };
 
-/// A function object that takes an ExecutorAddress as its first argument,
+/// A function object that takes an ExecutorAddr as its first argument,
 /// casts that address to a ClassT*, then calls the given method on that
 /// pointer passing in the remaining function arguments. This utility
 /// removes some of the boilerplate from writing wrappers for method calls.
@@ -580,7 +580,7 @@ public:
 ///
 ///   // SPS Method signature -- note MyClass object address as first argument.
 ///   using SPSMyMethodWrapperSignature =
-///     SPSTuple<SPSExecutorAddress, uint32_t, bool>;
+///     SPSTuple<SPSExecutorAddr, uint32_t, bool>;
 ///
 ///   WrapperFunctionResult
 ///   myMethodCallWrapper(const char *ArgData, size_t ArgSize) {
@@ -594,9 +594,10 @@ class MethodWrapperHandler {
 public:
   using MethodT = RetT (ClassT::*)(ArgTs...);
   MethodWrapperHandler(MethodT M) : M(M) {}
-  RetT operator()(ExecutorAddress ObjAddr, ArgTs &... Args) {
+  RetT operator()(ExecutorAddr ObjAddr, ArgTs &...Args) {
     return (ObjAddr.toPtr<ClassT*>()->*M)(std::forward<ArgTs>(Args)...);
   }
+
 private:
   MethodT M;
 };

@@ -85,7 +85,7 @@ private:
 
   SystemZSubtarget &initializeSubtargetDependencies(StringRef CPU,
                                                     StringRef FS);
-  SystemZCallingConventionRegisters *initializeSpecialRegisters(void);
+  SystemZCallingConventionRegisters *initializeSpecialRegisters();
 
 public:
   SystemZSubtarget(const Triple &TT, const std::string &CPU,
@@ -94,6 +94,10 @@ public:
   SystemZCallingConventionRegisters *getSpecialRegisters() const {
     assert(SpecialRegisters && "Unsupported SystemZ calling convention");
     return SpecialRegisters.get();
+  }
+
+  template <class SR> SR &getSpecialRegisters() const {
+    return *static_cast<SR *>(getSpecialRegisters());
   }
 
   const TargetFrameLowering *getFrameLowering() const override {

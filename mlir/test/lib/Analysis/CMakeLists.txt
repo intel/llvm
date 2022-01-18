@@ -3,10 +3,12 @@ add_mlir_library(MLIRTestAnalysis
   TestAliasAnalysis.cpp
   TestCallGraph.cpp
   TestLiveness.cpp
+  TestMatchReduction.cpp
   TestMemRefBoundCheck.cpp
   TestMemRefDependenceCheck.cpp
   TestMemRefStrideCalculation.cpp
   TestNumberOfExecutions.cpp
+  TestSlice.cpp
 
 
   EXCLUDE_FROM_LIBMLIR

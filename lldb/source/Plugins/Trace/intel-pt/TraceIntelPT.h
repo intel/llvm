@@ -28,7 +28,7 @@ public:
 
   /// PluginInterface protocol
   /// \{
-  ConstString GetPluginName() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   static void Initialize();
 
@@ -57,7 +57,7 @@ public:
   static llvm::Expected<lldb::TraceSP>
   CreateInstanceForLiveProcess(Process &process);
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "intel-pt"; }
   /// \}
 
   lldb::CommandObjectSP

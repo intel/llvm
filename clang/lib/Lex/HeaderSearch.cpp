@@ -29,6 +29,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Capacity.h"
 #include "llvm/Support/Errc.h"
@@ -106,6 +107,44 @@ void HeaderSearch::PrintStats() {
 
   llvm::errs() << NumFrameworkLookups << " framework lookups.\n"
                << NumSubFrameworkLookups << " subframework lookups.\n";
+}
+
+void HeaderSearch::SetSearchPaths(
+    std::vector<DirectoryLookup> dirs, unsigned int angledDirIdx,
+    unsigned int systemDirIdx, bool noCurDirSearch,
+    llvm::DenseMap<unsigned int, unsigned int> searchDirToHSEntry) {
+  assert(angledDirIdx <= systemDirIdx && systemDirIdx <= dirs.size() &&
+         "Directory indices are unordered");
+  SearchDirs = std::move(dirs);
+  SearchDirsUsage.assign(SearchDirs.size(), false);
+  AngledDirIdx = angledDirIdx;
+  SystemDirIdx = systemDirIdx;
+  NoCurDirSearch = noCurDirSearch;
+  SearchDirToHSEntry = std::move(searchDirToHSEntry);
+  //LookupFileCache.clear();
+}
+
+void HeaderSearch::AddSearchPath(const DirectoryLookup &dir, bool isAngled) {
+  unsigned idx = isAngled ? SystemDirIdx : AngledDirIdx;
+  SearchDirs.insert(SearchDirs.begin() + idx, dir);
+  SearchDirsUsage.insert(SearchDirsUsage.begin() + idx, false);
+  if (!isAngled)
+    AngledDirIdx++;
+  SystemDirIdx++;
+}
+
+std::vector<bool> HeaderSearch::computeUserEntryUsage() const {
+  std::vector<bool> UserEntryUsage(HSOpts->UserEntries.size());
+  for (unsigned I = 0, E = SearchDirsUsage.size(); I < E; ++I) {
+    // Check whether this DirectoryLookup has been successfully used.
+    if (SearchDirsUsage[I]) {
+      auto UserEntryIdxIt = SearchDirToHSEntry.find(I);
+      // Check whether this DirectoryLookup maps to a HeaderSearch::UserEntry.
+      if (UserEntryIdxIt != SearchDirToHSEntry.end())
+        UserEntryUsage[UserEntryIdxIt->second] = true;
+    }
+  }
+  return UserEntryUsage;
 }
 
 /// CreateHeaderMap - This method returns a HeaderMap for the specified
@@ -229,7 +268,8 @@ std::string HeaderSearch::getCachedModuleFileNameImpl(StringRef ModuleName,
   return Result.str().str();
 }
 
-Module *HeaderSearch::lookupModule(StringRef ModuleName, bool AllowSearch,
+Module *HeaderSearch::lookupModule(StringRef ModuleName,
+                                   SourceLocation ImportLoc, bool AllowSearch,
                                    bool AllowExtraModuleMapSearch) {
   // Look in the module map to determine if there is a module by this name.
   Module *Module = ModMap.findModule(ModuleName);
@@ -237,7 +277,8 @@ Module *HeaderSearch::lookupModule(StringRef ModuleName, bool AllowSearch,
     return Module;
 
   StringRef SearchName = ModuleName;
-  Module = lookupModule(ModuleName, SearchName, AllowExtraModuleMapSearch);
+  Module = lookupModule(ModuleName, SearchName, ImportLoc,
+                        AllowExtraModuleMapSearch);
 
   // The facility for "private modules" -- adjacent, optional module maps named
   // module.private.modulemap that are supposed to define private submodules --
@@ -248,19 +289,23 @@ Module *HeaderSearch::lookupModule(StringRef ModuleName, bool AllowSearch,
   // could force building unwanted dependencies into the parent module and cause
   // dependency cycles.
   if (!Module && SearchName.consume_back("_Private"))
-    Module = lookupModule(ModuleName, SearchName, AllowExtraModuleMapSearch);
+    Module = lookupModule(ModuleName, SearchName, ImportLoc,
+                          AllowExtraModuleMapSearch);
   if (!Module && SearchName.consume_back("Private"))
-    Module = lookupModule(ModuleName, SearchName, AllowExtraModuleMapSearch);
+    Module = lookupModule(ModuleName, SearchName, ImportLoc,
+                          AllowExtraModuleMapSearch);
   return Module;
 }
 
 Module *HeaderSearch::lookupModule(StringRef ModuleName, StringRef SearchName,
+                                   SourceLocation ImportLoc,
                                    bool AllowExtraModuleMapSearch) {
   Module *Module = nullptr;
+  unsigned Idx;
 
   // Look through the various header search paths to load any available module
   // maps, searching for a module map that describes this module.
-  for (unsigned Idx = 0, N = SearchDirs.size(); Idx != N; ++Idx) {
+  for (Idx = 0; Idx != SearchDirs.size(); ++Idx) {
     if (SearchDirs[Idx].isFramework()) {
       // Search for or infer a module map for a framework. Here we use
       // SearchName rather than ModuleName, to permit finding private modules
@@ -322,6 +367,9 @@ Module *HeaderSearch::lookupModule(StringRef ModuleName, StringRef SearchName,
     if (Module)
       break;
   }
+
+  if (Module)
+    noteLookupUsage(Idx, ImportLoc);
 
   return Module;
 }
@@ -435,16 +483,19 @@ Optional<FileEntryRef> DirectoryLookup::LookupFile(
   if (llvm::sys::path::is_relative(Dest)) {
     MappedName.append(Dest.begin(), Dest.end());
     Filename = StringRef(MappedName.begin(), MappedName.size());
-    Optional<FileEntryRef> Result = HM->LookupFile(Filename, HS.getFileMgr());
-    if (Result) {
-      FixupSearchPath();
-      return *Result;
-    }
-  } else if (auto Res = HS.getFileMgr().getOptionalFileRef(Dest)) {
+    Dest = HM->lookupFilename(Filename, Path);
+  }
+
+  if (auto Res = HS.getFileMgr().getOptionalFileRef(Dest)) {
     FixupSearchPath();
     return *Res;
   }
 
+  // Header maps need to be marked as used whenever the filename matches.
+  // The case where the target file **exists** is handled by callee of this
+  // function as part of the regular logic that applies to include search paths.
+  // The case where the target file **does not exist** is handled here:
+  HS.noteLookupUsage(*HS.searchDirIdx(*this), IncludeLoc);
   return None;
 }
 
@@ -647,6 +698,21 @@ Optional<FileEntryRef> DirectoryLookup::DoFrameworkLookup(
   if (File)
     return *File;
   return None;
+}
+
+void HeaderSearch::cacheLookupSuccess(LookupFileCacheInfo &CacheLookup,
+                                      unsigned HitIdx, SourceLocation Loc) {
+  CacheLookup.HitIdx = HitIdx;
+  noteLookupUsage(HitIdx, Loc);
+}
+
+void HeaderSearch::noteLookupUsage(unsigned HitIdx, SourceLocation Loc) {
+  SearchDirsUsage[HitIdx] = true;
+
+  auto UserEntryIdxIt = SearchDirToHSEntry.find(HitIdx);
+  if (UserEntryIdxIt != SearchDirToHSEntry.end())
+    Diags.Report(Loc, diag::remark_pp_search_path_usage)
+        << HSOpts->UserEntries[UserEntryIdxIt->second].Path;
 }
 
 void HeaderSearch::setTarget(const TargetInfo &Target) {
@@ -964,13 +1030,13 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
 
     // If this file is found in a header map and uses the framework style of
     // includes, then this header is part of a framework we're building.
-    if (CurDir->isIndexHeaderMap()) {
+    if (CurDir->isHeaderMap() && isAngled) {
       size_t SlashPos = Filename.find('/');
-      if (SlashPos != StringRef::npos) {
+      if (SlashPos != StringRef::npos)
+        HFI.Framework =
+            getUniqueFrameworkName(StringRef(Filename.begin(), SlashPos));
+      if (CurDir->isIndexHeaderMap())
         HFI.IndexHeaderMapHeader = 1;
-        HFI.Framework = getUniqueFrameworkName(StringRef(Filename.begin(),
-                                                         SlashPos));
-      }
     }
 
     if (checkMSVCHeaderSearch(Diags, MSFE ? &MSFE->getFileEntry() : nullptr,
@@ -987,7 +1053,7 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
           &File->getFileEntry(), isAngled, FoundByHeaderMap);
 
     // Remember this location for the next lookup we do.
-    CacheLookup.HitIdx = i;
+    cacheLookupSuccess(CacheLookup, i, IncludeLoc);
     return File;
   }
 
@@ -996,7 +1062,7 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
   // resolve "foo.h" any other way, change the include to <Foo/foo.h>, where
   // "Foo" is the name of the framework in which the including header was found.
   if (!Includers.empty() && Includers.front().first && !isAngled &&
-      Filename.find('/') == StringRef::npos) {
+      !Filename.contains('/')) {
     HeaderFileInfo &IncludingHFI = getFileInfo(Includers.front().first);
     if (IncludingHFI.IndexHeaderMapHeader) {
       SmallString<128> ScratchFilename;
@@ -1017,8 +1083,8 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
         return MSFE;
       }
 
-      LookupFileCacheInfo &CacheLookup = LookupFileCache[Filename];
-      CacheLookup.HitIdx = LookupFileCache[ScratchFilename].HitIdx;
+      cacheLookupSuccess(LookupFileCache[Filename],
+                         LookupFileCache[ScratchFilename].HitIdx, IncludeLoc);
       // FIXME: SuggestedModule.
       return File;
     }
@@ -1269,8 +1335,11 @@ void HeaderSearch::MarkFileModuleHeader(const FileEntry *FE,
 
 bool HeaderSearch::ShouldEnterIncludeFile(Preprocessor &PP,
                                           const FileEntry *File, bool isImport,
-                                          bool ModulesEnabled, Module *M) {
+                                          bool ModulesEnabled, Module *M,
+                                          bool &IsFirstIncludeOfFile) {
   ++NumIncluded; // Count # of attempted #includes.
+
+  IsFirstIncludeOfFile = false;
 
   // Get information about this file.
   HeaderFileInfo &FileInfo = getFileInfo(File);
@@ -1346,6 +1415,8 @@ bool HeaderSearch::ShouldEnterIncludeFile(Preprocessor &PP,
   // Increment the number of times this file has been included.
   ++FileInfo.NumIncludes;
 
+  IsFirstIncludeOfFile = FileInfo.NumIncludes == 1;
+
   return true;
 }
 
@@ -1355,6 +1426,13 @@ size_t HeaderSearch::getTotalMemory() const {
     + llvm::capacity_in_bytes(HeaderMaps)
     + LookupFileCache.getAllocator().getTotalMemory()
     + FrameworkMap.getAllocator().getTotalMemory();
+}
+
+Optional<unsigned> HeaderSearch::searchDirIdx(const DirectoryLookup &DL) const {
+  for (unsigned I = 0; I < SearchDirs.size(); ++I)
+    if (&SearchDirs[I] == &DL)
+      return I;
+  return None;
 }
 
 StringRef HeaderSearch::getUniqueFrameworkName(StringRef Framework) {
@@ -1726,11 +1804,8 @@ void HeaderSearch::collectAllModules(SmallVectorImpl<Module *> &Modules) {
   }
 
   // Populate the list of modules.
-  for (ModuleMap::module_iterator M = ModMap.module_begin(),
-                               MEnd = ModMap.module_end();
-       M != MEnd; ++M) {
-    Modules.push_back(M->getValue());
-  }
+  llvm::transform(ModMap.modules(), std::back_inserter(Modules),
+                  [](const auto &NameAndMod) { return NameAndMod.second; });
 }
 
 void HeaderSearch::loadTopLevelSystemModules() {

@@ -280,6 +280,27 @@ static void replaceFallthroughCoroEnd(AnyCoroEndInst *End,
   BB->getTerminator()->eraseFromParent();
 }
 
+// Mark a coroutine as done, which implies that the coroutine is finished and
+// never get resumed.
+//
+// In resume-switched ABI, the done state is represented by storing zero in
+// ResumeFnAddr.
+//
+// NOTE: We couldn't omit the argument `FramePtr`. It is necessary because the
+// pointer to the frame in splitted function is not stored in `Shape`.
+static void markCoroutineAsDone(IRBuilder<> &Builder, const coro::Shape &Shape,
+                                Value *FramePtr) {
+  assert(
+      Shape.ABI == coro::ABI::Switch &&
+      "markCoroutineAsDone is only supported for Switch-Resumed ABI for now.");
+  auto *GepIndex = Builder.CreateStructGEP(
+      Shape.FrameTy, FramePtr, coro::Shape::SwitchFieldIndex::Resume,
+      "ResumeFn.addr");
+  auto *NullPtr = ConstantPointerNull::get(cast<PointerType>(
+      Shape.FrameTy->getTypeAtIndex(coro::Shape::SwitchFieldIndex::Resume)));
+  Builder.CreateStore(NullPtr, GepIndex);
+}
+
 /// Replace an unwind call to llvm.coro.end.
 static void replaceUnwindCoroEnd(AnyCoroEndInst *End, const coro::Shape &Shape,
                                  Value *FramePtr, bool InResume,
@@ -288,10 +309,18 @@ static void replaceUnwindCoroEnd(AnyCoroEndInst *End, const coro::Shape &Shape,
 
   switch (Shape.ABI) {
   // In switch-lowering, this does nothing in the main function.
-  case coro::ABI::Switch:
+  case coro::ABI::Switch: {
+    // In C++'s specification, the coroutine should be marked as done
+    // if promise.unhandled_exception() throws.  The frontend will
+    // call coro.end(true) along this path.
+    //
+    // FIXME: We should refactor this once there is other language
+    // which uses Switch-Resumed style other than C++.
+    markCoroutineAsDone(Builder, Shape, FramePtr);
     if (!InResume)
       return;
     break;
+  }
   // In async lowering this does nothing.
   case coro::ABI::Async:
     break;
@@ -364,13 +393,9 @@ static void createResumeEntryBlock(Function &F, coro::Shape &Shape) {
     auto *Save = S->getCoroSave();
     Builder.SetInsertPoint(Save);
     if (S->isFinal()) {
-      // Final suspend point is represented by storing zero in ResumeFnAddr.
-      auto *GepIndex = Builder.CreateStructGEP(FrameTy, FramePtr,
-                                 coro::Shape::SwitchFieldIndex::Resume,
-                                  "ResumeFn.addr");
-      auto *NullPtr = ConstantPointerNull::get(cast<PointerType>(
-          FrameTy->getTypeAtIndex(coro::Shape::SwitchFieldIndex::Resume)));
-      Builder.CreateStore(NullPtr, GepIndex);
+      // The coroutine should be marked done if it reaches the final suspend
+      // point.
+      markCoroutineAsDone(Builder, Shape, FramePtr);
     } else {
       auto *GepIndex = Builder.CreateStructGEP(
           FrameTy, FramePtr, Shape.getSwitchIndexField(), "index.addr");
@@ -520,8 +545,8 @@ void CoroCloner::replaceRetconOrAsyncSuspendUses() {
   }
 
   // Try to peephole extracts of an aggregate return.
-  for (auto UI = NewS->use_begin(), UE = NewS->use_end(); UI != UE; ) {
-    auto EVI = dyn_cast<ExtractValueInst>((UI++)->getUser());
+  for (Use &U : llvm::make_early_inc_range(NewS->uses())) {
+    auto *EVI = dyn_cast<ExtractValueInst>(U.getUser());
     if (!EVI || EVI->getNumIndices() != 1)
       continue;
 
@@ -627,7 +652,7 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
       auto Slot = getSwiftErrorSlot(ValueTy);
       MappedResult = Builder.CreateLoad(ValueTy, Slot);
     } else {
-      assert(Op->getNumArgOperands() == 1);
+      assert(Op->arg_size() == 1);
       auto Value = MappedOp->getArgOperand(0);
       auto ValueTy = Value->getType();
       auto Slot = getSwiftErrorSlot(ValueTy);
@@ -657,7 +682,7 @@ void CoroCloner::salvageDebugInfo() {
       if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
         Worklist.push_back(DVI);
   for (DbgVariableIntrinsic *DVI : Worklist)
-    coro::salvageDebugInfo(DbgPtrAllocaCache, DVI, Shape.ReuseFrameSlot);
+    coro::salvageDebugInfo(DbgPtrAllocaCache, DVI, Shape.OptimizeFrame);
 
   // Remove all salvaged dbg.declare intrinsics that became
   // either unreachable or stale due to the CoroSplit transformation.
@@ -669,7 +694,7 @@ void CoroCloner::salvageDebugInfo() {
   for (DbgVariableIntrinsic *DVI : Worklist) {
     if (IsUnreachableBlock(DVI->getParent()))
       DVI->eraseFromParent();
-    else if (dyn_cast_or_null<AllocaInst>(DVI->getVariableLocationOp(0))) {
+    else if (isa_and_nonnull<AllocaInst>(DVI->getVariableLocationOp(0))) {
       // Count all non-debuginfo uses in reachable blocks.
       unsigned Uses = 0;
       for (auto *User : DVI->getVariableLocationOp(0)->users())
@@ -1355,7 +1380,7 @@ static bool hasCallsInBlocksBetween(BasicBlock *SaveBB, BasicBlock *ResDesBB) {
     auto *BB = Worklist.pop_back_val();
     Set.insert(BB);
     for (auto *Pred : predecessors(BB))
-      if (Set.count(Pred) == 0)
+      if (!Set.contains(Pred))
         Worklist.push_back(Pred);
   }
 
@@ -1801,14 +1826,14 @@ namespace {
 
 static coro::Shape splitCoroutine(Function &F,
                                   SmallVectorImpl<Function *> &Clones,
-                                  bool ReuseFrameSlot) {
+                                  bool OptimizeFrame) {
   PrettyStackTraceFunction prettyStackTrace(F);
 
   // The suspend-crossing algorithm in buildCoroutineFrame get tripped
   // up by uses in unreachable blocks, so remove them as a first pass.
   removeUnreachableBlocks(F);
 
-  coro::Shape Shape(F, ReuseFrameSlot);
+  coro::Shape Shape(F, OptimizeFrame);
   if (!Shape.CoroBegin)
     return Shape;
 
@@ -1974,9 +1999,9 @@ static void replacePrepare(CallInst *Prepare, LazyCallGraph &CG,
   //    %2 = bitcast %1 to [[TYPE]]
   // ==>
   //    %2 = @some_function
-  for (auto UI = Prepare->use_begin(), UE = Prepare->use_end(); UI != UE;) {
+  for (Use &U : llvm::make_early_inc_range(Prepare->uses())) {
     // Look for bitcasts back to the original function type.
-    auto *Cast = dyn_cast<BitCastInst>((UI++)->getUser());
+    auto *Cast = dyn_cast<BitCastInst>(U.getUser());
     if (!Cast || Cast->getType() != Fn->getType())
       continue;
 
@@ -2016,10 +2041,9 @@ static void replacePrepare(CallInst *Prepare, CallGraph &CG) {
   //    %2 = bitcast %1 to [[TYPE]]
   // ==>
   //    %2 = @some_function
-  for (auto UI = Prepare->use_begin(), UE = Prepare->use_end();
-         UI != UE; ) {
+  for (Use &U : llvm::make_early_inc_range(Prepare->uses())) {
     // Look for bitcasts back to the original function type.
-    auto *Cast = dyn_cast<BitCastInst>((UI++)->getUser());
+    auto *Cast = dyn_cast<BitCastInst>(U.getUser());
     if (!Cast || Cast->getType() != Fn->getType()) continue;
 
     // Check whether the replacement will introduce new direct calls.
@@ -2056,9 +2080,9 @@ static void replacePrepare(CallInst *Prepare, CallGraph &CG) {
 static bool replaceAllPrepares(Function *PrepareFn, LazyCallGraph &CG,
                                LazyCallGraph::SCC &C) {
   bool Changed = false;
-  for (auto PI = PrepareFn->use_begin(), PE = PrepareFn->use_end(); PI != PE;) {
+  for (Use &P : llvm::make_early_inc_range(PrepareFn->uses())) {
     // Intrinsics can only be used in calls.
-    auto *Prepare = cast<CallInst>((PI++)->getUser());
+    auto *Prepare = cast<CallInst>(P.getUser());
     replacePrepare(Prepare, CG, C);
     Changed = true;
   }
@@ -2074,10 +2098,9 @@ static bool replaceAllPrepares(Function *PrepareFn, LazyCallGraph &CG,
 /// switch coroutines, which are lowered in multiple stages).
 static bool replaceAllPrepares(Function *PrepareFn, CallGraph &CG) {
   bool Changed = false;
-  for (auto PI = PrepareFn->use_begin(), PE = PrepareFn->use_end();
-         PI != PE; ) {
+  for (Use &P : llvm::make_early_inc_range(PrepareFn->uses())) {
     // Intrinsics can only be used in calls.
-    auto *Prepare = cast<CallInst>((PI++)->getUser());
+    auto *Prepare = cast<CallInst>(P.getUser());
     replacePrepare(Prepare, CG);
     Changed = true;
   }
@@ -2142,7 +2165,7 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
     F.removeFnAttr(CORO_PRESPLIT_ATTR);
 
     SmallVector<Function *, 4> Clones;
-    const coro::Shape Shape = splitCoroutine(F, Clones, ReuseFrameSlot);
+    const coro::Shape Shape = splitCoroutine(F, Clones, OptimizeFrame);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
 
     if (!Shape.CoroSuspends.empty()) {
@@ -2175,13 +2198,13 @@ namespace {
 struct CoroSplitLegacy : public CallGraphSCCPass {
   static char ID; // Pass identification, replacement for typeid
 
-  CoroSplitLegacy(bool ReuseFrameSlot = false)
-      : CallGraphSCCPass(ID), ReuseFrameSlot(ReuseFrameSlot) {
+  CoroSplitLegacy(bool OptimizeFrame = false)
+      : CallGraphSCCPass(ID), OptimizeFrame(OptimizeFrame) {
     initializeCoroSplitLegacyPass(*PassRegistry::getPassRegistry());
   }
 
   bool Run = false;
-  bool ReuseFrameSlot;
+  bool OptimizeFrame;
 
   // A coroutine is identified by the presence of coro.begin intrinsic, if
   // we don't have any, this pass has nothing to do.
@@ -2240,7 +2263,7 @@ struct CoroSplitLegacy : public CallGraphSCCPass {
       F->removeFnAttr(CORO_PRESPLIT_ATTR);
 
       SmallVector<Function *, 4> Clones;
-      const coro::Shape Shape = splitCoroutine(*F, Clones, ReuseFrameSlot);
+      const coro::Shape Shape = splitCoroutine(*F, Clones, OptimizeFrame);
       updateCallGraphAfterCoroutineSplit(*F, Shape, Clones, CG, SCC);
       if (Shape.ABI == coro::ABI::Async) {
         // Restart SCC passes.
@@ -2277,6 +2300,6 @@ INITIALIZE_PASS_END(
     "Split coroutine into a set of functions driving its state machine", false,
     false)
 
-Pass *llvm::createCoroSplitLegacyPass(bool ReuseFrameSlot) {
-  return new CoroSplitLegacy(ReuseFrameSlot);
+Pass *llvm::createCoroSplitLegacyPass(bool OptimizeFrame) {
+  return new CoroSplitLegacy(OptimizeFrame);
 }

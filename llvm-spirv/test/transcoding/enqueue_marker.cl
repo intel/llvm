@@ -20,6 +20,6 @@ kernel void test_enqueue_marker(global int *out) {
   // CHECK-SPIRV: EnqueueMarker
   // CHECK-LLVM: _Z14enqueue_marker9ocl_queuejPU3AS4K12ocl_clkeventPU3AS4S0_
   // CHECK-SPV-IR: call spir_func %spirv.Queue* @_Z23__spirv_GetDefaultQueuev()
-  // CHECK-SPV-IR: call spir_func i32 @_Z21__spirv_EnqueueMarkerP13__spirv_QueueiPU3AS4P19__spirv_DeviceEventPU3AS4P19__spirv_DeviceEvent(%spirv.Queue* %0, i32 1, %spirv.DeviceEvent* addrspace(4)* %waitlist.ascast, %spirv.DeviceEvent* addrspace(4)* %evt.ascast)
+  // CHECK-SPV-IR: call spir_func i32 @_Z21__spirv_EnqueueMarkerP13__spirv_QueuejPU3AS4P19__spirv_DeviceEventS6_(%spirv.Queue* %0, i32 1, %spirv.DeviceEvent* addrspace(4)* %waitlist.ascast, %spirv.DeviceEvent* addrspace(4)* %evt.ascast)
   *out = enqueue_marker(queue, 1, &waitlist, &evt);
 }

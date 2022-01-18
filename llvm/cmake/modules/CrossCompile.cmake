@@ -57,6 +57,8 @@ function(llvm_create_cross_target project_name target_name toolchain buildtype)
          "${LLVM_ENABLE_PROJECTS}")
   string(REPLACE ";" "$<SEMICOLON>" llvm_external_projects_arg
          "${LLVM_EXTERNAL_PROJECTS}")
+  string(REPLACE ";" "$<SEMICOLON>" llvm_enable_runtimes_arg
+         "${LLVM_ENABLE_RUNTIMES}")
 
   set(external_project_source_dirs)
   foreach(project ${LLVM_EXTERNAL_PROJECTS})
@@ -75,9 +77,9 @@ function(llvm_create_cross_target project_name target_name toolchain buildtype)
         -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="${experimental_targets_to_build_arg}"
         -DLLVM_DEFAULT_TARGET_TRIPLE="${TARGET_TRIPLE}"
         -DLLVM_TARGET_ARCH="${LLVM_TARGET_ARCH}"
-        -DLLVM_CHECK_ENABLED_PROJECTS="${LLVM_CHECK_ENABLED_PROJECTS}"
         -DLLVM_ENABLE_PROJECTS="${llvm_enable_projects_arg}"
         -DLLVM_EXTERNAL_PROJECTS="${llvm_external_projects_arg}"
+        -DLLVM_ENABLE_RUNTIMES="${llvm_enable_runtimes_arg}"
         ${external_project_source_dirs}
         -DLLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN="${LLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN}"
         ${build_type_flags} ${linker_flag} ${external_clang_dir}

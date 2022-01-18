@@ -24,6 +24,8 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/global_handler.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
@@ -92,7 +94,20 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MAssertHappenedBuffer(range<1>{1}),
-        MIsInorder(has_property<property::queue::in_order>()) {
+        MIsInorder(has_property<property::queue::in_order>()),
+        MDiscardEvents(
+            has_property<ext::oneapi::property::queue::discard_events>()),
+        MHasDiscardEventsSupport(
+            MDiscardEvents &&
+            (MHostQueue ? true
+                        : (MIsInorder && getPlugin().getBackend() !=
+                                             backend::ext_oneapi_level_zero))) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -117,7 +132,20 @@ public:
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
-        MIsInorder(has_property<property::queue::in_order>()) {
+        MIsInorder(has_property<property::queue::in_order>()),
+        MDiscardEvents(
+            has_property<ext::oneapi::property::queue::discard_events>()),
+        MHasDiscardEventsSupport(
+            MDiscardEvents &&
+            (MHostQueue ? true
+                        : (MIsInorder && getPlugin().getBackend() !=
+                                             backend::ext_oneapi_level_zero))) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -128,9 +156,6 @@ public:
                                            sizeof(Device), &Device, nullptr);
     MDevice =
         DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
-
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
   }
 
   ~queue_impl() {
@@ -168,6 +193,9 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
+  /// \return true if this queue has discard_events support.
+  bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
+
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -195,13 +223,14 @@ public:
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     try {
-      return submit_impl(CGF, Self, Loc, PostProcess);
+      return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
       {
         std::lock_guard<std::mutex> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return SecondQueue->submit(CGF, SecondQueue, Loc, PostProcess);
+      return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
+                                      PostProcess);
     }
   }
 
@@ -217,7 +246,7 @@ public:
                const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    return submit_impl(CGF, Self, Loc, PostProcess);
+    return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -272,7 +301,8 @@ public:
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
-    if (MPropList.has_property<property::queue::cuda::use_default_stream>()) {
+    if (MPropList.has_property<
+            ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
     RT::PiQueue Queue{};
@@ -397,16 +427,7 @@ public:
   }
 
   ThreadPool &getThreadPool() {
-    if (!MHostTaskThreadPool)
-      initHostTaskAndEventCallbackThreadPool();
-
-    return *MHostTaskThreadPool;
-  }
-
-  void stopThreadPool() {
-    if (MHostTaskThreadPool) {
-      MHostTaskThreadPool->finishAndWait();
-    }
+    return GlobalHandler::instance().getHostTaskThreadPool();
   }
 
   /// Gets the native handle of the SYCL queue.
@@ -419,17 +440,43 @@ public:
   }
 
 private:
+  void finalizeHandler(handler &Handler, const CG::CGTYPE &Type,
+                       event &EventRet) {
+    if (MIsInorder) {
+      bool NeedSeparateDependencyMgmt =
+          (Type == CG::CGTYPE::CodeplayHostTask ||
+           Type == CG::CGTYPE::CodeplayInteropTask);
+      // Accessing and changing of an event isn't atomic operation.
+      // Hence, here is the lock for thread-safety.
+      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+
+      if (NeedSeparateDependencyMgmt)
+        Handler.depends_on(MLastEvent);
+
+      EventRet = Handler.finalize();
+
+      MLastEvent = EventRet;
+    } else
+      EventRet = Handler.finalize();
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
   /// \param Self is a pointer to this queue.
+  /// \param PrimaryQueue is a pointer to the primary queue. This may be the
+  ///        same as Self.
+  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
+  ///        same as Self.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const std::function<void(handler &)> &CGF,
                     const std::shared_ptr<queue_impl> &Self,
+                    const std::shared_ptr<queue_impl> &PrimaryQueue,
+                    const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-    handler Handler(Self, MHostQueue);
+    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
@@ -437,29 +484,23 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
-                       Type == CG::CGTYPE::CodeplayInteropTask))
-      Handler.depends_on(MLastEvent);
-
     event Event;
 
     if (PostProcess) {
       bool IsKernel = Type == CG::Kernel;
       bool KernelUsesAssert = false;
-      if (IsKernel)
-        KernelUsesAssert =
-            Handler.MKernel ? true
-                            : ProgramManager::getInstance().kernelUsesAssert(
-                                  Handler.MOSModuleHandle, Handler.MKernelName);
 
-      Event = Handler.finalize();
+      if (IsKernel)
+        // Kernel only uses assert if it's non interop one
+        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               Handler.MOSModuleHandle, Handler.MKernelName);
+
+      finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      Event = Handler.finalize();
-
-    if (MIsInorder)
-      MLastEvent = Event;
+      finalizeHandler(Handler, Type, Event);
 
     addEvent(Event);
     return Event;
@@ -473,8 +514,6 @@ private:
   // Uses events generated by the Prolog and emits wait done event
   void instrumentationEpilog(void *TelementryEvent, std::string &Name,
                              int32_t StreamID, uint64_t IId);
-
-  void initHostTaskAndEventCallbackThreadPool();
 
   /// queue_impl.addEvent tracks events with weak pointers
   /// but some events have no other owners. addSharedEvent()
@@ -514,15 +553,27 @@ private:
   // Assume OOO support by default.
   bool MSupportOOO = true;
 
-  // Thread pool for host task and event callbacks execution.
-  // The thread pool is instantiated upon the very first call to getThreadPool()
-  std::unique_ptr<ThreadPool> MHostTaskThreadPool;
-
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
+  // This event is employed for enhanced dependency tracking with in-order queue
+  // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
+  std::mutex MLastEventMtx;
+
   const bool MIsInorder;
+
+public:
+  // Queue constructed with the discard_events property
+  const bool MDiscardEvents;
+
+private:
+  // This flag says if we can discard events based on a queue "setup" which will
+  // be common for all operations submitted to the queue. This is a must
+  // condition for discarding, but even if it's true, in some cases, we won't be
+  // able to discard events, because the final decision is made right before the
+  // operation itself.
+  const bool MHasDiscardEventsSupport;
 };
 
 } // namespace detail

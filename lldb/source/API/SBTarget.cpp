@@ -73,9 +73,7 @@ using namespace lldb_private;
 
 #define DEFAULT_DISASM_BYTE_SIZE 32
 
-namespace {
-
-Status AttachToProcess(ProcessAttachInfo &attach_info, Target &target) {
+static Status AttachToProcess(ProcessAttachInfo &attach_info, Target &target) {
   std::lock_guard<std::recursive_mutex> guard(target.GetAPIMutex());
 
   auto process_sp = target.GetProcessSP();
@@ -94,12 +92,8 @@ Status AttachToProcess(ProcessAttachInfo &attach_info, Target &target) {
   return target.Attach(attach_info, nullptr);
 }
 
-} // namespace
-
 // SBTarget constructor
-SBTarget::SBTarget() : m_opaque_sp() {
-  LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBTarget);
-}
+SBTarget::SBTarget() { LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBTarget); }
 
 SBTarget::SBTarget(const SBTarget &rhs) : m_opaque_sp(rhs.m_opaque_sp) {
   LLDB_RECORD_CONSTRUCTOR(SBTarget, (const lldb::SBTarget &), rhs);
@@ -217,17 +211,11 @@ SBStructuredData SBTarget::GetStatistics() {
   TargetSP target_sp(GetSP());
   if (!target_sp)
     return LLDB_RECORD_RESULT(data);
-
-  auto stats_up = std::make_unique<StructuredData::Dictionary>();
-  int i = 0;
-  for (auto &Entry : target_sp->GetStatistics()) {
-    std::string Desc = lldb_private::GetStatDescription(
-        static_cast<lldb_private::StatisticKind>(i));
-    stats_up->AddIntegerItem(Desc, Entry);
-    i += 1;
-  }
-
-  data.m_impl_up->SetObjectSP(std::move(stats_up));
+  std::string json_str =
+      llvm::formatv("{0:2}",
+          DebuggerStats::ReportStatistics(target_sp->GetDebugger(),
+                                          target_sp.get())).str();
+  data.m_impl_up->SetObjectSP(StructuredData::ParseJSON(json_str));
   return LLDB_RECORD_RESULT(data);
 }
 
@@ -237,7 +225,7 @@ void SBTarget::SetCollectingStats(bool v) {
   TargetSP target_sp(GetSP());
   if (!target_sp)
     return;
-  return target_sp->SetCollectingStats(v);
+  return DebuggerStats::SetCollectingStats(v);
 }
 
 bool SBTarget::GetCollectingStats() {
@@ -246,7 +234,7 @@ bool SBTarget::GetCollectingStats() {
   TargetSP target_sp(GetSP());
   if (!target_sp)
     return false;
-  return target_sp->GetCollectingStats();
+  return DebuggerStats::GetCollectingStats();
 }
 
 SBProcess SBTarget::LoadCore(const char *core_file) {
@@ -1596,13 +1584,13 @@ void SBTarget::AppendImageSearchPath(const char *from, const char *to,
   if (!target_sp)
     return error.SetErrorString("invalid target");
 
-  const ConstString csFrom(from), csTo(to);
-  if (!csFrom)
+  llvm::StringRef srFrom = from, srTo = to;
+  if (srFrom.empty())
     return error.SetErrorString("<from> path can't be empty");
-  if (!csTo)
+  if (srTo.empty())
     return error.SetErrorString("<to> path can't be empty");
 
-  target_sp->GetImageSearchPathList().Append(csFrom, csTo, true);
+  target_sp->GetImageSearchPathList().Append(srFrom, srTo, true);
 }
 
 lldb::SBModule SBTarget::AddModule(const char *path, const char *triple,
@@ -1751,6 +1739,16 @@ uint32_t SBTarget::GetCodeByteSize() {
   TargetSP target_sp(GetSP());
   if (target_sp) {
     return target_sp->GetArchitecture().GetCodeByteSize();
+  }
+  return 0;
+}
+
+uint32_t SBTarget::GetMaximumNumberOfChildrenToDisplay() const {
+  LLDB_RECORD_METHOD_CONST_NO_ARGS(uint32_t, SBTarget, GetMaximumNumberOfChildrenToDisplay);
+
+  TargetSP target_sp(GetSP());
+  if(target_sp){
+     return target_sp->GetMaximumNumberOfChildrenToDisplay();
   }
   return 0;
 }
@@ -2689,6 +2687,7 @@ void RegisterMethods<SBTarget>(Registry &R) {
   LLDB_REGISTER_METHOD(const char *, SBTarget, GetTriple, ());
   LLDB_REGISTER_METHOD(uint32_t, SBTarget, GetDataByteSize, ());
   LLDB_REGISTER_METHOD(uint32_t, SBTarget, GetCodeByteSize, ());
+  LLDB_REGISTER_METHOD_CONST(uint32_t, SBTarget, GetMaximumNumberOfChildrenToDisplay,());
   LLDB_REGISTER_METHOD(uint32_t, SBTarget, GetAddressByteSize, ());
   LLDB_REGISTER_METHOD(lldb::SBModule, SBTarget, GetModuleAtIndex,
                        (uint32_t));

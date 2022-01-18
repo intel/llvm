@@ -41,23 +41,89 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: C
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: C
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: A
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
+                type_var: U
+                operands:
+                - !ScalarExpression
+                  scalar_arg: B
+--- !LinalgOpConfig
+metadata: !LinalgOpMetadata
+  name: matmul_unsigned
+  cpp_class_name: MatmulUnsignedOp
+  doc: |-
+    Performs an unsigned matrix multiplication of two 2D inputs.
+
+    Numeric casting is performed on the operands to the inner multiply, promoting
+    them to the same data type as the accumulator/output.
+  implements:
+  - LinalgContractionOpInterface
+structured_op: !LinalgStructuredOpConfig
+  args:
+  - !LinalgOperandDefConfig
+    name: A
+    usage: InputOperand
+    type_var: T1
+    shape_map: affine_map<()[s0, s1, s2] -> (s0, s1)>
+  - !LinalgOperandDefConfig
+    name: B
+    usage: InputOperand
+    type_var: T2
+    shape_map: affine_map<()[s0, s1, s2] -> (s1, s2)>
+  - !LinalgOperandDefConfig
+    name: C
+    usage: OutputOperand
+    type_var: U
+    shape_map: affine_map<()[s0, s1, s2] -> (s0, s2)>
+  indexing_maps: !LinalgIndexingMapsConfig
+    static_indexing_maps:
+    - affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0, d2)>
+    - affine_map<(d0, d1, d2)[s0, s1, s2] -> (d2, d1)>
+    - affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0, d1)>
+  iterator_types:
+  - parallel
+  - parallel
+  - reduction
+  assignments:
+  - !ScalarAssign
+    arg: C
+    value: !ScalarExpression
+      arith_fn:
+        fn_name: add
+        operands:
+        - !ScalarExpression
+          scalar_arg: C
+        - !ScalarExpression
+          arith_fn:
+            fn_name: mul
+            operands:
+            - !ScalarExpression
+              type_fn:
+                fn_name: cast_unsigned
+                type_var: U
+                operands:
+                - !ScalarExpression
+                  scalar_arg: A
+            - !ScalarExpression
+              type_fn:
+                fn_name: cast_unsigned
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -113,43 +179,47 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: C
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: C
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: A
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: AZp
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: B
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
@@ -206,23 +276,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: accum
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: accum
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: AccumType
                 operands:
                 - !ScalarExpression
                   scalar_arg: lhs
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: AccumType
                 operands:
                 - !ScalarExpression
@@ -269,23 +341,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: C
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: C
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: A
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -342,43 +416,47 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: C
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: C
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: A
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: AZp
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: B
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
@@ -423,23 +501,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: x
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: x
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: A
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -484,23 +564,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: x
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: x
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: y
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -546,23 +628,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: C
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: C
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: A
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -606,23 +690,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: C
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: C
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: A
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -667,23 +753,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -730,23 +818,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -796,23 +886,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -872,23 +964,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -960,23 +1054,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -1061,43 +1157,47 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: I
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: IZp
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: K
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
@@ -1169,23 +1269,25 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
@@ -1257,37 +1359,116 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: K
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
-  name: depthwise_conv2D_nhw
-  cpp_class_name: DepthwiseConv2DNhwOp
+  name: depthwise_conv_1d_nwc_wc
+  cpp_class_name: DepthwiseConv1DNwcWcOp
+  doc: |-
+    Performs depth-wise 1-D convolution.
+
+    Numeric casting is performed on the operands to the inner multiply, promoting
+    them to the same data type as the accumulator/output. Multiplier is set to 1
+    which is a special case for most depthwise convolutions.
+  implements:
+  - LinalgConvolutionOpInterface
+structured_op: !LinalgStructuredOpConfig
+  args:
+  - !LinalgOperandDefConfig
+    name: I
+    usage: InputOperand
+    type_var: T1
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5] -> (s0, s1 * s2 + s3 * s4, s5)>
+  - !LinalgOperandDefConfig
+    name: K
+    usage: InputOperand
+    type_var: T2
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5] -> (s3, s5)>
+  - !LinalgOperandDefConfig
+    name: O
+    usage: OutputOperand
+    type_var: U
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5] -> (s0, s1, s5)>
+  - !LinalgOperandDefConfig
+    name: strides
+    usage: IndexAttribute
+    type_var: I64
+    attribute_map: affine_map<()[s0, s1, s2, s3, s4, s5] -> (s2)>
+  - !LinalgOperandDefConfig
+    name: dilations
+    usage: IndexAttribute
+    type_var: I64
+    attribute_map: affine_map<()[s0, s1, s2, s3, s4, s5] -> (s4)>
+  indexing_maps: !LinalgIndexingMapsConfig
+    static_indexing_maps:
+    - affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3, s4, s5] -> (d0, d1 * s2 + d3 * s4,
+      d2)>
+    - affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3, s4, s5] -> (d3, d2)>
+    - affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3, s4, s5] -> (d0, d1, d2)>
+  iterator_types:
+  - parallel
+  - parallel
+  - parallel
+  - reduction
+  assignments:
+  - !ScalarAssign
+    arg: O
+    value: !ScalarExpression
+      arith_fn:
+        fn_name: add
+        operands:
+        - !ScalarExpression
+          scalar_arg: O
+        - !ScalarExpression
+          arith_fn:
+            fn_name: mul
+            operands:
+            - !ScalarExpression
+              type_fn:
+                fn_name: cast
+                type_var: U
+                operands:
+                - !ScalarExpression
+                  scalar_arg: I
+            - !ScalarExpression
+              type_fn:
+                fn_name: cast
+                type_var: U
+                operands:
+                - !ScalarExpression
+                  scalar_arg: K
+--- !LinalgOpConfig
+metadata: !LinalgOpMetadata
+  name: depthwise_conv_2d_nhwc_hwc
+  cpp_class_name: DepthwiseConv2DNhwcHwcOp
   doc: |-
     Performs depth-wise 2-D convolution.
 
     Numeric casting is performed on the operands to the inner multiply, promoting
     them to the same data type as the accumulator/output. Multiplier is set to 1
-    which is a special case for most dpethwise convolutions.
+    which is a special case for most depthwise convolutions.
   implements:
   - LinalgConvolutionOpInterface
 structured_op: !LinalgStructuredOpConfig
@@ -1338,31 +1519,33 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: K
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
-  name: depthwise_conv2D_nhw_q
-  cpp_class_name: DepthwiseConv2DNhwQOp
+  name: depthwise_conv_2d_nhwc_hwc_q
+  cpp_class_name: DepthwiseConv2DNhwcHwcQOp
   doc: |-
     Performs depth-wise 2-D convolution.
 
@@ -1430,51 +1613,55 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: I
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: IZp
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: K
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: KZp
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
-  name: depthwise_conv2D_nhwc
-  cpp_class_name: DepthwiseConv2DNhwcOp
+  name: depthwise_conv_2d_nhwc_hwcm
+  cpp_class_name: DepthwiseConv2DNhwcHwcmOp
   doc: |-
     Performs depth-wise 2-D convolution.
 
@@ -1534,31 +1721,33 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: I
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_arg: K
 --- !LinalgOpConfig
 metadata: !LinalgOpMetadata
-  name: depthwise_conv2D_nhwc_q
-  cpp_class_name: DepthwiseConv2DNhwcQOp
+  name: depthwise_conv_2d_nhwc_hwcm_q
+  cpp_class_name: DepthwiseConv2DNhwcHwcmQOp
   doc: |-
     Performs depth-wise 2-D convolution.
 
@@ -1630,43 +1819,47 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: mul
             operands:
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: I
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: IZp
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: sub
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
                       scalar_arg: K
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression
@@ -1730,13 +1923,14 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          symbolic_cast:
+          type_fn:
+            fn_name: cast
             type_var: U
             operands:
             - !ScalarExpression
@@ -1800,13 +1994,85 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: max
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          symbolic_cast:
+          type_fn:
+            fn_name: cast
+            type_var: U
+            operands:
+            - !ScalarExpression
+              scalar_arg: I
+--- !LinalgOpConfig
+metadata: !LinalgOpMetadata
+  name: pooling_nhwc_max_unsigned
+  cpp_class_name: PoolingNhwcMaxUnsignedOp
+  doc: |-
+    Performs unsigned max pooling.
+
+    Numeric casting is performed on the input operand, promoting it to the same
+    data type as the accumulator/output.
+  implements:
+  - LinalgConvolutionOpInterface
+structured_op: !LinalgStructuredOpConfig
+  args:
+  - !LinalgOperandDefConfig
+    name: I
+    usage: InputOperand
+    type_var: T1
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s0, s1 *
+      s2 + s3 * s4, s5 * s6 + s7 * s8, s9)>
+  - !LinalgOperandDefConfig
+    name: K
+    usage: InputOperand
+    type_var: T2
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s3, s7)>
+  - !LinalgOperandDefConfig
+    name: O
+    usage: OutputOperand
+    type_var: U
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s0, s1, s5,
+      s9)>
+  - !LinalgOperandDefConfig
+    name: strides
+    usage: IndexAttribute
+    type_var: I64
+    attribute_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s2, s6)>
+  - !LinalgOperandDefConfig
+    name: dilations
+    usage: IndexAttribute
+    type_var: I64
+    attribute_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s4, s8)>
+  indexing_maps: !LinalgIndexingMapsConfig
+    static_indexing_maps:
+    - affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9]
+      -> (d0, d1 * s2 + d3 * s4, d2 * s6 + d4 * s8, d5)>
+    - affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9]
+      -> (d3, d4)>
+    - affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9]
+      -> (d0, d1, d2, d5)>
+  iterator_types:
+  - parallel
+  - parallel
+  - parallel
+  - reduction
+  - reduction
+  - parallel
+  assignments:
+  - !ScalarAssign
+    arg: O
+    value: !ScalarExpression
+      arith_fn:
+        fn_name: max_unsigned
+        operands:
+        - !ScalarExpression
+          scalar_arg: O
+        - !ScalarExpression
+          type_fn:
+            fn_name: cast_unsigned
             type_var: U
             operands:
             - !ScalarExpression
@@ -1870,13 +2136,14 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: max
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          symbolic_cast:
+          type_fn:
+            fn_name: cast
             type_var: U
             operands:
             - !ScalarExpression
@@ -1940,13 +2207,85 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: min
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          symbolic_cast:
+          type_fn:
+            fn_name: cast
+            type_var: U
+            operands:
+            - !ScalarExpression
+              scalar_arg: I
+--- !LinalgOpConfig
+metadata: !LinalgOpMetadata
+  name: pooling_nhwc_min_unsigned
+  cpp_class_name: PoolingNhwcMinUnsignedOp
+  doc: |-
+    Performs unsigned min pooling.
+
+    Numeric casting is performed on the input operand, promoting it to the same
+    data type as the accumulator/output.
+  implements:
+  - LinalgConvolutionOpInterface
+structured_op: !LinalgStructuredOpConfig
+  args:
+  - !LinalgOperandDefConfig
+    name: I
+    usage: InputOperand
+    type_var: T1
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s0, s1 *
+      s2 + s3 * s4, s5 * s6 + s7 * s8, s9)>
+  - !LinalgOperandDefConfig
+    name: K
+    usage: InputOperand
+    type_var: T2
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s3, s7)>
+  - !LinalgOperandDefConfig
+    name: O
+    usage: OutputOperand
+    type_var: U
+    shape_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s0, s1, s5,
+      s9)>
+  - !LinalgOperandDefConfig
+    name: strides
+    usage: IndexAttribute
+    type_var: I64
+    attribute_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s2, s6)>
+  - !LinalgOperandDefConfig
+    name: dilations
+    usage: IndexAttribute
+    type_var: I64
+    attribute_map: affine_map<()[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> (s4, s8)>
+  indexing_maps: !LinalgIndexingMapsConfig
+    static_indexing_maps:
+    - affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9]
+      -> (d0, d1 * s2 + d3 * s4, d2 * s6 + d4 * s8, d5)>
+    - affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9]
+      -> (d3, d4)>
+    - affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5, s6, s7, s8, s9]
+      -> (d0, d1, d2, d5)>
+  iterator_types:
+  - parallel
+  - parallel
+  - parallel
+  - reduction
+  - reduction
+  - parallel
+  assignments:
+  - !ScalarAssign
+    arg: O
+    value: !ScalarExpression
+      arith_fn:
+        fn_name: min_unsigned
+        operands:
+        - !ScalarExpression
+          scalar_arg: O
+        - !ScalarExpression
+          type_fn:
+            fn_name: cast_unsigned
             type_var: U
             operands:
             - !ScalarExpression
@@ -2016,13 +2355,14 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: add
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          symbolic_cast:
+          type_fn:
+            fn_name: cast
             type_var: U
             operands:
             - !ScalarExpression
@@ -2092,13 +2432,14 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: max
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          symbolic_cast:
+          type_fn:
+            fn_name: cast
             type_var: U
             operands:
             - !ScalarExpression
@@ -2168,13 +2509,14 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: min
         operands:
         - !ScalarExpression
           scalar_arg: O
         - !ScalarExpression
-          symbolic_cast:
+          type_fn:
+            fn_name: cast
             type_var: U
             operands:
             - !ScalarExpression
@@ -2225,63 +2567,68 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      symbolic_cast:
+      type_fn:
+        fn_name: cast
         type_var: T
         operands:
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: add
             operands:
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: mul
                 operands:
                 - !ScalarExpression
-                  scalar_apply:
+                  arith_fn:
                     fn_name: add
                     operands:
                     - !ScalarExpression
-                      symbolic_cast:
+                      type_fn:
+                        fn_name: cast
                         type_var: F64
                         operands:
                         - !ScalarExpression
                           scalar_const: '2147483647 : i64'
                     - !ScalarExpression
-                      symbolic_cast:
+                      type_fn:
+                        fn_name: cast
                         type_var: F64
                         operands:
                         - !ScalarExpression
-                          scalar_apply:
+                          arith_fn:
                             fn_name: add
                             operands:
                             - !ScalarExpression
-                              scalar_apply:
+                              arith_fn:
                                 fn_name: mul
                                 operands:
                                 - !ScalarExpression
-                                  scalar_apply:
+                                  arith_fn:
                                     fn_name: add
                                     operands:
                                     - !ScalarExpression
-                                      symbolic_cast:
+                                      type_fn:
+                                        fn_name: cast
                                         type_var: I32
                                         operands:
                                         - !ScalarExpression
                                           scalar_index: 1
                                     - !ScalarExpression
-                                      scalar_apply:
+                                      arith_fn:
                                         fn_name: add
                                         operands:
                                         - !ScalarExpression
-                                          scalar_apply:
+                                          arith_fn:
                                             fn_name: mul
                                             operands:
                                             - !ScalarExpression
-                                              scalar_apply:
+                                              arith_fn:
                                                 fn_name: add
                                                 operands:
                                                 - !ScalarExpression
-                                                  symbolic_cast:
+                                                  type_fn:
+                                                    fn_name: cast
                                                     type_var: I32
                                                     operands:
                                                     - !ScalarExpression
@@ -2289,35 +2636,39 @@ structured_op: !LinalgStructuredOpConfig
                                                 - !ScalarExpression
                                                   scalar_arg: seed
                                             - !ScalarExpression
-                                              symbolic_cast:
+                                              type_fn:
+                                                fn_name: cast
                                                 type_var: I32
                                                 operands:
                                                 - !ScalarExpression
                                                   scalar_const: '1103515245 : i64'
                                         - !ScalarExpression
-                                          symbolic_cast:
+                                          type_fn:
+                                            fn_name: cast
                                             type_var: I32
                                             operands:
                                             - !ScalarExpression
                                               scalar_const: '12345 : i64'
                                 - !ScalarExpression
-                                  symbolic_cast:
+                                  type_fn:
+                                    fn_name: cast
                                     type_var: I32
                                     operands:
                                     - !ScalarExpression
                                       scalar_const: '1103515245 : i64'
                             - !ScalarExpression
-                              symbolic_cast:
+                              type_fn:
+                                fn_name: cast
                                 type_var: I32
                                 operands:
                                 - !ScalarExpression
                                   scalar_const: '12345 : i64'
                 - !ScalarExpression
-                  scalar_apply:
+                  arith_fn:
                     fn_name: mul
                     operands:
                     - !ScalarExpression
-                      scalar_apply:
+                      arith_fn:
                         fn_name: sub
                         operands:
                         - !ScalarExpression
@@ -2325,7 +2676,8 @@ structured_op: !LinalgStructuredOpConfig
                         - !ScalarExpression
                           scalar_arg: min
                     - !ScalarExpression
-                      symbolic_cast:
+                      type_fn:
+                        fn_name: cast
                         type_var: F64
                         operands:
                         - !ScalarExpression
@@ -2364,25 +2716,27 @@ structured_op: !LinalgStructuredOpConfig
   - !ScalarAssign
     arg: O
     value: !ScalarExpression
-      scalar_apply:
+      arith_fn:
         fn_name: log
         operands:
         - !ScalarExpression
-          scalar_apply:
+          arith_fn:
             fn_name: add
             operands:
             - !ScalarExpression
-              symbolic_cast:
+              type_fn:
+                fn_name: cast
                 type_var: U
                 operands:
                 - !ScalarExpression
                   scalar_const: '1.000000e+00 : f64'
             - !ScalarExpression
-              scalar_apply:
+              arith_fn:
                 fn_name: exp
                 operands:
                 - !ScalarExpression
-                  symbolic_cast:
+                  type_fn:
+                    fn_name: cast
                     type_var: U
                     operands:
                     - !ScalarExpression

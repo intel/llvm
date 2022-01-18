@@ -338,14 +338,13 @@ static LogicalResult verify(AwaitOp op) {
 #define GET_TYPEDEF_CLASSES
 #include "mlir/Dialect/Async/IR/AsyncOpsTypes.cpp.inc"
 
-void ValueType::print(DialectAsmPrinter &printer) const {
-  printer << getMnemonic();
+void ValueType::print(AsmPrinter &printer) const {
   printer << "<";
   printer.printType(getValueType());
   printer << '>';
 }
 
-Type ValueType::parse(mlir::MLIRContext *, mlir::DialectAsmParser &parser) {
+Type ValueType::parse(mlir::AsmParser &parser) {
   Type ty;
   if (parser.parseLess() || parser.parseType(ty) || parser.parseGreater()) {
     parser.emitError(parser.getNameLoc(), "failed to parse async value type");
@@ -366,8 +365,7 @@ Type AsyncDialect::parseType(DialectAsmParser &parser) const {
   if (parser.parseKeyword(&typeTag))
     return Type();
   Type genType;
-  auto parseResult = generatedTypeParser(parser.getBuilder().getContext(),
-                                         parser, typeTag, genType);
+  auto parseResult = generatedTypeParser(parser, typeTag, genType);
   if (parseResult.hasValue())
     return genType;
   parser.emitError(parser.getNameLoc(), "unknown async type: ") << typeTag;

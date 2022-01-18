@@ -67,7 +67,7 @@ SBThread::SBThread(const ThreadSP &lldb_object_sp)
   LLDB_RECORD_CONSTRUCTOR(SBThread, (const lldb::ThreadSP &), lldb_object_sp);
 }
 
-SBThread::SBThread(const SBThread &rhs) : m_opaque_sp() {
+SBThread::SBThread(const SBThread &rhs) {
   LLDB_RECORD_CONSTRUCTOR(SBThread, (const lldb::SBThread &), rhs);
 
   m_opaque_sp = clone(rhs.m_opaque_sp);
@@ -513,10 +513,10 @@ SBError SBThread::ResumeNewPlan(ExecutionContext &exe_ctx,
     return sb_error;
   }
 
-  // User level plans should be Master Plans so they can be interrupted, other
-  // plans executed, and then a "continue" will resume the plan.
+  // User level plans should be Controlling Plans so they can be interrupted,
+  // other plans executed, and then a "continue" will resume the plan.
   if (new_plan != nullptr) {
-    new_plan->SetIsMasterPlan(true);
+    new_plan->SetIsControllingPlan(true);
     new_plan->SetOkayToDiscard(false);
   }
 

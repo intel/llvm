@@ -44,6 +44,53 @@ entry:
   ret void
 }
 
+define void @StoreInBoundsCond(i64 %i) {
+; CHECK-LABEL: @StoreInBoundsCond dso_preemptable{{$}}
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: allocas uses:
+; CHECK-NEXT: x[4]: full-set{{$}}
+; GLOBAL-NEXT: safe accesses:
+; GLOBAL-NEXT: store i8 0, i8* %x2, align 1
+; CHECK-EMPTY:
+entry:
+  %x = alloca i32, align 4
+  %x1 = bitcast i32* %x to i8*
+  %c1 = icmp sge i64 %i, 0
+  %c2 = icmp slt i64 %i, 4
+  br i1 %c1, label %c1.true, label %false
+
+c1.true:
+  br i1 %c2, label %c2.true, label %false
+
+c2.true:
+  %x2 = getelementptr i8, i8* %x1, i64 %i
+  store i8 0, i8* %x2, align 1
+  br label %false
+
+false:
+  ret void
+}
+
+define void @StoreInBoundsMinMax(i64 %i) {
+; CHECK-LABEL: @StoreInBoundsMinMax dso_preemptable{{$}}
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: allocas uses:
+; CHECK-NEXT: x[4]: [0,4){{$}}
+; GLOBAL-NEXT: safe accesses:
+; GLOBAL-NEXT: store i8 0, i8* %x2, align 1
+; CHECK-EMPTY:
+entry:
+  %x = alloca i32, align 4
+  %x1 = bitcast i32* %x to i8*
+  %c1 = icmp sge i64 %i, 0
+  %i1 = select i1 %c1, i64 %i, i64 0
+  %c2 = icmp slt i64 %i1, 3
+  %i2 = select i1 %c2, i64 %i1, i64 3
+  %x2 = getelementptr i8, i8* %x1, i64 %i2
+  store i8 0, i8* %x2, align 1
+  ret void
+}
+
 define void @StoreInBounds2() {
 ; CHECK-LABEL: @StoreInBounds2 dso_preemptable{{$}}
 ; CHECK-NEXT: args uses:
@@ -114,6 +161,8 @@ define dso_local void @WriteMinMax(i8* %p) {
 ; CHECK-NEXT: p[]: full-set
 ; CHECK-NEXT: allocas uses:
 ; GLOBAL-NEXT: safe accesses:
+; GLOBAL-NEXT: store i8 0, i8* %p1, align 1
+; GLOBAL-NEXT: store i8 0, i8* %p2, align 1
 ; CHECK-EMPTY:
 entry:
   %p1 = getelementptr i8, i8* %p, i64 9223372036854775805
@@ -129,6 +178,8 @@ define dso_local void @WriteMax(i8* %p) {
 ; CHECK-NEXT: p[]: [-9223372036854775807,9223372036854775806)
 ; CHECK-NEXT: allocas uses:
 ; GLOBAL-NEXT: safe accesses:
+; GLOBAL-NEXT: call void @llvm.memset.p0i8.i64(i8* %p, i8 1, i64 9223372036854775806, i1 false)
+; GLOBAL-NEXT: call void @llvm.memset.p0i8.i64(i8* %p2, i8 1, i64 9223372036854775806, i1 false)
 ; CHECK-EMPTY:
 entry:
   call void @llvm.memset.p0i8.i64(i8* %p, i8 1, i64 9223372036854775806, i1 0)
@@ -150,6 +201,54 @@ entry:
   %x2 = getelementptr i8, i8* %x1, i64 2
   %x3 = bitcast i8* %x2 to i32*
   store i32 0, i32* %x3, align 1
+  ret void
+}
+
+define void @StoreOutOfBoundsCond(i64 %i) {
+; CHECK-LABEL: @StoreOutOfBoundsCond dso_preemptable{{$}}
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: allocas uses:
+; CHECK-NEXT: x[4]: full-set{{$}}
+; GLOBAL-NEXT: safe accesses:
+; CHECK-EMPTY:
+entry:
+  %x = alloca i32, align 4
+  %x1 = bitcast i32* %x to i8*
+  %c1 = icmp sge i64 %i, 0
+  %c2 = icmp slt i64 %i, 5
+  br i1 %c1, label %c1.true, label %false
+
+c1.true:
+  br i1 %c2, label %c2.true, label %false
+
+c2.true:
+  %x2 = getelementptr i8, i8* %x1, i64 %i
+  store i8 0, i8* %x2, align 1
+  br label %false
+
+false:
+  ret void
+}
+
+define void @StoreOutOfBoundsCond2(i64 %i) {
+; CHECK-LABEL: @StoreOutOfBoundsCond2 dso_preemptable{{$}}
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: allocas uses:
+; CHECK-NEXT: x[4]: full-set{{$}}
+; GLOBAL-NEXT: safe accesses:
+; CHECK-EMPTY:
+entry:
+  %x = alloca i32, align 4
+  %x1 = bitcast i32* %x to i8*
+  %c2 = icmp slt i64 %i, 5
+  br i1 %c2, label %c2.true, label %false
+
+c2.true:
+  %x2 = getelementptr i8, i8* %x1, i64 %i
+  store i8 0, i8* %x2, align 1
+  br label %false
+
+false:
   ret void
 }
 
@@ -476,6 +575,7 @@ define void @Scalable(<vscale x 4 x i32>* %p, <vscale x 4 x i32>* %unused, <vsca
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT:   x[0]: [0,1){{$}}
 ; GLOBAL-NEXT: safe accesses:
+; GLOBAL-NEXT: store <vscale x 4 x i32> %v, <vscale x 4 x i32>* %p, align 4
 ; CHECK-EMPTY:
 entry:
   %x = alloca <vscale x 4 x i32>, align 4
@@ -495,6 +595,8 @@ define void @ZeroSize(%zerosize_type *%p)  {
 ; CHECK-NEXT:   x[0]: empty-set
 ; GLOBAL-NEXT: safe accesses:
 ; GLOBAL-NEXT: store %zerosize_type undef, %zerosize_type* %x, align 4
+; GLOBAL-NEXT: store %zerosize_type undef, %zerosize_type* undef, align 4
+; GLOBAL-NEXT: load %zerosize_type, %zerosize_type* %p, align 
 ; CHECK-EMPTY:
 entry:
   %x = alloca %zerosize_type, align 4
@@ -572,6 +674,7 @@ define dso_local i8 @LoadMinInt64(i8* %p) {
   ; CHECK-NEXT: p[]: [-9223372036854775808,-9223372036854775807){{$}}
   ; CHECK-NEXT: allocas uses:
   ; GLOBAL-NEXT: safe accesses:
+  ; GLOBAL-NEXT: load i8, i8* %p2, align 1
   ; CHECK-EMPTY:
   %p2 = getelementptr i8, i8* %p, i64 -9223372036854775808
   %v = load i8, i8* %p2, align 1
@@ -600,6 +703,8 @@ define void @DeadBlock(i64* %p) {
 ; CHECK-NEXT: allocas uses:
 ; CHECK-NEXT: x[1]: empty-set{{$}}
 ; GLOBAL-NEXT: safe accesses:
+; GLOBAL-NEXT: store i8 5, i8* %x
+; GLOBAL-NEXT: store i64 -5, i64* %p
 ; CHECK-EMPTY:
 entry:
   %x = alloca i8, align 4
@@ -844,6 +949,58 @@ flabel:
   ret i32* %y
 tlabel:
   ret i32* %a
+}
+
+define void @MixedAccesses6(i8* %arg) {
+; CHECK-LABEL: @MixedAccesses6
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: arg[]: [0,4)
+; CHECK-NEXT: allocas uses:
+; CHECK: a[4]: [0,4)
+; GLOBAL-NEXT: safe accesses:
+; GLOBAL-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %x, i8* %arg, i32 4, i1 false)
+; CHECK-EMPTY:
+entry:
+  %a = alloca i32, align 4
+  %x = bitcast i32* %a to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i32(i8* %x, i8* %arg, i32 4, i1 false)
+  ret void
+}
+
+define void @MixedAccesses7(i1 %cond, i8* %arg) {
+; SECV doesn't support select, so we consider this non-stack-safe, even through
+; it is.
+;
+; CHECK-LABEL: @MixedAccesses7
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: arg[]: full-set
+; CHECK-NEXT: allocas uses:
+; CHECK: a[4]: full-set
+; GLOBAL-NEXT: safe accesses:
+; CHECK-EMPTY:
+entry:
+  %a = alloca i32, align 4
+  %x = bitcast i32* %a to i8*
+  %x1 = select i1 %cond, i8* %arg, i8* %x
+  call void @llvm.memcpy.p0i8.p0i8.i32(i8* %x1, i8* %arg, i32 4, i1 false)
+  ret void
+}
+
+define void @NoStackAccess(i8* %arg1, i8* %arg2) {
+; CHECK-LABEL: @NoStackAccess
+; CHECK-NEXT: args uses:
+; CHECK-NEXT: arg1[]: [0,4)
+; CHECK-NEXT: arg2[]: [0,4)
+; CHECK-NEXT: allocas uses:
+; CHECK: a[4]: empty-set{{$}}
+; GLOBAL-NEXT: safe accesses:
+; GLOBAL-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %arg1, i8* %arg2, i32 4, i1 false)
+; CHECK-EMPTY:
+entry:
+  %a = alloca i32, align 4
+  %x = bitcast i32* %a to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i32(i8* %arg1, i8* %arg2, i32 4, i1 false)
+  ret void
 }
 
 define void @DoubleLifetime() {

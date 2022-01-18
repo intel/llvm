@@ -8,7 +8,7 @@
 
 #pragma once
 
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #include <CL/sycl/detail/group_sort_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

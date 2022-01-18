@@ -15,6 +15,7 @@
 // CHECK-NEXT: apiModeling.StdCLibraryFunctions:DisplayLoadedSummaries = false
 // CHECK-NEXT: apiModeling.StdCLibraryFunctions:ModelPOSIX = false
 // CHECK-NEXT: apply-fixits = false
+// CHECK-NEXT: assume-controlled-environment = false
 // CHECK-NEXT: avoid-suppressing-null-argument-paths = false
 // CHECK-NEXT: c++-allocator-inlining = true
 // CHECK-NEXT: c++-container-inlining = false
@@ -82,6 +83,8 @@
 // CHECK-NEXT: exploration_strategy = unexplored_first_queue
 // CHECK-NEXT: faux-bodies = true
 // CHECK-NEXT: graph-trim-interval = 1000
+// CHECK-NEXT: ignore-bison-generated-files = true
+// CHECK-NEXT: ignore-flex-generated-files = true
 // CHECK-NEXT: inline-lambdas = true
 // CHECK-NEXT: ipa = dynamic-bifurcate
 // CHECK-NEXT: ipa-always-inline-size = 3

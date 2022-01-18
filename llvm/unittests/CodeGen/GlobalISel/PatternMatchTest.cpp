@@ -17,8 +17,8 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -499,8 +499,8 @@ TEST_F(AArch64GISelMITest, MatchMiscellaneous) {
   EXPECT_TRUE(mi_match(Reg, *MRI, m_OneNonDBGUse(m_GAdd(m_Reg(), m_Reg()))));
 
   // Add multiple debug uses of Reg.
-  B.buildInstr(TargetOpcode::DBG_VALUE, {}, {Reg})->getOperand(0).setIsDebug();
-  B.buildInstr(TargetOpcode::DBG_VALUE, {}, {Reg})->getOperand(0).setIsDebug();
+  B.buildInstr(TargetOpcode::DBG_VALUE, {}, {Reg});
+  B.buildInstr(TargetOpcode::DBG_VALUE, {}, {Reg});
 
   EXPECT_FALSE(mi_match(Reg, *MRI, m_OneUse(m_GAdd(m_Reg(), m_Reg()))));
   EXPECT_TRUE(mi_match(Reg, *MRI, m_OneNonDBGUse(m_GAdd(m_Reg(), m_Reg()))));
@@ -531,6 +531,67 @@ TEST_F(AArch64GISelMITest, MatchSpecificConstant) {
 
   // No constant on the LHS.
   EXPECT_FALSE(mi_match(MIBAdd.getReg(1), *MRI, m_SpecificICst(42)));
+}
+
+TEST_F(AArch64GISelMITest, MatchSpecificConstantSplat) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT s64 = LLT::scalar(64);
+  LLT v4s64 = LLT::fixed_vector(4, s64);
+
+  MachineInstrBuilder FortyTwoSplat =
+      B.buildSplatVector(v4s64, B.buildConstant(s64, 42));
+  MachineInstrBuilder FortyTwo = B.buildConstant(s64, 42);
+
+  EXPECT_TRUE(mi_match(FortyTwoSplat.getReg(0), *MRI, m_SpecificICstSplat(42)));
+  EXPECT_FALSE(
+      mi_match(FortyTwoSplat.getReg(0), *MRI, m_SpecificICstSplat(43)));
+  EXPECT_FALSE(mi_match(FortyTwo.getReg(0), *MRI, m_SpecificICstSplat(42)));
+
+  MachineInstrBuilder NonConstantSplat =
+      B.buildBuildVector(v4s64, {Copies[0], Copies[0], Copies[0], Copies[0]});
+
+  MachineInstrBuilder AddSplat =
+      B.buildAdd(v4s64, NonConstantSplat, FortyTwoSplat);
+  EXPECT_TRUE(mi_match(AddSplat.getReg(2), *MRI, m_SpecificICstSplat(42)));
+  EXPECT_FALSE(mi_match(AddSplat.getReg(2), *MRI, m_SpecificICstSplat(43)));
+  EXPECT_FALSE(mi_match(AddSplat.getReg(1), *MRI, m_SpecificICstSplat(42)));
+
+  MachineInstrBuilder Add = B.buildAdd(s64, Copies[0], FortyTwo);
+  EXPECT_FALSE(mi_match(Add.getReg(2), *MRI, m_SpecificICstSplat(42)));
+}
+
+TEST_F(AArch64GISelMITest, MatchSpecificConstantOrSplat) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT s64 = LLT::scalar(64);
+  LLT v4s64 = LLT::fixed_vector(4, s64);
+
+  MachineInstrBuilder FortyTwoSplat =
+      B.buildSplatVector(v4s64, B.buildConstant(s64, 42));
+  MachineInstrBuilder FortyTwo = B.buildConstant(s64, 42);
+
+  EXPECT_TRUE(
+      mi_match(FortyTwoSplat.getReg(0), *MRI, m_SpecificICstOrSplat(42)));
+  EXPECT_FALSE(
+      mi_match(FortyTwoSplat.getReg(0), *MRI, m_SpecificICstOrSplat(43)));
+  EXPECT_TRUE(mi_match(FortyTwo.getReg(0), *MRI, m_SpecificICstOrSplat(42)));
+
+  MachineInstrBuilder NonConstantSplat =
+      B.buildBuildVector(v4s64, {Copies[0], Copies[0], Copies[0], Copies[0]});
+
+  MachineInstrBuilder AddSplat =
+      B.buildAdd(v4s64, NonConstantSplat, FortyTwoSplat);
+  EXPECT_TRUE(mi_match(AddSplat.getReg(2), *MRI, m_SpecificICstOrSplat(42)));
+  EXPECT_FALSE(mi_match(AddSplat.getReg(2), *MRI, m_SpecificICstOrSplat(43)));
+  EXPECT_FALSE(mi_match(AddSplat.getReg(1), *MRI, m_SpecificICstOrSplat(42)));
+
+  MachineInstrBuilder Add = B.buildAdd(s64, Copies[0], FortyTwo);
+  EXPECT_TRUE(mi_match(Add.getReg(2), *MRI, m_SpecificICstOrSplat(42)));
 }
 
 TEST_F(AArch64GISelMITest, MatchZeroInt) {

@@ -1,4 +1,4 @@
-//===----------- spirv_types.hpp --- SPIRV types -------------------------===//
+//===------------ spirv_types.hpp --- SPIRV types -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <CL/sycl/detail/defines_elementary.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -106,34 +108,62 @@ enum class GroupOperation : uint32_t {
   ExclusiveScan = 2
 };
 
-enum class MatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
+enum class MatrixLayout : uint32_t {
+  RowMajor = 0,
+  ColumnMajor = 1,
+  PackedA = 2,
+  PackedB = 3
+};
 
+// TODO: replace the following W/A with a better solution when we have it.
+// The following structure is used to represent the joint matrix type in the
+// LLVM IR. The structure has a pointer to a multidimensional array member which
+// makes the encoding of the matrix type information within the LLVM IR looks
+// like this:
+// %struct.__spirv_JointMatrixINTEL = type { [42 x [6 x [2 x [1 x float]]]]* }
+// Note that an array cannot be of zero size but MatrixLayout and Scope
+// parameters can; hence '+ 1' is added to the 3rd and 4th dimensions.
+// In general, representing a matrix type information like this is a bit odd
+// (especially for MatrixLayout and Scope parameters). But with the current
+// tools we have in Clang, this is the only way to preserve and communicate this
+// information to SPIRV translator.
+// The long term solution would be to introduce a matrix type in Clang and use
+// it instead of this member.
 template <typename T, std::size_t R, std::size_t C, MatrixLayout U,
           Scope::Flag S = Scope::Flag::Subgroup>
-struct __spirv_JointMatrixINTEL;
+struct __spirv_JointMatrixINTEL {
+  T (*Value)[R][C][static_cast<size_t>(U) + 1][static_cast<size_t>(S) + 1];
+};
 
 } // namespace __spv
 
 #ifdef __SYCL_DEVICE_ONLY__
 // OpenCL pipe types
 template <typename dataT>
-using RPipeTy = __attribute__((pipe("read_only"))) const dataT;
+using __ocl_RPipeTy = __attribute__((pipe("read_only"))) const dataT;
 template <typename dataT>
-using WPipeTy = __attribute__((pipe("write_only"))) const dataT;
+using __ocl_WPipeTy = __attribute__((pipe("write_only"))) const dataT;
 
 // OpenCL vector types
 template <typename dataT, int dims>
 using __ocl_vec_t = dataT __attribute__((ext_vector_type(dims)));
 
 // Struct representing layout of pipe storage
+// TODO: rename to __spirv_ConstantPipeStorage
 struct ConstantPipeStorage {
   int32_t _PacketSize;
   int32_t _PacketAlignment;
   int32_t _Capacity;
 };
 
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
 // Arbitrary precision integer type
 template <int Bits> using ap_int = _ExtInt(Bits);
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __SYCL_DEVICE_ONLY__
 
 // This class does not have definition, it is only predeclared here.

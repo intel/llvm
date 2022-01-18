@@ -1555,6 +1555,12 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
       argCK = CK_AnyPointerToBlockPointerCast;
   } else if (ivarRef.getType()->isPointerType()) {
     argCK = CK_BitCast;
+  } else if (argLoad.getType()->isAtomicType() &&
+             !ivarRef.getType()->isAtomicType()) {
+    argCK = CK_AtomicToNonAtomic;
+  } else if (!argLoad.getType()->isAtomicType() &&
+             ivarRef.getType()->isAtomicType()) {
+    argCK = CK_NonAtomicToAtomic;
   }
   ImplicitCastExpr argCast(ImplicitCastExpr::OnStack, ivarRef.getType(), argCK,
                            &argLoad, VK_PRValue, FPOptionsOverride());
@@ -2348,9 +2354,12 @@ static llvm::Value *emitOptimizedARCReturnCall(llvm::Value *value,
                  : llvm::Intrinsic::objc_unsafeClaimAutoreleasedReturnValue;
   EP = getARCIntrinsic(IID, CGF.CGM);
 
-  // FIXME: Do this when the target isn't aarch64.
+  llvm::Triple::ArchType Arch = CGF.CGM.getTriple().getArch();
+
+  // FIXME: Do this on all targets and at -O0 too. This can be enabled only if
+  // the target backend knows how to handle the operand bundle.
   if (CGF.CGM.getCodeGenOpts().OptimizationLevel > 0 &&
-      CGF.CGM.getTarget().getTriple().isAArch64()) {
+      (Arch == llvm::Triple::aarch64 || Arch == llvm::Triple::x86_64)) {
     llvm::Value *bundleArgs[] = {EP};
     llvm::OperandBundleDef OB("clang.arc.attachedcall", bundleArgs);
     auto *oldCall = cast<llvm::CallBase>(value);
@@ -3906,8 +3915,8 @@ static llvm::Value *emitIsPlatformVersionAtLeast(CodeGenFunction &CGF,
     Args.push_back(
         llvm::ConstantInt::get(CGM.Int32Ty, getBaseMachOPlatformID(TT)));
     Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Version.getMajor()));
-    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Min ? *Min : 0));
-    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, SMin ? *SMin : 0));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Min.getValueOr(0)));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, SMin.getValueOr(0)));
   };
 
   assert(!Version.empty() && "unexpected empty version");
@@ -3943,8 +3952,8 @@ CodeGenFunction::EmitBuiltinAvailable(const VersionTuple &Version) {
   Optional<unsigned> Min = Version.getMinor(), SMin = Version.getSubminor();
   llvm::Value *Args[] = {
       llvm::ConstantInt::get(CGM.Int32Ty, Version.getMajor()),
-      llvm::ConstantInt::get(CGM.Int32Ty, Min ? *Min : 0),
-      llvm::ConstantInt::get(CGM.Int32Ty, SMin ? *SMin : 0),
+      llvm::ConstantInt::get(CGM.Int32Ty, Min.getValueOr(0)),
+      llvm::ConstantInt::get(CGM.Int32Ty, SMin.getValueOr(0))
   };
 
   llvm::Value *CallRes =

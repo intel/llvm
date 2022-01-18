@@ -35,8 +35,6 @@ enum InternalLinkageType {
 };
 
 enum InternalOp {
-  IOpAssumeTrueINTEL = 5630,
-  IOpExpectINTEL = 5631,
   IOpAliasDomainDeclINTEL = 5911,
   IOpAliasScopeDeclINTEL = 5912,
   IOpAliasScopeListDeclINTEL = 5913,
@@ -61,12 +59,12 @@ enum InternalDecoration {
   IDecPipelineEnableINTEL = 5919,
   IDecRuntimeAlignedINTEL = 5940,
   IDecCallableFunctionINTEL = 6087,
+  IDecArgumentAttributeINTEL = 6409,
   IDecFuncParamKindINTEL = 9624,
   IDecFuncParamDescINTEL = 9625
 };
 
 enum InternalCapability {
-  ICapOptimizationHintsINTEL = 5629,
   ICapFPGADSPControlINTEL = 5908,
   ICapMemoryAccessAliasingINTEL = 5910,
   ICapFPGAInvocationPipeliningAttributesINTEL = 5916,
@@ -76,6 +74,7 @@ enum InternalCapability {
   ICapTokenTypeINTEL = 6112,
   ICapBfloat16ConversionINTEL = 6115,
   ICapabilityJointMatrixINTEL = 6118,
+  ICapabilityHWThreadQueryINTEL = 6134,
   ICapFPArithmeticFenceINTEL = 6144
 };
 
@@ -98,17 +97,24 @@ constexpr LinkageType LinkageTypeInternal =
 
 enum InternalJointMatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
 
+enum InternalBuiltIn {
+  IBuiltInSubDeviceIDINTEL = 6135,
+  IBuiltInGlobalHWThreadIDINTEL = 6136,
+};
+
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
 _SPIRV_OP(Capability, JointMatrixINTEL)
 _SPIRV_OP(Op, TypeJointMatrixINTEL)
 _SPIRV_OP(Op, JointMatrixLoadINTEL)
 _SPIRV_OP(Op, JointMatrixStoreINTEL)
 _SPIRV_OP(Op, JointMatrixMadINTEL)
+
+_SPIRV_OP(Capability, HWThreadQueryINTEL)
+_SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
+_SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
 #undef _SPIRV_OP
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
-constexpr Op OpAssumeTrueINTEL = static_cast<Op>(IOpAssumeTrueINTEL);
-constexpr Op OpExpectINTEL = static_cast<Op>(IOpExpectINTEL);
 constexpr Op OpAliasDomainDeclINTEL = static_cast<Op>(IOpAliasDomainDeclINTEL);
 constexpr Op OpAliasScopeDeclINTEL = static_cast<Op>(IOpAliasScopeDeclINTEL);
 constexpr Op OpAliasScopeListDeclINTEL =
@@ -132,13 +138,13 @@ constexpr Decoration DecorationCallableFunctionINTEL =
     static_cast<Decoration>(IDecCallableFunctionINTEL);
 constexpr Decoration DecorationRuntimeAlignedINTEL =
     static_cast<Decoration>(IDecRuntimeAlignedINTEL);
+constexpr Decoration DecorationArgumentAttributeINTEL =
+    static_cast<Decoration>(IDecArgumentAttributeINTEL);
 constexpr Decoration DecorationFuncParamKindINTEL =
     static_cast<Decoration>(IDecFuncParamKindINTEL);
 constexpr Decoration DecorationFuncParamDescINTEL =
     static_cast<Decoration>(IDecFuncParamDescINTEL);
 
-constexpr Capability CapabilityOptimizationHintsINTEL =
-    static_cast<Capability>(ICapOptimizationHintsINTEL);
 constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);
 constexpr Capability CapabilityOptNoneINTEL =

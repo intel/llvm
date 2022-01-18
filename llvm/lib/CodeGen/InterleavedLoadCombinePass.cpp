@@ -195,12 +195,12 @@ public:
   }
 
   Polynomial(const APInt &A, unsigned ErrorMSBs = 0)
-      : ErrorMSBs(ErrorMSBs), V(NULL), B(), A(A) {}
+      : ErrorMSBs(ErrorMSBs), V(nullptr), B(), A(A) {}
 
   Polynomial(unsigned BitWidth, uint64_t A, unsigned ErrorMSBs = 0)
-      : ErrorMSBs(ErrorMSBs), V(NULL), B(), A(BitWidth, A) {}
+      : ErrorMSBs(ErrorMSBs), V(nullptr), B(), A(BitWidth, A) {}
 
-  Polynomial() : ErrorMSBs((unsigned)-1), V(NULL), B(), A() {}
+  Polynomial() : ErrorMSBs((unsigned)-1), V(nullptr), B(), A() {}
 
   /// Increment and clamp the number of undefined bits.
   void incErrorMSBs(unsigned amt) {
@@ -308,7 +308,7 @@ public:
     }
 
     // Multiplying by one is a no-op.
-    if (C.isOneValue()) {
+    if (C.isOne()) {
       return *this;
     }
 
@@ -1131,6 +1131,7 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
 
   InstructionCost InterleavedCost;
   InstructionCost InstructionCost = 0;
+  const TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency;
 
   // Get the interleave factor
   unsigned Factor = InterleavedLoad.size();
@@ -1158,8 +1159,7 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
   // be expected. Also sum the cost of the Instructions beeing left dead.
   for (auto &I : Is) {
     // Compute the old cost
-    InstructionCost +=
-        TTI.getInstructionCost(I, TargetTransformInfo::TCK_Latency);
+    InstructionCost += TTI.getInstructionCost(I, CostKind);
 
     // The final SVIs are allowed not to be dead, all uses will be replaced
     if (SVIs.find(I) != SVIs.end())
@@ -1212,7 +1212,7 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
     Indices.push_back(i);
   InterleavedCost = TTI.getInterleavedMemoryOpCost(
       Instruction::Load, ILTy, Factor, Indices, InsertionPoint->getAlign(),
-      InsertionPoint->getPointerAddressSpace());
+      InsertionPoint->getPointerAddressSpace(), CostKind);
 
   if (InterleavedCost >= InstructionCost) {
     return false;

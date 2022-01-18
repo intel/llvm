@@ -8,11 +8,13 @@
 # UNSUPPORTED: libcxx
 
 piContextCreate
+piContextRelease
 piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
 piKernelCreate
+piKernelGetGroupInfo
 piKernelGetSubGroupInfo
 piKernelSetExecInfo
 piMemBufferCreate

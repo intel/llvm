@@ -2494,22 +2494,20 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
       BuildMI(MBB, MI, DL, TII.get(AArch64::SEH_Nop))
           .setMIFlag(MachineInstr::FrameSetup);
 
-    if (!MF.getFunction().hasFnAttribute(Attribute::NoUnwind)) {
-      // Emit a CFI instruction that causes 8 to be subtracted from the value of
-      // x18 when unwinding past this frame.
-      static const char CFIInst[] = {
-          dwarf::DW_CFA_val_expression,
-          18, // register
-          2,  // length
-          static_cast<char>(unsigned(dwarf::DW_OP_breg18)),
-          static_cast<char>(-8) & 0x7f, // addend (sleb128)
-      };
-      unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createEscape(
-          nullptr, StringRef(CFIInst, sizeof(CFIInst))));
-      BuildMI(MBB, MI, DL, TII.get(AArch64::CFI_INSTRUCTION))
-          .addCFIIndex(CFIIndex)
-          .setMIFlag(MachineInstr::FrameSetup);
-    }
+    // Emit a CFI instruction that causes 8 to be subtracted from the value of
+    // x18 when unwinding past this frame.
+    static const char CFIInst[] = {
+        dwarf::DW_CFA_val_expression,
+        18, // register
+        2,  // length
+        static_cast<char>(unsigned(dwarf::DW_OP_breg18)),
+        static_cast<char>(-8) & 0x7f, // addend (sleb128)
+    };
+    unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createEscape(
+        nullptr, StringRef(CFIInst, sizeof(CFIInst))));
+    BuildMI(MBB, MI, DL, TII.get(AArch64::CFI_INSTRUCTION))
+        .addCFIIndex(CFIIndex)
+        .setMIFlag(MachineInstr::FrameSetup);
 
     // This instruction also makes x18 live-in to the entry block.
     MBB.addLiveIn(AArch64::X18);
@@ -2531,9 +2529,7 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
     }
     return true;
   }
-  for (auto RPII = RegPairs.rbegin(), RPIE = RegPairs.rend(); RPII != RPIE;
-       ++RPII) {
-    RegPairInfo RPI = *RPII;
+  for (const RegPairInfo &RPI : llvm::reverse(RegPairs)) {
     unsigned Reg1 = RPI.Reg1;
     unsigned Reg2 = RPI.Reg2;
     unsigned StrOpc;
@@ -3038,9 +3034,20 @@ static int64_t determineSVEStackObjectOffsets(MachineFrameInfo &MFI,
 
   // Create a buffer of SVE objects to allocate and sort it.
   SmallVector<int, 8> ObjectsToAllocate;
+  // If we have a stack protector, and we've previously decided that we have SVE
+  // objects on the stack and thus need it to go in the SVE stack area, then it
+  // needs to go first.
+  int StackProtectorFI = -1;
+  if (MFI.hasStackProtectorIndex()) {
+    StackProtectorFI = MFI.getStackProtectorIndex();
+    if (MFI.getStackID(StackProtectorFI) == TargetStackID::ScalableVector)
+      ObjectsToAllocate.push_back(StackProtectorFI);
+  }
   for (int I = 0, E = MFI.getObjectIndexEnd(); I != E; ++I) {
     unsigned StackID = MFI.getStackID(I);
     if (StackID != TargetStackID::ScalableVector)
+      continue;
+    if (I == StackProtectorFI)
       continue;
     if (MaxCSFrameIndex >= I && I >= MinCSFrameIndex)
       continue;
@@ -3534,7 +3541,14 @@ StackOffset AArch64FrameLowering::getFrameIndexReferencePreferSP(
     return StackOffset::getFixed(MFI.getObjectOffset(FI));
   }
 
-  return getFrameIndexReference(MF, FI, FrameReg);
+  // Go to common code if we cannot provide sp + offset.
+  if (MFI.hasVarSizedObjects() ||
+      MF.getInfo<AArch64FunctionInfo>()->getStackSizeSVE() ||
+      MF.getSubtarget().getRegisterInfo()->hasStackRealignment(MF))
+    return getFrameIndexReference(MF, FI, FrameReg);
+
+  FrameReg = AArch64::SP;
+  return getStackOffset(MF, MFI.getObjectOffset(FI));
 }
 
 /// The parent frame offset (aka dispFrame) is only used on X86_64 to retrieve

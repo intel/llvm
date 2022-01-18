@@ -16,22 +16,23 @@ add_entrypoint_object(
     ../call_once.h
   DEPENDS
     .threads_utils
-    libc.config.linux.linux_syscall_h
     libc.include.sys_syscall
     libc.include.threads
+    libc.src.__support.OSUtil.osutil
 )
 
 add_header_library(
   threads_utils
   HDRS
+    CndVar.h
     Futex.h
     Mutex.h
     Thread.h
   DEPENDS
     .thread_start_args_h
-    libc.config.linux.linux_syscall_h
     libc.include.sys_syscall
     libc.include.threads
+    libc.src.__support.OSUtil.osutil
 )
 
 add_entrypoint_object(
@@ -42,11 +43,11 @@ add_entrypoint_object(
     ../thrd_create.h
   DEPENDS
     .threads_utils
-    libc.config.linux.linux_syscall_h
     libc.include.errno
     libc.include.sys_syscall
     libc.include.threads
     libc.src.__support.common
+    libc.src.__support.OSUtil.osutil
     libc.src.errno.__errno_location
     libc.src.sys.mman.mmap
   COMPILE_OPTIONS
@@ -63,11 +64,11 @@ add_entrypoint_object(
     ../thrd_join.h
   DEPENDS
     .threads_utils
-    libc.config.linux.linux_syscall_h
     libc.include.sys_syscall
     libc.include.threads
-    libc.src.sys.mman.munmap
     libc.src.__support.common
+    libc.src.__support.OSUtil.osutil
+    libc.src.sys.mman.munmap
 )
 
 add_entrypoint_object(

@@ -2263,8 +2263,8 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
   case Type::Atomic:
   case Type::Pipe:
   case Type::MacroQualified:
-  case Type::ExtInt:
-  case Type::DependentExtInt:
+  case Type::BitInt:
+  case Type::DependentBitInt:
     llvm_unreachable("type is illegal as a nested name specifier");
 
   case Type::SubstTemplateTypeParmPack:
@@ -2380,6 +2380,9 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
     break;
   }
 
+  case Type::Using:
+    return mangleUnresolvedTypeOrSimpleId(cast<UsingType>(Ty)->desugar(),
+                                          Prefix);
   case Type::Elaborated:
     return mangleUnresolvedTypeOrSimpleId(
         cast<ElaboratedType>(Ty)->getNamedType(), Prefix);
@@ -3580,7 +3583,7 @@ void CXXNameMangler::mangleAArch64NeonVectorType(const DependentVectorType *T) {
 // mangling scheme, it will be specified in the next revision. The mangling
 // scheme is otherwise defined in the appendices to the Procedure Call Standard
 // for the Arm Architecture, see
-// https://github.com/ARM-software/abi-aa/blob/master/aapcs64/aapcs64.rst#appendix-c-mangling
+// https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#appendix-c-mangling
 void CXXNameMangler::mangleAArch64FixedSveVectorType(const VectorType *T) {
   assert((T->getVectorKind() == VectorType::SveFixedLengthDataVector ||
           T->getVectorKind() == VectorType::SveFixedLengthPredicateVector) &&
@@ -3975,26 +3978,20 @@ void CXXNameMangler::mangleType(const PipeType *T) {
   Out << "8ocl_pipe";
 }
 
-void CXXNameMangler::mangleType(const ExtIntType *T) {
-  Out << "U7_ExtInt";
-  llvm::APSInt BW(32, true);
-  BW = T->getNumBits();
-  TemplateArgument TA(Context.getASTContext(), BW, getASTContext().IntTy);
-  mangleTemplateArgs(TemplateName(), &TA, 1);
-  if (T->isUnsigned())
-    Out << "j";
-  else
-    Out << "i";
+void CXXNameMangler::mangleType(const BitIntType *T) {
+  // 5.1.5.2 Builtin types
+  // <type> ::= DB <number | instantiation-dependent expression> _
+  //        ::= DU <number | instantiation-dependent expression> _
+  Out << "D" << (T->isUnsigned() ? "U" : "B") << T->getNumBits() << "_";
 }
 
-void CXXNameMangler::mangleType(const DependentExtIntType *T) {
-  Out << "U7_ExtInt";
-  TemplateArgument TA(T->getNumBitsExpr());
-  mangleTemplateArgs(TemplateName(), &TA, 1);
-  if (T->isUnsigned())
-    Out << "j";
-  else
-    Out << "i";
+void CXXNameMangler::mangleType(const DependentBitIntType *T) {
+  // 5.1.5.2 Builtin types
+  // <type> ::= DB <number | instantiation-dependent expression> _
+  //        ::= DU <number | instantiation-dependent expression> _
+  Out << "D" << (T->isUnsigned() ? "U" : "B");
+  mangleExpression(T->getNumBitsExpr());
+  Out << "_";
 }
 
 void CXXNameMangler::mangleIntegerLiteral(QualType T,
@@ -4189,7 +4186,6 @@ recurse:
   case Expr::ArrayInitIndexExprClass:
   case Expr::NoInitExprClass:
   case Expr::ParenListExprClass:
-  case Expr::LambdaExprClass:
   case Expr::MSPropertyRefExprClass:
   case Expr::MSPropertySubscriptExprClass:
   case Expr::TypoExprClass: // This should no longer exist in the AST by now.
@@ -4975,6 +4971,16 @@ recurse:
   case Expr::CXXNullPtrLiteralExprClass: {
     // <expr-primary>
     Out << "LDnE";
+    break;
+  }
+
+  case Expr::LambdaExprClass: {
+    // A lambda-expression can't appear in the signature of an
+    // externally-visible declaration, so there's no standard mangling for
+    // this, but mangling as a literal of the closure type seems reasonable.
+    Out << "L";
+    mangleType(Context.getASTContext().getRecordType(cast<LambdaExpr>(E)->getLambdaClass()));
+    Out << "E";
     break;
   }
 

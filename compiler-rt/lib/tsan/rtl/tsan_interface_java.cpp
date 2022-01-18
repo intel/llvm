@@ -106,7 +106,7 @@ void __tsan_java_free(jptr ptr, jptr size) {
   DCHECK_GE(ptr, jctx->heap_begin);
   DCHECK_LE(ptr + size, jctx->heap_begin + jctx->heap_size);
 
-  ctx->metamap.FreeRange(thr->proc(), ptr, size);
+  ctx->metamap.FreeRange(thr->proc(), ptr, size, false);
 }
 
 void __tsan_java_move(jptr src, jptr dst, jptr size) {
@@ -128,21 +128,12 @@ void __tsan_java_move(jptr src, jptr dst, jptr size) {
   // memory accesses and mutex operations (stop-the-world phase).
   ctx->metamap.MoveMemory(src, dst, size);
 
-  // Move shadow.
-  RawShadow *s = MemToShadow(src);
+  // Clear the destination shadow range.
+  // We used to move shadow from src to dst, but the trace format does not
+  // support that anymore as it contains addresses of accesses.
   RawShadow *d = MemToShadow(dst);
-  RawShadow *send = MemToShadow(src + size);
-  uptr inc = 1;
-  if (dst > src) {
-    s = MemToShadow(src + size) - 1;
-    d = MemToShadow(dst + size) - 1;
-    send = MemToShadow(src) - 1;
-    inc = -1;
-  }
-  for (; s != send; s += inc, d += inc) {
-    *d = *s;
-    *s = 0;
-  }
+  RawShadow *dend = MemToShadow(dst + size);
+  ShadowSet(d, dend, Shadow::kEmpty);
 }
 
 jptr __tsan_java_find(jptr *from_ptr, jptr to) {

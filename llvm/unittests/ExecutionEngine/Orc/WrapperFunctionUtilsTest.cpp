@@ -8,6 +8,7 @@
 
 #include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
 #include "llvm/ADT/FunctionExtras.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
 #include <future>
@@ -79,7 +80,7 @@ static WrapperFunctionResult addWrapper(const char *ArgData, size_t ArgSize) {
 
 static WrapperFunctionResult addMethodWrapper(const char *ArgData,
                                               size_t ArgSize) {
-  return WrapperFunction<int32_t(SPSExecutorAddress, int32_t)>::handle(
+  return WrapperFunction<int32_t(SPSExecutorAddr, int32_t)>::handle(
       ArgData, ArgSize, makeMethodWrapperHandler(&AddClass::addMethod));
 }
 
@@ -97,8 +98,8 @@ TEST(WrapperFunctionUtilsTest, WrapperFunctionCallAndHandleRet) {
 TEST(WrapperFunctionUtilsTest, WrapperFunctionMethodCallAndHandleRet) {
   int32_t Result;
   AddClass AddObj(1);
-  EXPECT_FALSE(!!WrapperFunction<int32_t(SPSExecutorAddress, int32_t)>::call(
-      addMethodWrapper, Result, ExecutorAddress::fromPtr(&AddObj), 2));
+  EXPECT_FALSE(!!WrapperFunction<int32_t(SPSExecutorAddr, int32_t)>::call(
+      addMethodWrapper, Result, ExecutorAddr::fromPtr(&AddObj), 2));
   EXPECT_EQ(Result, (int32_t)3);
 }
 
@@ -141,4 +142,20 @@ TEST(WrapperFunctionUtilsTest, WrapperFunctionCallAndHandleAsyncRet) {
   EXPECT_FALSE(!!WrapperFunction<int32_t(int32_t, int32_t)>::call(
       addAsyncWrapper, Result, 1, 2));
   EXPECT_EQ(Result, (int32_t)3);
+}
+
+static WrapperFunctionResult failingWrapper(const char *ArgData,
+                                            size_t ArgSize) {
+  return WrapperFunctionResult::createOutOfBandError("failed");
+}
+
+void asyncFailingWrapperCaller(unique_function<void(WrapperFunctionResult)> F,
+                               const char *ArgData, size_t ArgSize) {
+  F(failingWrapper(ArgData, ArgSize));
+}
+
+TEST(WrapperFunctionUtilsTest, WrapperFunctionCallFailingAsync) {
+  WrapperFunction<void()>::callAsync(asyncFailingWrapperCaller, [](Error Err) {
+    EXPECT_THAT_ERROR(std::move(Err), Failed());
+  });
 }

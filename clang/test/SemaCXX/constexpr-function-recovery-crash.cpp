@@ -69,3 +69,11 @@ constexpr int test9(int x) {
 
 constexpr int test10() { return undef(); } // expected-error {{use of undeclared identifier 'undef'}}
 static_assert(test10() <= 1, "should not crash"); // expected-error {{static_assert expression is not an integral constant expression}}
+
+struct X {} array[] = {undef()}; // expected-error {{use of undeclared identifier 'undef'}}
+constexpr void test11() {
+  for (X& e : array) {}
+}
+
+constexpr int test12() { return "wrong"; } // expected-error {{cannot initialize return object of type 'int'}}
+constexpr int force12 = test12();          // expected-error {{must be initialized by a constant}}

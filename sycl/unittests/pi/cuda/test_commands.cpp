@@ -22,7 +22,8 @@ using namespace cl::sycl;
 struct CudaCommandsTest : public ::testing::Test {
 
 protected:
-  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin =
+      pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;
   pi_device device_;
@@ -37,7 +38,7 @@ protected:
 
     pi::clearCudaContext();
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin->getBackend(), backend::cuda);
+    ASSERT_EQ(plugin->getBackend(), backend::ext_oneapi_cuda);
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),

@@ -126,7 +126,7 @@ namespace llvm {
     TargetOptions()
         : UnsafeFPMath(false), NoInfsFPMath(false), NoNaNsFPMath(false),
           NoTrappingFPMath(true), NoSignedZerosFPMath(false),
-          EnableAIXExtendedAltivecABI(false),
+          ApproxFuncFPMath(false), EnableAIXExtendedAltivecABI(false),
           HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false),
           GuaranteedTailCallOpt(false), StackSymbolOrdering(true),
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
@@ -140,7 +140,7 @@ namespace llvm {
           EnableMachineFunctionSplitter(false), SupportsDefaultOutlining(false),
           EmitAddrsig(false), EmitCallSiteInfo(false),
           SupportsDebugEntryValues(false), EnableDebugEntryValues(false),
-          PseudoProbeForProfiling(false), ValueTrackingVariableLocations(false),
+          ValueTrackingVariableLocations(false),
           ForceDwarfFrameSection(false), XRayOmitFunctionIndex(false),
           DebugStrictDwarf(false),
           FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
@@ -182,6 +182,12 @@ namespace llvm {
     /// specifies that optimizations are allowed to treat the sign of a zero
     /// argument or result as insignificant.
     unsigned NoSignedZerosFPMath : 1;
+
+    /// ApproxFuncFPMath - This flag is enabled when the
+    /// -enable-approx-func-fp-math is specified on the command line. This
+    /// specifies that optimizations are allowed to substitute math functions
+    /// with approximate calculations
+    unsigned ApproxFuncFPMath : 1;
 
     /// EnableAIXExtendedAltivecABI - This flag returns true when -vec-extabi is
     /// specified. The code generator is then able to use both volatile and
@@ -321,9 +327,6 @@ namespace llvm {
     /// production.
     bool ShouldEmitDebugEntryValues() const;
 
-    /// Emit pseudo probes into the binary for sample profiling
-    unsigned PseudoProbeForProfiling : 1;
-
     // When set to true, use experimental new debug variable location tracking,
     // which seeks to follow the values of variables rather than their location,
     // post isel.
@@ -415,6 +418,11 @@ namespace llvm {
 
     /// Machine level options.
     MCTargetOptions MCOptions;
+
+    /// Stores the filename/path of the final .o/.obj file, to be written in the
+    /// debug information. This is used for emitting the CodeView S_OBJNAME
+    /// record.
+    std::string ObjectFilenameForDebug;
   };
 
 } // End llvm namespace

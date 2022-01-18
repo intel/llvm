@@ -12,13 +12,13 @@ endif()
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    message(STATUS "vc-intrinsics are missing. Will try to download them from github.com")
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
 
-    set( LLVMGenXIntrinsics_GIT_TAG b1db3e55bac23670be4ffbd0da85a9fd0110f593 )
-
+    message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
-      GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
+      GIT_REPOSITORY ${LLVMGenXIntrinsics_GIT_REPO}
       GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
     )
     FetchContent_MakeAvailable(vc-intrinsics)
@@ -26,29 +26,31 @@ if (NOT TARGET LLVMGenXIntrinsics)
 
     set(LLVMGenXIntrinsics_SOURCE_DIR ${vc-intrinsics_SOURCE_DIR})
     set(LLVMGenXIntrinsics_BINARY_DIR ${vc-intrinsics_BINARY_DIR})
-  else()
+  else (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     # -DLLVMGenXIntrinsics_SOURCE_DIR is provided
     message(STATUS "vc-intrinsics are added manually ${LLVMGenXIntrinsics_SOURCE_DIR}")
 
     set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
     add_subdirectory(${LLVMGenXIntrinsics_SOURCE_DIR} ${LLVMGenXIntrinsics_BINARY_DIR})
-  endif()
+  endif (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
 
   target_include_directories(LLVMGenXIntrinsics
     PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include>
     PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include>
   )
-endif()
+endif (NOT TARGET LLVMGenXIntrinsics)
 
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics_SOURCE_DIR})
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP ${LLVMGenXIntrinsics_BINARY_DIR})
 
 add_llvm_component_library(LLVMSYCLLowerIR
+  ESIMD/LowerESIMD.cpp
+  ESIMD/LowerESIMDVLoadVStore.cpp
+  ESIMD/LowerESIMDVecArg.cpp
+  ESIMD/ESIMDVerifier.cpp
   LowerWGScope.cpp
-  LowerESIMD.cpp
-  LowerESIMDVLoadVStore.cpp
-  LowerESIMDVecArg.cpp
   LowerWGLocalMemory.cpp
+  MutatePrintfAddrspace.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -67,6 +69,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMTransformUtils
   
   LINK_COMPONENTS
+  Analysis
   Core
   Support
   )

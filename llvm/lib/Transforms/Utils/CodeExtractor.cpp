@@ -871,13 +871,6 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
   Function *newFunction = Function::Create(
       funcType, GlobalValue::InternalLinkage, oldFunction->getAddressSpace(),
       oldFunction->getName() + "." + SuffixToUse, M);
-  // If the old function is no-throw, so is the new one.
-  if (oldFunction->doesNotThrow())
-    newFunction->setDoesNotThrow();
-
-  // Inherit the uwtable attribute if we need to.
-  if (oldFunction->hasUWTable())
-    newFunction->setHasUWTable();
 
   // Inherit all of the target dependent attributes and white-listed
   // target independent attributes.
@@ -893,53 +886,26 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
     } else
       switch (Attr.getKindAsEnum()) {
       // Those attributes cannot be propagated safely. Explicitly list them
-      // here so we get a warning if new attributes are added. This list also
-      // includes non-function attributes.
-      case Attribute::Alignment:
+      // here so we get a warning if new attributes are added.
       case Attribute::AllocSize:
       case Attribute::ArgMemOnly:
       case Attribute::Builtin:
-      case Attribute::ByVal:
       case Attribute::Convergent:
-      case Attribute::Dereferenceable:
-      case Attribute::DereferenceableOrNull:
-      case Attribute::ElementType:
-      case Attribute::InAlloca:
-      case Attribute::InReg:
       case Attribute::InaccessibleMemOnly:
       case Attribute::InaccessibleMemOrArgMemOnly:
       case Attribute::JumpTable:
       case Attribute::Naked:
-      case Attribute::Nest:
-      case Attribute::NoAlias:
       case Attribute::NoBuiltin:
-      case Attribute::NoCapture:
       case Attribute::NoMerge:
       case Attribute::NoReturn:
       case Attribute::NoSync:
-      case Attribute::NoUndef:
-      case Attribute::None:
-      case Attribute::NonNull:
-      case Attribute::Preallocated:
       case Attribute::ReadNone:
       case Attribute::ReadOnly:
-      case Attribute::Returned:
       case Attribute::ReturnsTwice:
-      case Attribute::SExt:
       case Attribute::Speculatable:
       case Attribute::StackAlignment:
-      case Attribute::StructRet:
-      case Attribute::SwiftError:
-      case Attribute::SwiftSelf:
-      case Attribute::SwiftAsync:
       case Attribute::WillReturn:
       case Attribute::WriteOnly:
-      case Attribute::ZExt:
-      case Attribute::ImmArg:
-      case Attribute::ByRef:
-      case Attribute::EndAttrKinds:
-      case Attribute::EmptyKey:
-      case Attribute::TombstoneKey:
         continue;
       // Those attributes should be safe to propagate to the extracted function.
       case Attribute::AlwaysInline:
@@ -980,6 +946,35 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::MustProgress:
       case Attribute::NoProfile:
         break;
+      // These attributes cannot be applied to functions.
+      case Attribute::Alignment:
+      case Attribute::ByVal:
+      case Attribute::Dereferenceable:
+      case Attribute::DereferenceableOrNull:
+      case Attribute::ElementType:
+      case Attribute::InAlloca:
+      case Attribute::InReg:
+      case Attribute::Nest:
+      case Attribute::NoAlias:
+      case Attribute::NoCapture:
+      case Attribute::NoUndef:
+      case Attribute::NonNull:
+      case Attribute::Preallocated:
+      case Attribute::Returned:
+      case Attribute::SExt:
+      case Attribute::StructRet:
+      case Attribute::SwiftError:
+      case Attribute::SwiftSelf:
+      case Attribute::SwiftAsync:
+      case Attribute::ZExt:
+      case Attribute::ImmArg:
+      case Attribute::ByRef:
+      //  These are not really attributes.
+      case Attribute::None:
+      case Attribute::EndAttrKinds:
+      case Attribute::EmptyKey:
+      case Attribute::TombstoneKey:
+        llvm_unreachable("Not a function attribute");
       }
 
     newFunction->addFnAttr(Attr);
@@ -1046,9 +1041,8 @@ static void eraseLifetimeMarkersOnInputs(const SetVector<BasicBlock *> &Blocks,
                                          const SetVector<Value *> &SunkAllocas,
                                          SetVector<Value *> &LifetimesStart) {
   for (BasicBlock *BB : Blocks) {
-    for (auto It = BB->begin(), End = BB->end(); It != End;) {
-      auto *II = dyn_cast<IntrinsicInst>(&*It);
-      ++It;
+    for (Instruction &I : llvm::make_early_inc_range(*BB)) {
+      auto *II = dyn_cast<IntrinsicInst>(&I);
       if (!II || !II->isLifetimeStartOrEnd())
         continue;
 
@@ -1619,11 +1613,8 @@ CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC,
   // Remove @llvm.assume calls that will be moved to the new function from the
   // old function's assumption cache.
   for (BasicBlock *Block : Blocks) {
-    for (auto It = Block->begin(), End = Block->end(); It != End;) {
-      Instruction *I = &*It;
-      ++It;
-
-      if (auto *AI = dyn_cast<AssumeInst>(I)) {
+    for (Instruction &I : llvm::make_early_inc_range(*Block)) {
+      if (auto *AI = dyn_cast<AssumeInst>(&I)) {
         if (AC)
           AC->unregisterAssumption(AI);
         AI->eraseFromParent();

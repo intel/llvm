@@ -60,7 +60,7 @@ struct _ImplT {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t>
-class accessor {
+class __attribute__((sycl_special_class)) accessor {
 
 public:
   void use(void) const {}

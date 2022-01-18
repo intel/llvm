@@ -156,6 +156,11 @@ public:
   ///   intel_sub_group_avc_mce_get_default_inter_base_multi_reference_penalty
   void visitCallSPIRVAvcINTELInstructionBuiltin(CallInst *CI, Op OC);
 
+  ///  Transform __spirv_GenericPtrMemSemantics to:
+  ///  %0 = call spirv_func i32 @_Z9get_fence
+  ///  %1 = shl i31 %0, 8
+  void visitCallSPIRVGenericPtrMemSemantics(CallInst *CI);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
@@ -187,7 +192,7 @@ public:
 
   /// Transform __spirv_OpAtomicCompareExchange and
   /// __spirv_OpAtomicCompareExchangeWeak
-  virtual Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) = 0;
+  virtual Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) = 0;
 
   /// Transform __spirv_OpAtomicIIncrement/OpAtomicIDecrement to:
   /// - OCL2.0: atomic_fetch_add_explicit/atomic_fetch_sub_explicit
@@ -209,6 +214,9 @@ public:
   /// - OCL2.0: work_group_barrier or sub_group barrier
   /// - OCL1.2: barrier
   virtual void visitCallSPIRVControlBarrier(CallInst *CI) = 0;
+
+  /// Transform __spirv_EnqueueKernel to __enqueue_kernel
+  virtual void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) = 0;
 
   /// Conduct generic mutations for all atomic builtins
   virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
@@ -237,6 +245,9 @@ public:
   /// Transform SPV-IR image opaque type into OpenCL representation,
   /// example: spirv.Image._void_1_0_0_0_0_0_1 => opencl.image2d_wo_t
   std::string getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes);
+  /// Transform SPV-IR pipe opaque type into OpenCL representation,
+  /// example: spirv.Pipe._0 => opencl.pipe_ro_t
+  std::string getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
   void translateOpaqueTypes();
 
@@ -293,10 +304,13 @@ public:
   /// (bool)atomic_xchg(*ptr, 1)
   Instruction *visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI);
 
-  /// Transform __spirv_OpAtomicCompareExchange and
-  /// __spirv_OpAtomicCompareExchangeWeak into atomic_cmpxchg. There is no
-  /// weak version of function in OpenCL 1.2
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
+  /// Transform __spirv_OpAtomicCompareExchange/Weak into atomic_cmpxchg
+  /// OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
+  /// the same semantics as OpAtomicCompareExchange.
+  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
+
+  /// Trigger assert, since OpenCL 1.2 doesn't support enqueue_kernel
+  void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) override;
 
   /// Conduct generic mutations for all atomic builtins
   CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
@@ -361,6 +375,9 @@ public:
   /// atomic_fetch_add_explicit / atomic_fetch_sub_explicit
   Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
 
+  /// Transform __spirv_EnqueueKernel to __enqueue_kernel
+  void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) override;
+
   /// Conduct generic mutations for all atomic builtins
   CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
 
@@ -371,8 +388,10 @@ public:
   std::string mapFPAtomicName(Op OC) override;
 
   /// Transform __spirv_OpAtomicCompareExchange/Weak into
-  /// compare_exchange_strong/weak_explicit
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
+  /// atomic_compare_exchange_strong_explicit
+  /// OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
+  /// the same semantics as OpAtomicCompareExchange.
+  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
 };
 
 class SPIRVToOCL20Pass : public llvm::PassInfoMixin<SPIRVToOCL20Pass>,

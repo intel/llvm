@@ -82,6 +82,29 @@ public:
                                       bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device);
+  /// Creates a PI program using either a cached device code binary if present
+  /// in the persistent cache or from the supplied device image otherwise.
+  /// \param Img The device image to find a cached device code binary for or
+  ///        create the PI program with.
+  /// \param Context The context to find or create the PI program with.
+  /// \param Device The device to find or create the PI program for.
+  /// \param CompileAndLinkOptions The compile and linking options to be used
+  ///        for building the PI program. These options must appear in the
+  ///        mentioned order. This parameter is used as a partial key in the
+  ///        cache and has no effect if no cached device code binary is found in
+  ///        the persistent cache.
+  /// \param SpecConsts Specialization constants associated with the device
+  ///        image. This parameter is used  as a partial key in the cache and
+  ///        has no effect if no cached device code binary is found in the
+  ///        persistent cache.
+  /// \return A pair consisting of the PI program created with the corresponding
+  ///         device code binary and a boolean that is true if the device code
+  ///         binary was found in the persistent cache and false otherwise.
+  std::pair<RT::PiProgram, bool>
+  getOrCreatePIProgram(const RTDeviceBinaryImage &Img, const context &Context,
+                       const device &Device,
+                       const std::string &CompileAndLinkOptions,
+                       SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M idenfies the OS module the kernel comes from (multiple OS modules
@@ -154,6 +177,10 @@ public:
   // The function returns a vector containing all unique SYCL kernel identifiers
   // in SYCL device images.
   std::vector<kernel_id> getAllSYCLKernelIDs();
+
+  // The function returns the unique SYCL kernel identifier associated with a
+  // built-in kernel name.
+  kernel_id getBuiltInKernelID(const std::string &KernelName);
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
@@ -303,6 +330,13 @@ private:
   // from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_set<std::string> m_ExportedSymbols;
+
+  /// Maps names of built-in kernels to their unique kernel IDs.
+  /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
+  std::unordered_map<std::string, kernel_id> m_BuiltInKernelIDs;
+
+  /// Protects built-in kernel ID cache.
+  std::mutex m_BuiltInKernelIDsMutex;
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and

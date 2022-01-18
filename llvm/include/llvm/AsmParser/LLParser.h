@@ -62,12 +62,14 @@ namespace llvm {
     APFloat APFloatVal{0.0};
     Constant *ConstantVal;
     std::unique_ptr<Constant *[]> ConstantStructElts;
+    bool NoCFI = false;
 
     ValID() = default;
     ValID(const ValID &RHS)
         : Kind(RHS.Kind), Loc(RHS.Loc), UIntVal(RHS.UIntVal), FTy(RHS.FTy),
           StrVal(RHS.StrVal), StrVal2(RHS.StrVal2), APSIntVal(RHS.APSIntVal),
-          APFloatVal(RHS.APFloatVal), ConstantVal(RHS.ConstantVal) {
+          APFloatVal(RHS.APFloatVal), ConstantVal(RHS.ConstantVal),
+          NoCFI(RHS.NoCFI) {
       assert(!RHS.ConstantStructElts);
     }
 
@@ -304,11 +306,10 @@ namespace llvm {
                      unsigned DLLStorageClass, bool DSOLocal,
                      GlobalVariable::ThreadLocalMode TLM,
                      GlobalVariable::UnnamedAddr UnnamedAddr);
-    bool parseIndirectSymbol(const std::string &Name, LocTy NameLoc,
-                             unsigned L, unsigned Visibility,
-                             unsigned DLLStorageClass, bool DSOLocal,
-                             GlobalVariable::ThreadLocalMode TLM,
-                             GlobalVariable::UnnamedAddr UnnamedAddr);
+    bool parseAliasOrIFunc(const std::string &Name, LocTy NameLoc, unsigned L,
+                           unsigned Visibility, unsigned DLLStorageClass,
+                           bool DSOLocal, GlobalVariable::ThreadLocalMode TLM,
+                           GlobalVariable::UnnamedAddr UnnamedAddr);
     bool parseComdat();
     bool parseStandaloneMetadata();
     bool parseNamedMetadata();

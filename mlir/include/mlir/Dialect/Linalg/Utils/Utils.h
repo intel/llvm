@@ -10,7 +10,7 @@
 #define MLIR_DIALECT_LINALG_UTILS_H_
 
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "llvm/ADT/MapVector.h"
@@ -29,16 +29,20 @@ class LinalgDependenceGraph;
 // General utilities
 //===----------------------------------------------------------------------===//
 
+/// Check if `permutation` is a permutation of the range
+/// `[0, permutation.size())`.
+bool isPermutation(ArrayRef<int64_t> permutation);
+
 /// Apply the permutation defined by `permutation` to `inVec`.
 /// Element `i` in `inVec` is mapped to location `j = permutation[i]`.
 /// E.g.: for an input vector `inVec = ['a', 'b', 'c']` and a permutation vector
 /// `permutation = [2, 0, 1]`, this function leaves `inVec = ['c', 'a', 'b']`.
 template <typename T, unsigned N>
 void applyPermutationToVector(SmallVector<T, N> &inVec,
-                              ArrayRef<unsigned> permutation) {
+                              ArrayRef<int64_t> permutation) {
   SmallVector<T, N> auxVec(inVec.size());
-  for (unsigned i = 0; i < permutation.size(); ++i)
-    auxVec[i] = inVec[permutation[i]];
+  for (auto en : enumerate(permutation))
+    auxVec[en.index()] = inVec[en.value()];
   inVec = auxVec;
 }
 
@@ -50,34 +54,92 @@ Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source, int64_t dim);
 /// constructing the necessary DimOp operators.
 SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b);
 
-/// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
-/// is a constant then return a new value set to the smallest such constant.
-/// If `size` comes from a ConstantOp, return the constant.
-/// Otherwise return nullptr.
-IntegerAttr getSmallestBoundingIndex(Value size);
+/// Computes an upper bound for the result `value` of an index computation.
+/// Translates AffineMinOps and AffineApplyOps along the use-def chains of the
+/// index computation to affine constraints and projects out intermediate
+/// values. The method sets `boundMap` to an affine map that given
+/// `boundOperands` evaluates to an upper bound for the index computation.
+///
+/// Example:
+/// ```
+/// %dim0 = dim %tensor, %c0
+/// %dim1 = dim %tensor, %c1
+/// %0 = affine.min affine.map<(d0) -> (40, d0)> (%dim0)
+/// %1 = affine.apply affine.map<(d0, d1) -> (d0 + d1)> (%0, %dim1)
+/// ```
+/// getUpperBoundForIndex(%1, boundMap, boundOperands)
+/// set the output parameters to:
+/// - boundMap = affine.map<(d0) -> (d0 + 40)>
+/// - boundOperands = [%dim1]
+void getUpperBoundForIndex(Value value, AffineMap &boundMap,
+                           SmallVectorImpl<Value> &boundOperands);
+
+/// Returns a constant upper bound for the result `value` of an index
+/// computation. Calls `getUpperBoundForIndex` and returns a constant upper
+/// bound if the result of `boundMap` is a constant expression and failure
+/// otherwise.
+///
+/// Example:
+/// ```
+/// %0 = affine.min affine.map<(d0) -> (40, d0)> (%d0)
+/// %1 = affine.apply affine.map<(d0) -> (d0 + 2)> (%0)
+/// ```
+/// getConstantUpperBoundForIndex(%1) returns 42
+/// (boundsMap = affine.map<() -> (42)>)
+FailureOr<int64_t> getConstantUpperBoundForIndex(Value value);
 
 /// Create an ExtractSliceOp and, if `source` is defined by an ExtractSliceOp,
 /// fold it by adding the offsets.
 ///
 /// Example:
 /// ```
-///   %0 = tensor.extract_slice %arg0[3, 4][3, 32][1, 1] : tensor<64x64xf32> to
+/// %0 = tensor.extract_slice %arg0[3, 4][3, 32][1, 1] : tensor<64x64xf32> to
 ///                                                        tensor<3x32xf32>
-///   %1 = tensor.extract_slice %0[0, 5][3, 4][1, 1] : tensor<3x32xf32> to
+/// %1 = tensor.extract_slice %0[0, 5][3, 4][1, 1] : tensor<3x32xf32> to
 ///                                                    tensor<3x4xf32>
 /// ```
 /// folds into:
 /// ```
-///   %1 = tensor.extract_slice %arg0[3, 9][3, 4][1, 1] : tensor<64x64xf32> to
-///                                                         tensor<3x4xf32>
+/// %1 = tensor.extract_slice %arg0[3, 9][3, 4][1, 1] : tensor<64x64xf32> to
+///                                                       tensor<3x4xf32>
 /// ```
 tensor::ExtractSliceOp makeComposedExtractSliceOp(
     OpBuilder &b, Location loc, Value source, ArrayRef<OpFoldResult> offsets,
     ArrayRef<OpFoldResult> sizes, ArrayRef<OpFoldResult> strides);
 
+/// Create a PadTensorOp that pads `source` to the size of the statically sized
+/// `type` whose static sizes are assumed to be greater than the dynamic
+/// `source` size. The padding introduces trailing `pad` values until the target
+/// size is met. If `source` is defined by one or more LinalgOps that have been
+/// padded with the same value and sizes, return their padded result instead of
+/// creating a PadTensorOp.
+///
+/// Example:
+/// ```
+/// %0 = tensor.extract_slice %arg0 [%iv0, %iv1] [%sz0, %sz1]
+/// %1 = linalg.pad_tensor %0 low[0, 0] high[...] { linalg.yield %cst }
+/// %2 = linalg.matmul ins(...) outs(%1)
+/// %3 = tensor.extract_slice %2 [0, 0] [%sz0, %sz1]
+/// ```
+/// makeComposedPadHighOp(source=%3, pad=%cst) returns %2
+/// makeComposedPadHighOp(source=%3, pad=%other_cst) returns %4
+/// ```
+/// %4 = linalg.pad_tensor %3 low[0, 0] high[...] { linalg.yield %other_cst }
+/// ```
+Value makeComposedPadHighOp(OpBuilder &b, Location loc, RankedTensorType type,
+                            Value source, Value pad, bool nofold);
+
 //===----------------------------------------------------------------------===//
-// Fusion utilities
+// Fusion / Tiling utilities
 //===----------------------------------------------------------------------===//
+
+/// The type of loops to be generated during tiling.
+enum class LinalgTilingLoopType {
+  Loops = 0,
+  AffineLoops = 1,
+  ParallelLoops = 2,
+  TiledLoops = 3,
+};
 
 /// Checks whether the specific `producer` is the last write to exactly the
 /// whole `consumedView`. This checks structural dominance, that the dependence
@@ -152,25 +214,25 @@ struct FusionInfo {
 /// Implements the fusion part of the "tileAndFuse on buffers" transformation
 /// and thus requires the `consumerOpOperand` to be a `subview` op (generally
 /// obtained by applying the tiling transformation).
-Optional<FusionInfo> fuseProducerOfBuffer(OpBuilder &b,
-                                          OpOperand &consumerOpOperand,
-                                          const LinalgDependenceGraph &graph);
+FailureOr<FusionInfo> fuseProducerOfBuffer(OpBuilder &b,
+                                           OpOperand &consumerOpOperand,
+                                           const LinalgDependenceGraph &graph);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
 /// transformation and thus requires the `consumerOpOperand` to be a
 /// `extract_slice` op (generally obtained by applying the tiling
 /// transformation).
-Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
-                                          OpOperand &consumerOpOperand);
+FailureOr<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
+                                           OpOperand &consumerOpOperand);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
 /// transformation and thus requires the `consumerOpOperand` to be a
 /// `extract_slice` op (generally obtained by applying the tiling
 /// transformation). Assumes `producerOfTensor` is a Linalg op that produces
 /// `consumerOpOperand`.
-Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
-                                          OpResult producerOpResult,
-                                          OpOperand &consumerOpOperand);
+FailureOr<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
+                                           OpResult producerOpResult,
+                                           OpOperand &consumerOpOperand);
 
 //===----------------------------------------------------------------------===//
 // Fusion on tensor utilities
@@ -185,19 +247,28 @@ public:
   LogicalResult tileRootOp(OpBuilder &b, ArrayRef<int64_t> tileSizes,
                            ArrayRef<int64_t> tileInterchange);
 
-  /// Fuse the producer of `rootOpOperand` into the tile loop nest. Returns the
-  /// fused producer of fails if fusion is not possible.
-  // TODO: add replace uses callback to support passes and patterns.
-  FailureOr<LinalgOp> fuseProducer(OpBuilder &b, OpOperand *rootOpOperand);
+  /// Fuse the producer of `consumerOpOperand` into the tile loop nest. Returns
+  /// the fused producer or fails if fusion is not possible.
+  FailureOr<LinalgOp> fuseProducer(OpBuilder &b, OpOperand *consumerOpOperand);
+
+  /// Returns the replacement results for the original untiled root operation.
+  ValueRange getRootOpReplacementResults();
 
   /// Returns the tiled root operation.
   LinalgOp getRootOp() { return rootOp; }
+
+  /// Returns the tiled root operation and the fused producers.
+  SmallVector<LinalgOp> getAllTiledAndFusedOps();
+
+  /// Returns the loop ops generated from tiling.
+  ArrayRef<scf::ForOp> getLoopOps() { return tileLoopOps; }
 
 private:
   /// Returns true if the tile loop nest has no tile loops.
   bool isEmpty();
 
   /// Returns true if the tile loop nest invariants are satisfied:
+  /// - The `rootOp` has been tiled at least once.
   /// - The number of tile loop operations and dimensions match.
   /// - The innermost tile loop is the parent of `tiledOp`.
   /// - The tile loops are directly nested.
@@ -219,8 +290,8 @@ private:
   bool hasOtherUses(BlockArgument bbArg, tensor::ExtractSliceOp sliceOp);
 
   LinalgOp rootOp;
-  SmallVector<scf::ForOp> loopOps;
-  SmallVector<int64_t> loopDims;
+  SmallVector<scf::ForOp> tileLoopOps;
+  DenseMap<Operation *, SmallVector<int64_t>> tiledRootAndFusedOpsLoops;
 };
 
 /// Tiles `consumerOp` and fuses its dependencies if possible. Uses the
@@ -257,7 +328,7 @@ enum class DistributionMethod {
   /// to
   ///
   /// %iv = %lb + %procId * %step
-  /// %cond = cmpi "slt", %iv, %ub
+  /// %cond = arith.cmpi "slt", %iv, %ub
   /// scf.if %cond {
   ///   ...
   /// }

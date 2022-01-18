@@ -40,6 +40,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptionsCommandFlags.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/MCA/CodeEmitter.h"
 #include "llvm/MCA/Context.h"
 #include "llvm/MCA/CustomBehaviour.h"
@@ -56,7 +57,6 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
@@ -347,12 +347,6 @@ int main(int argc, char **argv) {
   if (!STI->isCPUStringValid(MCPU))
     return 1;
 
-  bool IsOutOfOrder = STI->getSchedModel().isOutOfOrder();
-  if (!PrintInstructionTables && !IsOutOfOrder) {
-    WithColor::warning() << "support for in-order CPU '" << MCPU
-                         << "' is experimental.\n";
-  }
-
   if (!STI->getSchedModel().hasInstrSchedModel()) {
     WithColor::error()
         << "unable to find instruction-level scheduling information for"
@@ -367,6 +361,7 @@ int main(int argc, char **argv) {
   }
 
   // Apply overrides to llvm-mca specific options.
+  bool IsOutOfOrder = STI->getSchedModel().isOutOfOrder();
   processViewOptions(IsOutOfOrder);
 
   std::unique_ptr<MCRegisterInfo> MRI(TheTarget->createMCRegInfo(TripleName));

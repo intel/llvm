@@ -447,8 +447,7 @@ bool llvm::stripDebugInfo(Function &F) {
 
   DenseMap<MDNode *, MDNode *> LoopIDsMap;
   for (BasicBlock &BB : F) {
-    for (auto II = BB.begin(), End = BB.end(); II != End;) {
-      Instruction &I = *II++; // We may delete the instruction, increment now.
+    for (Instruction &I : llvm::make_early_inc_range(BB)) {
       if (isa<DbgInfoIntrinsic>(&I)) {
         I.eraseFromParent();
         Changed = true;
@@ -907,6 +906,11 @@ void LLVMDisposeDIBuilder(LLVMDIBuilderRef Builder) {
 
 void LLVMDIBuilderFinalize(LLVMDIBuilderRef Builder) {
   unwrap(Builder)->finalize();
+}
+
+void LLVMDIBuilderFinalizeSubprogram(LLVMDIBuilderRef Builder,
+                                     LLVMMetadataRef subprogram) {
+  unwrap(Builder)->finalizeSubprogram(unwrapDI<DISubprogram>(subprogram));
 }
 
 LLVMMetadataRef LLVMDIBuilderCreateCompileUnit(
@@ -1432,14 +1436,14 @@ LLVMDIBuilderCreateSubroutineType(LLVMDIBuilderRef Builder,
 }
 
 LLVMMetadataRef LLVMDIBuilderCreateExpression(LLVMDIBuilderRef Builder,
-                                              int64_t *Addr, size_t Length) {
-  return wrap(unwrap(Builder)->createExpression(ArrayRef<int64_t>(Addr,
-                                                                  Length)));
+                                              uint64_t *Addr, size_t Length) {
+  return wrap(
+      unwrap(Builder)->createExpression(ArrayRef<uint64_t>(Addr, Length)));
 }
 
 LLVMMetadataRef
 LLVMDIBuilderCreateConstantValueExpression(LLVMDIBuilderRef Builder,
-                                           int64_t Value) {
+                                           uint64_t Value) {
   return wrap(unwrap(Builder)->createConstantValueExpression(Value));
 }
 

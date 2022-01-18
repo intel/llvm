@@ -3,8 +3,8 @@
 ; RUN: not llvm-spirv %t.bc -spirv-allow-unknown-intrinsics -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ALLOCA
 
 ; CHECK-INTRINSIC: InvalidFunctionCall: Unexpected llvm intrinsic:
-; CHECK-INTRINSIC-NEXT: call i8* @llvm.stacksave()
 ; CHECK-INTRINSIC-NEXT: Translation of llvm.stacksave intrinsic requires SPV_INTEL_variable_length_array extension or -spirv-allow-unknown-intrinsics option.
+; CHECK-INTRINSIC-NEXT: call i8* @llvm.stacksave()
 
 ; CHECK-ALLOCA: InvalidInstruction: Can't translate llvm instruction:
 ; CHECK-ALLOCA-NEXT: %vla = alloca i32, i64 %a

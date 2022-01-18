@@ -203,7 +203,8 @@ public:
   void print(raw_ostream &Out, const ASTContext &Context,
              const PrintingPolicy &Policy, bool OmitTemplateKW = false) const;
 
-  static bool shouldIncludeTypeForArgument(const TemplateParameterList *TPL,
+  static bool shouldIncludeTypeForArgument(const PrintingPolicy &Policy,
+                                           const TemplateParameterList *TPL,
                                            unsigned Idx);
 };
 
@@ -729,6 +730,10 @@ public:
   /// Returns the number of explicit template arguments that were given.
   unsigned getNumTemplateArgs() const { return NumArgs; }
 
+  llvm::ArrayRef<TemplateArgumentLoc> arguments() const {
+    return llvm::makeArrayRef(getTemplateArgs(), getNumTemplateArgs());
+  }
+
   /// Returns the nth template argument.
   const TemplateArgumentLoc &getTemplateArg(unsigned I) const {
     assert(I < getNumTemplateArgs() && "template arg index out of range");
@@ -1206,13 +1211,12 @@ class TemplateTypeParmDecl final : public TypeDecl,
   DefArgStorage DefaultArgument;
 
   TemplateTypeParmDecl(DeclContext *DC, SourceLocation KeyLoc,
-                       SourceLocation IdLoc, IdentifierInfo *Id,
-                       bool Typename, bool HasTypeConstraint,
-                       Optional<unsigned> NumExpanded)
+                       SourceLocation IdLoc, IdentifierInfo *Id, bool Typename,
+                       bool HasTypeConstraint, Optional<unsigned> NumExpanded)
       : TypeDecl(TemplateTypeParm, DC, IdLoc, Id, KeyLoc), Typename(Typename),
-      HasTypeConstraint(HasTypeConstraint), TypeConstraintInitialized(false),
-      ExpandedParameterPack(NumExpanded),
-      NumExpanded(NumExpanded ? *NumExpanded : 0) {}
+        HasTypeConstraint(HasTypeConstraint), TypeConstraintInitialized(false),
+        ExpandedParameterPack(NumExpanded),
+        NumExpanded(NumExpanded.getValueOr(0)) {}
 
 public:
   static TemplateTypeParmDecl *Create(const ASTContext &C, DeclContext *DC,

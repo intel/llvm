@@ -772,6 +772,24 @@ sizeof...($TemplateParameter[[Elements]]);
           $Function[[foo]]($Parameter[[x]]); 
         }
       )cpp",
+      // init-captures
+      R"cpp(
+        void $Function_decl[[foo]]() {
+          int $LocalVariable_decl[[a]], $LocalVariable_decl[[b]];
+          [ $LocalVariable_decl[[c]] = $LocalVariable[[a]],
+            $LocalVariable_decl[[d]]($LocalVariable[[b]]) ]() {}();
+        }
+      )cpp",
+      // Enum base specifier
+      R"cpp(
+        using $Primitive_decl[[MyTypedef]] = int;
+        enum $Enum_decl[[MyEnum]] : $Primitive[[MyTypedef]] {};
+      )cpp",
+      // Enum base specifier
+      R"cpp(
+        typedef int $Primitive_decl[[MyTypedef]];
+        enum $Enum_decl[[MyEnum]] : $Primitive[[MyTypedef]] {};
+      )cpp",
   };
   for (const auto &TestCase : TestCases)
     // Mask off scope modifiers to keep the tests manageable.
@@ -840,7 +858,7 @@ TEST(SemanticHighlighting, ScopeModifiers) {
       )cpp",
       R"cpp(
         // Lambdas are considered functions, not classes.
-        auto $Variable_fileScope[[x]] = [m(42)] { // FIXME: annotate capture
+        auto $Variable_fileScope[[x]] = [$LocalVariable_functionScope[[m]](42)] {
           return $LocalVariable_functionScope[[m]];
         };
       )cpp",

@@ -693,12 +693,6 @@ NumericLiteralParser::NumericLiteralParser(StringRef TokSpelling,
     : SM(SM), LangOpts(LangOpts), Diags(Diags),
       ThisTokBegin(TokSpelling.begin()), ThisTokEnd(TokSpelling.end()) {
 
-  // This routine assumes that the range begin/end matches the regex for integer
-  // and FP constants (specifically, the 'pp-number' regex), and assumes that
-  // the byte at "*end" is both valid and not part of the regex.  Because of
-  // this, it doesn't have to check for 'overscan' in various places.
-  assert(!isPreprocessingNumberBody(*ThisTokEnd) && "didn't maximally munch?");
-
   s = DigitsBegin = ThisTokBegin;
   saw_exponent = false;
   saw_period = false;
@@ -717,6 +711,16 @@ NumericLiteralParser::NumericLiteralParser(StringRef TokSpelling,
   isFract = false;
   isAccum = false;
   hadError = false;
+
+  // This routine assumes that the range begin/end matches the regex for integer
+  // and FP constants (specifically, the 'pp-number' regex), and assumes that
+  // the byte at "*end" is both valid and not part of the regex.  Because of
+  // this, it doesn't have to check for 'overscan' in various places.
+  if (isPreprocessingNumberBody(*ThisTokEnd)) {
+    Diags.Report(TokLoc, diag::err_lexing_numeric);
+    hadError = true;
+    return;
+  }
 
   if (*s == '0') { // parse radix
     ParseNumberStartingWithZero(TokLoc);
@@ -1242,7 +1246,7 @@ NumericLiteralParser::GetFloatValue(llvm::APFloat &Result) {
 
   llvm::SmallString<16> Buffer;
   StringRef Str(ThisTokBegin, n);
-  if (Str.find('\'') != StringRef::npos) {
+  if (Str.contains('\'')) {
     Buffer.reserve(n);
     std::remove_copy_if(Str.begin(), Str.end(), std::back_inserter(Buffer),
                         &isDigitSeparator);
@@ -1357,7 +1361,7 @@ bool NumericLiteralParser::GetFixedPointValue(llvm::APInt &StoreVal, unsigned Sc
       Val *= Base;
     }
   } else if (BaseShift < 0) {
-    for (int64_t i = BaseShift; i < 0 && !Val.isNullValue(); ++i)
+    for (int64_t i = BaseShift; i < 0 && !Val.isZero(); ++i)
       Val = Val.udiv(Base);
   }
 
@@ -1432,7 +1436,12 @@ CharLiteralParser::CharLiteralParser(const char *begin, const char *end,
     ++begin;
 
   // Skip over the entry quote.
-  assert(begin[0] == '\'' && "Invalid token lexed");
+  if (begin[0] != '\'') {
+    PP.Diag(Loc, diag::err_lexing_char);
+    HadError = true;
+    return;
+  }
+
   ++begin;
 
   // Remove an optional ud-suffix.
@@ -1654,9 +1663,9 @@ CharLiteralParser::CharLiteralParser(const char *begin, const char *end,
 ///
 StringLiteralParser::
 StringLiteralParser(ArrayRef<Token> StringToks,
-                    Preprocessor &PP, bool Complain)
+                    Preprocessor &PP)
   : SM(PP.getSourceManager()), Features(PP.getLangOpts()),
-    Target(PP.getTargetInfo()), Diags(Complain ? &PP.getDiagnostics() :nullptr),
+    Target(PP.getTargetInfo()), Diags(&PP.getDiagnostics()),
     MaxTokenLength(0), SizeBound(0), CharByteWidth(0), Kind(tok::unknown),
     ResultPtr(ResultBuf.data()), hadError(false), Pascal(false) {
   init(StringToks);

@@ -65,27 +65,6 @@ public:
   // we are communicating with it.
   bool HandshakeWithServer(Status *error_ptr);
 
-  // For packets which specify a range of output to be returned,
-  // return all of the output via a series of request packets of the form
-  // <prefix>0,<size>
-  // <prefix><size>,<size>
-  // <prefix><size>*2,<size>
-  // <prefix><size>*3,<size>
-  // ...
-  // until a "$l..." packet is received, indicating the end.
-  // (size is in hex; this format is used by a standard gdbserver to
-  // return the given portion of the output specified by <prefix>;
-  // for example, "qXfer:libraries-svr4:read::fff,1000" means
-  // "return a chunk of the xml description file for shared
-  // library load addresses, where the chunk starts at offset 0xfff
-  // and continues for 0x1000 bytes").
-  // Concatenate the resulting server response packets together and
-  // return in response_string.  If any packet fails, the return value
-  // indicates that failure and the returned string value is undefined.
-  PacketResult
-  SendPacketsAndConcatenateResponses(const char *send_payload_prefix,
-                                     std::string &response_string);
-
   bool GetThreadSuffixSupported();
 
   // This packet is usually sent first and the boolean return value
@@ -238,6 +217,9 @@ public:
 
   const ArchSpec &GetProcessArchitecture();
 
+  bool GetProcessStandaloneBinary(UUID &uuid, lldb::addr_t &value,
+                                  bool &value_is_offset);
+
   void GetRemoteQSupported();
 
   bool GetVContSupported(char flavor);
@@ -260,9 +242,9 @@ public:
 
   llvm::VersionTuple GetMacCatalystVersion();
 
-  bool GetOSBuildString(std::string &s);
+  llvm::Optional<std::string> GetOSBuildString();
 
-  bool GetOSKernelDescription(std::string &s);
+  llvm::Optional<std::string> GetOSKernelDescription();
 
   ArchSpec GetSystemArchitecture();
 
@@ -314,8 +296,6 @@ public:
       lldb::addr_t addr,     // Address of breakpoint or watchpoint
       uint32_t length,       // Byte Size of breakpoint or watchpoint
       std::chrono::seconds interrupt_timeout); // Time to wait for an interrupt
-
-  bool SetNonStopMode(const bool enable);
 
   void TestPacketSpeed(const uint32_t num_packets, uint32_t max_send,
                        uint32_t max_recv, uint64_t recv_amount, bool json,
@@ -456,6 +436,8 @@ public:
 
   bool GetMemoryTaggingSupported();
 
+  bool UsesNativeSignals();
+
   lldb::DataBufferSP ReadMemoryTags(lldb::addr_t addr, size_t len,
                                     int32_t type);
 
@@ -474,9 +456,8 @@ public:
   GetModulesInfo(llvm::ArrayRef<FileSpec> module_file_specs,
                  const llvm::Triple &triple);
 
-  bool ReadExtFeature(const lldb_private::ConstString object,
-                      const lldb_private::ConstString annex, std::string &out,
-                      lldb_private::Status &err);
+  llvm::Expected<std::string> ReadExtFeature(llvm::StringRef object,
+                                             llvm::StringRef annex);
 
   void ServeSymbolLookups(lldb_private::Process *process);
 
@@ -579,6 +560,7 @@ protected:
   LazyBool m_supports_multiprocess = eLazyBoolCalculate;
   LazyBool m_supports_memory_tagging = eLazyBoolCalculate;
   LazyBool m_supports_qSaveCore = eLazyBoolCalculate;
+  LazyBool m_uses_native_signals = eLazyBoolCalculate;
 
   bool m_supports_qProcessInfoPID : 1, m_supports_qfProcessInfo : 1,
       m_supports_qUserName : 1, m_supports_qGroupName : 1,
@@ -605,6 +587,9 @@ protected:
 
   ArchSpec m_host_arch;
   ArchSpec m_process_arch;
+  UUID m_process_standalone_uuid;
+  lldb::addr_t m_process_standalone_value = LLDB_INVALID_ADDRESS;
+  bool m_process_standalone_value_is_offset = false;
   llvm::VersionTuple m_os_version;
   llvm::VersionTuple m_maccatalyst_version;
   std::string m_os_build;

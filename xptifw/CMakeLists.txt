@@ -15,6 +15,8 @@ option(XPTI_ENABLE_TBB "Enable TBB in the framework" OFF)
 
 option(XPTI_ENABLE_WERROR OFF)
 
+option(XPTI_BUILD_SAMPLES OFF)
+
 if (XPTI_ENABLE_WERROR)
   if(MSVC)
     set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
@@ -53,8 +55,10 @@ add_subdirectory(src)
 add_custom_target(check-xptifw)
 
 add_subdirectory(unit_test)
-add_subdirectory(samples/basic_collector)
-add_subdirectory(samples/syclpi_collector)
+if (XPTI_BUILD_SAMPLES)
+  add_subdirectory(samples/basic_collector)
+  add_subdirectory(samples/syclpi_collector)
+endif()
 
 # The tests in basic_test are written using TBB, so these tests are enabled
 # only if TBB has been enabled.

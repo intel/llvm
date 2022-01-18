@@ -548,13 +548,16 @@ public:
   }
 
   template <typename PassT>
-  std::enable_if_t<!std::is_same<PassT, PassManager>::value>
-  addPass(PassT &&Pass) {
+  LLVM_ATTRIBUTE_MINSIZE
+      std::enable_if_t<!std::is_same<PassT, PassManager>::value>
+      addPass(PassT &&Pass) {
     using PassModelT =
         detail::PassModel<IRUnitT, PassT, PreservedAnalyses, AnalysisManagerT,
                           ExtraArgTs...>;
-
-    Passes.emplace_back(new PassModelT(std::forward<PassT>(Pass)));
+    // Do not use make_unique or emplace_back, they cause too many template
+    // instantiations, causing terrible compile times.
+    Passes.push_back(std::unique_ptr<PassConceptT>(
+        new PassModelT(std::forward<PassT>(Pass))));
   }
 
   /// When adding a pass manager pass that has the same type as this pass
@@ -563,10 +566,11 @@ public:
   /// implementation complexity and avoid potential invalidation issues that may
   /// happen with nested pass managers of the same type.
   template <typename PassT>
-  std::enable_if_t<std::is_same<PassT, PassManager>::value>
-  addPass(PassT &&Pass) {
+  LLVM_ATTRIBUTE_MINSIZE
+      std::enable_if_t<std::is_same<PassT, PassManager>::value>
+      addPass(PassT &&Pass) {
     for (auto &P : Pass.Passes)
-      Passes.emplace_back(std::move(P));
+      Passes.push_back(std::move(P));
   }
 
   /// Returns if the pass manager contains any passes.
@@ -1200,8 +1204,9 @@ class ModuleToFunctionPassAdaptor
 public:
   using PassConceptT = detail::PassConcept<Function, FunctionAnalysisManager>;
 
-  explicit ModuleToFunctionPassAdaptor(std::unique_ptr<PassConceptT> Pass)
-      : Pass(std::move(Pass)) {}
+  explicit ModuleToFunctionPassAdaptor(std::unique_ptr<PassConceptT> Pass,
+                                       bool EagerlyInvalidate)
+      : Pass(std::move(Pass)), EagerlyInvalidate(EagerlyInvalidate) {}
 
   /// Runs the function pass across every function in the module.
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
@@ -1212,19 +1217,24 @@ public:
 
 private:
   std::unique_ptr<PassConceptT> Pass;
+  bool EagerlyInvalidate;
 };
 
 /// A function to deduce a function pass type and wrap it in the
 /// templated adaptor.
 template <typename FunctionPassT>
 ModuleToFunctionPassAdaptor
-createModuleToFunctionPassAdaptor(FunctionPassT &&Pass) {
+createModuleToFunctionPassAdaptor(FunctionPassT &&Pass,
+                                  bool EagerlyInvalidate = false) {
   using PassModelT =
       detail::PassModel<Function, FunctionPassT, PreservedAnalyses,
                         FunctionAnalysisManager>;
-
+  // Do not use make_unique, it causes too many template instantiations,
+  // causing terrible compile times.
   return ModuleToFunctionPassAdaptor(
-      std::make_unique<PassModelT>(std::forward<FunctionPassT>(Pass)));
+      std::unique_ptr<ModuleToFunctionPassAdaptor::PassConceptT>(
+          new PassModelT(std::forward<FunctionPassT>(Pass))),
+      EagerlyInvalidate);
 }
 
 /// A utility pass template to force an analysis result to be available.

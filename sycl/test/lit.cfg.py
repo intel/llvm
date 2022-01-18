@@ -100,6 +100,15 @@ triple=lit_config.params.get('SYCL_TRIPLE', 'spir64-unknown-unknown')
 lit_config.note("Triple: {}".format(triple))
 config.substitutions.append( ('%sycl_triple',  triple ) )
 
+if config.cuda_be == "ON":
+    config.available_features.add('cuda_be')
+
+if config.hip_be == "ON":
+    config.available_features.add('hip_be')
+
+if config.esimd_emulator_be == "ON":
+    config.available_features.add('esimd_emulator_be')
+
 if triple == 'nvptx64-nvidia-cuda':
     config.available_features.add('cuda')
 

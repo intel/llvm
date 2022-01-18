@@ -132,9 +132,9 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   std::vector<RT::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
   const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piDevicePartition>(MDevice, Properties,
-                                            SubDevicesCount, SubDevices.data(),
-                                            &ReturnedSubDevices);
+  Plugin.call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
+      MDevice, Properties, SubDevicesCount, SubDevices.data(),
+      &ReturnedSubDevices);
   // TODO: check that returned number of sub-devices matches what was
   // requested, otherwise this walk below is wrong.
   //
@@ -301,6 +301,11 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_gpu_eu_count_per_subslice:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_gpu_hw_threads_per_eu:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_device_info_uuid: {

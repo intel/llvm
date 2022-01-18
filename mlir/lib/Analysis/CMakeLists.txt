@@ -6,7 +6,6 @@ set(LLVM_OPTIONAL_SOURCES
   CallGraph.cpp
   DataFlowAnalysis.cpp
   DataLayoutAnalysis.cpp
-  LinearTransform.cpp
   Liveness.cpp
   LoopAnalysis.cpp
   NestedMatcher.cpp
@@ -37,19 +36,17 @@ add_mlir_library(MLIRAnalysis
   mlir-headers
 
   LINK_LIBS PUBLIC
-  MLIRAffine
   MLIRCallInterfaces
   MLIRControlFlowInterfaces
   MLIRDataLayoutInterfaces
   MLIRInferTypeOpInterface
-  MLIRLinalg
-  MLIRSCF
+  MLIRSideEffectInterfaces
+  MLIRViewLikeInterface
   )
 
 add_mlir_library(MLIRLoopAnalysis
   AffineAnalysis.cpp
   AffineStructures.cpp
-  LinearTransform.cpp
   LoopAnalysis.cpp
   NestedMatcher.cpp
   PresburgerSet.cpp

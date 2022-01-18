@@ -557,21 +557,24 @@ public:
 
   /// If the given value is an instruction inside of the loop and it can be
   /// hoisted, do so to make it trivially loop-invariant.
-  /// Return true if the value after any hoisting is loop invariant. This
-  /// function can be used as a slightly more aggressive replacement for
-  /// isLoopInvariant.
+  /// Return true if \c V is already loop-invariant, and false if \c V can't
+  /// be made loop-invariant. If \c V is made loop-invariant, \c Changed is
+  /// set to true. This function can be used as a slightly more aggressive
+  /// replacement for isLoopInvariant.
   ///
   /// If InsertPt is specified, it is the point to hoist instructions to.
   /// If null, the terminator of the loop preheader is used.
+  ///
   bool makeLoopInvariant(Value *V, bool &Changed,
                          Instruction *InsertPt = nullptr,
                          MemorySSAUpdater *MSSAU = nullptr) const;
 
   /// If the given instruction is inside of the loop and it can be hoisted, do
   /// so to make it trivially loop-invariant.
-  /// Return true if the instruction after any hoisting is loop invariant. This
-  /// function can be used as a slightly more aggressive replacement for
-  /// isLoopInvariant.
+  /// Return true if \c I is already loop-invariant, and false if \c I can't
+  /// be made loop-invariant. If \c I is made loop-invariant, \c Changed is
+  /// set to true. This function can be used as a slightly more aggressive
+  /// replacement for isLoopInvariant.
   ///
   /// If InsertPt is specified, it is the point to hoist instructions to.
   /// If null, the terminator of the loop preheader is used.
@@ -950,7 +953,7 @@ public:
   ///
   /// Note that because loops form a forest of trees, preorder is equivalent to
   /// reverse postorder.
-  SmallVector<LoopT *, 4> getLoopsInPreorder();
+  SmallVector<LoopT *, 4> getLoopsInPreorder() const;
 
   /// Return all of the loops in the function in preorder across the loop
   /// nests, with siblings in *reverse* program order.
@@ -960,7 +963,7 @@ public:
   ///
   /// Also note that this is *not* a reverse preorder. Only the siblings are in
   /// reverse program order.
-  SmallVector<LoopT *, 4> getLoopsInReverseSiblingPreorder();
+  SmallVector<LoopT *, 4> getLoopsInReverseSiblingPreorder() const;
 
   /// Return the inner most loop that BB lives in. If a basic block is in no
   /// loop (for example the entry node), null is returned.

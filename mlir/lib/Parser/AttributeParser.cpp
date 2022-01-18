@@ -260,20 +260,20 @@ OptionalParseResult Parser::parseOptionalAttribute(StringAttr &attribute,
 ///   attribute-entry ::= (bare-id | string-literal) `=` attribute-value
 ///
 ParseResult Parser::parseAttributeDict(NamedAttrList &attributes) {
-  llvm::SmallDenseSet<Identifier> seenKeys;
+  llvm::SmallDenseSet<StringAttr> seenKeys;
   auto parseElt = [&]() -> ParseResult {
     // The name of an attribute can either be a bare identifier, or a string.
-    Optional<Identifier> nameId;
+    Optional<StringAttr> nameId;
     if (getToken().is(Token::string))
-      nameId = builder.getIdentifier(getToken().getStringValue());
+      nameId = builder.getStringAttr(getToken().getStringValue());
     else if (getToken().isAny(Token::bare_identifier, Token::inttype) ||
              getToken().isKeyword())
-      nameId = builder.getIdentifier(getTokenSpelling());
+      nameId = builder.getStringAttr(getTokenSpelling());
     else
       return emitError("expected attribute name");
     if (!seenKeys.insert(*nameId).second)
       return emitError("duplicate key '")
-             << *nameId << "' in dictionary attribute";
+             << nameId->getValue() << "' in dictionary attribute";
     consumeToken();
 
     // Lazy load a dialect in the context if there is a possible namespace.
@@ -335,10 +335,6 @@ static Optional<APInt> buildAttributeAPInt(Type type, bool isNegative,
   unsigned width = type.isIndex() ? IndexType::kInternalStorageBitWidth
                                   : type.getIntOrFloatBitWidth();
 
-  // APInt cannot hold a zero bit value.
-  if (width == 0)
-    return llvm::None;
-
   if (width > result.getBitWidth()) {
     result = result.zext(width);
   } else if (width < result.getBitWidth()) {
@@ -350,7 +346,12 @@ static Optional<APInt> buildAttributeAPInt(Type type, bool isNegative,
     result = result.trunc(width);
   }
 
-  if (isNegative) {
+  if (width == 0) {
+    // 0 bit integers cannot be negative and manipulation of their sign bit will
+    // assert, so short-cut validation here.
+    if (isNegative)
+      return llvm::None;
+  } else if (isNegative) {
     // The value is negative, we have an overflow if the sign bit is not set
     // in the negated apInt.
     result.negate();
@@ -485,7 +486,7 @@ private:
   /// Storage used when parsing elements that were stored as hex values.
   Optional<Token> hexStorage;
 };
-} // end anonymous namespace
+} // namespace
 
 /// Parse the elements of a tensor literal. If 'allowHex' is true, the parser
 /// may also parse a tensor literal that is store as a hex string.
@@ -510,7 +511,7 @@ DenseElementsAttr TensorLiteralParser::getAttr(llvm::SMLoc loc,
 
   // Check to see if we parse the literal from a hex string.
   if (hexStorage.hasValue() &&
-      (eltType.isIntOrFloat() || eltType.isa<ComplexType>()))
+      (eltType.isIntOrIndexOrFloat() || eltType.isa<ComplexType>()))
     return getHexAttr(loc, type);
 
   // Check that the parsed storage size has the same number of elements to the
@@ -670,7 +671,7 @@ DenseElementsAttr TensorLiteralParser::getStringAttr(llvm::SMLoc loc,
 
   for (auto val : storage) {
     stringValues.push_back(val.second.getStringValue());
-    stringRefValues.push_back(stringValues.back());
+    stringRefValues.emplace_back(stringValues.back());
   }
 
   return DenseStringElementsAttr::get(type, stringRefValues);
@@ -856,7 +857,7 @@ Attribute Parser::parseOpaqueElementsAttr(Type attrType) {
   std::string data;
   if (parseElementAttrHexValues(*this, hexTok, data))
     return nullptr;
-  return OpaqueElementsAttr::get(builder.getIdentifier(name), type, data);
+  return OpaqueElementsAttr::get(builder.getStringAttr(name), type, data);
 }
 
 /// Shaped type for elements attribute.

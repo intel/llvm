@@ -535,7 +535,10 @@ class Sema;
     };
 
     /// ConversionKind - The kind of implicit conversion sequence.
-    unsigned ConversionKind;
+    unsigned ConversionKind : 31;
+
+    // Whether the initializer list was of an incomplete array.
+    unsigned InitializerListOfIncompleteArray : 1;
 
     /// When initializing an array or std::initializer_list from an
     /// initializer-list, this is the array or std::initializer_list type being
@@ -573,12 +576,15 @@ class Sema;
     };
 
     ImplicitConversionSequence()
-        : ConversionKind(Uninitialized), InitializerListContainerType() {
+        : ConversionKind(Uninitialized),
+          InitializerListOfIncompleteArray(false) {
       Standard.setAsIdentityConversion();
     }
 
     ImplicitConversionSequence(const ImplicitConversionSequence &Other)
         : ConversionKind(Other.ConversionKind),
+          InitializerListOfIncompleteArray(
+              Other.InitializerListOfIncompleteArray),
           InitializerListContainerType(Other.InitializerListContainerType) {
       switch (ConversionKind) {
       case Uninitialized: break;
@@ -680,8 +686,12 @@ class Sema;
     bool hasInitializerListContainerType() const {
       return !InitializerListContainerType.isNull();
     }
-    void setInitializerListContainerType(QualType T) {
+    void setInitializerListContainerType(QualType T, bool IA) {
       InitializerListContainerType = T;
+      InitializerListOfIncompleteArray = IA;
+    }
+    bool isInitializerListOfIncompleteArray() const {
+      return InitializerListOfIncompleteArray;
     }
     QualType getInitializerListContainerType() const {
       assert(hasInitializerListContainerType() &&
@@ -1192,6 +1202,20 @@ class Sema;
     Info.Constructor = dyn_cast<CXXConstructorDecl>(D);
     return Info;
   }
+
+  // Returns false if signature help is relevant despite number of arguments
+  // exceeding parameters. Specifically, it returns false when
+  // PartialOverloading is true and one of the following:
+  // * Function is variadic
+  // * Function is template variadic
+  // * Function is an instantiation of template variadic function
+  // The last case may seem strange. The idea is that if we added one more
+  // argument, we'd end up with a function similar to Function. Since, in the
+  // context of signature help and/or code completion, we do not know what the
+  // type of the next argument (that the user is typing) will be, this is as
+  // good candidate as we can get, despite the fact that it takes one less
+  // parameter.
+  bool shouldEnforceArgLimit(bool PartialOverloading, FunctionDecl *Function);
 
 } // namespace clang
 

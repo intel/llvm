@@ -70,6 +70,7 @@ add_llvm_unittest(SupportTests
   RISCVAttributeParserTest.cpp
   ScaledNumberTest.cpp
   SimpleTableTest.cpp
+  ScopedPrinterTest.cpp
   SHA256.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
@@ -94,6 +95,7 @@ add_llvm_unittest(SupportTests
   WithColorTest.cpp
   YAMLIOTest.cpp
   YAMLParserTest.cpp
+  buffer_ostream_test.cpp
   formatted_raw_ostream_test.cpp
   raw_fd_stream_test.cpp
   raw_ostream_test.cpp

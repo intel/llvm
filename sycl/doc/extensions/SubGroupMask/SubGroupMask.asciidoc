@@ -274,7 +274,7 @@ struct sub_group_mask {
   void insert_bits(const T &bits, id<1> pos = 0);
 
   template <typename T>
-  void extract_bits(T &out, id<1> pos = 0);
+  void extract_bits(T &out, id<1> pos = 0) const;
 
   void set();
   void set(id<1> id, bool value = true);

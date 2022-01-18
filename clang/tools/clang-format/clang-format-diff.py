@@ -47,8 +47,8 @@ def main():
                       help='custom pattern selecting file paths to reformat '
                       '(case sensitive, overrides -iregex)')
   parser.add_argument('-iregex', metavar='PATTERN', default=
-                      r'.*\.(cpp|cc|c\+\+|cxx|c|cl|h|hh|hpp|hxx|m|mm|inc|js|ts'
-                      r'|proto|protodevel|java|cs|json)',
+                      r'.*\.(cpp|cc|c\+\+|cxx|cppm|ccm|cxxm|c\+\+m|c|cl|h|hh|hpp|hxx'
+                      r'|m|mm|inc|js|ts|proto|protodevel|java|cs|json)',
                       help='custom pattern selecting file paths to reformat '
                       '(case insensitive, overridden by -regex)')
   parser.add_argument('-sort-includes', action='store_true', default=False,
@@ -90,9 +90,11 @@ def main():
       line_count = 1
       if match.group(3):
         line_count = int(match.group(3))
-      if line_count == 0:
-        continue
-      end_line = start_line + line_count - 1
+      # Also format lines range if line_count is 0 in case of deleting
+      # surrounding statements.
+      end_line = start_line
+      if line_count != 0:
+        end_line += line_count - 1
       lines_by_file.setdefault(filename, []).extend(
           ['-lines', str(start_line) + ':' + str(end_line)])
 

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_STATICANALYZER_CORE_BUGREPORTER_PATHDIAGNOSTIC_H
-#define LLVM_CLANG_STATICANALYZER_CORE_BUGREPORTER_PATHDIAGNOSTIC_H
+#ifndef LLVM_CLANG_ANALYSIS_PATHDIAGNOSTIC_H
+#define LLVM_CLANG_ANALYSIS_PATHDIAGNOSTIC_H
 
 #include "clang/AST/Stmt.h"
 #include "clang/Analysis/AnalysisDeclContext.h"
@@ -553,7 +553,7 @@ public:
 
   /// Return true if the diagnostic piece is prunable.
   bool isPrunable() const {
-    return IsPrunable.hasValue() ? IsPrunable.getValue() : false;
+    return IsPrunable.getValueOr(false);
   }
 
   void dump() const override;
@@ -905,4 +905,4 @@ public:
 } // namespace ento
 } // namespace clang
 
-#endif // LLVM_CLANG_STATICANALYZER_CORE_BUGREPORTER_PATHDIAGNOSTIC_H
+#endif // LLVM_CLANG_ANALYSIS_PATHDIAGNOSTIC_H

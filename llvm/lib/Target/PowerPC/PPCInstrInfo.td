@@ -316,6 +316,24 @@ def PPCbctrl_load_toc : SDNode<"PPCISD::BCTRL_LOAD_TOC",
                                [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
                                 SDNPVariadic]>;
 
+// Call nodes for strictfp calls (that define RM).
+def PPCcall_rm  : SDNode<"PPCISD::CALL_RM", SDT_PPCCall,
+                         [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                          SDNPVariadic]>;
+def PPCcall_nop_rm  : SDNode<"PPCISD::CALL_NOP_RM", SDT_PPCCall,
+                             [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                              SDNPVariadic]>;
+def PPCcall_notoc_rm : SDNode<"PPCISD::CALL_NOTOC_RM", SDT_PPCCall,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                               SDNPVariadic]>;
+def PPCbctrl_rm : SDNode<"PPCISD::BCTRL_RM", SDTNone,
+                         [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                          SDNPVariadic]>;
+def PPCbctrl_load_toc_rm : SDNode<"PPCISD::BCTRL_LOAD_TOC_RM",
+                                  SDTypeProfile<0, 1, []>,
+                                  [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                                   SDNPVariadic]>;
+
 def retflag       : SDNode<"PPCISD::RET_FLAG", SDTNone,
                            [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
@@ -1182,6 +1200,7 @@ def NaNsFPMath
     : Predicate<"!Subtarget->getTargetMachine().Options.NoNaNsFPMath">;
 def HasBPERMD : Predicate<"Subtarget->hasBPERMD()">;
 def HasExtDiv : Predicate<"Subtarget->hasExtDiv()">;
+def IsISA2_06 : Predicate<"Subtarget->isISA2_06()">;
 def IsISA2_07 : Predicate<"Subtarget->isISA2_07()">;
 def IsISA3_0 : Predicate<"Subtarget->isISA3_0()">;
 def HasFPU : Predicate<"Subtarget->hasFPU()">;
@@ -1891,6 +1910,26 @@ let isCall = 1, PPC970_Unit = 7, Defs = [LR] in {
   }
 }
 
+let isCall = 1, PPC970_Unit = 7, Defs = [LR, RM], isCodeGenOnly = 1 in {
+  // Convenient aliases for call instructions
+  let Uses = [RM] in {
+    def BL_RM  : IForm<18, 0, 1, (outs), (ins calltarget:$func),
+                       "bl $func", IIC_BrB, []>;  // See Pat patterns below.
+    def BLA_RM : IForm<18, 1, 1, (outs), (ins abscalltarget:$func),
+                       "bla $func", IIC_BrB, [(PPCcall_rm (i32 imm:$func))]>;
+
+    def BL_NOP_RM  : IForm_and_DForm_4_zero<18, 0, 1, 24,
+                                            (outs), (ins calltarget:$func),
+                                            "bl $func\n\tnop", IIC_BrB, []>;
+  }
+  let Uses = [CTR, RM] in {
+    let isPredicable = 1 in
+      def BCTRL_RM : XLForm_2_ext<19, 528, 20, 0, 1, (outs), (ins),
+                                  "bctrl", IIC_BrB, [(PPCbctrl_rm)]>,
+                  Requires<[In32BitMode]>;
+  }
+}
+
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [RM] in
 def TCRETURNdi :PPCEmitTimePseudo< (outs),
                         (ins calltarget:$dst, i32imm:$offset),
@@ -1917,6 +1956,14 @@ let isCall = 1, PPC970_Unit = 7, isCodeGenOnly = 1,
 
 }
 
+let isCall = 1, PPC970_Unit = 7, isCodeGenOnly = 1,
+    Defs = [LR, R2, RM], Uses = [CTR, RM], RST = 2 in {
+  def BCTRL_LWZinto_toc_RM:
+    XLForm_2_ext_and_DForm_1<19, 528, 20, 0, 1, 32, (outs),
+     (ins memri:$src), "bctrl\n\tlwz 2, $src", IIC_BrB,
+     [(PPCbctrl_load_toc_rm iaddr:$src)]>, Requires<[In32BitMode]>;
+
+}
 
 let isCodeGenOnly = 1, hasSideEffects = 0 in {
 
@@ -3107,14 +3154,14 @@ def MTFSB1 : XForm_43<63, 38, (outs), (ins u5imm:$FM),
              PPC970_DGroup_Single, PPC970_Unit_FPU;
 }
 
-let Defs = [RM] in {
+let Defs = [RM], hasSideEffects = 1 in {
   let isCodeGenOnly = 1 in
   def MTFSFb  : XFLForm<63, 711, (outs), (ins i32imm:$FM, f8rc:$rT),
                         "mtfsf $FM, $rT", IIC_IntMTFSB0,
                         [(int_ppc_mtfsf timm:$FM, f64:$rT)]>,
                 PPC970_DGroup_Single, PPC970_Unit_FPU;
 }
-let Uses = [RM] in {
+let Uses = [RM], hasSideEffects = 1 in {
   def MFFS   : XForm_42<63, 583, (outs f8rc:$rT), (ins),
                          "mffs $rT", IIC_IntMFFS,
                          [(set f64:$rT, (PPCmffs))]>,
@@ -3434,6 +3481,12 @@ def : Pat<(PPCcall (i32 tglobaladdr:$dst)),
 def : Pat<(PPCcall (i32 texternalsym:$dst)),
           (BL texternalsym:$dst)>;
 
+def : Pat<(PPCcall_rm (i32 tglobaladdr:$dst)),
+          (BL_RM tglobaladdr:$dst)>;
+
+def : Pat<(PPCcall_rm (i32 texternalsym:$dst)),
+          (BL_RM texternalsym:$dst)>;
+
 // Calls for AIX only
 def : Pat<(PPCcall (i32 mcsym:$dst)),
           (BL mcsym:$dst)>;
@@ -3443,6 +3496,15 @@ def : Pat<(PPCcall_nop (i32 mcsym:$dst)),
 
 def : Pat<(PPCcall_nop (i32 texternalsym:$dst)),
           (BL_NOP texternalsym:$dst)>;
+
+def : Pat<(PPCcall_rm (i32 mcsym:$dst)),
+          (BL_RM mcsym:$dst)>;
+
+def : Pat<(PPCcall_nop_rm (i32 mcsym:$dst)),
+          (BL_NOP_RM mcsym:$dst)>;
+
+def : Pat<(PPCcall_nop_rm (i32 texternalsym:$dst)),
+          (BL_NOP_RM texternalsym:$dst)>;
 
 def : Pat<(PPCtc_return (i32 tglobaladdr:$dst),  imm:$imm),
           (TCRETURNdi tglobaladdr:$dst, imm:$imm)>;
@@ -4502,7 +4564,7 @@ def MCRFS : XLForm_3<63, 64, (outs crrc:$BF), (ins crrc:$BFA),
 // All MTFSF variants may change the rounding mode so conservatively set it
 // as an implicit def for all of them.
 let Predicates = [HasFPU] in {
-let Defs = [RM] in {
+let Defs = [RM], hasSideEffects = 1 in {
 let isCodeGenOnly = 1,
     Pattern = [(int_ppc_mtfsfi timm:$BF, timm:$U)], W = 0 in
 def MTFSFIb : XLForm_4<63, 134, (outs), (ins u3imm:$BF, u4imm:$U),
@@ -4718,6 +4780,7 @@ class PPCAsmPseudo<string asm, dag iops>
 def : InstAlias<"sc", (SC 0)>;
 
 def : InstAlias<"sync", (SYNC 0)>, Requires<[HasSYNC]>;
+def : InstAlias<"hwsync", (SYNC 0), 0>, Requires<[HasSYNC]>;
 def : InstAlias<"msync", (SYNC 0), 0>, Requires<[HasSYNC]>;
 def : InstAlias<"lwsync", (SYNC 1)>, Requires<[HasSYNC]>;
 def : InstAlias<"ptesync", (SYNC 2)>, Requires<[HasSYNC]>;
@@ -5467,6 +5530,30 @@ def DWBytes3210 {
     (i64 (INSERT_SUBREG (i64 (IMPLICIT_DEF)), Word, sub_32));
 }
 
+// These instructions store a hash computed from the value of the link register
+// and the value of the stack pointer.
+let mayStore = 1 in {
+def HASHST : XForm_XD6_RA5_RB5<31, 722, (outs),
+                               (ins gprc:$RB, memrihash:$D_RA_XD),
+                               "hashst $RB, $D_RA_XD", IIC_IntGeneral, []>;
+def HASHSTP : XForm_XD6_RA5_RB5<31, 658, (outs),
+                                (ins gprc:$RB, memrihash:$D_RA_XD),
+                                "hashstp $RB, $D_RA_XD", IIC_IntGeneral, []>;
+}
+
+// These instructions check a hash computed from the value of the link register
+// and the value of the stack pointer. The hasSideEffects flag is needed as the
+// instruction may TRAP if the hash does not match the hash stored at the
+// specified address.
+let mayLoad = 1, hasSideEffects = 1 in {
+def HASHCHK : XForm_XD6_RA5_RB5<31, 754, (outs),
+                                (ins gprc:$RB, memrihash:$D_RA_XD),
+                                "hashchk $RB, $D_RA_XD", IIC_IntGeneral, []>;
+def HASHCHKP : XForm_XD6_RA5_RB5<31, 690, (outs),
+                                 (ins gprc:$RB, memrihash:$D_RA_XD),
+                                 "hashchkp $RB, $D_RA_XD", IIC_IntGeneral, []>;
+}
+
 // Now both high word and low word are reversed, next
 // swap the high word and low word.
 def : Pat<(i64 (bitreverse i64:$A)),
@@ -5476,8 +5563,6 @@ def : Pat<(int_ppc_stwcx ForceXForm:$dst, gprc:$A),
           (STWCX gprc:$A, ForceXForm:$dst)>;
 def : Pat<(int_ppc_stbcx ForceXForm:$dst, gprc:$A),
           (STBCX gprc:$A, ForceXForm:$dst)>;
-def : Pat<(int_ppc_tw gprc:$A, gprc:$B, i32:$IMM),
-          (TW $IMM, $A, $B)>;
 def : Pat<(int_ppc_trap gprc:$A),
           (TWI 24, $A, 0)>;
 

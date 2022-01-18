@@ -41,6 +41,7 @@
 
 #include "SPIRVDebug.h"
 #include "SPIRVUtil.h"
+#include "llvm/IR/Instruction.h"
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -109,11 +110,34 @@ public:
                   const std::string &DetailedMsg = "",
                   const char *CondString = nullptr,
                   const char *FileName = nullptr, unsigned LineNumber = 0);
+  // Check if Condition is satisfied and set ErrCode and DetailedMsg with Value
+  // text representation if not. Returns true if no error.
+  bool checkError(bool Condition, SPIRVErrorCode ErrCode, llvm::Value *Value,
+                  const std::string &DetailedMsg = "",
+                  const char *CondString = nullptr,
+                  const char *FileName = nullptr, unsigned LineNumber = 0);
 
 protected:
   SPIRVErrorCode ErrorCode;
   std::string ErrorMsg;
 };
+
+inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
+                                      llvm::Value *Value,
+                                      const std::string &Msg,
+                                      const char *CondString,
+                                      const char *FileName, unsigned LineNo) {
+  // Do early exit to avoid expensive toString() function call unless it is
+  // actually needed. That speeds up translator's execution.
+  if (Cond)
+    return Cond;
+  // Do not overwrite previous failure.
+  if (ErrorCode != SPIRVEC_Success)
+    return Cond;
+  std::string ValueIR = toString(Value);
+  return checkError(Cond, ErrCode, Msg + "\n" + ValueIR, CondString, FileName,
+                    LineNo);
+}
 
 inline bool SPIRVErrorLog::checkError(bool Cond, SPIRVErrorCode ErrCode,
                                       const std::string &Msg,

@@ -21,10 +21,10 @@
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCTargetOptions.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/LEB128.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
@@ -185,7 +185,7 @@ void DWARFExpressionCopyBytesTest::readAndCheckObjFile(
 void DWARFExpressionCopyBytesTest::testExpr(ArrayRef<uint8_t> ExprData) {
   // If we didn't build x86, do not run the test.
   if (!MRI)
-    return;
+    GTEST_SKIP();
 
   DataExtractor DE(ExprData, true, 8);
   DWARFExpression Expr(DE, 8);

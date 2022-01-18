@@ -1352,7 +1352,8 @@ public:
   SDValue getStoreVP(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
                      SDValue Mask, SDValue EVL, MachinePointerInfo PtrInfo,
                      Align Alignment, MachineMemOperand::Flags MMOFlags,
-                     const AAMDNodes &AAInfo, bool IsCompressing = false);
+                     const AAMDNodes &AAInfo = AAMDNodes(),
+                     bool IsCompressing = false);
   SDValue getStoreVP(SDValue Chain, const SDLoc &dl, SDValue Val, SDValue Ptr,
                      SDValue Mask, SDValue EVL, MachineMemOperand *MMO,
                      bool IsCompressing = false);
@@ -1731,10 +1732,6 @@ public:
   SDValue FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL, EVT VT,
                                  ArrayRef<SDValue> Ops);
 
-  SDValue FoldConstantVectorArithmetic(unsigned Opcode, const SDLoc &DL, EVT VT,
-                                       ArrayRef<SDValue> Ops,
-                                       const SDNodeFlags Flags = SDNodeFlags());
-
   /// Fold floating-point operations with 2 operands when both operands are
   /// constants and/or undefined.
   SDValue foldConstantFPMath(unsigned Opcode, const SDLoc &DL, EVT VT,
@@ -1836,6 +1833,19 @@ public:
   unsigned ComputeNumSignBits(SDValue Op, const APInt &DemandedElts,
                               unsigned Depth = 0) const;
 
+  /// Get the upper bound on bit size for this Value \p Op as a signed integer.
+  /// i.e.  x == sext(trunc(x to MaxSignedBits) to bitwidth(x)).
+  /// Similar to the APInt::getSignificantBits function.
+  /// Helper wrapper to ComputeNumSignBits.
+  unsigned ComputeMaxSignificantBits(SDValue Op, unsigned Depth = 0) const;
+
+  /// Get the upper bound on bit size for this Value \p Op as a signed integer.
+  /// i.e.  x == sext(trunc(x to MaxSignedBits) to bitwidth(x)).
+  /// Similar to the APInt::getSignificantBits function.
+  /// Helper wrapper to ComputeNumSignBits.
+  unsigned ComputeMaxSignificantBits(SDValue Op, const APInt &DemandedElts,
+                                     unsigned Depth = 0) const;
+
   /// Return true if this function can prove that \p Op is never poison
   /// and, if \p PoisonOnly is false, does not have undef bits.
   bool isGuaranteedNotToBeUndefOrPoison(SDValue Op, bool PoisonOnly = false,
@@ -1902,10 +1912,10 @@ public:
   ///
   /// NOTE: The function will return true for a demanded splat of UNDEF values.
   bool isSplatValue(SDValue V, const APInt &DemandedElts, APInt &UndefElts,
-                    unsigned Depth = 0);
+                    unsigned Depth = 0) const;
 
   /// Test whether \p V has a splatted value.
-  bool isSplatValue(SDValue V, bool AllowUndefs = false);
+  bool isSplatValue(SDValue V, bool AllowUndefs = false) const;
 
   /// If V is a splatted value, return the source vector and its splat index.
   SDValue getSplatSourceVector(SDValue V, int &SplatIndex);
@@ -1990,6 +2000,9 @@ public:
     std::tie(LoVT, HiVT) = GetSplitDestVTs(N.getValueType());
     return SplitVector(N, DL, LoVT, HiVT);
   }
+
+  /// Split the explicit vector length parameter of a VP operation.
+  std::pair<SDValue, SDValue> SplitEVL(SDValue N, EVT VecVT, const SDLoc &DL);
 
   /// Split the node's operand with EXTRACT_SUBVECTOR and
   /// return the low/high part.

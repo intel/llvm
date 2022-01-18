@@ -2695,8 +2695,8 @@ const BlockByrefInfo &CodeGenFunction::getBlockByrefInfo(const VarDecl *D) {
     size = varOffset;
 
   // Conversely, we might have to prevent LLVM from inserting padding.
-  } else if (CGM.getDataLayout().getABITypeAlignment(varTy)
-               > varAlign.getQuantity()) {
+  } else if (CGM.getDataLayout().getABITypeAlignment(varTy) >
+             uint64_t(varAlign.getQuantity())) {
     packed = true;
   }
   types.push_back(varTy);
@@ -2721,8 +2721,7 @@ void CodeGenFunction::emitByrefStructureInit(const AutoVarEmission &emission) {
   Address addr = emission.Addr;
 
   // That's an alloca of the byref structure type.
-  llvm::StructType *byrefType = cast<llvm::StructType>(
-    cast<llvm::PointerType>(addr.getPointer()->getType())->getElementType());
+  llvm::StructType *byrefType = cast<llvm::StructType>(addr.getElementType());
 
   unsigned nextHeaderIndex = 0;
   CharUnits nextHeaderOffset;

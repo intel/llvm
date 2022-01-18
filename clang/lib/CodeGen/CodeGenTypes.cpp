@@ -52,20 +52,6 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
   llvm::raw_svector_ostream OS(TypeName);
   OS << RD->getKindName() << '.';
 
-  // NOTE: The following block of code is copied from CLANG-3.6 with
-  // support of OpenCLCPlusPlus. It is rather the temporary solution
-  // that is going to be used until the general solution is ported/developed
-  // in the latest llvm trunk.
-  //
-  // For SYCL, the mangled type name is attached, so it can be
-  // reflown to proper name later.
-  if (getContext().getLangOpts().SYCLIsDevice) {
-    std::unique_ptr<MangleContext> MC(getContext().createMangleContext());
-    auto RDT = getContext().getRecordType(RD);
-    MC->mangleCXXRTTIName(RDT, OS);
-    OS << ".";
-  }
-
   // FIXME: We probably want to make more tweaks to the printing policy. For
   // example, we should probably enable PrintCanonicalTypes and
   // FullyQualifiedNames.
@@ -111,10 +97,10 @@ llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T, bool ForBitField) {
 
   llvm::Type *R = ConvertType(T);
 
-  // If this is a bool type, or an ExtIntType in a bitfield representation,
-  // map this integer to the target-specified size.
-  if ((ForBitField && T->isExtIntType()) ||
-      (!T->isExtIntType() && R->isIntegerTy(1)))
+  // If this is a bool type, or a bit-precise integer type in a bitfield
+  // representation, map this integer to the target-specified size.
+  if ((ForBitField && T->isBitIntType()) ||
+      (!T->isBitIntType() && R->isIntegerTy(1)))
     return llvm::IntegerType::get(getLLVMContext(),
                                   (unsigned)Context.getTypeSize(T));
 
@@ -805,8 +791,8 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     ResultType = CGM.getOpenCLRuntime().getPipeType(cast<PipeType>(Ty));
     break;
   }
-  case Type::ExtInt: {
-    const auto &EIT = cast<ExtIntType>(Ty);
+  case Type::BitInt: {
+    const auto &EIT = cast<BitIntType>(Ty);
     ResultType = llvm::Type::getIntNTy(getLLVMContext(), EIT->getNumBits());
     break;
   }
@@ -838,6 +824,8 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
   if (!Entry) {
     Entry = llvm::StructType::create(getLLVMContext());
     addRecordTypeName(RD, Entry, "");
+    if (RD->hasAttr<SYCLUsesAspectsAttr>())
+      CGM.addTypeWithAspects(Entry->getName(), RD);
   }
   llvm::StructType *Ty = Entry;
 

@@ -60,3 +60,16 @@
 
 ; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only>,loop-vectorize<interleave-forced-only;vectorize-forced-only>)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-19
 ; CHECK-19: function(loop-vectorize<no-interleave-forced-only;no-vectorize-forced-only;>,loop-vectorize<interleave-forced-only;vectorize-forced-only;>)
+
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='inliner-wrapper,inliner-wrapper-no-mandatory-first' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-20
+; CHECK-20: cgscc(inline<only-mandatory>,inline),cgscc(inline)
+
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='scc-oz-module-inliner' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-21
+; CHECK-21: require<globals-aa>,function(invalidate<aa>),require<profile-summary>,cgscc(devirt<4>(inline<only-mandatory>,inline,{{.*}},instcombine{{.*}}))
+
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='cgscc(function<eager-inv>(no-op-function)),function<eager-inv>(no-op-function)' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-22
+; CHECK-22: cgscc(function<eager-inv>(no-op-function)),function<eager-inv>(no-op-function)
+
+;; Test that the loop-nest-pass lnicm is printed with the other loop-passes in the pipeline.
+; RUN: opt -disable-output -disable-verify -print-pipeline-passes -passes='function(loop-mssa(licm,loop-rotate,loop-deletion,lnicm,loop-rotate))' < %s | FileCheck %s --match-full-lines --check-prefixes=CHECK-23
+; CHECK-23: function(loop-mssa(licm,loop-rotate,loop-deletion,lnicm,loop-rotate))

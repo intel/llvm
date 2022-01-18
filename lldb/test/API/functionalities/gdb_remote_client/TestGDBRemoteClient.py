@@ -3,23 +3,44 @@ import binascii
 import os.path
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
-from gdbclientutils import *
+from lldbsuite.test.gdbclientutils import *
+from lldbsuite.test.lldbgdbclient import GDBRemoteTestBase
 
 
 class TestGDBRemoteClient(GDBRemoteTestBase):
 
-    class gPacketResponder(MockGDBServerResponder):
-        def readRegisters(self):
-            return '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+    mydir = TestBase.compute_mydir(__file__)
 
-    @skipIfReproducer # Packet log is not populated during replay.
+    class gPacketResponder(MockGDBServerResponder):
+        registers = [
+            "name:rax;bitsize:64;offset:0;encoding:uint;format:hex;set:General Purpose Registers;ehframe:0;dwarf:0;",
+            "name:rbx;bitsize:64;offset:8;encoding:uint;format:hex;set:General Purpose Registers;ehframe:3;dwarf:3;",
+            "name:rcx;bitsize:64;offset:16;encoding:uint;format:hex;set:General Purpose Registers;ehframe:2;dwarf:2;generic:arg4;",
+            "name:rdx;bitsize:64;offset:24;encoding:uint;format:hex;set:General Purpose Registers;ehframe:1;dwarf:1;generic:arg3;",
+            "name:rdi;bitsize:64;offset:32;encoding:uint;format:hex;set:General Purpose Registers;ehframe:5;dwarf:5;generic:arg1;",
+            "name:rsi;bitsize:64;offset:40;encoding:uint;format:hex;set:General Purpose Registers;ehframe:4;dwarf:4;generic:arg2;",
+            "name:rbp;bitsize:64;offset:48;encoding:uint;format:hex;set:General Purpose Registers;ehframe:6;dwarf:6;generic:fp;",
+            "name:rsp;bitsize:64;offset:56;encoding:uint;format:hex;set:General Purpose Registers;ehframe:7;dwarf:7;generic:sp;",
+        ]
+
+        def qRegisterInfo(self, num):
+            try:
+                return self.registers[num]
+            except IndexError:
+                return "E45"
+
+        def readRegisters(self):
+            return len(self.registers) * 16 * '0'
+
+        def readRegister(self, register):
+            return "0000000000000000"
+
     def test_connect(self):
         """Test connecting to a remote gdb server"""
         target = self.createTarget("a.yaml")
         process = self.connect(target)
         self.assertPacketLogContains(["qProcessInfo", "qfThreadInfo"])
 
-    @skipIfReproducer # FIXME: Unexpected packet during (active) replay
     def test_attach_fail(self):
         error_msg = "mock-error-msg"
 
@@ -69,7 +90,6 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
                 None, 0, True, error)
         self.assertEquals("'A' packet returned an error: 71", error.GetCString())
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_read_registers_using_g_packets(self):
         """Test reading registers using 'g' packets (default behavior)"""
         self.dbg.HandleCommand(
@@ -87,11 +107,11 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         self.assertEquals(
                 0, len([p for p in self.server.responder.packetLog if p.startswith("p")]))
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_read_registers_using_p_packets(self):
         """Test reading registers using 'p' packets"""
         self.dbg.HandleCommand(
                 "settings set plugin.process.gdb-remote.use-g-packet-for-reading false")
+        self.server.responder = self.gPacketResponder()
         target = self.createTarget("a.yaml")
         process = self.connect(target)
 
@@ -100,7 +120,6 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         self.assertGreater(
                 len([p for p in self.server.responder.packetLog if p.startswith("p")]), 0)
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_write_registers_using_P_packets(self):
         """Test writing registers using 'P' packets (default behavior)"""
         self.server.responder = self.gPacketResponder()
@@ -113,7 +132,6 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         self.assertGreater(
                 len([p for p in self.server.responder.packetLog if p.startswith("P")]), 0)
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_write_registers_using_G_packets(self):
         """Test writing registers using 'G' packets"""
 
@@ -134,11 +152,11 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
 
     def read_registers(self, process):
         self.for_each_gpr(
-                process, lambda r: self.assertEquals("0x00000000", r.GetValue()))
+                process, lambda r: self.assertEquals("0x0000000000000000", r.GetValue()))
 
     def write_registers(self, process):
         self.for_each_gpr(
-                process, lambda r: r.SetValueFromCString("0x00000000"))
+                process, lambda r: r.SetValueFromCString("0x0000000000000000"))
 
     def for_each_gpr(self, process, operation):
         registers = process.GetThreadAtIndex(0).GetFrameAtIndex(0).GetRegisters()
@@ -397,3 +415,78 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         process = self.connect(target)
         process.Detach()
         self.assertRegex(self.server.responder.detached, r"D;0*400")
+
+    def test_signal_gdb(self):
+        class MyResponder(MockGDBServerResponder):
+            def qSupported(self, client_supported):
+                return "PacketSize=3fff;QStartNoAckMode+"
+
+            def haltReason(self):
+                return "S0a"
+
+            def cont(self):
+                return self.haltReason()
+
+        self.server.responder = MyResponder()
+
+        self.runCmd("platform select remote-linux")
+        target = self.createTarget("a.yaml")
+        process = self.connect(target)
+
+        self.assertEqual(process.threads[0].GetStopReason(),
+                         lldb.eStopReasonSignal)
+        self.assertEqual(process.threads[0].GetStopDescription(100),
+                         'signal SIGBUS')
+
+    def test_signal_lldb_old(self):
+        class MyResponder(MockGDBServerResponder):
+            def qSupported(self, client_supported):
+                return "PacketSize=3fff;QStartNoAckMode+"
+
+            def qHostInfo(self):
+                return "triple:61726d76372d756e6b6e6f776e2d6c696e75782d676e75;"
+
+            def QThreadSuffixSupported(self):
+                return "OK"
+
+            def haltReason(self):
+                return "S0a"
+
+            def cont(self):
+                return self.haltReason()
+
+        self.server.responder = MyResponder()
+
+        self.runCmd("platform select remote-linux")
+        target = self.createTarget("a.yaml")
+        process = self.connect(target)
+
+        self.assertEqual(process.threads[0].GetStopReason(),
+                         lldb.eStopReasonSignal)
+        self.assertEqual(process.threads[0].GetStopDescription(100),
+                         'signal SIGUSR1')
+
+    def test_signal_lldb(self):
+        class MyResponder(MockGDBServerResponder):
+            def qSupported(self, client_supported):
+                return "PacketSize=3fff;QStartNoAckMode+;native-signals+"
+
+            def qHostInfo(self):
+                return "triple:61726d76372d756e6b6e6f776e2d6c696e75782d676e75;"
+
+            def haltReason(self):
+                return "S0a"
+
+            def cont(self):
+                return self.haltReason()
+
+        self.server.responder = MyResponder()
+
+        self.runCmd("platform select remote-linux")
+        target = self.createTarget("a.yaml")
+        process = self.connect(target)
+
+        self.assertEqual(process.threads[0].GetStopReason(),
+                         lldb.eStopReasonSignal)
+        self.assertEqual(process.threads[0].GetStopDescription(100),
+                         'signal SIGUSR1')

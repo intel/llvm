@@ -89,7 +89,6 @@ class DS_Real <DS_Pseudo ps> :
                     !if(!or(ps.has_data0, ps.has_gws_data0), data0{9}, 0));
 }
 
-
 // DS Pseudo instructions
 
 class DS_0A1D_NORET<string opName, RegisterClass rc = VGPR_32>
@@ -714,6 +713,10 @@ foreach vt = Reg32Types.types in {
 defm : DSReadPat_mc <DS_READ_B32, vt, "load_local">;
 }
 
+defm : DSReadPat_mc <DS_READ_U8, i16, "atomic_load_8_local">;
+defm : DSReadPat_mc <DS_READ_U8, i32, "atomic_load_8_local">;
+defm : DSReadPat_mc <DS_READ_U16, i16, "atomic_load_16_local">;
+defm : DSReadPat_mc <DS_READ_U16, i32, "atomic_load_16_local">;
 defm : DSReadPat_mc <DS_READ_B32, i32, "atomic_load_32_local">;
 defm : DSReadPat_mc <DS_READ_B64, i64, "atomic_load_64_local">;
 
@@ -774,6 +777,10 @@ foreach vt = Reg32Types.types in {
 defm : DSWritePat_mc <DS_WRITE_B32, vt, "store_local">;
 }
 
+defm : DSAtomicWritePat_mc <DS_WRITE_B8, i16, "atomic_store_local_8">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B8, i32, "atomic_store_local_8">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B16, i16, "atomic_store_local_16">;
+defm : DSAtomicWritePat_mc <DS_WRITE_B16, i32, "atomic_store_local_16">;
 defm : DSAtomicWritePat_mc <DS_WRITE_B32, i32, "atomic_store_local_32">;
 defm : DSAtomicWritePat_mc <DS_WRITE_B64, i64, "atomic_store_local_64">;
 

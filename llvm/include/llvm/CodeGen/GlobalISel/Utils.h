@@ -16,6 +16,7 @@
 
 #include "GISelWorkList.h"
 #include "LostDebugLocObserver.h"
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/Register.h"
@@ -43,9 +44,9 @@ class TargetLowering;
 class TargetPassConfig;
 class TargetRegisterInfo;
 class TargetRegisterClass;
-class ConstantInt;
 class ConstantFP;
 class APFloat;
+class MachineIRBuilder;
 
 // Convenience macros for dealing with vector reduction opcodes.
 #define GISEL_VECREDUCE_CASES_ALL                                              \
@@ -265,12 +266,25 @@ Optional<APFloat> ConstantFoldFPBinOp(unsigned Opcode, const Register Op1,
                                       const Register Op2,
                                       const MachineRegisterInfo &MRI);
 
+/// Tries to constant fold a vector binop with sources \p Op1 and \p Op2.
+/// If successful, returns the G_BUILD_VECTOR representing the folded vector
+/// constant. \p MIB should have an insertion point already set to create new
+/// G_CONSTANT instructions as needed.
+Optional<MachineInstr *>
+ConstantFoldVectorBinop(unsigned Opcode, const Register Op1, const Register Op2,
+                        const MachineRegisterInfo &MRI, MachineIRBuilder &MIB);
+
 Optional<APInt> ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                   uint64_t Imm, const MachineRegisterInfo &MRI);
 
 Optional<APFloat> ConstantFoldIntToFloat(unsigned Opcode, LLT DstTy,
                                          Register Src,
                                          const MachineRegisterInfo &MRI);
+
+/// Tries to constant fold a G_CTLZ operation on \p Src. If \p Src is a vector
+/// then it tries to do an element-wise constant fold.
+Optional<SmallVector<unsigned>>
+ConstantFoldCTLZ(Register Src, const MachineRegisterInfo &MRI);
 
 /// Test if the given value is known to have exactly one bit set. This differs
 /// from computeKnownBits in that it doesn't necessarily determine which bit is
@@ -307,6 +321,11 @@ Register getFunctionLiveInPhysReg(MachineFunction &MF, const TargetInstrInfo &TI
 /// \p OrigTy elements, and unmerged into \p TargetTy
 LLVM_READNONE
 LLT getLCMType(LLT OrigTy, LLT TargetTy);
+
+LLVM_READNONE
+/// Return smallest type that covers both \p OrigTy and \p TargetTy and is
+/// multiple of TargetTy.
+LLT getCoverTy(LLT OrigTy, LLT TargetTy);
 
 /// Return a type where the total size is the greatest common divisor of \p
 /// OrigTy and \p TargetTy. This will try to either change the number of vector
@@ -363,6 +382,18 @@ Optional<FPValueAndVReg> getFConstantSplat(Register VReg,
                                            const MachineRegisterInfo &MRI,
                                            bool AllowUndef = true);
 
+/// Return true if the specified register is defined by G_BUILD_VECTOR or
+/// G_BUILD_VECTOR_TRUNC where all of the elements are \p SplatValue or undef.
+bool isBuildVectorConstantSplat(const Register Reg,
+                                const MachineRegisterInfo &MRI,
+                                int64_t SplatValue, bool AllowUndef);
+
+/// Return true if the specified instruction is a G_BUILD_VECTOR or
+/// G_BUILD_VECTOR_TRUNC where all of the elements are \p SplatValue or undef.
+bool isBuildVectorConstantSplat(const MachineInstr &MI,
+                                const MachineRegisterInfo &MRI,
+                                int64_t SplatValue, bool AllowUndef);
+
 /// Return true if the specified instruction is a G_BUILD_VECTOR or
 /// G_BUILD_VECTOR_TRUNC where all of the elements are 0 or undef.
 bool isBuildVectorAllZeros(const MachineInstr &MI,
@@ -396,6 +427,17 @@ bool isBuildVectorAllOnes(const MachineInstr &MI,
 /// In the above case, this will return a RegOrConstant containing 4.
 Optional<RegOrConstant> getVectorSplat(const MachineInstr &MI,
                                        const MachineRegisterInfo &MRI);
+
+/// Determines if \p MI defines a constant integer or a build vector of
+/// constant integers. Treats undef values as constants.
+bool isConstantOrConstantVector(MachineInstr &MI,
+                                const MachineRegisterInfo &MRI);
+
+/// Determines if \p MI defines a constant integer or a splat vector of
+/// constant integers.
+/// \returns the scalar constant or None.
+Optional<APInt> isConstantOrConstantSplatVector(MachineInstr &MI,
+                                                const MachineRegisterInfo &MRI);
 
 /// Attempt to match a unary predicate against a scalar/splat constant or every
 /// element of a constant G_BUILD_VECTOR. If \p ConstVal is null, the source

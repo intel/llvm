@@ -104,11 +104,11 @@ OptTable::OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase)
   for (unsigned i = 0, e = getNumOptions(); i != e; ++i) {
     unsigned Kind = getInfo(i + 1).Kind;
     if (Kind == Option::InputClass) {
-      assert(!TheInputOptionID && "Cannot have multiple input options!");
-      TheInputOptionID = getInfo(i + 1).ID;
+      assert(!InputOptionID && "Cannot have multiple input options!");
+      InputOptionID = getInfo(i + 1).ID;
     } else if (Kind == Option::UnknownClass) {
-      assert(!TheUnknownOptionID && "Cannot have multiple unknown options!");
-      TheUnknownOptionID = getInfo(i + 1).ID;
+      assert(!UnknownOptionID && "Cannot have multiple unknown options!");
+      UnknownOptionID = getInfo(i + 1).ID;
     } else if (Kind != Option::GroupClass) {
       FirstSearchableIndex = i;
       break;
@@ -150,10 +150,9 @@ OptTable::OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase)
   for (StringSet<>::const_iterator I = PrefixesUnion.begin(),
                                    E = PrefixesUnion.end(); I != E; ++I) {
     StringRef Prefix = I->getKey();
-    for (StringRef::const_iterator C = Prefix.begin(), CE = Prefix.end();
-                                   C != CE; ++C)
-      if (!is_contained(PrefixChars, *C))
-        PrefixChars.push_back(*C);
+    for (char C : Prefix)
+      if (!is_contained(PrefixChars, C))
+        PrefixChars.push_back(C);
   }
 }
 
@@ -337,13 +336,14 @@ bool OptTable::addValues(const char *Option, const char *Values) {
 // GroupedShortOptions is true, -a matches "-abc" and the argument in Args will
 // be updated to "-bc". This overload does not support
 // FlagsToInclude/FlagsToExclude or case insensitive options.
-Arg *OptTable::parseOneArgGrouped(InputArgList &Args, unsigned &Index) const {
+std::unique_ptr<Arg> OptTable::parseOneArgGrouped(InputArgList &Args,
+                                                  unsigned &Index) const {
   // Anything that doesn't start with PrefixesUnion is an input, as is '-'
   // itself.
   const char *CStr = Args.getArgString(Index);
   StringRef Str(CStr);
   if (isInput(PrefixesUnion, Str))
-    return new Arg(getOption(TheInputOptionID), Str, Index++, CStr);
+    return std::make_unique<Arg>(getOption(InputOptionID), Str, Index++, CStr);
 
   const Info *End = OptionInfos.data() + OptionInfos.size();
   StringRef Name = Str.ltrim(PrefixChars);
@@ -359,8 +359,9 @@ Arg *OptTable::parseOneArgGrouped(InputArgList &Args, unsigned &Index) const {
       continue;
 
     Option Opt(Start, this);
-    if (Arg *A = Opt.accept(Args, StringRef(Args.getArgString(Index), ArgSize),
-                            false, Index))
+    if (std::unique_ptr<Arg> A =
+            Opt.accept(Args, StringRef(Args.getArgString(Index), ArgSize),
+                       /*GroupedShortOption=*/false, Index))
       return A;
 
     // If Opt is a Flag of length 2 (e.g. "-a"), we know it is a prefix of
@@ -377,9 +378,11 @@ Arg *OptTable::parseOneArgGrouped(InputArgList &Args, unsigned &Index) const {
     Option Opt(Fallback, this);
     // Check that the last option isn't a flag wrongly given an argument.
     if (Str[2] == '=')
-      return new Arg(getOption(TheUnknownOptionID), Str, Index++, CStr);
+      return std::make_unique<Arg>(getOption(UnknownOptionID), Str, Index++,
+                                   CStr);
 
-    if (Arg *A = Opt.accept(Args, Str.substr(0, 2), true, Index)) {
+    if (std::unique_ptr<Arg> A = Opt.accept(
+            Args, Str.substr(0, 2), /*GroupedShortOption=*/true, Index)) {
       Args.replaceArgString(Index, Twine('-') + Str.substr(2));
       return A;
     }
@@ -390,22 +393,22 @@ Arg *OptTable::parseOneArgGrouped(InputArgList &Args, unsigned &Index) const {
   if (Str[1] != '-') {
     CStr = Args.MakeArgString(Str.substr(0, 2));
     Args.replaceArgString(Index, Twine('-') + Str.substr(2));
-    return new Arg(getOption(TheUnknownOptionID), CStr, Index, CStr);
+    return std::make_unique<Arg>(getOption(UnknownOptionID), CStr, Index, CStr);
   }
 
-  return new Arg(getOption(TheUnknownOptionID), Str, Index++, CStr);
+  return std::make_unique<Arg>(getOption(UnknownOptionID), Str, Index++, CStr);
 }
 
-Arg *OptTable::ParseOneArg(const ArgList &Args, unsigned &Index,
-                           unsigned FlagsToInclude,
-                           unsigned FlagsToExclude) const {
+std::unique_ptr<Arg> OptTable::ParseOneArg(const ArgList &Args, unsigned &Index,
+                                           unsigned FlagsToInclude,
+                                           unsigned FlagsToExclude) const {
   unsigned Prev = Index;
   const char *Str = Args.getArgString(Index);
 
   // Anything that doesn't start with PrefixesUnion is an input, as is '-'
   // itself.
   if (isInput(PrefixesUnion, Str))
-    return new Arg(getOption(TheInputOptionID), Str, Index++, Str);
+    return std::make_unique<Arg>(getOption(InputOptionID), Str, Index++, Str);
 
   const Info *Start = OptionInfos.data() + FirstSearchableIndex;
   const Info *End = OptionInfos.data() + OptionInfos.size();
@@ -439,8 +442,9 @@ Arg *OptTable::ParseOneArg(const ArgList &Args, unsigned &Index,
       continue;
 
     // See if this option matches.
-    if (Arg *A = Opt.accept(Args, StringRef(Args.getArgString(Index), ArgSize),
-                            false, Index))
+    if (std::unique_ptr<Arg> A =
+            Opt.accept(Args, StringRef(Args.getArgString(Index), ArgSize),
+                       /*GroupedShortOption=*/false, Index))
       return A;
 
     // Otherwise, see if this argument was missing values.
@@ -451,9 +455,9 @@ Arg *OptTable::ParseOneArg(const ArgList &Args, unsigned &Index,
   // If we failed to find an option and this arg started with /, then it's
   // probably an input path.
   if (Str[0] == '/')
-    return new Arg(getOption(TheInputOptionID), Str, Index++, Str);
+    return std::make_unique<Arg>(getOption(InputOptionID), Str, Index++, Str);
 
-  return new Arg(getOption(TheUnknownOptionID), Str, Index++, Str);
+  return std::make_unique<Arg>(getOption(UnknownOptionID), Str, Index++, Str);
 }
 
 InputArgList OptTable::ParseArgs(ArrayRef<const char *> ArgArr,
@@ -481,7 +485,7 @@ InputArgList OptTable::ParseArgs(ArrayRef<const char *> ArgArr,
     }
 
     unsigned Prev = Index;
-    Arg *A = GroupedShortOptions
+    std::unique_ptr<Arg> A = GroupedShortOptions
                  ? parseOneArgGrouped(Args, Index)
                  : ParseOneArg(Args, Index, FlagsToInclude, FlagsToExclude);
     assert((Index > Prev || GroupedShortOptions) &&
@@ -496,7 +500,7 @@ InputArgList OptTable::ParseArgs(ArrayRef<const char *> ArgArr,
       break;
     }
 
-    Args.append(A);
+    Args.append(A.release());
   }
 
   return Args;
@@ -587,16 +591,16 @@ static void PrintHelpOptionList(raw_ostream &OS, StringRef Title,
 
   // Find the maximum option length.
   unsigned OptionFieldWidth = 0;
-  for (unsigned i = 0, e = OptionHelp.size(); i != e; ++i) {
+  for (const OptionInfo &Opt : OptionHelp) {
     // Limit the amount of padding we are willing to give up for alignment.
-    unsigned Length = OptionHelp[i].Name.size();
+    unsigned Length = Opt.Name.size();
     if (Length <= 23)
       OptionFieldWidth = std::max(OptionFieldWidth, Length);
   }
 
   const unsigned InitialPad = 2;
-  for (unsigned i = 0, e = OptionHelp.size(); i != e; ++i) {
-    const std::string &Option = OptionHelp[i].Name;
+  for (const OptionInfo &Opt : OptionHelp) {
+    const std::string &Option = Opt.Name;
     int Pad = OptionFieldWidth - int(Option.size());
     OS.indent(InitialPad) << Option;
 
@@ -605,7 +609,7 @@ static void PrintHelpOptionList(raw_ostream &OS, StringRef Title,
       OS << "\n";
       Pad = OptionFieldWidth + InitialPad;
     }
-    OS.indent(Pad + 1) << OptionHelp[i].HelpText << '\n';
+    OS.indent(Pad + 1) << Opt.HelpText << '\n';
   }
 }
 

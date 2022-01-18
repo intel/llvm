@@ -23,11 +23,13 @@
 using namespace llvm;
 using namespace IRSimilarity;
 
+namespace llvm {
 cl::opt<bool>
     DisableBranches("no-ir-sim-branch-matching", cl::init(false),
                     cl::ReallyHidden,
                     cl::desc("disable similarity matching, and outlining, "
                              "across branches for debugging purposes."));
+} // namespace llvm
 
 IRInstructionData::IRInstructionData(Instruction &I, bool Legality,
                                      IRInstructionDataList &IDList)
@@ -624,8 +626,8 @@ bool IRSimilarityCandidate::checkRelativeLocations(RelativeLocMapping A,
   B.IRSC.getBasicBlocks(BasicBlockB);
   
   // Determine if the block is contained in the region.
-  bool AContained = BasicBlockA.find(ABB) != BasicBlockA.end();
-  bool BContained = BasicBlockB.find(BBB) != BasicBlockB.end();
+  bool AContained = BasicBlockA.contains(ABB);
+  bool BContained = BasicBlockB.contains(BBB);
 
   // Both blocks need to be contained in the region, or both need to be outside
   // the reigon.
@@ -820,7 +822,7 @@ void IRSimilarityIdentifier::populateMapper(
 /// subsequence from the \p InstrList, and create an IRSimilarityCandidate from
 /// the IRInstructionData in subsequence.
 ///
-/// \param [in] Mapper - The instruction mapper for sanity checks.
+/// \param [in] Mapper - The instruction mapper for basic correctness checks.
 /// \param [in] InstrList - The vector that holds the instruction data.
 /// \param [in] IntegerMapping - The vector that holds the mapped integers.
 /// \param [out] CandsForRepSubstring - The vector to store the generated
@@ -895,14 +897,14 @@ void IRSimilarityCandidate::createCanonicalRelationFrom(
       bool Found = false;
       for (unsigned Val : GVNMapping.second) {
         // We make sure the target value number hasn't already been reserved.
-        if (UsedGVNs.find(Val) != UsedGVNs.end())
+        if (UsedGVNs.contains(Val))
           continue;
 
         // We make sure that the opposite mapping is still consistent.
         DenseMap<unsigned, DenseSet<unsigned>>::iterator It =
             FromSourceMapping.find(Val);
 
-        if (It->second.find(SourceGVN) == It->second.end())
+        if (!It->second.contains(SourceGVN))
           continue;
 
         // We pick the first item that satisfies these conditions.

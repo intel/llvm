@@ -3,7 +3,7 @@
 // Tests for incorrect argument values for Intel FPGA loop fusion function attributes
 [[intel::loop_fuse(5)]] int a; // expected-error{{'loop_fuse' attribute only applies to functions}}
 
-[[intel::loop_fuse("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+[[intel::loop_fuse("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
 
 [[intel::loop_fuse(1048577)]] void func1() {}        // OK
 [[intel::loop_fuse_independent(-1)]] void func2() {} // expected-error{{'loop_fuse_independent' attribute requires a non-negative integral compile time constant expression}}

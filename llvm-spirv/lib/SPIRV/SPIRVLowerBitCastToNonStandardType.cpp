@@ -74,7 +74,9 @@ bool lowerBitCastToNonStdVec(Instruction *OldInst, Value *NewInst,
   static constexpr unsigned MaxRecursionDepth = 16;
   if (RecursionDepth++ > MaxRecursionDepth)
     report_fatal_error(
-        "The depth of recursion exceeds the maximum possible depth", false);
+        llvm::Twine(
+            "The depth of recursion exceeds the maximum possible depth"),
+        false);
 
   bool Changed = false;
   VectorType *NewVecTy = getVectorType(NewInst->getType());
@@ -103,8 +105,8 @@ bool lowerBitCastToNonStdVec(Instruction *OldInst, Value *NewInst,
       }
       // Handle extractelement instruction which is following the load
       else if (auto *EEI = dyn_cast<ExtractElementInst>(U)) {
-        uint64_t NumElemsInOldVec = OldVecTy->getElementCount().getValue();
-        uint64_t NumElemsInNewVec = NewVecTy->getElementCount().getValue();
+        uint64_t NumElemsInOldVec = OldVecTy->getElementCount().getFixedValue();
+        uint64_t NumElemsInNewVec = NewVecTy->getElementCount().getFixedValue();
         uint64_t OldElemIdx =
             cast<ConstantInt>(EEI->getIndexOperand())->getZExtValue();
         uint64_t NewElemIdx =
@@ -166,15 +168,18 @@ public:
           continue;
         VectorType *SrcVecTy = getVectorType(BC->getSrcTy());
         if (SrcVecTy) {
-          uint64_t NumElemsInSrcVec = SrcVecTy->getElementCount().getValue();
+          uint64_t NumElemsInSrcVec =
+              SrcVecTy->getElementCount().getFixedValue();
           if (!isValidVectorSize(NumElemsInSrcVec))
-            report_fatal_error("Unsupported vector type with the size of: " +
-                                   std::to_string(NumElemsInSrcVec),
-                               false);
+            report_fatal_error(
+                llvm::Twine("Unsupported vector type with the size of: " +
+                            std::to_string(NumElemsInSrcVec)),
+                false);
         }
         VectorType *DestVecTy = getVectorType(BC->getDestTy());
         if (DestVecTy) {
-          uint64_t NumElemsInDestVec = DestVecTy->getElementCount().getValue();
+          uint64_t NumElemsInDestVec =
+              DestVecTy->getElementCount().getFixedValue();
           if (!isValidVectorSize(NumElemsInDestVec))
             BCastsToNonStdVec.push_back(&I);
         }

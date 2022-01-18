@@ -124,8 +124,10 @@ void RuntimeDyldImpl::resolveRelocations() {
   std::lock_guard<sys::Mutex> locked(lock);
 
   // Print out the sections prior to relocation.
-  LLVM_DEBUG(for (int i = 0, e = Sections.size(); i != e; ++i)
-                 dumpSectionMemory(Sections[i], "before relocations"););
+  LLVM_DEBUG({
+    for (SectionEntry &S : Sections)
+      dumpSectionMemory(S, "before relocations");
+  });
 
   // First, resolve relocations associated with external symbols.
   if (auto Err = resolveExternalSymbols()) {
@@ -136,21 +138,23 @@ void RuntimeDyldImpl::resolveRelocations() {
   resolveLocalRelocations();
 
   // Print out sections after relocation.
-  LLVM_DEBUG(for (int i = 0, e = Sections.size(); i != e; ++i)
-                 dumpSectionMemory(Sections[i], "after relocations"););
+  LLVM_DEBUG({
+    for (SectionEntry &S : Sections)
+      dumpSectionMemory(S, "after relocations");
+  });
 }
 
 void RuntimeDyldImpl::resolveLocalRelocations() {
   // Iterate over all outstanding relocations
-  for (auto it = Relocations.begin(), e = Relocations.end(); it != e; ++it) {
+  for (const auto &Rel : Relocations) {
     // The Section here (Sections[i]) refers to the section in which the
     // symbol for the relocation is located.  The SectionID in the relocation
     // entry provides the section to which the relocation will be applied.
-    unsigned Idx = it->first;
+    unsigned Idx = Rel.first;
     uint64_t Addr = getSectionLoadAddress(Idx);
     LLVM_DEBUG(dbgs() << "Resolving relocations Section #" << Idx << "\t"
                       << format("%p", (uintptr_t)Addr) << "\n");
-    resolveRelocationList(it->second, Addr);
+    resolveRelocationList(Rel.second, Addr);
   }
   Relocations.clear();
 }
@@ -457,9 +461,9 @@ static uint64_t
 computeAllocationSizeForSections(std::vector<uint64_t> &SectionSizes,
                                  uint64_t Alignment) {
   uint64_t TotalSize = 0;
-  for (size_t Idx = 0, Cnt = SectionSizes.size(); Idx < Cnt; Idx++) {
+  for (uint64_t SectionSize : SectionSizes) {
     uint64_t AlignedSize =
-        (SectionSizes[Idx] + Alignment - 1) / Alignment * Alignment;
+        (SectionSize + Alignment - 1) / Alignment * Alignment;
     TotalSize += AlignedSize;
   }
   return TotalSize;
@@ -680,7 +684,7 @@ unsigned RuntimeDyldImpl::computeSectionStubBufSize(const ObjectFile &Obj,
 
     Expected<section_iterator> RelSecOrErr = SI->getRelocatedSection();
     if (!RelSecOrErr)
-      report_fatal_error(toString(RelSecOrErr.takeError()));
+      report_fatal_error(Twine(toString(RelSecOrErr.takeError())));
 
     section_iterator RelSecI = *RelSecOrErr;
     if (!(RelSecI == Section))
@@ -1139,7 +1143,7 @@ void RuntimeDyldImpl::applyExternalSymbolRelocations(
 
       // FIXME: Implement error handling that doesn't kill the host program!
       if (!Addr && !Resolver.allowsZeroSymbols())
-        report_fatal_error("Program used external function '" + Name +
+        report_fatal_error(Twine("Program used external function '") + Name +
                            "' which could not be resolved!");
 
       // If Resolver returned UINT64_MAX, the client wants to handle this symbol

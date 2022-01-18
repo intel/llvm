@@ -208,17 +208,11 @@ void LinkerDriver::addBuffer(std::unique_ptr<MemoryBuffer> mb,
     ctx.symtab.addFile(make<ArchiveFile>(ctx, mbref));
     break;
   case file_magic::bitcode:
-    if (lazy)
-      ctx.symtab.addFile(make<LazyObjFile>(ctx, mbref));
-    else
-      ctx.symtab.addFile(make<BitcodeFile>(ctx, mbref, "", 0));
+    ctx.symtab.addFile(make<BitcodeFile>(ctx, mbref, "", 0, lazy));
     break;
   case file_magic::coff_object:
   case file_magic::coff_import_library:
-    if (lazy)
-      ctx.symtab.addFile(make<LazyObjFile>(ctx, mbref));
-    else
-      ctx.symtab.addFile(make<ObjFile>(ctx, mbref));
+    ctx.symtab.addFile(make<ObjFile>(ctx, mbref, lazy));
     break;
   case file_magic::pdb:
     ctx.symtab.addFile(make<PDBInputFile>(ctx, mbref));
@@ -282,7 +276,8 @@ void LinkerDriver::addArchiveBuffer(MemoryBufferRef mb, StringRef symName,
   if (magic == file_magic::coff_object) {
     obj = make<ObjFile>(ctx, mb);
   } else if (magic == file_magic::bitcode) {
-    obj = make<BitcodeFile>(ctx, mb, parentName, offsetInArchive);
+    obj =
+        make<BitcodeFile>(ctx, mb, parentName, offsetInArchive, /*lazy=*/false);
   } else {
     error("unknown file type: " + mb.getBufferIdentifier());
     return;
@@ -823,16 +818,12 @@ static void createImportLibrary(bool asLib) {
     exports.push_back(e2);
   }
 
-  auto handleError = [](Error &&e) {
-    handleAllErrors(std::move(e),
-                    [](ErrorInfoBase &eib) { error(eib.message()); });
-  };
   std::string libName = getImportName(asLib);
   std::string path = getImplibPath();
 
   if (!config->incremental) {
-    handleError(writeImportLibrary(libName, path, exports, config->machine,
-                                   config->mingw));
+    checkError(writeImportLibrary(libName, path, exports, config->machine,
+                                  config->mingw));
     return;
   }
 
@@ -841,8 +832,8 @@ static void createImportLibrary(bool asLib) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> oldBuf = MemoryBuffer::getFile(
       path, /*IsText=*/false, /*RequiresNullTerminator=*/false);
   if (!oldBuf) {
-    handleError(writeImportLibrary(libName, path, exports, config->machine,
-                                   config->mingw));
+    checkError(writeImportLibrary(libName, path, exports, config->machine,
+                                  config->mingw));
     return;
   }
 
@@ -854,7 +845,7 @@ static void createImportLibrary(bool asLib) {
 
   if (Error e = writeImportLibrary(libName, tmpName, exports, config->machine,
                                    config->mingw)) {
-    handleError(std::move(e));
+    checkError(std::move(e));
     return;
   }
 
@@ -862,7 +853,7 @@ static void createImportLibrary(bool asLib) {
       tmpName, /*IsText=*/false, /*RequiresNullTerminator=*/false));
   if ((*oldBuf)->getBuffer() != newBuf->getBuffer()) {
     oldBuf->reset();
-    handleError(errorCodeToError(sys::fs::rename(tmpName, path)));
+    checkError(errorCodeToError(sys::fs::rename(tmpName, path)));
   } else {
     sys::fs::remove(tmpName);
   }
@@ -1432,6 +1423,8 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
       config->pdbPath = arg->getValue();
     if (auto *arg = args.getLastArg(OPT_pdbaltpath))
       config->pdbAltPath = arg->getValue();
+    if (auto *arg = args.getLastArg(OPT_pdbpagesize))
+      parsePDBPageSize(arg->getValue());
     if (args.hasArg(OPT_natvis))
       config->natvisFiles = args.getAllArgValues(OPT_natvis);
     if (args.hasArg(OPT_pdbstream)) {
@@ -2087,7 +2080,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (args.hasArg(OPT_include_optional)) {
     // Handle /includeoptional
     for (auto *arg : args.filtered(OPT_include_optional))
-      if (dyn_cast_or_null<LazyArchive>(ctx.symtab.find(arg->getValue())))
+      if (isa_and_nonnull<LazyArchive>(ctx.symtab.find(arg->getValue())))
         addUndefined(arg->getValue());
     while (run());
   }
@@ -2142,11 +2135,11 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   // Do LTO by compiling bitcode input files to a set of native COFF files then
   // link those files (unless -thinlto-index-only was given, in which case we
   // resolve symbols and write indices, but don't generate native code or link).
-  ctx.symtab.addCombinedLTOObjects();
+  ctx.symtab.compileBitcodeFiles();
 
   // If -thinlto-index-only is given, we should create only "index
   // files" and not object files. Index file creation is already done
-  // in addCombinedLTOObject, so we are done if that's the case.
+  // in compileBitcodeFiles, so we are done if that's the case.
   if (config->thinLTOIndexOnly)
     return;
 

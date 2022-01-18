@@ -103,7 +103,7 @@ template <typename T> struct vec_helper {
   static constexpr RetType get(T value) { return value; }
 };
 
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct vec_helper<std::byte> {
   using RetType = std::uint8_t;
   static constexpr RetType get(std::byte value) { return (RetType)value; }
@@ -542,12 +542,13 @@ using vec_data_t = typename detail::vec_helper<T>::RetType;
 // For information on calling conventions for x64 processors, see
 // Calling Convention
 // (https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention).
-#pragma message ("Alignment of class vec is not in accordance with SYCL \
+#pragma message("Alignment of class vec is not in accordance with SYCL \
 specification requirements, a limitation of the MSVC compiler(Error C2719).\
-Applied default alignment.")
-#define __SYCL_ALIGNAS(x)
+Requested alignment applied, limited at 64.")
+#define __SYCL_ALIGNED_VAR(type, x, var)                                       \
+  type __declspec(align((x < 64) ? x : 64)) var
 #else
-#define __SYCL_ALIGNAS(N) alignas(N)
+#define __SYCL_ALIGNED_VAR(type, x, var) alignas(x) type var
 #endif
 
 /// Provides a cross-patform vector class template that works efficiently on
@@ -1363,12 +1364,14 @@ private:
   }
 
   // fields
-  // Used "__SYCL_ALIGNAS" instead "alignas" to handle MSVC compiler.
+  // Used "__SYCL_ALIGNED_VAR" instead "alignas" to handle MSVC compiler.
   // For MSVC compiler max alignment is 64, e.g. vec<double, 16> required
   // alignment of 128 and MSVC compiler cann't align a parameter with requested
-  // alignment of 128.
-  __SYCL_ALIGNAS((detail::vector_alignment<DataT, NumElements>::value))
-  DataType m_Data;
+  // alignment of 128. For alignment request larger than 64, 64-alignment
+  // is applied
+  __SYCL_ALIGNED_VAR(DataType,
+                     (detail::vector_alignment<DataT, NumElements>::value),
+                     m_Data);
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -2206,7 +2209,7 @@ using select_apply_cl_t =
         __SYCL_GET_CL_TYPE(int, num), __SYCL_GET_CL_TYPE(long, num)>;          \
   };
 
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #define __SYCL_DECLARE_BYTE_CONVERTER(num)                                     \
   template <> class BaseCLTypeConverter<std::byte, num> {                      \
   public:                                                                      \
@@ -2231,7 +2234,7 @@ using select_apply_cl_t =
     using DataType = bool;                                                     \
   };
 
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #define __SYCL_DECLARE_SCALAR_BYTE_CONVERTER                                   \
   template <> class BaseCLTypeConverter<std::byte, 1> {                        \
   public:                                                                      \
@@ -2330,7 +2333,7 @@ using select_apply_cl_t =
   __SYCL_DECLARE_SCALAR_BOOL_CONVERTER                                         \
   } // namespace detail
 
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #define __SYCL_DECLARE_BYTE_VECTOR_CONVERTER                                   \
   namespace detail {                                                           \
   __SYCL_DECLARE_BYTE_CONVERTER(2)                                             \
@@ -2344,7 +2347,7 @@ using select_apply_cl_t =
 __SYCL_DECLARE_VECTOR_CONVERTERS(char)
 __SYCL_DECLARE_SCHAR_VECTOR_CONVERTERS
 __SYCL_DECLARE_BOOL_VECTOR_CONVERTERS
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 __SYCL_DECLARE_BYTE_VECTOR_CONVERTER
 #endif
 __SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(uchar)
@@ -2371,7 +2374,7 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef __SYCL_DECLARE_SCALAR_SCHAR_CONVERTER
 #undef __SYCL_DECLARE_BOOL_VECTOR_CONVERTERS
 #undef __SYCL_DECLARE_BOOL_CONVERTER
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #undef __SYCL_DECLARE_BYTE_VECTOR_CONVERTER
 #undef __SYCL_DECLARE_BYTE_CONVERTER
 #undef __SYCL_DECLARE_SCALAR_BYTE_CONVERTER
@@ -2414,10 +2417,13 @@ struct is_device_copyable<std::tuple<T, Ts...>>
     : detail::bool_constant<is_device_copyable<T>::value &&
                             is_device_copyable<std::tuple<Ts...>>::value> {};
 
-// marray is device copyable if element type is device copyable
+// marray is device copyable if element type is device copyable and it is also
+// not trivially copyable (if the element type is trivially copyable, the marray
+// is device copyable by default).
 template <typename T, std::size_t N>
-struct is_device_copyable<sycl::marray<T, N>,
-                          std::enable_if_t<is_device_copyable<T>::value>>
+struct is_device_copyable<
+    sycl::marray<T, N>, std::enable_if_t<is_device_copyable<T>::value &&
+                                         !std::is_trivially_copyable<T>::value>>
     : std::true_type {};
 
 namespace detail {
@@ -2494,4 +2500,4 @@ struct CheckDeviceCopyable<
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#undef __SYCL_ALIGNAS
+#undef __SYCL_ALIGNED_VAR

@@ -12,7 +12,8 @@
 
 #include "../PassDetail.h"
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -25,17 +26,17 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
 
 namespace {
-struct TosaToLinalgOnTensors
-    : public TosaToLinalgOnTensorsBase<TosaToLinalgOnTensors> {
+struct TosaToLinalg : public TosaToLinalgBase<TosaToLinalg> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<linalg::LinalgDialect, math::MathDialect, StandardOpsDialect,
-                tensor::TensorDialect, scf::SCFDialect>();
+    registry.insert<arith::ArithmeticDialect, linalg::LinalgDialect,
+                    math::MathDialect, StandardOpsDialect,
+                    tensor::TensorDialect, scf::SCFDialect>();
   }
 
   void runOnFunction() override {
@@ -50,22 +51,26 @@ public:
     target.addLegalOp<tosa::IfOp>();
     target.addLegalOp<tosa::ConstOp>();
     target.addLegalOp<tosa::WhileOp>();
+    target.addLegalOp<tosa::SliceOp>();
 
     target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
 
     FuncOp func = getFunction();
-    mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(&patterns);
+    mlir::tosa::populateTosaToLinalgConversionPatterns(&patterns);
     if (failed(applyFullConversion(func, target, std::move(patterns))))
       signalPassFailure();
   }
 };
 } // namespace
 
-std::unique_ptr<Pass> mlir::tosa::createTosaToLinalgOnTensors() {
-  return std::make_unique<TosaToLinalgOnTensors>();
+std::unique_ptr<Pass> mlir::tosa::createTosaToLinalg() {
+  return std::make_unique<TosaToLinalg>();
 }
 
-void mlir::tosa::addTosaToLinalgOnTensorsPasses(OpPassManager &pm) {
+void mlir::tosa::addTosaToLinalgPasses(OpPassManager &pm) {
   pm.addNestedPass<FuncOp>(createTosaMakeBroadcastablePass());
-  pm.addNestedPass<FuncOp>(createTosaToLinalgOnTensors());
+  pm.addNestedPass<FuncOp>(createTosaToLinalgNamed());
+  pm.addNestedPass<FuncOp>(mlir::createCanonicalizerPass());
+  pm.addNestedPass<FuncOp>(createTosaMakeBroadcastablePass());
+  pm.addNestedPass<FuncOp>(createTosaToLinalg());
 }

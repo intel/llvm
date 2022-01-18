@@ -41,10 +41,11 @@ private:
 
     char *BlockWorkingMem = B.getAlreadyMutableContent().data();
     char *FixupPtr = BlockWorkingMem + E.getOffset();
-    JITTargetAddress FixupAddress = B.getAddress() + E.getOffset();
+    auto FixupAddress = B.getAddress() + E.getOffset();
     switch (E.getKind()) {
     case aarch64::R_AARCH64_CALL26: {
-      assert((FixupAddress & 0x3) == 0 && "Call-inst is not 32-bit aligned");
+      assert((FixupAddress.getValue() & 0x3) == 0 &&
+             "Call-inst is not 32-bit aligned");
       int64_t Value = E.getTarget().getAddress() - FixupAddress + E.getAddend();
 
       if (static_cast<uint64_t>(Value) & 0x3)
@@ -66,7 +67,7 @@ private:
   }
 
   template <uint8_t Bits> static bool fitsRangeSignedInt(int64_t Value) {
-    return Value >= -(1 << Bits) && Value < (1 << Bits);
+    return Value >= -(1ll << Bits) && Value < (1ll << Bits);
   }
 };
 
@@ -124,7 +125,8 @@ private:
 
     int64_t Addend = Rel.r_addend;
     Block *BlockToFix = *(GraphSection.blocks().begin());
-    JITTargetAddress FixupAddress = FixupSect.sh_addr + Rel.r_offset;
+    orc::ExecutorAddr FixupAddress =
+        orc::ExecutorAddr(FixupSect.sh_addr) + Rel.r_offset;
     Edge::OffsetT Offset = FixupAddress - BlockToFix->getAddress();
     Edge GE(*Kind, Offset, *GraphSymbol, Addend);
     LLVM_DEBUG({

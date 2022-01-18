@@ -5,7 +5,6 @@
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.from-llvm.spv
 ; RUN: llvm-spirv -to-binary %t.spv.txt -o %t.from-text.spv
-; RUN: cmp %t.from-llvm.spv %t.from-text.spv
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
@@ -82,9 +81,8 @@ target triple = "spir-unknown-unknown"
 %spirv.Sampler              = type opaque ; sampler_t
 %spirv.SampledImage._float_1_1_0_0_0_0_0 = type opaque
 
-; TODO: translate pipe types to SPIR-V friendly IR
-; CHECK-LLVM-SPIRV-DAG: %opencl.pipe_ro_t = type opaque
-; CHECK-LLVM-SPIRV-DAG: %opencl.pipe_wo_t = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Pipe._0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Pipe._1 = type opaque
 
 ; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_0_0_0_0_0_0_0 = type opaque
 ; CHECK-LLVM-SPIRV-DAG: %spirv.Image._uint_1_0_0_0_0_0_0 = type opaque

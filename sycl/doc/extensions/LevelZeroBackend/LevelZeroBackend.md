@@ -150,6 +150,25 @@ struct {
 }
 ```
 </td>
+</tr><tr>
+<td>kernel</td>
+<td>
+
+``` C++
+ze_kernel_handle_t
+```
+</td>
+<td>
+
+``` C++
+struct {
+  kernel_bundle<bundle_state::executable> KernelBundle;
+  ze_kernel_handle_t NativeHandle;
+  ext::oneapi::level_zero::ownership Ownership{
+      ext::oneapi::level_zero::ownership::transfer};
+}
+```
+</td>
 </tr>
 </table>
 
@@ -162,8 +181,8 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>
 ```
-It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```
-and ```kernel_bundle``` classes.
+It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```,
+```kernel_bundle```, and ```kernel``` classes.
 
 ### 4.3 Construct a SYCL object from a Level-Zero handle
         
@@ -252,6 +271,28 @@ runtime is going to destroy the input Level-Zero module, and hence the
 application must not to have any outstanding <code>ze_kernel_handle_t</code>
 handles to the underlying <code>ze_module_handle_t</code> by the time this
 interoperability <code>kernel_bundle</code> destructor is called.</td>
+</tr><tr>
+<td>
+
+``` C++
+make_kernel<backend::ext_oneapi_level_zero>(
+    const backend_input_t<
+        backend::ext_oneapi_level_zero, kernel> &,
+    const context &Context)
+```
+</td>
+<td>Constructs a SYCL kernel instance from a Level-Zero
+<code>ze_kernel_handle_t</code>. The <code>KernelBundle</code> input structure
+specifies the <code>kernel_bundle<bundle_state::executable></code> corresponding
+to the Level-Zero module from which the kernel is created. There must be exactly
+one Level-Zero module in the <code>KernelBundle</code>. The <code>Context</code>
+argument must be a valid SYCL context encapsulating a Level-Zero context, and
+the Level-Zero module must be created on the same context.
+The <code>Ownership</code> input structure member specifies if the SYCL runtime
+should take ownership of the passed native handle. The default behavior is to
+transfer the ownership to the SYCL runtime. See section 4.4 for details. If
+the behavior is "transfer" then the runtime is going to destroy the input
+Level-Zero kernel</td>
 </tr>
 </table>
 

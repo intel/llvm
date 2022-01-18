@@ -51,11 +51,9 @@ struct MockKernelInfo {
 template <> struct KernelInfo<TestKernel> : public MockKernelInfo {
   static constexpr const char *getName() { return "TestKernel"; }
 };
-
 template <> struct KernelInfo<TestKernel2> : public MockKernelInfo {
   static constexpr const char *getName() { return "TestKernel2"; }
 };
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
@@ -99,15 +97,6 @@ static pi_result redefinedProgramCreateWithSource(pi_context context,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedProgramCreateWithBinary(
-    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
-    const size_t *lengths, const unsigned char **binaries,
-    size_t metadata_length, const pi_device_binary_property *metadata,
-    pi_int32 *binary_status, pi_program *ret_program) {
-  *ret_program = reinterpret_cast<pi_program>(1);
-  return PI_SUCCESS;
-}
-
 static pi_result redefinedKernelGetInfo(pi_kernel kernel,
                                         pi_kernel_info param_name,
                                         size_t param_value_size,
@@ -126,6 +115,7 @@ static pi_result redefinedKernelCreate(pi_program program,
                                        pi_kernel *ret_kernel) {
   return PI_SUCCESS;
 }
+
 static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
 
 class KernelAndProgramCacheTest : public ::testing::Test {
@@ -146,8 +136,6 @@ protected:
     setupDefaultMockAPIs(*Mock);
     Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
         redefinedProgramCreateWithSource);
-    Mock->redefine<detail::PiApiKind::piProgramCreateWithBinary>(
-        redefinedProgramCreateWithBinary);
     Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
     Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
     Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
