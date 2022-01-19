@@ -7,7 +7,8 @@
 
 using namespace cl::sycl;
 queue q;
-template <typename h> h *malloc_shared();
+template <typename h>
+h *malloc_shared();
 
 int global_value = -1;
 
