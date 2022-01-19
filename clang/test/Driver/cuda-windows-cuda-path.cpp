@@ -1,6 +1,6 @@
 ///
 /// Make sure that CUDA_PATH is picked up correctly when looking for CUDA
-/// instalation.
+/// installation.
 ///
 
 // REQUIRES: system-windows
