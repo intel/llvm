@@ -113,12 +113,10 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 
   // No kernel bundle yet, create one
   if (!KernelBundleImpPtr && Insert) {
-    KernelBundleImpPtr = detail::getSyclObjImpl(
-        get_kernel_bundle<bundle_state::input>(MQueue->get_context()));
-    if (KernelBundleImpPtr->empty()) {
-      KernelBundleImpPtr = detail::getSyclObjImpl(
-          get_kernel_bundle<bundle_state::executable>(MQueue->get_context()));
-    }
+    // Create an empty kernel bundle to add kernels to later
+    KernelBundleImpPtr =
+        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+            MQueue->get_context(), {MQueue->get_device()}, {}));
 
     detail::ExtendedMemberT EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
@@ -169,6 +167,33 @@ event handler::finalize() {
     // If there were uses of set_specialization_constant build the kernel_bundle
     KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
+      // Make sure implicit non-interop kernel bundles have the kernel
+      if (!KernelBundleImpPtr->isInterop() &&
+          !getHandlerImpl()->isStateExplicitKernelBundle()) {
+        kernel_id KernelID =
+            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
+        bool KernelInserted =
+            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        // If kernel was not inserted and the bundle is in input mode we try
+        // building it and trying to find the kernel in executable mode
+        if (!KernelInserted &&
+            KernelBundleImpPtr->get_bundle_state() == bundle_state::input) {
+          auto KernelBundle =
+              detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+                  KernelBundleImpPtr);
+          kernel_bundle<bundle_state::executable> ExecKernelBundle =
+              build(KernelBundle);
+          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
+          setHandlerKernelBundle(KernelBundleImpPtr);
+          KernelInserted =
+              KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        }
+        // If the kernel was not found in executable mode we throw an exception
+        if (!KernelInserted)
+          throw sycl::exception(make_error_code(errc::runtime),
+                                "Failed to add kernel to kernel bundle.");
+      }
+
       switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
         // Underlying level expects kernel_bundle to be in executable state
@@ -616,6 +641,10 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
+    return;
+
+  // Implicit kernel bundles are populated late so we ignore them
+  if (!getHandlerImpl()->isStateExplicitKernelBundle())
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
