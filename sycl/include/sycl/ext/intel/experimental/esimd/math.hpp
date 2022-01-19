@@ -37,9 +37,9 @@ namespace esimd {
 /// @return vector of elements converted to \p T0 with saturation.
 template <typename T0, typename T1, int SZ>
 __ESIMD_API simd<T0, SZ> saturate(simd<T1, SZ> src) {
-  if constexpr (std::is_floating_point<T0>::value)
+  if constexpr (detail::is_generic_floating_point_v<T0>)
     return __esimd_sat<T0, T1, SZ>(src.data());
-  else if constexpr (std::is_floating_point<T1>::value) {
+  else if constexpr (detail::is_generic_floating_point_v<T1>) {
     if constexpr (std::is_unsigned<T0>::value)
       return __esimd_fptoui_sat<T0, T1, SZ>(src.data());
     else
@@ -1381,93 +1381,116 @@ ESIMD_NODEBUG
 //
 // inv, log2, exp2, sqrt, rsqrt, sin, cos
 //
-// share the same requirements.
-//
-// template <int SZ>
-// simd<float, SZ>
-// ESIMD_INLINE inv(simd<float, SZ> src0, int flag = saturation_off) {
-//   simd<float, SZ> Result = __esimd_inv(src0);
-//   if (flag != saturation_on)
-//     return Result;
-//   return __esimd_sat<float>(Result);
-// }
-//
-// template <int N1, int N2>
-// __ESIMD_API
-// simd<float, N1 * N2>
-// inv(matrix<float, N1, N2> src0, int flag = saturation_off) {
-//   simd<float, N1 * N2> Src0 = src0;
-//   return esimd::inv(Src0, flag);
-// }
-//
-// ESIMD_INLINE float inv(float src0, int flag = saturation_off) {
-//   simd<float, 1> Src0 = src0;
-//   simd<float, 1> Result = esimd::inv(Src0, flag);
-//   return Result[0];
-// }
-//
-// we also make the scalar version template-based by adding
-// a "typename T". Since the type can only be float, we hack it
-// by defining T=void without instantiating it to be float.
 
-#define ESIMD_INTRINSIC_DEF(type, name, iname)                                 \
-  template <int SZ>                                                            \
-  __ESIMD_API simd<type, SZ> name(simd<type, SZ> src0,                         \
-                                  int flag = saturation_off) {                 \
-    simd<type, SZ> Result = __esimd_##iname<SZ>(src0.data());                  \
-    if (flag != saturation_on)                                                 \
-      return Result;                                                           \
-    return esimd::saturate<type>(Result);                                      \
+#define ESIMD_UNARY_INTRINSIC_DEF(COND, name, iname)                           \
+  /* Faster vector implementation w/o dynamic branch when saturation       */  \
+  /* parameter is known at compile-time.                                   */  \
+  template <class T, int N, int F = saturation_off,                            \
+            class = std::enable_if_t<COND>>                                    \
+  __ESIMD_API simd<T, N> name(simd<T, N> src) {                                \
+    __SEIEED::vector_type_t<__SEIEED::__raw_t<T>, N> res =                     \
+        __esimd_##iname<T, N>(src.data());                                     \
+    if constexpr (F != saturation_on)                                          \
+      return res;                                                              \
+    else                                                                       \
+      return esimd::saturate<T>(res);                                          \
   }                                                                            \
-  template <typename T = void>                                                 \
-  __ESIMD_API type name(type src0, int flag = saturation_off) {                \
-    simd<type, 1> Src0 = src0;                                                 \
-    simd<type, 1> Result = name(Src0, flag);                                   \
-    return Result[0];                                                          \
-  }
-
-ESIMD_INTRINSIC_DEF(float, inv, inv)
-ESIMD_INTRINSIC_DEF(float, log2, log)
-ESIMD_INTRINSIC_DEF(float, exp2, exp)
-ESIMD_INTRINSIC_DEF(float, sqrt, sqrt)
-ESIMD_INTRINSIC_DEF(float, ieee_sqrt, sqrt_ieee)
-ESIMD_INTRINSIC_DEF(float, rsqrt, rsqrt)
-ESIMD_INTRINSIC_DEF(float, sin, sin)
-ESIMD_INTRINSIC_DEF(float, cos, cos)
-
-ESIMD_INTRINSIC_DEF(double, ieee_sqrt, sqrt_ieee)
-
-#undef ESIMD_INTRINSIC_DEF
-
-#define ESIMD_INTRINSIC_DEF(ftype, name, iname)                                \
-  template <int SZ, typename U>                                                \
-  __ESIMD_API simd<ftype, SZ> name(simd<ftype, SZ> src0, U src1,               \
-                                   int flag = saturation_off) {                \
-    simd<ftype, SZ> Src1 = src1;                                               \
-    simd<ftype, SZ> Result = __esimd_##iname<SZ>(src0.data(), Src1.data());    \
-    if (flag != saturation_on)                                                 \
-      return Result;                                                           \
                                                                                \
-    return esimd::saturate<ftype>(Result);                                     \
+  /* Slower vector implementation with dynamic branch on saturation            \
+   * parameter.*/                                                              \
+  template <class T, int N, class = std::enable_if_t<COND>>                    \
+  __ESIMD_API simd<T, N> name(simd<T, N> src, int flag) {                      \
+    simd<T, N> res = name<T, N, saturation_off>(src);                          \
+    if (flag != saturation_on)                                                 \
+      return res;                                                              \
+    return esimd::saturate<T>(res);                                            \
   }                                                                            \
-  template <int SZ, typename U>                                                \
-  __ESIMD_API                                                                  \
-      std::enable_if_t<detail::is_esimd_scalar<U>::value, simd<ftype, SZ>>     \
-      name(U src0, simd<ftype, SZ> src1, int flag = saturation_off) {          \
-    simd<ftype, SZ> Src0 = src0;                                               \
-    return name(Src0, src1, flag);                                             \
+                                                                               \
+  /* Faster scalar implementation */                                           \
+  template <typename T, int F = saturation_off,                                \
+            class = std::enable_if_t<COND>>                                    \
+  __ESIMD_API T name(T src) {                                                  \
+    simd<T, 1> src_vec = src;                                                  \
+    simd<T, 1> res = name<T, 1, F>(src_vec);                                   \
+    return res[0];                                                             \
   }                                                                            \
-  __ESIMD_API ftype name(ftype src0, ftype src1, int flag = saturation_off) {  \
-    simd<ftype, 1> Src0 = src0;                                                \
-    simd<ftype, 1> Src1 = src1;                                                \
-    simd<ftype, 1> Result = name(Src0, Src1, flag);                            \
-    return Result[0];                                                          \
+                                                                               \
+  /* Slower scalar implementation */                                           \
+  template <class T, class = std::enable_if_t<COND>>                           \
+  __ESIMD_API T name(T src, int flag) {                                        \
+    simd<T, 1> src_vec = src;                                                  \
+    simd<T, 1> res = name<T, 1>(src_vec, flag);                                \
+    return res[0];                                                             \
   }
 
-ESIMD_INTRINSIC_DEF(float, pow, pow)
+#define __ESIMD_EMATH_COND                                                     \
+  detail::is_generic_floating_point_v<T> && (sizeof(T) <= 4)
 
-ESIMD_INTRINSIC_DEF(float, div_ieee, ieee_div)
-ESIMD_INTRINSIC_DEF(double, div_ieee, ieee_div)
+ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, inv, inv)
+ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, log2, log)
+ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, exp2, exp)
+ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sqrt, sqrt)
+// This also includes double (in addition to half and float):
+ESIMD_UNARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
+                              (sizeof(T) >= 4),
+                          sqrt_ieee, ieee_sqrt)
+ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, rsqrt, rsqrt)
+ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sin, sin)
+ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
+
+#undef __ESIMD_EMATH_COND
+#undef ESIMD_UNARY_INTRINSIC_DEF
+
+#define ESIMD_BINARY_INTRINSIC_DEF(COND, name, iname)                          \
+  template <class T, int N, class U, int F = saturation_off,                   \
+            class = std::enable_if_t<COND>> /* Faster vector implementation    \
+                                               with compile-time constant      \
+                                               saturation       */             \
+  __ESIMD_API simd<T, N> name(simd<T, N> src0, simd<U, N> src1) {              \
+    using RawVecT = __SEIEED::vector_type_t<__SEIEED::__raw_t<T>, N>;          \
+    RawVecT src1_raw_conv = detail::convert_vector<T, U, N>(src1.data());      \
+    RawVecT res_raw = __esimd_##iname<T, N>(src0.data(), src1_raw_conv);       \
+    if constexpr (F != saturation_on)                                          \
+      return res_raw;                                                          \
+    else                                                                       \
+      return esimd::saturate<T>(simd<T, N>(res_raw));                          \
+  }                                                                            \
+                                                                               \
+  /* Slower vector implementation with dynamic branch on saturation            \
+   * parameter.*/                                                              \
+  template <class T, int N, class U, class = std::enable_if_t<COND>>           \
+  __ESIMD_API simd<T, N> name(simd<T, N> src0, simd<U, N> src1, int flag) {    \
+    simd<T, N> res = name<T, N, saturation_off>(src0, src1);                   \
+    if (flag != saturation_on)                                                 \
+      return res;                                                              \
+    return esimd::saturate<T>(res);                                            \
+  }                                                                            \
+                                                                               \
+  /* Faster scalar implementation */                                           \
+  template <class T, class U, int F = saturation_off,                          \
+            class = std::enable_if_t<COND>>                                    \
+  __ESIMD_API T name(T src0, U src1) {                                         \
+    simd<T, 1> src0_vec = src0;                                                \
+    simd<U, 1> src1_vec = src1;                                                \
+    simd<T, 1> res = name<T, 1, U, F>(src0_vec, src1_vec);                     \
+    return res[0];                                                             \
+  }                                                                            \
+                                                                               \
+  /* Slower scalar implementation */                                           \
+  template <class T, class U, class = std::enable_if_t<COND>>                  \
+  __ESIMD_API T name(T src0, U src1, int flag) {                               \
+    simd<T, 1> src0_vec = src0;                                                \
+    simd<U, 1> src1_vec = src1;                                                \
+    simd<T, 1> res = name<T, 1, U>(src0_vec, src1_vec, flag);                  \
+    return res[0];                                                             \
+  }
+
+ESIMD_BINARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
+                               sizeof(T) <= 4,
+                           pow, pow)
+ESIMD_BINARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
+                               sizeof(T) >= 4,
+                           div_ieee, ieee_div)
 
 #undef ESIMD_INTRINSIC_DEF
 
@@ -1592,39 +1615,69 @@ asin(T src0, int flag = saturation_off) {
   return Result[0];
 }
 
+namespace detail {
+// std::numbers::ln2_v<float> in c++20
+constexpr float ln2 = 0.69314718f;
+// std::numbers::log2e_v<float> in c++20
+constexpr float log2e = 1.442695f;
+} // namespace detail
+
 /// Computes the natural logarithm of the given argument. This is an
 /// emulated version based on the H/W supported log2.
 /// @param the source operand to compute base-e logarithm of.
 /// @return the base-e logarithm of \p src0.
-template <int SZ>
-ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ> log(simd<float, SZ> src0,
-                                               int flag = saturation_off) {
-  constexpr float ln2 = 0.69314718f; // std::numbers::ln2_v<float> in c++20
-  simd<float, SZ> Result = esimd::log2<SZ>(src0) * ln2;
+template <class T, int SZ>
+ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ> log(simd<T, SZ> src0, int flag) {
+  using CppT = __SEIEED::__cpp_t<T>;
+  simd<T, SZ> Result = esimd::log2<T, SZ, saturation_off>(src0) * detail::ln2;
 
   if (flag != saturation_on)
     return Result;
 
-  return esimd::saturate<float>(Result);
+  return esimd::saturate<T>(Result);
 }
 
-ESIMD_NODEBUG ESIMD_INLINE float log(float src0, int flag = saturation_off) {
-  return esimd::log<1>(src0, flag)[0];
+template <class T, int SZ, int Flag = saturation_off>
+ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ> log(simd<T, SZ> src0) {
+  simd<T, SZ> Result = esimd::log2<T, SZ, saturation_off>(src0) * detail::ln2;
+
+  if constexpr (Flag != saturation_on)
+    return Result;
+  else
+    return esimd::saturate<T>(Result);
+}
+
+template <class T> ESIMD_NODEBUG ESIMD_INLINE T log(T src0, int flag) {
+  return esimd::log<T, 1>(src0, flag)[0];
+}
+
+template <class T, int Flag = saturation_off>
+ESIMD_NODEBUG ESIMD_INLINE T log(T src0) {
+  return esimd::log<T, 1, Flag>(src0)[0];
 }
 
 /// Computes e raised to the power of the given argument. This is an
 /// emulated version based on the H/W supported exp2.
 /// @param the source operand to compute base-e exponential of.
 /// @return e raised to the power of \p src0.
-template <int SZ>
-ESIMD_NODEBUG ESIMD_INLINE simd<float, SZ> exp(simd<float, SZ> src0,
-                                               int flag = saturation_off) {
-  constexpr float log2e = 1.442695f; // std::numbers::log2e_v<float> in c++20
-  return esimd::exp2<SZ>(src0 * log2e, flag);
+template <class T, int SZ>
+ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ> exp(simd<T, SZ> src0, int flag) {
+  using CppT = __SEIEED::__cpp_t<T>;
+  return esimd::exp2<T, SZ>(src0 * detail::log2e, flag);
 }
 
-ESIMD_NODEBUG ESIMD_INLINE float exp(float src0, int flag = saturation_off) {
-  return esimd::exp<1>(src0, flag)[0];
+template <class T, int SZ, int Flag = saturation_off>
+ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ> exp(simd<T, SZ> src0) {
+  return esimd::exp2<T, SZ, Flag>(src0 * detail::log2e);
+}
+
+template <class T> ESIMD_NODEBUG ESIMD_INLINE T exp(T src0, int flag) {
+  return esimd::exp<T, 1>(src0, flag)[0];
+}
+
+template <class T, int Flag = saturation_off>
+ESIMD_NODEBUG ESIMD_INLINE T exp(T src0) {
+  return esimd::exp<T, 1, Flag>(src0)[0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2687,10 +2687,16 @@ defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,
   BothFlags<[CC1Option, CoreOption], " that SYCL ID queries fit within MAX_INT.">>;
+def fsycl_device_obj_EQ : Joined<["-"], "fsycl-device-obj=">,
+  Flags<[CoreOption]>, Values<"spirv,llvmir">, HelpText<"Specify format of "
+  "device code stored in the resulting object. Valid values are: spirv, llvmir "
+  "(default)">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
+  Alias<fsycl_device_obj_EQ>, AliasArgs<["llvmir"]>, Flags<[CoreOption]>,
+  HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects">;
+  Alias<fsycl_device_obj_EQ>, AliasArgs<["spirv"]>, Flags<[CoreOption]>,
+  HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects">;
 def fsycl_link_EQ : Joined<["-"], "fsycl-link=">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Generate partially linked device and host object to be used at various stages of compilation">, Values<"image,early">;
 def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
@@ -3718,6 +3724,7 @@ def mcheck_zero_division : Flag<["-"], "mcheck-zero-division">,
                            Group<m_mips_Features_Group>;
 def mno_check_zero_division : Flag<["-"], "mno-check-zero-division">,
                               Group<m_mips_Features_Group>;
+def mfix4300 : Flag<["-"], "mfix4300">, Group<m_mips_Features_Group>;
 def mcompact_branches_EQ : Joined<["-"], "mcompact-branches=">,
                            Group<m_mips_Features_Group>;
 def mbranch_likely : Flag<["-"], "mbranch-likely">, Group<m_Group>,

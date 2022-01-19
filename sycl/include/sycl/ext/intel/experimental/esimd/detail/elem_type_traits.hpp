@@ -133,6 +133,10 @@ template <class T, class SFINAE> struct element_type_traits {
   // Whether a value or clang vector value the raw element type can be used
   // directly as operand to std C++ operations.
   static inline constexpr bool use_native_cpp_ops = true;
+  // W/A for MSVC compiler problems which thinks
+  // std::is_floating_point_v<_Float16> is false; so require new element types
+  // implementations to state "is floating point" trait explicitly
+  static inline constexpr bool is_floating_point = false;
 };
 
 // Element type traits specialization for C++ standard element type.
@@ -141,7 +145,18 @@ struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
   using RawT = T;
   using EnclosingCppT = T;
   static inline constexpr bool use_native_cpp_ops = true;
+  static inline constexpr bool is_floating_point = std::is_floating_point_v<T>;
 };
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <> struct element_type_traits<_Float16, void> {
+  using RawT = _Float16;
+  using EnclosingCppT = _Float16;
+  __SYCL_DEPRECATED("use sycl::half as element type")
+  static inline constexpr bool use_native_cpp_ops = true;
+  static inline constexpr bool is_floating_point = true;
+};
+#endif
 
 // --- Type conversions
 
@@ -563,7 +578,7 @@ public:
 // the wrapper floating-point types such as sycl::half.
 template <typename T>
 static inline constexpr bool is_generic_floating_point_v =
-    std::is_floating_point_v<typename element_type_traits<T>::EnclosingCppT>;
+    element_type_traits<T>::is_floating_point;
 
 // @{
 // Get computation type of a binary operator given its operand types:
@@ -664,6 +679,8 @@ struct element_type_traits<T, std::enable_if_t<std::is_same_v<T, sycl::half>>> {
   // operations on half type.
   static inline constexpr bool use_native_cpp_ops = false;
 #endif // __SYCL_DEVICE_ONLY__
+
+  static inline constexpr bool is_floating_point = true;
 };
 
 using half_raw = __raw_t<sycl::half>;

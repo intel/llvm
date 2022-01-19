@@ -8,6 +8,9 @@
 using namespace cl::sycl;
 queue q;
 
+// CHECK: define dso_local spir_func i32 @{{.*}}bar10{{.*}}()
+[[intel::device_indirectly_callable]] int bar10() { return 10; }
+
 // CHECK: define linkonce_odr spir_func i32 @{{.*}}invoke_function{{.*}}(i32 () addrspace(4)* %f)
 template <typename Callable>
 auto invoke_function(Callable &&f) {
@@ -18,9 +21,6 @@ auto invoke_function(Callable &&f) {
   // CHECK: %call = call spir_func addrspace(4) i32 %0()
   return f();
 }
-
-// CHECK: define dso_local spir_func i32 @{{.*}}bar10{{.*}}()
-int bar10() { return 10; }
 
 int main() {
   kernel_single_task<class KernelName>(

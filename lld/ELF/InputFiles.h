@@ -66,7 +66,6 @@ public:
   enum Kind : uint8_t {
     ObjKind,
     SharedKind,
-    LazyObjKind,
     ArchiveKind,
     BitcodeKind,
     BinaryKind,
@@ -91,9 +90,7 @@ public:
 
   // Returns object file symbols. It is a runtime error to call this
   // function on files of other types.
-  ArrayRef<Symbol *> getSymbols() { return getMutableSymbols(); }
-
-  MutableArrayRef<Symbol *> getMutableSymbols() {
+  ArrayRef<Symbol *> getSymbols() const {
     assert(fileKind == BinaryKind || fileKind == ObjKind ||
            fileKind == BitcodeKind);
     return symbols;
@@ -186,7 +183,15 @@ public:
   ArrayRef<Symbol *> getGlobalSymbols() {
     return llvm::makeArrayRef(symbols).slice(firstGlobal);
   }
+  MutableArrayRef<Symbol *> getMutableGlobalSymbols() {
+    return llvm::makeMutableArrayRef(symbols.data(), symbols.size())
+        .slice(firstGlobal);
+  }
 
+  template <typename ELFT> typename ELFT::ShdrRange getELFShdrs() const {
+    return typename ELFT::ShdrRange(
+        reinterpret_cast<const typename ELFT::Shdr *>(elfShdrs), numELFShdrs);
+  }
   template <typename ELFT> typename ELFT::SymRange getELFSyms() const {
     return typename ELFT::SymRange(
         reinterpret_cast<const typename ELFT::Sym *>(elfSyms), numELFSyms);
@@ -199,10 +204,15 @@ protected:
   // Initializes this class's member variables.
   template <typename ELFT> void init();
 
+  StringRef stringTable;
+  const void *elfShdrs = nullptr;
   const void *elfSyms = nullptr;
+  uint32_t numELFShdrs = 0;
   uint32_t numELFSyms = 0;
   uint32_t firstGlobal = 0;
-  StringRef stringTable;
+
+public:
+  bool hasCommonSyms = false;
 };
 
 // .o file.
@@ -397,6 +407,7 @@ inline bool isBitcode(MemoryBufferRef mb) {
 
 std::string replaceThinLTOSuffix(StringRef path);
 
+extern SmallVector<std::unique_ptr<MemoryBuffer>> memoryBuffers;
 extern SmallVector<ArchiveFile *, 0> archiveFiles;
 extern SmallVector<BinaryFile *, 0> binaryFiles;
 extern SmallVector<BitcodeFile *, 0> bitcodeFiles;

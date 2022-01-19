@@ -2040,6 +2040,11 @@ void Clang::AddMIPSTargetArgs(const ArgList &Args,
     }
   }
 
+  if (Args.getLastArg(options::OPT_mfix4300)) {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-mfix4300");
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_G)) {
     StringRef v = A->getValue();
     CmdArgs.push_back("-mllvm");
@@ -3328,9 +3333,7 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
         return;
       }
       // Check whether the target subarch supports the hardware TLS register
-      if (arm::getARMSubArchVersionNumber(EffectiveTriple) < 7 &&
-          llvm::ARM::parseArch(EffectiveTriple.getArchName()) !=
-              llvm::ARM::ArchKind::ARMV6T2) {
+      if (!arm::isHardTPSupported(EffectiveTriple)) {
         D.Diag(diag::err_target_unsupported_tp_hard)
             << EffectiveTriple.getArchName();
         return;
@@ -8597,6 +8600,9 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   if (IsFPGADepUnbundle)
     TypeArg = "o";
 
+  if (InputType == types::TY_Archive && getToolChain().getTriple().isSPIR())
+    TypeArg = "aoo";
+
   // Get the type.
   CmdArgs.push_back(TCArgs.MakeArgString(Twine("-type=") + TypeArg));
 
@@ -9025,7 +9031,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     std::string DefaultExtArg =
         ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
         ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-        ",+SPV_KHR_expect_assume";
+        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
     std::string INTELExtArg =
         ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
         ",+SPV_INTEL_device_side_avc_motion_estimation"
@@ -9045,17 +9051,12 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_long_constant_composite"
         ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
         ",+SPV_INTEL_fpga_dsp_control"
-        ",+SPV_INTEL_arithmetic_fence"
-        ",+SPV_INTEL_runtime_aligned";
+        ",+SPV_INTEL_arithmetic_fence";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
     if (!C.getDriver().isFPGAEmulationMode())
-      // Enable SPV_INTEL_usm_storage_classes only for FPGA hardware,
-      // since it adds new storage classes that represent global_device and
-      // global_host address spaces, which are not supported for all
-      // targets. With the extension disabled the storage classes will be
-      // lowered to CrossWorkgroup storage class that is mapped to just
-      // global address space.
-      ExtArg += ",+SPV_INTEL_usm_storage_classes";
+      // Enable several extensions on FPGA H/W exclusively
+      ExtArg += ",+SPV_INTEL_usm_storage_classes"
+                ",+SPV_INTEL_runtime_aligned";
     else
       // Don't enable several freshly added extensions on FPGA H/W
       ExtArg += ",+SPV_INTEL_token_type"
@@ -9399,4 +9400,39 @@ void AppendFooter::ConstructJob(Compilation &C, const JobAction &JA,
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       CmdArgs, None));
+}
+
+void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
+                                    const InputInfo &Output,
+                                    const InputInfoList &Inputs,
+                                    const llvm::opt::ArgList &TCArgs,
+                                    const char *LinkingOutput) const {
+  InputInfoList ForeachInputs;
+  ArgStringList CmdArgs;
+
+  assert(Inputs.size() == 1 &&
+         "Only one input expected to spirv-to-ir-wrapper");
+
+  // Input File
+  for (const auto &I : Inputs) {
+    if (I.getType() == types::TY_Archive)
+      ForeachInputs.push_back(I);
+    addArgs(CmdArgs, TCArgs, {I.getFilename()});
+  }
+
+  // Output File
+  addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
+
+  auto Cmd = std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, None);
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
+    tools::SYCL::constructLLVMForeachCommand(
+        C, JA, std::move(Cmd), ForeachInputs, Output, this, "",
+        types::getTypeTempSuffix(types::TY_Tempfilelist), ParallelJobs);
+  } else
+    C.addCommand(std::move(Cmd));
 }

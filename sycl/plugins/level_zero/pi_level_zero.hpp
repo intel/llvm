@@ -776,6 +776,9 @@ struct _pi_queue : _pi_object {
   // executed.
   pi_result executeOpenCommandList(bool IsCopy);
 
+  // Execute the open command containing the event.
+  pi_result executeOpenCommandListWithEvent(pi_event Event);
+
   // Wrapper function to execute both OpenCommandLists (Copy and Compute).
   // This wrapper is helpful when all 'open' commands need to be executed.
   // Call-sites instances: piQuueueFinish, piQueueRelease, etc.
@@ -1075,6 +1078,11 @@ struct _pi_program : _pi_object {
       : Context{Context}, OwnZeModule{OwnZeModule}, State{St},
         ZeModule{ZeModule}, ZeBuildLog{nullptr} {}
 
+  // Construct a program in Invalid state with a custom error message.
+  _pi_program(state St, pi_context Context, const std::string &ErrorMessage)
+      : Context{Context}, OwnZeModule{true}, ErrorMessage{ErrorMessage},
+        State{St}, ZeModule{nullptr}, ZeBuildLog{nullptr} {}
+
   ~_pi_program();
 
   const pi_context Context; // Context of the program.
@@ -1082,6 +1090,10 @@ struct _pi_program : _pi_object {
   // Indicates if we own the ZeModule or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   const bool OwnZeModule;
+
+  // This error message is used only in Invalid state to hold a custom error
+  // message from a call to piProgramLink.
+  const std::string ErrorMessage;
 
   // Protects accesses to all the non-const member variables.  Exclusive access
   // is required to modify any of these members.

@@ -28,7 +28,7 @@ cos(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #ifdef __SYCL_DEVICE_ONLY__
   return __ESIMD_NS::detail::ocl_cos<SZ>(x.data());
 #else
-  return __esimd_cos<SZ>(x.data());
+  return __esimd_cos<float, SZ>(x.data());
 #endif // __SYCL_DEVICE_ONLY__
 }
 
@@ -39,7 +39,7 @@ sin(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #ifdef __SYCL_DEVICE_ONLY__
   return __ESIMD_NS::detail::ocl_sin<SZ>(x.data());
 #else
-  return __esimd_sin<SZ>(x.data());
+  return __esimd_sin<float, SZ>(x.data());
 #endif // __SYCL_DEVICE_ONLY__
 }
 
@@ -50,7 +50,7 @@ exp(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #ifdef __SYCL_DEVICE_ONLY__
   return __ESIMD_NS::detail::ocl_exp<SZ>(x.data());
 #else
-  return __esimd_exp<SZ>(x.data());
+  return __esimd_exp<float, SZ>(x.data());
 #endif // __SYCL_DEVICE_ONLY__
 }
 
@@ -61,7 +61,7 @@ log(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #ifdef __SYCL_DEVICE_ONLY__
   return __ESIMD_NS::detail::ocl_log<SZ>(x.data());
 #else
-  return __esimd_log<SZ>(x.data());
+  return __esimd_log<float, SZ>(x.data());
 #endif // __SYCL_DEVICE_ONLY__
 }
 
