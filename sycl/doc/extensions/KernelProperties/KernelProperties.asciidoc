@@ -420,9 +420,9 @@ The SYCL 2020 `sycl::device_has` attribute can be applied to the declaration
 of a non-kernel device function, to assert that the device function uses a
 specific set of optional features. This extension provides a mechanism exposing
 similar behavior, allowing for kernel properties to be associated with
-a function via the `SYCL_EXT_ONEAPI_PROPERTY` macro.  Each instance of the
-`SYCL_EXT_ONEAPI_PROPERTY` macro accepts one argument, corresponding to a
-single property value.
+a function via the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro.  Each instance of
+the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro accepts one argument,
+corresponding to a single property value.
 
 NOTE: Due to limitations of the C preprocessor, property value expressions
 containing commas (e.g. due to template arguments) must be enclosed in
@@ -432,12 +432,13 @@ The example below shows a function that uses two optional features,
 corresponding to the `fp16` and `atomic64` aspects.
 
 ```c++
-SYCL_EXT_ONEAPI_PROPERTY((sycl::device_has<aspect::fp16, aspect::atomic64>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::device_has<aspect::fp16, aspect::atomic64>))
 void foo();
 ```
 
 The table below describes the effects of associating each kernel property
-with a non-kernel device function via the `SYCL_EXT_ONEAPI_PROPERTY` macro.
+with a non-kernel device function via the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`
+macro.
 
 |===
 |Property|Description
@@ -450,14 +451,14 @@ with a non-kernel device function via the `SYCL_EXT_ONEAPI_PROPERTY` macro.
 
 |===
 
-The `SYCL_EXT_ONEAPI_PROPERTY` macro can be used alongside the
+The `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro can be used alongside the
 `SYCL_EXTERNAL` macro, and the macros may be specified in any order.
 Whenever `SYCL_EXTERNAL` is used, there are two relevant translation units: the
 translation unit that _defines_ the function and the translation unit that
 _calls_ the function.  If a given `SYCL_EXTERNAL` function _F_ is defined in
 one translation unit with a set of properties _P_, then all other translation
 units that declare that same function _F_ must list the same set of properties
-_P_ via the `SYCL_EXT_ONEAPI_PROPERTY` macro. Programs which fail to do this
+_P_ via the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro. Programs which fail to do this
 are ill-formed, but no diagnostic is required.
 
 == Issues
