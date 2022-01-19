@@ -1,4 +1,4 @@
-// REQUIRES: gpu, cuda
+// REQUIRES: cuda
 
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_72 -DSYCL_EXT_ONEAPI_MATRIX=3 -S -Xclang -emit-llvm %s -o -| FileCheck %s
 
@@ -25,8 +25,8 @@ int main() {
     auto accD = bufD.get_access<access::mode::read_write>(cgh);
 
     cgh.parallel_for<class row_row_m16n16k16>(
-        nd_range<2>({1, 32}, {1, 32}), [=
-    ](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<int32_t, matrix_use::accumulator, 16, 16,
@@ -52,8 +52,8 @@ int main() {
         });
 
     cgh.parallel_for<class col_col_m16n16k16>(
-        nd_range<2>({1, 32}, {1, 32}), [=
-    ](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<int32_t, matrix_use::accumulator, 16, 16,
@@ -79,8 +79,8 @@ int main() {
         });
 
     cgh.parallel_for<class row_row_m32n8k16>(
-        nd_range<2>({1, 32}, {1, 32}), [=
-    ](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<int32_t, matrix_use::accumulator, 32, 8,
@@ -106,8 +106,8 @@ int main() {
         });
 
     cgh.parallel_for<class col_col_m32n8k16>(
-        nd_range<2>({1, 32}, {1, 32}), [=
-    ](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<int32_t, matrix_use::accumulator, 32, 8,
@@ -133,8 +133,8 @@ int main() {
         });
 
     cgh.parallel_for<class row_row_m8n32k16>(
-        nd_range<2>({1, 32}, {1, 32}), [=
-    ](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<int32_t, matrix_use::accumulator, 8, 32,
@@ -160,8 +160,8 @@ int main() {
         });
 
     cgh.parallel_for<class col_col_m8n32k16>(
-        nd_range<2>({1, 32}, {1, 32}), [=
-    ](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+        nd_range<2>({1, 32}, {1, 32}),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<int32_t, matrix_use::accumulator, 8, 32,
