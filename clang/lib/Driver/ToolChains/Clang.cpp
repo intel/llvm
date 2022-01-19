@@ -8593,7 +8593,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   if (IsFPGADepUnbundle)
     TypeArg = "o";
 
-  if (InputType == types::TY_Archive && getToolChain().getTriple().isSPIR())
+  bool HasSPIRTarget = false;
+  auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+  for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI)
+    HasSPIRTarget |= TI->second->getTriple().isSPIR();
+  if (InputType == types::TY_Archive && HasSPIRTarget)
     TypeArg = "aoo";
 
   // Get the type.
@@ -9408,7 +9412,7 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Input File
   for (const auto &I : Inputs) {
-    if (I.getType() == types::TY_Archive)
+    if (I.getType() == types::TY_Tempfilelist)
       ForeachInputs.push_back(I);
     addArgs(CmdArgs, TCArgs, {I.getFilename()});
   }
