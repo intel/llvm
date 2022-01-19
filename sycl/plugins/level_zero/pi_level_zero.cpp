@@ -3785,7 +3785,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
-  // We only support one device with Level Zero currently
+  // We only support one device with Level Zero currently.
   if (NumDevices != 1) {
     zePrint("piProgramLink: level_zero supports only one device.");
     return PI_INVALID_VALUE;
@@ -3804,7 +3804,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     return PI_LINK_PROGRAM_FAILURE;
   }
 
-  // Validate input parameters
+  // Validate input parameters.
   PI_ASSERT(DeviceList, PI_INVALID_DEVICE);
   {
     auto DeviceEntry =
