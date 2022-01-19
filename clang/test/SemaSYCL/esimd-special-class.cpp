@@ -16,7 +16,7 @@ void test() {
     cl::sycl::sampler Smplr;
     cl::sycl::stream Stream(1024, 128, h);
     // expected-note@+1{{in instantiation of function template specialization}}
-    h.single_task<class esimd_kernel>(
+    h.single_task<class SamplerTester>(
         // expected-error@+1{{type 'sampler' is not supported in 'esimd' context}}
         [=]() [[intel::sycl_explicit_simd]] { Smplr.use(); });
 
