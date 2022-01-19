@@ -492,20 +492,8 @@ extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
   std::unique_ptr<Module> MClone = CloneModule(
       M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
 
-  // LoopAnalysisManager LAM;
-  // FunctionAnalysisManager FAM;
-  // CGSCCAnalysisManager CGAM;
   ModuleAnalysisManager MAM;
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-
-  // PassBuilder PB;
-
-  // PB.registerModuleAnalyses(MAM);
-  // PB.registerCGSCCAnalyses(CGAM);
-  // PB.registerFunctionAnalyses(FAM);
-  // PB.registerLoopAnalyses(LAM);
-  // PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-
   ModulePassManager MPM;
   // Do cleanup.
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
