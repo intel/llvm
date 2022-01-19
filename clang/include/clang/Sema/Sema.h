@@ -395,16 +395,16 @@ private:
     /// Whether this kernel is an ESIMD one.
     bool IsESIMDKernel;
 
-    /// Kernel source file name.
+    /// Kernel code_locaiton - file name.
     std::string FileName;
 
-    /// Kernel location function name.
+    /// Kernel code_location - function name.
     std::string FunctionName;
 
-    /// Kernel location - line number.
+    /// Kernel code_location - line number.
     unsigned LineNumber;
 
-    /// Kernel location - column number.
+    /// Kernel code_location - column number.
     unsigned ColumnNumber;
 
     /// Descriptor of kernel actual parameters.
@@ -418,8 +418,10 @@ private:
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
         : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
           IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel),// {}
-          LineNumber(KernelLocation.getPresumedLoc().getLine()), //getLineNumber()),
-          ColumnNumber(KernelLocation.getPresumedLoc().getColumn()) {} //ColumnNumber()) {}
+          FileName(getContext().getSourceManager().getPresumedLoc(KernelLoc).getFileName().str()) {}//,
+          //FunctionName(getContext().getSourceManager().getPresumedLoc(KernelLoc).getFileName().str())
+          //LineNumber(KernelLocation.getPresumedLoc().getLine()), //getLineNumber()),
+          //ColumnNumber(KernelLocation.getPresumedLoc().getColumn()) {} //ColumnNumber()) {}
 
     void updateKernelNames(StringRef Name, StringRef StableName) {
       this->Name = Name.str();
