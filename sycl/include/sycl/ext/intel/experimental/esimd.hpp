@@ -12,6 +12,7 @@
 
 /// \defgroup sycl_esimd DPC++ Explicit SIMD API
 
+#include <sycl/ext/intel/experimental/esimd/alt_ui.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
