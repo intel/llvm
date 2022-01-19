@@ -21,4 +21,3 @@ __attribute__((sycl_device)) bool foo() {
   foo();
   return true;
 }
-
