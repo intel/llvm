@@ -13,12 +13,12 @@ void test() {
   queue q;
 
   q.submit([&](handler &h) {
-    cl::sycl::sampler smplr;
+    cl::sycl::sampler Smplr;
     cl::sycl::stream Stream(1024, 128, h);
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<class esimd_kernel>(
         // expected-error@+1{{type 'sampler' is not supported in 'esimd' context}}
-        [=]() [[intel::sycl_explicit_simd]] { smplr.use(); });
+        [=]() [[intel::sycl_explicit_simd]] { Smplr.use(); });
 
     // expected-note@+1{{in instantiation of function template specialization}}
     h.single_task<class StreamTester>(

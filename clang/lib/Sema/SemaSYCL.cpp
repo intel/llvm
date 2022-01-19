@@ -1648,6 +1648,10 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     assert(Util::isSyclSpecialType(Ty) &&
            "Should only be called on sycl special class types.");
     const RecordDecl *RecD = Ty->getAsRecordDecl();
+    if (IsSIMD && !Util::isSyclType(Ty, "accessor", true /*Tmp*/))
+      return SemaRef.Diag(Loc.getBegin(),
+                          diag::err_sycl_esimd_not_supported_for_type)
+             << RecD;
     if (const ClassTemplateSpecializationDecl *CTSD =
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
@@ -1658,10 +1662,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       if (TAL.size() > 5)
         return checkPropertyListType(TAL.get(5), Loc.getBegin());
     }
-    if (IsSIMD && !Util::isSyclType(Ty, "accessor", true /*Tmp*/))
-      return SemaRef.Diag(Loc.getBegin(),
-                          diag::err_sycl_esimd_not_supported_for_type)
-             << RecD;
     return false;
   }
 
