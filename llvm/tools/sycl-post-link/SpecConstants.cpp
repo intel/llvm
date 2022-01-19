@@ -338,9 +338,8 @@ void collectCompositeElementsDefaultValuesRecursive(
       while (LocalOffset != DefaultValues.size())
         DefaultValues.push_back(0);
 
-      collectCompositeElementsDefaultValuesRecursive(M, StructC->getOperand(I),
-                                                     LocalOffset,
-                                                     DefaultValues);
+      collectCompositeElementsDefaultValuesRecursive(
+          M, StructC->getOperand(I), LocalOffset, DefaultValues);
     }
     const size_t SLSize = SL->getSizeInBytes();
 
