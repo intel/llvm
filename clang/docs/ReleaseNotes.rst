@@ -165,6 +165,10 @@ C Language Changes in Clang
   `this thread <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=103640>` for more
   info.
 
+- Implemented `WG14 N2412 <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2412.pdf>`_,
+  which adds ``*_WIDTH`` macros to limits.h and stdint.h to report the bit
+  width of various integer datatypes.
+
 C++ Language Changes in Clang
 -----------------------------
 
@@ -305,6 +309,9 @@ clang-format
 - Option ``QualifierOrder`` has been added to allow the order
   `const` `volatile` `static` `inline` `constexpr` `restrict`
   to be controlled relative to the `type`.
+
+- Option ``RemoveBracesLLVM`` has been added to remove optional braces of
+  control statements for the LLVM style.
 
 - Option ``SeparateDefinitionBlocks`` has been added to insert or remove empty
   lines between definition blocks including functions, classes, structs, enums,

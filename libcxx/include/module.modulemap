@@ -246,6 +246,7 @@ module std [system] {
       module generate                 { private header "__algorithm/generate.h" }
       module generate_n               { private header "__algorithm/generate_n.h" }
       module half_positive            { private header "__algorithm/half_positive.h" }
+      module in_in_result             { private header "__algorithm/in_in_result.h" }
       module in_out_result            { private header "__algorithm/in_out_result.h" }
       module includes                 { private header "__algorithm/includes.h" }
       module inplace_merge            { private header "__algorithm/inplace_merge.h" }
@@ -363,6 +364,16 @@ module std [system] {
   module chrono {
     header "chrono"
     export *
+
+    module __chrono {
+      module calendar              { private header "__chrono/calendar.h" }
+      module duration              { private header "__chrono/duration.h" }
+      module file_clock            { private header "__chrono/file_clock.h" }
+      module high_resolution_clock { private header "__chrono/high_resolution_clock.h" }
+      module steady_clock          { private header "__chrono/steady_clock.h" }
+      module system_clock          { private header "__chrono/system_clock.h" }
+      module time_point            { private header "__chrono/time_point.h" }
+    }
   }
   module codecvt {
     header "codecvt"
@@ -799,6 +810,7 @@ module std [system] {
       module iota_view              { private header "__ranges/iota_view.h" }
       module join_view              { private header "__ranges/join_view.h" }
       module non_propagating_cache  { private header "__ranges/non_propagating_cache.h" }
+      module owning_view            { private header "__ranges/owning_view.h" }
       module range_adaptor          { private header "__ranges/range_adaptor.h" }
       module ref_view               { private header "__ranges/ref_view.h" }
       module reverse_view           { private header "__ranges/reverse_view.h" }

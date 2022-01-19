@@ -26,6 +26,7 @@ set(files
   __algorithm/generate.h
   __algorithm/generate_n.h
   __algorithm/half_positive.h
+  __algorithm/in_in_result.h
   __algorithm/in_out_result.h
   __algorithm/includes.h
   __algorithm/inplace_merge.h
@@ -103,6 +104,13 @@ set(files
   __charconv/chars_format.h
   __charconv/from_chars_result.h
   __charconv/to_chars_result.h
+  __chrono/calendar.h
+  __chrono/duration.h
+  __chrono/file_clock.h
+  __chrono/high_resolution_clock.h
+  __chrono/steady_clock.h
+  __chrono/system_clock.h
+  __chrono/time_point.h
   __compare/common_comparison_category.h
   __compare/compare_three_way.h
   __compare/compare_three_way_result.h
@@ -326,6 +334,7 @@ set(files
   __ranges/iota_view.h
   __ranges/join_view.h
   __ranges/non_propagating_cache.h
+  __ranges/owning_view.h
   __ranges/range_adaptor.h
   __ranges/ref_view.h
   __ranges/reverse_view.h

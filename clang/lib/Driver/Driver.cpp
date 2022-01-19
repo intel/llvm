@@ -5493,6 +5493,7 @@ public:
       if (Action *HA = SB->appendLinkHostActions(DeviceAL))
         LinkerInputs.push_back(HA);
     }
+    return nullptr;
   }
 
   /// Processes the host linker action. This currently consists of replacing it
