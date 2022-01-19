@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -227,14 +228,30 @@ event handler::finalize() {
     RT::PiEvent *OutEvent = nullptr;
 
     auto EnqueueKernel = [&]() {
+      // 'Result' for single point of return
+      cl_int Result = CL_INVALID_VALUE;
       if (MQueue->is_host()) {
         MHostKernel->call(
             MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
-        return CL_SUCCESS;
+        Result = CL_SUCCESS;
+      } else {
+        if (MQueue->getPlugin().getBackend() ==
+            backend::ext_intel_esimd_emulator) {
+          // Dims==0 for 'single_task() - void(void) type'
+          uint32_t Dims = (MArgs.size() > 0) ? MNDRDesc.Dims : 0;
+          MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+              nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()), Dims,
+              &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
+              &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
+          Result = CL_SUCCESS;
+        } else {
+          Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                    MKernel, MKernelName, MOSModuleHandle,
+                                    RawEvents, OutEvent, nullptr);
+        }
       }
-      return enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                              MKernel, MKernelName, MOSModuleHandle, RawEvents,
-                              OutEvent, nullptr);
+      // assert(Result != CL_INVALID_VALUE);
+      return Result;
     };
 
     bool DiscardEvent = false;
