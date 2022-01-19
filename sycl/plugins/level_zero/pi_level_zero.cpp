@@ -3994,7 +3994,14 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
 
   std::scoped_lock Guard(Program->Mutex);
-
+  // Check if device belongs to associated context.
+  PI_ASSERT(Program->Context, PI_INVALID_PROGRAM);
+  {
+    auto DeviceEntry = find(Program->Context->Devices.begin(),
+                            Program->Context->Devices.end(), DeviceList[0]);
+    if (DeviceEntry == Program->Context->Devices.end())
+      return PI_INVALID_VALUE;
+  }
   // It is legal to build a program created from either IL or from native
   // device code.
   if (Program->State != _pi_program::IL &&
