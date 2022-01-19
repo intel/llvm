@@ -27,7 +27,7 @@ NOTE: This document is better viewed when rendered as html with asciidoctor.
 GitHub does not render image icons.
 
 This extension introduces a replacement for the kernel attributes defined in
-Section 5.8.1 of the SYCL 2020 specification, in the form of a `property_list`
+Section 5.8.1 of the SYCL 2020 specification, in the form of a property list
 accepting properties with compile-time constant values.
 
 == Notice
@@ -110,7 +110,7 @@ information, including:
   performed at run-time and *after* compiling the kernel.
 
 This extension proposes a replacement for these kernel attributes, in the form
-of a `property_list` accepting properties with compile-time constant
+of a property list accepting properties with compile-time constant
 values, to address several of these issues.
 
 == Kernel Properties
@@ -125,55 +125,55 @@ namespace ext {
 namespace oneapi {
 
 // Corresponds to reqd_work_group_size
-struct work_group_size {
+struct work_group_size_key {
   template <size_t... Dims>
-  using value_t = property_value<work_group_size, std::integral_constant<size_t, Dims>...>;
-}; // work_group_size
+  using value_t = property_value<work_group_size_key, std::integral_constant<size_t, Dims>...>;
+}; // work_group_size_key
 
 // Corresponds to work_group_size_hint
-struct work_group_size_hint {
+struct work_group_size_hint_key {
   template <size_t... Dims>
-  using value_t = property_value<work_group_size_hint, std::integral_constant<size_t, Dims>...>;
-}; // work_group_size_hint
+  using value_t = property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...>;
+}; // work_group_size_hint_key
 
 // Corresponds to reqd_sub_group_size
-struct sub_group_size {
+struct sub_group_size_key {
   template <uint32_t Size>
-  using value_t = property_value<sub_group_size, std::integral_constant<uint32_t, Size>>;
-}; // sub_group_size
+  using value_t = property_value<sub_group_size_key, std::integral_constant<uint32_t, Size>>;
+}; // sub_group_size_key
 
 // Corresponds to device_has
-struct device_has {
+struct device_has_key {
   template <sycl::aspect... Aspects>
-  using value_t = property_value<device_has, std::integral_constant<sycl::aspect, Aspects>...>;
-}; // device_has
+  using value_t = property_value<device_has_key, std::integral_constant<sycl::aspect, Aspects>...>;
+}; // device_has_key
 
 template <size_t... Dims>
-struct property_value<work_group_size, std::integral_constant<size_t, Dims>...> {
+struct property_value<work_group_size_key, std::integral_constant<size_t, Dims>...> {
   constexpr size_t operator[](int dim);
 };
 
 template <size_t... Dims>
-struct property_value<work_group_size_hint, std::integral_constant<size_t, Dims>...> {
+struct property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...> {
   constexpr size_t operator[](int dim);
 };
 
 template <sycl::aspect... Aspects>
-struct property_value<device_has, std::integral_constant<sycl::aspect, Aspects>...> {
+struct property_value<device_has_key, std::integral_constant<sycl::aspect, Aspects>...> {
   static constexpr std::array<sycl::aspect, sizeof...(Aspects)> value;
 };
 
 template <size_t... Dims>
-inline constexpr work_group_size::value_t<Dims...> work_group_size_v;
+inline constexpr work_group_size_key::value_t<Dims...> work_group_size;
 
 template <size_t... Dims>
-inline constexpr work_group_size_hint::value_t<Dims...> work_group_size_hint_v;
+inline constexpr work_group_size_hint_key::value_t<Dims...> work_group_size_hint;
 
 template <uint32_t Size>
-inline constexpr sub_group_size::value_t<Size> sub_group_size_v;
+inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 
 template <sycl::aspect... Aspects>
-inline constexpr device_has::value_t<Aspects...> device_has_v;
+inline constexpr device_has_key::value_t<Aspects...> device_has;
 
 } // namespace oneapi
 } // namespace ext
@@ -221,15 +221,15 @@ SYCL implementations may introduce additional kernel properties. If any
 combinations of kernel attributes are invalid, this must be clearly documented
 as part of the new kernel property definition.
 
-== Adding a `property_list` to a Kernel Launch
+== Adding a Property List to a Kernel Launch
 
 To enable properties to be associated with kernels, this extension adds
 new overloads to each of the variants of `single_task`, `parallel_for` and
 `parallel_for_work_group` defined in the `queue` and `handler` classes. These
-new overloads accept a `sycl::ext::oneapi::property_list` argument. For
-variants accepting a parameter pack, the `sycl::ext::oneapi::property_list`
+new overloads accept a `sycl::ext::oneapi::properties` argument. For
+variants accepting a parameter pack, the `sycl::ext::oneapi::properties`
 argument is inserted immediately prior to the parameter pack; for variants not
-accepting a parameter pack, the `sycl::ext::oneapi::property_list` argument is
+accepting a parameter pack, the `sycl::ext::oneapi::properties` argument is
 inserted immediately prior to the kernel function.
 
 The overloads introduced by this extension are listed below:
@@ -313,7 +313,7 @@ class handler {
 }
 ```
 
-Passing properties as an argument in this way allows properties to be
+Passing a property list as an argument in this way allows properties to be
 associated with a kernel function without modifying its type. This enables
 the same kernel function (e.g. a lambda) to be submitted multiple times with
 different properties, or for libraries building on SYCL to add properties
@@ -321,7 +321,7 @@ different properties, or for libraries building on SYCL to add properties
 
 All the properties defined in this extension have compile-time values. However,
 an implementation may support additional properties which could have run-time
-values. When this occurs, the `properties` parameter may be a `property_list`
+values. When this occurs, the `properties` parameter may be a property list
 containing a mix of both run-time and compile-time values, and a SYCL
 implementation should respect both run-time and compile-time information when
 determining the correct way to launch a kernel. However, only compile-time
@@ -331,28 +331,45 @@ A simple example of using this extension to set a required work-group size
 and required sub-group size is given below:
 
 ```c++
-sycl::ext::oneapi::property_list properties{sycl::ext::oneapi::work_group_size_v<8, 8>,
-                                            sycl::ext::oneapi::sub_group_size_v<8>};
+sycl::ext::oneapi::properties properties{sycl::ext::oneapi::work_group_size<8, 8>,
+                                         sycl::ext::oneapi::sub_group_size<8>};
 q.parallel_for(range<2>{16, 16}, properties, [=](id<2> i) {
   a[i] = b[i] + c[i];
 }).wait();
 ```
 
-== Encoding Properties into a Kernel
+== Embedding Properties into a Kernel
 
-In other situations it may be useful to encode a kernel's properties directly
+In other situations it may be useful to embed a kernel's properties directly
 into its type, to ensure that a kernel cannot be launched without a property
 that it depends upon for correctness.
 
 To enable this use-case, this extension adds a mechanism for implementations to
 extract a property list from a kernel functor, if a kernel functor declares
-a `property_list` member variable named `properties`. Note that this member
-variable must be `static constexpr`, and kernel functors can therefore only
-encode properties with compile-time values.
+a member function named `get` accepting a `sycl::ext::oneapi::properties_tag`
+tag type and returning an instance of `sycl::ext::oneapi::properties`.
+
+```c++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+struct properties_tag {};
+
+}
+}
+}
+```
+
+NOTE: https://wg21.link/p1895[P1895] proposes a function called `tag_invoke`
+ as a general mechanism for customization points that could be used as a
+replacement for the `get` function proposed here. If `tag_invoke` becomes
+a feature in a future version of {cpp}, a future version of this extension
+may expose a new interface compatible with `tag_invoke`.
 
 NOTE: The attribute mechanism in SYCL 2020 allows for different kernel
 attributes to be applied to different call operators within the same
-functor. The `property_list` member variable applies to all call operators in
+functor. An embedded property list applies to all call operators in
 the functor.
 
 The example below shows how the kernel from the previous section could be
@@ -370,9 +387,10 @@ struct KernelFunctor {
     a[i] = b[i] + c[i];
   }
 
-  static constexpr auto properties =
-    sycl::ext::oneapi::property_list{sycl::ext::oneapi::work_group_size_v<8, 8>,
-                                     sycl::ext::oneapi::sub_group_size_v<8>};
+  auto get(sycl::ext::oneapi::properties_tag) {
+    return sycl::ext::oneapi::properties{sycl::ext::oneapi::work_group_size<8, 8>,
+                                         sycl::ext::oneapi::sub_group_size<8>};
+  }
 
   sycl::accessor<int, 2> a;
   sycl::accessor<int, 2> b;
@@ -385,18 +403,18 @@ struct KernelFunctor {
 q.parallel_for(range<2>{16, 16}, KernelFunctor(a, b, c)).wait();
 ```
 
-If a kernel functor with a `property_list` member variable is enqueued for
-execution using an invocation function with a `property_list` argument,
-the kernel is launched as-if the member variable and argument were combined. If
-the combined list contains any invalid combinations of properties, then this is
-an error: invalid combinations that can be detected at compile-time should be
-reported via a diagnostic; invalid combinations that can only be detected at
-run-time should result in an implementation throwing an `exception` with the
-`errc::invalid` error code.
+If a kernel functor with embedded properties is enqueued for execution using an
+invocation function with a property list argument, the kernel is launched as-if
+the embedded properties and argument were combined. If the combined list
+contains any invalid combinations of properties, then this is an error: invalid
+combinations that can be detected at compile-time should be reported via a
+diagnostic; invalid combinations that can only be detected at run-time should
+result in an implementation throwing an `exception` with the `errc::invalid`
+error code.
 
 == Querying Properties in a Compiled Kernel
 
-Any properties encoded into a kernel type via a property list are reflected
+Any properties embedded into a kernel type via a property list are reflected
 in the results of a call to `kernel::get_info` with the
 `info::kernel::attributes` information descriptor, as if the corresponding
 attribute from the SYCL 2020 specification had been applied to the kernel
@@ -420,7 +438,7 @@ The example below shows a function that uses two optional features,
 corresponding to the `fp16` and `atomic64` aspects.
 
 ```c++
-SYCL_EXT_ONEAPI_PROPERTY((sycl::device_has_v<aspect::fp16, aspect::atomic64>))
+SYCL_EXT_ONEAPI_PROPERTY((sycl::device_has<aspect::fp16, aspect::atomic64>))
 void foo();
 ```
 
@@ -461,14 +479,14 @@ new properties, for example `device_has_all_of` and `device_has_any_of`:
 device_has_any_of<device_has<aspect::fp16, device_has<aspect::fp64>>`.
 --
 
-. How should the `property_list` member variable behave with inheritance?
+. How should an embedded property list behave with inheritance?
 +
 --
 *UNRESOLVED*: The specification currently allows for a class to inspect the
-`property_list` member variable from its base class(es) and construct a new
-`property_list` member variable that applies to all call operators. Associating
-different properties with different call operators via inheritance has the
-potential to be confusing and would increase implementation complexity.
+property list embedded into its base class(es) and construct a new property
+list that applies to all call operators. Associating different properties with
+different call operators via inheritance has the potential to be confusing and
+would increase implementation complexity.
 --
 
 //. asd
