@@ -5479,12 +5479,12 @@ public:
     }
   }
 
-  Action *makeHostLinkAction(ActionList &LinkerInputs) {
+  void makeHostLinkAction(ActionList &LinkerInputs) {
     // Build a list of device linking actions.
     ActionList DeviceAL;
     appendDeviceLinkActions(DeviceAL);
     if (DeviceAL.empty())
-      return nullptr;
+      return;
 
     // Let builders add host linking actions.
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
