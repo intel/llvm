@@ -11,10 +11,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// Two patches are not merged yet causing this test to fail
-// Will remove the XFAIL once these pacthes are merged
-// XFAIL: *
-
 #include <CL/sycl.hpp>
 #include <iostream>
 
