@@ -23,14 +23,5 @@ void kernel_wrapper() {
 }
 
 int main() {
-  int *x = malloc_shared<int>();
-  kernel_handler kh;
-  q.submit([&](handler &h) {
-    h.single_task<class mykern>([=](auto g) {
-      // expected-error@+1{{SYCL kernel cannot use a non-const global variable}}
-      x[3] = global_value;
-    },
-                                kh);
-  });
   kernel_wrapper<int>();
 }
