@@ -1,6 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
-
-// expected-no-diagnostics
+// RUN: %clangxx -fsycl -S -emit-llvm -fsycl-device-only %s -o - | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
