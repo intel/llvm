@@ -77,7 +77,7 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return ""; }
   static constexpr bool isESIMD() { return 0; }
-#ifndef DNDEBUG
+#ifndef NDEBUG
   static constexpr const char *getFileName() { return ""; }
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
@@ -94,7 +94,7 @@ template <char...> struct KernelInfoData {
   }
   static constexpr const char *getName() { return ""; }
   static constexpr bool isESIMD() { return 0; }
-#ifndef DNDEBUG
+#ifndef NDEBUG
   static constexpr const char *getFileName() { return ""; }
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
@@ -138,7 +138,7 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return SubKernelInfo::getName(); }
   static constexpr bool isESIMD() { return SubKernelInfo::isESIMD(); }
-#ifndef DNDEBUG
+#ifndef NDEBUG
   static constexpr const char *getFileName() { return ""; }
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
