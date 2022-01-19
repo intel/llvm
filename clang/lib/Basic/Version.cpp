@@ -128,7 +128,7 @@ getSYCLVersionMacros(const LangOptions &LangOpts) {
   if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017)
     return {{"CL_SYCL_LANGUAGE_VERSION", "121"},
             {"SYCL_LANGUAGE_VERSION", "201707"}};
-  else if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
     return {{"SYCL_LANGUAGE_VERSION", "202001"}};
   llvm_unreachable("SYCL standard should be set");
 }
