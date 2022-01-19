@@ -504,20 +504,19 @@ template <typename Group, typename T, matrix_use Use, size_t NumRows,
 void joint_matrix_load(
     Group sg, joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
     multi_ptr<T, Space> src, size_t stride) {
-#ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_load_impl<T, Use, NumRows, NumCols,
                                                     Layout, Space>{}
       .load(res, src, stride);
-#endif
 #else
   (void)sg;
   (void)res;
   (void)src;
   (void)stride;
-  throw runtime_error("joint_matrix_load is not supported on host device.",
+  throw runtime_error("When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_load is "
+                      "only supported by CUDA devices",
                       PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__*/
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -526,20 +525,19 @@ void joint_matrix_store(Group sg,
                         joint_matrix<T, matrix_use::accumulator, NumRows,
                                      NumCols, Layout, Group> &src,
                         multi_ptr<T, Space> dst, size_t stride) {
-#ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
-  sycl::ext::oneapi::detail::joint_matrix_store_impl<T, NumRows, NumCols,
-                                                     Layout, Space>{}
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  sycl::ext::oneapi::detail::joint_matrix_store_impl<T, NumRows, NumCols, Layout,
+                                                     Space>{}
       .store(src, dst, stride);
-#endif
 #else
   (void)sg;
   (void)src;
   (void)dst;
   (void)stride;
-  throw runtime_error("joint_matrix_store is not supported on host device.",
+  throw runtime_error("When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_store is "
+                      "only supported by CUDA devices",
                       PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__*/
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <typename Group, typename T1, typename T2, std::size_t M,
@@ -550,20 +548,19 @@ joint_matrix_mad(
     Group sg, joint_matrix<T1, matrix_use::a, M, K, LayoutA, Group> A,
     joint_matrix<T1, matrix_use::b, K, N, LayoutB, Group> B,
     joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group> C) {
-#ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return sycl::ext::oneapi::detail::joint_matrix_mad_impl<
              T1, T2, M, K, N, LayoutA, LayoutB, LayoutC>{}
       .mad(A, B, C);
-#endif
 #else
   (void)sg;
   (void)A;
   (void)B;
   (void)C;
-  throw runtime_error("joint_matrix_mad is not supported on host device.",
+  throw runtime_error("When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_mad is "
+                      "only supported by CUDA devices",
                       PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__*/
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 } // namespace experimental::matrix
