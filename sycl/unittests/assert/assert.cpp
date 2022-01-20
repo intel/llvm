@@ -18,7 +18,7 @@
  * pipe.
  */
 
-#define SYCL_ENABLE_FALLBACK_ASSERT 1
+#define SYCL_FALLBACK_ASSERT 1
 // Enable use of interop kernel c-tor
 #define __SYCL_INTERNAL_API
 #include <CL/sycl.hpp>
