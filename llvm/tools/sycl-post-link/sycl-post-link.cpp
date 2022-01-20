@@ -16,6 +16,7 @@
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
+#include "DeviceGlobals.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
@@ -618,6 +619,14 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
+  }
+
+  {
+    // Extract device global maps per module
+    auto DevGlobalPropertyMap
+        = DeviceGlobalsPass::collectDeviceGlobalProperties(M);
+    if (!DevGlobalPropertyMap.empty())
+      PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
   }
 
   std::error_code EC;
