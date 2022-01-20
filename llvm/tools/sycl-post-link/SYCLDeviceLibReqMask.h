@@ -36,8 +36,6 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_cstring,
 };
 
-using SYCLDeviceLibFuncMap = std::unordered_map<std::string, DeviceLibExt>;
-
 class SYCLDeviceLibReqMaskPass : public ModulePass {
 public:
   static char ID;
