@@ -385,8 +385,10 @@ the user to insert any form of explicit synchronization functions to ensure
 memory consistency across SIMD lanes.
 
 Due to potential differences in execution model, a SIMD function cannot call
-a `SYCL_EXTERNAL` function that was compiled for a SPMD context. Behavior in
-this case is undefined.
+any function that was compiled for a SPMD context. `SYCL_EXTERNAL` functions
+defined in a different translation unit to the SIMD function are not required
+to be compiled for SIMD contexts by default, and as a result such functions
+are incompatible with SIMD functions by default.
 
 NOTE: Implementations are encouraged to throw an error in cases where this
 behavior can be detected, and to do so as early as possible.
