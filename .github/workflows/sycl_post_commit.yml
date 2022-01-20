@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - sycl
+  pull_request:
+    paths:
+    - '.github/workflows/sycl_pre_commit.yml'
+
 jobs:
   linux_default:
     name: Linux Default
