@@ -121,7 +121,7 @@ flags can be found by launching the script with `--help`):
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* '--enable-esimd-cpu-emulation' -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* '--disable-esimd-emulator' -> excluding ESIMD CPU emulation support during toolchain build (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
@@ -261,15 +261,13 @@ CUDA 11, and using a GeForce 1060 device.
 There is experimental support for DPC++ for using ESIMD CPU Emulation
 
 This feature supports ESIMD CPU Emulation using CM_EMU library [CM
-Emulation
-project](https://github.com/intel/cm-cpu-emulation). Pre-built library
-package will be downloaded and installed in your deploy directory
-during toolchain build.
+Emulation project](https://github.com/intel/cm-cpu-emulation). The
+library package will be generated from source codes downloaded from
+its open source project and installed in your deploy directory during
+toolchain build.
 
-To enable support for ESIMD CPU emulation, follow the instructions for
-the Linux DPC++ toolchain, but add the `--enable-esimd-cpu-emulation'.
-
-Enabling this flag requires following packages installed.
+The library package building process requires following packages
+installed.
 
 * Ubuntu 20.04
     * libva-dev / 2.7.0-2
@@ -297,6 +295,10 @@ Enabling this flag requires following packages installed.
 
 Currently, this feature was tested and verified on Ubuntu 20.04
 environment.
+
+To exclude support for ESIMD CPU emulation during toolchain build,
+follow the instructions for the Linux DPC++ toolchain, but add the
+`--disable-esimd-emulator'.
 
 ### Build Doxygen documentation
 
