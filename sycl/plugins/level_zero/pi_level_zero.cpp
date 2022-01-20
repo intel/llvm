@@ -3353,12 +3353,15 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   // If USM Import feature is enabled and hostptr is supplied,
   // import the hostptr if not already imported into USM.
+  // Data transfer rate is maximized when both source and destination
+  // are USM pointers. Promote of the host pointer to USM thus
+  // optimizes data transfer performance.
   bool HostPtrImported = false;
   if (USMHostPtrImportEnabled && HostPtr != nullptr &&
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     // Query memory type of the host pointer
     ze_device_handle_t ZeDeviceHandle;
-    ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
     ZE_CALL(zeMemGetAllocProperties,
             (Context->ZeContext, HostPtr, &ZeMemoryAllocationProperties,
              &ZeDeviceHandle));
@@ -3450,13 +3453,12 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     *RetMem = new _pi_buffer(
         Context, pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
         HostPtrOrNull, nullptr, 0, 0,
-        DeviceIsIntegrated /* allocation in host memory */);
+        DeviceIsIntegrated /* allocation in host memory */, HostPtrImported);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
-  (*RetMem)->setHostPtrImported(HostPtrImported);
 
   return PI_SUCCESS;
 }
@@ -3521,7 +3523,7 @@ pi_result piMemRelease(pi_mem Mem) {
     } else {
       auto Buf = static_cast<_pi_buffer *>(Mem);
       if (!Buf->isSubBuffer()) {
-        if (Mem->getHostPtrImported()) {
+        if (Mem->HostPtrImported) {
           ze_driver_handle_t driverHandle =
               Mem->Context->Devices[0]->Platform->ZeDriver;
           ZeUSMImport.doZeUSMRelease(driverHandle, Mem->MapHostPtr);
@@ -6044,7 +6046,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
-      if (!Buffer->getHostPtrImported() &&
+      if (!Buffer->HostPtrImported &&
           !(MapFlags & PI_MAP_WRITE_INVALIDATE_REGION))
         memcpy(*RetMap, pi_cast<char *>(Buffer->getZeHandle()) + Offset, Size);
     } else {
