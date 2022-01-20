@@ -22,8 +22,8 @@
 #include <vector>
 
 namespace llvm {
+
 class StringRef;
-}
 
 // Represents either an element of a composite specialization constant or a
 // single scalar specialization constant - at SYCL RT level composite
@@ -70,3 +70,5 @@ public:
 private:
   bool SetValAtRT;
 };
+
+} // namespace llvm
