@@ -49,18 +49,15 @@ using TypesMap2 = std::unordered_map<Type *, SmallVector<int>>;
 
 TypesMap2 GetTypesWithAspectsFromMetadata(Module &M) {
   NamedMDNode *node = M.getNamedMetadata("intel_types_that_use_aspects");
-  dbgs() << (node ? "NamedMD found\n" : "NamedMD not found\n");
   TypesMap2 Result;
   if (!node)
     return Result;
 
   LLVMContextImpl &CI = *M.getContext().pImpl;
-  dbgs() << "NumOperands: " << node->getNumOperands() << "\n";
   for (unsigned i = 0; i != node->getNumOperands(); ++i) {
     dbgs() << "index: " << i << "\n";
     MDNode *n = node->getOperand(i);
     unsigned numOperands = n->getNumOperands();
-    dbgs() << "NumOperands: " << numOperands << "\n";
     assert(numOperands > 1);
     Metadata *mname = n->getOperand(0);
     MDString *sname = dyn_cast<MDString>(mname);
@@ -71,7 +68,6 @@ TypesMap2 GetTypesWithAspectsFromMetadata(Module &M) {
     StringRef name = sname->getString();
     auto it2 = CI.NamedStructTypes.find(name);
     if (it2 == CI.NamedStructTypes.end()) {
-      dbgs() << "Can't find type in NamedStructTypes. name: " << name << "\n";
       continue;
     }
 
@@ -80,16 +76,11 @@ TypesMap2 GetTypesWithAspectsFromMetadata(Module &M) {
     for (unsigned j = 1; j != numOperands; ++j) {
       Constant *C = dyn_cast<ConstantAsMetadata>(n->getOperand(j))->getValue();
       if (!C) {
-        dbgs() << "failed to get Constant*\n";
         continue;
       }
 
       it->second.push_back(dyn_cast<ConstantInt>(C)->getSExtValue());
     }
-    dbgs() << "type: " << *t << ", aspects: ";
-    for (auto a : it->second)
-      dbgs() << a << " ";
-    dbgs() << "\n";
   }
 
   return Result;
@@ -208,6 +199,8 @@ template <typename T> void PrintMap(const T &m) {
 PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   auto TypesWithAspects = GetTypesWithAspectsFromMetadata(M);
+  LLVMContext &C = M.getContext();
+  TypesWithAspects.insert({&C.pImpl->DoubleTy, SmallVector<int>{6}});
   PrintMap(TypesWithAspects);
 
   Graph g;
