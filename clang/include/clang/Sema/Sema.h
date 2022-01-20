@@ -44,6 +44,7 @@
 #include "clang/Basic/OpenCLOptions.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/PragmaKinds.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TemplateKinds.h"
 #include "clang/Basic/TypeTraits.h"
@@ -417,16 +418,20 @@ private:
     KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
         : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
-          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel),// {}
-          FileName(getContext().getSourceManager().getPresumedLoc(KernelLoc).getFileName().str()) {}//,
-          //FunctionName(getContext().getSourceManager().getPresumedLoc(KernelLoc).getFileName().str())
-          //LineNumber(KernelLocation.getPresumedLoc().getLine()), //getLineNumber()),
-          //ColumnNumber(KernelLocation.getPresumedLoc().getColumn()) {} //ColumnNumber()) {}
+          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel),
+          FileName(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getFilename()) {}
+          //LineNumber(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getLineNumber()),  
+          //ColumnNumber(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getColumnNumber()) {}
 
     void updateKernelNames(StringRef Name, StringRef StableName) {
       this->Name = Name.str();
       this->StableName = StableName.str();
+      //this->FunctionName = this->Name();
     }
+    // Populate FileName, LineNumber and ColumnNumber in Sema.cpp or elsehwere instead of here
+    // so that including SourceManager header can be avoided
+    void updateCodeLocationMembers(const FunctionDecl *SyclKernel, SourceLocation KernelLoc);
+    void updateFileName(const FunctionDecl *SyclKernel, std::string FileName, SourceLocation KernelLoc);
   };
 
   /// Returns the latest invocation descriptor started by
