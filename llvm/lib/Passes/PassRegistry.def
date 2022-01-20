@@ -122,6 +122,7 @@ MODULE_PASS("esimd-verifier", ESIMDVerifierPass())
 MODULE_PASS("SYCLMutatePrintfAddrspace", SYCLMutatePrintfAddrspacePass())
 MODULE_PASS("SPIRITTAnnotations", SPIRITTAnnotationsPass())
 MODULE_PASS("deadargelim-sycl", DeadArgumentEliminationSYCLPass())
+MODULE_PASS("sycllowerwglocalmemory", SYCLLowerWGLocalMemoryPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
