@@ -20,6 +20,7 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
@@ -513,6 +514,10 @@ static bool isSYCLKernelBodyFunction(FunctionDecl *FD) {
 static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
                                    const SourceManager &SrcMgr) {
   if (!Callee)
+    return false;
+
+  // The check below requires declaration name, make sure we have it.
+  if (!Callee->getIdentifier())
     return false;
 
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
@@ -4153,6 +4158,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   // Currently, there is an exception of "__failed_assertion" in libstdc++-11,
   // this undefined function is used to trigger a compiling error.
   if (!Callee->isDefined() && !Callee->getBuiltinID() &&
+      !Callee->isReplaceableGlobalAllocationFunction() &&
       !isSYCLUndefinedAllowed(Callee, getSourceManager())) {
     Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
@@ -4593,6 +4599,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
+
+  // Predefines which need to be set for custom host compilation
+  // must be defined in integration header.
+  for (const std::pair<StringRef, StringRef> &Macro :
+       getSYCLVersionMacros(S.getLangOpts())) {
+    O << "#ifndef " << Macro.first << '\n';
+    O << "#define " << Macro.first << " " << Macro.second << '\n';
+    O << "#endif //" << Macro.first << "\n\n";
+  }
+
+  if (S.getLangOpts().SYCLDisableRangeRounding) {
+    O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+  }
 
   if (SpecConsts.size() > 0) {
     O << "// Forward declarations of templated spec constant types:\n";
