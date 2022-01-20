@@ -33,7 +33,7 @@ Copyright (c) 2021 Intel Corporation.  All rights reserved.
 
 Working Draft
 
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension@.
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
 
 Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
 
@@ -53,7 +53,7 @@ This extension is written against the SYCL 2020 specification, Revision 4.
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros".  Therefore, an
 implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_ASYNC_BARRIER` to one of the values defined in the table
+`SYCL_EXT_ONEAPI_BARRIER` to one of the values defined in the table
 below. Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's APIs the implementation supports.
@@ -72,6 +72,8 @@ Implementing this requires some space in local memory, where the state of the ba
 
 This extension introduces `barrier` class. It must be used only in local memory. Once a `barrier` is initialized it can be reused for multiple cycles of arrivals and waits.
 
+While it is expected that `barrier` will be mostly useful for devices that support independent forward progress, it can also be used on devices that do not support it. If the device does not support independent forward progress, care must be taken that `wait` is only called with all work-items in sub-group converged. Not following this advice will likely lead to a deadlock (similarly as could happen if attempting to synchronize a diverged sub-group with atomics, for example by implementing a spinlock).
+
 === Cycle of arrivals and waits
 
 When predetermined number of arrivals happen, the barrier moves into the next cycle. That unblocks the waits for current cycle. That is any wait that was previously called with the arrival token from this cycle stops blocking and future calls to wait with arrival token from this cycle will not block. The pending count is also reset and any future arrivals happen in the next cycle. However, at least one wait (or test wait returning `true`) must happen with arrival token from current cycle before any arrivals can happen in the next cycle. Another arrival happening before the wait is undefined behavior.
@@ -82,9 +84,9 @@ Wait and test wait can only be called with an arrival token from current cycle (
 
 `barrier` class has the follwing member functions:
 
-`void initialize(uint32_t expected_count)` : Initializes the barrier with given count of arrivals before wait unblocks. It only needs to be called by one thread in work group. After the initialization a barrier operation (such as `group_barrier()`)needs to be executed by all threads using the `barrier` object before they can use the newly initialized `barrier` object.
+`void initialize(uint32_t expected_count)` : Initializes the barrier with given count of arrivals before wait unblocks. It only needs to be called by one work-item in work group. After the initialization a barrier operation (such as `group_barrier()`)needs to be executed by all work-items using the `barrier` object before they can use the newly initialized `barrier` object.
 
-`void invalidate()` : This must be called on an initializted barrier before the memory it is using can be repurposed for any other use. It only needs to be called by one thread in work group. Before the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by all threads using the `barrier` object, after the last call on the `barrier`. After the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by any threads reusing the memory before the memory is reused. Calling any member function, except `initialize()` on an invalidated barrier is undefined behavior.
+`void invalidate()` : This must be called on an initialized barrier before the memory it is using can be repurposed for any other use. It only needs to be called by one work-item in work group. Before the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by all work-items using the `barrier` object, after the last call on the `barrier`. After the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by any work-items reusing the memory before the memory is reused. Calling any member function, except `initialize()` on an invalidated barrier is undefined behavior.
 
 `arrival_token arrive()` : Executes arrival operation and returns a token that is needed for the wait call corresponding to this arrival.
 
@@ -145,15 +147,7 @@ public:
 
 == Issues
 
-None.
-
-//. asd
-//+
-//--
-//*RESOLUTION*: Not resolved.
-//--
-
-. Is `barrier` the best name? Reasons for that name are that it is mostly in line with c+\+20 `std::barrier` and CUDA has the same name for this functionality. However it might be confusing with `group_barrier`, which is not present in c++20 and has a different name in CUDA - `__syncthreads`. Earlier version of CUDA docs called this `awbarrier`. Now that name is deprecated and they call it asynchronous barrier in text and `barrier` in code. Related PTX instructions use `mbarrier`.
+. Is `barrier` the best name? Reasons for that name are that it is mostly in line with c+\+20 `std::barrier` and CUDA has the same name for this functionality. However it might be confusing with `group_barrier`, which is not present in c++20 and has a different name in CUDA - `__syncthreads`. Earlier version of CUDA docs called this `awbarrier`. Now that name is deprecated and they call it asynchronous barrier in text and `barrier` in code. Related PTX instructions use `mbarrier`. Other ideas for the name: "non-blocking barrier" and "split barrier".
 --
 *RESOLUTION*: Not resolved.
 --
@@ -172,13 +166,3 @@ None.
 * https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#aw-barrier
 * https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier
 * https://nvidia.github.io/libcudacxx/extended_api/synchronization_primitives/barrier.html
-
-
-//************************************************************************
-//Other formatting suggestions:
-//
-//* Use *bold* text for host APIs, or [source] syntax highlighting.
-//* Use +mono+ text for device APIs, or [source] syntax highlighting.
-//* Use +mono+ text for extension names, types, or enum values.
-//* Use _italics_ for parameters.
-//************************************************************************

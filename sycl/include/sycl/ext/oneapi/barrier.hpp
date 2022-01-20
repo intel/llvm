@@ -8,6 +8,8 @@
 
 #pragma once
 
+#define SYCL_EXT_ONEAPI_BARRIER 1
+
 #include <CL/__spirv/spirv_ops.hpp>
 #include <cstddef>
 
@@ -28,7 +30,7 @@ public:
 
   void initialize(uint32_t expected_count) {
 #ifdef __SYCL_DEVICE_ONLY__
-    __spirv_BarrierInitialize(&state, expected_count);
+    __spirv_BarrierInitializeINTEL(&state, expected_count);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -37,7 +39,7 @@ public:
 
   void invalidate() {
 #ifdef __SYCL_DEVICE_ONLY__
-    __spirv_BarrierInvalidate(&state);
+    __spirv_BarrierInvalidateINTEL(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -46,7 +48,7 @@ public:
 
   arrival_token arrive() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BarrierArrive(&state);
+    return __spirv_BarrierArriveINTEL(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -55,7 +57,7 @@ public:
 
   arrival_token arrive_and_drop() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BarrierArriveAndDrop(&state);
+    return __spirv_BarrierArriveAndDropINTEL(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -64,7 +66,7 @@ public:
 
   arrival_token arrive_no_complete(int32_t count) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BarrierArriveNoComplete(&state, count);
+    return __spirv_BarrierArriveNoCompleteINTEL(&state, count);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -73,7 +75,7 @@ public:
 
   arrival_token arrive_and_drop_no_complete(int32_t count) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BarrierArriveAndDropNoComplete(&state, count);
+    return __spirv_BarrierArriveAndDropNoCompleteINTEL(&state, count);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -82,7 +84,7 @@ public:
 
   void arrive_copy_async() {
 #ifdef __SYCL_DEVICE_ONLY__
-    __spirv_BarrierCopyAsyncArrive(&state);
+    __spirv_BarrierCopyAsyncArriveINTEL(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -91,7 +93,7 @@ public:
 
   void arrive_copy_async_no_inc() {
 #ifdef __SYCL_DEVICE_ONLY__
-    __spirv_BarrierCopyAsyncArriveNoInc(&state);
+    __spirv_BarrierCopyAsyncArriveNoIncINTEL(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -100,7 +102,7 @@ public:
 
   void wait(arrival_token arrival) {
 #ifdef __SYCL_DEVICE_ONLY__
-    __spirv_BarrierWait(&state, arrival);
+    __spirv_BarrierWaitINTEL(&state, arrival);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -109,7 +111,7 @@ public:
 
   bool test_wait(arrival_token arrival) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_BarrierTestWait(&state, arrival);
+    return __spirv_BarrierTestWaitINTEL(&state, arrival);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -118,7 +120,7 @@ public:
 
   void arrive_and_wait() {
 #ifdef __SYCL_DEVICE_ONLY__
-    __spirv_BarrierArriveAndWait(&state);
+    __spirv_BarrierArriveAndWaitINTEL(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
                         PI_INVALID_DEVICE);

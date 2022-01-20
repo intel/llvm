@@ -743,37 +743,37 @@ __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
 __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_BarrierInitialize(int64_t *state, int32_t expected_count) noexcept;
+__spirv_BarrierInitializeINTEL(int64_t *state, int32_t expected_count) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_BarrierInvalidate(int64_t *state) noexcept;
+__spirv_BarrierInvalidateINTEL(int64_t *state) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
-__spirv_BarrierArrive(int64_t *state) noexcept;
+__spirv_BarrierArriveINTEL(int64_t *state) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
-__spirv_BarrierArriveAndDrop(int64_t *state) noexcept;
+__spirv_BarrierArriveAndDropINTEL(int64_t *state) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
-__spirv_BarrierArriveNoComplete(int64_t *state, int32_t count) noexcept;
+__spirv_BarrierArriveNoCompleteINTEL(int64_t *state, int32_t count) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
-__spirv_BarrierArriveAndDropNoComplete(int64_t *state, int32_t count) noexcept;
+__spirv_BarrierArriveAndDropNoCompleteINTEL(int64_t *state, int32_t count) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_BarrierCopyAsyncArrive(int64_t *state) noexcept;
+__spirv_BarrierCopyAsyncArriveINTEL(int64_t *state) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_BarrierCopyAsyncArriveNoInc(int64_t *state) noexcept;
+__spirv_BarrierCopyAsyncArriveNoIncINTEL(int64_t *state) noexcept;
 
 __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_BarrierWait(int64_t *state, int64_t arrival) noexcept;
+__spirv_BarrierWaitINTEL(int64_t *state, int64_t arrival) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT bool
-__spirv_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
+__spirv_BarrierTestWaitINTEL(int64_t *state, int64_t arrival) noexcept;
 
 __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_BarrierArriveAndWait(int64_t *state) noexcept;
+__spirv_BarrierArriveAndWaitINTEL(int64_t *state) noexcept;
 
 #ifdef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
 template <typename... Args>
