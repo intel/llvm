@@ -17,8 +17,12 @@
 #pragma once
 
 #include "llvm/Pass.h"
+
+#include <cstdint>
+#include <string>
 #include <unordered_map>
-using namespace llvm;
+
+namespace llvm {
 
 // DeviceLibExt is shared between sycl-post-link tool and sycl runtime.
 // If any change is made here, need to sync with DeviceLibExt definition
@@ -33,6 +37,7 @@ enum class DeviceLibExt : std::uint32_t {
 };
 
 using SYCLDeviceLibFuncMap = std::unordered_map<std::string, DeviceLibExt>;
+
 class SYCLDeviceLibReqMaskPass : public ModulePass {
 public:
   static char ID;
@@ -43,3 +48,5 @@ public:
 private:
   uint32_t MReqMask;
 };
+
+} // namespace llvm

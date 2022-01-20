@@ -20,6 +20,8 @@
 
 static constexpr char DEVICELIB_FUNC_PREFIX[] = "__devicelib_";
 
+using namespace llvm;
+
 namespace {
 // Please update SDLMap if any item is added to or removed from
 // fallback device libraries in libdevice.
