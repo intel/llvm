@@ -1062,7 +1062,7 @@ private:
   }
 
 #ifdef SYCL_LANGUAGE_VERSION
-#define __SYCL_KERNEL_ATTR__ __attribute__((sycl_kernel))
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
 #else
 #define __SYCL_KERNEL_ATTR__
 #endif
