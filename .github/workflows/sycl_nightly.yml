@@ -60,7 +60,6 @@ jobs:
     uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
     with:
       build_runs_on: build
-      build_github_cache: true
       build_cache_root: "/__w/"
-      build_artifact_suffix: default
-      build_new_pass_manager: "ON"
+      build_artifact_suffix: new_pm
+      build_configure_extra_args: '--hip --hip-amd-arch=gfx906 --cuda --cmake-opt="-DLLVM_ENABLE_NEW_PASS_MANAGER=ON"'
