@@ -516,6 +516,10 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee)
     return false;
 
+  // The check below requires declaration name, make sure we have it.
+  if (!Callee->getIdentifier())
+    return false;
+
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
   // is used to trigger some compilation error when the check fails at compile
@@ -4154,6 +4158,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   // Currently, there is an exception of "__failed_assertion" in libstdc++-11,
   // this undefined function is used to trigger a compiling error.
   if (!Callee->isDefined() && !Callee->getBuiltinID() &&
+      !Callee->isReplaceableGlobalAllocationFunction() &&
       !isSYCLUndefinedAllowed(Callee, getSourceManager())) {
     Diag(Loc, diag::err_sycl_restrict) << Sema::KernelCallUndefinedFunction;
     Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
