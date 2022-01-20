@@ -447,6 +447,7 @@ void initializeESIMDLowerLoadStorePass(PassRegistry &);
 void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
 void initializeESIMDVerifierPass(PassRegistry &);
 void initializeSYCLLowerWGLocalMemoryLegacyPass(PassRegistry &);
+void initializeSYCLPropagateAspectUsageLegacyPassPass(PassRegistry &);
 void initializeTailCallElimPass(PassRegistry&);
 void initializeTailDuplicatePass(PassRegistry&);
 void initializeTargetLibraryInfoWrapperPassPass(PassRegistry&);
