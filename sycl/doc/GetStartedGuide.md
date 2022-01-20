@@ -271,25 +271,11 @@ installed.
 
 * Ubuntu 20.04
     * libva-dev / 2.7.0-2
-    * libva-drm2 / 2.7.0-2
-    * libva-glx2 / 2.7.0-2
-    * libva-wayland2 / 2.7.0-2
-    * libva-x11-2 / 2.7.0-2
-    * libva2 / focal 2.7.0-2
     * libffi-dev / 3.3-4
-    * libffi7 / 3.3-4
-    * libdrm-amdgpu1
-    * libdrm-common
-    * libdrm-dev
-    * libdrm-intel1
-    * libdrm-nouveau2
-    * libdrm-radeon1
-    * libdrm2
+    * libtool
 * RHEL 8.*
     * libffi
     * libffi-devel
-    * libdrm
-    * libdrm-devel
     * libva
     * libva-devel
 
