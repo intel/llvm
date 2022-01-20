@@ -202,7 +202,7 @@ struct GlobalBinImageProps {
   bool EmitProgramMetadata;
   bool EmitExportedSymbols;
   bool IsEsimdKernel;
-  bool EmitDeviceGlobalPropSet;
+  bool DeviceGlobalsMet;
 };
 
 void error(const Twine &Msg) {
@@ -630,7 +630,7 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
   }
 
-  if (ImgPSInfo.EmitDeviceGlobalPropSet) {
+  if (ImgPSInfo.DeviceGlobalsMet) {
     // Extract device global maps per module
     auto DevGlobalPropertyMap =
         DeviceGlobalsPass::collectDeviceGlobalProperties(M);
