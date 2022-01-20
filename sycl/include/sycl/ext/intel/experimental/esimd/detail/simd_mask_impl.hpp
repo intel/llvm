@@ -62,7 +62,6 @@ public:
   }
 
   /// Implicit conversion from simd.
-  __SYCL_DEPRECATED(__ESIMD_MASK_DEPRECATION_MSG)
   simd_mask_impl(const simd<T, N> &Val) : base_type(Val.data()) {}
 
   /// Implicit conversion from simd_view<simd,...>.

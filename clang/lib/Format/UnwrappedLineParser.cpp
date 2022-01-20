@@ -343,11 +343,9 @@ void UnwrappedLineParser::parse() {
     pushToken(FormatTok);
     addUnwrappedLine();
 
-    for (SmallVectorImpl<UnwrappedLine>::iterator I = Lines.begin(),
-                                                  E = Lines.end();
-         I != E; ++I) {
-      Callback.consumeUnwrappedLine(*I);
-    }
+    for (const UnwrappedLine &Line : Lines)
+      Callback.consumeUnwrappedLine(Line);
+
     Callback.finishRun();
     Lines.clear();
     while (!PPLevelBranchIndex.empty() &&
@@ -782,6 +780,8 @@ static bool ShouldBreakBeforeBrace(const FormatStyle &Style,
     return Style.BraceWrapping.AfterUnion;
   if (InitialToken.is(tok::kw_struct))
     return Style.BraceWrapping.AfterStruct;
+  if (InitialToken.is(tok::kw_enum))
+    return Style.BraceWrapping.AfterEnum;
   return false;
 }
 
@@ -1138,7 +1138,6 @@ void UnwrappedLineParser::parseModuleImport() {
   }
 
   addUnwrappedLine();
-  return;
 }
 
 // readTokenWithJavaScriptASI reads the next token and terminates the current
@@ -1524,8 +1523,16 @@ void UnwrappedLineParser::parseStructuralElement(bool IsTopLevel) {
         // structural element.
         // FIXME: Figure out cases where this is not true, and add projections
         // for them (the one we know is missing are lambdas).
-        if (Style.BraceWrapping.AfterFunction)
+        if (Style.Language == FormatStyle::LK_Java &&
+            Line->Tokens.front().Tok->is(Keywords.kw_synchronized)) {
+          // If necessary, we could set the type to something different than
+          // TT_FunctionLBrace.
+          if (Style.BraceWrapping.AfterControlStatement ==
+              FormatStyle::BWACS_Always)
+            addUnwrappedLine();
+        } else if (Style.BraceWrapping.AfterFunction) {
           addUnwrappedLine();
+        }
         FormatTok->setType(TT_FunctionLBrace);
         parseBlock();
         addUnwrappedLine();
@@ -1784,6 +1791,9 @@ bool UnwrappedLineParser::tryToParseLambda() {
       break;
     case tok::l_paren:
       parseParens();
+      break;
+    case tok::l_square:
+      parseSquare();
       break;
     case tok::amp:
     case tok::star:
@@ -2439,7 +2449,7 @@ void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
         addUnwrappedLine();
         if (!Style.IndentCaseBlocks &&
             Style.BreakBeforeBraces == FormatStyle::BS_Whitesmiths) {
-          Line->Level++;
+          ++Line->Level;
         }
       }
       parseStructuralElement();
@@ -2598,7 +2608,7 @@ void UnwrappedLineParser::parseRequires() {
   if (FormatTok->Previous && FormatTok->Previous->is(tok::greater)) {
     addUnwrappedLine();
     if (Style.IndentRequires) {
-      Line->Level++;
+      ++Line->Level;
     }
   }
   nextToken();
@@ -2607,11 +2617,11 @@ void UnwrappedLineParser::parseRequires() {
 }
 
 bool UnwrappedLineParser::parseEnum() {
+  const FormatToken &InitialToken = *FormatTok;
+
   // Won't be 'enum' for NS_ENUMs.
   if (FormatTok->Tok.is(tok::kw_enum))
     nextToken();
-
-  const FormatToken &InitialToken = *FormatTok;
 
   // In TypeScript, "enum" can also be used as property name, e.g. in interface
   // declarations. An "enum" keyword followed by a colon would be a syntax
@@ -3265,10 +3275,7 @@ continuesLineCommentSection(const FormatToken &FormatTok,
 
 void UnwrappedLineParser::flushComments(bool NewlineBeforeNext) {
   bool JustComments = Line->Tokens.empty();
-  for (SmallVectorImpl<FormatToken *>::const_iterator
-           I = CommentsBeforeNextToken.begin(),
-           E = CommentsBeforeNextToken.end();
-       I != E; ++I) {
+  for (FormatToken *Tok : CommentsBeforeNextToken) {
     // Line comments that belong to the same line comment section are put on the
     // same line since later we might want to reflow content between them.
     // Additional fine-grained breaking of line comment sections is controlled
@@ -3277,11 +3284,11 @@ void UnwrappedLineParser::flushComments(bool NewlineBeforeNext) {
     //
     // FIXME: Consider putting separate line comment sections as children to the
     // unwrapped line instead.
-    (*I)->ContinuesLineCommentSection =
-        continuesLineCommentSection(**I, *Line, CommentPragmasRegex);
-    if (isOnNewLine(**I) && JustComments && !(*I)->ContinuesLineCommentSection)
+    Tok->ContinuesLineCommentSection =
+        continuesLineCommentSection(*Tok, *Line, CommentPragmasRegex);
+    if (isOnNewLine(*Tok) && JustComments && !Tok->ContinuesLineCommentSection)
       addUnwrappedLine();
-    pushToken(*I);
+    pushToken(Tok);
   }
   if (NewlineBeforeNext && JustComments)
     addUnwrappedLine();

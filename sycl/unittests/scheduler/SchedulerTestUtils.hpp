@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl.hpp>
 #include <CL/sycl/detail/cl.h>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
