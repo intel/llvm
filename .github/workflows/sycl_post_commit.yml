@@ -6,7 +6,7 @@ on:
       - sycl
   pull_request:
     paths:
-    - '.github/workflows/sycl_pre_commit.yml'
+    - '.github/workflows/sycl_post_commit.yml'
 
 jobs:
   linux_default:
