@@ -37,7 +37,6 @@ set(NVPTXCodeGen_sources
   NVVMReflect.cpp
   NVPTXProxyRegErasure.cpp
   SYCL/GlobalOffset.cpp
-  SYCL/LocalAccessorToSharedMemory.cpp
   )
 
 add_llvm_target(NVPTXCodeGen
@@ -58,6 +57,7 @@ add_llvm_target(NVPTXCodeGen
   Target
   TransformUtils
   Vectorize
+  Passes
 
   ADD_TO_COMPONENT
   NVPTX

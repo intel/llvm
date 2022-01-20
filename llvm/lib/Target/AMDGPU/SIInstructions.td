@@ -1011,13 +1011,21 @@ def : GCNPat <
 }
 
 def : GCNPat <
-  (i32 (ctpop i32:$popcnt)),
+  (i32 (DivergentUnaryFrag<ctpop> i32:$popcnt)),
   (V_BCNT_U32_B32_e64 VSrc_b32:$popcnt, (i32 0))
 >;
 
 def : GCNPat <
   (i16 (add (i16 (trunc (i32 (getDivergentFrag<ctpop>.ret i32:$popcnt)))), i16:$val)),
   (V_BCNT_U32_B32_e64 $popcnt, $val)
+>;
+
+def : GCNPat <
+  (i64 (DivergentUnaryFrag<ctpop> i64:$src)),
+  (REG_SEQUENCE VReg_64,
+    (V_BCNT_U32_B32_e64 (i32 (EXTRACT_SUBREG i64:$src, sub1)),
+      (i32 (V_BCNT_U32_B32_e64 (i32 (EXTRACT_SUBREG i64:$src, sub0)), (i32 0)))), sub0,
+      (i32 (V_MOV_B32_e32 (i32 0))), sub1)
 >;
 
 /********** ============================================ **********/
@@ -2212,18 +2220,18 @@ def : GCNPat <
 >;
 
 def : GCNPat <
-  (i1 (trunc i32:$a)),
-  (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1), $a), (i32 1))
+  (i1 (DivergentUnaryFrag<trunc> i32:$a)),
+  (V_CMP_EQ_U32_e64 (V_AND_B32_e64 (i32 1), $a), (i32 1))
 >;
 
 def : GCNPat <
-  (i1 (trunc i16:$a)),
-  (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1), $a), (i32 1))
+  (i1 (DivergentUnaryFrag<trunc> i16:$a)),
+  (V_CMP_EQ_U32_e64 (V_AND_B32_e64 (i32 1), $a), (i32 1))
 >;
 
 def : GCNPat <
-  (i1 (trunc i64:$a)),
-  (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1),
+  (i1 (DivergentUnaryFrag<trunc> i64:$a)),
+  (V_CMP_EQ_U32_e64 (V_AND_B32_e64 (i32 1),
                     (i32 (EXTRACT_SUBREG $a, sub0))), (i32 1))
 >;
 

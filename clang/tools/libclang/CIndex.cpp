@@ -2280,6 +2280,8 @@ void OMPClauseEnqueue::VisitOMPUpdateClause(const OMPUpdateClause *) {}
 
 void OMPClauseEnqueue::VisitOMPCaptureClause(const OMPCaptureClause *) {}
 
+void OMPClauseEnqueue::VisitOMPCompareClause(const OMPCompareClause *) {}
+
 void OMPClauseEnqueue::VisitOMPSeqCstClause(const OMPSeqCstClause *) {}
 
 void OMPClauseEnqueue::VisitOMPAcqRelClause(const OMPAcqRelClause *) {}
@@ -4952,7 +4954,7 @@ CXStringSet *clang_Cursor_getObjCManglings(CXCursor C) {
 
 CXPrintingPolicy clang_getCursorPrintingPolicy(CXCursor C) {
   if (clang_Cursor_isNull(C))
-    return 0;
+    return nullptr;
   return new PrintingPolicy(getCursorContext(C).getPrintingPolicy());
 }
 
@@ -6978,16 +6980,16 @@ CXToken *clang_getToken(CXTranslationUnit TU, CXSourceLocation Location) {
 
   if (isNotUsableTU(TU)) {
     LOG_BAD_TU(TU);
-    return NULL;
+    return nullptr;
   }
 
   ASTUnit *CXXUnit = cxtu::getASTUnit(TU);
   if (!CXXUnit)
-    return NULL;
+    return nullptr;
 
   SourceLocation Begin = cxloc::translateSourceLocation(Location);
   if (Begin.isInvalid())
-    return NULL;
+    return nullptr;
   SourceManager &SM = CXXUnit->getSourceManager();
   std::pair<FileID, unsigned> DecomposedEnd = SM.getDecomposedLoc(Begin);
   DecomposedEnd.second +=
@@ -7000,7 +7002,7 @@ CXToken *clang_getToken(CXTranslationUnit TU, CXSourceLocation Location) {
   getTokens(CXXUnit, SourceRange(Begin, End), CXTokens);
 
   if (CXTokens.empty())
-    return NULL;
+    return nullptr;
 
   CXTokens.resize(1);
   CXToken *Token = static_cast<CXToken *>(llvm::safe_malloc(sizeof(CXToken)));
