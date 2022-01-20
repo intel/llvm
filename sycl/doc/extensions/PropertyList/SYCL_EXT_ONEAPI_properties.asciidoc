@@ -278,7 +278,9 @@ a|
 ```c++
 using value_t = First;
 ```
-| The parameter type. Available only when there is exactly one parameter.
+| Available only when there is exactly one parameter.  When the parameter's value is a type, `value_t`
+is that type.  When the parameter's value is a non-type, `value_t` is an implementation-defined type
+with a member constant `value` equal to the value.
 a|
 ```c++
 using key_t = property;
