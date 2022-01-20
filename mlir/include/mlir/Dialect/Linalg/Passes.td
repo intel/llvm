@@ -100,6 +100,12 @@ def LinalgFoldReshapeOpsByLinearization :
   let dependentDialects = ["AffineDialect", "memref::MemRefDialect"];
 }
 
+def LinalgNamedOpConversion: Pass<"linalg-named-op-conversion"> {
+  let summary = "Convert from one named linalg op to another.";
+  let constructor = "mlir::createLinalgNamedOpConversionPass()";
+  let dependentDialects = ["linalg::LinalgDialect", "tensor::TensorDialect"];
+}
+
 def LinalgLowerTiledLoopsToSCF
     : FunctionPass<"convert-linalg-tiled-loops-to-scf"> {
   let summary = "Lower linalg tiled loops to SCF loops and parallel loops";
@@ -231,6 +237,12 @@ def LinalgDetensorize : Pass<"linalg-detensorize", ""> {
     run on others. This is because it performs specific legalization of the
     blocks that make up the body, which it assumes has a FunctionLike trait.
   }];
+  let options = [
+    Option<"aggressiveMode", "aggressive-mode", "bool", /*default=*/"false",
+           "Detensorize all ops that qualify for detensoring along with branch"
+           " operands and basic-block arguments.">
+
+  ];
 }
 
 def LinalgStrategyTileAndFusePass

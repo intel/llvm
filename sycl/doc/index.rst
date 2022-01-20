@@ -40,6 +40,8 @@ Developing oneAPI DPC++ Compiler
    OptionalDeviceFeatures
    SYCLInstrumentationUsingXPTI
    ITTAnnotations
+   DeviceGlobal
+   CompileTimeProperties
 
 Development BKMs
 ~~~~~~~~~~~~~~~~

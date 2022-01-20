@@ -34,7 +34,6 @@ namespace elf {
 class Defined;
 struct PhdrEntry;
 class SymbolTableBaseSection;
-class VersionNeedBaseSection;
 
 class SyntheticSection : public InputSection {
 public:
@@ -449,21 +448,21 @@ public:
   DynamicReloc(RelType type, const InputSectionBase *inputSec,
                uint64_t offsetInSec, Kind kind, Symbol &sym, int64_t addend,
                RelExpr expr)
-      : type(type), sym(&sym), inputSec(inputSec), offsetInSec(offsetInSec),
-        kind(kind), expr(expr), addend(addend) {}
+      : sym(&sym), inputSec(inputSec), offsetInSec(offsetInSec), type(type),
+        addend(addend), kind(kind), expr(expr) {}
   /// This constructor records a relative relocation with no symbol.
   DynamicReloc(RelType type, const InputSectionBase *inputSec,
                uint64_t offsetInSec, int64_t addend = 0)
-      : type(type), sym(nullptr), inputSec(inputSec), offsetInSec(offsetInSec),
-        kind(AddendOnly), expr(R_ADDEND), addend(addend) {}
+      : sym(nullptr), inputSec(inputSec), offsetInSec(offsetInSec), type(type),
+        addend(addend), kind(AddendOnly), expr(R_ADDEND) {}
   /// This constructor records dynamic relocation settings used by the MIPS
   /// multi-GOT implementation.
   DynamicReloc(RelType type, const InputSectionBase *inputSec,
                uint64_t offsetInSec, const OutputSection *outputSec,
                int64_t addend)
-      : type(type), sym(nullptr), inputSec(inputSec), offsetInSec(offsetInSec),
-        kind(MipsMultiGotPage), expr(R_ADDEND), addend(addend),
-        outputSec(outputSec) {}
+      : sym(nullptr), outputSec(outputSec), inputSec(inputSec),
+        offsetInSec(offsetInSec), type(type), addend(addend),
+        kind(MipsMultiGotPage), expr(R_ADDEND) {}
 
   uint64_t getOffset() const;
   uint32_t getSymIndex(SymbolTableBaseSection *symTab) const;
@@ -476,18 +475,24 @@ public:
   /// address/the address of the corresponding GOT entry/etc.
   int64_t computeAddend() const;
 
-  RelType type;
+  void computeRaw(SymbolTableBaseSection *symtab);
+
   Symbol *sym;
+  const OutputSection *outputSec = nullptr;
   const InputSectionBase *inputSec;
   uint64_t offsetInSec;
+  uint64_t r_offset;
+  RelType type;
+  uint32_t r_sym;
+  // Initially input addend, then the output addend after
+  // RelocationSection<ELFT>::writeTo.
+  int64_t addend;
 
 private:
   Kind kind;
   // The kind of expression used to calculate the added (required e.g. for
   // relative GOT relocations).
   RelExpr expr;
-  int64_t addend;
-  const OutputSection *outputSec = nullptr;
 };
 
 template <class ELFT> class DynamicSection final : public SyntheticSection {
@@ -513,22 +518,22 @@ public:
   /// using relocations on the input section (e.g. MipsGotSection::writeTo()).
   void addReloc(const DynamicReloc &reloc);
   /// Add a dynamic relocation against \p sym with an optional addend.
-  void addSymbolReloc(RelType dynType, InputSectionBase *isec,
+  void addSymbolReloc(RelType dynType, InputSectionBase &isec,
                       uint64_t offsetInSec, Symbol &sym, int64_t addend = 0,
                       llvm::Optional<RelType> addendRelType = llvm::None);
   /// Add a relative dynamic relocation that uses the target address of \p sym
   /// (i.e. InputSection::getRelocTargetVA()) + \p addend as the addend.
-  void addRelativeReloc(RelType dynType, InputSectionBase *isec,
+  void addRelativeReloc(RelType dynType, InputSectionBase &isec,
                         uint64_t offsetInSec, Symbol &sym, int64_t addend,
                         RelType addendRelType, RelExpr expr);
   /// Add a dynamic relocation using the target address of \p sym as the addend
   /// if \p sym is non-preemptible. Otherwise add a relocation against \p sym.
   void addAddendOnlyRelocIfNonPreemptible(RelType dynType,
-                                          InputSectionBase *isec,
+                                          InputSectionBase &isec,
                                           uint64_t offsetInSec, Symbol &sym,
                                           RelType addendRelType);
   void addReloc(DynamicReloc::Kind kind, RelType dynType,
-                InputSectionBase *inputSec, uint64_t offsetInSec, Symbol &sym,
+                InputSectionBase &inputSec, uint64_t offsetInSec, Symbol &sym,
                 int64_t addend, RelExpr expr, RelType addendRelType);
   bool isNeeded() const override { return !relocs.empty(); }
   size_t getSize() const override { return relocs.size() * this->entsize; }
@@ -1197,24 +1202,24 @@ struct Partition {
   StringRef name;
   uint64_t nameStrTab;
 
-  SyntheticSection *elfHeader;
-  SyntheticSection *programHeaders;
-  std::vector<PhdrEntry *> phdrs;
+  std::unique_ptr<SyntheticSection> elfHeader;
+  std::unique_ptr<SyntheticSection> programHeaders;
+  SmallVector<PhdrEntry *, 0> phdrs;
 
-  ARMExidxSyntheticSection *armExidx;
-  BuildIdSection *buildId;
-  SyntheticSection *dynamic;
-  StringTableSection *dynStrTab;
-  SymbolTableBaseSection *dynSymTab;
-  EhFrameHeader *ehFrameHdr;
-  EhFrameSection *ehFrame;
+  std::unique_ptr<ARMExidxSyntheticSection> armExidx;
+  std::unique_ptr<BuildIdSection> buildId;
+  std::unique_ptr<SyntheticSection> dynamic;
+  std::unique_ptr<StringTableSection> dynStrTab;
+  std::unique_ptr<SymbolTableBaseSection> dynSymTab;
+  std::unique_ptr<EhFrameHeader> ehFrameHdr;
+  std::unique_ptr<EhFrameSection> ehFrame;
   GnuHashTableSection *gnuHashTab;
   HashTableSection *hashTab;
-  RelocationBaseSection *relaDyn;
-  RelrBaseSection *relrDyn;
-  VersionDefinitionSection *verDef;
-  SyntheticSection *verNeed;
-  VersionTableSection *verSym;
+  std::unique_ptr<RelocationBaseSection> relaDyn;
+  std::unique_ptr<RelrBaseSection> relrDyn;
+  std::unique_ptr<VersionDefinitionSection> verDef;
+  std::unique_ptr<SyntheticSection> verNeed;
+  std::unique_ptr<VersionTableSection> verSym;
 
   unsigned getNumber() const { return this - &partitions[0] + 1; }
 };
@@ -1229,27 +1234,29 @@ inline Partition &SectionBase::getPartition() const {
 // Linker generated sections which can be used as inputs and are not specific to
 // a partition.
 struct InStruct {
-  InputSection *attributes;
-  BssSection *bss;
-  BssSection *bssRelRo;
-  GotSection *got;
-  GotPltSection *gotPlt;
-  IgotPltSection *igotPlt;
-  PPC64LongBranchTargetSection *ppc64LongBranchTarget;
-  MipsGotSection *mipsGot;
-  MipsRldMapSection *mipsRldMap;
-  SyntheticSection *partEnd;
-  SyntheticSection *partIndex;
-  PltSection *plt;
-  IpltSection *iplt;
-  PPC32Got2Section *ppc32Got2;
-  IBTPltSection *ibtPlt;
-  RelocationBaseSection *relaPlt;
-  RelocationBaseSection *relaIplt;
-  StringTableSection *shStrTab;
-  StringTableSection *strTab;
-  SymbolTableBaseSection *symTab;
-  SymtabShndxSection *symTabShndx;
+  std::unique_ptr<InputSection> attributes;
+  std::unique_ptr<BssSection> bss;
+  std::unique_ptr<BssSection> bssRelRo;
+  std::unique_ptr<GotSection> got;
+  std::unique_ptr<GotPltSection> gotPlt;
+  std::unique_ptr<IgotPltSection> igotPlt;
+  std::unique_ptr<PPC64LongBranchTargetSection> ppc64LongBranchTarget;
+  std::unique_ptr<MipsGotSection> mipsGot;
+  std::unique_ptr<MipsRldMapSection> mipsRldMap;
+  std::unique_ptr<SyntheticSection> partEnd;
+  std::unique_ptr<SyntheticSection> partIndex;
+  std::unique_ptr<PltSection> plt;
+  std::unique_ptr<IpltSection> iplt;
+  std::unique_ptr<PPC32Got2Section> ppc32Got2;
+  std::unique_ptr<IBTPltSection> ibtPlt;
+  std::unique_ptr<RelocationBaseSection> relaPlt;
+  std::unique_ptr<RelocationBaseSection> relaIplt;
+  std::unique_ptr<StringTableSection> shStrTab;
+  std::unique_ptr<StringTableSection> strTab;
+  std::unique_ptr<SymbolTableBaseSection> symTab;
+  std::unique_ptr<SymtabShndxSection> symTabShndx;
+
+  void reset();
 };
 
 extern InStruct in;

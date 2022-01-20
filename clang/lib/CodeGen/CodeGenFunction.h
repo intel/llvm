@@ -182,6 +182,7 @@ template <> struct DominatingValue<Address> {
 
   struct saved_type {
     DominatingLLVMValue::saved_type SavedValue;
+    llvm::Type *ElementType;
     CharUnits Alignment;
   };
 
@@ -190,11 +191,11 @@ template <> struct DominatingValue<Address> {
   }
   static saved_type save(CodeGenFunction &CGF, type value) {
     return { DominatingLLVMValue::save(CGF, value.getPointer()),
-             value.getAlignment() };
+             value.getElementType(), value.getAlignment() };
   }
   static type restore(CodeGenFunction &CGF, saved_type value) {
     return Address(DominatingLLVMValue::restore(CGF, value.SavedValue),
-                   value.Alignment);
+                   value.ElementType, value.Alignment);
   }
 };
 
@@ -241,11 +242,10 @@ public:
   /// A jump destination is an abstract label, branching to which may
   /// require a jump out through normal cleanups.
   struct JumpDest {
-    JumpDest() : Block(nullptr), ScopeDepth(), Index(0) {}
-    JumpDest(llvm::BasicBlock *Block,
-             EHScopeStack::stable_iterator Depth,
+    JumpDest() : Block(nullptr), Index(0) {}
+    JumpDest(llvm::BasicBlock *Block, EHScopeStack::stable_iterator Depth,
              unsigned Index)
-      : Block(Block), ScopeDepth(Depth), Index(Index) {}
+        : Block(Block), ScopeDepth(Depth), Index(Index) {}
 
     bool isValid() const { return Block != nullptr; }
     llvm::BasicBlock *getBlock() const { return Block; }
@@ -458,6 +458,11 @@ public:
 
     /// Get the name of the capture helper.
     virtual StringRef getHelperName() const { return "__captured_stmt"; }
+
+    /// Get the CaptureFields
+    llvm::SmallDenseMap<const VarDecl *, FieldDecl *> getCaptureFields() {
+      return CaptureFields;
+    }
 
   private:
     /// The kind of captured statement being generated.
@@ -4414,7 +4419,7 @@ public:
 
   /// EmitCXXGlobalVarDeclInit - Create the initializer for a C++
   /// variable with global storage.
-  void EmitCXXGlobalVarDeclInit(const VarDecl &D, llvm::Constant *DeclPtr,
+  void EmitCXXGlobalVarDeclInit(const VarDecl &D, llvm::GlobalVariable *GV,
                                 bool PerformInit);
 
   llvm::Function *createAtExitStub(const VarDecl &VD, llvm::FunctionCallee Dtor,
@@ -4683,13 +4688,14 @@ private:
                         SmallVectorImpl<llvm::Value *> &IRCallArgs,
                         unsigned &IRCallArgPos);
 
-  llvm::Value* EmitAsmInput(const TargetInfo::ConstraintInfo &Info,
-                            const Expr *InputExpr, std::string &ConstraintStr);
+  std::pair<llvm::Value *, llvm::Type *>
+  EmitAsmInput(const TargetInfo::ConstraintInfo &Info, const Expr *InputExpr,
+               std::string &ConstraintStr);
 
-  llvm::Value* EmitAsmInputLValue(const TargetInfo::ConstraintInfo &Info,
-                                  LValue InputValue, QualType InputType,
-                                  std::string &ConstraintStr,
-                                  SourceLocation Loc);
+  std::pair<llvm::Value *, llvm::Type *>
+  EmitAsmInputLValue(const TargetInfo::ConstraintInfo &Info, LValue InputValue,
+                     QualType InputType, std::string &ConstraintStr,
+                     SourceLocation Loc);
 
   /// Attempts to statically evaluate the object size of E. If that
   /// fails, emits code to figure the size of E out for us. This is

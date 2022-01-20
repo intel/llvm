@@ -1011,13 +1011,21 @@ def : GCNPat <
 }
 
 def : GCNPat <
-  (i32 (ctpop i32:$popcnt)),
+  (i32 (DivergentUnaryFrag<ctpop> i32:$popcnt)),
   (V_BCNT_U32_B32_e64 VSrc_b32:$popcnt, (i32 0))
 >;
 
 def : GCNPat <
   (i16 (add (i16 (trunc (i32 (getDivergentFrag<ctpop>.ret i32:$popcnt)))), i16:$val)),
   (V_BCNT_U32_B32_e64 $popcnt, $val)
+>;
+
+def : GCNPat <
+  (i64 (DivergentUnaryFrag<ctpop> i64:$src)),
+  (REG_SEQUENCE VReg_64,
+    (V_BCNT_U32_B32_e64 (i32 (EXTRACT_SUBREG i64:$src, sub1)),
+      (i32 (V_BCNT_U32_B32_e64 (i32 (EXTRACT_SUBREG i64:$src, sub0)), (i32 0)))), sub0,
+      (i32 (V_MOV_B32_e32 (i32 0))), sub1)
 >;
 
 /********** ============================================ **********/
@@ -2117,6 +2125,19 @@ def : GCNPat <
 } // end isWave32
 
 def : GCNPat <
+  (i32 (DivergentBinFrag<xor> i32:$src0, (i32 -1))),
+  (V_NOT_B32_e32 $src0)
+>;
+
+def : GCNPat <
+  (i64 (DivergentBinFrag<xor> i64:$src0, (i64 -1))),
+    (REG_SEQUENCE VReg_64,
+      (V_NOT_B32_e32 (i32 (EXTRACT_SUBREG i64:$src0, sub0))), sub0,
+      (V_NOT_B32_e32 (i32 (EXTRACT_SUBREG i64:$src0, sub1))), sub1
+    )
+>;
+
+def : GCNPat <
   (f16 (sint_to_fp i1:$src)),
   (V_CVT_F16_F32_e32 (
       V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
@@ -2199,18 +2220,18 @@ def : GCNPat <
 >;
 
 def : GCNPat <
-  (i1 (trunc i32:$a)),
-  (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1), $a), (i32 1))
+  (i1 (DivergentUnaryFrag<trunc> i32:$a)),
+  (V_CMP_EQ_U32_e64 (V_AND_B32_e64 (i32 1), $a), (i32 1))
 >;
 
 def : GCNPat <
-  (i1 (trunc i16:$a)),
-  (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1), $a), (i32 1))
+  (i1 (DivergentUnaryFrag<trunc> i16:$a)),
+  (V_CMP_EQ_U32_e64 (V_AND_B32_e64 (i32 1), $a), (i32 1))
 >;
 
 def : GCNPat <
-  (i1 (trunc i64:$a)),
-  (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1),
+  (i1 (DivergentUnaryFrag<trunc> i64:$a)),
+  (V_CMP_EQ_U32_e64 (V_AND_B32_e64 (i32 1),
                     (i32 (EXTRACT_SUBREG $a, sub0))), (i32 1))
 >;
 
@@ -2416,18 +2437,34 @@ def : GCNPat <
 // COPY is workaround tablegen bug from multiple outputs
 // from S_LSHL_B32's multiple outputs from implicit scc def.
 def : GCNPat <
-  (v2i16 (build_vector (i16 0), (i16 SReg_32:$src1))),
+  (v2i16 (UniformBinFrag<build_vector> (i16 0), (i16 SReg_32:$src1))),
   (S_LSHL_B32 SReg_32:$src1, (i16 16))
 >;
 
 def : GCNPat <
-  (v2i16 (build_vector (i16 SReg_32:$src1), (i16 0))),
+  (v2i16 (DivergentBinFrag<build_vector> (i16 0), (i16 SReg_32:$src1))),
+  (v2i16 (V_LSHLREV_B32_e64 (i16 16), SReg_32:$src1))
+>;
+
+
+def : GCNPat <
+  (v2i16 (UniformBinFrag<build_vector> (i16 SReg_32:$src1), (i16 0))),
   (S_AND_B32 (S_MOV_B32 (i32 0xffff)), SReg_32:$src1)
 >;
 
 def : GCNPat <
-  (v2f16 (build_vector (f16 SReg_32:$src1), (f16 FP_ZERO))),
+  (v2i16 (DivergentBinFrag<build_vector> (i16 SReg_32:$src1), (i16 0))),
+  (v2i16 (V_AND_B32_e64 (i32 (V_MOV_B32_e32 (i32 0xffff))), SReg_32:$src1))
+>;
+
+def : GCNPat <
+  (v2f16 (UniformBinFrag<build_vector> (f16 SReg_32:$src1), (f16 FP_ZERO))),
   (S_AND_B32 (S_MOV_B32 (i32 0xffff)), SReg_32:$src1)
+>;
+
+def : GCNPat <
+  (v2f16 (DivergentBinFrag<build_vector> (f16 SReg_32:$src1), (f16 FP_ZERO))),
+  (v2f16 (V_AND_B32_e64 (i32 (V_MOV_B32_e32 (i32 0xffff))), SReg_32:$src1))
 >;
 
 def : GCNPat <
@@ -2446,40 +2483,72 @@ def : GCNPat <
 >;
 
 def : GCNPat <
-  (v2i16 (build_vector (i16 undef), (i16 SReg_32:$src1))),
+  (v2i16 (UniformBinFrag<build_vector> (i16 undef), (i16 SReg_32:$src1))),
   (S_LSHL_B32 SReg_32:$src1, (i32 16))
 >;
 
 def : GCNPat <
-  (v2f16 (build_vector (f16 undef), (f16 SReg_32:$src1))),
+  (v2i16 (DivergentBinFrag<build_vector> (i16 undef), (i16 SReg_32:$src1))),
+  (v2i16 (V_LSHLREV_B32_e64 (i32 16), SReg_32:$src1))
+>;
+
+
+def : GCNPat <
+  (v2f16 (UniformBinFrag<build_vector> (f16 undef), (f16 SReg_32:$src1))),
   (S_LSHL_B32 SReg_32:$src1, (i32 16))
+>;
+
+def : GCNPat <
+  (v2f16 (DivergentBinFrag<build_vector> (f16 undef), (f16 SReg_32:$src1))),
+  (v2f16 (V_LSHLREV_B32_e64 (i32 16), SReg_32:$src1))
 >;
 
 let SubtargetPredicate = HasVOP3PInsts in {
 def : GCNPat <
-  (v2i16 (build_vector (i16 SReg_32:$src0), (i16 SReg_32:$src1))),
+  (v2i16 (UniformBinFrag<build_vector> (i16 SReg_32:$src0), (i16 SReg_32:$src1))),
   (S_PACK_LL_B32_B16 SReg_32:$src0, SReg_32:$src1)
+>;
+
+def : GCNPat <
+  (v2i16 (DivergentBinFrag<build_vector> (i16 SReg_32:$src0), (i16 SReg_32:$src1))),
+  (v2i16 (V_LSHL_OR_B32_e64 $src1, (i32 16), (i32 (V_AND_B32_e64 (i32 (V_MOV_B32_e32 (i32 0xffff))), $src0))))
 >;
 
 // With multiple uses of the shift, this will duplicate the shift and
 // increase register pressure.
 def : GCNPat <
-  (v2i16 (build_vector (i16 SReg_32:$src0), (i16 (trunc (srl_oneuse SReg_32:$src1, (i32 16)))))),
+  (v2i16 (UniformBinFrag<build_vector> (i16 SReg_32:$src0), (i16 (trunc (srl_oneuse SReg_32:$src1, (i32 16)))))),
   (v2i16 (S_PACK_LH_B32_B16 SReg_32:$src0, SReg_32:$src1))
+>;
+
+def : GCNPat <
+  (v2i16 (DivergentBinFrag<build_vector> (i16 SReg_32:$src0), (i16 (trunc (srl_oneuse SReg_32:$src1, (i32 16)))))),
+  (v2i16 (V_BFI_B32_e64 (i32 (V_MOV_B32_e32 (i32 0xffff))), SReg_32:$src0, SReg_32:$src1))
 >;
 
 
 def : GCNPat <
-  (v2i16 (build_vector (i16 (trunc (srl_oneuse SReg_32:$src0, (i32 16)))),
+  (v2i16 (UniformBinFrag<build_vector> (i16 (trunc (srl_oneuse SReg_32:$src0, (i32 16)))),
                        (i16 (trunc (srl_oneuse SReg_32:$src1, (i32 16)))))),
   (S_PACK_HH_B32_B16 SReg_32:$src0, SReg_32:$src1)
 >;
 
-// TODO: Should source modifiers be matched to v_pack_b32_f16?
 def : GCNPat <
-  (v2f16 (build_vector (f16 SReg_32:$src0), (f16 SReg_32:$src1))),
+  (v2i16 (DivergentBinFrag<build_vector> (i16 (trunc (srl_oneuse SReg_32:$src0, (i32 16)))),
+                       (i16 (trunc (srl_oneuse SReg_32:$src1, (i32 16)))))),
+  (v2i16 (V_AND_OR_B32_e64 SReg_32:$src1, (i32 (V_MOV_B32_e32 (i32 0xffff0000))), (i32 (V_LSHRREV_B32_e64 (i32 16), SReg_32:$src0))))
+>;
+
+def : GCNPat <
+  (v2f16 (UniformBinFrag<build_vector> (f16 SReg_32:$src0), (f16 SReg_32:$src1))),
   (S_PACK_LL_B32_B16 SReg_32:$src0, SReg_32:$src1)
 >;
+
+def : GCNPat <
+  (v2f16 (DivergentBinFrag<build_vector> (f16 SReg_32:$src0), (f16 SReg_32:$src1))),
+  (v2f16 (V_LSHL_OR_B32_e64 SReg_32:$src1, (i32 16), (i32 (V_AND_B32_e64 (i32 (V_MOV_B32_e32 (i32 0xffff))), SReg_32:$src0))))
+>;
+
 
 def : GCNPat <
   (v2f16 (is_canonicalized<build_vector> (f16 (VOP3Mods (f16 VGPR_32:$src0), i32:$src0_mods)),

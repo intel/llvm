@@ -2362,7 +2362,7 @@ bool SCEVExpander::isHighCostExpansionHelper(
   case scConstant: {
     // Only evalulate the costs of constants when optimizing for size.
     if (CostKind != TargetTransformInfo::TCK_CodeSize)
-      return 0;
+      return false;
     const APInt &Imm = cast<SCEVConstant>(S)->getAPInt();
     Type *Ty = S->getType();
     Cost += TTI.getIntImmCostInst(
@@ -2510,29 +2510,44 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
   }
 
   // Compute:
-  //   Start + |Step| * Backedge < Start
-  //   Start - |Step| * Backedge > Start
+  //   1. Start + |Step| * Backedge < Start
+  //   2. Start - |Step| * Backedge > Start
+  //
+  // And select either 1. or 2. depending on whether step is positive or
+  // negative. If Step is known to be positive or negative, only create
+  // either 1. or 2.
   Value *Add = nullptr, *Sub = nullptr;
+  bool NeedPosCheck = !SE.isKnownNegative(Step);
+  bool NeedNegCheck = !SE.isKnownPositive(Step);
+
   if (PointerType *ARPtrTy = dyn_cast<PointerType>(ARTy)) {
     StartValue = InsertNoopCastOfTo(
         StartValue, Builder.getInt8PtrTy(ARPtrTy->getAddressSpace()));
     Value *NegMulV = Builder.CreateNeg(MulV);
-    Add = Builder.CreateGEP(Builder.getInt8Ty(), StartValue, MulV);
-    Sub = Builder.CreateGEP(Builder.getInt8Ty(), StartValue, NegMulV);
+    if (NeedPosCheck)
+      Add = Builder.CreateGEP(Builder.getInt8Ty(), StartValue, MulV);
+    if (NeedNegCheck)
+      Sub = Builder.CreateGEP(Builder.getInt8Ty(), StartValue, NegMulV);
   } else {
-    Add = Builder.CreateAdd(StartValue, MulV);
-    Sub = Builder.CreateSub(StartValue, MulV);
+    if (NeedPosCheck)
+      Add = Builder.CreateAdd(StartValue, MulV);
+    if (NeedNegCheck)
+      Sub = Builder.CreateSub(StartValue, MulV);
   }
 
-  Value *EndCompareGT = Builder.CreateICmp(
-      Signed ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT, Sub, StartValue);
-
-  Value *EndCompareLT = Builder.CreateICmp(
-      Signed ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT, Add, StartValue);
-
-  // Select the answer based on the sign of Step.
-  Value *EndCheck =
-      Builder.CreateSelect(StepCompare, EndCompareGT, EndCompareLT);
+  Value *EndCompareLT = nullptr;
+  Value *EndCompareGT = nullptr;
+  Value *EndCheck = nullptr;
+  if (NeedPosCheck)
+    EndCheck = EndCompareLT = Builder.CreateICmp(
+        Signed ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT, Add, StartValue);
+  if (NeedNegCheck)
+    EndCheck = EndCompareGT = Builder.CreateICmp(
+        Signed ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT, Sub, StartValue);
+  if (NeedPosCheck && NeedNegCheck) {
+    // Select the answer based on the sign of Step.
+    EndCheck = Builder.CreateSelect(StepCompare, EndCompareGT, EndCompareLT);
+  }
 
   // If the backedge taken count type is larger than the AR type,
   // check that we don't drop any bits by truncating it. If we are
@@ -2578,17 +2593,16 @@ Value *SCEVExpander::expandWrapPredicate(const SCEVWrapPredicate *Pred,
 
 Value *SCEVExpander::expandUnionPredicate(const SCEVUnionPredicate *Union,
                                           Instruction *IP) {
-  auto *BoolType = IntegerType::get(IP->getContext(), 1);
-  Value *Check = ConstantInt::getNullValue(BoolType);
-
   // Loop over all checks in this set.
+  SmallVector<Value *> Checks;
   for (auto Pred : Union->getPredicates()) {
-    auto *NextCheck = expandCodeForPredicate(Pred, IP);
+    Checks.push_back(expandCodeForPredicate(Pred, IP));
     Builder.SetInsertPoint(IP);
-    Check = Builder.CreateOr(Check, NextCheck);
   }
 
-  return Check;
+  if (Checks.empty())
+    return ConstantInt::getFalse(IP->getContext());
+  return Builder.CreateOr(Checks);
 }
 
 Value *SCEVExpander::fixupLCSSAFormFor(Instruction *User, unsigned OpIdx) {

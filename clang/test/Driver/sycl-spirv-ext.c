@@ -29,7 +29,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-DEFAULT-SAME:,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls
-// CHECK-DEFAULT-SAME:,+SPV_KHR_expect_assume
+// CHECK-DEFAULT-SAME:,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_device_side_avc_motion_estimation
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_fpga_memory_attributes
@@ -50,7 +50,6 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_dsp_control
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_runtime_aligned
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
@@ -80,5 +79,5 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_dsp_control
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_arithmetic_fence
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_runtime_aligned
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_usm_storage_classes"
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_usm_storage_classes
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_runtime_aligned"

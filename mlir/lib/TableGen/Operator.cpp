@@ -128,6 +128,13 @@ StringRef Operator::getExtraClassDeclaration() const {
   return def.getValueAsString(attr);
 }
 
+StringRef Operator::getExtraClassDefinition() const {
+  constexpr auto attr = "extraClassDefinition";
+  if (def.isValueUnset(attr))
+    return {};
+  return def.getValueAsString(attr);
+}
+
 const llvm::Record &Operator::getDef() const { return def; }
 
 bool Operator::skipDefaultBuilders() const {
@@ -346,10 +353,9 @@ void Operator::populateTypeInferenceInfo(
       if (getArg(*mi).is<NamedAttribute *>()) {
         // TODO: Handle attributes.
         continue;
-      } else {
-        resultTypeMapping[i].emplace_back(*mi);
-        found = true;
       }
+      resultTypeMapping[i].emplace_back(*mi);
+      found = true;
     }
     return found;
   };

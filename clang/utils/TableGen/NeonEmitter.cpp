@@ -292,7 +292,7 @@ class Variable {
   std::string N;
 
 public:
-  Variable() : T(Type::getVoid()), N("") {}
+  Variable() : T(Type::getVoid()) {}
   Variable(Type T, std::string N) : T(std::move(T)), N(std::move(N)) {}
 
   Type getType() const { return T; }
@@ -1473,7 +1473,7 @@ Intrinsic::DagEmitter::emitDagCall(DagInit *DI, bool MatchMangledName) {
   Intr.Dependencies.insert(&Callee);
 
   // Now create the call itself.
-  std::string S = "";
+  std::string S;
   if (!Callee.isBigEndianSafe())
     S += CallPrefix.str();
   S += Callee.getMangledName(true) + "(";

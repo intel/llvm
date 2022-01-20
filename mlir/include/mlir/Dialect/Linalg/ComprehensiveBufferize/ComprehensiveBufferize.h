@@ -16,19 +16,26 @@ namespace mlir {
 namespace linalg {
 namespace comprehensive_bufferize {
 
+class BufferizationAliasInfo;
 struct BufferizationOptions;
 class BufferizationState;
-struct PostAnalysisStep;
+
+/// Analyze `op` and its nested ops. Bufferization decisions are stored in
+/// `state`.
+LogicalResult analyzeOp(Operation *op, BufferizationState &state);
 
 /// Bufferize the given operation. Reuses an existing BufferizationState object.
-LogicalResult runComprehensiveBufferize(
-    Operation *op, const BufferizationOptions &options,
-    BufferizationState &state,
-    const std::vector<std::unique_ptr<PostAnalysisStep>> &extraSteps);
+/// If `runAnalysis` is set to false, all OpOperands bufferize out-of-place.
+/// This function overload is for internal usage only.
+LogicalResult runComprehensiveBufferize(Operation *op,
+                                        const BufferizationOptions &options,
+                                        BufferizationState &state,
+                                        bool runAnalysis = true);
 
 /// Bufferize the given operation.
-LogicalResult runComprehensiveBufferize(Operation *op,
-                                        const BufferizationOptions &options);
+LogicalResult
+runComprehensiveBufferize(Operation *op,
+                          std::unique_ptr<BufferizationOptions> options);
 
 } // namespace comprehensive_bufferize
 } // namespace linalg

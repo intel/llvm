@@ -51,11 +51,9 @@ struct MockKernelInfo {
 template <> struct KernelInfo<TestKernel> : public MockKernelInfo {
   static constexpr const char *getName() { return "TestKernel"; }
 };
-
 template <> struct KernelInfo<TestKernel2> : public MockKernelInfo {
   static constexpr const char *getName() { return "TestKernel2"; }
 };
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

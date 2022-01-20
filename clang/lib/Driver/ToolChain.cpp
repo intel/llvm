@@ -76,17 +76,16 @@ ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
                      const ArgList &Args)
     : D(D), Triple(T), Args(Args), CachedRTTIArg(GetRTTIArgument(Args)),
       CachedRTTIMode(CalculateRTTIMode(Args, Triple, CachedRTTIArg)) {
-  std::string RuntimePath = getRuntimePath();
-  if (getVFS().exists(RuntimePath))
-    getLibraryPaths().push_back(RuntimePath);
+  auto addIfExists = [this](path_list &List, const std::string &Path) {
+    if (getVFS().exists(Path))
+      List.push_back(Path);
+  };
 
-  std::string StdlibPath = getStdlibPath();
-  if (getVFS().exists(StdlibPath))
-    getFilePaths().push_back(StdlibPath);
-
-  std::string CandidateLibPath = getArchSpecificLibPath();
-  if (getVFS().exists(CandidateLibPath))
-    getFilePaths().push_back(CandidateLibPath);
+  for (const auto &Path : getRuntimePaths())
+    addIfExists(getLibraryPaths(), Path);
+  for (const auto &Path : getStdlibPaths())
+    addIfExists(getFilePaths(), Path);
+  addIfExists(getFilePaths(), getArchSpecificLibPath());
 }
 
 void ToolChain::setTripleEnvironment(llvm::Triple::EnvironmentType Env) {
@@ -261,7 +260,7 @@ bool ToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
 
 Tool *ToolChain::getClang() const {
   if (!Clang)
-    Clang.reset(new tools::Clang(*this));
+    Clang.reset(new tools::Clang(*this, useIntegratedBackend()));
   return Clang.get();
 }
 
@@ -371,6 +370,12 @@ Tool *ToolChain::getTableTform() const {
   return FileTableTform.get();
 }
 
+Tool *ToolChain::getSpirvToIrWrapper() const {
+  if (!SpirvToIrWrapper)
+    SpirvToIrWrapper.reset(new tools::SpirvToIrWrapper(*this));
+  return SpirvToIrWrapper.get();
+}
+
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
   switch (AC) {
   case Action::AssembleJobClass:
@@ -431,6 +436,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::FileTableTformJobClass:
     return getTableTform();
+
+  case Action::SpirvToIrWrapperJobClass:
+    return getSpirvToIrWrapper();
   }
 
   llvm_unreachable("Invalid tool kind.");
@@ -554,16 +562,35 @@ const char *ToolChain::getCompilerRTArgString(const llvm::opt::ArgList &Args,
   return Args.MakeArgString(getCompilerRT(Args, Component, Type));
 }
 
-std::string ToolChain::getRuntimePath() const {
-  SmallString<128> P(D.ResourceDir);
-  llvm::sys::path::append(P, "lib", getTripleString());
-  return std::string(P.str());
+ToolChain::path_list ToolChain::getRuntimePaths() const {
+  path_list Paths;
+  auto addPathForTriple = [this, &Paths](const llvm::Triple &Triple) {
+    SmallString<128> P(D.ResourceDir);
+    llvm::sys::path::append(P, "lib", Triple.str());
+    Paths.push_back(std::string(P.str()));
+  };
+
+  addPathForTriple(getTriple());
+
+  // Android targets may include an API level at the end. We still want to fall
+  // back on a path without the API level.
+  if (getTriple().isAndroid() &&
+      getTriple().getEnvironmentName() != "android") {
+    llvm::Triple TripleWithoutLevel = getTriple();
+    TripleWithoutLevel.setEnvironmentName("android");
+    addPathForTriple(TripleWithoutLevel);
+  }
+
+  return Paths;
 }
 
-std::string ToolChain::getStdlibPath() const {
+ToolChain::path_list ToolChain::getStdlibPaths() const {
+  path_list Paths;
   SmallString<128> P(D.Dir);
   llvm::sys::path::append(P, "..", "lib", getTripleString());
-  return std::string(P.str());
+  Paths.push_back(std::string(P.str()));
+
+  return Paths;
 }
 
 std::string ToolChain::getArchSpecificLibPath() const {

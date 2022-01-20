@@ -43,6 +43,7 @@
 #include "llvm/CodeGen/BasicTTIImpl.h"
 #include "llvm/CodeGen/CostTable.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/Debug.h"
 
@@ -5187,15 +5188,54 @@ bool X86TTIImpl::areInlineCompatible(const Function *Caller,
   const FeatureBitset &CalleeBits =
       TM.getSubtargetImpl(*Callee)->getFeatureBits();
 
+  // Check whether features are the same (apart from the ignore list).
   FeatureBitset RealCallerBits = CallerBits & ~InlineFeatureIgnoreList;
   FeatureBitset RealCalleeBits = CalleeBits & ~InlineFeatureIgnoreList;
-  return (RealCallerBits & RealCalleeBits) == RealCalleeBits;
+  if (RealCallerBits == RealCalleeBits)
+    return true;
+
+  // If the features are a subset, we need to additionally check for calls
+  // that may become ABI-incompatible as a result of inlining.
+  if ((RealCallerBits & RealCalleeBits) != RealCalleeBits)
+    return false;
+
+  for (const Instruction &I : instructions(Callee)) {
+    if (const auto *CB = dyn_cast<CallBase>(&I)) {
+      SmallVector<Type *, 8> Types;
+      for (Value *Arg : CB->args())
+        Types.push_back(Arg->getType());
+      if (!CB->getType()->isVoidTy())
+        Types.push_back(CB->getType());
+
+      // Simple types are always ABI compatible.
+      auto IsSimpleTy = [](Type *Ty) {
+        return !Ty->isVectorTy() && !Ty->isAggregateType();
+      };
+      if (all_of(Types, IsSimpleTy))
+        continue;
+
+      if (Function *NestedCallee = CB->getCalledFunction()) {
+        // Assume that intrinsics are always ABI compatible.
+        if (NestedCallee->isIntrinsic())
+          continue;
+
+        // Do a precise compatibility check.
+        if (!areTypesABICompatible(Caller, NestedCallee, Types))
+          return false;
+      } else {
+        // We don't know the target features of the callee,
+        // assume it is incompatible.
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
-bool X86TTIImpl::areFunctionArgsABICompatible(
-    const Function *Caller, const Function *Callee,
-    SmallPtrSetImpl<Argument *> &Args) const {
-  if (!BaseT::areFunctionArgsABICompatible(Caller, Callee, Args))
+bool X86TTIImpl::areTypesABICompatible(const Function *Caller,
+                                       const Function *Callee,
+                                       const ArrayRef<Type *> &Types) const {
+  if (!BaseT::areTypesABICompatible(Caller, Callee, Types))
     return false;
 
   // If we get here, we know the target features match. If one function
@@ -5210,13 +5250,8 @@ bool X86TTIImpl::areFunctionArgsABICompatible(
   // Consider the arguments compatible if they aren't vectors or aggregates.
   // FIXME: Look at the size of vectors.
   // FIXME: Look at the element types of aggregates to see if there are vectors.
-  // FIXME: The API of this function seems intended to allow arguments
-  // to be removed from the set, but the caller doesn't check if the set
-  // becomes empty so that may not work in practice.
-  return llvm::none_of(Args, [](Argument *A) {
-    auto *EltTy = cast<PointerType>(A->getType())->getElementType();
-    return EltTy->isVectorTy() || EltTy->isAggregateType();
-  });
+  return llvm::none_of(Types,
+      [](Type *T) { return T->isVectorTy() || T->isAggregateType(); });
 }
 
 X86TTIImpl::TTI::MemCmpExpansionOptions
