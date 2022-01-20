@@ -10,7 +10,7 @@
 #include <spirv/spirv_types.h>
 
 _CLC_OVERLOAD _CLC_DEF void __spirv_BarrierInitializeINTEL(long *state,
-                                                      int expected_count) {
+                                                           int expected_count) {
   __nvvm_mbarrier_init(state, expected_count);
 }
 
@@ -27,12 +27,12 @@ _CLC_OVERLOAD _CLC_DEF long __spirv_BarrierArriveAndDropINTEL(long *state) {
 }
 
 _CLC_OVERLOAD _CLC_DEF long __spirv_BarrierArriveNoCompleteINTEL(long *state,
-                                                            int count) {
+                                                                 int count) {
   return __nvvm_mbarrier_arrive_noComplete(state, count);
 }
 
-_CLC_OVERLOAD _CLC_DEF long __spirv_BarrierArriveAndDropNoCompleteINTEL(long *state,
-                                                                   int count) {
+_CLC_OVERLOAD _CLC_DEF long
+__spirv_BarrierArriveAndDropNoCompleteINTEL(long *state, int count) {
   return __nvvm_mbarrier_arrive_drop_noComplete(state, count);
 }
 
@@ -40,12 +40,13 @@ _CLC_OVERLOAD _CLC_DEF void __spirv_BarrierCopyAsyncArriveINTEL(long *state) {
   return __nvvm_cp_async_mbarrier_arrive(state);
 }
 
-_CLC_OVERLOAD _CLC_DEF void __spirv_BarrierCopyAsyncArriveNoIncINTEL(long *state) {
+_CLC_OVERLOAD _CLC_DEF void
+__spirv_BarrierCopyAsyncArriveNoIncINTEL(long *state) {
   return __nvvm_cp_async_mbarrier_arrive_noinc(state);
 }
 
-_CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void __spirv_BarrierWaitINTEL(long *state,
-                                                                long arrival) {
+_CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
+__spirv_BarrierWaitINTEL(long *state, long arrival) {
   while (!__nvvm_mbarrier_test_wait(state, arrival)) {
   }
 }

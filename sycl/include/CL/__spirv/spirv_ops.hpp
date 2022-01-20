@@ -758,7 +758,8 @@ extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
 __spirv_BarrierArriveNoCompleteINTEL(int64_t *state, int32_t count) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
-__spirv_BarrierArriveAndDropNoCompleteINTEL(int64_t *state, int32_t count) noexcept;
+__spirv_BarrierArriveAndDropNoCompleteINTEL(int64_t *state,
+                                            int32_t count) noexcept;
 
 extern SYCL_EXTERNAL __SYCL_EXPORT void
 __spirv_BarrierCopyAsyncArriveINTEL(int64_t *state) noexcept;
