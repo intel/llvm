@@ -87,13 +87,6 @@ device device_selector::select_device() const {
     if (dev_score < 0)
       continue;
 
-    // If SYCL_DEVICE_FILTER is set, give a bonus point for the device
-    // whose index matches with desired device number.
-    int index = &dev - &devices[0];
-    if (isForcedDevice(dev, index)) {
-      dev_score += 1000;
-    }
-
     // SYCL spec says: "If more than one device receives the high score then
     // one of those tied devices will be returned, but which of the devices
     // from the tied set is to be returned is not defined". Here we give a
