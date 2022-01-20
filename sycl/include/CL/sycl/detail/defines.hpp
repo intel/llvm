@@ -21,7 +21,12 @@
 #endif
 #endif
 
-#if __has_attribute(sycl_special_class)
+// Building SYCL runtime library with clang with SYCL support causes build
+// errors during compile time due to unused attribute. __SYCL_INTERNAL_API macro
+// is only set when SYCL RT is being built, thus can be used to distinguish
+// between building SYCL RT and building user application and disable this
+// attribute when not needed.
+#if !defined(__SYCL_INTERNAL_API) && __has_attribute(sycl_special_class)
 #define __SYCL_SPECIAL_CLASS __attribute__((sycl_special_class))
 #else
 #define __SYCL_SPECIAL_CLASS
