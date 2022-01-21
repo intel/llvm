@@ -26,6 +26,10 @@ macro(add_sycl_unittest test_dirname link_variant)
                                PRIVATE __SYCL_BUILD_SYCL_DLL)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
+
+    target_link_libraries(${test_dirname} PRIVATE
+      sycl_unittest_helpers
+    )
   endif()
 
   target_link_libraries(${test_dirname}

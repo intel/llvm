@@ -215,7 +215,7 @@ endif()
 cmake_policy(SET CMP0057 NEW)
 
 if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
-  add_dependencies(sycl libsycldevice)
+  # add_dependencies(sycl libsycldevice)
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}

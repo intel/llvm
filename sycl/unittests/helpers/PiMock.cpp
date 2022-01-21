@@ -1,13 +1,55 @@
-//==---- CommonRedefinitions.hpp --- Header with common PI redefinitions ---==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+#include "helpers/PiMock.hpp"
+#include "detail/global_handler.hpp"
+#include "detail/plugin.hpp"
 
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
+
+#include <array>
+#include <vector>
+
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace unittest {
+
+std::unordered_map<backend, PiDispatch> GDispatchTables;
+
+template <backend Backend> static detail::plugin getMockPlugin() {
+  GDispatchTables[Backend] = PiDispatch{};
+
+  auto PIPlugin = std::make_shared<_pi_plugin>();
+
+#define _PI_API(api)                                                           \
+  PIPlugin->PiFunctionTable.api = [](auto... Args) {                           \
+    return GDispatchTables[Backend].mock_##api(Args...);                       \
+  };
+#include <CL/sycl/detail/pi.def>
+#undef _PI_API
+
+  detail::plugin Plugin{PIPlugin, Backend, nullptr};
+
+  return Plugin;
+}
+
+void hijackPlugins() {
+  // Force initialization with the only purposes to prevent runtime overriding
+  // plugin replacements in future.
+  RT::initialize();
+
+  std::vector<detail::plugin> &Plugins =
+      detail::GlobalHandler::instance().getPlugins();
+
+  Plugins.push_back(getMockPlugin<backend::opencl>());
+  Plugins.push_back(getMockPlugin<backend::ext_oneapi_level_zero>());
+  Plugins.push_back(getMockPlugin<backend::ext_oneapi_cuda>());
+  Plugins.push_back(getMockPlugin<backend::ext_oneapi_hip>());
+  Plugins.push_back(getMockPlugin<backend::ext_intel_esimd_emulator>());
+}
+
+//----------------------------------------------------------------------------//
+// Default API redefinitions
+//----------------------------------------------------------------------------//
 
 inline pi_result redefinedProgramCreateCommon(pi_context, const void *, size_t,
                                               pi_program *ret_program) {
@@ -157,30 +199,39 @@ inline pi_result redefinedDeviceSelectBinary(pi_device device,
   return PI_SUCCESS;
 }
 
-inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
+void setupDefaultMockAPIs() {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreateCommon);
-  Mock.redefine<PiApiKind::piProgramCreateWithBinary>(
+  using namespace sycl::unittest;
+  redefine<PiApiKind::piProgramCreate>(redefinedProgramCreateCommon);
+  redefine<PiApiKind::piProgramCreateWithBinary>(
       redefinedProgramCreateWithBinary);
-  Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompileCommon);
-  Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLinkCommon);
-  Mock.redefine<PiApiKind::piProgramBuild>(redefinedProgramBuildCommon);
-  Mock.redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfoCommon);
-  Mock.redefine<PiApiKind::piProgramRetain>(redefinedProgramRetainCommon);
-  Mock.redefine<PiApiKind::piProgramRelease>(redefinedProgramReleaseCommon);
-  Mock.redefine<PiApiKind::piKernelCreate>(redefinedKernelCreateCommon);
-  Mock.redefine<PiApiKind::piKernelRetain>(redefinedKernelRetainCommon);
-  Mock.redefine<PiApiKind::piKernelRelease>(redefinedKernelReleaseCommon);
-  Mock.redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfoCommon);
-  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(
-      redefinedKernelGetGroupInfoCommon);
-  Mock.redefine<PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfoCommon);
-  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWaitCommon);
-  Mock.redefine<PiApiKind::piEventGetInfo>(redefinedEventGetInfoCommon);
-  Mock.redefine<PiApiKind::piEventRelease>(redefinedEventReleaseCommon);
-  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(
+  redefine<PiApiKind::piProgramCompile>(redefinedProgramCompileCommon);
+  redefine<PiApiKind::piProgramLink>(redefinedProgramLinkCommon);
+  redefine<PiApiKind::piProgramBuild>(redefinedProgramBuildCommon);
+  redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfoCommon);
+  redefine<PiApiKind::piProgramRetain>(redefinedProgramRetainCommon);
+  redefine<PiApiKind::piProgramRelease>(redefinedProgramReleaseCommon);
+  redefine<PiApiKind::piKernelCreate>(redefinedKernelCreateCommon);
+  redefine<PiApiKind::piKernelRetain>(redefinedKernelRetainCommon);
+  redefine<PiApiKind::piKernelRelease>(redefinedKernelReleaseCommon);
+  redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfoCommon);
+  redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfoCommon);
+  redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfoCommon);
+  redefine<PiApiKind::piEventsWait>(redefinedEventsWaitCommon);
+  redefine<PiApiKind::piEventGetInfo>(redefinedEventGetInfoCommon);
+  redefine<PiApiKind::piEventRelease>(redefinedEventReleaseCommon);
+  redefine<PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunchCommon);
-  Mock.redefine<PiApiKind::piextDeviceSelectBinary>(
-      redefinedDeviceSelectBinary);
+  redefine<PiApiKind::piextDeviceSelectBinary>(redefinedDeviceSelectBinary);
 }
+
+void resetMockAPIs() {
+  GDispatchTables[backend::opencl] = PiDispatch{};
+  GDispatchTables[backend::ext_oneapi_level_zero] = PiDispatch{};
+  GDispatchTables[backend::ext_oneapi_cuda] = PiDispatch{};
+  GDispatchTables[backend::ext_oneapi_hip] = PiDispatch{};
+  GDispatchTables[backend::ext_intel_esimd_emulator] = PiDispatch{};
+}
+} // namespace unittest
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

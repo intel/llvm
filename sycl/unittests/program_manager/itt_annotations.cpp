@@ -178,25 +178,26 @@ static void reset() {
   SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset();
 }
 
-static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
+static void setupDefaultMockAPIs() {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
-  Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
-  Mock.redefine<PiApiKind::piProgramRetain>(redefinedProgramRetain);
-  Mock.redefine<PiApiKind::piProgramRelease>(redefinedProgramRelease);
-  Mock.redefine<PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfo);
-  Mock.redefine<PiApiKind::piextProgramSetSpecializationConstant>(
+  using namespace sycl::unittest;
+  redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
+  redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
+  redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
+  redefine<PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
+  redefine<PiApiKind::piProgramRetain>(redefinedProgramRetain);
+  redefine<PiApiKind::piProgramRelease>(redefinedProgramRelease);
+  redefine<PiApiKind::piKernelCreate>(redefinedKernelCreate);
+  redefine<PiApiKind::piKernelRetain>(redefinedKernelRetain);
+  redefine<PiApiKind::piKernelRelease>(redefinedKernelRelease);
+  redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfo);
+  redefine<PiApiKind::piextProgramSetSpecializationConstant>(
       redefinedProgramSetSpecializationConstant);
-  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
-  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
+  redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
+  redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
+  redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
 }
 
 TEST(ITTNotify, UseKernelBundle) {
@@ -220,8 +221,7 @@ TEST(ITTNotify, UseKernelBundle) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  setupDefaultMockAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -261,8 +261,7 @@ TEST(ITTNotify, VarNotSet) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  setupDefaultMockAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
 

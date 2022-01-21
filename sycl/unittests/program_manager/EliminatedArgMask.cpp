@@ -14,8 +14,7 @@
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
-
-#include <gtest/gtest.h>
+#include <helpers/sycl_test.hpp>
 
 class EAMTestKernel;
 class EAMTestKernel2;
@@ -189,7 +188,7 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 // isn't stored in ProgramManager.NativePrograms.
 // Check that eliminated arg mask can be found for one of kernels in a
 // kernel bundle after two kernels are compiled and linked.
-TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
+SYCL_TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
       Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
@@ -198,9 +197,8 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
     GTEST_SKIP(); // test is not supported on selected platform.
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
+  setupDefaultMockAPIs();
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreateEAM);
 
   const sycl::device Dev = Plt.get_devices()[0];

@@ -18,6 +18,8 @@ if (SYCL_PI_TESTS)
   add_subdirectory(pi)
 endif()
 
+add_subdirectory(helpers)
+
 add_subdirectory(allowlist)
 add_subdirectory(config)
 add_subdirectory(misc)
