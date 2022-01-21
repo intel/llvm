@@ -1438,7 +1438,7 @@ bool ResultBuilder::IsOrdinaryNonTypeName(const NamedDecl *ND) const {
 
 bool ResultBuilder::IsIntegralConstantValue(const NamedDecl *ND) const {
   if (!IsOrdinaryNonTypeName(ND))
-    return 0;
+    return false;
 
   if (const auto *VD = dyn_cast<ValueDecl>(ND->getUnderlyingDecl()))
     if (VD->getType()->isIntegralOrEnumerationType())
@@ -5519,11 +5519,17 @@ QualType getApproximateType(const Expr *E) {
                         : getApproximateType(CDSME->getBase());
     if (CDSME->isArrow() && !Base.isNull())
       Base = Base->getPointeeType(); // could handle unique_ptr etc here?
-    RecordDecl *RD = Base.isNull() ? nullptr : getAsRecordDecl(Base);
+    auto *RD = Base.isNull()
+                   ? nullptr
+                   : llvm::dyn_cast<CXXRecordDecl>(getAsRecordDecl(Base));
     if (RD && RD->isCompleteDefinition()) {
-      for (const auto *Member : RD->lookup(CDSME->getMember()))
-        if (const ValueDecl *VD = llvm::dyn_cast<ValueDecl>(Member))
-          return VD->getType().getNonReferenceType();
+      // Look up member heuristically, including in bases.
+      for (const auto *Member : RD->lookupDependentName(
+               CDSME->getMember(), [](const NamedDecl *Member) {
+                 return llvm::isa<ValueDecl>(Member);
+               })) {
+        return llvm::cast<ValueDecl>(Member)->getType().getNonReferenceType();
+      }
     }
   }
   return Unresolved;
@@ -6344,7 +6350,15 @@ void Sema::CodeCompleteDesignator(QualType BaseType,
                         CodeCompleter->getCodeCompletionTUInfo(), CCC);
 
   Results.EnterNewScope();
-  for (const auto *FD : RD->fields()) {
+  for (const Decl *D : RD->decls()) {
+    const FieldDecl *FD;
+    if (auto *IFD = dyn_cast<IndirectFieldDecl>(D))
+      FD = IFD->getAnonField();
+    else if (auto *DFD = dyn_cast<FieldDecl>(D))
+      FD = DFD;
+    else
+      continue;
+
     // FIXME: Make use of previous designators to mark any fields before those
     // inaccessible, and also compute the next initializer priority.
     ResultBuilder::Result Result(FD, Results.getBasePriority(FD));

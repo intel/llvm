@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CSKYInstrInfo.h"
+#include "CSKYConstantPoolValue.h"
 #include "CSKYMachineFunctionInfo.h"
 #include "CSKYTargetMachine.h"
 #include "llvm/MC/MCContext.h"
@@ -499,4 +500,59 @@ void CSKYInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
   BuildMI(MBB, I, DL, get(Opcode), DestReg)
       .addReg(SrcReg, getKillRegState(KillSrc));
+}
+
+Register CSKYInstrInfo::getGlobalBaseReg(MachineFunction &MF) const {
+  CSKYMachineFunctionInfo *CFI = MF.getInfo<CSKYMachineFunctionInfo>();
+  MachineConstantPool *MCP = MF.getConstantPool();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  Register GlobalBaseReg = CFI->getGlobalBaseReg();
+  if (GlobalBaseReg != 0)
+    return GlobalBaseReg;
+
+  // Insert a pseudo instruction to set the GlobalBaseReg into the first
+  // MBB of the function
+  MachineBasicBlock &FirstMBB = MF.front();
+  MachineBasicBlock::iterator MBBI = FirstMBB.begin();
+  DebugLoc DL;
+
+  CSKYConstantPoolValue *CPV = CSKYConstantPoolSymbol::Create(
+      Type::getInt32Ty(MF.getFunction().getContext()), "_GLOBAL_OFFSET_TABLE_",
+      0, CSKYCP::ADDR);
+
+  unsigned CPI = MCP->getConstantPoolIndex(CPV, Align(4));
+
+  MachineMemOperand *MO =
+      MF.getMachineMemOperand(MachinePointerInfo::getConstantPool(MF),
+                              MachineMemOperand::MOLoad, 4, Align(4));
+  BuildMI(FirstMBB, MBBI, DL, get(CSKY::LRW32), CSKY::R28)
+      .addConstantPoolIndex(CPI)
+      .addMemOperand(MO);
+
+  GlobalBaseReg = MRI.createVirtualRegister(&CSKY::GPRRegClass);
+  BuildMI(FirstMBB, MBBI, DL, get(TargetOpcode::COPY), GlobalBaseReg)
+      .addReg(CSKY::R28);
+
+  CFI->setGlobalBaseReg(GlobalBaseReg);
+  return GlobalBaseReg;
+}
+
+unsigned CSKYInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
+  switch (MI.getOpcode()) {
+  default:
+    return MI.getDesc().getSize();
+  case CSKY::CONSTPOOL_ENTRY:
+    return MI.getOperand(2).getImm();
+  case CSKY::SPILL_CARRY:
+  case CSKY::RESTORE_CARRY:
+  case CSKY::PseudoTLSLA32:
+    return 8;
+  case TargetOpcode::INLINEASM_BR:
+  case TargetOpcode::INLINEASM: {
+    const MachineFunction *MF = MI.getParent()->getParent();
+    const char *AsmStr = MI.getOperand(0).getSymbolName();
+    return getInlineAsmLength(AsmStr, *MF->getTarget().getMCAsmInfo());
+  }
+  }
 }

@@ -219,7 +219,8 @@ static bool hasReadAfterWriteInterference(
   for (OpOperand *uRead : usesRead) {
     Operation *readingOp = uRead->getOwner();
 
-    // Find most recent write of uRead by following the SSA use-def chain. E.g.:
+    // Find most recent writes of uRead by following the SSA use-def chain.
+    // E.g.:
     //
     // %0 = "writing_op"(%t) : tensor<?x32> -> tensor<?xf32>
     // %1 = "aliasing_op"(%0) : tensor<?x32> -> tensor<?xf32>
@@ -228,7 +229,7 @@ static bool hasReadAfterWriteInterference(
     // In the above example, if uRead is the OpOperand of reading_op, lastWrite
     // is %0. Note that operations that create an alias but do not write (such
     // as ExtractSliceOp) are skipped.
-    Value lastWrite = state.findLastPrecedingWrite(uRead->get());
+    SetVector<Value> lastWrites = state.findLastPrecedingWrite(uRead->get());
 
     // Look for conflicting memory writes. Potential conflicts are writes to an
     // alias that have been decided to bufferize inplace.
@@ -265,35 +266,38 @@ static bool hasReadAfterWriteInterference(
       if (insideMutuallyExclusiveRegions(readingOp, conflictingWritingOp))
         continue;
 
-      // No conflict if the conflicting write happens before the last
-      // write.
-      if (Operation *writingOp = lastWrite.getDefiningOp()) {
-        if (happensBefore(conflictingWritingOp, writingOp, domInfo))
-          // conflictingWritingOp happens before writingOp. No conflict.
+      // Check all possible last writes.
+      for (Value lastWrite : lastWrites) {
+        // No conflict if the conflicting write happens before the last
+        // write.
+        if (Operation *writingOp = lastWrite.getDefiningOp()) {
+          if (happensBefore(conflictingWritingOp, writingOp, domInfo))
+            // conflictingWritingOp happens before writingOp. No conflict.
+            continue;
+          // No conflict if conflictingWritingOp is contained in writingOp.
+          if (writingOp->isProperAncestor(conflictingWritingOp))
+            continue;
+        } else {
+          auto bbArg = lastWrite.cast<BlockArgument>();
+          Block *block = bbArg.getOwner();
+          if (!block->findAncestorOpInBlock(*conflictingWritingOp))
+            // conflictingWritingOp happens outside of the block. No
+            // conflict.
+            continue;
+        }
+
+        // No conflict if the conflicting write and the last write are the same
+        // use.
+        if (state.getAliasingOpResult(*uConflictingWrite) == lastWrite)
           continue;
-        // No conflict if conflictingWritingOp is contained in writingOp.
-        if (writingOp->isProperAncestor(conflictingWritingOp))
-          continue;
-      } else {
-        auto bbArg = lastWrite.cast<BlockArgument>();
-        Block *block = bbArg.getOwner();
-        if (!block->findAncestorOpInBlock(*conflictingWritingOp))
-          // conflictingWritingOp happens outside of the block. No
-          // conflict.
-          continue;
+
+        // All requirements are met. Conflict found!
+
+        if (options.printConflicts)
+          annotateConflict(uRead, uConflictingWrite, lastWrite);
+
+        return true;
       }
-
-      // No conflict if the conflicting write and the last write are the same
-      // use.
-      if (state.getAliasingOpResult(*uConflictingWrite) == lastWrite)
-        continue;
-
-      // All requirements are met. Conflict found!
-
-      if (options.printConflicts)
-        annotateConflict(uRead, uConflictingWrite, lastWrite);
-
-      return true;
     }
   }
 
@@ -555,16 +559,10 @@ annotateOpsWithBufferizationMarkers(Operation *op,
   });
 }
 
-LogicalResult mlir::linalg::comprehensive_bufferize::runComprehensiveBufferize(
-    Operation *op, std::unique_ptr<BufferizationOptions> options) {
-  BufferizationState state(op, *options);
-  return runComprehensiveBufferize(op, *options, state);
-}
-
 /// Rewrite pattern that bufferizes bufferizable ops.
 struct BufferizationPattern
     : public OpInterfaceRewritePattern<BufferizableOpInterface> {
-  BufferizationPattern(MLIRContext *context, BufferizationState &state,
+  BufferizationPattern(MLIRContext *context, const BufferizationState &state,
                        PatternBenefit benefit = 1)
       : OpInterfaceRewritePattern<BufferizableOpInterface>(context, benefit),
         state(state) {}
@@ -652,18 +650,23 @@ mlir::linalg::comprehensive_bufferize::analyzeOp(Operation *op,
   return success();
 }
 
-LogicalResult mlir::linalg::comprehensive_bufferize::runComprehensiveBufferize(
-    Operation *op, const BufferizationOptions &options,
-    BufferizationState &state, bool runAnalysis) {
-  if (runAnalysis)
-    if (failed(analyzeOp(op, state)))
-      return failure();
-
+LogicalResult mlir::linalg::comprehensive_bufferize::bufferizeOp(
+    Operation *op, const BufferizationState &state) {
   // Bufferize the op and its nested ops.
   OwningRewritePatternList patterns(op->getContext());
   patterns.add<BufferizationPattern>(op->getContext(), state);
   if (failed(applyPatternsAndFoldGreedily(op, std::move(patterns))))
     return failure();
 
-  return checkBufferizationResult(op, options);
+  return checkBufferizationResult(op, state.getOptions());
+}
+
+LogicalResult mlir::linalg::comprehensive_bufferize::runComprehensiveBufferize(
+    Operation *op, std::unique_ptr<BufferizationOptions> options) {
+  BufferizationState state(op, *options);
+  if (failed(analyzeOp(op, state)))
+    return failure();
+  if (options->testAnalysisOnly)
+    return success();
+  return bufferizeOp(op, state);
 }
