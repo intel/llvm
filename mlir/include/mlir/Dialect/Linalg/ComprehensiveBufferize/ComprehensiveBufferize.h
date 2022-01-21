@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_COMPREHENSIVE_BUFFERIZE_H
-#define MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_COMPREHENSIVE_BUFFERIZE_H
+#ifndef MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_COMPREHENSIVEBUFFERIZE_H
+#define MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_COMPREHENSIVEBUFFERIZE_H
 
 #include "mlir/IR/BuiltinOps.h"
 
@@ -24,15 +24,11 @@ class BufferizationState;
 /// `state`.
 LogicalResult analyzeOp(Operation *op, BufferizationState &state);
 
-/// Bufferize the given operation. Reuses an existing BufferizationState object.
-/// If `runAnalysis` is set to false, all OpOperands bufferize out-of-place.
-/// This function overload is for internal usage only.
-LogicalResult runComprehensiveBufferize(Operation *op,
-                                        const BufferizationOptions &options,
-                                        BufferizationState &state,
-                                        bool runAnalysis = true);
+/// Bufferize `op` and its nested ops. Bufferization decisions are stored in
+/// `state`.
+LogicalResult bufferizeOp(Operation *op, const BufferizationState &state);
 
-/// Bufferize the given operation.
+/// Run Comprehensive Bufferize on the given op: Analysis + Bufferization
 LogicalResult
 runComprehensiveBufferize(Operation *op,
                           std::unique_ptr<BufferizationOptions> options);
@@ -41,4 +37,4 @@ runComprehensiveBufferize(Operation *op,
 } // namespace linalg
 } // namespace mlir
 
-#endif // MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_COMPREHENSIVE_BUFFERIZE_H
+#endif // MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_COMPREHENSIVEBUFFERIZE_H
