@@ -588,8 +588,13 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 
 namespace detail {
 
+// TODO: This is no longer in use. Remove when ABI break is allowed.
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
+
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
+          bundle_state State);
 }
 
 /// \returns a new kernel bundle that represents the union of all the device
@@ -604,7 +609,7 @@ join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
     KernelBundleImpls.push_back(detail::getSyclObjImpl(Bundle));
 
   std::shared_ptr<detail::kernel_bundle_impl> Impl =
-      detail::join_impl(KernelBundleImpls);
+      detail::join_impl(KernelBundleImpls, State);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
 
