@@ -45,8 +45,8 @@ struct SpecConstantDescriptor {
   // Encodes size of scalar specialization constant.
   unsigned Size;
 };
-using SpecIDMapTy =
-    MapVector<StringRef, std::vector<SpecConstantDescriptor>>;
+
+using SpecIDMapTy = MapVector<StringRef, std::vector<SpecConstantDescriptor>>;
 
 class SpecConstantsPass : public PassInfoMixin<SpecConstantsPass> {
 public:
