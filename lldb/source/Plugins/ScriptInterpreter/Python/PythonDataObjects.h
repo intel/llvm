@@ -83,30 +83,6 @@ protected:
   PyGILState_STATE m_state;
 };
 
-class StructuredPythonObject : public StructuredData::Generic {
-public:
-  StructuredPythonObject() : StructuredData::Generic() {}
-
-  StructuredPythonObject(void *obj) : StructuredData::Generic(obj) {
-    Py_XINCREF(GetValue());
-  }
-
-  ~StructuredPythonObject() override {
-    if (Py_IsInitialized())
-      Py_XDECREF(GetValue());
-    SetValue(nullptr);
-  }
-
-  bool IsValid() const override { return GetValue() && GetValue() != Py_None; }
-
-  void Serialize(llvm::json::OStream &s) const override;
-
-private:
-  StructuredPythonObject(const StructuredPythonObject &) = delete;
-  const StructuredPythonObject &
-  operator=(const StructuredPythonObject &) = delete;
-};
-
 enum class PyObjectType {
   Unknown,
   None,
@@ -264,8 +240,16 @@ public:
   ~PythonObject() { Reset(); }
 
   void Reset() {
-    if (m_py_obj && Py_IsInitialized())
-      Py_DECREF(m_py_obj);
+    if (m_py_obj && Py_IsInitialized()) {
+      if (_Py_IsFinalizing()) {
+        // Leak m_py_obj rather than crashing the process.
+        // https://docs.python.org/3/c-api/init.html#c.PyGILState_Ensure
+      } else {
+        PyGILState_STATE state = PyGILState_Ensure();
+        Py_DECREF(m_py_obj);
+        PyGILState_Release(state);
+      }
+    }
     m_py_obj = nullptr;
   }
 
@@ -765,6 +749,30 @@ public:
       return std::move(error);
     return function.Call(std::forward<Args>(args)...);
   }
+};
+
+class StructuredPythonObject : public StructuredData::Generic {
+public:
+  StructuredPythonObject() : StructuredData::Generic() {}
+
+  // Take ownership of the object we received.
+  StructuredPythonObject(PythonObject obj)
+      : StructuredData::Generic(obj.release()) {}
+
+  ~StructuredPythonObject() override {
+    // Hand ownership back to a (temporary) PythonObject instance and let it
+    // take care of releasing it.
+    PythonObject(PyRefType::Owned, static_cast<PyObject *>(GetValue()));
+  }
+
+  bool IsValid() const override { return GetValue() && GetValue() != Py_None; }
+
+  void Serialize(llvm::json::OStream &s) const override;
+
+private:
+  StructuredPythonObject(const StructuredPythonObject &) = delete;
+  const StructuredPythonObject &
+  operator=(const StructuredPythonObject &) = delete;
 };
 
 } // namespace python

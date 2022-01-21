@@ -627,11 +627,9 @@ AttributeSet AttributeSet::addAttributes(LLVMContext &C,
   if (!AS.hasAttributes())
     return *this;
 
-  AttrBuilder B(C, AS);
-  for (const auto &I : *this)
-    B.addAttribute(I);
-
- return get(C, B);
+  AttrBuilder B(C, *this);
+  B.merge(AttrBuilder(C, AS));
+  return get(C, B);
 }
 
 AttributeSet AttributeSet::removeAttribute(LLVMContext &C,
@@ -1250,15 +1248,6 @@ AttributeList AttributeList::addAttributesAtIndex(LLVMContext &C,
   if (!pImpl)
     return AttributeList::get(C, {{Index, AttributeSet::get(C, B)}});
 
-#ifndef NDEBUG
-  // FIXME it is not obvious how this should work for alignment. For now, say
-  // we can't change a known alignment.
-  const MaybeAlign OldAlign = getAttributes(Index).getAlignment();
-  const MaybeAlign NewAlign = B.getAlignment();
-  assert((!OldAlign || !NewAlign || OldAlign == NewAlign) &&
-         "Attempt to change alignment!");
-#endif
-
   AttrBuilder Merged(C, getAttributes(Index));
   Merged.merge(B);
   return setAttributesAtIndex(C, Index, AttributeSet::get(C, Merged));
@@ -1608,11 +1597,6 @@ AttrBuilder &AttrBuilder::addAttribute(StringRef A, StringRef V) {
   return addAttribute(Attribute::get(Ctx, A, V));
 }
 
-AttrBuilder &AttrBuilder::removeAttributes(AttributeList AL, uint64_t Index) {
-  remove(AttributeMask(AL.getAttributes(Index)));
-  return *this;
-}
-
 AttrBuilder &AttrBuilder::removeAttribute(Attribute::AttrKind Val) {
   assert((unsigned)Val < Attribute::EndAttrKinds && "Attribute out of range!");
   Attrs[Val] = false;
@@ -1749,13 +1733,12 @@ AttrBuilder &AttrBuilder::addInAllocaAttr(Type *Ty) {
 }
 
 AttrBuilder &AttrBuilder::merge(const AttrBuilder &B) {
-  // FIXME: What if both have an int/type attribute, but they don't match?!
   for (unsigned Index = 0; Index < Attribute::NumIntAttrKinds; ++Index)
-    if (!IntAttrs[Index])
+    if (B.IntAttrs[Index])
       IntAttrs[Index] = B.IntAttrs[Index];
 
   for (unsigned Index = 0; Index < Attribute::NumTypeAttrKinds; ++Index)
-    if (!TypeAttrs[Index])
+    if (B.TypeAttrs[Index])
       TypeAttrs[Index] = B.TypeAttrs[Index];
 
   Attrs |= B.Attrs;
@@ -1796,29 +1779,19 @@ bool AttrBuilder::overlaps(const AttributeMask &AM) const {
   return false;
 }
 
-bool AttrBuilder::contains(StringRef A) const {
+Attribute AttrBuilder::getAttribute(StringRef A) const {
   auto It = lower_bound(TargetDepAttrs, A, StringAttributeComparator());
-  return It != TargetDepAttrs.end() && It->hasAttribute(A);
+  if (It != TargetDepAttrs.end() && It->hasAttribute(A))
+    return *It;
+  return {};
+}
+
+bool AttrBuilder::contains(StringRef A) const {
+  return getAttribute(A).isValid();
 }
 
 bool AttrBuilder::hasAttributes() const {
   return !Attrs.none() || !TargetDepAttrs.empty();
-}
-
-bool AttrBuilder::hasAttributes(AttributeList AL, uint64_t Index) const {
-  AttributeSet AS = AL.getAttributes(Index);
-
-  for (const auto &Attr : AS) {
-    if (Attr.isEnumAttribute() || Attr.isIntAttribute()) {
-      if (contains(Attr.getKindAsEnum()))
-        return true;
-    } else {
-      assert(Attr.isStringAttribute() && "Invalid attribute kind!");
-      return contains(Attr.getKindAsString());
-    }
-  }
-
-  return false;
 }
 
 bool AttrBuilder::hasAlignmentAttr() const {
