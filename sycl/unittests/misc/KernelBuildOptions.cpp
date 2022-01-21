@@ -221,12 +221,12 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -261,12 +261,12 @@ TEST(KernelBuildOptions, Program) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }

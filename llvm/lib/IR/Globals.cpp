@@ -95,6 +95,8 @@ void GlobalValue::eraseFromParent() {
   llvm_unreachable("not a global");
 }
 
+GlobalObject::~GlobalObject() { setComdat(nullptr); }
+
 bool GlobalValue::isInterposable() const {
   if (isInterposableLinkage(getLinkage()))
     return true;
@@ -126,7 +128,7 @@ void GlobalObject::setAlignment(MaybeAlign Align) {
 
 void GlobalObject::copyAttributesFrom(const GlobalObject *Src) {
   GlobalValue::copyAttributesFrom(Src);
-  setAlignment(MaybeAlign(Src->getAlignment()));
+  setAlignment(Src->getAlign());
   setSection(Src->getSection());
 }
 
@@ -180,6 +182,14 @@ const Comdat *GlobalValue::getComdat() const {
   if (isa<GlobalIFunc>(this))
     return nullptr;
   return cast<GlobalObject>(this)->getComdat();
+}
+
+void GlobalObject::setComdat(Comdat *C) {
+  if (ObjComdat)
+    ObjComdat->removeUser(this);
+  ObjComdat = C;
+  if (C)
+    C->addUser(this);
 }
 
 StringRef GlobalValue::getPartition() const {
@@ -249,7 +259,7 @@ bool GlobalObject::canIncreaseAlignment() const {
   // alignment specified. (If it is assigned a section, the global
   // could be densely packed with other objects in the section, and
   // increasing the alignment could cause padding issues.)
-  if (hasSection() && getAlignment() > 0)
+  if (hasSection() && getAlign().hasValue())
     return false;
 
   // On ELF platforms, we're further restricted in that we can't
@@ -541,5 +551,5 @@ void GlobalIFunc::eraseFromParent() {
 
 const Function *GlobalIFunc::getResolverFunction() const {
   DenseSet<const GlobalAlias *> Aliases;
-  return cast<Function>(findBaseObject(getResolver(), Aliases));
+  return dyn_cast<Function>(findBaseObject(getResolver(), Aliases));
 }

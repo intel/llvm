@@ -44,11 +44,15 @@ set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP ${LLVMGenXIntrinsics_BINARY_DIR})
 
 add_llvm_component_library(LLVMSYCLLowerIR
+  ESIMD/LowerESIMD.cpp
+  ESIMD/LowerESIMDVLoadVStore.cpp
+  ESIMD/LowerESIMDVecArg.cpp
+  ESIMD/ESIMDVerifier.cpp
   LowerWGScope.cpp
-  LowerESIMD.cpp
-  LowerESIMDVLoadVStore.cpp
-  LowerESIMDVecArg.cpp
   LowerWGLocalMemory.cpp
+  MutatePrintfAddrspace.cpp
+
+  LocalAccessorToSharedMemory.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -67,6 +71,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMTransformUtils
   
   LINK_COMPONENTS
+  Analysis
   Core
   Support
   )

@@ -143,12 +143,12 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -186,12 +186,12 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -225,12 +225,12 @@ TEST(KernelID, KernelIDHasKernel) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -322,7 +322,7 @@ TEST(KernelID, InvalidKernelName) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
     return;
   }

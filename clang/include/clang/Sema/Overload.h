@@ -577,8 +577,7 @@ class Sema;
 
     ImplicitConversionSequence()
         : ConversionKind(Uninitialized),
-          InitializerListOfIncompleteArray(false),
-          InitializerListContainerType() {
+          InitializerListOfIncompleteArray(false) {
       Standard.setAsIdentityConversion();
     }
 
@@ -1203,6 +1202,20 @@ class Sema;
     Info.Constructor = dyn_cast<CXXConstructorDecl>(D);
     return Info;
   }
+
+  // Returns false if signature help is relevant despite number of arguments
+  // exceeding parameters. Specifically, it returns false when
+  // PartialOverloading is true and one of the following:
+  // * Function is variadic
+  // * Function is template variadic
+  // * Function is an instantiation of template variadic function
+  // The last case may seem strange. The idea is that if we added one more
+  // argument, we'd end up with a function similar to Function. Since, in the
+  // context of signature help and/or code completion, we do not know what the
+  // type of the next argument (that the user is typing) will be, this is as
+  // good candidate as we can get, despite the fact that it takes one less
+  // parameter.
+  bool shouldEnforceArgLimit(bool PartialOverloading, FunctionDecl *Function);
 
 } // namespace clang
 

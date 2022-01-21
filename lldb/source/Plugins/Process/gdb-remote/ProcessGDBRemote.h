@@ -34,7 +34,6 @@
 #include "lldb/lldb-private-forward.h"
 
 #include "GDBRemoteCommunicationClient.h"
-#include "GDBRemoteCommunicationReplayServer.h"
 #include "GDBRemoteRegisterContext.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -251,7 +250,6 @@ protected:
   };
 
   GDBRemoteCommunicationClient m_gdb_comm;
-  GDBRemoteCommunicationReplayServer m_gdb_replay_server;
   std::atomic<lldb::pid_t> m_debugserver_pid;
 
   llvm::Optional<StringExtractorGDBRemote> m_last_stop_packet;
@@ -292,7 +290,6 @@ protected:
   lldb::tid_t m_initial_tid; // The initial thread ID, given by stub on attach
   bool m_use_g_packet_for_reading;
 
-  bool m_replay_mode;
   bool m_allow_flash_writes;
   using FlashRangeVector = lldb_private::RangeVector<lldb::addr_t, size_t>;
   using FlashRange = FlashRangeVector::Entry;
@@ -320,8 +317,6 @@ protected:
   bool DoUpdateThreadList(ThreadList &old_thread_list,
                           ThreadList &new_thread_list) override;
 
-  Status ConnectToReplayServer();
-
   Status EstablishConnectionIfNeeded(const ProcessInfo &process_info);
 
   Status LaunchAndConnectToDebugserver(const ProcessInfo &process_info);
@@ -345,8 +340,6 @@ protected:
   size_t UpdateThreadPCsFromStopReplyThreadsValue(llvm::StringRef value);
 
   size_t UpdateThreadIDsFromStopReplyThreadsValue(llvm::StringRef value);
-
-  bool HandleNotifyPacket(StringExtractorGDBRemote &packet);
 
   bool StartAsyncThread();
 
@@ -377,8 +370,6 @@ protected:
                     lldb_private::LazyBool associated_with_libdispatch_queue,
                     lldb::addr_t dispatch_queue_t, std::string &queue_name,
                     lldb::QueueKind queue_kind, uint64_t queue_serial);
-
-  void HandleStopReplySequence();
 
   void ClearThreadIDList();
 

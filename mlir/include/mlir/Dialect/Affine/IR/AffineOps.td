@@ -13,7 +13,7 @@
 #ifndef AFFINE_OPS
 #define AFFINE_OPS
 
-include "mlir/Dialect/StandardOps/IR/StandardOpsBase.td"
+include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
 include "mlir/Dialect/Affine/IR/AffineMemoryOpInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
@@ -309,7 +309,7 @@ def AffineForOp : Affine_Op<"for",
     void setStep(int64_t step) {
       assert(step > 0 && "step has to be a positive integer constant");
       auto *context = getLowerBoundMap().getContext();
-      (*this)->setAttr(Identifier::get(getStepAttrName(), context),
+      (*this)->setAttr(StringAttr::get(context, getStepAttrName()),
                        IntegerAttr::get(IndexType::get(context), step));
     }
 
@@ -691,9 +691,9 @@ def AffineParallelOp : Affine_Op<"parallel",
 
   let builders = [
     OpBuilder<(ins "TypeRange":$resultTypes,
-      "ArrayRef<AtomicRMWKind>":$reductions, "ArrayRef<int64_t>":$ranges)>,
+      "ArrayRef<arith::AtomicRMWKind>":$reductions, "ArrayRef<int64_t>":$ranges)>,
     OpBuilder<(ins "TypeRange":$resultTypes,
-      "ArrayRef<AtomicRMWKind>":$reductions, "ArrayRef<AffineMap>":$lbMaps,
+      "ArrayRef<arith::AtomicRMWKind>":$reductions, "ArrayRef<AffineMap>":$lbMaps,
       "ValueRange":$lbArgs, "ArrayRef<AffineMap>":$ubMaps, "ValueRange":$ubArgs,
       "ArrayRef<int64_t>":$steps)>
   ];
@@ -815,7 +815,7 @@ def AffinePrefetchOp : Affine_Op<"prefetch",
     NamedAttribute getAffineMapAttrForMemRef(Value mref) {
       assert(mref == memref() &&
              "Expected mref argument to match memref operand");
-      return {Identifier::get(getMapAttrName(), getContext()),
+      return {StringAttr::get(getContext(), getMapAttrName()),
         getAffineMapAttr()};
     }
 

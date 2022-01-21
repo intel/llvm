@@ -52,6 +52,7 @@ class raw_ostream;
 /// information parsing. The actual data is supplied through DWARFObj.
 class DWARFContext : public DIContext {
   DWARFUnitVector NormalUnits;
+  Optional<DenseMap<uint64_t, DWARFTypeUnit*>> NormalTypeUnits;
   std::unique_ptr<DWARFUnitIndex> CUIndex;
   std::unique_ptr<DWARFGdbIndex> GdbIndex;
   std::unique_ptr<DWARFUnitIndex> TUIndex;
@@ -70,6 +71,7 @@ class DWARFContext : public DIContext {
   std::unique_ptr<AppleAcceleratorTable> AppleObjC;
 
   DWARFUnitVector DWOUnits;
+  Optional<DenseMap<uint64_t, DWARFTypeUnit*>> DWOTypeUnits;
   std::unique_ptr<DWARFDebugAbbrev> AbbrevDWO;
   std::unique_ptr<DWARFDebugMacro> MacinfoDWO;
   std::unique_ptr<DWARFDebugMacro> MacroDWO;
@@ -156,6 +158,11 @@ public:
                                    NormalUnits.getNumInfoUnits());
   }
 
+  const DWARFUnitVector &getNormalUnitsVector() {
+    parseNormalUnits();
+    return NormalUnits;
+  }
+
   /// Get units from .debug_types in this context.
   unit_iterator_range types_section_units() {
     parseNormalUnits();
@@ -182,6 +189,11 @@ public:
     parseDWOUnits();
     return unit_iterator_range(DWOUnits.begin(),
                                DWOUnits.begin() + DWOUnits.getNumInfoUnits());
+  }
+
+  const DWARFUnitVector &getDWOUnitsVector() {
+    parseDWOUnits();
+    return DWOUnits;
   }
 
   /// Get units from .debug_types.dwo in the DWO context.
@@ -243,6 +255,7 @@ public:
   }
 
   DWARFCompileUnit *getDWOCompileUnitForHash(uint64_t Hash);
+  DWARFTypeUnit *getTypeUnitForHash(uint16_t Version, uint64_t Hash, bool IsDWO);
 
   /// Return the compile unit that includes an offset (relative to .debug_info).
   DWARFCompileUnit *getCompileUnitForOffset(uint64_t Offset);

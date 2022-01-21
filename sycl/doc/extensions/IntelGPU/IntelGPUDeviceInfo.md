@@ -15,6 +15,7 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | ----- | ----------- |
 | 1     | Initial extension version\. Base features are supported |
 | 2     | Device UUID is supported |
+| 3     | HW threads per EU device query is supported |
 
 
 # Device UUID #
@@ -177,8 +178,6 @@ Then the number of EUs can be obtained using the standard get\_info() interface.
 
 A new device descriptor will be added which will provide the number of slices on an Intel GPU.  If the device is a subdevice, then the number of slices in the subdevice is returned.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
-
 
 ## Version ##
 
@@ -213,8 +212,6 @@ Then the number of slices can be obtained using the standard get\_info() interfa
 # Intel GPU Number of Subslices per Slice #
 
 A new device descriptor will be added which will provide the number of subslices per slice on an Intel GPU.  If the device is a subdevice, then the number of subslices per slice in the subdevice is returned.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
@@ -251,8 +248,6 @@ Then the number of subslices per slice can be obtained using the standard get\_i
 
 A new device descriptor will be added which will provide the number of EUs per subslice on an Intel GPU.  If the device is a subdevice, then the number of EUs per subslice in the subdevice is returned.
 
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
-
 
 ## Version ##
 
@@ -283,6 +278,38 @@ Then the number of EUs per subslice can be obtained using the standard get\_info
       auto euCount = dev.get_info<info::device::ext_intel_gpu_eu_count_per_subslice>();
     }
 
+# Intel GPU Number of hardware threads per EU #
+
+A new device descriptor will be added which will provide the number of hardware threads per EU on an Intel GPU. If the device is a subdevice, then the number of hardware threads per EU in the subdevice is returned.
+
+
+## Version ##
+
+The extension supports this query in version 3 and later.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| info\:\:device\:\:ext\_intel\_gpu\_hw\_threads\_per\_eu | uint32\_t| Returns the number of hardware threads in EU.|
+
+
+## Aspects ##
+
+A new aspect, ext\_intel\_gpu\_hw\_threads\_per\_eu, will be added.
+
+
+## Error Condition ##
+
+An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_hw\_threads\_per\_eu.
+
+## Example Usage ##
+
+Then the number of hardware threads per EU can be obtained using the standard get\_info() interface.
+
+    if (dev.has(aspect::ext_intel_gpu_hw_threads_per_eu)) {
+      auto threadsCount = dev.get_info<info::device::ext_intel_gpu_hw_threads_per_eu>();
+    }
 
 # Maximum Memory Bandwidth #
 

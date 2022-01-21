@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/TableGen/Pattern.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
@@ -113,7 +115,7 @@ bool DagNode::isNativeCodeCall() const {
 
 bool DagNode::isOperation() const {
   return !isNativeCodeCall() && !isReplaceWithValue() &&
-         !isLocationDirective() && !isReturnTypeDirective();
+         !isLocationDirective() && !isReturnTypeDirective() && !isEither();
 }
 
 llvm::StringRef DagNode::getNativeCodeTemplate() const {
@@ -142,7 +144,9 @@ Operator &DagNode::getDialectOp(RecordOperatorMap *mapper) const {
 }
 
 int DagNode::getNumOps() const {
-  int count = isReplaceWithValue() ? 0 : 1;
+  // We want to get number of operations recursively involved in the DAG tree.
+  // All other directives should be excluded.
+  int count = isOperation() ? 1 : 0;
   for (int i = 0, e = getNumArgs(); i != e; ++i) {
     if (auto child = getArgAsNestedDag(i))
       count += child.getNumOps();
@@ -184,6 +188,11 @@ bool DagNode::isReturnTypeDirective() const {
   return dagOpDef->getName() == "returnType";
 }
 
+bool DagNode::isEither() const {
+  auto *dagOpDef = cast<llvm::DefInit>(node->getOperator())->getDef();
+  return dagOpDef->getName() == "either";
+}
+
 void DagNode::print(raw_ostream &os) const {
   if (node)
     node->print(os);
@@ -210,7 +219,7 @@ StringRef SymbolInfoMap::getValuePackName(StringRef symbol, int *index) {
 
 SymbolInfoMap::SymbolInfo::SymbolInfo(const Operator *op, SymbolInfo::Kind kind,
                                       Optional<DagAndConstant> dagAndConstant)
-    : op(op), kind(kind), dagAndConstant(dagAndConstant) {}
+    : op(op), kind(kind), dagAndConstant(std::move(dagAndConstant)) {}
 
 int SymbolInfoMap::SymbolInfo::getStaticValueCount() const {
   switch (kind) {
@@ -495,7 +504,8 @@ SymbolInfoMap::findBoundSymbol(StringRef key, DagNode node, const Operator &op,
 }
 
 SymbolInfoMap::const_iterator
-SymbolInfoMap::findBoundSymbol(StringRef key, SymbolInfo symbolInfo) const {
+SymbolInfoMap::findBoundSymbol(StringRef key,
+                               const SymbolInfo &symbolInfo) const {
   std::string name = getValuePackName(key).str();
   auto range = symbolInfoMap.equal_range(name);
 
@@ -642,7 +652,7 @@ std::vector<AppliedConstraint> Pattern::getConstraints() const {
   std::vector<AppliedConstraint> ret;
   ret.reserve(listInit->size());
 
-  for (auto it : *listInit) {
+  for (auto *it : *listInit) {
     auto *dagInit = dyn_cast<llvm::DagInit>(it);
     if (!dagInit)
       PrintFatalError(&def, "all elements in Pattern multi-entity "
@@ -656,7 +666,7 @@ std::vector<AppliedConstraint> Pattern::getConstraints() const {
             &def,
             "operands to additional constraints can only be symbol references");
       }
-      entities.push_back(std::string(argName->getValue()));
+      entities.emplace_back(argName->getValue());
     }
 
     ret.emplace_back(cast<llvm::DefInit>(dagInit->getOperator())->getDef(),
@@ -764,22 +774,25 @@ void Pattern::collectBoundSymbols(DagNode tree, SymbolInfoMap &infoMap,
   if (tree.isOperation()) {
     auto &op = getDialectOp(tree);
     auto numOpArgs = op.getNumArgs();
+    int numEither = 0;
 
-    // The pattern might have trailing directives.
+    // We need to exclude the trailing directives and `either` directive groups
+    // two operands of the operation.
     int numDirectives = 0;
     for (int i = numTreeArgs - 1; i >= 0; --i) {
       if (auto dagArg = tree.getArgAsNestedDag(i)) {
         if (dagArg.isLocationDirective() || dagArg.isReturnTypeDirective())
           ++numDirectives;
-        else
-          break;
+        else if (dagArg.isEither())
+          ++numEither;
       }
     }
 
-    if (numOpArgs != numTreeArgs - numDirectives) {
-      auto err = formatv("op '{0}' argument number mismatch: "
-                         "{1} in pattern vs. {2} in definition",
-                         op.getOperationName(), numTreeArgs, numOpArgs);
+    if (numOpArgs != numTreeArgs - numDirectives + numEither) {
+      auto err =
+          formatv("op '{0}' argument number mismatch: "
+                  "{1} in pattern vs. {2} in definition",
+                  op.getOperationName(), numTreeArgs + numEither, numOpArgs);
       PrintFatalError(&def, err);
     }
 
@@ -791,10 +804,30 @@ void Pattern::collectBoundSymbols(DagNode tree, SymbolInfoMap &infoMap,
       verifyBind(infoMap.bindOpResult(treeName, op), treeName);
     }
 
-    for (int i = 0; i != numTreeArgs; ++i) {
+    // The operand in `either` DAG should be bound to the operation in the
+    // parent DagNode.
+    auto collectSymbolInEither = [&](DagNode parent, DagNode tree,
+                                     int &opArgIdx) {
+      for (int i = 0; i < tree.getNumArgs(); ++i, ++opArgIdx) {
+        if (DagNode subTree = tree.getArgAsNestedDag(i)) {
+          collectBoundSymbols(subTree, infoMap, isSrcPattern);
+        } else {
+          auto argName = tree.getArgName(i);
+          if (!argName.empty() && argName != "_")
+            verifyBind(infoMap.bindOpArgument(parent, argName, op, opArgIdx),
+                       argName);
+        }
+      }
+    };
+
+    for (int i = 0, opArgIdx = 0; i != numTreeArgs; ++i, ++opArgIdx) {
       if (auto treeArg = tree.getArgAsNestedDag(i)) {
-        // This DAG node argument is a DAG node itself. Go inside recursively.
-        collectBoundSymbols(treeArg, infoMap, isSrcPattern);
+        if (treeArg.isEither()) {
+          collectSymbolInEither(tree, treeArg, opArgIdx);
+        } else {
+          // This DAG node argument is a DAG node itself. Go inside recursively.
+          collectBoundSymbols(treeArg, infoMap, isSrcPattern);
+        }
         continue;
       }
 
@@ -806,7 +839,7 @@ void Pattern::collectBoundSymbols(DagNode tree, SymbolInfoMap &infoMap,
         if (!treeArgName.empty() && treeArgName != "_") {
           LLVM_DEBUG(llvm::dbgs() << "found symbol bound to op argument: "
                                   << treeArgName << '\n');
-          verifyBind(infoMap.bindOpArgument(tree, treeArgName, op, i),
+          verifyBind(infoMap.bindOpArgument(tree, treeArgName, op, opArgIdx),
                      treeArgName);
         }
       }

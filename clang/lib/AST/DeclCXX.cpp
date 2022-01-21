@@ -178,6 +178,8 @@ static bool hasRepeatedBaseClass(const CXXRecordDecl *StartRD) {
   SmallVector<const CXXRecordDecl*, 8> WorkList = {StartRD};
   while (!WorkList.empty()) {
     const CXXRecordDecl *RD = WorkList.pop_back_val();
+    if (RD->getTypeForDecl()->isDependentType())
+      continue;
     for (const CXXBaseSpecifier &BaseSpec : RD->bases()) {
       if (const CXXRecordDecl *B = BaseSpec.getType()->getAsCXXRecordDecl()) {
         if (!SeenBaseTypes.insert(B).second)
@@ -3270,7 +3272,7 @@ void MSGuidDecl::anchor() {}
 
 MSGuidDecl::MSGuidDecl(DeclContext *DC, QualType T, Parts P)
     : ValueDecl(Decl::MSGuid, DC, SourceLocation(), DeclarationName(), T),
-      PartVal(P), APVal() {}
+      PartVal(P) {}
 
 MSGuidDecl *MSGuidDecl::Create(const ASTContext &C, QualType T, Parts P) {
   DeclContext *DC = C.getTranslationUnitDecl();

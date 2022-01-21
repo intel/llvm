@@ -25,7 +25,7 @@ using namespace clang;
 static const LangASMap DefaultAddrSpaceMap = {0};
 
 // TargetInfo Constructor.
-TargetInfo::TargetInfo(const llvm::Triple &T) : TargetOpts(), Triple(T) {
+TargetInfo::TargetInfo(const llvm::Triple &T) : Triple(T) {
   // Set defaults.  Defaults are set for a 32-bit RISC platform, like PPC or
   // SPARC.  These should be overridden by concrete targets as needed.
   BigEndian = !T.isLittleEndian();
@@ -37,6 +37,8 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : TargetOpts(), Triple(T) {
   HasIbm128 = false;
   HasFloat16 = false;
   HasBFloat16 = false;
+  HasLongDouble = true;
+  HasFPReturn = true;
   HasStrictFP = false;
   PointerWidth = PointerAlign = 32;
   BoolWidth = BoolAlign = 8;
@@ -300,8 +302,11 @@ FloatModeKind TargetInfo::getRealTypeByWidth(unsigned BitWidth,
     if (ExplicitType == FloatModeKind::Ibm128)
       return hasIbm128Type() ? FloatModeKind::Ibm128
                              : FloatModeKind::NoFloat;
-    if (ExplicitType == FloatModeKind::LongDouble)
-      return ExplicitType;
+    if (&getLongDoubleFormat() == &llvm::APFloat::PPCDoubleDouble() ||
+        &getLongDoubleFormat() == &llvm::APFloat::IEEEquad())
+      return FloatModeKind::LongDouble;
+    if (hasFloat128Type())
+      return FloatModeKind::Float128;
     break;
   }
 

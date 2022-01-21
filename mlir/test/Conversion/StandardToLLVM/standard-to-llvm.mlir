@@ -454,6 +454,21 @@ func @dfs_block_order(%arg0: i32) -> (i32) {
   br ^bb1
 }
 
+// -----
+
+// CHECK-LABEL: @splat_0d
+// CHECK-SAME: %[[ARG:.*]]: f32
+func @splat_0d(%a: f32) -> vector<f32> {
+  %v = splat %a : vector<f32>
+  return %v : vector<f32>
+}
+// CHECK-NEXT: %[[UNDEF:[0-9]+]] = llvm.mlir.undef : vector<1xf32>
+// CHECK-NEXT: %[[ZERO:[0-9]+]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT: %[[V:[0-9]+]] = llvm.insertelement %[[ARG]], %[[UNDEF]][%[[ZERO]] : i32] : vector<1xf32>
+// CHECK-NEXT: llvm.return %[[V]] : vector<1xf32>
+
+// -----
+
 // CHECK-LABEL: @splat
 // CHECK-SAME: %[[A:arg[0-9]+]]: vector<4xf32>
 // CHECK-SAME: %[[ELT:arg[0-9]+]]: f32
@@ -468,27 +483,6 @@ func @splat(%a: vector<4xf32>, %b: f32) -> vector<4xf32> {
 // CHECK-NEXT: %[[SPLAT:[0-9]+]] = llvm.shufflevector %[[V]], %[[UNDEF]] [0 : i32, 0 : i32, 0 : i32, 0 : i32]
 // CHECK-NEXT: %[[SCALE:[0-9]+]] = llvm.fmul %[[A]], %[[SPLAT]] : vector<4xf32>
 // CHECK-NEXT: llvm.return %[[SCALE]] : vector<4xf32>
-
-// -----
-
-// CHECK-LABEL: func @atomic_rmw
-func @atomic_rmw(%I : memref<10xi32>, %ival : i32, %F : memref<10xf32>, %fval : f32, %i : index) {
-  atomic_rmw assign %fval, %F[%i] : (f32, memref<10xf32>) -> f32
-  // CHECK: llvm.atomicrmw xchg %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw addi %ival, %I[%i] : (i32, memref<10xi32>) -> i32
-  // CHECK: llvm.atomicrmw add %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw maxs %ival, %I[%i] : (i32, memref<10xi32>) -> i32
-  // CHECK: llvm.atomicrmw max %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw mins %ival, %I[%i] : (i32, memref<10xi32>) -> i32
-  // CHECK: llvm.atomicrmw min %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw maxu %ival, %I[%i] : (i32, memref<10xi32>) -> i32
-  // CHECK: llvm.atomicrmw umax %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw minu %ival, %I[%i] : (i32, memref<10xi32>) -> i32
-  // CHECK: llvm.atomicrmw umin %{{.*}}, %{{.*}} acq_rel
-  atomic_rmw addf %fval, %F[%i] : (f32, memref<10xf32>) -> f32
-  // CHECK: llvm.atomicrmw fadd %{{.*}}, %{{.*}} acq_rel
-  return
-}
 
 // -----
 
@@ -592,3 +586,31 @@ func @select_2dvector(%arg0 : vector<4x3xi1>, %arg1 : vector<4x3xi32>, %arg2 : v
   %0 = select %arg0, %arg1, %arg2 : vector<4x3xi1>, vector<4x3xi32>
   std.return
 }
+
+// -----
+
+// CHECK-LABEL: func @switchi8(
+func @switchi8(%arg0 : i8) -> i32 {
+switch %arg0 : i8, [
+  default: ^bb1,
+    42: ^bb1,
+    43: ^bb3
+  ]
+^bb1:
+  %c_1 = arith.constant 1 : i32
+  std.return %c_1 : i32
+^bb3:
+  %c_42 = arith.constant 42 : i32
+  std.return %c_42: i32
+}
+// CHECK:     llvm.switch %arg0 : i8, ^bb1 [
+// CHECK-NEXT:       42: ^bb1,
+// CHECK-NEXT:       43: ^bb2
+// CHECK-NEXT:     ]
+// CHECK:   ^bb1:  // 2 preds: ^bb0, ^bb0
+// CHECK-NEXT:     %[[E0:.+]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:     llvm.return %[[E0]] : i32
+// CHECK:   ^bb2:  // pred: ^bb0
+// CHECK-NEXT:     %[[E1:.+]] = llvm.mlir.constant(42 : i32) : i32
+// CHECK-NEXT:     llvm.return %[[E1]] : i32
+// CHECK-NEXT:   }

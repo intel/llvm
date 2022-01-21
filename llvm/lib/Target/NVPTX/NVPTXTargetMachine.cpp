@@ -18,17 +18,18 @@
 #include "NVPTXTargetObjectFile.h"
 #include "NVPTXTargetTransformInfo.h"
 #include "SYCL/GlobalOffset.h"
-#include "SYCL/LocalAccessorToSharedMemory.h"
 #include "TargetInfo/NVPTXTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -64,6 +65,7 @@ static cl::opt<bool> UseShortPointersOpt(
 
 namespace llvm {
 
+void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
 void initializeNVVMIntrRangePass(PassRegistry&);
 void initializeNVVMReflectPass(PassRegistry&);
 void initializeGenericToNVVMPass(PassRegistry&);
@@ -247,6 +249,25 @@ void NVPTXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 TargetTransformInfo
 NVPTXTargetMachine::getTargetTransformInfo(const Function &F) {
   return TargetTransformInfo(NVPTXTTIImpl(this, F));
+}
+
+std::pair<const Value *, unsigned>
+NVPTXTargetMachine::getPredicatedAddrSpace(const Value *V) const {
+  if (auto *II = dyn_cast<IntrinsicInst>(V)) {
+    switch (II->getIntrinsicID()) {
+    case Intrinsic::nvvm_isspacep_const:
+      return std::make_pair(II->getArgOperand(0), llvm::ADDRESS_SPACE_CONST);
+    case Intrinsic::nvvm_isspacep_global:
+      return std::make_pair(II->getArgOperand(0), llvm::ADDRESS_SPACE_GLOBAL);
+    case Intrinsic::nvvm_isspacep_local:
+      return std::make_pair(II->getArgOperand(0), llvm::ADDRESS_SPACE_LOCAL);
+    case Intrinsic::nvvm_isspacep_shared:
+      return std::make_pair(II->getArgOperand(0), llvm::ADDRESS_SPACE_SHARED);
+    default:
+      break;
+    }
+  }
+  return std::make_pair(nullptr, -1);
 }
 
 void NVPTXPassConfig::addEarlyCSEOrGVNPass() {

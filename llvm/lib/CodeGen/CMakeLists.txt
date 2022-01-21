@@ -77,6 +77,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineCopyPropagation.cpp
   MachineCSE.cpp
   MachineCheckDebugify.cpp
+  MachineCycleAnalysis.cpp
   MachineDebugify.cpp
   MachineDominanceFrontier.cpp
   MachineDominators.cpp
@@ -104,6 +105,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineScheduler.cpp
   MachineSink.cpp
   MachineSizeOpts.cpp
+  MachineSSAContext.cpp
   MachineSSAUpdater.cpp
   MachineStripDebug.cpp
   MachineTraceMetrics.cpp
@@ -111,6 +113,7 @@ add_llvm_component_library(LLVMCodeGen
   MIRFSDiscriminator.cpp
   MIRSampleProfile.cpp
   MIRYamlMapping.cpp
+  MLRegallocEvictAdvisor.cpp
   ModuloSchedule.cpp
   MultiHazardRecognizer.cpp
   PatchableFunction.cpp
@@ -137,9 +140,11 @@ add_llvm_component_library(LLVMCodeGen
   ReachingDefAnalysis.cpp
   RegAllocBase.cpp
   RegAllocBasic.cpp
+  RegAllocEvictionAdvisor.cpp
   RegAllocFast.cpp
   RegAllocGreedy.cpp
   RegAllocPBQP.cpp
+  RegAllocScore.cpp
   RegisterClassInfo.cpp
   RegisterCoalescer.cpp
   RegisterPressure.cpp
@@ -189,6 +194,7 @@ add_llvm_component_library(LLVMCodeGen
   TwoAddressInstructionPass.cpp
   UnreachableBlockElim.cpp
   ValueTypes.cpp
+  VLIWMachineScheduler.cpp
   VirtRegMap.cpp
   WasmEHPrepare.cpp
   WinEHPrepare.cpp

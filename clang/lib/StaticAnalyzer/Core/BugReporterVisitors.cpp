@@ -1670,9 +1670,10 @@ PathDiagnosticPieceRef TrackConstraintBRVisitor::VisitNode(
   if (isUnderconstrained(PrevN)) {
     IsSatisfied = true;
 
-    // As a sanity check, make sure that the negation of the constraint
-    // was infeasible in the current state.  If it is feasible, we somehow
-    // missed the transition point.
+    // At this point, the negation of the constraint should be infeasible. If it
+    // is feasible, make sure that the negation of the constrainti was
+    // infeasible in the current state.  If it is feasible, we somehow missed
+    // the transition point.
     assert(!isUnderconstrained(N));
 
     // We found the transition point for the constraint.  We now need to
@@ -2803,7 +2804,8 @@ bool ConditionBRVisitor::patternMatch(const Expr *Ex,
       Out << '\''
           << Lexer::getSourceText(
                  CharSourceRange::getTokenRange(Ex->getSourceRange()),
-                 BRC.getSourceManager(), BRC.getASTContext().getLangOpts(), 0)
+                 BRC.getSourceManager(), BRC.getASTContext().getLangOpts(),
+                 nullptr)
           << '\'';
   }
 

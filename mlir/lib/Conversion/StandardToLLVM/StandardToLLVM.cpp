@@ -53,11 +53,11 @@ static void filterFuncAttributes(ArrayRef<NamedAttribute> attrs,
                                  bool filterArgAttrs,
                                  SmallVectorImpl<NamedAttribute> &result) {
   for (const auto &attr : attrs) {
-    if (attr.first == SymbolTable::getSymbolAttrName() ||
-        attr.first == function_like_impl::getTypeAttrName() ||
-        attr.first == "std.varargs" ||
+    if (attr.getName() == SymbolTable::getSymbolAttrName() ||
+        attr.getName() == function_like_impl::getTypeAttrName() ||
+        attr.getName() == "std.varargs" ||
         (filterArgAttrs &&
-         attr.first == function_like_impl::getArgDictAttrName()))
+         attr.getName() == function_like_impl::getArgDictAttrName()))
       continue;
     result.push_back(attr);
   }
@@ -254,8 +254,8 @@ protected:
           rewriter.getNamedAttr(function_like_impl::getArgDictAttrName(),
                                 rewriter.getArrayAttr(newArgAttrs)));
     }
-    for (auto pair : llvm::enumerate(attributes)) {
-      if (pair.value().first == "llvm.linkage") {
+    for (const auto &pair : llvm::enumerate(attributes)) {
+      if (pair.value().getName() == "llvm.linkage") {
         attributes.erase(attributes.begin() + pair.index());
         break;
       }
@@ -448,9 +448,9 @@ struct ConstantOpLowering : public ConvertOpToLLVMPattern<ConstantOp> {
       auto newOp = rewriter.create<LLVM::AddressOfOp>(op.getLoc(), type,
                                                       symbolRef.getValue());
       for (const NamedAttribute &attr : op->getAttrs()) {
-        if (attr.first.strref() == "value")
+        if (attr.getName().strref() == "value")
           continue;
-        newOp->setAttr(attr.first, attr.second);
+        newOp->setAttr(attr.getName(), attr.getValue());
       }
       rewriter.replaceOp(op, newOp->getResults());
       return success();
@@ -560,28 +560,6 @@ struct UnrealizedConversionCastOpLowering
                                               convertedTypes)) &&
         convertedTypes == op.outputs().getType()) {
       rewriter.replaceOp(op, adaptor.inputs());
-      return success();
-    }
-    return failure();
-  }
-};
-
-struct RankOpLowering : public ConvertOpToLLVMPattern<RankOp> {
-  using ConvertOpToLLVMPattern<RankOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(RankOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Type operandType = op.getMemrefOrTensor().getType();
-    if (auto unrankedMemRefType = operandType.dyn_cast<UnrankedMemRefType>()) {
-      UnrankedMemRefDescriptor desc(adaptor.getMemrefOrTensor());
-      rewriter.replaceOp(op, {desc.rank(rewriter, loc)});
-      return success();
-    }
-    if (auto rankedMemRefType = operandType.dyn_cast<MemRefType>()) {
-      rewriter.replaceOp(
-          op, {createIndexConstant(rewriter, loc, rankedMemRefType.getRank())});
       return success();
     }
     return failure();
@@ -702,7 +680,7 @@ struct SwitchOpLowering
 };
 
 // The Splat operation is lowered to an insertelement + a shufflevector
-// operation. Splat to only 1-d vector result types are lowered.
+// operation. Splat to only 0-d and 1-d vector result types are lowered.
 struct SplatOpLowering : public ConvertOpToLLVMPattern<SplatOp> {
   using ConvertOpToLLVMPattern<SplatOp>::ConvertOpToLLVMPattern;
 
@@ -710,7 +688,7 @@ struct SplatOpLowering : public ConvertOpToLLVMPattern<SplatOp> {
   matchAndRewrite(SplatOp splatOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     VectorType resultType = splatOp.getType().dyn_cast<VectorType>();
-    if (!resultType || resultType.getRank() != 1)
+    if (!resultType || resultType.getRank() > 1)
       return failure();
 
     // First insert it into an undef vector so we can shuffle it.
@@ -721,6 +699,14 @@ struct SplatOpLowering : public ConvertOpToLLVMPattern<SplatOp> {
         typeConverter->convertType(rewriter.getIntegerType(32)),
         rewriter.getZeroAttr(rewriter.getIntegerType(32)));
 
+    // For 0-d vector, we simply do `insertelement`.
+    if (resultType.getRank() == 0) {
+      rewriter.replaceOpWithNewOp<LLVM::InsertElementOp>(
+          splatOp, vectorType, undef, adaptor.getInput(), zero);
+      return success();
+    }
+
+    // For 1-d vector, we additionally do a `vectorshuffle`.
     auto v = rewriter.create<LLVM::InsertElementOp>(
         splatOp.getLoc(), vectorType, undef, adaptor.getInput(), zero);
 
@@ -745,7 +731,7 @@ struct SplatNdOpLowering : public ConvertOpToLLVMPattern<SplatOp> {
   matchAndRewrite(SplatOp splatOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     VectorType resultType = splatOp.getType().dyn_cast<VectorType>();
-    if (!resultType || resultType.getRank() == 1)
+    if (!resultType || resultType.getRank() <= 1)
       return failure();
 
     // First insert it into an undef vector so we can shuffle it.
@@ -782,57 +768,6 @@ struct SplatNdOpLowering : public ConvertOpToLLVMPattern<SplatOp> {
                                                   position);
     });
     rewriter.replaceOp(splatOp, desc);
-    return success();
-  }
-};
-
-} // namespace
-
-/// Try to match the kind of a std.atomic_rmw to determine whether to use a
-/// lowering to llvm.atomicrmw or fallback to llvm.cmpxchg.
-static Optional<LLVM::AtomicBinOp> matchSimpleAtomicOp(AtomicRMWOp atomicOp) {
-  switch (atomicOp.getKind()) {
-  case AtomicRMWKind::addf:
-    return LLVM::AtomicBinOp::fadd;
-  case AtomicRMWKind::addi:
-    return LLVM::AtomicBinOp::add;
-  case AtomicRMWKind::assign:
-    return LLVM::AtomicBinOp::xchg;
-  case AtomicRMWKind::maxs:
-    return LLVM::AtomicBinOp::max;
-  case AtomicRMWKind::maxu:
-    return LLVM::AtomicBinOp::umax;
-  case AtomicRMWKind::mins:
-    return LLVM::AtomicBinOp::min;
-  case AtomicRMWKind::minu:
-    return LLVM::AtomicBinOp::umin;
-  default:
-    return llvm::None;
-  }
-  llvm_unreachable("Invalid AtomicRMWKind");
-}
-
-namespace {
-
-struct AtomicRMWOpLowering : public LoadStoreOpLowering<AtomicRMWOp> {
-  using Base::Base;
-
-  LogicalResult
-  matchAndRewrite(AtomicRMWOp atomicOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (failed(match(atomicOp)))
-      return failure();
-    auto maybeKind = matchSimpleAtomicOp(atomicOp);
-    if (!maybeKind)
-      return failure();
-    auto resultType = adaptor.getValue().getType();
-    auto memRefType = atomicOp.getMemRefType();
-    auto dataPtr =
-        getStridedElementPtr(atomicOp.getLoc(), memRefType, adaptor.getMemref(),
-                             adaptor.getIndices(), rewriter);
-    rewriter.replaceOpWithNewOp<LLVM::AtomicRMWOp>(
-        atomicOp, resultType, *maybeKind, dataPtr, adaptor.getValue(),
-        LLVM::AtomicOrdering::acq_rel);
     return success();
   }
 };
@@ -972,14 +907,12 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
   // clang-format off
   patterns.add<
       AssertOpLowering,
-      AtomicRMWOpLowering,
       BranchOpLowering,
       CallIndirectOpLowering,
       CallOpLowering,
       CondBranchOpLowering,
       ConstantOpLowering,
       GenericAtomicRMWOpLowering,
-      RankOpLowering,
       ReturnOpLowering,
       SelectOpLowering,
       SplatOpLowering,
@@ -1044,7 +977,7 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
                StringAttr::get(m.getContext(), this->dataLayout));
   }
 };
-} // end namespace
+} // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>> mlir::createLowerToLLVMPass() {
   return std::make_unique<LLVMLoweringPass>();

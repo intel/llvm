@@ -550,12 +550,28 @@ template <class ELFT> void ICF<ELFT>::run() {
     }
   });
 
+  // Change Defined symbol's section field to the canonical one.
+  auto fold = [](Symbol *sym) {
+    if (auto *d = dyn_cast<Defined>(sym))
+      if (auto *sec = dyn_cast_or_null<InputSection>(d->section))
+        if (sec->repl != d->section) {
+          d->section = sec->repl;
+          d->folded = true;
+        }
+  };
+  for (Symbol *sym : symtab->symbols())
+    fold(sym);
+  parallelForEach(objectFiles, [&](ELFFileBase *file) {
+    for (Symbol *sym : file->getLocalSymbols())
+      fold(sym);
+  });
+
   // InputSectionDescription::sections is populated by processSectionCommands().
   // ICF may fold some input sections assigned to output sections. Remove them.
-  for (BaseCommand *base : script->sectionCommands)
-    if (auto *sec = dyn_cast<OutputSection>(base))
-      for (BaseCommand *sub_base : sec->sectionCommands)
-        if (auto *isd = dyn_cast<InputSectionDescription>(sub_base))
+  for (SectionCommand *cmd : script->sectionCommands)
+    if (auto *sec = dyn_cast<OutputSection>(cmd))
+      for (SectionCommand *subCmd : sec->commands)
+        if (auto *isd = dyn_cast<InputSectionDescription>(subCmd))
           llvm::erase_if(isd->sections,
                          [](InputSection *isec) { return !isec->isLive(); });
 }

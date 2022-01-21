@@ -293,7 +293,14 @@ void collectCompositeElementsInfoRecursive(
 void collectCompositeElementsDefaultValuesRecursive(
     const Module &M, Constant *C, unsigned &Offset,
     std::vector<char> &DefaultValues) {
-  Type *Ty = C->getType();
+  if (isa<ConstantAggregateZero>(C)) {
+    // This code is generic for zeroinitializer for both arrays and structs
+    size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
+    std::fill_n(std::back_inserter(DefaultValues), NumBytes, 0);
+    Offset += NumBytes;
+    return;
+  }
+
   if (auto *DataSeqC = dyn_cast<ConstantDataSequential>(C)) {
     // This code is generic for both vectors and arrays of scalars
     for (size_t I = 0; I < DataSeqC->getNumElements(); ++I) {
@@ -301,21 +308,25 @@ void collectCompositeElementsDefaultValuesRecursive(
       collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
                                                      DefaultValues);
     }
-  } else if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+    return;
+  }
+
+  if (auto *ArrayC = dyn_cast<ConstantArray>(C)) {
     // This branch handles arrays of composite types (structs, arrays, etc.)
-    for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
-      Constant *El = cast<Constant>(C->getOperand(I));
-      collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
-                                                     DefaultValues);
+    assert(!C->isZeroValue() && "C must not be a zeroinitializer");
+    for (size_t I = 0; I < ArrayC->getType()->getNumElements(); ++I) {
+      collectCompositeElementsDefaultValuesRecursive(M, ArrayC->getOperand(I),
+                                                     Offset, DefaultValues);
     }
-  } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+    return;
+  }
+
+  if (auto *StructC = dyn_cast<ConstantStruct>(C)) {
+    assert(!C->isZeroValue() && "C must not be a zeroinitializer");
+    auto *StructTy = StructC->getType();
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
+    const size_t BaseDefaultValueOffset = DefaultValues.size();
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
-      Constant *El = nullptr;
-      if (C->isZeroValue())
-        El = Constant::getNullValue(StructTy->getElementType(I));
-      else
-        El = cast<Constant>(C->getOperand(I));
       // When handling elements of a structure, we do not use manually
       // calculated offsets (which are sum of sizes of all previously
       // encountered elements), but instead rely on data provided for us by
@@ -327,44 +338,52 @@ void collectCompositeElementsDefaultValuesRecursive(
       while (LocalOffset != DefaultValues.size())
         DefaultValues.push_back(0);
 
-      collectCompositeElementsDefaultValuesRecursive(M, El, LocalOffset,
-                                                     DefaultValues);
+      collectCompositeElementsDefaultValuesRecursive(
+          M, StructC->getOperand(I), LocalOffset, DefaultValues);
     }
+    const size_t SLSize = SL->getSizeInBytes();
+
+    // Additional padding may be needed at the end of the struct if size does
+    // not match the number of bytes inserted.
+    if (DefaultValues.size() < BaseDefaultValueOffset + SLSize)
+      DefaultValues.resize(BaseDefaultValueOffset + SLSize);
+
     // Update "global" offset according to the total size of a handled struct
     // type.
-    Offset += SL->getSizeInBytes();
-  } else { // Assume that we encountered some scalar element
-    int NumBytes = M.getDataLayout().getTypeStoreSize(Ty);
-
-    if (auto IntConst = dyn_cast<ConstantInt>(C)) {
-      auto Val = IntConst->getValue().getZExtValue();
-      std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
-                  std::back_inserter(DefaultValues));
-    } else if (auto FPConst = dyn_cast<ConstantFP>(C)) {
-      auto Val = FPConst->getValue();
-
-      if (NumBytes == 2) {
-        auto IVal = Val.bitcastToAPInt();
-        assert(IVal.getBitWidth() == 16);
-        auto Storage = static_cast<uint16_t>(IVal.getZExtValue());
-        std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
-                    std::back_inserter(DefaultValues));
-      } else if (NumBytes == 4) {
-        float v = Val.convertToFloat();
-        std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
-                    std::back_inserter(DefaultValues));
-      } else if (NumBytes == 8) {
-        double v = Val.convertToDouble();
-        std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
-                    std::back_inserter(DefaultValues));
-      } else {
-        llvm_unreachable("Unexpected constant floating point type");
-      }
-    } else {
-      llvm_unreachable("Unexpected constant scalar type");
-    }
-    Offset += NumBytes;
+    Offset += SLSize;
+    return;
   }
+
+  // Assume that we encountered some scalar element
+  size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
+  if (auto IntConst = dyn_cast<ConstantInt>(C)) {
+    auto Val = IntConst->getValue().getZExtValue();
+    std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
+                std::back_inserter(DefaultValues));
+  } else if (auto FPConst = dyn_cast<ConstantFP>(C)) {
+    auto Val = FPConst->getValue();
+
+    if (NumBytes == 2) {
+      auto IVal = Val.bitcastToAPInt();
+      assert(IVal.getBitWidth() == 16);
+      auto Storage = static_cast<uint16_t>(IVal.getZExtValue());
+      std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
+                  std::back_inserter(DefaultValues));
+    } else if (NumBytes == 4) {
+      float v = Val.convertToFloat();
+      std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
+                  std::back_inserter(DefaultValues));
+    } else if (NumBytes == 8) {
+      double v = Val.convertToDouble();
+      std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
+                  std::back_inserter(DefaultValues));
+    } else {
+      llvm_unreachable("Unexpected constant floating point type");
+    }
+  } else {
+    llvm_unreachable("Unexpected constant scalar type");
+  }
+  Offset += NumBytes;
 }
 
 MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
@@ -648,13 +667,14 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
       }
 
+      bool IsNewSpecConstant = false;
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
         // to a "spec const string literal ID" -> "vector of integer IDs" map,
         // uniquing the integer IDs if this is a new literal
         auto Ins =
             IDMap.insert(std::make_pair(SymID, SmallVector<unsigned, 1>{}));
-        bool IsNewSpecConstant = Ins.second;
+        IsNewSpecConstant = Ins.second;
         auto &IDs = Ins.first->second;
         if (IsNewSpecConstant) {
           // For any spec constant type there will be always at least one ID
@@ -693,7 +713,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // "offset" map, uniquing the integer offsets if this is new
           // literal.
           auto Ins = OffsetMap.insert(std::make_pair(SymID, NextOffset));
-          bool IsNewSpecConstant = Ins.second;
+          IsNewSpecConstant = Ins.second;
           unsigned CurrentOffset = Ins.first->second;
           if (IsNewSpecConstant) {
             unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
@@ -724,16 +744,16 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           if (SCTy->isIntegerTy(1)) // trunc back to i1 if necessary
             Replacement = CastInst::CreateIntegerCast(
                 Replacement, SCTy, /* IsSigned */ false, "tobool", CI);
-
-          if (IsNewSpecConstant && DefaultValue)
-            DefaultsMetadata.push_back(
-                generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
         } else {
           // Replace the intrinsic with default C++ value for the spec constant
           // type.
           Replacement = getDefaultCPPValue(SCTy);
         }
       }
+
+      if (IsNewSpecConstant && DefaultValue)
+        DefaultsMetadata.push_back(
+            generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
 
       if (HasSretParameter) {
         // If __sycl_getCompositeSpecConstant returns through argument, then the
@@ -765,13 +785,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   for (const auto &P : SCMetadata)
     MD->addOperand(P.second);
 
-  // Emit default values metadata only in native (default) spec constants mode.
-  if (!SetValAtRT) {
-    NamedMDNode *MDDefaults =
-        M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
-    for (const auto &P : DefaultsMetadata)
-      MDDefaults->addOperand(P);
-  }
+  // Emit default values metadata
+  NamedMDNode *MDDefaults =
+      M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
+  for (const auto &P : DefaultsMetadata)
+    MDDefaults->addOperand(P);
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

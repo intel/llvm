@@ -23,11 +23,13 @@
 using namespace llvm;
 using namespace IRSimilarity;
 
+namespace llvm {
 cl::opt<bool>
     DisableBranches("no-ir-sim-branch-matching", cl::init(false),
                     cl::ReallyHidden,
                     cl::desc("disable similarity matching, and outlining, "
                              "across branches for debugging purposes."));
+} // namespace llvm
 
 IRInstructionData::IRInstructionData(Instruction &I, bool Legality,
                                      IRInstructionDataList &IDList)
@@ -820,7 +822,7 @@ void IRSimilarityIdentifier::populateMapper(
 /// subsequence from the \p InstrList, and create an IRSimilarityCandidate from
 /// the IRInstructionData in subsequence.
 ///
-/// \param [in] Mapper - The instruction mapper for sanity checks.
+/// \param [in] Mapper - The instruction mapper for basic correctness checks.
 /// \param [in] InstrList - The vector that holds the instruction data.
 /// \param [in] IntegerMapping - The vector that holds the mapped integers.
 /// \param [out] CandsForRepSubstring - The vector to store the generated

@@ -51,11 +51,9 @@ struct MockKernelInfo {
 template <> struct KernelInfo<TestKernel> : public MockKernelInfo {
   static constexpr const char *getName() { return "TestKernel"; }
 };
-
 template <> struct KernelInfo<TestKernel2> : public MockKernelInfo {
   static constexpr const char *getName() { return "TestKernel2"; }
 };
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
@@ -117,6 +115,7 @@ static pi_result redefinedKernelCreate(pi_program program,
                                        pi_kernel *ret_kernel) {
   return PI_SUCCESS;
 }
+
 static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
 
 class KernelAndProgramCacheTest : public ::testing::Test {

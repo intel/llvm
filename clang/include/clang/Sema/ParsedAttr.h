@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_SEMA_ATTRIBUTELIST_H
-#define LLVM_CLANG_SEMA_ATTRIBUTELIST_H
+#ifndef LLVM_CLANG_SEMA_PARSEDATTR_H
+#define LLVM_CLANG_SEMA_PARSEDATTR_H
 
 #include "clang/Basic/AttrSubjectMatchRules.h"
 #include "clang/Basic/AttributeCommonInfo.h"
@@ -902,7 +902,7 @@ public:
                                                 ParsedAttr> {
     iterator() : iterator_adaptor_base(nullptr) {}
     iterator(VecTy::iterator I) : iterator_adaptor_base(I) {}
-    reference operator*() { return **I; }
+    reference operator*() const { return **I; }
     friend class ParsedAttributesView;
   };
   struct const_iterator
@@ -1105,6 +1105,7 @@ enum AttributeArgumentNType {
   AANT_ArgumentString,
   AANT_ArgumentIdentifier,
   AANT_ArgumentConstantExpr,
+  AANT_ArgumentBuiltinFunction,
 };
 
 /// These constants match the enumerated choices of
@@ -1166,4 +1167,4 @@ inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
 
 } // namespace clang
 
-#endif // LLVM_CLANG_SEMA_ATTRIBUTELIST_H
+#endif // LLVM_CLANG_SEMA_PARSEDATTR_H

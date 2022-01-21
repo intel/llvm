@@ -29,7 +29,6 @@ enum : uint64_t {
 };
 }
 
-class AMDGPUTargetMachine;
 class DFAPacketizer;
 class MachineFunction;
 class MachineInstr;
@@ -175,7 +174,7 @@ public:
                         int *BytesAdded = nullptr) const override;
 
   unsigned removeBranch(MachineBasicBlock &MBB,
-                        int *BytesRemvoed = nullptr) const override;
+                        int *BytesRemoved = nullptr) const override;
 
   bool isPredicated(const MachineInstr &MI) const override;
 

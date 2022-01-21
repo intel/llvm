@@ -1776,14 +1776,66 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     break;
   }
   case Intrinsic::stackrestore: {
-    // If the save is right next to the restore, remove the restore.  This can
-    // happen when variable allocas are DCE'd.
-    if (IntrinsicInst *SS = dyn_cast<IntrinsicInst>(II->getArgOperand(0))) {
-      if (SS->getIntrinsicID() == Intrinsic::stacksave) {
-        // Skip over debug info.
-        if (SS->getNextNonDebugInstruction() == II) {
-          return eraseInstFromFunction(CI);
+    enum class ClassifyResult {
+      None,
+      Alloca,
+      StackRestore,
+      CallWithSideEffects,
+    };
+    auto Classify = [](const Instruction *I) {
+      if (isa<AllocaInst>(I))
+        return ClassifyResult::Alloca;
+
+      if (auto *CI = dyn_cast<CallInst>(I)) {
+        if (auto *II = dyn_cast<IntrinsicInst>(CI)) {
+          if (II->getIntrinsicID() == Intrinsic::stackrestore)
+            return ClassifyResult::StackRestore;
+
+          if (II->mayHaveSideEffects())
+            return ClassifyResult::CallWithSideEffects;
+        } else {
+          // Consider all non-intrinsic calls to be side effects
+          return ClassifyResult::CallWithSideEffects;
         }
+      }
+
+      return ClassifyResult::None;
+    };
+
+    // If the stacksave and the stackrestore are in the same BB, and there is
+    // no intervening call, alloca, or stackrestore of a different stacksave,
+    // remove the restore. This can happen when variable allocas are DCE'd.
+    if (IntrinsicInst *SS = dyn_cast<IntrinsicInst>(II->getArgOperand(0))) {
+      if (SS->getIntrinsicID() == Intrinsic::stacksave &&
+          SS->getParent() == II->getParent()) {
+        BasicBlock::iterator BI(SS);
+        bool CannotRemove = false;
+        for (++BI; &*BI != II; ++BI) {
+          switch (Classify(&*BI)) {
+          case ClassifyResult::None:
+            // So far so good, look at next instructions.
+            break;
+
+          case ClassifyResult::StackRestore:
+            // If we found an intervening stackrestore for a different
+            // stacksave, we can't remove the stackrestore. Otherwise, continue.
+            if (cast<IntrinsicInst>(*BI).getArgOperand(0) != SS)
+              CannotRemove = true;
+            break;
+
+          case ClassifyResult::Alloca:
+          case ClassifyResult::CallWithSideEffects:
+            // If we found an alloca, a non-intrinsic call, or an intrinsic
+            // call with side effects, we can't remove the stackrestore.
+            CannotRemove = true;
+            break;
+          }
+          if (CannotRemove)
+            break;
+        }
+
+        if (!CannotRemove)
+          return eraseInstFromFunction(CI);
       }
     }
 
@@ -1793,29 +1845,25 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     Instruction *TI = II->getParent()->getTerminator();
     bool CannotRemove = false;
     for (++BI; &*BI != TI; ++BI) {
-      if (isa<AllocaInst>(BI)) {
+      switch (Classify(&*BI)) {
+      case ClassifyResult::None:
+        // So far so good, look at next instructions.
+        break;
+
+      case ClassifyResult::StackRestore:
+        // If there is a stackrestore below this one, remove this one.
+        return eraseInstFromFunction(CI);
+
+      case ClassifyResult::Alloca:
+      case ClassifyResult::CallWithSideEffects:
+        // If we found an alloca, a non-intrinsic call, or an intrinsic call
+        // with side effects (such as llvm.stacksave and llvm.read_register),
+        // we can't remove the stack restore.
         CannotRemove = true;
         break;
       }
-      if (CallInst *BCI = dyn_cast<CallInst>(BI)) {
-        if (auto *II2 = dyn_cast<IntrinsicInst>(BCI)) {
-          // If there is a stackrestore below this one, remove this one.
-          if (II2->getIntrinsicID() == Intrinsic::stackrestore)
-            return eraseInstFromFunction(CI);
-
-          // Bail if we cross over an intrinsic with side effects, such as
-          // llvm.stacksave, or llvm.read_register.
-          if (II2->mayHaveSideEffects()) {
-            CannotRemove = true;
-            break;
-          }
-        } else {
-          // If we found a non-intrinsic call, we can't remove the stack
-          // restore.
-          CannotRemove = true;
-          break;
-        }
-      }
+      if (CannotRemove)
+        break;
     }
 
     // If the stack restore is in a return, resume, or unwind block and if there
@@ -2424,6 +2472,12 @@ static bool isSafeToEliminateVarargsCast(const CallBase &Call,
 Instruction *InstCombinerImpl::tryOptimizeCall(CallInst *CI) {
   if (!CI->getCalledFunction()) return nullptr;
 
+  // Skip optimizing notail and musttail calls so
+  // LibCallSimplifier::optimizeCall doesn't have to preserve those invariants.
+  // LibCallSimplifier::optimizeCall should try to preseve tail calls though.
+  if (CI->isMustTailCall() || CI->isNoTailCall())
+    return nullptr;
+
   auto InstCombineRAUW = [this](Instruction *From, Value *With) {
     replaceInstUsesWith(*From, With);
   };
@@ -2517,57 +2571,31 @@ static IntrinsicInst *findInitTrampoline(Value *Callee) {
 }
 
 void InstCombinerImpl::annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI) {
-  unsigned NumArgs = Call.arg_size();
-  ConstantInt *Op0C = dyn_cast<ConstantInt>(Call.getOperand(0));
-  ConstantInt *Op1C =
-      (NumArgs == 1) ? nullptr : dyn_cast<ConstantInt>(Call.getOperand(1));
-  // Bail out if the allocation size is zero (or an invalid alignment of zero
-  // with aligned_alloc).
-  if ((Op0C && Op0C->isNullValue()) || (Op1C && Op1C->isNullValue()))
-    return;
 
-  if (isMallocLikeFn(&Call, TLI) && Op0C) {
+  uint64_t Size;
+  ObjectSizeOpts Opts;
+  if (getObjectSize(&Call, Size, DL, TLI, Opts) && Size > 0) {
+    // TODO: should be annotating these nonnull
     if (isOpNewLikeFn(&Call, TLI))
       Call.addRetAttr(Attribute::getWithDereferenceableBytes(
-          Call.getContext(), Op0C->getZExtValue()));
+          Call.getContext(), Size));
     else
       Call.addRetAttr(Attribute::getWithDereferenceableOrNullBytes(
-          Call.getContext(), Op0C->getZExtValue()));
-  } else if (isAlignedAllocLikeFn(&Call, TLI)) {
-    if (Op1C)
-      Call.addRetAttr(Attribute::getWithDereferenceableOrNullBytes(
-          Call.getContext(), Op1C->getZExtValue()));
-    // Add alignment attribute if alignment is a power of two constant.
-    if (Op0C && Op0C->getValue().ult(llvm::Value::MaximumAlignment) &&
-        isKnownNonZero(Call.getOperand(1), DL, 0, &AC, &Call, &DT)) {
-      uint64_t AlignmentVal = Op0C->getZExtValue();
-      if (llvm::isPowerOf2_64(AlignmentVal)) {
-        Call.removeRetAttr(Attribute::Alignment);
-        Call.addRetAttr(Attribute::getWithAlignment(Call.getContext(),
-                                                    Align(AlignmentVal)));
-      }
-    }
-  } else if (isReallocLikeFn(&Call, TLI) && Op1C) {
-    Call.addRetAttr(Attribute::getWithDereferenceableOrNullBytes(
-        Call.getContext(), Op1C->getZExtValue()));
-  } else if (isCallocLikeFn(&Call, TLI) && Op0C && Op1C) {
-    bool Overflow;
-    const APInt &N = Op0C->getValue();
-    APInt Size = N.umul_ov(Op1C->getValue(), Overflow);
-    if (!Overflow)
-      Call.addRetAttr(Attribute::getWithDereferenceableOrNullBytes(
-          Call.getContext(), Size.getZExtValue()));
-  } else if (isStrdupLikeFn(&Call, TLI)) {
-    uint64_t Len = GetStringLength(Call.getOperand(0));
-    if (Len) {
-      // strdup
-      if (NumArgs == 1)
-        Call.addRetAttr(Attribute::getWithDereferenceableOrNullBytes(
-            Call.getContext(), Len));
-      // strndup
-      else if (NumArgs == 2 && Op1C)
-        Call.addRetAttr(Attribute::getWithDereferenceableOrNullBytes(
-            Call.getContext(), std::min(Len, Op1C->getZExtValue() + 1)));
+          Call.getContext(), Size));
+  }
+
+  // Add alignment attribute if alignment is a power of two constant.
+  if (!isAlignedAllocLikeFn(&Call, TLI))
+    return;
+
+  ConstantInt *Op0C = dyn_cast<ConstantInt>(Call.getOperand(0));
+  if (Op0C && Op0C->getValue().ult(llvm::Value::MaximumAlignment) &&
+      isKnownNonZero(Call.getOperand(1), DL, 0, &AC, &Call, &DT)) {
+    uint64_t AlignmentVal = Op0C->getZExtValue();
+    if (llvm::isPowerOf2_64(AlignmentVal)) {
+      Call.removeRetAttr(Attribute::Alignment);
+      Call.addRetAttr(Attribute::getWithAlignment(Call.getContext(),
+                                                  Align(AlignmentVal)));
     }
   }
 }
@@ -2593,7 +2621,7 @@ Instruction *InstCombinerImpl::visitCallBase(CallBase &Call) {
     ArgNo++;
   }
 
-  assert(ArgNo == Call.arg_size() && "sanity check");
+  assert(ArgNo == Call.arg_size() && "Call arguments not processed correctly.");
 
   if (!ArgNos.empty()) {
     AttributeList AS = Call.getAttributes();

@@ -1807,10 +1807,27 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
     // Function-to-pointer conversion (C++ 4.3).
     SCS.First = ICK_Function_To_Pointer;
 
-    if (auto *DRE = dyn_cast<DeclRefExpr>(From->IgnoreParenCasts()))
-      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+    if (auto *DRE = dyn_cast<DeclRefExpr>(From->IgnoreParenCasts())) {
+      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
         if (!S.checkAddressOfFunctionIsAvailable(FD))
           return false;
+
+        // Some parts of clang are not designed for deferred diagnostics.
+        // One of the examples - initialization. When a new initialization is
+        // performed - it may end up here checking validity of a conversion.
+        // If false is returned from here, initialization sequence is marked as
+        // invalid, then checkAddressOfFunctionIsAvailable is called again
+        // to understand the reason of invaid initialization and in the end
+        // it is called with 'Complain' parameter to emit diagnostics.
+        // We cannot mark an initialization permanently invalid for SYCL device,
+        // because we may not know yet where the device code is.
+        // So, just call 'checkAddressOfFunctionIsAvailable' again but with
+        // 'Complain' parameter to issue a deferred diagnostic.
+        if (S.getLangOpts().SYCLIsDevice)
+          S.checkAddressOfFunctionIsAvailable(FD, /*Complain=*/true,
+                                              DRE->getExprLoc());
+      }
+    }
 
     // An lvalue of function type T can be converted to an rvalue of
     // type "pointer to T." The result is a pointer to the
@@ -6456,7 +6473,8 @@ void Sema::AddOverloadCandidate(
   // parameters is viable only if it has an ellipsis in its parameter
   // list (8.3.5).
   if (TooManyArguments(NumParams, Args.size(), PartialOverloading) &&
-      !Proto->isVariadic()) {
+      !Proto->isVariadic() &&
+      shouldEnforceArgLimit(PartialOverloading, Function)) {
     Candidate.Viable = false;
     Candidate.FailureKind = ovl_fail_too_many_arguments;
     return;
@@ -6946,7 +6964,8 @@ Sema::AddMethodCandidate(CXXMethodDecl *Method, DeclAccessPair FoundDecl,
   // parameters is viable only if it has an ellipsis in its parameter
   // list (8.3.5).
   if (TooManyArguments(NumParams, Args.size(), PartialOverloading) &&
-      !Proto->isVariadic()) {
+      !Proto->isVariadic() &&
+      shouldEnforceArgLimit(PartialOverloading, Method)) {
     Candidate.Viable = false;
     Candidate.FailureKind = ovl_fail_too_many_arguments;
     return;
@@ -9860,9 +9879,9 @@ bool clang::isBetterOverloadCandidate(
   //      F1 and F2 have the same type.
   // FIXME: Implement the "all parameters have the same type" check.
   bool Cand1IsInherited =
-      dyn_cast_or_null<ConstructorUsingShadowDecl>(Cand1.FoundDecl.getDecl());
+      isa_and_nonnull<ConstructorUsingShadowDecl>(Cand1.FoundDecl.getDecl());
   bool Cand2IsInherited =
-      dyn_cast_or_null<ConstructorUsingShadowDecl>(Cand2.FoundDecl.getDecl());
+      isa_and_nonnull<ConstructorUsingShadowDecl>(Cand2.FoundDecl.getDecl());
   if (Cand1IsInherited != Cand2IsInherited)
     return Cand2IsInherited;
   else if (Cand1IsInherited) {
@@ -10241,6 +10260,15 @@ static bool checkAddressOfFunctionIsAvailable(Sema &S, const FunctionDecl *FD,
                                               bool Complain,
                                               bool InOverloadResolution,
                                               SourceLocation Loc) {
+  if (Complain && S.getLangOpts().SYCLIsDevice &&
+      S.getLangOpts().SYCLAllowFuncPtr) {
+    if (!FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>()) {
+      S.SYCLDiagIfDeviceCode(Loc,
+                             diag::err_sycl_taking_address_of_wrong_function,
+                             Sema::DeviceDiagnosticReason::Sycl);
+    }
+  }
+
   if (!isFunctionAlwaysEnabled(S.Context, FD)) {
     if (Complain) {
       if (InOverloadResolution)
@@ -12673,7 +12701,7 @@ static void AddOverloadedCallCandidate(Sema &S,
       return;
     }
     // Prevent ill-formed function decls to be added as overload candidates.
-    if (!dyn_cast<FunctionProtoType>(Func->getType()->getAs<FunctionType>()))
+    if (!isa<FunctionProtoType>(Func->getType()->getAs<FunctionType>()))
       return;
 
     S.AddOverloadCandidate(Func, FoundDecl, Args, CandidateSet,
@@ -14320,8 +14348,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
     FoundDecl = MemExpr->getFoundDecl();
     Qualifier = MemExpr->getQualifier();
     UnbridgedCasts.restore();
-  } else {
-    UnresolvedMemberExpr *UnresExpr = cast<UnresolvedMemberExpr>(NakedMemExpr);
+  } else if (auto *UnresExpr = dyn_cast<UnresolvedMemberExpr>(NakedMemExpr)) {
     Qualifier = UnresExpr->getQualifier();
 
     QualType ObjectType = UnresExpr->getBaseType();
@@ -14434,7 +14461,9 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
     }
 
     MemExpr = cast<MemberExpr>(MemExprE->IgnoreParens());
-  }
+  } else
+    // Unimaged NakedMemExpr type.
+    return ExprError();
 
   QualType ResultType = Method->getReturnType();
   ExprValueKind VK = Expr::getValueKindForType(ResultType);
@@ -15241,4 +15270,22 @@ ExprResult Sema::FixOverloadedFunctionReference(ExprResult E,
                                                 DeclAccessPair Found,
                                                 FunctionDecl *Fn) {
   return FixOverloadedFunctionReference(E.get(), Found, Fn);
+}
+
+bool clang::shouldEnforceArgLimit(bool PartialOverloading,
+                                  FunctionDecl *Function) {
+  if (!PartialOverloading || !Function)
+    return true;
+  if (Function->isVariadic())
+    return false;
+  if (const auto *Proto =
+          dyn_cast<FunctionProtoType>(Function->getFunctionType()))
+    if (Proto->isTemplateVariadic())
+      return false;
+  if (auto *Pattern = Function->getTemplateInstantiationPattern())
+    if (const auto *Proto =
+            dyn_cast<FunctionProtoType>(Pattern->getFunctionType()))
+      if (Proto->isTemplateVariadic())
+        return false;
+  return true;
 }

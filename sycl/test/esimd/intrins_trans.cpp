@@ -75,7 +75,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   simd<float, 1> diva(2.f);
   simd<float, 1> divb(1.f);
-  diva = __esimd_ieee_div<1>(diva.data(), divb.data());
+  diva = __esimd_ieee_div<float, 1>(diva.data(), divb.data());
   // CHECK:  %{{[0-9a-zA-Z_.]+}} = call <1 x float> @llvm.genx.ieee.div.v1f32(<1 x float>  %{{[0-9a-zA-Z_.]+}}, <1 x float>  %{{[0-9a-zA-Z_.]+}})
 
   simd<float, 16> a(0.1f);
@@ -179,9 +179,9 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 //   level of testing strength
 // 2. Test cases above should be refactored not to use user-level APIs like
 //   gather and use __esimd* calls instead.
-template <class T, int N> using vec = typename simd<T, N>::vector_type;
+template <class T, int N> using vec = typename simd<T, N>::raw_vector_type;
 
-template <int N> using mask = typename simd_mask<N>::vector_type;
+template <int N> using mask = typename simd_mask<N>::raw_vector_type;
 
 SYCL_EXTERNAL void use(const vec<float, 8> &x) SYCL_ESIMD_FUNCTION;
 SYCL_EXTERNAL void use(const vec<int, 8> &x) SYCL_ESIMD_FUNCTION;
@@ -276,13 +276,13 @@ SYCL_EXTERNAL void test_math_intrins() SYCL_ESIMD_FUNCTION {
   {
     vec<float, 8> x0 = get8f();
     vec<float, 8> x1 = get8f();
-    auto y = __esimd_ieee_div<8>(x0, x1);
+    auto y = __esimd_ieee_div<float, 8>(x0, x1);
     // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.ieee.div.v8f32(<8 x float> %{{[a-zA-Z0-9.]+}}, <8 x float> %{{[a-zA-Z0-9.]+}})
     use(y);
   }
   {
     vec<float, 8> x = get8f();
-    auto y = __esimd_ieee_sqrt<8>(x);
+    auto y = __esimd_ieee_sqrt<float, 8>(x);
     // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.ieee.sqrt.v8f32(<8 x float> %{{[a-zA-Z0-9.]+}})
     use(y);
   }

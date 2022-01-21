@@ -1544,15 +1544,9 @@ void LazyCallGraph::removeDeadFunction(Function &F) {
   assert(C.size() == 1 && "Dead functions must be in a singular SCC");
   assert(RC.size() == 1 && "Dead functions must be in a singular RefSCC");
 
-  auto RCIndexI = RefSCCIndices.find(&RC);
-  int RCIndex = RCIndexI->second;
-  PostOrderRefSCCs.erase(PostOrderRefSCCs.begin() + RCIndex);
-  RefSCCIndices.erase(RCIndexI);
-  for (int i = RCIndex, Size = PostOrderRefSCCs.size(); i < Size; ++i)
-    RefSCCIndices[PostOrderRefSCCs[i]] = i;
-
   // Finally clear out all the data structures from the node down through the
-  // components.
+  // components. postorder_ref_scc_iterator will skip empty RefSCCs, so no need
+  // to adjust LazyCallGraph data structures.
   N.clear();
   N.G = nullptr;
   N.F = nullptr;
@@ -1973,28 +1967,10 @@ void LazyCallGraph::visitReferences(SmallVectorImpl<Constant *> &Worklist,
       continue;
     }
 
-    // The blockaddress constant expression is a weird special case, we can't
-    // generically walk its operands the way we do for all other constants.
-    if (BlockAddress *BA = dyn_cast<BlockAddress>(C)) {
-      // If we've already visited the function referred to by the block
-      // address, we don't need to revisit it.
-      if (Visited.count(BA->getFunction()))
-        continue;
-
-      // If all of the blockaddress' users are instructions within the
-      // referred to function, we don't need to insert a cycle.
-      if (llvm::all_of(BA->users(), [&](User *U) {
-            if (Instruction *I = dyn_cast<Instruction>(U))
-              return I->getFunction() == BA->getFunction();
-            return false;
-          }))
-        continue;
-
-      // Otherwise we should go visit the referred to function.
-      Visited.insert(BA->getFunction());
-      Worklist.push_back(BA->getFunction());
+    // blockaddresses are weird and don't participate in the call graph anyway,
+    // skip them.
+    if (isa<BlockAddress>(C))
       continue;
-    }
 
     for (Value *Op : C->operand_values())
       if (Visited.insert(cast<Constant>(Op)).second)

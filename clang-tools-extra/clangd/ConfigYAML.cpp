@@ -65,6 +65,7 @@ public:
     Dict.handle("Style", [&](Node &N) { parse(F.Style, N); });
     Dict.handle("Diagnostics", [&](Node &N) { parse(F.Diagnostics, N); });
     Dict.handle("Completion", [&](Node &N) { parse(F.Completion, N); });
+    Dict.handle("Hover", [&](Node &N) { parse(F.Hover, N); });
     Dict.parse(N);
     return !(N.failed() || HadError);
   }
@@ -89,6 +90,10 @@ private:
 
   void parse(Fragment::CompileFlagsBlock &F, Node &N) {
     DictParser Dict("CompileFlags", this);
+    Dict.handle("Compiler", [&](Node &N) {
+      if (auto Value = scalarValue(N, "Compiler"))
+        F.Compiler = std::move(*Value);
+    });
     Dict.handle("Add", [&](Node &N) {
       if (auto Values = scalarValues(N))
         F.Add = std::move(*Values);
@@ -199,6 +204,19 @@ private:
           F.AllScopes = *AllScopes;
         else
           warning("AllScopes should be a boolean", N);
+      }
+    });
+    Dict.parse(N);
+  }
+
+  void parse(Fragment::HoverBlock &F, Node &N) {
+    DictParser Dict("Hover", this);
+    Dict.handle("ShowAKA", [&](Node &N) {
+      if (auto Value = scalarValue(N, "ShowAKA")) {
+        if (auto ShowAKA = llvm::yaml::parseBool(**Value))
+          F.ShowAKA = *ShowAKA;
+        else
+          warning("ShowAKA should be a boolean", N);
       }
     });
     Dict.parse(N);

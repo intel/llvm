@@ -611,7 +611,7 @@ struct Vectorize : public AffineVectorizeBase<Vectorize> {
   void runOnFunction() override;
 };
 
-} // end anonymous namespace
+} // namespace
 
 Vectorize::Vectorize(ArrayRef<int64_t> virtualVectorSize) {
   vectorSizes = virtualVectorSize;
@@ -755,7 +755,7 @@ struct VectorizationState {
   DenseMap<Operation *, Value> vecLoopToMask;
 
   // The strategy drives which loop to vectorize by which amount.
-  const VectorizationStrategy *strategy;
+  const VectorizationStrategy *strategy = nullptr;
 
 private:
   /// Internal implementation to map input scalar values to new vector or scalar
@@ -764,7 +764,7 @@ private:
   void registerValueScalarReplacementImpl(Value replaced, Value replacement);
 };
 
-} // end namespace
+} // namespace
 
 /// Registers the vector replacement of a scalar operation and its result
 /// values. Both operations must have the same number of results.
@@ -971,7 +971,7 @@ static arith::ConstantOp vectorizeConstant(arith::ConstantOp constOp,
 /// Creates a constant vector filled with the neutral elements of the given
 /// reduction. The scalar type of vector elements will be taken from
 /// `oldOperand`.
-static arith::ConstantOp createInitialVector(AtomicRMWKind reductionKind,
+static arith::ConstantOp createInitialVector(arith::AtomicRMWKind reductionKind,
                                              Value oldOperand,
                                              VectorizationState &state) {
   Type scalarTy = oldOperand.getType();
@@ -1245,8 +1245,8 @@ static Operation *vectorizeAffineStore(AffineStoreOp storeOp,
 
 /// Returns true if `value` is a constant equal to the neutral element of the
 /// given vectorizable reduction.
-static bool isNeutralElementConst(AtomicRMWKind reductionKind, Value value,
-                                  VectorizationState &state) {
+static bool isNeutralElementConst(arith::AtomicRMWKind reductionKind,
+                                  Value value, VectorizationState &state) {
   Type scalarTy = value.getType();
   if (!VectorType::isValidElementType(scalarTy))
     return false;
@@ -1324,7 +1324,6 @@ static Operation *vectorizeAffineForOp(AffineForOp forOp,
       /*bodyBuilder=*/[](OpBuilder &, Location, Value, ValueRange) {
         // Make sure we don't create a default terminator in the loop body as
         // the proper terminator will be added during vectorization.
-        return;
       });
 
   // Register loop-related replacements:
@@ -1361,7 +1360,8 @@ static Operation *vectorizeAffineForOp(AffineForOp forOp,
       Value origInit = forOp.getOperand(forOp.getNumControlOperands() + i);
       Value finalRes = reducedRes;
       if (!isNeutralElementConst(reductions[i].kind, origInit, state))
-        finalRes = getReductionOp(reductions[i].kind, state.builder,
+        finalRes =
+            arith::getReductionOp(reductions[i].kind, state.builder,
                                   reducedRes.getLoc(), reducedRes, origInit);
       state.registerLoopResultScalarReplacement(forOp.getResult(i), finalRes);
     }
@@ -1494,7 +1494,7 @@ getMatchedAffineLoopsRec(NestedMatch match, unsigned currentLevel,
   // Add a new empty level to the output if it doesn't exist already.
   assert(currentLevel <= loops.size() && "Unexpected currentLevel");
   if (currentLevel == loops.size())
-    loops.push_back(SmallVector<AffineForOp, 2>());
+    loops.emplace_back();
 
   // Add current match and recursively visit its children.
   loops[currentLevel].push_back(cast<AffineForOp>(match.getMatchedOperation()));
@@ -1631,7 +1631,7 @@ static void computeIntersectionBuckets(
     // it.
     if (!intersects) {
       bucketRoots.push_back(matchRoot);
-      intersectionBuckets.push_back(SmallVector<NestedMatch, 8>());
+      intersectionBuckets.emplace_back();
       intersectionBuckets.back().push_back(match);
     }
   }

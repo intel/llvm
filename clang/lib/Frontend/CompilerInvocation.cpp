@@ -438,7 +438,7 @@ static T extractMaskValue(T KeyPath) {
     }(EXTRACTOR(KEYPATH));                                                     \
   }
 
-static const StringRef GetInputKindName(InputKind IK);
+static StringRef GetInputKindName(InputKind IK);
 
 static bool FixupInvocation(CompilerInvocation &Invocation,
                             DiagnosticsEngine &Diags, const ArgList &Args,
@@ -490,6 +490,13 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
                                                           << "-fsycl-is-host";
+
+  // SYCLEnableIntHeader implies SYCLIsHost. Error if
+  // -fsycl-enable-int-header-diags is passed without -fsycl-is-host.
+  if (LangOpts.SYCLEnableIntHeaderDiags && !LangOpts.SYCLIsHost)
+    Diags.Report(diag::err_opt_not_valid_without_opt)
+        << "-fsycl-enable-int-header-diags"
+        << "-fsycl-is-host";
 
   if (Args.hasArg(OPT_fgnu89_inline) && LangOpts.CPlusPlus)
     Diags.Report(diag::err_drv_argument_not_allowed_with)
@@ -613,9 +620,8 @@ using GenerateFn = llvm::function_ref<void(
     CompilerInvocation::StringAllocator)>;
 
 // May perform round-trip of command line arguments. By default, the round-trip
-// is enabled if CLANG_ROUND_TRIP_CC1_ARGS was defined during build. This can be
-// overwritten at run-time via the "-round-trip-args" and "-no-round-trip-args"
-// command line flags.
+// is enabled in assert builds. This can be overwritten at run-time via the
+// "-round-trip-args" and "-no-round-trip-args" command line flags.
 // During round-trip, the command line arguments are parsed into a dummy
 // instance of CompilerInvocation which is used to generate the command line
 // arguments again. The real CompilerInvocation instance is then created by
@@ -625,8 +631,7 @@ static bool RoundTrip(ParseFn Parse, GenerateFn Generate,
                       CompilerInvocation &DummyInvocation,
                       ArrayRef<const char *> CommandLineArgs,
                       DiagnosticsEngine &Diags, const char *Argv0) {
-  // FIXME: Switch to '#ifndef NDEBUG' when possible.
-#ifdef CLANG_ROUND_TRIP_CC1_ARGS
+#ifndef NDEBUG
   bool DoRoundTripDefault = true;
 #else
   bool DoRoundTripDefault = false;
@@ -773,9 +778,7 @@ static void parseAnalyzerConfigs(AnalyzerOptions &AnOpts,
 static void getAllNoBuiltinFuncValues(ArgList &Args,
                                       std::vector<std::string> &Funcs) {
   std::vector<std::string> Values = Args.getAllArgValues(OPT_fno_builtin_);
-  auto BuiltinEnd = llvm::partition(Values, [](const std::string FuncName) {
-    return Builtin::Context::isBuiltinFunc(FuncName);
-  });
+  auto BuiltinEnd = llvm::partition(Values, Builtin::Context::isBuiltinFunc);
   Funcs.insert(Funcs.end(), Values.begin(), BuiltinEnd);
 }
 
@@ -1288,7 +1291,7 @@ static std::string serializeXRayInstrumentationBundle(const XRayInstrSet &S) {
   std::string Buffer;
   llvm::raw_string_ostream OS(Buffer);
   llvm::interleave(BundleParts, OS, [&OS](StringRef Part) { OS << Part; }, ",");
-  return OS.str();
+  return Buffer;
 }
 
 // Set the profile kind using fprofile-instrument-use-path.
@@ -1895,6 +1898,13 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
     const Option &O = A->getOption();
     Opts.EnableAIXExtendedAltivecABI = O.matches(OPT_mabi_EQ_vec_extabi);
+  }
+
+  if (Arg *A = Args.getLastArg(OPT_fsycl_instrument_device_code)) {
+    if (!T.isSPIR())
+      Diags.Report(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << T.str();
+    Opts.SPIRITTAnnotations = true;
   }
 
   bool NeedLocTracking = false;
@@ -3301,7 +3311,7 @@ static bool IsInputCompatibleWithStandard(InputKind IK,
 }
 
 /// Get language name for given input kind.
-static const StringRef GetInputKindName(InputKind IK) {
+static StringRef GetInputKindName(InputKind IK) {
   switch (IK.getLanguage()) {
   case Language::C:
     return "C";
@@ -4194,6 +4204,13 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
         {std::string(Split.first), std::string(Split.second)});
   }
 
+  // Error if -mvscale-min is unbounded.
+  if (Arg *A = Args.getLastArg(options::OPT_mvscale_min_EQ)) {
+    unsigned VScaleMin;
+    if (StringRef(A->getValue()).getAsInteger(10, VScaleMin) || VScaleMin == 0)
+      Diags.Report(diag::err_cc1_unbounded_vscale_min);
+  }
+
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 
@@ -4608,7 +4625,7 @@ bool CompilerInvocation::CreateFromArgsImpl(
 
   // Store the command-line for using in the CodeView backend.
   Res.getCodeGenOpts().Argv0 = Argv0;
-  Res.getCodeGenOpts().CommandLineArgs = CommandLineArgs;
+  append_range(Res.getCodeGenOpts().CommandLineArgs, CommandLineArgs);
 
   FixupInvocation(Res, Diags, Args, DashX);
 

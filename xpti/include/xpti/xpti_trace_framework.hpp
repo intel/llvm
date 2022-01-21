@@ -7,6 +7,7 @@
 //
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <sstream>
@@ -273,6 +274,35 @@ public:
     return false;
   }
 };
+
+/// This is an implementation of a SpinLock synchronization primitive, that has
+/// trivial constructor and destructor.
+class SpinLock {
+public:
+  void lock() {
+    while (MLock.test_and_set(std::memory_order_acquire))
+      std::this_thread::yield();
+  }
+  void unlock() { MLock.clear(std::memory_order_release); }
+
+private:
+  std::atomic_flag MLock = ATOMIC_FLAG_INIT;
+};
+
+/// RAII-like helper to call a function upon exit from the scope.
+///
+/// This can be used to ensure that a specific XPTI API is called even if an
+/// exception is thrown on code path. For convenience the function will only be
+/// invoked if instrumentation is enabled.
+struct finally {
+  std::function<void()> MFunc;
+
+  ~finally() {
+    if (xptiTraceEnabled())
+      MFunc();
+  }
+};
+
 } // namespace utils
 
 namespace framework {

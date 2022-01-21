@@ -1,4 +1,5 @@
 
+
 # PI Esimd CPU  library
 # Create Shared library for libpi_esimd_emulator.so.
 
@@ -62,10 +63,16 @@ else ()
     if (MSVC)
       message(FATAL_ERROR "Online-building of CM_EMU library is not supported under Windows environment")
     else()
+      # Arguments for online patching to suppress log message from CM_EMU
+      # Replacing CM_EMU's log print-out macro controlled by 'GFX_EMU_WITH_FLAGS_'
+      # with blank space from $CM_EMU_SRC/common/emu_log.h
+      set (replacing_pattern s/{\ ?GFX_EMU_WITH_FLAGS_.*//g)
       ExternalProject_Add(cm-emu
         GIT_REPOSITORY    https://github.com/intel/cm-cpu-emulation.git
+        GIT_TAG           c19234cea13bdfc32b5ed9
         BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
         INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
+        PATCH_COMMAND     perl -pi.back -e ${replacing_pattern} ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/common/emu_log.h
         CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
                           -D__SYCL_EXPLICIT_SIMD_PLUGIN__=true
                           -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
@@ -105,6 +112,8 @@ if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
   # which are individually tagged for all pi* symbols in pi.h
   target_compile_definitions(pi_esimd_emulator PRIVATE __SYCL_BUILD_SYCL_DLL)
+  # Install stripped PDB
+  add_stripped_pdb(pi_esimd_emulator)
 else()
   # we set the visibility of all symbols 'hidden' by default.
   # In pi.h file, we set exported symbols with visibility==default individually
@@ -136,7 +145,7 @@ install(TARGETS pi_esimd_emulator
 
 # Copy CM Header files to $(INSTALL)/include/sycl/CL/
 install(DIRECTORY    ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install/include/libcm/cm/
-        DESTINATION  ${SYCL_INCLUDE_DIR}/CL
+        DESTINATION  ${SYCL_INCLUDE_DIR}/sycl/CL
         COMPONENT    libcmrt-headers
         FILES_MATCHING PATTERN "*.h"
 )

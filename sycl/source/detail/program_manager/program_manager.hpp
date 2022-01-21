@@ -178,6 +178,10 @@ public:
   // in SYCL device images.
   std::vector<kernel_id> getAllSYCLKernelIDs();
 
+  // The function returns the unique SYCL kernel identifier associated with a
+  // built-in kernel name.
+  kernel_id getBuiltInKernelID(const std::string &KernelName);
+
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<device_image_plain>
@@ -326,6 +330,13 @@ private:
   // from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_set<std::string> m_ExportedSymbols;
+
+  /// Maps names of built-in kernels to their unique kernel IDs.
+  /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
+  std::unordered_map<std::string, kernel_id> m_BuiltInKernelIDs;
+
+  /// Protects built-in kernel ID cache.
+  std::mutex m_BuiltInKernelIDsMutex;
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and

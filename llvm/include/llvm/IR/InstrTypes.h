@@ -19,6 +19,7 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -754,6 +755,20 @@ public:
   };
   using PredicateField =
       Bitfield::Element<Predicate, 0, 6, LAST_ICMP_PREDICATE>;
+
+  /// Returns the sequence of all FCmp predicates.
+  static auto FCmpPredicates() {
+    return enum_seq_inclusive(Predicate::FIRST_FCMP_PREDICATE,
+                              Predicate::LAST_FCMP_PREDICATE,
+                              force_iteration_on_noniterable_enum);
+  }
+
+  /// Returns the sequence of all ICmp predicates.
+  static auto ICmpPredicates() {
+    return enum_seq_inclusive(Predicate::FIRST_ICMP_PREDICATE,
+                              Predicate::LAST_ICMP_PREDICATE,
+                              force_iteration_on_noniterable_enum);
+  }
 
 protected:
   CmpInst(Type *ty, Instruction::OtherOps op, Predicate pred,
@@ -1529,7 +1544,7 @@ public:
   }
 
   /// Removes the attributes from the function
-  void removeFnAttrs(const AttrBuilder &AttrsToRemove) {
+  void removeFnAttrs(const AttributeMask &AttrsToRemove) {
     Attrs = Attrs.removeFnAttributes(getContext(), AttrsToRemove);
   }
 
@@ -1544,7 +1559,7 @@ public:
   }
 
   /// Removes the attributes from the return value
-  void removeRetAttrs(const AttrBuilder &AttrsToRemove) {
+  void removeRetAttrs(const AttributeMask &AttrsToRemove) {
     Attrs = Attrs.removeRetAttributes(getContext(), AttrsToRemove);
   }
 
@@ -1561,7 +1576,7 @@ public:
   }
 
   /// Removes the attributes from the given argument
-  void removeParamAttrs(unsigned ArgNo, const AttrBuilder &AttrsToRemove) {
+  void removeParamAttrs(unsigned ArgNo, const AttributeMask &AttrsToRemove) {
     Attrs = Attrs.removeParamAttributes(getContext(), ArgNo, AttrsToRemove);
   }
 
@@ -1702,7 +1717,7 @@ public:
 
   // FIXME: Once this API is no longer duplicated in `CallSite`, rename this to
   // better indicate that this may return a conservative answer.
-  bool doesNotReadMemory(unsigned OpNo) const {
+  bool onlyWritesMemory(unsigned OpNo) const {
     return dataOperandHasImpliedAttr(OpNo, Attribute::WriteOnly) ||
            dataOperandHasImpliedAttr(OpNo, Attribute::ReadNone);
   }
@@ -1809,10 +1824,10 @@ public:
   void setOnlyReadsMemory() { addFnAttr(Attribute::ReadOnly); }
 
   /// Determine if the call does not access or only writes memory.
-  bool doesNotReadMemory() const {
+  bool onlyWritesMemory() const {
     return doesNotAccessMemory() || hasFnAttr(Attribute::WriteOnly);
   }
-  void setDoesNotReadMemory() { addFnAttr(Attribute::WriteOnly); }
+  void setOnlyWritesMemory() { addFnAttr(Attribute::WriteOnly); }
 
   /// Determine if the call can access memmory only using pointers based
   /// on its arguments.

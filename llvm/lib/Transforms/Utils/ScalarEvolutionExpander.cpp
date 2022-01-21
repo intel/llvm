@@ -18,6 +18,7 @@
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -1046,9 +1047,9 @@ bool SCEVExpander::hoistIVInc(Instruction *IncV, Instruction *InsertPos) {
     if (SE.DT.dominates(IncV, InsertPos))
       break;
   }
-  for (auto I = IVIncs.rbegin(), E = IVIncs.rend(); I != E; ++I) {
-    fixupInsertPoints(*I);
-    (*I)->moveBefore(InsertPos);
+  for (Instruction *I : llvm::reverse(IVIncs)) {
+    fixupInsertPoints(I);
+    I->moveBefore(InsertPos);
   }
   return true;
 }
@@ -1833,22 +1834,6 @@ Value *SCEVExpander::expandCodeForImpl(const SCEV *SH, Type *Ty, bool Root) {
   return V;
 }
 
-/// Check whether value has nuw/nsw/exact set but SCEV does not.
-/// TODO: In reality it is better to check the poison recursively
-/// but this is better than nothing.
-static bool SCEVLostPoisonFlags(const SCEV *S, const Instruction *I) {
-  if (isa<OverflowingBinaryOperator>(I)) {
-    if (auto *NS = dyn_cast<SCEVNAryExpr>(S)) {
-      if (I->hasNoSignedWrap() && !NS->hasNoSignedWrap())
-        return true;
-      if (I->hasNoUnsignedWrap() && !NS->hasNoUnsignedWrap())
-        return true;
-    }
-  } else if (isa<PossiblyExactOperator>(I) && I->isExact())
-    return true;
-  return false;
-}
-
 ScalarEvolution::ValueOffsetPair
 SCEVExpander::FindValueInExprValueMap(const SCEV *S,
                                       const Instruction *InsertPt) {
@@ -1872,8 +1857,7 @@ SCEVExpander::FindValueInExprValueMap(const SCEV *S,
         if (S->getType() == V->getType() &&
             SE.DT.dominates(EntInst, InsertPt) &&
             (SE.LI.getLoopFor(EntInst->getParent()) == nullptr ||
-             SE.LI.getLoopFor(EntInst->getParent())->contains(InsertPt)) &&
-            !SCEVLostPoisonFlags(S, EntInst))
+             SE.LI.getLoopFor(EntInst->getParent())->contains(InsertPt)))
           return {V, Offset};
       }
     }
@@ -1952,26 +1936,36 @@ Value *SCEVExpander::expand(const SCEV *S) {
 
   if (!V)
     V = visit(S);
-  else if (VO.second) {
-    if (PointerType *Vty = dyn_cast<PointerType>(V->getType())) {
-      Type *Ety = Vty->getPointerElementType();
-      int64_t Offset = VO.second->getSExtValue();
-      int64_t ESize = SE.getTypeSizeInBits(Ety);
-      if ((Offset * 8) % ESize == 0) {
-        ConstantInt *Idx =
+  else {
+    // If we're reusing an existing instruction, we are effectively CSEing two
+    // copies of the instruction (with potentially different flags).  As such,
+    // we need to drop any poison generating flags unless we can prove that
+    // said flags must be valid for all new users.
+    if (auto *I = dyn_cast<Instruction>(V))
+      if (I->hasPoisonGeneratingFlags() && !programUndefinedIfPoison(I))
+        I->dropPoisonGeneratingFlags();
+
+    if (VO.second) {
+      if (PointerType *Vty = dyn_cast<PointerType>(V->getType())) {
+        Type *Ety = Vty->getPointerElementType();
+        int64_t Offset = VO.second->getSExtValue();
+        int64_t ESize = SE.getTypeSizeInBits(Ety);
+        if ((Offset * 8) % ESize == 0) {
+          ConstantInt *Idx =
             ConstantInt::getSigned(VO.second->getType(), -(Offset * 8) / ESize);
-        V = Builder.CreateGEP(Ety, V, Idx, "scevgep");
-      } else {
-        ConstantInt *Idx =
+          V = Builder.CreateGEP(Ety, V, Idx, "scevgep");
+        } else {
+          ConstantInt *Idx =
             ConstantInt::getSigned(VO.second->getType(), -Offset);
-        unsigned AS = Vty->getAddressSpace();
-        V = Builder.CreateBitCast(V, Type::getInt8PtrTy(SE.getContext(), AS));
-        V = Builder.CreateGEP(Type::getInt8Ty(SE.getContext()), V, Idx,
-                              "uglygep");
-        V = Builder.CreateBitCast(V, Vty);
+          unsigned AS = Vty->getAddressSpace();
+          V = Builder.CreateBitCast(V, Type::getInt8PtrTy(SE.getContext(), AS));
+          V = Builder.CreateGEP(Type::getInt8Ty(SE.getContext()), V, Idx,
+                                "uglygep");
+          V = Builder.CreateBitCast(V, Vty);
+        }
+      } else {
+        V = Builder.CreateSub(V, VO.second);
       }
-    } else {
-      V = Builder.CreateSub(V, VO.second);
     }
   }
   // Remember the expanded value for this SCEV at this location.
@@ -2022,7 +2016,9 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
     Phis.push_back(&PN);
 
   if (TTI)
-    llvm::sort(Phis, [](Value *LHS, Value *RHS) {
+    // Use stable_sort to preserve order of equivalent PHIs, so the order
+    // of the sorted Phis is the same from run to run on the same loop.
+    llvm::stable_sort(Phis, [](Value *LHS, Value *RHS) {
       // Put pointers at the back and make sure pointer < pointer = false.
       if (!LHS->getType()->isIntegerTy() || !RHS->getType()->isIntegerTy())
         return RHS->getType()->isIntegerTy() && !LHS->getType()->isIntegerTy();
@@ -2178,7 +2174,9 @@ SCEVExpander::getRelatedExistingExpansion(const SCEV *S, const Instruction *At,
   }
 
   // Use expand's logic which is used for reusing a previous Value in
-  // ExprValueMap.
+  // ExprValueMap.  Note that we don't currently model the cost of
+  // needing to drop poison generating flags on the instruction if we
+  // want to reuse it.  We effectively assume that has zero cost.
   ScalarEvolution::ValueOffsetPair VO = FindValueInExprValueMap(S, At);
   if (VO.first)
     return VO;
@@ -2364,7 +2362,7 @@ bool SCEVExpander::isHighCostExpansionHelper(
   case scConstant: {
     // Only evalulate the costs of constants when optimizing for size.
     if (CostKind != TargetTransformInfo::TCK_CodeSize)
-      return 0;
+      return false;
     const APInt &Imm = cast<SCEVConstant>(S)->getAPInt();
     Type *Ty = S->getType();
     Cost += TTI.getIntImmCostInst(
@@ -2512,29 +2510,44 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
   }
 
   // Compute:
-  //   Start + |Step| * Backedge < Start
-  //   Start - |Step| * Backedge > Start
+  //   1. Start + |Step| * Backedge < Start
+  //   2. Start - |Step| * Backedge > Start
+  //
+  // And select either 1. or 2. depending on whether step is positive or
+  // negative. If Step is known to be positive or negative, only create
+  // either 1. or 2.
   Value *Add = nullptr, *Sub = nullptr;
+  bool NeedPosCheck = !SE.isKnownNegative(Step);
+  bool NeedNegCheck = !SE.isKnownPositive(Step);
+
   if (PointerType *ARPtrTy = dyn_cast<PointerType>(ARTy)) {
     StartValue = InsertNoopCastOfTo(
         StartValue, Builder.getInt8PtrTy(ARPtrTy->getAddressSpace()));
     Value *NegMulV = Builder.CreateNeg(MulV);
-    Add = Builder.CreateGEP(Builder.getInt8Ty(), StartValue, MulV);
-    Sub = Builder.CreateGEP(Builder.getInt8Ty(), StartValue, NegMulV);
+    if (NeedPosCheck)
+      Add = Builder.CreateGEP(Builder.getInt8Ty(), StartValue, MulV);
+    if (NeedNegCheck)
+      Sub = Builder.CreateGEP(Builder.getInt8Ty(), StartValue, NegMulV);
   } else {
-    Add = Builder.CreateAdd(StartValue, MulV);
-    Sub = Builder.CreateSub(StartValue, MulV);
+    if (NeedPosCheck)
+      Add = Builder.CreateAdd(StartValue, MulV);
+    if (NeedNegCheck)
+      Sub = Builder.CreateSub(StartValue, MulV);
   }
 
-  Value *EndCompareGT = Builder.CreateICmp(
-      Signed ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT, Sub, StartValue);
-
-  Value *EndCompareLT = Builder.CreateICmp(
-      Signed ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT, Add, StartValue);
-
-  // Select the answer based on the sign of Step.
-  Value *EndCheck =
-      Builder.CreateSelect(StepCompare, EndCompareGT, EndCompareLT);
+  Value *EndCompareLT = nullptr;
+  Value *EndCompareGT = nullptr;
+  Value *EndCheck = nullptr;
+  if (NeedPosCheck)
+    EndCheck = EndCompareLT = Builder.CreateICmp(
+        Signed ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT, Add, StartValue);
+  if (NeedNegCheck)
+    EndCheck = EndCompareGT = Builder.CreateICmp(
+        Signed ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT, Sub, StartValue);
+  if (NeedPosCheck && NeedNegCheck) {
+    // Select the answer based on the sign of Step.
+    EndCheck = Builder.CreateSelect(StepCompare, EndCompareGT, EndCompareLT);
+  }
 
   // If the backedge taken count type is larger than the AR type,
   // check that we don't drop any bits by truncating it. If we are
@@ -2580,17 +2593,16 @@ Value *SCEVExpander::expandWrapPredicate(const SCEVWrapPredicate *Pred,
 
 Value *SCEVExpander::expandUnionPredicate(const SCEVUnionPredicate *Union,
                                           Instruction *IP) {
-  auto *BoolType = IntegerType::get(IP->getContext(), 1);
-  Value *Check = ConstantInt::getNullValue(BoolType);
-
   // Loop over all checks in this set.
+  SmallVector<Value *> Checks;
   for (auto Pred : Union->getPredicates()) {
-    auto *NextCheck = expandCodeForPredicate(Pred, IP);
+    Checks.push_back(expandCodeForPredicate(Pred, IP));
     Builder.SetInsertPoint(IP);
-    Check = Builder.CreateOr(Check, NextCheck);
   }
 
-  return Check;
+  if (Checks.empty())
+    return ConstantInt::getFalse(IP->getContext());
+  return Builder.CreateOr(Checks);
 }
 
 Value *SCEVExpander::fixupLCSSAFormFor(Instruction *User, unsigned OpIdx) {

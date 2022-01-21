@@ -1224,17 +1224,15 @@ void DwarfDebug::beginModule(Module *M) {
         CU.getOrCreateGlobalVariableDIE(GV, sortGlobalExprs(GVMap[GV]));
     }
 
-    for (auto *Ty : CUNode->getEnumTypes()) {
-      // The enum types array by design contains pointers to
-      // MDNodes rather than DIRefs. Unique them here.
+    for (auto *Ty : CUNode->getEnumTypes())
       CU.getOrCreateTypeDIE(cast<DIType>(Ty));
-    }
+
     for (auto *Ty : CUNode->getRetainedTypes()) {
       // The retained types array by design contains pointers to
       // MDNodes rather than DIRefs. Unique them here.
       if (DIType *RT = dyn_cast<DIType>(Ty))
-          // There is no point in force-emitting a forward declaration.
-          CU.getOrCreateTypeDIE(RT);
+        // There is no point in force-emitting a forward declaration.
+        CU.getOrCreateTypeDIE(RT);
     }
     // Emit imported_modules last so that the relevant context is already
     // available.
@@ -1407,6 +1405,10 @@ void DwarfDebug::finalizeModuleInfo() {
 
 // Emit all Dwarf sections that should come after the content.
 void DwarfDebug::endModule() {
+  // Terminate the pending line table.
+  if (PrevCU)
+    terminateLineTable(PrevCU);
+  PrevCU = nullptr;
   assert(CurFn == nullptr);
   assert(CurMI == nullptr);
 
@@ -2172,10 +2174,22 @@ DwarfDebug::getDwarfCompileUnitIDForLineTable(const DwarfCompileUnit &CU) {
     return CU.getUniqueID();
 }
 
+void DwarfDebug::terminateLineTable(const DwarfCompileUnit *CU) {
+  const auto &CURanges = CU->getRanges();
+  auto &LineTable = Asm->OutStreamer->getContext().getMCDwarfLineTable(
+      getDwarfCompileUnitIDForLineTable(*CU));
+  // Add the last range label for the given CU.
+  LineTable.getMCLineSections().addEndEntry(
+      const_cast<MCSymbol *>(CURanges.back().End));
+}
+
 void DwarfDebug::skippedNonDebugFunction() {
   // If we don't have a subprogram for this function then there will be a hole
   // in the range information. Keep note of this by setting the previously used
   // section to nullptr.
+  // Terminate the pending line table.
+  if (PrevCU)
+    terminateLineTable(PrevCU);
   PrevCU = nullptr;
   CurFn = nullptr;
 }
@@ -2525,14 +2539,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
       if (Op.getDescription().Op[I] == Encoding::SizeNA)
         continue;
       if (Op.getDescription().Op[I] == Encoding::BaseTypeRef) {
-        uint64_t Offset =
-            CU->ExprRefedBaseTypes[Op.getRawOperand(I)].Die->getOffset();
-        assert(Offset < (1ULL << (ULEB128PadSize * 7)) && "Offset wont fit");
-        Streamer.emitULEB128(Offset, "", ULEB128PadSize);
-        // Make sure comments stay aligned.
-        for (unsigned J = 0; J < ULEB128PadSize; ++J)
-          if (Comment != End)
-            Comment++;
+        Streamer.emitDIERef(*CU->ExprRefedBaseTypes[Op.getRawOperand(I)].Die);
       } else {
         for (uint64_t J = Offset; J < Op.getOperandEndOffset(I); ++J)
           Streamer.emitInt8(Data.getData()[J], Comment != End ? *(Comment++) : "");

@@ -24,7 +24,7 @@ namespace mlir {
 
 namespace detail {
 struct AffineMapStorage;
-} // end namespace detail
+} // namespace detail
 
 class Attribute;
 struct LogicalResult;
@@ -182,7 +182,7 @@ public:
 
   /// Walk all of the AffineExpr's in this mapping. Each node in an expression
   /// tree is visited in postorder.
-  void walkExprs(std::function<void(AffineExpr)> callback) const;
+  void walkExprs(llvm::function_ref<void(AffineExpr)> callback) const;
 
   /// This method substitutes any uses of dimensions and symbols (e.g.
   /// dim#0 with dimReplacements[0]) in subexpressions and returns the modified
@@ -353,11 +353,11 @@ public:
 private:
   // Same meaning as AffineMap's fields.
   SmallVector<AffineExpr, 8> results;
-  unsigned numDims;
-  unsigned numSymbols;
+  unsigned numDims = 0;
+  unsigned numSymbols = 0;
   /// A pointer to the IR's context to store all newly created
   /// AffineExprStorage's.
-  MLIRContext *context;
+  MLIRContext *context = nullptr;
 };
 
 /// Simplifies an affine map by simplifying its underlying AffineExpr results.
@@ -546,11 +546,28 @@ SmallVector<T> applyPermutationMap(AffineMap map, llvm::ArrayRef<T> source) {
   return result;
 }
 
+/// Calculates maxmimum dimension and symbol positions from the expressions
+/// in `exprsLists` and stores them in `maxDim` and `maxSym` respectively.
+template <typename AffineExprContainer>
+static void getMaxDimAndSymbol(ArrayRef<AffineExprContainer> exprsList,
+                               int64_t &maxDim, int64_t &maxSym) {
+  for (const auto &exprs : exprsList) {
+    for (auto expr : exprs) {
+      expr.walk([&maxDim, &maxSym](AffineExpr e) {
+        if (auto d = e.dyn_cast<AffineDimExpr>())
+          maxDim = std::max(maxDim, static_cast<int64_t>(d.getPosition()));
+        if (auto s = e.dyn_cast<AffineSymbolExpr>())
+          maxSym = std::max(maxSym, static_cast<int64_t>(s.getPosition()));
+      });
+    }
+  }
+}
+
 inline raw_ostream &operator<<(raw_ostream &os, AffineMap map) {
   map.print(os);
   return os;
 }
-} // end namespace mlir
+} // namespace mlir
 
 namespace llvm {
 

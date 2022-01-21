@@ -46,8 +46,7 @@ static cl::opt<bool> AllowRiskySelect(
 AMDGPUInstructionSelector::AMDGPUInstructionSelector(
     const GCNSubtarget &STI, const AMDGPURegisterBankInfo &RBI,
     const AMDGPUTargetMachine &TM)
-    : InstructionSelector(), TII(*STI.getInstrInfo()),
-      TRI(*STI.getRegisterInfo()), RBI(RBI), TM(TM),
+    : TII(*STI.getInstrInfo()), TRI(*STI.getRegisterInfo()), RBI(RBI), TM(TM),
       STI(STI),
       EnableLateStructurizeCFG(AMDGPUTargetMachine::EnableLateStructurizeCFG),
 #define GET_GLOBALISEL_PREDICATES_INIT
@@ -1494,9 +1493,9 @@ static bool parseTexFail(uint64_t TexFailCtrl, bool &TFE, bool &LWE,
   if (TexFailCtrl)
     IsTexFail = true;
 
-  TFE = (TexFailCtrl & 0x1) ? 1 : 0;
+  TFE = (TexFailCtrl & 0x1) ? true : false;
   TexFailCtrl &= ~(uint64_t)0x1;
-  LWE = (TexFailCtrl & 0x2) ? 1 : 0;
+  LWE = (TexFailCtrl & 0x2) ? true : false;
   TexFailCtrl &= ~(uint64_t)0x2;
 
   return TexFailCtrl == 0;
@@ -3878,6 +3877,22 @@ bool AMDGPUInstructionSelector::isDSOffset2Legal(Register Base, int64_t Offset0,
   // On Southern Islands instruction with a negative base value and an offset
   // don't seem to work.
   return KnownBits->signBitIsZero(Base);
+}
+
+bool AMDGPUInstructionSelector::isUnneededShiftMask(const MachineInstr &MI,
+                                                    unsigned ShAmtBits) const {
+  assert(MI.getOpcode() == TargetOpcode::G_AND);
+
+  Optional<APInt> RHS = getIConstantVRegVal(MI.getOperand(2).getReg(), *MRI);
+  if (!RHS)
+    return false;
+
+  if (RHS->countTrailingOnes() >= ShAmtBits)
+    return true;
+
+  const APInt &LHSKnownZeros =
+      KnownBits->getKnownZeroes(MI.getOperand(1).getReg());
+  return (LHSKnownZeros | *RHS).countTrailingOnes() >= ShAmtBits;
 }
 
 InstructionSelector::ComplexRendererFns

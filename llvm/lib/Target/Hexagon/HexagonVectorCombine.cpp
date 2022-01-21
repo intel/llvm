@@ -536,7 +536,7 @@ auto AlignVectors::createAddressGroups() -> bool {
   erase_if(AddrGroups, [](auto &G) { return G.second.size() == 1; });
   // Remove groups that don't use HVX types.
   erase_if(AddrGroups, [&](auto &G) {
-    return !llvm::any_of(
+    return llvm::none_of(
         G.second, [&](auto &I) { return HVC.HST.isTypeForHVX(I.ValTy); });
   });
 
@@ -718,7 +718,7 @@ auto AlignVectors::realignGroup(const MoveGroup &Move) const -> bool {
 
   // Maximum alignment present in the whole address group.
   const AddrInfo &WithMaxAlign =
-      getMaxOf(BaseInfos, [](const AddrInfo &AI) { return AI.HaveAlign; });
+      getMaxOf(MoveInfos, [](const AddrInfo &AI) { return AI.HaveAlign; });
   Align MaxGiven = WithMaxAlign.HaveAlign;
 
   // Minimum alignment present in the move address group.
@@ -749,7 +749,6 @@ auto AlignVectors::realignGroup(const MoveGroup &Move) const -> bool {
                                       WithMaxAlign.ValTy, Adjust);
     int Diff = Start - (OffAtMax + Adjust);
     AlignVal = HVC.getConstInt(Diff);
-    // Sanity.
     assert(Diff >= 0);
     assert(static_cast<decltype(MinNeeded.value())>(Diff) < MinNeeded.value());
   } else {
@@ -1182,12 +1181,15 @@ auto HexagonVectorCombine::rescale(IRBuilder<> &Builder, Value *Mask,
   int ToCount = (FromCount * FromSize) / ToSize;
   assert((FromCount * FromSize) % ToSize == 0);
 
+  auto *FromITy = IntegerType::get(F.getContext(), FromSize * 8);
+  auto *ToITy = IntegerType::get(F.getContext(), ToSize * 8);
+
   // Mask <N x i1> -> sext to <N x FromTy> -> bitcast to <M x ToTy> ->
   // -> trunc to <M x i1>.
   Value *Ext = Builder.CreateSExt(
-      Mask, VectorType::get(FromSTy, FromCount, /*Scalable*/ false));
+      Mask, VectorType::get(FromITy, FromCount, /*Scalable*/ false));
   Value *Cast = Builder.CreateBitCast(
-      Ext, VectorType::get(ToSTy, ToCount, /*Scalable*/ false));
+      Ext, VectorType::get(ToITy, ToCount, /*Scalable*/ false));
   return Builder.CreateTrunc(
       Cast, VectorType::get(getBoolTy(), ToCount, /*Scalable*/ false));
 }

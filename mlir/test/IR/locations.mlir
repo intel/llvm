@@ -21,6 +21,10 @@ func @inline_notation() -> i32 {
   affine.if #set0(%2) {
   } loc(fused<"myPass">["foo", "foo2"])
 
+  // CHECK: } loc(fused<"myPass">["foo"])
+  affine.if #set0(%2) {
+  } loc(fused<"myPass">["foo"])
+
   // CHECK: return %0 : i32 loc(unknown)
   return %1 : i32 loc(unknown)
 }
@@ -68,6 +72,12 @@ func @argLocs(%x: i32,
     %1 = arith.addi %x, %y : i32
     "foo.yield"(%1) : (i32) -> ()
   }) : () -> ()
+
+// CHECK-LABEL: func @location_name_child_is_name
+func @location_name_child_is_name() {
+  // CHECK: "foo"("foo")
+  return loc("foo"("foo"))
+}
 
 // CHECK-ALIAS: #[[LOC]] = loc("out_of_line_location")
 #loc = loc("out_of_line_location")

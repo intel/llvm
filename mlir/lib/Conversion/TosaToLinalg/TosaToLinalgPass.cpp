@@ -13,7 +13,7 @@
 #include "../PassDetail.h"
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -26,6 +26,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
 
@@ -50,6 +51,7 @@ public:
     target.addLegalOp<tosa::IfOp>();
     target.addLegalOp<tosa::ConstOp>();
     target.addLegalOp<tosa::WhileOp>();
+    target.addLegalOp<tosa::SliceOp>();
 
     target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
 
@@ -66,6 +68,9 @@ std::unique_ptr<Pass> mlir::tosa::createTosaToLinalg() {
 }
 
 void mlir::tosa::addTosaToLinalgPasses(OpPassManager &pm) {
+  pm.addNestedPass<FuncOp>(createTosaMakeBroadcastablePass());
+  pm.addNestedPass<FuncOp>(createTosaToLinalgNamed());
+  pm.addNestedPass<FuncOp>(mlir::createCanonicalizerPass());
   pm.addNestedPass<FuncOp>(createTosaMakeBroadcastablePass());
   pm.addNestedPass<FuncOp>(createTosaToLinalg());
 }

@@ -531,9 +531,7 @@ class CFGBuilder {
 public:
   explicit CFGBuilder(ASTContext *astContext,
                       const CFG::BuildOptions &buildOpts)
-      : Context(astContext), cfg(new CFG()), // crew a new CFG
-        ConstructionContextMap(), BuildOpts(buildOpts) {}
-
+      : Context(astContext), cfg(new CFG()), BuildOpts(buildOpts) {}
 
   // buildCFG - Used by external clients to construct the CFG.
   std::unique_ptr<CFG> buildCFG(const Decl *D, Stmt *Statement);
@@ -1801,16 +1799,11 @@ void CFGBuilder::addLifetimeEnds(LocalScope::const_iterator B,
   autoCreateBlock();
   // object with trivial destructor end their lifetime last (when storage
   // duration ends)
-  for (SmallVectorImpl<VarDecl *>::reverse_iterator I = DeclsTrivial.rbegin(),
-                                                    E = DeclsTrivial.rend();
-       I != E; ++I)
-    appendLifetimeEnds(Block, *I, S);
+  for (VarDecl *VD : llvm::reverse(DeclsTrivial))
+    appendLifetimeEnds(Block, VD, S);
 
-  for (SmallVectorImpl<VarDecl *>::reverse_iterator
-           I = DeclsNonTrivial.rbegin(),
-           E = DeclsNonTrivial.rend();
-       I != E; ++I)
-    appendLifetimeEnds(Block, *I, S);
+  for (VarDecl *VD : llvm::reverse(DeclsNonTrivial))
+    appendLifetimeEnds(Block, VD, S);
 }
 
 /// Add to current block markers for ending scopes.
@@ -1823,11 +1816,8 @@ void CFGBuilder::addScopesEnd(LocalScope::const_iterator B,
 
   autoCreateBlock();
 
-  for (auto I = DeclsWithEndedScope.rbegin(), E = DeclsWithEndedScope.rend();
-       I != E; ++I)
-    appendScopeEnd(Block, *I, S);
-
-  return;
+  for (VarDecl *VD : llvm::reverse(DeclsWithEndedScope))
+    appendScopeEnd(Block, VD, S);
 }
 
 /// addAutomaticObjDtors - Add to current block automatic objects destructors
@@ -1850,24 +1840,22 @@ void CFGBuilder::addAutomaticObjDtors(LocalScope::const_iterator B,
   for (LocalScope::const_iterator I = B; I != E; ++I)
     Decls.push_back(*I);
 
-  for (SmallVectorImpl<VarDecl*>::reverse_iterator I = Decls.rbegin(),
-                                                   E = Decls.rend();
-       I != E; ++I) {
-    if (hasTrivialDestructor(*I)) {
+  for (VarDecl *VD : llvm::reverse(Decls)) {
+    if (hasTrivialDestructor(VD)) {
       // If AddScopes is enabled and *I is a first variable in a scope, add a
       // ScopeEnd marker in a Block.
-      if (BuildOpts.AddScopes && DeclsWithEndedScope.count(*I)) {
+      if (BuildOpts.AddScopes && DeclsWithEndedScope.count(VD)) {
         autoCreateBlock();
-        appendScopeEnd(Block, *I, S);
+        appendScopeEnd(Block, VD, S);
       }
       continue;
     }
     // If this destructor is marked as a no-return destructor, we need to
     // create a new block for the destructor which does not have as a successor
     // anything built thus far: control won't flow out of this block.
-    QualType Ty = (*I)->getType();
+    QualType Ty = VD->getType();
     if (Ty->isReferenceType()) {
-      Ty = getReferenceInitTemporaryType((*I)->getInit());
+      Ty = getReferenceInitTemporaryType(VD->getInit());
     }
     Ty = Context->getBaseElementType(Ty);
 
@@ -1877,9 +1865,9 @@ void CFGBuilder::addAutomaticObjDtors(LocalScope::const_iterator B,
       autoCreateBlock();
 
     // Add ScopeEnd just after automatic obj destructor.
-    if (BuildOpts.AddScopes && DeclsWithEndedScope.count(*I))
-      appendScopeEnd(Block, *I, S);
-    appendAutomaticObjDtor(Block, *I, S);
+    if (BuildOpts.AddScopes && DeclsWithEndedScope.count(VD))
+      appendScopeEnd(Block, VD, S);
+    appendAutomaticObjDtor(Block, VD, S);
   }
 }
 
@@ -3364,7 +3352,7 @@ CFGBlock *CFGBuilder::VisitGCCAsmStmt(GCCAsmStmt *G, AddStmtChoice asc) {
   // Save "Succ" in BackpatchBlocks. In the backpatch processing, "Succ" is
   // used to avoid adding "Succ" again.
   BackpatchBlocks.push_back(JumpSource(Succ, ScopePos));
-  return Block;
+  return VisitChildren(G);
 }
 
 CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {

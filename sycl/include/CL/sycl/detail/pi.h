@@ -40,11 +40,12 @@
 // changes the API version from 3.5 to 4.6.
 // 5.7 Added new context and ownership arguments to
 //   piextEventCreateWithNativeHandle
-// 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle.
+// 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle. Added
+// piQueueFlush function.
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 5
-#define _PI_H_VERSION_MINOR 7
+#define _PI_H_VERSION_MAJOR 6
+#define _PI_H_VERSION_MINOR 8
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -109,9 +110,11 @@ typedef enum {
   PI_INVALID_WORK_DIMENSION = CL_INVALID_WORK_DIMENSION,
   PI_INVALID_KERNEL_ARGS = CL_INVALID_KERNEL_ARGS,
   PI_INVALID_IMAGE_SIZE = CL_INVALID_IMAGE_SIZE,
+  PI_INVALID_ARG_VALUE = CL_INVALID_ARG_VALUE,
   PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = CL_INVALID_IMAGE_FORMAT_DESCRIPTOR,
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
+  PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
   PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
       -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
             ///< method determines the function exists but its address cannot be
@@ -301,6 +304,7 @@ typedef enum {
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
+  PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
@@ -1082,6 +1086,8 @@ __SYCL_EXPORT pi_result piQueueRelease(pi_queue command_queue);
 
 __SYCL_EXPORT pi_result piQueueFinish(pi_queue command_queue);
 
+__SYCL_EXPORT pi_result piQueueFlush(pi_queue command_queue);
+
 /// Gets the native handle of a PI queue object.
 ///
 /// \param queue is the PI queue to get the native handle of.
@@ -1635,7 +1641,9 @@ __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
                                             pi_usm_mem_properties *properties,
                                             size_t size, pi_uint32 alignment);
 
-/// Frees allocated USM memory
+/// Indicates that the allocated USM memory is no longer needed on the runtime
+/// side. The actual freeing of the memory may be done in a blocking or deferred
+/// manner, e.g. to avoid issues with indirect memory access from kernels.
 ///
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
