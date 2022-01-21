@@ -246,20 +246,19 @@ joint_matrix_mad(
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-template <typename Group, typename T1, typename T2, std::size_t M,
-          std::size_t K, std::size_t N, matrix_layout LayoutA,
-          matrix_layout LayoutB, matrix_layout LayoutC, class BinaryOperation>
-joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group>
+template <typename Group, std::size_t M,
+          std::size_t K, std::size_t N, matrix_layout LayoutC, class BinaryOperation>
+joint_matrix<int32_t, matrix_use::accumulator, M, N, LayoutC, Group>
 joint_matrix_bmad(
-    Group sg, joint_matrix<T1, matrix_use::a, M, K, LayoutA, Group> A,
-    joint_matrix<T1, matrix_use::b, K, N, LayoutB, Group> B,
-    joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group> C, BinaryOperation Op);
+    Group sg, joint_matrix<uint32_t, matrix_use::a, M, K, matrix_layout::row_major, Group> A,
+    joint_matrix<uint32_t, matrix_use::b, K, N, matrix_layout::col_major, Group> B,
+    joint_matrix<int32_t, matrix_use::accumulator, M, N, LayoutC, Group> C, BinaryOperation Op);
 }
 ```
 
 Bitwise Multiply and Add (BMAD) operations replace the usual dot product of a row of matrix A (M by K) with a column of matrix B (K by N).  Instead a sequence of logical operations are performed: The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B to produce a 128 Bit intermediate output.
 The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the accumulator matrix C. Currently only the shape M = 8, N = 8, K = 128 is supported.
-The only change with respect to the joint_matrix_mad interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
+The main change with respect to the joint_matrix_mad interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
 
 `sycl::bit_and<uint32_t>()`
 
@@ -270,7 +269,7 @@ or
 The A, B, and C `joint_matrix` objects are constructed and loaded/stored in the normal way, using the previously defined `joint_matrix`, `joint_matrix_load`, and `joint_matrix_store` interfaces.
 The C matrix must be loaded from an array of 32 bit signed integers, and the A, B single bit matrices must be loaded from an array of unsigned 32-bit integers.
 
-IMPORTANT: When using Bitwise Multiply and Add matrix A must be in row major format and matrix B must be in column major format.
+IMPORTANT: When using Bitwise Multiply and Add joint_matrix A must be in row major layout and joint_matrix B must be in column major layout.
 IMPORTANT: Bitwise Multiply and Add operations are an experimental hardware feature and all implementation details are subject to change.
 
 #### Motivation for BMAD
