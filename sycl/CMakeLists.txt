@@ -336,11 +336,28 @@ if(SYCL_BUILD_PI_HIP)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
 endif()
 
-list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
-if (MSVC)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
-else()
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
+if(SYCL_BUILD_PI_ESIMD_EMULATOR)
+  include(CheckIncludeFiles)
+  macro(CHECK_CM_EMU_REQUIRED_HEADER INCLUDE_FILE)
+    CHECK_INCLUDE_FILE_CXX(${INCLUDE_FILE} ${HAVE_FILE})
+    if (NOT ${HAVE_FILE})
+      message(FATAL_ERROR
+              "Header file required for building CM_EMU library cannot be "
+              "found. Remove 'CMakeCache.txt' file from your build "
+              "directory and try to add '--disable-esimd-emulator' for "
+              "configure.py or install 'libva-dev' and 'libffi-dev' package")
+    endif()
+  endmacro()
+  ## From libffi-dev package
+  CHECK_CM_EMU_REQUIRED_HEADER("ffi.h")
+  ## From libva-dev package
+  CHECK_CM_EMU_REQUIRED_HEADER("va.h")
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
+  if (MSVC)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
+  else()
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
+  endif()
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.
