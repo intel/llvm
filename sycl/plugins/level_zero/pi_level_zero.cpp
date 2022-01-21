@@ -3354,7 +3354,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   // If USM Import feature is enabled and hostptr is supplied,
   // import the hostptr if not already imported into USM.
   // Data transfer rate is maximized when both source and destination
-  // are USM pointers. Promote of the host pointer to USM thus
+  // are USM pointers. Promotion of the host pointer to USM thus
   // optimizes data transfer performance.
   bool HostPtrImported = false;
   if (USMHostPtrImportEnabled && HostPtr != nullptr &&
