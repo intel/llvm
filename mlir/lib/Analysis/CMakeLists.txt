@@ -9,8 +9,6 @@ set(LLVM_OPTIONAL_SOURCES
   Liveness.cpp
   LoopAnalysis.cpp
   NestedMatcher.cpp
-  NumberOfExecutions.cpp
-  PresburgerSet.cpp
   SliceAnalysis.cpp
   Utils.cpp
 
@@ -24,7 +22,6 @@ add_mlir_library(MLIRAnalysis
   DataFlowAnalysis.cpp
   DataLayoutAnalysis.cpp
   Liveness.cpp
-  NumberOfExecutions.cpp
   SliceAnalysis.cpp
 
   AliasAnalysis/LocalAliasAnalysis.cpp
@@ -49,7 +46,6 @@ add_mlir_library(MLIRLoopAnalysis
   AffineStructures.cpp
   LoopAnalysis.cpp
   NestedMatcher.cpp
-  PresburgerSet.cpp
   Utils.cpp
 
   ADDITIONAL_HEADER_DIRS
