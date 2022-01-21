@@ -32,6 +32,8 @@ extern "C" {
 // Forward declarartions.
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
 static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
+static pi_result EventCreate(pi_context Context, bool HostVisible,
+                             pi_event *RetEvent);
 }
 
 namespace {
@@ -188,8 +190,17 @@ static void zePrint(const char *Format, ...) {
 
 // Controls whether device-scope events are used, and how.
 static const enum EventsScope {
+  // All events are created host-visible (the default mode)
   AllHostVisible,
+  // All events are created with device-scope and only when
+  // host waits them or queries their status that a proxy
+  // host-visible event is created and set to signal after
+  // original event signals.
   OnDemandHostVisibleProxy,
+  // All events are created with device-scope and only
+  // when a batch of commands is submitted for execution a
+  // last command in that batch is added to signal host-visible
+  // completion of each command in this batch.
   LastCommandInBatchHostVisible
 } EventsScope = [] {
   const auto DeviceEventsStr =
@@ -425,14 +436,11 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   ze_event_pool_flag_t ZePoolFlag = {};
   std::list<ze_event_pool_handle_t> *ZePoolCache;
 
-  if (EventsScope == AllHostVisible) {
-    ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
-    ZePoolCache = &ZeEventPoolCache;
-  } else if (HostVisible) {
+  if (HostVisible) {
     ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
     ZePoolCache = &ZeHostVisibleEventPoolCache;
   } else {
-    ZePoolCache = &ZeEventPoolCache;
+    ZePoolCache = &ZeDeviceScopeEventPoolCache;
   }
 
   // Remove full pool from the cache.
@@ -478,31 +486,24 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
     return PI_SUCCESS;
   }
 
+  std::list<ze_event_pool_handle_t> *ZePoolCache;
+  if (Event->IsHostVisible()) {
+    ZePoolCache = &ZeHostVisibleEventPoolCache;
+  } else {
+    ZePoolCache = &ZeDeviceScopeEventPoolCache;
+  }
+
   // Put the empty pool to the cache of the pools.
   std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
     die("Invalid event release: event pool doesn't have unreleased events");
   if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
-    if (ZeEventPoolCache.front() != Event->ZeEventPool) {
-      ZeEventPoolCache.push_back(Event->ZeEventPool);
+    if (ZePoolCache->front() != Event->ZeEventPool) {
+      ZePoolCache->push_back(Event->ZeEventPool);
     }
     NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
   }
 
-  if (Event->ZeHostVisibleEventPool &&
-      EventsScope == OnDemandHostVisibleProxy) {
-    if (NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0)
-      die("Invalid host visible event release: host visible event pool doesn't "
-          "have unreleased events");
-    if (--NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0) {
-      if (ZeHostVisibleEventPoolCache.front() !=
-          Event->ZeHostVisibleEventPool) {
-        ZeHostVisibleEventPoolCache.push_back(Event->ZeHostVisibleEventPool);
-      }
-      NumEventsAvailableInEventPool[Event->ZeHostVisibleEventPool] =
-          MaxNumEventsPerPool;
-    }
-  }
   return PI_SUCCESS;
 }
 
@@ -799,12 +800,12 @@ pi_result _pi_context::finalize() {
   // For example, event pool caches would be still alive.
   {
     std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
-    for (auto &ZePool : ZeEventPoolCache)
+    for (auto &ZePool : ZeDeviceScopeEventPoolCache)
       ZE_CALL(zeEventPoolDestroy, (ZePool));
     for (auto &ZePool : ZeHostVisibleEventPoolCache)
       ZE_CALL(zeEventPoolDestroy, (ZePool));
 
-    ZeEventPoolCache.clear();
+    ZeDeviceScopeEventPoolCache.clear();
     ZeHostVisibleEventPoolCache.clear();
   }
 
@@ -1332,42 +1333,29 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   if (EventsScope == LastCommandInBatchHostVisible) {
     // Create a "proxy" host-visible event.
     //
-    size_t Index;
-    ze_event_pool_handle_t ZeEventPool = {};
-    if (auto Res =
-            Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index, true))
-      return Res;
-
-    ze_event_handle_t ZeHostVisibleEvent = nullptr;
-    ZeStruct<ze_event_desc_t> ZeEventDesc;
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-    ZeEventDesc.wait = 0;
-    ZeEventDesc.index = Index;
-    ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeHostVisibleEvent));
-
-    // Wrap it into PI event as we need it reference-counted.
-    pi_event HostVisibleEvent = new _pi_event(
-        ZeHostVisibleEvent, ZeEventPool, Context, PI_COMMAND_TYPE_USER, true);
+    pi_event HostVisibleEvent;
+    PI_CALL(EventCreate(Context, true, &HostVisibleEvent));
 
     // Update each command's event in the command-list to "see" this
     // proxy event as a host-visible counterpart.
     for (auto &Event : CommandList->second.EventList) {
-      Event->ZeHostVisibleEventPool = ZeEventPool;
-      Event->ZeHostVisibleEvent =
-          reinterpret_cast<ze_event_handle_t>(HostVisibleEvent);
+      Event->HostVisibleEvent = HostVisibleEvent;
       PI_CALL(piEventRetain(HostVisibleEvent));
     }
 
-    // Release this event once such that it is destroyed when the last event
-    // from this command-list is destroyed.
-    // PI_CALL(piEventRelease(HostVisibleEvent));
+    // Decrement the reference count by 1 so all the remaining references
+    // are from the other commands in this batch. This host-visible event
+    // will be destroyed after all events in the batch are gone.
+    PI_CALL(piEventRelease(HostVisibleEvent));
+    // Indicate no cleanup is needed for this PI event as it is special.
+    HostVisibleEvent->CleanedUp = true;
 
     // Finally set to signal the host-visible event at the end of the
     // command-list.
     // TODO: see if we need a barrier here (or explicit wait for all events in
     // the batch).
     ZE_CALL(zeCommandListAppendSignalEvent,
-            (CommandList->first, ZeHostVisibleEvent));
+            (CommandList->first, HostVisibleEvent->ZeEvent));
   }
 
   // Close the command list and have it ready for dispatch.
@@ -1536,9 +1524,10 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         auto ZeEvent = EventList[I]->ZeEvent;
 
         // Poll of the host-visible events.
-        auto ZeEventHostVisible = EventList[I]->getHostVisibleEvent();
-        if (FilterEventWaitList && ZeEventHostVisible) {
-          auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeEventHostVisible));
+        auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
+        if (FilterEventWaitList && HostVisibleEvent) {
+          auto Res =
+              ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
           if (Res == ZE_RESULT_SUCCESS) {
             // Event has already completed, don't put it into the list
             continue;
@@ -4727,47 +4716,16 @@ pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
 //
 // Events
 //
-ze_event_handle_t _pi_event::getHostVisibleEvent() const {
-  if (EventsScope == AllHostVisible) {
-    return ZeEvent;
-  } else if (ZeHostVisibleEvent) {
-    if (EventsScope == LastCommandInBatchHostVisible) {
-      auto Event = reinterpret_cast<pi_event>(ZeHostVisibleEvent);
-      return Event->ZeEvent;
-    }
-    return ZeHostVisibleEvent;
-  } else {
-    return nullptr;
-  }
-}
-
 pi_result
-_pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent) {
+_pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
 
-  if (EventsScope == AllHostVisible) {
-    HostVisibleEvent = ZeEvent;
-  } else if (ZeHostVisibleEvent) {
-    HostVisibleEvent = ZeHostVisibleEvent;
-  } else {
+  if (!HostVisibleEvent) {
     if (EventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Create a "proxy" host-visible event on demand.
-    //
-    size_t Index;
-    ze_event_pool_handle_t ZeEventPool = {};
-    if (auto Res =
-            Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index, true))
-      return Res;
-
-    ZeStruct<ze_event_desc_t> ZeEventDesc;
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-    ZeEventDesc.wait = 0;
-    ZeEventDesc.index = Index;
-
-    ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeHostVisibleEvent));
-    ZeHostVisibleEventPool = ZeEventPool;
-    HostVisibleEvent = ZeHostVisibleEvent;
+    PI_CALL(EventCreate(Context, true, &HostVisibleEvent));
+    HostVisibleEvent->CleanedUp = true;
 
     // Submit the command(s) signalling the proxy event to the queue.
     // We have to first submit a wait for the device-only event for which this
@@ -4788,19 +4746,23 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent) {
       ZE_CALL(zeCommandListAppendWaitOnEvents,
               (CommandList->first, 1, &ZeEvent));
       ZE_CALL(zeCommandListAppendSignalEvent,
-              (CommandList->first, ZeHostVisibleEvent));
+              (CommandList->first, HostVisibleEvent->ZeEvent));
 
       if (auto Res = Queue->executeCommandList(CommandList, false, OkToBatch))
         return Res;
     }
   }
+
+  ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
   return PI_SUCCESS;
 }
 
-pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
+static pi_result EventCreate(pi_context Context, bool HostVisible,
+                             pi_event *RetEvent) {
   size_t Index = 0;
   ze_event_pool_handle_t ZeEventPool = {};
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index))
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index,
+                                                         HostVisible))
     return Res;
 
   ze_event_handle_t ZeEvent;
@@ -4808,7 +4770,7 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ZeEventDesc.index = Index;
   ZeEventDesc.wait = 0;
 
-  if (EventsScope == AllHostVisible) {
+  if (HostVisible) {
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
     //
@@ -4834,7 +4796,15 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  if (HostVisible)
+    (*RetEvent)->HostVisibleEvent = *RetEvent;
+
   return PI_SUCCESS;
+}
+
+pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
+  return EventCreate(Context, EventsScope == AllHostVisible, RetEvent);
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -4882,10 +4852,11 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     // Make sure that we query a host-visible event only.
     // If one wasn't yet created then don't create it here as well, and
     // just conservatively return that event is not yet completed.
-    auto ZeHostVisibleEvent = Event->getHostVisibleEvent();
-    if (ZeHostVisibleEvent) {
+    auto HostVisibleEvent = Event->HostVisibleEvent;
+    if (HostVisibleEvent) {
       ze_result_t ZeResult;
-      ZeResult = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeHostVisibleEvent));
+      ZeResult =
+          ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
         return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
                        pi_int32{CL_COMPLETE}); // Untie from OpenCL
@@ -5120,10 +5091,11 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     }
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    ze_event_handle_t ZeEvent = EventList[I]->getHostVisibleEvent();
-    if (!ZeEvent)
+    auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
+    if (!HostVisibleEvent)
       die("The host-visible proxy event missing");
 
+    ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
     zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
     ZE_CALL(zeHostSynchronize, (ZeEvent));
 
@@ -5155,8 +5127,6 @@ pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
 }
 
 pi_result piEventRetain(pi_event Event) {
-  // fprintf(stderr, "piEventRetain(%p): %d\n", (void*)Event,
-  // (int)Event->RefCount);
   ++(Event->RefCount);
   return PI_SUCCESS;
 }
@@ -5166,8 +5136,6 @@ pi_result piEventRelease(pi_event Event) {
 }
 
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
-  // fprintf(stderr, "piEventRelease(%p): %d\n", (void*)Event,
-  // (int)Event->RefCount);
   PI_ASSERT(Event, PI_INVALID_EVENT);
   if (!Event->RefCount) {
     die("piEventRelease: called on a destroyed event");
@@ -5187,14 +5155,9 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     if (Event->OwnZeEvent) {
       ZE_CALL(zeEventDestroy, (Event->ZeEvent));
     }
-    if (Event->ZeHostVisibleEvent) {
-      // Destroy the host-visible proxy event when it is owned by this event.
-      if (EventsScope == OnDemandHostVisibleProxy) {
-        ZE_CALL(zeEventDestroy, (Event->ZeHostVisibleEvent));
-      } else if (EventsScope == LastCommandInBatchHostVisible) {
-        PI_CALL(piEventRelease(
-            reinterpret_cast<pi_event>(Event->ZeHostVisibleEvent)));
-      }
+    if (Event->HostVisibleEvent != Event) {
+      // Decrement ref-count of the host-visible proxy event.
+      PI_CALL(piEventRelease(Event->HostVisibleEvent));
     }
 
     auto Context = Event->Context;
