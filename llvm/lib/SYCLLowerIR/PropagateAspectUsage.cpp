@@ -1,4 +1,4 @@
-#include "llvm/SYCLPropagateAspectUsage/PropagateAspectUsage.h"
+#include "llvm/SYCLLowerIR/PropagateAspectUsage.h"
 #include "../IR/LLVMContextImpl.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"

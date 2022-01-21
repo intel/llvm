@@ -40,7 +40,7 @@
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
-#include "llvm/SYCLPropagateAspectUsage/PropagateAspectUsage.h"
+#include "llvm/SYCLLowerIR/PropagateAspectUsage.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"

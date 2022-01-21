@@ -21,7 +21,6 @@ set(LLVM_LINK_COMPONENTS
   ScalarOpts
   Support
   SYCLLowerIR
-  SYCLPropagateAspectUsage
   Target
   TransformUtils
   Vectorize
