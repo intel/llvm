@@ -11627,6 +11627,8 @@ def err_sycl_expected_finalize_method : Error<
 def ext_sycl_2020_attr_spelling : ExtWarn<
   "use of attribute %0 is a SYCL 2020 extension">,
   InGroup<Sycl2017Compat>;
+def err_sycl_esimd_not_supported_for_type : Error<
+  "type %0 is not supported in ESIMD context">;
 def err_sycl_taking_address_of_wrong_function : Error<
   "taking address of a function not marked with "
   "'intel::device_indirectly_callable' attribute is not allowed in SYCL device "
