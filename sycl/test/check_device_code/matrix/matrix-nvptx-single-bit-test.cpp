@@ -57,11 +57,11 @@ int main() {
           //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.b.col.stride.b1.p1i32(i32 addrspace(1)* %_arg_9, i32 128) #{{.*}}
           joint_matrix_load(sg, sub_b, accB.get_pointer(), K);
           //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.mma.xor.popc.row.col.b1(i32 %3, i32 %4, i32 %1, i32 %2) #{{.*}}
-          sub_c =
-              joint_matrix_bmad(sg, sub_a, sub_b, sub_c, sycl::bit_xor<uint32_t>());
+          sub_c = joint_matrix_bmad(sg, sub_a, sub_b, sub_c,
+                                    sycl::bit_xor<uint32_t>());
           //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.mma.and.popc.row.col.b1(i32 %3, i32 %4, i32 %6, i32 %7) #{{.*}}
-          sub_c =
-              joint_matrix_bmad(sg, sub_a, sub_b, sub_c, sycl::bit_and<uint32_t>());
+          sub_c = joint_matrix_bmad(sg, sub_a, sub_b, sub_c,
+                                    sycl::bit_and<uint32_t>());
           //CHECK: tail call void @llvm.nvvm.wmma.m8n8k128.store.d.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_14, i32 %9, i32 %10, i32 8) #{{.*}}
           joint_matrix_store(sg, sub_c, accD.get_pointer(), N);
         });
