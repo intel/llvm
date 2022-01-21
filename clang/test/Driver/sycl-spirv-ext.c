@@ -41,7 +41,6 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_long_constant_composite
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence
@@ -64,7 +63,6 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_float_controls2
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
-// CHECK-FPGA-HW-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_long_constant_composite
