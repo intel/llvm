@@ -82,8 +82,31 @@ __SYCL_JOINT_MATRIX_OVERLOAD(uint8_t, b, 16, 16, int32_t, 2)
 __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 16, 16, int32_t, 8)
 
 // single-bit
-__SYCL_JOINT_MATRIX_OVERLOAD(uint32_t, a, 8, 128, uint32_t, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD(uint32_t, b, 128, 8, uint32_t, 1)
+template <matrix_layout Layout>
+struct joint_matrix<
+    uint32_t, matrix_use::a, 8, 128, Layout, sycl::sub_group,
+    typename std::enable_if_t<Layout == matrix_layout::row_major ||
+                              Layout == matrix_layout::col_major>> {
+  joint_matrix() {
+    static_assert((Layout == matrix_layout::row_major),
+                  "For the matrix_use::a case, matrix_layout::row_major must "
+                  "be used for Bitwise MAD");
+  };
+  uint32_t data[1];
+};
+
+template <matrix_layout Layout>
+struct joint_matrix<
+    uint32_t, matrix_use::b, 128, 8, Layout, sycl::sub_group,
+    typename std::enable_if_t<Layout == matrix_layout::row_major ||
+                              Layout == matrix_layout::col_major>> {
+  joint_matrix() {
+    static_assert((Layout == matrix_layout::col_major),
+                  "For the matrix_use::b case, matrix_layout::col_major must "
+                  "be used for Bitwise MAD");
+  };
+  uint32_t data[1];
+};
 __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 8, 8, int32_t, 2)
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD
@@ -383,27 +406,29 @@ struct joint_matrix_mad_impl {
           C);
 };
 
-template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
-          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
-          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
-          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC, class BinaryOperation,
-          typename Cond = void>
+template <std::size_t M, std::size_t K, std::size_t N,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC,
+          class BinaryOperation, typename Cond = void>
 struct joint_matrix_bmad_impl {
   sycl::ext::oneapi::experimental::matrix::joint_matrix<
-      T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
-      N, LayoutC, sycl::sub_group>
+      int32_t, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+      M, N, LayoutC, sycl::sub_group>
   bmad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
-          LayoutA, sycl::sub_group>
-          A,
-      sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
-          LayoutB, sycl::sub_group>
-          B,
-      sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
-          M, N, LayoutC, sycl::sub_group>
-          C, BinaryOperation Op);
+           uint32_t, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M,
+           K, sycl::ext::oneapi::experimental::matrix::matrix_layout::row_major,
+           sycl::sub_group>
+           A,
+       sycl::ext::oneapi::experimental::matrix::joint_matrix<
+           uint32_t, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K,
+           N, sycl::ext::oneapi::experimental::matrix::matrix_layout::col_major,
+           sycl::sub_group>
+           B,
+       sycl::ext::oneapi::experimental::matrix::joint_matrix<
+           int32_t,
+           sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
+           N, LayoutC, sycl::sub_group>
+           C,
+       BinaryOperation Op);
 };
 
 template <sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
@@ -437,56 +462,6 @@ constexpr int get_layout_pair_id<
     sycl::ext::oneapi::experimental::matrix::matrix_layout::col_major>() {
   return 3;
 }
-
-template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
-          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
-          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
-          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC, class BinaryOperation>
-struct joint_matrix_bmad_impl<
-    T1, T2, M, K, N, LayoutA, LayoutB, LayoutC, BinaryOperation,
-    typename std::enable_if_t<
-        (LayoutA == sycl::ext::oneapi::experimental::matrix::matrix_layout::
-                        row_major ||
-         LayoutA == sycl::ext::oneapi::experimental::matrix::matrix_layout::
-                        col_major) &&
-        (LayoutB == sycl::ext::oneapi::experimental::matrix::matrix_layout::
-                        row_major ||
-         LayoutB == sycl::ext::oneapi::experimental::matrix::matrix_layout::
-                        col_major) &&
-        (LayoutC == sycl::ext::oneapi::experimental::matrix::matrix_layout::
-                        row_major ||
-         LayoutC == sycl::ext::oneapi::experimental::matrix::matrix_layout::
-                        col_major)>> {
-  sycl::ext::oneapi::experimental::matrix::joint_matrix<
-      T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
-      N, LayoutC, sycl::sub_group>
-  bmad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
-          LayoutA, sycl::sub_group>
-          A,
-      sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
-          LayoutB, sycl::sub_group>
-          B,
-      sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
-          M, N, LayoutC, sycl::sub_group>
-          C, BinaryOperation Op) {
-    sycl::ext::oneapi::experimental::matrix::joint_matrix<
-        T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
-        N, LayoutC, sycl::sub_group>
-        D;
-if constexpr (std::is_same<BinaryOperation, sycl::bit_and<uint32_t>>::value) {
-
-      __bmma_m8n8k128_mma_and_popc_b1(D.data, A.data, B.data, C.data,
-                                get_layout_pair_id<LayoutA, LayoutB>());
-} else if constexpr (std::is_same<BinaryOperation, sycl::bit_xor<uint32_t>>::value) {
-      __bmma_m8n8k128_mma_xor_popc_b1(D.data, A.data, B.data, C.data,
-                                get_layout_pair_id<LayoutA, LayoutB>());
-}
-        return D;
-  }
-};
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
@@ -593,6 +568,52 @@ struct joint_matrix_mad_impl<
   }
 };
 
+template <std::size_t M, std::size_t K, std::size_t N,
+          sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutC,
+          class BinaryOperation>
+struct joint_matrix_bmad_impl<
+    M, K, N, LayoutC, BinaryOperation,
+    typename std::enable_if_t<(
+        LayoutC ==
+            sycl::ext::oneapi::experimental::matrix::matrix_layout::row_major ||
+        LayoutC == sycl::ext::oneapi::experimental::matrix::matrix_layout::
+                       col_major)>> {
+  sycl::ext::oneapi::experimental::matrix::joint_matrix<
+      int32_t, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+      M, N, LayoutC, sycl::sub_group>
+  bmad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
+           uint32_t, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M,
+           K, sycl::ext::oneapi::experimental::matrix::matrix_layout::row_major,
+           sycl::sub_group>
+           A,
+       sycl::ext::oneapi::experimental::matrix::joint_matrix<
+           uint32_t, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K,
+           N, sycl::ext::oneapi::experimental::matrix::matrix_layout::col_major,
+           sycl::sub_group>
+           B,
+       sycl::ext::oneapi::experimental::matrix::joint_matrix<
+           int32_t,
+           sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M,
+           N, LayoutC, sycl::sub_group>
+           C,
+       BinaryOperation Op) {
+    sycl::ext::oneapi::experimental::matrix::joint_matrix<
+        int32_t,
+        sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M, N,
+        LayoutC, sycl::sub_group>
+        D;
+    if constexpr (std::is_same<BinaryOperation,
+                               sycl::bit_and<uint32_t>>::value) {
+
+      __bmma_m8n8k128_mma_and_popc_b1(D.data, A.data, B.data, C.data, 1);
+    } else if constexpr (std::is_same<BinaryOperation,
+                                      sycl::bit_xor<uint32_t>>::value) {
+      __bmma_m8n8k128_mma_xor_popc_b1(D.data, A.data, B.data, C.data, 1);
+    }
+    return D;
+  }
+};
+
 } // namespace detail
 
 namespace experimental::matrix {
@@ -663,17 +684,20 @@ joint_matrix_mad(
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-template <typename Group, typename T1, typename T2, std::size_t M,
-          std::size_t K, std::size_t N, matrix_layout LayoutA,
-          matrix_layout LayoutB, matrix_layout LayoutC, class BinaryOperation>
-joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group>
+template <typename Group, std::size_t M, std::size_t K, std::size_t N,
+          matrix_layout LayoutC, class BinaryOperation>
+joint_matrix<int32_t, matrix_use::accumulator, M, N, LayoutC, Group>
 joint_matrix_bmad(
-    Group sg, joint_matrix<T1, matrix_use::a, M, K, LayoutA, Group> A,
-    joint_matrix<T1, matrix_use::b, K, N, LayoutB, Group> B,
-    joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group> C, BinaryOperation Op) {
+    Group sg,
+    joint_matrix<uint32_t, matrix_use::a, M, K, matrix_layout::row_major, Group>
+        A,
+    joint_matrix<uint32_t, matrix_use::b, K, N, matrix_layout::col_major, Group>
+        B,
+    joint_matrix<int32_t, matrix_use::accumulator, M, N, LayoutC, Group> C,
+    BinaryOperation Op) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return sycl::ext::oneapi::detail::joint_matrix_bmad_impl<
-             T1, T2, M, K, N, LayoutA, LayoutB, LayoutC, BinaryOperation>{}
+  return sycl::ext::oneapi::detail::joint_matrix_bmad_impl<M, K, N, LayoutC,
+                                                           BinaryOperation>{}
       .bmad(A, B, C, Op);
 #else
   (void)sg;
