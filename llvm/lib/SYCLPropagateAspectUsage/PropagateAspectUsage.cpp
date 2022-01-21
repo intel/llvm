@@ -2,11 +2,14 @@
 #include "../IR/LLVMContextImpl.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <unordered_map>
@@ -196,6 +199,76 @@ template <typename T> void PrintMap(const T &m) {
   }
 }
 
+namespace {
+class MissedAspectDiagnosticInfo : public DiagnosticInfo {
+  Twine Msg;
+
+public:
+  MissedAspectDiagnosticInfo(Twine DiagMsg,
+                             DiagnosticSeverity Severity = DS_Warning)
+      : DiagnosticInfo(DK_Linker, Severity), Msg(std::move(DiagMsg)) {}
+
+  void print(DiagnosticPrinter &DP) const override { DP << Msg; }
+};
+} // namespace
+
+void emitWarning(LLVMContext &C, const StringRef Msg) {
+  C.diagnose(MissedAspectDiagnosticInfo(Msg));
+}
+
+template <class Container> std::string Join(const Container &C, char sep) {
+  std::string S;
+  auto it = C.begin();
+  for (size_t i = 0; i != C.size(); ++i, ++it) {
+    if (i > 0)
+      S += ", ";
+
+    S += std::to_string(*it);
+  }
+
+  return S;
+}
+
+template <class Container>
+void CheckDeclaredAspects(LLVMContext &C, const Function *F,
+                          const Container &Aspects) {
+  MDNode *MDN = F->getMetadata("intel_declared_aspects");
+  if (MDN == nullptr)
+    return;
+
+  SmallSet<int, 10> DeclaredAspects;
+  for (unsigned i = 0; i != MDN->getNumOperands(); ++i) {
+    const ConstantAsMetadata *CM =
+        dyn_cast<const ConstantAsMetadata>(MDN->getOperand(i));
+    DeclaredAspects.insert(
+        dyn_cast<const ConstantInt>(CM->getValue())->getSExtValue());
+  }
+
+  SmallVector<int> MissedAspects;
+  for (int aspect : Aspects) {
+    if (DeclaredAspects.count(aspect) == 0) {
+      MissedAspects.push_back(aspect);
+    }
+  }
+
+  if (!MissedAspects.empty()) {
+    std::string Msg;
+    std::string AspectsStr = Join(MissedAspects, ',');
+    // TODO: demangle function name and aspect's IDs?
+    if (MissedAspects.size() > 1) {
+      Msg = formatv("for function \"{0}\" aspects [{1}] are missed in function "
+                    "declaration",
+                    F->getName(), AspectsStr);
+    } else {
+      Msg = formatv(
+          "for function \"{0}\" aspect {1} is missed in function declaration",
+          F->getName(), AspectsStr);
+    }
+
+    C.diagnose(MissedAspectDiagnosticInfo(Msg));
+  }
+}
+
 PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   auto TypesWithAspects = GetTypesWithAspectsFromMetadata(M);
@@ -269,6 +342,8 @@ PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
 
     MDNode *MDN = MDNode::get(C, aspects);
     n.F->setMetadata("intel_used_aspects", MDN);
+
+    CheckDeclaredAspects(C, n.F, n.aspects);
   }
 
   return PreservedAnalyses::all();
