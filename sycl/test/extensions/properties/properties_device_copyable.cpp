@@ -2,7 +2,7 @@
 // RUN: %t.out
 
 // CUDA and HIP backends currently generates invalid binaries for this
-// XFAIL: cuda && hip_amd
+// XFAIL: cuda || hip
 
 #include <CL/sycl.hpp>
 
