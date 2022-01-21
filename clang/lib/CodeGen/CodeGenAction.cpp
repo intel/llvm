@@ -333,18 +333,13 @@ namespace clang {
       if (LangOpts.SYCLIsDevice) {
         PrettyStackTraceString CrashInfo("Pre-linking SYCL passes");
 
-        LoopAnalysisManager LAM;
-        FunctionAnalysisManager FAM;
-        CGSCCAnalysisManager CGAM;
         ModuleAnalysisManager MAM;
-
-        PassBuilder PB;
-
-        PB.registerModuleAnalyses(MAM);
-        PB.registerCGSCCAnalyses(CGAM);
-        PB.registerFunctionAnalyses(FAM);
-        PB.registerLoopAnalyses(LAM);
-        PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+        FunctionAnalysisManager FAM;
+        MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+        MAM.registerPass(
+            [&] { return FunctionAnalysisManagerModuleProxy(FAM); });
+        FAM.registerPass(
+            [&] { return ModuleAnalysisManagerFunctionProxy(MAM); });
 
         ModulePassManager PreLinkingSyclPasses;
         PreLinkingSyclPasses.addPass(
