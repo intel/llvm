@@ -362,7 +362,8 @@ static void addGeneralOptsForMemorySanitizer(const PassManagerBuilder &Builder,
   int TrackOrigins = CGOpts.SanitizeMemoryTrackOrigins;
   bool Recover = CGOpts.SanitizeRecover.has(SanitizerKind::Memory);
   PM.add(createMemorySanitizerLegacyPassPass(
-      MemorySanitizerOptions{TrackOrigins, Recover, CompileKernel}));
+      MemorySanitizerOptions{TrackOrigins, Recover, CompileKernel,
+                             CGOpts.SanitizeMemoryParamRetval != 0}));
 
   // MemorySanitizer inserts complex instrumentation that mostly follows
   // the logic of the original code, but operates on "shadow" values.
@@ -1196,11 +1197,11 @@ static void addSanitizers(const Triple &TargetTriple,
         int TrackOrigins = CodeGenOpts.SanitizeMemoryTrackOrigins;
         bool Recover = CodeGenOpts.SanitizeRecover.has(Mask);
 
-        MPM.addPass(
-            ModuleMemorySanitizerPass({TrackOrigins, Recover, CompileKernel}));
+        MemorySanitizerOptions options(TrackOrigins, Recover, CompileKernel,
+                                       CodeGenOpts.SanitizeMemoryParamRetval);
+        MPM.addPass(ModuleMemorySanitizerPass(options));
         FunctionPassManager FPM;
-        FPM.addPass(
-            MemorySanitizerPass({TrackOrigins, Recover, CompileKernel}));
+        FPM.addPass(MemorySanitizerPass(options));
         if (Level != OptimizationLevel::O0) {
           // MemorySanitizer inserts complex instrumentation that mostly
           // follows the logic of the original code, but operates on
@@ -1477,6 +1478,17 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   }
   if (LangOpts.SYCLIsDevice) {
     MPM.addPass(SYCLMutatePrintfAddrspacePass());
+  }
+
+  // Allocate static local memory in SYCL kernel scope for each allocation
+  // call. It should be called after inlining pass.
+  if (LangOpts.SYCLIsDevice) {
+    // Group local memory pass depends on inlining. Turn it on even in case if
+    // all llvm passes or SYCL early optimizations are disabled.
+    // FIXME: Remove this workaround when dependency on inlining is eliminated.
+    if (CodeGenOpts.DisableLLVMPasses)
+      MPM.addPass(AlwaysInlinerPass(false));
+    MPM.addPass(SYCLLowerWGLocalMemoryPass());
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action
