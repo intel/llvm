@@ -1243,6 +1243,14 @@ let TargetPrefix = "nvvm" in {
           [LLVMAnyPointerType<llvm_i32_ty>, llvm_i32_ty],
                                       [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
 
+  class SCOPED_ATOMIC_ld_impl<LLVMType elty>
+        : Intrinsic<[elty],
+          [LLVMAnyPointerType<LLVMMatchType<0>>],
+          [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
+  class SCOPED_ATOMIC_st_impl<LLVMType elty>
+        : Intrinsic<[],
+          [LLVMAnyPointerType<LLVMMatchType<0>>, elty],
+          [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
   class SCOPED_ATOMIC2_impl<LLVMType elty>
         : Intrinsic<[elty],
           [LLVMAnyPointerType<LLVMMatchType<0>>, LLVMMatchType<0>],
@@ -1253,6 +1261,16 @@ let TargetPrefix = "nvvm" in {
            LLVMMatchType<0>],
           [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
 
+  multiclass PTXAtomicWithScope_ld<LLVMType elty> {
+    def "" : SCOPED_ATOMIC_ld_impl<elty>;
+    def _cta : SCOPED_ATOMIC_ld_impl<elty>;
+    def _sys : SCOPED_ATOMIC_ld_impl<elty>;
+  }
+  multiclass PTXAtomicWithScope_st<LLVMType elty> {
+    def "" : SCOPED_ATOMIC_st_impl<elty>;
+    def _cta : SCOPED_ATOMIC_st_impl<elty>;
+    def _sys : SCOPED_ATOMIC_st_impl<elty>;
+  }
   multiclass PTXAtomicWithScope2<LLVMType elty> {
     def "" : SCOPED_ATOMIC2_impl<elty>;
     def _cta : SCOPED_ATOMIC2_impl<elty>;
@@ -1262,6 +1280,16 @@ let TargetPrefix = "nvvm" in {
     def "" : SCOPED_ATOMIC3_impl<elty>;
     def _cta : SCOPED_ATOMIC3_impl<elty>;
     def _sys : SCOPED_ATOMIC3_impl<elty>;
+  }
+  multiclass PTXLdWithScope_sem<LLVMType elty> {
+    defm "": PTXAtomicWithScope_ld<elty>;
+    defm _acquire: PTXAtomicWithScope_ld<elty>;
+    def _volatile: SCOPED_ATOMIC_ld_impl<elty>;
+  }
+  multiclass PTXStWithScope_sem<LLVMType elty> {
+    defm "": PTXAtomicWithScope_st<elty>;
+    defm _release: PTXAtomicWithScope_st<elty>;
+    def _volatile: SCOPED_ATOMIC_st_impl<elty>;
   }
   multiclass PTXAtomicWithScope2_sem<LLVMType elty> {
     defm "": PTXAtomicWithScope2<elty>;
@@ -1275,10 +1303,20 @@ let TargetPrefix = "nvvm" in {
     defm _release: PTXAtomicWithScope3<elty>;
     defm _acq_rel: PTXAtomicWithScope3<elty>;
   }
+  multiclass PTXLdWithScope_fi {
+    defm _f: PTXLdWithScope_sem<llvm_anyfloat_ty>;
+    defm _i: PTXLdWithScope_sem<llvm_anyint_ty>;
+  }
+  multiclass PTXStWithScope_fi {
+    defm _f: PTXStWithScope_sem<llvm_anyfloat_ty>;
+    defm _i: PTXStWithScope_sem<llvm_anyint_ty>;
+  }
   multiclass PTXAtomicWithScope2_fi {
     defm _f: PTXAtomicWithScope2_sem<llvm_anyfloat_ty>;
     defm _i: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   }
+  defm int_nvvm_ld_gen   : PTXLdWithScope_fi;
+  defm int_nvvm_st_gen   : PTXStWithScope_fi;
   defm int_nvvm_atomic_add_gen   : PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_inc_gen_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_dec_gen_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
@@ -1292,6 +1330,8 @@ let TargetPrefix = "nvvm" in {
   defm int_nvvm_atomic_and_gen_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_cas_gen_i : PTXAtomicWithScope3_sem<llvm_anyint_ty>;
 
+  defm int_nvvm_ld_shared   : PTXLdWithScope_fi;
+  defm int_nvvm_st_shared   : PTXStWithScope_fi;
   defm int_nvvm_atomic_add_shared   : PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_inc_shared_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_dec_shared_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
@@ -1305,6 +1345,8 @@ let TargetPrefix = "nvvm" in {
   defm int_nvvm_atomic_and_shared_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_cas_shared_i : PTXAtomicWithScope3_sem<llvm_anyint_ty>;
   
+  defm int_nvvm_ld_global   : PTXLdWithScope_fi;
+  defm int_nvvm_st_global   : PTXStWithScope_fi;
   defm int_nvvm_atomic_add_global   : PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_inc_global_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_dec_global_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
