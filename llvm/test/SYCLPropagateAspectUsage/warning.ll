@@ -1,4 +1,4 @@
-; RUN opt --PropagateAspectUsage < %s >/dev/null 2>1 | FileCheck %s
+; RUN: opt --PropagateAspectUsage < %s 2>&1 | FileCheck %s
 ;
 ; Test check warnings in case when intel_declared_aspects metadata
 ; doesn't cover all used aspects

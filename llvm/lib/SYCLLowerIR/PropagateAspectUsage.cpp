@@ -47,80 +47,66 @@ ModulePass *llvm::createPropagateAspectUsagePass() {
   return new SYCLPropagateAspectUsageLegacyPass();
 }
 
-using TypesMap = std::unordered_map<std::string, SmallVector<int>>;
-using TypesMap2 = std::unordered_map<Type *, SmallVector<int>>;
+using TypesMap = std::unordered_map<Type *, SmallVector<int>>;
 
-TypesMap2 GetTypesWithAspectsFromMetadata(Module &M) {
-  NamedMDNode *node = M.getNamedMetadata("intel_types_that_use_aspects");
-  TypesMap2 Result;
-  if (!node)
+TypesMap GetTypesWithAspectsFromMetadata(Module &M) {
+  NamedMDNode *Node = M.getNamedMetadata("intel_types_that_use_aspects");
+  TypesMap Result;
+  if (!Node)
     return Result;
 
   LLVMContextImpl &CI = *M.getContext().pImpl;
-  for (unsigned i = 0; i != node->getNumOperands(); ++i) {
-    dbgs() << "index: " << i << "\n";
-    MDNode *n = node->getOperand(i);
-    unsigned numOperands = n->getNumOperands();
-    assert(numOperands > 1);
-    Metadata *mname = n->getOperand(0);
-    MDString *sname = dyn_cast<MDString>(mname);
-    if (sname == nullptr) {
-      assert(false);
-    }
+  for (unsigned i = 0; i != Node->getNumOperands(); ++i) {
+    MDNode *N = Node->getOperand(i);
+    assert(N->getNumOperands() > 1 && "intel_types_that_use_aspect metadata shouldn't contain empty metadata nodes");
 
-    StringRef name = sname->getString();
-    auto it2 = CI.NamedStructTypes.find(name);
+    MDString *TypeNameMD = cast<MDString>(N->getOperand(0));
+    StringRef Name = TypeNameMD->getString();
+    auto it2 = CI.NamedStructTypes.find(Name);
     if (it2 == CI.NamedStructTypes.end()) {
-      continue;
+      continue; // Skip it because type is unknown in module M.
     }
 
-    Type *t = it2->second;
-    auto it = Result.insert({t, SmallVector<int>()}).first;
-    for (unsigned j = 1; j != numOperands; ++j) {
-      Constant *C = dyn_cast<ConstantAsMetadata>(n->getOperand(j))->getValue();
-      if (!C) {
-        continue;
-      }
-
-      it->second.push_back(dyn_cast<ConstantInt>(C)->getSExtValue());
+    Type *T = it2->second;
+    auto it = Result.emplace(T, SmallVector<int>()).first;
+    for (unsigned j = 1; j != N->getNumOperands(); ++j) {
+      Constant *C = cast<ConstantAsMetadata>(N->getOperand(j))->getValue();
+      it->second.push_back(cast<ConstantInt>(C)->getSExtValue());
     }
   }
 
   return Result;
 }
 
-TypesMap2::const_iterator
-CheckTypeContainsOptionalType(const Type *T, const TypesMap2 &Types) {
+TypesMap::const_iterator
+CheckTypeContainsOptionalType(const Type *T, const TypesMap &Types) {
   dbgs() << "CheckType: " << *T << ", ptr: " << T << "\n";
   auto it = Types.find(const_cast<Type *>(T));
   if (it != Types.end())
     return it;
 
   dbgs() << "Check contained types. num: " << T->getNumContainedTypes() << "\n";
-  for (int i = 0; i != T->getNumContainedTypes(); ++i) {
+  for (size_t i = 0; i != T->getNumContainedTypes(); ++i) {
     Type *TT = T->getContainedType(i);
     it = Types.find(const_cast<Type *>(TT));
     dbgs() << "Check contained Type, index: " << i << " Type: " << *TT
            << ", ptr: " << TT << "\n";
     if (it != Types.end()) {
-      dbgs() << "Success\n";
       return it;
     }
-    dbgs() << "Fail\n";
   }
 
   return Types.end();
 }
 
-TypesMap2::const_iterator
+TypesMap::const_iterator
 CheckInstUsesOptionalDeviceFeature(const Instruction &I,
-                                   const TypesMap2 &Types) {
+                                   const TypesMap &Types) {
   dbgs() << "CheckInstUsesOptionalDeviceFeature: " << I << "\n";
   const Type *ReturnType = I.getType();
   dbgs() << "Check ReturnType: " << *I.getType() << "\n";
   auto it = CheckTypeContainsOptionalType(ReturnType, Types);
   if (it != Types.end()) {
-    dbgs() << "Exit\n";
     return it;
   }
 
@@ -145,61 +131,60 @@ class Graph {
 public:
   struct Node {
     Function *F = nullptr;
-    uint32_t count = 0;
-    std::vector<int> edges;
-    std::vector<int> reversedEdges;
-    SmallSet<int, 10> aspects;
+    std::vector<int> Edges;
+    std::vector<int> ReversedEdges;
+    SmallSet<int, 10> Aspects;
 
-    Node(Function &F) : F(&F) {}
+    Node(Function *F) : F(F) {}
   };
 
-  void addEdge(Function *from, Function *to) {
-    if (functionIndex.count(from) == 0 || functionIndex.count(to) == 0) {
+  void addEdge(Function *From, Function *To) {
+    if (FunctionIndex.count(From) == 0 || FunctionIndex.count(To) == 0) {
       assert(false && "couldn't find entries for functions");
     }
 
-    int indexFrom = functionIndex[from];
-    int indexTo = functionIndex[to];
-    nodes[indexFrom].edges.push_back(indexTo);
-    nodes[indexTo].reversedEdges.push_back(indexFrom);
+    int IndexFrom = FunctionIndex[From];
+    int IndexTo = FunctionIndex[To];
+    nodes[IndexFrom].Edges.push_back(IndexTo);
+    nodes[IndexTo].ReversedEdges.push_back(IndexFrom);
+  }
+
+  void createNodeForFunction(Function *F) {
+    if (FunctionIndex.count(F)) {
+      return;
+    }
+
+    FunctionIndex[F] = static_cast<int>(nodes.size());
+    nodes.push_back(Graph::Node(F));
+  }
+
+  size_t getNumNodes() const {
+    return nodes.size();
   }
 
   std::vector<Node> nodes;
-  std::unordered_map<Function *, int> functionIndex;
+  std::unordered_map<Function *, int> FunctionIndex;
 };
 
-void dfs2(const Graph &G, int NodeIndex, std::vector<int8_t> &Visited,
-          std::vector<int> &Topsort) {
-  if (Visited[NodeIndex])
-    return;
-
-  Visited[NodeIndex] = 1;
-  for (int edge : G.nodes[NodeIndex].reversedEdges) {
-    dfs2(G, edge, Visited, Topsort);
+void DFS(const Graph &G, int NodeIndex,
+         std::vector<int> &Topsort) {
+  for (int edge : G.nodes[NodeIndex].ReversedEdges) {
+    DFS(G, edge, Topsort);
   }
 
   Topsort.push_back(NodeIndex);
 }
 
-std::vector<int> dfs(const Graph &G, const std::vector<Function *> Kernels) {
-  std::vector<int> topsort;
-  std::vector<int8_t> visited(G.nodes.size(), 0);
+std::vector<int> BuildTopsort(const Graph &G, const std::vector<Function *> &Kernels) {
+  std::vector<int> Topsort;
   for (Function *F : Kernels) {
-    int index = G.functionIndex.at(F);
-    dfs2(G, index, visited, topsort);
+    int Index = G.FunctionIndex.at(F);
+    DFS(G, Index, Topsort);
   }
 
-  return topsort;
+  return Topsort;
 }
 
-template <typename T> void PrintMap(const T &m) {
-  dbgs() << "Map: size: " << m.size() << "\n";
-  for (const auto it : m) {
-    dbgs() << "key: " << it.first << "\n";
-  }
-}
-
-namespace {
 class MissedAspectDiagnosticInfo : public DiagnosticInfo {
   Twine Msg;
 
@@ -210,7 +195,6 @@ public:
 
   void print(DiagnosticPrinter &DP) const override { DP << Msg; }
 };
-} // namespace
 
 void emitWarning(LLVMContext &C, const StringRef Msg) {
   C.diagnose(MissedAspectDiagnosticInfo(Msg));
@@ -252,99 +236,124 @@ void CheckDeclaredAspects(LLVMContext &C, const Function *F,
   }
 
   if (!MissedAspects.empty()) {
-    std::string Msg;
     std::string AspectsStr = Join(MissedAspects, ',');
     // TODO: demangle function name and aspect's IDs?
-    if (MissedAspects.size() > 1) {
-      Msg = formatv("for function \"{0}\" aspects [{1}] are missed in function "
-                    "declaration",
-                    F->getName(), AspectsStr);
-    } else {
-      Msg = formatv(
-          "for function \"{0}\" aspect {1} is missed in function declaration",
-          F->getName(), AspectsStr);
-    }
+    std::string Msg = formatv("for function \"{0}\" there is the list of missed aspects: [{1}]",
+                              F->getName(), AspectsStr);
 
     C.diagnose(MissedAspectDiagnosticInfo(Msg));
   }
 }
 
-PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
-                                                ModuleAnalysisManager &MAM) {
-  auto TypesWithAspects = GetTypesWithAspectsFromMetadata(M);
-  LLVMContext &C = M.getContext();
-  TypesWithAspects.insert({&C.pImpl->DoubleTy, SmallVector<int>{6}});
-  PrintMap(TypesWithAspects);
-
-  Graph g;
+Graph BuildGraph(Module &M, const TypesMap &TypesWithAspects) {
+  Graph G;
   for (Function &F : M.functions()) {
     auto CC = F.getCallingConv();
     if (CC != CallingConv::SPIR_FUNC && CC != CallingConv::SPIR_KERNEL)
       continue;
 
-    g.nodes.push_back(Graph::Node(F));
-    g.functionIndex[&F] = g.nodes.size() - 1;
+    G.createNodeForFunction(&F);
   }
 
-  std::vector<Function *> SPIRKernels;
   for (Function &F : M.functions()) {
     auto CC = F.getCallingConv();
     if (CC != CallingConv::SPIR_FUNC && CC != CallingConv::SPIR_KERNEL)
       continue;
 
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      SPIRKernels.push_back(&F);
-    }
-
-    int nodeIndex = g.functionIndex[&F];
     for (User *U : F.users()) {
       CallInst *CI = dyn_cast<CallInst>(U);
       if (!CI)
         continue;
 
-      g.addEdge(&F, CI->getFunction());
+      G.addEdge(&F, CI->getFunction());
     }
 
-    for (const auto &I : instructions(F)) {
+    int NodeIndex = G.FunctionIndex[&F];
+    for (auto &I : instructions(F)) {
       auto it = CheckInstUsesOptionalDeviceFeature(I, TypesWithAspects);
       if (it == TypesWithAspects.end()) {
         continue;
       }
 
-      const auto &aspects = it->second;
-      g.nodes[nodeIndex].aspects.insert(aspects.begin(), aspects.end());
+      const auto &Aspects = it->second;
+      G.nodes[NodeIndex].Aspects.insert(Aspects.begin(), Aspects.end());
       break;
     }
   }
 
-  auto topsort = dfs(g, SPIRKernels);
-  for (int index : topsort) {
-    auto &node = g.nodes[index];
-    for (int edge : node.edges) {
-      Graph::Node &n2 = g.nodes[edge];
-      for (int aspect : node.aspects) {
-        n2.aspects.insert(aspect);
+  return G;
+}
+
+void PropagateAspectsInCallGraph(Graph &G, const std::vector<int> &Order) {
+  for (int Index : Order) {
+    Graph::Node &From = G.nodes[Index];
+    for (int Edge : From.Edges) {
+      Graph::Node &To = G.nodes[Edge];
+      for (int aspect : From.Aspects) {
+        To.Aspects.insert(aspect);
       }
     }
   }
+}
 
-  for (Graph::Node &n : g.nodes) {
-    if (n.aspects.empty())
+void CreateAspectMetadataForFunctions(Graph &G) {
+  for (Graph::Node &n : G.nodes) {
+    if (n.Aspects.empty())
       continue;
 
     LLVMContext &C = n.F->getContext();
-    std::vector<Metadata *> aspects;
-    aspects.reserve(n.aspects.size());
-    for (int aspect : n.aspects) {
-      aspects.push_back(ConstantAsMetadata::get(
+    std::vector<Metadata *> Aspects;
+    Aspects.reserve(n.Aspects.size());
+    for (int aspect : n.Aspects) {
+      Aspects.push_back(ConstantAsMetadata::get(
           ConstantInt::getSigned(Type::getInt32Ty(C), aspect)));
     }
 
-    MDNode *MDN = MDNode::get(C, aspects);
+    MDNode *MDN = MDNode::get(C, Aspects);
     n.F->setMetadata("intel_used_aspects", MDN);
 
-    CheckDeclaredAspects(C, n.F, n.aspects);
+    CheckDeclaredAspects(C, n.F, n.Aspects);
   }
+}
+
+void CheckAllDeclaredAspects(Graph &G) {
+  for (Graph::Node &n : G.nodes) {
+    if (n.Aspects.empty())
+      continue;
+
+    LLVMContext &C = n.F->getContext();
+    std::vector<Metadata *> Aspects;
+    Aspects.reserve(n.Aspects.size());
+    for (int aspect : n.Aspects) {
+      Aspects.push_back(ConstantAsMetadata::get(
+          ConstantInt::getSigned(Type::getInt32Ty(C), aspect)));
+    }
+
+    MDNode *MDN = MDNode::get(C, Aspects);
+    n.F->setMetadata("intel_used_aspects", MDN);
+
+    CheckDeclaredAspects(C, n.F, n.Aspects);
+  }
+}
+
+PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
+                                                ModuleAnalysisManager &MAM) {
+  TypesMap TypesWithAspects = GetTypesWithAspectsFromMetadata(M);
+  LLVMContext &C = M.getContext();
+  TypesWithAspects.insert({&C.pImpl->DoubleTy, SmallVector<int>{6}}); // TODO: use aspects::fp64 instead of constant?
+
+  std::vector<Function *> SPIRKernels;
+  for (Function &F : M.functions()) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      SPIRKernels.push_back(&F);
+    }
+  }
+
+  Graph G = BuildGraph(M, TypesWithAspects);
+  auto Topsort = BuildTopsort(G, SPIRKernels);
+  PropagateAspectsInCallGraph(G, Topsort);
+  CreateAspectMetadataForFunctions(G);
+  CheckAllDeclaredAspects(G);
 
   return PreservedAnalyses::all();
 }
