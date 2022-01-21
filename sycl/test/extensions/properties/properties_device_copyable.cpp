@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 
-// CUDA backend currently generates invalid binaries for this
-// XFAIL: cuda
+// CUDA and HIP backends currently generates invalid binaries for this
+// XFAIL: cuda && hip_amd
 
 #include <CL/sycl.hpp>
 
