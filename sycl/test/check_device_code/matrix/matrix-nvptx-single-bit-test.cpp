@@ -37,34 +37,34 @@ int main() {
 
     cgh.parallel_for<class row_col>(
         nd_range<2>({1, 32}, {1, 32}),
-        [=](nd_item<2> item)[[sycl::reqd_work_group_size(1, 1, 32)]] {
-      sycl::sub_group sg = item.get_sub_group();
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+          sycl::sub_group sg = item.get_sub_group();
 
-      joint_matrix<int32_t, matrix_use::accumulator, M, N,
-                   matrix_layout::row_major>
-          sub_c;
+          joint_matrix<int32_t, matrix_use::accumulator, M, N,
+                       matrix_layout::row_major>
+              sub_c;
 
-      joint_matrix<uint32_t, matrix_use::a, M, K, matrix_layout::row_major>
-          sub_a;
+          joint_matrix<uint32_t, matrix_use::a, M, K, matrix_layout::row_major>
+              sub_a;
 
-      joint_matrix<uint32_t, matrix_use::b, K, N, matrix_layout::col_major>
-          sub_b;
+          joint_matrix<uint32_t, matrix_use::b, K, N, matrix_layout::col_major>
+              sub_b;
 
-      //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 8) #{{.*}}
-      joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
-      //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.a.row.stride.b1.p1i32(i32 addrspace(1)* %_arg_4, i32 128) #{{.*}}
-      joint_matrix_load(sg, sub_a, accA.get_pointer(), K);
-      //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.b.col.stride.b1.p1i32(i32 addrspace(1)* %_arg_9, i32 128) #{{.*}}
-      joint_matrix_load(sg, sub_b, accB.get_pointer(), K);
-      //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.mma.xor.popc.row.col.b1(i32 %3, i32 %4, i32 %1, i32 %2) #{{.*}}
-      sub_c =
-          joint_matrix_bmad(sg, sub_a, sub_b, sub_c, sycl::bit_xor<uint32_t>());
-      //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.mma.and.popc.row.col.b1(i32 %3, i32 %4, i32 %6, i32 %7) #{{.*}}
-      sub_c =
-          joint_matrix_bmad(sg, sub_a, sub_b, sub_c, sycl::bit_and<uint32_t>());
-      //CHECK: tail call void @llvm.nvvm.wmma.m8n8k128.store.d.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_14, i32 %9, i32 %10, i32 8) #{{.*}}
-      joint_matrix_store(sg, sub_c, accD.get_pointer(), N);
-    });
+          //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 8) #{{.*}}
+          joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
+          //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.a.row.stride.b1.p1i32(i32 addrspace(1)* %_arg_4, i32 128) #{{.*}}
+          joint_matrix_load(sg, sub_a, accA.get_pointer(), K);
+          //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.b.col.stride.b1.p1i32(i32 addrspace(1)* %_arg_9, i32 128) #{{.*}}
+          joint_matrix_load(sg, sub_b, accB.get_pointer(), K);
+          //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.mma.xor.popc.row.col.b1(i32 %3, i32 %4, i32 %1, i32 %2) #{{.*}}
+          sub_c =
+              joint_matrix_bmad(sg, sub_a, sub_b, sub_c, sycl::bit_xor<uint32_t>());
+          //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.mma.and.popc.row.col.b1(i32 %3, i32 %4, i32 %6, i32 %7) #{{.*}}
+          sub_c =
+              joint_matrix_bmad(sg, sub_a, sub_b, sub_c, sycl::bit_and<uint32_t>());
+          //CHECK: tail call void @llvm.nvvm.wmma.m8n8k128.store.d.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_14, i32 %9, i32 %10, i32 8) #{{.*}}
+          joint_matrix_store(sg, sub_c, accD.get_pointer(), N);
+        });
   });
 
   return 0;
