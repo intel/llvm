@@ -604,7 +604,6 @@ struct joint_matrix_bmad_impl<
         D;
     if constexpr (std::is_same<BinaryOperation,
                                sycl::bit_and<uint32_t>>::value) {
-
       __bmma_m8n8k128_mma_and_popc_b1(D.data, A.data, B.data, C.data, 1);
     } else if constexpr (std::is_same<BinaryOperation,
                                       sycl::bit_xor<uint32_t>>::value) {
