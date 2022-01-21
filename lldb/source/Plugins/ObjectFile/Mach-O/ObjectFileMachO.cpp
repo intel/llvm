@@ -768,9 +768,9 @@ public:
       // Write out the EXC registers
       data.PutHex32(EXCRegSet);
       data.PutHex32(EXCWordCount);
-      PrintRegisterValue(reg_ctx, "far", NULL, 8, data);
-      PrintRegisterValue(reg_ctx, "esr", NULL, 4, data);
-      PrintRegisterValue(reg_ctx, "exception", NULL, 4, data);
+      PrintRegisterValue(reg_ctx, "far", nullptr, 8, data);
+      PrintRegisterValue(reg_ctx, "esr", nullptr, 4, data);
+      PrintRegisterValue(reg_ctx, "exception", nullptr, 4, data);
       return true;
     }
     return false;
@@ -4647,7 +4647,7 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
 
   // Add symbols from the trie to the symbol table.
   for (auto &e : external_sym_trie_entries) {
-    if (symbols_added.find(e.entry.address) != symbols_added.end())
+    if (symbols_added.contains(e.entry.address))
       continue;
 
     // Find the section that this trie address is in, use that to annotate
@@ -5073,7 +5073,7 @@ void ObjectFileMachO::GetAllArchSpecs(const llvm::MachO::mach_header &header,
   lldb::offset_t offset = lc_offset;
   for (uint32_t i = 0; i < header.ncmds; ++i) {
     const lldb::offset_t cmd_offset = offset;
-    if (data.GetU32(&offset, &load_cmd, 2) == NULL)
+    if (data.GetU32(&offset, &load_cmd, 2) == nullptr)
       break;
 
     llvm::MachO::version_min_command version_min;
@@ -5123,7 +5123,7 @@ void ObjectFileMachO::GetAllArchSpecs(const llvm::MachO::mach_header &header,
   offset = lc_offset;
   for (uint32_t i = 0; i < header.ncmds; ++i) {
     const lldb::offset_t cmd_offset = offset;
-    if (data.GetU32(&offset, &load_cmd, 2) == NULL)
+    if (data.GetU32(&offset, &load_cmd, 2) == nullptr)
       break;
 
     do {

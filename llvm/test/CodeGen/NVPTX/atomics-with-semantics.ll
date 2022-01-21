@@ -2126,6 +2126,509 @@ entry:
   ; CHECK: atom.acq_rel.cta.shared.cas.b64
   %tmp701 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
+  ; CHECK: ld.relaxed.gpu.s32
+  %tmpldst0 = tail call i32 @llvm.nvvm.ld.gen.i.i32.p0(i32* %ip);
+
+  ; CHECK: ld.relaxed.gpu.global.s32
+  %tmpldst1 = tail call i32 @llvm.nvvm.ld.global.i.i32.p1(i32 addrspace(1)* %ip1);
+
+  ; CHECK: ld.relaxed.gpu.shared.s32
+  %tmpldst2 = tail call i32 @llvm.nvvm.ld.shared.i.i32.p3(i32 addrspace(3)* %ip3);
+
+  ; CHECK: ld.acquire.gpu.s32
+  %tmpldst3 = tail call i32 @llvm.nvvm.ld.gen.i.acquire.i32.p0(i32* %ip);
+
+  ; CHECK: ld.acquire.gpu.global.s32
+  %tmpldst4 = tail call i32 @llvm.nvvm.ld.global.i.acquire.i32.p1(i32 addrspace(1)* %ip1);
+
+  ; CHECK: ld.acquire.gpu.shared.s32
+  %tmpldst5 = tail call i32 @llvm.nvvm.ld.shared.i.acquire.i32.p3(i32 addrspace(3)* %ip3);
+
+  ; CHECK: ld.relaxed.sys.s32
+  %tmpldst6 = tail call i32 @llvm.nvvm.ld.gen.i.sys.i32.p0(i32* %ip);
+
+  ; CHECK: ld.relaxed.sys.global.s32
+  %tmpldst7 = tail call i32 @llvm.nvvm.ld.global.i.sys.i32.p1(i32 addrspace(1)* %ip1);
+
+  ; CHECK: ld.relaxed.sys.shared.s32
+  %tmpldst8 = tail call i32 @llvm.nvvm.ld.shared.i.sys.i32.p3(i32 addrspace(3)* %ip3);
+
+  ; CHECK: ld.acquire.sys.s32
+  %tmpldst9 = tail call i32 @llvm.nvvm.ld.gen.i.acquire.sys.i32.p0(i32* %ip);
+
+  ; CHECK: ld.acquire.sys.global.s32
+  %tmpldst10 = tail call i32 @llvm.nvvm.ld.global.i.acquire.sys.i32.p1(i32 addrspace(1)* %ip1);
+
+  ; CHECK: ld.acquire.sys.shared.s32
+  %tmpldst11 = tail call i32 @llvm.nvvm.ld.shared.i.acquire.sys.i32.p3(i32 addrspace(3)* %ip3);
+
+  ; CHECK: ld.relaxed.cta.s32
+  %tmpldst12 = tail call i32 @llvm.nvvm.ld.gen.i.cta.i32.p0(i32* %ip);
+
+  ; CHECK: ld.relaxed.cta.global.s32
+  %tmpldst13 = tail call i32 @llvm.nvvm.ld.global.i.cta.i32.p1(i32 addrspace(1)* %ip1);
+
+  ; CHECK: ld.relaxed.cta.shared.s32
+  %tmpldst14 = tail call i32 @llvm.nvvm.ld.shared.i.cta.i32.p3(i32 addrspace(3)* %ip3);
+
+  ; CHECK: ld.acquire.cta.s32
+  %tmpldst15 = tail call i32 @llvm.nvvm.ld.gen.i.acquire.cta.i32.p0(i32* %ip);
+
+  ; CHECK: ld.acquire.cta.global.s32
+  %tmpldst16 = tail call i32 @llvm.nvvm.ld.global.i.acquire.cta.i32.p1(i32 addrspace(1)* %ip1);
+
+  ; CHECK: ld.acquire.cta.shared.s32
+  %tmpldst17 = tail call i32 @llvm.nvvm.ld.shared.i.acquire.cta.i32.p3(i32 addrspace(3)* %ip3);
+
+  ; CHECK: ld.relaxed.gpu.s64
+  %tmpldst18 = tail call i64 @llvm.nvvm.ld.gen.i.i64.p0(i64* %llp);
+
+  ; CHECK: ld.relaxed.gpu.global.s64
+  %tmpldst19 = tail call i64 @llvm.nvvm.ld.global.i.i64.p1(i64 addrspace(1)* %llp1);
+
+  ; CHECK: ld.relaxed.gpu.shared.s64
+  %tmpldst20 = tail call i64 @llvm.nvvm.ld.shared.i.i64.p3(i64 addrspace(3)* %llp3);
+
+  ; CHECK: ld.acquire.gpu.s64
+  %tmpldst21 = tail call i64 @llvm.nvvm.ld.gen.i.acquire.i64.p0(i64* %llp);
+
+  ; CHECK: ld.acquire.gpu.global.s64
+  %tmpldst22 = tail call i64 @llvm.nvvm.ld.global.i.acquire.i64.p1(i64 addrspace(1)* %llp1);
+
+  ; CHECK: ld.acquire.gpu.shared.s64
+  %tmpldst23 = tail call i64 @llvm.nvvm.ld.shared.i.acquire.i64.p3(i64 addrspace(3)* %llp3);
+
+  ; CHECK: ld.relaxed.sys.s64
+  %tmpldst24 = tail call i64 @llvm.nvvm.ld.gen.i.sys.i64.p0(i64* %llp);
+
+  ; CHECK: ld.relaxed.sys.global.s64
+  %tmpldst25 = tail call i64 @llvm.nvvm.ld.global.i.sys.i64.p1(i64 addrspace(1)* %llp1);
+
+  ; CHECK: ld.relaxed.sys.shared.s64
+  %tmpldst26 = tail call i64 @llvm.nvvm.ld.shared.i.sys.i64.p3(i64 addrspace(3)* %llp3);
+
+  ; CHECK: ld.acquire.sys.s64
+  %tmpldst27 = tail call i64 @llvm.nvvm.ld.gen.i.acquire.sys.i64.p0(i64* %llp);
+
+  ; CHECK: ld.acquire.sys.global.s64
+  %tmpldst28 = tail call i64 @llvm.nvvm.ld.global.i.acquire.sys.i64.p1(i64 addrspace(1)* %llp1);
+
+  ; CHECK: ld.acquire.sys.shared.s64
+  %tmpldst29 = tail call i64 @llvm.nvvm.ld.shared.i.acquire.sys.i64.p3(i64 addrspace(3)* %llp3);
+
+  ; CHECK: ld.relaxed.cta.s64
+  %tmpldst30 = tail call i64 @llvm.nvvm.ld.gen.i.cta.i64.p0(i64* %llp);
+
+  ; CHECK: ld.relaxed.cta.global.s64
+  %tmpldst31 = tail call i64 @llvm.nvvm.ld.global.i.cta.i64.p1(i64 addrspace(1)* %llp1);
+
+  ; CHECK: ld.relaxed.cta.shared.s64
+  %tmpldst32 = tail call i64 @llvm.nvvm.ld.shared.i.cta.i64.p3(i64 addrspace(3)* %llp3);
+
+  ; CHECK: ld.acquire.cta.s64
+  %tmpldst33 = tail call i64 @llvm.nvvm.ld.gen.i.acquire.cta.i64.p0(i64* %llp);
+
+  ; CHECK: ld.acquire.cta.global.s64
+  %tmpldst34 = tail call i64 @llvm.nvvm.ld.global.i.acquire.cta.i64.p1(i64 addrspace(1)* %llp1);
+
+  ; CHECK: ld.acquire.cta.shared.s64
+  %tmpldst35 = tail call i64 @llvm.nvvm.ld.shared.i.acquire.cta.i64.p3(i64 addrspace(3)* %llp3);
+
+  ; CHECK: ld.relaxed.gpu.f32
+  %tmpldst36 = tail call float @llvm.nvvm.ld.gen.f.f32.p0(float* %fp);
+
+  ; CHECK: ld.relaxed.gpu.global.f32
+  %tmpldst37 = tail call float @llvm.nvvm.ld.global.f.f32.p1(float addrspace(1)* %fp1);
+
+  ; CHECK: ld.relaxed.gpu.shared.f32
+  %tmpldst38 = tail call float @llvm.nvvm.ld.shared.f.f32.p3(float addrspace(3)* %fp3);
+
+  ; CHECK: ld.acquire.gpu.f32
+  %tmpldst39 = tail call float @llvm.nvvm.ld.gen.f.acquire.f32.p0(float* %fp);
+
+  ; CHECK: ld.acquire.gpu.global.f32
+  %tmpldst40 = tail call float @llvm.nvvm.ld.global.f.acquire.f32.p1(float addrspace(1)* %fp1);
+
+  ; CHECK: ld.acquire.gpu.shared.f32
+  %tmpldst41 = tail call float @llvm.nvvm.ld.shared.f.acquire.f32.p3(float addrspace(3)* %fp3);
+
+  ; CHECK: ld.relaxed.sys.f32
+  %tmpldst42 = tail call float @llvm.nvvm.ld.gen.f.sys.f32.p0(float* %fp);
+
+  ; CHECK: ld.relaxed.sys.global.f32
+  %tmpldst43 = tail call float @llvm.nvvm.ld.global.f.sys.f32.p1(float addrspace(1)* %fp1);
+
+  ; CHECK: ld.relaxed.sys.shared.f32
+  %tmpldst44 = tail call float @llvm.nvvm.ld.shared.f.sys.f32.p3(float addrspace(3)* %fp3);
+
+  ; CHECK: ld.acquire.sys.f32
+  %tmpldst45 = tail call float @llvm.nvvm.ld.gen.f.acquire.sys.f32.p0(float* %fp);
+
+  ; CHECK: ld.acquire.sys.global.f32
+  %tmpldst46 = tail call float @llvm.nvvm.ld.global.f.acquire.sys.f32.p1(float addrspace(1)* %fp1);
+
+  ; CHECK: ld.acquire.sys.shared.f32
+  %tmpldst47 = tail call float @llvm.nvvm.ld.shared.f.acquire.sys.f32.p3(float addrspace(3)* %fp3);
+
+  ; CHECK: ld.relaxed.cta.f32
+  %tmpldst48 = tail call float @llvm.nvvm.ld.gen.f.cta.f32.p0(float* %fp);
+
+  ; CHECK: ld.relaxed.cta.global.f32
+  %tmpldst49 = tail call float @llvm.nvvm.ld.global.f.cta.f32.p1(float addrspace(1)* %fp1);
+
+  ; CHECK: ld.relaxed.cta.shared.f32
+  %tmpldst50 = tail call float @llvm.nvvm.ld.shared.f.cta.f32.p3(float addrspace(3)* %fp3);
+
+  ; CHECK: ld.acquire.cta.f32
+  %tmpldst51 = tail call float @llvm.nvvm.ld.gen.f.acquire.cta.f32.p0(float* %fp);
+
+  ; CHECK: ld.acquire.cta.global.f32
+  %tmpldst52 = tail call float @llvm.nvvm.ld.global.f.acquire.cta.f32.p1(float addrspace(1)* %fp1);
+
+  ; CHECK: ld.acquire.cta.shared.f32
+  %tmpldst53 = tail call float @llvm.nvvm.ld.shared.f.acquire.cta.f32.p3(float addrspace(3)* %fp3);
+
+  ; CHECK: ld.relaxed.gpu.f64
+  %tmpldst54 = tail call double @llvm.nvvm.ld.gen.f.f64.p0(double* %dfp);
+
+  ; CHECK: ld.relaxed.gpu.global.f64
+  %tmpldst55 = tail call double @llvm.nvvm.ld.global.f.f64.p1(double addrspace(1)* %dfp1);
+
+  ; CHECK: ld.relaxed.gpu.shared.f64
+  %tmpldst56 = tail call double @llvm.nvvm.ld.shared.f.f64.p3(double addrspace(3)* %dfp3);
+
+  ; CHECK: ld.acquire.gpu.f64
+  %tmpldst57 = tail call double @llvm.nvvm.ld.gen.f.acquire.f64.p0(double* %dfp);
+
+  ; CHECK: ld.acquire.gpu.global.f64
+  %tmpldst58 = tail call double @llvm.nvvm.ld.global.f.acquire.f64.p1(double addrspace(1)* %dfp1);
+
+  ; CHECK: ld.acquire.gpu.shared.f64
+  %tmpldst59 = tail call double @llvm.nvvm.ld.shared.f.acquire.f64.p3(double addrspace(3)* %dfp3);
+
+  ; CHECK: ld.relaxed.sys.f64
+  %tmpldst60 = tail call double @llvm.nvvm.ld.gen.f.sys.f64.p0(double* %dfp);
+
+  ; CHECK: ld.relaxed.sys.global.f64
+  %tmpldst61 = tail call double @llvm.nvvm.ld.global.f.sys.f64.p1(double addrspace(1)* %dfp1);
+
+  ; CHECK: ld.relaxed.sys.shared.f64
+  %tmpldst62 = tail call double @llvm.nvvm.ld.shared.f.sys.f64.p3(double addrspace(3)* %dfp3);
+
+  ; CHECK: ld.acquire.sys.f64
+  %tmpldst63 = tail call double @llvm.nvvm.ld.gen.f.acquire.sys.f64.p0(double* %dfp);
+
+  ; CHECK: ld.acquire.sys.global.f64
+  %tmpldst64 = tail call double @llvm.nvvm.ld.global.f.acquire.sys.f64.p1(double addrspace(1)* %dfp1);
+
+  ; CHECK: ld.acquire.sys.shared.f64
+  %tmpldst65 = tail call double @llvm.nvvm.ld.shared.f.acquire.sys.f64.p3(double addrspace(3)* %dfp3);
+
+  ; CHECK: ld.relaxed.cta.f64
+  %tmpldst66 = tail call double @llvm.nvvm.ld.gen.f.cta.f64.p0(double* %dfp);
+
+  ; CHECK: ld.relaxed.cta.global.f64
+  %tmpldst67 = tail call double @llvm.nvvm.ld.global.f.cta.f64.p1(double addrspace(1)* %dfp1);
+
+  ; CHECK: ld.relaxed.cta.shared.f64
+  %tmpldst68 = tail call double @llvm.nvvm.ld.shared.f.cta.f64.p3(double addrspace(3)* %dfp3);
+
+  ; CHECK: ld.acquire.cta.f64
+  %tmpldst69 = tail call double @llvm.nvvm.ld.gen.f.acquire.cta.f64.p0(double* %dfp);
+
+  ; CHECK: ld.acquire.cta.global.f64
+  %tmpldst70 = tail call double @llvm.nvvm.ld.global.f.acquire.cta.f64.p1(double addrspace(1)* %dfp1);
+
+  ; CHECK: ld.acquire.cta.shared.f64
+  %tmpldst71 = tail call double @llvm.nvvm.ld.shared.f.acquire.cta.f64.p3(double addrspace(3)* %dfp3);
+
+  ; CHECK: st.relaxed.gpu.s32
+  tail call void @llvm.nvvm.st.gen.i.p0i32.i32(i32* %ip, i32 %i);
+
+  ; CHECK: st.relaxed.gpu.global.s32
+  tail call void @llvm.nvvm.st.global.i.p1i32.i32(i32 addrspace(1)* %ip1, i32 %i);
+
+  ; CHECK: st.relaxed.gpu.shared.s32
+  tail call void @llvm.nvvm.st.shared.i.p3i32.i32(i32 addrspace(3)* %ip3, i32 %i);
+
+  ; CHECK: st.release.gpu.s32
+  tail call void @llvm.nvvm.st.gen.i.release.p0i32.i32(i32* %ip, i32 %i);
+
+  ; CHECK: st.release.gpu.global.s32
+  tail call void @llvm.nvvm.st.global.i.release.p1i32.i32(i32 addrspace(1)* %ip1, i32 %i);
+
+  ; CHECK: st.release.gpu.shared.s32
+  tail call void @llvm.nvvm.st.shared.i.release.p3i32.i32(i32 addrspace(3)* %ip3, i32 %i);
+
+  ; CHECK: st.relaxed.sys.s32
+  tail call void @llvm.nvvm.st.gen.i.sys.p0i32.i32(i32* %ip, i32 %i);
+
+  ; CHECK: st.relaxed.sys.global.s32
+  tail call void @llvm.nvvm.st.global.i.sys.p1i32.i32(i32 addrspace(1)* %ip1, i32 %i);
+
+  ; CHECK: st.relaxed.sys.shared.s32
+  tail call void @llvm.nvvm.st.shared.i.sys.p3i32.i32(i32 addrspace(3)* %ip3, i32 %i);
+
+  ; CHECK: st.release.sys.s32
+  tail call void @llvm.nvvm.st.gen.i.release.sys.p0i32.i32(i32* %ip, i32 %i);
+
+  ; CHECK: st.release.sys.global.s32
+  tail call void @llvm.nvvm.st.global.i.release.sys.p1i32.i32(i32 addrspace(1)* %ip1, i32 %i);
+
+  ; CHECK: st.release.sys.shared.s32
+  tail call void @llvm.nvvm.st.shared.i.release.sys.p3i32.i32(i32 addrspace(3)* %ip3, i32 %i);
+
+  ; CHECK: st.relaxed.cta.s32
+  tail call void @llvm.nvvm.st.gen.i.cta.p0i32.i32(i32* %ip, i32 %i);
+
+  ; CHECK: st.relaxed.cta.global.s32
+  tail call void @llvm.nvvm.st.global.i.cta.p1i32.i32(i32 addrspace(1)* %ip1, i32 %i);
+
+  ; CHECK: st.relaxed.cta.shared.s32
+  tail call void @llvm.nvvm.st.shared.i.cta.p3i32.i32(i32 addrspace(3)* %ip3, i32 %i);
+
+  ; CHECK: st.release.cta.s32
+  tail call void @llvm.nvvm.st.gen.i.release.cta.p0i32.i32(i32* %ip, i32 %i);
+
+  ; CHECK: st.release.cta.global.s32
+  tail call void @llvm.nvvm.st.global.i.release.cta.p1i32.i32(i32 addrspace(1)* %ip1, i32 %i);
+
+  ; CHECK: st.release.cta.shared.s32
+  tail call void @llvm.nvvm.st.shared.i.release.cta.p3i32.i32(i32 addrspace(3)* %ip3, i32 %i);
+
+  ; CHECK: st.relaxed.gpu.s64
+  tail call void @llvm.nvvm.st.gen.i.p0i64.i64(i64* %llp, i64 %ll);
+
+  ; CHECK: st.relaxed.gpu.global.s64
+  tail call void @llvm.nvvm.st.global.i.p1i64.i64(i64 addrspace(1)* %llp1, i64 %ll);
+
+  ; CHECK: st.relaxed.gpu.shared.s64
+  tail call void @llvm.nvvm.st.shared.i.p3i64.i64(i64 addrspace(3)* %llp3, i64 %ll);
+
+  ; CHECK: st.release.gpu.s64
+  tail call void @llvm.nvvm.st.gen.i.release.p0i64.i64(i64* %llp, i64 %ll);
+
+  ; CHECK: st.release.gpu.global.s64
+  tail call void @llvm.nvvm.st.global.i.release.p1i64.i64(i64 addrspace(1)* %llp1, i64 %ll);
+
+  ; CHECK: st.release.gpu.shared.s64
+  tail call void @llvm.nvvm.st.shared.i.release.p3i64.i64(i64 addrspace(3)* %llp3, i64 %ll);
+
+  ; CHECK: st.relaxed.sys.s64
+  tail call void @llvm.nvvm.st.gen.i.sys.p0i64.i64(i64* %llp, i64 %ll);
+
+  ; CHECK: st.relaxed.sys.global.s64
+  tail call void @llvm.nvvm.st.global.i.sys.p1i64.i64(i64 addrspace(1)* %llp1, i64 %ll);
+
+  ; CHECK: st.relaxed.sys.shared.s64
+  tail call void @llvm.nvvm.st.shared.i.sys.p3i64.i64(i64 addrspace(3)* %llp3, i64 %ll);
+
+  ; CHECK: st.release.sys.s64
+  tail call void @llvm.nvvm.st.gen.i.release.sys.p0i64.i64(i64* %llp, i64 %ll);
+
+  ; CHECK: st.release.sys.global.s64
+  tail call void @llvm.nvvm.st.global.i.release.sys.p1i64.i64(i64 addrspace(1)* %llp1, i64 %ll);
+
+  ; CHECK: st.release.sys.shared.s64
+  tail call void @llvm.nvvm.st.shared.i.release.sys.p3i64.i64(i64 addrspace(3)* %llp3, i64 %ll);
+
+  ; CHECK: st.relaxed.cta.s64
+  tail call void @llvm.nvvm.st.gen.i.cta.p0i64.i64(i64* %llp, i64 %ll);
+
+  ; CHECK: st.relaxed.cta.global.s64
+  tail call void @llvm.nvvm.st.global.i.cta.p1i64.i64(i64 addrspace(1)* %llp1, i64 %ll);
+
+  ; CHECK: st.relaxed.cta.shared.s64
+  tail call void @llvm.nvvm.st.shared.i.cta.p3i64.i64(i64 addrspace(3)* %llp3, i64 %ll);
+
+  ; CHECK: st.release.cta.s64
+  tail call void @llvm.nvvm.st.gen.i.release.cta.p0i64.i64(i64* %llp, i64 %ll);
+
+  ; CHECK: st.release.cta.global.s64
+  tail call void @llvm.nvvm.st.global.i.release.cta.p1i64.i64(i64 addrspace(1)* %llp1, i64 %ll);
+
+  ; CHECK: st.release.cta.shared.s64
+  tail call void @llvm.nvvm.st.shared.i.release.cta.p3i64.i64(i64 addrspace(3)* %llp3, i64 %ll);
+
+  ; CHECK: st.relaxed.gpu.f32
+  tail call void @llvm.nvvm.st.gen.f.p0f32.f32(float* %fp, float %f);
+
+  ; CHECK: st.relaxed.gpu.global.f32
+  tail call void @llvm.nvvm.st.global.f.p1f32.f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: st.relaxed.gpu.shared.f32
+  tail call void @llvm.nvvm.st.shared.f.p3f32.f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: st.release.gpu.f32
+  tail call void @llvm.nvvm.st.gen.f.release.p0f32.f32(float* %fp, float %f);
+
+  ; CHECK: st.release.gpu.global.f32
+  tail call void @llvm.nvvm.st.global.f.release.p1f32.f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: st.release.gpu.shared.f32
+  tail call void @llvm.nvvm.st.shared.f.release.p3f32.f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: st.relaxed.sys.f32
+  tail call void @llvm.nvvm.st.gen.f.sys.p0f32.f32(float* %fp, float %f);
+
+  ; CHECK: st.relaxed.sys.global.f32
+  tail call void @llvm.nvvm.st.global.f.sys.p1f32.f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: st.relaxed.sys.shared.f32
+  tail call void @llvm.nvvm.st.shared.f.sys.p3f32.f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: st.release.sys.f32
+  tail call void @llvm.nvvm.st.gen.f.release.sys.p0f32.f32(float* %fp, float %f);
+
+  ; CHECK: st.release.sys.global.f32
+  tail call void @llvm.nvvm.st.global.f.release.sys.p1f32.f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: st.release.sys.shared.f32
+  tail call void @llvm.nvvm.st.shared.f.release.sys.p3f32.f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: st.relaxed.cta.f32
+  tail call void @llvm.nvvm.st.gen.f.cta.p0f32.f32(float* %fp, float %f);
+
+  ; CHECK: st.relaxed.cta.global.f32
+  tail call void @llvm.nvvm.st.global.f.cta.p1f32.f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: st.relaxed.cta.shared.f32
+  tail call void @llvm.nvvm.st.shared.f.cta.p3f32.f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: st.release.cta.f32
+  tail call void @llvm.nvvm.st.gen.f.release.cta.p0f32.f32(float* %fp, float %f);
+
+  ; CHECK: st.release.cta.global.f32
+  tail call void @llvm.nvvm.st.global.f.release.cta.p1f32.f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: st.release.cta.shared.f32
+  tail call void @llvm.nvvm.st.shared.f.release.cta.p3f32.f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: st.relaxed.gpu.f64
+  tail call void @llvm.nvvm.st.gen.f.p0f64.f64(double* %dfp, double %df);
+
+  ; CHECK: st.relaxed.gpu.global.f64
+  tail call void @llvm.nvvm.st.global.f.p1f64.f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: st.relaxed.gpu.shared.f64
+  tail call void @llvm.nvvm.st.shared.f.p3f64.f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: st.release.gpu.f64
+  tail call void @llvm.nvvm.st.gen.f.release.p0f64.f64(double* %dfp, double %df);
+
+  ; CHECK: st.release.gpu.global.f64
+  tail call void @llvm.nvvm.st.global.f.release.p1f64.f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: st.release.gpu.shared.f64
+  tail call void @llvm.nvvm.st.shared.f.release.p3f64.f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: st.relaxed.sys.f64
+  tail call void @llvm.nvvm.st.gen.f.sys.p0f64.f64(double* %dfp, double %df);
+
+  ; CHECK: st.relaxed.sys.global.f64
+  tail call void @llvm.nvvm.st.global.f.sys.p1f64.f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: st.relaxed.sys.shared.f64
+  tail call void @llvm.nvvm.st.shared.f.sys.p3f64.f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: st.release.sys.f64
+  tail call void @llvm.nvvm.st.gen.f.release.sys.p0f64.f64(double* %dfp, double %df);
+
+  ; CHECK: st.release.sys.global.f64
+  tail call void @llvm.nvvm.st.global.f.release.sys.p1f64.f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: st.release.sys.shared.f64
+  tail call void @llvm.nvvm.st.shared.f.release.sys.p3f64.f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: st.relaxed.cta.f64
+  tail call void @llvm.nvvm.st.gen.f.cta.p0f64.f64(double* %dfp, double %df);
+
+  ; CHECK: st.relaxed.cta.global.f64
+  tail call void @llvm.nvvm.st.global.f.cta.p1f64.f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: st.relaxed.cta.shared.f64
+  tail call void @llvm.nvvm.st.shared.f.cta.p3f64.f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: st.release.cta.f64
+  tail call void @llvm.nvvm.st.gen.f.release.cta.p0f64.f64(double* %dfp, double %df);
+
+  ; CHECK: st.release.cta.global.f64
+  tail call void @llvm.nvvm.st.global.f.release.cta.p1f64.f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: st.release.cta.shared.f64
+  tail call void @llvm.nvvm.st.shared.f.release.cta.p3f64.f64(double addrspace(3)* %dfp3, double %df);
+
+  ; CHECK: ld.volatile.s32
+  %tmpldst144 = tail call i32 @llvm.nvvm.ld.gen.i.volatile.i32.p0(i32* %ip);
+
+  ; CHECK: ld.volatile.global.s32
+  %tmpldst145 = tail call i32 @llvm.nvvm.ld.global.i.volatile.i32.p1(i32 addrspace(1)* %ip1);
+
+  ; CHECK: ld.volatile.shared.s32
+  %tmpldst146 = tail call i32 @llvm.nvvm.ld.shared.i.volatile.i32.p3(i32 addrspace(3)* %ip3);
+
+  ; CHECK: ld.volatile.s64
+  %tmpldst147 = tail call i64 @llvm.nvvm.ld.gen.i.volatile.i64.p0(i64* %llp);
+
+  ; CHECK: ld.volatile.global.s64
+  %tmpldst148 = tail call i64 @llvm.nvvm.ld.global.i.volatile.i64.p1(i64 addrspace(1)* %llp1);
+
+  ; CHECK: ld.volatile.shared.s64
+  %tmpldst149 = tail call i64 @llvm.nvvm.ld.shared.i.volatile.i64.p3(i64 addrspace(3)* %llp3);
+
+  ; CHECK: ld.volatile.f32
+  %tmpldst150 = tail call float @llvm.nvvm.ld.gen.f.volatile.f32.p0(float* %fp);
+
+  ; CHECK: ld.volatile.global.f32
+  %tmpldst151 = tail call float @llvm.nvvm.ld.global.f.volatile.f32.p1(float addrspace(1)* %fp1);
+
+  ; CHECK: ld.volatile.shared.f32
+  %tmpldst152 = tail call float @llvm.nvvm.ld.shared.f.volatile.f32.p3(float addrspace(3)* %fp3);
+
+  ; CHECK: ld.volatile.f64
+  %tmpldst153 = tail call double @llvm.nvvm.ld.gen.f.volatile.f64.p0(double* %dfp);
+
+  ; CHECK: ld.volatile.global.f64
+  %tmpldst154 = tail call double @llvm.nvvm.ld.global.f.volatile.f64.p1(double addrspace(1)* %dfp1);
+
+  ; CHECK: ld.volatile.shared.f64
+  %tmpldst155 = tail call double @llvm.nvvm.ld.shared.f.volatile.f64.p3(double addrspace(3)* %dfp3);
+
+  ; CHECK: st.volatile.s32
+  tail call void @llvm.nvvm.st.gen.i.volatile.p0i32.i32(i32* %ip, i32 %i);
+
+  ; CHECK: st.volatile.global.s32
+  tail call void @llvm.nvvm.st.global.i.volatile.p1i32.i32(i32 addrspace(1)* %ip1, i32 %i);
+
+  ; CHECK: st.volatile.shared.s32
+  tail call void @llvm.nvvm.st.shared.i.volatile.p3i32.i32(i32 addrspace(3)* %ip3, i32 %i);
+
+  ; CHECK: st.volatile.s64
+  tail call void @llvm.nvvm.st.gen.i.volatile.p0i64.i64(i64* %llp, i64 %ll);
+
+  ; CHECK: st.volatile.global.s64
+  tail call void @llvm.nvvm.st.global.i.volatile.p1i64.i64(i64 addrspace(1)* %llp1, i64 %ll);
+
+  ; CHECK: st.volatile.shared.s64
+  tail call void @llvm.nvvm.st.shared.i.volatile.p3i64.i64(i64 addrspace(3)* %llp3, i64 %ll);
+
+  ; CHECK: st.volatile.f32
+  tail call void @llvm.nvvm.st.gen.f.volatile.p0f32.f32(float* %fp, float %f);
+
+  ; CHECK: st.volatile.global.f32
+  tail call void @llvm.nvvm.st.global.f.volatile.p1f32.f32(float addrspace(1)* %fp1, float %f);
+
+  ; CHECK: st.volatile.shared.f32
+  tail call void @llvm.nvvm.st.shared.f.volatile.p3f32.f32(float addrspace(3)* %fp3, float %f);
+
+  ; CHECK: st.volatile.f64
+  tail call void @llvm.nvvm.st.gen.f.volatile.p0f64.f64(double* %dfp, double %df);
+
+  ; CHECK: st.volatile.global.f64
+  tail call void @llvm.nvvm.st.global.f.volatile.p1f64.f64(double addrspace(1)* %dfp1, double %df);
+
+  ; CHECK: st.volatile.shared.f64
+  tail call void @llvm.nvvm.st.shared.f.volatile.p3f64.f64(double addrspace(3)* %dfp3, double %df);
 
   ; CHECK: ret
   ret void
@@ -2145,6 +2648,174 @@ define void @test_atomics_scope_imm(float* %fp, float %f,
   ret void
 }
 
+declare i32 @llvm.nvvm.ld.gen.i.i32.p0(i32* nocapture) #1
+declare i32 @llvm.nvvm.ld.global.i.i32.p1(i32 addrspace(1)* nocapture) #1
+declare i32 @llvm.nvvm.ld.shared.i.i32.p3(i32 addrspace(3)* nocapture) #1
+declare i32 @llvm.nvvm.ld.gen.i.acquire.i32.p0(i32* nocapture) #1
+declare i32 @llvm.nvvm.ld.global.i.acquire.i32.p1(i32 addrspace(1)* nocapture) #1
+declare i32 @llvm.nvvm.ld.shared.i.acquire.i32.p3(i32 addrspace(3)* nocapture) #1
+declare i32 @llvm.nvvm.ld.gen.i.sys.i32.p0(i32* nocapture) #1
+declare i32 @llvm.nvvm.ld.global.i.sys.i32.p1(i32 addrspace(1)* nocapture) #1
+declare i32 @llvm.nvvm.ld.shared.i.sys.i32.p3(i32 addrspace(3)* nocapture) #1
+declare i32 @llvm.nvvm.ld.gen.i.acquire.sys.i32.p0(i32* nocapture) #1
+declare i32 @llvm.nvvm.ld.global.i.acquire.sys.i32.p1(i32 addrspace(1)* nocapture) #1
+declare i32 @llvm.nvvm.ld.shared.i.acquire.sys.i32.p3(i32 addrspace(3)* nocapture) #1
+declare i32 @llvm.nvvm.ld.gen.i.cta.i32.p0(i32* nocapture) #1
+declare i32 @llvm.nvvm.ld.global.i.cta.i32.p1(i32 addrspace(1)* nocapture) #1
+declare i32 @llvm.nvvm.ld.shared.i.cta.i32.p3(i32 addrspace(3)* nocapture) #1
+declare i32 @llvm.nvvm.ld.gen.i.acquire.cta.i32.p0(i32* nocapture) #1
+declare i32 @llvm.nvvm.ld.global.i.acquire.cta.i32.p1(i32 addrspace(1)* nocapture) #1
+declare i32 @llvm.nvvm.ld.shared.i.acquire.cta.i32.p3(i32 addrspace(3)* nocapture) #1
+declare i64 @llvm.nvvm.ld.gen.i.i64.p0(i64* nocapture) #1
+declare i64 @llvm.nvvm.ld.global.i.i64.p1(i64 addrspace(1)* nocapture) #1
+declare i64 @llvm.nvvm.ld.shared.i.i64.p3(i64 addrspace(3)* nocapture) #1
+declare i64 @llvm.nvvm.ld.gen.i.acquire.i64.p0(i64* nocapture) #1
+declare i64 @llvm.nvvm.ld.global.i.acquire.i64.p1(i64 addrspace(1)* nocapture) #1
+declare i64 @llvm.nvvm.ld.shared.i.acquire.i64.p3(i64 addrspace(3)* nocapture) #1
+declare i64 @llvm.nvvm.ld.gen.i.sys.i64.p0(i64* nocapture) #1
+declare i64 @llvm.nvvm.ld.global.i.sys.i64.p1(i64 addrspace(1)* nocapture) #1
+declare i64 @llvm.nvvm.ld.shared.i.sys.i64.p3(i64 addrspace(3)* nocapture) #1
+declare i64 @llvm.nvvm.ld.gen.i.acquire.sys.i64.p0(i64* nocapture) #1
+declare i64 @llvm.nvvm.ld.global.i.acquire.sys.i64.p1(i64 addrspace(1)* nocapture) #1
+declare i64 @llvm.nvvm.ld.shared.i.acquire.sys.i64.p3(i64 addrspace(3)* nocapture) #1
+declare i64 @llvm.nvvm.ld.gen.i.cta.i64.p0(i64* nocapture) #1
+declare i64 @llvm.nvvm.ld.global.i.cta.i64.p1(i64 addrspace(1)* nocapture) #1
+declare i64 @llvm.nvvm.ld.shared.i.cta.i64.p3(i64 addrspace(3)* nocapture) #1
+declare i64 @llvm.nvvm.ld.gen.i.acquire.cta.i64.p0(i64* nocapture) #1
+declare i64 @llvm.nvvm.ld.global.i.acquire.cta.i64.p1(i64 addrspace(1)* nocapture) #1
+declare i64 @llvm.nvvm.ld.shared.i.acquire.cta.i64.p3(i64 addrspace(3)* nocapture) #1
+declare float @llvm.nvvm.ld.gen.f.f32.p0(float* nocapture) #1
+declare float @llvm.nvvm.ld.global.f.f32.p1(float addrspace(1)* nocapture) #1
+declare float @llvm.nvvm.ld.shared.f.f32.p3(float addrspace(3)* nocapture) #1
+declare float @llvm.nvvm.ld.gen.f.acquire.f32.p0(float* nocapture) #1
+declare float @llvm.nvvm.ld.global.f.acquire.f32.p1(float addrspace(1)* nocapture) #1
+declare float @llvm.nvvm.ld.shared.f.acquire.f32.p3(float addrspace(3)* nocapture) #1
+declare float @llvm.nvvm.ld.gen.f.sys.f32.p0(float* nocapture) #1
+declare float @llvm.nvvm.ld.global.f.sys.f32.p1(float addrspace(1)* nocapture) #1
+declare float @llvm.nvvm.ld.shared.f.sys.f32.p3(float addrspace(3)* nocapture) #1
+declare float @llvm.nvvm.ld.gen.f.acquire.sys.f32.p0(float* nocapture) #1
+declare float @llvm.nvvm.ld.global.f.acquire.sys.f32.p1(float addrspace(1)* nocapture) #1
+declare float @llvm.nvvm.ld.shared.f.acquire.sys.f32.p3(float addrspace(3)* nocapture) #1
+declare float @llvm.nvvm.ld.gen.f.cta.f32.p0(float* nocapture) #1
+declare float @llvm.nvvm.ld.global.f.cta.f32.p1(float addrspace(1)* nocapture) #1
+declare float @llvm.nvvm.ld.shared.f.cta.f32.p3(float addrspace(3)* nocapture) #1
+declare float @llvm.nvvm.ld.gen.f.acquire.cta.f32.p0(float* nocapture) #1
+declare float @llvm.nvvm.ld.global.f.acquire.cta.f32.p1(float addrspace(1)* nocapture) #1
+declare float @llvm.nvvm.ld.shared.f.acquire.cta.f32.p3(float addrspace(3)* nocapture) #1
+declare double @llvm.nvvm.ld.gen.f.f64.p0(double* nocapture) #1
+declare double @llvm.nvvm.ld.global.f.f64.p1(double addrspace(1)* nocapture) #1
+declare double @llvm.nvvm.ld.shared.f.f64.p3(double addrspace(3)* nocapture) #1
+declare double @llvm.nvvm.ld.gen.f.acquire.f64.p0(double* nocapture) #1
+declare double @llvm.nvvm.ld.global.f.acquire.f64.p1(double addrspace(1)* nocapture) #1
+declare double @llvm.nvvm.ld.shared.f.acquire.f64.p3(double addrspace(3)* nocapture) #1
+declare double @llvm.nvvm.ld.gen.f.sys.f64.p0(double* nocapture) #1
+declare double @llvm.nvvm.ld.global.f.sys.f64.p1(double addrspace(1)* nocapture) #1
+declare double @llvm.nvvm.ld.shared.f.sys.f64.p3(double addrspace(3)* nocapture) #1
+declare double @llvm.nvvm.ld.gen.f.acquire.sys.f64.p0(double* nocapture) #1
+declare double @llvm.nvvm.ld.global.f.acquire.sys.f64.p1(double addrspace(1)* nocapture) #1
+declare double @llvm.nvvm.ld.shared.f.acquire.sys.f64.p3(double addrspace(3)* nocapture) #1
+declare double @llvm.nvvm.ld.gen.f.cta.f64.p0(double* nocapture) #1
+declare double @llvm.nvvm.ld.global.f.cta.f64.p1(double addrspace(1)* nocapture) #1
+declare double @llvm.nvvm.ld.shared.f.cta.f64.p3(double addrspace(3)* nocapture) #1
+declare double @llvm.nvvm.ld.gen.f.acquire.cta.f64.p0(double* nocapture) #1
+declare double @llvm.nvvm.ld.global.f.acquire.cta.f64.p1(double addrspace(1)* nocapture) #1
+declare double @llvm.nvvm.ld.shared.f.acquire.cta.f64.p3(double addrspace(3)* nocapture) #1
+declare void @llvm.nvvm.st.gen.i.p0i32.i32(i32* nocapture, i32) #1
+declare void @llvm.nvvm.st.global.i.p1i32.i32(i32 addrspace(1)* nocapture, i32) #1
+declare void @llvm.nvvm.st.shared.i.p3i32.i32(i32 addrspace(3)* nocapture, i32) #1
+declare void @llvm.nvvm.st.gen.i.release.p0i32.i32(i32* nocapture, i32) #1
+declare void @llvm.nvvm.st.global.i.release.p1i32.i32(i32 addrspace(1)* nocapture, i32) #1
+declare void @llvm.nvvm.st.shared.i.release.p3i32.i32(i32 addrspace(3)* nocapture, i32) #1
+declare void @llvm.nvvm.st.gen.i.sys.p0i32.i32(i32* nocapture, i32) #1
+declare void @llvm.nvvm.st.global.i.sys.p1i32.i32(i32 addrspace(1)* nocapture, i32) #1
+declare void @llvm.nvvm.st.shared.i.sys.p3i32.i32(i32 addrspace(3)* nocapture, i32) #1
+declare void @llvm.nvvm.st.gen.i.release.sys.p0i32.i32(i32* nocapture, i32) #1
+declare void @llvm.nvvm.st.global.i.release.sys.p1i32.i32(i32 addrspace(1)* nocapture, i32) #1
+declare void @llvm.nvvm.st.shared.i.release.sys.p3i32.i32(i32 addrspace(3)* nocapture, i32) #1
+declare void @llvm.nvvm.st.gen.i.cta.p0i32.i32(i32* nocapture, i32) #1
+declare void @llvm.nvvm.st.global.i.cta.p1i32.i32(i32 addrspace(1)* nocapture, i32) #1
+declare void @llvm.nvvm.st.shared.i.cta.p3i32.i32(i32 addrspace(3)* nocapture, i32) #1
+declare void @llvm.nvvm.st.gen.i.release.cta.p0i32.i32(i32* nocapture, i32) #1
+declare void @llvm.nvvm.st.global.i.release.cta.p1i32.i32(i32 addrspace(1)* nocapture, i32) #1
+declare void @llvm.nvvm.st.shared.i.release.cta.p3i32.i32(i32 addrspace(3)* nocapture, i32) #1
+declare void @llvm.nvvm.st.gen.i.p0i64.i64(i64* nocapture, i64) #1
+declare void @llvm.nvvm.st.global.i.p1i64.i64(i64 addrspace(1)* nocapture, i64) #1
+declare void @llvm.nvvm.st.shared.i.p3i64.i64(i64 addrspace(3)* nocapture, i64) #1
+declare void @llvm.nvvm.st.gen.i.release.p0i64.i64(i64* nocapture, i64) #1
+declare void @llvm.nvvm.st.global.i.release.p1i64.i64(i64 addrspace(1)* nocapture, i64) #1
+declare void @llvm.nvvm.st.shared.i.release.p3i64.i64(i64 addrspace(3)* nocapture, i64) #1
+declare void @llvm.nvvm.st.gen.i.sys.p0i64.i64(i64* nocapture, i64) #1
+declare void @llvm.nvvm.st.global.i.sys.p1i64.i64(i64 addrspace(1)* nocapture, i64) #1
+declare void @llvm.nvvm.st.shared.i.sys.p3i64.i64(i64 addrspace(3)* nocapture, i64) #1
+declare void @llvm.nvvm.st.gen.i.release.sys.p0i64.i64(i64* nocapture, i64) #1
+declare void @llvm.nvvm.st.global.i.release.sys.p1i64.i64(i64 addrspace(1)* nocapture, i64) #1
+declare void @llvm.nvvm.st.shared.i.release.sys.p3i64.i64(i64 addrspace(3)* nocapture, i64) #1
+declare void @llvm.nvvm.st.gen.i.cta.p0i64.i64(i64* nocapture, i64) #1
+declare void @llvm.nvvm.st.global.i.cta.p1i64.i64(i64 addrspace(1)* nocapture, i64) #1
+declare void @llvm.nvvm.st.shared.i.cta.p3i64.i64(i64 addrspace(3)* nocapture, i64) #1
+declare void @llvm.nvvm.st.gen.i.release.cta.p0i64.i64(i64* nocapture, i64) #1
+declare void @llvm.nvvm.st.global.i.release.cta.p1i64.i64(i64 addrspace(1)* nocapture, i64) #1
+declare void @llvm.nvvm.st.shared.i.release.cta.p3i64.i64(i64 addrspace(3)* nocapture, i64) #1
+declare void @llvm.nvvm.st.gen.f.p0f32.f32(float* nocapture, float) #1
+declare void @llvm.nvvm.st.global.f.p1f32.f32(float addrspace(1)* nocapture, float) #1
+declare void @llvm.nvvm.st.shared.f.p3f32.f32(float addrspace(3)* nocapture, float) #1
+declare void @llvm.nvvm.st.gen.f.release.p0f32.f32(float* nocapture, float) #1
+declare void @llvm.nvvm.st.global.f.release.p1f32.f32(float addrspace(1)* nocapture, float) #1
+declare void @llvm.nvvm.st.shared.f.release.p3f32.f32(float addrspace(3)* nocapture, float) #1
+declare void @llvm.nvvm.st.gen.f.sys.p0f32.f32(float* nocapture, float) #1
+declare void @llvm.nvvm.st.global.f.sys.p1f32.f32(float addrspace(1)* nocapture, float) #1
+declare void @llvm.nvvm.st.shared.f.sys.p3f32.f32(float addrspace(3)* nocapture, float) #1
+declare void @llvm.nvvm.st.gen.f.release.sys.p0f32.f32(float* nocapture, float) #1
+declare void @llvm.nvvm.st.global.f.release.sys.p1f32.f32(float addrspace(1)* nocapture, float) #1
+declare void @llvm.nvvm.st.shared.f.release.sys.p3f32.f32(float addrspace(3)* nocapture, float) #1
+declare void @llvm.nvvm.st.gen.f.cta.p0f32.f32(float* nocapture, float) #1
+declare void @llvm.nvvm.st.global.f.cta.p1f32.f32(float addrspace(1)* nocapture, float) #1
+declare void @llvm.nvvm.st.shared.f.cta.p3f32.f32(float addrspace(3)* nocapture, float) #1
+declare void @llvm.nvvm.st.gen.f.release.cta.p0f32.f32(float* nocapture, float) #1
+declare void @llvm.nvvm.st.global.f.release.cta.p1f32.f32(float addrspace(1)* nocapture, float) #1
+declare void @llvm.nvvm.st.shared.f.release.cta.p3f32.f32(float addrspace(3)* nocapture, float) #1
+declare void @llvm.nvvm.st.gen.f.p0f64.f64(double* nocapture, double) #1
+declare void @llvm.nvvm.st.global.f.p1f64.f64(double addrspace(1)* nocapture, double) #1
+declare void @llvm.nvvm.st.shared.f.p3f64.f64(double addrspace(3)* nocapture, double) #1
+declare void @llvm.nvvm.st.gen.f.release.p0f64.f64(double* nocapture, double) #1
+declare void @llvm.nvvm.st.global.f.release.p1f64.f64(double addrspace(1)* nocapture, double) #1
+declare void @llvm.nvvm.st.shared.f.release.p3f64.f64(double addrspace(3)* nocapture, double) #1
+declare void @llvm.nvvm.st.gen.f.sys.p0f64.f64(double* nocapture, double) #1
+declare void @llvm.nvvm.st.global.f.sys.p1f64.f64(double addrspace(1)* nocapture, double) #1
+declare void @llvm.nvvm.st.shared.f.sys.p3f64.f64(double addrspace(3)* nocapture, double) #1
+declare void @llvm.nvvm.st.gen.f.release.sys.p0f64.f64(double* nocapture, double) #1
+declare void @llvm.nvvm.st.global.f.release.sys.p1f64.f64(double addrspace(1)* nocapture, double) #1
+declare void @llvm.nvvm.st.shared.f.release.sys.p3f64.f64(double addrspace(3)* nocapture, double) #1
+declare void @llvm.nvvm.st.gen.f.cta.p0f64.f64(double* nocapture, double) #1
+declare void @llvm.nvvm.st.global.f.cta.p1f64.f64(double addrspace(1)* nocapture, double) #1
+declare void @llvm.nvvm.st.shared.f.cta.p3f64.f64(double addrspace(3)* nocapture, double) #1
+declare void @llvm.nvvm.st.gen.f.release.cta.p0f64.f64(double* nocapture, double) #1
+declare void @llvm.nvvm.st.global.f.release.cta.p1f64.f64(double addrspace(1)* nocapture, double) #1
+declare void @llvm.nvvm.st.shared.f.release.cta.p3f64.f64(double addrspace(3)* nocapture, double) #1
+declare i32 @llvm.nvvm.ld.gen.i.volatile.i32.p0(i32* nocapture) #1
+declare i32 @llvm.nvvm.ld.global.i.volatile.i32.p1(i32 addrspace(1)* nocapture) #1
+declare i32 @llvm.nvvm.ld.shared.i.volatile.i32.p3(i32 addrspace(3)* nocapture) #1
+declare i64 @llvm.nvvm.ld.gen.i.volatile.i64.p0(i64* nocapture) #1
+declare i64 @llvm.nvvm.ld.global.i.volatile.i64.p1(i64 addrspace(1)* nocapture) #1
+declare i64 @llvm.nvvm.ld.shared.i.volatile.i64.p3(i64 addrspace(3)* nocapture) #1
+declare float @llvm.nvvm.ld.gen.f.volatile.f32.p0(float* nocapture) #1
+declare float @llvm.nvvm.ld.global.f.volatile.f32.p1(float addrspace(1)* nocapture) #1
+declare float @llvm.nvvm.ld.shared.f.volatile.f32.p3(float addrspace(3)* nocapture) #1
+declare double @llvm.nvvm.ld.gen.f.volatile.f64.p0(double* nocapture) #1
+declare double @llvm.nvvm.ld.global.f.volatile.f64.p1(double addrspace(1)* nocapture) #1
+declare double @llvm.nvvm.ld.shared.f.volatile.f64.p3(double addrspace(3)* nocapture) #1
+declare void @llvm.nvvm.st.gen.i.volatile.p0i32.i32(i32* nocapture, i32) #1
+declare void @llvm.nvvm.st.global.i.volatile.p1i32.i32(i32 addrspace(1)* nocapture, i32) #1
+declare void @llvm.nvvm.st.shared.i.volatile.p3i32.i32(i32 addrspace(3)* nocapture, i32) #1
+declare void @llvm.nvvm.st.gen.i.volatile.p0i64.i64(i64* nocapture, i64) #1
+declare void @llvm.nvvm.st.global.i.volatile.p1i64.i64(i64 addrspace(1)* nocapture, i64) #1
+declare void @llvm.nvvm.st.shared.i.volatile.p3i64.i64(i64 addrspace(3)* nocapture, i64) #1
+declare void @llvm.nvvm.st.gen.f.volatile.p0f32.f32(float* nocapture, float) #1
+declare void @llvm.nvvm.st.global.f.volatile.p1f32.f32(float addrspace(1)* nocapture, float) #1
+declare void @llvm.nvvm.st.shared.f.volatile.p3f32.f32(float addrspace(3)* nocapture, float) #1
+declare void @llvm.nvvm.st.gen.f.volatile.p0f64.f64(double* nocapture, double) #1
+declare void @llvm.nvvm.st.global.f.volatile.p1f64.f64(double addrspace(1)* nocapture, double) #1
+declare void @llvm.nvvm.st.shared.f.volatile.p3f64.f64(double addrspace(3)* nocapture, double) #1
 
 declare i32 @llvm.nvvm.atomic.add.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.add.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1

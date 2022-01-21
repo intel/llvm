@@ -424,6 +424,23 @@ pi_result _pi_event::start() {
   return result;
 }
 
+bool _pi_event::is_completed() const noexcept {
+  if (!isRecorded_) {
+    return false;
+  }
+  if (!isCompleted_) {
+    const hipError_t ret = hipEventQuery(evEnd_);
+    if (ret != hipSuccess && ret != hipErrorNotReady) {
+      PI_CHECK_ERROR(ret);
+      return false;
+    }
+    if (ret == hipErrorNotReady) {
+      return false;
+    }
+  }
+  return true;
+}
+
 pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
@@ -4775,15 +4792,19 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
     }
 
     case PI_MEM_ALLOC_DEVICE: {
-      unsigned int value;
+      // get device index associated with this pointer
       result = PI_CHECK_ERROR(
           hipPointerGetAttributes(&hipPointerAttributeType, ptr));
-      auto devicePointer =
-          static_cast<int *>(hipPointerAttributeType.devicePointer);
-      value = *devicePointer;
-      pi_platform platform;
-      result = hip_piPlatformsGet(1, &platform, nullptr);
-      pi_device device = platform->devices_[value].get();
+      int device_idx = hipPointerAttributeType.device;
+
+      // currently each device is in its own platform, so find the platform at
+      // the same index
+      std::vector<pi_platform> platforms;
+      platforms.resize(device_idx + 1);
+      result = hip_piPlatformsGet(device_idx + 1, platforms.data(), nullptr);
+
+      // get the device from the platform
+      pi_device device = platforms[device_idx]->devices_[0].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
     }
