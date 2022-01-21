@@ -337,21 +337,28 @@ if(SYCL_BUILD_PI_HIP)
 endif()
 
 if(SYCL_BUILD_PI_ESIMD_EMULATOR)
+  message(STATUS "Checking for header files required for CM_EMU library building - esimd_emulator support")
   include(CheckIncludeFiles)
-  macro(CHECK_CM_EMU_REQUIRED_HEADER INCLUDE_FILE)
-    CHECK_INCLUDE_FILE_CXX(${INCLUDE_FILE} ${HAVE_FILE})
+  macro(CHECK_CM_EMU_REQUIRED_HEADER INCLUDE_FILE HAVE_FILE)
+    LIST (APPEND CMAKE_REQUIRED_INCLUDES "/usr/include/va")
+    LIST (APPEND CMAKE_REQUIRED_INCLUDES "/usr/include/x86_64-linux-gnu")
+    CHECK_INCLUDE_FILES(${INCLUDE_FILE} ${HAVE_FILE})
     if (NOT ${HAVE_FILE})
+      UNSET(${HAVE_FILE} CACHE)
       message(FATAL_ERROR
               "Header file required for building CM_EMU library cannot be "
-              "found. Remove 'CMakeCache.txt' file from your build "
-              "directory and try to add '--disable-esimd-emulator' for "
-              "configure.py or install 'libva-dev' and 'libffi-dev' package")
+              "found. If you want esimd_emulator backend support in your "
+              "toolchain, install libffi-dev and libva-dev package. "
+              "Otherwise, add '--disable-esimd-emulator' option "
+              "as argument for configure.py"
+      )
     endif()
   endmacro()
   ## From libffi-dev package
-  CHECK_CM_EMU_REQUIRED_HEADER("ffi.h")
+  CHECK_CM_EMU_REQUIRED_HEADER("ffi.h" FFI_EXISTS)
   ## From libva-dev package
-  CHECK_CM_EMU_REQUIRED_HEADER("va.h")
+  CHECK_CM_EMU_REQUIRED_HEADER("va.h" VA_EXISTS)
+  message(STATUS "   -> Pass. esimd_emulator backend support can be built")
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
   if (MSVC)
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
