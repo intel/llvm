@@ -13,15 +13,6 @@
 // UNSUPPORTED: cuda, hip
 // RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// TODO Unexpected runtime error "error: unsupported type for load/store" while
-// try to use simd::copy_from(), then simd::copy_to() with fixed-size array that
-// was defined on device side and the SIMD_RUN_TEST_WITH_VECTOR_LEN_1 macros
-// must be enabled when it is resolved.
-//
-// TODO This test disabled due to simd<short, 32> vector filled with unexpected
-// values from 16th element. The issue was created
-// https://github.com/intel/llvm/issues/5245 and and the
-// SIMD_RUN_TEST_WITH_VECTOR_LEN_32 macros must be enabled when it is resolved.
 //
 // Test for simd constructor from an array.
 // This test uses different data types, dimensionality and different simd
@@ -180,16 +171,7 @@ int main(int, char **) {
   bool passed = true;
 
   const auto types = get_tested_types<tested_types::all>();
-#if defined(SIMD_RUN_TEST_WITH_VECTOR_LEN_1) &&                                \
-    defined(SIMD_RUN_TEST_WITH_VECTOR_LEN_32)
   const auto dims = get_all_dimensions();
-#elif SIMD_RUN_TEST_WITH_VECTOR_LEN_32
-  const auto dims = values_pack<8, 16, 32>();
-#elif SIMD_RUN_TEST_WITH_VECTOR_LEN_1
-  const auto dims = values_pack<1, 8, 16>();
-#else
-  const auto dims = values_pack<8, 16>();
-#endif
 
   // Run for specific combinations of types, vector length, and invocation
   // contexts.

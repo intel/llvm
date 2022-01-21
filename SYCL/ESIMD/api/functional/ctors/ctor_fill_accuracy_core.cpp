@@ -15,8 +15,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // TODO simd<float, 32> fills with unexpected values while base value is denorm
-// and step is ulp. The SIMD_RUN_TEST_WITH_VECTOR_LEN_32 macros must be enabled
-// when it is resolved.
+// and step is ulp. The SIMD_RUN_TEST_WITH_DENORM_INIT_VAL_AND_ULP_STEP macros
+// must be enabled when it is resolved.
 //
 // The test verifies that simd fill constructor has no precision differences.
 // The test do the following actions:

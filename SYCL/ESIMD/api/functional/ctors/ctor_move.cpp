@@ -21,12 +21,6 @@
 // source simd instance. It is expected for a new simd instance to store
 // bitwise same data as the one passed as the source simd constructor.
 
-// The following issues for simd<T,32> observed:
-// - freeze with T in {char, unsigned char, singned char};
-// - runtime failure with T in {short, unsigned short}.
-// TODO Remove once the freeze is fixed
-#define SKIP_VECTOR_LEN_32
-
 // The test proxy is used to verify the move constructor was called actually.
 #define __ESIMD_ENABLE_TEST_PROXY
 
@@ -222,11 +216,7 @@ private:
 int main(int, char **) {
   bool passed = true;
   const auto types = get_tested_types<tested_types::all>();
-#ifdef SKIP_VECTOR_LEN_32
-  const auto dims = values_pack<1, 8, 16>();
-#else
   const auto dims = get_all_dimensions();
-#endif
 
   sycl::queue queue(esimd_test::ESIMDSelector{},
                     esimd_test::createExceptionHandler());

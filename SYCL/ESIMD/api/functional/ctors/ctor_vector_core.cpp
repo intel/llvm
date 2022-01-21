@@ -14,14 +14,6 @@
 // RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
-// TODO The tests freezed during runtime when using simd<char, 32>. The
-// SIMD_RUN_TEST_WITH_CHAR_TYPES macros must be enabled when it is resolved.
-//
-// TODO This test disabled due to simd<short, 32> vector filled with unexpected
-// values from 16th element. The issue was created
-// https://github.com/intel/llvm/issues/5245 and and the
-// SIMD_RUN_TEST_WITH_VECTOR_LEN_32 macros must be enabled when it is resolved.
-//
 // Test for simd constructor from vector.
 // This test uses different data types, dimensionality and different simd
 // constructor invocation contexts.
@@ -172,20 +164,8 @@ int main(int, char **) {
 
   bool passed = true;
 
-#ifdef SIMD_RUN_TEST_WITH_CHAR_TYPES
   const auto types = get_tested_types<tested_types::all>();
-#else
-  const auto types = named_type_pack<short, unsigned short, int, unsigned int,
-                                     long, unsigned long, float, double,
-                                     long long, unsigned long long>(
-      {"short", "unsigned short", "int", "unsigned int", "long",
-       "unsigned long", "float", "double", "long long", "unsigned long long"});
-#endif
-#ifdef SIMD_RUN_TEST_WITH_VECTOR_LEN_32
   const auto dims = get_all_dimensions();
-#else
-  const auto dims = values_pack<1, 8, 16>();
-#endif
 
   // Run for specific combinations of types, vector length and invocation
   // contexts.

@@ -14,11 +14,6 @@
 // RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
-// TODO This test disabled due to simd<short, 32> vector filled with unexpected
-// values from 16th element. The issue was created
-// https://github.com/intel/llvm/issues/5245 and and the
-// SIMD_RUN_TEST_WITH_VECTOR_LEN_32 macros must be enabled when it is resolved.
-//
 // Test for simd fill constructor for core types.
 // This test uses different data types, dimensionality, base and step values and
 // different simd constructor invocation contexts. The test do the following
@@ -89,11 +84,8 @@ int main(int, char **) {
   passed &= ctors::run_verification<ctors::const_ref, ctors::init_val::min_half,
                                     ctors::init_val::positive>(queue, two_dims,
                                                                char_int_types);
-#ifdef SIMD_RUN_TEST_WITH_VECTOR_LEN_32
-  const auto all_dims = values_pack<1, 8, 16, 32>();
-#else
-  const auto all_dims = values_pack<1, 8, 16>();
-#endif
+
+  const auto all_dims = get_all_dimensions();
   const auto all_types = get_tested_types<tested_types::all>();
   passed &= ctors::run_verification<ctors::var_dec, ctors::init_val::min,
                                     ctors::init_val::zero>(queue, all_dims,
