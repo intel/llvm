@@ -476,22 +476,21 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   // (e.g. clGetKernelWorkGroupInfo returns CL_INVALID_KERNEL if kernel was
   // created from the program built for sub-device and re-used either on root or
   // other sub-device).
-  // To work around this case we optimize only one case: root device shares the
-  // same context with its sub-device(s). We built for the root device and
-  // cache the results.
-  // The expected solution is to build for any sub-device and use root device
-  // handle as cache key to share build results for any other sub-device or even
-  // a root device.
-  // TODO: it might be worth testing if Level Zero plug-in supports all cases
-  // and enable more cases for Level Zero.
+  // To work around this case we optimize only one case if device type is CPU:
+  // root device shares the same context with its sub-device(s). We built for
+  // the root device and cache the results.
+  // The solution for other devices is to build for any sub-device and use root
+  // device handle as cache key to share build results for any other sub-device
+  // or even a root device.
   DeviceImplPtr Dev = DeviceImpl;
-  while (!Dev->isRootDevice()) {
-    auto ParentDev =
-        detail::getSyclObjImpl(Dev->get_info<info::device::parent_device>());
-    if (!ContextImpl->hasDevice(ParentDev))
-      break;
-    Dev = ParentDev;
-  }
+  if (!Dev->is_gpu())
+    while (!Dev->isRootDevice()) {
+      auto ParentDev =
+          detail::getSyclObjImpl(Dev->get_info<info::device::parent_device>());
+      if (!ContextImpl->hasDevice(ParentDev))
+        break;
+      Dev = ParentDev;
+    }
 
   auto BuildF = [this, &M, &KSId, &ContextImpl, &Dev, Prg, &CompileOpts,
                  &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
@@ -546,6 +545,16 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     return BuiltProgram.release();
   };
 
+  // Use root device as a cache key
+  // FIXME: on CPU we can't re-use results unless "Dev" is a root device already
+  // due to Intel OpenCL CPU bug(?). This solution is tested only on Intel GPU
+  // implementation.
+  if (Dev->is_gpu())
+    while (!Dev->isRootDevice()) {
+      auto ParentDev =
+          detail::getSyclObjImpl(Dev->get_info<info::device::parent_device>());
+      Dev = ParentDev;
+    }
   const RT::PiDevice PiDevice = Dev->getHandleRef();
 
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
