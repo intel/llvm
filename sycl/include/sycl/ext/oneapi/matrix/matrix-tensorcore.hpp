@@ -378,7 +378,7 @@ struct joint_matrix_store_impl<
                              get_layout_id<Layout>());
     } else if constexpr (std::is_same<T, int32_t>::value) {
       __bmma_m8n8k128_st_c_i32(dst.get(), src.data, stride,
-                             get_layout_id<Layout>());
+                               get_layout_id<Layout>());
     }
   }
 };
