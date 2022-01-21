@@ -197,7 +197,6 @@ SYCL_TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
     GTEST_SKIP(); // test is not supported on selected platform.
   }
 
-  setupDefaultMockAPIs();
   sycl::unittest::redefine<sycl::detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreateEAM);
 

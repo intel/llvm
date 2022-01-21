@@ -13,8 +13,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
-
-#include <gtest/gtest.h>
+#include <helpers/sycl_test.hpp>
 
 #include <stdlib.h>
 
@@ -200,7 +199,7 @@ static void setupDefaultMockAPIs() {
   redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
 }
 
-TEST(ITTNotify, UseKernelBundle) {
+SYCL_TEST(ITTNotify, UseKernelBundle) {
   set_env(ITTProfileEnvVarName, "1");
 
   reset();
@@ -240,7 +239,7 @@ TEST(ITTNotify, UseKernelBundle) {
   EXPECT_EQ(HasITTEnabled, true);
 }
 
-TEST(ITTNotify, VarNotSet) {
+SYCL_TEST(ITTNotify, VarNotSet) {
   unset_env(ITTProfileEnvVarName);
 
   reset();
