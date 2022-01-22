@@ -1,40 +1,35 @@
 # Explicit SIMD Programming Extension for DPC++
 
-Note:
-_This document describes current design and API for the Intel Explicit SIMD
-extension to DPC++. This is initial experimental version to try out functionality
-and performance. We are going to work with the community on incrementally improving
-the APIs to bring them closer to std C++ and SYCL in the next several months._
-
 ## Introduction
 
 The main motivation for introducing the Explicit SIMD Programming (ESP) DPC++
-extension is enabling low-level efficient programming for Intel Gen
+extension is enabling low-level efficient programming for Intel graphics
 architectures. More specifically, Explicit SIMD provides the following
 additional features:
-- Manual vectorization of device code using the `simd` class mapped to Gen's
+- Manual vectorization of device code using the `simd` class mapped to Intel GPU's
   general register file. This allows to write efficient code not relying on
   further widening by the compiler, as with traditional SPMD programming.
-- Low-level APIs efficiently mapped to Gen architecture, such as block reads.
+- Low-level APIs efficiently mapped to Intel GPU architecture, such as block reads.
 
 ## Explicit SIMD execution model
 
 Explicit SIMD execution model is basically an equivalent of the base SYCL
-execution model with subgroup size restricted to 1. Which means each subgroup
-maps to a single hardware thread. All standard SYCL APIs continue to work,
-including `sycl::intel::sub_group` ones, which become either a no-op or
-trivial. E.g. a barrier becomes just a memory fence for a compiler, collectives
-just return the value in the single work-item. Another consequences of the unit
-subgroup size is guaranteed independent forward progress between work-items on
-some Gen architecture generations.
+execution model with subgroup size restricted to 1 and few other restrictions.
+Which means each subgroup maps to a single hardware thread. All standard SYCL
+APIs continue to work, including `sycl::intel::sub_group` ones, which become
+either a no-op or trivial. E.g. a barrier becomes just a memory fence for a
+compiler, collectives just return the value in the single work-item. Another
+consequence of the unit subgroup size is guaranteed independent forward
+progress between work-items on many Intel GPU architecture generations.
 
 ## Explicit SIMD extension APIs
 
-Explicit SIMD APIs can be used only in code to be executed on Intel Gen
+Explicit SIMD APIs can be used only in code to be executed on Intel graphics
 architecture devices and the host device for now. Attempt to run such code on
 other devices will result in error. 
 
-All the ESIMD APIs are defined in the `sycl::ext::intel::experimental::esimd` namespace.
+All the ESIMD APIs are defined in the `sycl::ext::intel::experimental::esimd`
+namespace.
 
 Kernels and `SYCL_EXTERNAL` functions using ESP must be explicitly marked with
 the `[[intel::sycl_explicit_simd]]` attribute. Subgroup size query within such
@@ -42,13 +37,16 @@ functions will always return `1`.
 
 *Functor kernel*
 ```cpp
-using AccTy = sycl::accessor<int, 1, sycl::access::mode::read_write,
-                                 sycl::access::target::global_buffer>;
-class Functor {
-public:
-  Functor(int X, AccTy &Acc) : X(X), Acc(Acc) {}
+#include <CL/sycl.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
-  void operator()() [[intel::sycl_explicit_simd]] { Acc[0] += X; }
+using AccTy = sycl::accessor<int, 1, sycl::access::mode::read_write,
+  sycl::target::device>;
+class KernelID {
+public:
+  KernelID(int X, AccTy &Acc) : X(X), Acc(Acc) {}
+
+  [[intel::sycl_explicit_simd]] void operator()() { Acc[0] += X; }
 
 private:
   int X;
@@ -58,18 +56,34 @@ private:
 
 *Lambda kernel and function*
 ```cpp
+#include <CL/sycl.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
+
+#include <iostream>
+
 using namespace sycl::ext::intel::experimental::esimd;
-SYCL_EXTERNAL
-void sycl_device_f(sycl::global_ptr<int> ptr, simd<float, 8> X) [[intel::sycl_explicit_simd]] {
-  flat_block_write(*ptr.get(), X);
+using namespace sycl::ext::intel::experimental;
+using namespace sycl;
+using AccTy = accessor<float, 1, access::mode::read_write, target::device>;
+
+void sycl_device_f(AccTy Acc, simd<float, 8> X) {
+  esimd::block_store(Acc, 0, X);
 }
-...
+
+int main(void) {
+  sycl::queue Q;
+  auto Dev = Q.get_device();
+  std::cout << "Running on " << Dev.get_info<info::device::name>() << "\n";
+  constexpr int Size = 8 * sizeof(float);
+  sycl::buffer<float> Buf1(Size);
+  sycl::buffer<float> Buf2(Size);
+
   Q.submit([&](sycl::handler &Cgh) {
     auto Acc1 = Buf1.get_access<sycl::access::mode::read>(Cgh);
     auto Acc2 = Buf2.get_access<sycl::access::mode::read_write>(Cgh);
 
-    Cgh.single_task<class KernelID>([=] () [[intel::sycl_explicit_simd]] {
-      simd<float, 8> Val = flat_block_read(Acc1.get_pointer());
+    Cgh.single_task<class KernelID>([=]() [[intel::sycl_explicit_simd]] {
+      simd<float, 8> Val = esimd::block_load<float, 8>(Acc1, 0);
       sycl_device_f(Acc2, Val);
     });
   });
@@ -84,52 +98,60 @@ dropped. What's not supported today:
 - Explicit SIMD kernels can co-exist with regular SYCL kernels in the same
   translation unit and in the same program. However, interoperability between
   them is not yet supported, e.g. currently it's not allowed to invoke an ESIMD
-  kernel from a regular SYCL kernel and vice-versa.
+  function from a regular SYCL kernel and vice-versa.
 - Local accessors. Local memory is allocated and accessed via explicit
 device-side API
 - 2D and 3D accessors
 - Constant accessors
 - `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
 done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store(acc, offset)`
-- Few others (to be documented)
+- Accessors with offsets and/or access range specified
+- `sycl::sampler` and `sycl::stream` classes  
+
 
 ## Core Explicit SIMD programming APIs
 
 The DPC++ Explicit SIMD library defines the following classes to enhance the
 expressiveness for explicit SIMD data-parallel programming while enabling
-efficient mapping to SIMD vector operations on Intel GPU architectures.
+efficient mapping to SIMD vector operations on Intel graphics architectures.
 
 ### SIMD vector class
 
 The `simd` class is a vector templated on some element type.
-The element type must be vectorizable type. The set of vectorizable types is the
-set of fundamental SYCL arithmetic types (C++ arithmetic types or `half` type)
-excluding `bool`. The length of the vector is the second template parameter.
+The element type must either be a vectorizable type. or the `sycl::half` type.
+The set of vectorizable types is the
+set of fundamental SYCL arithmetic types excluding `bool`. The length of the
+vector is the second template parameter.
+See the complete [API reference](https://intel.github.io/llvm-docs/doxygen/classcl_1_1sycl_1_1ext_1_1intel_1_1experimental_1_1esimd_1_1simd.html) for the `simd` class for more details.
 
-ESIMD compiler back-end does the best it can to map each `simd` class object to a consecutive block
-of registers in the general register file (GRF).
+ESIMD compiler back-end does the best it can to map each `simd` class object to a
+contiguous block of registers in the general register file (GRF).
 
 Every specialization of `simd` class shall be a complete type. The term
-simd type refers to all supported specialization of the simd class template.
+"simd type" refers to all supported specialization of the `simd` class template.
 To access the i-th individual data element in a simd vector, Explicit SIMD supports the
-standard subscript operator ```[]```, which returns by value.
+standard subscript operator ```[]```, which can be used for both reading and writing
+a specific element.
 
 For simd type object, Explicit SIMD supports the following simd vector operations:
-- Unary operators: ++ (*pre-/post-increment*), -- (*pre-/post-decrement*)
-- Binary operators: +, -, *, /, &, |, ^, <<, >>
-- Compound assignments: +=, -=, *=, /=, &=, |=, ^=, <<=, >>=
-- Compare operators: >, >=, <, <=, ==, !=
+- Unary operators: `-`, `+`, `~` (bitwise negation), `!` (logical negation) `++`
+  (*pre-/post-increment*), `--` (*pre-/post-decrement*)
+- Binary operators: `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `<<`, `>>`, `||`, `&&`
+- Compound assignments: `+=`, `-=`, `*=`, `/=`, `&=`, `|=`, `^=`, `<<=`, `>>=`
+- Comparison operators: `>`, `>=`, `<`, `<=`, `==`, `!=`
+
+_Note: some of the operations are not available for certain element types_
 
 These are all element-wise operations, which apply a specified operation to the
-elements of one or more simd objects and should follow the standard C++ rules for
-the corresponding scalar data element computation. Each such application is
-unsequenced with respect to the others.
+elements of one or two simd objects and follow the standard C++ rules for
+type promotion to define result vector element type.
 
-To reference a subset of the elements in simd vector object, Explicit SIMD provides ```select```
-function, which returns a `simd` or `simd_view` object (*described below*) representing
-the selected sub-vector starting from the i-th element. The number of selected
-elements is specified by the template parameter **Size**, while the distance
-between two adjacent elements is specified by the template parameter **Stride**.
+To reference a subset of the elements in a simd vector object, Explicit SIMD provides
+```select``` function, which returns a `simd_view` object (*described below*)
+representing the selected sub-vector starting from certain element. The number of
+selected elements is specified by the template parameter **Size**, the distance
+between two adjacent elements is specified by the template parameter **Stride** and
+the offset of the first selected element is the function parameter.
 
 ```cpp
   simd<int, 8> a;
@@ -154,9 +176,9 @@ a.select<4, 2>(0) = b;  // selected elements of a are replaced
 </p>
 
 
-Gen ISA provides powerful register region addressing modes to facilitate cross-lane
-SIMD vector operation. To exploit this feature Explicit SIMD provides ```replicate``` functions
-to allow programmer to implement any native Gen ISA region in the following forms:
+Intel GPU ISA provides powerful register region addressing modes to facilitate cross-lane
+SIMD vector operation. To exploit this feature Explicit SIMD provides a family of ```replicate*```
+functions to allow programmer to implement any native Intel GPU ISA region in the following forms:
 - ```replicate<REP>()```: replicate a simd vector object **REP** times and return a new simd
 vector of **REP** * Width, where Width specifies the original vector size.
 - ```replicate_w<REP, W>(uint16_t i)```: replicate **W** consecutive elements starting at the
@@ -173,29 +195,36 @@ Selected blocks of **W** elements will overlap if **VS** < **W**.
 To avoid explicit type cast and the resulting move instructions for large vectors, Explicit SIMD allows
 programmer to reinterpret the fundamental data element type of a simd vector object and change
 its shape to 1D or 2D object through the ```bit_cast_view``` function:
-- ```bit_cast_view<EltTy>( )```: returns a reference to the calling simd object interpreted as a new
-simd vector with the size determined by the template **EltTy** parameter.
+- ```bit_cast_view<EltTy>( )```: returns a view into the calling simd object which reinterprets
+the element type according to the **EltTy** template parameter, and the number of elements in the view
+is also re-calculated so that total byte size of all view's elements equals to the size of the
+original object.
 - ```bit_cast_view<EltTy, Height, Width>( )```: returns a reference to the calling simd object interpreted
-as a new 2D simd_view object with the shape determined by the template parameters **Height** and**Width**. The size of the new 2D block must not exceed the size of the original object.
+as a new 2D simd_view object with the shape determined by the template parameters **Height** and**Width**.
+The size of the new 2D block must be equal to the size of the original object.
 
 ```cpp
-  simd<int, 16> v1;
-   // ...
-  auto v2 = v1.bit_cast_view<short>;
-  // v2 is a reference to the location of v1
-  // interpreted as a vector of 32 shorts.
-  // ...
-  auto m1 = v1.bit_cast_view<int, 4, 4>;
-  // m1 is a reference to the location of v1
-  // interpreted as a matrix 4x4 of ints.
-  // ...
-  auto m2 = v1.bit_cast_view<char, 4, 16>( );
-  // m2 is a reference to the location of v1
-  // interpreted as a matrix 4x16 of chars.
+simd<int, 16> v1;
+// ...
+auto v2 = v1.bit_cast_view<short>();
+// v2 is a reference to the location of v1
+// interpreted as a vector of 32 shorts.
+// ...
+auto m1 = v1.bit_cast_view<int, 4, 4>();
+// m1 is a reference to the location of v1
+// interpreted as a matrix 4x4 of ints.
+// ...
+auto m2 = v1.bit_cast_view<char, 4, 16>();
+// m2 is a reference to the location of v1
+// interpreted as a matrix 4x16 of chars.
 ```
 
-To model predicated move, Explicit SIMD provides the following merge functions:
-- ```merge(value_type Val, mask_type Mask)```: this merge operation takes one source operand **Val** and a mask **Mask** defined as unsigned short vector of the same length. The semantic is that if the LSB of an element of **Mask** is set, then the corresponding data element of **Val** is copied to the corresponding position in the calling simd object.
+To model a predicated move into a simd object, Explicit SIMD provides a family
+of `merge` functions:
+- ```merge(value_type Val, simd_mask Mask)```: this merge operation takes
+  one source operand **Val** and a mask **Mask** of the same length. For
+  each non-zero mask element, it assigns the corrsponding input vector's element
+  to the corresponding element of the receiver object.
 
 ```cpp
   simd<int, 4>   m, src;
@@ -206,7 +235,12 @@ To model predicated move, Explicit SIMD provides the following merge functions:
   // 2 2 2 2     4 4 4 4     1 1 0 1         4 4 2 4
 ```
 
-- ```merge(value_type Val1, value_type Val2, mask_type Mask)```: this merge operation takes two source operands **Val1** and **Val2** as well as a simd mask. The semantic is that if the LSB of an element of **Mask** is set, then the corresponding data element of **Val1** is copied to the corresponding position in the calling simd object. Otherwise the corresponding data element of **Val2** is copied to the corresponding position in the calling simd object.
+- ```merge(value_type Val1, value_type Val2, simd_mask Mask)```: this merge
+operation takes two source operands **Val1** and **Val2** as well as a simd mask.
+For element of the **Mask**, depending on whether it is zero or not, it assigns
+the corresponding element of either **Val1** (if mask's element is non-zero) or
+**Val2** (if the mask's element is zero) to the corresponding element of the
+receiver simd object.
 
 ```cpp
   simd<int,4>   m, src1, src2;
@@ -222,7 +256,7 @@ The `simd_view` represents a "window" into existing simd object,
 through which a part of the original object can be read or modified. This is a
 syntactic convenience feature to reduce verbosity when accessing sub-regions of
 simd objects. **RegionTy** describes the window shape and can be 1D or 2D,
-**BaseTy** is the original simd object type, which can be a ```simd_view```
+**BaseTy** is the original simd object type, which can be the ```simd_view```
 itself.
 
 ```simd_view``` allows to model hierarchical "views" of the parent ```simd```
@@ -238,6 +272,7 @@ different shapes and dimensions as illustrated below (`auto` resolves to a
 other utility functions defined for `simd` class. It also
 provides region accessors and more generic operations tailored for 2D regions,
 such as row/column operators and 2D select/replicate/bit_cast_view/merge operations.
+A 2D simd_view can be used to conveniently model an in-register tile of a matrix.
 
 ```cpp
   simd<float, 32> v1;
@@ -265,173 +300,198 @@ such as row/column operators and 2D select/replicate/bit_cast_view/merge operati
 
 ### Reduction functions
 
-Explicit SIMD provides the following reduction functions for simd objects.
+Explicit SIMD provides the reduction functions below for simd objects.
 Compiler will produce optimal code sequence on the target device to apply the
 specified operation to all scalar elements in the input simd vector. Note that
 the order of element-wise operations is not guaranteed and the correctness of
-result should not depend on a particular computation order.
-- ```reduce(simd<T1, SZ> v, std::plus<>())```: returns a scalar value of type
-**T0** that's equal to the sum of all data elements of type **T1** in simd vector
-**v** of length **SZ**.
-- ```reduce(simd<T1, SZ> v, std::multiplies<>())```: returns a scalar value of
-type **T0** that's equal to the product of all data elements of type **T1** in simd
-vector **v** of length **SZ**.
-- ```hmax(simd<T1, SZ> v)```: returns a scalar value of type **T0**
-that's equal to the maximum value of all data elements of type **T1** in simd
-vector **v** of length **SZ**.
-- ```hmin(simd<T1, SZ> v)```: returns a scalar value of type **T0**
-that's equal to the minimum value of all data elements of type **T1** in simd
-vector **v** of length **SZ**.
+result should not depend on a particular computation order. The following
+reduction operations are supported:
+- add
+- multiply
+- maximum
+- minimum
 
-```cpp
-template <typename T0, typename T1, int SZ, typename BinaryOperation>
-T0 reduce(simd<T1, SZ> v, BinaryOperation op);
-
-template <typename T0, typename T1, int SZ> T0 hmax(simd<T1, SZ> v);
-template <typename T0, typename T1, int SZ> T0 hmin(simd<T1, SZ> v);
-```
+See more details on the API documentation [page TODO](https://intel.github.io/llvm-docs/doxygen).
 
 ### Memory access APIs
 
-Currently the variety of memory objects supported by the Explicit SIMD extension
-implementation is limited to the following:
-- USM pointers (aka 'flat address')
+Explicit SIMD memory access interface is quite different from the standard SYCL
+memory access interface. It supports main SYCL's device memory representations:
+- USM pointers
 - 1D global accessors
 - 2D image accessors
 
-The implementation further limits the set of memory access operations
-which a kernel can perform through those memory objects. Basically, all of them
-are special intrinsic APIs described below rather than standard SYCL accessor or
-pointer operations. Examples of unsupported features include
-`accessor::get_pointer()`, accessor's `operator []`, C/C++ dereference of an
-USM pointer, local accessors, 2D and 3D accessors.
-Those are temporary restrictions, to be dropped in future.
+but does not `support sycl::accessor` APIs other than constructors. E.g.
+`accessor::get_pointer()`, `accessor::operator []` are not supported and must
+not be used within ESIMD code. Instead, ESIMD
+provides special APIs to access memory through these memory objects.
 
-See auto-generated documentation for the complete list of APIs here. (TBD)
-
-#### USM pointer-based memory access
-##### Flat-address gather/scatter
-perform scattered read/write for the given starting pointer **p** and
-**offsets**.
-
+C/C++ dereference of an USM pointer is guaranteed to work for primitive types
+only, but not for `simd` types. The following code below will compile and might
+work, but is an undefined behavior:
 ```cpp
-template <typename T, int n, int ElemsPerAddr = 1,
-	  CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-typename std::enable_if<((n == 16 || n == 32) &&
-    (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
-    simd<T, n*ElemsPerAddr>>::type
-flat_load(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
-
-template <typename T, int n, int ElemsPerAddr = 1,
-	  CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-typename std::enable_if<((n == 16 || n == 32) &&
-    (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
-    void>::type
-flat_store(T *p, simd<T, n*ElemsPerAddr> vals, simd<uint32_t, n> offsets,
-           simd<uint16_t, n> pred = 1);
+  T *A = sycl::malloc_shared<T>(N, Q);
+  T *B = sycl::malloc_shared<T>(N, Q);
+  ...
+  *reinterpret_cast<simd<T, N>*>(B) = *reinterpret_cast<simd<T, N>*>(A);
 ```
-##### Flat-address block load/store
-read or write a consecutive block of data for the memory location specified by
-**addr**.
-
+instead, the the proper way of reading/writing simd objects (when alignment is
+unknown) is:
 ```cpp
-template <typename T, int n, CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-simd<T, n> flat_block_load(const T *const addr);
-
-template <typename T, int n, CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-void flat_block_store(T *p, simd<T, n> vals);
+  simd<T, N> Val(B);
+  Val.copy_to(A);
 ```
 
-##### Flat-address load4/store4
-perform scattered read/write for the given starting pointer **p** and
-**offsets**. Up to 4 data elements may be accessed at each address depending on
-the enabled channel **Mask**.
+Some of these restrictions are not enforced by the
+compiler and violating them will lead to undefined behavior.
 
-```cpp
-template <typename T, int n, ChannelMaskType Mask,
-          CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-    typename std::enable_if<(n == 16 || n == 32),
-                            simd<T, n * NumChannels(Mask)>>::type
-    gather_rgba(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
+#### APIs overview
 
-template <typename T, int n, ChannelMaskType Mask,
-          CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-typename std::enable_if<(n == 16 || n == 32), void>::type
-    scatter_rgba(T *p, simd<T, n * NumChannels(Mask)> vals,
-            simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
-```
+A variety of ESIMD-specific APIs are provided to access memory through the memory
+objects described above. The minimal access granularity is usually a `simd`
+object, except in special scalar access cases. Note that `simd<T,1>` are valid
+simd objects and can be used in most memory access APIs. They fall into few main
+categories:
+- Block access - `block_load`, `block_store`. This is an efficient way to
+access memory which can be used when data is contiguous in memory and is properly
+aligned.
+- Scattered access - `gather`, `scatter`. These APIs allow to specify individual
+memory locations for vector elements and do not impose any extra restrictions on
+alignment (except the standard C++ requirement for element-size alignment). Memory
+location are calculated as common base plus individual offset per element. Offsets
+are passed as a single vector argument. Access to individual elements can be
+enabled or disabled by the additional mask argument.
+- Pixel scattered access - `gather_rgba`, `scatter_rgba`. These are similar to
+usual `gather` and `scatter`, but allow to access the most memory in one call -
+4 elements (as if they were RGBA channels of a pixel) per each offset in the
+offsets vector. Per-offset masking is also support, plus per-channel compile-time
+constant mask can be specified to further refine masking.
+- Media block access - `media_block_load` , `media_block_store`. These are the
+most efficient memory accesses on Intel GPU architectures up to Gen9 generation.
+The go through extra layer of faster cache.
+- Scalar access - `scalar_load`, `scalar_store`. These can be used to access
+load/store scalar values through accessors. In case of USM pointers, usual
+C++ dereference operator can be used. SLM versions are also available.
 
-##### Flat-address atomic inc/dec
-perform atomic memory access operation with zero source operand.
 
-```cpp
-template <CmAtomicOpType Op, typename T, int n,
-          CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-    typename std::enable_if<check_atomic<Op, T, n, 0>(), simd<T, n>>::type
-    flat_atomic(T *p, simd<unsigned, n> offset, simd<ushort, n> pred);
-```
+#### Shared local memory access
 
-- ```Flat-address atomic add/sub/min/max/etc.```: perform atomic memory
-access operation with one source operand.
+The above APIs are available for the global memory as well as shared local
+memory (SLM). SLM is a faster memory shared between work items in a workgroup -
+basically it is ESIMD variant of the SYCL `local` memory. For SLM variants,
+'slm_' prefix is added to API names. Before SLM memory access functions can be
+used in a ESIMD kernel, SLM chunk must be requested with the
+`simd_init(uint32_t size)` function, where `size` must be a compile-time
+constant.
 
-```cpp
-template <CmAtomicOpType Op, typename T, int n,
-          CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-    typename std::enable_if<check_atomic<Op, T, n, 1>(), simd<T, n>>::type
-    flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
-                simd<ushort, n> pred);
-```
+#### Atomics
 
-- ```Flat-address atomic CMPXCHG```: perform atomic memory access operation
-with two source operands.
+ESIMD also supports a variety of atomic memory update operations. They are all
+represented by the `atomic_update` (to access global memory) and
+`slm_atomic_update` (to access SLM) functions, templated by the operation ID.
+One atomic update call updates entire vector in memory (if all elements are
+unmasked), but the atomicity is ensured only on per-element basis. The table
+below shows which operations are supported for which element type.
 
-```cpp
+|           | uint16|uint32|uint64|int16|int32|int64|half|float|
+|-----------|:-----:|:----:|:----:|:---:|:---:|:---:|:--:|:---:|
+|increment  |   +   |  +   |  +   |     |     |     |    |     |
+|decrement  |   +   |  +   |  +   |     |     |     |    |     |
+|addition   |   +   |  +   |  +   |     |     |     |    |     |
+|subtraction|   +   |  +   |  +   |     |     |     |    |     |
+|minimum    |   +   |  +   |  +   |  +  |  +  |  +  | +  |  +  |
+|maximum    |   +   |  +   |  +   |  +  |  +  |  +  | +  |  +  |
+|swap       |   +   |  +   |  +   |     |     |     |    |     |
+|bit and    |   +   |  +   |  +   |     |     |     |    |     |
+|bit or     |   +   |  +   |  +   |     |     |     |    |     |
+|bit xor    |   +   |  +   |  +   |     |     |     |    |     |
+|cmpxchg    |   +   |  +   |  +   |     |     |     | +  |  +  |
 
-template <CmAtomicOpType Op, typename T, int n,
-          CacheHint L1H = CacheHint::Default,
-          CacheHint L3H = CacheHint::Default>
-    typename std::enable_if<check_atomic<Op, T, n, 2>(), simd<T, n>>::type
-    flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
-                simd<T, n> src1, simd<ushort, n> pred);
-```
+Many memory access APIs accept offsets as arguments, which are used to determine
+actual memory location for the access. Offsets are always expressed in bytes
+rather than element units.
 
-#### Accessor-based memory access
+See more details in the API documentation
+[page TODO](https://intel.github.io/llvm-docs/doxygen).
 
-Examples:
-##### 1D surface block store.
-T - element type, n - vector length, acc - SYCL global buffer accessor,
-offset - byte offset in the buffer, vals - vector value to store
-```cpp
-template <typename T, int n, typename AccessorTy>
-void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals);
-```
-##### 2D media block load.
-T - element type, m and n - block dimensions, acc - SYCL image2D accessor,
-x and y - image coordinates
-```cpp
-template <typename T, int m, int n, typename AccessorTy, unsigned plane = 0>
-simd<T, m * n> media_block_load(AccessorTy acc, unsigned x, unsigned y);
-```
+### Math operations
 
-#### Local address space allocation and access
-Examples:
+#### Extended math
+ESIMD supports what is known as "extended math" set of math operations,
+providing correponding API in the `sycl::ext::intel::experimental::esimd`
+namespace. Those operations are mapped to efficient hardware instructions and
+thus have accuracy provided by hardware, which often does not match one required
+by the SYCL specification. The table below shows the supported extended math
+operations and element data types they can be invoked with.
 
-##### SLM scatter.
-T - element type, n - vector length (16 or 32), vals - vector value to store,
-offsets - byte offsets in the local memory, pred - store mask
-```cpp
-template <typename T, int n>
-typename std::enable_if<(n == 16 || n == 32), void>::type
-slm_store(simd<T, n> vals, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
-```
+|         |half|float|double|Definition
+|---------|:--:|:---:|:----:|-------
+|inv      | +  |  +  |      | 1/x
+|log2     | +  |  +  |      | base 2 logarithm
+|exp2     | +  |  +  |      | base 2 exponent
+|sqrt     | +  |  +  |      |
+|sqrt_ieee|    |  +  |   +  | IEEE754-compatible version of square root
+|rsqrt    | +  |  +  |      | 1/sqrt(x)
+|sin      | +  |  +  |      |
+|cos      | +  |  +  |      |
+|pow      | +  |  +  |      |
+|div_ieee |    |  +  |   +  | IEEE754-compatible version of division
+
+**TODO** specify accuracy guarantees.
+
+For some of the extended math functions versions guaranteeing SYCL accuracy are
+provided, they all reside in the `sycl` namespace: `sin`, `cos`, `exp`, `log`.
+
+#### Other standard math
+
+Other math functions, such as inverse trigonometric functions, base `e`
+logarithm and exponent are software emulated.
+The following usual math functions are supported for all element types:
+- Absolute value - `abs`.
+- Maximum value - `max`.
+- Minimum value -`min`.
+- Rounding down, up, to even, to zero - `rndd` (aka `floor`), `rndu`
+  (aka `ceil`), `rnde`, `rndz` (aka `trunc`).
+
+
+#### Other non-standard math functions
+
+ESIMD supports the following non-standard math functions implemented in hardware:
+- Dot product (various flavors) - `dp2`, `dp3`, `dp4`, `dph`, `dp4a`
+  (with accumulator).
+- Linear equation - `line`. Solves a component-wise line equation
+  `v = p * u + q` (where `u`, `v` are vectors and `p`, `q` are scalars)
+- Fraction - `frc`,  extracts the fractional parts of the input vector elements.
+- Count leading zeroes - `lzd`.
+- Linear interpolation - `lrp`. Basically computes `src1 * src0 + src2 * (1.0f - src0)`
+- Plane equation - `plane`. Solves a component-wise plane equation 
+  `w = p*u + q*v + r` where `u`, `v`, `w` are vectors and `p`, `q`, `r` are scalars.
+
+
+See more details in the API documentation
+[page TODO](https://intel.github.io/llvm-docs/doxygen).
+
+
+### Other APIs
+
+There are other useful miscellaneous APIs provided by ESIMD.
+- Saturation - `saturate`. Converts between vectors with different element data
+  types with saturation.
+- Conversion - `convert`. Converts between vectors with different element data
+  types.
+- Reverse bits - `bf_reverse`. 
+- Insert bit field - `bf_insert`.
+- Extract bit field - `bf_extract`.
+- Convert mask to integer and back - `pack_mask`, `unpack_mask`.
+- Ballot - `ballot`. Returns a bitfield where 1 marks corresponding non-zero
+  element in the input vector.
+- Count bits - `cbit`.
+- Find least significant set bit - `fbl`.
+- Find most significant set bit - `fbh`.
+
+See more details in the API documentation
+[page TODO](https://intel.github.io/llvm-docs/doxygen).
+
 <br>
 
 ### Private Global Variables.
@@ -442,125 +502,105 @@ These variables have 1 copy per work-item (which maps to a single SIMD thread in
 ESP) and are visible to all functions in the translation unit. Conceptually they
 map to SPIR-V variable with private storage class. Private globals can be bound
 to a specific byte offset within the GRF. To mark a file scope variable as
-private global, the `INTEL_GPU_PRIVATE` attribute is used,
-`INTEL_GPU_REGISTER` is used to bind it the register file:
+private global, the `ESIMD_PRIVATE` attribute is used,
+`ESIMD_REGISTER(n)` is used to bind it the register file, where `n` is a byte
+offset within the register file.
 
 ```cpp
-INTEL_GPU_PRIVATE INTEL_GPU_REGISTER(32) simd<int, 16> vc;
+ESIMD_PRIVATE ESIMD_REGISTER(32) simd<int, 16> vc;
 ```
 <br>
 
 ## Examples
 ### Vector addition (USM)
 ```cpp
-#include <iostream>
 #include <CL/sycl.hpp>
-#include <sycl_esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
+
+#include <iostream>
 
 using namespace sycl;
+using namespace sycl::ext::intel::experimental::esimd;
+
+inline auto createExceptionHandler() {
+  return [](exception_list l) {
+    for (auto ep : l) {
+      try {
+        std::rethrow_exception(ep);
+      } catch (sycl::exception &e0) {
+        std::cout << "sycl::exception: " << e0.what() << std::endl;
+      } catch (std::exception &e) {
+        std::cout << "std::exception: " << e.what() << std::endl;
+      } catch (...) {
+        std::cout << "generic exception\n";
+      }
+    }
+  };
+}
+
+struct usm_deleter {
+  queue q;
+
+  void operator()(void *ptr) {
+    if (ptr) {
+      sycl::free(ptr, q);
+    }
+  }
+};
 
 int main(void) {
   constexpr unsigned Size = 128;
   constexpr unsigned VL = 32;
-  constexpr unsigned GroupSize = 2;
+  int err_cnt = 0;
 
-  queue q;
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto ctxt = q.get_context();
-  float* A = static_cast<float*>(malloc_shared(Size*sizeof(float), dev, ctxt));
-  float* B = static_cast<float*>(malloc_shared(Size*sizeof(float), dev, ctxt));
-  float* C = static_cast<float*>(malloc_shared(Size*sizeof(float), dev, ctxt));
+  try {
+    queue q(gpu_selector{}, createExceptionHandler());
+    auto dev = q.get_device();
+    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
-  for (auo i = 0; i != Size; i++) {
-    A[i] = B[i] = i;
+    float *A = malloc_shared<float>(Size, q);
+    std::unique_ptr<float, usm_deleter> guardA(A, usm_deleter{ q });
+    float *B = malloc_shared<float>(Size, q);
+    std::unique_ptr<float, usm_deleter> guardB(B, usm_deleter{ q });
+    float *C = malloc_shared<float>(Size, q);
+    std::unique_ptr<float, usm_deleter> guardC(C, usm_deleter{ q });
+
+    for (unsigned i = 0; i != Size; i++) {
+      A[i] = B[i] = i;
+    }
+    q.submit([&](handler &cgh) {
+      cgh.parallel_for<class Test>(
+        Size / VL, [=](id<1> i)[[intel::sycl_explicit_simd]]{
+        auto offset = i * VL;
+        // pointer arithmetic, so offset is in elements:
+        simd<float, VL> va(A + offset);
+        simd<float, VL> vb(B + offset);
+        simd<float, VL> vc = va + vb;
+        vc.copy_to(C + offset);
+      });
+    }).wait_and_throw();
+
+    for (unsigned i = 0; i < Size; ++i) {
+      if (A[i] + B[i] != C[i]) {
+        if (++err_cnt < 10) {
+          std::cout << "failed at index " << i << ": " << C[i] << " != " << A[i]
+            << " + " << B[i] << "\n";
+        }
+      }
+    }
   }
-
-  // iteration space
-  nd_range<1> Range(range<1>(Size/VL), range<1>(GroupSize));
-
-  auto e = q.submit([&](handler &cgh) {
-    cgh.parallel_for<class Test>(
-      Range, [=](nd_item<1> i) [[intel::sycl_explicit_simd]] {
-      using namespace sycl::ext::intel::experimental::esimd;
-      auto offset = i.get_global_id(0) * VL;
-      simd<float, VL> va = flat_block_load<float, VL>(A + offset);
-      simd<float, VL> vb = flat_block_load<float, VL>(B + offset);
-      simd<float, VL> vc = va + vb;
-      flat_block_store<float, VL>(C + offset, vc);
-    });
-  });
-  e.wait();
-  return 0;
+  catch (sycl::exception &e) {
+    std::cout << "SYCL exception caught: " << e.what() << "\n";
+    return 1;
+  }
+  if (err_cnt > 0) {
+    std::cout << "  pass rate: "
+              << ((float)(Size - err_cnt) / (float)Size) * 100.0f << "% ("
+              << (Size - err_cnt) << "/" << Size << ")\n";
+  }
+  std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
+  return err_cnt > 0 ? 1 : 0;
 }
 ```
-
-### Open questions
-- Vectorization controls (e.g. enforcing vector length generated by the
-  compiler) for vector/matrix operations.
-- Enabling loop vectorizer on inner loops in a Explicit SIMD kernel or function.
-
-### TODOs
-
-- Design interoperability with SPMD context - e.g. invocation of ESIMD functions
-  from a standard SYCL code
-- Generate `sycl::ext::intel::experimental::esimd` API documentation from sources
-- Section covering 2D use cases
-- A bridge from `std::simd` to `sycl::ext::intel::experimental::esimd::simd`
-- Describe `simd_view` class restrictions
-- Support OpenCL and L0 interop for ESIMD kernels
-- Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-explicit-simd option
-- Add example showing the mapping between an ND-range and the number of
-thread-groups and EU threads, and showing the usage of explicit SIMD together
-with work-group barriers and SLM.
-
-### Discussion topics
-1. Inter-relation with `std::simd`.
-
-- @rolandschulz suggests __not__ to imeplement `std::simd` for Intel GPU based on
-`sycl::intel::gpu`, but directly on top of clang vectors.
-> Implementing it on top of `gpu::simd` is the strategy which requires a reimplementation
-> of `std::simd` features missing from `gpu::simd`. On the other hand there is an existing
-> implementation directly on top of gcc/clang vector: https://github.com/VcDevel/std-simd.
-> We should explore how we can reuse most of that implementation also for the GPU.
-
-- @mattkretz suggests to consider making `std::simd` good enough for GPU programming
- instead of creating a highly specific extension.
-> A SIMD type that doesn't allow you to reach full performance is a failure
-> (or hopefully just buggy and needs to be fixed). Performance is the reason why we use it.
-
-...
-
-> I guess what I'd like to discuss is: If you deviate from the Parallelism TS 2, why?
-> Is it to simplify your implementation, is it because of missing functionality, is it
-> because of performance, or? This is important feedback to the C++ committee when merging
-> the TS into the IS is discussed.
-
-
-2. Invocation API
-`Cgh.single_task<class KernelID>([=] () EXPLICIT_SIMD`
-- @Ruyk suggests to use different handler API to invoke ESIMD kernels rather
-  than using attributes to mark lambda/functor type:
-> Well we could have a single "parallel_for" for everything but sometimes is
-> better to distinguish entry points, specially if the programming model is very
-> different. That macro in the lambda is easy to miss, specially if the kernel
-> lambda is defined elsewhere.
-
-...
-
-> One of my concerns is that you could have the kernel separated from the
-> single_task point of entry, and you may not even know what kind of kernel is
-> that you are dispatching, just a SYCL kernel. Without a way for a C++
-> developer to identify the usage of this different API inside, they will be
-> reduced to random runtime errors if the wrong kernel is used in the wrong device.
-
-- @keryell suggests to use kernel properties and avoid macros:
-https://www.youtube.com/watch?v=Fp8DuVWesT4 and https://gitlab.khronos.org/sycl/Specification/issues/296
-
-- @kbobrovs mentioned that there was another suggestion from @rolandschulz to
-  use some extra "executor" template parameter, which would be set to "ESIMD"
-  for ESIMD kernels.
-
-3. Enabling this extension for other architectures, such as x86, with extracting
-  and clearly marking generic and target-dependent API portions
-
+more examples can be found in the
+[ESIMD test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) on github.
