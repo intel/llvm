@@ -1,4 +1,5 @@
 // RUN: mlir-opt %s -inline='default-pipeline=''' | FileCheck %s
+// RUN: mlir-opt %s --mlir-disable-threading -inline='default-pipeline=''' | FileCheck %s
 // RUN: mlir-opt %s -inline='default-pipeline=''' -mlir-print-debuginfo -mlir-print-local-scope | FileCheck %s --check-prefix INLINE-LOC
 // RUN: mlir-opt %s -inline | FileCheck %s --check-prefix INLINE_SIMPLIFY
 
@@ -188,4 +189,16 @@ func @inline_simplify() -> i32 {
 func @no_inline_invalid_call() -> i32 {
   %res = "test.conversion_call_op"() { callee=@convert_callee_fn_multiblock, noinline } : () -> (i32)
   return %res : i32
+}
+
+func @gpu_alloc() -> memref<1024xf32> {
+  %m = gpu.alloc [] () : memref<1024xf32>
+  return %m : memref<1024xf32>
+}
+
+// CHECK-LABEL: func @inline_gpu_ops
+func @inline_gpu_ops() -> memref<1024xf32> {
+  // CHECK-NEXT: gpu.alloc
+  %m = call @gpu_alloc() : () -> memref<1024xf32>
+  return %m : memref<1024xf32>
 }

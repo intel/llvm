@@ -59,8 +59,8 @@ public:
     // the TLS Info entry's key value will be written by the fixTLVSectionByName
     // pass, so create mutable content.
     auto &TLSInfoEntry = G.createMutableContentBlock(
-        getTLSInfoSection(G), G.allocateContent(getTLSInfoEntryContent()), 0, 8,
-        0);
+        getTLSInfoSection(G), G.allocateContent(getTLSInfoEntryContent()),
+        orc::ExecutorAddr(), 8, 0);
     TLSInfoEntry.addEdge(x86_64::Pointer64, 8, Target, 0);
     return G.addAnonymousSymbol(TLSInfoEntry, 0, 16, false, false);
   }
@@ -241,18 +241,20 @@ private:
     }
     case Branch32: {
       Kind = x86_64::BranchPCRel32;
-      Addend = 0;
+      // BranchPCRel32 implicitly handles the '-4' PC adjustment, so we have to
+      // adjust the addend by '+4' to compensate.
+      Addend += 4;
       break;
     }
     }
 
     Block *BlockToFix = *(GraphSection.blocks().begin());
-    JITTargetAddress FixupAddress = FixupSection.sh_addr + Rel.r_offset;
+    auto FixupAddress = orc::ExecutorAddr(FixupSection.sh_addr) + Rel.r_offset;
     Edge::OffsetT Offset = FixupAddress - BlockToFix->getAddress();
     Edge GE(Kind, Offset, *GraphSymbol, Addend);
     LLVM_DEBUG({
       dbgs() << "    ";
-      printEdge(dbgs(), *BlockToFix, GE, getELFX86RelocationKindName(Kind));
+      printEdge(dbgs(), *BlockToFix, GE, x86_64::getEdgeKindName(Kind));
       dbgs() << "\n";
     });
 
@@ -320,8 +322,9 @@ private:
       // If there's no defined symbol then create one.
       SectionRange SR(*GOTSection);
       if (SR.empty())
-        GOTSymbol = &G.addAbsoluteSymbol(ELFGOTSymbolName, 0, 0,
-                                         Linkage::Strong, Scope::Local, true);
+        GOTSymbol =
+            &G.addAbsoluteSymbol(ELFGOTSymbolName, orc::ExecutorAddr(), 0,
+                                 Linkage::Strong, Scope::Local, true);
       else
         GOTSymbol =
             &G.addDefinedSymbol(*SR.getFirstBlock(), 0, ELFGOTSymbolName, 0,

@@ -71,9 +71,10 @@ InstructionSelect::InstructionSelect()
 
 void InstructionSelect::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
+  AU.addRequired<GISelKnownBitsAnalysis>();
+  AU.addPreserved<GISelKnownBitsAnalysis>();
+
   if (OptLevel != CodeGenOpt::None) {
-    AU.addRequired<GISelKnownBitsAnalysis>();
-    AU.addPreserved<GISelKnownBitsAnalysis>();
     AU.addRequired<ProfileSummaryInfoWrapperPass>();
     LazyBlockFrequencyInfoPass::getLazyBFIAnalysisUsage(AU);
   }
@@ -97,9 +98,8 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
   OptLevel = MF.getFunction().hasOptNone() ? CodeGenOpt::None
                                            : MF.getTarget().getOptLevel();
 
-  GISelKnownBits *KB = nullptr;
+  GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
   if (OptLevel != CodeGenOpt::None) {
-    KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
     PSI = &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
     if (PSI && PSI->hasProfileSummary())
       BFI = &getAnalysis<LazyBlockFrequencyInfoPass>().getBFI();
@@ -163,7 +163,7 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
       // If so, erase it.
       if (isTriviallyDead(MI, MRI)) {
         LLVM_DEBUG(dbgs() << "Is dead; erasing.\n");
-        MI.eraseFromParentAndMarkDBGValuesForRemoval();
+        MI.eraseFromParent();
         continue;
       }
 
@@ -255,8 +255,12 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
     MachineInstr *MI = nullptr;
     if (!MRI.def_empty(VReg))
       MI = &*MRI.def_instr_begin(VReg);
-    else if (!MRI.use_empty(VReg))
+    else if (!MRI.use_empty(VReg)) {
       MI = &*MRI.use_instr_begin(VReg);
+      // Debug value instruction is permitted to use undefined vregs.
+      if (MI->isDebugValue())
+        continue;
+    }
     if (!MI)
       continue;
 

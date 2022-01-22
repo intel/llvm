@@ -22,7 +22,6 @@ namespace mlir {
 // Forward declarations.
 class Block;
 class ConversionPatternRewriter;
-class FuncOp;
 class MLIRContext;
 class Operation;
 class Type;
@@ -507,25 +506,20 @@ void populateFunctionLikeTypeConversionPattern(RewritePatternSet &patterns,
                                             patterns, converter);
 }
 
-/// Add a pattern to the given pattern list to convert the signature of a FuncOp
-/// with the given type converter.
-void populateFuncOpTypeConversionPattern(RewritePatternSet &patterns,
-                                         TypeConverter &converter);
-
 //===----------------------------------------------------------------------===//
 // Conversion PatternRewriter
 //===----------------------------------------------------------------------===//
 
 namespace detail {
 struct ConversionPatternRewriterImpl;
-} // end namespace detail
+} // namespace detail
 
 /// This class implements a pattern rewriter for use with ConversionPatterns. It
 /// extends the base PatternRewriter and provides special conversion specific
 /// hooks.
 class ConversionPatternRewriter final : public PatternRewriter {
 public:
-  ConversionPatternRewriter(MLIRContext *ctx);
+  explicit ConversionPatternRewriter(MLIRContext *ctx);
   ~ConversionPatternRewriter() override;
 
   /// Apply a signature conversion to the entry block of the given region. This
@@ -780,11 +774,11 @@ public:
   /// Register the operations of the given dialects as dynamically legal, i.e.
   /// requiring custom handling by the callback.
   template <typename... Names>
-  void addDynamicallyLegalDialect(DynamicLegalityCallbackFn callback,
+  void addDynamicallyLegalDialect(const DynamicLegalityCallbackFn &callback,
                                   StringRef name, Names... names) {
     SmallVector<StringRef, 2> dialectNames({name, names...});
     setDialectAction(dialectNames, LegalizationAction::Dynamic);
-    setLegalityCallback(dialectNames, std::move(callback));
+    setLegalityCallback(dialectNames, callback);
   }
   template <typename... Args>
   void addDynamicallyLegalDialect(DynamicLegalityCallbackFn callback) {
@@ -932,14 +926,20 @@ LogicalResult applyFullConversion(Operation *op, ConversionTarget &target,
 /// provided 'convertedOps' set; note that no actual rewrites are applied to the
 /// operations on success and only pre-existing operations are added to the set.
 /// This method only returns failure if there are unreachable blocks in any of
-/// the regions nested within 'ops'.
-LogicalResult applyAnalysisConversion(ArrayRef<Operation *> ops,
-                                      ConversionTarget &target,
-                                      const FrozenRewritePatternSet &patterns,
-                                      DenseSet<Operation *> &convertedOps);
-LogicalResult applyAnalysisConversion(Operation *op, ConversionTarget &target,
-                                      const FrozenRewritePatternSet &patterns,
-                                      DenseSet<Operation *> &convertedOps);
-} // end namespace mlir
+/// the regions nested within 'ops'. There's an additional argument
+/// `notifyCallback` which is used for collecting match failure diagnostics
+/// generated during the conversion. Diagnostics are only reported to this
+/// callback may only be available in debug mode.
+LogicalResult applyAnalysisConversion(
+    ArrayRef<Operation *> ops, ConversionTarget &target,
+    const FrozenRewritePatternSet &patterns,
+    DenseSet<Operation *> &convertedOps,
+    function_ref<void(Diagnostic &)> notifyCallback = nullptr);
+LogicalResult applyAnalysisConversion(
+    Operation *op, ConversionTarget &target,
+    const FrozenRewritePatternSet &patterns,
+    DenseSet<Operation *> &convertedOps,
+    function_ref<void(Diagnostic &)> notifyCallback = nullptr);
+} // namespace mlir
 
 #endif // MLIR_TRANSFORMS_DIALECTCONVERSION_H_

@@ -30,8 +30,9 @@ Every element of the triple is optional, but a filter must contain at least one 
 
 |`cuda`
 |`host`
-| `opencl`
+|`opencl`
 |`level_zero`
+|`hip`
 |====
 
 .Supported Device Types

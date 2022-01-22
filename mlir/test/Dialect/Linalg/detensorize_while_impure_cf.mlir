@@ -1,5 +1,5 @@
-// RUN: mlir-opt %s -linalg-detensorize=aggressive-mode | FileCheck %s -check-prefix=DET-ALL
-// RUN: mlir-opt %s -linalg-detensorize | FileCheck %s -check-prefix=DET-CF
+// RUN: mlir-opt %s -pass-pipeline="builtin.func(linalg-detensorize{aggressive-mode})" | FileCheck %s -check-prefix=DET-ALL
+// RUN: mlir-opt %s -pass-pipeline="builtin.func(linalg-detensorize)" | FileCheck %s -check-prefix=DET-CF
 
 #map0 = affine_map<() -> ()>
 #map1 = affine_map<(i) -> ()>
@@ -76,8 +76,7 @@ func @main(%farg0: tensor<10xi32>, %farg1: tensor<i32>) -> tensor<i32> attribute
 // DET-ALL:         cmpi slt, %{{.*}}, %{{.*}} : i32
 // DET-ALL:         cond_br %{{.*}}, ^[[bb2:.*]](%{{.*}} : i32), ^[[bb3:.*]](%{{.*}} : i32)
 // DET-ALL:       ^[[bb2]](%{{.*}}: i32)
-// DET-ALL:         tensor.from_elements %{{.*}} : tensor<1xi32>
-// DET-ALL:         linalg.tensor_collapse_shape %{{.*}} [] : tensor<1xi32> into tensor<i32>
+// DET-ALL:         tensor.from_elements %{{.*}} : tensor<i32>
 // DET-ALL:         linalg.init_tensor [10] : tensor<10xi32>
 // DET-ALL:         linalg.generic {{{.*}}} ins(%{{.*}} : tensor<i32>) outs(%{{.*}} : tensor<10xi32>) {
 // DET-ALL:         ^bb0(%{{.*}}: i32, %{{.*}}: i32):
@@ -85,8 +84,7 @@ func @main(%farg0: tensor<10xi32>, %farg1: tensor<i32>) -> tensor<i32> attribute
 // DET-ALL:         } -> tensor<10xi32>
 // DET-ALL:         br ^[[bb1]](%{{.*}} : tensor<10xi32>)
 // DET-ALL:       ^[[bb3]](%{{.*}}: i32)
-// DET-ALL:         tensor.from_elements %{{.*}} : tensor<1xi32>
-// DET-ALL:         linalg.tensor_collapse_shape %{{.*}} [] : tensor<1xi32> into tensor<i32>
+// DET-ALL:         tensor.from_elements %{{.*}} : tensor<i32>
 // DET-ALL:         return %{{.*}} : tensor<i32>
 // DET-ALL:       }
 

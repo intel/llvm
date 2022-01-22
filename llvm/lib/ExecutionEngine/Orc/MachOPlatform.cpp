@@ -28,8 +28,7 @@ class MachOHeaderMaterializationUnit : public MaterializationUnit {
 public:
   MachOHeaderMaterializationUnit(MachOPlatform &MOP,
                                  const SymbolStringPtr &HeaderStartSymbol)
-      : MaterializationUnit(createHeaderSymbols(MOP, HeaderStartSymbol),
-                            HeaderStartSymbol),
+      : MaterializationUnit(createHeaderInterface(MOP, HeaderStartSymbol)),
         MOP(MOP) {}
 
   StringRef getName() const override { return "MachOHeaderMU"; }
@@ -107,12 +106,13 @@ private:
     auto HeaderContent = G.allocateString(
         StringRef(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
 
-    return G.createContentBlock(HeaderSection, HeaderContent, 0, 8, 0);
+    return G.createContentBlock(HeaderSection, HeaderContent, ExecutorAddr(), 8,
+                                0);
   }
 
-  static SymbolFlagsMap
-  createHeaderSymbols(MachOPlatform &MOP,
-                      const SymbolStringPtr &HeaderStartSymbol) {
+  static MaterializationUnit::Interface
+  createHeaderInterface(MachOPlatform &MOP,
+                        const SymbolStringPtr &HeaderStartSymbol) {
     SymbolFlagsMap HeaderSymbolFlags;
 
     HeaderSymbolFlags[HeaderStartSymbol] = JITSymbolFlags::Exported;
@@ -120,7 +120,8 @@ private:
       HeaderSymbolFlags[MOP.getExecutionSession().intern(HS.Name)] =
           JITSymbolFlags::Exported;
 
-    return HeaderSymbolFlags;
+    return MaterializationUnit::Interface(std::move(HeaderSymbolFlags),
+                                          HeaderStartSymbol);
   }
 
   MachOPlatform &MOP;
@@ -439,7 +440,7 @@ void MachOPlatform::rt_getDeinitializers(SendDeinitializerSequenceFn SendResult,
 
   {
     std::lock_guard<std::mutex> Lock(PlatformMutex);
-    auto I = HeaderAddrToJITDylib.find(Handle.getValue());
+    auto I = HeaderAddrToJITDylib.find(Handle);
     if (I != HeaderAddrToJITDylib.end())
       JD = I->second;
   }
@@ -469,7 +470,7 @@ void MachOPlatform::rt_lookupSymbol(SendSymbolAddressFn SendResult,
 
   {
     std::lock_guard<std::mutex> Lock(PlatformMutex);
-    auto I = HeaderAddrToJITDylib.find(Handle.getValue());
+    auto I = HeaderAddrToJITDylib.find(Handle);
     if (I != HeaderAddrToJITDylib.end())
       JD = I->second;
   }
@@ -661,11 +662,11 @@ Error MachOPlatform::MachOPlatformPlugin::associateJITDylibHeaderSymbol(
 
   auto &JD = MR.getTargetJITDylib();
   std::lock_guard<std::mutex> Lock(MP.PlatformMutex);
-  JITTargetAddress HeaderAddr = (*I)->getAddress();
+  auto HeaderAddr = (*I)->getAddress();
   MP.HeaderAddrToJITDylib[HeaderAddr] = &JD;
   assert(!MP.InitSeqs.count(&JD) && "InitSeq entry for JD already exists");
-  MP.InitSeqs.insert(std::make_pair(
-      &JD, MachOJITDylibInitializers(JD.getName(), ExecutorAddr(HeaderAddr))));
+  MP.InitSeqs.insert(
+      std::make_pair(&JD, MachOJITDylibInitializers(JD.getName(), HeaderAddr)));
   return Error::success();
 }
 
@@ -792,7 +793,7 @@ Error MachOPlatform::MachOPlatformPlugin::registerInitSections(
 
   if (auto *ObjCImageInfoSec = G.findSectionByName(ObjCImageInfoSectionName)) {
     if (auto Addr = jitlink::SectionRange(*ObjCImageInfoSec).getStart())
-      ObjCImageInfoAddr.setValue(Addr);
+      ObjCImageInfoAddr = Addr;
   }
 
   for (auto InitSectionName : InitSectionNames)
@@ -880,10 +881,12 @@ Error MachOPlatform::MachOPlatformPlugin::registerEHAndTLVSections(
     jitlink::SectionRange R(*EHFrameSection);
     if (!R.empty())
       G.allocActions().push_back(
-          {{MP.orc_rt_macho_register_ehframe_section.getValue(), R.getStart(),
-            R.getSize()},
-           {MP.orc_rt_macho_deregister_ehframe_section.getValue(), R.getStart(),
-            R.getSize()}});
+          {cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   MP.orc_rt_macho_register_ehframe_section, R.getRange())),
+           cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   MP.orc_rt_macho_deregister_ehframe_section, R.getRange()))});
   }
 
   // Get a pointer to the thread data section if there is one. It will be used
@@ -913,10 +916,13 @@ Error MachOPlatform::MachOPlatformPlugin::registerEHAndTLVSections(
                                        inconvertibleErrorCode());
 
       G.allocActions().push_back(
-          {{MP.orc_rt_macho_register_thread_data_section.getValue(),
-            R.getStart(), R.getSize()},
-           {MP.orc_rt_macho_deregister_thread_data_section.getValue(),
-            R.getStart(), R.getSize()}});
+          {cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   MP.orc_rt_macho_register_thread_data_section, R.getRange())),
+           cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   MP.orc_rt_macho_deregister_thread_data_section,
+                   R.getRange()))});
     }
   }
   return Error::success();
@@ -963,10 +969,10 @@ Error MachOPlatform::MachOPlatformPlugin::registerEHSectionsPhase1(
   // Otherwise, add allocation actions to the graph to register eh-frames for
   // this object.
   G.allocActions().push_back(
-      {{orc_rt_macho_register_ehframe_section.getValue(), R.getStart(),
-        R.getSize()},
-       {orc_rt_macho_deregister_ehframe_section.getValue(), R.getStart(),
-        R.getSize()}});
+      {cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+           orc_rt_macho_register_ehframe_section, R.getRange())),
+       cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+           orc_rt_macho_deregister_ehframe_section, R.getRange()))});
 
   return Error::success();
 }

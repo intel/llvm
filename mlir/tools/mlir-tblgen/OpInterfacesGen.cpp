@@ -104,6 +104,7 @@ protected:
   /// The format context to use for methods.
   tblgen::FmtContext nonStaticMethodFmt;
   tblgen::FmtContext traitMethodFmt;
+  tblgen::FmtContext extraDeclsFmt;
 };
 
 /// A specialized generator for attribute interfaces.
@@ -118,6 +119,7 @@ struct AttrInterfaceGenerator : public InterfaceGenerator {
     nonStaticMethodFmt.addSubst("_attr", castCode).withSelf(castCode);
     traitMethodFmt.addSubst("_attr",
                             "(*static_cast<const ConcreteAttr *>(this))");
+    extraDeclsFmt.addSubst("_attr", "(*this)");
   }
 };
 /// A specialized generator for operation interfaces.
@@ -132,6 +134,7 @@ struct OpInterfaceGenerator : public InterfaceGenerator {
         .withOp(castCode)
         .withSelf(castCode);
     traitMethodFmt.withOp("(*static_cast<ConcreteOp *>(this))");
+    extraDeclsFmt.withOp("(*this)");
   }
 };
 /// A specialized generator for type interfaces.
@@ -146,15 +149,16 @@ struct TypeInterfaceGenerator : public InterfaceGenerator {
     nonStaticMethodFmt.addSubst("_type", castCode).withSelf(castCode);
     traitMethodFmt.addSubst("_type",
                             "(*static_cast<const ConcreteType *>(this))");
+    extraDeclsFmt.addSubst("_type", "(*this)");
   }
 };
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // GEN: Interface definitions
 //===----------------------------------------------------------------------===//
 
-static void emitInterfaceDef(Interface interface, StringRef valueType,
+static void emitInterfaceDef(const Interface &interface, StringRef valueType,
                              raw_ostream &os) {
   StringRef interfaceName = interface.getName();
   StringRef cppNamespace = interface.getCppNamespace();
@@ -415,6 +419,8 @@ void InterfaceGenerator::emitTraitDecl(Interface &interface,
   }
   if (auto extraTraitDecls = interface.getExtraTraitClassDeclaration())
     os << tblgen::tgfmt(*extraTraitDecls, &traitMethodFmt) << "\n";
+  if (auto extraTraitDecls = interface.getExtraSharedClassDeclaration())
+    os << tblgen::tgfmt(*extraTraitDecls, &traitMethodFmt) << "\n";
 
   os << "  };\n";
 }
@@ -443,7 +449,7 @@ void InterfaceGenerator::emitInterfaceDecl(Interface interface) {
   os << "template <typename " << valueTemplate << ">\n";
   os << "struct " << interface.getName() << "Trait;\n";
 
-  os << "\n} // end namespace detail\n";
+  os << "\n} // namespace detail\n";
 
   // Emit the main interface class declaration.
   os << llvm::formatv("class {0} : public ::mlir::{3}<{1}, detail::{2}> {\n"
@@ -469,6 +475,9 @@ void InterfaceGenerator::emitInterfaceDecl(Interface interface) {
   // Emit any extra declarations.
   if (Optional<StringRef> extraDecls = interface.getExtraClassDeclaration())
     os << *extraDecls << "\n";
+  if (Optional<StringRef> extraDecls =
+          interface.getExtraSharedClassDeclaration())
+    os << tblgen::tgfmt(*extraDecls, &extraDeclsFmt);
 
   os << "};\n";
 
@@ -570,7 +579,7 @@ struct InterfaceGenRegistration {
   std::string genDeclDesc, genDefDesc, genDocDesc;
   mlir::GenRegistration genDecls, genDefs, genDocs;
 };
-} // end anonymous namespace
+} // namespace
 
 static InterfaceGenRegistration<AttrInterfaceGenerator> attrGen("attr",
                                                                 "attribute");

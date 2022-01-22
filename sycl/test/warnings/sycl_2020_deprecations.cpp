@@ -6,14 +6,6 @@
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/online_compiler.hpp>
 
-// This test uses SYCL host only mode without integration header, so
-// forward declare used kernel name class, otherwise it will be diagnosed by
-// the diagnostic implemented in https://github.com/intel/llvm/pull/4945.
-// The error happens because in host mode it is assumed that all kernel names
-// are forward declared at global or namespace scope because of integration
-// header.
-class Test;
-
 int main() {
   cl_context ClCtx;
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::context'}}

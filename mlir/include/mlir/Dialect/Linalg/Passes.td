@@ -11,12 +11,13 @@
 
 include "mlir/Pass/PassBase.td"
 
-def ConvertElementwiseToLinalg : FunctionPass<"convert-elementwise-to-linalg"> {
+def ConvertElementwiseToLinalg : Pass<"convert-elementwise-to-linalg", ""> {
   let summary = "Convert ElementwiseMappable ops to linalg";
   let description = [{
     Convert ops with the `ElementwiseMappable` trait to linalg parallel loops.
 
-    This pass only converts ops that operate on ranked tensors.
+    This pass only converts ops that operate on ranked tensors. It can be
+    run on op which contains linalg ops (most commonly a FunctionLike op).
   }];
   let constructor = "mlir::createConvertElementwiseToLinalgPass()";
   let dependentDialects = ["linalg::LinalgDialect", "memref::MemRefDialect"];
@@ -38,20 +39,33 @@ def LinalgComprehensiveModuleBufferize :
     Option<"testAnalysisOnly", "test-analysis-only", "bool",
             /*default=*/"false",
            "Only runs inplaceability analysis (for testing purposes only)">,
+    Option<"printConflicts", "print-conflicts", "bool",
+            /*default=*/"false",
+           "Annotates IR with RaW conflicts. Requires test-analysis-only.">,
     Option<"allowReturnMemref", "allow-return-memref", "bool",
             /*default=*/"false",
            "Allows the return of memrefs (for testing purposes only)">,
+    Option<"allowUnknownOps", "allow-unknown-ops", "bool",
+           /*default=*/"false",
+           "Allows unknown (not bufferizable) ops in the input IR.">,
     Option<"useAlloca", "use-alloca", "bool",
            /*default=*/"false",
            "Use stack allocations for memrefs (for testing purposes only)">,
     Option<"analysisFuzzerSeed", "analysis-fuzzer-seed", "unsigned",
            /*default=*/"0",
-           "Analyze ops in random order with a given seed (fuzzer)">
+           "Analyze ops in random order with a given seed (fuzzer)">,
+    Option<"initTensorElimination", "init-tensor-elimination", "bool",
+            /*default=*/"false",
+           "(Experimental) Try to eliminate init_tensor operations that are "
+           "anchored at an insert_slice op">,
+    Option<"createDeallocs", "create-deallocs", "bool", /*default=*/"true",
+           "Specify if buffers should be deallocated. For compatibility with "
+           "core bufferization passes.">,
   ];
   let constructor = "mlir::createLinalgComprehensiveModuleBufferizePass()";
 }
 
-def LinalgFoldUnitExtentDims : FunctionPass<"linalg-fold-unit-extent-dims"> {
+def LinalgFoldUnitExtentDims : Pass<"linalg-fold-unit-extent-dims", ""> {
   let summary = "Remove unit-extent dimension in Linalg ops on tensors";
   let constructor = "mlir::createLinalgFoldUnitExtentDimsPass()";
   let options = [
@@ -91,6 +105,12 @@ def LinalgFoldReshapeOpsByLinearization :
            "dimension collapsing">
   ];
   let dependentDialects = ["AffineDialect", "memref::MemRefDialect"];
+}
+
+def LinalgNamedOpConversion: Pass<"linalg-named-op-conversion"> {
+  let summary = "Convert from one named linalg op to another.";
+  let constructor = "mlir::createLinalgNamedOpConversionPass()";
+  let dependentDialects = ["linalg::LinalgDialect", "tensor::TensorDialect"];
 }
 
 def LinalgLowerTiledLoopsToSCF
@@ -194,13 +214,13 @@ def LinalgGeneralization : FunctionPass<"linalg-generalize-named-ops"> {
   let dependentDialects = ["linalg::LinalgDialect"];
 }
 
-def LinalgDetensorize : FunctionPass<"linalg-detensorize"> {
+def LinalgDetensorize : Pass<"linalg-detensorize", ""> {
   let summary = "Detensorize linalg ops";
   let constructor = "mlir::createLinalgDetensorizePass()";
   let dependentDialects = [];
 
   let description = [{
-    Detensoring is the process through which a tensor value is convereted to one
+    Detensoring is the process through which a tensor value is converted to one
     or potentially more primitive value(s). During this process, operations with
     such detensored operands are also converted to an equivalent form that works
     on primitives.
@@ -219,7 +239,17 @@ def LinalgDetensorize : FunctionPass<"linalg-detensorize"> {
     In addition to detensoring individual ops, this pass detensors internal
     control flow inside a function. All blocks except for the entry block are
     detensored by converting their arguments whenever possible.
+
+    This can be run on any op with the FunctionLike trait and must not be
+    run on others. This is because it performs specific legalization of the
+    blocks that make up the body, which it assumes has a FunctionLike trait.
   }];
+  let options = [
+    Option<"aggressiveMode", "aggressive-mode", "bool", /*default=*/"false",
+           "Detensorize all ops that qualify for detensoring along with branch"
+           " operands and basic-block arguments.">
+
+  ];
 }
 
 def LinalgStrategyTileAndFusePass
@@ -286,8 +316,7 @@ def LinalgStrategyGeneralizePass
   ];
 }
 
-// TODO: atm this is applied to all supported ops. If/when we need finer control
-// this should be exposed with an opName + filter and a proper pattern.
+// TODO: if/when we need finer control add an anchorOp option.
 def LinalgStrategyDecomposePass
     : FunctionPass<"linalg-strategy-decompose-pass"> {
   let summary = "Configurable pass to apply pattern-based generalization.";

@@ -62,7 +62,7 @@ public:
       Indent = Line.Level * IndentWidth + AdditionalIndent;
     } else {
       IndentForLevel.resize(Line.Level + 1);
-      Indent = getIndent(IndentForLevel, Line.Level);
+      Indent = getIndent(Line.Level);
     }
     if (static_cast<int>(Indent) + Offset >= 0)
       Indent += Offset;
@@ -97,8 +97,8 @@ private:
   /// For example, 'public:' labels in classes are offset by 1 or 2
   /// characters to the left from their level.
   int getIndentOffset(const FormatToken &RootToken) {
-    if (Style.Language == FormatStyle::LK_Java ||
-        Style.Language == FormatStyle::LK_JavaScript || Style.isCSharp())
+    if (Style.Language == FormatStyle::LK_Java || Style.isJavaScript() ||
+        Style.isCSharp())
       return 0;
     if (RootToken.isAccessSpecifier(false) ||
         RootToken.isObjCAccessSpecifier() ||
@@ -118,12 +118,12 @@ private:
   /// \p IndentForLevel must contain the indent for the level \c l
   /// at \p IndentForLevel[l], or a value < 0 if the indent for
   /// that level is unknown.
-  unsigned getIndent(ArrayRef<int> IndentForLevel, unsigned Level) {
+  unsigned getIndent(unsigned Level) const {
     if (IndentForLevel[Level] != -1)
       return IndentForLevel[Level];
     if (Level == 0)
       return 0;
-    return getIndent(IndentForLevel, Level - 1) + Style.IndentWidth;
+    return getIndent(Level - 1) + Style.IndentWidth;
   }
 
   const FormatStyle &Style;
@@ -262,14 +262,58 @@ private:
       }
     }
 
-    // FIXME: TheLine->Level != 0 might or might not be the right check to do.
-    // If necessary, change to something smarter.
-    bool MergeShortFunctions =
-        Style.AllowShortFunctionsOnASingleLine == FormatStyle::SFS_All ||
-        (Style.AllowShortFunctionsOnASingleLine >= FormatStyle::SFS_Empty &&
-         I[1]->First->is(tok::r_brace)) ||
-        (Style.AllowShortFunctionsOnASingleLine & FormatStyle::SFS_InlineOnly &&
-         TheLine->Level != 0);
+    auto ShouldMergeShortFunctions =
+        [this, B = AnnotatedLines.begin()](
+            SmallVectorImpl<AnnotatedLine *>::const_iterator I) {
+          if (Style.AllowShortFunctionsOnASingleLine == FormatStyle::SFS_All)
+            return true;
+          if (Style.AllowShortFunctionsOnASingleLine >=
+                  FormatStyle::SFS_Empty &&
+              I[1]->First->is(tok::r_brace))
+            return true;
+
+          if (Style.AllowShortFunctionsOnASingleLine &
+              FormatStyle::SFS_InlineOnly) {
+            // Just checking TheLine->Level != 0 is not enough, because it
+            // provokes treating functions inside indented namespaces as short.
+            if ((*I)->Level != 0) {
+              if (I == B)
+                return false;
+
+              // TODO: Use IndentTracker to avoid loop?
+              // Find the last line with lower level.
+              auto J = I - 1;
+              for (; J != B; --J)
+                if ((*J)->Level < (*I)->Level)
+                  break;
+
+              // Check if the found line starts a record.
+              auto *RecordTok = (*J)->First;
+              while (RecordTok) {
+                // TODO: Refactor to isRecord(RecordTok).
+                if (RecordTok->isOneOf(tok::kw_class, tok::kw_struct))
+                  return true;
+                if (Style.isCpp() && RecordTok->is(tok::kw_union))
+                  return true;
+                if (Style.isCSharp() && RecordTok->is(Keywords.kw_interface))
+                  return true;
+                if (Style.Language == FormatStyle::LK_Java &&
+                    RecordTok->is(tok::kw_enum))
+                  return true;
+                if (Style.isJavaScript() && RecordTok->is(Keywords.kw_function))
+                  return true;
+
+                RecordTok = RecordTok->Next;
+              }
+
+              return false;
+            }
+          }
+
+          return false;
+        };
+
+    bool MergeShortFunctions = ShouldMergeShortFunctions(I);
 
     if (Style.CompactNamespaces) {
       if (auto nsToken = TheLine->First->getNamespaceToken()) {
@@ -391,13 +435,26 @@ private:
       }
     }
 
-    // Try to merge a block with left brace wrapped that wasn't yet covered
+    // Try to merge a block with left brace unwrapped that wasn't yet covered
     if (TheLine->Last->is(tok::l_brace)) {
-      return !Style.BraceWrapping.AfterFunction ||
-                     (I[1]->First->is(tok::r_brace) &&
-                      !Style.BraceWrapping.SplitEmptyRecord)
-                 ? tryMergeSimpleBlock(I, E, Limit)
-                 : 0;
+      const FormatToken *Tok = TheLine->First;
+      bool ShouldMerge = false;
+      if (Tok->is(tok::kw_typedef)) {
+        Tok = Tok->getNextNonComment();
+        assert(Tok);
+      }
+      if (Tok->isOneOf(tok::kw_class, tok::kw_struct)) {
+        ShouldMerge = !Style.BraceWrapping.AfterClass ||
+                      (I[1]->First->is(tok::r_brace) &&
+                       !Style.BraceWrapping.SplitEmptyRecord);
+      } else if (Tok->is(tok::kw_enum)) {
+        ShouldMerge = Style.AllowShortEnumsOnASingleLine;
+      } else {
+        ShouldMerge = !Style.BraceWrapping.AfterFunction ||
+                      (I[1]->First->is(tok::r_brace) &&
+                       !Style.BraceWrapping.SplitEmptyFunction);
+      }
+      return ShouldMerge ? tryMergeSimpleBlock(I, E, Limit) : 0;
     }
     // Try to merge a function block with left brace wrapped
     if (I[1]->First->is(TT_FunctionLBrace) &&
@@ -583,6 +640,9 @@ private:
                             tok::kw___finally, tok::kw_for, tok::r_brace,
                             Keywords.kw___except)) {
       if (Style.AllowShortBlocksOnASingleLine == FormatStyle::SBS_Never)
+        return 0;
+      if (Style.AllowShortBlocksOnASingleLine == FormatStyle::SBS_Empty &&
+          !I[1]->First->is(tok::r_brace))
         return 0;
       // Don't merge when we can't except the case when
       // the control statement block is empty
@@ -1015,9 +1075,9 @@ private:
     QueueType Queue;
 
     // Insert start element into queue.
-    StateNode *Node =
+    StateNode *RootNode =
         new (Allocator.Allocate()) StateNode(InitialState, false, nullptr);
-    Queue.push(QueueItem(OrderedPenalty(0, Count), Node));
+    Queue.push(QueueItem(OrderedPenalty(0, Count), RootNode));
     ++Count;
 
     unsigned Penalty = 0;
@@ -1092,22 +1152,22 @@ private:
   /// Applies the best formatting by reconstructing the path in the
   /// solution space that leads to \c Best.
   void reconstructPath(LineState &State, StateNode *Best) {
-    std::deque<StateNode *> Path;
+    llvm::SmallVector<StateNode *> Path;
     // We do not need a break before the initial token.
     while (Best->Previous) {
-      Path.push_front(Best);
+      Path.push_back(Best);
       Best = Best->Previous;
     }
-    for (auto I = Path.begin(), E = Path.end(); I != E; ++I) {
+    for (const auto &Node : llvm::reverse(Path)) {
       unsigned Penalty = 0;
-      formatChildren(State, (*I)->NewLine, /*DryRun=*/false, Penalty);
-      Penalty += Indenter->addTokenToState(State, (*I)->NewLine, false);
+      formatChildren(State, Node->NewLine, /*DryRun=*/false, Penalty);
+      Penalty += Indenter->addTokenToState(State, Node->NewLine, false);
 
       LLVM_DEBUG({
-        printLineState((*I)->Previous->State);
-        if ((*I)->NewLine) {
+        printLineState(Node->Previous->State);
+        if (Node->NewLine) {
           llvm::dbgs() << "Penalty for placing "
-                       << (*I)->Previous->State.NextToken->Tok.getName()
+                       << Node->Previous->State.NextToken->Tok.getName()
                        << " on a new line: " << Penalty << "\n";
         }
       });
@@ -1146,7 +1206,8 @@ unsigned UnwrappedLineFormatter::format(
   bool FirstLine = true;
   for (const AnnotatedLine *Line =
            Joiner.getNextMergedLine(DryRun, IndentTracker);
-       Line; Line = NextLine, FirstLine = false) {
+       Line; PrevPrevLine = PreviousLine, PreviousLine = Line, Line = NextLine,
+                           FirstLine = false) {
     const AnnotatedLine &TheLine = *Line;
     unsigned Indent = IndentTracker.getIndent();
 
@@ -1184,8 +1245,7 @@ unsigned UnwrappedLineFormatter::format(
       bool FitsIntoOneLine =
           TheLine.Last->TotalLength + Indent <= ColumnLimit ||
           (TheLine.Type == LT_ImportStatement &&
-           (Style.Language != FormatStyle::LK_JavaScript ||
-            !Style.JavaScriptWrapImports)) ||
+           (!Style.isJavaScript() || !Style.JavaScriptWrapImports)) ||
           (Style.isCSharp() &&
            TheLine.InPPDirective); // don't split #regions in C#
       if (Style.ColumnLimit == 0)
@@ -1237,8 +1297,6 @@ unsigned UnwrappedLineFormatter::format(
     }
     if (!DryRun)
       markFinalized(TheLine.First);
-    PrevPrevLine = PreviousLine;
-    PreviousLine = &TheLine;
   }
   PenaltyCache[CacheKey] = Penalty;
   return Penalty;

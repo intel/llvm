@@ -183,7 +183,7 @@ _T_ is restricted to types that have a trivial destructor and a trivial default 
 
 Since _T_ is restricted to types with trivial default constructors in this version of the specification, there are no non-default `device_global` constructors, and therefore no initialization values may be specified for the content of a `device_global` allocation on a device.
 
-The allocation of type _T_ is zero-initialized on each device prior to the first access to that `device_global` variable.
+The allocation of type _T_ for a given `device_global` is zero-initialized on a given device prior to the first access to that `device_global` on that device. For the purposes of this definition an access can be a direct access of the `device_global` in kernel code or a copy to or from that `device_global` enqueued to the given device.
 
 Properties may be specified for a `device_global` to provide semantic
 modification or optimization hint information to the compiler.  See the section
@@ -947,6 +947,14 @@ Not available if `PropertyListT` contains the `host_access` property with
 `read` or `none` assertions.
 
 Copies _count_ elements of type `std::remove_all_extents_t<T>` from the pointer _src_ to the `device_global` _dest_, starting at _startIndex_ elements of _dest_. _src_ may be either a host or USM pointer.
+
+If _count_ and _startIndex_ would cause data to be written beyond the end of
+the variable _dest_, the implementation throws an `exception` with the
+`errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property and the _dest_
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
 a| 
 [source, c++]
 ----
@@ -963,6 +971,14 @@ Not available if `PropertyListT` contains the `host_access` property with
 
 Copies _count_ elements of type `std::remove_all_extents_t<T>` from the `device_global` _src_ to the pointer _dest_, starting at _startIndex_ elements of _src_. _dest_ may be either a host or USM pointer.
 
+If _count_ and _startIndex_ would cause data to be read beyond the end of
+the variable _src_, the implementation throws an `exception` with the
+`errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property and the _src_
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
+
 a| 
 [source, c++]
 ----
@@ -976,6 +992,14 @@ Not available if `PropertyListT` contains the `host_access` property with
 `read` or `none` assertions.
 
 Copies _count_ bytes from the pointer _src_ to the `device_global` _dest_, starting at _offset_ bytes. _src_ may be either a host or USM pointer.
+
+If _numBytes_ and _offset_ would cause data to be written beyond the end of
+the variable _dest_, the implementation throws an `exception` with the
+`errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property and the _dest_
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
 
 a| 
 [source, c++]
@@ -991,8 +1015,27 @@ Not available if `PropertyListT` contains the `host_access` property with
 `write` or `none` assertions.
 
 Copies _count_ bytes from the `device_global` _src_ to the pointer _dest_, starting at _offset_ bytes. _dest_ may be either a host or USM pointer.
+
+If _numBytes_ and _offset_ would cause data to be read beyond the end of
+the variable _src_, the implementation throws an `exception` with the
+`errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property and the _src_
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
 |====
 --
+
+[NOTE]
+====
+As specified above, the `copy` and `memcpy` functions throw an exception if the
+global variable has the `device_image_scope` property and exists in more than
+one _device image_ for the queue's device.  This condition could occur if the
+application submits a kernel referencing the variable to the same device with
+different values for a specialization constant (when the device supports
+specialization constants natively).  This condition could also occur if the
+application submits the same kernel from more than one kernel bundle.
+====
 
 
 == Non-normative: Future anticipated changes, not enabled within this version of the specification

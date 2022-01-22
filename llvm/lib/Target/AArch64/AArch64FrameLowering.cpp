@@ -1653,8 +1653,7 @@ static void InsertReturnAddressAuth(MachineFunction &MF,
   // The AUTIASP instruction assembles to a hint instruction before v8.3a so
   // this instruction can safely used for any v8a architecture.
   // From v8.3a onwards there are optimised authenticate LR and return
-  // instructions, namely RETA{A,B}, that can be used instead. In this case the
-  // DW_CFA_AARCH64_negate_ra_state can't be emitted.
+  // instructions, namely RETA{A,B}, that can be used instead.
   if (Subtarget.hasPAuth() && MBBI != MBB.end() &&
       MBBI->getOpcode() == AArch64::RET_ReallyLR) {
     BuildMI(MBB, MBBI, DL,
@@ -1666,12 +1665,6 @@ static void InsertReturnAddressAuth(MachineFunction &MF,
         MBB, MBBI, DL,
         TII->get(MFI.shouldSignWithBKey() ? AArch64::AUTIBSP : AArch64::AUTIASP))
         .setMIFlag(MachineInstr::FrameDestroy);
-
-    unsigned CFIIndex =
-        MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
-    BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
-        .addCFIIndex(CFIIndex)
-        .setMIFlags(MachineInstr::FrameDestroy);
   }
 }
 
@@ -2292,7 +2285,7 @@ static void computeCalleeSaveRegisterPairs(
   // MachO's compact unwind format relies on all registers being stored in
   // pairs.
   assert((!produceCompactUnwindFrame(MF) ||
-          CC == CallingConv::PreserveMost ||
+          CC == CallingConv::PreserveMost || CC == CallingConv::CXX_FAST_TLS ||
           (Count & 1) == 0) &&
          "Odd number of callee-saved regs to spill!");
   int ByteOffset = AFI->getCalleeSavedStackSize();
@@ -2387,7 +2380,7 @@ static void computeCalleeSaveRegisterPairs(
     // MachO's compact unwind format relies on all registers being stored in
     // adjacent register pairs.
     assert((!produceCompactUnwindFrame(MF) ||
-            CC == CallingConv::PreserveMost ||
+            CC == CallingConv::PreserveMost || CC == CallingConv::CXX_FAST_TLS ||
             (RPI.isPaired() &&
              ((RPI.Reg1 == AArch64::LR && RPI.Reg2 == AArch64::FP) ||
               RPI.Reg1 + 1 == RPI.Reg2))) &&
@@ -3041,9 +3034,20 @@ static int64_t determineSVEStackObjectOffsets(MachineFrameInfo &MFI,
 
   // Create a buffer of SVE objects to allocate and sort it.
   SmallVector<int, 8> ObjectsToAllocate;
+  // If we have a stack protector, and we've previously decided that we have SVE
+  // objects on the stack and thus need it to go in the SVE stack area, then it
+  // needs to go first.
+  int StackProtectorFI = -1;
+  if (MFI.hasStackProtectorIndex()) {
+    StackProtectorFI = MFI.getStackProtectorIndex();
+    if (MFI.getStackID(StackProtectorFI) == TargetStackID::ScalableVector)
+      ObjectsToAllocate.push_back(StackProtectorFI);
+  }
   for (int I = 0, E = MFI.getObjectIndexEnd(); I != E; ++I) {
     unsigned StackID = MFI.getStackID(I);
     if (StackID != TargetStackID::ScalableVector)
+      continue;
+    if (I == StackProtectorFI)
       continue;
     if (MaxCSFrameIndex >= I && I >= MinCSFrameIndex)
       continue;

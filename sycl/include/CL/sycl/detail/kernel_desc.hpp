@@ -75,8 +75,6 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return ""; }
   static constexpr bool isESIMD() { return 0; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 #else
 template <char...> struct KernelInfoData {
@@ -87,8 +85,6 @@ template <char...> struct KernelInfoData {
   }
   static constexpr const char *getName() { return ""; }
   static constexpr bool isESIMD() { return 0; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
 // C++14 like index_sequence and make_index_sequence
@@ -127,12 +123,6 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return SubKernelInfo::getName(); }
   static constexpr bool isESIMD() { return SubKernelInfo::isESIMD(); }
-  static constexpr bool callsThisItem() {
-    return SubKernelInfo::callsThisItem();
-  }
-  static constexpr bool callsAnyThisFreeFunction() {
-    return SubKernelInfo::callsAnyThisFreeFunction();
-  }
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
 

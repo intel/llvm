@@ -40,7 +40,7 @@ struct PointerLikeModel
     return pointer.cast<T>().getElementType();
   }
 };
-} // end namespace
+} // namespace
 
 void OpenMPDialect::initialize() {
   addOperations<
@@ -105,7 +105,7 @@ static void printOperandAndTypeList(OpAsmPrinter &p, OperandRange operands) {
 /// Print data variables corresponding to a data-sharing clause `name`
 static void printDataVars(OpAsmPrinter &p, OperandRange operands,
                           StringRef name) {
-  if (operands.size()) {
+  if (!operands.empty()) {
     p << name;
     printOperandAndTypeList(p, operands);
   }
@@ -249,7 +249,7 @@ verifyScheduleModifiers(OpAsmParser &parser,
                         SmallVectorImpl<SmallString<12>> &modifiers) {
   if (modifiers.size() > 2)
     return parser.emitError(parser.getNameLoc()) << " unexpected modifier(s)";
-  for (auto mod : modifiers) {
+  for (const auto &mod : modifiers) {
     // Translate the string. If it has no value, then it was not a valid
     // modifier!
     auto symbol = symbolizeScheduleModifier(mod);
@@ -375,13 +375,13 @@ parseReductionVarList(OpAsmParser &parser,
 /// Print Reduction clause
 static void printReductionVarList(OpAsmPrinter &p,
                                   Optional<ArrayAttr> reductions,
-                                  OperandRange reduction_vars) {
+                                  OperandRange reductionVars) {
   p << "reduction(";
   for (unsigned i = 0, e = reductions->size(); i < e; ++i) {
     if (i != 0)
       p << ", ";
-    p << (*reductions)[i] << " -> " << reduction_vars[i] << " : "
-      << reduction_vars[i].getType();
+    p << (*reductions)[i] << " -> " << reductionVars[i] << " : "
+      << reductionVars[i].getType();
   }
   p << ") ";
 }
@@ -389,9 +389,9 @@ static void printReductionVarList(OpAsmPrinter &p,
 /// Verifies Reduction Clause
 static LogicalResult verifyReductionVarList(Operation *op,
                                             Optional<ArrayAttr> reductions,
-                                            OperandRange reduction_vars) {
-  if (reduction_vars.size() != 0) {
-    if (!reductions || reductions->size() != reduction_vars.size())
+                                            OperandRange reductionVars) {
+  if (!reductionVars.empty()) {
+    if (!reductions || reductions->size() != reductionVars.size())
       return op->emitOpError()
              << "expected as many reduction symbol references "
                 "as reduction variables";
@@ -402,7 +402,7 @@ static LogicalResult verifyReductionVarList(Operation *op,
   }
 
   DenseSet<Value> accumulators;
-  for (auto args : llvm::zip(reduction_vars, *reductions)) {
+  for (auto args : llvm::zip(reductionVars, *reductions)) {
     Value accum = std::get<0>(args);
 
     if (!accumulators.insert(accum).second)
@@ -863,7 +863,7 @@ static ParseResult parseClauses(OpAsmParser &parser, OperationState &result,
     schedule[0] = llvm::toUpper(schedule[0]);
     auto attr = parser.getBuilder().getStringAttr(schedule);
     result.addAttribute("schedule_val", attr);
-    if (modifiers.size() > 0) {
+    if (!modifiers.empty()) {
       auto mod = parser.getBuilder().getStringAttr(modifiers[0]);
       result.addAttribute("schedule_modifier", mod);
       // Only SIMD attribute is allowed here!
@@ -1072,7 +1072,7 @@ static void printWsLoopOp(OpAsmPrinter &p, WsLoopOp op) {
   printDataVars(p, op.firstprivate_vars(), "firstprivate");
   printDataVars(p, op.lastprivate_vars(), "lastprivate");
 
-  if (op.linear_vars().size())
+  if (!op.linear_vars().empty())
     printLinearClause(p, op.linear_vars(), op.linear_step_vars());
 
   if (auto sched = op.schedule_val())
@@ -1185,8 +1185,8 @@ void WsLoopOp::build(OpBuilder &builder, OperationState &state,
                      ValueRange lowerBound, ValueRange upperBound,
                      ValueRange step, ArrayRef<NamedAttribute> attributes) {
   build(builder, state, TypeRange(), lowerBound, upperBound, step,
-        /*private_vars=*/ValueRange(),
-        /*firstprivate_vars=*/ValueRange(), /*lastprivate_vars=*/ValueRange(),
+        /*privateVars=*/ValueRange(),
+        /*firstprivateVars=*/ValueRange(), /*lastprivate_vars=*/ValueRange(),
         /*linear_vars=*/ValueRange(), /*linear_step_vars=*/ValueRange(),
         /*reduction_vars=*/ValueRange(), /*schedule_val=*/nullptr,
         /*schedule_chunk_var=*/nullptr, /*collapse_val=*/nullptr,
@@ -1333,33 +1333,29 @@ static LogicalResult verifyOrderedRegionOp(OrderedRegionOp op) {
 /// address ::= operand `:` type
 static ParseResult parseAtomicReadOp(OpAsmParser &parser,
                                      OperationState &result) {
-  OpAsmParser::OperandType address;
+  OpAsmParser::OperandType x, v;
   Type addressType;
   SmallVector<ClauseType> clauses = {memoryOrderClause, hintClause};
   SmallVector<int> segments;
 
-  if (parser.parseOperand(address) ||
+  if (parser.parseOperand(v) || parser.parseEqual() || parser.parseOperand(x) ||
       parseClauses(parser, result, clauses, segments) ||
       parser.parseColonType(addressType) ||
-      parser.resolveOperand(address, addressType, result.operands))
+      parser.resolveOperand(x, addressType, result.operands) ||
+      parser.resolveOperand(v, addressType, result.operands))
     return failure();
 
-  SmallVector<Type> resultType;
-  if (parser.parseArrowTypeList(resultType))
-    return failure();
-  result.addTypes(resultType);
   return success();
 }
 
 /// Printer for AtomicReadOp
 static void printAtomicReadOp(OpAsmPrinter &p, AtomicReadOp op) {
-  p << " " << op.address() << " ";
+  p << " " << op.v() << " = " << op.x() << " ";
   if (op.memory_order())
     p << "memory_order(" << op.memory_order().getValue() << ") ";
   if (op.hintAttr())
     printSynchronizationHint(p << " ", op, op.hintAttr());
-  p << ": " << op.address().getType() << " -> " << op.getType();
-  return;
+  p << ": " << op.x().getType();
 }
 
 /// Verifier for AtomicReadOp
@@ -1370,6 +1366,9 @@ static LogicalResult verifyAtomicReadOp(AtomicReadOp op) {
       return op.emitError(
           "memory-order must not be acq_rel or release for atomic reads");
   }
+  if (op.x() == op.v())
+    return op.emitError(
+        "read and write must not be to the same location for atomic reads");
   return verifySynchronizationHint(op, op.hint());
 }
 
@@ -1390,7 +1389,7 @@ static ParseResult parseAtomicWriteOp(OpAsmParser &parser,
   SmallVector<ClauseType> clauses = {memoryOrderClause, hintClause};
   SmallVector<int> segments;
 
-  if (parser.parseOperand(address) || parser.parseComma() ||
+  if (parser.parseOperand(address) || parser.parseEqual() ||
       parser.parseOperand(value) ||
       parseClauses(parser, result, clauses, segments) ||
       parser.parseColonType(addrType) || parser.parseComma() ||
@@ -1403,13 +1402,12 @@ static ParseResult parseAtomicWriteOp(OpAsmParser &parser,
 
 /// Printer for AtomicWriteOp
 static void printAtomicWriteOp(OpAsmPrinter &p, AtomicWriteOp op) {
-  p << " " << op.address() << ", " << op.value() << " ";
+  p << " " << op.address() << " = " << op.value() << " ";
   if (op.memory_order())
     p << "memory_order(" << op.memory_order() << ") ";
   if (op.hintAttr())
     printSynchronizationHint(p, op, op.hintAttr());
   p << ": " << op.address().getType() << ", " << op.value().getType();
-  return;
 }
 
 /// Verifier for AtomicWriteOp
@@ -1421,6 +1419,85 @@ static LogicalResult verifyAtomicWriteOp(AtomicWriteOp op) {
           "memory-order must not be acq_rel or acquire for atomic writes");
   }
   return verifySynchronizationHint(op, op.hint());
+}
+
+//===----------------------------------------------------------------------===//
+// AtomicUpdateOp
+//===----------------------------------------------------------------------===//
+
+/// Parser for AtomicUpdateOp
+///
+/// operation ::= `omp.atomic.update` atomic-clause-list region
+static ParseResult parseAtomicUpdateOp(OpAsmParser &parser,
+                                       OperationState &result) {
+  SmallVector<ClauseType> clauses = {memoryOrderClause, hintClause};
+  SmallVector<int> segments;
+  OpAsmParser::OperandType x, y, z;
+  Type xType, exprType;
+  StringRef binOp;
+
+  // x = y `op` z : xtype, exprtype
+  if (parser.parseOperand(x) || parser.parseEqual() || parser.parseOperand(y) ||
+      parser.parseKeyword(&binOp) || parser.parseOperand(z) ||
+      parseClauses(parser, result, clauses, segments) || parser.parseColon() ||
+      parser.parseType(xType) || parser.parseComma() ||
+      parser.parseType(exprType) ||
+      parser.resolveOperand(x, xType, result.operands)) {
+    return failure();
+  }
+
+  auto binOpEnum = AtomicBinOpKindToEnum(binOp.upper());
+  if (!binOpEnum)
+    return parser.emitError(parser.getNameLoc())
+           << "invalid atomic bin op in atomic update\n";
+  auto attr =
+      parser.getBuilder().getI64IntegerAttr((int64_t)binOpEnum.getValue());
+  result.addAttribute("binop", attr);
+
+  OpAsmParser::OperandType expr;
+  if (x.name == y.name && x.number == y.number) {
+    expr = z;
+    result.addAttribute("isXBinopExpr", parser.getBuilder().getUnitAttr());
+  } else if (x.name == z.name && x.number == z.number) {
+    expr = y;
+  } else {
+    return parser.emitError(parser.getNameLoc())
+           << "atomic update variable " << x.name
+           << " not found in the RHS of the assignment statement in an"
+              " atomic.update operation";
+  }
+  return parser.resolveOperand(expr, exprType, result.operands);
+}
+
+/// Printer for AtomicUpdateOp
+static void printAtomicUpdateOp(OpAsmPrinter &p, AtomicUpdateOp op) {
+  p << " " << op.x() << " = ";
+  Value y, z;
+  if (op.isXBinopExpr()) {
+    y = op.x();
+    z = op.expr();
+  } else {
+    y = op.expr();
+    z = op.x();
+  }
+  p << y << " " << AtomicBinOpKindToString(op.binop()).lower() << " " << z
+    << " ";
+  if (op.memory_order())
+    p << "memory_order(" << op.memory_order() << ") ";
+  if (op.hintAttr())
+    printSynchronizationHint(p, op, op.hintAttr());
+  p << ": " << op.x().getType() << ", " << op.expr().getType();
+}
+
+/// Verifier for AtomicUpdateOp
+static LogicalResult verifyAtomicUpdateOp(AtomicUpdateOp op) {
+  if (op.memory_order()) {
+    StringRef memoryOrder = op.memory_order().getValue();
+    if (memoryOrder.equals("acq_rel") || memoryOrder.equals("acquire"))
+      return op.emitError(
+          "memory-order must not be acq_rel or acquire for atomic updates");
+  }
+  return success();
 }
 
 #define GET_OP_CLASSES

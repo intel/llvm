@@ -953,16 +953,12 @@ private:
   bool GetCachedSharedModule(const ModuleSpec &module_spec,
                              lldb::ModuleSP &module_sp, bool *did_create_ptr);
 
-  Status LoadCachedExecutable(const ModuleSpec &module_spec,
-                              lldb::ModuleSP &module_sp,
-                              const FileSpecList *module_search_paths_ptr);
-
   FileSpec GetModuleCacheRoot();
 };
 
 class PlatformList {
 public:
-  PlatformList() : m_mutex(), m_platforms(), m_selected_platform_sp() {}
+  PlatformList() {}
 
   ~PlatformList() = default;
 

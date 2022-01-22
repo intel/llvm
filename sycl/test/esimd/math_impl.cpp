@@ -25,7 +25,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> sycl_math(simd<float, 16> x) {
   return v;
 }
 
-// Math sin,cos,log,exp functions from esimd namespace are translated
+// Math sin,cos,log2,exp2 functions from esimd namespace are translated
 // into vector __esimd_ calls, which later translate into GenX intrinsics.
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16>
 esimd_math(simd<float, 16> x) {
@@ -35,7 +35,19 @@ esimd_math(simd<float, 16> x) {
   //CHECK: call spir_func <16 x float> @_Z11__esimd_sin
   v = esimd::sin(v);
   //CHECK: call spir_func <16 x float> @_Z11__esimd_log
-  v = esimd::log(v);
+  v = esimd::log2(v);
+  //CHECK: call spir_func <16 x float> @_Z11__esimd_exp
+  v = esimd::exp2(v);
+  return v;
+}
+
+// Math log,exp functions from esimd namespace are emulated with
+// __esimd_ log/exp calls, which later translate into GenX intrinsics.
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16>
+esimd_math_emu(simd<float, 16> x) {
+  simd<float, 16> v = 0;
+  //CHECK: call spir_func <16 x float> @_Z11__esimd_log
+  v = esimd::log(x);
   //CHECK: call spir_func <16 x float> @_Z11__esimd_exp
   v = esimd::exp(v);
   return v;

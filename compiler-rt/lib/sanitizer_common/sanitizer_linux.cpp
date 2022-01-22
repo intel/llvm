@@ -163,6 +163,12 @@ ScopedBlockSignals::ScopedBlockSignals(__sanitizer_sigset_t *copy) {
   // See test/sanitizer_common/TestCases/Linux/setuid.c.
   internal_sigdelset(&set, 33);
 #  endif
+#  if SANITIZER_LINUX
+  // Seccomp-BPF-sandboxed processes rely on SIGSYS to handle trapped syscalls.
+  // If this signal is blocked, such calls cannot be handled and the process may
+  // hang.
+  internal_sigdelset(&set, 31);
+#  endif
   SetSigProcMask(&set, &saved_);
   if (copy)
     internal_memcpy(copy, &saved_, sizeof(saved_));
@@ -1770,7 +1776,8 @@ void *internal_start_thread(void *(*func)(void *arg), void *arg) {
 }
 
 void internal_join_thread(void *th) {
-  real_pthread_join(th, nullptr);
+  if (&real_pthread_join)
+    real_pthread_join(th, nullptr);
 }
 #else
 void *internal_start_thread(void *(*func)(void *), void *arg) { return 0; }

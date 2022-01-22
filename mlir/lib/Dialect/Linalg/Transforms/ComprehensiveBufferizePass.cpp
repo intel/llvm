@@ -12,10 +12,12 @@
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/AffineInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/ArithInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h"
+#include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizationInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/ComprehensiveBufferize.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/LinalgInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/ModuleBufferization.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/SCFInterfaceImpl.h"
+#include "mlir/Dialect/Linalg/ComprehensiveBufferize/StdInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/TensorInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/VectorInterfaceImpl.h"
 #include "mlir/Dialect/Linalg/Passes.h"
@@ -32,10 +34,10 @@ namespace {
 struct LinalgComprehensiveModuleBufferize
     : public LinalgComprehensiveModuleBufferizeBase<
           LinalgComprehensiveModuleBufferize> {
-  LinalgComprehensiveModuleBufferize() {}
+  LinalgComprehensiveModuleBufferize() = default;
 
   LinalgComprehensiveModuleBufferize(
-      const LinalgComprehensiveModuleBufferize &p) {}
+      const LinalgComprehensiveModuleBufferize &p) = default;
 
   void runOnOperation() override;
 
@@ -47,14 +49,16 @@ struct LinalgComprehensiveModuleBufferize
                 arith::ArithmeticDialect, StandardOpsDialect, AffineDialect>();
     affine_ext::registerBufferizableOpInterfaceExternalModels(registry);
     arith_ext::registerBufferizableOpInterfaceExternalModels(registry);
+    bufferization_ext::registerBufferizableOpInterfaceExternalModels(registry);
     linalg_ext::registerBufferizableOpInterfaceExternalModels(registry);
     scf_ext::registerBufferizableOpInterfaceExternalModels(registry);
+    std_ext::registerModuleBufferizationExternalModels(registry);
     std_ext::registerBufferizableOpInterfaceExternalModels(registry);
     tensor_ext::registerBufferizableOpInterfaceExternalModels(registry);
     vector_ext::registerBufferizableOpInterfaceExternalModels(registry);
   }
 };
-} // end namespace
+} // namespace
 
 static void applyEnablingTransformations(ModuleOp moduleOp) {
   RewritePatternSet patterns(moduleOp.getContext());
@@ -62,47 +66,47 @@ static void applyEnablingTransformations(ModuleOp moduleOp) {
   (void)applyPatternsAndFoldGreedily(moduleOp, std::move(patterns));
 }
 
-static Optional<Value> allocationFnUsingAlloca(OpBuilder &b, Location loc,
-                                               MemRefType type,
-                                               ArrayRef<Value> dynShape) {
+static FailureOr<Value> allocationFnUsingAlloca(OpBuilder &b, Location loc,
+                                                MemRefType type,
+                                                ArrayRef<Value> dynShape) {
   Value allocated = b.create<memref::AllocaOp>(
       loc, type, dynShape, b.getI64IntegerAttr(kBufferAlignments));
   return allocated;
 }
 
 void LinalgComprehensiveModuleBufferize::runOnOperation() {
-  BufferizationOptions options;
+  auto options = std::make_unique<BufferizationOptions>();
   if (useAlloca) {
-    options.allocationFns->allocationFn = allocationFnUsingAlloca;
-    options.allocationFns->deallocationFn = [](OpBuilder &b, Location loc,
-                                               Value v) {};
+    options->allocationFns->allocationFn = allocationFnUsingAlloca;
+    options->allocationFns->deallocationFn = [](OpBuilder &b, Location loc,
+                                                Value v) {};
   }
-  // TODO: Change to memref::CopyOp (default memCpyFn).
-  options.allocationFns->memCpyFn = [](OpBuilder &b, Location loc, Value from,
-                                       Value to) {
-    b.create<linalg::CopyOp>(loc, from, to);
-  };
 
-  options.allowReturnMemref = allowReturnMemref;
-  options.analysisFuzzerSeed = analysisFuzzerSeed;
-  options.testAnalysisOnly = testAnalysisOnly;
+  options->allowReturnMemref = allowReturnMemref;
+  options->allowUnknownOps = allowUnknownOps;
+  options->analysisFuzzerSeed = analysisFuzzerSeed;
+  options->testAnalysisOnly = testAnalysisOnly;
+  options->printConflicts = printConflicts;
+  options->createDeallocs = createDeallocs;
 
   // Enable InitTensorOp elimination.
-  options.addPostAnalysisStep<
-      linalg_ext::InsertSliceAnchoredInitTensorEliminationStep>();
-  // TODO: Find a way to enable this step automatically when bufferizing tensor
-  // dialect ops.
-  options.addPostAnalysisStep<tensor_ext::InplaceInsertSliceOpAnalysis>();
+  if (initTensorElimination) {
+    options->addPostAnalysisStep<
+        linalg_ext::InsertSliceAnchoredInitTensorEliminationStep>();
+  }
+
+  if (!allowReturnMemref)
+    options->addPostAnalysisStep<scf_ext::AssertDestinationPassingStyle>();
 
   ModuleOp moduleOp = getOperation();
   applyEnablingTransformations(moduleOp);
 
-  if (failed(runComprehensiveBufferize(moduleOp, options))) {
+  if (failed(runComprehensiveBufferize(moduleOp, std::move(options)))) {
     signalPassFailure();
     return;
   }
 
-  if (options.testAnalysisOnly)
+  if (testAnalysisOnly)
     return;
 
   OpPassManager cleanupPipeline("builtin.module");

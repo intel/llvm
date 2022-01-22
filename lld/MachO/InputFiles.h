@@ -65,6 +65,16 @@ struct Section {
   Section(uint64_t addr) : address(addr){};
 };
 
+// Represents a call graph profile edge.
+struct CallGraphEntry {
+  // The index of the caller in the symbol table.
+  uint32_t fromIndex;
+  // The index of the callee in the symbol table.
+  uint32_t toIndex;
+  // Number of calls from callee to caller in the profile.
+  uint64_t count;
+};
+
 class InputFile {
 public:
   enum Kind {
@@ -108,12 +118,14 @@ private:
 class ObjFile final : public InputFile {
 public:
   ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName);
+  ArrayRef<llvm::MachO::data_in_code_entry> getDataInCode() const;
+
   static bool classof(const InputFile *f) { return f->kind() == ObjKind; }
 
   llvm::DWARFUnit *compileUnit = nullptr;
   const uint32_t modTime;
   std::vector<ConcatInputSection *> debugSections;
-  ArrayRef<llvm::MachO::data_in_code_entry> dataInCodeEntries;
+  std::vector<CallGraphEntry> callGraph;
 
 private:
   Section *compactUnwindSection = nullptr;
@@ -130,7 +142,6 @@ private:
   void parseRelocations(ArrayRef<SectionHeader> sectionHeaders,
                         const SectionHeader &, Subsections &);
   void parseDebugInfo();
-  void parseDataInCode();
   void registerCompactUnwind();
 };
 
@@ -190,7 +201,10 @@ private:
   bool handleLDSymbol(StringRef originalName);
   void handleLDPreviousSymbol(StringRef name, StringRef originalName);
   void handleLDInstallNameSymbol(StringRef name, StringRef originalName);
+  void handleLDHideSymbol(StringRef name, StringRef originalName);
   void checkAppExtensionSafety(bool dylibIsAppExtensionSafe) const;
+
+  llvm::DenseSet<llvm::CachedHashStringRef> hiddenSymbols;
 };
 
 // .a file

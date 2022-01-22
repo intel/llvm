@@ -46,7 +46,7 @@ public:
   OwningModuleRef(OwningOpRef<ModuleOp> &&other)
       : OwningOpRef<ModuleOp>(std::move(other)) {}
 };
-} // end namespace mlir
+} // namespace mlir
 
 namespace llvm {
 /// Allow stealing the low bits of FuncOp.
@@ -58,7 +58,7 @@ struct PointerLikeTypeTraits<mlir::FuncOp> {
   static inline mlir::FuncOp getFromVoidPointer(void *p) {
     return mlir::FuncOp::getFromOpaquePointer(p);
   }
-  static constexpr int NumLowBitsAvailable = 3;
+  static constexpr int numLowBitsAvailable = 3;
 };
 
 /// Allow stealing the low bits of ModuleOp.
@@ -71,8 +71,8 @@ public:
   static inline mlir::ModuleOp getFromVoidPointer(void *p) {
     return mlir::ModuleOp::getFromOpaquePointer(p);
   }
-  static constexpr int NumLowBitsAvailable = 3;
+  static constexpr int numLowBitsAvailable = 3;
 };
-} // end namespace llvm
+} // namespace llvm
 
 #endif // MLIR_IR_BUILTINOPS_H_

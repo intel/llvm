@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -43,7 +43,7 @@ struct TestLinalgDistribution
   StringRef getArgument() const final { return "test-linalg-distribution"; }
   StringRef getDescription() const final { return "Test Linalg distribution."; }
   TestLinalgDistribution() = default;
-  TestLinalgDistribution(const TestLinalgDistribution &pass) {}
+  TestLinalgDistribution(const TestLinalgDistribution &pass) = default;
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<AffineDialect, gpu::GPUDialect>();
   }
@@ -59,7 +59,7 @@ void TestLinalgDistribution::runOnFunction() {
       distributeTiledLoopsPatterns, getDistributionOptions(),
       LinalgTransformationFilter(
           ArrayRef<StringAttr>{},
-          {StringAttr::get("distributed", funcOp.getContext())})
+          {StringAttr::get(funcOp.getContext(), "distributed")})
           .addFilter([](Operation *op) {
             return success(!op->getParentOfType<linalg::TiledLoopOp>());
           }));

@@ -70,153 +70,14 @@ extern "C" void init_lldb(void);
 #define LLDBSwigPyInit init_lldb
 #endif
 
-// These prototypes are the Pythonic implementations of the required callbacks.
-// Although these are scripting-language specific, their definition depends on
-// the public API.
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
-
-// Disable warning C4190: 'LLDBSwigPythonBreakpointCallbackFunction' has
-// C-linkage specified, but returns UDT 'llvm::Expected<bool>' which is
-// incompatible with C
-#if _MSC_VER
-#pragma warning (push)
-#pragma warning (disable : 4190)
+#if defined(_WIN32)
+// Don't mess with the signal handlers on Windows.
+#define LLDB_USE_PYTHON_SET_INTERRUPT 0
+#else
+// PyErr_SetInterrupt was introduced in 3.2.
+#define LLDB_USE_PYTHON_SET_INTERRUPT                                          \
+  (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 2) || (PY_MAJOR_VERSION > 3)
 #endif
-
-extern "C" llvm::Expected<bool> LLDBSwigPythonBreakpointCallbackFunction(
-    const char *python_function_name, const char *session_dictionary_name,
-    const lldb::StackFrameSP &sb_frame,
-    const lldb::BreakpointLocationSP &sb_bp_loc, StructuredDataImpl *args_impl);
-
-#if _MSC_VER
-#pragma warning (pop)
-#endif
-
-#pragma clang diagnostic pop
-
-extern "C" bool LLDBSwigPythonWatchpointCallbackFunction(
-    const char *python_function_name, const char *session_dictionary_name,
-    const lldb::StackFrameSP &sb_frame, const lldb::WatchpointSP &sb_wp);
-
-extern "C" bool LLDBSwigPythonCallTypeScript(
-    const char *python_function_name, void *session_dictionary,
-    const lldb::ValueObjectSP &valobj_sp, void **pyfunct_wrapper,
-    const lldb::TypeSummaryOptionsSP &options_sp, std::string &retval);
-
-extern "C" void *
-LLDBSwigPythonCreateSyntheticProvider(const char *python_class_name,
-                                      const char *session_dictionary_name,
-                                      const lldb::ValueObjectSP &valobj_sp);
-
-extern "C" void *
-LLDBSwigPythonCreateCommandObject(const char *python_class_name,
-                                  const char *session_dictionary_name,
-                                  const lldb::DebuggerSP debugger_sp);
-
-extern "C" void *LLDBSwigPythonCreateScriptedThreadPlan(
-    const char *python_class_name, const char *session_dictionary_name,
-    StructuredDataImpl *args_data,
-    std::string &error_string,
-    const lldb::ThreadPlanSP &thread_plan_sp);
-
-extern "C" bool LLDBSWIGPythonCallThreadPlan(void *implementor,
-                                             const char *method_name,
-                                             Event *event_sp, bool &got_error);
-
-extern "C" void *LLDBSwigPythonCreateScriptedBreakpointResolver(
-    const char *python_class_name, const char *session_dictionary_name,
-    lldb_private::StructuredDataImpl *args, const lldb::BreakpointSP &bkpt_sp);
-
-extern "C" unsigned int
-LLDBSwigPythonCallBreakpointResolver(void *implementor, const char *method_name,
-                                     lldb_private::SymbolContext *sym_ctx);
-
-extern "C" void *LLDBSwigPythonCreateScriptedStopHook(
-    TargetSP target_sp, const char *python_class_name,
-    const char *session_dictionary_name, lldb_private::StructuredDataImpl *args,
-    lldb_private::Status &error);
-
-extern "C" bool
-LLDBSwigPythonStopHookCallHandleStop(void *implementor,
-                                     lldb::ExecutionContextRefSP exc_ctx,
-                                     lldb::StreamSP stream);
-
-extern "C" size_t LLDBSwigPython_CalculateNumChildren(void *implementor,
-                                                      uint32_t max);
-
-extern "C" void *LLDBSwigPython_GetChildAtIndex(void *implementor,
-                                                uint32_t idx);
-
-extern "C" int LLDBSwigPython_GetIndexOfChildWithName(void *implementor,
-                                                      const char *child_name);
-
-extern lldb::ValueObjectSP
-LLDBSWIGPython_GetValueObjectSPFromSBValue(void *data);
-
-extern "C" bool LLDBSwigPython_UpdateSynthProviderInstance(void *implementor);
-
-extern "C" bool
-LLDBSwigPython_MightHaveChildrenSynthProviderInstance(void *implementor);
-
-extern "C" void *
-LLDBSwigPython_GetValueSynthProviderInstance(void *implementor);
-
-extern "C" bool
-LLDBSwigPythonCallCommand(const char *python_function_name,
-                          const char *session_dictionary_name,
-                          lldb::DebuggerSP &debugger, const char *args,
-                          lldb_private::CommandReturnObject &cmd_retobj,
-                          lldb::ExecutionContextRefSP exe_ctx_ref_sp);
-
-extern "C" bool
-LLDBSwigPythonCallCommandObject(void *implementor, lldb::DebuggerSP &debugger,
-                                const char *args,
-                                lldb_private::CommandReturnObject &cmd_retobj,
-                                lldb::ExecutionContextRefSP exe_ctx_ref_sp);
-
-extern "C" bool
-LLDBSwigPythonCallModuleInit(const char *python_module_name,
-                             const char *session_dictionary_name,
-                             lldb::DebuggerSP &debugger);
-
-extern "C" void *
-LLDBSWIGPythonCreateOSPlugin(const char *python_class_name,
-                             const char *session_dictionary_name,
-                             const lldb::ProcessSP &process_sp);
-
-extern "C" void *
-LLDBSWIGPython_CreateFrameRecognizer(const char *python_class_name,
-                                     const char *session_dictionary_name);
-
-extern "C" void *
-LLDBSwigPython_GetRecognizedArguments(void *implementor,
-                                      const lldb::StackFrameSP &frame_sp);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordProcess(
-    const char *python_function_name, const char *session_dictionary_name,
-    const lldb::ProcessSP &process, std::string &output);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordThread(
-    const char *python_function_name, const char *session_dictionary_name,
-    lldb::ThreadSP &thread, std::string &output);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordTarget(
-    const char *python_function_name, const char *session_dictionary_name,
-    const lldb::TargetSP &target, std::string &output);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordFrame(
-    const char *python_function_name, const char *session_dictionary_name,
-    lldb::StackFrameSP &frame, std::string &output);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordValue(
-    const char *python_function_name, const char *session_dictionary_name,
-    const lldb::ValueObjectSP &value, std::string &output);
-
-extern "C" void *
-LLDBSWIGPython_GetDynamicSetting(void *module, const char *setting,
-                                 const lldb::TargetSP &target_sp);
 
 static ScriptInterpreterPythonImpl *GetPythonInterpreter(Debugger &debugger) {
   ScriptInterpreter *script_interpreter =
@@ -489,7 +350,6 @@ ScriptInterpreterPythonImpl::Locker::Locker(
     : ScriptInterpreterLocker(),
       m_teardown_session((on_leave & TearDownSession) == TearDownSession),
       m_python_interpreter(py_interpreter) {
-  repro::Recorder::PrivateThread();
   DoAcquireLock();
   if ((on_entry & InitSession) == InitSession) {
     if (!DoInitSession(on_entry, in, out, err)) {
@@ -1068,6 +928,22 @@ void ScriptInterpreterPythonImpl::ExecuteInterpreterLoop() {
 }
 
 bool ScriptInterpreterPythonImpl::Interrupt() {
+#if LLDB_USE_PYTHON_SET_INTERRUPT
+  // If the interpreter isn't evaluating any Python at the moment then return
+  // false to signal that this function didn't handle the interrupt and the
+  // next component should try handling it.
+  if (!IsExecutingPython())
+    return false;
+
+  // Tell Python that it should pretend to have received a SIGINT.
+  PyErr_SetInterrupt();
+  // PyErr_SetInterrupt has no way to return an error so we can only pretend the
+  // signal got successfully handled and return true.
+  // Python 3.10 introduces PyErr_SetInterruptEx that could return an error, but
+  // the error handling is limited to checking the arguments which would be
+  // just our (hardcoded) input signal code SIGINT, so that's not useful at all.
+  return true;
+#else
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT));
 
   if (IsExecutingPython()) {
@@ -1089,6 +965,7 @@ bool ScriptInterpreterPythonImpl::Interrupt() {
             "ScriptInterpreterPythonImpl::Interrupt() python code not running, "
             "can't interrupt");
   return false;
+#endif
 }
 
 bool ScriptInterpreterPythonImpl::ExecuteOneLineWithReturn(
@@ -1591,9 +1468,9 @@ lldb::ValueObjectListSP ScriptInterpreterPythonImpl::GetRecognizedArguments(
   if (!implementor.IsAllocated())
     return ValueObjectListSP();
 
-  PythonObject py_return(PyRefType::Owned,
-                         (PyObject *)LLDBSwigPython_GetRecognizedArguments(
-                             implementor.get(), frame_sp));
+  PythonObject py_return(
+      PyRefType::Owned,
+      LLDBSwigPython_GetRecognizedArguments(implementor.get(), frame_sp));
 
   // if it fails, print the error but otherwise go on
   if (PyErr_Occurred()) {
@@ -1865,7 +1742,7 @@ StructuredData::DictionarySP ScriptInterpreterPythonImpl::OSPlugin_CreateThread(
 }
 
 StructuredData::ObjectSP ScriptInterpreterPythonImpl::CreateScriptedThreadPlan(
-    const char *class_name, StructuredDataImpl *args_data,
+    const char *class_name, const StructuredDataImpl &args_data,
     std::string &error_str, lldb::ThreadPlanSP thread_plan_sp) {
   if (class_name == nullptr || class_name[0] == '\0')
     return StructuredData::ObjectSP();
@@ -1967,7 +1844,7 @@ lldb::StateType ScriptInterpreterPythonImpl::ScriptedThreadPlanGetRunState(
 
 StructuredData::GenericSP
 ScriptInterpreterPythonImpl::CreateScriptedBreakpointResolver(
-    const char *class_name, StructuredDataImpl *args_data,
+    const char *class_name, const StructuredDataImpl &args_data,
     lldb::BreakpointSP &bkpt_sp) {
 
   if (class_name == nullptr || class_name[0] == '\0')
@@ -2037,8 +1914,8 @@ ScriptInterpreterPythonImpl::ScriptedBreakpointResolverSearchDepth(
 }
 
 StructuredData::GenericSP ScriptInterpreterPythonImpl::CreateScriptedStopHook(
-    TargetSP target_sp, const char *class_name, StructuredDataImpl *args_data,
-    Status &error) {
+    TargetSP target_sp, const char *class_name,
+    const StructuredDataImpl &args_data, Status &error) {
 
   if (!target_sp) {
     error.SetErrorString("No target for scripted stop-hook.");
@@ -2344,7 +2221,7 @@ bool ScriptInterpreterPythonImpl::BreakpointCallbackFunction(
               LLDBSwigPythonBreakpointCallbackFunction(
                   python_function_name,
                   python_interpreter->m_dictionary_name.c_str(), stop_frame_sp,
-                  bp_loc_sp, bp_option_data->m_extra_args_up.get());
+                  bp_loc_sp, bp_option_data->m_extra_args);
 
           if (!maybe_ret_val) {
 
@@ -2423,7 +2300,7 @@ size_t ScriptInterpreterPythonImpl::CalculateNumChildren(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return 0;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return 0;
 
@@ -2446,7 +2323,7 @@ lldb::ValueObjectSP ScriptInterpreterPythonImpl::GetChildAtIndex(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return lldb::ValueObjectSP();
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return lldb::ValueObjectSP();
 
@@ -2454,7 +2331,7 @@ lldb::ValueObjectSP ScriptInterpreterPythonImpl::GetChildAtIndex(
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    void *child_ptr = LLDBSwigPython_GetChildAtIndex(implementor, idx);
+    PyObject *child_ptr = LLDBSwigPython_GetChildAtIndex(implementor, idx);
     if (child_ptr != nullptr && child_ptr != Py_None) {
       lldb::SBValue *sb_value_ptr =
           (lldb::SBValue *)LLDBSWIGPython_CastPyObjectToSBValue(child_ptr);
@@ -2478,7 +2355,7 @@ int ScriptInterpreterPythonImpl::GetIndexOfChildWithName(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return UINT32_MAX;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return UINT32_MAX;
 
@@ -2503,7 +2380,7 @@ bool ScriptInterpreterPythonImpl::UpdateSynthProviderInstance(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return ret_val;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return ret_val;
 
@@ -2526,7 +2403,7 @@ bool ScriptInterpreterPythonImpl::MightHaveChildrenSynthProviderInstance(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return ret_val;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return ret_val;
 
@@ -2550,14 +2427,15 @@ lldb::ValueObjectSP ScriptInterpreterPythonImpl::GetSyntheticValue(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return ret_val;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return ret_val;
 
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    void *child_ptr = LLDBSwigPython_GetValueSynthProviderInstance(implementor);
+    PyObject *child_ptr =
+        LLDBSwigPython_GetValueSynthProviderInstance(implementor);
     if (child_ptr != nullptr && child_ptr != Py_None) {
       lldb::SBValue *sb_value_ptr =
           (lldb::SBValue *)LLDBSWIGPython_CastPyObjectToSBValue(child_ptr);
@@ -2667,7 +2545,6 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     const char *impl_function, Thread *thread, std::string &output,
     Status &error) {
-  bool ret_val;
   if (!thread) {
     error.SetErrorString("no thread");
     return false;
@@ -2677,16 +2554,16 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     return false;
   }
 
-  {
-    ThreadSP thread_sp(thread->shared_from_this());
-    Locker py_lock(this,
-                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSWIGPythonRunScriptKeywordThread(
-        impl_function, m_dictionary_name.c_str(), thread_sp, output);
-    if (!ret_val)
-      error.SetErrorString("python script evaluation failed");
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  if (llvm::Optional<std::string> result = LLDBSWIGPythonRunScriptKeywordThread(
+          impl_function, m_dictionary_name.c_str(),
+          thread->shared_from_this())) {
+    output = std::move(*result);
+    return true;
   }
-  return ret_val;
+  error.SetErrorString("python script evaluation failed");
+  return false;
 }
 
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
@@ -2717,7 +2594,6 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     const char *impl_function, StackFrame *frame, std::string &output,
     Status &error) {
-  bool ret_val;
   if (!frame) {
     error.SetErrorString("no frame");
     return false;
@@ -2727,16 +2603,16 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     return false;
   }
 
-  {
-    StackFrameSP frame_sp(frame->shared_from_this());
-    Locker py_lock(this,
-                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSWIGPythonRunScriptKeywordFrame(
-        impl_function, m_dictionary_name.c_str(), frame_sp, output);
-    if (!ret_val)
-      error.SetErrorString("python script evaluation failed");
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  if (llvm::Optional<std::string> result = LLDBSWIGPythonRunScriptKeywordFrame(
+          impl_function, m_dictionary_name.c_str(),
+          frame->shared_from_this())) {
+    output = std::move(*result);
+    return true;
   }
-  return ret_val;
+  error.SetErrorString("python script evaluation failed");
+  return false;
 }
 
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
@@ -2801,7 +2677,6 @@ bool ScriptInterpreterPythonImpl::LoadScriptingModule(
   }
 
   ScriptInterpreterIORedirect &io_redirect = **io_redirect_or_error;
-  lldb::DebuggerSP debugger_sp = m_debugger.shared_from_this();
 
   // Before executing Python code, lock the GIL.
   Locker py_lock(this,
@@ -2938,7 +2813,8 @@ bool ScriptInterpreterPythonImpl::LoadScriptingModule(
   // if we are here, everything worked
   // call __lldb_init_module(debugger,dict)
   if (!LLDBSwigPythonCallModuleInit(module_name.c_str(),
-                                    m_dictionary_name.c_str(), debugger_sp)) {
+                                    m_dictionary_name.c_str(),
+                                    m_debugger.shared_from_this())) {
     error.SetErrorString("calling __lldb_init_module failed");
     return false;
   }
@@ -3075,9 +2951,9 @@ bool ScriptInterpreterPythonImpl::RunScriptBasedCommand(
     SynchronicityHandler synch_handler(debugger_sp, synchronicity);
 
     std::string args_str = args.str();
-    ret_val = LLDBSwigPythonCallCommandObject(impl_obj_sp->GetValue(),
-                                              debugger_sp, args_str.c_str(),
-                                              cmd_retobj, exe_ctx_ref_sp);
+    ret_val = LLDBSwigPythonCallCommandObject(
+        static_cast<PyObject *>(impl_obj_sp->GetValue()), debugger_sp,
+        args_str.c_str(), cmd_retobj, exe_ctx_ref_sp);
   }
 
   if (!ret_val)
@@ -3293,6 +3169,30 @@ ScriptInterpreterPythonImpl::AcquireInterpreterLock() {
   return py_lock;
 }
 
+#if LLDB_USE_PYTHON_SET_INTERRUPT
+namespace {
+/// Saves the current signal handler for the specified signal and restores
+/// it at the end of the current scope.
+struct RestoreSignalHandlerScope {
+  /// The signal handler.
+  struct sigaction m_prev_handler;
+  int m_signal_code;
+  RestoreSignalHandlerScope(int signal_code) : m_signal_code(signal_code) {
+    // Initialize sigaction to their default state.
+    std::memset(&m_prev_handler, 0, sizeof(m_prev_handler));
+    // Don't install a new handler, just read back the old one.
+    struct sigaction *new_handler = nullptr;
+    int signal_err = ::sigaction(m_signal_code, new_handler, &m_prev_handler);
+    lldbassert(signal_err == 0 && "sigaction failed to read handler");
+  }
+  ~RestoreSignalHandlerScope() {
+    int signal_err = ::sigaction(m_signal_code, &m_prev_handler, nullptr);
+    lldbassert(signal_err == 0 && "sigaction failed to restore old handler");
+  }
+};
+} // namespace
+#endif
+
 void ScriptInterpreterPythonImpl::InitializePrivate() {
   if (g_initialized)
     return;
@@ -3328,6 +3228,25 @@ void ScriptInterpreterPythonImpl::InitializePrivate() {
                      "lldb.embedded_interpreter; from "
                      "lldb.embedded_interpreter import run_python_interpreter; "
                      "from lldb.embedded_interpreter import run_one_line");
+
+#if LLDB_USE_PYTHON_SET_INTERRUPT
+  // Python will not just overwrite its internal SIGINT handler but also the
+  // one from the process. Backup the current SIGINT handler to prevent that
+  // Python deletes it.
+  RestoreSignalHandlerScope save_sigint(SIGINT);
+
+  // Setup a default SIGINT signal handler that works the same way as the
+  // normal Python REPL signal handler which raises a KeyboardInterrupt.
+  // Also make sure to not pollute the user's REPL with the signal module nor
+  // our utility function.
+  PyRun_SimpleString("def lldb_setup_sigint_handler():\n"
+                     "  import signal;\n"
+                     "  def signal_handler(sig, frame):\n"
+                     "    raise KeyboardInterrupt()\n"
+                     "  signal.signal(signal.SIGINT, signal_handler);\n"
+                     "lldb_setup_sigint_handler();\n"
+                     "del lldb_setup_sigint_handler\n");
+#endif
 }
 
 void ScriptInterpreterPythonImpl::AddToSysPath(AddLocation location,

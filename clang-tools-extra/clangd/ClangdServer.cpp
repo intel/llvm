@@ -71,10 +71,10 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
       : FIndex(FIndex), ServerCallbacks(ServerCallbacks) {}
 
   void onPreambleAST(PathRef Path, llvm::StringRef Version, ASTContext &Ctx,
-                     std::shared_ptr<clang::Preprocessor> PP,
+                     Preprocessor &PP,
                      const CanonicalIncludes &CanonIncludes) override {
     if (FIndex)
-      FIndex->updatePreamble(Path, Version, Ctx, std::move(PP), CanonIncludes);
+      FIndex->updatePreamble(Path, Version, Ctx, PP, CanonIncludes);
   }
 
   void onMainAST(PathRef Path, ParsedAST &AST, PublishFn Publish) override {
@@ -403,9 +403,11 @@ void ClangdServer::codeComplete(PathRef File, Position Pos,
 }
 
 void ClangdServer::signatureHelp(PathRef File, Position Pos,
+                                 MarkupKind DocumentationFormat,
                                  Callback<SignatureHelp> CB) {
 
   auto Action = [Pos, File = File.str(), CB = std::move(CB),
+                 DocumentationFormat,
                  this](llvm::Expected<InputsAndPreamble> IP) mutable {
     if (!IP)
       return CB(IP.takeError());
@@ -416,7 +418,8 @@ void ClangdServer::signatureHelp(PathRef File, Position Pos,
 
     ParseInputs ParseInput{IP->Command, &TFS, IP->Contents.str()};
     ParseInput.Index = Index;
-    CB(clangd::signatureHelp(File, Pos, *PreambleData, ParseInput));
+    CB(clangd::signatureHelp(File, Pos, *PreambleData, ParseInput,
+                             DocumentationFormat));
   };
 
   // Unlike code completion, we wait for a preamble here.
@@ -756,12 +759,13 @@ void ClangdServer::incomingCalls(
                      });
 }
 
-void ClangdServer::inlayHints(PathRef File,
+void ClangdServer::inlayHints(PathRef File, llvm::Optional<Range> RestrictRange,
                               Callback<std::vector<InlayHint>> CB) {
-  auto Action = [CB = std::move(CB)](Expected<InputsAndAST> InpAST) mutable {
+  auto Action = [RestrictRange(std::move(RestrictRange)),
+                 CB = std::move(CB)](Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
       return CB(InpAST.takeError());
-    CB(clangd::inlayHints(InpAST->AST));
+    CB(clangd::inlayHints(InpAST->AST, std::move(RestrictRange)));
   };
   WorkScheduler->runWithAST("InlayHints", File, std::move(Action));
 }
@@ -804,6 +808,17 @@ void ClangdServer::foldingRanges(llvm::StringRef File,
       };
   WorkScheduler->runWithAST("FoldingRanges", File, std::move(Action),
                             Transient);
+}
+
+void ClangdServer::findType(llvm::StringRef File, Position Pos,
+                            Callback<std::vector<LocatedSymbol>> CB) {
+  auto Action =
+      [Pos, CB = std::move(CB)](llvm::Expected<InputsAndAST> InpAST) mutable {
+        if (!InpAST)
+          return CB(InpAST.takeError());
+        CB(clangd::findType(InpAST->AST, Pos));
+      };
+  WorkScheduler->runWithAST("FindType", File, std::move(Action));
 }
 
 void ClangdServer::findImplementations(

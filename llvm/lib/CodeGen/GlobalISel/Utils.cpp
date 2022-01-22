@@ -704,8 +704,7 @@ Register llvm::getFunctionLiveInPhysReg(MachineFunction &MF,
                                         const TargetInstrInfo &TII,
                                         MCRegister PhysReg,
                                         const TargetRegisterClass &RC,
-                                        LLT RegTy) {
-  DebugLoc DL; // FIXME: Is no location the right choice?
+                                        const DebugLoc &DL, LLT RegTy) {
   MachineBasicBlock &EntryMBB = MF.front();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   Register LiveIn = MRI.getLiveInVirtReg(PhysReg);
@@ -923,6 +922,21 @@ LLT llvm::getLCMType(LLT OrigTy, LLT TargetTy) {
   return LLT::scalar(LCMSize);
 }
 
+LLT llvm::getCoverTy(LLT OrigTy, LLT TargetTy) {
+  if (!OrigTy.isVector() || !TargetTy.isVector() || OrigTy == TargetTy ||
+      (OrigTy.getScalarSizeInBits() != TargetTy.getScalarSizeInBits()))
+    return getLCMType(OrigTy, TargetTy);
+
+  unsigned OrigTyNumElts = OrigTy.getNumElements();
+  unsigned TargetTyNumElts = TargetTy.getNumElements();
+  if (OrigTyNumElts % TargetTyNumElts == 0)
+    return OrigTy;
+
+  unsigned NumElts = alignTo(OrigTyNumElts, TargetTyNumElts);
+  return LLT::scalarOrVector(ElementCount::getFixed(NumElts),
+                             OrigTy.getElementType());
+}
+
 LLT llvm::getGCDType(LLT OrigTy, LLT TargetTy) {
   const unsigned OrigSize = OrigTy.getSizeInBits();
   const unsigned TargetSize = TargetTy.getSizeInBits();
@@ -1030,16 +1044,22 @@ Optional<ValueAndVReg> getAnyConstantSplat(Register VReg,
   return SplatValAndReg;
 }
 
-bool isBuildVectorConstantSplat(const MachineInstr &MI,
-                                const MachineRegisterInfo &MRI,
-                                int64_t SplatValue, bool AllowUndef) {
-  if (auto SplatValAndReg =
-          getAnyConstantSplat(MI.getOperand(0).getReg(), MRI, AllowUndef))
+} // end anonymous namespace
+
+bool llvm::isBuildVectorConstantSplat(const Register Reg,
+                                      const MachineRegisterInfo &MRI,
+                                      int64_t SplatValue, bool AllowUndef) {
+  if (auto SplatValAndReg = getAnyConstantSplat(Reg, MRI, AllowUndef))
     return mi_match(SplatValAndReg->VReg, MRI, m_SpecificICst(SplatValue));
   return false;
 }
 
-} // end anonymous namespace
+bool llvm::isBuildVectorConstantSplat(const MachineInstr &MI,
+                                      const MachineRegisterInfo &MRI,
+                                      int64_t SplatValue, bool AllowUndef) {
+  return isBuildVectorConstantSplat(MI.getOperand(0).getReg(), MRI, SplatValue,
+                                    AllowUndef);
+}
 
 Optional<int64_t>
 llvm::getBuildVectorConstantSplat(const MachineInstr &MI,
@@ -1178,25 +1198,6 @@ bool llvm::shouldOptForSize(const MachineBasicBlock &MBB,
          llvm::shouldOptimizeForSize(MBB.getBasicBlock(), PSI, BFI);
 }
 
-/// These artifacts generally don't have any debug users because they don't
-/// directly originate from IR instructions, but instead usually from
-/// legalization. Avoiding checking for debug users improves compile time.
-/// Note that truncates or extends aren't included because they have IR
-/// counterparts which can have debug users after translation.
-static bool shouldSkipDbgValueFor(MachineInstr &MI) {
-  switch (MI.getOpcode()) {
-  case TargetOpcode::G_UNMERGE_VALUES:
-  case TargetOpcode::G_MERGE_VALUES:
-  case TargetOpcode::G_CONCAT_VECTORS:
-  case TargetOpcode::G_BUILD_VECTOR:
-  case TargetOpcode::G_EXTRACT:
-  case TargetOpcode::G_INSERT:
-    return true;
-  default:
-    return false;
-  }
-}
-
 void llvm::saveUsesAndErase(MachineInstr &MI, MachineRegisterInfo &MRI,
                             LostDebugLocObserver *LocObserver,
                             SmallInstListTy &DeadInstChain) {
@@ -1206,10 +1207,7 @@ void llvm::saveUsesAndErase(MachineInstr &MI, MachineRegisterInfo &MRI,
   }
   LLVM_DEBUG(dbgs() << MI << "Is dead; erasing.\n");
   DeadInstChain.remove(&MI);
-  if (shouldSkipDbgValueFor(MI))
-    MI.eraseFromParent();
-  else
-    MI.eraseFromParentAndMarkDBGValuesForRemoval();
+  MI.eraseFromParent();
   if (LocObserver)
     LocObserver->checkpoint(false);
 }

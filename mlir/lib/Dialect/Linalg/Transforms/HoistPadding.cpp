@@ -13,7 +13,7 @@
 #include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Utils.h"
@@ -272,6 +272,7 @@ HoistingAnalysis::dropNonIndexDependencies(PadTensorOp padTensorOp,
   // After iterating `backwardSlice` we obtain:
   // indexEdges = [%i, %j, %ubi, %ubj]
   // backwardSlice = backwardSlice / [linalg.fill(%cst, %arg1), scf.for %k]
+  SetVector<Operation *> operationsToRemove;
   for (Operation *op : llvm::reverse(backwardSlice)) {
     // Add the index operands of `padTensorOp` and `sliceOp` to start the
     // exploration of the index computation.
@@ -308,11 +309,12 @@ HoistingAnalysis::dropNonIndexDependencies(PadTensorOp padTensorOp,
       }
       continue;
     }
-    // Remove all other operation not used by the index computation except for
-    // constant operations that may be padding values used by `padTensorOp`.
+    // Remove all other operations not used by the index computation. An
+    // exception are constant operations that may be used by `padTensorOp`.
     if (!isa<arith::ConstantOp>(op))
-      backwardSlice.remove(op);
+      operationsToRemove.insert(op);
   }
+  backwardSlice.set_subtract(operationsToRemove);
   return success();
 }
 
@@ -329,7 +331,7 @@ HoistingAnalysis::getPackedTensorSizes(ImplicitLocOpBuilder &b) {
     // Compute an upper bound `ubVal` for the upper bound of `forOp`.
     AffineMap boundMap;
     SmallVector<Value> boundOperands;
-    getUpperBoundForIndex(forOp.upperBound(), boundMap, boundOperands);
+    getUpperBoundForIndex(forOp.getUpperBound(), boundMap, boundOperands);
     Value ubVal = b.createOrFold<AffineMinOp>(boundMap, boundOperands);
     // Compute the maximal packing loop length as (ub - lb).ceilDiv(step) and
     // store the result to `dynamicTensorSizes`.
@@ -339,8 +341,8 @@ HoistingAnalysis::getPackedTensorSizes(ImplicitLocOpBuilder &b) {
     bindDims(b.getContext(), lb, ub);
     bindSymbols(b.getContext(), step);
     Value res = b.createOrFold<AffineApplyOp>(
-        (ub - lb).ceilDiv(step),
-        ValueRange{forOp.lowerBound(), ubVal, cast<scf::ForOp>(forOp).step()});
+        (ub - lb).ceilDiv(step), ValueRange{forOp.getLowerBound(), ubVal,
+                                            cast<scf::ForOp>(forOp).getStep()});
     dynamicTensorSizes.push_back(res);
   }
 
@@ -361,11 +363,11 @@ static Value buildLoopIterationCount(OpBuilder &b, scf::ForOp outer,
   AffineExpr iv, lb, step;
   bindDims(ctx, iv, lb);
   bindSymbols(ctx, step);
-  if (!isDefinedOutsideOrConstant(outer, forOp.lowerBound()) ||
-      !isDefinedOutsideOrConstant(outer, forOp.step()))
+  if (!isDefinedOutsideOrConstant(outer, forOp.getLowerBound()) ||
+      !isDefinedOutsideOrConstant(outer, forOp.getStep()))
     return Value();
-  Value ivVal = forOp.getInductionVar(), lbVal = forOp.lowerBound(),
-        stepVal = forOp.step();
+  Value ivVal = forOp.getInductionVar(), lbVal = forOp.getLowerBound(),
+        stepVal = forOp.getStep();
   auto loc = forOp->getLoc();
   return b.createOrFold<AffineApplyOp>(loc, (iv - lb).ceilDiv(step),
                                        ValueRange{ivVal, lbVal, stepVal});
@@ -432,10 +434,10 @@ FailureOr<Value> mlir::linalg::hoistPaddingOnTensors(PadTensorOp opToHoist,
       continue;
     }
     // Create a packing loop that takes `packedTensor` as iteration argument.
-    auto clonedForOp =
-        b.create<scf::ForOp>(loc, bvm.lookupOrDefault(forOp.lowerBound()),
-                             bvm.lookupOrDefault(forOp.upperBound()),
-                             bvm.lookupOrDefault(forOp.step()), packedTensor);
+    auto clonedForOp = b.create<scf::ForOp>(
+        loc, bvm.lookupOrDefault(forOp.getLowerBound()),
+        bvm.lookupOrDefault(forOp.getUpperBound()),
+        bvm.lookupOrDefault(forOp.getStep()), packedTensor);
     // Map the induction var, region args and results to the `clonedForOp`.
     bvm.map(forOp.getInductionVar(), clonedForOp.getInductionVar());
     bvm.map(forOp.getRegionIterArgs(), clonedForOp.getRegionIterArgs());

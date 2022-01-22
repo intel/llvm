@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_ANALYSIS_LOOP_ANALYSIS_H
-#define MLIR_ANALYSIS_LOOP_ANALYSIS_H
+#ifndef MLIR_ANALYSIS_LOOPANALYSIS_H
+#define MLIR_ANALYSIS_LOOPANALYSIS_H
 
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -113,6 +113,6 @@ bool isOpwiseShiftValid(AffineForOp forOp, ArrayRef<uint64_t> shifts);
 /// reductions not covered by this generic matching.
 Value matchReduction(ArrayRef<BlockArgument> iterCarriedArgs, unsigned redPos,
                      SmallVectorImpl<Operation *> &combinerOps);
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_ANALYSIS_LOOP_ANALYSIS_H
+#endif // MLIR_ANALYSIS_LOOPANALYSIS_H

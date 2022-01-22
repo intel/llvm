@@ -273,6 +273,8 @@ LANGOPT(
     "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
     "in SYCL class id, iterm and nd_iterm")
 LANGOPT(SYCLDisableRangeRounding, 1, 0, "Disable parallel for range rounding")
+LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
+        "SYCL integration header")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 

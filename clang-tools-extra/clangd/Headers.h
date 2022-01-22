@@ -20,6 +20,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
@@ -31,7 +32,78 @@
 #include <string>
 
 namespace clang {
+class Decl;
+class NamespaceDecl;
 namespace clangd {
+
+// clangd has a built-in database of standard library symbols.
+namespace stdlib {
+class Symbol;
+
+// A standard library header, such as <iostream>
+// Lightweight class, in fact just an index into a table.
+class Header {
+public:
+  static llvm::Optional<Header> named(llvm::StringRef Name);
+
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Header &H) {
+    return OS << H.name();
+  }
+  llvm::StringRef name() const;
+
+private:
+  Header(unsigned ID) : ID(ID) {}
+  unsigned ID;
+  friend Symbol;
+  friend llvm::DenseMapInfo<Header>;
+  friend bool operator==(const Header &L, const Header &R) {
+    return L.ID == R.ID;
+  }
+};
+
+// A top-level standard library symbol, such as std::vector
+// Lightweight class, in fact just an index into a table.
+class Symbol {
+public:
+  static llvm::Optional<Symbol> named(llvm::StringRef Scope,
+                                      llvm::StringRef Name);
+
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Symbol &S) {
+    return OS << S.scope() << S.name();
+  }
+  llvm::StringRef scope() const;
+  llvm::StringRef name() const;
+  // The preferred header for this symbol (e.g. the suggested insertion).
+  Header header() const;
+  // Some symbols may be provided my multiple headers.
+  llvm::SmallVector<Header> headers() const;
+
+private:
+  Symbol(unsigned ID) : ID(ID) {}
+  unsigned ID;
+  friend class Recognizer;
+  friend llvm::DenseMapInfo<Symbol>;
+  friend bool operator==(const Symbol &L, const Symbol &R) {
+    return L.ID == R.ID;
+  }
+};
+
+// A functor to find the stdlib::Symbol associated with a decl.
+//
+// For non-top-level decls (std::vector<int>::iterator), returns the top-level
+// symbol (std::vector).
+class Recognizer {
+public:
+  Recognizer();
+  llvm::Optional<Symbol> operator()(const Decl *D);
+
+private:
+  using NSSymbolMap = llvm::DenseMap<llvm::StringRef, unsigned>;
+  NSSymbolMap *namespaceSymbols(const NamespaceDecl *D);
+  llvm::DenseMap<const DeclContext *, NSSymbolMap *> NamespaceCache;
+};
+
+} // namespace stdlib
 
 /// Returns true if \p Include is literal include like "path" or <path>.
 bool isLiteralInclude(llvm::StringRef Include);
@@ -64,6 +136,7 @@ struct Inclusion {
   int HashLine = 0;        // Line number containing the directive, 0-indexed.
   SrcMgr::CharacteristicKind FileKind = SrcMgr::C_User;
   llvm::Optional<unsigned> HeaderID;
+  bool BehindPragmaKeep = false; // Has IWYU pragma: keep right after.
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Inclusion &);
 bool operator==(const Inclusion &LHS, const Inclusion &RHS);
@@ -123,9 +196,10 @@ public:
     RealPathNames.emplace_back();
   }
 
-  // Returns a PPCallback that visits all inclusions in the main file and
-  // populates the structure.
-  std::unique_ptr<PPCallbacks> collect(const CompilerInstance &CI);
+  // Inserts a PPCallback and CommentHandler that visits all includes in the
+  // main file and populates the structure. It will also scan for IWYU pragmas
+  // in comments.
+  void collect(const CompilerInstance &CI);
 
   // HeaderID identifies file in the include graph. It corresponds to a
   // FileEntry rather than a FileID, but stays stable across preamble & main
@@ -156,6 +230,8 @@ public:
 
   // Maps HeaderID to the ids of the files included from it.
   llvm::DenseMap<HeaderID, SmallVector<HeaderID>> IncludeChildren;
+
+  llvm::DenseMap<stdlib::Header, llvm::SmallVector<HeaderID>> StdlibHeaders;
 
   std::vector<Inclusion> MainFileIncludes;
 
@@ -247,13 +323,11 @@ namespace llvm {
 // Support HeaderIDs as DenseMap keys.
 template <> struct DenseMapInfo<clang::clangd::IncludeStructure::HeaderID> {
   static inline clang::clangd::IncludeStructure::HeaderID getEmptyKey() {
-    return static_cast<clang::clangd::IncludeStructure::HeaderID>(
-        DenseMapInfo<unsigned>::getEmptyKey());
+    return static_cast<clang::clangd::IncludeStructure::HeaderID>(-1);
   }
 
   static inline clang::clangd::IncludeStructure::HeaderID getTombstoneKey() {
-    return static_cast<clang::clangd::IncludeStructure::HeaderID>(
-        DenseMapInfo<unsigned>::getTombstoneKey());
+    return static_cast<clang::clangd::IncludeStructure::HeaderID>(-2);
   }
 
   static unsigned
@@ -263,6 +337,38 @@ template <> struct DenseMapInfo<clang::clangd::IncludeStructure::HeaderID> {
 
   static bool isEqual(const clang::clangd::IncludeStructure::HeaderID &LHS,
                       const clang::clangd::IncludeStructure::HeaderID &RHS) {
+    return LHS == RHS;
+  }
+};
+
+template <> struct DenseMapInfo<clang::clangd::stdlib::Header> {
+  static inline clang::clangd::stdlib::Header getEmptyKey() {
+    return clang::clangd::stdlib::Header(-1);
+  }
+  static inline clang::clangd::stdlib::Header getTombstoneKey() {
+    return clang::clangd::stdlib::Header(-2);
+  }
+  static unsigned getHashValue(const clang::clangd::stdlib::Header &H) {
+    return hash_value(H.ID);
+  }
+  static bool isEqual(const clang::clangd::stdlib::Header &LHS,
+                      const clang::clangd::stdlib::Header &RHS) {
+    return LHS == RHS;
+  }
+};
+
+template <> struct DenseMapInfo<clang::clangd::stdlib::Symbol> {
+  static inline clang::clangd::stdlib::Symbol getEmptyKey() {
+    return clang::clangd::stdlib::Symbol(-1);
+  }
+  static inline clang::clangd::stdlib::Symbol getTombstoneKey() {
+    return clang::clangd::stdlib::Symbol(-2);
+  }
+  static unsigned getHashValue(const clang::clangd::stdlib::Symbol &S) {
+    return hash_value(S.ID);
+  }
+  static bool isEqual(const clang::clangd::stdlib::Symbol &LHS,
+                      const clang::clangd::stdlib::Symbol &RHS) {
     return LHS == RHS;
   }
 };

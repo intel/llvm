@@ -304,6 +304,7 @@ const static char SubgroupBlockWriteINTELPrefix[] =
     "intel_sub_group_block_write";
 const static char SubgroupImageMediaBlockINTELPrefix[] =
     "intel_sub_group_media_block";
+const static char LDEXP[] = "ldexp";
 } // namespace kOCLBuiltinName
 
 /// Offset for OpenCL image channel order enumeration values.

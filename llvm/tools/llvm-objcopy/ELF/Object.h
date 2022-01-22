@@ -783,8 +783,10 @@ class RelocationSection
   MAKE_SEC_WRITER_FRIEND
 
   std::vector<Relocation> Relocations;
+  const Object &Obj;
 
 public:
+  RelocationSection(const Object &O) : Obj(O) {}
   void addRelocation(Relocation Rel) { Relocations.push_back(Rel); }
   Error accept(SectionVisitor &Visitor) const override;
   Error accept(MutableSectionVisitor &Visitor) override;
@@ -795,6 +797,7 @@ public:
   void markSymbols() override;
   void replaceSectionReferences(
       const DenseMap<SectionBase *, SectionBase *> &FromTo) override;
+  const Object &getObject() const { return Obj; }
 
   static bool classof(const SectionBase *S) {
     if (S->OriginalFlags & ELF::SHF_ALLOC)
@@ -931,8 +934,7 @@ class BinaryELFBuilder : public BasicELFBuilder {
 
 public:
   BinaryELFBuilder(MemoryBuffer *MB, uint8_t NewSymbolVisibility)
-      : BasicELFBuilder(), MemBuf(MB),
-        NewSymbolVisibility(NewSymbolVisibility) {}
+      : MemBuf(MB), NewSymbolVisibility(NewSymbolVisibility) {}
 
   Expected<std::unique_ptr<Object>> build();
 };
@@ -943,8 +945,7 @@ class IHexELFBuilder : public BasicELFBuilder {
   void addDataSections();
 
 public:
-  IHexELFBuilder(const std::vector<IHexRecord> &Records)
-      : BasicELFBuilder(), Records(Records) {}
+  IHexELFBuilder(const std::vector<IHexRecord> &Records) : Records(Records) {}
 
   Expected<std::unique_ptr<Object>> build();
 };
@@ -971,9 +972,7 @@ private:
 
 public:
   ELFBuilder(const ELFObjectFile<ELFT> &ElfObj, Object &Obj,
-             Optional<StringRef> ExtractPartition)
-      : ElfFile(ElfObj.getELFFile()), Obj(Obj),
-        ExtractPartition(ExtractPartition) {}
+             Optional<StringRef> ExtractPartition);
 
   Error build(bool EnsureSymtab);
 };
@@ -1062,6 +1061,8 @@ public:
   StringTableSection *SectionNames = nullptr;
   SymbolTableSection *SymbolTable = nullptr;
   SectionIndexSection *SectionIndexTable = nullptr;
+
+  bool IsMips64EL = false;
 
   SectionTableRef sections() const { return SectionTableRef(Sections); }
   iterator_range<
