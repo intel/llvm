@@ -130,9 +130,6 @@ static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap;
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
 
-// For PI_DEVICE_INFO_DRIVER_VERSION info
-static char ESimdEmuVersionString[32];
-
 // For PI_DEVICE_INFO_VERSION info
 static char CmEmuDeviceVersionString[32];
 
