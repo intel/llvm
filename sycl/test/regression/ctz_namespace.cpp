@@ -1,10 +1,12 @@
-// RUN: %clangxx -fsycl -S -emit-llvm -fsycl-device-only %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -S -emit-llvm %s -o - | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
-int main() {
+void kernel(int *data) {
   long long int a = -9223372034707292160ll;
-  auto b = sycl::ctz(a);
-  return 0;
-  // CHECK: call spir_func i32 {{.*}}__sycl_std::__invoke_ctz{{.*}} i32 addrspace(1)*
+  data[0] = sycl::ctz(a);
 }
+
+int main() { return 0; }
+
+// CHECK: call i64 {{.*}}@_ZN2cl4sycl3ctz{{.*}}_(i64 %0)
