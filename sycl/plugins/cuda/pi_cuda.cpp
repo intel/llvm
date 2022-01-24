@@ -1161,8 +1161,20 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_uint64{max_alloc});
   }
   case PI_DEVICE_INFO_IMAGE_SUPPORT: {
+    pi_bool enabled = PI_FALSE;
+
+    if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
+      enabled = PI_TRUE;
+    } else {
+      cl::sycl::detail::pi::cuPrint(
+          "Images are not fully supported by the CUDA BE, their support is "
+          "disabled by default. Their partial support can be activated by "
+          "setting SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
+          "runtime.");
+    }
+
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_TRUE);
+                   enabled);
   }
   case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to CUDA as it doesn't have images, but instead
@@ -4825,12 +4837,19 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 #endif
     }
     case PI_MEM_ALLOC_DEVICE: {
-      unsigned int value;
+      // get device index associated with this pointer
+      unsigned int device_idx;
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
-          &value, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)ptr));
-      pi_platform platform;
-      result = cuda_piPlatformsGet(1, &platform, nullptr);
-      pi_device device = platform->devices_[value].get();
+          &device_idx, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)ptr));
+
+      // currently each device is in its own platform, so find the platform at
+      // the same index
+      std::vector<pi_platform> platforms;
+      platforms.resize(device_idx + 1);
+      result = cuda_piPlatformsGet(device_idx + 1, platforms.data(), nullptr);
+
+      // get the device from the platform
+      pi_device device = platforms[device_idx]->devices_[0].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
     }

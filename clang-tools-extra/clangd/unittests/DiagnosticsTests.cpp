@@ -771,6 +771,17 @@ TEST(DiagnosticsTest, NoFixItInMacro) {
                                 Not(WithFix(_)))));
 }
 
+TEST(DiagnosticsTest, PragmaSystemHeader) {
+  Annotations Test("#pragma clang [[system_header]]\n");
+  auto TU = TestTU::withCode(Test.code());
+  EXPECT_THAT(
+      *TU.build().getDiagnostics(),
+      ElementsAre(AllOf(
+          Diag(Test.range(), "#pragma system_header ignored in main file"))));
+  TU.Filename = "TestTU.h";
+  EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
+}
+
 TEST(ClangdTest, MSAsm) {
   // Parsing MS assembly tries to use the target MCAsmInfo, which we don't link.
   // We used to crash here. Now clang emits a diagnostic, which we filter out.
@@ -1283,6 +1294,31 @@ TEST(IncludeFixerTest, HeaderNamedInDiag) {
                              "with type 'int (const char *, ...)'"),
           WithFix(Fix(Test.range("insert"), "#include <stdio.h>\n",
                       "Include <stdio.h> for symbol printf")))));
+}
+
+TEST(IncludeFixerTest, CImplicitFunctionDecl) {
+  Annotations Test("void x() { [[foo]](); }");
+  auto TU = TestTU::withCode(Test.code());
+  TU.Filename = "test.c";
+
+  Symbol Sym = func("foo");
+  Sym.Flags |= Symbol::IndexedForCodeCompletion;
+  Sym.CanonicalDeclaration.FileURI = "unittest:///foo.h";
+  Sym.IncludeHeaders.emplace_back("\"foo.h\"", 1);
+
+  SymbolSlab::Builder Slab;
+  Slab.insert(Sym);
+  auto Index =
+      MemIndex::build(std::move(Slab).build(), RefSlab(), RelationSlab());
+  TU.ExternalIndex = Index.get();
+
+  EXPECT_THAT(
+      *TU.build().getDiagnostics(),
+      ElementsAre(AllOf(
+          Diag(Test.range(),
+               "implicit declaration of function 'foo' is invalid in C99"),
+          WithFix(Fix(Range{}, "#include \"foo.h\"\n",
+                      "Include \"foo.h\" for symbol foo")))));
 }
 
 TEST(DiagsInHeaders, DiagInsideHeader) {
