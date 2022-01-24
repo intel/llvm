@@ -678,3 +678,30 @@ func @constant_UItoFP() -> f32 {
   %res = arith.sitofp %c0 : i32 to f32
   return %res : f32
 }
+
+// -----
+// CHECK-LABEL: @constant_MinMax(
+func @constant_MinMax(%arg0 : f32) -> f32 {
+  // CHECK:  %[[const:.+]] = arith.constant
+  // CHECK:  %[[min:.+]] = arith.minf %arg0, %[[const]] : f32
+  // CHECK:  %[[res:.+]] = arith.maxf %[[min]], %[[const]] : f32
+  // CHECK:   return %[[res]]
+  %const = arith.constant 0.0 : f32
+  %min = arith.minf %const, %arg0 : f32
+  %res = arith.maxf %const, %min : f32
+  return %res : f32
+}
+
+// -----
+// CHECK-LABEL: @cmpf_nan(
+func @cmpf_nan(%arg0 : f32) -> (i1, i1, i1, i1) {
+//   CHECK-DAG:   %[[T:.*]] = arith.constant true
+//   CHECK-DAG:   %[[F:.*]] = arith.constant false
+//       CHECK:   return %[[F]], %[[F]], %[[T]], %[[T]]
+  %nan = arith.constant 0x7fffffff : f32
+  %0 = arith.cmpf olt, %nan, %arg0 : f32
+  %1 = arith.cmpf olt, %arg0, %nan : f32
+  %2 = arith.cmpf ugt, %nan, %arg0 : f32
+  %3 = arith.cmpf ugt, %arg0, %nan : f32
+  return %0, %1, %2, %3 : i1, i1, i1, i1
+}

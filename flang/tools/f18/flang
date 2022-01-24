@@ -12,6 +12,9 @@
 #   * run Flang's compiler driver to unparse the input source files
 #   * use the external compiler (defined via FLANG_FC environment variable) to
 #   compile the unparsed source files
+#
+# Tested with Bash 4.4. This script will exit immediately if you use an
+# older version of Bash.
 #===------------------------------------------------------------------------===#
 set -euo pipefail
 
@@ -24,6 +27,25 @@ INTRINSICS_MOD_DIR=""
 COMPILE_ONLY="False"
 PREPROCESS_ONLY="False"
 PRINT_VERSION="False"
+
+# === check_bash_version ======================================================
+#
+# Checks the Bash version that's used to run this script. Exits immediately
+# with a non-zero return code if it's lower than 4.4. Otherwise returns 0
+# (success).
+# =============================================================================
+check_bash_version() {
+  message="Error: Your Bash is too old. Please use Bash >= 4.4"
+  # Major version
+  [[ "${BASH_VERSINFO[0]:-0}" -lt 4 ]] && echo $message && exit 1
+
+  # Minor version
+  if [[ "${BASH_VERSINFO[0]}" == 4 ]]; then
+    [[ "${BASH_VERSINFO[1]:-0}" -lt 4 ]] && echo $message && exit 1
+  fi
+
+  return 0
+}
 
 # === parse_args ==============================================================
 #
@@ -324,6 +346,7 @@ get_relocatable_name() {
 # Main entry point for this script
 # =============================================================================
 main() {
+  check_bash_version
   parse_args "$@"
 
   if [[ $PRINT_VERSION == "True" ]]; then

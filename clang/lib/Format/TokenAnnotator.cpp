@@ -780,6 +780,7 @@ private:
       unsigned CommaCount = 0;
       while (CurrentToken) {
         if (CurrentToken->is(tok::r_brace)) {
+          assert(Left->Optional == CurrentToken->Optional);
           Left->MatchingParen = CurrentToken;
           CurrentToken->MatchingParen = Left;
           if (Style.AlignArrayOfStructures != FormatStyle::AIAS_None) {
@@ -1892,6 +1893,13 @@ private:
           return false;
         LeftOfParens = LeftOfParens->MatchingParen->Previous;
       }
+
+      // The Condition directly below this one will see the operator arguments
+      // as a (void *foo) cast.
+      //   void operator delete(void *foo) ATTRIB;
+      if (LeftOfParens->Tok.getIdentifierInfo() && LeftOfParens->Previous &&
+          LeftOfParens->Previous->is(tok::kw_operator))
+        return false;
 
       // If there is an identifier (or with a few exceptions a keyword) right
       // before the parentheses, this is unlikely to be a cast.
