@@ -248,8 +248,8 @@ void collectCompositeElementsInfoRecursive(
       // TODO: this is a spot for potential optimization: for arrays we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(),
-                                            IDIter, Offset, Result);
+      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(), IDIter,
+                                            Offset, Result);
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
@@ -287,8 +287,8 @@ void collectCompositeElementsInfoRecursive(
       // TODO: this is a spot for potential optimization: for vectors we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(),
-                                            IDIter, Offset, Result);
+      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(), IDIter,
+                                            Offset, Result);
     }
   } else { // Assume that we encountered some scalar element
     SpecConstantDescriptor Desc;
