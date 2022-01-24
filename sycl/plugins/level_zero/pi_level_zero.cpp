@@ -1229,7 +1229,15 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // either that no command has ever been issued to the queue
   // or it means that the LastCommandEvent has been signalled and
   // therefore that this Queue is idle.
-  bool CurrentlyEmpty = this->LastCommandEvent == nullptr;
+  //
+  // NOTE: this behavior adds some flakyness to the batching
+  // since last command's event may or may not be completed by the
+  // time we get here depending on timings and system/gpu load.
+  // So, disable it for modes where we print PI traces. Printing
+  // traces incurs much different timings than real execution
+  // ansyway, and many regression tests use it.
+  //
+  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
@@ -1435,6 +1443,23 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
   if (getOrCreateCopyCommandQueue(*CopyQueueIndex, ZeCopyCommandQueue))
     return nullptr;
   return ZeCopyCommandQueue;
+}
+
+pi_result _pi_queue::executeOpenCommandListWithEvent(pi_event Event) {
+  // TODO: see if we can reliably tell if the event is copy or compute.
+  // Meanwhile check both open command-lists.
+  using IsCopy = bool;
+  if (hasOpenCommandList(IsCopy{false}) &&
+      ComputeCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
+    if (auto Res = executeOpenCommandList(IsCopy{false}))
+      return Res;
+  }
+  if (hasOpenCommandList(IsCopy{true}) &&
+      CopyCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
+    if (auto Res = executeOpenCommandList(IsCopy{true}))
+      return Res;
+  }
+  return PI_SUCCESS;
 }
 
 pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
@@ -3108,6 +3133,9 @@ pi_result piQueueFinish(pi_queue Queue) {
     Queue->EventlessKernelsInUse.clear();
   }
 
+  // Prevent unneeded already finished events to show up in the wait list.
+  Queue->LastCommandEvent = nullptr;
+
   return PI_SUCCESS;
 }
 
@@ -3802,17 +3830,33 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
-  (void)Options;
-
   // We only support one device with Level Zero currently.
-  pi_device Device = Context->Devices[0];
   if (NumDevices != 1) {
     zePrint("piProgramLink: level_zero supports only one device.");
     return PI_INVALID_VALUE;
   }
 
+  // We do not support any link flags at this time because the Level Zero API
+  // does not have any way to pass flags that are specific to linking.
+  if (Options && *Options != '\0') {
+    std::string ErrorMessage(
+        "Level Zero does not support kernel link flags: \"");
+    ErrorMessage.append(Options);
+    ErrorMessage.push_back('\"');
+    pi_program Program =
+        new _pi_program(_pi_program::Invalid, Context, ErrorMessage);
+    *RetProgram = Program;
+    return PI_LINK_PROGRAM_FAILURE;
+  }
+
   // Validate input parameters.
-  PI_ASSERT(DeviceList && DeviceList[0] == Device, PI_INVALID_DEVICE);
+  PI_ASSERT(DeviceList, PI_INVALID_DEVICE);
+  {
+    auto DeviceEntry =
+        find(Context->Devices.begin(), Context->Devices.end(), DeviceList[0]);
+    if (DeviceEntry == Context->Devices.end())
+      return PI_INVALID_DEVICE;
+  }
   PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
   if (NumInputPrograms == 0 || InputPrograms == nullptr)
     return PI_INVALID_VALUE;
@@ -3995,7 +4039,14 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
 
   std::scoped_lock Guard(Program->Mutex);
-
+  // Check if device belongs to associated context.
+  PI_ASSERT(Program->Context, PI_INVALID_PROGRAM);
+  {
+    auto DeviceEntry = find(Program->Context->Devices.begin(),
+                            Program->Context->Devices.end(), DeviceList[0]);
+    if (DeviceEntry == Program->Context->Devices.end())
+      return PI_INVALID_VALUE;
+  }
   // It is legal to build a program created from either IL or from native
   // device code.
   if (Program->State != _pi_program::IL &&
@@ -4068,16 +4119,26 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
     // with piProgramRegister?
     return ReturnValue("");
   } else if (ParamName == CL_PROGRAM_BUILD_LOG) {
-    // The OpenCL spec says an empty string is returned if there was no
-    // previous Compile, Build, or Link.
-    if (!Program->ZeBuildLog)
-      return ReturnValue("");
-    size_t LogSize = ParamValueSize;
-    ZE_CALL(zeModuleBuildLogGetString,
-            (Program->ZeBuildLog, &LogSize, pi_cast<char *>(ParamValue)));
-    if (ParamValueSizeRet) {
-      *ParamValueSizeRet = LogSize;
+    // Check first to see if the plugin code recorded an error message.
+    if (!Program->ErrorMessage.empty()) {
+      return ReturnValue(Program->ErrorMessage.c_str());
     }
+
+    // Next check if there is a Level Zero build log.
+    if (Program->ZeBuildLog) {
+      size_t LogSize = ParamValueSize;
+      ZE_CALL(zeModuleBuildLogGetString,
+              (Program->ZeBuildLog, &LogSize, pi_cast<char *>(ParamValue)));
+      if (ParamValueSizeRet) {
+        *ParamValueSizeRet = LogSize;
+      }
+      return PI_SUCCESS;
+    }
+
+    // Otherwise, there is no error.  The OpenCL spec says to return an empty
+    // string if there ws no previous attempt to compile, build, or link the
+    // program.
+    return ReturnValue("");
   } else {
     zePrint("piProgramGetBuildInfo: unsupported ParamName\n");
     return PI_INVALID_VALUE;
@@ -4804,23 +4865,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     if (Event->Queue) {
       // Lock automatically releases when this goes out of scope.
       std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
-
-      // Only do the execute of the open command list if the event that
-      // is being queried and event that is to be signalled by something
-      // currently in that open command list.
-      using IsCopy = bool;
-      if (Event->Queue->hasOpenCommandList(IsCopy{false}) &&
-          Event->Queue->ComputeCommandBatch.OpenCommandList->first ==
-              Event->ZeCommandList) {
-        if (auto Res = Event->Queue->executeOpenCommandList(IsCopy{false}))
-          return Res;
-      }
-      if (Event->Queue->hasOpenCommandList(IsCopy{true}) &&
-          Event->Queue->CopyCommandBatch.OpenCommandList->first ==
-              Event->ZeCommandList) {
-        if (auto Res = Event->Queue->executeOpenCommandList(IsCopy{true}))
-          return Res;
-      }
+      Event->Queue->executeOpenCommandListWithEvent(Event);
     }
 
     // Make sure that we query a host-visible event only.
@@ -5152,6 +5197,14 @@ pi_result piextEventGetNativeHandle(pi_event Event,
 
   auto *ZeEvent = pi_cast<ze_event_handle_t *>(NativeHandle);
   *ZeEvent = Event->ZeEvent;
+
+  // Event can potentially be in an open command-list, make sure that
+  // it is submitted for execution to avoid potential deadlock if
+  // interop app is going to wait for it.
+  if (Event->Queue) {
+    std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
+    Event->Queue->executeOpenCommandListWithEvent(Event);
+  }
   return PI_SUCCESS;
 }
 
@@ -5419,6 +5472,22 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                                          pi_event *Event) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  // Submit dependent open command lists for execution, if any
+  // Only do it for queues other than the current, since the barrier
+  // will go into current queue submission together with the waited event.
+  for (uint32_t I = 0; I < NumEventsInWaitList; I++) {
+    auto EventQueue = EventWaitList[I]->Queue;
+    if (EventQueue && EventQueue != Queue) {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+      if (EventQueue->RefCount > 0) {
+        if (auto Res = EventQueue->executeAllOpenCommandLists())
+          return Res;
+      }
+    }
+  }
+
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
@@ -5428,8 +5497,10 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     return Res;
 
   // Get a new command list to be used on this call
+  bool OkToBatch = true;
   pi_command_list_ptr_t CommandList{};
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
+  if (auto Res = Queue->Context->getAvailableCommandList(
+          Queue, CommandList, false /*copy*/, OkToBatch))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5449,7 +5520,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
   // Execute command list asynchronously as the event will be used
   // to track down its completion.
-  return Queue->executeCommandList(CommandList);
+  return Queue->executeCommandList(CommandList, false, OkToBatch);
 }
 
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,

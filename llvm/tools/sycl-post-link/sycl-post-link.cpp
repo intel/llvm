@@ -27,7 +27,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/SYCLLowerIR/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -39,6 +39,8 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/StripDeadPrototypes.h"
+#include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -490,13 +492,14 @@ extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
   std::unique_ptr<Module> MClone = CloneModule(
       M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
 
-  // TODO: Use the new PassManager instead?
-  legacy::PassManager Passes;
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  ModulePassManager MPM;
   // Do cleanup.
-  Passes.add(createGlobalDCEPass());           // Delete unreachable globals.
-  Passes.add(createStripDeadDebugInfoPass());  // Remove dead debug info.
-  Passes.add(createStripDeadPrototypesPass()); // Remove dead func decls.
-  Passes.run(*MClone.get());
+  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
+  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
+  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
+  MPM.run(*MClone.get(), MAM);
 
   return MClone;
 }

@@ -23,7 +23,7 @@
           volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                                                                               \
           enum MemorySemanticsMask semantics) {                                                                                              \
     return _Z21__spirv_AtomicIAddEXTPU3##ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-        pointer, scope, semantics, 1);                                                                                                       \
+        pointer, scope, semantics, VAL);                                                                                                     \
   }
 
 #define __CLC_NVVM_ATOMIC_INCDEC(TYPE, TYPE_MANGLED, OP_MANGLED, VAL)          \

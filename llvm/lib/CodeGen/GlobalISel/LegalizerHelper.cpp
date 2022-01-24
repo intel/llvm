@@ -302,7 +302,6 @@ void LegalizerHelper::mergeMixedSubvectors(Register DstReg,
     appendVectorElts(AllElts, Leftover);
 
   MIRBuilder.buildMerge(DstReg, AllElts);
-  return;
 }
 
 /// Append the result registers of G_UNMERGE_VALUES \p MI to \p Regs.
@@ -565,7 +564,7 @@ static bool isLibCallInTailPosition(MachineInstr &MI,
   // the return. Ignore NoAlias and NonNull because they don't affect the
   // call sequence.
   AttributeList CallerAttrs = F.getAttributes();
-  if (AttrBuilder(CallerAttrs, AttributeList::ReturnIndex)
+  if (AttrBuilder(F.getContext(), CallerAttrs, AttributeList::ReturnIndex)
           .removeAttribute(Attribute::NoAlias)
           .removeAttribute(Attribute::NonNull)
           .hasAttributes())
@@ -3656,7 +3655,6 @@ static bool hasSameNumEltsOnAllVectorOperands(
     if (!Ty.isVector()) {
       if (!is_contained(NonVecOpIndices, OpIdx))
         return false;
-      is_contained(NonVecOpIndices, OpIdx);
       continue;
     }
 

@@ -56,6 +56,17 @@ struct StringRefZ {
   const uint32_t size;
 };
 
+// Some index properties of a symbol are stored separately in this auxiliary
+// struct to decrease sizeof(SymbolUnion) in the majority of cases.
+struct SymbolAux {
+  uint32_t gotIdx = -1;
+  uint32_t pltIdx = -1;
+  uint32_t tlsDescIdx = -1;
+  uint32_t tlsGdIdx = -1;
+};
+
+extern SmallVector<SymbolAux, 0> symAux;
+
 // The base class for real symbol classes.
 class Symbol {
 public:
@@ -79,11 +90,10 @@ protected:
   mutable uint32_t nameSize;
 
 public:
+  // A symAux index used to access GOT/PLT entry indexes. This is allocated in
+  // postScanRelocations().
+  uint32_t auxIdx = -1;
   uint32_t dynsymIndex = 0;
-  uint32_t gotIndex = -1;
-  uint32_t pltIndex = -1;
-
-  uint32_t globalDynIndex = -1;
 
   // This field is a index to the symbol's version definition.
   uint16_t verdefIndex = -1;
@@ -144,6 +154,9 @@ public:
   // True if this symbol is specified by --trace-symbol option.
   uint8_t traced : 1;
 
+  // True if the name contains '@'.
+  uint8_t hasVersionSuffix : 1;
+
   inline void replace(const Symbol &newSym);
 
   bool includeInDynsym() const;
@@ -188,8 +201,21 @@ public:
     return nameData + nameSize;
   }
 
-  bool isInGot() const { return gotIndex != -1U; }
-  bool isInPlt() const { return pltIndex != -1U; }
+  uint32_t getGotIdx() const {
+    return auxIdx == uint32_t(-1) ? uint32_t(-1) : symAux[auxIdx].gotIdx;
+  }
+  uint32_t getPltIdx() const {
+    return auxIdx == uint32_t(-1) ? uint32_t(-1) : symAux[auxIdx].pltIdx;
+  }
+  uint32_t getTlsDescIdx() const {
+    return auxIdx == uint32_t(-1) ? uint32_t(-1) : symAux[auxIdx].tlsDescIdx;
+  }
+  uint32_t getTlsGdIdx() const {
+    return auxIdx == uint32_t(-1) ? uint32_t(-1) : symAux[auxIdx].tlsGdIdx;
+  }
+
+  bool isInGot() const { return getGotIdx() != uint32_t(-1); }
+  bool isInPlt() const { return getPltIdx() != uint32_t(-1); }
 
   uint64_t getVA(int64_t addend = 0) const;
 
@@ -246,10 +272,13 @@ protected:
         type(type), stOther(stOther), symbolKind(k), visibility(stOther & 3),
         isUsedInRegularObj(!file || file->kind() == InputFile::ObjKind),
         exportDynamic(isExportDynamic(k, visibility)), inDynamicList(false),
-        canInline(false), referenced(false), traced(false), isInIplt(false),
-        gotInIgot(false), isPreemptible(false), used(!config->gcSections),
+        canInline(false), referenced(false), traced(false),
+        hasVersionSuffix(false), isInIplt(false), gotInIgot(false),
+        isPreemptible(false), used(!config->gcSections), folded(false),
         needsTocRestore(false), scriptDefined(false), needsCopy(false),
-        needsGot(false), needsPlt(false), hasDirectReloc(false) {}
+        needsGot(false), needsPlt(false), needsTlsDesc(false),
+        needsTlsGd(false), needsTlsGdToIe(false), needsTlsLd(false),
+        needsGotDtprel(false), needsTlsIe(false), hasDirectReloc(false) {}
 
 public:
   // True if this symbol is in the Iplt sub-section of the Plt and the Igot
@@ -269,6 +298,9 @@ public:
   // which are referenced by relocations when -r or --emit-relocs is given.
   uint8_t used : 1;
 
+  // True if defined relative to a section discarded by ICF.
+  uint8_t folded : 1;
+
   // True if a call to this symbol needs to be followed by a restore of the
   // PPC64 toc pointer.
   uint8_t needsTocRestore : 1;
@@ -284,7 +316,23 @@ public:
   // entries during postScanRelocations();
   uint8_t needsGot : 1;
   uint8_t needsPlt : 1;
+  uint8_t needsTlsDesc : 1;
+  uint8_t needsTlsGd : 1;
+  uint8_t needsTlsGdToIe : 1;
+  uint8_t needsTlsLd : 1;
+  uint8_t needsGotDtprel : 1;
+  uint8_t needsTlsIe : 1;
   uint8_t hasDirectReloc : 1;
+
+  bool needsDynReloc() const {
+    return needsCopy || needsGot || needsPlt || needsTlsDesc || needsTlsGd ||
+           needsTlsGdToIe || needsTlsLd || needsGotDtprel || needsTlsIe;
+  }
+  void allocateAux() {
+    assert(auxIdx == uint32_t(-1));
+    auxIdx = symAux.size();
+    symAux.emplace_back();
+  }
 
   // The partition whose dynamic symbol table contains this symbol's definition.
   uint8_t partition = 1;
@@ -564,6 +612,7 @@ void Symbol::replace(const Symbol &newSym) {
   canInline = old.canInline;
   referenced = old.referenced;
   traced = old.traced;
+  hasVersionSuffix = old.hasVersionSuffix;
   isPreemptible = old.isPreemptible;
   scriptDefined = old.scriptDefined;
   partition = old.partition;
