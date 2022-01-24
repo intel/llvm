@@ -64,13 +64,12 @@ Results of these instructios are used by *AliasScopeINTEL* and *NoAliasINTEL*
 decorations and Memory Operands mask to annotate memory access instructions.
 
 When evaluating an aliasing query if two memory access instructions that
-have *AliasScopeINTELMask* and *NoAliasINTELMask* memory operands (one for each
-instruction) or decorated with *AliasScopeINTEL* and *NoAliasINTEL* decorations
-(one for each instruction) and if for some domain, the set of scopes with that
-domain in one instruction’s aliasing scope list is a subset of (or equal to) the
-set of scopes for that domain in another instruction’s noalias list, then the
-two memory accesses are assumed not to alias. If this assumption is violated in
-runtime - the behaviour is undefined.
+have *AliasScopeINTELMask* or *NoAliasINTELMask* memory operands or decorated
+with *AliasScopeINTEL* pr *NoAliasINTEL* decorations and if for some domain,
+the set of scopes with that domain in one instruction’s aliasing scope list is
+a subset of (or equal to) the set of scopes for that domain in another
+instruction’s noalias list, then the two memory accesses are assumed not to alias.
+If this assumption is violated in runtime - the behaviour is undefined.
 
 Extension Name
 --------------
@@ -275,5 +274,6 @@ Revision History
 |========================================
 |Rev|Date|Author|Changes
 |A|2021-02-15|Dmitry Sidorov|Initial revision
+|B|2022-01-24|Dmitry Sidorov|Remove mutually exclusive restriction 
 |========================================
 
