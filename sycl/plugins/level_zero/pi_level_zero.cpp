@@ -3900,12 +3900,12 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     ZeModuleDesc.pNext = &ZeExtModuleDesc;
     ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
 
-    // This works around a bug in the Level Zero driver.  When "ZE_DEBUG=-1", the
-    // driver does validation of the API calls, and it expects "pInputModule"
-    // to be non-NULL and "inputSize" to be non-zero.  This validation is wrong
-    // when using the "ze_module_program_exp_desc_t" extension because those
-    // fields are supposed to be ignored.  As a workaround, set both fields
-    // to 1.
+    // This works around a bug in the Level Zero driver.  When "ZE_DEBUG=-1",
+    // the driver does validation of the API calls, and it expects
+    // "pInputModule" to be non-NULL and "inputSize" to be non-zero.  This
+    // validation is wrong when using the "ze_module_program_exp_desc_t"
+    // extension because those fields are supposed to be ignored.  As a
+    // workaround, set both fields to 1.
     //
     // TODO: Remove this workaround when the driver is fixed.
     ZeModuleDesc.pInputModule = reinterpret_cast<const uint8_t *>(1);
