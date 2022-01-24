@@ -117,6 +117,7 @@ Section 5.8.1 of the SYCL 2020 specification.  Note that deprecated attributes
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 
 // Corresponds to reqd_work_group_size
 struct work_group_size_key {
@@ -169,6 +170,7 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 template <sycl::aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
 
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
@@ -220,10 +222,10 @@ as part of the new kernel property definition.
 To enable properties to be associated with kernels, this extension adds
 new overloads to each of the variants of `single_task`, `parallel_for` and
 `parallel_for_work_group` defined in the `queue` and `handler` classes. These
-new overloads accept a `sycl::ext::oneapi::properties` argument. For
-variants accepting a parameter pack, the `sycl::ext::oneapi::properties`
+new overloads accept a `sycl::ext::oneapi::experimental::properties` argument. For
+variants accepting a parameter pack, the `sycl::ext::oneapi::experimental::properties`
 argument is inserted immediately prior to the parameter pack; for variants not
-accepting a parameter pack, the `sycl::ext::oneapi::properties` argument is
+accepting a parameter pack, the `sycl::ext::oneapi::experimental::properties` argument is
 inserted immediately prior to the kernel function.
 
 The overloads introduced by this extension are listed below:
@@ -325,8 +327,8 @@ A simple example of using this extension to set a required work-group size
 and required sub-group size is given below:
 
 ```c++
-sycl::ext::oneapi::properties properties{sycl::ext::oneapi::work_group_size<8, 8>,
-                                         sycl::ext::oneapi::sub_group_size<8>};
+sycl::ext::oneapi::experimental::properties properties{sycl::ext::oneapi::experimental::work_group_size<8, 8>,
+                                                       sycl::ext::oneapi::experimental::sub_group_size<8>};
 q.parallel_for(range<2>{16, 16}, properties, [=](id<2> i) {
   a[i] = b[i] + c[i];
 }).wait();
@@ -340,16 +342,18 @@ that it depends upon for correctness.
 
 To enable this use-case, this extension adds a mechanism for implementations to
 extract a property list from a kernel functor, if a kernel functor declares
-a member function named `get` accepting a `sycl::ext::oneapi::properties_tag`
-tag type and returning an instance of `sycl::ext::oneapi::properties`.
+a member function named `get` accepting a `sycl::ext::oneapi::experimental::properties_tag`
+tag type and returning an instance of `sycl::ext::oneapi::experimental::properties`.
 
 ```c++
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace experimental {
 
 struct properties_tag {};
 
+}
 }
 }
 }
@@ -381,9 +385,9 @@ struct KernelFunctor {
     a[i] = b[i] + c[i];
   }
 
-  auto get(sycl::ext::oneapi::properties_tag) {
-    return sycl::ext::oneapi::properties{sycl::ext::oneapi::work_group_size<8, 8>,
-                                         sycl::ext::oneapi::sub_group_size<8>};
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+    return sycl::ext::oneapi::experimental::properties{sycl::ext::oneapi::experimental::work_group_size<8, 8>,
+                                                       sycl::ext::oneapi::experimental::sub_group_size<8>};
   }
 
   sycl::accessor<int, 2> a;
