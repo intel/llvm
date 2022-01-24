@@ -53,7 +53,7 @@ constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
 
 void AssertRelease(bool Cond, const char *Msg) {
   if (!Cond)
-    report_fatal_error((Twine("SpecConstants.cpp: ") + Msg).str().c_str());
+    report_fatal_error(Twine("SpecConstants.cpp: ") + Msg);
 }
 
 StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,

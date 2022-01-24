@@ -27,7 +27,7 @@ constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "device_image_scope";
 
 void AssertRelease(bool Cond, const char *Msg) {
   if (!Cond)
-    report_fatal_error((Twine("DeviceGlobals.cpp: ") + Msg).str().c_str());
+    report_fatal_error(Twine("DeviceGlobals.cpp: ") + Msg);
 }
 
 /// Checks whether the string that represents a boolean value ("true"/"false"
