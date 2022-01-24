@@ -1,9 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 // expected-no-diagnostics
 
-// CUDA backend currently generates invalid binaries on linux
-// XFAIL: cuda && linux
-
 #include <CL/sycl.hpp>
 
 #include "mock_compile_time_properties.hpp"
