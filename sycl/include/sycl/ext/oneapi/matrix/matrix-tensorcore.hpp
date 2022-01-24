@@ -92,7 +92,7 @@ struct joint_matrix<
                   "For the matrix_use::a case, matrix_layout::row_major must "
                   "be used for Bitwise MAD");
   };
-  uint32_t data[1];
+  int32_t data[1];
 };
 
 template <matrix_layout Layout>
@@ -105,7 +105,7 @@ struct joint_matrix<
                   "For the matrix_use::b case, matrix_layout::col_major must "
                   "be used for Bitwise MAD");
   };
-  uint32_t data[1];
+  int32_t data[1];
 };
 __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 8, 8, int32_t, 2)
 
@@ -278,10 +278,12 @@ struct joint_matrix_load_impl<
                            get_layout_id<Layout>());
       }
     } else if constexpr (NumRows == 8 && NumCols == 128) {
-      __bmma_m8n8k128_ld_a_b1(res.data, src.get(), stride,
+      int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
+      __bmma_m8n8k128_ld_a_b1(res.data, tileptr, stride,
                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 128 && NumCols == 8) {
-      __bmma_m8n8k128_ld_b_b1(res.data, src.get(), stride,
+      int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
+      __bmma_m8n8k128_ld_b_b1(res.data, tileptr, stride,
                               get_layout_id<Layout>());
     } else if constexpr (std::is_same<T, int32_t>::value) {
       if constexpr (NumRows == 16 && NumCols == 16) {

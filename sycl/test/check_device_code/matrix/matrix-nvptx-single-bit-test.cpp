@@ -52,9 +52,9 @@ int main() {
 
           //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 8) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
-          //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.a.row.stride.b1.p1i32(i32 addrspace(1)* %_arg_4, i32 128) #{{.*}}
+          //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.a.row.stride.b1.p0i32(i32* %call.ascast.i.i63.i, i32 128) #{{.*}}
           joint_matrix_load(sg, sub_a, accA.get_pointer(), K);
-          //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.b.col.stride.b1.p1i32(i32 addrspace(1)* %_arg_9, i32 128) #{{.*}}
+          //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.b.col.stride.b1.p0i32(i32* %call.ascast.i.i.i, i32 128) #{{.*}}
           joint_matrix_load(sg, sub_b, accB.get_pointer(), K);
           //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.mma.xor.popc.row.col.b1(i32 %3, i32 %4, i32 %1, i32 %2) #{{.*}}
           sub_c = joint_matrix_bmad(sg, sub_a, sub_b, sub_c,
