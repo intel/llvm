@@ -36,4 +36,5 @@ int main() {
       FooProp);
   assert(PropertyList.get_property<sycl::ext::oneapi::experimental::foo_key>()
              .value == FooProp.value);
+  return 0;
 }

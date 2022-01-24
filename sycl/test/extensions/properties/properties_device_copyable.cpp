@@ -1,8 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
+// expected-no-diagnostics
 
-// CUDA and HIP backends currently generates invalid binaries for this
-// XFAIL: cuda || hip_amd
+// CUDA backend currently generates invalid binaries on linux
+// XFAIL: cuda && linux
 
 #include <CL/sycl.hpp>
 
@@ -60,4 +60,5 @@ int main() {
       PropertyList.get_property<sycl::ext::oneapi::experimental::foo_key>();
     });
   });
+  return 0;
 }

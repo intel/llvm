@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
+// expected-no-diagnostics
 
 #include <CL/sycl.hpp>
 
@@ -70,4 +70,6 @@ int main() {
                 sycl::property_list>::value);
   static_assert(!sycl::ext::oneapi::experimental::is_property_list_v<
                 sycl::property_list>);
+
+  return 0;
 }

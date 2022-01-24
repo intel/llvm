@@ -1,11 +1,4 @@
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.bin -DTEST_CASE=1 2> %t_1.err
-// RUN: FileCheck --check-prefix=CHECK-ERROR-1 < %t_1.err %s
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.bin -DTEST_CASE=2 2> %t_2.err
-// RUN: FileCheck --check-prefix=CHECK-ERROR-2 < %t_2.err %s
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.bin -DTEST_CASE=3 2> %t_3.err
-// RUN: FileCheck --check-prefix=CHECK-ERROR-3 < %t_3.err %s
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.bin -DTEST_CASE=4 2> %t_4.err
-// RUN: FileCheck --check-prefix=CHECK-ERROR-4 < %t_4.err %s
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
 #include <CL/sycl.hpp>
 
@@ -13,26 +6,28 @@
 
 int main() {
   auto EmptyPropertyList = sycl::ext::oneapi::experimental::properties();
-#if (TEST_CASE == 1)
-  decltype(EmptyPropertyList)::get_property<
+  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{static_assert failed due to requirement 'has_property<sycl::ext::oneapi::experimental::boo_key>()' "Property list does not contain the requested property."}}
+  // expected-error@+1 {{variable has incomplete type 'const void'}}
+  constexpr auto boo_val1 = decltype(EmptyPropertyList)::get_property<
       sycl::ext::oneapi::experimental::boo_key>();
-  // CHECK-ERROR-1: Property list does not contain the requested property.
-#elif (TEST_CASE == 2)
-  EmptyPropertyList.get_property<sycl::ext::oneapi::experimental::foo_key>();
-  // CHECK-ERROR-2: Property list does not contain the requested property.
-#endif
+  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{static_assert failed due to requirement 'has_property<sycl::ext::oneapi::experimental::foo>()' "Property list does not contain the requested property."}}
+  // expected-error@+1 {{no viable conversion from 'typename std::enable_if_t<detail::IsRuntimeProperty<foo>::value && !has_property<foo>(), void>' (aka 'void') to 'sycl::ext::oneapi::experimental::foo'}}
+  sycl::ext::oneapi::experimental::foo foo_val1 =
+      EmptyPropertyList
+          .get_property<sycl::ext::oneapi::experimental::foo_key>();
 
   sycl::queue Q;
   auto PopulatedPropertyList = sycl::ext::oneapi::experimental::properties(
       sycl::ext::oneapi::experimental::foz{.0f, true},
       sycl::ext::oneapi::experimental::bar);
-#if (TEST_CASE == 3)
-  decltype(PopulatedPropertyList)::get_property<
+  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{static_assert failed due to requirement 'has_property<sycl::ext::oneapi::experimental::boo_key>()' "Property list does not contain the requested property."}}
+  // expected-error@+1 {{variable has incomplete type 'const void'}}
+  constexpr auto boo_val2 = decltype(PopulatedPropertyList)::get_property<
       sycl::ext::oneapi::experimental::boo_key>();
-  // CHECK-ERROR-3: Property list does not contain the requested property.
-#elif (TEST_CASE == 4)
-  PopulatedPropertyList
-      .get_property<sycl::ext::oneapi::experimental::foo_key>();
-  // CHECK-ERROR-4: Property list does not contain the requested property.
-#endif
+  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{static_assert failed due to requirement 'has_property<sycl::ext::oneapi::experimental::foo>()' "Property list does not contain the requested property."}}
+  // expected-error@+1 {{no viable conversion from 'typename std::enable_if_t<detail::IsRuntimeProperty<foo>::value && !has_property<foo>(), void>' (aka 'void') to 'sycl::ext::oneapi::experimental::foo'}}
+  sycl::ext::oneapi::experimental::foo foo_val2 =
+      PopulatedPropertyList
+          .get_property<sycl::ext::oneapi::experimental::foo_key>();
+  return 0;
 }

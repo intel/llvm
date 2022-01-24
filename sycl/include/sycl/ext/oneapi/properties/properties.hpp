@@ -58,6 +58,19 @@ struct FindCompileTimePropertyValueType<
   using type = property_value<CTPropertyT, CTPropertyValueTs...>;
 };
 
+template <typename CTPropertyT, bool HasProperty, typename PropertiesT = void>
+static constexpr std::enable_if_t<
+    HasProperty,
+    typename FindCompileTimePropertyValueType<CTPropertyT, PropertiesT>::type>
+get_property() {
+  return {};
+}
+
+template <typename CTPropertyT, bool HasProperty, typename PropertiesT = void>
+static constexpr std::enable_if_t<!HasProperty, void> get_property() {
+  return;
+}
+
 // Filters for all runtime properties with data in a tuple of properties.
 // NOTE: We only need storage for runtime properties with data.
 template <typename T> struct RuntimePropertyStorage {};
@@ -135,12 +148,21 @@ public:
   }
 
   template <typename PropertyT>
-  typename std::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value,
+  typename std::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value &&
+                                has_property<PropertyT>(),
                             PropertyT>
+  get_property() const {
+    return std::get<PropertyT>(Storage);
+  }
+
+  template <typename PropertyT>
+  typename std::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value &&
+                                !has_property<PropertyT>(),
+                            void>
   get_property() const {
     static_assert(has_property<PropertyT>(),
                   "Property list does not contain the requested property.");
-    return std::get<PropertyT>(Storage);
+    return;
   }
 
   template <typename PropertyT>
@@ -149,9 +171,8 @@ public:
           * = 0) {
     static_assert(has_property<PropertyT>(),
                   "Property list does not contain the requested property.");
-    return
-        typename detail::FindCompileTimePropertyValueType<PropertyT,
-                                                          PropertiesT>::type{};
+    return detail::get_property<PropertyT, has_property<PropertyT>(),
+                                PropertiesT>();
   }
 
 private:
