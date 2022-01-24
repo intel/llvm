@@ -1119,11 +1119,11 @@ XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t ID) {
 
 XPTI_EXPORT_API xpti::object_id_t
 xptiRegisterObject(const char *Data, size_t Size, uint8_t Type) {
-  return xpti::GXPTIFramework.registerObject(Data, Size, Type);
+  return xpti::Framework::instance().registerObject(Data, Size, Type);
 }
 
 XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t ID) {
-  return xpti::GXPTIFramework.lookupObject(ID);
+  return xpti::Framework::instance().lookupObject(ID);
 }
 
 XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {

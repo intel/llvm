@@ -246,8 +246,9 @@ XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id) {
 
 XPTI_EXPORT_API xpti::object_id_t
 xptiRegisterObject(const char *data, size_t size, uint8_t type) {
-  if (xpti::g_loader.noErrors()) {
-    auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_OBJECT);
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_REGISTER_OBJECT);
     if (f) {
       return (*(xpti_register_object_t)f)(data, size, type);
     }
@@ -256,8 +257,8 @@ xptiRegisterObject(const char *data, size_t size, uint8_t type) {
 }
 
 XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t id) {
-  if (xpti::g_loader.noErrors()) {
-    auto f = xpti::g_loader.functionByIndex(XPTI_LOOKUP_OBJECT);
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_LOOKUP_OBJECT);
     if (f) {
       return (*(xpti_lookup_object_t)f)(id);
     }
