@@ -257,6 +257,7 @@ PythonObject PythonObject::GetAttributeValue(llvm::StringRef attr) const {
 }
 
 StructuredData::ObjectSP PythonObject::CreateStructuredObject() const {
+  assert(PyGILState_Check());
   switch (GetObjectType()) {
   case PyObjectType::Dictionary:
     return PythonDictionary(PyRefType::Borrowed, m_py_obj)
@@ -279,7 +280,8 @@ StructuredData::ObjectSP PythonObject::CreateStructuredObject() const {
   case PyObjectType::None:
     return StructuredData::ObjectSP();
   default:
-    return StructuredData::ObjectSP(new StructuredPythonObject(m_py_obj));
+    return StructuredData::ObjectSP(new StructuredPythonObject(
+        PythonObject(PyRefType::Borrowed, m_py_obj)));
   }
 }
 
