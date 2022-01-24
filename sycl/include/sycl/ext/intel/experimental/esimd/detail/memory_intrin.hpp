@@ -43,7 +43,7 @@ inline void __esimd_emu_pi_load_check() {
     sycl::detail::pi::getPlugin<sycl::backend::esimd_cpu>();
   } catch (...) {
     std::cerr << "ESIMD EMU plugin error or not loaded - try setting "
-                 "SYCL_DEVICE_FILTER=esimd_emu:gpu environment variable"
+                 "SYCL_DEVICE_FILTER=esimd_emulator:gpu environment variable"
               << std::endl;
     throw cl::sycl::feature_not_supported();
   }
