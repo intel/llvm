@@ -19,8 +19,6 @@
 #include "llvm/Pass.h"
 
 #include <cstdint>
-#include <string>
-#include <unordered_map>
 
 namespace llvm {
 

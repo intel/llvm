@@ -18,6 +18,9 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/Module.h"
 
+#include <string>
+#include <unordered_map>
+
 static constexpr char DEVICELIB_FUNC_PREFIX[] = "__devicelib_";
 
 using namespace llvm;
