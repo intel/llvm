@@ -1,4 +1,4 @@
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl-device-only %s -o - | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl-device-only -Xclang -disable-noundef-analysis %s -o - | FileCheck %s
 
 #include <CL/sycl.hpp>
 
