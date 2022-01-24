@@ -54,7 +54,7 @@ public:
   // - if true, it is lowered to SPIRV intrinsic which retrieves constant value
   // - if false, it is replaced with C++ default (used for AOT compilers)
   SpecConstantsPass(bool SetValAtRT = true) : SetValAtRT(SetValAtRT) {}
-  PreservedAnalyses run(Module &M, llvm::ModuleAnalysisManager &MAM);
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
   // Searches given module for occurrences of specialization constant-specific
   // metadata and builds "spec constant name" -> vector<"spec constant int ID">
