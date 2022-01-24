@@ -143,7 +143,7 @@ void TemplateFunc() {
 
 int main() {
   some_template(func<Derp>);
-  // CHECK: call void @_Z13some_templateIPFPKcvEEvT_(i8* ()* @_Z4funcI4DerpEDTcl31__builtin_sycl_unique_stable_idsrT_3strEEv)
+  // CHECK: call void @_Z13some_templateIPFPKcvEEvT_(i8* ()* noundef @_Z4funcI4DerpEDTcl31__builtin_sycl_unique_stable_idsrT_3strEEv)
   // Demangles to:
   // call void @void some_template<char const* (*)()>(char const* (*)())(i8* ()* @decltype(__builtin_sycl_unique_stable_id(Derp::str)) func<Derp>())
 
