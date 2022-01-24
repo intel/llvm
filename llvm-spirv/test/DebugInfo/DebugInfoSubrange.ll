@@ -29,6 +29,8 @@
 ; CHECK-LLVM: [[#SubrangeExpr1]] = !{![[#SubrangeExpr2:]]}
 ; CHECK-LLVM: ![[#SubrangeExpr2]] = !DISubrange(lowerBound: !DIExpression(), upperBound: !DIExpression())
 
+; CHECK-LLVM: !DISubrange(count: 1000, lowerBound: 1)
+
 ; ModuleID = 'DebugInfoSubrangeUpperBound.bc'
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"
 target triple = "spir64-unknown-unknown"
@@ -38,11 +40,12 @@ target triple = "spir64-unknown-unknown"
 %structtype2 = type { i64, i64, i64 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @__omp_offloading_811_198142f_random_fill_sp_l25(%structtype* byval(%structtype) %"ascast$val") #0 !kernel_arg_addr_space !9 !kernel_arg_access_qual !10 !kernel_arg_type !11 !kernel_arg_type_qual !12 !kernel_arg_base_type !11 {
+define spir_kernel void @__omp_offloading_811_198142f_random_fill_sp_l25(%structtype* byval(%structtype) %"ascast$val", [1000 x i32] addrspace(1)* noalias %"ascastB$val") #0 !kernel_arg_addr_space !9 !kernel_arg_access_qual !10 !kernel_arg_type !11 !kernel_arg_type_qual !12 !kernel_arg_base_type !11 {
 newFuncRoot:
   %.ascast = bitcast %structtype* %"ascast$val" to %"QNCA_a0$float"*
   call void @llvm.dbg.value(metadata %"QNCA_a0$float"* %.ascast, metadata !13, metadata !DIExpression(DW_OP_deref)), !dbg !27
   call void @llvm.dbg.value(metadata %"QNCA_a0$float"* %.ascast, metadata !28, metadata !DIExpression(DW_OP_deref)), !dbg !42
+  call void @llvm.dbg.value(metadata [1000 x i32] addrspace(1)* %"ascastB$val", metadata !47, metadata !DIExpression(DW_OP_deref)), !dbg !56
   ret void
 }
 
@@ -106,3 +109,12 @@ attributes #1 = { nofree nosync nounwind readnone speculatable willreturn }
 !40 = !{!38}
 !41 = !DIBasicType(name: "INTEGER*8", size: 64, encoding: DW_ATE_signed)
 !42 = !DILocation(line: 15, column: 67, scope: !29)
+!43 = !DIBasicType(name: "INTEGER*4", size: 32, encoding: DW_ATE_signed)
+!44 = !{}
+!45 = !DISubroutineType(types: !44)
+!46 = distinct !DISubprogram(name: "test_target_map_array_default_IP_test_array_map_no_map_type_.DIR.OMP.TARGET.340.split", scope: !3, file: !3, line: 32, type: !45, scopeLine: 32, flags: DIFlagArtificial, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !2)
+!47 = !DILocalVariable(name: "compute_array", scope: !46, file: !3, line: 27, type: !48)
+!48 = !DICompositeType(tag: DW_TAG_array_type, baseType: !43, elements: !49)
+!49 = !{!50}
+!50 = !DISubrange(count: 1000, lowerBound: 1)
+!56 = !DILocation(line: 27, column: 24, scope: !46)
