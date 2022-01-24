@@ -1,6 +1,10 @@
 ; RUN: sycl-post-link --spec-const=rt -S %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
 
+; This test is intended to check that DeviceGlobalPass adds all the required
+; properties in the 'SYCL/device globals' property set and handles the
+; 'device_image_scope' attribute written in any allowed form.
+
 source_filename = "test_global_variable.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -13,6 +17,7 @@ target triple = "spir64-unknown-unknown"
 @_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #1
 @_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #2
 @_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #3
+@_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #6
 
 define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 {
 entry:
@@ -39,7 +44,8 @@ attributes #2 = { "sycl-unique-id"="9d329ad59055e972____ZL8dg_bool3" "device_ima
 attributes #3 = { "sycl-unique-id"="dda2bad52c45c432____ZL8dg_bool4" "device_image_scope" "host_access"="1" "implement_in_csr"="true" "init_mode"="0" "sycl-device-global-size"="1" }
 attributes #4 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #5 = { convergent nounwind }
-
+; no the sycl-device-global-size attribute, this is not a device global variable
+attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "device_image_scope"="false" "host_access"="1" "implement_in_csr"="true" "init_mode"="0" }
 !llvm.dependent-libraries = !{!0}
 !llvm.module.flags = !{!1, !2}
 !opencl.spir.version = !{!3}
@@ -79,3 +85,6 @@ attributes #5 = { convergent nounwind }
 ; CHECK-PROP-NEXT: 7da74a1187b9f35d____ZL7dg_int2=2|ABAAAAAAAAABAAAAA
 ; CHECK-PROP-NEXT: 9d329ad59055e972____ZL8dg_bool3=2|ABAAAAAAAAQAAAAAB
 ; CHECK-PROP-NEXT: dda2bad52c45c432____ZL8dg_bool4=2|ABAAAAAAAAQAAAAAB
+;
+; The variable is not a device global one and must be ignored
+; CHECK-PROP-NOT: 6da74a122db9f35d____ZL7no_dg_int1
