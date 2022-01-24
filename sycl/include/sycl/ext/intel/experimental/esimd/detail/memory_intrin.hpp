@@ -592,8 +592,7 @@ __esimd_svm_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
 #endif // __SYCL_DEVICE_ONLY__
 
 #ifndef __SYCL_DEVICE_ONLY__
-__ESIMD_INTRIN void __esimd_slm_init(size_t size)
-{
+__ESIMD_INTRIN void __esimd_slm_init(size_t size) {
   __esimd_emu_pi_load_check();
 
   sycl::detail::ESIMDDeviceInterface *I =
