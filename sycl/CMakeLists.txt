@@ -343,6 +343,9 @@ if(SYCL_BUILD_PI_ESIMD_EMULATOR)
   else()
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
   endif()
+else()
+  ## TODO : Remove depedency on cm_rt.h for non-esimd-emulator execution
+  file (TOUCH ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL/cm_rt.h)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.
