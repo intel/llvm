@@ -36,20 +36,6 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
 
 namespace {
 
-// The following supports an experimental feature to import host ptrs
-// into USM, improving data transfer performance.
-// Environment variable control over the feature.
-static const bool USMHostPtrImport = [] {
-  const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
-  const pi_uint32 USMHostPtrImportValue =
-      USMHostPtrImportStr ? std::atoi(USMHostPtrImportStr) : 0;
-  return USMHostPtrImportValue;
-}();
-
-// Flag to indicate USM import feature has been requested by user
-// and runtime environment supports it.
-static bool USMHostPtrImportEnabled = false;
-
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
 // ready. Recognized values (can be used as a bit mask):
 enum {
@@ -1649,15 +1635,26 @@ static bool setEnvVar(const char *name, const char *value) {
   return true;
 }
 
-static class ZeUSMImport {
+static class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM
   ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
                                                 void *, size_t);
   ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t, void *);
-  bool ImportSupported;
 
 public:
-  ZeUSMImport() : ImportSupported{false} {}
+  // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
+  // host ptr import during buffer creation.
+  bool ImportRequested;
+
+  // Whether user has requested Import/Release, and platform supports it.
+  bool USMHostPtrImportEnabled;
+
+  ZeUSMImportExtension() : USMHostPtrImportEnabled{false} {
+    // Check if USM import of host ptr is requested.
+    const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
+    ImportRequested =
+        (USMHostPtrImportStr ? std::atoi(USMHostPtrImportStr) : 0) != 0;
+  }
   void setZeUSMImport(pi_platform Platform) {
     // Check if USM hostptr import feature is available.
     ze_driver_handle_t driverHandle = Platform->ZeDriver;
@@ -1671,11 +1668,11 @@ public:
           zeDriverGetExtensionFunctionAddress,
           (driverHandle, "zexDriverReleaseImportedPointer",
            reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
-      // Turn on hostptr import only if supported and explicitly requested.
+      // Hostptr import is turned on only if explicitly requested and supported.
       USMHostPtrImportEnabled = true;
       // Hostptr import is only possible if piMemBufferCreate receives a
-      // hostptr as an argument. The SYCL runtime does that only when
-      // SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
+      // hostptr as an argument. The SYCL runtime passes a host ptr 
+      // only when SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
       setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
     }
   }
@@ -1732,6 +1729,13 @@ pi_result _pi_platform::initialize() {
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
+  }
+
+  // Check if import user ptr into USM feature has been requested.
+  // If yes, then set up L0 API pointers if the platform supports it.
+  if (ZeUSMImport.ImportRequested) {
+    // Initialize pointers to Import/Release APIs.
+    ZeUSMImport.setZeUSMImport(this);
   }
 
   return PI_SUCCESS;
@@ -1845,13 +1849,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   if (NumPlatforms) {
     *NumPlatforms = PiPlatformsCache->size();
-
-    // Check if import user ptr into USM feature has been requested.
-    if (USMHostPtrImport) {
-      // Initialize availability of USM hostptr import feature.
-      // Since L0 is not platform-specific, just check the first Platform.
-      ZeUSMImport.setZeUSMImport(PiPlatformsCache->front());
-    }
   }
 
   zePrint("Using %s events\n",
@@ -3357,7 +3354,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   // are USM pointers. Promotion of the host pointer to USM thus
   // optimizes data transfer performance.
   bool HostPtrImported = false;
-  if (USMHostPtrImportEnabled && HostPtr != nullptr &&
+  if (ZeUSMImport.USMHostPtrImportEnabled && HostPtr != nullptr &&
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     // Query memory type of the host pointer
     ze_device_handle_t ZeDeviceHandle;
