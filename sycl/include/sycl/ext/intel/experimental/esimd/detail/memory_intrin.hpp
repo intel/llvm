@@ -730,7 +730,45 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  static_assert(Scale == 0);
+
+  __esimd_emu_pi_load_check();
+
+  __SEIEED::vector_type_t<Ty, N> retv;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
+    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
+    assert(global_offset == 0);
+    char *SlmBase = I->__cm_emu_get_slm_ptr();
+    for (int idx = 0; idx < N; ++idx) {
+      if (pred[idx]) {
+        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + SlmBase);
+        retv[idx] = *addr;
+      }
+    }
+  } else {
+    char *readBase;
+    uint32_t width;
+    std::mutex *mutexLock;
+
+    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
+                                           &mutexLock);
+
+    readBase += global_offset;
+    std::unique_lock<std::mutex> lock(*mutexLock);
+    for (int idx = 0; idx < N; idx++) {
+      if (pred[idx]) {
+        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + readBase);
+        retv[idx] = *addr;
+      }
+    }
+
+    /// TODO : Optimize
+    I->cm_fence_ptr();
+  }
+  return retv;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
