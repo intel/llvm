@@ -1305,8 +1305,6 @@ bool RISCVTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT,
     return false;
   if (VT == MVT::f64 && !Subtarget.hasStdExtD())
     return false;
-  if (Imm.isNegZero())
-    return false;
   return Imm.isZero();
 }
 
@@ -1929,6 +1927,8 @@ static SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
     // codegen across RV32 and RV64.
     unsigned NumViaIntegerBits =
         std::min(std::max(NumElts, 8u), Subtarget.getXLen());
+    NumViaIntegerBits = std::min(NumViaIntegerBits,
+                                 Subtarget.getMaxELENForFixedLengthVectors());
     if (ISD::isBuildVectorOfConstantSDNodes(Op.getNode())) {
       // If we have to use more than one INSERT_VECTOR_ELT then this
       // optimization is likely to increase code size; avoid peforming it in
@@ -4256,6 +4256,12 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   case Intrinsic::riscv_bfp:
     return DAG.getNode(RISCVISD::BFP, DL, XLenVT, Op.getOperand(1),
                        Op.getOperand(2));
+  case Intrinsic::riscv_fsl:
+    return DAG.getNode(RISCVISD::FSL, DL, XLenVT, Op.getOperand(1),
+                       Op.getOperand(2), Op.getOperand(3));
+  case Intrinsic::riscv_fsr:
+    return DAG.getNode(RISCVISD::FSR, DL, XLenVT, Op.getOperand(1),
+                       Op.getOperand(2), Op.getOperand(3));
   case Intrinsic::riscv_vmv_x_s:
     assert(Op.getValueType() == XLenVT && "Unexpected VT!");
     return DAG.getNode(RISCVISD::VMV_X_S, DL, Op.getValueType(),
@@ -5843,6 +5849,10 @@ static RISCVISD::NodeType getRISCVWOpcodeByIntr(unsigned IntNo) {
     return RISCVISD::BDECOMPRESSW;
   case Intrinsic::riscv_bfp:
     return RISCVISD::BFPW;
+  case Intrinsic::riscv_fsl:
+    return RISCVISD::FSLW;
+  case Intrinsic::riscv_fsr:
+    return RISCVISD::FSRW;
   }
 }
 
@@ -6334,6 +6344,21 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
       assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
              "Unexpected custom legalisation");
       Results.push_back(customLegalizeToWOpByIntr(N, DAG, IntNo));
+      break;
+    }
+    case Intrinsic::riscv_fsl:
+    case Intrinsic::riscv_fsr: {
+      assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+             "Unexpected custom legalisation");
+      SDValue NewOp1 =
+          DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(1));
+      SDValue NewOp2 =
+          DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(2));
+      SDValue NewOp3 =
+          DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(3));
+      unsigned Opc = getRISCVWOpcodeByIntr(IntNo);
+      SDValue Res = DAG.getNode(Opc, DL, MVT::i64, NewOp1, NewOp2, NewOp3);
+      Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Res));
       break;
     }
     case Intrinsic::riscv_orc_b: {

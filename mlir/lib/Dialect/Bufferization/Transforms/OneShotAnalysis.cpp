@@ -1,4 +1,4 @@
-//===- ComprehensiveBufferize.cpp - Single pass bufferization -------------===//
+//===- OneShotAnalysis.cpp - One-Shot (Single Pass) Analysis --------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Comprehensive Bufferize bufferizes function bodies. Function boundaries
-// (FuncOp bbArgs, CallOps, ReturnOps) are treated as "unknown" ops.
-// ModuleBufferization.cpp is an extension of Comprehensive Bufferize for simple
+// One-Shot Analysis analyzes function bodies. Function boundaries (FuncOp
+// bbArgs, CallOps, ReturnOps) are treated as "unknown" ops.
+// ModuleBufferization.cpp is an extension of One-Shot Analysis for simple
 // call graphs.
 //
-// Comprehensive Bufferize consists of two phases.
+// One-Shot Bufferize consists of two phases.
 //
 // 1. Analyze ops to decide which OpResults can bufferize inplace, i.e., without
 //    inserting buffer copies. The analysis queries op bufferization semantics
@@ -20,49 +20,43 @@
 //    function does not generate buffer copies for OpResults that were decided
 //    to bufferize inplace during the analysis phase.
 //
+// This file contains only the analysis. The actual bufferization is implemented
+// via `bufferizeOp` (Bufferize.h). For convenience, this file also contains a
+// helper function `runOneShotBufferize` that analyzes an op (and its nested
+// ops) and then bufferizes it.
+//
 // Inplace bufferization decisions are passed from the analysis to the
 // bufferization phase via `BufferizationState` and `BufferizationAliasInfo`.
 // They can be printed for debugging purposes with `testAnalysisOnly`.
 //
 // Ops that do not implement `BufferizableOpInterface` can be analyzed but are
-// treated conservatively. E.g., the analysis has to assume that their
+// treated conservatively. E.g., the analysis has to assume that their tensor
 // OpOperands bufferize to memory writes. While such ops can be analyzed, they
 // are not bufferized and remain in the IR. to_tensor and to_memref ops are
 // inserted at the bufferization boundary.
 //
-// Note: If `allowUnknownOps` is set to false, bufferization fails when an
-// unknown op (that does not implement `BufferizableOpInterface`) is found. No
-// to_tensor/to_memref ops are inserted.
-//
-// This pass caters to high-performance codegen where buffer reuse is deemed
-// critical: the pass should fail if the bufferized form of the function needs
-// to return any buffer, unless `allowReturnMemref` is enabled.
-//
-//  Lastly, note that layout map chosen to bufferize is the most dynamic
-//  canonical strided layout of the proper rank. This ensures compatibility with
-//  expected layouts after transformations. Combinations of memref.cast +
-//  canonicalization are responsible for clean ups.
+// This analysis caters to high-performance codegen where buffer reuse is deemed
+// critical: the analysis should fail if the bufferized form of the function
+// needs to return a buffer, unless `allowReturnMemref` is enabled.
 
-#include "mlir/Dialect/Linalg/ComprehensiveBufferize/ComprehensiveBufferize.h"
+#include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
 
 #include <random>
 
+#include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
-#include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h"
+#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 
 using namespace mlir;
-using namespace linalg;
-using namespace tensor;
-using namespace comprehensive_bufferize;
+using namespace mlir::bufferization;
 
 static bool isaTensor(Type t) { return t.isa<TensorType>(); }
 
@@ -96,6 +90,129 @@ static void setInPlaceOpOperand(OpOperand &opOperand, bool inPlace) {
   inPlaceVector[opOperand.getOperandNumber()] = inPlace ? "true" : "false";
   op->setAttr(kInPlaceResultsAttrName,
               OpBuilder(op).getStrArrayAttr(inPlaceVector));
+}
+
+//===----------------------------------------------------------------------===//
+// BufferizationAliasInfo
+//===----------------------------------------------------------------------===//
+
+BufferizationAliasInfo::BufferizationAliasInfo(Operation *rootOp) {
+  rootOp->walk([&](Operation *op) {
+    for (Value v : op->getResults())
+      if (v.getType().isa<TensorType>())
+        createAliasInfoEntry(v);
+    for (Region &r : op->getRegions())
+      for (Block &b : r.getBlocks())
+        for (auto bbArg : b.getArguments())
+          if (bbArg.getType().isa<TensorType>())
+            createAliasInfoEntry(bbArg);
+  });
+}
+
+/// Add a new entry for `v` in the `aliasInfo` and `equivalentInfo`. In the
+/// beginning the alias and equivalence sets only contain `v` itself.
+void BufferizationAliasInfo::createAliasInfoEntry(Value v) {
+  aliasInfo.insert(v);
+  equivalentInfo.insert(v);
+}
+
+/// Insert an info entry for `newValue` and merge its alias set with that of
+/// `alias`.
+void BufferizationAliasInfo::insertNewBufferAlias(Value newValue, Value alias) {
+  createAliasInfoEntry(newValue);
+  aliasInfo.unionSets(newValue, alias);
+}
+
+/// Insert an info entry for `newValue` and merge its alias set with that of
+/// `alias`. Additionally, merge their equivalence classes.
+void BufferizationAliasInfo::insertNewBufferEquivalence(Value newValue,
+                                                        Value alias) {
+  insertNewBufferAlias(newValue, alias);
+  equivalentInfo.unionSets(newValue, alias);
+}
+
+/// Return `true` if a value was marked as in-place bufferized.
+bool BufferizationAliasInfo::isInPlace(OpOperand &operand) const {
+  return inplaceBufferized.contains(&operand);
+}
+
+/// Set the inPlace bufferization spec to true.
+void BufferizationAliasInfo::bufferizeInPlace(OpOperand &operand,
+                                              BufferizationState &state) {
+  markInPlace(operand);
+  if (OpResult result = state.getAliasingOpResult(operand))
+    aliasInfo.unionSets(result, operand.get());
+}
+
+/// Set the inPlace bufferization spec to false.
+void BufferizationAliasInfo::bufferizeOutOfPlace(OpOperand &operand) {
+  assert(!inplaceBufferized.contains(&operand) &&
+         "OpOperand was already decided to bufferize inplace");
+}
+
+/// Apply `fun` to all the members of the equivalence class of `v`.
+void BufferizationAliasInfo::applyOnEquivalenceClass(
+    Value v, function_ref<void(Value)> fun) const {
+  auto leaderIt = equivalentInfo.findLeader(v);
+  for (auto mit = leaderIt, meit = equivalentInfo.member_end(); mit != meit;
+       ++mit) {
+    fun(*mit);
+  }
+}
+
+/// Apply `fun` to all aliases of `v`.
+void BufferizationAliasInfo::applyOnAliases(
+    Value v, function_ref<void(Value)> fun) const {
+  auto leaderIt = aliasInfo.findLeader(v);
+  for (auto mit = leaderIt, meit = aliasInfo.member_end(); mit != meit; ++mit) {
+    fun(*mit);
+  }
+}
+
+BufferizationAliasInfo::EquivalenceClassRangeType
+BufferizationAliasInfo::getAliases(Value v) const {
+  DenseSet<Value> res;
+  auto it = aliasInfo.findValue(aliasInfo.getLeaderValue(v));
+  for (auto mit = aliasInfo.member_begin(it), meit = aliasInfo.member_end();
+       mit != meit; ++mit) {
+    res.insert(static_cast<Value>(*mit));
+  }
+  return BufferizationAliasInfo::EquivalenceClassRangeType(
+      aliasInfo.member_begin(it), aliasInfo.member_end());
+}
+
+//===----------------------------------------------------------------------===//
+// AnalysisBufferizationState
+//===----------------------------------------------------------------------===//
+
+AnalysisBufferizationState::AnalysisBufferizationState(
+    Operation *op, const AnalysisBufferizationOptions &options)
+    : BufferizationState(options), aliasInfo(op) {
+  // Set up alias sets for OpResults that must bufferize in-place. This should
+  // be done before making any other bufferization decisions.
+  op->walk([&](BufferizableOpInterface bufferizableOp) {
+    if (!options.isOpAllowed(bufferizableOp))
+      return WalkResult::skip();
+    for (OpOperand &opOperand : bufferizableOp->getOpOperands()) {
+      if (opOperand.get().getType().isa<TensorType>())
+        if (bufferizableOp.mustBufferizeInPlace(opOperand, *this)) {
+          if (OpResult opResult =
+                  bufferizableOp.getAliasingOpResult(opOperand, *this))
+            aliasInfo.unionAliasSets(opOperand.get(), opResult);
+          aliasInfo.markInPlace(opOperand);
+        }
+    }
+    return WalkResult::advance();
+  });
+}
+
+bool AnalysisBufferizationState::isInPlace(OpOperand &opOperand) const {
+  return aliasInfo.isInPlace(opOperand);
+}
+
+bool AnalysisBufferizationState::areEquivalentBufferizedValues(Value v1,
+                                                               Value v2) const {
+  return aliasInfo.areEquivalentBufferizedValues(v1, v2);
 }
 
 //===----------------------------------------------------------------------===//
@@ -252,15 +369,13 @@ static bool hasReadAfterWriteInterference(
 
       // No conflict if the op interface says so.
       if (auto bufferizableOp = options.dynCastBufferizableOp(readingOp))
-        if (bufferizableOp.isNotConflicting(uRead, uConflictingWrite, state,
-                                            aliasInfo))
+        if (bufferizableOp.isNotConflicting(uRead, uConflictingWrite, state))
           continue;
 
       if (conflictingWritingOp != readingOp)
         if (auto bufferizableOp =
                 options.dynCastBufferizableOp(conflictingWritingOp))
-          if (bufferizableOp.isNotConflicting(uRead, uConflictingWrite, state,
-                                              aliasInfo))
+          if (bufferizableOp.isNotConflicting(uRead, uConflictingWrite, state))
             continue;
 
       // Ops are not conflicting if they are in mutually exclusive regions.
@@ -496,7 +611,7 @@ static void equivalenceAnalysis(SmallVector<Operation *> &ops,
           for (OpOperand *opOperand :
                bufferizableOp.getAliasingOpOperand(opResult, state))
             if (state.isInPlace(*opOperand))
-              if (bufferizableOp.bufferRelation(opResult, aliasInfo, state) ==
+              if (bufferizableOp.bufferRelation(opResult, state) ==
                   BufferRelation::Equivalent)
                 aliasInfo.unionEquivalenceClasses(opResult, opOperand->get());
 }
@@ -630,69 +745,12 @@ struct AssertDestinationPassingStyle : public PostAnalysisStep {
   }
 };
 
-/// Rewrite pattern that bufferizes bufferizable ops.
-struct BufferizationPattern
-    : public OpInterfaceRewritePattern<BufferizableOpInterface> {
-  BufferizationPattern(MLIRContext *context, const BufferizationState &state,
-                       PatternBenefit benefit = 1)
-      : OpInterfaceRewritePattern<BufferizableOpInterface>(context, benefit),
-        state(state) {}
-
-  LogicalResult matchAndRewrite(BufferizableOpInterface bufferizableOp,
-                                PatternRewriter &rewriter) const override {
-    // No tensors => no buffers.
-    if (!hasTensorSemantics(bufferizableOp.getOperation()))
-      return failure();
-    if (!state.getOptions().isOpAllowed(bufferizableOp.getOperation()))
-      return failure();
-    return bufferizableOp.bufferize(rewriter, state);
-  }
-
-private:
-  const BufferizationState &state;
-};
-
-/// Check the result of bufferization. Return an error if an op was not
-/// bufferized, unless partial bufferization is allowed.
-static LogicalResult
-checkBufferizationResult(Operation *op, const BufferizationOptions &options) {
-  if (!options.allowUnknownOps) {
-    // Check if all ops were bufferized.
-    LogicalResult status = success();
-    op->walk([&](Operation *op) {
-      if (!hasTensorSemantics(op))
-        return WalkResult::advance();
-
-      // Bufferization dialect ops will canonicalize away if all other ops are
-      // bufferized.
-      if (isa<bufferization::ToMemrefOp, bufferization::ToTensorOp>(op))
-        return WalkResult::advance();
-
-      // Ops that are not in the allow list can be ignored.
-      if (!options.isOpAllowed(op))
-        return WalkResult::advance();
-
-      // Ops without any uses and no side effects will fold away.
-      if (op->getUses().empty() && MemoryEffectOpInterface::hasNoEffect(op))
-        return WalkResult::advance();
-
-      status = op->emitError("op was not bufferized");
-      return WalkResult::interrupt();
-    });
-
-    if (failed(status))
-      return status;
-  }
-
-  return success();
-}
-
-LogicalResult
-mlir::linalg::comprehensive_bufferize::analyzeOp(Operation *op,
-                                                 BufferizationState &state) {
+LogicalResult bufferization::analyzeOp(Operation *op,
+                                       AnalysisBufferizationState &state) {
   DominanceInfo domInfo(op);
   BufferizationAliasInfo &aliasInfo = state.getAliasInfo();
-  const BufferizationOptions &options = state.getOptions();
+  const auto &options =
+      static_cast<const AnalysisBufferizationOptions &>(state.getOptions());
 
   if (failed(checkAliasInfoConsistency(op, domInfo, state, aliasInfo)))
     return failure();
@@ -728,20 +786,9 @@ mlir::linalg::comprehensive_bufferize::analyzeOp(Operation *op,
   return success();
 }
 
-LogicalResult mlir::linalg::comprehensive_bufferize::bufferizeOp(
-    Operation *op, const BufferizationState &state) {
-  // Bufferize the op and its nested ops.
-  OwningRewritePatternList patterns(op->getContext());
-  patterns.add<BufferizationPattern>(op->getContext(), state);
-  if (failed(applyPatternsAndFoldGreedily(op, std::move(patterns))))
-    return failure();
-
-  return checkBufferizationResult(op, state.getOptions());
-}
-
-LogicalResult mlir::linalg::comprehensive_bufferize::runComprehensiveBufferize(
-    Operation *op, std::unique_ptr<BufferizationOptions> options) {
-  BufferizationState state(op, *options);
+LogicalResult bufferization::runOneShotBufferize(
+    Operation *op, std::unique_ptr<AnalysisBufferizationOptions> options) {
+  AnalysisBufferizationState state(op, *options);
   if (failed(analyzeOp(op, state)))
     return failure();
   if (options->testAnalysisOnly)
