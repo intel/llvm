@@ -1671,7 +1671,7 @@ public:
       // Hostptr import is turned on only if explicitly requested and supported.
       USMHostPtrImportEnabled = true;
       // Hostptr import is only possible if piMemBufferCreate receives a
-      // hostptr as an argument. The SYCL runtime passes a host ptr 
+      // hostptr as an argument. The SYCL runtime passes a host ptr
       // only when SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
       setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
     }
