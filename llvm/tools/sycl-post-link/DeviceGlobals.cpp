@@ -43,7 +43,7 @@ bool isFalsey(StringRef Value) {
 
 /// Checks whether the device global variable has the \c device_image_scope
 /// property. The variable has the property if the \c sycl-device-image-scope
-/// attribute is defined for the variable and the attribute value cannot be
+/// attribute is defined for the variable and the attribute value is not
 /// represented as \c false.
 ///
 /// @param GV [in] Device Global variable.

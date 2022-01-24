@@ -8,7 +8,7 @@
 //
 // A transformation pass which converts symbolic device globals attributes
 // to integer id-based ones to later map to SPIRV device globals. The class
-// allso contains a number of static methods to extract corresponding
+// also contains a number of static methods to extract corresponding
 // attributes of the device global variables and save them as a property set
 // for the runtime.
 //===----------------------------------------------------------------------===//
