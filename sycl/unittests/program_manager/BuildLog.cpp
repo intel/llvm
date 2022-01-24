@@ -88,9 +88,10 @@ TEST(BuildLog, OutputNothingOnLevel1) {
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
   sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure host platform is never selected
-  if (Plt.is_host()) {
-    GTEST_SKIP_("Test is not supported on host");
+  // TODO make sure unsupported platform is never selected
+  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    GTEST_SKIP_("Test is not supported on this platform");
   }
 
   sycl::unittest::PiMock Mock{Plt};
@@ -121,9 +122,10 @@ TEST(BuildLog, OutputLogOnLevel2) {
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
   sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure host platform is never selected
-  if (Plt.is_host()) {
-    GTEST_SKIP_("Test is not supported on host");
+  // TODO make sure unsupported platform is never selected
+  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    GTEST_SKIP_("Test is not supported on this platform");
   }
 
   sycl::unittest::PiMock Mock{Plt};
