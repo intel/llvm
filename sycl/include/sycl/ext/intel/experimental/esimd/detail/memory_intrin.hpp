@@ -20,11 +20,11 @@
 #include <cstdint>
 
 #ifndef __SYCL_DEVICE_ONLY__
-/// ESIMD_CPU Emulation support using esimd_cpu plugin
+// ESIMD_CPU Emulation support using esimd_cpu plugin
 
-/// Definition macro to be referenced in CM header files for
-/// preventing build failure caused by symbol conflicts between llvm
-/// and CM - e.g. vector.
+// Definition macro to be referenced in CM header files for preventing
+// build failure caused by symbol conflicts between llvm and CM -
+// e.g. vector.
 #define __SYCL_EXPLICIT_SIMD_PLUGIN__
 
 // Header files required for accessing CM-managed resources - image,
@@ -32,6 +32,7 @@
 namespace cm_support {
 #include <CL/cm_rt.h>
 } // namespace cm_support
+#undef __SYCL_EXPLICIT_SIMD_PLUGIN__
 
 #undef __SYCL_EXPLICIT_SIMD_PLUGIN__
 #include <CL/sycl/backend_types.hpp>
@@ -308,7 +309,7 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
       offset += (uint32_t)sizeof(Ty);
     }
 
-    /// TODO : Optimize
+    // TODO : Optimize
     I->cm_fence_ptr();
   }
 }
@@ -530,7 +531,7 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
       }
     }
 
-    /// TODO : Optimize
+    // TODO : Optimize
     I->cm_fence_ptr();
   }
 }
@@ -693,7 +694,7 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
       }
     }
 
-    /// TODO : Optimize
+    // TODO : Optimize
     I->cm_fence_ptr();
   }
 
@@ -701,25 +702,25 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Predicated (masked) scaled gather from a surface.
-///
-/// Template (compile-time constant) parameters:
-/// @tparam Ty - element type
-/// @tparam N  - the number of elements to read
-/// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
-///   accessor used to denote the surface
-/// @tparam TySizeLog2 - Log2 of the number of bytes written per element:
-///   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
-/// @tparam Scale - offset scale; only 0 is supported for now
-///
-/// Formal parameters:
-/// @param surf_ind - the surface index, taken from the SYCL memory object
-/// @param global_offset - offset added to each individual element's offset to
-///   compute actual memory access offset for that element
-/// @param offsets - per-element offsets
-/// @param pred - per-element predicates; elements with zero corresponding
-///   predicates are not written
-/// @return - elements read ("gathered") from memory
+// Predicated (masked) scaled gather from a surface.
+//
+// Template (compile-time constant) parameters:
+// @tparam Ty - element type
+// @tparam N  - the number of elements to read
+// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
+//   accessor used to denote the surface
+// @tparam TySizeLog2 - Log2 of the number of bytes written per element:
+//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
+// @tparam Scale - offset scale; only 0 is supported for now
+//
+// Formal parameters:
+// @param surf_ind - the surface index, taken from the SYCL memory object
+// @param global_offset - offset added to each individual element's offset to
+//   compute actual memory access offset for that element
+// @param offsets - per-element offsets
+// @param pred - per-element predicates; elements with zero corresponding
+//   predicates are not written
+// @return - elements read ("gathered") from memory
 
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           int16_t Scale = 0>
@@ -766,7 +767,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
       }
     }
 
-    /// TODO : Optimize
+    // TODO : Optimize
     I->cm_fence_ptr();
   }
   return retv;
@@ -1225,32 +1226,32 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
     }
   }
 
-  /// TODO : Optimize
+  // TODO : Optimize
   I->cm_fence_ptr();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// \brief Converts given value to a surface index.
-/// The input must always be a result of
-///   detail::AccessorPrivateProxy::getNativeImageObj(acc)
-/// where acc is a buffer or image accessor. If the result is, say, 'obj', then
-/// 'obj' is really a value of the surface index kept in a differently typed
-/// accessor field. Front-end compilation time type of 'obj' is either
-///   ConcreteASPtrType (detail::DecoratedType<DataT, AS>::type *), for a buffer
-/// or
-///   image{1,2,3}d_t OpenCL type for an image
-/// But when doing code generation, FE replaces e.g. '__read_only image2d_t' FE
-/// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type.
-/// image2d_t can neither be reinterpret_cast'ed from pointer to intptr_t
-/// (because it is not a pointer at FE translation time), nor it can be
-/// bit_cast'ed to intptr_t (because it is not trivially copyable). This
-/// intrinsic takes advantage of the fact that in LLVM IR 'obj' is always a
-/// pointer, where we can do ptr to uint32_t conversion.
-/// This intrinsic can be called only from the device code, as
-/// accessor => memory handle translation for host is different.
-/// @param acc the SYCL accessor.
-///   getNativeImageObj.
-/// Returns the binding table index value.
+// \brief Converts given value to a surface index.
+// The input must always be a result of
+//   detail::AccessorPrivateProxy::getNativeImageObj(acc)
+// where acc is a buffer or image accessor. If the result is, say, 'obj', then
+// 'obj' is really a value of the surface index kept in a differently typed
+// accessor field. Front-end compilation time type of 'obj' is either
+//   ConcreteASPtrType (detail::DecoratedType<DataT, AS>::type *), for a buffer
+// or
+//   image{1,2,3}d_t OpenCL type for an image
+// But when doing code generation, FE replaces e.g. '__read_only image2d_t' FE
+// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type.
+// image2d_t can neither be reinterpret_cast'ed from pointer to intptr_t
+// (because it is not a pointer at FE translation time), nor it can be
+// bit_cast'ed to intptr_t (because it is not trivially copyable). This
+// intrinsic takes advantage of the fact that in LLVM IR 'obj' is always a
+// pointer, where we can do ptr to uint32_t conversion.
+// This intrinsic can be called only from the device code, as
+// accessor => memory handle translation for host is different.
+// @param acc the SYCL accessor.
+//   getNativeImageObj.
+// Returns the binding table index value.
 template <typename MemObjTy>
 __ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1272,37 +1273,37 @@ __ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// \brief Raw sends load.
-///
-/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
-///
-/// @param execSize the execution size, which must be a compile time constant.
-///
-/// @param pred the predicate to specify enabled channels.
-///
-/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
-/// constant.
-///
-/// @param numSrc1 the number of GRFs for source-1, which must be a compile time
-/// constant.
-///
-/// @param numDst the number of GRFs for destination, which must be a compile
-/// time constant.
-///
-/// @param sfid the shared function ID, which must be a compile time constant.
-///
-/// @param exDesc the extended message descriptor.
-///
-/// @param msgDesc the message descriptor.
-///
-/// @param msgSrc0 the first source operand of send message.
-///
-/// @param msgSrc1 the second source operand of send message.
-///
-/// @param msgDst the destination operand of send message.
-///
-/// Returns a simd vector of type Ty1 and size N1.
-///
+// \brief Raw sends load.
+//
+// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @param execSize the execution size, which must be a compile time constant.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+// constant.
+//
+// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+// constant.
+//
+// @param numDst the number of GRFs for destination, which must be a compile
+// time constant.
+//
+// @param sfid the shared function ID, which must be a compile time constant.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgSrc1 the second source operand of send message.
+//
+// @param msgDst the destination operand of send message.
+//
+// Returns a simd vector of type Ty1 and size N1.
+//
 template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
           int N = 16>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty1, N1> __esimd_raw_sends2(
@@ -1319,32 +1320,32 @@ __ESIMD_INTRIN __SEIEED::vector_type_t<Ty1, N1> __esimd_raw_sends2(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// \brief Raw send load.
-///
-/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
-///
-/// @param execSize the execution size, which must be a compile time constant.
-///
-/// @param pred the predicate to specify enabled channels.
-///
-/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
-/// constant.
-///
-/// @param numDst the number of GRFs for destination, which must be a compile
-/// time constant.
-///
-/// @param sfid the shared function ID, which must be a compile time constant.
-///
-/// @param exDesc the extended message descriptor.
-///
-/// @param msgDesc the message descriptor.
-///
-/// @param msgSrc0 the first source operand of send message.
-///
-/// @param msgDst the destination operand of send message.
-///
-/// Returns a simd vector of type Ty1 and size N1.
-///
+// \brief Raw send load.
+//
+// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @param execSize the execution size, which must be a compile time constant.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+// constant.
+//
+// @param numDst the number of GRFs for destination, which must be a compile
+// time constant.
+//
+// @param sfid the shared function ID, which must be a compile time constant.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgDst the destination operand of send message.
+//
+// Returns a simd vector of type Ty1 and size N1.
+//
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty1, N1>
 __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
@@ -1360,30 +1361,30 @@ __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// \brief Raw sends store.
-///
-/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
-///
-/// @param execSize the execution size, which must be a compile time constant.
-///
-/// @param pred the predicate to specify enabled channels.
-///
-/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
-/// constant.
-///
-/// @param numSrc1 the number of GRFs for source-1, which must be a compile time
-/// constant.
-///
-/// @param sfid the shared function ID, which must be a compile time constant.
-///
-/// @param exDesc the extended message descriptor.
-///
-/// @param msgDesc the message descriptor.
-///
-/// @param msgSrc0 the first source operand of send message.
-///
-/// @param msgSrc1 the second source operand of send message.
-///
+// \brief Raw sends store.
+//
+// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @param execSize the execution size, which must be a compile time constant.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+// constant.
+//
+// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+// constant.
+//
+// @param sfid the shared function ID, which must be a compile time constant.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgSrc1 the second source operand of send message.
+//
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
 __ESIMD_INTRIN void __esimd_raw_sends2_noresult(
     uint8_t modifier, uint8_t execSize, __SEIEED::simd_mask_storage_t<N> pred,
@@ -1398,25 +1399,25 @@ __ESIMD_INTRIN void __esimd_raw_sends2_noresult(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// \brief Raw send store.
-///
-/// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
-///
-/// @param execSize the execution size, which must be a compile time constant.
-///
-/// @param pred the predicate to specify enabled channels.
-///
-/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
-/// constant.
-///
-/// @param sfid the shared function ID, which must be a compile time constant.
-///
-/// @param exDesc the extended message descriptor.
-///
-/// @param msgDesc the message descriptor.
-///
-/// @param msgSrc0 the first source operand of send message.
-///
+// \brief Raw send store.
+//
+// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @param execSize the execution size, which must be a compile time constant.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+// constant.
+//
+// @param sfid the shared function ID, which must be a compile time constant.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
 template <typename Ty1, int N1, int N = 16>
 __ESIMD_INTRIN void __esimd_raw_send2_noresult(
     uint8_t modifier, uint8_t execSize, __SEIEED::simd_mask_storage_t<N> pred,
