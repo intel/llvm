@@ -10,11 +10,11 @@
 
 #include "DeviceGlobals.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"
 
-#include <algorithm>
 #include <cassert>
 
 using namespace llvm;
@@ -70,8 +70,15 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR) &&
          "The device global variable must have the 'sycl-device-global-size' "
          "attribute");
-  return static_cast<uint32_t>(std::stoul(
-      GV.getAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR).getValueAsString().str()));
+  uint32_t value;
+  bool error = GV.getAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR)
+                 .getValueAsString()
+                 .getAsInteger(10, value);
+  AssertRelease(
+      !error,
+      "The 'sycl-device-global-size' attribute must contain a number, the size"
+      " of the underlying type T of the device global variable");
+  return value;
 }
 
 /// Returns the unique id for the device global variable.
@@ -99,8 +106,8 @@ DeviceGlobalsPass::collectDeviceGlobalProperties(const Module &M) {
   auto DevGlobalFilter = [](auto &GV) {
     return GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR);
   };
-  auto DevGlobalNum =
-      std::count_if(M.globals().begin(), M.globals().end(), DevGlobalFilter);
+
+  auto DevGlobalNum = count_if(M.globals(), DevGlobalFilter);
 
   DeviceGlobalPropertyMapTy DGM;
   DGM.reserve(DevGlobalNum);
