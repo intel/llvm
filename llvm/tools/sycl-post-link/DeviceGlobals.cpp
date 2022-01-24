@@ -72,8 +72,8 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
          "attribute");
   uint32_t value;
   bool error = GV.getAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR)
-                 .getValueAsString()
-                 .getAsInteger(10, value);
+                   .getValueAsString()
+                   .getAsInteger(10, value);
   AssertRelease(
       !error,
       "The 'sycl-device-global-size' attribute must contain a number, the size"
