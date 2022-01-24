@@ -51,4 +51,4 @@ public:
   collectDeviceGlobalProperties(const Module &M);
 };
 
-} // end anonymous namespace
+} // end namespace llvm
