@@ -5,5 +5,5 @@
 // correct.
 //
 // CHECK: !DICompileUnit({{.*}} file: ![[#FILE:]]
-// CHECK: ![[#FILE]] = !DIFile(filename: "{{.*}}clang{{[/|\]}}test{{[/|\]}}CodeGenSYCL{{[/|\]}}Inputs{{[/|\]}}debug-info-checksum.cpp"
+// CHECK: ![[#FILE]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}debug-info-checksum.cpp"
 // CHECK-SAME: checksumkind: CSK_MD5, checksum: "ab8d532478663109402bf4435f520f78"

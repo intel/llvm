@@ -6110,7 +6110,6 @@ def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics that require the SYCL integration header.">,
   MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;
 
-// FIXME: the option probably needs better name
 def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
   HelpText<"Tells compiler that -main-file-name contains an absolute path and "
            "file specified there should be used for checksum calculation.">,
