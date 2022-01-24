@@ -29,7 +29,7 @@ class StringRef;
 // variables are being represented as a byte-array.
 struct DeviceGlobalProperty {
   DeviceGlobalProperty(uint32_t Size, uint8_t DeviceImageScope)
-    : Size(Size), DeviceImageScope(DeviceImageScope) {}
+      : Size(Size), DeviceImageScope(DeviceImageScope) {}
   
   // Encodes size of the underlying type T of the device global variable.
   uint32_t Size;

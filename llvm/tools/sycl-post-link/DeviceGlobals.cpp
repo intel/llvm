@@ -52,8 +52,8 @@ bool isFalsey(StringRef Value) {
 /// \c false otherwise.
 bool hasDeviceImageScope(const GlobalVariable &GV) {
   return GV.hasAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR) &&
-      !isFalsey(GV.getAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR)
-                  .getValueAsString());
+         !isFalsey(
+             GV.getAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR).getValueAsString());
 }
 
 /// Returns the size (in bytes) of the underlying type \c T of the device
@@ -68,10 +68,10 @@ bool hasDeviceImageScope(const GlobalVariable &GV) {
 /// device global variable represented in the LLVM IR by \c GV.
 uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR) &&
-      "The device global variable must have the 'sycl-device-global-size' "
-      "attribute");
-  return static_cast<uint32_t>(std::stoul(GV.getAttribute(
-      SYCL_DEVICE_GLOBAL_SIZE_ATTR).getValueAsString().str()));
+         "The device global variable must have the 'sycl-device-global-size' "
+         "attribute");
+  return static_cast<uint32_t>(std::stoul(
+      GV.getAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR).getValueAsString().str()));
 }
 
 /// Returns the unique id for the device global variable.
@@ -85,7 +85,8 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
 /// @returns the unique id of the device global variable represented
 /// in the LLVM IR by \c GV.
 StringRef getUniqueId(const GlobalVariable &GV) {
-  AssertRelease(GV.hasAttribute(SYCL_UNIQUE_ID_ATTR),
+  AssertRelease(
+      GV.hasAttribute(SYCL_UNIQUE_ID_ATTR),
       "a 'sycl-unique-id' string must be associated with every device "
       "global variable");
   return GV.getAttribute(SYCL_UNIQUE_ID_ATTR).getValueAsString();
@@ -98,8 +99,8 @@ DeviceGlobalsPass::collectDeviceGlobalProperties(const Module &M) {
   auto DevGlobalFilter = [](auto &GV) {
     return GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR);
   };
-  auto DevGlobalNum = std::count_if(M.globals().begin(), M.globals().end(),
-      DevGlobalFilter);
+  auto DevGlobalNum =
+      std::count_if(M.globals().begin(), M.globals().end(), DevGlobalFilter);
 
   DeviceGlobalPropertyMapTy DGM;
   DGM.reserve(DevGlobalNum);
@@ -108,8 +109,8 @@ DeviceGlobalsPass::collectDeviceGlobalProperties(const Module &M) {
     if (!DevGlobalFilter(GV))
       continue;
 
-    DGM[getUniqueId(GV)] = {{{getUnderlyingTypeSize(GV),
-        hasDeviceImageScope(GV)}}};
+    DGM[getUniqueId(GV)] = {
+        {{getUnderlyingTypeSize(GV), hasDeviceImageScope(GV)}}};
   }
 
   return DGM;

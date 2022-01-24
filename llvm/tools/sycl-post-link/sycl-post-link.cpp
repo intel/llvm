@@ -13,10 +13,10 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
+#include "DeviceGlobals.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
-#include "DeviceGlobals.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
@@ -623,8 +623,8 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
 
   {
     // Extract device global maps per module
-    auto DevGlobalPropertyMap
-        = DeviceGlobalsPass::collectDeviceGlobalProperties(M);
+    auto DevGlobalPropertyMap =
+        DeviceGlobalsPass::collectDeviceGlobalProperties(M);
     if (!DevGlobalPropertyMap.empty())
       PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
   }
