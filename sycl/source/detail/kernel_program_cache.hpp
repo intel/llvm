@@ -130,6 +130,9 @@ public:
     MKernelFastCache.emplace(CacheKey, CacheVal);
   }
 
+  /// Clears cache state.
+  ///
+  /// This member function should only be used in unit tests.
   void reset() {
     MCachedPrograms = ProgramCacheT{};
     MKernelsPerProgramCache = KernelCacheT{};
