@@ -76,7 +76,7 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 #ifdef __SYCL_DEVICE_ONLY__
     const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     return __esimd_get_surface_index(mem_obj);
-#else // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_DEVICE_ONLY__
     return __esimd_get_surface_index(acc);
 #endif // __SYCL_DEVICE_ONLY__
   }
@@ -270,7 +270,7 @@ __ESIMD_API simd<Tx, n> block_load(AccessorTy acc, uint32_t offset,
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-#else // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_DEVICE_ONLY__
   auto surf_ind = __esimd_get_surface_index(acc);
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -840,7 +840,7 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 /// Declare per-work-group slm size.
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
-  ;
+    ;
 #else
 {
   __esimd_slm_init(size);
