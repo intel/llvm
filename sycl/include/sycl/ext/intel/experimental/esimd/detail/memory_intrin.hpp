@@ -591,10 +591,8 @@ __esimd_svm_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+#ifndef __SYCL_DEVICE_ONLY__
 __ESIMD_INTRIN void __esimd_slm_init(size_t size)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
 {
   __esimd_emu_pi_load_check();
 
@@ -603,7 +601,7 @@ __ESIMD_INTRIN void __esimd_slm_init(size_t size)
 
   I->cm_slm_init_ptr(size);
 }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // ifndef __SYCL_DEVICE_ONLY__
 
 // esimd_barrier, generic group barrier
 __ESIMD_INTRIN void __esimd_barrier()
