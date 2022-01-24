@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -DSYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_VEC_CL_EVENT %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -DSYCL2020_CONFORMANT_APIS %s
 // expected-no-diagnostics
 //
 //===----------------------------------------------------------------------===//
