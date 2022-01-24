@@ -481,7 +481,7 @@ device_has_any_of<device_has<aspect::fp16, device_has<aspect::fp64>>`.
 . How should an embedded property list behave with inheritance?
 +
 --
-*UNRESOLVED*: The specification currently allows for a class to inspect the
+*RESOLVED*: The specification currently allows for a class to inspect the
 property list embedded into its base class(es) and construct a new property
 list that applies to all call operators. Associating different properties with
 different call operators via inheritance has the potential to be confusing and
