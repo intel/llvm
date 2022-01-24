@@ -794,7 +794,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
-bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
+bool SpecConstantsPass::collectSpecConstantMetadata(const Module &M,
                                                     SpecIDMapTy &IDMap) {
   NamedMDNode *MD = M.getNamedMetadata(SPEC_CONST_MD_STRING);
   if (!MD)
@@ -825,7 +825,7 @@ bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
 }
 
 bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
-    Module &M, std::vector<char> &DefaultValues) {
+    const Module &M, std::vector<char> &DefaultValues) {
   NamedMDNode *N = M.getNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
   if (!N)
     return false;
