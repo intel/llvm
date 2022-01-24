@@ -7,20 +7,20 @@
 # CHECK: DW_TAG_variable
 
 # array_type
-# CHECK:   DW_AT_type{{.*}}"int{{ }}
+# CHECK:   DW_AT_type{{.*}}"int
 # Testing with a default lower bound of 0 and the following explicit bounds:
 #   lower_bound(1)
 # CHECK-NOT: {{.}}
-# CHECK-SAME: {{\[}}[1, ?)]
+# CHECK-SAME{LITERAL}: [[1, ?)]
 #   upper_bound(2)
 # CHECK-NOT: {{.}}
 # CHECK-SAME: [3]
 #   lower(1) and upper(2)
 # CHECK-NOT: {{.}}
-# CHECK-SAME: {{\[}}[1, 3)]
+# CHECK-SAME{LITERAL}: [[1, 3)]
 #   lower(1) and count(3)
 # CHECK-NOT: {{.}}
-# CHECK-SAME: {{\[}}[1, 4)]
+# CHECK-SAME{LITERAL}: [[1, 4)]
 #   lower(0) and count(4) - testing that the lower bound matching language
 #   default is not rendered
 # CHECK-NOT: {{.}}
@@ -29,12 +29,12 @@
 # CHECK-SAME: [2]
 #   no attributes
 # CHECK-NOT: {{.}}
-# CHECK-SAME: []{{"\)$}}
+# CHECK-SAME: []"){{$}}
 
 # array_type with a language with a default lower bound of 1 instead of 0 and
 # an upper bound of 2. This describes an array with 2 elements (whereas with a
 # default lower bound of 0 it would be an array of 3 elements)
-# CHECK: DW_AT_type{{.*}}"int [2]"
+# CHECK: DW_AT_type{{.*}}"int[2]"
 
 	.section	.debug_str,"MS",@progbits,1
 .Lint_name:

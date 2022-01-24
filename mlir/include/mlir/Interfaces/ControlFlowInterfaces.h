@@ -41,9 +41,6 @@ LogicalResult verifyBranchSuccessorOperands(Operation *op, unsigned succNo,
 // RegionBranchOpInterface
 //===----------------------------------------------------------------------===//
 
-// A constant value to represent unknown number of region invocations.
-extern const int64_t kUnknownNumRegionInvocations;
-
 namespace detail {
 /// Verify that types match along control flow edges described the given op.
 LogicalResult verifyTypesAlongControlFlowEdges(Operation *op);
@@ -68,8 +65,7 @@ public:
       : region(region), inputs(regionInputs) {}
   /// Initialize a successor that branches back to/out of the parent operation.
   RegionSuccessor(Optional<Operation::result_range> results = {})
-      : region(nullptr), inputs(results ? ValueRange(*results) : ValueRange()) {
-  }
+      : inputs(results ? ValueRange(*results) : ValueRange()) {}
 
   /// Return the given region successor. Returns nullptr if the successor is the
   /// parent operation.
@@ -83,9 +79,13 @@ public:
   ValueRange getSuccessorInputs() const { return inputs; }
 
 private:
-  Region *region;
+  Region *region{nullptr};
   ValueRange inputs;
 };
+
+/// Return `true` if `a` and `b` are in mutually exclusive regions as per
+/// RegionBranchOpInterface.
+bool insideMutuallyExclusiveRegions(Operation *a, Operation *b);
 
 //===----------------------------------------------------------------------===//
 // RegionBranchTerminatorOpInterface
@@ -136,7 +136,7 @@ struct ReturnLike : public TraitBase<ConcreteType, ReturnLike> {
 };
 } // namespace OpTrait
 
-} // end namespace mlir
+} // namespace mlir
 
 //===----------------------------------------------------------------------===//
 // ControlFlow Interfaces

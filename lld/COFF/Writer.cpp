@@ -1211,6 +1211,12 @@ void Writer::createSymbolAndStringTable() {
         if (!d || d->writtenToSymtab)
           continue;
         d->writtenToSymtab = true;
+        if (auto *dc = dyn_cast_or_null<DefinedCOFF>(d)) {
+          COFFSymbolRef symRef = dc->getCOFFSymbol();
+          if (symRef.isSectionDefinition() ||
+              symRef.getStorageClass() == COFF::IMAGE_SYM_CLASS_LABEL)
+            continue;
+        }
 
         if (Optional<coff_symbol16> sym = createSymbol(d))
           outputSymtab.push_back(*sym);
@@ -1240,7 +1246,7 @@ void Writer::mergeSections() {
     if (p.first == toName)
       continue;
     StringSet<> names;
-    while (1) {
+    while (true) {
       if (!names.insert(toName).second)
         fatal("/merge: cycle found for section '" + p.first + "'");
       auto i = config->merge.find(toName);

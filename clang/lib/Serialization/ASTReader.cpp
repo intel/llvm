@@ -142,7 +142,6 @@ using namespace clang;
 using namespace clang::serialization;
 using namespace clang::serialization::reader;
 using llvm::BitstreamCursor;
-using llvm::RoundingMode;
 
 //===----------------------------------------------------------------------===//
 // ChainedASTReaderListener implementation
@@ -4762,11 +4761,11 @@ ASTReader::ASTReadResult ASTReader::readUnhashedControlBlockImpl(
         break;
       unsigned Count = Record[0];
       const char *Byte = Blob.data();
-      F->SearchPathUsage = llvm::BitVector(Count, 0);
+      F->SearchPathUsage = llvm::BitVector(Count, false);
       for (unsigned I = 0; I < Count; ++Byte)
         for (unsigned Bit = 0; Bit < 8 && I < Count; ++Bit, ++I)
           if (*Byte & (1 << Bit))
-            F->SearchPathUsage[I] = 1;
+            F->SearchPathUsage[I] = true;
       break;
     }
   }
@@ -6607,6 +6606,10 @@ void TypeLocReader::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
 
+void TypeLocReader::VisitUsingTypeLoc(UsingTypeLoc TL) {
+  TL.setNameLoc(readSourceLocation());
+}
+
 void TypeLocReader::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
@@ -6625,7 +6628,8 @@ void TypeLocReader::VisitTypeOfTypeLoc(TypeOfTypeLoc TL) {
 }
 
 void TypeLocReader::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
-  TL.setNameLoc(readSourceLocation());
+  TL.setDecltypeLoc(readSourceLocation());
+  TL.setRParenLoc(readSourceLocation());
 }
 
 void TypeLocReader::VisitUnaryTransformTypeLoc(UnaryTransformTypeLoc TL) {
@@ -6772,11 +6776,11 @@ void TypeLocReader::VisitPipeTypeLoc(PipeTypeLoc TL) {
   TL.setKWLoc(readSourceLocation());
 }
 
-void TypeLocReader::VisitExtIntTypeLoc(clang::ExtIntTypeLoc TL) {
+void TypeLocReader::VisitBitIntTypeLoc(clang::BitIntTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
-void TypeLocReader::VisitDependentExtIntTypeLoc(
-    clang::DependentExtIntTypeLoc TL) {
+void TypeLocReader::VisitDependentBitIntTypeLoc(
+    clang::DependentBitIntTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
 
@@ -8158,13 +8162,16 @@ namespace serialization {
       if (Reader.DeserializationListener)
         Reader.DeserializationListener->SelectorRead(Data.ID, Sel);
 
-      InstanceMethods.append(Data.Instance.begin(), Data.Instance.end());
-      FactoryMethods.append(Data.Factory.begin(), Data.Factory.end());
+      // Append methods in the reverse order, so that later we can process them
+      // in the order they appear in the source code by iterating through
+      // the vector in the reverse order.
+      InstanceMethods.append(Data.Instance.rbegin(), Data.Instance.rend());
+      FactoryMethods.append(Data.Factory.rbegin(), Data.Factory.rend());
       InstanceBits = Data.InstanceBits;
       FactoryBits = Data.FactoryBits;
       InstanceHasMoreThanOneDecl = Data.InstanceHasMoreThanOneDecl;
       FactoryHasMoreThanOneDecl = Data.FactoryHasMoreThanOneDecl;
-      return true;
+      return false;
     }
 
     /// Retrieve the instance methods found by this visitor.
@@ -8193,9 +8200,8 @@ namespace serialization {
 /// Add the given set of methods to the method list.
 static void addMethodsToPool(Sema &S, ArrayRef<ObjCMethodDecl *> Methods,
                              ObjCMethodList &List) {
-  for (unsigned I = 0, N = Methods.size(); I != N; ++I) {
-    S.addMethodToGlobalList(&List, Methods[I]);
-  }
+  for (auto I = Methods.rbegin(), E = Methods.rend(); I != E; ++I)
+    S.addMethodToGlobalList(&List, *I);
 }
 
 void ASTReader::ReadMethodPool(Selector Sel) {
@@ -11766,6 +11772,9 @@ OMPClause *OMPClauseReader::readClause() {
   case llvm::omp::OMPC_capture:
     C = new (Context) OMPCaptureClause();
     break;
+  case llvm::omp::OMPC_compare:
+    C = new (Context) OMPCompareClause();
+    break;
   case llvm::omp::OMPC_seq_cst:
     C = new (Context) OMPSeqCstClause();
     break;
@@ -11976,6 +11985,12 @@ OMPClause *OMPClauseReader::readClause() {
   case llvm::omp::OMPC_filter:
     C = new (Context) OMPFilterClause();
     break;
+  case llvm::omp::OMPC_bind:
+    C = OMPBindClause::CreateEmpty(Context);
+    break;
+  case llvm::omp::OMPC_align:
+    C = new (Context) OMPAlignClause();
+    break;
 #define OMP_CLAUSE_NO_CLASS(Enum, Str)                                         \
   case llvm::omp::Enum:                                                        \
     break;
@@ -12117,6 +12132,8 @@ void OMPClauseReader::VisitOMPUpdateClause(OMPUpdateClause *C) {
 }
 
 void OMPClauseReader::VisitOMPCaptureClause(OMPCaptureClause *) {}
+
+void OMPClauseReader::VisitOMPCompareClause(OMPCompareClause *) {}
 
 void OMPClauseReader::VisitOMPSeqCstClause(OMPSeqCstClause *) {}
 
@@ -12957,6 +12974,17 @@ void OMPClauseReader::VisitOMPOrderClause(OMPOrderClause *C) {
 void OMPClauseReader::VisitOMPFilterClause(OMPFilterClause *C) {
   VisitOMPClauseWithPreInit(C);
   C->setThreadID(Record.readSubExpr());
+  C->setLParenLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPBindClause(OMPBindClause *C) {
+  C->setBindKind(Record.readEnum<OpenMPBindClauseKind>());
+  C->setLParenLoc(Record.readSourceLocation());
+  C->setBindKindLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPAlignClause(OMPAlignClause *C) {
+  C->setAlignment(Record.readExpr());
   C->setLParenLoc(Record.readSourceLocation());
 }
 

@@ -20,6 +20,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/ScopedPrinter.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -33,7 +34,6 @@ using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::UnorderedElementsAre;
-using ::testing::UnorderedElementsAreArray;
 
 class HeadersTest : public ::testing::Test {
 public:
@@ -81,8 +81,7 @@ protected:
     EXPECT_TRUE(
         Action.BeginSourceFile(*Clang, Clang->getFrontendOpts().Inputs[0]));
     IncludeStructure Includes;
-    Clang->getPreprocessor().addPPCallbacks(
-        Includes.collect(Clang->getSourceManager()));
+    Includes.collect(*Clang);
     EXPECT_FALSE(Action.Execute());
     Action.EndSourceFile();
     return Includes;
@@ -144,6 +143,7 @@ MATCHER_P(Written, Name, "") { return arg.Written == Name; }
 MATCHER_P(Resolved, Name, "") { return arg.Resolved == Name; }
 MATCHER_P(IncludeLine, N, "") { return arg.HashLine == N; }
 MATCHER_P(Directive, D, "") { return arg.Directive == D; }
+MATCHER_P(HasPragmaKeep, H, "") { return arg.BehindPragmaKeep == H; }
 
 MATCHER_P2(Distance, File, D, "") {
   if (arg.getFirst() != File)
@@ -259,6 +259,18 @@ TEST_F(HeadersTest, IncludeDirective) {
                                    Directive(tok::pp_include_next)));
 }
 
+TEST_F(HeadersTest, IWYUPragmaKeep) {
+  FS.Files[MainFile] = R"cpp(
+#include "bar.h" // IWYU pragma: keep
+#include "foo.h"
+)cpp";
+
+  EXPECT_THAT(
+      collectIncludes().MainFileIncludes,
+      UnorderedElementsAre(AllOf(Written("\"foo.h\""), HasPragmaKeep(false)),
+                           AllOf(Written("\"bar.h\""), HasPragmaKeep(true))));
+}
+
 TEST_F(HeadersTest, InsertInclude) {
   std::string Path = testPath("sub/bar.h");
   FS.Files[Path] = "";
@@ -364,6 +376,91 @@ TEST_F(HeadersTest, PresumedLocations) {
   EXPECT_THAT(collectIncludes().MainFileIncludes,
               Contains(AllOf(IncludeLine(2), Written("<a.h>"))));
 }
+
+TEST_F(HeadersTest, SelfContainedHeaders) {
+  // Including through non-builtin file has no effects.
+  FS.Files[MainFile] = R"cpp(
+#include "includeguarded.h"
+#include "nonguarded.h"
+#include "pp_depend.h"
+#include "pragmaguarded.h"
+)cpp";
+  FS.Files["pragmaguarded.h"] = R"cpp(
+#pragma once
+)cpp";
+  FS.Files["includeguarded.h"] = R"cpp(
+#ifndef INCLUDE_GUARDED_H
+#define INCLUDE_GUARDED_H
+void foo();
+#endif // INCLUDE_GUARDED_H
+)cpp";
+  FS.Files["nonguarded.h"] = R"cpp(
+)cpp";
+  FS.Files["pp_depend.h"] = R"cpp(
+  #ifndef REQUIRED_PP_DIRECTIVE
+  # error You have to have PP directive set to include this one!
+  #endif
+)cpp";
+
+  auto Includes = collectIncludes();
+  EXPECT_TRUE(Includes.isSelfContained(getID("pragmaguarded.h", Includes)));
+  EXPECT_TRUE(Includes.isSelfContained(getID("includeguarded.h", Includes)));
+  EXPECT_FALSE(Includes.isSelfContained(getID("nonguarded.h", Includes)));
+  EXPECT_FALSE(Includes.isSelfContained(getID("pp_depend.h", Includes)));
+}
+
+TEST(StdlibTest, All) {
+  auto VectorH = stdlib::Header::named("<vector>");
+  EXPECT_TRUE(VectorH);
+  EXPECT_EQ(llvm::to_string(*VectorH), "<vector>");
+  EXPECT_FALSE(stdlib::Header::named("HeadersTests.cpp"));
+
+  auto Vector = stdlib::Symbol::named("std::", "vector");
+  EXPECT_TRUE(Vector);
+  EXPECT_EQ(llvm::to_string(*Vector), "std::vector");
+  EXPECT_FALSE(stdlib::Symbol::named("std::", "dongle"));
+  EXPECT_FALSE(stdlib::Symbol::named("clang::", "ASTContext"));
+
+  EXPECT_EQ(Vector->header(), *VectorH);
+  EXPECT_THAT(Vector->headers(), ElementsAre(*VectorH));
+}
+
+TEST(StdlibTest, Recognizer) {
+  auto TU = TestTU::withCode(R"cpp(
+    namespace std {
+    inline namespace inl {
+
+    template <typename>
+    struct vector { class nested {}; };
+
+    class secret {};
+
+    } // inl
+    } // std
+
+    class vector {};
+    std::vector<int> vec;
+    std::vector<int>::nested nest;
+    std::secret sec;
+  )cpp");
+
+  auto AST = TU.build();
+  auto &vector_nonstd = findDecl(AST, "vector");
+  auto *vec =
+      cast<VarDecl>(findDecl(AST, "vec")).getType()->getAsCXXRecordDecl();
+  auto *nest =
+      cast<VarDecl>(findDecl(AST, "nest")).getType()->getAsCXXRecordDecl();
+  auto *sec =
+      cast<VarDecl>(findDecl(AST, "sec")).getType()->getAsCXXRecordDecl();
+
+  stdlib::Recognizer recognizer;
+
+  EXPECT_EQ(recognizer(&vector_nonstd), llvm::None);
+  EXPECT_EQ(recognizer(vec), stdlib::Symbol::named("std::", "vector"));
+  EXPECT_EQ(recognizer(nest), stdlib::Symbol::named("std::", "vector"));
+  EXPECT_EQ(recognizer(sec), llvm::None);
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

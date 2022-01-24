@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Writer.h"
+#include "CallGraphSort.h"
 #include "ConcatOutputSection.h"
 #include "Config.h"
 #include "InputFiles.h"
@@ -29,6 +30,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
 
@@ -64,6 +66,7 @@ public:
 
   template <class LP> void run();
 
+  ThreadPool threadPool;
   std::unique_ptr<FileOutputBuffer> &buffer;
   uint64_t addr = 0;
   uint64_t fileOff = 0;
@@ -227,7 +230,7 @@ public:
 
   void writeTo(uint8_t *buf) const override {
     using SegmentCommand = typename LP::segment_command;
-    using Section = typename LP::section;
+    using SectionHeader = typename LP::section;
 
     auto *c = reinterpret_cast<SegmentCommand *>(buf);
     buf += sizeof(SegmentCommand);
@@ -248,8 +251,8 @@ public:
       if (osec->isHidden())
         continue;
 
-      auto *sectHdr = reinterpret_cast<Section *>(buf);
-      buf += sizeof(Section);
+      auto *sectHdr = reinterpret_cast<SectionHeader *>(buf);
+      buf += sizeof(SectionHeader);
 
       memcpy(sectHdr->sectname, osec->name.data(), osec->name.size());
       memcpy(sectHdr->segname, name.data(), name.size());
@@ -413,19 +416,19 @@ public:
   void writeTo(uint8_t *buf) const override {
     auto *c = reinterpret_cast<version_min_command *>(buf);
     switch (platformInfo.target.Platform) {
-    case PlatformKind::macOS:
+    case PLATFORM_MACOS:
       c->cmd = LC_VERSION_MIN_MACOSX;
       break;
-    case PlatformKind::iOS:
-    case PlatformKind::iOSSimulator:
+    case PLATFORM_IOS:
+    case PLATFORM_IOSSIMULATOR:
       c->cmd = LC_VERSION_MIN_IPHONEOS;
       break;
-    case PlatformKind::tvOS:
-    case PlatformKind::tvOSSimulator:
+    case PLATFORM_TVOS:
+    case PLATFORM_TVOSSIMULATOR:
       c->cmd = LC_VERSION_MIN_TVOS;
       break;
-    case PlatformKind::watchOS:
-    case PlatformKind::watchOSSimulator:
+    case PLATFORM_WATCHOS:
+    case PLATFORM_WATCHOSSIMULATOR:
       c->cmd = LC_VERSION_MIN_WATCHOS;
       break;
     default:
@@ -707,14 +710,14 @@ void Writer::scanSymbols() {
 
 // TODO: ld64 enforces the old load commands in a few other cases.
 static bool useLCBuildVersion(const PlatformInfo &platformInfo) {
-  static const std::vector<std::pair<PlatformKind, VersionTuple>> minVersion = {
-      {PlatformKind::macOS, VersionTuple(10, 14)},
-      {PlatformKind::iOS, VersionTuple(12, 0)},
-      {PlatformKind::iOSSimulator, VersionTuple(13, 0)},
-      {PlatformKind::tvOS, VersionTuple(12, 0)},
-      {PlatformKind::tvOSSimulator, VersionTuple(13, 0)},
-      {PlatformKind::watchOS, VersionTuple(5, 0)},
-      {PlatformKind::watchOSSimulator, VersionTuple(6, 0)}};
+  static const std::vector<std::pair<PlatformType, VersionTuple>> minVersion = {
+      {PLATFORM_MACOS, VersionTuple(10, 14)},
+      {PLATFORM_IOS, VersionTuple(12, 0)},
+      {PLATFORM_IOSSIMULATOR, VersionTuple(13, 0)},
+      {PLATFORM_TVOS, VersionTuple(12, 0)},
+      {PLATFORM_TVOSSIMULATOR, VersionTuple(13, 0)},
+      {PLATFORM_WATCHOS, VersionTuple(5, 0)},
+      {PLATFORM_WATCHOSSIMULATOR, VersionTuple(6, 0)}};
   auto it = llvm::find_if(minVersion, [&](const auto &p) {
     return p.first == platformInfo.target.Platform;
   });
@@ -863,6 +866,8 @@ static size_t getSymbolPriority(const SymbolPriorityEntry &entry,
 // Each section gets assigned the priority of the highest-priority symbol it
 // contains.
 static DenseMap<const InputSection *, size_t> buildInputSectionPriorities() {
+  if (config->callGraphProfileSort)
+    return computeCallGraphProfileOrder();
   DenseMap<const InputSection *, size_t> sectionPriorities;
 
   if (config->priorities.empty())
@@ -906,13 +911,28 @@ static void sortSegmentsAndSections() {
   uint32_t sectionIndex = 0;
   for (OutputSegment *seg : outputSegments) {
     seg->sortOutputSections();
+    // References from thread-local variable sections are treated as offsets
+    // relative to the start of the thread-local data memory area, which
+    // is initialized via copying all the TLV data sections (which are all
+    // contiguous). If later data sections require a greater alignment than
+    // earlier ones, the offsets of data within those sections won't be
+    // guaranteed to aligned unless we normalize alignments. We therefore use
+    // the largest alignment for all TLV data sections.
+    uint32_t tlvAlign = 0;
+    for (const OutputSection *osec : seg->getSections())
+      if (isThreadLocalData(osec->flags) && osec->align > tlvAlign)
+        tlvAlign = osec->align;
+
     for (OutputSection *osec : seg->getSections()) {
       // Now that the output sections are sorted, assign the final
       // output section indices.
       if (!osec->isHidden())
         osec->index = ++sectionIndex;
-      if (!firstTLVDataSection && isThreadLocalData(osec->flags))
-        firstTLVDataSection = osec;
+      if (isThreadLocalData(osec->flags)) {
+        if (!firstTLVDataSection)
+          firstTLVDataSection = osec;
+        osec->align = tlvAlign;
+      }
 
       if (!isecPriorities.empty()) {
         if (auto *merged = dyn_cast<ConcatOutputSection>(osec)) {
@@ -1035,10 +1055,14 @@ void Writer::finalizeLinkEditSegment() {
       dataInCodeSection,
       functionStartsSection,
   };
-  parallelForEach(linkEditSections, [](LinkEditSection *osec) {
+  SmallVector<std::shared_future<void>> threadFutures;
+  threadFutures.reserve(linkEditSections.size());
+  for (LinkEditSection *osec : linkEditSections)
     if (osec)
-      osec->finalizeContents();
-  });
+      threadFutures.emplace_back(threadPool.async(
+          [](LinkEditSection *osec) { osec->finalizeContents(); }, osec));
+  for (std::shared_future<void> &future : threadFutures)
+    future.wait();
 
   // Now that __LINKEDIT is filled out, do a proper calculation of its
   // addresses and offsets.
@@ -1091,14 +1115,21 @@ void Writer::writeSections() {
 // values.
 void Writer::writeUuid() {
   TimeTraceScope timeScope("Computing UUID");
+
   ArrayRef<uint8_t> data{buffer->getBufferStart(), buffer->getBufferEnd()};
   unsigned chunkCount = parallel::strategy.compute_thread_count() * 10;
   // Round-up integer division
   size_t chunkSize = (data.size() + chunkCount - 1) / chunkCount;
   std::vector<ArrayRef<uint8_t>> chunks = split(data, chunkSize);
   std::vector<uint64_t> hashes(chunks.size());
-  parallelForEachN(0, chunks.size(),
-                   [&](size_t i) { hashes[i] = xxHash64(chunks[i]); });
+  SmallVector<std::shared_future<void>> threadFutures;
+  threadFutures.reserve(chunks.size());
+  for (size_t i = 0; i < chunks.size(); ++i)
+    threadFutures.emplace_back(threadPool.async(
+        [&](size_t j) { hashes[j] = xxHash64(chunks[j]); }, i));
+  for (std::shared_future<void> &future : threadFutures)
+    future.wait();
+
   uint64_t digest = xxHash64({reinterpret_cast<uint8_t *>(hashes.data()),
                               hashes.size() * sizeof(uint64_t)});
   uuidCommand->writeUuid(digest);
@@ -1147,8 +1178,14 @@ template <class LP> void Writer::run() {
   sortSegmentsAndSections();
   createLoadCommands<LP>();
   finalizeAddresses();
+  threadPool.async([&] {
+    if (LLVM_ENABLE_THREADS && config->timeTraceEnabled)
+      timeTraceProfilerInitialize(config->timeTraceGranularity, "writeMapFile");
+    writeMapFile();
+    if (LLVM_ENABLE_THREADS && config->timeTraceEnabled)
+      timeTraceProfilerFinishThread();
+  });
   finalizeLinkEditSegment();
-  writeMapFile();
   writeOutputFile();
 }
 

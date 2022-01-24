@@ -16,6 +16,8 @@
 
 #include "clang/Interpreter/PartialTranslationUnit.h"
 
+#include "clang/AST/GlobalDecl.h"
+
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/Support/Error.h"
 
@@ -26,13 +28,11 @@ namespace llvm {
 namespace orc {
 class ThreadSafeContext;
 }
-class Module;
 } // namespace llvm
 
 namespace clang {
 
 class CompilerInstance;
-class DeclGroupRef;
 class IncrementalExecutor;
 class IncrementalParser;
 
@@ -66,8 +66,20 @@ public:
       return Execute(*PTU);
     return llvm::Error::success();
   }
+
+  /// \returns the \c JITTargetAddress of a \c GlobalDecl. This interface uses
+  /// the CodeGenModule's internal mangling cache to avoid recomputing the
+  /// mangled name.
+  llvm::Expected<llvm::JITTargetAddress> getSymbolAddress(GlobalDecl GD) const;
+
+  /// \returns the \c JITTargetAddress of a given name as written in the IR.
   llvm::Expected<llvm::JITTargetAddress>
-  getSymbolAddress(llvm::StringRef UnmangledName) const;
+  getSymbolAddress(llvm::StringRef IRName) const;
+
+  /// \returns the \c JITTargetAddress of a given name as written in the object
+  /// file.
+  llvm::Expected<llvm::JITTargetAddress>
+  getSymbolAddressFromLinkerName(llvm::StringRef LinkerName) const;
 };
 } // namespace clang
 

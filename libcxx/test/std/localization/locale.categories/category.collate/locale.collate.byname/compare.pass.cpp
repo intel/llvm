@@ -25,6 +25,8 @@
 
 // XFAIL: LIBCXX-WINDOWS-FIXME
 
+// XFAIL: LIBCXX-AIX-FIXME
+
 #include <locale>
 #include <string>
 #include <cassert>

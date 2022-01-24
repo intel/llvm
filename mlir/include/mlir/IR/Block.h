@@ -18,7 +18,7 @@
 
 namespace llvm {
 class BitVector;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 class TypeRange;
@@ -29,7 +29,7 @@ class ValueTypeRange;
 class Block : public IRObjectWithUseList<BlockOperand>,
               public llvm::ilist_node_with_parent<Block, Region> {
 public:
-  explicit Block() {}
+  explicit Block() = default;
   ~Block();
 
   void clear() {
@@ -364,6 +364,6 @@ private:
 
   friend struct llvm::ilist_traits<Block>;
 };
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_IR_BLOCK_H

@@ -95,7 +95,7 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     if (static_cast<uint32_t>(BuiltinKind) >=
             internal::BuiltInSubDeviceIDINTEL &&
         static_cast<uint32_t>(BuiltinKind) <=
-            internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL)
+            internal::BuiltInGlobalHWThreadIDINTEL)
       return;
 
     visitCallSPIRVBuiltin(&CI, BuiltinKind);
@@ -175,6 +175,14 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   }
   if (OC == OpImageQueryOrder || OC == OpImageQueryFormat) {
     visitCallSPIRVImageQueryBuiltIn(&CI, OC);
+    return;
+  }
+  if (OC == OpEnqueueKernel) {
+    visitCallSPIRVEnqueueKernel(&CI, OC);
+    return;
+  }
+  if (OC == OpGenericPtrMemSemantics) {
+    visitCallSPIRVGenericPtrMemSemantics(&CI);
     return;
   }
   if (OCLSPIRVBuiltinMap::rfind(OC))
@@ -588,6 +596,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
 }
 void SPIRVToOCLBase::visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
                                                   StringRef DemangledName) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -617,6 +626,7 @@ void SPIRVToOCLBase::visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
 
 void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
                                                               Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -643,6 +653,7 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
 
 void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
                                               StringRef DemangledName) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -669,6 +680,7 @@ void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
 }
 
 void SPIRVToOCLBase::visitCallAsyncWorkGroupCopy(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -682,6 +694,7 @@ void SPIRVToOCLBase::visitCallAsyncWorkGroupCopy(CallInst *CI, Op OC) {
 }
 
 void SPIRVToOCLBase::visitCallGroupWaitEvents(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -938,7 +951,23 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
       &Attrs);
 }
 
+void SPIRVToOCLBase::visitCallSPIRVGenericPtrMemSemantics(CallInst *CI) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
+        return OCLSPIRVBuiltinMap::rmap(OpGenericPtrMemSemantics);
+      },
+      [=](CallInst *CI) -> Instruction * {
+        auto *Shl = BinaryOperator::CreateShl(CI, getInt32(M, 8), "");
+        Shl->insertAfter(CI);
+        return Shl;
+      },
+      &Attrs);
+}
+
 void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -950,6 +979,7 @@ void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
 
 void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI,
                                            SPIRVBuiltinVariableKind Kind) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -961,6 +991,7 @@ void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI,
 
 void SPIRVToOCLBase::visitCallSPIRVAvcINTELInstructionBuiltin(CallInst *CI,
                                                               Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -971,6 +1002,7 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELInstructionBuiltin(CallInst *CI,
 }
 
 void SPIRVToOCLBase::visitCallSPIRVOCLExt(CallInst *CI, OCLExtOpKind Kind) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -981,6 +1013,7 @@ void SPIRVToOCLBase::visitCallSPIRVOCLExt(CallInst *CI, OCLExtOpKind Kind) {
 }
 
 void SPIRVToOCLBase::visitCallSPIRVVLoadn(CallInst *CI, OCLExtOpKind Kind) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -999,6 +1032,7 @@ void SPIRVToOCLBase::visitCallSPIRVVLoadn(CallInst *CI, OCLExtOpKind Kind) {
 }
 
 void SPIRVToOCLBase::visitCallSPIRVVStore(CallInst *CI, OCLExtOpKind Kind) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
@@ -1021,7 +1055,7 @@ void SPIRVToOCLBase::visitCallSPIRVVStore(CallInst *CI, OCLExtOpKind Kind) {
             Kind == OpenCLLIB::Vstorea_halfn ||
             Kind == OpenCLLIB::Vstorea_halfn_r || Kind == OpenCLLIB::Vstoren) {
           if (auto DataType = dyn_cast<VectorType>(Args[0]->getType())) {
-            uint64_t NumElements = DataType->getElementCount().getValue();
+            uint64_t NumElements = DataType->getElementCount().getFixedValue();
             assert((NumElements == 2 || NumElements == 3 || NumElements == 4 ||
                     NumElements == 8 || NumElements == 16) &&
                    "Unsupported vector size for vstore instruction!");
@@ -1037,6 +1071,7 @@ void SPIRVToOCLBase::visitCallSPIRVVStore(CallInst *CI, OCLExtOpKind Kind) {
 }
 
 void SPIRVToOCLBase::visitCallSPIRVPrintf(CallInst *CI, OCLExtOpKind Kind) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   CallInst *NewCI = mutateCallInstOCL(
       M, CI,
@@ -1085,6 +1120,16 @@ SPIRVToOCLBase::getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes) {
   return OCLStructName;
 }
 
+std::string
+SPIRVToOCLBase::getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes) {
+  assert(Postfixes.size() == 1);
+  unsigned PipeAccess = atoi(Postfixes[0].c_str());
+  assert((PipeAccess == AccessQualifierReadOnly ||
+          PipeAccess == AccessQualifierWriteOnly) &&
+         "Invalid access qualifier");
+  return PipeAccess ? kSPR2TypeName::PipeWO : kSPR2TypeName::PipeRO;
+}
+
 void SPIRVToOCLBase::translateOpaqueTypes() {
   for (auto *S : M->getIdentifiedStructTypes()) {
     StringRef STName = S->getStructName();
@@ -1104,6 +1149,8 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
     std::string OCLOpaqueName;
     if (OP == OpTypeImage)
       OCLOpaqueName = getOCLImageOpaqueType(Postfixes);
+    else if (OP == OpTypePipe)
+      OCLOpaqueName = getOCLPipeOpaqueType(Postfixes);
     else if (isSubgroupAvcINTELTypeOpCode(OP))
       OCLOpaqueName = OCLSubgroupINTELTypeOpCodeMap::rmap(OP);
     else if (isOpaqueGenericTypeOpCode(OP))

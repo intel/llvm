@@ -83,6 +83,7 @@ Changes to the ARM Backend
 --------------------------
 
 * Added support for the Armv9-A, Armv9.1-A and Armv9.2-A architectures.
+* Added support for the Armv8.1-M PACBTI-M extension.
 
 Changes to the MIPS Target
 --------------------------
@@ -152,7 +153,9 @@ During this release ...
 Changes to the LLVM tools
 ---------------------------------
 
-* ...
+* llvm-cov: `-name-allowlist` is now accepted in addition to `-name-whitelist`.
+  `-name-whitelist` is marked as deprecated and to be removed in future
+  releases.
 
 Changes to LLDB
 ---------------------------------
@@ -160,6 +163,9 @@ Changes to LLDB
 * A change in Clang's type printing has changed the way LLDB names array types
   (from ``int [N]`` to ``int[N]``) - LLDB pretty printer type name matching
   code may need to be updated to handle this.
+* The ``memory read`` command now ignores non-address bits in start and end
+  addresses. In addition, non-address bits will not be shown in the addresses
+  in the output.
 
 Changes to Sanitizers
 ---------------------

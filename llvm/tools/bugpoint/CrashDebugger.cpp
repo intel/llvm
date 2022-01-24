@@ -354,7 +354,7 @@ bool ReduceCrashingFunctionAttributes::TestFuncAttrs(
 
   // Build up an AttributeList from the attributes we've been given by the
   // reducer.
-  AttrBuilder AB;
+  AttrBuilder AB(M->getContext());
   for (auto A : Attrs)
     AB.addAttribute(A);
   AttributeList NewAttrs;
@@ -786,14 +786,13 @@ bool ReduceCrashingInstructions::TestInsts(
 
   for (Module::iterator MI = M->begin(), ME = M->end(); MI != ME; ++MI)
     for (Function::iterator FI = MI->begin(), FE = MI->end(); FI != FE; ++FI)
-      for (BasicBlock::iterator I = FI->begin(), E = FI->end(); I != E;) {
-        Instruction *Inst = &*I++;
-        if (!Instructions.count(Inst) && !Inst->isTerminator() &&
-            !Inst->isEHPad() && !Inst->getType()->isTokenTy() &&
-            !Inst->isSwiftError()) {
-          if (!Inst->getType()->isVoidTy())
-            Inst->replaceAllUsesWith(UndefValue::get(Inst->getType()));
-          Inst->eraseFromParent();
+      for (Instruction &Inst : llvm::make_early_inc_range(*FI)) {
+        if (!Instructions.count(&Inst) && !Inst.isTerminator() &&
+            !Inst.isEHPad() && !Inst.getType()->isTokenTy() &&
+            !Inst.isSwiftError()) {
+          if (!Inst.getType()->isVoidTy())
+            Inst.replaceAllUsesWith(UndefValue::get(Inst.getType()));
+          Inst.eraseFromParent();
         }
       }
 

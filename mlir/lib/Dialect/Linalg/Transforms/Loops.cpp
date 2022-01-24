@@ -8,11 +8,11 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
+#include "mlir/Dialect/SCF/AffineCanonicalizationUtils.h"
 #include "mlir/Dialect/SCF/Transforms.h"
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/IR/AffineExpr.h"
@@ -277,7 +277,7 @@ struct TiledLoopToSCFPattern : public OpRewritePattern<TiledLoopOp> {
     // Collect loop control parameters for parallel and sequential dimensions.
     SmallVector<Value, 3> seqLBs, seqUBs, seqSteps, seqIVs;
     SmallVector<Value, 3> parLBs, parUBs, parSteps, parIVs;
-    for (auto en : llvm::enumerate(
+    for (const auto &en : llvm::enumerate(
              llvm::zip(tiledLoop.lowerBound(), tiledLoop.upperBound(),
                        tiledLoop.step(), tiledLoop.getInductionVars()))) {
       Value lb, ub, step, iv;

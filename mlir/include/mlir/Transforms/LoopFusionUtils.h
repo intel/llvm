@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_TRANSFORMS_LOOP_FUSION_UTILS_H
-#define MLIR_TRANSFORMS_LOOP_FUSION_UTILS_H
+#ifndef MLIR_TRANSFORMS_LOOPFUSIONUTILS_H
+#define MLIR_TRANSFORMS_LOOPFUSIONUTILS_H
 
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
@@ -165,6 +165,6 @@ bool getFusionComputeCost(AffineForOp srcForOp, LoopNestStats &srcStats,
 void gatherProducerConsumerMemrefs(ArrayRef<Operation *> srcOps,
                                    ArrayRef<Operation *> dstOps,
                                    DenseSet<Value> &producerConsumerMemrefs);
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_TRANSFORMS_LOOP_FUSION_UTILS_H
+#endif // MLIR_TRANSFORMS_LOOPFUSIONUTILS_H

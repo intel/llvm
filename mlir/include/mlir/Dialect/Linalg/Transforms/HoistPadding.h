@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_LINALG_TRANSFORMS_HOIST_PADDING_H_
-#define MLIR_DIALECT_LINALG_TRANSFORMS_HOIST_PADDING_H_
+#ifndef MLIR_DIALECT_LINALG_TRANSFORMS_HOISTPADDING_H
+#define MLIR_DIALECT_LINALG_TRANSFORMS_HOISTPADDING_H
 
 #include "mlir/Support/LogicalResult.h"
 
@@ -17,7 +17,7 @@ class Value;
 namespace linalg {
 class PadTensorOp;
 
-/// Mechanically hoist padding operations on tensors by `nLoops` into a new,
+/// Mechanically hoist padding operations on tensors by `numLoops` into a new,
 /// generally larger tensor. This achieves packing of multiple padding ops into
 /// a larger tensor. On success, `padTensorOp` is replaced by the cloned version
 /// in the packing loop so the caller can continue reasoning about the padding
@@ -65,4 +65,4 @@ FailureOr<Value> hoistPaddingOnTensors(PadTensorOp opToHoist, int numLoops,
 } // namespace linalg
 } // namespace mlir
 
-#endif // MLIR_DIALECT_LINALG_TRANSFORMS_HOIST_PADDING_H_
+#endif // MLIR_DIALECT_LINALG_TRANSFORMS_HOISTPADDING_H

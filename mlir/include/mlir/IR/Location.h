@@ -19,7 +19,6 @@
 
 namespace mlir {
 
-class Identifier;
 class Location;
 class WalkResult;
 
@@ -98,7 +97,7 @@ inline ::llvm::hash_code hash_value(Location arg) {
   return hash_value(arg.impl);
 }
 
-} // end namespace mlir
+} // namespace mlir
 
 //===----------------------------------------------------------------------===//
 // Tablegen Attribute Declarations
@@ -131,11 +130,11 @@ namespace llvm {
 // Type hash just like pointers.
 template <> struct DenseMapInfo<mlir::Location> {
   static mlir::Location getEmptyKey() {
-    auto pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
+    auto *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::Location::getFromOpaquePointer(pointer);
   }
   static mlir::Location getTombstoneKey() {
-    auto pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
+    auto *pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
     return mlir::Location::getFromOpaquePointer(pointer);
   }
   static unsigned getHashValue(mlir::Location val) {

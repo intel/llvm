@@ -38,18 +38,18 @@ int main() {
 
 // Allocas and addrspacecasts for kernel parameters
 // CHECK: [[ARG_A]].addr = alloca i32
-// CHECK: [[ARG_A]].addr.ascast = addrspacecast i32* [[ARG_A]].addr to i32 addrspace(4)*
 // CHECK: [[ARG_B]].addr = alloca i32
-// CHECK: [[ARG_B]].addr.ascast = addrspacecast i32* [[ARG_B]].addr to i32 addrspace(4)*
-// CHECK: [[ACC1_DATA]].addr = alloca i8 addrspace(1)*
-// CHECK: [[ACC1_DATA]].addr.ascast = addrspacecast i8 addrspace(1)** [[ACC1_DATA]].addr to i8 addrspace(1)* addrspace(4)*
+// CHECK: [[ACC1_DATA]].addr = alloca i8 addrspace(1)
 // CHECK: [[ACC2_DATA]].addr = alloca i8 addrspace(1)*
-// CHECK: [[ACC2_DATA]].addr.ascast = addrspacecast i8 addrspace(1)** [[ACC2_DATA]].addr to i8 addrspace(1)* addrspace(4)*
 // CHECK: [[ARG_C]].addr = alloca i32
+// CHECK: [[KERNEL:%[a-zA-Z0-9_]+]] = alloca %class{{.*}}.anon
+// CHECK: [[ARG_A]].addr.ascast = addrspacecast i32* [[ARG_A]].addr to i32 addrspace(4)*
+// CHECK: [[ARG_B]].addr.ascast = addrspacecast i32* [[ARG_B]].addr to i32 addrspace(4)*
+// CHECK: [[ACC1_DATA]].addr.ascast = addrspacecast i8 addrspace(1)** [[ACC1_DATA]].addr to i8 addrspace(1)* addrspace(4)*
+// CHECK: [[ACC2_DATA]].addr.ascast = addrspacecast i8 addrspace(1)** [[ACC2_DATA]].addr to i8 addrspace(1)* addrspace(4)*
 // CHECK: [[ARG_C]].addr.ascast = addrspacecast i32* [[ARG_C]].addr to i32 addrspace(4)*
 //
 // Lambda object alloca
-// CHECK: [[KERNEL:%[a-zA-Z0-9_]+]] = alloca %class{{.*}}.anon
 // CHECK: [[KERNEL_OBJ:%[a-zA-Z0-9_]+]] = addrspacecast %class{{.*}}.anon* [[KERNEL]] to %class{{.*}}.anon addrspace(4)*
 //
 // Kernel argument stores

@@ -17,10 +17,9 @@
 #include "GCNSubtarget.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Target/TargetMachine.h"
+#include <utility>
 
 namespace llvm {
-
-class ScheduleDAGMILive;
 
 //===----------------------------------------------------------------------===//
 // AMDGPU Target Machine (R600+)
@@ -36,7 +35,6 @@ protected:
 public:
   static bool EnableLateStructurizeCFG;
   static bool EnableFunctionCalls;
-  static bool EnableFixedFunctionABI;
   static bool EnableLowerModuleLDS;
 
   AMDGPUTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
@@ -63,6 +61,9 @@ public:
   bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
 
   unsigned getAssumedAddrSpace(const Value *V) const override;
+
+  std::pair<const Value *, unsigned>
+  getPredicatedAddrSpace(const Value *V) const override;
 };
 
 //===----------------------------------------------------------------------===//

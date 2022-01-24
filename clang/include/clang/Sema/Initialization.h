@@ -38,7 +38,6 @@
 
 namespace clang {
 
-class APValue;
 class CXXBaseSpecifier;
 class CXXConstructorDecl;
 class ObjCMethodDecl;
@@ -488,7 +487,7 @@ public:
 
   /// Determine whether this is an array new with an unknown bound.
   bool isVariableLengthArrayNew() const {
-    return getKind() == EK_New && dyn_cast_or_null<IncompleteArrayType>(
+    return getKind() == EK_New && isa_and_nonnull<IncompleteArrayType>(
                                       getType()->getAsArrayTypeUnsafe());
   }
 

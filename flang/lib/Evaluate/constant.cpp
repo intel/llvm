@@ -85,7 +85,7 @@ std::optional<std::vector<int>> ValidateDimensionOrder(
       if (dim < 1 || dim > rank || seenDimensions.test(dim - 1)) {
         return std::nullopt;
       }
-      dimOrder[dim - 1] = j;
+      dimOrder[j] = dim - 1;
       seenDimensions.set(dim - 1);
     }
     return dimOrder;
@@ -222,6 +222,28 @@ auto Constant<Type<TypeCategory::Character, KIND>>::At(
 }
 
 template <int KIND>
+auto Constant<Type<TypeCategory::Character, KIND>>::Substring(
+    ConstantSubscript lo, ConstantSubscript hi) const
+    -> std::optional<Constant> {
+  std::vector<Element> elements;
+  ConstantSubscript n{GetSize(shape())};
+  ConstantSubscript newLength{0};
+  if (lo > hi) { // zero-length results
+    while (n-- > 0) {
+      elements.emplace_back(); // ""
+    }
+  } else if (lo < 1 || hi > length_) {
+    return std::nullopt;
+  } else {
+    newLength = hi - lo + 1;
+    for (ConstantSubscripts at{lbounds()}; n-- > 0; IncrementSubscripts(at)) {
+      elements.emplace_back(At(at).substr(lo - 1, newLength));
+    }
+  }
+  return Constant{newLength, std::move(elements), ConstantSubscripts{shape()}};
+}
+
+template <int KIND>
 auto Constant<Type<TypeCategory::Character, KIND>>::Reshape(
     ConstantSubscripts &&dims) const -> Constant<Result> {
   std::size_t n{TotalElementCount(dims)};
@@ -320,5 +342,8 @@ bool ComponentCompare::operator()(SymbolRef x, SymbolRef y) const {
   return semantics::SymbolSourcePositionCompare{}(x, y);
 }
 
+#ifdef _MSC_VER // disable bogus warning about missing definitions
+#pragma warning(disable : 4661)
+#endif
 INSTANTIATE_CONSTANT_TEMPLATES
 } // namespace Fortran::evaluate

@@ -182,6 +182,8 @@ public:
   DWARFDie getAttributeValueAsReferencedDie(dwarf::Attribute Attr) const;
   DWARFDie getAttributeValueAsReferencedDie(const DWARFFormValue &V) const;
 
+  DWARFDie resolveTypeUnitReference() const;
+
   /// Extract the range base attribute from this DIE as absolute section offset.
   ///
   /// This is a utility function that checks for either the DW_AT_rnglists_base
@@ -461,12 +463,16 @@ inline bool operator!=(const std::reverse_iterator<DWARFDie::iterator> &LHS,
 }
 
 inline std::reverse_iterator<DWARFDie::iterator> DWARFDie::rbegin() const {
-  return llvm::make_reverse_iterator(end());
+  return std::make_reverse_iterator(end());
 }
 
 inline std::reverse_iterator<DWARFDie::iterator> DWARFDie::rend() const {
-  return llvm::make_reverse_iterator(begin());
+  return std::make_reverse_iterator(begin());
 }
+
+void dumpTypeQualifiedName(const DWARFDie &DIE, raw_ostream &OS);
+void dumpTypeUnqualifiedName(const DWARFDie &DIE, raw_ostream &OS,
+                             std::string *OriginalFullName = nullptr);
 
 } // end namespace llvm
 

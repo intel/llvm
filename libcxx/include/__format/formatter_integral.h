@@ -10,15 +10,15 @@
 #ifndef _LIBCPP___FORMAT_FORMATTER_INTEGRAL_H
 #define _LIBCPP___FORMAT_FORMATTER_INTEGRAL_H
 
+#include <__algorithm/copy.h>
+#include <__algorithm/copy_n.h>
+#include <__algorithm/fill_n.h>
+#include <__algorithm/transform.h>
 #include <__config>
 #include <__format/format_error.h>
 #include <__format/format_fwd.h>
 #include <__format/formatter.h>
 #include <__format/parser_std_format_spec.h>
-#include <__algorithm/copy.h>
-#include <__algorithm/copy_n.h>
-#include <__algorithm/fill_n.h>
-#include <__algorithm/transform.h>
 #include <array>
 #include <charconv>
 #include <concepts>
@@ -131,45 +131,6 @@ _LIBCPP_HIDE_FROM_ABI constexpr size_t __buffer_size() noexcept
              / 4                     // Adjust to hexadecimal.
          + 2                         // Reserve space for the '0[Xx]' prefix.
          + 1;                        // Reserve space for the sign.
-}
-
-_LIBCPP_HIDE_FROM_ABI inline char* __insert_sign(char* __buf, bool __negative,
-                                                 _Flags::_Sign __sign) {
-  if (__negative)
-    *__buf++ = '-';
-  else
-    switch (__sign) {
-    case _Flags::_Sign::__default:
-    case _Flags::_Sign::__minus:
-      // No sign added.
-      break;
-    case _Flags::_Sign::__plus:
-      *__buf++ = '+';
-      break;
-    case _Flags::_Sign::__space:
-      *__buf++ = ' ';
-      break;
-    }
-
-  return __buf;
-}
-
-_LIBCPP_HIDE_FROM_ABI constexpr char __hex_to_upper(char c) {
-  switch (c) {
-  case 'a':
-    return 'A';
-  case 'b':
-    return 'B';
-  case 'c':
-    return 'C';
-  case 'd':
-    return 'D';
-  case 'e':
-    return 'E';
-  case 'f':
-    return 'F';
-  }
-  return c;
 }
 
 /**
@@ -404,7 +365,7 @@ private:
       __out_it = _VSTD::copy(__begin, __first, _VSTD::move(__out_it));
       this->__alignment = _Flags::_Alignment::__right;
       this->__fill = _CharT('0');
-      unsigned __size = __first - __begin;
+      uint32_t __size = __first - __begin;
       this->__width -= _VSTD::min(__size, this->__width);
     }
 

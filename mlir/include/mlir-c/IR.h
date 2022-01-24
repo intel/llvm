@@ -54,6 +54,7 @@ DEFINE_C_API_STRUCT(MlirOperation, void);
 DEFINE_C_API_STRUCT(MlirOpPrintingFlags, void);
 DEFINE_C_API_STRUCT(MlirBlock, void);
 DEFINE_C_API_STRUCT(MlirRegion, void);
+DEFINE_C_API_STRUCT(MlirSymbolTable, void);
 
 DEFINE_C_API_STRUCT(MlirAttribute, const void);
 DEFINE_C_API_STRUCT(MlirIdentifier, const void);
@@ -516,6 +517,13 @@ MLIR_CAPI_EXPORTED void mlirRegionInsertOwnedBlockBefore(MlirRegion region,
                                                          MlirBlock reference,
                                                          MlirBlock block);
 
+/// Returns first region attached to the operation.
+MLIR_CAPI_EXPORTED MlirRegion mlirOperationGetFirstRegion(MlirOperation op);
+
+/// Returns the region immediately following the given region in its parent
+/// operation.
+MLIR_CAPI_EXPORTED MlirRegion mlirRegionGetNextInOperation(MlirRegion region);
+
 //===----------------------------------------------------------------------===//
 // Block API.
 //===----------------------------------------------------------------------===//
@@ -737,6 +745,67 @@ MLIR_CAPI_EXPORTED bool mlirTypeIDEqual(MlirTypeID typeID1, MlirTypeID typeID2);
 
 /// Returns the hash value of the type id.
 MLIR_CAPI_EXPORTED size_t mlirTypeIDHashValue(MlirTypeID typeID);
+
+//===----------------------------------------------------------------------===//
+// Symbol and SymbolTable API.
+//===----------------------------------------------------------------------===//
+
+/// Returns the name of the attribute used to store symbol names compatible with
+/// symbol tables.
+MLIR_CAPI_EXPORTED MlirStringRef mlirSymbolTableGetSymbolAttributeName();
+
+/// Returns the name of the attribute used to store symbol visibility.
+MLIR_CAPI_EXPORTED MlirStringRef mlirSymbolTableGetVisibilityAttributeName();
+
+/// Creates a symbol table for the given operation. If the operation does not
+/// have the SymbolTable trait, returns a null symbol table.
+MLIR_CAPI_EXPORTED MlirSymbolTable
+mlirSymbolTableCreate(MlirOperation operation);
+
+/// Returns true if the symbol table is null.
+static inline bool mlirSymbolTableIsNull(MlirSymbolTable symbolTable) {
+  return !symbolTable.ptr;
+}
+
+/// Destroys the symbol table created with mlirSymbolTableCreate. This does not
+/// affect the operations in the table.
+MLIR_CAPI_EXPORTED void mlirSymbolTableDestroy(MlirSymbolTable symbolTable);
+
+/// Looks up a symbol with the given name in the given symbol table and returns
+/// the operation that corresponds to the symbol. If the symbol cannot be found,
+/// returns a null operation.
+MLIR_CAPI_EXPORTED MlirOperation
+mlirSymbolTableLookup(MlirSymbolTable symbolTable, MlirStringRef name);
+
+/// Inserts the given operation into the given symbol table. The operation must
+/// have the symbol trait. If the symbol table already has a symbol with the
+/// same name, renames the symbol being inserted to ensure name uniqueness. Note
+/// that this does not move the operation itself into the block of the symbol
+/// table operation, this should be done separately. Returns the name of the
+/// symbol after insertion.
+MLIR_CAPI_EXPORTED MlirAttribute
+mlirSymbolTableInsert(MlirSymbolTable symbolTable, MlirOperation operation);
+
+/// Removes the given operation from the symbol table and erases it.
+MLIR_CAPI_EXPORTED void mlirSymbolTableErase(MlirSymbolTable symbolTable,
+                                             MlirOperation operation);
+
+/// Attempt to replace all uses that are nested within the given operation
+/// of the given symbol 'oldSymbol' with the provided 'newSymbol'. This does
+/// not traverse into nested symbol tables. Will fail atomically if there are
+/// any unknown operations that may be potential symbol tables.
+MLIR_CAPI_EXPORTED MlirLogicalResult mlirSymbolTableReplaceAllSymbolUses(
+    MlirStringRef oldSymbol, MlirStringRef newSymbol, MlirOperation from);
+
+/// Walks all symbol table operations nested within, and including, `op`. For
+/// each symbol table operation, the provided callback is invoked with the op
+/// and a boolean signifying if the symbols within that symbol table can be
+/// treated as if all uses within the IR are visible to the caller.
+/// `allSymUsesVisible` identifies whether all of the symbol uses of symbols
+/// within `op` are visible.
+MLIR_CAPI_EXPORTED void mlirSymbolTableWalkSymbolTables(
+    MlirOperation from, bool allSymUsesVisible,
+    void (*callback)(MlirOperation, bool, void *userData), void *userData);
 
 #ifdef __cplusplus
 }

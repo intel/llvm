@@ -46,7 +46,7 @@ public:
     auto reductionDimsRange =
         multiReductionOp.reduction_dims().getAsValueRange<IntegerAttr>();
     auto reductionDims = llvm::to_vector<4>(llvm::map_range(
-        reductionDimsRange, [](APInt a) { return a.getZExtValue(); }));
+        reductionDimsRange, [](const APInt &a) { return a.getZExtValue(); }));
     llvm::SmallDenseSet<int64_t> reductionDimsSet(reductionDims.begin(),
                                                   reductionDims.end());
     int64_t reductionSize = reductionDims.size();
@@ -56,6 +56,9 @@ public:
         parallelDims.push_back(i);
 
     // Add transpose only if inner-most/outer-most dimensions are not parallel
+    // and there are parallel dims.
+    if (parallelDims.empty())
+      return failure();
     if (useInnerDimsForReduction &&
         (parallelDims ==
          llvm::to_vector<4>(llvm::seq<int64_t>(0, parallelDims.size()))))
@@ -123,7 +126,7 @@ public:
     // 1. Separate reduction and parallel dims.
     SmallVector<int64_t, 4> parallelDims, parallelShapes;
     SmallVector<int64_t, 4> reductionDims, reductionShapes;
-    for (auto it : llvm::enumerate(reductionMask)) {
+    for (const auto &it : llvm::enumerate(reductionMask)) {
       int64_t i = it.index();
       bool isReduction = it.value();
       if (isReduction) {
@@ -138,12 +141,12 @@ public:
     // 2. Compute flattened parallel and reduction sizes.
     int flattenedParallelDim = 0;
     int flattenedReductionDim = 0;
-    if (parallelShapes.size() > 0) {
+    if (!parallelShapes.empty()) {
       flattenedParallelDim = 1;
       for (auto d : parallelShapes)
         flattenedParallelDim *= d;
     }
-    if (reductionShapes.size() > 0) {
+    if (!reductionShapes.empty()) {
       flattenedReductionDim = 1;
       for (auto d : reductionShapes)
         flattenedReductionDim *= d;
@@ -234,7 +237,6 @@ struct TwoDimMultiReductionToElementWise
     if (!elementType.isIntOrIndexOrFloat())
       return failure();
 
-    Value condition;
     Value result =
         rewriter.create<vector::ExtractOp>(loc, multiReductionOp.source(), 0)
             .getResult();
@@ -255,22 +257,22 @@ struct TwoDimMultiReductionToElementWise
           result = rewriter.create<arith::MulFOp>(loc, operand, result);
         break;
       case vector::CombiningKind::MINUI:
-        result = rewriter.create<MinUIOp>(loc, operand, result);
+        result = rewriter.create<arith::MinUIOp>(loc, operand, result);
         break;
       case vector::CombiningKind::MINSI:
-        result = rewriter.create<MinSIOp>(loc, operand, result);
+        result = rewriter.create<arith::MinSIOp>(loc, operand, result);
         break;
       case vector::CombiningKind::MINF:
-        result = rewriter.create<MinFOp>(loc, operand, result);
+        result = rewriter.create<arith::MinFOp>(loc, operand, result);
         break;
       case vector::CombiningKind::MAXUI:
-        result = rewriter.create<MaxUIOp>(loc, operand, result);
+        result = rewriter.create<arith::MaxUIOp>(loc, operand, result);
         break;
       case vector::CombiningKind::MAXSI:
-        result = rewriter.create<MaxSIOp>(loc, operand, result);
+        result = rewriter.create<arith::MaxSIOp>(loc, operand, result);
         break;
       case vector::CombiningKind::MAXF:
-        result = rewriter.create<MaxFOp>(loc, operand, result);
+        result = rewriter.create<arith::MaxFOp>(loc, operand, result);
         break;
       case vector::CombiningKind::AND:
         result = rewriter.create<arith::AndIOp>(loc, operand, result);
@@ -347,8 +349,9 @@ struct TwoDimMultiReductionToReduction
           loc, getElementTypeOrSelf(multiReductionOp.getDestType()),
           rewriter.getStringAttr(getKindStr(multiReductionOp.kind())), v,
           ValueRange{});
-      result = rewriter.create<vector::InsertElementOp>(loc, reducedValue,
-                                                        result, i);
+      result = rewriter.create<vector::InsertElementOp>(
+          loc, reducedValue, result,
+          rewriter.create<arith::ConstantIndexOp>(loc, i));
     }
     rewriter.replaceOp(multiReductionOp, result);
     return success();

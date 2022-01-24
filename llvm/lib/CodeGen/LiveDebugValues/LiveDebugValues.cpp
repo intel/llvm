@@ -40,6 +40,10 @@ static cl::opt<bool>
                               "normal DBG_VALUE inputs"),
                      cl::init(false));
 
+static cl::opt<cl::boolOrDefault> ValueTrackingVariableLocations(
+    "experimental-debug-variable-locations",
+    cl::desc("Use experimental new value-tracking variable locations"));
+
 // Options to prevent pathological compile-time behavior. If InputBBLimit and
 // InputDbgValueLimit are both exceeded, range extension is disabled.
 static cl::opt<unsigned> InputBBLimit(
@@ -52,6 +56,7 @@ static cl::opt<unsigned> InputDbgValueLimit(
         "Maximum input DBG_VALUE insts supported by debug range extension"),
     cl::init(50000), cl::Hidden);
 
+namespace {
 /// Generic LiveDebugValues pass. Calls through to VarLocBasedLDV or
 /// InstrRefBasedLDV to perform location propagation, via the LDVImpl
 /// base class.
@@ -81,6 +86,7 @@ private:
   TargetPassConfig *TPC;
   MachineDominatorTree MDT;
 };
+} // namespace
 
 char LiveDebugValues::ID = 0;
 
@@ -114,4 +120,14 @@ bool LiveDebugValues::runOnMachineFunction(MachineFunction &MF) {
 
   return TheImpl->ExtendRanges(MF, DomTree, TPC, InputBBLimit,
                                InputDbgValueLimit);
+}
+
+bool llvm::debuginfoShouldUseDebugInstrRef(const Triple &T) {
+  // Enable by default on x86_64, disable if explicitly turned off on cmdline.
+  if (T.getArch() == llvm::Triple::x86_64 &&
+      ValueTrackingVariableLocations != cl::boolOrDefault::BOU_FALSE)
+    return true;
+
+  // Otherwise: enable if explicitly requestedo n command line.
+  return ValueTrackingVariableLocations == cl::boolOrDefault::BOU_TRUE;
 }

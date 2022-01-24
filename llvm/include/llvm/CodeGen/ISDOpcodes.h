@@ -797,6 +797,10 @@ enum NodeType {
   /// The scalar width of the type given in operand 1 must be equal to, or
   /// smaller than, the scalar result type width. It may end up being smaller
   /// than the result width as a result of integer type legalization.
+  ///
+  /// After converting to the scalar integer type in operand 1, the value is
+  /// extended to the result VT. FP_TO_SINT_SAT sign extends and FP_TO_UINT_SAT
+  /// zero extends.
   FP_TO_SINT_SAT,
   FP_TO_UINT_SAT,
 
@@ -1259,6 +1263,11 @@ static const int FIRST_TARGET_STRICTFP_OPCODE = BUILTIN_OP_END + 400;
 /// this value. Those that do must not be less than this value, and can
 /// be used with SelectionDAG::getMemIntrinsicNode.
 static const int FIRST_TARGET_MEMORY_OPCODE = BUILTIN_OP_END + 500;
+
+/// Whether this is bitwise logic opcode.
+inline bool isBitwiseLogicOp(unsigned Opcode) {
+  return Opcode == ISD::AND || Opcode == ISD::OR || Opcode == ISD::XOR;
+}
 
 /// Get underlying scalar opcode for VECREDUCE opcode.
 /// For example ISD::AND for ISD::VECREDUCE_AND.

@@ -250,7 +250,7 @@ func @empty_if2(%cond: i1) {
 // CHECK-NOT:       scf.if
 // CHECK:           return
 
-// ----
+// -----
 
 func @empty_else(%cond: i1, %v : memref<i1>) {
   scf.if %cond {
@@ -429,6 +429,47 @@ func @replace_false_if_with_values() {
 
 // -----
 
+// CHECK-LABEL: @merge_nested_if
+// CHECK-SAME: (%[[ARG0:.*]]: i1, %[[ARG1:.*]]: i1)
+func @merge_nested_if(%arg0: i1, %arg1: i1) {
+// CHECK: %[[COND:.*]] = arith.andi %[[ARG0]], %[[ARG1]]
+// CHECK: scf.if %[[COND]] {
+// CHECK-NEXT: "test.op"()
+  scf.if %arg0 {
+    scf.if %arg1 {
+      "test.op"() : () -> ()
+      scf.yield
+    }
+    scf.yield
+  }
+  return
+}
+
+// -----
+
+// CHECK-LABEL:   func @if_condition_swap
+// CHECK-NEXT:     %{{.*}} = scf.if %arg0 -> (index) {
+// CHECK-NEXT:       %[[i1:.+]] = "test.origFalse"() : () -> index
+// CHECK-NEXT:       scf.yield %[[i1]] : index
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:       %[[i2:.+]] = "test.origTrue"() : () -> index
+// CHECK-NEXT:       scf.yield %[[i2]] : index
+// CHECK-NEXT:     }
+func @if_condition_swap(%cond: i1) -> index {
+  %true = arith.constant true
+  %not = arith.xori %cond, %true : i1
+  %0 = scf.if %not -> (index) {
+    %1 = "test.origTrue"() : () -> index
+    scf.yield %1 : index
+  } else {
+    %1 = "test.origFalse"() : () -> index
+    scf.yield %1 : index
+  }
+  return %0 : index
+}
+
+// -----
+
 // CHECK-LABEL: @remove_zero_iteration_loop
 func @remove_zero_iteration_loop() {
   %c42 = arith.constant 42 : index
@@ -564,12 +605,12 @@ func @last_value(%t0: tensor<128x128xf32>, %t1: tensor<128x128xf32>,
                  %lb : index, %ub : index, %step : index)
   -> (tensor<128x128xf32>, tensor<128x128xf32>, tensor<128x128xf32>)
 {
-  // CHECK-NEXT: %[[M1:.*]] = memref.buffer_cast %[[T1]] : memref<128x128xf32>
+  // CHECK-NEXT: %[[M1:.*]] = bufferization.to_memref %[[T1]] : memref<128x128xf32>
   // CHECK-NEXT: %[[FOR_RES:.*]] = scf.for {{.*}} iter_args(%[[BBARG_T2:.*]] = %[[T2]]) -> (tensor<128x128xf32>) {
   %0:3 = scf.for %arg0 = %lb to %ub step %step iter_args(%arg1 = %t0, %arg2 = %t1, %arg3 = %t2)
     -> (tensor<128x128xf32>, tensor<128x128xf32>, tensor<128x128xf32>)
   {
-    %m1 = memref.buffer_cast %arg2 : memref<128x128xf32>
+    %m1 = bufferization.to_memref %arg2 : memref<128x128xf32>
 
     // CHECK-NEXT:   call @process(%[[M0]]) : (memref<128x128xf32>) -> ()
     call @process(%m0) : (memref<128x128xf32>) -> ()
@@ -579,13 +620,13 @@ func @last_value(%t0: tensor<128x128xf32>, %t1: tensor<128x128xf32>,
 
     // This does not hoist (fails the bbArg has at most a single check).
     // CHECK-NEXT:   %[[T:.*]] = call @process_tensor(%[[BBARG_T2]]) : (tensor<128x128xf32>) -> memref<128x128xf32>
-    // CHECK-NEXT:   %[[YIELD_T:.*]] = memref.tensor_load %[[T:.*]]
+    // CHECK-NEXT:   %[[YIELD_T:.*]] = bufferization.to_tensor %[[T:.*]]
     %m2 = call @process_tensor(%arg3): (tensor<128x128xf32>) -> memref<128x128xf32>
-    %3 = memref.tensor_load %m2 : memref<128x128xf32>
+    %3 = bufferization.to_tensor %m2 : memref<128x128xf32>
 
     // All this stuff goes away, incrementally
-    %1 = memref.tensor_load %m0 : memref<128x128xf32>
-    %2 = memref.tensor_load %m1 : memref<128x128xf32>
+    %1 = bufferization.to_tensor %m0 : memref<128x128xf32>
+    %2 = bufferization.to_tensor %m1 : memref<128x128xf32>
 
     // CHECK-NEXT:   scf.yield %[[YIELD_T]] : tensor<128x128xf32>
     scf.yield %1, %2, %3 : tensor<128x128xf32>, tensor<128x128xf32>, tensor<128x128xf32>
@@ -593,8 +634,8 @@ func @last_value(%t0: tensor<128x128xf32>, %t1: tensor<128x128xf32>,
   // CHECK-NEXT: }
   }
 
-  // CHECK-NEXT: %[[R0:.*]] = memref.tensor_load %[[M0]] : memref<128x128xf32>
-  // CHECK-NEXT: %[[R1:.*]] = memref.tensor_load %[[M1]] : memref<128x128xf32>
+  // CHECK-NEXT: %[[R0:.*]] = bufferization.to_tensor %[[M0]] : memref<128x128xf32>
+  // CHECK-NEXT: %[[R1:.*]] = bufferization.to_tensor %[[M1]] : memref<128x128xf32>
   // CHECK-NEXT: return %[[R0]], %[[R1]], %[[FOR_RES]] : tensor<128x128xf32>, tensor<128x128xf32>, tensor<128x128xf32>
   return %0#0, %0#1, %0#2 : tensor<128x128xf32>, tensor<128x128xf32>, tensor<128x128xf32>
 }
@@ -782,7 +823,7 @@ func @replace_if_with_cond3(%arg0 : i1, %arg2: i64) -> (i32, i64) {
 // -----
 
 // CHECK-LABEL: @while_cond_true
-func @while_cond_true() {
+func @while_cond_true() -> i1 {
   %0 = scf.while () : () -> i1 {
     %condition = "test.condition"() : () -> i1
     scf.condition(%condition) %condition : i1
@@ -791,7 +832,7 @@ func @while_cond_true() {
     "test.use"(%arg0) : (i1) -> ()
     scf.yield
   }
-  return
+  return %0 : i1
 }
 // CHECK-NEXT:         %[[true:.+]] = arith.constant true
 // CHECK-NEXT:         %{{.+}} = scf.while : () -> i1 {
@@ -800,6 +841,112 @@ func @while_cond_true() {
 // CHECK-NEXT:         } do {
 // CHECK-NEXT:         ^bb0(%arg0: i1):  // no predecessors
 // CHECK-NEXT:           "test.use"(%[[true]]) : (i1) -> ()
+// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:         }
+
+// -----
+
+// CHECK-LABEL: @while_unused_arg
+func @while_unused_arg(%x : i32, %y : f64) -> i32 {
+  %0 = scf.while (%arg1 = %x, %arg2 = %y) : (i32, f64) -> (i32) {
+    %condition = "test.condition"(%arg1) : (i32) -> i1
+    scf.condition(%condition) %arg1 : i32
+  } do {
+  ^bb0(%arg1: i32):
+    %next = "test.use"(%arg1) : (i32) -> (i32)
+    scf.yield %next, %y : i32, f64
+  }
+  return %0 : i32
+}
+// CHECK-NEXT:         %[[res:.*]] = scf.while (%[[arg2:.+]] = %{{.*}}) : (i32) -> i32 {
+// CHECK-NEXT:           %[[cmp:.*]] = "test.condition"(%[[arg2]]) : (i32) -> i1
+// CHECK-NEXT:           scf.condition(%[[cmp]]) %[[arg2]] : i32
+// CHECK-NEXT:         } do {
+// CHECK-NEXT:         ^bb0(%[[post:.+]]: i32):  // no predecessors
+// CHECK-NEXT:           %[[next:.+]] = "test.use"(%[[post]]) : (i32) -> i32
+// CHECK-NEXT:           scf.yield %[[next]] : i32
+// CHECK-NEXT:         }
+// CHECK-NEXT:         return %[[res]] : i32
+
+// -----
+
+// CHECK-LABEL: @while_unused_result
+func @while_unused_result() -> i32 {
+  %0:2 = scf.while () : () -> (i32, i64) {
+    %condition = "test.condition"() : () -> i1
+    %v1 = "test.get_some_value"() : () -> i32
+    %v2 = "test.get_some_value"() : () -> i64
+    scf.condition(%condition) %v1, %v2 : i32, i64
+  } do {
+  ^bb0(%arg0: i32, %arg1: i64):
+    "test.use"(%arg0) : (i32) -> ()
+    scf.yield
+  }
+  return %0#0 : i32
+}
+// CHECK-NEXT:         %[[res:.*]] = scf.while : () -> i32 {
+// CHECK-NEXT:           %[[cmp:.*]] = "test.condition"() : () -> i1
+// CHECK-NEXT:           %[[val:.*]] = "test.get_some_value"() : () -> i32
+// CHECK-NEXT:           %{{.*}} = "test.get_some_value"() : () -> i64
+// CHECK-NEXT:           scf.condition(%[[cmp]]) %[[val]] : i32
+// CHECK-NEXT:         } do {
+// CHECK-NEXT:         ^bb0(%[[arg:.*]]: i32):  // no predecessors
+// CHECK-NEXT:           "test.use"(%[[arg]]) : (i32) -> ()
+// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:         }
+// CHECK-NEXT:         return %[[res]] : i32
+
+// CHECK-LABEL: @while_cmp_lhs
+func @while_cmp_lhs(%arg0 : i32) {
+  %0 = scf.while () : () -> i32 {
+    %val = "test.val"() : () -> i32
+    %condition = arith.cmpi ne, %val, %arg0 : i32
+    scf.condition(%condition) %val : i32
+  } do {
+  ^bb0(%val2: i32):
+    %condition2 = arith.cmpi ne, %val2, %arg0 : i32
+    %negcondition2 = arith.cmpi eq, %val2, %arg0 : i32
+    "test.use"(%condition2, %negcondition2, %val2) : (i1, i1, i32) -> ()
+    scf.yield
+  }
+  return
+}
+// CHECK-DAG:         %[[true:.+]] = arith.constant true
+// CHECK-DAG:         %[[false:.+]] = arith.constant false
+// CHECK-DAG:         %{{.+}} = scf.while : () -> i32 {
+// CHECK-NEXT:         %[[val:.+]] = "test.val"
+// CHECK-NEXT:         %[[cmp:.+]] = arith.cmpi ne, %[[val]], %arg0 : i32
+// CHECK-NEXT:           scf.condition(%[[cmp]]) %[[val]] : i32
+// CHECK-NEXT:         } do {
+// CHECK-NEXT:         ^bb0(%arg1: i32):  // no predecessors
+// CHECK-NEXT:           "test.use"(%[[true]], %[[false]], %arg1) : (i1, i1, i32) -> ()
+// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:         }
+
+// CHECK-LABEL: @while_cmp_rhs
+func @while_cmp_rhs(%arg0 : i32) {
+  %0 = scf.while () : () -> i32 {
+    %val = "test.val"() : () -> i32
+    %condition = arith.cmpi ne, %arg0, %val : i32
+    scf.condition(%condition) %val : i32
+  } do {
+  ^bb0(%val2: i32):
+    %condition2 = arith.cmpi ne, %arg0, %val2 : i32
+    %negcondition2 = arith.cmpi eq, %arg0, %val2 : i32
+    "test.use"(%condition2, %negcondition2, %val2) : (i1, i1, i32) -> ()
+    scf.yield
+  }
+  return
+}
+// CHECK-DAG:         %[[true:.+]] = arith.constant true
+// CHECK-DAG:         %[[false:.+]] = arith.constant false
+// CHECK-DAG:         %{{.+}} = scf.while : () -> i32 {
+// CHECK-NEXT:         %[[val:.+]] = "test.val"
+// CHECK-NEXT:         %[[cmp:.+]] = arith.cmpi ne, %arg0, %[[val]] : i32
+// CHECK-NEXT:           scf.condition(%[[cmp]]) %[[val]] : i32
+// CHECK-NEXT:         } do {
+// CHECK-NEXT:         ^bb0(%arg1: i32):  // no predecessors
+// CHECK-NEXT:           "test.use"(%[[true]], %[[false]], %arg1) : (i1, i1, i32) -> ()
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 

@@ -12,7 +12,7 @@
 # can also just start the image with a shell to debug CI failures.
 #
 # To start a Buildkite Agent, run it as:
-#   $ docker run --env-file <secrets> -it $(docker build -q .)
+#   $ docker run --env-file <secrets> -it $(docker build -q libcxx/utils/ci)
 #
 # The environment variables in `<secrets>` should be the ones necessary
 # to run a BuildKite agent.
@@ -37,13 +37,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # CI builders to rebuild their copy of the Docker image. This is not a great
 # solution, however without that, the CI builders will keep the same cached
 # Docker image forever.
-RUN echo 1
+RUN echo 6
 
 RUN apt-get update && apt-get install -y bash curl
 
 # Install various tools used by the build or the test suite
 RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils git gdb
-RUN apt-get update && apt-get install -y libc6-dev-i386 # Required to cross-compile to 32 bits
 
 # Locales for gdb and localization tests
 RUN apt-get update && apt-get install -y language-pack-en language-pack-fr \
@@ -91,7 +90,7 @@ WORKDIR /home/libcxx-builder
 
 # Install the Buildkite agent and dependencies. This must be done as non-root
 # for the Buildkite agent to be installed in a path where we can find it.
-RUN bash -c "$(curl -sL https://raw.githubusercontent.com/buildkite/agent/master/install.sh)"
+RUN bash -c "$(curl -sL https://raw.githubusercontent.com/buildkite/agent/main/install.sh)"
 ENV PATH="${PATH}:/home/libcxx-builder/.buildkite-agent/bin"
 RUN echo "tags=\"queue=libcxx-builders,arch=$(uname -m),os=linux\"" >> "/home/libcxx-builder/.buildkite-agent/buildkite-agent.cfg"
 

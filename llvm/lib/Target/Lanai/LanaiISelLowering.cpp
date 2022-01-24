@@ -284,7 +284,7 @@ LanaiTargetLowering::getSingleConstraintMatchWeight(
 void LanaiTargetLowering::LowerAsmOperandForConstraint(
     SDValue Op, std::string &Constraint, std::vector<SDValue> &Ops,
     SelectionDAG &DAG) const {
-  SDValue Result(nullptr, 0);
+  SDValue Result;
 
   // Only support length 1 constraints for now.
   if (Constraint.length() > 1)
@@ -486,7 +486,7 @@ SDValue LanaiTargetLowering::LowerCCCArguments(
         llvm_unreachable("unhandled argument type");
       }
     } else {
-      // Sanity check
+      // Only arguments passed on the stack should make it here.
       assert(VA.isMemLoc());
       // Load the argument to a virtual register
       unsigned ObjSize = VA.getLocVT().getSizeInBits() / 8;

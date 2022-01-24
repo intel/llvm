@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===---------------------------- math.h ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -305,9 +305,9 @@ long double    truncl(long double x);
 // back to C++ linkage before including these C++ headers.
 extern "C++" {
 
+#include <limits>
 #include <stdlib.h>
 #include <type_traits>
-#include <limits>
 
 // signbit
 

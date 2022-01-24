@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
@@ -32,8 +33,7 @@ namespace {
 struct SparsificationPass : public SparsificationBase<SparsificationPass> {
 
   SparsificationPass() = default;
-  SparsificationPass(const SparsificationPass &pass)
-      : SparsificationBase<SparsificationPass>() {}
+  SparsificationPass(const SparsificationPass &pass) = default;
 
   /// Returns parallelization strategy given on command line.
   SparseParallelizationStrategy parallelOption() {
@@ -120,10 +120,11 @@ struct SparseTensorConversionPass
     target.addLegalOp<arith::CmpFOp, arith::CmpIOp, arith::ConstantOp,
                       arith::IndexCastOp, linalg::FillOp, linalg::YieldOp,
                       tensor::ExtractOp>();
-    target.addLegalDialect<LLVM::LLVMDialect, memref::MemRefDialect,
-                           scf::SCFDialect>();
+    target
+        .addLegalDialect<bufferization::BufferizationDialect, LLVM::LLVMDialect,
+                         memref::MemRefDialect, scf::SCFDialect>();
     // Populate with rules and apply rewriting rules.
-    populateFuncOpTypeConversionPattern(patterns, converter);
+    populateFunctionLikeTypeConversionPattern<FuncOp>(patterns, converter);
     populateCallOpTypeConversionPattern(patterns, converter);
     populateSparseTensorConversionPatterns(converter, patterns);
     if (failed(applyPartialConversion(getOperation(), target,
@@ -132,7 +133,7 @@ struct SparseTensorConversionPass
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<Pass> mlir::createSparsificationPass() {
   return std::make_unique<SparsificationPass>();

@@ -180,6 +180,7 @@ def OMPC_Read : Clause<"read"> { let clangClass = "OMPReadClause"; }
 def OMPC_Write : Clause<"write"> { let clangClass = "OMPWriteClause"; }
 def OMPC_Update : Clause<"update"> { let clangClass = "OMPUpdateClause"; }
 def OMPC_Capture : Clause<"capture"> { let clangClass = "OMPCaptureClause"; }
+def OMPC_Compare : Clause<"compare"> { let clangClass = "OMPCompareClause"; }
 def OMPC_SeqCst : Clause<"seq_cst"> { let clangClass = "OMPSeqCstClause"; }
 def OMPC_AcqRel : Clause<"acq_rel"> { let clangClass = "OMPAcqRelClause"; }
 def OMPC_Acquire : Clause<"acquire"> { let clangClass = "OMPAcquireClause"; }
@@ -282,7 +283,7 @@ def OMPC_Allocate : Clause<"allocate"> {
 def OMPC_NonTemporal : Clause<"nontemporal"> {
   let clangClass = "OMPNontemporalClause";
   let flangClass = "Name";
-  let isValueList = true; 
+  let isValueList = true;
 }
 
 def OMP_ORDER_concurrent : ClauseVal<"concurrent",1,1> {}
@@ -357,13 +358,21 @@ def OMPC_Unknown : Clause<"unknown"> {
 def OMPC_Link : Clause<"link"> {
   let flangClass = "OmpObjectList";
 }
+def OMPC_Indirect : Clause<"indirect"> {}
 def OMPC_Inbranch : Clause<"inbranch"> {}
 def OMPC_Notinbranch : Clause<"notinbranch"> {}
 def OMPC_Filter : Clause<"filter"> {
   let clangClass = "OMPFilterClause";
   let flangClass = "ScalarIntExpr";
 }
+def OMPC_Align : Clause<"align"> {
+  let clangClass = "OMPAlignClause";
+}
 def OMPC_When: Clause<"when"> {}
+
+def OMPC_Bind : Clause<"bind"> {
+  let clangClass = "OMPBindClause";
+}
 
 //===----------------------------------------------------------------------===//
 // Definition of OpenMP directives
@@ -529,6 +538,7 @@ def OMP_Atomic : Directive<"atomic"> {
     VersionedClause<OMPC_Write>,
     VersionedClause<OMPC_Update>,
     VersionedClause<OMPC_Capture>,
+    VersionedClause<OMPC_Compare, 51>
   ];
   let allowedOnceClauses = [
     VersionedClause<OMPC_SeqCst>,
@@ -964,12 +974,14 @@ def OMP_BeginDeclareTarget : Directive<"begin declare target"> {
     VersionedClause<OMPC_To>,
     VersionedClause<OMPC_Link>,
     VersionedClause<OMPC_DeviceType>,
+    VersionedClause<OMPC_Indirect>
   ];
 }
 def OMP_DeclareTarget : Directive<"declare target"> {
   let allowedClauses = [
     VersionedClause<OMPC_To>,
-    VersionedClause<OMPC_Link>
+    VersionedClause<OMPC_Link>,
+    VersionedClause<OMPC_Indirect>
   ];
 }
 def OMP_EndDeclareTarget : Directive<"end declare target"> {}
@@ -1535,7 +1547,8 @@ def OMP_TargetTeamsDistributeSimd :
 }
 def OMP_Allocate : Directive<"allocate"> {
   let allowedOnceClauses = [
-    VersionedClause<OMPC_Allocator>
+    VersionedClause<OMPC_Allocator>,
+    VersionedClause<OMPC_Align, 51>
   ];
 }
 def OMP_DeclareVariant : Directive<"declare variant"> {
@@ -1739,6 +1752,7 @@ def OMP_loop : Directive<"loop"> {
     VersionedClause<OMPC_Reduction>,
   ];
   let allowedOnceClauses = [
+    VersionedClause<OMPC_Bind, 50>,
     VersionedClause<OMPC_Collapse>,
     VersionedClause<OMPC_Order>,
   ];

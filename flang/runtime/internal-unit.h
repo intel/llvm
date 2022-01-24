@@ -31,6 +31,7 @@ public:
   void EndIoStatement();
 
   bool Emit(const char *, std::size_t, IoErrorHandler &);
+  std::size_t GetNextInputBytes(const char *&, IoErrorHandler &);
   std::optional<char32_t> GetCurrentChar(IoErrorHandler &);
   bool AdvanceRecord(IoErrorHandler &);
   void BackspaceRecord(IoErrorHandler &);
@@ -44,6 +45,8 @@ private:
     return descriptor().template ZeroBasedIndexedElement<char>(
         currentRecordNumber - 1);
   }
+  void BlankFillOutputRecord();
+
   StaticDescriptor<maxRank, true /*addendum*/> staticDescriptor_;
 };
 

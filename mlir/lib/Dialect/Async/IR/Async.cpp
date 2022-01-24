@@ -60,12 +60,6 @@ YieldOp::getMutableSuccessorOperands(Optional<unsigned> index) {
 
 constexpr char kOperandSegmentSizesAttr[] = "operand_segment_sizes";
 
-void ExecuteOp::getNumRegionInvocations(
-    ArrayRef<Attribute>, SmallVectorImpl<int64_t> &countPerRegion) {
-  assert(countPerRegion.empty());
-  countPerRegion.push_back(1);
-}
-
 OperandRange ExecuteOp::getSuccessorEntryOperands(unsigned index) {
   assert(index == 0 && "invalid region index");
   return operands();
@@ -338,14 +332,13 @@ static LogicalResult verify(AwaitOp op) {
 #define GET_TYPEDEF_CLASSES
 #include "mlir/Dialect/Async/IR/AsyncOpsTypes.cpp.inc"
 
-void ValueType::print(DialectAsmPrinter &printer) const {
-  printer << getMnemonic();
+void ValueType::print(AsmPrinter &printer) const {
   printer << "<";
   printer.printType(getValueType());
   printer << '>';
 }
 
-Type ValueType::parse(mlir::DialectAsmParser &parser) {
+Type ValueType::parse(mlir::AsmParser &parser) {
   Type ty;
   if (parser.parseLess() || parser.parseType(ty) || parser.parseGreater()) {
     parser.emitError(parser.getNameLoc(), "failed to parse async value type");

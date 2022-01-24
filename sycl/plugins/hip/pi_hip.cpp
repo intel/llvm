@@ -299,7 +299,7 @@ int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
 }
 /// \endcond
 
-void simpleGuessLocalWorkSize(int *threadsPerBlock,
+void simpleGuessLocalWorkSize(size_t *threadsPerBlock,
                               const size_t *global_work_size,
                               const size_t maxThreadsPerBlock[3],
                               pi_kernel kernel) {
@@ -314,8 +314,7 @@ void simpleGuessLocalWorkSize(int *threadsPerBlock,
 
   //(void)minGrid; // Not used, avoid warnings
 
-  threadsPerBlock[0] = std::min(static_cast<int>(maxThreadsPerBlock[0]),
-                                static_cast<int>(global_work_size[0]));
+  threadsPerBlock[0] = std::min(maxThreadsPerBlock[0], global_work_size[0]);
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
@@ -366,6 +365,10 @@ pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event);
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event);
 pi_result hip_piEventRelease(pi_event event);
 pi_result hip_piEventRetain(pi_event event);
 
@@ -419,6 +422,23 @@ pi_result _pi_event::start() {
 
   isStarted_ = true;
   return result;
+}
+
+bool _pi_event::is_completed() const noexcept {
+  if (!isRecorded_) {
+    return false;
+  }
+  if (!isCompleted_) {
+    const hipError_t ret = hipEventQuery(evEnd_);
+    if (ret != hipSuccess && ret != hipErrorNotReady) {
+      PI_CHECK_ERROR(ret);
+      return false;
+    }
+    if (ret == hipErrorNotReady) {
+      return false;
+    }
+  }
+  return true;
 }
 
 pi_uint64 _pi_event::get_queued_time() const {
@@ -567,6 +587,7 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       has_kernel method, so an alternative would be to move the has_kernel
 ///       query to PI and use hipModuleGetFunction to check for a kernel.
 std::string getKernelNames(pi_program program) {
+  (void)program;
   cl::sycl::detail::pi::die("getKernelNames not implemented");
   return {};
 }
@@ -1315,12 +1336,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    pi_uint64{bytes});
   }
   case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
-    int constant_memory = 0;
+    unsigned int constant_memory = 0;
+
+    // hipDeviceGetAttribute takes a int*, however the size of the constant
+    // memory on AMD GPU may be larger than what can fit in the positive part
+    // of a signed integer, so use an unsigned integer and cast the pointer to
+    // int*.
     cl::sycl::detail::pi::assertion(
-        hipDeviceGetAttribute(&constant_memory,
+        hipDeviceGetAttribute(reinterpret_cast<int *>(&constant_memory),
                               hipDeviceAttributeTotalConstantMemory,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(constant_memory >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(constant_memory));
@@ -1606,6 +1631,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_SLICES:
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     return PI_INVALID_VALUE;
 
@@ -2201,6 +2227,14 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
   return result;
 }
 
+// There is no HIP counterpart for queue flushing and we don't run into the
+// same problem of having to flush cross-queue dependencies as some of the
+// other plugins, so it can be left as no-op.
+pi_result hip_piQueueFlush(pi_queue command_queue) {
+  (void)command_queue;
+  return PI_SUCCESS;
+}
+
 /// Gets the native HIP handle of a PI queue object
 ///
 /// \param[in] queue The PI queue to get the native HIP object of.
@@ -2491,7 +2525,7 @@ pi_result hip_piEnqueueKernelLaunch(
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
-  int threadsPerBlock[3] = {32, 1, 1};
+  size_t threadsPerBlock[3] = {32u, 1u, 1u};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
@@ -2521,7 +2555,7 @@ pi_result hip_piEnqueueKernelLaunch(
           return PI_INVALID_WORK_GROUP_SIZE;
         if (0u != (global_work_size[dim] % local_work_size[dim]))
           return PI_INVALID_WORK_GROUP_SIZE;
-        threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
+        threadsPerBlock[dim] = local_work_size[dim];
         return PI_SUCCESS;
       };
 
@@ -2536,12 +2570,16 @@ pi_result hip_piEnqueueKernelLaunch(
     }
   }
 
-  int blocksPerGrid[3] = {1, 1, 1};
+  if (maxWorkGroupSize <
+      size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
+    return PI_INVALID_WORK_GROUP_SIZE;
+  }
+
+  size_t blocksPerGrid[3] = {1u, 1u, 1u};
 
   for (size_t i = 0; i < work_dim; i++) {
     blocksPerGrid[i] =
-        static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
-        threadsPerBlock[i];
+        (global_work_size[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
   }
 
   pi_result retError = PI_SUCCESS;
@@ -2563,7 +2601,8 @@ pi_result hip_piEnqueueKernelLaunch(
           hip_implicit_offset[i] =
               static_cast<std::uint32_t>(global_work_offset[i]);
           if (global_work_offset[i] != 0) {
-            hipFunc = kernel->get_with_offset_parameter();
+            cl::sycl::detail::pi::die("Global offsets different from 0 are not "
+                                      "implemented in the HIP backend.");
           }
         }
       }
@@ -2933,6 +2972,27 @@ pi_result hip_piProgramGetInfo(pi_program program, pi_program_info param_name,
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   cl::sycl::detail::pi::die("Program info request not implemented");
+  return {};
+}
+
+pi_result hip_piProgramLink(pi_context context, pi_uint32 num_devices,
+                            const pi_device *device_list, const char *options,
+                            pi_uint32 num_input_programs,
+                            const pi_program *input_programs,
+                            void (*pfn_notify)(pi_program program,
+                                               void *user_data),
+                            void *user_data, pi_program *ret_program) {
+  (void)context;
+  (void)num_devices;
+  (void)device_list;
+  (void)options;
+  (void)num_input_programs;
+  (void)input_programs;
+  (void)pfn_notify;
+  (void)user_data;
+  (void)ret_program;
+  cl::sycl::detail::pi::die(
+      "hip_piProgramLink: linking not supported with hip backend");
   return {};
 }
 
@@ -3401,13 +3461,30 @@ pi_result hip_piEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-/// Enqueues a wait on the given CUstream for all events.
+/// Enqueues a wait on the given queue for all events.
 /// See \ref enqueueEventWait
 ///
+/// Currently queues are represented by a single in-order stream, therefore
+/// every command is an implicit barrier and so hip_piEnqueueEventsWait has the
+/// same behavior as hip_piEnqueueEventsWaitWithBarrier. So
+/// hip_piEnqueueEventsWait can just call hip_piEnqueueEventsWaitWithBarrier.
 pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
                                   pi_uint32 num_events_in_wait_list,
                                   const pi_event *event_wait_list,
                                   pi_event *event) {
+  return hip_piEnqueueEventsWaitWithBarrier(
+      command_queue, num_events_in_wait_list, event_wait_list, event);
+}
+
+/// Enqueues a wait on the given queue for all specified events.
+/// See \ref enqueueEventWaitWithBarrier
+///
+/// If the events list is empty, the enqueued wait will wait on all previous
+/// events in the queue.
+pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
+                                             pi_uint32 num_events_in_wait_list,
+                                             const pi_event *event_wait_list,
+                                             pi_event *event) {
   if (!command_queue) {
     return PI_INVALID_QUEUE;
   }
@@ -4715,15 +4792,19 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
     }
 
     case PI_MEM_ALLOC_DEVICE: {
-      unsigned int value;
+      // get device index associated with this pointer
       result = PI_CHECK_ERROR(
           hipPointerGetAttributes(&hipPointerAttributeType, ptr));
-      auto devicePointer =
-          static_cast<int *>(hipPointerAttributeType.devicePointer);
-      value = *devicePointer;
-      pi_platform platform;
-      result = hip_piPlatformsGet(0, &platform, nullptr);
-      pi_device device = platform->devices_[value].get();
+      int device_idx = hipPointerAttributeType.device;
+
+      // currently each device is in its own platform, so find the platform at
+      // the same index
+      std::vector<pi_platform> platforms;
+      platforms.resize(device_idx + 1);
+      result = hip_piPlatformsGet(device_idx + 1, platforms.data(), nullptr);
+
+      // get the device from the platform
+      pi_device device = platforms[device_idx]->devices_[0].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
     }
@@ -4792,6 +4873,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piQueueCreate, hip_piQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
+  _PI_CL(piQueueFlush, hip_piQueueFlush)
   _PI_CL(piQueueRetain, hip_piQueueRetain)
   _PI_CL(piQueueRelease, hip_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
@@ -4813,6 +4895,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramGetInfo, hip_piProgramGetInfo)
   _PI_CL(piProgramCompile, hip_piProgramCompile)
   _PI_CL(piProgramBuild, hip_piProgramBuild)
+  _PI_CL(piProgramLink, hip_piProgramLink)
   _PI_CL(piProgramGetBuildInfo, hip_piProgramGetBuildInfo)
   _PI_CL(piProgramRetain, hip_piProgramRetain)
   _PI_CL(piProgramRelease, hip_piProgramRelease)
@@ -4849,6 +4932,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueKernelLaunch, hip_piEnqueueKernelLaunch)
   _PI_CL(piEnqueueNativeKernel, hip_piEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, hip_piEnqueueEventsWait)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, hip_piEnqueueEventsWaitWithBarrier)
   _PI_CL(piEnqueueMemBufferRead, hip_piEnqueueMemBufferRead)
   _PI_CL(piEnqueueMemBufferReadRect, hip_piEnqueueMemBufferReadRect)
   _PI_CL(piEnqueueMemBufferWrite, hip_piEnqueueMemBufferWrite)

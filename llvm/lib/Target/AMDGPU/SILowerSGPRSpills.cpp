@@ -239,50 +239,6 @@ bool SILowerSGPRSpills::spillCalleeSavedRegs(MachineFunction &MF) {
   return false;
 }
 
-// Find lowest available VGPR and use it as VGPR reserved for SGPR spills.
-static bool lowerShiftReservedVGPR(MachineFunction &MF,
-                                   const GCNSubtarget &ST) {
-  SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
-  const Register PreReservedVGPR = FuncInfo->VGPRReservedForSGPRSpill;
-  // Early out if pre-reservation of a VGPR for SGPR spilling is disabled.
-  if (!PreReservedVGPR)
-    return false;
-
-  // If there are no free lower VGPRs available, default to using the
-  // pre-reserved register instead.
-  const SIRegisterInfo *TRI = ST.getRegisterInfo();
-  Register LowestAvailableVGPR =
-      TRI->findUnusedRegister(MF.getRegInfo(), &AMDGPU::VGPR_32RegClass, MF);
-  if (!LowestAvailableVGPR)
-    LowestAvailableVGPR = PreReservedVGPR;
-
-  MachineFrameInfo &FrameInfo = MF.getFrameInfo();
-  // Create a stack object for a possible spill in the function prologue.
-  // Note Non-CSR VGPR also need this as we may overwrite inactive lanes.
-  Optional<int> FI = FrameInfo.CreateSpillStackObject(4, Align(4));
-
-  // Find saved info about the pre-reserved register.
-  const auto *ReservedVGPRInfoItr =
-      llvm::find_if(FuncInfo->getSGPRSpillVGPRs(),
-                    [PreReservedVGPR](const auto &SpillRegInfo) {
-                      return SpillRegInfo.VGPR == PreReservedVGPR;
-                    });
-
-  assert(ReservedVGPRInfoItr != FuncInfo->getSGPRSpillVGPRs().end());
-  auto Index =
-      std::distance(FuncInfo->getSGPRSpillVGPRs().begin(), ReservedVGPRInfoItr);
-
-  FuncInfo->setSGPRSpillVGPRs(LowestAvailableVGPR, FI, Index);
-
-  for (MachineBasicBlock &MBB : MF) {
-    assert(LowestAvailableVGPR.isValid() && "Did not find an available VGPR");
-    MBB.addLiveIn(LowestAvailableVGPR);
-    MBB.sortUniqueLiveIns();
-  }
-
-  return true;
-}
-
 bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
   TII = ST.getInstrInfo();
@@ -304,11 +260,6 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
   if (!MFI.hasStackObjects() && !HasCSRs) {
     SaveBlocks.clear();
     RestoreBlocks.clear();
-    if (FuncInfo->VGPRReservedForSGPRSpill) {
-      // Free the reserved VGPR for later possible use by frame lowering.
-      FuncInfo->removeVGPRForSGPRSpill(FuncInfo->VGPRReservedForSGPRSpill, MF);
-      MRI.freezeReservedRegs(MF);
-    }
     return false;
   }
 
@@ -326,17 +277,11 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
     // This operates under the assumption that only other SGPR spills are users
     // of the frame index.
 
-    lowerShiftReservedVGPR(MF, ST);
-
     // To track the spill frame indices handled in this pass.
     BitVector SpillFIs(MFI.getObjectIndexEnd(), false);
 
     for (MachineBasicBlock &MBB : MF) {
-      MachineBasicBlock::iterator Next;
-      for (auto I = MBB.begin(), E = MBB.end(); I != E; I = Next) {
-        MachineInstr &MI = *I;
-        Next = std::next(I);
-
+      for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
         if (!TII->isSGPRSpill(MI))
           continue;
 
@@ -372,15 +317,13 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
     }
 
     // All those frame indices which are dead by now should be removed from the
-    // function frame. Othewise, there is a side effect such as re-mapping of
+    // function frame. Otherwise, there is a side effect such as re-mapping of
     // free frame index ids by the later pass(es) like "stack slot coloring"
     // which in turn could mess-up with the book keeping of "frame index to VGPR
     // lane".
     FuncInfo->removeDeadFrameIndices(MFI);
 
     MadeChange = true;
-  } else if (FuncInfo->VGPRReservedForSGPRSpill) {
-    FuncInfo->removeVGPRForSGPRSpill(FuncInfo->VGPRReservedForSGPRSpill, MF);
   }
 
   SaveBlocks.clear();

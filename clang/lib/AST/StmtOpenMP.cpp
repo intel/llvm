@@ -518,7 +518,7 @@ OMPSectionDirective *OMPSectionDirective::Create(const ASTContext &C,
                                                  bool HasCancel) {
   auto *Dir =
       createDirective<OMPSectionDirective>(C, llvm::None, AssociatedStmt,
-                                           /*NumChildre=*/0, StartLoc, EndLoc);
+                                           /*NumChildren=*/0, StartLoc, EndLoc);
   Dir->setHasCancel(HasCancel);
   return Dir;
 }
@@ -739,15 +739,19 @@ OMPBarrierDirective *OMPBarrierDirective::CreateEmpty(const ASTContext &C,
   return new (C) OMPBarrierDirective();
 }
 
-OMPTaskwaitDirective *OMPTaskwaitDirective::Create(const ASTContext &C,
-                                                   SourceLocation StartLoc,
-                                                   SourceLocation EndLoc) {
-  return new (C) OMPTaskwaitDirective(StartLoc, EndLoc);
+OMPTaskwaitDirective *
+OMPTaskwaitDirective::Create(const ASTContext &C, SourceLocation StartLoc,
+                             SourceLocation EndLoc,
+                             ArrayRef<OMPClause *> Clauses) {
+  return createDirective<OMPTaskwaitDirective>(
+      C, Clauses, /*AssociatedStmt=*/nullptr, /*NumChildren=*/0, StartLoc,
+      EndLoc);
 }
 
 OMPTaskwaitDirective *OMPTaskwaitDirective::CreateEmpty(const ASTContext &C,
+                                                        unsigned NumClauses,
                                                         EmptyShell) {
-  return new (C) OMPTaskwaitDirective();
+  return createEmptyDirective<OMPTaskwaitDirective>(C, NumClauses);
 }
 
 OMPTaskgroupDirective *OMPTaskgroupDirective::Create(

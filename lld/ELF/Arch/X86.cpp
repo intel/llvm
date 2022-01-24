@@ -78,13 +78,8 @@ int X86::getTlsGdRelaxSkip(RelType type) const {
 
 RelExpr X86::getRelExpr(RelType type, const Symbol &s,
                         const uint8_t *loc) const {
-  // There are 4 different TLS variable models with varying degrees of
-  // flexibility and performance. LocalExec and InitialExec models are fast but
-  // less-flexible models. If they are in use, we set DF_STATIC_TLS flag in the
-  // dynamic section to let runtime know about that.
-  if (type == R_386_TLS_LE || type == R_386_TLS_LE_32 || type == R_386_TLS_IE ||
-      type == R_386_TLS_GOTIE)
-    config->hasStaticTlsModel = true;
+  if (type == R_386_TLS_IE || type == R_386_TLS_GOTIE)
+    config->hasTlsIe = true;
 
   switch (type) {
   case R_386_8:
@@ -225,7 +220,7 @@ void X86::writePltHeader(uint8_t *buf) const {
 
 void X86::writePlt(uint8_t *buf, const Symbol &sym,
                    uint64_t pltEntryAddr) const {
-  unsigned relOff = in.relaPlt->entsize * sym.pltIndex;
+  unsigned relOff = in.relaPlt->entsize * sym.getPltIdx();
   if (config->isPic) {
     const uint8_t inst[] = {
         0xff, 0xa3, 0, 0, 0, 0, // jmp *foo@GOT(%ebx)
@@ -507,7 +502,7 @@ IntelIBT::IntelIBT() { pltHeaderSize = 0; }
 
 void IntelIBT::writeGotPlt(uint8_t *buf, const Symbol &s) const {
   uint64_t va =
-      in.ibtPlt->getVA() + IBTPltHeaderSize + s.pltIndex * pltEntrySize;
+      in.ibtPlt->getVA() + IBTPltHeaderSize + s.getPltIdx() * pltEntrySize;
   write32le(buf, va);
 }
 
@@ -605,7 +600,7 @@ void RetpolinePic::writePltHeader(uint8_t *buf) const {
 
 void RetpolinePic::writePlt(uint8_t *buf, const Symbol &sym,
                             uint64_t pltEntryAddr) const {
-  unsigned relOff = in.relaPlt->entsize * sym.pltIndex;
+  unsigned relOff = in.relaPlt->entsize * sym.getPltIdx();
   const uint8_t insn[] = {
       0x50,                            // pushl %eax
       0x8b, 0x83, 0,    0,    0,    0, // mov foo@GOT(%ebx), %eax
@@ -664,7 +659,7 @@ void RetpolineNoPic::writePltHeader(uint8_t *buf) const {
 
 void RetpolineNoPic::writePlt(uint8_t *buf, const Symbol &sym,
                               uint64_t pltEntryAddr) const {
-  unsigned relOff = in.relaPlt->entsize * sym.pltIndex;
+  unsigned relOff = in.relaPlt->entsize * sym.getPltIdx();
   const uint8_t insn[] = {
       0x50,                         // 0:  pushl %eax
       0xa1, 0,    0,    0,    0,    // 1:  mov foo_in_GOT, %eax

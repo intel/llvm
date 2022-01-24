@@ -66,17 +66,9 @@ public:
       typename = typename std::enable_if<sizeof...(ArgTN) == NumElements>::type>
   constexpr marray(const ArgTN &... Args) : MData{Args...} {}
 
-  constexpr marray(const marray<Type, NumElements> &Rhs) {
-    for (std::size_t I = 0; I < NumElements; ++I) {
-      MData[I] = Rhs.MData[I];
-    }
-  }
+  constexpr marray(const marray<Type, NumElements> &Rhs) = default;
 
-  constexpr marray(marray<Type, NumElements> &&Rhs) {
-    for (std::size_t I = 0; I < NumElements; ++I) {
-      MData[I] = Rhs.MData[I];
-    }
-  }
+  constexpr marray(marray<Type, NumElements> &&Rhs) = default;
 
   // Available only when: NumElements == 1
   template <std::size_t Size = NumElements,
@@ -92,12 +84,7 @@ public:
 
   const_reference operator[](std::size_t index) const { return MData[index]; }
 
-  marray &operator=(const marray<Type, NumElements> &Rhs) {
-    for (std::size_t I = 0; I < NumElements; ++I) {
-      MData[I] = Rhs.MData[I];
-    }
-    return *this;
-  }
+  marray &operator=(const marray<Type, NumElements> &Rhs) = default;
 
   // broadcasting operator
   marray &operator=(const Type &Rhs) {

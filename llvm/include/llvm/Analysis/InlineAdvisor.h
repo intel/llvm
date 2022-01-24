@@ -65,7 +65,9 @@ public:
   /// Call after inlining succeeded, and did not result in deleting the callee.
   void recordInlining();
 
-  /// Call after inlining succeeded, and resulted in deleting the callee.
+  /// Call after inlining succeeded, and results in the callee being
+  /// delete-able, meaning, it has no more users, and will be cleaned up
+  /// subsequently.
   void recordInliningWithCalleeDeleted();
 
   /// Call after the decision for a call site was to not inline.
@@ -162,6 +164,12 @@ public:
   /// to prepare for a partial update.
   virtual void onPassExit() {}
 
+  /// Called when the module is invalidated. We let the advisor implementation
+  /// decide what to refresh - in the case of the development mode
+  /// implementation, for example, we wouldn't want to delete the whole object
+  /// and need to re-load the model evaluator.
+  virtual void onModuleInvalidated() {}
+
 protected:
   InlineAdvisor(Module &M, FunctionAnalysisManager &FAM);
   virtual std::unique_ptr<InlineAdvice> getAdviceImpl(CallBase &CB) = 0;
@@ -171,19 +179,6 @@ protected:
   Module &M;
   FunctionAnalysisManager &FAM;
   std::unique_ptr<ImportedFunctionsInliningStatistics> ImportedFunctionsStats;
-
-  /// We may want to defer deleting functions to after the inlining for a whole
-  /// module has finished. This allows us to reliably use function pointers as
-  /// unique identifiers, as an efficient implementation detail of the
-  /// InlineAdvisor. Otherwise, it is possible the memory allocator
-  /// re-allocate Function objects at the same address of a deleted Function;
-  /// and Functions are potentially created during the function passes called
-  /// after each SCC inlining (e.g. argument promotion does that).
-  void freeDeletedFunctions();
-
-  bool isFunctionDeleted(const Function *F) const {
-    return DeletedFunctions.count(F);
-  }
 
   enum class MandatoryInliningKind { NotMandatory, Always, Never };
 
@@ -195,8 +190,6 @@ protected:
 
 private:
   friend class InlineAdvice;
-  void markFunctionAsDeleted(Function *F);
-  std::unordered_set<const Function *> DeletedFunctions;
 };
 
 /// The default (manual heuristics) implementation of the InlineAdvisor. This
@@ -211,8 +204,6 @@ public:
 private:
   std::unique_ptr<InlineAdvice> getAdviceImpl(CallBase &CB) override;
 
-  void onPassExit() override { freeDeletedFunctions(); }
-
   InlineParams Params;
 };
 
@@ -226,6 +217,8 @@ public:
     Result(Module &M, ModuleAnalysisManager &MAM) : M(M), MAM(MAM) {}
     bool invalidate(Module &, const PreservedAnalyses &PA,
                     ModuleAnalysisManager::Invalidator &) {
+      if (Advisor && !PA.areAllPreserved())
+        Advisor->onModuleInvalidated();
       // Check whether the analysis has been explicitly invalidated. Otherwise,
       // it's stateless and remains preserved.
       auto PAC = PA.getChecker<InlineAdvisorAnalysis>();

@@ -46,9 +46,12 @@ void VirtualClassDestructorCheck::registerMatchers(MatchFinder *Finder) {
       this);
 }
 
-static CharSourceRange
+static Optional<CharSourceRange>
 getVirtualKeywordRange(const CXXDestructorDecl &Destructor,
                        const SourceManager &SM, const LangOptions &LangOpts) {
+  if (Destructor.getLocation().isMacroID())
+    return None;
+
   SourceLocation VirtualBeginLoc = Destructor.getBeginLoc();
   SourceLocation VirtualEndLoc = VirtualBeginLoc.getLocWithOffset(
       Lexer::MeasureTokenLength(VirtualBeginLoc, SM, LangOpts));
@@ -170,11 +173,11 @@ void VirtualClassDestructorCheck::check(
          "destructor of %0 is private and prevents using the type")
         << MatchedClassOrStruct;
     diag(MatchedClassOrStruct->getLocation(),
-         /*FixDescription=*/"make it public and virtual", DiagnosticIDs::Note)
+         /*Description=*/"make it public and virtual", DiagnosticIDs::Note)
         << changePrivateDestructorVisibilityTo(
                "public", *Destructor, *Result.SourceManager, getLangOpts());
     diag(MatchedClassOrStruct->getLocation(),
-         /*FixDescription=*/"make it protected", DiagnosticIDs::Note)
+         /*Description=*/"make it protected", DiagnosticIDs::Note)
         << changePrivateDestructorVisibilityTo(
                "protected", *Destructor, *Result.SourceManager, getLangOpts());
 
@@ -190,8 +193,10 @@ void VirtualClassDestructorCheck::check(
       Fix = FixItHint::CreateInsertion(Destructor->getLocation(), "virtual ");
     } else if (Destructor->getAccess() == AccessSpecifier::AS_protected) {
       ProtectedAndVirtual = true;
-      Fix = FixItHint::CreateRemoval(getVirtualKeywordRange(
-          *Destructor, *Result.SourceManager, Result.Context->getLangOpts()));
+      if (const auto MaybeRange =
+              getVirtualKeywordRange(*Destructor, *Result.SourceManager,
+                                     Result.Context->getLangOpts()))
+        Fix = FixItHint::CreateRemoval(*MaybeRange);
     }
   } else {
     Fix = generateUserDeclaredDestructor(*MatchedClassOrStruct,

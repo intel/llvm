@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===---------------------------- ratio -----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -81,6 +81,7 @@ typedef ratio<1000000000000000000000000, 1> yotta;  // not supported
 #include <climits>
 #include <cstdint>
 #include <type_traits>
+#include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header

@@ -40,6 +40,10 @@ static cl::opt<bool>
                                    " callsites processed by inliner but decided"
                                    " to be not inlined"));
 
+static cl::opt<bool> EnableInlineDeferral("inline-deferral", cl::init(false),
+                                          cl::Hidden,
+                                          cl::desc("Enable deferred inlining"));
+
 // An integer used to limit the cost of inline deferral.  The default negative
 // number tells shouldBeDeferred to only take the secondary cost into account.
 static cl::opt<int>
@@ -136,8 +140,9 @@ llvm::Optional<llvm::InlineCost> static getDefaultInlineAdvice(
     return getInlineCost(CB, Params, CalleeTTI, GetAssumptionCache, GetTLI,
                          GetBFI, PSI, RemarksEnabled ? &ORE : nullptr);
   };
-  return llvm::shouldInline(CB, GetInlineCost, ORE,
-                            Params.EnableDeferral.getValueOr(false));
+  return llvm::shouldInline(
+      CB, GetInlineCost, ORE,
+      Params.EnableDeferral.getValueOr(EnableInlineDeferral));
 }
 
 std::unique_ptr<InlineAdvice>
@@ -155,18 +160,6 @@ InlineAdvice::InlineAdvice(InlineAdvisor *Advisor, CallBase &CB,
       DLoc(CB.getDebugLoc()), Block(CB.getParent()), ORE(ORE),
       IsInliningRecommended(IsInliningRecommended) {}
 
-void InlineAdvisor::markFunctionAsDeleted(Function *F) {
-  assert((!DeletedFunctions.count(F)) &&
-         "Cannot put cause a function to become dead twice!");
-  DeletedFunctions.insert(F);
-}
-
-void InlineAdvisor::freeDeletedFunctions() {
-  for (auto *F : DeletedFunctions)
-    delete F;
-  DeletedFunctions.clear();
-}
-
 void InlineAdvice::recordInlineStatsIfNeeded() {
   if (Advisor->ImportedFunctionsStats)
     Advisor->ImportedFunctionsStats->recordInline(*Caller, *Callee);
@@ -181,7 +174,6 @@ void InlineAdvice::recordInlining() {
 void InlineAdvice::recordInliningWithCalleeDeleted() {
   markRecorded();
   recordInlineStatsIfNeeded();
-  Advisor->markFunctionAsDeleted(Callee);
   recordInliningWithCalleeDeletedImpl();
 }
 
@@ -409,8 +401,6 @@ llvm::shouldInline(CallBase &CB,
              << "' in other contexts";
     });
     setInlineRemark(CB, "deferred");
-    // IC does not bool() to false, so get an InlineCost that will.
-    // This will not be inspected to make an error message.
     return None;
   }
 
@@ -520,8 +510,6 @@ InlineAdvisor::~InlineAdvisor() {
     ImportedFunctionsStats->dump(InlinerFunctionImportStats ==
                                  InlinerFunctionImportStatsOpts::Verbose);
   }
-
-  freeDeletedFunctions();
 }
 
 std::unique_ptr<InlineAdvice> InlineAdvisor::getMandatoryAdvice(CallBase &CB,

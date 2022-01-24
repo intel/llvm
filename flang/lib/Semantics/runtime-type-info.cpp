@@ -354,7 +354,8 @@ const Symbol *RuntimeTableBuilder::DescribeType(Scope &dtScope) {
   auto locationRestorer{common::ScopedSet(location_, dtSymbol->name())};
   // Check for an existing description that can be imported from a USE'd module
   std::string typeName{dtSymbol->name().ToString()};
-  if (typeName.empty() || typeName[0] == '.') {
+  if (typeName.empty() ||
+      (typeName.front() == '.' && !context_.IsTempName(typeName))) {
     return nullptr;
   }
   std::string distinctName{typeName};
@@ -627,7 +628,7 @@ SourceName RuntimeTableBuilder::SaveObjectName(const std::string &name) {
 SomeExpr RuntimeTableBuilder::SaveNameAsPointerTarget(
     Scope &scope, const std::string &name) {
   CHECK(!name.empty());
-  CHECK(name.front() != '.');
+  CHECK(name.front() != '.' || context_.IsTempName(name));
   ObjectEntityDetails object;
   auto len{static_cast<common::ConstantSubscript>(name.size())};
   if (const auto *spec{scope.FindType(DeclTypeSpec{CharacterTypeSpec{
@@ -679,6 +680,14 @@ evaluate::StructureConstructor RuntimeTableBuilder::DescribeComponent(
     len = Fold(foldingContext, std::move(len));
   }
   if (dyType.category() == TypeCategory::Character && len) {
+    // Ignore IDIM(x) (represented as MAX(0, x))
+    if (const auto *clamped{evaluate::UnwrapExpr<
+            evaluate::Extremum<evaluate::SubscriptInteger>>(*len)}) {
+      if (clamped->ordering == evaluate::Ordering::Greater &&
+          clamped->left() == evaluate::Expr<evaluate::SubscriptInteger>{0}) {
+        len = clamped->right();
+      }
+    }
     AddValue(values, componentSchema_, "characterlen"s,
         evaluate::AsGenericExpr(GetValue(len, parameters)));
   } else {
@@ -759,7 +768,7 @@ evaluate::StructureConstructor RuntimeTableBuilder::DescribeComponent(
     AddValue(values, componentSchema_, "genre"s, GetEnumValue("pointer"));
     hasDataInit = InitializeDataPointer(
         values, symbol, object, scope, dtScope, distinctName);
-  } else if (IsAutomaticObject(symbol)) {
+  } else if (IsAutomatic(symbol)) {
     AddValue(values, componentSchema_, "genre"s, GetEnumValue("automatic"));
   } else {
     AddValue(values, componentSchema_, "genre"s, GetEnumValue("data"));

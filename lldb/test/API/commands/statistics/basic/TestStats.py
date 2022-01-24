@@ -118,6 +118,12 @@ class TestCase(TestBase):
         stats = self.get_target_stats(self.get_stats())
         self.verify_success_fail_count(stats, 'frameVariable', 1, 0)
 
+        # Test that "stopCount" is available when the process has run
+        self.assertEqual('stopCount' in stats, True,
+                         'ensure "stopCount" is in target JSON')
+        self.assertGreater(stats['stopCount'], 0,
+                           'make sure "stopCount" is greater than zero')
+
     def test_default_no_run(self):
         """Test "statistics dump" without running the target.
 
@@ -154,12 +160,16 @@ class TestCase(TestBase):
         target = self.createTestTarget()
         debug_stats = self.get_stats()
         debug_stat_keys = [
-            'modules', 
+            'modules',
             'targets',
             'totalSymbolTableParseTime',
             'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
             'totalDebugInfoByteSize',
             'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
             'totalDebugInfoParseTime',
         ]
         self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)
@@ -217,12 +227,16 @@ class TestCase(TestBase):
                                           lldb.SBFileSpec("main.c"))
         debug_stats = self.get_stats()
         debug_stat_keys = [
-            'modules', 
+            'modules',
             'targets',
             'totalSymbolTableParseTime',
             'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
             'totalDebugInfoByteSize',
             'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
             'totalDebugInfoParseTime',
         ]
         self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)
@@ -255,12 +269,16 @@ class TestCase(TestBase):
         target = self.createTestTarget(file_path=exe)
         debug_stats = self.get_stats()
         debug_stat_keys = [
-            'modules', 
+            'modules',
             'targets',
             'totalSymbolTableParseTime',
             'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
             'totalDebugInfoParseTime',
             'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
             'totalDebugInfoByteSize'
         ]
         self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)
@@ -272,12 +290,16 @@ class TestCase(TestBase):
         exe_module = self.find_module_in_metrics(exe, debug_stats)
         module_keys = [
             'debugInfoByteSize',
+            'debugInfoIndexLoadedFromCache',
             'debugInfoIndexTime',
+            'debugInfoIndexSavedToCache',
             'debugInfoParseTime',
             'identifier',
             'path',
             'symbolTableIndexTime',
+            'symbolTableLoadedFromCache',
             'symbolTableParseTime',
+            'symbolTableSavedToCache',
             'triple',
             'uuid',
         ]
@@ -315,7 +337,7 @@ class TestCase(TestBase):
                             "details": {...},
                             "id": 2,
                             "resolveTime": 4.3632581669999997
-                        }                        
+                        }
                     ]
                 }
             ],
@@ -333,12 +355,16 @@ class TestCase(TestBase):
         self.runCmd("b a_function")
         debug_stats = self.get_stats()
         debug_stat_keys = [
-            'modules', 
+            'modules',
             'targets',
             'totalSymbolTableParseTime',
             'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
             'totalDebugInfoParseTime',
             'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
             'totalDebugInfoByteSize',
         ]
         self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)
@@ -363,5 +389,5 @@ class TestCase(TestBase):
             'resolveTime'
         ]
         for breakpoint in breakpoints:
-            self.verify_keys(breakpoint, 'target_stats["breakpoints"]', 
+            self.verify_keys(breakpoint, 'target_stats["breakpoints"]',
                              bp_keys_exist, None)

@@ -32,7 +32,7 @@ namespace llvm {
 class DefInit;
 class Record;
 class StringInit;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 namespace tblgen {
@@ -235,6 +235,9 @@ public:
   // Returns this op's extra class declaration code.
   StringRef getExtraClassDeclaration() const;
 
+  // Returns this op's extra class definition code.
+  StringRef getExtraClassDefinition() const;
+
   // Returns the Tablegen definition this operator was constructed from.
   // TODO: do not expose the TableGen record, this is a temporary solution to
   // OpEmitter requiring a Record because Operator does not provide enough
@@ -370,7 +373,7 @@ private:
   bool allResultsHaveKnownTypes;
 };
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TABLEGEN_OPERATOR_H_

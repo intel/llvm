@@ -38,6 +38,7 @@ public:
   Kind kind() const { return shared->sectionKind; }
   virtual ~InputSection() = default;
   virtual uint64_t getSize() const { return data.size(); }
+  virtual bool empty() const { return data.empty(); }
   InputFile *getFile() const { return shared->file; }
   StringRef getName() const { return shared->name; }
   StringRef getSegName() const { return shared->segname; }
@@ -52,13 +53,13 @@ public:
   virtual bool isLive(uint64_t off) const = 0;
   virtual void markLive(uint64_t off) = 0;
   virtual InputSection *canonical() { return this; }
+  virtual const InputSection *canonical() const { return this; }
 
   OutputSection *parent = nullptr;
 
   uint32_t align = 1;
-  uint32_t callSiteCount : 31;
   // is address assigned?
-  uint32_t isFinal : 1;
+  bool isFinal = false;
 
   ArrayRef<uint8_t> data;
   std::vector<Reloc> relocs;
@@ -85,12 +86,11 @@ protected:
 
   InputSection(Kind kind, StringRef segname, StringRef name, InputFile *file,
                ArrayRef<uint8_t> data, uint32_t align, uint32_t flags)
-      : align(align), callSiteCount(0), isFinal(false), data(data),
+      : align(align), data(data),
         shared(make<Shared>(file, name, segname, flags, kind)) {}
 
   InputSection(const InputSection &rhs)
-      : align(rhs.align), callSiteCount(0), isFinal(false), data(rhs.data),
-        shared(rhs.shared) {}
+      : align(rhs.align), data(rhs.data), shared(rhs.shared) {}
 
   const Shared *const shared;
 };
@@ -115,7 +115,7 @@ public:
   // ConcatInputSections are entirely live or dead, so the offset is irrelevant.
   bool isLive(uint64_t off) const override { return live; }
   void markLive(uint64_t off) override { live = true; }
-  bool isCoalescedWeak() const { return wasCoalesced && symbols.size() == 0; }
+  bool isCoalescedWeak() const { return wasCoalesced && symbols.empty(); }
   bool shouldOmitFromOutput() const { return !live || isCoalescedWeak(); }
   bool isHashableForICF() const;
   void hashForICF();
@@ -123,6 +123,9 @@ public:
 
   void foldIdentical(ConcatInputSection *redundant);
   ConcatInputSection *canonical() override {
+    return replacement ? replacement : this;
+  }
+  const InputSection *canonical() const override {
     return replacement ? replacement : this;
   }
 
@@ -142,16 +145,12 @@ public:
   // first and not copied to the output.
   bool wasCoalesced = false;
   bool live = !config->deadStrip;
+  bool hasCallSites = false;
   // This variable has two usages. Initially, it represents the input order.
   // After assignAddresses is called, it represents the offset from the
   // beginning of the output section this section was assigned to.
   uint64_t outSecOff = 0;
 };
-
-// Verify ConcatInputSection's size on 64-bit builds.
-static_assert(sizeof(int) != 8 || sizeof(ConcatInputSection) == 112,
-              "Try to minimize ConcatInputSection's size, we create many "
-              "instances of it");
 
 // Helper functions to make it easy to sprinkle asserts.
 
@@ -239,7 +238,9 @@ public:
   bool isLive(uint64_t off) const override {
     return live[off >> power2LiteralSize];
   }
-  void markLive(uint64_t off) override { live[off >> power2LiteralSize] = 1; }
+  void markLive(uint64_t off) override {
+    live[off >> power2LiteralSize] = true;
+  }
 
   static bool classof(const InputSection *isec) {
     return isec->kind() == WordLiteralKind;
@@ -302,6 +303,7 @@ constexpr const char debugAbbrev[] = "__debug_abbrev";
 constexpr const char debugInfo[] = "__debug_info";
 constexpr const char debugStr[] = "__debug_str";
 constexpr const char ehFrame[] = "__eh_frame";
+constexpr const char gccExceptTab[] = "__gcc_except_tab";
 constexpr const char export_[] = "__export";
 constexpr const char dataInCode[] = "__data_in_code";
 constexpr const char functionStarts[] = "__func_starts";

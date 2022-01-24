@@ -14,7 +14,6 @@
 
 #include "Plugins/Process/Utility/GDBRemoteSignals.h"
 #include "Plugins/Process/gdb-remote/GDBRemoteCommunicationClient.h"
-#include "Plugins/Process/gdb-remote/GDBRemoteCommunicationReplayServer.h"
 #include "lldb/Target/Platform.h"
 
 namespace lldb_private {
@@ -40,10 +39,6 @@ public:
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   // lldb_private::Platform functions
-  Status
-  ResolveExecutable(const ModuleSpec &module_spec, lldb::ModuleSP &module_sp,
-                    const FileSpecList *module_search_paths_ptr) override;
-
   bool GetModuleSpec(const FileSpec &module_file_spec, const ArchSpec &arch,
                      ModuleSpec &module_spec) override;
 
@@ -70,7 +65,9 @@ public:
                                          // target, else use existing one
                          Status &error) override;
 
-  bool GetSupportedArchitectureAtIndex(uint32_t idx, ArchSpec &arch) override;
+  std::vector<ArchSpec> GetSupportedArchitectures() override {
+    return m_supported_architectures;
+  }
 
   size_t GetSoftwareBreakpointTrapOpcode(Target &target,
                                          BreakpointSite *bp_site) override;
@@ -156,8 +153,8 @@ public:
   GetPendingGdbServerList(std::vector<std::string> &connection_urls);
 
 protected:
-  process_gdb_remote::GDBRemoteCommunicationClient m_gdb_client;
-  process_gdb_remote::GDBRemoteCommunicationReplayServer m_gdb_replay_server;
+  std::unique_ptr<process_gdb_remote::GDBRemoteCommunicationClient>
+      m_gdb_client_up;
   std::string m_platform_description; // After we connect we can get a more
                                       // complete description of what we are
                                       // connected to
@@ -185,6 +182,8 @@ private:
 
   llvm::Optional<std::string> DoGetUserName(UserIDResolver::id_t uid) override;
   llvm::Optional<std::string> DoGetGroupName(UserIDResolver::id_t uid) override;
+
+  std::vector<ArchSpec> m_supported_architectures;
 
   PlatformRemoteGDBServer(const PlatformRemoteGDBServer &) = delete;
   const PlatformRemoteGDBServer &

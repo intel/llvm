@@ -730,47 +730,6 @@ define i1 @test38_extra_uses(i32 %x, i32 %y, i32 %z) {
   ret i1 %c
 }
 
-; PR9343 #1
-define i1 @test39(i32 %X, i32 %Y) {
-; CHECK-LABEL: @test39(
-; CHECK-NEXT:    [[B:%.*]] = icmp eq i32 [[X:%.*]], 0
-; CHECK-NEXT:    ret i1 [[B]]
-;
-  %A = ashr exact i32 %X, %Y
-  %B = icmp eq i32 %A, 0
-  ret i1 %B
-}
-
-define <2 x i1> @test39vec(<2 x i32> %X, <2 x i32> %Y) {
-; CHECK-LABEL: @test39vec(
-; CHECK-NEXT:    [[B:%.*]] = icmp eq <2 x i32> [[X:%.*]], zeroinitializer
-; CHECK-NEXT:    ret <2 x i1> [[B]]
-;
-  %A = ashr exact <2 x i32> %X, %Y
-  %B = icmp eq <2 x i32> %A, zeroinitializer
-  ret <2 x i1> %B
-}
-
-define i1 @test40(i32 %X, i32 %Y) {
-; CHECK-LABEL: @test40(
-; CHECK-NEXT:    [[B:%.*]] = icmp ne i32 [[X:%.*]], 0
-; CHECK-NEXT:    ret i1 [[B]]
-;
-  %A = lshr exact i32 %X, %Y
-  %B = icmp ne i32 %A, 0
-  ret i1 %B
-}
-
-define <2 x i1> @test40vec(<2 x i32> %X, <2 x i32> %Y) {
-; CHECK-LABEL: @test40vec(
-; CHECK-NEXT:    [[B:%.*]] = icmp ne <2 x i32> [[X:%.*]], zeroinitializer
-; CHECK-NEXT:    ret <2 x i1> [[B]]
-;
-  %A = lshr exact <2 x i32> %X, %Y
-  %B = icmp ne <2 x i32> %A, zeroinitializer
-  ret <2 x i1> %B
-}
-
 define i1 @shr_exact(i132 %x) {
 ; CHECK-LABEL: @shr_exact(
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i132 [[X:%.*]], 32
@@ -1129,9 +1088,13 @@ define void @test58() {
 }
 declare i32 @test58_d(i64)
 
+; Negative test: GEP inbounds may cross sign boundary.
 define i1 @test62(i8* %a) {
 ; CHECK-LABEL: @test62(
-; CHECK-NEXT:    ret i1 true
+; CHECK-NEXT:    [[ARRAYIDX1:%.*]] = getelementptr inbounds i8, i8* [[A:%.*]], i64 1
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i8, i8* [[A]], i64 10
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i8* [[ARRAYIDX1]], [[ARRAYIDX2]]
+; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %arrayidx1 = getelementptr inbounds i8, i8* %a, i64 1
   %arrayidx2 = getelementptr inbounds i8, i8* %a, i64 10
@@ -1141,7 +1104,10 @@ define i1 @test62(i8* %a) {
 
 define i1 @test62_as1(i8 addrspace(1)* %a) {
 ; CHECK-LABEL: @test62_as1(
-; CHECK-NEXT:    ret i1 true
+; CHECK-NEXT:    [[ARRAYIDX1:%.*]] = getelementptr inbounds i8, i8 addrspace(1)* [[A:%.*]], i16 1
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i8, i8 addrspace(1)* [[A]], i16 10
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i8 addrspace(1)* [[ARRAYIDX1]], [[ARRAYIDX2]]
+; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %arrayidx1 = getelementptr inbounds i8, i8 addrspace(1)* %a, i64 1
   %arrayidx2 = getelementptr inbounds i8, i8 addrspace(1)* %a, i64 10

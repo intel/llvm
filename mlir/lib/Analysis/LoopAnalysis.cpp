@@ -182,8 +182,7 @@ static bool isAccessIndexInvariant(Value iv, Value index) {
 
 DenseSet<Value> mlir::getInvariantAccesses(Value iv, ArrayRef<Value> indices) {
   DenseSet<Value> res;
-  for (unsigned idx = 0, n = indices.size(); idx < n; ++idx) {
-    auto val = indices[idx];
+  for (auto val : indices) {
     if (isAccessIndexInvariant(iv, val)) {
       res.insert(val);
     }
@@ -265,7 +264,7 @@ using VectorizableOpFun = std::function<bool(AffineForOp, Operation &)>;
 
 static bool
 isVectorizableLoopBodyWithOpCond(AffineForOp loop,
-                                 VectorizableOpFun isVectorizableOp,
+                                 const VectorizableOpFun &isVectorizableOp,
                                  NestedPattern &vectorTransferMatcher) {
   auto *forOp = loop.getOperation();
 
@@ -354,7 +353,8 @@ bool mlir::isOpwiseShiftValid(AffineForOp forOp, ArrayRef<uint64_t> shifts) {
   // Work backwards over the body of the block so that the shift of a use's
   // ancestor operation in the block gets recorded before it's looked up.
   DenseMap<Operation *, uint64_t> forBodyShift;
-  for (auto it : llvm::enumerate(llvm::reverse(forBody->getOperations()))) {
+  for (const auto &it :
+       llvm::enumerate(llvm::reverse(forBody->getOperations()))) {
     auto &op = it.value();
 
     // Get the index of the current operation, note that we are iterating in

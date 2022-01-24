@@ -15,7 +15,7 @@
 #include "Arch/SystemZ.h"
 #include "Arch/VE.h"
 #include "Arch/X86.h"
-#include "HIP.h"
+#include "HIPAMD.h"
 #include "Hexagon.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/LangOptions.h"
@@ -795,7 +795,7 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
                          SmallVectorImpl<StringRef> &NonWholeStaticRuntimes,
                          SmallVectorImpl<StringRef> &HelperStaticRuntimes,
                          SmallVectorImpl<StringRef> &RequiredSymbols) {
-  const SanitizerArgs &SanArgs = TC.getSanitizerArgs();
+  const SanitizerArgs &SanArgs = TC.getSanitizerArgs(Args);
   // Collect shared runtimes.
   if (SanArgs.needsSharedRt()) {
     if (SanArgs.needsAsanRt() && SanArgs.linkRuntimes()) {
@@ -833,6 +833,10 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   // The stats_client library is also statically linked into DSOs.
   if (SanArgs.needsStatsRt() && SanArgs.linkRuntimes())
     StaticRuntimes.push_back("stats_client");
+
+  // Always link the static runtime regardless of DSO or executable.
+  if (SanArgs.needsAsanRt())
+    HelperStaticRuntimes.push_back("asan_static");
 
   // Collect static runtimes.
   if (Args.hasArg(options::OPT_shared)) {
@@ -931,7 +935,7 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
                            NonWholeStaticRuntimes, HelperStaticRuntimes,
                            RequiredSymbols);
 
-  const SanitizerArgs &SanArgs = TC.getSanitizerArgs();
+  const SanitizerArgs &SanArgs = TC.getSanitizerArgs(Args);
   // Inject libfuzzer dependencies.
   if (SanArgs.needsFuzzer() && SanArgs.linkRuntimes() &&
       !Args.hasArg(options::OPT_shared)) {
@@ -1124,7 +1128,7 @@ tools::ParsePICArgs(const ToolChain &ToolChain, const ArgList &Args) {
   const llvm::Triple &EffectiveTriple = ToolChain.getEffectiveTriple();
   const llvm::Triple &Triple = ToolChain.getTriple();
 
-  bool PIE = ToolChain.isPIEDefault();
+  bool PIE = ToolChain.isPIEDefault(Args);
   bool PIC = PIE || ToolChain.isPICDefault();
   // The Darwin/MachO default to use PIC does not apply when using -static.
   if (Triple.isOSBinFormatMachO() && Args.hasArg(options::OPT_static))
@@ -1194,10 +1198,9 @@ tools::ParsePICArgs(const ToolChain &ToolChain, const ArgList &Args) {
                                     options::OPT_fpic, options::OPT_fno_pic,
                                     options::OPT_fPIE, options::OPT_fno_PIE,
                                     options::OPT_fpie, options::OPT_fno_pie);
-  if (Triple.isOSWindows() && LastPICArg &&
-      LastPICArg ==
-          Args.getLastArg(options::OPT_fPIC, options::OPT_fpic,
-                          options::OPT_fPIE, options::OPT_fpie)) {
+  if (Triple.isOSWindows() && !Triple.isOSCygMing() && LastPICArg &&
+      LastPICArg == Args.getLastArg(options::OPT_fPIC, options::OPT_fpic,
+                                    options::OPT_fPIE, options::OPT_fpie)) {
     ToolChain.getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
         << LastPICArg->getSpelling() << Triple.str();
     if (Triple.getArch() == llvm::Triple::x86_64)
@@ -1732,7 +1735,7 @@ bool tools::GetSDLFromOffloadArchive(
     std::string OutputLib = D.GetTemporaryPath(
         Twine(Prefix + Lib + "-" + Arch + "-" + Target).str(), "a");
 
-    C.addTempFile(C.getArgs().MakeArgString(OutputLib.c_str()));
+    C.addTempFile(C.getArgs().MakeArgString(OutputLib));
 
     ArgStringList CmdArgs;
     SmallString<128> DeviceTriple;
@@ -1755,20 +1758,20 @@ bool tools::GetSDLFromOffloadArchive(
         T.getToolChain().GetProgramPath("clang-offload-bundler"));
 
     ArgStringList UBArgs;
-    UBArgs.push_back(C.getArgs().MakeArgString(UnbundleArg.c_str()));
-    UBArgs.push_back(C.getArgs().MakeArgString(TypeArg.c_str()));
-    UBArgs.push_back(C.getArgs().MakeArgString(InputArg.c_str()));
-    UBArgs.push_back(C.getArgs().MakeArgString(OffloadArg.c_str()));
-    UBArgs.push_back(C.getArgs().MakeArgString(OutputArg.c_str()));
+    UBArgs.push_back(C.getArgs().MakeArgString(UnbundleArg));
+    UBArgs.push_back(C.getArgs().MakeArgString(TypeArg));
+    UBArgs.push_back(C.getArgs().MakeArgString(InputArg));
+    UBArgs.push_back(C.getArgs().MakeArgString(OffloadArg));
+    UBArgs.push_back(C.getArgs().MakeArgString(OutputArg));
 
     // Add this flag to not exit from clang-offload-bundler if no compatible
     // code object is found in heterogenous archive library.
     std::string AdditionalArgs("-allow-missing-bundles");
-    UBArgs.push_back(C.getArgs().MakeArgString(AdditionalArgs.c_str()));
+    UBArgs.push_back(C.getArgs().MakeArgString(AdditionalArgs));
 
     C.addCommand(std::make_unique<Command>(
         JA, T, ResponseFileSupport::AtFileCurCP(), UBProgram, UBArgs, Inputs,
-        InputInfo(&JA, C.getArgs().MakeArgString(OutputLib.c_str()))));
+        InputInfo(&JA, C.getArgs().MakeArgString(OutputLib))));
     if (postClangLink)
       CC1Args.push_back("-mlink-builtin-bitcode");
 
@@ -1898,12 +1901,12 @@ void tools::checkAMDGPUCodeObjectVersion(const Driver &D,
 
   // Emit warnings for legacy options even if they are overridden.
   if (Args.hasArg(options::OPT_mno_code_object_v3_legacy))
-    D.Diag(diag::warn_drv_deprecated_arg)
-        << "-mno-code-object-v3" << true << "-mcode-object-version=2";
+    D.Diag(diag::warn_drv_deprecated_arg) << "-mno-code-object-v3"
+                                          << "-mcode-object-version=2";
 
   if (Args.hasArg(options::OPT_mcode_object_v3_legacy))
-    D.Diag(diag::warn_drv_deprecated_arg)
-        << "-mcode-object-v3" << true << "-mcode-object-version=3";
+    D.Diag(diag::warn_drv_deprecated_arg) << "-mcode-object-v3"
+                                          << "-mcode-object-version=3";
 
   if (auto *CodeObjArg = getAMDGPUCodeObjectArgument(D, Args)) {
     if (CodeObjArg->getOption().getID() ==

@@ -34,6 +34,12 @@
 #include <utility>
 #include <vector>
 
+namespace llvm {
+
+class Triple;
+
+} // namespace llvm
+
 namespace clang {
 
 class DiagnosticsEngine;
@@ -130,13 +136,6 @@ struct HeaderFileInfo {
   /// any.
   const IdentifierInfo *
   getControllingMacro(ExternalPreprocessorSource *External);
-
-  /// Determine whether this is a non-default header file info, e.g.,
-  /// it corresponds to an actual header we've included or tried to include.
-  bool isNonDefault() const {
-    return isImport || isPragmaOnce || NumIncludes || ControllingMacro ||
-      ControllingMacroID;
-  }
 };
 
 /// An external source of header file information, which may supply
@@ -288,26 +287,15 @@ public:
   /// Interface for setting the file search paths.
   void SetSearchPaths(std::vector<DirectoryLookup> dirs, unsigned angledDirIdx,
                       unsigned systemDirIdx, bool noCurDirSearch,
-                      llvm::DenseMap<unsigned, unsigned> searchDirToHSEntry) {
-    assert(angledDirIdx <= systemDirIdx && systemDirIdx <= dirs.size() &&
-        "Directory indices are unordered");
-    SearchDirs = std::move(dirs);
-    SearchDirsUsage.assign(SearchDirs.size(), false);
-    AngledDirIdx = angledDirIdx;
-    SystemDirIdx = systemDirIdx;
-    NoCurDirSearch = noCurDirSearch;
-    SearchDirToHSEntry = std::move(searchDirToHSEntry);
-    //LookupFileCache.clear();
-  }
+                      llvm::DenseMap<unsigned, unsigned> searchDirToHSEntry);
 
   /// Add an additional search path.
-  void AddSearchPath(const DirectoryLookup &dir, bool isAngled) {
-    unsigned idx = isAngled ? SystemDirIdx : AngledDirIdx;
-    SearchDirs.insert(SearchDirs.begin() + idx, dir);
-    SearchDirsUsage.insert(SearchDirsUsage.begin() + idx, false);
-    if (!isAngled)
-      AngledDirIdx++;
-    SystemDirIdx++;
+  void AddSearchPath(const DirectoryLookup &dir, bool isAngled);
+
+  /// Add an additional system search path.
+  void AddSystemSearchPath(const DirectoryLookup &dir) {
+    SearchDirs.push_back(dir);
+    SearchDirsUsage.push_back(false);
   }
 
   /// Set the list of system header prefixes.
@@ -450,8 +438,8 @@ public:
   /// \return false if \#including the file will have no effect or true
   /// if we should include it.
   bool ShouldEnterIncludeFile(Preprocessor &PP, const FileEntry *File,
-                              bool isImport, bool ModulesEnabled,
-                              Module *M);
+                              bool isImport, bool ModulesEnabled, Module *M,
+                              bool &IsFirstIncludeOfFile);
 
   /// Return whether the specified file is a normal header,
   /// a system header, or a C++ friendly system header.
@@ -494,11 +482,6 @@ public:
   void SetFileControllingMacro(const FileEntry *File,
                                const IdentifierInfo *ControllingMacro) {
     getFileInfo(File).ControllingMacro = ControllingMacro;
-  }
-
-  /// Return true if this is the first time encountering this header.
-  bool FirstTimeLexingFile(const FileEntry *File) {
-    return getFileInfo(File).NumIncludes == 1;
   }
 
   /// Determine whether this file is intended to be safe from
@@ -867,6 +850,12 @@ private:
   LoadModuleMapResult loadModuleMapFile(const DirectoryEntry *Dir,
                                         bool IsSystem, bool IsFramework);
 };
+
+/// Apply the header search options to get given HeaderSearch object.
+void ApplyHeaderSearchOptions(HeaderSearch &HS,
+                              const HeaderSearchOptions &HSOpts,
+                              const LangOptions &Lang,
+                              const llvm::Triple &triple);
 
 } // namespace clang
 

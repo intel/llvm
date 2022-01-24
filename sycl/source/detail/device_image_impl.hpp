@@ -17,6 +17,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/mem_alloc_helper.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
@@ -183,13 +184,18 @@ public:
 
   RT::PiMem &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-    if (nullptr == MSpecConstsBuffer) {
+    if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      Plugin.call<PiApiKind::piMemBufferCreate>(
-          detail::getSyclObjImpl(MContext)->getHandleRef(),
-          PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_USE,
-          MSpecConstsBlob.size(), MSpecConstsBlob.data(), &MSpecConstsBuffer,
-          nullptr);
+      // Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
+      // since post-enqueue cleanup might trigger destruction of
+      // device_image_impl and, as a result, destruction of MSpecConstsBlob
+      // while MSpecConstsBuffer is still in use.
+      // TODO consider changing the lifetime of device_image_impl instead
+      memBufferCreateHelper(Plugin,
+                            detail::getSyclObjImpl(MContext)->getHandleRef(),
+                            PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
+                            MSpecConstsBlob.size(), MSpecConstsBlob.data(),
+                            &MSpecConstsBuffer, nullptr);
     }
     return MSpecConstsBuffer;
   }
@@ -219,6 +225,11 @@ public:
     if (MProgram) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin.call<PiApiKind::piProgramRelease>(MProgram);
+    }
+    if (MSpecConstsBuffer) {
+      std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      memReleaseHelper(Plugin, MSpecConstsBuffer);
     }
   }
 

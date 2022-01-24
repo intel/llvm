@@ -105,6 +105,11 @@ defm strip_unneeded_symbols
          "if they are not needed by relocations">,
       MetaVarName<"filename">;
 
+defm subsystem
+    : Eq<"subsystem",
+         "Set PE subsystem and version">,
+      MetaVarName<"name[:version]">;
+
 def extract_dwo
     : Flag<["--"], "extract-dwo">,
       HelpText<
@@ -215,3 +220,7 @@ defm add_symbol
          "compatibility: debug, constructor, warning, indirect, synthetic, "
          "unique-object, before.">,
       MetaVarName<"name=[section:]value[,flags]">;
+
+defm update_section
+    : Eq<"update-section", "Add section <name> with contents from a file <file>.">,
+      MetaVarName<"name=file">;
