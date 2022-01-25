@@ -296,6 +296,8 @@ unsigned int sycl_get_cm_surface_index(void *PtrInput) {
   return (unsigned int)(Surface->SurfaceIndex);
 }
 
+// Function to provide image info for kernel compilation using surface
+// index without dependency on '_pi_image' definition
 void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
                                      uint32_t *Width, std::mutex **MtxLock) {
   const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
@@ -311,6 +313,8 @@ void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
   *MtxLock = &(Buf->mutexLock);
 }
 
+// Function to provide image info for kernel compilation using surface
+// index without dependency on '_pi_image' definition
 void sycl_get_cm_image_params_index(unsigned int IndexInput, char **BaseAddr,
                                     uint32_t *Width, uint32_t *Height,
                                     uint32_t *Bpp, std::mutex **MtxLock) {
