@@ -840,7 +840,7 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 /// Declare per-work-group slm size.
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
-  ;
+    ;
 #else  // __SYCL_DEVICE_ONLY__
 {
   // TODO : Lower to memory_intrin.hpp
