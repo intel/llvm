@@ -154,7 +154,7 @@ public:
 };
 
 } // namespace experimental
-} // namespace intel
+} // namespace oneapi
 } // namespace ext
 
 } // namespace sycl
