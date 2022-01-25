@@ -5894,8 +5894,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
           Current, InputArg, phases::Link, PL.back(), PL);
     };
     for (StringRef LA : LinkArgs) {
-      // At this point, we will process the archives for FPGA AOCO and individual
-      // archive unbundling for Windows.
+      // At this point, we will process the archives for FPGA AOCO and
+      // individual archive unbundling for Windows.
       if (!isStaticArchiveFile(LA))
         continue;
       // FPGA AOCX/AOCR files are archives, but we do not want to unbundle them
@@ -5915,8 +5915,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (hasOffloadSections(C, LA, Args)) {
         // Pass along the static libraries to check if we need to add them for
         // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
-        // differentiate if aoco unbundling is needed.  Unbundling of aoco is not
-        // needed for emulation, as these are treated as regular archives.
+        // differentiate if aoco unbundling is needed.  Unbundling of aoco is
+        // not needed for emulation, as these are treated as regular archives.
         if (!C.getDriver().isFPGAEmulationMode())
           unbundleStaticLib(types::TY_FPGA_AOCO, LA);
         // Do not unbundle any AOCO archive as a regular archive when we are
