@@ -743,22 +743,13 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
           FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    ASTContext &ClangCtx = FD->getASTContext();
-    Optional<llvm::APSInt> XDimVal = A->getXDimVal(ClangCtx);
-    Optional<llvm::APSInt> YDimVal = A->getYDimVal(ClangCtx);
-    Optional<llvm::APSInt> ZDimVal = A->getZDimVal(ClangCtx);
-
-    // For a SYCLDevice SYCLIntelMaxWorkGroupSizeAttr arguments are reversed.
-    if (getLangOpts().SYCLIsDevice)
-      std::swap(XDimVal, ZDimVal);
-
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(XDimVal->getZExtValue())),
+            Builder.getInt(*A->getXDimVal())),
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(YDimVal->getZExtValue())),
+            Builder.getInt(*A->getYDimVal())),
         llvm::ConstantAsMetadata::get(
-            Builder.getInt32(ZDimVal->getZExtValue()))};
+            Builder.getInt(*A->getZDimVal()))};
     Fn->setMetadata("max_work_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }

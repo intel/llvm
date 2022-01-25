@@ -127,13 +127,29 @@ int main() {
         []() [[intel::max_work_group_size(1.2f, 1, 3)]]{}); // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
 
     h.single_task<class test_kernel8>(
-        []() [[intel::max_work_group_size(16, 16, 16),   // expected-note{{conflicting attribute is here}}
+        []() [[intel::max_work_group_size(16, 16, 16),   // expected-note{{previous attribute is here}}
                intel::max_work_group_size(2, 2, 2)]]{}); // expected-warning{{attribute 'max_work_group_size' is already applied with different arguments}}
 
     h.single_task<class test_kernel9>(
         DAFuncObj());
 
 #endif // TRIGGER_ERROR
+    // Ignore duplicate attribute.
+    h.single_task<class test_kernel10>(
+    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel10
+    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 2
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 2
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
+    // CHECK-NEXT:  value: Int 2
+    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
+    // CHECK-NOT:   SYCLIntelMaxWorkGroupSizeAttr
+        []() [[intel::max_work_group_size(2, 2, 2),
+               intel::max_work_group_size(2, 2, 2)]]{});
   });
   return 0;
 }

@@ -101,12 +101,8 @@ struct TRIFuncObjGood8 {
   operator()() const {}
 };
 
-// FIXME: We do not have support yet for checking
-// max_work_group_size and max_global_work_dim
-// attributes when merging, so the test compiles without
-// any diagnostic when it shouldn't.
 struct TRIFuncObjBad {
-  [[intel::max_work_group_size(4, 4, 4)]] void
+  [[intel::max_work_group_size(4, 4, 4)]] void // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   operator()() const;
 };
 
