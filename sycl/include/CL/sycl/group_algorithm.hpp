@@ -101,16 +101,9 @@ template <typename T, typename BinaryOperation> struct is_native_op {
       is_contained<BinaryOperation, native_op_list<void>>::value;
 };
 
-
-// CP
 // ---- is_complex
 template <typename T>
 struct is_complex : std::bool_constant<std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>> || std::is_same_v<T, std::complex<long double>>> {};
-
-// ---- is_arithmetic_or_complex
-template <typename T>
-using is_arithmetic_or_complex =
-  std::bool_constant<sycl::detail::is_complex<T>::value || sycl::detail::is_arithmetic<T>::value>;
 
 // ---- for_each
 template <typename Group, typename Ptr, class Function>
@@ -260,24 +253,18 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 // ---- joint_reduce
+//    specialized for is_arithmetic (both scalar and vector) and complex
+//    (limited to sycl::plus)
 template <typename Group, typename Ptr, class BinaryOperation>
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
      detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
     typename detail::remove_pointer<Ptr>::type>
 joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
-  using T = typename detail::remove_pointer<Ptr>::type;
-  // FIXME: Do not special-case for half precision
-  static_assert(
-      std::is_same<decltype(binary_op(*first, *first)), T>::value ||
-          (std::is_same<T, half>::value &&
-           std::is_same<decltype(binary_op(*first, *first)), float>::value),
-      "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial = sycl::known_identity_v<BinaryOperation, T>;
-  sycl::detail::for_each(g, first, last,
-                         [&](const T &x) { partial = binary_op(partial, x); });
-  return reduce_over_group(g, partial, binary_op);
+  using T = typename detail::remove_pointer<Ptr>::type;
+  T init = sycl::known_identity_v<BinaryOperation, T>;
+  return joint_reduce(g, first, last, init, binary_op);
 #else
   (void)g;
   (void)last;
@@ -308,6 +295,53 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
   sycl::detail::for_each(
       g, first, last, [&](const typename detail::remove_pointer<Ptr>::type &x) {
         partial = binary_op(partial, x);
+      });
+  return reduce_over_group(g, partial, init, binary_op);
+#else
+  (void)g;
+  (void)last;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+// specializations of joint_reduce for complex, limited to sycl::plus operation.
+// T will be std::complex<float> or similar
+template <typename Group, typename Ptr>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
+     detail::is_complex<typename detail::remove_pointer<Ptr>::type>::value),
+    typename detail::remove_pointer<Ptr>::type>
+joint_reduce(Group g, Ptr first, Ptr last,
+             sycl::plus<typename detail::remove_pointer<Ptr>::type> binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  using T = typename detail::remove_pointer<Ptr>::type;
+  T init{0, 0};
+  return joint_reduce(g, first, last, init, binary_op);
+#else
+  (void)g;
+  (void)last;
+  (void)binary_op;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename Ptr, typename T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
+     detail::is_complex<typename detail::remove_pointer<Ptr>::type>::value &&
+     detail::is_complex<T>::value &&
+     detail::is_native_op<typename detail::remove_pointer<Ptr>::type,
+                          sycl::plus<T>>::value &&
+     detail::is_native_op<T, sycl::plus<T>>::value),
+    T>
+joint_reduce(Group g, Ptr first, Ptr last, T init, sycl::plus<T> binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  T partial{0, 0};
+  sycl::detail::for_each(
+      g, first, last, [&](const typename detail::remove_pointer<Ptr>::type &x) {
+        partial += x;
       });
   return reduce_over_group(g, partial, init, binary_op);
 #else
