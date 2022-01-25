@@ -30,15 +30,15 @@ void AssertRelease(bool Cond, const char *Msg) {
     report_fatal_error(Twine("DeviceGlobals.cpp: ") + Msg);
 }
 
-/// Checks whether the string that represents a boolean value ("true"/"false"
-/// or "1"/"0" actually represents \c false.
+/// Converts the string into a boolean value. If the string is equal to "false"
+/// we consider its value as /c false, /true otherwise.
 ///
 /// @param Value [in] "boolean as string" value.
 ///
-/// @returns \c true if the value of \c Value represents \c false, \c false
+/// @returns \c true if the value of \c Value equals to "true", \c false
 /// otherwise.
-bool isFalsey(StringRef Value) {
-  return Value.equals("false") || !Value.compare_numeric("0");
+bool toBool(StringRef Value) {
+  return !Value.equals("false");
 }
 
 /// Checks whether the device global variable has the \c device_image_scope
@@ -51,8 +51,7 @@ bool isFalsey(StringRef Value) {
 /// @returns \c true if variable \c GV has the \c device_image_scope property,
 /// \c false otherwise.
 bool hasDeviceImageScope(const GlobalVariable &GV) {
-  return GV.hasAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR) &&
-         !isFalsey(
+  return GV.hasAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR) && toBool(
              GV.getAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR).getValueAsString());
 }
 
