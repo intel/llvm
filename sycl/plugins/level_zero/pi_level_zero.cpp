@@ -1359,15 +1359,29 @@ pi_result _pi_queue::getOrCreateCopyCommandQueue(
 
   // Ze copy command queue is not available at 'Index'. So we create it below.
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  ZeCommandQueueDesc.ordinal = (Index == 0) ? Device->ZeMainCopyQueueGroupIndex
-                                            : Device->ZeLinkCopyQueueGroupIndex;
   // There are two copy queues: main copy queues and link copy queues.
-  // ZeCommandQueueDesc.index is the index into the list of main (or link)
-  // copy queues. (Index == 0) means we are using the main copy queue and
-  // ZeCommandQueueDesc.index is set to 0. Otherwise, we use one of the link
-  // copy queues and ZeCommandQueueDesc.index is set to (Index - 1) as Index
-  // for link copy engines in the overall list starts from 1.
-  ZeCommandQueueDesc.index = (Index == 0) ? 0 : Index - 1;
+  // Index is the 'index' into the overall list of copy queues
+  // (one queue per copy engine).
+  // ZeCommandQueueDesc.ordinal specifies the copy group (main or link)
+  // ZeCommandQueueDesc.index specifies the copy queue/engine within a group
+  // Following are possible scenarios:
+  // 1. (Index == 0) and main copy engine is available:
+  //    ZeCommandQueueDesc.ordinal = Device->ZeMainCopyQueueGroupIndex
+  //    ZeCommandQueueDesc.index = 0
+  // 2. (Index == 0) and main copy engine is not available:
+  //    ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex
+  //    ZeCommandQueueDesc.index = 0
+  // 3. (Index != 0) and main copy engine is available:
+  //    ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex
+  //    ZeCommandQueueDesc.index = Index - 1
+  // 4. (Index != 0) and main copy engine is not available:
+  //    ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex
+  //    ZeCommandQueueDesc.index = Index
+  ZeCommandQueueDesc.ordinal = (Index == 0 && Device->hasMainCopyEngine())
+                                   ? Device->ZeMainCopyQueueGroupIndex
+                                   : Device->ZeLinkCopyQueueGroupIndex;
+  ZeCommandQueueDesc.index =
+      (Index != 0 && Device->hasMainCopyEngine()) ? Index - 1 : Index;
   zePrint("NOTE: Copy Engine ZeCommandQueueDesc.ordinal = %d, "
           "ZeCommandQueueDesc.index = %d\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index);
@@ -1403,13 +1417,18 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
   LowerCopyQueueIndex = std::max(0, LowerCopyQueueIndex);
   UpperCopyQueueIndex = std::min(UpperCopyQueueIndex, n - 1);
 
-  // If there is only one copy queue, it is the main copy queue, which is the
-  // first, and only entry in ZeCopyCommandQueues.
+  // If there is only one copy queue, it is the main copy queue (if available),
+  // or the first link copy queue in ZeCopyCommandQueues.
   if (n == 1) {
     *CopyQueueIndex = 0;
-    if (CopyQueueGroupIndex)
-      *CopyQueueGroupIndex = Device->ZeMainCopyQueueGroupIndex;
+    if (CopyQueueGroupIndex) {
+      if (Device->hasMainCopyEngine())
+        *CopyQueueGroupIndex = Device->ZeMainCopyQueueGroupIndex;
+      else
+        *CopyQueueGroupIndex = Device->ZeLinkCopyQueueGroupIndex;
+    }
     zePrint("Note: CopyQueueIndex = %d\n", *CopyQueueIndex);
+    zePrint("Note: CopyQueueGroupIndex = %d\n", *CopyQueueGroupIndex);
     ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
     if (getOrCreateCopyCommandQueue(0, ZeCopyCommandQueue))
       return nullptr;
