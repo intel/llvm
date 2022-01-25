@@ -5155,7 +5155,10 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     if (Event->OwnZeEvent) {
       ZE_CALL(zeEventDestroy, (Event->ZeEvent));
     }
-    if (Event->HostVisibleEvent != Event) {
+    // It is possible that host-visible event was never created.
+    // In case it was check if that's different from this same event
+    // and release a reference to it.
+    if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
       // Decrement ref-count of the host-visible proxy event.
       PI_CALL(piEventRelease(Event->HostVisibleEvent));
     }
