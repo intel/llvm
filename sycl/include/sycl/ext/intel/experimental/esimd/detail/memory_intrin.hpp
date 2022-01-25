@@ -1015,7 +1015,7 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
   std::mutex *mutexLock;
 
   assert((handle != __SEIEE::detail::SLM_BTI) &&
-         "__esimd_media_ld not supporting SLM");
+         "__esimd_media_ld cannot access SLM");
 
   I->sycl_get_cm_image_params_index_ptr(handle, &readBase, &imgWidth,
                                         &imgHeight, &bpp, &mutexLock);
@@ -1145,7 +1145,7 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
   std::mutex *mutexLock;
 
   assert((handle != __SEIEE::detail::SLM_BTI) &&
-         "__esimd_media_ld not supporting SLM");
+         "__esimd_media_ld cannot access SLM");
 
   I->sycl_get_cm_image_params_index_ptr(handle, &writeBase, &imgWidth,
                                         &imgHeight, &bpp, &mutexLock);
