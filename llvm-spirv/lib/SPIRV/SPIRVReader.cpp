@@ -2775,6 +2775,24 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     return Loc->second;
 
   auto IsKernel = isKernel(BF);
+
+  if (IsKernel) {
+    // search for a previous function with the same name
+    // upgrade it to a kernel and drop this if it's found
+    for (auto &I : FuncMap) {
+      auto BFName = I.getFirst()->getName();
+      if (BF->getName() == BFName) {
+        auto *F = I.getSecond();
+        F->setCallingConv(CallingConv::SPIR_KERNEL);
+        F->setLinkage(GlobalValue::ExternalLinkage);
+        F->setDSOLocal(false);
+        F = cast<Function>(mapValue(BF, F));
+        mapFunction(BF, F);
+        return F;
+      }
+    }
+  }
+
   auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
   FunctionType *FT = dyn_cast<FunctionType>(transType(BF->getFunctionType()));
   std::string FuncName = BF->getName();

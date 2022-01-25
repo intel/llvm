@@ -380,6 +380,7 @@ const static char TranslateOCLMemScope[] = "__translate_ocl_memory_scope";
 const static char TranslateSPIRVMemOrder[] = "__translate_spirv_memory_order";
 const static char TranslateSPIRVMemScope[] = "__translate_spirv_memory_scope";
 const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
+const static char EntrypointPrefix[] = "__spirv_entry_";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {

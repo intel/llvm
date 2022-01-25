@@ -29,14 +29,14 @@ target triple = "spir-unknown-unknown"
 
 %struct.ndrange_t = type { i32 }
 
-; CHECK-SPIRV: EntryPoint {{.*}} [[BlockKer1:[0-9]+]] "__device_side_enqueue_block_invoke_kernel"
-; CHECK-SPIRV: EntryPoint {{.*}} [[BlockKer2:[0-9]+]] "__device_side_enqueue_block_invoke_2_kernel"
-; CHECK-SPIRV: EntryPoint {{.*}} [[BlockKer3:[0-9]+]] "__device_side_enqueue_block_invoke_3_kernel"
-; CHECK-SPIRV: EntryPoint {{.*}} [[BlockKer4:[0-9]+]] "__device_side_enqueue_block_invoke_4_kernel"
 ; CHECK-SPIRV: Name [[BlockGlb1:[0-9]+]] "__block_literal_global"
 ; CHECK-SPIRV: Name [[BlockGlb2:[0-9]+]] "__block_literal_global.1"
 ; CHECK-SPIRV: Name [[BlockGlb3:[0-9]+]] "__block_literal_global.2"
 ; CHECK-SPIRV: Name [[BlockGlb4:[0-9]+]] "__block_literal_global.3"
+; CHECK-SPIRV: Name [[BlockKer1:[0-9]+]] "__device_side_enqueue_block_invoke_kernel"
+; CHECK-SPIRV: Name [[BlockKer2:[0-9]+]] "__device_side_enqueue_block_invoke_2_kernel"
+; CHECK-SPIRV: Name [[BlockKer3:[0-9]+]] "__device_side_enqueue_block_invoke_3_kernel"
+; CHECK-SPIRV: Name [[BlockKer4:[0-9]+]] "__device_side_enqueue_block_invoke_4_kernel"
 
 ; CHECK-LLVM: [[BlockTy:%[0-9a-z\.]+]] = type { i32, i32 }
 %1 = type <{ i32, i32 }>

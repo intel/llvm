@@ -23,7 +23,7 @@ __kernel void test_mem_fence_non_const_flags(cl_mem_fence_flags flags, memory_or
   // atomic_work_item_fence(flags, order, scope);
 }
 
-// CHECK-SPIRV: EntryPoint {{[0-9]+}} [[TEST_CONST_FLAGS:[0-9]+]] "test_mem_fence_const_flags"
+// CHECK-SPIRV: Name [[TEST_CONST_FLAGS:[0-9]+]] "test_mem_fence_const_flags"
 // CHECK-SPIRV: TypeInt [[UINT:[0-9]+]] 32 0
 //
 // 0x0 Relaxed + 0x100 WorkgroupMemory

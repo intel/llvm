@@ -17,7 +17,7 @@ __kernel void test_atomic_cmpxchg(__global int *p, int cmp, int val) {
   atomic_cmpxchg(up, ucmp, uval);
 }
 
-// CHECK-SPIRV: EntryPoint {{[0-9]+}} [[TEST:[0-9]+]] "test_atomic_cmpxchg"
+// CHECK-SPIRV: Name [[TEST:[0-9]+]] "test_atomic_cmpxchg"
 // CHECK-SPIRV-DAG: TypeInt [[UINT:[0-9]+]] 32 0
 // CHECK-SPIRV-DAG: TypePointer [[UINT_PTR:[0-9]+]] 5 [[UINT]]
 //
