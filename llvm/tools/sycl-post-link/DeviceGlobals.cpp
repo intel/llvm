@@ -102,13 +102,15 @@ StringRef getUniqueId(const GlobalVariable &GV) {
 
 DeviceGlobalPropertyMapTy
 DeviceGlobalsPass::collectDeviceGlobalProperties(const Module &M) {
+  DeviceGlobalPropertyMapTy DGM;
   auto DevGlobalFilter = [](auto &GV) {
     return GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR);
   };
 
   auto DevGlobalNum = count_if(M.globals(), DevGlobalFilter);
+  if (DevGlobalNum == 0)
+    return DGM;
 
-  DeviceGlobalPropertyMapTy DGM;
   DGM.reserve(DevGlobalNum);
 
   for (auto &GV : M.globals()) {
