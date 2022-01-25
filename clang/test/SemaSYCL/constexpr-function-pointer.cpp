@@ -14,7 +14,7 @@ void bar1(const SomeFunc fptr) {
   fptr();
 }
 
-template<auto f> void fooNTTP() { f(); }
+template <auto f> void fooNTTP() { f(); }
 
 __attribute__((sycl_device)) void bar() {
   // OK
@@ -39,4 +39,3 @@ __attribute__((sycl_device)) void bar() {
 
   fooNTTP<t>();
 }
-
