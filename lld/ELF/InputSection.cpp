@@ -219,7 +219,8 @@ OutputSection *SectionBase::getOutputSection() {
 // `uncompressedSize` member and remove the header from `rawData`.
 template <typename ELFT> void InputSectionBase::parseCompressedHeader() {
   // Old-style header
-  if (name.startswith(".zdebug")) {
+  if (!(flags & SHF_COMPRESSED)) {
+    assert(name.startswith(".zdebug"));
     if (!toStringRef(rawData).startswith("ZLIB")) {
       error(toString(this) + ": corrupted compressed section header");
       return;
@@ -240,7 +241,6 @@ template <typename ELFT> void InputSectionBase::parseCompressedHeader() {
     return;
   }
 
-  assert(flags & SHF_COMPRESSED);
   flags &= ~(uint64_t)SHF_COMPRESSED;
 
   // New-style header
@@ -1181,11 +1181,6 @@ void InputSectionBase::adjustSplitStackFunctionPrologues(uint8_t *buf,
   std::vector<Relocation *> morestackCalls;
 
   for (Relocation &rel : relocations) {
-    // Local symbols can't possibly be cross-calls, and should have been
-    // resolved long before this line.
-    if (rel.sym->isLocal())
-      continue;
-
     // Ignore calls into the split-stack api.
     if (rel.sym->getName().startswith("__morestack")) {
       if (rel.sym->getName().equals("__morestack"))

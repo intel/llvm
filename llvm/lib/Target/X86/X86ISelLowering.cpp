@@ -9252,8 +9252,13 @@ static bool isFoldableUseOfShuffle(SDNode *N) {
       return true;
     if (Opc == ISD::BITCAST) // Ignore bitcasts
       return isFoldableUseOfShuffle(U);
-    if (N->hasOneUse())
+    if (N->hasOneUse()) {
+      // TODO, there may be some general way to know if a SDNode can
+      // be folded. We now only know whether an MI is foldable.
+      if (Opc == X86ISD::VPDPBUSD && U->getOperand(2).getNode() != N)
+        return false;
       return true;
+    }
   }
   return false;
 }
@@ -41973,17 +41978,14 @@ static bool detectExtMul(SelectionDAG &DAG, const SDValue &Mul, SDValue &Op0,
   if (Op0.getOpcode() == ISD::SIGN_EXTEND)
     std::swap(Op0, Op1);
 
-  if (Op0.getOpcode() != ISD::ZERO_EXTEND)
-    return false;
-
   auto IsFreeTruncation = [](SDValue &Op) -> bool {
     if ((Op.getOpcode() == ISD::ZERO_EXTEND ||
          Op.getOpcode() == ISD::SIGN_EXTEND) &&
         Op.getOperand(0).getScalarValueSizeInBits() <= 8)
       return true;
 
-    // TODO: Support contant value.
-    return false;
+    auto *BV = dyn_cast<BuildVectorSDNode>(Op);
+    return (BV && BV->isConstant());
   };
 
   // (dpbusd (zext a), (sext, b)). Since the first operand should be unsigned
@@ -52550,7 +52552,7 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
       LLVM_FALLTHROUGH;
     case X86ISD::VPERMILPI:
       if (!IsSplat && NumOps == 2 && (VT == MVT::v8f32 || VT == MVT::v8i32) &&
-          Subtarget.hasAVX() && Op0.getOperand(1) == Ops[1].getOperand(1)) {
+          Op0.getOperand(1) == Ops[1].getOperand(1)) {
         SDValue Res = DAG.getBitcast(MVT::v8f32, ConcatSubOperand(VT, Ops, 0));
         Res = DAG.getNode(X86ISD::VPERMILPI, DL, MVT::v8f32, Res,
                           Op0.getOperand(1));
@@ -52617,6 +52619,9 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
       }
       LLVM_FALLTHROUGH;
     case X86ISD::VSRAI:
+    case X86ISD::VSHL:
+    case X86ISD::VSRL:
+    case X86ISD::VSRA:
       if (((VT.is256BitVector() && Subtarget.hasInt256()) ||
            (VT.is512BitVector() && Subtarget.useAVX512Regs() &&
             (EltSizeInBits >= 32 || Subtarget.useBWIRegs()))) &&

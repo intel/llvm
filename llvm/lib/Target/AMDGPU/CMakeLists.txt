@@ -176,6 +176,7 @@ add_llvm_target(AMDGPUCodeGen
   GlobalISel
   BinaryFormat
   MIRParser
+  SYCLLowerIR
 
   ADD_TO_COMPONENT
   AMDGPU

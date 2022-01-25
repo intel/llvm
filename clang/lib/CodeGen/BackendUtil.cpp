@@ -1046,7 +1046,7 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
   // used only with spir triple.
   if (CodeGenOpts.SPIRITTAnnotations) {
     assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
-           "ITT annotations can only by added to a module with spir target");
+           "ITT annotations can only be added to a module with spir target");
     PerModulePasses.add(createSPIRITTAnnotationsLegacyPass());
   }
 
@@ -1478,6 +1478,15 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   }
   if (LangOpts.SYCLIsDevice) {
     MPM.addPass(SYCLMutatePrintfAddrspacePass());
+  }
+
+  // Add SPIRITTAnnotations pass to the pass manager if
+  // -fsycl-instrument-device-code option was passed. This option can be used
+  // only with spir triple.
+  if (CodeGenOpts.SPIRITTAnnotations) {
+    assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
+           "ITT annotations can only be added to a module with spir target");
+    MPM.addPass(SPIRITTAnnotationsPass());
   }
 
   // Allocate static local memory in SYCL kernel scope for each allocation

@@ -1,4 +1,4 @@
-//===- BufferizableOpInterface.h - Comprehensive Bufferize ------*- C++ -*-===//
+//===- BufferizableOpInterface.h - Bufferizable Ops -------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_BUFFERIZABLEOPINTERFACE_H_
-#define MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_BUFFERIZABLEOPINTERFACE_H_
+#ifndef MLIR_DIALECT_BUFFERIZATION_IR_BUFFERIZABLEOPINTERFACE_H_
+#define MLIR_DIALECT_BUFFERIZATION_IR_BUFFERIZABLEOPINTERFACE_H_
 
 #include <utility>
 
@@ -18,7 +18,6 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
-#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/SetVector.h"
 
 namespace mlir {
@@ -26,33 +25,14 @@ class BlockAndValueMapping;
 class DominanceInfo;
 class FuncOp;
 
-namespace linalg {
-namespace comprehensive_bufferize {
+namespace bufferization {
 
 // TODO: from some HW description.
 static constexpr int64_t kBufferAlignments = 128;
 
-class BufferizationAliasInfo;
 class BufferizableOpInterface;
 struct BufferizationOptions;
 class BufferizationState;
-struct PostAnalysisStep;
-
-/// PostAnalysisSteps can be registered with `BufferizationOptions` and are
-/// executed after the analysis, but before bufferization. They can be used to
-/// implement custom dialect-specific optimizations.
-struct PostAnalysisStep {
-  virtual ~PostAnalysisStep() = default;
-
-  /// Run the post analysis step. This function may modify the IR, but must keep
-  /// `aliasInfo` consistent. Newly created operations and operations that
-  /// should be re-analyzed must be added to `newOps`.
-  virtual LogicalResult run(Operation *op, BufferizationState &state,
-                            BufferizationAliasInfo &aliasInfo,
-                            SmallVector<Operation *> &newOps) = 0;
-};
-
-using PostAnalysisStepList = std::vector<std::unique_ptr<PostAnalysisStep>>;
 
 /// Options for ComprehensiveBufferize.
 struct BufferizationOptions {
@@ -67,14 +47,6 @@ struct BufferizationOptions {
 
   // BufferizationOptions cannot be copied.
   BufferizationOptions(const BufferizationOptions &other) = delete;
-
-  /// Register a "post analysis" step. Such steps are executed after the
-  /// analysis, but before bufferization.
-  template <typename Step, typename... Args>
-  void addPostAnalysisStep(Args... args) {
-    postAnalysisSteps.emplace_back(
-        std::make_unique<Step>(std::forward<Args>(args)...));
-  }
 
   /// Return `true` if the op is allowed to be bufferized.
   bool isOpAllowed(Operation *op) const {
@@ -134,9 +106,6 @@ struct BufferizationOptions {
   /// For debugging only. Should be used together with `testAnalysisOnly`.
   bool printConflicts = false;
 
-  /// Registered post analysis steps.
-  PostAnalysisStepList postAnalysisSteps;
-
   /// Only bufferize ops from dialects that are allowed-listed by the filter.
   /// All other ops are ignored. This option controls the scope of partial
   /// bufferization.
@@ -165,98 +134,6 @@ enum class BufferRelation {
   Equivalent
 };
 
-/// The BufferizationAliasInfo class maintains a list of buffer aliases and
-/// equivalence classes to support bufferization.
-class BufferizationAliasInfo {
-public:
-  explicit BufferizationAliasInfo(Operation *rootOp);
-
-  // BufferizationAliasInfo should be passed as a reference.
-  BufferizationAliasInfo(const BufferizationAliasInfo &) = delete;
-
-  /// Add a new entry for `v` in the `aliasInfo` and `equivalentInfo`. In the
-  /// beginning the alias and equivalence sets only contain `v` itself.
-  void createAliasInfoEntry(Value v);
-
-  /// Insert an info entry for `newValue` and merge its alias set with that of
-  /// `alias`.
-  void insertNewBufferAlias(Value newValue, Value alias);
-
-  /// Insert an info entry for `newValue` and merge its alias set with that of
-  /// `alias`. Additionally, merge their equivalence classes.
-  void insertNewBufferEquivalence(Value newValue, Value alias);
-
-  /// Set the inPlace bufferization spec to true.
-  /// Merge result's and operand's aliasing sets and iterate to a fixed point.
-  void bufferizeInPlace(OpOperand &operand, BufferizationState &state);
-
-  /// Set the inPlace bufferization spec to false.
-  void bufferizeOutOfPlace(OpOperand &operand);
-
-  /// Return true if `v1` and `v2` bufferize to equivalent buffers.
-  bool areEquivalentBufferizedValues(Value v1, Value v2) const {
-    return equivalentInfo.isEquivalent(v1, v2);
-  }
-
-  /// Return true if `v1` and `v2` bufferize to aliasing buffers.
-  bool areAliasingBufferizedValues(Value v1, Value v2) const {
-    return aliasInfo.isEquivalent(v1, v2);
-  }
-
-  /// Union the alias sets of `v1` and `v2`.
-  void unionAliasSets(Value v1, Value v2) { aliasInfo.unionSets(v1, v2); }
-
-  /// Union the equivalence classes of `v1` and `v2`.
-  void unionEquivalenceClasses(Value v1, Value v2) {
-    equivalentInfo.unionSets(v1, v2);
-  }
-
-  /// Apply `fun` to all the members of the equivalence class of `v`.
-  void applyOnEquivalenceClass(Value v, function_ref<void(Value)> fun) const;
-
-  /// Apply `fun` to all aliases of `v`.
-  void applyOnAliases(Value v, function_ref<void(Value)> fun) const;
-
-  /// Mark a value as in-place bufferized.
-  void markInPlace(OpOperand &o) { inplaceBufferized.insert(&o); }
-
-  /// Return `true` if a value was marked as in-place bufferized.
-  bool isInPlace(OpOperand &opOperand) const;
-
-private:
-  /// llvm::EquivalenceClasses wants comparable elements. This comparator uses
-  /// uses pointer comparison on the defining op. This is a poor man's
-  /// comparison but it's not like UnionFind needs ordering anyway.
-  struct ValueComparator {
-    bool operator()(const Value &lhs, const Value &rhs) const {
-      return lhs.getImpl() < rhs.getImpl();
-    }
-  };
-
-  using EquivalenceClassRangeType = llvm::iterator_range<
-      llvm::EquivalenceClasses<Value, ValueComparator>::member_iterator>;
-  /// Check that aliasInfo for `v` exists and return a reference to it.
-  EquivalenceClassRangeType getAliases(Value v) const;
-
-  /// Set of all OpResults that were decided to bufferize in-place.
-  llvm::DenseSet<OpOperand *> inplaceBufferized;
-
-  /// Auxiliary structure to store all the values a given value may alias with.
-  /// Alias information is "may be" conservative: In the presence of branches, a
-  /// value may alias with one of multiple other values. The concrete aliasing
-  /// value may not even be known at compile time. All such values are
-  /// considered to be aliases.
-  llvm::EquivalenceClasses<Value, ValueComparator> aliasInfo;
-
-  /// Auxiliary structure to store all the equivalent buffer classes. Equivalent
-  /// buffer information is "must be" conservative: Only if two values are
-  /// guaranteed to be equivalent at runtime, they said to be equivalent. It is
-  /// possible that, in the presence of branches, it cannot be determined
-  /// statically if two values are equivalent. In that case, the values are
-  /// considered to be not equivalent.
-  llvm::EquivalenceClasses<Value, ValueComparator> equivalentInfo;
-};
-
 /// Return `true` if the given value is a BlockArgument of a FuncOp.
 bool isFunctionArgument(Value value);
 
@@ -276,11 +153,6 @@ struct DialectBufferizationState {
 /// tensor values and memref buffers.
 class BufferizationState {
 public:
-  BufferizationState(Operation *op, const BufferizationOptions &options);
-
-  // BufferizationState should be passed as a reference.
-  BufferizationState(const BufferizationState &) = delete;
-
   /// Determine which OpOperand* will alias with `result` if the op is
   /// bufferized in place. Return an empty vector if the op is not bufferizable.
   SmallVector<OpOperand *> getAliasingOpOperand(OpResult result) const;
@@ -344,7 +216,10 @@ public:
   SetVector<Value> findLastPrecedingWrite(Value value) const;
 
   /// Return `true` if the given OpResult has been decided to bufferize inplace.
-  bool isInPlace(OpOperand &opOperand) const;
+  virtual bool isInPlace(OpOperand &opOperand) const = 0;
+
+  /// Return true if `v1` and `v2` bufferize to equivalent buffers.
+  virtual bool areEquivalentBufferizedValues(Value v1, Value v2) const = 0;
 
   /// Return the buffer (memref) for a given OpOperand (tensor). Allocate
   /// a new buffer and copy over data from the existing buffer if out-of-place
@@ -364,7 +239,8 @@ public:
   }
 
   /// Return dialect-specific bufferization state or create one if none exists.
-  template <typename StateT> StateT &getOrCreateDialectState(StringRef name) {
+  template <typename StateT>
+  StateT &getOrCreateDialectState(StringRef name) {
     // Create state if it does not exist yet.
     if (!dialectState.count(name))
       dialectState[name] = std::make_unique<StateT>();
@@ -374,14 +250,15 @@ public:
   /// Return a reference to the BufferizationOptions.
   const BufferizationOptions &getOptions() const { return options; }
 
-  /// Return a reference to the BufferizationAliasInfo.
-  BufferizationAliasInfo &getAliasInfo() { return aliasInfo; }
+protected:
+  BufferizationState(const BufferizationOptions &options);
+
+  // BufferizationState should be passed as a reference.
+  BufferizationState(const BufferizationState &) = delete;
+
+  ~BufferizationState() = default;
 
 private:
-  /// `aliasInfo` keeps track of aliasing and equivalent values. Only internal
-  /// functions and `runComprehensiveBufferize` may access this object.
-  BufferizationAliasInfo aliasInfo;
-
   /// Dialect-specific bufferization state.
   DenseMap<StringRef, std::unique_ptr<DialectBufferizationState>> dialectState;
 
@@ -443,15 +320,13 @@ LogicalResult createDealloc(OpBuilder &b, Location loc, Value allocatedBuffer,
 LogicalResult createMemCpy(OpBuilder &b, Location loc, Value from, Value to,
                            const BufferizationOptions &options);
 
-} // namespace comprehensive_bufferize
-} // namespace linalg
+} // namespace bufferization
 } // namespace mlir
 
-#include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h.inc"
+#include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h.inc"
 
 namespace mlir {
-namespace linalg {
-namespace comprehensive_bufferize {
+namespace bufferization {
 
 /// AllocationHoistingBarrierOnly is an external implementation of
 /// BufferizableOpInterface for ops that are (not yet) bufferizable, but are
@@ -483,7 +358,6 @@ struct AllocationHoistingBarrierOnly
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const BufferizationAliasInfo &aliasInfo,
                                 const BufferizationState &state) const {
     return BufferRelation::None;
   }
@@ -501,8 +375,7 @@ struct AllocationHoistingBarrierOnly
   bool isAllocationHoistingBarrier(Operation *op) const { return true; }
 };
 
-} // namespace comprehensive_bufferize
-} // namespace linalg
+} // namespace bufferization
 } // namespace mlir
 
-#endif // MLIR_DIALECT_LINALG_COMPREHENSIVEBUFFERIZE_BUFFERIZABLEOPINTERFACE_H_
+#endif // MLIR_DIALECT_BUFFERIZATION_IR_BUFFERIZABLEOPINTERFACE_H_
