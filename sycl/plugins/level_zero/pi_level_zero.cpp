@@ -1642,33 +1642,30 @@ static class ZeUSMImportExtension {
   ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t, void *);
 
 public:
-  // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
-  // host ptr import during buffer creation.
-  bool ImportRequested;
-
   // Whether user has requested Import/Release, and platform supports it.
   bool USMHostPtrImportEnabled;
 
-  ZeUSMImportExtension() : USMHostPtrImportEnabled{false} {
-    // Check if USM import of host ptr is requested.
-    const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
-    ImportRequested =
-        (USMHostPtrImportStr ? std::atoi(USMHostPtrImportStr) : 0) != 0;
-  }
+  ZeUSMImportExtension() : USMHostPtrImportEnabled{false} {}
+
   void setZeUSMImport(pi_platform Platform) {
+    // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
+    // host ptr import during buffer creation.
+    const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
+    if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
+      return;
+
     // Check if USM hostptr import feature is available.
     ze_driver_handle_t driverHandle = Platform->ZeDriver;
-    bool ImportSupported =
-        ZE_CALL_NOCHECK(
-            zeDriverGetExtensionFunctionAddress,
-            (driverHandle, "zexDriverImportExternalPointer",
-             reinterpret_cast<void **>(&zexDriverImportExternalPointer))) == 0;
-    if (ImportSupported) {
+    if (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                        (driverHandle, "zexDriverImportExternalPointer",
+                         reinterpret_cast<void **>(
+                             &zexDriverImportExternalPointer))) == 0) {
       ZE_CALL_NOCHECK(
           zeDriverGetExtensionFunctionAddress,
           (driverHandle, "zexDriverReleaseImportedPointer",
            reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
-      // Hostptr import is turned on only if explicitly requested and supported.
+      // Hostptr import/release is turned on because it has been requested
+      // by the env var, and this platform supports the APIs.
       USMHostPtrImportEnabled = true;
       // Hostptr import is only possible if piMemBufferCreate receives a
       // hostptr as an argument. The SYCL runtime passes a host ptr
@@ -1733,10 +1730,7 @@ pi_result _pi_platform::initialize() {
 
   // Check if import user ptr into USM feature has been requested.
   // If yes, then set up L0 API pointers if the platform supports it.
-  if (ZeUSMImport.ImportRequested) {
-    // Initialize pointers to Import/Release APIs.
-    ZeUSMImport.setZeUSMImport(this);
-  }
+  ZeUSMImport.setZeUSMImport(this);
 
   return PI_SUCCESS;
 }
