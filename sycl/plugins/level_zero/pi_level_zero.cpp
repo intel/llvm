@@ -1643,9 +1643,9 @@ static class ZeUSMImportExtension {
 
 public:
   // Whether user has requested Import/Release, and platform supports it.
-  bool USMHostPtrImportEnabled;
+  bool Enabled;
 
-  ZeUSMImportExtension() : USMHostPtrImportEnabled{false} {}
+  ZeUSMImportExtension() : Enabled{false} {}
 
   void setZeUSMImport(pi_platform Platform) {
     // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
@@ -1666,7 +1666,7 @@ public:
            reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
       // Hostptr import/release is turned on because it has been requested
       // by the env var, and this platform supports the APIs.
-      USMHostPtrImportEnabled = true;
+      Enabled = true;
       // Hostptr import is only possible if piMemBufferCreate receives a
       // hostptr as an argument. The SYCL runtime passes a host ptr
       // only when SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
@@ -3348,7 +3348,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   // are USM pointers. Promotion of the host pointer to USM thus
   // optimizes data transfer performance.
   bool HostPtrImported = false;
-  if (ZeUSMImport.USMHostPtrImportEnabled && HostPtr != nullptr &&
+  if (ZeUSMImport.Enabled && HostPtr != nullptr &&
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     // Query memory type of the host pointer
     ze_device_handle_t ZeDeviceHandle;
