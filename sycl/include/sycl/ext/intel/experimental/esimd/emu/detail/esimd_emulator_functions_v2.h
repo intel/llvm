@@ -36,7 +36,7 @@
 
 // libcm functionalities used for intrinsics such as
 // surface/buffer/slm access
-void (*sycl_get_cm_surface_index_ptr)(void *, unsigned int *);
+unsigned int (*sycl_get_cm_surface_index_ptr)(void *);
 void (*sycl_get_cm_buffer_params_index_ptr)(unsigned int, char **, uint32_t *,
                                             std::mutex **);
 void (*sycl_get_cm_image_params_index_ptr)(unsigned int, char **, uint32_t *,

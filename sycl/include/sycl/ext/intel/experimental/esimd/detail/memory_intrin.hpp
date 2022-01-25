@@ -1223,13 +1223,8 @@ __ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
-  auto ImageHandle = __SEIEED::AccessorPrivateProxy::getPtr(obj);
-
-  unsigned int CmIndex;
-
-  I->sycl_get_cm_surface_index_ptr(ImageHandle, &CmIndex);
-
-  return (__SEIEE::SurfaceIndex)CmIndex;
+  return I->sycl_get_cm_surface_index_ptr(
+      __SEIEED::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
 

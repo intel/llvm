@@ -290,10 +290,10 @@ void sycl_get_cm_image_params(void *PtrInput, char **BaseAddr, uint32_t *Width,
 
 // Function to provide image info for kernel compilation without
 // dependency on '_pi_mem' definition
-void sycl_get_cm_surface_index(void *PtrInput, unsigned int *SurfIndex) {
+unsigned int sycl_get_cm_surface_index(void *PtrInput) {
   _pi_mem *Surface = static_cast<_pi_mem *>(PtrInput);
 
-  *SurfIndex = (unsigned int)(Surface->SurfaceIndex);
+  return (unsigned int)(Surface->SurfaceIndex);
 }
 
 void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
