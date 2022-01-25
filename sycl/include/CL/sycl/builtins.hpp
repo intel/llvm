@@ -734,6 +734,7 @@ detail::enable_if_t<detail::is_geninteger<T>::value, T> ctz(T x) __NOEXC {
 namespace ext {
 namespace intel {
 template <typename T>
+__SYCL_DEPRECATED("'sycl::ext::intel::ctz' is deprecated, use 'sycl::ctz' instead")
 sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T>
 ctz(T x) __NOEXC {
   return sycl::ctz(x);
