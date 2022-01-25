@@ -32,9 +32,7 @@ constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "device_image_scope";
 ///
 /// @returns \c true if the value of \c Value equals to "true", \c false
 /// otherwise.
-bool toBool(StringRef Value) {
-  return !Value.equals("false");
-}
+bool toBool(StringRef Value) { return !Value.equals("false"); }
 
 /// Checks whether the device global variable has the \c device_image_scope
 /// property. The variable has the property if the \c sycl-device-image-scope
@@ -46,7 +44,8 @@ bool toBool(StringRef Value) {
 /// @returns \c true if variable \c GV has the \c device_image_scope property,
 /// \c false otherwise.
 bool hasDeviceImageScope(const GlobalVariable &GV) {
-  return GV.hasAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR) && toBool(
+  return GV.hasAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR) &&
+         toBool(
              GV.getAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR).getValueAsString());
 }
 
@@ -68,10 +67,10 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
   bool error = GV.getAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR)
                    .getValueAsString()
                    .getAsInteger(10, value);
-  AssertRelease(
-      !error,
-      "The 'sycl-device-global-size' attribute must contain a number representing the size"
-      " of the underlying type T of the device global variable");
+  AssertRelease(!error,
+                "The 'sycl-device-global-size' attribute must contain a number"
+                " representing the size of the underlying type T of the device"
+                " global variable");
   return value;
 }
 

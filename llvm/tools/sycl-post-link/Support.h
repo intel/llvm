@@ -1,4 +1,4 @@
-//===----- Support.h - A set of utility function for the tool -------------===//
+//===----- Support.h - A set of utility functions for the tool ------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,5 +18,5 @@
 #define AssertRelease(Cond, Msg)                                               \
   do {                                                                         \
     if (!Cond)                                                                 \
-      llvm::report_fatal_error(llvm::Twine(__FILE__" ") + Msg);                \
+      llvm::report_fatal_error(llvm::Twine(__FILE__ " ") + Msg);               \
   } while (false)
