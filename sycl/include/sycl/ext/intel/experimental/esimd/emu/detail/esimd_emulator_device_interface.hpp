@@ -8,7 +8,7 @@
 
 /// @cond ESIMD_EMU
 
-/// \file esimd_emulator_device_interface.hpp.hpp
+/// \file esimd_emulator_device_interface.hpp
 /// Declarations for ESIMD_EMULATOR-device specific definitions.
 /// ESIMD intrinsic and LibCM functionalities required by intrinsic defined
 ///
