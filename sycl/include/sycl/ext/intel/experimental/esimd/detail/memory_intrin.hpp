@@ -33,6 +33,7 @@ namespace cm_support {
 #include <CL/cm_rt.h>
 } // namespace cm_support
 
+#undef __SYCL_EXPLICIT_SIMD_PLUGIN__
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
