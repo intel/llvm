@@ -1064,8 +1064,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelMaxWorkGroupSize =
             dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateSYCLIntelMaxWorkGroupSizeAttr(
-          *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
+      instantiateSYCLIntelMaxWorkGroupSizeAttr(*this, TemplateArgs,
+                                               SYCLIntelMaxWorkGroupSize, New);	    
       continue;
     }
     if (const auto *SYCLIntelMaxConcurrency =

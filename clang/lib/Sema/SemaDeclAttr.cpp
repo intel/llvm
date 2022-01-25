@@ -3452,7 +3452,8 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
                                             const AttributeCommonInfo &CI,
-                                            Expr *XDim, Expr *YDim, Expr *ZDim) {
+                                            Expr *XDim, Expr *YDim,
+                                            Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
   auto CheckAndConvertArg = [&](Expr *E) -> Expr * {
@@ -3505,11 +3506,11 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
         return;
 
       if (DeclExpr->getResultAsAPSInt() == 0 &&
-         (DeclXDimExpr->getResultAsAPSInt() != 1 ||
-          DeclYDimExpr->getResultAsAPSInt() != 1 ||
-          DeclZDimExpr->getResultAsAPSInt() != 1)) {
-        Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-             << CI << DeclAttr;
+          (DeclXDimExpr->getResultAsAPSInt() != 1 ||
+           DeclYDimExpr->getResultAsAPSInt() != 1 ||
+           DeclZDimExpr->getResultAsAPSInt() != 1)) {
+         Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << CI << DeclAttr;
         return;
       }
     }
@@ -3540,9 +3541,8 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
                  SYCLIntelMaxWorkGroupSizeAttr(Context, CI, XDim, YDim, ZDim));
 }
 
-SYCLIntelMaxWorkGroupSizeAttr *
-Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
-                                         const SYCLIntelMaxWorkGroupSizeAttr &A) {
+SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
+    Decl *D, const SYCLIntelMaxWorkGroupSizeAttr &A) {
   // Check to see if there's a duplicate attribute already applied.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
     DupArgResult Results[] = {
@@ -3556,7 +3556,7 @@ Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
       Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
       Diag(A.getLoc(), diag::note_previous_attribute);
       return nullptr;
-     }
+    }
     // If all of the results are known to be the same, we can silently drop the
     // attribute. Otherwise, we have to add the attribute and resolve its
     // differences later.
@@ -3579,19 +3579,18 @@ Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
       const auto *DeclYDimExpr = dyn_cast<ConstantExpr>(A.getYDim());
       const auto *DeclZDimExpr = dyn_cast<ConstantExpr>(A.getZDim());
       if (DeclExpr->getResultAsAPSInt() == 0 &&
-         (DeclXDimExpr->getResultAsAPSInt() != 1 ||
-          DeclYDimExpr->getResultAsAPSInt() != 1 ||
-          DeclZDimExpr->getResultAsAPSInt() != 1)) {
-	Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-	   << &A << DeclAttr;
+          (DeclXDimExpr->getResultAsAPSInt() != 1 ||
+           DeclYDimExpr->getResultAsAPSInt() != 1 ||
+           DeclZDimExpr->getResultAsAPSInt() != 1)) {
+        Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << &A << DeclAttr;
         return nullptr;
       }
     }
   }
 
-  return ::new (Context)
-     SYCLIntelMaxWorkGroupSizeAttr(Context, A, A.getXDim(), A.getYDim(),
-                                   A.getZDim());
+  return ::new (Context) SYCLIntelMaxWorkGroupSizeAttr(
+      Context, A, A.getXDim(), A.getYDim(), A.getZDim());
 }
 
 // Handles max_work_group_size.
