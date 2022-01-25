@@ -22,10 +22,12 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
+/// @ingroup sycl_esimd_core
+/// @{
+
 /// The simd_view base class.
 /// It is an internal class implementing basic functionality of simd_view.
 ///
-/// \ingroup sycl_esimd
 template <typename BaseTy,
           typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
@@ -64,19 +66,22 @@ private:
   Derived &cast_this_to_derived() { return reinterpret_cast<Derived &>(*this); }
 
 protected:
-  /// @{
-  /// Constructors.
   simd_view_impl(BaseTy &Base, RegionTy Region)
       : M_base(Base), M_region(Region) {}
   simd_view_impl(BaseTy &&Base, RegionTy Region)
       : M_base(Base), M_region(Region) {}
 
   simd_view_impl(BaseTy &Base) : M_base(Base), M_region(RegionTy(0)) {}
-  /// @}
+
 public:
-  // Default copy and move constructors.
+  /// Default copy constructor.
   simd_view_impl(const simd_view_impl &Other) = default;
+
+  /// Default move constructor.
   simd_view_impl(simd_view_impl &&Other) = default;
+
+  /// @name Implicit conversions.
+  /// @{
 
   /// Implicit conversion to simd type.
   template <typename ToTy, class T = BaseTy,
@@ -93,20 +98,32 @@ public:
   inline operator simd_mask_type<length>() const {
     return read();
   }
+  /// @}
 
+  /// @name Region accessors.
   /// @{
-  /// Region accessors.
+
+  /// Tells whether this view is 1-dimensional.
   static constexpr bool is1D() { return !ShapeTy::Is_2D; }
+  /// Tells whether this view is 2-dimensional.
   static constexpr bool is2D() { return ShapeTy::Is_2D; }
+  /// Get number of elements in the view along X dimension.
   static constexpr int getSizeX() { return ShapeTy::Size_x; }
+  /// Get element stride of the view along X dimension.
   static constexpr int getStrideX() { return ShapeTy::Stride_x; }
+  /// Get number of elements in the view along Y dimension.
   static constexpr int getSizeY() { return ShapeTy::Size_y; }
+  /// Get element stride of the view along Y dimension.
   static constexpr int getStrideY() { return ShapeTy::Stride_y; }
 
+  /// Get the offset of the first element of the view within the parent object
+  /// along X dimension.
   constexpr uint16_t getOffsetX() const {
     return getTopRegion(M_region).M_offset_x;
   }
 
+  /// Get the offset of the first element of the view within the parent object
+  /// along Y dimension.
   constexpr uint16_t getOffsetY() const {
     return getTopRegion(M_region).M_offset_y;
   }
@@ -127,7 +144,6 @@ public:
     return cast_this_to_derived();
   }
 
-  /// @{
   /// Whole region update with predicates.
   void merge(const value_type &Val, const simd_mask_type<length> &Mask) {
     merge(Val, read(), Mask);
@@ -138,7 +154,6 @@ public:
     Val2.merge(Val1, Mask);
     write(Val2.read());
   }
-  /// @}
 
   /// View this object in a different element type.
   template <typename EltTy> auto bit_cast_view() {
@@ -295,7 +310,6 @@ public:
                                   MaskVecT(1)};
   }
 
-  /// @{
   /// Assignment operators.
   simd_view_impl &operator=(const simd_view_impl &Other) {
     return write(Other.read());
@@ -328,8 +342,6 @@ public:
   Derived &operator=(T1 RHS) {
     return write(value_type(convert_scalar<element_type>(RHS)));
   }
-
-  /// @}
 
   // Operator ++, --
   Derived &operator++() {
@@ -403,10 +415,8 @@ public:
     return select<1, 1>(i);
   }
 
-  /// \name Replicate
-  /// Replicate simd instance given a simd_view_impl
+  /// @name Replicate. Create a new simd object from a subset of elements referred to by this \c simd_view_impl object.
   /// @{
-  ///
 
   /// \tparam Rep is number of times region has to be replicated.
   template <int Rep> get_simd_t<element_type, Rep> replicate() {
@@ -518,6 +528,8 @@ protected:
   //
   RegionTy M_region;
 };
+
+/// @} sycl_esimd_core
 
 } // namespace detail
 } // namespace esimd

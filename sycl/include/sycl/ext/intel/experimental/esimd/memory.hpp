@@ -19,16 +19,17 @@
 
 #include <cstdint>
 
-/** @file
- * Memory access intrinsics.
- */
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
 namespace experimental {
 namespace esimd {
+
+/// @{
+/// @ingroup sycl_esimd_memory
+
+/// @cond ESIMD_DETAIL
 
 namespace detail {
 // Type used in internal functions to designate SLM access by
@@ -67,12 +68,14 @@ struct IfNotNone<
 };
 } // namespace detail
 
+/// @endcond ESIMD_DETAIL
+
 /// Get surface index corresponding to a SYCL accessor.
 ///
 /// \param acc a SYCL buffer or image accessor.
 /// \return the index of the corresponding surface (aka "binding table index").
 ///
-/// \ingroup sycl_esimd
+///
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -136,7 +139,7 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 // {/quote}
 //
 /// Flat-address gather.
-/// \ingroup sycl_esimd
+///
 template <typename Tx, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None,
           class T = detail::__raw_t<Tx>>
@@ -177,7 +180,7 @@ gather(const Tx *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 }
 
 /// Flat-address scatter.
-/// \ingroup sycl_esimd
+///
 template <typename Tx, int n, int ElemsPerAddr = 1,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
@@ -232,7 +235,7 @@ __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
 }
 
 /// Flat-address block-load.
-/// \ingroup sycl_esimd
+///
 template <typename Tx, int n, typename Flags = vector_aligned_tag,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None,
           class T = detail::__raw_t<Tx>,
@@ -259,7 +262,7 @@ __ESIMD_API simd<Tx, n> block_load(const Tx *addr, Flags = {}) {
 }
 
 /// Accessor-based block-load.
-/// \ingroup sycl_esimd
+///
 template <typename Tx, int n, typename AccessorTy,
           typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>,
@@ -298,7 +301,7 @@ __ESIMD_API simd<Tx, n> block_load(AccessorTy acc, uint32_t offset,
 }
 
 /// Flat-address block-store.
-/// \ingroup sycl_esimd
+///
 // TODO the above note about cache hints applies to this API as well.
 template <typename Tx, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None, class T = detail::__raw_t<Tx>>
@@ -319,7 +322,7 @@ __ESIMD_API void block_store(Tx *p, simd<Tx, n> vals) {
 }
 
 /// Accessor-based block-store.
-/// \ingroup sycl_esimd
+///
 template <typename Tx, int n, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
@@ -342,6 +345,8 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
   __esimd_oword_st<T, n>(acc, offset >> 4, vals.data());
 #endif // __SYCL_DEVICE_ONLY__
 }
+
+/// @cond ESIMD_DETAIL
 
 // Implementations of accessor-based gather and scatter functions
 namespace detail {
@@ -417,6 +422,8 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 
 } // namespace detail
 
+/// @endcond ESIMD_DETAIL
+
 /// Accessor-based gather.
 ///
 /// Collects elements located at given offsets in an accessor and returns them
@@ -432,7 +439,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 /// \param glob_offset is offset added to each individual element's offset to
 /// compute actual memory access offset for that element.
 ///
-/// \ingroup sycl_esimd
+///
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                                  (N == 1 || N == 8 || N == 16 || N == 32) &&
@@ -477,7 +484,7 @@ gather1(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 /// \param pred is per-element predicates; elements with zero corresponding
 /// predicates are not written.
 ///
-/// \ingroup sycl_esimd
+///
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              (N == 1 || N == 8 || N == 16 || N == 32) &&
@@ -512,7 +519,7 @@ __ESIMD_API std::enable_if_t<
 /// @tparam AccessorTy type of the accessor
 /// @param offset offset in bytes
 /// @return the loaded value
-/// \ingroup sycl_esimd
+///
 template <typename T, typename AccessorTy>
 __ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
   const simd<T, 1> Res =
@@ -531,7 +538,7 @@ __ESIMD_API T scalar_load1(AccessorTy acc, uint32_t offset) {
 }
 
 /// Store a scalar value into an accessor.
-/// \ingroup sycl_esimd
+///
 template <typename T, typename AccessorTy>
 __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
   scatter<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset), simd<T, 1>(val));
@@ -554,7 +561,7 @@ __ESIMD_API void scalar_store1(AccessorTy acc, uint32_t offset, T val) {
 /// @param p the USM pointer.
 /// @param offsets byte-offsets within the \p buffer to be gathered.
 /// @param pred predication control used for masking lanes.
-/// \ingroup sycl_esimd
+///
 template <typename Tx, int N, rgba_channel_mask Mask,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
@@ -569,7 +576,7 @@ gather_rgba(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
 
 /// Flat-address gather4.
 /// Only allow simd-16 and simd-32.
-/// \ingroup sycl_esimd
+///
 template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 __SYCL_DEPRECATED("use gather_rgba.")
@@ -594,7 +601,7 @@ __ESIMD_API std::enable_if_t<
 /// @param vals values to be written.
 /// @param offsets byte-offsets within the \p buffer to be written.
 /// @param pred predication control used for masking lanes.
-/// \ingroup sycl_esimd
+///
 template <typename Tx, int N, rgba_channel_mask Mask,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4)>
@@ -609,7 +616,7 @@ scatter_rgba(Tx *p, simd<uint32_t, N> offsets,
 }
 
 /// Flat-address scatter4.
-/// \ingroup sycl_esimd
+///
 template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 __SYCL_DEPRECATED("use scatter_rgba.")
@@ -620,9 +627,13 @@ __ESIMD_API std::enable_if_t<(n == 16 || n == 32) && sizeof(T) == 4> scatter4(
   scatter_rgba<T, n, Mask>(p, offsets, vals, pred);
 }
 
+/// @} sycl_esimd_memory
+
+/// @cond ESIMD_DETAIL
+
 namespace detail {
 /// Check the legality of an atomic call in terms of size and type.
-/// \ingroup sycl_esimd
+///
 template <atomic_op Op, typename T, int N, unsigned NumSrc>
 constexpr bool check_atomic() {
   if constexpr (!detail::isPowerOf2(N, 32)) {
@@ -708,16 +719,18 @@ constexpr bool check_atomic() {
 }
 } // namespace detail
 
-// TODO @Pennycook
-// {quote}
-// We should look into what can be done to simplify these atomic functions and
-// align their design with the other new atomic features.That is perhaps out of
-// scope for this PR(the direction is less clear than for the reduce changes,
-// for example) but we should open an issue to track it.
-// {/quote}
+/// @endcond ESIMD_DETAIL
+
+/// @defgroup sycl_esimd_memory_atomics Atomic memory access.
+/// @ingroup sycl_esimd_memory
+/// Memory access functions which perform per-element atomic update using givin
+/// operation.
+
+/// @{
+/// @ingroup sycl_esimd_memory_atomics
 
 /// USM address atomic update, version with no source operands: \c inc and \c
-/// dec. \ingroup sycl_esimd
+/// dec.
 template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 0>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd_mask<n> pred) {
@@ -739,7 +752,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
 }
 
 /// USM address atomic update, version with one source operand: e.g. \c add, \c
-/// sub. \ingroup sycl_esimd
+/// sub.
 template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 1>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
@@ -763,7 +776,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
 }
 
 /// USM address atomic update, version with two source operands: e.g. \c
-/// cmpxchg. \ingroup sycl_esimd
+/// cmpxchg.
 template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 2>(), simd<Tx, n>>
 atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
@@ -787,6 +800,11 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
   detail::IfNotNone<L1H, L3H>::warn();
   return atomic_update<Op>(p, offset, src0, src1, pred);
 }
+
+/// @} sycl_esimd_memory_atomics
+
+/// @{
+/// @ingroup sycl_esimd_memory
 
 /// Represetns a bit mask to control behavior of esimd::fence.
 /// Enum elements define semantics of the bits in the mask.
@@ -829,7 +847,7 @@ enum __SYCL_DEPRECATED("use esimd::fence_mask.") EsimdFenceMask {
 
 /// esimd::fence sets the memory read/write order.
 /// \tparam cntl is a bitmask composed from \c fence_mask bits.
-/// \ingroup sycl_esimd
+///
 __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 
 /// Generic work-group barrier.
@@ -839,7 +857,7 @@ __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 /// Memory ordering is also guaranteed by this instruction.
 /// The behavior is undefined if this instruction is executed in divergent
 /// control flow.
-/// \ingroup sycl_esimd
+///
 __ESIMD_API void barrier() {
   __esimd_fence(fence_mask::global_coherent_fence | fence_mask::local_barrier);
   __esimd_barrier();
@@ -848,12 +866,23 @@ __ESIMD_API void barrier() {
 /// Generic work-group split barrier
 __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 
-/// @defgroup sycl_esimd_slm SLM functions
-/// \ingroup sycl_esimd
+/// @} sycl_esimd_memory_atomics
+
+
+/// @defgroup sycl_esimd_memory_slm Shared local memory access functions.
+/// @ingroup sycl_esimd_memory
+
 /// @{
+/// @ingroup sycl_esimd_memory_slm
 
 /// Declare per-work-group slm size.
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size)
+#ifndef __SYCL_DEVICE_ONLY__
+;
+#else
+{ throw sycl::feature_not_supported(); }
+#endif // __SYCL_DEVICE_ONLY__
+
 
 /// SLM gather.
 ///
@@ -879,7 +908,7 @@ __ESIMD_API std::enable_if_t<(n == 1 || n == 8 || n == 16 || n == 32),
 /// @tparam T type of the value
 /// @param offset SLM offset in bytes
 /// @return the loaded value
-/// \ingroup sycl_esimd
+///
 template <typename T> __ESIMD_API T slm_scalar_load(uint32_t offset) {
   const simd<T, 1> Res = slm_gather<T, 1>(simd<uint32_t, 1>(offset));
   return Res[0];
@@ -906,7 +935,7 @@ __ESIMD_API std::enable_if_t<(n == 16 || n == 32)> slm_store(
 /// @tparam T type of the value
 /// @param offset SLM offset in bytes
 /// @param val value to store
-/// \ingroup sycl_esimd
+///
 template <typename T>
 __ESIMD_API void slm_scalar_store(uint32_t offset, T val) {
   slm_scatter<T, 1>(simd<uint32_t, 1>(offset), simd<T, 1>(val), 1);
@@ -920,7 +949,7 @@ __ESIMD_API void slm_scalar_store(uint32_t offset, T val) {
 /// \tparam Mask represents a pixel's channel mask.
 /// @param offsets byte-offsets within the SLM.
 /// @param pred predication control used for masking lanes.
-/// \ingroup sycl_esimd
+///
 template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
                              simd<T, N * get_num_channels_enabled(Mask)>>
@@ -954,7 +983,7 @@ __ESIMD_API std::enable_if_t<
 /// @param offsets byte-offsets within the SLM.
 /// @param vals values to be written.
 /// @param pred predication control used for masking lanes.
-/// \ingroup sycl_esimd
+///
 template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
 slm_scatter_rgba(simd<uint32_t, N> offsets,
@@ -1065,7 +1094,11 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
                                                     simd_mask<n> pred) {
   return slm_atomic_update<Op, T, n>(offsets, src0, src1, pred);
 }
-/// @}
+
+/// @} sycl_esimd_memory_slm
+
+/// @{
+/// @ingroup sycl_esimd_memory
 
 /// Media block load.
 ///
@@ -1079,7 +1112,6 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
 /// \param y is Y-coordinate of the left upper rectangle corner in ROWS.
 /// \return the linearized 2D block data read from surface.
 ///
-/// \ingroup sycl_esimd
 template <typename T, int m, int n, typename AccessorTy, unsigned plane = 0>
 __ESIMD_API simd<T, m * n> media_block_load(AccessorTy acc, unsigned x,
                                             unsigned y) {
@@ -1121,7 +1153,6 @@ __ESIMD_API simd<T, m * n> media_block_load(AccessorTy acc, unsigned x,
 /// \param y is Y-coordinate of the left upper rectangle corner in ROWS.
 /// \param vals is the linearized 2D block data to be written to surface.
 ///
-/// \ingroup sycl_esimd
 template <typename T, int m, int n, typename AccessorTy, unsigned plane = 0>
 __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
                                    simd<T, m * n> vals) {
@@ -1152,31 +1183,27 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
   }
 }
 
-#ifndef __SYCL_DEVICE_ONLY__
-
-inline void slm_init(uint32_t size) {}
-
-#endif
-
 /// get_value
 ///
 /// \param acc is the SYCL accessor.
 /// \return the binding table index value.
 ///
-/// \ingroup sycl_esimd
 template <typename AccessorTy>
 __SYCL_DEPRECATED("use get_surface_index")
 __ESIMD_API uint32_t get_value(AccessorTy acc) {
   return static_cast<uint32_t>(get_surface_index(acc));
 }
 
-/// \defgroup sycl_esimd_raw_send_api Raw send APIs
-/// APIs below are used to implement the send messages on Intel(R) processor
+/// @} sycl_esimd_memory_atomics
+
+/// @defgroup sycl_esimd_memory_raw_send Raw send APIs
+/// @ingroup sycl_esimd_memory
+/// Implements the send messages on Intel(R) processor
 /// graphics, as defined in the documentation at
 /// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
-///
-/// \ingroup sycl_esimd
+
 /// @{
+/// @ingroup sycl_esimd_memory_raw_send
 
 /// Raw sends load.
 ///
@@ -1327,7 +1354,7 @@ raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                                         numSrc0, sfid, exDesc, msgDesc,
                                         msgSrc0.data());
 }
-/// @}
+/// @} sycl_esimd_memory_raw_send
 
 #undef __ESIMD_GET_SURF_HANDLE
 
