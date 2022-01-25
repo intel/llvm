@@ -4,9 +4,8 @@
 
 #include <sycl/sycl.hpp>
 
-SYCL_EXTERNAL void
-func(const sycl::accessor<sycl::float4, 2, sycl::access::mode::read,
-                          sycl::access::target::image> &dummy_accessor) {
-  const sycl::int2 coords{0, 0};
-  auto pixel = dummy_accessor.read(coords);
+SYCL_EXTERNAL void func() {
+  const sycl::accessor<sycl::float4, 2, sycl::access::mode::read,
+                       sycl::access::target::image>
+      x;
 }
