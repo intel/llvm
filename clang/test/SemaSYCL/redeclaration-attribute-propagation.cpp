@@ -37,7 +37,7 @@ void
 // expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 func3() {} // expected-error {{'reqd_work_group_size' attribute conflicts with ''reqd_work_group_size'' attribute}}
 
-//fourth case - expect warning
+// fourth case - expect warning.
 [[intel::max_work_group_size(4, 4, 4)]] void func4();   // expected-note {{previous attribute is here}}
 [[intel::max_work_group_size(8, 8, 8)]] void func4() {} // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}}
 #endif

@@ -3509,7 +3509,7 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
           (DeclXDimExpr->getResultAsAPSInt() != 1 ||
            DeclYDimExpr->getResultAsAPSInt() != 1 ||
            DeclZDimExpr->getResultAsAPSInt() != 1)) {
-         Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+        Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
             << CI << DeclAttr;
         return;
       }

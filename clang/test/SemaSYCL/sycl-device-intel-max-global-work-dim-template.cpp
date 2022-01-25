@@ -107,7 +107,7 @@ template <int N>
 // TODO: Crash happens now due to the upport for checking
 // max_work_group_size and max_global_work_dim
 // attributes when merging, so the test crashes instead of
-// any diagnostic when it shouldn't.
+// without any diagnostic when it shouldn't.
 /*template <int N>
 [[intel::max_work_group_size(N, N, N)]] void func9();
 template <int N>
