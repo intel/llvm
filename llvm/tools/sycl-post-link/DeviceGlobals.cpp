@@ -84,7 +84,7 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
 ///
 /// The function gets this value from the LLVM IR attribute \c
 /// sycl-unique-id. If the attribute is not found for the variable
-/// an error should occur even in the release built.
+/// an error should occur even in the release build.
 ///
 /// @param GV [in] Device Global variable.
 ///
