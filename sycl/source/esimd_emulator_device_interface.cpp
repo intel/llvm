@@ -30,10 +30,11 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
 
   try {
     PIOpaqueData =
-      getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(nullptr);
+        getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(
+            nullptr);
   } catch (...) {
     std::cerr << "ESIMD EMU plugin error or not loaded - try setting "
-      "SYCL_DEVICE_FILTER=esimd_emulator:gpu environment variable"
+                 "SYCL_DEVICE_FILTER=esimd_emulator:gpu environment variable"
               << std::endl;
     throw cl::sycl::feature_not_supported();
   }
