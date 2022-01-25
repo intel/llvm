@@ -9,11 +9,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "DeviceGlobals.h"
+#include "Support.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/Error.h"
 
 #include <cassert>
 
@@ -24,11 +24,6 @@ namespace {
 constexpr StringRef SYCL_DEVICE_GLOBAL_SIZE_ATTR = "sycl-device-global-size";
 constexpr StringRef SYCL_UNIQUE_ID_ATTR = "sycl-unique-id";
 constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "device_image_scope";
-
-void AssertRelease(bool Cond, const char *Msg) {
-  if (!Cond)
-    report_fatal_error(Twine("DeviceGlobals.cpp: ") + Msg);
-}
 
 /// Converts the string into a boolean value. If the string is equal to "false"
 /// we consider its value as /c false, /true otherwise.

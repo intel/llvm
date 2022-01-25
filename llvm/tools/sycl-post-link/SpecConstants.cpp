@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SpecConstants.h"
+#include "Support.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -17,7 +18,6 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
@@ -50,11 +50,6 @@ constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 // constants encountered in the module
 constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
     "sycl.specialization-constants-default-values";
-
-void AssertRelease(bool Cond, const char *Msg) {
-  if (!Cond)
-    report_fatal_error(Twine("SpecConstants.cpp: ") + Msg);
-}
 
 StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
                               SmallVectorImpl<Instruction *> &DelInsts) {
