@@ -21,6 +21,7 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
@@ -116,8 +117,9 @@ static bool PrintPiTrace = false;
 // Sycl RT calls piTearDown().
 static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 
-// Mapping between surface inde and CM-managed surface
+// Mapping between surface index and CM-managed surface
 static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap;
+static sycl::detail::SpinLock *PiESimdSurfaceMapLock;
 
 // To be compared with ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION in device
 // interface header file
@@ -296,6 +298,7 @@ void sycl_get_cm_surface_index(void *PtrInput, unsigned int *SurfIndex) {
 
 void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
                                      uint32_t *Width, std::mutex **MtxLock) {
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
   auto MemIter = PiESimdSurfaceMap->find(IndexInput);
 
   assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
@@ -311,6 +314,7 @@ void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
 void sycl_get_cm_image_params_index(unsigned int IndexInput, char **BaseAddr,
                                     uint32_t *Width, uint32_t *Height,
                                     uint32_t *Bpp, std::mutex **MtxLock) {
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
   auto MemIter = PiESimdSurfaceMap->find(IndexInput);
   assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
 
@@ -425,6 +429,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
   PiESimdSurfaceMap = new std::unordered_map<unsigned int, _pi_mem *>;
+  PiESimdSurfaceMapLock = new sycl::detail::SpinLock;
 
   if (PiTraceValue == -1) { // Means print all PI traces
     PrintPiTrace = true;
@@ -1007,6 +1012,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   Status = CmBuf->GetIndex(CmIndex);
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
   if (PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) !=
       PiESimdSurfaceMap->end()) {
     if (PrintPiTrace) {
@@ -1082,6 +1088,7 @@ pi_result piMemRelease(pi_mem Mem) {
     }
 
     // Removing Surface-map entry
+    const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
     auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
     if (MapEntryIt != PiESimdSurfaceMap->end()) {
       PiESimdSurfaceMap->erase(MapEntryIt);
@@ -1197,6 +1204,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
   Status = CmSurface->GetIndex(CmIndex);
 
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
   if (PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) !=
       PiESimdSurfaceMap->end()) {
     if (PrintPiTrace) {
@@ -1815,6 +1823,7 @@ pi_result piTearDown(void *) {
       PiESimdDeviceAccess->data);
   delete PiESimdDeviceAccess;
 
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
   for (auto it = PiESimdSurfaceMap->begin(); it != PiESimdSurfaceMap->end();) {
     it = PiESimdSurfaceMap->erase(it);
   }
