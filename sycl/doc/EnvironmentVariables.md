@@ -27,9 +27,7 @@ compiler and runtime.
 ### `SYCL_DEVICE_ALLOWLIST`
 
 A list of devices and their driver version following the pattern:
-`BackendName:XXX,DeviceType:YYY,DeviceVendorId:0xXYZW,DriverVersion:{
-  { X.Y.Z.W }
-}`.
+`BackendName:XXX,DeviceType:YYY,DeviceVendorId:0xXYZW,DriverVersion:{{X.Y.Z.W}}`.
 Also may contain `PlatformVersion`, `DeviceName` and `PlatformName`. There is no
 fixed order of properties in the pattern.
 
