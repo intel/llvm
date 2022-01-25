@@ -17,6 +17,6 @@
 
 #define AssertRelease(Cond, Msg)                                               \
   do {                                                                         \
-    if (!Cond)                                                                 \
-      llvm::report_fatal_error(llvm::Twine(__FILE__ " ") + Msg);               \
+    if (!(Cond))                                                               \
+      llvm::report_fatal_error(llvm::Twine(__FILE__ " ") + (Msg));             \
   } while (false)
