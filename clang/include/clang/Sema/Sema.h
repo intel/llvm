@@ -44,7 +44,6 @@
 #include "clang/Basic/OpenCLOptions.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/PragmaKinds.h"
-#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TemplateKinds.h"
 #include "clang/Basic/TypeTraits.h"
@@ -397,16 +396,16 @@ private:
     bool IsESIMDKernel;
 
     /// Kernel code_locaiton - file name.
-    std::string FileName;
+    ///std::string FileName;
 
     /// Kernel code_location - function name.
-    std::string FunctionName;
+    ///std::string FunctionName;
 
     /// Kernel code_location - line number.
-    unsigned LineNumber;
+    ///unsigned LineNumber;
 
     /// Kernel code_location - column number.
-    unsigned ColumnNumber;
+    ///unsigned ColumnNumber;
 
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
@@ -418,8 +417,8 @@ private:
     KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
         : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
-          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel),
-          FileName(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getFilename()) {}
+          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel) {}
+          //FileName(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getFilename()) {}
           //LineNumber(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getLineNumber()),  
           //ColumnNumber(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getColumnNumber()) {}
 

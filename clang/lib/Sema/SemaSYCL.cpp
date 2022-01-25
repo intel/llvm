@@ -4684,6 +4684,17 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
+    PresumedLoc PLoc = S.Context.getSourceManager().getPresumedLoc(
+        S.Context.getSourceManager().getExpansionRange(K.KernelLocation).getEnd());
+    std::string FileName = PLoc.getFilename();
+    std::string FunctionName = "main";
+    unsigned LineNumber = PLoc.getLine();
+    unsigned ColumnNumber = PLoc.getColumn();
+    //std::string FileName = S.Context.getSourceManager().getPresumedLoc(K.KernelLocation).getFilename();
+    //FileID fileID = S.Context.getSourceManager().getFileID(K.KernelLocation);
+    //unsigned LineNumber = S.Context.getSourceManager().getPresumedLoc(K.KernelLocation).getLinenumber();
+    //unsigned LineNumber = S.Context.getSourceManager().getPresumedLineNumber(K.KernelLocation);
+    //unsigned ColumnNumber = S.Context.getSourceManager().getPresumedColumnNumber(K.KernelLocation);
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
@@ -4708,17 +4719,17 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFileName() { return " << K.FileName
-      << "\"; }\n";
+    O << "  static constexpr const char* getFileName() { return " << FileName
+      << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getFunctionName() { return "
-      << K.FunctionName << "\"; }\n";
+      << FunctionName << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getLineNumber() { return " << K.LineNumber
-      << "\"; }\n";
+    O << "  static constexpr unsigned getLineNumber() { return " << LineNumber
+      << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getColumnNumber() { return "
-        << K.ColumnNumber << "\"; }\n";
+        << ColumnNumber << "; }\n";
     O << "};\n";
     CurStart += N;
   }
