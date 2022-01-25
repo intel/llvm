@@ -8,13 +8,13 @@
 
 #pragma once
 
-#define SYCL_EXT_ONEAPI_BARRIER 1
+#define SYCL_EXT_ONEAPI_CUDA_ASYNC_BARRIER 1
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <cstddef>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::cuda {
 
 class barrier {
   int64_t state;
@@ -130,5 +130,5 @@ public:
   static constexpr uint64_t max() { return (1 << 20) - 1; }
 };
 
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::cuda
 } // __SYCL_INLINE_NAMESPACE(cl)

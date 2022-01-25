@@ -53,7 +53,7 @@ This extension is written against the SYCL 2020 specification, Revision 4.
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros".  Therefore, an
 implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_BARRIER` to one of the values defined in the table
+`SYCL_EXT_ONEAPI_CUDA_ASYNC_BARRIER` to one of the values defined in the table
 below. Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's APIs the implementation supports.
@@ -66,13 +66,13 @@ value to determine which of the extension's APIs the implementation supports.
 
 == Overview
 
-This extension introduces asynchronous barrier. This extends `group_barrier` by splitting it into into two calls - arrive and wait. The wait call blocks until the predetermined number of work items in the same work group call arrive. This is also very similar to https://en.cppreference.com/w/cpp/thread/barrier[`std::barrier`] introduced in c++20.
+This extension introduces asynchronous barrier for CUDA devices. This extends `group_barrier` by splitting it into into two calls - arrive and wait. The wait call blocks until the predetermined number of work items in the same work group call arrive. This is also very similar to https://en.cppreference.com/w/cpp/thread/barrier[`std::barrier`] introduced in c++20.
 
 Implementing this requires some space in local memory, where the state of the barrier is kept (this is true even for the CUDA compute capability 8 that support this functionality in hardware).
 
 This extension introduces `barrier` class. It must be used only in local memory. Once a `barrier` is initialized it can be reused for multiple cycles of arrivals and waits.
 
-While it is expected that `barrier` will be mostly useful for devices that support independent forward progress, it can also be used on devices that do not support it. If the device does not support independent forward progress, care must be taken that `wait` is only called with all work-items in sub-group converged. Not following this advice will likely lead to a deadlock (similarly as could happen if attempting to synchronize a diverged sub-group with atomics, for example by implementing a spinlock).
+This extension can only be used on devices that support independent forward progress.
 
 === Cycle of arrivals and waits
 
@@ -102,7 +102,9 @@ Wait and test wait can only be called with an arrival token from current cycle (
 
 `void wait(arrival_token arrival)` : Executes wait operation, blocking until the predetermined number of work items reach arrive.
 
-`void test_wait(arrival_token arrival)` : Checks whether all the arrivals have already happened for the current cycle, returning `true` if they did and `false` if `wait(arrival)` would block.
+`bool test_wait(arrival_token arrival)` : Checks whether all the arrivals have already happened for the current cycle, returning `true` if they did and `false` if `wait(arrival)` would block.
+
+`void arrive_and_wait()` : Equivalent to calling `this->wait(this->arrive())`.
 
 `static constexpr uint64_t max()` : Returns the maximum value of the expected and pending counts supported by the implementation. Exceeding this in the internal state of the barrier is undefined behavior.
 
@@ -113,6 +115,7 @@ Wait and test wait can only be called with an arrival token from current cycle (
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace cuda {
 
 class barrier {
   [implementation defined internal state]
@@ -135,11 +138,12 @@ public:
   void arrive_copy_async();
   void arrive_copy_async_no_inc();
   void wait(arrival_token arrival);
-  void test_wait(arrival_token arrival);
-  arrival_token arrive_and_wait();
+  bool test_wait(arrival_token arrival);
+  void arrive_and_wait();
   static constexpr uint64_t max();
 };
 
+} // namespace cuda
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
