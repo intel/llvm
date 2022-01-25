@@ -1,9 +1,6 @@
 // XFAIL: level_zero&&gpu
 // UNSUPPORTED: windows
 // Level0 testing times out on Windows.
-//
-// Failing on HIP AMD and HIP NVIDIA
-// UNSUPPORTED: hip_amd || hip_nvidia
 
 // RUN: %clangxx -D__SYCL_INTERNAL_API -fsycl -fno-sycl-id-queries-fit-in-int -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
