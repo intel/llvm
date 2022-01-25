@@ -2363,16 +2363,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpAll:
   case OpAny:
-    return mapValue(BV,
-                    transOCLAllAny(static_cast<SPIRVInstruction *>(BV), BB));
+    return mapValue(BV, transAllAny(static_cast<SPIRVInstruction *>(BV), BB));
 
   case OpIsFinite:
   case OpIsInf:
   case OpIsNan:
   case OpIsNormal:
   case OpSignBitSet:
-    return mapValue(
-        BV, transOCLRelational(static_cast<SPIRVInstruction *>(BV), BB));
+    return mapValue(BV,
+                    transRelational(static_cast<SPIRVInstruction *>(BV), BB));
   case OpGetKernelWorkGroupSize:
   case OpGetKernelPreferredWorkGroupSizeMultiple:
     return mapValue(
@@ -4254,68 +4253,51 @@ SPIRVToLLVM::transLinkageType(const SPIRVValue *V) {
   }
 }
 
-Instruction *SPIRVToLLVM::transOCLAllAny(SPIRVInstruction *I, BasicBlock *BB) {
+Instruction *SPIRVToLLVM::transAllAny(SPIRVInstruction *I, BasicBlock *BB) {
   CallInst *CI = cast<CallInst>(transSPIRVBuiltinFromInst(I, BB));
   assert(CI->getCalledFunction() && "Unexpected indirect call");
+  BuiltinFuncMangleInfo BtnInfo;
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return cast<Instruction>(mapValue(
-      I, mutateCallInstOCL(
+      I, mutateCallInst(
              M, CI,
-             [=](CallInst *, std::vector<Value *> &Args, llvm::Type *&RetTy) {
-               Type *Int32Ty = Type::getInt32Ty(*Context);
-               auto OldArg = CI->getOperand(0);
-               auto NewArgTy = FixedVectorType::get(
-                   Int32Ty,
+             [=](CallInst *, std::vector<Value *> &Args) {
+               auto *OldArg = CI->getOperand(0);
+               auto *NewArgTy = FixedVectorType::get(
+                   Type::getInt8Ty(*Context),
                    cast<FixedVectorType>(OldArg->getType())->getNumElements());
-               auto NewArg =
+               auto *NewArg =
                    CastInst::CreateSExtOrBitCast(OldArg, NewArgTy, "", CI);
                Args[0] = NewArg;
-               RetTy = Int32Ty;
                return getSPIRVFuncName(I->getOpCode(), getSPIRVFuncSuffix(I));
              },
-             [=](CallInst *NewCI) -> Instruction * {
-               return CastInst::CreateTruncOrBitCast(
-                   NewCI, Type::getInt1Ty(*Context), "", NewCI->getNextNode());
-             },
-             &Attrs, /*TakeFuncName=*/true)));
+             &BtnInfo, &Attrs, /*TakeFuncName=*/true)));
 }
 
-Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
-                                             BasicBlock *BB) {
+Instruction *SPIRVToLLVM::transRelational(SPIRVInstruction *I, BasicBlock *BB) {
   CallInst *CI = cast<CallInst>(transSPIRVBuiltinFromInst(I, BB));
   assert(CI->getCalledFunction() && "Unexpected indirect call");
+  BuiltinFuncMangleInfo BtnInfo;
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return cast<Instruction>(mapValue(
-      I, mutateCallInstOCL(
+      I, mutateCallInst(
              M, CI,
              [=](CallInst *, std::vector<Value *> &Args, llvm::Type *&RetTy) {
-               Type *IntTy = Type::getInt32Ty(*Context);
-               RetTy = IntTy;
                if (CI->getType()->isVectorTy()) {
-                 if (cast<FixedVectorType>(CI->getOperand(0)->getType())
-                         ->getElementType()
-                         ->isDoubleTy())
-                   IntTy = Type::getInt64Ty(*Context);
-                 if (cast<FixedVectorType>(CI->getOperand(0)->getType())
-                         ->getElementType()
-                         ->isHalfTy())
-                   IntTy = Type::getInt16Ty(*Context);
                  RetTy = FixedVectorType::get(
-                     IntTy,
+                     Type::getInt8Ty(*Context),
                      cast<FixedVectorType>(CI->getType())->getNumElements());
                }
                return getSPIRVFuncName(I->getOpCode(), getSPIRVFuncSuffix(I));
              },
              [=](CallInst *NewCI) -> Instruction * {
-               Type *RetTy = Type::getInt1Ty(*Context);
-               if (NewCI->getType()->isVectorTy())
-                 RetTy = FixedVectorType::get(
-                     Type::getInt1Ty(*Context),
-                     cast<FixedVectorType>(NewCI->getType())->getNumElements());
+               Type *RetTy = CI->getType();
+               if (RetTy == NewCI->getType())
+                 return NewCI;
                return CastInst::CreateTruncOrBitCast(NewCI, RetTy, "",
                                                      NewCI->getNextNode());
              },
-             &Attrs, /*TakeFuncName=*/true)));
+             &BtnInfo, &Attrs, /*TakeFuncName=*/true)));
 }
 
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
