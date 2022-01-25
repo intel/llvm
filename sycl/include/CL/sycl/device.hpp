@@ -34,7 +34,8 @@ auto getDeviceComparisonLambda();
 /// \ingroup sycl_api
 class __SYCL_EXPORT device {
 public:
-  /// Constructs a SYCL device instance as a host device.
+  /// Constructs a SYCL device instance that is a copy of the device returned
+  /// from default_selector instance
   device();
 
   /// Constructs a SYCL device instance from an OpenCL cl_device_id
