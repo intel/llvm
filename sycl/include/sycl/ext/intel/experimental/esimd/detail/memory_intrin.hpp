@@ -40,6 +40,11 @@ namespace cm_support {
 #include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
+// Channel Mask Array for scaled-gather/scatter
+const std::array<__SEIEE::rgba_channel, 4> ChannelMaskArray{
+    __SEIEE::rgba_channel::R, __SEIEE::rgba_channel::G,
+    __SEIEE::rgba_channel::B, __SEIEE::rgba_channel::A};
+
 #endif // ifndef __SYCL_DEVICE_ONLY__
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -312,42 +317,18 @@ __esimd_svm_gather4_scaled(__SEIEED::vector_type_t<uint64_t, N> addrs,
 {
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
   unsigned int Next = 0;
+  uint64_t Offset = 0;
 
-  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-        V[Next] = *Addr;
+  for (const auto &channel : ChannelMaskArray) {
+    if (__SEIEE::is_channel_enabled(Mask, channel)) {
+      for (int I = 0; I < N; I++, Next++) {
+        if (pred[I]) {
+          Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + Offset);
+          V[Next] = *Addr;
+        }
       }
     }
-  }
-
-  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty));
-        V[Next] = *Addr;
-      }
-    }
-  }
-
-  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty) + sizeof(Ty));
-        V[Next] = *Addr;
-      }
-    }
-  }
-
-  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty) + sizeof(Ty) +
-                                          sizeof(Ty));
-        V[Next] = *Addr;
-      }
-    }
+    Offset += (uint64_t)sizeof(Ty);
   }
 
   return V;
@@ -366,42 +347,18 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
 {
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
   unsigned int Next = 0;
+  uint64_t Offset = 0;
 
-  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-        *Addr = vals[Next];
+  for (const auto &channel : ChannelMaskArray) {
+    if (__SEIEE::is_channel_enabled(Mask, channel)) {
+      for (int I = 0; I < N; I++, Next++) {
+        if (pred[I]) {
+          Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + Offset);
+          *Addr = vals[Next];
+        }
       }
     }
-  }
-
-  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty));
-        *Addr = vals[Next];
-      }
-    }
-  }
-
-  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty) + sizeof(Ty));
-        *Addr = vals[Next];
-      }
-    }
-  }
-
-  if constexpr (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + sizeof(Ty) + sizeof(Ty) +
-                                          sizeof(Ty));
-        *Addr = vals[Next];
-      }
-    }
+    Offset += (uint64_t)sizeof(Ty);
   }
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -808,50 +765,33 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
-  char *ReadBase = I->__cm_emu_get_slm_ptr();
-
+  char *ReadBase;
   unsigned int Next = 0;
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + ReadBase);
-        retv[Next] = *addr;
-      }
-    }
+
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
+    ReadBase = I->__cm_emu_get_slm_ptr();
+  } else {
+    uint32_t width;
+    std::mutex *mutexLock;
+    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &ReadBase, &width,
+                                           &mutexLock);
+    std::unique_lock<std::mutex> lock(*mutexLock);
   }
 
-  ReadBase += sizeof(Ty);
+  ReadBase += global_offset;
 
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + ReadBase);
-        retv[Next] = *addr;
+  for (const auto &channel : ChannelMaskArray) {
+    if (__SEIEE::is_channel_enabled(Mask, channel)) {
+      for (int I = 0; I < N; I++, Next++) {
+        if (pred[I]) {
+          Ty *Addr = reinterpret_cast<Ty *>(ReadBase + offsets[I]);
+          retv[Next] = *Addr;
+        }
       }
     }
+    ReadBase += (uint64_t)sizeof(Ty);
   }
 
-  ReadBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + ReadBase);
-        retv[Next] = *addr;
-      }
-    }
-  }
-
-  ReadBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + ReadBase);
-        retv[Next] = *addr;
-      }
-    }
-  }
   return retv;
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -869,49 +809,31 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
 {
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
-  char *WriteBase = I->__cm_emu_get_slm_ptr();
-
+  char *WriteBase;
   unsigned int Next = 0;
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + WriteBase);
-        *addr = vals[Next];
-      }
-    }
+
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
+    WriteBase = I->__cm_emu_get_slm_ptr();
+  } else {
+    uint32_t width;
+    std::mutex *mutexLock;
+    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &WriteBase, &width,
+                                           &mutexLock);
+    std::unique_lock<std::mutex> lock(*mutexLock);
   }
 
-  WriteBase += sizeof(Ty);
+  WriteBase += global_offset;
 
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + WriteBase);
-        *addr = vals[Next];
+  for (const auto &channel : ChannelMaskArray) {
+    if (__SEIEE::is_channel_enabled(Mask, channel)) {
+      for (int I = 0; I < N; I++, Next++) {
+        if (pred[I]) {
+          Ty *Addr = reinterpret_cast<Ty *>(WriteBase + offsets[I]);
+          *Addr = vals[Next];
+        }
       }
     }
-  }
-
-  WriteBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + WriteBase);
-        *addr = vals[Next];
-      }
-    }
-  }
-
-  WriteBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + WriteBase);
-        *addr = vals[Next];
-      }
-    }
+    WriteBase += (uint64_t)sizeof(Ty);
   }
 }
 #endif // __SYCL_DEVICE_ONLY__
