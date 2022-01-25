@@ -28,14 +28,14 @@ int main() {
 
 // CHECK kernel_C parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_C
-// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
-// CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
-// CHECK-SAME: %"struct{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]],
-// CHECK-SAME: i32 addrspace(1)* [[MEM_ARG2:%[a-zA-Z0-9_]+4]],
-// CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+6]],
-// CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+7]],
-// CHECK-SAME: %"struct{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET2:%[a-zA-Z0-9_]+8]])
+// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* noundef byval({{.*}}) align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+1]],
+// CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* noundef byval({{.*}}) align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+2]],
+// CHECK-SAME: %"struct{{.*}}.cl::sycl::id"* noundef byval({{.*}}) align 4 [[OFFSET1:%[a-zA-Z0-9_]+3]],
+// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG2:%[a-zA-Z0-9_]+4]],
+// CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* noundef byval({{.*}}) align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+6]],
+// CHECK-SAME: %"struct{{.*}}.cl::sycl::range"* noundef byval({{.*}}) align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+7]],
+// CHECK-SAME: %"struct{{.*}}.cl::sycl::id"* noundef byval({{.*}}) align 4 [[OFFSET2:%[a-zA-Z0-9_]+8]])
 
 // Check alloca for pointer arguments
 // CHECK: [[MEM_ARG1]].addr{{[0-9]*}} = alloca i32 addrspace(1)*, align 8
@@ -81,7 +81,7 @@ int main() {
 // CHECK: [[ACC_RANGE1:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[ACC_RANGE1AS]] to %"struct.cl::sycl::range"*
 // CHECK: [[MEM_RANGE1:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[MEM_RANGE1AS]] to %"struct.cl::sycl::range"*
 // CHECK: [[OFFSET1:%.*]] = addrspacecast %"struct.cl::sycl::id" addrspace(4)* [[OFFSET1AS]] to %"struct.cl::sycl::id"*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}([[ACCESSOR]] addrspace(4)* {{[^,]*}} [[ARRAY_IDX1]], i32 addrspace(1)* [[MEM_LOAD1]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET1]])
+// CHECK: call spir_func void @{{.*}}__init{{.*}}([[ACCESSOR]] addrspace(4)* {{[^,]*}} [[ARRAY_IDX1]], i32 addrspace(1)* noundef [[MEM_LOAD1]], %"struct{{.*}}.cl::sycl::range"* noundef byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct{{.*}}.cl::sycl::range"* noundef byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct{{.*}}.cl::sycl::id"* noundef byval({{.*}}) align 4 [[OFFSET1]])
 
 // Check acc[1] __init method call
 // CHECK: [[GEP_LAMBDA2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
@@ -91,4 +91,4 @@ int main() {
 // CHECK: [[ACC_RANGE2:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[ACC_RANGE2AS]] to %"struct.cl::sycl::range"*
 // CHECK: [[MEM_RANGE2:%.*]] = addrspacecast %"struct.cl::sycl::range" addrspace(4)* [[MEM_RANGE2AS]] to %"struct.cl::sycl::range"*
 // CHECK: [[OFFSET2:%.*]] = addrspacecast %"struct.cl::sycl::id" addrspace(4)* [[OFFSET2AS]] to %"struct.cl::sycl::id"*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}([[ACCESSOR]] addrspace(4)* {{[^,]*}} [[ARRAY_IDX2]], i32 addrspace(1)* [[MEM_LOAD2]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE2]], %"struct{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET2]])
+// CHECK: call spir_func void @{{.*}}__init{{.*}}([[ACCESSOR]] addrspace(4)* {{[^,]*}} [[ARRAY_IDX2]], i32 addrspace(1)* noundef [[MEM_LOAD2]], %"struct{{.*}}.cl::sycl::range"* noundef byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct{{.*}}.cl::sycl::range"* noundef byval({{.*}}) align 4 [[MEM_RANGE2]], %"struct{{.*}}.cl::sycl::id"* noundef byval({{.*}}) align 4 [[OFFSET2]])
