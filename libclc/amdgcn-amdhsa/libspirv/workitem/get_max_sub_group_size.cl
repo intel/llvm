@@ -17,7 +17,6 @@ extern constant unsigned char __oclc_wavefrontsize64;
 _CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupMaxSize() {
   if (__oclc_wavefrontsize64 == 1) {
     return 64;
-  } else {
-    return 32;
   }
+  return 32;
 }
