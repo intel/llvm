@@ -1,4 +1,4 @@
-#Environment Variables
+# Environment Variables
 
 This document describes environment variables that are having effect on DPC++
 compiler and runtime.
