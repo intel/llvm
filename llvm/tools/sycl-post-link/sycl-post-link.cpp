@@ -981,11 +981,6 @@ int main(int argc, char **argv) {
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
-  if (IROutputOnly && DoDeviceGlobals) {
-    errs() << "error: -" << DeviceGlobals.ArgStr << " can't be used with"
-           << " -" << IROutputOnly.ArgStr << "\n";
-    return 1;
-  }
 
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
