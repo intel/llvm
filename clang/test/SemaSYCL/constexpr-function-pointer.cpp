@@ -10,11 +10,11 @@ constexpr SomeFunc foo() { return t; }
 
 const SomeFunc foo1() { return t; }
 
-void recursiveFoo() { recursiveFoo(); }
-
 void bar1(const SomeFunc fptr) {
   fptr();
 }
+
+template<auto f> void fooNTTP() { f(); }
 
 __attribute__((sycl_device)) void bar() {
   // OK
@@ -36,5 +36,7 @@ __attribute__((sycl_device)) void bar() {
   const auto fff = foo1();
   // expected-error@+1 {{SYCL kernel cannot call through a function pointer}}
   fff();
+
+  fooNTTP<t>();
 }
 
