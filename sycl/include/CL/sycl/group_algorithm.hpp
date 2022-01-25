@@ -152,11 +152,7 @@ reduce_over_group(Group, T x, BinaryOperation binary_op) {
 #endif
 }
 
-
-
-// CANONICAL CALL: std::complex<T> res = sycl::reduce_over_group(item.get_group(),val,std::plus<std::complex<T>>());
-
-// complex specializaion. T is std::complex<float> or similar.
+// complex specialization. T is std::complex<float> or similar.
 //   binary op is  sycl::plus<std::complex<float>>
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
@@ -165,10 +161,7 @@ detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                     T>
 reduce_over_group(Group g, T x, sycl::plus<T> binary_op) {
 #ifdef __SYCL_DEVICE_ONLY__
-  // return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
-  //                           sycl::detail::spirv::group_scope<Group>::value>(
-  //     typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
-  T result; //
+  T result;
   result.real(reduce_over_group(g, x.real(), sycl::plus<>()));
   result.imag(reduce_over_group(g, x.imag(), sycl::plus<>()));
   return result;
@@ -254,7 +247,6 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 
 // ---- joint_reduce
 //    specialized for is_arithmetic (both scalar and vector) and complex
-//    (limited to sycl::plus)
 template <typename Group, typename Ptr, class BinaryOperation>
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
