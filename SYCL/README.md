@@ -81,14 +81,16 @@ list of configurations. Each configuration includes backend separated
 from comma-separated list of target devices with colon. Example:
 
 ```
--DCHECK_SYCL_ALL="opencl:cpu,host;level_zero:gpu,host;cuda:gpu;hip:gpu"
+-DCHECK_SYCL_ALL="opencl:cpu,host;ext_oneapi_level_zero:gpu,host;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu"
 ```
 
 ***SYCL_BE*** - SYCL backend to be used for testing. Supported values are:
  - **opencl** - for OpenCL backend;
- - **cuda** - for CUDA backend;
- - **hip** - for HIP backend;
- - **level_zero** - Level Zero backend.
+ - **ext_oneapi_cuda** - for CUDA backend;
+ - **ext_oneapi_hip** - for HIP backend;
+ - **ext_oneapi_level_zero** - Level Zero backend;
+ - **ext_intel_esimd_emulator** - ESIMD emulator backend;
+
 
 ***SYCL_TARGET_DEVICES*** - comma separated list of target devices for testing.
 Default value is cpu,gpu,acc,host. Supported values are:
@@ -137,7 +139,8 @@ unavailable.
 
  * **windows**, **linux** - host OS;
  * **cpu**, **gpu**, **host**, **accelerator** - target device;
- * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
+ * **cuda**, **hip**, **opencl**, **level_zero**, **esimd_emulator** - target
+     backend;
  * **sycl-ls** - sycl-ls tool availability;
  * **cm-compiler** - C for Metal compiler availability;
  * **cl_options** - CL command line options recognized (or not) by compiler;
@@ -156,7 +159,8 @@ configure specific single test execution in the command line:
  * **dpcpp_compiler** - full path to dpcpp compiler;
  * **target_device** - comma-separated list of target devices (cpu, gpu, acc,
    host);
- * **sycl_be** - SYCL backend to be used (opencl, level_zero, cuda, hip);
+ * **sycl_be** - SYCL backend to be used (opencl, ext_oneapi_level_zero,
+   ext_oneapi_cuda, ext_oneapi_hip, ext_oneapi_intel_emulator);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
  * **gpu_aot_target_opts** - defines additional options which are passed to AOT
    compilation command line for GPU device. It can be also set by CMake variable
@@ -178,7 +182,7 @@ configure specific single test execution in the command line:
 Example:
 
 ```
-llvm-lit --param target_devices=host,gpu --param sycl_be=level_zero \
+llvm-lit --param target_devices=host,gpu --param sycl_be=ext_oneapi_level_zero \
          --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
          SYCL/External/RSBench
 ```
