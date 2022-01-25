@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <complex>
+
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
@@ -19,6 +21,8 @@
 #include <CL/sycl/sub_group.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
+
+#define SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS 1
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -97,6 +101,17 @@ template <typename T, typename BinaryOperation> struct is_native_op {
       is_contained<BinaryOperation, native_op_list<void>>::value;
 };
 
+
+// CP
+// ---- is_complex
+template <typename T>
+struct is_complex : std::bool_constant<std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>> || std::is_same_v<T, std::complex<long double>>> {};
+
+// ---- is_arithmetic_or_complex
+template <typename T>
+using is_arithmetic_or_complex =
+  std::bool_constant<sycl::detail::is_complex<T>::value || sycl::detail::is_arithmetic<T>::value>;
+
 // ---- for_each
 template <typename Group, typename Ptr, class Function>
 Function for_each(Group g, Ptr first, Ptr last, Function f) {
@@ -119,6 +134,9 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 } // namespace detail
 
 // ---- reduce_over_group
+//        three argument variant is specialized thrice:
+//        scalar arithmetic, complex (plus only), and vector arithmetic (sycl::vec)
+
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -135,6 +153,32 @@ reduce_over_group(Group, T x, BinaryOperation binary_op) {
   return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
                             sycl::detail::spirv::group_scope<Group>::value>(
       typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+#else
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+
+
+// CANONICAL CALL: std::complex<T> res = sycl::reduce_over_group(item.get_group(),val,std::plus<std::complex<T>>());
+
+// complex specializaion. T is std::complex<float> or similar.
+//   binary op is  sycl::plus<std::complex<float>>
+template <typename Group, typename T>
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                     detail::is_complex<T>::value &&
+                     detail::is_native_op<T, sycl::plus<T>>::value),
+                    T>
+reduce_over_group(Group g, T x, sycl::plus<T> binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  // return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
+  //                           sycl::detail::spirv::group_scope<Group>::value>(
+  //     typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+  T result; //
+  result.real(reduce_over_group(g, x.real(), sycl::plus<>()));
+  result.imag(reduce_over_group(g, x.imag(), sycl::plus<>()));
+  return result;
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -161,10 +205,12 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   return result;
 }
 
+//   four argument variant of reduce_over_group specialized twice
+//       (scalar arithmetic || complex), and vector_arithmetic
 template <typename Group, typename V, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<V>::value &&
-                     detail::is_scalar_arithmetic<T>::value &&
+                     (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
+                     (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
                      detail::is_native_op<V, BinaryOperation>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
                     T>
@@ -183,6 +229,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
                       PI_INVALID_DEVICE);
 #endif
 }
+
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
