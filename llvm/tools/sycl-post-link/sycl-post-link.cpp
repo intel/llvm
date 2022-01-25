@@ -806,9 +806,12 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     }
 
     {
-      GlobalBinImageProps ImgPSInfo = {SpecConstsMet, EmitKernelParamInfo,
-                                       EmitProgramMetadata, EmitExportedSymbols,
-                                       IsEsimd, DeviceGlobals};
+      GlobalBinImageProps ImgPSInfo = {SpecConstsMet,
+                                       EmitKernelParamInfo,
+                                       EmitProgramMetadata,
+                                       EmitExportedSymbols,
+                                       IsEsimd,
+                                       DeviceGlobals};
       std::string PropSetFile = makeResultFileName(".prop", I, FileSuffix);
       saveModuleProperties(*ResM, SplitModuleEntryPoints, ImgPSInfo,
                            PropSetFile);
