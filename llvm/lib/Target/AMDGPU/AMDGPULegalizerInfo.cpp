@@ -929,10 +929,11 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   getActionDefinitionsBuilder(G_CTPOP)
     .legalFor({{S32, S32}, {S32, S64}})
     .clampScalar(0, S32, S32)
+    .widenScalarToNextPow2(1, 32)
     .clampScalar(1, S32, S64)
     .scalarize(0)
-    .widenScalarToNextPow2(0, 32)
-    .widenScalarToNextPow2(1, 32);
+    .widenScalarToNextPow2(0, 32);
+
 
   // The hardware instructions return a different result on 0 than the generic
   // instructions expect. The hardware produces -1, but these produce the
@@ -1345,8 +1346,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       }, changeTo(1, S16));
     Shifts.maxScalarIf(typeIs(0, S16), 1, S16);
     Shifts.clampScalar(1, S32, S32);
-    Shifts.clampScalar(0, S16, S64);
     Shifts.widenScalarToNextPow2(0, 16);
+    Shifts.clampScalar(0, S16, S64);
 
     getActionDefinitionsBuilder({G_SSHLSAT, G_USHLSAT})
       .minScalar(0, S16)
@@ -1357,8 +1358,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     // expansion for the shifted type will produce much worse code if it hasn't
     // been truncated already.
     Shifts.clampScalar(1, S32, S32);
-    Shifts.clampScalar(0, S32, S64);
     Shifts.widenScalarToNextPow2(0, 32);
+    Shifts.clampScalar(0, S32, S64);
 
     getActionDefinitionsBuilder({G_SSHLSAT, G_USHLSAT})
       .minScalar(0, S32)

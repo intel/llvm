@@ -17,7 +17,6 @@ DPC++ extensions status:
 | [FPGA reg](IntelFPGA/FPGAReg.md)                                                                                            | Supported(OpenCL: ACCELERATOR)            | |
 | [SYCL_INTEL_kernel_restrict_all](KernelRestrictAll/SYCL_INTEL_kernel_restrict_all.asciidoc)                                 | Supported(OpenCL)                         | |
 | [Reductions for ND-Range Parallelism](Reduction/Reduction.md)                                                               | Partially supported(OpenCL: CPU, GPU; CUDA) | Not supported: multiple reduction vars, multi-dimensional reduction vars |
-| [SYCL_INTEL_reqd_work_group_size](ReqdWorkGroupSize/SYCL_INTEL_reqd_work_group_size.asciidoc)                               | Supported(OpenCL: CPU, GPU)               | |
 | [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
 | [SPV_INTEL_inline_assembly](SPIRV/SPV_INTEL_inline_assembly.asciidoc)                                                       | Supported(OpenCL: GPU)                    | |
 | [LocalMemory](LocalMemory/LocalMemory.asciidoc)                                                                             | Supported(OpenCL; CUDA)                   | Revision 1 of the spec is fully supported, future revisions are expected to expand the functionality |
