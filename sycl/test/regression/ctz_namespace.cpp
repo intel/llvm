@@ -1,12 +1,16 @@
-// RUN: %clangxx -fsycl -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 #include <sycl/sycl.hpp>
 
-void kernel(int *data) {
+int main() {
+
+  sycl::queue queue;
+
   long long int a = -9223372034707292160ll;
-  data[0] = sycl::ctz(a);
+  long long int b = sycl::ctz(a);
+  long long int c = sycl::ext::intel::ctz(a);
+
+  return 0;
 }
 
-int main() { return 0; }
-
-// CHECK: call i64 {{.*}}@_ZN2cl4sycl3ctz{{.*}}_(i64 %0)
+// expected-warning@+1 {{'ctz<long long>' is deprecated: 'sycl::ext::intel::ctz' is deprecated, use 'sycl::ctz' instead}}
