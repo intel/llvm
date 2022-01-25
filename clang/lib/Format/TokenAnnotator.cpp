@@ -3346,6 +3346,9 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     if (Right.is(tok::l_brace) && Right.is(BK_BracedInit) &&
         !Left.opensScope() && Style.SpaceBeforeCpp11BracedList)
       return true;
+    if (Left.is(tok::less) && Left.is(TT_OverloadedOperator) &&
+        Right.is(TT_TemplateOpener))
+      return true;
   } else if (Style.Language == FormatStyle::LK_Proto ||
              Style.Language == FormatStyle::LK_TextProto) {
     if (Right.is(tok::period) &&
@@ -4316,7 +4319,7 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
   if (Right.is(TT_ImplicitStringLiteral))
     return false;
 
-  if (Right.is(tok::r_paren) || Right.is(TT_TemplateCloser))
+  if (Right.is(TT_TemplateCloser))
     return false;
   if (Right.is(tok::r_square) && Right.MatchingParen &&
       Right.MatchingParen->is(TT_LambdaLSquare))
@@ -4326,6 +4329,18 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
   // the l_brace, which is tracked by BreakBeforeClosingBrace.
   if (Right.is(tok::r_brace))
     return Right.MatchingParen && Right.MatchingParen->is(BK_Block);
+
+  // We only break before r_paren if we're in a block indented context.
+  if (Right.is(tok::r_paren)) {
+    if (Style.AlignAfterOpenBracket == FormatStyle::BAS_BlockIndent) {
+      return Right.MatchingParen &&
+             !(Right.MatchingParen->Previous &&
+               (Right.MatchingParen->Previous->is(tok::kw_for) ||
+                Right.MatchingParen->Previous->isIf()));
+    }
+
+    return false;
+  }
 
   // Allow breaking after a trailing annotation, e.g. after a method
   // declaration.

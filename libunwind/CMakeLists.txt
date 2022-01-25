@@ -8,6 +8,8 @@ endif()
 
 cmake_minimum_required(VERSION 3.13.4)
 
+include(GNUInstallDirs)
+
 set(LLVM_COMMON_CMAKE_UTILS "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 # Add path for custom modules
@@ -34,10 +36,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBUNWIND_STANDALONE_B
   set(PACKAGE_VERSION 14.0.0git)
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
-
-  # Add the CMake module path of libcxx so we can reuse HandleOutOfTreeLLVM.cmake
-  set(LIBUNWIND_LIBCXX_CMAKE_PATH "${LIBUNWIND_LIBCXX_PATH}/cmake/Modules")
-  list(APPEND CMAKE_MODULE_PATH "${LIBUNWIND_LIBCXX_CMAKE_PATH}")
 
   # In a standalone build, we don't have llvm to automatically generate the
   # llvm-lit script for us.  So we need to provide an explicit directory that
@@ -137,9 +135,9 @@ set(CMAKE_MODULE_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
     ${CMAKE_MODULE_PATH})
 
-set(LIBUNWIND_INSTALL_INCLUDE_DIR include CACHE PATH
+set(LIBUNWIND_INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}" CACHE PATH
     "Path where built libunwind headers should be installed.")
-set(LIBUNWIND_INSTALL_RUNTIME_DIR bin CACHE PATH
+set(LIBUNWIND_INSTALL_RUNTIME_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
     "Path where built libunwind runtime libraries should be installed.")
 
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
