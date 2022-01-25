@@ -776,6 +776,9 @@ struct _pi_queue : _pi_object {
   // executed.
   pi_result executeOpenCommandList(bool IsCopy);
 
+  // Execute the open command containing the event.
+  pi_result executeOpenCommandListWithEvent(pi_event Event);
+
   // Wrapper function to execute both OpenCommandLists (Copy and Compute).
   // This wrapper is helpful when all 'open' commands need to be executed.
   // Call-sites instances: piQuueueFinish, piQueueRelease, etc.

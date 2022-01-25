@@ -136,6 +136,11 @@ CudaInstallationDetector::CudaInstallationDetector(
     Candidates.emplace_back(
         Args.getLastArgValue(clang::driver::options::OPT_cuda_path_EQ).str());
   } else if (HostTriple.isOSWindows()) {
+    // CUDA_PATH is set by the installer, prefer it over other versions that
+    // might be present on the system.
+    if (const char *CudaPathEnvVar = ::getenv("CUDA_PATH"))
+      Candidates.emplace_back(CudaPathEnvVar);
+
     for (const char *Ver : Versions)
       Candidates.emplace_back(
           D.SysRoot + "/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v" +

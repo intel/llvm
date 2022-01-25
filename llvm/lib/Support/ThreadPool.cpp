@@ -117,6 +117,10 @@ void ThreadPool::wait() {
   }
 }
 
+bool ThreadPool::isWorkerThread() const {
+  report_fatal_error("LLVM compiled without multithreading");
+}
+
 ThreadPool::~ThreadPool() { wait(); }
 
 #endif

@@ -623,6 +623,15 @@ n]] = 10; // error-ok
                   Fix(Source.range(), "ident", "change 'ide\\…' to 'ident'"))));
 }
 
+TEST(DiagnosticTest, NewLineFixMessage) {
+  Annotations Source("int a;[[]]");
+  TestTU TU = TestTU::withCode(Source.code());
+  TU.ExtraArgs = {"-Wnewline-eof"};
+  EXPECT_THAT(
+      *TU.build().getDiagnostics(),
+      ElementsAre(WithFix((Fix(Source.range(), "\n", "insert '\\n'")))));
+}
+
 TEST(DiagnosticTest, ClangTidySuppressionCommentTrumpsWarningAsError) {
   Annotations Main(R"cpp(
     int main() {
@@ -769,6 +778,17 @@ TEST(DiagnosticsTest, NoFixItInMacro) {
   EXPECT_THAT(*TU.build().getDiagnostics(),
               ElementsAre(AllOf(Diag(Test.range(), "'main' must return 'int'"),
                                 Not(WithFix(_)))));
+}
+
+TEST(DiagnosticsTest, PragmaSystemHeader) {
+  Annotations Test("#pragma clang [[system_header]]\n");
+  auto TU = TestTU::withCode(Test.code());
+  EXPECT_THAT(
+      *TU.build().getDiagnostics(),
+      ElementsAre(AllOf(
+          Diag(Test.range(), "#pragma system_header ignored in main file"))));
+  TU.Filename = "TestTU.h";
+  EXPECT_THAT(*TU.build().getDiagnostics(), IsEmpty());
 }
 
 TEST(ClangdTest, MSAsm) {
@@ -1283,6 +1303,31 @@ TEST(IncludeFixerTest, HeaderNamedInDiag) {
                              "with type 'int (const char *, ...)'"),
           WithFix(Fix(Test.range("insert"), "#include <stdio.h>\n",
                       "Include <stdio.h> for symbol printf")))));
+}
+
+TEST(IncludeFixerTest, CImplicitFunctionDecl) {
+  Annotations Test("void x() { [[foo]](); }");
+  auto TU = TestTU::withCode(Test.code());
+  TU.Filename = "test.c";
+
+  Symbol Sym = func("foo");
+  Sym.Flags |= Symbol::IndexedForCodeCompletion;
+  Sym.CanonicalDeclaration.FileURI = "unittest:///foo.h";
+  Sym.IncludeHeaders.emplace_back("\"foo.h\"", 1);
+
+  SymbolSlab::Builder Slab;
+  Slab.insert(Sym);
+  auto Index =
+      MemIndex::build(std::move(Slab).build(), RefSlab(), RelationSlab());
+  TU.ExternalIndex = Index.get();
+
+  EXPECT_THAT(
+      *TU.build().getDiagnostics(),
+      ElementsAre(AllOf(
+          Diag(Test.range(),
+               "implicit declaration of function 'foo' is invalid in C99"),
+          WithFix(Fix(Range{}, "#include \"foo.h\"\n",
+                      "Include \"foo.h\" for symbol foo")))));
 }
 
 TEST(DiagsInHeaders, DiagInsideHeader) {
