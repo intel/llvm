@@ -29,6 +29,12 @@
 // NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-sycl-std={{.*}}"
 // NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-main-file-name" "sycl-int-footer.cpp"{{.*}} "-o"
 
+// Test that -fsycl-use-main-file-name is not passed if -fsycl is not passed.
+// This is test is located here, because -fsycl-use-main-file-name is tightly
+// connected to the integration footer.
+// RUN: %clangxx %s -### 2>&1 | FileCheck %s --check-prefix NO-FSYCL --implicit-check-not "-fsycl-use-main-file-name"
+// NO-FSYCL: clang{{.*}} "-main-file-name" "sycl-int-footer.cpp"
+
 /// Check phases without integration footer
 // RUN: %clangxx -fsycl -fno-sycl-device-lib=all -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES -check-prefix COMMON-PHASES %s
