@@ -5885,45 +5885,47 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   // unbundled.
   SmallVector<const char *, 16> LinkArgs(getLinkerArgs(C, Args));
   const llvm::opt::OptTable &Opts = getOpts();
-  auto unbundleStaticLib = [&](types::ID T, const StringRef &A) {
-    Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(A));
-    Action *Current = C.MakeAction<InputAction>(*InputArg, T);
-    OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args);
-    OffloadBuilder.addDeviceDependencesToHostAction(
-        Current, InputArg, phases::Link, PL.back(), PL);
-  };
-  for (StringRef LA : LinkArgs) {
-    // At this point, we will process the archives for FPGA AOCO and individual
-    // archive unbundling for Windows.
-    if (!isStaticArchiveFile(LA))
-      continue;
-    // FPGA AOCX/AOCR files are archives, but we do not want to unbundle them
-    // here as they have already been unbundled and processed for linking.
-    // TODO: The multiple binary checks for FPGA types getting a little out
-    // of hand. Improve this by doing a single scan of the args and holding
-    // that in a data structure for reference.
-    if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX) ||
-        hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR) ||
-        hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR_EMU))
-      continue;
-    // For offload-static-libs we add an unbundling action for each static
-    // archive which produces list files with extracted objects. Device lists
-    // are then added to the appropriate device link actions and host list is
-    // ignored since we are adding offload-static-libs as normal libraries to
-    // the host link command.
-    if (hasOffloadSections(C, LA, Args)) {
-      // Pass along the static libraries to check if we need to add them for
-      // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
-      // differentiate if aoco unbundling is needed.  Unbundling of aoco is not
-      // needed for emulation, as these are treated as regular archives.
-      if (!C.getDriver().isFPGAEmulationMode())
-        unbundleStaticLib(types::TY_FPGA_AOCO, LA);
-      // Do not unbundle any AOCO archive as a regular archive when we are
-      // in FPGA Hardware/Simulation mode.
-      if (!C.getDriver().isFPGAEmulationMode() &&
-          hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCO))
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    auto unbundleStaticLib = [&](types::ID T, const StringRef &A) {
+      Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(A));
+      Action *Current = C.MakeAction<InputAction>(*InputArg, T);
+      OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args);
+      OffloadBuilder.addDeviceDependencesToHostAction(
+          Current, InputArg, phases::Link, PL.back(), PL);
+    };
+    for (StringRef LA : LinkArgs) {
+      // At this point, we will process the archives for FPGA AOCO and individual
+      // archive unbundling for Windows.
+      if (!isStaticArchiveFile(LA))
         continue;
-      unbundleStaticLib(types::TY_Archive, LA);
+      // FPGA AOCX/AOCR files are archives, but we do not want to unbundle them
+      // here as they have already been unbundled and processed for linking.
+      // TODO: The multiple binary checks for FPGA types getting a little out
+      // of hand. Improve this by doing a single scan of the args and holding
+      // that in a data structure for reference.
+      if (hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCX) ||
+          hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR) ||
+          hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCR_EMU))
+        continue;
+      // For offload-static-libs we add an unbundling action for each static
+      // archive which produces list files with extracted objects. Device lists
+      // are then added to the appropriate device link actions and host list is
+      // ignored since we are adding offload-static-libs as normal libraries to
+      // the host link command.
+      if (hasOffloadSections(C, LA, Args)) {
+        // Pass along the static libraries to check if we need to add them for
+        // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
+        // differentiate if aoco unbundling is needed.  Unbundling of aoco is not
+        // needed for emulation, as these are treated as regular archives.
+        if (!C.getDriver().isFPGAEmulationMode())
+          unbundleStaticLib(types::TY_FPGA_AOCO, LA);
+        // Do not unbundle any AOCO archive as a regular archive when we are
+        // in FPGA Hardware/Simulation mode.
+        if (!C.getDriver().isFPGAEmulationMode() &&
+            hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCO))
+          continue;
+        unbundleStaticLib(types::TY_Archive, LA);
+      }
     }
   }
 
