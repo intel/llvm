@@ -167,6 +167,7 @@ void free(void *Ptr, const context &Ctxt, const detail::code_location &CL) {
 }
 
 // For ABI compatibility
+// TODO remove once ABI breakages are allowed.
 __SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Size,
                                      const context &Ctxt, alloc Kind) {
   return alignedAllocHost(Alignment, Size, Ctxt, Kind, detail::code_location{});
