@@ -5554,8 +5554,8 @@ public:
       Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(A));
       Action *Current = C.MakeAction<InputAction>(*InputArg, T);
       addHostDependenceToDeviceActions(Current, InputArg, Args);
-      addDeviceDependencesToHostAction(
-          Current, InputArg, phases::Link, PL.back(), PL);
+      addDeviceDependencesToHostAction(Current, InputArg, phases::Link,
+                                       PL.back(), PL);
     };
     for (StringRef LA : LinkArgs) {
       // At this point, we will process the archives for FPGA AOCO and
