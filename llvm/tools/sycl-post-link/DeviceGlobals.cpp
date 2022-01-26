@@ -9,7 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "DeviceGlobals.h"
-#include "Support.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -67,10 +66,10 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
   bool error = GV.getAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR)
                    .getValueAsString()
                    .getAsInteger(10, value);
-  AssertRelease(!error,
-                "The 'sycl-device-global-size' attribute must contain a number"
-                " representing the size of the underlying type T of the device"
-                " global variable");
+  assert(!error &&
+         "The 'sycl-device-global-size' attribute must contain a number"
+         " representing the size of the underlying type T of the device"
+         " global variable");
   return value;
 }
 
@@ -85,10 +84,9 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
 /// @returns the unique id of the device global variable represented
 /// in the LLVM IR by \c GV.
 StringRef getUniqueId(const GlobalVariable &GV) {
-  AssertRelease(
-      GV.hasAttribute(SYCL_UNIQUE_ID_ATTR),
-      "a 'sycl-unique-id' string must be associated with every device "
-      "global variable");
+  assert(GV.hasAttribute(SYCL_UNIQUE_ID_ATTR) &&
+         "a 'sycl-unique-id' string must be associated with every device "
+         "global variable");
   return GV.getAttribute(SYCL_UNIQUE_ID_ATTR).getValueAsString();
 }
 
