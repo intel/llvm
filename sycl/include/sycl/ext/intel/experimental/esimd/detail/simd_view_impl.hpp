@@ -434,7 +434,7 @@ public:
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
   get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return read().template replicate<Rep, VS, W, HS>(OffsetX);
+    return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -448,8 +448,8 @@ public:
   get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
                                               uint16_t OffsetX) {
     constexpr int RowSize = is2D() ? getSizeX() : 0;
-    return read().template replicate<Rep, VS, W, HS>(OffsetY * RowSize +
-                                                     OffsetX);
+    return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetY * RowSize +
+                                                             OffsetX);
   }
   /// @}
 
