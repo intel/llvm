@@ -585,7 +585,9 @@ void CodeGenModule::Release() {
         "__amdgpu_device_library_preserve_asan_functions_ptr", nullptr,
         llvm::GlobalVariable::NotThreadLocal);
     addCompilerUsedGlobal(Var);
-    getModule().addModuleFlag(llvm::Module::Override, "amdgpu_hostcall", 1);
+    if (!getModule().getModuleFlag("amdgpu_hostcall")) {
+      getModule().addModuleFlag(llvm::Module::Override, "amdgpu_hostcall", 1);
+    }
   }
 
   emitLLVMUsed();
@@ -3971,7 +3973,7 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
   if (D)
     SetFunctionAttributes(GD, F, IsIncompleteFunction, IsThunk);
   if (ExtraAttrs.hasFnAttrs()) {
-    llvm::AttrBuilder B(F->getContext(), ExtraAttrs, llvm::AttributeList::FunctionIndex);
+    llvm::AttrBuilder B(F->getContext(), ExtraAttrs.getFnAttrs());
     F->addFnAttrs(B);
   }
 

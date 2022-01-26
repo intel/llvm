@@ -214,6 +214,22 @@ the configuration (without a prefix: ``Auto``).
       someLongFunction(
           argument1, argument2);
 
+  * ``BAS_BlockIndent`` (in configuration: ``BlockIndent``)
+    Always break after an open bracket, if the parameters don't fit
+    on a single line. Closing brackets will be placed on a new line.
+    E.g.:
+
+    .. code-block:: c++
+
+      someLongFunction(
+          argument1, argument2
+      )
+
+
+    .. warning:: 
+
+     Note: This currently only applies to parentheses.
+
 
 
 **AlignArrayOfStructures** (``ArrayInitializerAlignmentStyle``) :versionbadge:`clang-format 13`
@@ -2854,7 +2870,7 @@ the configuration (without a prefix: ``Auto``).
   readability to have the signature indented two levels and to use
   ``OuterScope``. The KJ style guide requires ``OuterScope``.
   `KJ style guide
-  <https://github.com/capnproto/capnproto/blob/master/kjdoc/style-guide.md>`_
+  <https://github.com/capnproto/capnproto/blob/master/style-guide.md>`_
 
   Possible values:
 
