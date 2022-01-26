@@ -14,8 +14,8 @@
 int __clc_nvvm_reflect_arch();
 int __clc_nvvm_reflect_approx_tanh();
 
-float __my_tanhf (float x){
-  if(__clc_nvvm_reflect_approx_tanh()) {
+float __select_tanhf (float x){
+  if(__clc_nvvm_reflect_approx_tanh() && __clc_nvvm_reflect_arch() >= 800) {
     return __nvvm_tanh_approx_f(x);
   } else {
     return __nv_tanhf(x);
@@ -24,5 +24,5 @@ float __my_tanhf (float x){
 
 #define __CLC_FUNCTION __spirv_ocl_tanh
 #define __CLC_BUILTIN __nv_tanh
-#define __CLC_BUILTIN_F __my_tanhf
+#define __CLC_BUILTIN_F __select_tanhf
 #include <math/unary_builtin.inc>
