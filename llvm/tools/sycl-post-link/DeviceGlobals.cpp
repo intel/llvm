@@ -30,7 +30,7 @@ constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "device_image_scope";
 ///
 /// @param Value [in] "boolean as string" value.
 ///
-/// @returns \c true if the value of \c Value equals to "true", \c false
+/// @returns \c false if the value of \c Value equals to "false", \c true
 /// otherwise.
 bool toBool(StringRef Value) { return !Value.equals("false"); }
 
