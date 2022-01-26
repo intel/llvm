@@ -43,8 +43,7 @@ STATISTIC(NumBlockCallEdges, "Number of block call edges");
 namespace {
 
 static bool isConstExprVar(const Decl *D) {
-  if (!D)
-    return false;
+  assert(D && "No Decl in DeclStmt");
 
   if (const auto *VD = dyn_cast<VarDecl>(D))
     if (VD->isConstexpr())
@@ -165,13 +164,14 @@ public:
     if (G->shouldSkipConstantExpressions()) {
       Decl **DeclPointer = DS->decls().begin();
       for (Stmt *SubStmt : DS->children()) {
-        const Decl *D = *DeclPointer;
         if (!isConstExprVar(*DeclPointer) && SubStmt)
           this->Visit(SubStmt);
         ++DeclPointer;
       }
-    } else
-      StmtVisitor::VisitDeclStmt(DS);
+      return;
+    }
+
+    StmtVisitor::VisitDeclStmt(DS);
   }
 
   void VisitChildren(Stmt *S) {
