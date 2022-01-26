@@ -590,9 +590,8 @@ group_broadcast(Group g, T x) {
 
 // ---- exclusive_scan_over_group
 //   this function has two overloads, one with three arguments and one with four
-//   (init)
-//       the three argument version is specialized thrice: scalar, complex and
-//       vector
+//   the three argument version is specialized thrice: scalar, complex, and
+//   vector
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -860,6 +859,9 @@ joint_exclusive_scan(
 }
 
 // ---- inclusive_scan_over_group
+//   this function has two overloads, one with three arguments and one with four
+//   the three argument version is specialized thrice: vector, scalar, and
+//   complex
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value &&
@@ -901,13 +903,34 @@ inclusive_scan_over_group(Group, T x, BinaryOperation binary_op) {
 #endif
 }
 
-template <typename Group, typename V, class BinaryOperation, typename T>
+// complex specializaiton
+template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<V>::value &&
-                     detail::is_scalar_arithmetic<T>::value &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
+                     detail::is_complex<T>::value &&
+                     detail::is_native_op<T, sycl::plus<T>>::value),
                     T>
+inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  T result;
+  result.real(inclusive_scan_over_group(g, x.real(), sycl::plus<>()));
+  result.imag(inclusive_scan_over_group(g, x.imag(), sycl::plus<>()));
+  return result;
+#else
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+// four argument version of exclusive_scan_over_group is specialized twice
+// once for (scalar_arithmetic || complex) and once for vector_arithmetic
+template <typename Group, typename V, class BinaryOperation, typename T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> &&
+     (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
+     (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
+     detail::is_native_op<V, BinaryOperation>::value &&
+     detail::is_native_op<T, BinaryOperation>::value),
+    T>
 inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value ||
@@ -948,6 +971,9 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
 }
 
 // ---- joint_inclusive_scan
+//    has two overloads: 5 arguments and 6 arguments,
+//    each is specialized twice: is_arithmetic and is_complex.
+
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation, typename T>
 detail::enable_if_t<
@@ -1025,6 +1051,70 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
       g, first, last, result, binary_op,
       sycl::known_identity_v<BinaryOperation,
                              typename detail::remove_pointer<OutPtr>::type>);
+}
+
+// complex specializations
+template <typename Group, typename InPtr, typename OutPtr, typename T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
+     detail::is_pointer<OutPtr>::value &&
+     detail::is_complex<typename detail::remove_pointer<InPtr>::type>::value &&
+     detail::is_complex<T>::value &&
+     detail::is_native_op<
+         typename detail::remove_pointer<InPtr>::type,
+         sycl::plus<typename detail::remove_pointer<InPtr>::type>>::value &&
+     detail::is_native_op<T, sycl::plus<T>>::value),
+    OutPtr>
+joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
+                     sycl::plus<T> binary_op, T init) {
+#ifdef __SYCL_DEVICE_ONLY__
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
+  ptrdiff_t N = last - first;
+  auto roundup = [=](const ptrdiff_t &v,
+                     const ptrdiff_t &divisor) -> ptrdiff_t {
+    return ((v + divisor - 1) / divisor) * divisor;
+  };
+  typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
+      x;
+  typename detail::remove_pointer<OutPtr>::type carry = init;
+  for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
+    ptrdiff_t i = chunk + offset;
+    if (i < N) {
+      x = first[i];
+    }
+    typename detail::remove_pointer<OutPtr>::type out =
+        inclusive_scan_over_group(g, x, binary_op, carry);
+    if (i < N) {
+      result[i] = out;
+    }
+    carry = group_broadcast(g, out, stride - 1);
+  }
+  return result + N;
+#else
+  (void)g;
+  (void)last;
+  (void)result;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename InPtr, typename OutPtr>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
+     detail::is_pointer<OutPtr>::value &&
+     detail::is_complex<typename detail::remove_pointer<InPtr>::type>::value &&
+     detail::is_native_op<
+         typename detail::remove_pointer<InPtr>::type,
+         sycl::plus<typename detail::remove_pointer<InPtr>::type>>::value),
+    OutPtr>
+joint_inclusive_scan(
+    Group g, InPtr first, InPtr last, OutPtr result,
+    sycl::plus<typename detail::remove_pointer<InPtr>::type> binary_op) {
+  using T = typename detail::remove_pointer<InPtr>::type;
+  T init{0, 0};
+  return joint_inclusive_scan(g, first, last, result, binary_op, init);
 }
 
 namespace detail {
