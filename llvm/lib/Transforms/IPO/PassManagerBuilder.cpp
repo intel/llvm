@@ -72,9 +72,8 @@ static cl::opt<bool>
 RunLoopRerolling("reroll-loops", cl::Hidden,
                  cl::desc("Run the loop rerolling pass"));
 
-static cl::opt<bool>
-    SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
-                         cl::desc("Enable SYCL optimization mode."));
+cl::opt<bool> SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
+                                   cl::desc("Enable SYCL optimization mode."));
 
 cl::opt<bool> RunNewGVN("enable-newgvn", cl::init(false), cl::Hidden,
                         cl::desc("Run the NewGVN pass"));
@@ -547,6 +546,7 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   else
     MPM.add(createCFGSimplificationPass(
         SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true)));
+
   // Clean up after everything.
   MPM.add(createInstructionCombiningPass());
   addExtensionsToPM(EP_Peephole, MPM);
@@ -610,12 +610,13 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
   // convert to more optimized IR using more aggressive simplify CFG options.
   // The extra sinking transform can create larger basic blocks, so do this
   // before SLP vectorization.
-  PM.add(createCFGSimplificationPass(SimplifyCFGOptions()
-                                         .forwardSwitchCondToPhi(true)
-                                         .convertSwitchToLookupTable(true)
-                                         .needCanonicalLoops(false)
-                                         .hoistCommonInsts(true)
-                                         .sinkCommonInsts(true)));
+  if (!SYCLOptimizationMode)
+    PM.add(createCFGSimplificationPass(SimplifyCFGOptions()
+                                           .forwardSwitchCondToPhi(true)
+                                           .convertSwitchToLookupTable(true)
+                                           .needCanonicalLoops(false)
+                                           .hoistCommonInsts(true)
+                                           .sinkCommonInsts(true)));
 
   if (IsFullLTO) {
     PM.add(createSCCPPass());                 // Propagate exposed constants

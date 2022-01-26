@@ -223,6 +223,8 @@ extern cl::opt<bool> EnableMatrix;
 
 extern cl::opt<bool> DisablePreInliner;
 extern cl::opt<int> PreInlineThreshold;
+
+extern cl::opt<bool> SYCLOptimizationMode;
 } // namespace llvm
 
 void PassBuilder::invokePeepholeEPCallbacks(FunctionPassManager &FPM,
@@ -575,8 +577,12 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   for (auto &C : ScalarOptimizerLateEPCallbacks)
     C(FPM, Level);
 
-  FPM.addPass(SimplifyCFGPass(
+  if (SYCLOptimizationMode)
+    FPM.addPass(SimplifyCFGPass());
+  else
+    FPM.addPass(SimplifyCFGPass(
       SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true)));
+
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
 
@@ -1029,7 +1035,8 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   // convert to more optimized IR using more aggressive simplify CFG options.
   // The extra sinking transform can create larger basic blocks, so do this
   // before SLP vectorization.
-  FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions()
+  if (!SYCLOptimizationMode)
+    FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions()
                                   .forwardSwitchCondToPhi(true)
                                   .convertSwitchToLookupTable(true)
                                   .needCanonicalLoops(false)
