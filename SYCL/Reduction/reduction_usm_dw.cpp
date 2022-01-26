@@ -6,9 +6,8 @@
 // TODO: test disabled due to sporadic fails in level_zero:gpu RT.
 // UNSUPPORTED: linux && level_zero
 //
-// Missing __spirv_GroupIAdd, __spirv_GroupFMin, __spirv_GroupFMax on AMD, error
-// message `Group algorithms are not supported on host device` on Nvidia.
-// XFAIL: hip_amd || hip_nvidia
+// `Group algorithms are not supported on host device` on Nvidia.
+// XFAIL: hip_nvidia
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM var. It tests only SYCL-2020 reduction

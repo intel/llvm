@@ -3,9 +3,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// Missing __spirv_GroupIAdd, __spirv_GroupFMin on AMD, error message `Group
-// algorithms are not supported on host device.` on Nvidia.
-// XFAIL: hip_amd || hip_nvidia
+// `Group algorithms are not supported on host device.` on Nvidia.
+// XFAIL: hip_nvidia
+//
 // UNSUPPORTED: ze_debug-1,ze_debug4
 
 // RUNx: %HOST_RUN_PLACEHOLDER %t.out

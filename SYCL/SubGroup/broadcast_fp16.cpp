@@ -1,8 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// XFAIL: hip_amd
-
 //==---- broadcast_fp16.cpp - SYCL sub_group broadcast test ----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
