@@ -1237,7 +1237,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // traces incurs much different timings than real execution
   // ansyway, and many regression tests use it.
   //
-  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
+  // To have the batching for cases where no events are created, we check
+  // NumEventlessCommands
+  bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr &&
+                        CommandList->second.NumEventlessCommands == 0;
 
   // The list can be empty if command-list only contains signals of proxy
   // events.

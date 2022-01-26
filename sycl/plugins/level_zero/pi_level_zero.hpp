@@ -409,7 +409,7 @@ struct pi_command_list_info_t {
 
   // Keeps a number of commands submitted into this command-list that don't have
   // events.
-  int NumEventlessCommands{0};
+  size_t NumEventlessCommands{0};
 
   // Keeps events created by commands submitted into this command-list.
   // TODO: use this for explicit wait/cleanup of events at command-list
