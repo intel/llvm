@@ -357,7 +357,8 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64_be:
-    aarch64::getAArch64TargetFeatures(D, Triple, Args, Features, ForAS);
+    aarch64::getAArch64TargetFeatures(D, Triple, Args, CmdArgs, Features,
+                                      ForAS);
     break;
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
@@ -5789,7 +5790,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // as errors, but until then, we can live with a warning being emitted by the
   // compiler. This way, Clang can be used to compile code with scalable vectors
   // and identify possible issues.
-  if (isa<BackendJobAction>(JA)) {
+  if (isa<AssembleJobAction>(JA) || isa<CompileJobAction>(JA) ||
+      isa<BackendJobAction>(JA)) {
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-treat-scalable-fixed-error-as-warning");
   }
@@ -6316,6 +6318,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-ftype-visibility");
       CmdArgs.push_back("default");
     }
+  } else if (IsOpenMPDevice) {
+    // When compiling for the OpenMP device we want protected visibility by
+    // default. This prevents the device from accidenally preempting code on the
+    // host, makes the system more robust, and improves performance.
+    CmdArgs.push_back("-fvisibility");
+    CmdArgs.push_back("protected");
   }
 
   if (!RawTriple.isPS4())
@@ -6496,6 +6504,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  Args.AddLastArg(CmdArgs, options::OPT_fms_hotpatch);
+
   if (TC.SupportsProfiling()) {
     Args.AddLastArg(CmdArgs, options::OPT_pg);
 
@@ -6652,6 +6662,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-fcf-protection=") + A->getValue()));
   }
+
+  if (IsUsingLTO)
+    Args.AddLastArg(CmdArgs, options::OPT_mibt_seal);
 
   // Forward -f options with positive and negative forms; we translate these by
   // hand.  Do not propagate PGO options to the GPU-side compilations as the

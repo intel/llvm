@@ -81,9 +81,21 @@ private:
   bool HasStdExtZve64x = false;
   bool HasStdExtZve64f = false;
   bool HasStdExtZve64d = false;
-  bool HasStdExtZvlsseg = false;
   bool HasStdExtZfhmin = false;
   bool HasStdExtZfh = false;
+  bool HasStdExtZbkb = false;
+  bool HasStdExtZbkc = false;
+  bool HasStdExtZbkx = false;
+  bool HasStdExtZknd = false;
+  bool HasStdExtZkne = false;
+  bool HasStdExtZknh = false;
+  bool HasStdExtZksed = false;
+  bool HasStdExtZksh = false;
+  bool HasStdExtZkr = false;
+  bool HasStdExtZkn = false;
+  bool HasStdExtZks = false;
+  bool HasStdExtZkt = false;
+  bool HasStdExtZk = false;
   bool HasRV64 = false;
   bool IsRV32E = false;
   bool EnableLinkerRelax = false;
@@ -144,6 +156,7 @@ public:
   bool hasStdExtF() const { return HasStdExtF; }
   bool hasStdExtD() const { return HasStdExtD; }
   bool hasStdExtC() const { return HasStdExtC; }
+  bool hasStdExtV() const { return HasStdExtV; }
   bool hasStdExtZba() const { return HasStdExtZba; }
   bool hasStdExtZbb() const { return HasStdExtZbb; }
   bool hasStdExtZbc() const { return HasStdExtZbc; }
@@ -154,16 +167,18 @@ public:
   bool hasStdExtZbr() const { return HasStdExtZbr; }
   bool hasStdExtZbs() const { return HasStdExtZbs; }
   bool hasStdExtZbt() const { return HasStdExtZbt; }
-  bool hasStdExtV() const { return HasStdExtV; }
-  bool hasStdExtZve32x() const { return HasStdExtZve32x; }
-  bool hasStdExtZve32f() const { return HasStdExtZve32f; }
-  bool hasStdExtZve64x() const { return HasStdExtZve64x; }
-  bool hasStdExtZve64f() const { return HasStdExtZve64f; }
-  bool hasStdExtZve64d() const { return HasStdExtZve64d; }
-  bool hasStdExtZvlsseg() const { return HasStdExtZvlsseg; }
   bool hasStdExtZvl() const { return ZvlLen != ExtZvl::NotSet; }
   bool hasStdExtZfhmin() const { return HasStdExtZfhmin; }
   bool hasStdExtZfh() const { return HasStdExtZfh; }
+  bool hasStdExtZbkb() const { return HasStdExtZbkb; }
+  bool hasStdExtZbkc() const { return HasStdExtZbkc; }
+  bool hasStdExtZbkx() const { return HasStdExtZbkx; }
+  bool hasStdExtZknd() const { return HasStdExtZknd; }
+  bool hasStdExtZkne() const { return HasStdExtZkne; }
+  bool hasStdExtZknh() const { return HasStdExtZknh; }
+  bool hasStdExtZksed() const { return HasStdExtZksed; }
+  bool hasStdExtZksh() const { return HasStdExtZksh; }
+  bool hasStdExtZkr() const { return HasStdExtZkr; }
   bool is64Bit() const { return HasRV64; }
   bool isRV32E() const { return IsRV32E; }
   bool enableLinkerRelax() const { return EnableLinkerRelax; }
@@ -187,13 +202,19 @@ public:
   }
 
   // Vector codegen related methods.
-  bool hasVInstructions() const { return HasStdExtZve32x; }
-  bool hasVInstructionsI64() const { return HasStdExtZve64x; }
-  bool hasVInstructionsF16() const { return HasStdExtZve32f && HasStdExtZfh; }
+  bool hasVInstructions() const { return HasStdExtV || HasStdExtZve32x; }
+  bool hasVInstructionsI64() const { return HasStdExtV || HasStdExtZve64x; }
+  bool hasVInstructionsF16() const {
+    return (HasStdExtV || HasStdExtZve32f) && HasStdExtZfh;
+  }
   // FIXME: Consider Zfinx in the future
-  bool hasVInstructionsF32() const { return HasStdExtZve32f && HasStdExtF; }
+  bool hasVInstructionsF32() const {
+    return HasStdExtV || (HasStdExtZve32f && HasStdExtF);
+  }
   // FIXME: Consider Zdinx in the future
-  bool hasVInstructionsF64() const { return HasStdExtZve64d && HasStdExtD; }
+  bool hasVInstructionsF64() const {
+    return HasStdExtV || (HasStdExtZve64d && HasStdExtD);
+  }
   // F16 and F64 both require F32.
   bool hasVInstructionsAnyF() const { return hasVInstructionsF32(); }
   unsigned getMaxInterleaveFactor() const {

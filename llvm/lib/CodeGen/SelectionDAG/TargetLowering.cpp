@@ -1815,20 +1815,16 @@ bool TargetLowering::SimplifyDemandedBits(
     // Round NTZ down to the next byte.  If we have 11 trailing zeros, then
     // we need all the bits down to bit 8.  Likewise, round NLZ.  If we
     // have 14 leading zeros, round to 8.
-    NLZ &= ~7;
-    NTZ &= ~7;
+    NLZ = alignDown(NLZ, 8);
+    NTZ = alignDown(NTZ, 8);
     // If we need exactly one byte, we can do this transformation.
     if (BitWidth - NLZ - NTZ == 8) {
-      unsigned ResultBit = NTZ;
-      unsigned InputBit = BitWidth - NTZ - 8;
-
       // Replace this with either a left or right shift to get the byte into
       // the right place.
-      unsigned ShiftOpcode = InputBit > ResultBit ? ISD::SRL : ISD::SHL;
+      unsigned ShiftOpcode = NLZ > NTZ ? ISD::SRL : ISD::SHL;
       if (!TLO.LegalOperations() || isOperationLegal(ShiftOpcode, VT)) {
         EVT ShiftAmtTy = getShiftAmountTy(VT, DL);
-        unsigned ShiftAmount =
-            InputBit > ResultBit ? InputBit - ResultBit : ResultBit - InputBit;
+        unsigned ShiftAmount = NLZ > NTZ ? NLZ - NTZ : NTZ - NLZ;
         SDValue ShAmt = TLO.DAG.getConstant(ShiftAmount, dl, ShiftAmtTy);
         SDValue NewOp = TLO.DAG.getNode(ShiftOpcode, dl, VT, Src, ShAmt);
         return TLO.CombineTo(Op, NewOp);
@@ -3258,17 +3254,29 @@ bool TargetLowering::isExtendedTrueVal(const ConstantSDNode *N, EVT VT,
 SDValue TargetLowering::foldSetCCWithAnd(EVT VT, SDValue N0, SDValue N1,
                                          ISD::CondCode Cond, const SDLoc &DL,
                                          DAGCombinerInfo &DCI) const {
-  // Match these patterns in any of their permutations:
-  // (X & Y) == Y
-  // (X & Y) != Y
   if (N1.getOpcode() == ISD::AND && N0.getOpcode() != ISD::AND)
     std::swap(N0, N1);
 
+  SelectionDAG &DAG = DCI.DAG;
   EVT OpVT = N0.getValueType();
   if (N0.getOpcode() != ISD::AND || !OpVT.isInteger() ||
       (Cond != ISD::SETEQ && Cond != ISD::SETNE))
     return SDValue();
 
+  // (X & Y) != 0 --> zextOrTrunc(X & Y)
+  // iff everything but LSB is known zero:
+  if (Cond == ISD::SETNE && isNullConstant(N1) &&
+      (getBooleanContents(OpVT) == TargetLowering::UndefinedBooleanContent ||
+       getBooleanContents(OpVT) == TargetLowering::ZeroOrOneBooleanContent)) {
+    unsigned NumEltBits = OpVT.getScalarSizeInBits();
+    APInt UpperBits = APInt::getHighBitsSet(NumEltBits, NumEltBits - 1);
+    if (DAG.MaskedValueIsZero(N0, UpperBits))
+      return DAG.getBoolExtOrTrunc(N0, DL, VT, OpVT);
+  }
+
+  // Match these patterns in any of their permutations:
+  // (X & Y) == Y
+  // (X & Y) != Y
   SDValue X, Y;
   if (N0.getOperand(0) == N1) {
     X = N0.getOperand(1);
@@ -3280,7 +3288,6 @@ SDValue TargetLowering::foldSetCCWithAnd(EVT VT, SDValue N0, SDValue N1,
     return SDValue();
   }
 
-  SelectionDAG &DAG = DCI.DAG;
   SDValue Zero = DAG.getConstant(0, DL, OpVT);
   if (DAG.isKnownToBeAPowerOfTwo(Y)) {
     // Simplify X & Y == Y to X & Y != 0 if Y has exactly one bit set.

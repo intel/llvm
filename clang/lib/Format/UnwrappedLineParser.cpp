@@ -58,7 +58,7 @@ namespace {
 
 class ScopedDeclarationState {
 public:
-  ScopedDeclarationState(UnwrappedLine &Line, std::vector<bool> &Stack,
+  ScopedDeclarationState(UnwrappedLine &Line, llvm::BitVector &Stack,
                          bool MustBeDeclaration)
       : Line(Line), Stack(Stack) {
     Line.MustBeDeclaration = MustBeDeclaration;
@@ -74,7 +74,7 @@ public:
 
 private:
   UnwrappedLine &Line;
-  std::vector<bool> &Stack;
+  llvm::BitVector &Stack;
 };
 
 static bool isLineComment(const FormatToken &FormatTok) {
@@ -1042,8 +1042,7 @@ void UnwrappedLineParser::parsePPDefine() {
 
   nextToken();
   if (FormatTok->Tok.getKind() == tok::l_paren &&
-      FormatTok->WhitespaceRange.getBegin() ==
-          FormatTok->WhitespaceRange.getEnd()) {
+      !FormatTok->hasWhitespaceBefore()) {
     parseParens();
   }
   if (Style.IndentPPDirectives != FormatStyle::PPDIS_None)
@@ -1683,6 +1682,8 @@ void UnwrappedLineParser::parseStructuralElement(IfStmtKind *IfKind,
 
       // See if the following token should start a new unwrapped line.
       StringRef Text = FormatTok->TokenText;
+
+      FormatToken *PreviousToken = FormatTok;
       nextToken();
 
       // JS doesn't have macros, and within classes colons indicate fields, not
@@ -1711,6 +1712,7 @@ void UnwrappedLineParser::parseStructuralElement(IfStmtKind *IfKind,
 
         if (FollowedByNewline && (Text.size() >= 5 || FunctionLike) &&
             tokenCanStartNewLine(*FormatTok) && Text == Text.upper()) {
+          PreviousToken->setType(TT_FunctionLikeOrFreestandingMacro);
           addUnwrappedLine();
           return;
         }

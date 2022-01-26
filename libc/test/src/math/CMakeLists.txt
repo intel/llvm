@@ -1060,6 +1060,8 @@ add_fp_unittest(
     libc.include.math
     libc.src.math.hypotf
     libc.src.__support.FPUtil.fputil
+  COMPILE_OPTIONS
+    -Wno-c++17-extensions
 )
 
 add_fp_unittest(
@@ -1073,6 +1075,8 @@ add_fp_unittest(
     libc.include.math
     libc.src.math.hypot
     libc.src.__support.FPUtil.fputil
+  COMPILE_OPTIONS
+    -Wno-c++17-extensions
 )
 
 add_fp_unittest(
@@ -1204,6 +1208,19 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.log2f
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  log10f_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    log10f_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.log10f
     libc.src.__support.FPUtil.fputil
 )
 

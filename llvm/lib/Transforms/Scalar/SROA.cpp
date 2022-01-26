@@ -1437,8 +1437,10 @@ static Value *buildGEP(IRBuilderTy &IRB, Value *BasePtr,
   if (Indices.size() == 1 && cast<ConstantInt>(Indices.back())->isZero())
     return BasePtr;
 
-  return IRB.CreateInBoundsGEP(BasePtr->getType()->getPointerElementType(),
-                               BasePtr, Indices, NamePrefix + "sroa_idx");
+  // buildGEP() is only called for non-opaque pointers.
+  return IRB.CreateInBoundsGEP(
+      BasePtr->getType()->getNonOpaquePointerElementType(), BasePtr, Indices,
+      NamePrefix + "sroa_idx");
 }
 
 /// Get a natural GEP off of the BasePtr walking through Ty toward
@@ -1511,7 +1513,7 @@ static Value *getNaturalGEPWithOffset(IRBuilderTy &IRB, const DataLayout &DL,
   if (Ty == IRB.getInt8PtrTy(Ty->getAddressSpace()) && TargetTy->isIntegerTy(8))
     return nullptr;
 
-  Type *ElementTy = Ty->getElementType();
+  Type *ElementTy = Ty->getNonOpaquePointerElementType();
   if (!ElementTy->isSized())
     return nullptr; // We can't GEP through an unsized element.
 
@@ -1570,7 +1572,7 @@ static Value *getAdjustedPtr(IRBuilderTy &IRB, const DataLayout &DL, Value *Ptr,
   APInt Int8PtrOffset(Offset.getBitWidth(), 0);
 
   PointerType *TargetPtrTy = cast<PointerType>(PointerTy);
-  Type *TargetTy = TargetPtrTy->getElementType();
+  Type *TargetTy = TargetPtrTy->getNonOpaquePointerElementType();
 
   // As `addrspacecast` is , `Ptr` (the storage pointer) may have different
   // address space from the expected `PointerTy` (the pointer to be used).

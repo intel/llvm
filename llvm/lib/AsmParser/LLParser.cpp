@@ -990,10 +990,10 @@ bool LLParser::parseAliasOrIFunc(const std::string &Name, LocTy NameLoc,
         ExplicitTypeLoc,
         typeComparisonErrorMessage(
             "explicit pointee type doesn't match operand's pointee type", Ty,
-            PTy->getElementType()));
+            PTy->getNonOpaquePointerElementType()));
   }
 
-  if (!IsAlias && !PTy->getElementType()->isFunctionTy()) {
+  if (!IsAlias && !PTy->getPointerElementType()->isFunctionTy()) {
     return error(ExplicitTypeLoc,
                  "explicit pointee type should be a function type");
   }
@@ -1410,14 +1410,14 @@ static inline GlobalValue *createGlobalFwdRef(Module *M, PointerType *PTy) {
                               nullptr, GlobalVariable::NotThreadLocal,
                               PTy->getAddressSpace());
 
-  if (auto *FT = dyn_cast<FunctionType>(PTy->getPointerElementType()))
+  Type *ElemTy = PTy->getNonOpaquePointerElementType();
+  if (auto *FT = dyn_cast<FunctionType>(ElemTy))
     return Function::Create(FT, GlobalValue::ExternalWeakLinkage,
                             PTy->getAddressSpace(), "", M);
   else
-    return new GlobalVariable(*M, PTy->getPointerElementType(), false,
-                              GlobalValue::ExternalWeakLinkage, nullptr, "",
-                              nullptr, GlobalVariable::NotThreadLocal,
-                              PTy->getAddressSpace());
+    return new GlobalVariable(
+        *M, ElemTy, false, GlobalValue::ExternalWeakLinkage, nullptr, "",
+        nullptr, GlobalVariable::NotThreadLocal, PTy->getAddressSpace());
 }
 
 Value *LLParser::checkValidVariableType(LocTy Loc, const Twine &Name, Type *Ty,
@@ -3588,7 +3588,7 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
             ExplicitTypeLoc,
             typeComparisonErrorMessage(
                 "explicit pointee type doesn't match operand's pointee type",
-                Ty, BasePointerType->getElementType()));
+                Ty, BasePointerType->getNonOpaquePointerElementType()));
       }
 
       unsigned GEPWidth =
@@ -5602,7 +5602,7 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     if (FRVI != ForwardRefVals.end()) {
       FwdFn = FRVI->second.first;
       if (!FwdFn->getType()->isOpaque()) {
-        if (!FwdFn->getType()->getPointerElementType()->isFunctionTy())
+        if (!FwdFn->getType()->getNonOpaquePointerElementType()->isFunctionTy())
           return error(FRVI->second.second, "invalid forward reference to "
                                             "function as global value!");
         if (FwdFn->getType() != PFT)
@@ -7205,7 +7205,7 @@ int LLParser::parseLoad(Instruction *&Inst, PerFunctionState &PFS) {
         ExplicitTypeLoc,
         typeComparisonErrorMessage(
             "explicit pointee type doesn't match operand's pointee type", Ty,
-            cast<PointerType>(Val->getType())->getElementType()));
+            Val->getType()->getNonOpaquePointerElementType()));
   }
   SmallPtrSet<Type *, 4> Visited;
   if (!Alignment && !Ty->isSized(&Visited))
@@ -7465,7 +7465,7 @@ int LLParser::parseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
         ExplicitTypeLoc,
         typeComparisonErrorMessage(
             "explicit pointee type doesn't match operand's pointee type", Ty,
-            BasePointerType->getElementType()));
+            BasePointerType->getNonOpaquePointerElementType()));
   }
 
   SmallVector<Value*, 16> Indices;

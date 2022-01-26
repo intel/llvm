@@ -579,10 +579,11 @@ class PseudoToVInst<string PseudoInst> {
                  !subst("_B64", "",
                  !subst("_MASK", "",
                  !subst("_TIED", "",
+                 !subst("_TU", "",
                  !subst("F16", "F",
                  !subst("F32", "F",
                  !subst("F64", "F",
-                 !subst("Pseudo", "", PseudoInst))))))))))))))))))));
+                 !subst("Pseudo", "", PseudoInst)))))))))))))))))))));
 }
 
 // The destination vector register group for a masked vector instruction cannot
@@ -928,6 +929,9 @@ class VPseudoBinaryNoMask<VReg RetClass,
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
 }
 
+// Special version of VPseudoBinaryNoMask where we pretend the first source is
+// tied to the destination.
+// This allows maskedoff and rs2 to be the same register.
 class VPseudoTiedBinaryNoMask<VReg RetClass,
                               DAGOperand Op2Class,
                               string Constraint> :
@@ -1075,6 +1079,30 @@ class VPseudoBinaryCarryIn<VReg RetClass,
   let HasVLOp = 1;
   let HasSEWOp = 1;
   let HasMergeOp = 0;
+  let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
+  let VLMul = MInfo.value;
+}
+
+class VPseudoTiedBinaryCarryIn<VReg RetClass,
+                               VReg Op1Class,
+                               DAGOperand Op2Class,
+                               LMULInfo MInfo,
+                               bit CarryIn,
+                               string Constraint> :
+        Pseudo<(outs RetClass:$rd),
+               !if(CarryIn,
+                  (ins RetClass:$merge, Op1Class:$rs2, Op2Class:$rs1, VMV0:$carry, AVL:$vl,
+                       ixlenimm:$sew),
+                  (ins RetClass:$merge, Op1Class:$rs2, Op2Class:$rs1, AVL:$vl, ixlenimm:$sew)), []>,
+        RISCVVPseudo {
+  let mayLoad = 0;
+  let mayStore = 0;
+  let hasSideEffects = 0;
+  let Constraints = Join<[Constraint, "$rd = $merge"], ",">.ret;
+  let HasVLOp = 1;
+  let HasSEWOp = 1;
+  let HasMergeOp = 1;
+  let HasVecPolicyOp = 0;
   let BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
   let VLMul = MInfo.value;
 }
@@ -1741,6 +1769,16 @@ multiclass VPseudoBinaryV_VM<bit CarryOut = 0, bit CarryIn = 1,
                            m.vrclass, m.vrclass, m, CarryIn, Constraint>;
 }
 
+multiclass VPseudoTiedBinaryV_VM<bit CarryOut = 0, bit CarryIn = 1,
+                                 string Constraint = ""> {
+  foreach m = MxList in
+    def "_VV" # !if(CarryIn, "M", "") # "_" # m.MX # "_TU" :
+      VPseudoTiedBinaryCarryIn<!if(CarryOut, VR,
+                               !if(!and(CarryIn, !not(CarryOut)),
+                                   GetVRegNoV0<m.vrclass>.R, m.vrclass)),
+                               m.vrclass, m.vrclass, m, CarryIn, Constraint>;
+}
+
 multiclass VPseudoBinaryV_XM<bit CarryOut = 0, bit CarryIn = 1,
                              string Constraint = ""> {
   foreach m = MxList in
@@ -1751,13 +1789,29 @@ multiclass VPseudoBinaryV_XM<bit CarryOut = 0, bit CarryIn = 1,
                            m.vrclass, GPR, m, CarryIn, Constraint>;
 }
 
+multiclass VPseudoTiedBinaryV_XM<bit CarryOut = 0, bit CarryIn = 1,
+                                 string Constraint = ""> {
+  foreach m = MxList in
+    def "_VX" # !if(CarryIn, "M", "") # "_" # m.MX # "_TU":
+      VPseudoTiedBinaryCarryIn<!if(CarryOut, VR,
+                               !if(!and(CarryIn, !not(CarryOut)),
+                                   GetVRegNoV0<m.vrclass>.R, m.vrclass)),
+                               m.vrclass, GPR, m, CarryIn, Constraint>;
+}
+
 multiclass VPseudoVMRG_FM {
   foreach f = FPList in
-    foreach m = f.MxList in
+    foreach m = f.MxList in {
       def "_V" # f.FX # "M_" # m.MX :
         VPseudoBinaryCarryIn<GetVRegNoV0<m.vrclass>.R,
                              m.vrclass, f.fprclass, m, /*CarryIn=*/1, "">,
         Sched<[WriteVFMergeV, ReadVFMergeV, ReadVFMergeF, ReadVMask]>;
+      // Tied version to allow codegen control over the tail elements
+      def "_V" # f.FX # "M_" # m.MX # "_TU":
+        VPseudoTiedBinaryCarryIn<GetVRegNoV0<m.vrclass>.R,
+                                 m.vrclass, f.fprclass, m, /*CarryIn=*/1, "">,
+        Sched<[WriteVFMergeV, ReadVFMergeV, ReadVFMergeF, ReadVMask]>;
+    }
 }
 
 multiclass VPseudoBinaryV_IM<bit CarryOut = 0, bit CarryIn = 1,
@@ -1768,6 +1822,16 @@ multiclass VPseudoBinaryV_IM<bit CarryOut = 0, bit CarryIn = 1,
                            !if(!and(CarryIn, !not(CarryOut)),
                                GetVRegNoV0<m.vrclass>.R, m.vrclass)),
                            m.vrclass, simm5, m, CarryIn, Constraint>;
+}
+
+multiclass VPseudoTiedBinaryV_IM<bit CarryOut = 0, bit CarryIn = 1,
+                                 string Constraint = ""> {
+  foreach m = MxList in
+    def "_VI" # !if(CarryIn, "M", "") # "_" # m.MX # "_TU":
+      VPseudoTiedBinaryCarryIn<!if(CarryOut, VR,
+                               !if(!and(CarryIn, !not(CarryOut)),
+                                   GetVRegNoV0<m.vrclass>.R, m.vrclass)),
+                               m.vrclass, simm5, m, CarryIn, Constraint>;
 }
 
 multiclass VPseudoUnaryVMV_V_X_I {
@@ -2103,6 +2167,13 @@ multiclass VPseudoVMRG_VM_XM_IM {
   defm "" : VPseudoBinaryV_XM,
             Sched<[WriteVIMergeX, ReadVIMergeV, ReadVIMergeX, ReadVMask]>;
   defm "" : VPseudoBinaryV_IM,
+            Sched<[WriteVIMergeI, ReadVIMergeV, ReadVMask]>;
+  // Tied versions to allow codegen control over the tail elements
+  defm "" : VPseudoTiedBinaryV_VM,
+            Sched<[WriteVIMergeV, ReadVIMergeV, ReadVIMergeV, ReadVMask]>;
+  defm "" : VPseudoTiedBinaryV_XM,
+            Sched<[WriteVIMergeX, ReadVIMergeV, ReadVIMergeX, ReadVMask]>;
+  defm "" : VPseudoTiedBinaryV_IM,
             Sched<[WriteVIMergeI, ReadVIMergeV, ReadVMask]>;
 }
 
@@ -4471,6 +4542,30 @@ defm : VPatBinaryV_VV_VX_VI<"int_riscv_vsrl", "PseudoVSRL", AllIntegerVectors,
                             uimm5>;
 defm : VPatBinaryV_VV_VX_VI<"int_riscv_vsra", "PseudoVSRA", AllIntegerVectors,
                             uimm5>;
+
+foreach vti = AllIntegerVectors in {
+  // Emit shift by 1 as an add since it might be faster.
+  def : Pat<(vti.Vector (int_riscv_vsll (vti.Vector vti.RegClass:$rs1),
+                                        (XLenVT 1), VLOpFrag)),
+            (!cast<Instruction>("PseudoVADD_VV_"#vti.LMul.MX) vti.RegClass:$rs1,
+                                                              vti.RegClass:$rs1,
+                                                              GPR:$vl,
+                                                              vti.Log2SEW)>;
+  def : Pat<(vti.Vector (int_riscv_vsll_mask (vti.Vector vti.RegClass:$merge),
+                                             (vti.Vector vti.RegClass:$rs1),
+                                             (XLenVT 1),
+                                             (vti.Mask V0),
+                                             VLOpFrag,
+                                             (XLenVT timm:$policy))),
+            (!cast<Instruction>("PseudoVADD_VV_"#vti.LMul.MX#"_MASK")
+                                                        vti.RegClass:$merge,
+                                                        vti.RegClass:$rs1,
+                                                        vti.RegClass:$rs1,
+                                                        (vti.Mask V0),
+                                                        GPR:$vl,
+                                                        vti.Log2SEW,
+                                                        (XLenVT timm:$policy))>;
+}
 
 //===----------------------------------------------------------------------===//
 // 12.7. Vector Narrowing Integer Right Shift Instructions

@@ -32,6 +32,16 @@ namespace bufferization {
 using namespace mlir;
 using namespace bufferization;
 
+/// Attribute name used to mark the bufferization layout for region
+/// arguments during linalg comprehensive bufferization.
+constexpr const ::llvm::StringLiteral
+    bufferization::BufferizableOpInterface::kBufferLayoutAttrName;
+
+/// Attribute name used to mark region arguments that can be bufferized
+/// in-place during linalg comprehensive bufferization.
+constexpr const ::llvm::StringLiteral
+    bufferization::BufferizableOpInterface::kInplaceableAttrName;
+
 //===----------------------------------------------------------------------===//
 // BufferizationOptions
 //===----------------------------------------------------------------------===//
@@ -302,7 +312,7 @@ void bufferization::replaceOpWithBufferizedValues(RewriterBase &rewriter,
       // The existing uses of the OpResult still expect a tensor. Insert a
       // ToTensorOp. Throughout bufferization, this ToTensorOp will gradually
       // loose all of its users and eventually DCE away.
-      setInsertionPointAfter(rewriter, replacement);
+      rewriter.setInsertionPointAfter(op);
       replacement = rewriter.create<bufferization::ToTensorOp>(
           replacement.getLoc(), replacement);
     }
@@ -433,10 +443,10 @@ bufferization::createAlloc(OpBuilder &b, Location loc, Value shapedValue,
   return casted;
 }
 
-/// Create a memref allocation.
+/// Create a memref allocation with the given type and dynamic extents.
 FailureOr<Value>
 bufferization::createAlloc(OpBuilder &b, Location loc, MemRefType type,
-                           ArrayRef<Value> dynShape,
+                           ValueRange dynShape,
                            const BufferizationOptions &options) {
   if (options.allocationFn)
     return (*options.allocationFn)(b, loc, type, dynShape);
@@ -445,6 +455,28 @@ bufferization::createAlloc(OpBuilder &b, Location loc, MemRefType type,
   Value allocated = b.create<memref::AllocOp>(
       loc, type, dynShape, b.getI64IntegerAttr(kBufferAlignments));
   return allocated;
+}
+
+/// Create a memref allocation with the given type and dynamic extents. May also
+/// deallocate the memref again.
+FailureOr<Value>
+bufferization::createAlloc(OpBuilder &b, Location loc, MemRefType type,
+                           ValueRange dynShape, bool deallocMemref,
+                           const BufferizationOptions &options) {
+  OpBuilder::InsertionGuard g(b);
+
+  FailureOr<Value> alloc = createAlloc(b, loc, type, dynShape, options);
+  if (failed(alloc))
+    return failure();
+
+  if (deallocMemref) {
+    // Dealloc at the end of the block.
+    b.setInsertionPoint(alloc.getValue().getParentBlock()->getTerminator());
+    if (failed(createDealloc(b, loc, *alloc, options)))
+      return failure();
+  }
+
+  return alloc;
 }
 
 /// Create a memref deallocation.
