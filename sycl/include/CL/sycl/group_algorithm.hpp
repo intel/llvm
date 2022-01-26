@@ -103,7 +103,10 @@ template <typename T, typename BinaryOperation> struct is_native_op {
 
 // ---- is_complex
 template <typename T>
-struct is_complex : std::bool_constant<std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>> || std::is_same_v<T, std::complex<long double>>> {};
+struct is_complex
+    : std::bool_constant<std::is_same_v<T, std::complex<float>> ||
+                         std::is_same_v<T, std::complex<double>> ||
+                         std::is_same_v<T, std::complex<long double>>> {};
 
 // ---- is_arithmetic_or_complex
 template <typename T>
@@ -151,7 +154,7 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 
 // ---- reduce_over_group
 //        three argument variant is specialized thrice:
-//        scalar arithmetic, complex (plus only), and vector arithmetic (sycl::vec)
+//        scalar arithmetic, complex (plus only), and vector arithmetic
 
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
@@ -220,12 +223,13 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
 //   four argument variant of reduce_over_group specialized twice
 //       (scalar arithmetic || complex), and vector_arithmetic
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
-                     (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> &&
+     (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
+     (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
+     detail::is_native_op<V, BinaryOperation>::value &&
+     detail::is_native_op<T, BinaryOperation>::value),
+    T>
 reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -241,7 +245,6 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
                       PI_INVALID_DEVICE);
 #endif
 }
-
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
@@ -311,7 +314,6 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(init, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  // T partial = sycl::known_identity_v<BinaryOperation, T>;
   T partial = detail::identity_for_ga_op<T, BinaryOperation>();
   sycl::detail::for_each(
       g, first, last, [&](const typename detail::remove_pointer<Ptr>::type &x) {
