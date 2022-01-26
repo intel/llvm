@@ -20,15 +20,13 @@
 #include <__ranges/empty.h>
 #include <__ranges/size.h>
 #include <__ranges/view_interface.h>
+#include <__utility/forward.h>
 #include <concepts>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -47,23 +45,27 @@ public:
     template<class _Tp>
       requires __different_from<_Tp, ref_view> &&
         convertible_to<_Tp, _Range&> && requires { __fun(declval<_Tp>()); }
+    _LIBCPP_HIDE_FROM_ABI
     constexpr ref_view(_Tp&& __t)
       : __range_(_VSTD::addressof(static_cast<_Range&>(_VSTD::forward<_Tp>(__t))))
     {}
 
-    constexpr _Range& base() const { return *__range_; }
+    _LIBCPP_HIDE_FROM_ABI constexpr _Range& base() const { return *__range_; }
 
-    constexpr iterator_t<_Range> begin() const { return ranges::begin(*__range_); }
-    constexpr sentinel_t<_Range> end() const { return ranges::end(*__range_); }
+    _LIBCPP_HIDE_FROM_ABI constexpr iterator_t<_Range> begin() const { return ranges::begin(*__range_); }
+    _LIBCPP_HIDE_FROM_ABI constexpr sentinel_t<_Range> end() const { return ranges::end(*__range_); }
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr bool empty() const
       requires requires { ranges::empty(*__range_); }
     { return ranges::empty(*__range_); }
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr auto size() const
       requires sized_range<_Range>
     { return ranges::size(*__range_); }
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr auto data() const
       requires contiguous_range<_Range>
     { return ranges::data(*__range_); }
@@ -77,7 +79,5 @@ public:
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___RANGES_REF_VIEW_H

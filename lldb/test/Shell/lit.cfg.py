@@ -85,7 +85,7 @@ llvm_config.feature_config(
 # lit.py invocation is close enough.
 for cachedir in [config.clang_module_cache, config.lldb_module_cache]:
   if os.path.isdir(cachedir):
-     print("Deleting module cache at %s."%cachedir)
+     lit_config.note("Deleting module cache at %s."%cachedir)
      shutil.rmtree(cachedir)
 
 # Set a default per-test timeout of 10 minutes. Setting a timeout per test
@@ -140,3 +140,6 @@ if platform.system() == 'NetBSD' and os.geteuid() != 0:
         can_set_dbregs = False
 if can_set_dbregs:
     config.available_features.add('dbregs-set')
+
+if 'LD_PRELOAD' in os.environ:
+    config.available_features.add('ld_preload-present')

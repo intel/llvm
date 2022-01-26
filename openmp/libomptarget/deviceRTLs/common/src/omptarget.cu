@@ -34,11 +34,11 @@ static void __kmpc_generic_kernel_init() {
   if (GetLaneId() == 0)
     parallelLevel[GetWarpId()] = 0;
 
-  int threadIdInBlock = GetThreadIdInBlock();
+  int threadIdInBlock = __kmpc_get_hardware_thread_id_in_block();
   if (threadIdInBlock != GetMasterThreadID())
     return;
 
-  setExecutionParameters(Generic, RuntimeInitialized);
+  setExecutionParameters(OMP_TGT_EXEC_MODE_GENERIC, OMP_TGT_RUNTIME_INITIALIZED);
   ASSERT0(LT_FUSSY, threadIdInBlock == GetMasterThreadID(),
           "__kmpc_kernel_init() must be called by team master warp only!");
   PRINT0(LD_IO, "call to __kmpc_kernel_init for master\n");
@@ -85,17 +85,21 @@ static void __kmpc_generic_kernel_deinit() {
 static void __kmpc_spmd_kernel_init(bool RequiresFullRuntime) {
   PRINT0(LD_IO, "call to __kmpc_spmd_kernel_init\n");
 
-  setExecutionParameters(Spmd, RequiresFullRuntime ? RuntimeInitialized
-                         : RuntimeUninitialized);
-  int threadId = GetThreadIdInBlock();
+  setExecutionParameters(OMP_TGT_EXEC_MODE_SPMD,
+                         RequiresFullRuntime ? OMP_TGT_RUNTIME_INITIALIZED
+                                             : OMP_TGT_RUNTIME_UNINITIALIZED);
+  int threadId = __kmpc_get_hardware_thread_id_in_block();
   if (threadId == 0) {
     usedSlotIdx = __kmpc_impl_smid() % MAX_SM;
-    parallelLevel[0] =
-        1 + (GetNumberOfThreadsInBlock() > 1 ? OMP_ACTIVE_PARALLEL_LEVEL : 0);
-  } else if (GetLaneId() == 0) {
-    parallelLevel[GetWarpId()] =
-        1 + (GetNumberOfThreadsInBlock() > 1 ? OMP_ACTIVE_PARALLEL_LEVEL : 0);
   }
+
+  if (GetLaneId() == 0) {
+    parallelLevel[GetWarpId()] =
+        1 + (__kmpc_get_hardware_num_threads_in_block() > 1
+                 ? OMP_ACTIVE_PARALLEL_LEVEL
+                 : 0);
+  }
+
   __kmpc_data_sharing_init_stack();
   if (!RequiresFullRuntime)
     return;
@@ -146,7 +150,7 @@ static void __kmpc_spmd_kernel_deinit(bool RequiresFullRuntime) {
     return;
 
   __kmpc_impl_syncthreads();
-  int threadId = GetThreadIdInBlock();
+  int threadId = __kmpc_get_hardware_thread_id_in_block();
   if (threadId == 0) {
     // Enqueue omp state object for use by another team.
     int slot = usedSlotIdx;
@@ -156,19 +160,27 @@ static void __kmpc_spmd_kernel_deinit(bool RequiresFullRuntime) {
 }
 
 // Return true if the current target region is executed in SPMD mode.
+// NOTE: This function has to return 1 for SPMD mode, and 0 for generic mode.
+// That's because `__kmpc_parallel_51` checks if it's already in parallel region
+// by comparision between the parallel level and the return value of this
+// function.
 EXTERN int8_t __kmpc_is_spmd_exec_mode() {
-  return (execution_param & ModeMask) == Spmd;
+  return (execution_param & OMP_TGT_EXEC_MODE_SPMD) == OMP_TGT_EXEC_MODE_SPMD;
 }
 
 EXTERN int8_t __kmpc_is_generic_main_thread(kmp_int32 Tid) {
-  return !__kmpc_is_spmd_exec_mode() && GetMasterThreadID() == Tid;
+  return !__kmpc_is_spmd_exec_mode() && __kmpc_is_generic_main_thread_id(Tid);
+}
+
+NOINLINE EXTERN int8_t __kmpc_is_generic_main_thread_id(kmp_int32 Tid) {
+  return GetMasterThreadID() == Tid;
 }
 
 EXTERN bool __kmpc_kernel_parallel(void**WorkFn);
 
 static void __kmpc_target_region_state_machine(ident_t *Ident) {
 
-  int TId = GetThreadIdInBlock();
+  int TId = __kmpc_get_hardware_thread_id_in_block();
   do {
     void* WorkFn = 0;
 
@@ -195,10 +207,11 @@ static void __kmpc_target_region_state_machine(ident_t *Ident) {
 }
 
 EXTERN
-int32_t __kmpc_target_init(ident_t *Ident, bool IsSPMD,
+int32_t __kmpc_target_init(ident_t *Ident, int8_t Mode,
                            bool UseGenericStateMachine,
                            bool RequiresFullRuntime) {
-  int TId = GetThreadIdInBlock();
+  const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
+  int TId = __kmpc_get_hardware_thread_id_in_block();
   if (IsSPMD)
     __kmpc_spmd_kernel_init(RequiresFullRuntime);
   else
@@ -212,20 +225,35 @@ int32_t __kmpc_target_init(ident_t *Ident, bool IsSPMD,
    if (TId == GetMasterThreadID())
      return -1;
 
-  if (UseGenericStateMachine)
+  // Enter the generic state machine if enabled and if this thread can possibly
+  // be an active worker thread.
+  //
+  // The latter check is important for NVIDIA Pascal (but not Volta) and AMD
+  // GPU.  In those cases, a single thread can apparently satisfy a barrier on
+  // behalf of all threads in the same warp.  Thus, it would not be safe for
+  // other threads in the main thread's warp to reach the first
+  // __kmpc_barrier_simple_spmd call in __kmpc_target_region_state_machine
+  // before the main thread reaches its corresponding
+  // __kmpc_barrier_simple_spmd call: that would permit all active worker
+  // threads to proceed before the main thread has actually set
+  // omptarget_nvptx_workFn, and then they would immediately quit without
+  // doing any work.  GetNumberOfWorkersInTeam() does not include any of the
+  // main thread's warp, so none of its threads can ever be active worker
+  // threads.
+  if (UseGenericStateMachine && TId < GetNumberOfWorkersInTeam())
     __kmpc_target_region_state_machine(Ident);
 
   return TId;
 }
 
 EXTERN
-void __kmpc_target_deinit(ident_t *Ident, bool IsSPMD,
-                           bool RequiresFullRuntime) {
+void __kmpc_target_deinit(ident_t *Ident, int8_t Mode,
+                          bool RequiresFullRuntime) {
+  const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
   if (IsSPMD)
     __kmpc_spmd_kernel_deinit(RequiresFullRuntime);
   else
     __kmpc_generic_kernel_deinit();
 }
-
 
 #pragma omp end declare target

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -41,8 +41,9 @@ public:
   ///
   /// \param ClEvent is a valid instance of OpenCL cl_event.
   /// \param SyclContext is an instance of SYCL context.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   event(cl_event ClEvent, const context &SyclContext);
+#endif
 
   event(const event &rhs) = default;
 
@@ -59,8 +60,9 @@ public:
   /// Returns a valid OpenCL event interoperability handle.
   ///
   /// \return a valid instance of OpenCL cl_event.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_event get() const;
+#endif
 
   /// Checks if this event is a SYCL host event.
   ///
@@ -128,16 +130,18 @@ public:
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
-  auto get_native() const -> typename interop<BackendName, event>::type {
-    return reinterpret_cast<typename interop<BackendName, event>::type>(
-        getNative());
+  template <backend Backend>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  backend_return_t<Backend, event> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, event>>(getNative());
   }
 
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
   pi_native_handle getNative() const;
+
+  std::vector<pi_native_handle> getNativeVector() const;
 
   std::shared_ptr<detail::event_impl> impl;
 
@@ -146,6 +150,10 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 };
 
 } // namespace sycl

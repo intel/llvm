@@ -68,11 +68,6 @@ std::pair<Function *, FunctionCallee> getOrCreateSanitizerCtorAndInitFunctions(
     function_ref<void(Function *, FunctionCallee)> FunctionsCreatedCallback,
     StringRef VersionCheckName = StringRef());
 
-// Creates and returns a sanitizer init function without argument if it doesn't
-// exist, and adds it to the global constructors list. Otherwise it returns the
-// existing function.
-Function *getOrCreateInitFunction(Module &M, StringRef Name);
-
 /// Rename all the anon globals in the module using a hash computed from
 /// the list of public globals in the module.
 bool nameUnamedGlobals(Module &M);
@@ -97,7 +92,7 @@ void appendToCompilerUsed(Module &M, ArrayRef<GlobalValue *> Values);
 /// DeadComdatFunctions are those where every member of the comdat is listed
 /// and thus removing them is safe (provided *all* are removed).
 void filterDeadComdatFunctions(
-    Module &M, SmallVectorImpl<Function *> &DeadComdatFunctions);
+    SmallVectorImpl<Function *> &DeadComdatFunctions);
 
 /// Produce a unique identifier for this module by taking the MD5 sum of
 /// the names of the module's strong external symbols that are not comdat

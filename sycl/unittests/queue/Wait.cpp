@@ -92,14 +92,6 @@ bool preparePiMock(platform &Plt) {
               << std::endl;
     return false;
   }
-  // TODO remove once queue:wait() is lowered to PiQueueFinish with level zero
-  // as well.
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() ==
-      backend::level_zero) {
-    std::cout << "Not run on Level Zero, old behavior is kept there temporarily"
-              << std::endl;
-    return false;
-  }
 
   unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
@@ -120,7 +112,7 @@ TEST(QueueWait, QueueWaitTest) {
   platform Plt{default_selector()};
   if (!preparePiMock(Plt))
     return;
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   queue Q{Ctx, default_selector()};
 
   unsigned char *HostAlloc = (unsigned char *)malloc_host(1, Ctx);
@@ -129,12 +121,7 @@ TEST(QueueWait, QueueWaitTest) {
   TestContext = {};
   Q.memset(HostAlloc, 42, 1);
   // No need to keep the event since we'll use piQueueFinish.
-  // FIXME ... unless the plugin is Level Zero, where there's a workaround that
-  // releases events later.
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() !=
-      backend::level_zero) {
-    ASSERT_EQ(TestContext.EventReferenceCount, 0);
-  }
+  ASSERT_EQ(TestContext.EventReferenceCount, 0);
   Q.wait();
   ASSERT_EQ(TestContext.NEventsWaitedFor, 0);
   ASSERT_TRUE(TestContext.PiQueueFinishCalled);
@@ -190,6 +177,31 @@ TEST(QueueWait, QueueWaitTest) {
     ASSERT_TRUE(TestContext.PiQueueFinishCalled);
   }
 
+  // Test for event::get_wait_list
+  {
+    sycl::event eA =
+        Q.submit([&](sycl::handler &cgh) { cgh.host_task([]() {}); });
+    sycl::event eB = Q.submit([&](sycl::handler &cgh) {
+      cgh.depends_on(eA);
+      cgh.host_task([]() {});
+    });
+
+    auto res = eB.get_wait_list();
+    assert(res.size() == 1);
+    ASSERT_EQ(res[0], eA);
+
+    sycl::event eC = Q.submit([&](sycl::handler &cgh) {
+      cgh.depends_on({eA, eB});
+      cgh.host_task([]() {});
+    });
+
+    res = eC.get_wait_list();
+    assert(res.size() == 2);
+    ASSERT_EQ(res[0], eA);
+    ASSERT_EQ(res[1], eB);
+
+    eC.wait();
+  }
   // Test behaviour for emulating an OOO queue with multiple in-order ones.
   TestContext = {};
   TestContext.SupportOOO = false;

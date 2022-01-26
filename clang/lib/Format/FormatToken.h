@@ -76,6 +76,7 @@ namespace format {
   TYPE(LineComment)                                                            \
   TYPE(MacroBlockBegin)                                                        \
   TYPE(MacroBlockEnd)                                                          \
+  TYPE(ModulePartitionColon)                                                   \
   TYPE(NamespaceMacro)                                                         \
   TYPE(NonNullAssertion)                                                       \
   TYPE(NullCoalescingEqual)                                                    \
@@ -441,6 +442,9 @@ public:
   /// This starts an array initializer.
   bool IsArrayInitializer = false;
 
+  /// Is optional and can be removed.
+  bool Optional = false;
+
   /// If this token starts a block, this contains all the unwrapped lines
   /// in it.
   SmallVector<AnnotatedLine *, 1> Children;
@@ -520,7 +524,9 @@ public:
   }
 
   /// Determine whether the token is a simple-type-specifier.
-  bool isSimpleTypeSpecifier() const;
+  LLVM_NODISCARD bool isSimpleTypeSpecifier() const;
+
+  LLVM_NODISCARD bool isTypeOrIdentifier() const;
 
   bool isObjCAccessSpecifier() const {
     return is(tok::at) && Next &&
@@ -934,8 +940,8 @@ struct AdditionalKeywords {
     // already initialized.
     JsExtraKeywords = std::unordered_set<IdentifierInfo *>(
         {kw_as, kw_async, kw_await, kw_declare, kw_finally, kw_from,
-         kw_function, kw_get, kw_import, kw_is, kw_let, kw_module, kw_readonly,
-         kw_set, kw_type, kw_typeof, kw_var, kw_yield,
+         kw_function, kw_get, kw_import, kw_is, kw_let, kw_module, kw_override,
+         kw_readonly, kw_set, kw_type, kw_typeof, kw_var, kw_yield,
          // Keywords from the Java section.
          kw_abstract, kw_extends, kw_implements, kw_instanceof, kw_interface});
 
@@ -1060,7 +1066,7 @@ struct AdditionalKeywords {
   bool IsJavaScriptIdentifier(const FormatToken &Tok,
                               bool AcceptIdentifierName = true) const {
     // Based on the list of JavaScript & TypeScript keywords here:
-    // https://github.com/microsoft/TypeScript/blob/master/src/compiler/scanner.ts#L74
+    // https://github.com/microsoft/TypeScript/blob/main/src/compiler/scanner.ts#L74
     switch (Tok.Tok.getKind()) {
     case tok::kw_break:
     case tok::kw_case:

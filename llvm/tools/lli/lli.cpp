@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ExecutionUtils.h"
-#include "RemoteJITUtils.h"
+#include "ForwardingMemoryManager.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeReader.h"
@@ -30,12 +30,12 @@
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include "llvm/ExecutionEngine/Orc/EPCEHFrameRegistrar.h"
+#include "llvm/ExecutionEngine/Orc/EPCGenericRTDyldMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
-#include "llvm/ExecutionEngine/Orc/MachOPlatform.h"
-#include "llvm/ExecutionEngine/Orc/OrcRemoteTargetClient.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/ExecutionEngine/Orc/SimpleRemoteEPC.h"
 #include "llvm/ExecutionEngine/Orc/SymbolStringPool.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/JITLoaderGDB.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/RegisterEHFrames.h"
@@ -68,6 +68,12 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include <cerrno>
+
+#if !defined(_MSC_VER) && !defined(__MINGW32__)
+#include <unistd.h>
+#else
+#include <io.h>
+#endif
 
 #ifdef __CYGWIN__
 #include <cygwin/version.h>
@@ -228,7 +234,7 @@ namespace {
       cl::desc("Do not resolve lli process symbols in JIT'd code"),
       cl::init(false));
 
-  enum class LLJITPlatform { Inactive, DetectHost, GenericIR, MachO };
+  enum class LLJITPlatform { Inactive, DetectHost, GenericIR };
 
   cl::opt<LLJITPlatform>
       Platform("lljit-platform", cl::desc("Platform to use with LLJIT"),
@@ -237,8 +243,6 @@ namespace {
                                      "Select based on JIT target triple"),
                           clEnumValN(LLJITPlatform::GenericIR, "GenericIR",
                                      "Use LLJITGenericIRPlatform"),
-                          clEnumValN(LLJITPlatform::MachO, "MachO",
-                                     "Use LLJITMachOPlatform"),
                           clEnumValN(LLJITPlatform::Inactive, "Inactive",
                                      "Disable platform support explicitly")),
                cl::Hidden);
@@ -351,13 +355,12 @@ private:
       return false;
 
     std::string CacheSubdir = ModID.substr(PrefixLength);
-#if defined(_WIN32)
-    // Transform "X:\foo" => "/X\foo" for convenience.
-    if (isalpha(CacheSubdir[0]) && CacheSubdir[1] == ':') {
+    // Transform "X:\foo" => "/X\foo" for convenience on Windows.
+    if (is_style_windows(llvm::sys::path::Style::native) &&
+        isalpha(CacheSubdir[0]) && CacheSubdir[1] == ':') {
       CacheSubdir[1] = CacheSubdir[0];
       CacheSubdir[0] = '/';
     }
-#endif
 
     CacheName = CacheDir + CacheSubdir;
     size_t pos = CacheName.rfind('.');
@@ -413,8 +416,7 @@ CodeGenOpt::Level getOptLevel() {
   llvm_unreachable("Unrecognized opt level.");
 }
 
-LLVM_ATTRIBUTE_NORETURN
-static void reportError(SMDiagnostic Err, const char *ProgName) {
+[[noreturn]] static void reportError(SMDiagnostic Err, const char *ProgName) {
   Err.print(ProgName, errs());
   exit(1);
 }
@@ -422,6 +424,7 @@ static void reportError(SMDiagnostic Err, const char *ProgName) {
 Error loadDylibs();
 int runOrcJIT(const char *ProgName);
 void disallowOrcOptions();
+Expected<std::unique_ptr<orc::ExecutorProcessControl>> launchRemote();
 
 //===----------------------------------------------------------------------===//
 // main Driver function
@@ -662,6 +665,10 @@ int main(int argc, char **argv, char * const *envp) {
 #endif
   }
 
+  std::unique_ptr<orc::ExecutorProcessControl> EPC =
+      RemoteMCJIT ? ExitOnErr(launchRemote())
+                  : ExitOnErr(orc::SelfExecutorProcessControl::Create());
+
   if (!RemoteMCJIT) {
     // If the program doesn't explicitly call exit, we will need the Exit
     // function later on to make an explicit call, so get the function now.
@@ -712,21 +719,10 @@ int main(int argc, char **argv, char * const *envp) {
     // it couldn't. This is a limitation of the LLI implementation, not the
     // MCJIT itself. FIXME.
 
-    // Lanch the remote process and get a channel to it.
-    std::unique_ptr<orc::shared::FDRawByteChannel> C = launchRemote();
-    if (!C) {
-      WithColor::error(errs(), argv[0]) << "failed to launch remote JIT.\n";
-      exit(1);
-    }
-
-    // Create a remote target client running over the channel.
-    llvm::orc::ExecutionSession ES;
-    ES.setErrorReporter([&](Error Err) { ExitOnErr(std::move(Err)); });
-    typedef orc::remote::OrcRemoteTargetClient MyRemote;
-    auto R = ExitOnErr(MyRemote::Create(*C, ES));
-
     // Create a remote memory manager.
-    auto RemoteMM = ExitOnErr(R->createRemoteMemoryManager());
+    auto RemoteMM = ExitOnErr(
+        orc::EPCGenericRTDyldMemoryManager::CreateWithDefaultBootstrapSymbols(
+            *EPC));
 
     // Forward MCJIT's memory manager calls to the remote memory manager.
     static_cast<ForwardingMemoryManager*>(RTDyldMM)->setMemMgr(
@@ -734,16 +730,16 @@ int main(int argc, char **argv, char * const *envp) {
 
     // Forward MCJIT's symbol resolution calls to the remote.
     static_cast<ForwardingMemoryManager *>(RTDyldMM)->setResolver(
-        std::make_unique<RemoteResolver<MyRemote>>(*R));
-
+        ExitOnErr(RemoteResolver::Create(*EPC)));
     // Grab the target address of the JIT'd main function on the remote and call
     // it.
     // FIXME: argv and envp handling.
-    JITTargetAddress Entry = EE->getFunctionAddress(EntryFn->getName().str());
+    auto Entry =
+        orc::ExecutorAddr(EE->getFunctionAddress(EntryFn->getName().str()));
     EE->finalizeObject();
     LLVM_DEBUG(dbgs() << "Executing '" << EntryFn->getName() << "' at 0x"
-                      << format("%llx", Entry) << "\n");
-    Result = ExitOnErr(R->callIntVoid(Entry));
+                      << format("%llx", Entry.getValue()) << "\n");
+    Result = ExitOnErr(EPC->runAsMain(Entry, {}));
 
     // Like static constructors, the remote target MCJIT support doesn't handle
     // this yet. It could. FIXME.
@@ -754,7 +750,7 @@ int main(int argc, char **argv, char * const *envp) {
     EE.reset();
 
     // Signal the remote target that we're done JITing.
-    ExitOnErr(R->terminateSession());
+    ExitOnErr(EPC->disconnect());
   }
 
   return Result;
@@ -877,7 +873,8 @@ int runOrcJIT(const char *ProgName) {
   // JIT builder to instantiate a default (which would fail with an error for
   // unsupported architectures).
   if (UseJITKind != JITKind::OrcLazy) {
-    auto ES = std::make_unique<orc::ExecutionSession>();
+    auto ES = std::make_unique<orc::ExecutionSession>(
+        ExitOnErr(orc::SelfExecutorProcessControl::Create()));
     Builder.setLazyCallthroughManager(
         std::make_unique<orc::LazyCallThroughManager>(*ES, 0, nullptr));
     Builder.setExecutionSession(std::move(ES));
@@ -913,20 +910,12 @@ int runOrcJIT(const char *ProgName) {
   // Set up LLJIT platform.
   {
     LLJITPlatform P = Platform;
-    if (P == LLJITPlatform::DetectHost) {
-      if (TT->isOSBinFormatMachO())
-        P = LLJITPlatform::MachO;
-      else
-        P = LLJITPlatform::GenericIR;
-    }
+    if (P == LLJITPlatform::DetectHost)
+      P = LLJITPlatform::GenericIR;
 
     switch (P) {
     case LLJITPlatform::GenericIR:
       // Nothing to do: LLJITBuilder will use this by default.
-      break;
-    case LLJITPlatform::MachO:
-      Builder.setPlatformSetUp(orc::setUpMachOPlatform);
-      ExitOnErr(orc::enableObjCRegistration("libobjc.dylib"));
       break;
     case LLJITPlatform::Inactive:
       Builder.setPlatformSetUp(orc::setUpInactivePlatform);
@@ -945,9 +934,9 @@ int runOrcJIT(const char *ProgName) {
                                                 const Triple &) {
       auto L = std::make_unique<orc::ObjectLinkingLayer>(ES, EPC->getMemMgr());
       L->addPlugin(std::make_unique<orc::EHFrameRegistrationPlugin>(
-          ES, ExitOnErr(orc::EPCEHFrameRegistrar::Create(*EPC))));
+          ES, ExitOnErr(orc::EPCEHFrameRegistrar::Create(ES))));
       L->addPlugin(std::make_unique<orc::DebugObjectManagerPlugin>(
-          ES, ExitOnErr(orc::createJITLoaderGDBRegistrar(*EPC))));
+          ES, ExitOnErr(orc::createJITLoaderGDBRegistrar(ES))));
       return L;
     });
   }
@@ -1071,7 +1060,8 @@ int runOrcJIT(const char *ProgName) {
 
   if (EPC) {
     // ExecutorProcessControl-based execution with JITLink.
-    Result = ExitOnErr(EPC->runAsMain(MainSym.getAddress(), InputArgv));
+    Result = ExitOnErr(
+        EPC->runAsMain(orc::ExecutorAddr(MainSym.getAddress()), InputArgv));
   } else {
     // Manual in-process execution with RuntimeDyld.
     using MainFnTy = int(int, char *[]);
@@ -1108,7 +1098,7 @@ void disallowOrcOptions() {
   }
 }
 
-std::unique_ptr<orc::shared::FDRawByteChannel> launchRemote() {
+Expected<std::unique_ptr<orc::ExecutorProcessControl>> launchRemote() {
 #ifndef LLVM_ON_UNIX
   llvm_unreachable("launchRemote not supported on non-Unix platforms");
 #else
@@ -1157,8 +1147,9 @@ std::unique_ptr<orc::shared::FDRawByteChannel> launchRemote() {
   close(PipeFD[0][0]);
   close(PipeFD[1][1]);
 
-  // Return an RPC channel connected to our end of the pipes.
-  return std::make_unique<orc::shared::FDRawByteChannel>(PipeFD[1][0],
-                                                         PipeFD[0][1]);
+  // Return a SimpleRemoteEPC instance connected to our end of the pipes.
+  return orc::SimpleRemoteEPC::Create<orc::FDSimpleRemoteEPCTransport>(
+      std::make_unique<llvm::orc::InPlaceTaskDispatcher>(),
+      llvm::orc::SimpleRemoteEPC::Setup(), PipeFD[1][0], PipeFD[0][1]);
 #endif
 }

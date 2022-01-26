@@ -201,6 +201,11 @@ namespace {
     /// Recursively eliminate dead defs in DeadDefs.
     void eliminateDeadDefs();
 
+    /// allUsesAvailableAt - Return true if all registers used by OrigMI at
+    /// OrigIdx are also available with the same value at UseIdx.
+    bool allUsesAvailableAt(const MachineInstr *OrigMI, SlotIndex OrigIdx,
+                            SlotIndex UseIdx);
+
     /// LiveRangeEdit callback for eliminateDeadDefs().
     void LRE_WillEraseInstruction(MachineInstr *MI) override;
 
@@ -604,6 +609,14 @@ void RegisterCoalescer::eliminateDeadDefs() {
                 nullptr, this).eliminateDeadDefs(DeadDefs);
 }
 
+bool RegisterCoalescer::allUsesAvailableAt(const MachineInstr *OrigMI,
+                                           SlotIndex OrigIdx,
+                                           SlotIndex UseIdx) {
+  SmallVector<Register, 8> NewRegs;
+  return LiveRangeEdit(nullptr, NewRegs, *MF, *LIS, nullptr, this)
+      .allUsesAvailableAt(OrigMI, OrigIdx, UseIdx);
+}
+
 void RegisterCoalescer::LRE_WillEraseInstruction(MachineInstr *MI) {
   // MI may be in WorkList. Make sure we don't visit it.
   ErasedInstrs.insert(MI);
@@ -919,12 +932,8 @@ RegisterCoalescer::removeCopyByCommutingDef(const CoalescerPair &CP,
   //   = B
 
   // Update uses of IntA of the specific Val# with IntB.
-  for (MachineRegisterInfo::use_iterator UI = MRI->use_begin(IntA.reg()),
-                                         UE = MRI->use_end();
-       UI != UE;
-       /* ++UI is below because of possible MI removal */) {
-    MachineOperand &UseMO = *UI;
-    ++UI;
+  for (MachineOperand &UseMO :
+       llvm::make_early_inc_range(MRI->use_operands(IntA.reg()))) {
     if (UseMO.isUndef())
       continue;
     MachineInstr *UseMI = UseMO.getParent();
@@ -1343,6 +1352,9 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
     }
   }
 
+  if (!allUsesAvailableAt(DefMI, ValNo->def, CopyIdx))
+    return false;
+
   DebugLoc DL = CopyMI->getDebugLoc();
   MachineBasicBlock *MBB = CopyMI->getParent();
   MachineBasicBlock::iterator MII =
@@ -1557,9 +1569,8 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
   // If the virtual SrcReg is completely eliminated, update all DBG_VALUEs
   // to describe DstReg instead.
   if (MRI->use_nodbg_empty(SrcReg)) {
-    for (MachineRegisterInfo::use_iterator UI = MRI->use_begin(SrcReg);
-         UI != MRI->use_end();) {
-      MachineOperand &UseMO = *UI++;
+    for (MachineOperand &UseMO :
+         llvm::make_early_inc_range(MRI->use_operands(SrcReg))) {
       MachineInstr *UseMI = UseMO.getParent();
       if (UseMI->isDebugInstr()) {
         if (Register::isPhysicalRegister(DstReg))
@@ -2856,9 +2867,39 @@ JoinVals::analyzeValue(unsigned ValNo, JoinVals &Other) {
   if ((TRI->getSubRegIndexLaneMask(Other.SubIdx) & ~V.WriteLanes).none())
     return CR_Impossible;
 
-  // We need to verify that no instructions are reading the clobbered lanes. To
-  // save compile time, we'll only check that locally. Don't allow the tainted
-  // value to escape the basic block.
+  if (TrackSubRegLiveness) {
+    auto &OtherLI = LIS->getInterval(Other.Reg);
+    // If OtherVNI does not have subranges, it means all the lanes of OtherVNI
+    // share the same live range, so we just need to check whether they have
+    // any conflict bit in their LaneMask.
+    if (!OtherLI.hasSubRanges()) {
+      LaneBitmask OtherMask = TRI->getSubRegIndexLaneMask(Other.SubIdx);
+      return (OtherMask & V.WriteLanes).none() ? CR_Replace : CR_Impossible;
+    }
+
+    // If we are clobbering some active lanes of OtherVNI at VNI->def, it is
+    // impossible to resolve the conflict. Otherwise, we can just replace
+    // OtherVNI because of no real conflict.
+    for (LiveInterval::SubRange &OtherSR : OtherLI.subranges()) {
+      LaneBitmask OtherMask =
+          TRI->composeSubRegIndexLaneMask(Other.SubIdx, OtherSR.LaneMask);
+      if ((OtherMask & V.WriteLanes).none())
+        continue;
+
+      auto OtherSRQ = OtherSR.Query(VNI->def);
+      if (OtherSRQ.valueIn() && OtherSRQ.endPoint() > VNI->def) {
+        // VNI is clobbering some lanes of OtherVNI, they have real conflict.
+        return CR_Impossible;
+      }
+    }
+
+    // VNI is NOT clobbering any lane of OtherVNI, just replace OtherVNI.
+    return CR_Replace;
+  }
+
+  // We need to verify that no instructions are reading the clobbered lanes.
+  // To save compile time, we'll only check that locally. Don't allow the
+  // tainted value to escape the basic block.
   MachineBasicBlock *MBB = Indexes->getMBBFromIndex(VNI->def);
   if (OtherLRQ.endPoint() >= Indexes->getMBBEndIdx(MBB))
     return CR_Impossible;
@@ -3025,8 +3066,10 @@ bool JoinVals::resolveConflicts(JoinVals &Other) {
     MachineBasicBlock::iterator MI = MBB->begin();
     if (!VNI->isPHIDef()) {
       MI = Indexes->getInstructionFromIndex(VNI->def);
-      // No need to check the instruction defining VNI for reads.
-      ++MI;
+      if (!VNI->def.isEarlyClobber()) {
+        // No need to check the instruction defining VNI for reads.
+        ++MI;
+      }
     }
     assert(!SlotIndex::isSameInstr(VNI->def, TaintExtent.front().first) &&
            "Interference ends on VNI->def. Should have been handled earlier");
@@ -3660,7 +3703,7 @@ void RegisterCoalescer::buildVRegToDbgValueMap(MachineFunction &MF)
   // vreg => DbgValueLoc map.
   auto CloseNewDVRange = [this, &ToInsert](SlotIndex Slot) {
     for (auto *X : ToInsert) {
-      for (auto Op : X->debug_operands()) {
+      for (const auto &Op : X->debug_operands()) {
         if (Op.isReg() && Op.getReg().isVirtual())
           DbgVRegToValues[Op.getReg()].push_back({Slot, X});
       }
@@ -3865,20 +3908,20 @@ void RegisterCoalescer::lateLiveIntervalUpdate() {
 bool RegisterCoalescer::
 copyCoalesceWorkList(MutableArrayRef<MachineInstr*> CurrList) {
   bool Progress = false;
-  for (unsigned i = 0, e = CurrList.size(); i != e; ++i) {
-    if (!CurrList[i])
+  for (MachineInstr *&MI : CurrList) {
+    if (!MI)
       continue;
     // Skip instruction pointers that have already been erased, for example by
     // dead code elimination.
-    if (ErasedInstrs.count(CurrList[i])) {
-      CurrList[i] = nullptr;
+    if (ErasedInstrs.count(MI)) {
+      MI = nullptr;
       continue;
     }
     bool Again = false;
-    bool Success = joinCopy(CurrList[i], Again);
+    bool Success = joinCopy(MI, Again);
     Progress |= Success;
     if (Success || !Again)
-      CurrList[i] = nullptr;
+      MI = nullptr;
   }
   return Progress;
 }
@@ -4024,13 +4067,13 @@ void RegisterCoalescer::joinAllIntervals() {
 
   // Coalesce intervals in MBB priority order.
   unsigned CurrDepth = std::numeric_limits<unsigned>::max();
-  for (unsigned i = 0, e = MBBs.size(); i != e; ++i) {
+  for (MBBPriorityInfo &MBB : MBBs) {
     // Try coalescing the collected local copies for deeper loops.
-    if (JoinGlobalCopies && MBBs[i].Depth < CurrDepth) {
+    if (JoinGlobalCopies && MBB.Depth < CurrDepth) {
       coalesceLocals();
-      CurrDepth = MBBs[i].Depth;
+      CurrDepth = MBB.Depth;
     }
-    copyCoalesceInMBB(MBBs[i].MBB);
+    copyCoalesceInMBB(MBB.MBB);
   }
   lateLiveIntervalUpdate();
   coalesceLocals();

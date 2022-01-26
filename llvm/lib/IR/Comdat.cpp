@@ -25,6 +25,10 @@ Comdat::Comdat() = default;
 
 StringRef Comdat::getName() const { return Name->first(); }
 
+void Comdat::addUser(GlobalObject *GO) { Users.insert(GO); }
+
+void Comdat::removeUser(GlobalObject *GO) { Users.erase(GO); }
+
 LLVMComdatRef LLVMGetOrInsertComdat(LLVMModuleRef M, const char *Name) {
   return wrap(unwrap(M)->getOrInsertComdat(Name));
 }
@@ -47,8 +51,8 @@ LLVMComdatSelectionKind LLVMGetComdatSelectionKind(LLVMComdatRef C) {
     return LLVMExactMatchComdatSelectionKind;
   case Comdat::Largest:
     return LLVMLargestComdatSelectionKind;
-  case Comdat::NoDuplicates:
-    return LLVMNoDuplicatesComdatSelectionKind;
+  case Comdat::NoDeduplicate:
+    return LLVMNoDeduplicateComdatSelectionKind;
   case Comdat::SameSize:
     return LLVMSameSizeComdatSelectionKind;
   }
@@ -67,8 +71,8 @@ void LLVMSetComdatSelectionKind(LLVMComdatRef C, LLVMComdatSelectionKind kind) {
   case LLVMLargestComdatSelectionKind:
     Cd->setSelectionKind(Comdat::Largest);
     break;
-  case LLVMNoDuplicatesComdatSelectionKind:
-    Cd->setSelectionKind(Comdat::NoDuplicates);
+  case LLVMNoDeduplicateComdatSelectionKind:
+    Cd->setSelectionKind(Comdat::NoDeduplicate);
     break;
   case LLVMSameSizeComdatSelectionKind:
     Cd->setSelectionKind(Comdat::SameSize);

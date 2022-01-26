@@ -22,7 +22,6 @@
 #include <vector>
 
 namespace llvm {
-class Module;
 class Value;
 class Instruction;
 class Loop;
@@ -112,13 +111,6 @@ private:
   bool isTemporalDivergent(const BasicBlock &ObservingBlock,
                            const Value &Val) const;
 
-  /// \brief Whether \p Block is join divergent
-  ///
-  /// (see markBlockJoinDivergent).
-  bool isJoinDivergent(const BasicBlock &Block) const {
-    return DivergentJoinBlocks.contains(&Block);
-  }
-
 private:
   const Function &F;
   // If regionLoop != nullptr, analysis is only performed within \p RegionLoop.
@@ -139,9 +131,6 @@ private:
 
   // Set of known-uniform values.
   DenseSet<const Value *> UniformOverrides;
-
-  // Blocks with joining divergent control from different predecessors.
-  DenseSet<const BasicBlock *> DivergentJoinBlocks; // FIXME Deprecated
 
   // Detected/marked divergent values.
   DenseSet<const Value *> DivergentValues;

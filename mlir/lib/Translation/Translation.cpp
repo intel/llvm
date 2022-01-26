@@ -94,7 +94,7 @@ TranslateToMLIRRegistration::TranslateToMLIRRegistration(
 
 TranslateFromMLIRRegistration::TranslateFromMLIRRegistration(
     StringRef name, const TranslateFromMLIRFunction &function,
-    std::function<void(DialectRegistry &)> dialectRegistration) {
+    const std::function<void(DialectRegistry &)> &dialectRegistration) {
   registerTranslation(name, [function, dialectRegistration](
                                 llvm::SourceMgr &sourceMgr, raw_ostream &output,
                                 MLIRContext *context) {
@@ -102,7 +102,7 @@ TranslateFromMLIRRegistration::TranslateFromMLIRRegistration(
     dialectRegistration(registry);
     context->appendDialectRegistry(registry);
     auto module = OwningModuleRef(parseSourceFile(sourceMgr, context));
-    if (!module)
+    if (!module || failed(verify(*module)))
       return failure();
     return function(module.get(), output);
   });

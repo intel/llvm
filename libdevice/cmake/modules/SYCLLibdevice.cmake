@@ -10,10 +10,10 @@ set(clang $<TARGET_FILE:clang>)
 
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
-  "spir64_x86_64-unknown-unknown-sycldevice,"
-  "spir64_gen-unknown-unknown-sycldevice,"
-  "spir64_fpga-unknown-unknown-sycldevice,"
-  "spir64-unknown-unknown-sycldevice")
+  "spir64_x86_64-unknown-unknown,"
+  "spir64_gen-unknown-unknown,"
+  "spir64_fpga-unknown-unknown,"
+  "spir64-unknown-unknown")
 
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
@@ -26,6 +26,10 @@ set(compile_opts
   # SYCL specific code is guarded by it.
   -sycl-std=2017
   )
+
+if (WIN32)
+  list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
+endif()
 
 set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})
 add_custom_command(OUTPUT ${devicelib-obj-file}

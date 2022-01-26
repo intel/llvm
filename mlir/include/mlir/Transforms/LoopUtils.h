@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_TRANSFORMS_LOOP_UTILS_H
-#define MLIR_TRANSFORMS_LOOP_UTILS_H
+#ifndef MLIR_TRANSFORMS_LOOPUTILS_H
+#define MLIR_TRANSFORMS_LOOPUTILS_H
 
 #include "mlir/IR/Block.h"
 #include "mlir/Support/LLVM.h"
@@ -32,7 +32,7 @@ class ValueRange;
 namespace scf {
 class ForOp;
 class ParallelOp;
-} // end namespace scf
+} // namespace scf
 
 /// Unrolls this for operation completely if the trip count is known to be
 /// constant. Returns failure otherwise.
@@ -40,9 +40,14 @@ LogicalResult loopUnrollFull(AffineForOp forOp);
 
 /// Unrolls this for operation by the specified unroll factor. Returns failure
 /// if the loop cannot be unrolled either due to restrictions or due to invalid
-/// unroll factors. Requires positive loop bounds and step.
-LogicalResult loopUnrollByFactor(AffineForOp forOp, uint64_t unrollFactor);
-LogicalResult loopUnrollByFactor(scf::ForOp forOp, uint64_t unrollFactor);
+/// unroll factors. Requires positive loop bounds and step. If specified,
+/// annotates the Ops in each unrolled iteration by applying `annotateFn`.
+LogicalResult loopUnrollByFactor(
+    AffineForOp forOp, uint64_t unrollFactor,
+    function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn = nullptr);
+LogicalResult loopUnrollByFactor(
+    scf::ForOp forOp, uint64_t unrollFactor,
+    function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn = nullptr);
 
 /// Unrolls this loop by the specified unroll factor or its trip count,
 /// whichever is lower.
@@ -61,8 +66,10 @@ void getPerfectlyNestedLoops(SmallVectorImpl<AffineForOp> &nestedLoops,
 void getPerfectlyNestedLoops(SmallVectorImpl<scf::ForOp> &nestedLoops,
                              scf::ForOp root);
 
-/// Unrolls and jams this loop by the specified factor. Returns success if the
-/// loop is successfully unroll-jammed.
+/// Unrolls and jams this loop by the specified factor. `forOp` can be a loop
+/// with iteration arguments performing supported reductions and its inner loops
+/// can have iteration arguments. Returns success if the loop is successfully
+/// unroll-jammed.
 LogicalResult loopUnrollJamByFactor(AffineForOp forOp,
                                     uint64_t unrollJamFactor);
 
@@ -180,25 +187,26 @@ struct AffineCopyOptions {
 /// Performs explicit copying for the contiguous sequence of operations in the
 /// block iterator range [`begin', `end'), where `end' can't be past the
 /// terminator of the block (since additional operations are potentially
-/// inserted right before `end`. Returns the total size of fast memory space
-/// buffers used. `copyOptions` provides various parameters, and the output
-/// argument `copyNests` is the set of all copy nests inserted, each represented
-/// by its root affine.for. Since we generate alloc's and dealloc's for all fast
-/// buffers (before and after the range of operations resp. or at a hoisted
-/// position), all of the fast memory capacity is assumed to be available for
-/// processing this block range. When 'filterMemRef' is specified, copies are
-/// only generated for the provided MemRef.
-uint64_t affineDataCopyGenerate(Block::iterator begin, Block::iterator end,
-                                const AffineCopyOptions &copyOptions,
-                                Optional<Value> filterMemRef,
-                                DenseSet<Operation *> &copyNests);
+/// inserted right before `end`. `copyOptions` provides various parameters, and
+/// the output argument `copyNests` is the set of all copy nests inserted, each
+/// represented by its root affine.for. Since we generate alloc's and dealloc's
+/// for all fast buffers (before and after the range of operations resp. or at a
+/// hoisted position), all of the fast memory capacity is assumed to be
+/// available for processing this block range. When 'filterMemRef' is specified,
+/// copies are only generated for the provided MemRef. Returns success if the
+/// explicit copying succeeded for all memrefs on which affine load/stores were
+/// encountered.
+LogicalResult affineDataCopyGenerate(Block::iterator begin, Block::iterator end,
+                                     const AffineCopyOptions &copyOptions,
+                                     Optional<Value> filterMemRef,
+                                     DenseSet<Operation *> &copyNests);
 
 /// A convenience version of affineDataCopyGenerate for all ops in the body of
 /// an AffineForOp.
-uint64_t affineDataCopyGenerate(AffineForOp forOp,
-                                const AffineCopyOptions &copyOptions,
-                                Optional<Value> filterMemRef,
-                                DenseSet<Operation *> &copyNests);
+LogicalResult affineDataCopyGenerate(AffineForOp forOp,
+                                     const AffineCopyOptions &copyOptions,
+                                     Optional<Value> filterMemRef,
+                                     DenseSet<Operation *> &copyNests);
 
 /// Result for calling generateCopyForMemRegion.
 struct CopyGenerateResult {
@@ -237,6 +245,14 @@ TileLoops extractFixedOuterLoops(scf::ForOp rootFOrOp, ArrayRef<int64_t> sizes);
 /// `loops` contains a list of perfectly nested loops with bounds and steps
 /// independent of any loop induction variable involved in the nest.
 void coalesceLoops(MutableArrayRef<scf::ForOp> loops);
+
+/// Replace a perfect nest of "for" loops with a single linearized loop. Assumes
+/// `loops` contains a list of perfectly nested loops outermost to innermost
+/// that are normalized (step one and lower bound of zero) and with bounds and
+/// steps independent of any loop induction variable involved in the nest.
+/// Coalescing affine.for loops is not always possible, i.e., the result may not
+/// be representable using affine.for.
+LogicalResult coalesceLoops(MutableArrayRef<AffineForOp> loops);
 
 /// Take the ParallelLoop and for each set of dimension indices, combine them
 /// into a single dimension. combinedDimensions must contain each index into
@@ -278,7 +294,7 @@ void collapseParallelLoops(scf::ParallelOp loops,
 void mapLoopToProcessorIds(scf::ForOp forOp, ArrayRef<Value> processorId,
                            ArrayRef<Value> numProcessors);
 
-/// Gathers all AffineForOps in 'func' grouped by loop depth.
+/// Gathers all AffineForOps in 'builtin.func' grouped by loop depth.
 void gatherLoops(FuncOp func,
                  std::vector<SmallVector<AffineForOp, 2>> &depthToLoops);
 
@@ -308,6 +324,6 @@ separateFullTiles(MutableArrayRef<AffineForOp> nest,
 /// Move loop invariant code out of `looplike`.
 LogicalResult moveLoopInvariantCode(LoopLikeOpInterface looplike);
 
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_TRANSFORMS_LOOP_UTILS_H
+#endif // MLIR_TRANSFORMS_LOOPUTILS_H

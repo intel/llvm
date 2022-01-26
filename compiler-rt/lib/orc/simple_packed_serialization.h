@@ -42,6 +42,7 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -85,6 +86,7 @@ public:
   bool skip(size_t Size) {
     if (Size > Remaining)
       return false;
+    Buffer += Size;
     Remaining -= Size;
     return true;
   }
@@ -170,17 +172,11 @@ public:
   }
 };
 
-// Any empty placeholder suitable as a substitute for void when deserializing
+/// Any empty placeholder suitable as a substitute for void when deserializing
 class SPSEmpty {};
 
-/// SPS tag type for target addresses.
-///
-/// SPSTagTargetAddresses should be serialized as a uint64_t value.
-class SPSTagTargetAddress;
-
-template <>
-class SPSSerializationTraits<SPSTagTargetAddress, uint64_t>
-    : public SPSSerializationTraits<uint64_t, uint64_t> {};
+/// Represents an address in the executor.
+class SPSExecutorAddr {};
 
 /// SPS tag type for tuples.
 ///
@@ -290,6 +286,33 @@ public:
   }
 };
 
+/// Trivial std::unordered_map<K, V> -> SPSSequence<SPSTuple<SPSKey, SPSValue>>
+/// serialization.
+template <typename SPSKeyTagT, typename SPSValueTagT, typename K, typename V>
+class TrivialSPSSequenceSerialization<SPSTuple<SPSKeyTagT, SPSValueTagT>,
+                                      std::unordered_map<K, V>> {
+public:
+  static constexpr bool available = true;
+};
+
+/// Trivial SPSSequence<SPSTuple<SPSKey, SPSValue>> -> std::unordered_map<K, V>
+/// deserialization.
+template <typename SPSKeyTagT, typename SPSValueTagT, typename K, typename V>
+class TrivialSPSSequenceDeserialization<SPSTuple<SPSKeyTagT, SPSValueTagT>,
+                                        std::unordered_map<K, V>> {
+public:
+  static constexpr bool available = true;
+
+  using element_type = std::pair<K, V>;
+
+  static void reserve(std::unordered_map<K, V> &M, uint64_t Size) {
+    M.reserve(Size);
+  }
+  static bool append(std::unordered_map<K, V> &M, element_type E) {
+    return M.insert(std::move(E)).second;
+  }
+};
+
 /// 'Trivial' sequence serialization: Sequence is serialized as a uint64_t size
 /// followed by a for-earch loop over the elements of the sequence to serialize
 /// each of them.
@@ -328,6 +351,27 @@ public:
         return false;
     }
     return true;
+  }
+};
+
+/// Trivial serialization / deserialization for span<char>
+template <> class SPSSerializationTraits<SPSSequence<char>, span<const char>> {
+public:
+  static size_t size(const span<const char> &S) {
+    return SPSArgList<uint64_t>::size(static_cast<uint64_t>(S.size())) +
+           S.size();
+  }
+  static bool serialize(SPSOutputBuffer &OB, const span<const char> &S) {
+    if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(S.size())))
+      return false;
+    return OB.write(S.data(), S.size());
+  }
+  static bool deserialize(SPSInputBuffer &IB, span<const char> &S) {
+    uint64_t Size;
+    if (!SPSArgList<uint64_t>::deserialize(IB, Size))
+      return false;
+    S = span<const char>(IB.data(), Size);
+    return IB.skip(Size);
   }
 };
 
@@ -373,10 +417,12 @@ public:
     uint64_t Size;
     if (!SPSArgList<uint64_t>::deserialize(IB, Size))
       return false;
+    if (Size > std::numeric_limits<size_t>::max())
+      return false;
     Data = IB.data();
     if (!IB.skip(Size))
       return false;
-    S = {Data, Size};
+    S = {Data, static_cast<size_t>(Size)};
     return true;
   }
 };

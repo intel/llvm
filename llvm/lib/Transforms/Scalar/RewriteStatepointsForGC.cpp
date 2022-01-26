@@ -755,7 +755,7 @@ public:
   }
 
   bool operator==(const BDVState &Other) const {
-    return OriginalValue == OriginalValue && BaseValue == Other.BaseValue &&
+    return OriginalValue == Other.OriginalValue && BaseValue == Other.BaseValue &&
       Status == Other.Status;
   }
 
@@ -910,7 +910,7 @@ static Value *findBasePointer(Value *I, DefiningValueMapTy &Cache) {
 #ifndef NDEBUG
   VerifyStates();
   LLVM_DEBUG(dbgs() << "States after initialization:\n");
-  for (auto Pair : States) {
+  for (const auto &Pair : States) {
     LLVM_DEBUG(dbgs() << " " << Pair.second << " for " << *Pair.first << "\n");
   }
 #endif
@@ -1002,7 +1002,7 @@ static Value *findBasePointer(Value *I, DefiningValueMapTy &Cache) {
 #ifndef NDEBUG
   VerifyStates();
   LLVM_DEBUG(dbgs() << "States after meet iteration:\n");
-  for (auto Pair : States) {
+  for (const auto &Pair : States) {
     LLVM_DEBUG(dbgs() << " " << Pair.second << " for " << *Pair.first << "\n");
   }
 #endif
@@ -1163,7 +1163,7 @@ static Value *findBasePointer(Value *I, DefiningValueMapTy &Cache) {
           // llvm::Value of the correct type (and still remain pure).
           // This will remove the need to add bitcasts.
           assert(Base->stripPointerCasts() == OldBase->stripPointerCasts() &&
-                 "Sanity -- findBaseOrBDV should be pure!");
+                 "findBaseOrBDV should be pure!");
 #endif
         }
         Value *Base = BlockToValue[InBB];
@@ -1359,16 +1359,6 @@ static constexpr Attribute::AttrKind FnAttrsToStrip[] =
    Attribute::InaccessibleMemOrArgMemOnly,
    Attribute::NoSync, Attribute::NoFree};
 
-// List of all parameter and return attributes which must be stripped when
-// lowering from the abstract machine model.  Note that we list attributes
-// here which aren't valid as return attributes, that is okay.  There are
-// also some additional attributes with arguments which are handled
-// explicitly and are not in this list.
-static constexpr Attribute::AttrKind ParamAttrsToStrip[] =
-  {Attribute::ReadNone, Attribute::ReadOnly, Attribute::WriteOnly,
-   Attribute::NoAlias, Attribute::NoFree};
-
-
 // Create new attribute set containing only attributes which can be transferred
 // from original call to the safepoint.
 static AttributeList legalizeCallAttributes(LLVMContext &Ctx,
@@ -1377,13 +1367,13 @@ static AttributeList legalizeCallAttributes(LLVMContext &Ctx,
     return AL;
 
   // Remove the readonly, readnone, and statepoint function attributes.
-  AttrBuilder FnAttrs = AL.getFnAttributes();
+  AttrBuilder FnAttrs(Ctx, AL.getFnAttrs());
   for (auto Attr : FnAttrsToStrip)
     FnAttrs.removeAttribute(Attr);
 
-  for (Attribute A : AL.getFnAttributes()) {
+  for (Attribute A : AL.getFnAttrs()) {
     if (isStatepointDirectiveAttr(A))
-      FnAttrs.remove(A);
+      FnAttrs.removeAttribute(A);
   }
 
   // Just skip parameter and return attributes for now
@@ -1533,9 +1523,8 @@ static StringRef getDeoptLowering(CallBase *Call) {
     // FIXME: Calls have a *really* confusing interface around attributes
     // with values.
     const AttributeList &CSAS = Call->getAttributes();
-    if (CSAS.hasAttribute(AttributeList::FunctionIndex, DeoptLowering))
-      return CSAS.getAttribute(AttributeList::FunctionIndex, DeoptLowering)
-          .getValueAsString();
+    if (CSAS.hasFnAttr(DeoptLowering))
+      return CSAS.getFnAttr(DeoptLowering).getValueAsString();
     Function *F = Call->getCalledFunction();
     assert(F && F->hasFnAttribute(DeoptLowering));
     return F->getFnAttribute(DeoptLowering).getValueAsString();
@@ -1801,7 +1790,7 @@ makeStatepointExplicitImpl(CallBase *Call, /* to replace */
       CallInst *GCResult = Builder.CreateGCResult(Token, Call->getType(), Name);
       GCResult->setAttributes(
           AttributeList::get(GCResult->getContext(), AttributeList::ReturnIndex,
-                             Call->getAttributes().getRetAttributes()));
+                             Call->getAttributes().getRetAttrs()));
 
       // We cannot RAUW or delete CS.getInstruction() because it could be in the
       // live set of some other safepoint, in which case that safepoint's
@@ -1855,7 +1844,7 @@ makeStatepointExplicit(DominatorTree &DT, CallBase *Call,
 // It receives iterator to the statepoint gc relocates and emits a store to the
 // assigned location (via allocaMap) for the each one of them.  It adds the
 // visited values into the visitedLiveValues set, which we will later use them
-// for sanity checking.
+// for validation checking.
 static void
 insertRelocationStores(iterator_range<Value::user_iterator> GCRelocs,
                        DenseMap<Value *, AllocaInst *> &AllocaMap,
@@ -2400,8 +2389,8 @@ static void rematerializeLiveValues(CallBase *Call,
 }
 
 static bool inlineGetBaseAndOffset(Function &F,
-                                   SmallVectorImpl<CallInst *> &Intrinsics) {
-  DefiningValueMapTy DVCache;
+                                   SmallVectorImpl<CallInst *> &Intrinsics,
+                                   DefiningValueMapTy &DVCache) {
   auto &Context = F.getContext();
   auto &DL = F.getParent()->getDataLayout();
   bool Changed = false;
@@ -2451,9 +2440,10 @@ static bool inlineGetBaseAndOffset(Function &F,
 
 static bool insertParsePoints(Function &F, DominatorTree &DT,
                               TargetTransformInfo &TTI,
-                              SmallVectorImpl<CallBase *> &ToUpdate) {
+                              SmallVectorImpl<CallBase *> &ToUpdate,
+                              DefiningValueMapTy &DVCache) {
 #ifndef NDEBUG
-  // sanity check the input
+  // Validate the input
   std::set<CallBase *> Uniqued;
   Uniqued.insert(ToUpdate.begin(), ToUpdate.end());
   assert(Uniqued.size() == ToUpdate.size() && "no duplicates please!");
@@ -2502,16 +2492,10 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
   findLiveReferences(F, DT, ToUpdate, Records);
 
   // B) Find the base pointers for each live pointer
-  /* scope for caching */ {
-    // Cache the 'defining value' relation used in the computation and
-    // insertion of base phis and selects.  This ensures that we don't insert
-    // large numbers of duplicate base_phis.
-    DefiningValueMapTy DVCache;
-    for (size_t i = 0; i < Records.size(); i++) {
-      PartiallyConstructedSafepointRecord &info = Records[i];
-      findBasePointers(DT, DVCache, ToUpdate[i], info);
-    }
-  } // end of cache scope
+  for (size_t i = 0; i < Records.size(); i++) {
+    PartiallyConstructedSafepointRecord &info = Records[i];
+    findBasePointers(DT, DVCache, ToUpdate[i], info);
+  }
 
   // The base phi insertion logic (for any safepoint) may have inserted new
   // instructions which are now live at some safepoint.  The simplest such
@@ -2625,9 +2609,9 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
     // we just grab that.
     llvm::append_range(Live, Info.StatepointToken->gc_args());
 #ifndef NDEBUG
-    // Do some basic sanity checks on our liveness results before performing
-    // relocation.  Relocation can and will turn mistakes in liveness results
-    // into non-sensical code which is must harder to debug.
+    // Do some basic validation checking on our liveness results before
+    // performing relocation.  Relocation can and will turn mistakes in liveness
+    // results into non-sensical code which is must harder to debug.
     // TODO: It would be nice to test consistency as well
     assert(DT.isReachableFromEntry(Info.StatepointToken->getParent()) &&
            "statepoint must be reachable or liveness is meaningless");
@@ -2646,7 +2630,7 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
   unique_unsorted(Live);
 
 #ifndef NDEBUG
-  // sanity check
+  // Validation check
   for (auto *Ptr : Live)
     assert(isHandledGCPointerType(Ptr->getType()) &&
            "must be a gc pointer type");
@@ -2656,23 +2640,19 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
   return !Records.empty();
 }
 
-// Handles both return values and arguments for Functions and calls.
-template <typename AttrHolder>
-static void RemoveNonValidAttrAtIndex(LLVMContext &Ctx, AttrHolder &AH,
-                                      unsigned Index) {
-  AttrBuilder R;
-  if (AH.getDereferenceableBytes(Index))
-    R.addAttribute(Attribute::get(Ctx, Attribute::Dereferenceable,
-                                  AH.getDereferenceableBytes(Index)));
-  if (AH.getDereferenceableOrNullBytes(Index))
-    R.addAttribute(Attribute::get(Ctx, Attribute::DereferenceableOrNull,
-                                  AH.getDereferenceableOrNullBytes(Index)));
-  for (auto Attr : ParamAttrsToStrip)
-    if (AH.getAttributes().hasAttribute(Index, Attr))
-      R.addAttribute(Attr);
-
-  if (!R.empty())
-    AH.setAttributes(AH.getAttributes().removeAttributes(Ctx, Index, R));
+// List of all parameter and return attributes which must be stripped when
+// lowering from the abstract machine model.  Note that we list attributes
+// here which aren't valid as return attributes, that is okay.
+static AttributeMask getParamAndReturnAttributesToRemove() {
+  AttributeMask R;
+  R.addAttribute(Attribute::Dereferenceable);
+  R.addAttribute(Attribute::DereferenceableOrNull);
+  R.addAttribute(Attribute::ReadNone);
+  R.addAttribute(Attribute::ReadOnly);
+  R.addAttribute(Attribute::WriteOnly);
+  R.addAttribute(Attribute::NoAlias);
+  R.addAttribute(Attribute::NoFree);
+  return R;
 }
 
 static void stripNonValidAttributesFromPrototype(Function &F) {
@@ -2688,13 +2668,13 @@ static void stripNonValidAttributesFromPrototype(Function &F) {
     return;
   }
 
+  AttributeMask R = getParamAndReturnAttributesToRemove();
   for (Argument &A : F.args())
     if (isa<PointerType>(A.getType()))
-      RemoveNonValidAttrAtIndex(Ctx, F,
-                                A.getArgNo() + AttributeList::FirstArgIndex);
+      F.removeParamAttrs(A.getArgNo(), R);
 
   if (isa<PointerType>(F.getReturnType()))
-    RemoveNonValidAttrAtIndex(Ctx, F, AttributeList::ReturnIndex);
+    F.removeRetAttrs(R);
 
   for (auto Attr : FnAttrsToStrip)
     F.removeFnAttr(Attr);
@@ -2762,13 +2742,13 @@ static void stripNonValidDataFromBody(Function &F) {
 
     stripInvalidMetadataFromInstruction(I);
 
+    AttributeMask R = getParamAndReturnAttributesToRemove();
     if (auto *Call = dyn_cast<CallBase>(&I)) {
       for (int i = 0, e = Call->arg_size(); i != e; i++)
         if (isa<PointerType>(Call->getArgOperand(i)->getType()))
-          RemoveNonValidAttrAtIndex(Ctx, *Call,
-                                    i + AttributeList::FirstArgIndex);
+          Call->removeParamAttrs(i, R);
       if (isa<PointerType>(Call->getType()))
-        RemoveNonValidAttrAtIndex(Ctx, *Call, AttributeList::ReturnIndex);
+        Call->removeRetAttrs(R);
     }
   }
 
@@ -2937,13 +2917,20 @@ bool RewriteStatepointsForGC::runOnFunction(Function &F, DominatorTree &DT,
     }
   }
 
+  // Cache the 'defining value' relation used in the computation and
+  // insertion of base phis and selects.  This ensures that we don't insert
+  // large numbers of duplicate base_phis. Use one cache for both
+  // inlineGetBaseAndOffset() and insertParsePoints().
+  DefiningValueMapTy DVCache;
+
   if (!Intrinsics.empty())
     // Inline @gc.get.pointer.base() and @gc.get.pointer.offset() before finding
     // live references.
-    MadeChange |= inlineGetBaseAndOffset(F, Intrinsics);
+    MadeChange |= inlineGetBaseAndOffset(F, Intrinsics, DVCache);
 
   if (!ParsePointNeeded.empty())
-    MadeChange |= insertParsePoints(F, DT, TTI, ParsePointNeeded);
+    MadeChange |= insertParsePoints(F, DT, TTI, ParsePointNeeded, DVCache);
+
   return MadeChange;
 }
 
@@ -3014,7 +3001,7 @@ static SetVector<Value *> computeKillSet(BasicBlock *BB) {
 
 #ifndef NDEBUG
 /// Check that the items in 'Live' dominate 'TI'.  This is used as a basic
-/// sanity check for the liveness computation.
+/// validation check for the liveness computation.
 static void checkBasicSSA(DominatorTree &DT, SetVector<Value *> &Live,
                           Instruction *TI, bool TermOkay = false) {
   for (Value *V : Live) {
@@ -3101,7 +3088,7 @@ static void computeLiveInValues(DominatorTree &DT, Function &F,
   } // while (!Worklist.empty())
 
 #ifndef NDEBUG
-  // Sanity check our output against SSA properties.  This helps catch any
+  // Verify our output against SSA properties.  This helps catch any
   // missing kills during the above iteration.
   for (BasicBlock &BB : F)
     checkBasicSSA(DT, Data, BB);

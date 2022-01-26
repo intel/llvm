@@ -13,6 +13,8 @@
 // definitions, which does not yet provide aligned allocation
 // XFAIL: LIBCXX-WINDOWS-FIXME
 
+// XFAIL: LIBCXX-AIX-FIXME
+
 // The dylibs shipped before macosx10.13 do not contain the aligned allocation
 // functions, so trying to force using those with -faligned-allocation results
 // in a link error.
@@ -21,10 +23,6 @@
 // Libcxx when built for z/OS doesn't contain the aligned allocation functions,
 // nor does the dynamic library shipped with z/OS.
 // UNSUPPORTED: target={{.+}}-zos{{.*}}
-
-// AppleClang < 10 incorrectly warns that aligned allocation is not supported
-// even when it is supported.
-// UNSUPPORTED: apple-clang-9
 
 // XFAIL: sanitizer-new-delete, ubsan
 

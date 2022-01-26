@@ -163,9 +163,6 @@ let Definition = "target" in {
   def DisplayRecognizedArguments: Property<"display-recognized-arguments", "Boolean">,
     DefaultFalse,
     Desc<"Show recognized arguments in variable listings by default.">;
-  def NonStopModeEnabled: Property<"non-stop-mode", "Boolean">,
-    DefaultFalse,
-    Desc<"Disable lock-step debugging, instead control threads independently.">;
   def RequireHardwareBreakpoints: Property<"require-hardware-breakpoint", "Boolean">,
     DefaultFalse,
     Desc<"Require all breakpoints to be hardware breakpoints.">;
@@ -230,12 +227,19 @@ let Definition = "process" in {
   def UtilityExpressionTimeout: Property<"utility-expression-timeout", "UInt64">,
     DefaultUnsignedValue<15>,
     Desc<"The time in seconds to wait for LLDB-internal utility expressions.">;
+  def InterruptTimeout: Property<"interrupt-timeout", "UInt64">,
+    DefaultUnsignedValue<20>,
+    Desc<"The time in seconds to wait for an interrupt succeed in stopping the target.">;
   def SteppingRunsAllThreads: Property<"run-all-threads", "Boolean">,
     DefaultFalse,
     Desc<"If true, stepping operations will run all threads.  This is equivalent to setting the run-mode option to 'all-threads'.">;
   def VirtualAddressableBits: Property<"virtual-addressable-bits", "UInt64">,
     DefaultUnsignedValue<0>,
     Desc<"The number of bits used for addressing. If the value is 39, then bits 0..38 are used for addressing. The default value of 0 means unspecified.">;
+  def FollowForkMode: Property<"follow-fork-mode", "Enum">,
+    DefaultEnumValue<"eFollowParent">,
+    EnumValues<"OptionEnumValues(g_follow_fork_mode_values)">,
+    Desc<"Debugger's behavior upon fork or vfork.">;
 }
 
 let Definition = "platform" in {

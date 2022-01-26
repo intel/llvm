@@ -16,6 +16,7 @@
 
 #include "polly/CodeGen/PPCGCodeGeneration.h"
 #include "polly/Config/config.h"
+#include "polly/Support/DumpFunctionPass.h"
 #include "polly/Support/DumpModulePass.h"
 #include "llvm/ADT/StringRef.h"
 #include <cstdlib>
@@ -42,7 +43,6 @@ llvm::Pass *createPolyhedralInfoPass();
 llvm::Pass *createScopDetectionWrapperPassPass();
 llvm::Pass *createScopInfoRegionPassPass();
 llvm::Pass *createScopInfoWrapperPassPass();
-llvm::Pass *createRewriteByrefParamsWrapperPass();
 llvm::Pass *createIslAstInfoWrapperPassPass();
 llvm::Pass *createCodeGenerationPass();
 #ifdef GPU_CODEGEN
@@ -87,7 +87,6 @@ struct PollyForcePassLinking {
     polly::createScopInfoRegionPassPass();
     polly::createPollyCanonicalizePass();
     polly::createPolyhedralInfoPass();
-    polly::createRewriteByrefParamsWrapperPass();
     polly::createIslAstInfoWrapperPassPass();
     polly::createCodeGenerationPass();
 #ifdef GPU_CODEGEN
@@ -100,6 +99,7 @@ struct PollyForcePassLinking {
     polly::createForwardOpTreeWrapperPass();
     polly::createDeLICMWrapperPass();
     polly::createDumpModuleWrapperPass("", true);
+    polly::createDumpFunctionWrapperPass("");
     polly::createSimplifyWrapperPass(0);
     polly::createPruneUnprofitableWrapperPass();
   }
@@ -115,7 +115,6 @@ void initializeJSONExporterPass(llvm::PassRegistry &);
 void initializeJSONImporterPass(llvm::PassRegistry &);
 void initializeIslAstInfoWrapperPassPass(llvm::PassRegistry &);
 void initializeCodeGenerationPass(llvm::PassRegistry &);
-void initializeRewriteByrefParamsWrapperPassPass(llvm::PassRegistry &);
 #ifdef GPU_CODEGEN
 void initializePPCGCodeGenerationPass(llvm::PassRegistry &);
 void initializeManagedMemoryRewritePassPass(llvm::PassRegistry &);

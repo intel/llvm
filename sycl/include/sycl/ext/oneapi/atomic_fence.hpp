@@ -40,8 +40,5 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

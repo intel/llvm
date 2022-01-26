@@ -2,8 +2,10 @@
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 
+extern "C" int printf(const char* fmt, ...);
+
 // Dummy runtime classes to model SYCL API.
-namespace cl {
+inline namespace cl {
 namespace sycl {
 struct sampler_impl {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -11,7 +13,7 @@ struct sampler_impl {
 #endif
 };
 
-class sampler {
+class __attribute__((sycl_special_class)) sampler {
   struct sampler_impl impl;
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
@@ -60,6 +62,20 @@ enum class address_space : int {
   local_space
 };
 } // namespace access
+
+// Dummy aspect enum with limited enumerators
+enum class aspect {
+  host = 0,
+  cpu = 1,
+  gpu = 2,
+  accelerator = 3,
+  custom = 4,
+  fp16 = 5,
+  fp64 = 6,
+};
+
+using access::target;
+using access_mode = access::mode;
 
 namespace property {
 
@@ -116,13 +132,6 @@ struct no_alias {
 } // namespace oneapi
 } // namespace ext
 
-namespace ext {
-namespace oneapi {
-template <typename... properties>
-class accessor_property_list {};
-} // namespace oneapi
-} // namespace ext
-
 template <int dim>
 struct id {
   template <typename... T>
@@ -142,11 +151,12 @@ private:
   int Data;
 };
 
-template <int Dims> item<Dims>
-this_item() { return item<Dims>{}; }
-
-template <int Dims> id<Dims>
-this_id() { return id<Dims>{}; }
+namespace ext {
+namespace oneapi {
+template <typename... properties>
+class accessor_property_list {};
+} // namespace oneapi
+} // namespace ext
 
 template <int dim>
 struct range {
@@ -173,7 +183,7 @@ template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
           typename propertyListT = ext::oneapi::accessor_property_list<>>
-class accessor {
+class __attribute__((sycl_special_class)) accessor {
 
 public:
   void use(void) const {}
@@ -239,7 +249,7 @@ struct _ImageImplT {
 };
 
 template <typename dataT, int dimensions, access::mode accessmode>
-class accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
+class __attribute__((sycl_special_class)) accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
 public:
   void use(void) const {}
   template <typename... T>
@@ -308,6 +318,21 @@ public:
     return get();
   }
 };
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_CONSTANT_AS __attribute__((opencl_constant))
+#else
+#define __SYCL_CONSTANT_AS
+#endif
+template <typename... Args>
+int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+  return __spirv_ocl_printf(__format, args...);
+#else
+  return ::printf(__format, args...);
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+}
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
@@ -421,7 +446,7 @@ public:
   }
 };
 
-class stream {
+class __attribute__((sycl_special_class)) stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}

@@ -11,8 +11,11 @@
 #include "Annotations.h"
 #include "ParsedAST.h"
 #include "TestTU.h"
+#include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/Basic/AttrKinds.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
@@ -25,6 +28,8 @@
 namespace clang {
 namespace clangd {
 namespace {
+using testing::Contains;
+using testing::Each;
 
 TEST(GetDeducedType, KwAutoKwDecltypeExpansion) {
   struct Test {
@@ -38,7 +43,7 @@ TEST(GetDeducedType, KwAutoKwDecltypeExpansion) {
               namespace ns1 { struct S {}; }
               ^auto v = ns1::S{};
           )cpp",
-          "struct ns1::S",
+          "ns1::S",
       },
       {
           R"cpp( // decltype on struct
@@ -58,7 +63,7 @@ TEST(GetDeducedType, KwAutoKwDecltypeExpansion) {
             ns1::S& j = i;
             ^decltype(auto) k = j;
           )cpp",
-          "struct ns1::S &",
+          "ns1::S &",
       },
       {
           R"cpp( // auto on template class
@@ -66,7 +71,7 @@ TEST(GetDeducedType, KwAutoKwDecltypeExpansion) {
               template<typename T> class Foo {};
               ^auto v = Foo<X>();
           )cpp",
-          "class Foo<class X>",
+          "Foo<class X>",
       },
       {
           R"cpp( // auto on initializer list.
@@ -172,8 +177,7 @@ TEST(GetDeducedType, KwAutoKwDecltypeExpansion) {
             using Bar = Foo;
             ^auto x = Bar();
           )cpp",
-          // FIXME: it'd be nice if this resolved to the alias instead
-          "struct Foo",
+          "Bar",
       },
   };
   for (Test T : Tests) {
@@ -258,6 +262,18 @@ TEST(ClangdAST, GetQualification) {
           )cpp",
           {"ns2::", "ns2::", ""},
           {"ns1::"},
+      },
+      {
+          R"cpp(
+            namespace ns {
+            extern "C" {
+            typedef int Foo;
+            }
+            }
+            void insert(); // ns::Foo
+          )cpp",
+          {"ns::"},
+          {},
       },
   };
   for (const auto &Case : Cases) {
@@ -377,6 +393,63 @@ TEST(ClangdAST, IsDeeplyNested) {
   EXPECT_FALSE(
       isDeeplyNested(&findUnqualifiedDecl(AST, "Bar"), /*MaxDepth=*/4));
 }
+
+MATCHER_P(attrKind, K, "") { return arg->getKind() == K; }
+
+MATCHER(implicitAttr, "") { return arg->isImplicit(); }
+
+TEST(ClangdAST, GetAttributes) {
+  const char *Code = R"cpp(
+    class X{};
+    class [[nodiscard]] Y{};
+    void f(int * a, int * __attribute__((nonnull)) b);
+    void foo(bool c) {
+      if (c)
+        [[unlikely]] return;
+    }
+  )cpp";
+  ParsedAST AST = TestTU::withCode(Code).build();
+  auto DeclAttrs = [&](llvm::StringRef Name) {
+    return getAttributes(DynTypedNode::create(findUnqualifiedDecl(AST, Name)));
+  };
+  // Implicit attributes may be present (e.g. visibility on windows).
+  ASSERT_THAT(DeclAttrs("X"), Each(implicitAttr()));
+  ASSERT_THAT(DeclAttrs("Y"), Contains(attrKind(attr::WarnUnusedResult)));
+  ASSERT_THAT(DeclAttrs("f"), Each(implicitAttr()));
+  ASSERT_THAT(DeclAttrs("a"), Each(implicitAttr()));
+  ASSERT_THAT(DeclAttrs("b"), Contains(attrKind(attr::NonNull)));
+
+  Stmt *FooBody = cast<FunctionDecl>(findDecl(AST, "foo")).getBody();
+  IfStmt *FooIf = cast<IfStmt>(cast<CompoundStmt>(FooBody)->body_front());
+  ASSERT_THAT(getAttributes(DynTypedNode::create(*FooIf)),
+              Each(implicitAttr()));
+  ASSERT_THAT(getAttributes(DynTypedNode::create(*FooIf->getThen())),
+              Contains(attrKind(attr::Unlikely)));
+}
+
+TEST(ClangdAST, HasReservedName) {
+  ParsedAST AST = TestTU::withCode(R"cpp(
+    void __foo();
+    namespace std {
+      inline namespace __1 { class error_code; }
+      namespace __detail { int secret; }
+    }
+  )cpp")
+                      .build();
+
+  EXPECT_TRUE(hasReservedName(findUnqualifiedDecl(AST, "__foo")));
+  EXPECT_FALSE(
+      hasReservedScope(*findUnqualifiedDecl(AST, "__foo").getDeclContext()));
+
+  EXPECT_FALSE(hasReservedName(findUnqualifiedDecl(AST, "error_code")));
+  EXPECT_FALSE(hasReservedScope(
+      *findUnqualifiedDecl(AST, "error_code").getDeclContext()));
+
+  EXPECT_FALSE(hasReservedName(findUnqualifiedDecl(AST, "secret")));
+  EXPECT_TRUE(
+      hasReservedScope(*findUnqualifiedDecl(AST, "secret").getDeclContext()));
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

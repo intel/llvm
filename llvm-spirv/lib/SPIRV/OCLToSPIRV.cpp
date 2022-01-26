@@ -108,9 +108,6 @@ public:
   /// Transform OCL builtin function to SPIR-V builtin function.
   void transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info);
 
-  /// Transform OCL work item builtin functions to SPIR-V builtin variables.
-  void transWorkItemBuiltinsToVariables();
-
   /// Transform atomic_work_item_fence/mem_fence to __spirv_MemoryBarrier.
   /// func(flag, order, scope) =>
   ///   __spirv_MemoryBarrier(map(scope), map(flag)|map(order))
@@ -263,6 +260,9 @@ public:
   void visitSubgroupAVCBuiltinCallWithSampler(CallInst *CI,
                                               StringRef DemangledName);
 
+  void visitCallLdexp(CallInst *CI, StringRef MangledName,
+                      StringRef DemangledName);
+
   void setOCLTypeToSPIRV(OCLTypeToSPIRVBase *OCLTypeToSPIRV) {
     OCLTypeToSPIRVPtr = OCLTypeToSPIRV;
   }
@@ -366,8 +366,6 @@ bool OCLToSPIRVBase::runOCLToSPIRV(Module &Module) {
   CLVer = std::get<1>(Src);
 
   LLVM_DEBUG(dbgs() << "Enter OCLToSPIRV:\n");
-
-  transWorkItemBuiltinsToVariables();
 
   visit(*M);
 
@@ -570,6 +568,10 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
       visitSubgroupAVCBuiltinCallWithSampler(&CI, DemangledName);
     else
       visitSubgroupAVCBuiltinCall(&CI, DemangledName);
+    return;
+  }
+  if (DemangledName.find(kOCLBuiltinName::LDEXP) == 0) {
+    visitCallLdexp(&CI, MangledName, DemangledName);
     return;
   }
   visitCallBuiltinSimple(&CI, MangledName, DemangledName);
@@ -815,7 +817,7 @@ void OCLToSPIRVBase::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
     } else {
       auto MaxOps =
           getOCLCpp11AtomicMaxNumOps(Stem.drop_back(strlen("_explicit")));
-      if (CI->getNumArgOperands() < MaxOps)
+      if (CI->arg_size() < MaxOps)
         PostOps.push_back(OCLMS_device);
     }
   } else if (Stem == "work_item_fence") {
@@ -839,7 +841,7 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstSPIRV(
       M, CI,
-      [=](CallInst *CI, std::vector<Value *> &Args) {
+      [=](CallInst *CI, std::vector<Value *> &Args) -> std::string {
         Info.PostProc(Args);
         // Order of args in OCL20:
         // object, 0-2 other args, 1-2 order, scope
@@ -868,7 +870,28 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
           std::rotate(Args.begin() + 2, Args.begin() + OrderIdx,
                       Args.end() - Offset);
         }
-        return getSPIRVFuncName(OCLSPIRVBuiltinMap::map(Info.UniqName));
+        llvm::Type *AtomicBuiltinsReturnType =
+            CI->getCalledFunction()->getReturnType();
+        auto IsFPType = [](llvm::Type *ReturnType) {
+          return ReturnType->isHalfTy() || ReturnType->isFloatTy() ||
+                 ReturnType->isDoubleTy();
+        };
+        auto SPIRVFunctionName =
+            getSPIRVFuncName(OCLSPIRVBuiltinMap::map(Info.UniqName));
+        if (!IsFPType(AtomicBuiltinsReturnType))
+          return SPIRVFunctionName;
+        // Translate FP-typed atomic builtins. Currently we only need to
+        // translate atomic_fetch_[add, max, min] and atomic_fetch_[add, max,
+        // min]_explicit to related float instructions
+        auto SPIRFunctionNameForFloatAtomics =
+            llvm::StringSwitch<std::string>(SPIRVFunctionName)
+                .Case("__spirv_AtomicIAdd", "__spirv_AtomicFAddEXT")
+                .Case("__spirv_AtomicSMax", "__spirv_AtomicFMaxEXT")
+                .Case("__spirv_AtomicSMin", "__spirv_AtomicFMinEXT")
+                .Default("others");
+        return SPIRFunctionNameForFloatAtomics == "others"
+                   ? SPIRVFunctionName
+                   : SPIRFunctionNameForFloatAtomics;
       },
       &Attrs);
 }
@@ -1061,6 +1084,7 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Op OC = OpNop;
   unsigned ExtOp = ~0U;
+  SPIRVBuiltinVariableKind BVKind = BuiltInMax;
   if (StringRef(Info.UniqName).startswith(kSPIRVName::Prefix))
     return;
   if (OCLSPIRVBuiltinMap::find(Info.UniqName, &OC)) {
@@ -1081,7 +1105,11 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
     }
   } else if ((ExtOp = getExtOp(Info.MangledName, Info.UniqName)) != ~0U)
     Info.UniqName = getSPIRVExtFuncName(SPIRVEIS_OpenCL, ExtOp);
-  else
+  else if (SPIRSPIRVBuiltinVariableMap::find(Info.UniqName, &BVKind)) {
+    // Map OCL work item builtins to SPV-IR work item builtins.
+    // e.g. get_global_id() --> __spirv_BuiltinGlobalInvocationId()
+    Info.UniqName = getSPIRVFuncName(BVKind);
+  } else
     return;
   if (!Info.RetTy)
     mutateCallInstSPIRV(
@@ -1273,60 +1301,6 @@ void OCLToSPIRVBase::visitCallBuiltinSimple(CallInst *CI, StringRef MangledName,
   transBuiltin(CI, Info);
 }
 
-/// Translates OCL work-item builtin functions to SPIRV builtin variables.
-/// Function like get_global_id(i) -> x = load GlobalInvocationId; extract x, i
-/// Function like get_work_dim() -> load WorkDim
-void OCLToSPIRVBase::transWorkItemBuiltinsToVariables() {
-  LLVM_DEBUG(dbgs() << "Enter transWorkItemBuiltinsToVariables\n");
-  std::vector<Function *> WorkList;
-  for (auto &I : *M) {
-    StringRef DemangledName;
-    if (!oclIsBuiltin(I.getName(), DemangledName))
-      continue;
-    LLVM_DEBUG(dbgs() << "Function demangled name: " << DemangledName << '\n');
-    std::string BuiltinVarName;
-    SPIRVBuiltinVariableKind BVKind;
-    if (!SPIRSPIRVBuiltinVariableMap::find(DemangledName.str(), &BVKind))
-      continue;
-    BuiltinVarName =
-        std::string(kSPIRVName::Prefix) + SPIRVBuiltInNameMap::map(BVKind);
-    LLVM_DEBUG(dbgs() << "builtin variable name: " << BuiltinVarName << '\n');
-    bool IsVec = I.getFunctionType()->getNumParams() > 0;
-    Type *GVType =
-        IsVec ? FixedVectorType::get(I.getReturnType(), 3) : I.getReturnType();
-    auto BV = new GlobalVariable(*M, GVType, true, GlobalValue::ExternalLinkage,
-                                 nullptr, BuiltinVarName, 0,
-                                 GlobalVariable::NotThreadLocal, SPIRAS_Input);
-    std::vector<Instruction *> InstList;
-    for (auto UI = I.user_begin(), UE = I.user_end(); UI != UE; ++UI) {
-      auto CI = dyn_cast<CallInst>(*UI);
-      assert(CI && "invalid instruction");
-      const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
-      if (DLoc)
-        NewValue->setDebugLoc(DLoc);
-      LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
-      if (IsVec) {
-        NewValue =
-            ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
-        if (DLoc)
-          NewValue->setDebugLoc(DLoc);
-        LLVM_DEBUG(dbgs() << *NewValue << '\n');
-      }
-      NewValue->takeName(CI);
-      CI->replaceAllUsesWith(NewValue);
-      InstList.push_back(CI);
-    }
-    for (auto &Inst : InstList) {
-      Inst->eraseFromParent();
-    }
-    WorkList.push_back(&I);
-  }
-  for (auto &I : WorkList) {
-    I->eraseFromParent();
-  }
-}
-
 void OCLToSPIRVBase::visitCallReadWriteImage(CallInst *CI,
                                              StringRef DemangledName) {
   OCLBuiltinTransInfo Info;
@@ -1478,7 +1452,7 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
   // Check if all arguments have the same type - it's simple case.
   auto Uniform = true;
   auto IsArg0Vector = isa<VectorType>(CI->getOperand(0)->getType());
-  for (unsigned I = 1, E = CI->getNumArgOperands(); Uniform && (I != E); ++I) {
+  for (unsigned I = 1, E = CI->arg_size(); Uniform && (I != E); ++I) {
     Uniform = isa<VectorType>(CI->getOperand(I)->getType()) == IsArg0Vector;
   }
   if (Uniform) {
@@ -1708,7 +1682,7 @@ void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockWriteINTEL);
   assert(!CI->arg_empty() &&
          "Intel subgroup block write should have arguments");
-  unsigned DataArg = CI->getNumArgOperands() - 1;
+  unsigned DataArg = CI->arg_size() - 1;
   Type *DataTy = CI->getArgOperand(DataArg)->getType();
   processSubgroupBlockReadWriteINTEL(CI, Info, DataTy, M);
 }
@@ -1777,7 +1751,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
     FName += (STy->getName().contains("single")) ? "_single_reference"
                                                  : "_dual_reference";
   } else if (FName.find(Prefix + "sic_configure_ipe") == 0) {
-    FName += (CI->getNumArgOperands() == 8) ? "_luma" : "_luma_chroma";
+    FName += (CI->arg_size() == 8) ? "_luma" : "_luma_chroma";
   }
 
   OCLSPIRVSubgroupAVCIntelBuiltinMap::find(FName, &OC);
@@ -1812,7 +1786,7 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   // The operand required conversion is always the last one.
   const char *OpKind = getSubgroupAVCIntelOpKind(DemangledName);
   const char *TyKind = getSubgroupAVCIntelTyKind(
-      CI->getArgOperand(CI->getNumArgOperands() - 1)->getType());
+      CI->getArgOperand(CI->arg_size() - 1)->getType());
   std::string MCETName =
       std::string(kOCLSubgroupsAVCIntel::TypePrefix) + "mce_" + TyKind + "_t";
   auto *MCETy =
@@ -1876,7 +1850,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
   // Update names for built-ins mapped on two or more SPIRV instructions
   if (FName.find(Prefix + "ref_evaluate_with_multi_reference") == 0 ||
       FName.find(Prefix + "sic_evaluate_with_multi_reference") == 0) {
-    FName += (CI->getNumArgOperands() == 5) ? "_interlaced" : "";
+    FName += (CI->arg_size() == 5) ? "_interlaced" : "";
   }
 
   Op OC = OpNop;
@@ -1914,6 +1888,32 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
         return getSPIRVFuncName(OC);
       },
       &Attrs);
+}
+
+void OCLToSPIRVBase::visitCallLdexp(CallInst *CI, StringRef MangledName,
+                                    StringRef DemangledName) {
+  auto Args = getArguments(CI);
+  if (Args.size() == 2) {
+    Type *Type0 = Args[0]->getType();
+    Type *Type1 = Args[1]->getType();
+    // For OpenCL built-in math functions 'halfn ldexp(halfn x, int k)',
+    // 'floatn ldexp(floatn x, int k)' and 'doublen ldexp (doublen x, int k)',
+    // convert scalar arg to vector to keep consistency with SPIRV spec.
+    // Regarding to SPIRV OpenCL Extended Instruction set, k operand must have
+    // the same component count as Result Type and x operands
+    if (auto *FixedVecType0 = dyn_cast<FixedVectorType>(Type0)) {
+      auto ScalarTypeID = Type0->getScalarType()->getTypeID();
+      if ((ScalarTypeID == llvm::Type::FloatTyID ||
+           ScalarTypeID == llvm::Type::DoubleTyID ||
+           ScalarTypeID == llvm::Type::HalfTyID) &&
+          Type1->isIntegerTy()) {
+        IRBuilder<> IRB(CI);
+        unsigned Width = FixedVecType0->getNumElements();
+        CI->setOperand(1, IRB.CreateVectorSplat(Width, CI->getArgOperand(1)));
+      }
+    }
+  }
+  visitCallBuiltinSimple(CI, MangledName, DemangledName);
 }
 
 } // namespace SPIRV

@@ -22,7 +22,15 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // Base class for all GLSL ops.
 class SPV_GLSLOp<string mnemonic, int opcode, list<OpTrait> traits = []> :
-  SPV_ExtInstOp<mnemonic, "GLSL", "GLSL.std.450", opcode, traits>;
+  SPV_ExtInstOp<mnemonic, "GLSL", "GLSL.std.450", opcode, traits> {
+
+  let availability = [
+    MinVersion<SPV_V_1_0>,
+    MaxVersion<SPV_V_1_5>,
+    Extension<[]>,
+    Capability<[SPV_C_Shader]>
+  ];
+}
 
 // Base class for GLSL unary ops.
 class SPV_GLSLUnaryOp<string mnemonic, int opcode, Type resultType,
@@ -261,10 +269,10 @@ def SPV_GLSLTanOp : SPV_GLSLUnaryArithmeticOp<"Tan", 15, SPV_Float16or32> {
   let description = [{
     The standard trigonometric tangent of x radians.
 
-    The operand x must be a scalar or vector whose component type is 16-bit or 
+    The operand x must be a scalar or vector whose component type is 16-bit or
     32-bit floating-point.
 
-    Result Type and the type of x must be the same type. Results are computed 
+    Result Type and the type of x must be the same type. Results are computed
     per component.
 
     <!-- End of AutoGen section -->
@@ -576,6 +584,36 @@ def SPV_GLSLFMaxOp : SPV_GLSLBinaryArithmeticOp<"FMax", 40, SPV_Float> {
 
 // -----
 
+def SPV_GLSLUMaxOp : SPV_GLSLBinaryArithmeticOp<"UMax", 41, SPV_Integer> {
+  let summary = "Return maximum of two unsigned integer operands";
+
+  let description = [{
+    Result is y if x < y; otherwise result is x, where x and y are interpreted
+    as unsigned integers.
+
+    Result Type and the type of x and y must both be integer scalar or integer
+    vector types. Result Type and operand types must have the same number of
+    components with the same component width. Results are computed per
+    component.
+
+    <!-- End of AutoGen section -->
+    ```
+    integer-scalar-vector-type ::= integer-type |
+                                   `vector<` integer-literal `x` integer-type `>`
+    smax-op ::= ssa-id `=` `spv.GLSL.UMax` ssa-use `:`
+                integer-scalar-vector-type
+    ```
+    #### Example:
+
+    ```mlir
+    %2 = spv.GLSL.UMax %0, %1 : i32
+    %3 = spv.GLSL.UMax %0, %1 : vector<3xi16>
+    ```
+  }];
+}
+
+// -----
+
 def SPV_GLSLSMaxOp : SPV_GLSLBinaryArithmeticOp<"SMax", 42, SPV_Integer> {
   let summary = "Return maximum of two signed integer operands";
 
@@ -631,6 +669,36 @@ def SPV_GLSLFMinOp : SPV_GLSLBinaryArithmeticOp<"FMin", 37, SPV_Float> {
     ```mlir
     %2 = spv.GLSL.FMin %0, %1 : f32
     %3 = spv.GLSL.FMin %0, %1 : vector<3xf16>
+    ```
+  }];
+}
+
+// -----
+
+def SPV_GLSLUMinOp : SPV_GLSLBinaryArithmeticOp<"UMin", 38, SPV_Integer> {
+  let summary = "Return minimum of two unsigned integer operands";
+
+  let description = [{
+    Result is y if y < x; otherwise result is x, where x and y are interpreted
+    as unsigned integers.
+
+    Result Type and the type of x and y must both be integer scalar or integer
+    vector types. Result Type and operand types must have the same number of
+    components with the same component width. Results are computed per
+    component.
+
+    <!-- End of AutoGen section -->
+    ```
+    integer-scalar-vector-type ::= integer-type |
+                                   `vector<` integer-literal `x` integer-type `>`
+    smin-op ::= ssa-id `=` `spv.GLSL.UMin` ssa-use `:`
+                integer-scalar-vector-type
+    ```
+    #### Example:
+
+    ```mlir
+    %2 = spv.GLSL.UMin %0, %1 : i32
+    %3 = spv.GLSL.UMin %0, %1 : vector<3xi16>
     ```
   }];
 }
@@ -1123,5 +1191,43 @@ def SPV_GLSLLdexpOp :
   let verifier = [{ return ::verify(*this); }];
 }
 
+def SPV_GLSLFMixOp :
+  SPV_GLSLOp<"FMix", 46, [
+      NoSideEffect, AllTypesMatch<["x", "y", "a", "result"]>]> {
+  let summary = "Builds the linear blend of x and y";
+
+  let description = [{
+    Result is the linear blend of x and y, i.e., x * (1 - a) + y * a.
+
+    The operands must all be a scalar or vector whose component type is floating-point.
+
+    Result Type and the type of all operands must be the same type. Results are computed per component.
+
+    <!-- End of AutoGen section -->
+
+    #### Example:
+
+    ```mlir
+    %0 = spv.GLSL.FMix %x : f32, %y : f32, %a : f32 -> f32
+    %0 = spv.GLSL.FMix %x : vector<4xf32>, %y : vector<4xf32>, %a : vector<4xf32> -> vector<4xf32>
+    ```
+  }];
+
+  let arguments = (ins
+    SPV_ScalarOrVectorOf<SPV_Float>:$x,
+    SPV_ScalarOrVectorOf<SPV_Float>:$y,
+    SPV_ScalarOrVectorOf<SPV_Float>:$a
+  );
+
+  let results = (outs
+    SPV_ScalarOrVectorOf<SPV_Float>:$result
+  );
+
+  let assemblyFormat = [{
+    attr-dict $x `:` type($x) `,` $y `:` type($y) `,` $a `:` type($a) `->` type($result)
+  }];
+
+  let verifier = [{ return success(); }];
+}
 
 #endif // MLIR_DIALECT_SPIRV_IR_GLSL_OPS

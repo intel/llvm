@@ -397,7 +397,6 @@
 // CHECK-WARNING-DAG: optimization flag '-falign-labels' is not supported
 // CHECK-WARNING-DAG: optimization flag '-falign-labels=100' is not supported
 // CHECK-WARNING-DAG: optimization flag '-falign-loops' is not supported
-// CHECK-WARNING-DAG: optimization flag '-falign-loops=100' is not supported
 // CHECK-WARNING-DAG: optimization flag '-falign-jumps' is not supported
 // CHECK-WARNING-DAG: optimization flag '-falign-jumps=100' is not supported
 // CHECK-WARNING-DAG: optimization flag '-fexcess-precision=100' is not supported
@@ -566,6 +565,8 @@
 // RUN: cp %clang "%t.r/with spaces/clang"
 // RUN: "%t.r/with spaces/clang" -### -S -target x86_64-unknown-linux -frecord-gcc-switches %s 2>&1 | FileCheck -check-prefix=CHECK-RECORD-GCC-SWITCHES-ESCAPED %s
 // CHECK-RECORD-GCC-SWITCHES-ESCAPED: "-record-command-line" "{{.+}}with\\ spaces{{.+}}"
+// Clean up copy of large binary copied into temp directory to avoid bloat.
+// RUN: rm -f "%t.r/with spaces/clang" || true
 
 // RUN: %clang -### -S -ftrivial-auto-var-init=uninitialized %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-UNINIT %s
 // RUN: %clang -### -S -ftrivial-auto-var-init=pattern %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-PATTERN %s
@@ -581,11 +582,11 @@
 // RUN: %clang -### -S -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-STOP-AFTER-MISSING-DEPENDENCY %s
 // RUN: %clang -### -S -ftrivial-auto-var-init=pattern -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-PATTERN-STOP-AFTER-INVALID-VALUE %s
 // RUN: %clang -### -S -ftrivial-auto-var-init=zero -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang -ftrivial-auto-var-init-stop-after=0 %s 2>&1 | FileCheck -check-prefix=CHECK-TRIVIAL-ZERO-STOP-AFTER-INVALID-VALUE %s
-// CHECK-TRIVIAL-PATTERN-STOP-AFTER-NOT: is used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-PATTERN-STOP-AFTER-NOT: is used without '-ftrivial-auto-var-init'
 // CHECK-TRIVIAL-PATTERN-STOP-AFTER-NOT: only accepts positive integers
-// CHECK-TRIVIAL-ZERO-STOP-AFTER-NOT: is used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-ZERO-STOP-AFTER-NOT: is used without '-ftrivial-auto-var-init'
 // CHECK-TRIVIAL-ZERO-STOP-AFTER-NOT: only accepts positive integers
-// CHECK-TRIVIAL-STOP-AFTER-MISSING-DEPENDENCY: used without -ftrivial-auto-var-init
+// CHECK-TRIVIAL-STOP-AFTER-MISSING-DEPENDENCY: used without '-ftrivial-auto-var-init=zero' or
 // CHECK-TRIVIAL-PATTERN-STOP-AFTER-INVALID-VALUE: only accepts positive integers
 // CHECK-TRIVIAL-ZERO-STOP-AFTER-INVALID-VALUE: only accepts positive integers
 

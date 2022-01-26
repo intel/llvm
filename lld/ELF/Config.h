@@ -22,6 +22,7 @@
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include <atomic>
+#include <memory>
 #include <vector>
 
 namespace lld {
@@ -30,13 +31,17 @@ namespace elf {
 class InputFile;
 class InputSectionBase;
 
-enum ELFKind {
+enum ELFKind : uint8_t {
   ELFNoneKind,
   ELF32LEKind,
   ELF32BEKind,
   ELF64LEKind,
   ELF64BEKind
 };
+
+// For -Bno-symbolic, -Bsymbolic-non-weak-functions, -Bsymbolic-functions,
+// -Bsymbolic.
+enum class BsymbolicKind { None, NonWeakFunctions, Functions, All };
 
 // For --build-id.
 enum class BuildIdKind { None, Fast, Md5, Sha1, Hexstring, Uuid };
@@ -82,7 +87,8 @@ struct SymbolVersion {
 struct VersionDefinition {
   llvm::StringRef name;
   uint16_t id;
-  std::vector<SymbolVersion> patterns;
+  SmallVector<SymbolVersion, 0> nonLocalPatterns;
+  SmallVector<SymbolVersion, 0> localPatterns;
 };
 
 // This struct contains the global configuration for the linker.
@@ -122,6 +128,9 @@ struct Configuration {
   llvm::StringRef sysroot;
   llvm::StringRef thinLTOCacheDir;
   llvm::StringRef thinLTOIndexOnlyArg;
+  llvm::StringRef whyExtract;
+  StringRef zBtiReport = "none";
+  StringRef zCetReport = "none";
   llvm::StringRef ltoBasicBlockSections;
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOObjectSuffixReplace;
   std::pair<llvm::StringRef, llvm::StringRef> thinLTOPrefixReplace;
@@ -144,8 +153,7 @@ struct Configuration {
   bool armHasMovtMovw = false;
   bool armJ1J2BranchEncoding = false;
   bool asNeeded = false;
-  bool bsymbolic = false;
-  bool bsymbolicFunctions = false;
+  BsymbolicKind bsymbolic = BsymbolicKind::None;
   bool callGraphProfileSort;
   bool checkSections;
   bool checkDynamicRelocs;
@@ -174,10 +182,10 @@ struct Configuration {
   bool ignoreDataAddressEquality;
   bool ignoreFunctionAddressEquality;
   bool ltoCSProfileGenerate;
+  bool ltoPGOWarnMismatch;
   bool ltoDebugPassManager;
   bool ltoEmitAsm;
   bool ltoNewPassManager;
-  bool ltoPseudoProbeForProfiling;
   bool ltoUniqueBasicBlockSectionNames;
   bool ltoWholeProgramVisibility;
   bool mergeArmExidx;
@@ -197,6 +205,7 @@ struct Configuration {
   bool pie;
   bool printGcSections;
   bool printIcfSections;
+  bool relax;
   bool relocatable;
   bool relrPackDynRelocs;
   bool saveTemps;
@@ -255,7 +264,7 @@ struct Configuration {
   UnresolvedPolicy unresolvedSymbols;
   UnresolvedPolicy unresolvedSymbolsInShlib;
   Target2Policy target2;
-  bool Power10Stub;
+  bool power10Stubs;
   ARMVFPArgKind armVFPArgs = ARMVFPArgKind::Default;
   BuildIdKind buildId = BuildIdKind::None;
   SeparateSegmentKind zSeparate;
@@ -303,19 +312,10 @@ struct Configuration {
   // if that's true.)
   bool isMips64EL;
 
-  // True if we need to set the DF_STATIC_TLS flag to an output file,
-  // which works as a hint to the dynamic loader that the file contains
-  // code compiled with the static TLS model. The thread-local variable
-  // compiled with the static TLS model is faster but less flexible, and
-  // it may not be loaded using dlopen().
-  //
-  // We set this flag to true when we see a relocation for the static TLS
-  // model. Once this becomes true, it will never become false.
-  //
-  // Since the flag is updated by multi-threaded code, we use std::atomic.
-  // (Writing to a variable is not considered thread-safe even if the
-  // variable is boolean and we always set the same value from all threads.)
-  std::atomic<bool> hasStaticTlsModel{false};
+  // True if we need to set the DF_STATIC_TLS flag to an output file, which
+  // works as a hint to the dynamic loader that the shared object contains code
+  // compiled with the initial-exec TLS model.
+  bool hasTlsIe = false;
 
   // Holds set of ELF header flags for the target.
   uint32_t eflags = 0;
@@ -344,7 +344,7 @@ struct Configuration {
 };
 
 // The only instance of Configuration struct.
-extern Configuration *config;
+extern std::unique_ptr<Configuration> config;
 
 // The first two elements of versionDefinitions represent VER_NDX_LOCAL and
 // VER_NDX_GLOBAL. This helper returns other elements.

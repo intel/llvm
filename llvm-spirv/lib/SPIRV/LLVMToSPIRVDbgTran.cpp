@@ -496,7 +496,9 @@ LLVMToSPIRVDbgTran::transDbgCompilationUnit(const DICompileUnit *CU) {
   Ops[SPIRVDebugInfoVersionIdx] = SPIRVDebug::DebugInfoVersion;
   Ops[DWARFVersionIdx] = M->getDwarfVersion();
   Ops[SourceIdx] = getSource(CU)->getId();
-  Ops[LanguageIdx] = CU->getSourceLanguage();
+  auto DwarfLang =
+      static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());
+  Ops[LanguageIdx] = convertDWARFSourceLangToSPIRV(DwarfLang);
   BM->addModuleProcessed(SPIRVDebug::ProducerPrefix + CU->getProducer().str());
   // Cache CU in a member.
   SPIRVCU = static_cast<SPIRVExtInst *>(
@@ -555,6 +557,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
   // For N-dimensianal arrays AR.getNumElements() == N
   const unsigned N = AR.size();
   Ops.resize(ComponentCountIdx + N);
+  SPIRVWordVec LowerBounds(N);
   for (unsigned I = 0; I < N; ++I) {
     DISubrange *SR = cast<DISubrange>(AR[I]);
     ConstantInt *Count = SR->getCount().get<ConstantInt *>();
@@ -567,9 +570,23 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgArrayType(const DICompositeType *AT) {
       Ops[ComponentCountIdx + I] =
           SPIRVWriter->transValue(Count, nullptr)->getId();
     } else {
-      Ops[ComponentCountIdx + I] = getDebugInfoNoneId();
+      if (auto *UpperBound = dyn_cast<MDNode>(SR->getRawUpperBound()))
+        Ops[ComponentCountIdx + I] = transDbgEntry(UpperBound)->getId();
+      else
+        Ops[ComponentCountIdx + I] = getDebugInfoNoneId();
+    }
+    if (auto *RawLB = SR->getRawLowerBound()) {
+      if (auto *DIExprLB = dyn_cast<MDNode>(RawLB))
+        LowerBounds[I] = transDbgEntry(DIExprLB)->getId();
+      else {
+        ConstantInt *ConstIntLB = SR->getLowerBound().get<ConstantInt *>();
+        LowerBounds[I] = SPIRVWriter->transValue(ConstIntLB, nullptr)->getId();
+      }
+    } else {
+      LowerBounds[I] = getDebugInfoNoneId();
     }
   }
+  Ops.insert(Ops.end(), LowerBounds.begin(), LowerBounds.end());
   return BM->addDebugInfo(SPIRVDebug::TypeArray, getVoidTy(), Ops);
 }
 
@@ -1012,9 +1029,10 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgExpression(const DIExpression *Expr) {
     SPIRVDebug::ExpressionOpCode OC =
         SPIRV::DbgExpressionOpCodeMap::map(DWARFOpCode);
     if (OpCountMap.find(OC) == OpCountMap.end())
-      report_fatal_error("unknown opcode found in DIExpression");
+      report_fatal_error(llvm::Twine("unknown opcode found in DIExpression"));
     if (OC > SPIRVDebug::Fragment && !BM->allowExtraDIExpressions())
-      report_fatal_error("unsupported opcode found in DIExpression");
+      report_fatal_error(
+          llvm::Twine("unsupported opcode found in DIExpression"));
 
     unsigned OpCount = OpCountMap[OC];
     SPIRVWordVec Op(OpCount);

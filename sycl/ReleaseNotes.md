@@ -1,3 +1,485 @@
+# September'21 release notes
+
+Release notes for commit range 4fc5ebe..bd68232
+
+## New features
+### SYCL Compiler
+ - Added support for HIP backend
+   [06fdabb5][da138cc][de6e848c][104b45ee][2e08d0e][bfbd5af][c19294f]
+### SYCL Library
+ - Added [sRGBA support](doc/extenstions/SRGB/srgb_support.asciidoc)
+   [e488327][191efdd]
+ - Added a preview feature implementation for the DPC++ experimental
+   [matrix extension]((doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
+   [7f218531] [a95f46d]
+ - Added support for SYCL 2020 exceptions [5c0f748][eef07606][5af8c43d]
+ - Added support for [SYCL_EXT_INTEL_BF16_CONVERSION extension](doc/extensions/Bf16Conversion/SYCL_INTEL_bf16_conversion.asciidoc)
+   [8075463]
+ - Added support for fallback implementation of [assert feature](doc/Assert.md)
+   [56c9ec4]
+ - Added support SYCL 2020 `sycl::logical_and` and `sycl::logical_or` operators
+   [6c077a0]
+### Documentation
+ - Added design document for [optional kernel features](doc/OptionalDeviceFeatures.md)
+   [88cfe16]
+ - Added [SYCL_INTEL_bf16_conversion extension document](doc/extensions/Bf16Conversion/SYCL_INTEL_bf16_conversion.asciidoc)
+   [9f8cc3af]
+ - Align [SYCL_EXT_ONEAPI_GROUP_MASK extension](doc/extensions/GroupMask/GroupMask.asciidoc)
+   with SYCL 2020 specification [a06bd1fb]
+ - Added [documentation](doc/SYCLInstrumentationUsingXPTI.md) of XPTI related
+   tracing in SYCL [1308fe7b]
+ - Align `SYCL_EXT_ONEAPI_LOCAL_MEMORY` extension
+   [document](doc/extensions/LocalMemory/LocalMemory.asciidoc) with SYCL 2020
+   specification [6ed6565]
+
+## Improvements
+### SYCL Compiler
+ - Added default device triple `spir64` when the compiler encounters any
+   incoming object/libraries that have been built with the `spir64` target.
+   `-fno-sycl-link-spirv` can be used for disabling this behaviour [1342360]
+ - Added support for non-uniform `IMul` and `FMul` operation for `ptx-nvidiacl`
+   [98a339d]
+ - Added splitting modules capability when compiling for NVPTX and AMDGCN
+   [c1324e6]
+ - Added `-fsycl-footer-path=<path>` command-line option to set path where to
+   store integration footer [155acd1]
+ - Improved read only accessor handling - added `readonly` attribute to the
+   associated pointer to memory [3661685]
+ - Improved the output project name generation. If the output value has one of
+   .a .o .out .lib .obj .exe extension, the output project directory name will
+   omit extension. For any other extension the output project directory will
+   keep this extension [d8237a6e]
+ - Improved handling of default device with AOCX archive [e3a579f]
+ - Added support for NVPTX device `printf` [4af2eb51]
+ - Added support for non-const private statics in ESIMD kernels [bc51fe01]
+ - Improved diagnostic generation when incorrect accessor format is used
+   [a2922141]
+ - Allowed passing `-Xsycl-target-backend` and `-Xsycl-target-link` when
+   default target is used [d37b832]
+ - Disabled kernel function propagation up the call tree to callee when in
+   SYCL 2020 mode [2667e3e]
+### SYCL Library
+ - Improved information passed to XPTI subscribers [2af0599] [66770f0]
+ - Added event interoperability to Level Zero plugin [ef33c57]
+ - Enabled blitter engine for in-order queues in Level Zero plugin [904967e]
+ - Removed deprecation warning for SYCL 1.2.1 barriers [18c80fa]
+ - Moved free function queries to experimental namespace
+   `sycl::ext::oneapi::experimental` [63ba1ce]
+ - Added info query for `device::info::atomic_memory_order_capabilities` and
+   `context::info::atomic_memory_order_capabilities` [9b04f41f]
+ - Improved performance of generic shuffles [fb08adf]
+ - Renamed `ONEAPI/INTEL` namespace to `ext::oneapi/intel` [d703f57] [ea4b8a9]
+   [e9d308e]
+ - Added Level Zero interoperability which allows to specify ownership of queue
+   [4614ee4] [6cf48fa]
+ - Added support for `reqd_work_group_size` attribute in CUDA plugin [a8fe4a5]
+ - Introduced `SYCL_CACHE_DIR` environment variable which allows to specify a
+   directory for persistent cache [4011775]
+ - Added version of `parallel_for` accepting `range` and a reduction variable
+   [d1556e4]
+ - Added verbosity to some errors handling [84ee39a]
+ - Added SYCL 2020 `sycl::errc_for` API [02756e3f]
+ - Added SYCL 2020 `byte_size` method for `sycl::buffer` and `sycl::vec`
+   classes.  `get_size` was deprecated [282d1dec]
+ - Added support for USM pointers for `sycl::joint_exclusive_scan` and
+   `sycl::joint_inclusive_scan` [2de0f92a]
+ - Added copy and move constructors for
+   `sycl::ext::intel::experimental::esimd::simd_view` [daae1475]
+ - Optimized memory allocation when sub-devices are used in Level Zero plugin
+   [6504ba0a]
+ - Added constexpr constructors  for `vec` and `marray` classes
+   [e7cd86b9][449721b2]
+ - Optimized kernel cache [c16705a5]
+ - Added caching of device properties in Level Zero plugin [a50f45b8]
+ - Optimized Cuda plugin work with small kernels [07189af0]
+ - Optimized submission of kernels [441dc3b2][33432df6]
+ - Aligned implementation of `SYCL_EXT_ONEAPI_LOCAL_MEMORY` extension
+   [document](doc/extensions/LocalMemory/LocalMemory.asciidoc) with updated
+   document [b3db5e5]
+ - Improved `sycl::accessor` initialization performance on device [a10199d]
+ - Added support `sycl::get_kernel_ids` and cache for `sycl::kernel_id` objects
+   [491ec6d]
+ - Deprecated `::half` since it should not be available in global
+   namespace, `sycl::half` can be used instead [6ff9cf7]
+ - Deprecated `sycl::interop_handler`, `sycl::handler::interop_task`,
+   `sycl::handler::run_on_host_intel`,  `sycl::kernel::get_work_group_info` and
+   `sycl::spec_constant` APIs [5120763]
+ - Marked `sycl::marray` device copyable [6e02880]
+ - Made Level Zero interoperability API SYCL 2020 compliant for
+   `sycl::platform`, `sycl::device` and `sycl::context` [c696415]
+ - Deprecated unstable keys of `SYCL_DEVICE_ALLOWLIST` [b27c57c]
+ - Added predefined vendor macro `SYCL_IMPLEMENTATION_ONEAPI` and
+   `SYCL_IMPLEMENTATION_INTEL` [6d34ebf]
+ - Deprecated `sycl::ext::intel::online_compiler`,
+   `sycl::ext::intel::experimental::online_compiler` can be used instead
+   [7fb56cf]
+ - Deprecated `global_device_space` and `global_host_space`  values of
+   `sycl::access::address_space` enumeration, `ext_intel_global_device_space`
+   `ext_intel_host_device_space` can be used instead [7fb56cf]
+ - Deprecated `sycl::handler::barrier` and `sycl::queue::submit_barrier`,
+   `sycl::handler::ext_oneapi_barrier` and
+   `sycl::queue::ext_oneapi_submit_barrier` can be used instead [7fb56cf]
+ - Removed `sycl::handler::codeplay_host_task` API [9a0ea9a]
+### Tools
+ - Added support for ROCm devices in `get_device_count_by_type` [03155e7]
+### Documentation
+ - Extended group [sort algorithms extension](doc/extensions/GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)
+   with interfaces to scratchpad memory [f57091d]
+ - Updated several extension documents to follow SYCL 2020 extension rules
+   [7fb56cf]
+
+## Bug fixes
+### SYCL Compiler
+ - Fixed emission of integration header with type aliases [e3cfa19]
+ - Fixed compilation for AMD GPU with `-fsycl-dead-args-optimization` [5ed48b4]
+ - Removed faulty implementations for atomic loads and stores for `acquire`,
+   `release` and `seq_cst` memory orders libclc for NVPTX [4876443]
+ - Fixed having two specialization for the `specialization_id`, one of which was
+   invalid [f71a1d5]
+ - Fixed context destruction in HIP plugin [6042d3a]
+ - Changed `queue::mem_advise` and `handler::mem_advise` to take `int` instead
+   of `pi_mem_advice` [af2bf96]
+ - Prevented passing of `-fopenmp-simd` to device compilation when used along
+   with `-fsycl` [226ed8b]
+ - Fixed generation of the integration header when non-base-ascii chars are
+   used in the kernel name [91f50477]
+ - Fixed a problem which could lead to picking up incorrect kernel at runtime in
+   some situations when unnamed lambda feature is used [27c632e]
+ - Fixed suggested target triple in the warning message [7cc89fa]
+ - Fixed identity for multiplication on CUDA backend [a6447ca4]
+ - Fixed a problem with dependency file generation [fd6d948] [1d5b2cb]
+ - Fixed builtins address space type for CUDA backend [1e3136e4]
+ - Fixed a problem which could lead to incorrect user header to be picked up
+   [c23fe4b]
+### SYCL Library
+ - Added assign operator to specializations of `sycl::ext::oneapi::atomic_ref`
+   [c6bc5a6]
+ - Fixed the way managed memory is freed in CUDA plugin [e825916]
+ - Changed names of  some SYCL internal enumerations to avoid possible
+   conflicts with user macro [1419415]
+ - Fixed status which was returned for host events by
+   `event::get_info<info::event::command_execution_status>()` call [09715f6]
+ - Fixed memory ordering used for barriers [73455a1]
+ - Fixed several places in CUDA and HIP plugins where `bool` was used instead
+   of `uint32_t` [764b6ff]
+ - Fixed event pool memory leak in Level Zero plugin [0e95e5a]
+ - Removed redundant `memcpy` call for copying struct using `fpga_reg`
+   [a5d290d5]
+ - Fixed an issue where the native memory object passed to interoperability
+   memory object constructor was ignored on devices without host unified memory
+   [da196784a]
+ - Fixed a bug in `simd::replicate_w` API [d36480da]
+ - Fixed group operations for `(u)int8/16` types [6a055ec2]
+ - Fixed a problem with non-native specialization constants being undefined if
+   they are not explicitly updated to non-default values [3d96e1d]
+ - Fixed a crash which could happen when a default constructed event is passed
+   to `sycl::handler::depends_on`[2fe7dd3]
+ - Fixed `sycl::link` which was returning a kernel bundle in the incorrect state
+   [6d98beb]
+ - Fixed missing dependency for host tasks in in-order queues [739487c]
+ - Fixed a memory leak in Level Zero plugin [a5b221f]
+ - Fixed a problem with copying buffers when an offset is specified in CUDA
+   backend [0abdfd6]
+ - Fixed a problem which was preventing passing asynchronous exceptions produced
+   in host tasks [f823d61]
+ - Fixed a crash which could happen when submitting tasks to multiple queues
+   from multiple threads [4ccfd21]
+ - Fixed a possible multiple definitions problem which could happen when using
+   `fsycl-device-code-split` option [d21082f]
+ - Fixed several problem in configuration file processing [2a35df0]
+ - Fixed imbalance in events release and retain in Level Zero plugin [6117a1b]
+ - Fixed a problem which could lead to leaks of full paths to source files from
+   the build environment [6bbfe42b3]
+
+## API/ABI breakages
+ - Removed `intel::reqd_work_group_size` attribute,
+   `sycl::reqd_work_group_size` can be used instead [c583a20]
+
+## Known issues
+ - [new] SYCL 2020 barriers show worse performance than SYCL 1.2.1 do [18c80fa]
+ - [new] When using fallback assert in separate compilation flow requires
+   explicit, linking against `lib/libsycl-fallback-cassert.o` or
+   `lib/libsycl-fallback-cassert.spv`
+ - [new] Performance may be impacted by JIT-ing an extra 'copier' kernel and due
+   running the 'copier' kernel and host-task after each kernel which uses
+   assert
+ - [new] Driver issue. When a two-step AOT build is used and there's at least a
+   single call to devicelib function from within kernel, the device binary
+   image gets corrupted
+ - [new] Limit alignment of allocation requests at 64KB which is the only
+   alignment supported by Level Zero[7dfaf3bd]
+ - [new] On the following scenario on Level Zero backend:
+    1. Kernel A, which uses buffer A, is submitted to queue A.
+    2. Kernel B, which uses buffer B, is submitted to queue B.
+    3. queueA.wait().
+    4. queueB.wait().
+   DPCPP runtime used to treat unmap/write commands for buffer A/B as host
+   dependencies (i.e. they were waited for prior to enqueueing any command
+   that's dependent on them). This allowed Level Zero plugin to detect that
+   each queue is idle on steps 1/2 and submit the command list right away.
+   This is no longer the case since we started passing these dependencies in an
+   event waitlist and Level Zero plugin attempts to batch these commands, so
+   the execution of kernel B starts only on step 4. The workaround restores the
+   old behavior in this case until this is resolved [2023e10d][6c137f87].
+ - User-defined functions with the name and signature matching those of any
+   OpenCL C built-in function (i.e. an exact match of arguments, return type
+   doesn't matter) can lead to Undefined Behavior.
+ - A DPC++ system that has FPGAs installed does not support multi-process
+   execution. Creating a context opens the device associated with the context
+   and places a lock on it for that process. No other process may use that
+   device. Some queries about the device through device.get_info<>() also
+   open up the device and lock it to that process since the runtime needs
+   to query the actual device to obtain that information.
+ - The format of the object files produced by the compiler can change between
+   versions. The workaround is to rebuild the application.
+ - Using `sycl::program`/`sycl::kernel_bundle` API to refer to a kernel defined
+   in another translation unit leads to undefined behavior
+ - Linkage errors with the following message:
+   `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
+   can happen when a SYCL application is built using MS Visual Studio 2019
+   version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
+ - Printing internal defines isn't supported on Windows [50628db]
+
+
+# July'21 release notes
+
+Release notes for commit range 6a49170027fb..962909fe9e78
+
+## New features
+ - Implemented SYCL 2020 specialization constants [07b27965] [ba3d657]
+   [bd8dcf4] [d15b841]
+ - Provided SYCL 2020 function objects [24a2ad89]
+ - Added support for ITT notification in SYCL Runtime [a7b8daf] [8d3921e3]
+ - Implemented SYCL 2020 sub_group algorithms [e8caf6c3]
+ - Implemented SYCL 2020 `sycl::handler::host_task` method [75e5a269]
+ - Implemented SYCL 2020 `sycl::sub_group` class [19dcac79]
+ - Added support for AMD GPU devices [ec612228]
+ - Implemented SYCL 2020 `sycl::is_device_copyable` type trait [44c1cbcd]
+ - Implemented SYCL 2020 USM features [1df6873d]
+ - Implemented support for Device UUID from [Intel's Extensions for Device Information](doc/extensions/IntelGPU/IntelGPUDeviceInfo.md) [25aee287]
+ - Implemented SYCL 2020 `sycl::atomic_fence` [dcd59547]
+ - Implemented `intel::loop_count_max`, `intel::loop_count_max`,
+   `intel::loop_count_avg` attributes that allow to specify number of loop
+   iterations for FPGA [f74b4ef]
+ - Implemented generation of compiler report for kernel arguments [201f902]
+ - Implemented SYCL 2020 `[[reqd_sub_group_size]]` attribute [347e41c]
+ - Implemented support for `[[intel::named_sub_group_size(primary)]]` attribute
+   from [sub-group extension](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc#attributes)
+   [347e41c]
+ - Implemented SYCL 2020 interoperability API [e6733e4]
+ - Added [group sorting algorithm](doc/extensions/GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)
+   extension specification [edaee9b]
+ - Added [initial draft](doc/extensions/LevelZeroBackend/LevelZeroBackend.md)
+   for querying of free device memory in LevelZero backend extension [fa428bf]
+ - Added [InvokeSIMD](doc/extensions/InvokeSIMD/InvokeSIMD.asciidoc) and
+   [Uniform](doc/extensions/Uniform/Uniform.asciidoc) extensions [72e1611]
+ - Added [Matrix Programming Extension for DPC++ document](doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc) [ace4c733]
+ - Implemented SYCL 2020 `sycl::span` [9356d53]
+ - Added [device-if](doc/extensions/DeviceIf/device_if.asciidoc) extension
+   [4fb95fc]
+ - Added a [programming guide](doc/MultiTileCardWithLevelZero.md) for
+   multi-tile and multi-card under Level Zero backend [d581178a]
+ - Implemented SYCL 2020 `sycl::bit_cast` [d4b66bd]
+
+## Improvements
+### SYCL Compiler
+ - Use `opencl-aot` instead of `aoc` when AOT flow for FPGA Emulator is
+   triggered [3a99558]
+ - Allowed for using an external host compiler [6f0ad1a]
+ - Cleaned up preprocessing output when `-fsycl` option is passed [3a18db6]
+ - Allowed kernel names in anonymous namespace [e47dbad]
+ - Set default value of -sycl-std to 2020 for SYCL enabled compilations
+   [680adc0]
+ - Added implication of `-fPIC` compilation for wrapped object when using
+   `-shared` [1754934]
+ - Added a diagnostic for `-fsycl` and `-ffreestanding` as non-supported
+   combination [a36c6720]
+ - [ESIMD] Renamed `simd::format` to `simd::bit_cast_view` [653dede1]
+ - Allowed `[[sycl::work_group_size_hint]]` to accept constant expr args
+   [ef8e4019]
+ - Deprecated the old-style SYCL attributes according to the SYCL 2020 spec
+   [001bbd42]
+ - Deprecated `[[intel::reqd_work_group_size]]` attribute spelling, please use
+   `[[sycl::reqd_work_group_size]]` instead [8ef7eacc]
+ - Enabled native FP atomics by default. Defining the
+   `SYCL_USE_NATIVE_FP_ATOMICS` macro explicitly is no longer required - it is
+   now automatically defined for hardware targets with "native" support for
+   atomic functions. [0bbb68ee]
+ - Switched to ignoring `-O0` option for device code when compiling for FPGA
+   with hardware [7d94edf4]
+ - Allowed for known aliases to be used for `-fsycl-targets`. Passing
+   `*-unknown-unknown-sycldevice` components of the SYCL target triple is no
+   longer necessary. [9778952a]
+ - [ESIMD] Added support for half type in ESIMD intrinsics [d5958ebf]
+ - Implemented `sycl::kernel::get_kernel_bundle` method [69a68a6d]
+ - Added a diagnostic in case of timing issues for FPGA AOT [c69a3115]
+ - Added support for C `memcpy` usages in the device code [76051ccf]
+ - [ESIMD] Added support for vectorizing scalar function [3fc66cc]
+ - Disabled vectorization and loop transformation passes because loop unrolling
+   in "SYCL optimization mode" used default heuristic, which is tuned the code
+   for CPU and might not have been profitable for other devices [ff6929e6]
+### SYCL Library
+ - Added an exception throw if no matched device is found when
+   `SYCL_DEVICE_FILTER` is set regardless of `device_selector` used [ef4e6dd]
+ - Changed event status update to complete without waiting when run on CUDA
+   devices [be7c1cb]
+ - Improved performance when executing with dynamic batching on Level Zero
+   backend [fa382d6]
+ - Introduced pooling for USM and buffer allocations in Level Zero backend
+   [4cffedd]
+ - Added support for vectors with length of 3 and 16 elements in sub-group load
+   and store operations [4e6452d]
+ - Added interop types for images for Level Zero and OpenCL backends [a58cfef]
+ - Improved plugins discovery - continue discovering even if a plugin fails to
+   load [8c07803]
+ - Implemented queries for IEEE rounded `sqrt`/`div` in Level Zero backend
+   [91b35c4]
+ - Added SYCL 2020 `interop_handle::get_backend()` method [041ca27]
+ - [ESIMD] Deprecated `block_load`/`block_store` and
+   `simd::copy_from`/`simd::copy_to` [5c41ed6]
+ - Allowed for `const` and `volatile` pointer in sub-group `load` operation
+   [50edee4]
+ - Replaced use of `interop<>` with SYCL 2020 `backend_return_t<>` in
+   `interop_handle` [d08c21a]
+ - [ESIMD] Moved ESIMD APIs to `sycl::ext::intel::experimental::esimd` namespace
+   [92da579]
+ - Added global offset support for Level Zero backend [9ca2f911]
+ - [ESIMD] Changed `simd::replicate` API by adding suffixes into the names to
+   reflect the order of template arguments [e45408ad]
+ - Introduced `SYCL_REDUCTION_DETERMINISTIC` macro which forces reduction
+   algorithms to produce stable results [a3fc51a4]
+ - Improved `SYCL_DEVICE_ALLOWLIST` format [9216b49d]
+ - Added `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` macro to disable range
+   rounding [5c4275ac]
+ - Disabled range rounding by default when compiling for FPGA [5c4275ac]
+ - Deprecated `sycl::buffer::get_count()`, please use `sycl::buffer::size()`
+   instead [baf2ed9d]
+ - Implemented `sycl::group_barrier` free function [48363902]
+ - Added support of [SYCL_INTEL_enqueue_barrier extension](doc/extensions/EnqueueBarrier/enqueue_barrier.asciidoc) for CUDA backend [2e978482]
+ - Deprecated `has_extension` method of `sycl::device` and `sycl::platform`
+   classes, please use `has` method with aspects APIs instead [51c747da]
+ - Deprecated `sycl::*_class` types, please use STL classes instead [51c747da]
+ - Deprecated `sycl::ndrange` with an offset [51c747da]
+ - Deprecated `barrier` and `mem_fence` methods of `sycl::nd_item` class,
+   please use `sycl::group_barrier()` and `sycl::atomic_fence()` free functions
+   instead [51c747da]
+ - Deprecated `sycl::byte`, please use `std::byte` instead [51c747da]
+ - Deprecated `sycl::info::device::max_constant_buffer_size` and
+   `sycl::info::device::max_constant_args` [51c747da]
+ - Deprecated `sycl::ext::intel::fpga_reg` taking non-trivially copyable
+   structs [b4c322a8]
+ - Added support for `sycl::property::queue::cuda::use_default_stream` queue
+   property [08330525]
+ - Switched to using atomic version of reductions if `sycl::aspect::atomic64`
+   is available for a target [544fb7c8]
+ - Added support for `sycl::aspect::fp16` for CUDA backend [db20bab3]
+ - Deprecated `sycl::aspect::usm_system_allocator`, please use
+   `sycl::aspect::usm_system_allocations` instead [000cc82d]
+ - Optimized `sycl::queue::wait` to wait for batch of events rather than
+   waiting for each event individually [7fe72dba]
+ - Deprecated `sycl::ONEAPI::atomic_fence`, please use `sycl::atomic_fence`
+   instead [dcd59547]
+ - Added constexpr constructor for `sycl::half` type [5759e2a1]
+ - Added support for more than 4Gb device allocations in Level Zero backend
+   [fb1808b8]
+
+### Documentation
+ - Updated [sub-group algoritms](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
+   extension to use `marray` instead of `vec` [98715ae]
+ - Updated data flow pipes extension to be based on SYCL 2020 [f22f2e0]
+ - Updated [ESIMD documentation](doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md)
+   reflecting recent API changes [1e0bd1ed]
+ - Updated [devicelib](doc/extensions/C-CXX-StandardLibrary/C-CXX-StandardLibrary.rst)
+   extension document with `scalnbn`, `abs` and `div` (and their variants) as
+   supported [febfb5a]
+ - Addressed renaming of TBB dll to `tbb12.dll` in the
+   [install script](tools/install.bat) [25433ba]
+
+## Bug fixes
+### SYCL Compiler
+ - Fixed crash which could happen in corner cases when null attribute created
+   [cec6469]
+ - Fixed crash when lowering `__sycl_alocateLocalMemory` [4960e71]
+ - Fixed workflow for multi-file compilation in AOT mode [a0099a5]
+ - Fixed problem with unbundling from object for device archives for FPGA
+   [25ea6e1]
+ - Stopped implying `defaultlib msvcrt` for Linux based driver on Windows
+   [d3dc212d]
+ - Fixed handling of `[[intel::max_global_work_dim()]]` in case of
+   redeclarations [9b615928]
+ - Fixed incorrect diagnostics in the presence of OpenMP [cbec0b5f]
+ - Fixed an issue with incorrect output project report when using `-o` option
+   with FPGA AOT enabled [18ac1723]
+ - Removed restriction that was preventing from applying
+   `[[intel::use_stall_enable_clusters]]` attribute to ANY function [15da879d]
+ - Fixed bugs with recursion in SYCL kernels - diagnostics won't be emitted on
+   using recursion in a discarded branch and in constexpr context [9a9a018c]
+ - Fixed handling of `intel::use_stall_enable_clusters` attribute [06e4ebc7]
+### SYCL Library
+ - Fixed build issue when CUDA 11 is used [f7224f1]
+ - Fixed caching of sub-devices in Level Zero backend[4c34f93]
+ - Fixed requesting of USM memory allocation info on CUDA [691f842]
+ - Fixed [`joint_matrix_mad`](doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
+   behaviour to return `A*B+C` instead of assigning the result to `C` [ea59c2b]
+ - Workaround an issue in Level Zero backend when event isn't waited upon its
+   completion but is queried for its status in an infinite loop  [bfef316]
+ - Fixed persistent cache key comparison (esp. when there is `\0` symbol)
+   [3e9ed1d]
+ - Fixed a build issue when `sycl::kernel::get_native` is used [eb17836]
+ - Fixed collisions of helper functions and SPIR-V operations when building with
+   `-O0` or `-O1` [9f2fd98] [c2d6cfa]
+ - [OpenCL] Fixed false-positive assertion trigger when allocation alignment is
+   expected [3351916ad]
+ - Aligned behavior of empty command groups with SYCL 2020 [1cf697bd]
+ - Fixed build options handling when they come from different sources
+   [67411472]
+ - Fixed host task CUDA native memory handle [e9cf124b6]
+ - Fixed a memory leak which could happen if a command submission fails
+   [67eac4bd]
+ - Fixed support for math functions `floor/rndd/rndu/rndz/rnde` in ESIMD mode
+   [de694dd8]
+ - Fixed memory allocations for multi-device contexts on Level Zero [f83c9356a]
+ - Renamed `sycl::property::no_init` property to `sycl::property::no_init` in
+   accordance to final SYCL 2020 specification, the old spelling is deprecated
+   [ad46b641]
+ - Use local size specified in `[[sycl::reqd_work_group_size]]` if no local
+   size explicitly passed [0a54bef2]
+ - Disabled persistent device code caching by default since it doesn't reliably
+   identify driver version change [48f6bc9e]
+ - [ESIMD] Fixed a bug in `simd_view::operator--` [ccc97e23]
+ - Fixed a memory leak for host USM allocations [c18c3456]
+ - Fixed possible crashes that could happen when `sycl::free` is called while
+   there are still running kernels [c74f05d6]
+
+## API/ABI breakages
+ - None
+
+## Known issues
+ - [new] The compiler generates a temporary source file which is used during
+   host compilation.  This source file will appear to be a source dependency
+   and could break build environments (such as Bazel) which closely keeps track
+   of the generated files during a compilation. Build environments such as
+   these will need to be configured in the DPC++ space to expect an additional
+   intermediate file to be part of the compilation flow.
+ - User-defined functions with the name and signature matching those of any
+   OpenCL C built-in function (i.e. an exact match of arguments, return type
+   doesn't matter) can lead to Undefined Behavior.
+ - A DPC++ system that has FPGAs installed does not support multi-process
+   execution. Creating a context opens the device associated with the context
+   and places a lock on it for that process. No other process may use that
+   device. Some queries about the device through device.get_info<>() also
+   open up the device and lock it to that process since the runtime needs
+   to query the actual device to obtain that information.
+ - The format of the object files produced by the compiler can change between
+   versions. The workaround is to rebuild the application.
+ - Using `sycl::program`/`sycl::kernel_bundle` API to refer to a kernel defined
+   in another translation unit leads to undefined behavior
+ - Linkage errors with the following message:
+   `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
+   can happen when a SYCL application is built using MS Visual Studio 2019
+   version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
+ - Printing internal defines isn't supported on Windows [50628db]
+
 # May'21 release notes
 
 Release notes for commit range 2ffafb95f887..6a49170027fb

@@ -29,7 +29,7 @@ mandatory_inclusions = {
     "chrono": ["compare"],
     "cinttypes": ["cstdint"],
     "complex.h": ["complex"],
-    # TODO "coroutine": ["compare"],
+    "coroutine": ["compare"],
     "deque": ["compare", "initializer_list"],
     "filesystem": ["compare"],
     "forward_list": ["compare", "initializer_list"],
@@ -86,24 +86,26 @@ assert all(v == sorted(v) for k, v in mandatory_inclusions.items())
 # Map from each header to the Lit annotations that should be used for
 # tests that include that header.
 #
-# For example, when threads are not supported, any test
-# that includes <thread> should be marked as UNSUPPORTED, because including
-# <thread> is a hard error in that case.
+# For example, when threads are not supported, any test that includes
+# <thread> should be marked as UNSUPPORTED, because including <thread>
+# is a hard error in that case.
 lit_markup = {
-  "atomic": ["UNSUPPORTED: libcpp-has-no-threads"],
   "barrier": ["UNSUPPORTED: libcpp-has-no-threads"],
   "filesystem": ["UNSUPPORTED: libcpp-has-no-filesystem-library"],
+  "format": ["UNSUPPORTED: libcpp-has-no-incomplete-format"],
   "iomanip": ["UNSUPPORTED: libcpp-has-no-localization"],
   "ios": ["UNSUPPORTED: libcpp-has-no-localization"],
   "iostream": ["UNSUPPORTED: libcpp-has-no-localization"],
   "istream": ["UNSUPPORTED: libcpp-has-no-localization"],
   "latch": ["UNSUPPORTED: libcpp-has-no-threads"],
   "locale": ["UNSUPPORTED: libcpp-has-no-localization"],
+  "mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
   "ostream": ["UNSUPPORTED: libcpp-has-no-localization"],
+  "ranges": ["UNSUPPORTED: libcpp-has-no-incomplete-ranges"],
   "regex": ["UNSUPPORTED: libcpp-has-no-localization"],
   "semaphore": ["UNSUPPORTED: libcpp-has-no-threads"],
   "shared_mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
-  "thread": ["UNSUPPORTED: libcpp-has-no-threads"],
+  "thread": ["UNSUPPORTED: libcpp-has-no-threads"]
 }
 
 

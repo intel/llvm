@@ -30,11 +30,11 @@ namespace {
   // with the raw path pair, which doesn't work anymore because the paths have
   // been normalized when the debug info was loaded. So we need to store
   // nomalized path pairs to ensure things match up.
-  ConstString NormalizePath(ConstString path) {
-    // If we use "path" to construct a FileSpec, it will normalize the path for
-    // us. We then grab the string and turn it back into a ConstString.
-    return ConstString(FileSpec(path.GetStringRef()).GetPath());
-  }
+std::string NormalizePath(llvm::StringRef path) {
+  // If we use "path" to construct a FileSpec, it will normalize the path for
+  // us. We then grab the string.
+  return FileSpec(path).GetPath();
+}
 }
 // PathMappingList constructor
 PathMappingList::PathMappingList() : m_pairs() {}
@@ -59,8 +59,8 @@ const PathMappingList &PathMappingList::operator=(const PathMappingList &rhs) {
 
 PathMappingList::~PathMappingList() = default;
 
-void PathMappingList::Append(ConstString path,
-                             ConstString replacement, bool notify) {
+void PathMappingList::Append(llvm::StringRef path, llvm::StringRef replacement,
+                             bool notify) {
   ++m_mod_id;
   m_pairs.emplace_back(pair(NormalizePath(path), NormalizePath(replacement)));
   if (notify && m_callback)
@@ -78,9 +78,8 @@ void PathMappingList::Append(const PathMappingList &rhs, bool notify) {
   }
 }
 
-void PathMappingList::Insert(ConstString path,
-                             ConstString replacement, uint32_t index,
-                             bool notify) {
+void PathMappingList::Insert(llvm::StringRef path, llvm::StringRef replacement,
+                             uint32_t index, bool notify) {
   ++m_mod_id;
   iterator insert_iter;
   if (index >= m_pairs.size())
@@ -93,9 +92,8 @@ void PathMappingList::Insert(ConstString path,
     m_callback(*this, m_callback_baton);
 }
 
-bool PathMappingList::Replace(ConstString path,
-                              ConstString replacement, uint32_t index,
-                              bool notify) {
+bool PathMappingList::Replace(llvm::StringRef path, llvm::StringRef replacement,
+                              uint32_t index, bool notify) {
   if (index >= m_pairs.size())
     return false;
   ++m_mod_id;
@@ -165,12 +163,17 @@ static void AppendPathComponents(FileSpec &path, llvm::StringRef components,
 }
 
 llvm::Optional<FileSpec>
-PathMappingList::RemapPath(llvm::StringRef path) const {
-  if (m_pairs.empty() || path.empty())
+PathMappingList::RemapPath(llvm::StringRef mapping_path,
+                           bool only_if_exists) const {
+  if (m_pairs.empty() || mapping_path.empty())
     return {};
   LazyBool path_is_relative = eLazyBoolCalculate;
+
   for (const auto &it : m_pairs) {
-    auto prefix = it.first.GetStringRef();
+    llvm::StringRef prefix = it.first.GetStringRef();
+    // We create a copy of mapping_path because StringRef::consume_from
+    // effectively modifies the instance itself.
+    llvm::StringRef path = mapping_path;
     if (!path.consume_front(prefix)) {
       // Relative paths won't have a leading "./" in them unless "." is the
       // only thing in the relative path so we need to work around "."
@@ -190,7 +193,8 @@ PathMappingList::RemapPath(llvm::StringRef path) const {
     auto orig_style = FileSpec::GuessPathStyle(prefix).getValueOr(
         llvm::sys::path::Style::native);
     AppendPathComponents(remapped, path, orig_style);
-    return remapped;
+    if (!only_if_exists || FileSystem::Instance().Exists(remapped))
+      return remapped;
   }
   return {};
 }
@@ -211,21 +215,23 @@ bool PathMappingList::ReverseRemapPath(const FileSpec &file, FileSpec &fixed) co
   return false;
 }
 
-
 llvm::Optional<FileSpec> PathMappingList::FindFile(const FileSpec &orig_spec) const {
-  if (auto remapped = RemapPath(orig_spec.GetPath()))
-    if (FileSystem::Instance().Exists(*remapped))
-      return remapped;
+  // We must normalize the orig_spec again using the host's path style,
+  // otherwise there will be mismatch between the host and remote platform
+  // if they use different path styles.
+  if (auto remapped = RemapPath(NormalizePath(orig_spec.GetPath()),
+                                /*only_if_exists=*/true))
+    return remapped;
 
   return {};
 }
 
-bool PathMappingList::Replace(ConstString path,
-                              ConstString new_path, bool notify) {
+bool PathMappingList::Replace(llvm::StringRef path, llvm::StringRef new_path,
+                              bool notify) {
   uint32_t idx = FindIndexForPath(path);
   if (idx < m_pairs.size()) {
     ++m_mod_id;
-    m_pairs[idx].second = new_path;
+    m_pairs[idx].second = ConstString(new_path);
     if (notify && m_callback)
       m_callback(*this, m_callback_baton);
     return true;
@@ -281,8 +287,8 @@ bool PathMappingList::GetPathsAtIndex(uint32_t idx, ConstString &path,
   return false;
 }
 
-uint32_t PathMappingList::FindIndexForPath(ConstString orig_path) const {
-  const ConstString path = NormalizePath(orig_path);
+uint32_t PathMappingList::FindIndexForPath(llvm::StringRef orig_path) const {
+  const ConstString path = ConstString(NormalizePath(orig_path));
   const_iterator pos;
   const_iterator begin = m_pairs.begin();
   const_iterator end = m_pairs.end();

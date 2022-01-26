@@ -32,8 +32,7 @@ public:
 
   const PathMappingList &operator=(const PathMappingList &rhs);
 
-  void Append(ConstString path, ConstString replacement,
-              bool notify);
+  void Append(llvm::StringRef path, llvm::StringRef replacement, bool notify);
 
   void Append(const PathMappingList &rhs, bool notify);
 
@@ -49,17 +48,16 @@ public:
   bool GetPathsAtIndex(uint32_t idx, ConstString &path,
                        ConstString &new_path) const;
 
-  void Insert(ConstString path, ConstString replacement,
+  void Insert(llvm::StringRef path, llvm::StringRef replacement,
               uint32_t insert_idx, bool notify);
 
   bool Remove(size_t index, bool notify);
 
   bool Remove(ConstString path, bool notify);
 
-  bool Replace(ConstString path, ConstString replacement,
-               bool notify);
+  bool Replace(llvm::StringRef path, llvm::StringRef replacement, bool notify);
 
-  bool Replace(ConstString path, ConstString replacement,
+  bool Replace(llvm::StringRef path, llvm::StringRef replacement,
                uint32_t index, bool notify);
   bool RemapPath(ConstString path, ConstString &new_path) const;
 
@@ -72,9 +70,19 @@ public:
   /// \param[in] path
   ///     The original source file path to try and remap.
   ///
+  /// \param[in] only_if_exists
+  ///     If \b true, besides matching \p path with the remapping rules, this
+  ///     tries to check with the filesystem that the remapped file exists. If
+  ///     no valid file is found, \b None is returned. This might be expensive,
+  ///     specially on a network.
+  ///
+  ///     If \b false, then the existence of the returned remapping is not
+  ///     checked.
+  ///
   /// \return
   ///     The remapped filespec that may or may not exist on disk.
-  llvm::Optional<FileSpec> RemapPath(llvm::StringRef path) const;
+  llvm::Optional<FileSpec> RemapPath(llvm::StringRef path,
+                                     bool only_if_exists = false) const;
   bool RemapPath(const char *, std::string &) const = delete;
 
   bool ReverseRemapPath(const FileSpec &file, FileSpec &fixed) const;
@@ -94,7 +102,7 @@ public:
   ///     The newly remapped filespec that is guaranteed to exist.
   llvm::Optional<FileSpec> FindFile(const FileSpec &orig_spec) const;
 
-  uint32_t FindIndexForPath(ConstString path) const;
+  uint32_t FindIndexForPath(llvm::StringRef path) const;
 
   uint32_t GetModificationID() const { return m_mod_id; }
 

@@ -95,7 +95,7 @@ public:
             bool IsFixed = true)
       : ArgInfo(Regs, OrigValue.getType(), OrigIndex, Flags, IsFixed, &OrigValue) {}
 
-    ArgInfo() : BaseArgInfo() {}
+    ArgInfo() {}
   };
 
   struct CallLoweringInfo {
@@ -115,6 +115,9 @@ public:
     /// Valid if the call has a swifterror inout parameter, and contains the
     /// vreg that the swifterror should be copied into after the call.
     Register SwiftErrorVReg;
+
+    /// Original IR callsite corresponding to this call, if available.
+    const CallBase *CB = nullptr;
 
     MDNode *KnownCallees = nullptr;
 
@@ -252,13 +255,14 @@ public:
     /// This is overridable primarily for targets to maintain compatibility with
     /// hacks around the existing DAG call lowering infrastructure.
     virtual LLT getStackValueStoreType(const DataLayout &DL,
-                                       const CCValAssign &VA) const;
+                                       const CCValAssign &VA,
+                                       ISD::ArgFlagsTy Flags) const;
 
     /// The specified value has been assigned to a physical register,
     /// handle the appropriate COPY (either to or from) and mark any
     /// relevant uses/defines as needed.
     virtual void assignValueToReg(Register ValVReg, Register PhysReg,
-                                  CCValAssign &VA) = 0;
+                                  CCValAssign VA) = 0;
 
     /// The specified value has been assigned to a stack
     /// location. Load or store it there, with appropriate extension
@@ -278,11 +282,14 @@ public:
     }
 
     /// Handle custom values, which may be passed into one or more of \p VAs.
+    /// \p If the handler wants the assignments to be delayed until after
+    /// mem loc assignments, then it sets \p Thunk to the thunk to do the
+    /// assignment.
     /// \return The number of \p VAs that have been assigned after the first
     ///         one, and which should therefore be skipped from further
     ///         processing.
-    virtual unsigned assignCustomValue(const ArgInfo &Arg,
-                                       ArrayRef<CCValAssign> VAs) {
+    virtual unsigned assignCustomValue(ArgInfo &Arg, ArrayRef<CCValAssign> VAs,
+                                       std::function<void()> *Thunk = nullptr) {
       // This is not a pure virtual method because not all targets need to worry
       // about custom values.
       llvm_unreachable("Custom values not supported");
@@ -314,7 +321,7 @@ public:
 
     /// Provides a default implementation for argument handling.
     void assignValueToReg(Register ValVReg, Register PhysReg,
-                          CCValAssign &VA) override;
+                          CCValAssign VA) override;
   };
 
   /// Base class for ValueHandlers used for arguments passed to a function call,
@@ -354,17 +361,13 @@ protected:
   /// Break \p OrigArgInfo into one or more pieces the calling convention can
   /// process, returned in \p SplitArgs. For example, this should break structs
   /// down into individual fields.
+  ///
+  /// If \p Offsets is non-null, it points to a vector to be filled in
+  /// with the in-memory offsets of each of the individual values.
   void splitToValueTypes(const ArgInfo &OrigArgInfo,
                          SmallVectorImpl<ArgInfo> &SplitArgs,
-                         const DataLayout &DL, CallingConv::ID CallConv) const;
-
-  /// Generate instructions for unpacking \p SrcReg into the \p DstRegs
-  /// corresponding to the aggregate type \p PackedTy.
-  ///
-  /// \param DstRegs should contain one virtual register for each base type in
-  ///        \p PackedTy, as returned by computeValueLLTs.
-  void unpackRegs(ArrayRef<Register> DstRegs, Register SrcReg, Type *PackedTy,
-                  MachineIRBuilder &MIRBuilder) const;
+                         const DataLayout &DL, CallingConv::ID CallConv,
+                         SmallVectorImpl<uint64_t> *Offsets = nullptr) const;
 
   /// Analyze the argument list in \p Args, using \p Assigner to populate \p
   /// CCInfo. This will determine the types and locations to use for passed or

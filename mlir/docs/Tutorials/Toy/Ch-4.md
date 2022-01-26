@@ -95,6 +95,22 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
 };
 ```
 
+Besides, the inliner will only discard private-visible unused function
+definitions. We also have to set the visibility of functions (except the
+main function) in the MLIR generator.
+
+```c++
+/// Emit a new function and add it to the MLIR module.
+mlir::FuncOp mlirGen(FunctionAST &funcAST) {
+  ...
+  // If this function isn't main, then set the visibility to private.
+  if (funcAST.getProto()->getName() != "main")
+    function.setPrivate();
+
+  return function;
+}
+```
+
 We then register our dialect interface directly on the Toy dialect, similarly to
 how we did for operations.
 
@@ -340,20 +356,20 @@ void MulOp::inferShapes() { getResult().setType(getOperand(0).getType()); }
 ```
 
 At this point, each of the necessary Toy operations provide a mechanism by which
-to infer their output shapes. The ShapeInferencePass is a FunctionPass: it will
-run on each Function in isolation. MLIR also supports general
-[OperationPasses](../../PassManagement.md/#operation-pass) that run on any isolated
-operation (i.e. other function-like operations), but here our module only
-contains functions, so there is no need to generalize to all operations.
+to infer their output shapes. The ShapeInferencePass will operate on functions:
+it will run on each Function in isolation. MLIR also supports general
+[OperationPasses](../../PassManagement.md#operation-pass) that run on any
+isolated operation (i.e. other function-like operations), but here our module
+only contains functions, so there is no need to generalize to all operations.
 
 Implementing such a pass is done by creating a class inheriting from
-`mlir::FunctionPass` and overriding the `runOnFunction()` method.
+`mlir::OperationPass<FuncOp>` and overriding the `runOnOperation()` method.
 
 ```c++
 class ShapeInferencePass
-    : public mlir::PassWrapper<ShapeInferencePass, FunctionPass> {
-  void runOnFunction() override {
-    FuncOp function = getFunction();
+    : public mlir::PassWrapper<ShapeInferencePass, OperationPass<FuncOp>> {
+  void runOnOperation() override {
+    FuncOp function = getOperation();
     ...
   }
 };

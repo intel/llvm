@@ -14,6 +14,7 @@ write_cmake_config("features") {
   values = [
     "CLANGD_ENABLE_REMOTE=0",
     "CLANGD_MALLOC_TRIM=1",
+    "CLANGD_TIDY_CHECKS=1",
     "ENABLE_GRPC_REFLECTION=0",
   ]
   if (clangd_build_xpc) {
@@ -85,8 +86,8 @@ static_library("clangd") {
     "DumpAST.cpp",
     "ExpectedTypes.cpp",
     "FS.cpp",
+    "Feature.cpp",
     "FeatureModule.cpp",
-    "Features.cpp",
     "FileDistance.cpp",
     "FindSymbols.cpp",
     "FindTarget.cpp",
@@ -97,6 +98,7 @@ static_library("clangd") {
     "Headers.cpp",
     "HeuristicResolver.cpp",
     "Hover.cpp",
+    "IncludeCleaner.cpp",
     "IncludeFixer.cpp",
     "InlayHints.cpp",
     "JSONTransport.cpp",
@@ -140,6 +142,7 @@ static_library("clangd") {
     "index/dex/Iterator.cpp",
     "index/dex/PostingList.cpp",
     "index/dex/Trigram.cpp",
+    "refactor/InsertionPoint.cpp",
     "refactor/Rename.cpp",
     "refactor/Tweak.cpp",
   ]

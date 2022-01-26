@@ -81,13 +81,10 @@ public:
     return Id;
   }
 
-  range<dimensions> get_group_range() const {
-    return Group.get_global_range() / Group.get_local_range();
-  }
+  range<dimensions> get_group_range() const { return Group.get_group_range(); }
 
   size_t __SYCL_ALWAYS_INLINE get_group_range(int dimension) const {
-    size_t Range =
-        Group.get_global_range(dimension) / Group.get_local_range(dimension);
+    size_t Range = Group.get_group_range(dimension);
     __SYCL_ASSUME_INT(Range);
     return Range;
   }
@@ -112,7 +109,6 @@ public:
                                 get_offset());
   }
 
-  __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
@@ -123,7 +119,7 @@ public:
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
-  __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
+  __SYCL2020_DEPRECATED("use sycl::atomic_fence() free function instead")
   void mem_fence(
       typename detail::enable_if_t<accessMode == access::mode::read ||
                                        accessMode == access::mode::write ||
@@ -167,22 +163,20 @@ public:
     Group.wait_for(events...);
   }
 
-  nd_item<dimensions>(const nd_item<dimensions> &rhs) = default;
+  nd_item(const nd_item &rhs) = default;
 
-  nd_item<dimensions>(nd_item<dimensions> &&rhs) = default;
+  nd_item(nd_item &&rhs) = default;
 
-  nd_item<dimensions> &operator=(const nd_item<dimensions> &rhs) = default;
+  nd_item &operator=(const nd_item &rhs) = default;
 
-  nd_item<dimensions> &operator=(nd_item<dimensions> &&rhs) = default;
+  nd_item &operator=(nd_item &&rhs) = default;
 
-  bool operator==(const nd_item<dimensions> &rhs) const {
+  bool operator==(const nd_item &rhs) const {
     return (rhs.localItem == this->localItem) &&
            (rhs.globalItem == this->globalItem) && (rhs.Group == this->Group);
   }
 
-  bool operator!=(const nd_item<dimensions> &rhs) const {
-    return !((*this) == rhs);
-  }
+  bool operator!=(const nd_item &rhs) const { return !((*this) == rhs); }
 
 protected:
   friend class detail::Builder;
@@ -196,19 +190,15 @@ private:
   group<dimensions> Group;
 };
 
-namespace detail {
-template <int Dims> nd_item<Dims> store_nd_item(const nd_item<Dims> *nd_i) {
-  return get_or_store(nd_i);
-}
-} // namespace detail
-
 template <int Dims>
 __SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_nd_item() instead")
 nd_item<Dims> this_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
 #else
-  return detail::store_nd_item<Dims>(nullptr);
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host device");
 #endif
 }
 
@@ -217,9 +207,12 @@ namespace oneapi {
 namespace experimental {
 template <int Dims> nd_item<Dims> this_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+  return sycl::detail::Builder::getElement(
+      sycl::detail::declptr<nd_item<Dims>>());
 #else
-  return sycl::detail::store_nd_item<Dims>(nullptr);
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host device");
 #endif
 }
 } // namespace experimental

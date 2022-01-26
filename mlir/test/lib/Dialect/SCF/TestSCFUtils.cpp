@@ -10,10 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/Transforms.h"
 #include "mlir/Dialect/SCF/Utils.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -22,14 +27,14 @@ using namespace mlir;
 
 namespace {
 class TestSCFForUtilsPass
-    : public PassWrapper<TestSCFForUtilsPass, FunctionPass> {
+    : public PassWrapper<TestSCFForUtilsPass, OperationPass<FuncOp>> {
 public:
   StringRef getArgument() const final { return "test-scf-for-utils"; }
   StringRef getDescription() const final { return "test scf.for utils"; }
   explicit TestSCFForUtilsPass() = default;
 
-  void runOnFunction() override {
-    FuncOp func = getFunction();
+  void runOnOperation() override {
+    FuncOp func = getOperation();
     SmallVector<scf::ForOp, 4> toErase;
 
     func.walk([&](Operation *fakeRead) {
@@ -54,21 +59,78 @@ public:
 };
 
 class TestSCFIfUtilsPass
-    : public PassWrapper<TestSCFIfUtilsPass, FunctionPass> {
+    : public PassWrapper<TestSCFIfUtilsPass, OperationPass<ModuleOp>> {
 public:
   StringRef getArgument() const final { return "test-scf-if-utils"; }
   StringRef getDescription() const final { return "test scf.if utils"; }
   explicit TestSCFIfUtilsPass() = default;
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     int count = 0;
-    FuncOp func = getFunction();
-    func.walk([&](scf::IfOp ifOp) {
+    getOperation().walk([&](scf::IfOp ifOp) {
       auto strCount = std::to_string(count++);
       FuncOp thenFn, elseFn;
       OpBuilder b(ifOp);
-      outlineIfOp(b, ifOp, &thenFn, std::string("outlined_then") + strCount,
-                  &elseFn, std::string("outlined_else") + strCount);
+      IRRewriter rewriter(b);
+      if (failed(outlineIfOp(rewriter, ifOp, &thenFn,
+                             std::string("outlined_then") + strCount, &elseFn,
+                             std::string("outlined_else") + strCount))) {
+        this->signalPassFailure();
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+  }
+};
+
+static const StringLiteral kTestPipeliningLoopMarker =
+    "__test_pipelining_loop__";
+static const StringLiteral kTestPipeliningStageMarker =
+    "__test_pipelining_stage__";
+/// Marker to express the order in which operations should be after pipelining.
+static const StringLiteral kTestPipeliningOpOrderMarker =
+    "__test_pipelining_op_order__";
+
+class TestSCFPipeliningPass
+    : public PassWrapper<TestSCFPipeliningPass, OperationPass<FuncOp>> {
+public:
+  StringRef getArgument() const final { return "test-scf-pipelining"; }
+  StringRef getDescription() const final { return "test scf.forOp pipelining"; }
+  explicit TestSCFPipeliningPass() = default;
+
+  static void
+  getSchedule(scf::ForOp forOp,
+              std::vector<std::pair<Operation *, unsigned>> &schedule) {
+    if (!forOp->hasAttr(kTestPipeliningLoopMarker))
+      return;
+    schedule.resize(forOp.getBody()->getOperations().size() - 1);
+    forOp.walk([&schedule](Operation *op) {
+      auto attrStage =
+          op->getAttrOfType<IntegerAttr>(kTestPipeliningStageMarker);
+      auto attrCycle =
+          op->getAttrOfType<IntegerAttr>(kTestPipeliningOpOrderMarker);
+      if (attrCycle && attrStage) {
+        schedule[attrCycle.getInt()] =
+            std::make_pair(op, unsigned(attrStage.getInt()));
+      }
+    });
+  }
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<arith::ArithmeticDialect, StandardOpsDialect>();
+  }
+
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    mlir::scf::PipeliningOption options;
+    options.getScheduleFn = getSchedule;
+
+    scf::populateSCFLoopPipeliningPatterns(patterns, options);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+    getOperation().walk([](Operation *op) {
+      // Clean up the markers.
+      op->removeAttr(kTestPipeliningStageMarker);
+      op->removeAttr(kTestPipeliningOpOrderMarker);
     });
   }
 };
@@ -79,6 +141,7 @@ namespace test {
 void registerTestSCFUtilsPass() {
   PassRegistration<TestSCFForUtilsPass>();
   PassRegistration<TestSCFIfUtilsPass>();
+  PassRegistration<TestSCFPipeliningPass>();
 }
 } // namespace test
 } // namespace mlir

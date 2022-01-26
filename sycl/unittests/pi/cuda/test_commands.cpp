@@ -10,6 +10,7 @@
 
 #include <cuda.h>
 
+#include "CudaUtils.hpp"
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -21,7 +22,8 @@ using namespace cl::sycl;
 struct CudaCommandsTest : public ::testing::Test {
 
 protected:
-  detail::plugin *plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin =
+      pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;
   pi_device device_;
@@ -30,13 +32,13 @@ protected:
 
   void SetUp() override {
     // skip the tests if the CUDA backend is not available
-    if (!plugin) {
+    if (!plugin.has_value()) {
       GTEST_SKIP();
     }
 
-    cuCtxSetCurrent(nullptr);
+    pi::clearCudaContext();
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin->getBackend(), backend::cuda);
+    ASSERT_EQ(plugin->getBackend(), backend::ext_oneapi_cuda);
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
@@ -65,7 +67,7 @@ protected:
   }
 
   void TearDown() override {
-    if (plugin) {
+    if (plugin.has_value()) {
       plugin->call<detail::PiApiKind::piQueueRelease>(queue_);
       plugin->call<detail::PiApiKind::piContextRelease>(context_);
     }

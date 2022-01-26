@@ -12,8 +12,11 @@
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/Support/CachePruning.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/TextAPI/Architecture.h"
@@ -25,6 +28,7 @@
 namespace lld {
 namespace macho {
 
+class InputSection;
 class Symbol;
 struct SymbolPriorityEntry;
 
@@ -95,6 +99,7 @@ struct Configuration {
   Symbol *entry = nullptr;
   bool hasReexports = false;
   bool allLoad = false;
+  bool applicationExtension = false;
   bool archMultiple = false;
   bool exportDynamic = false;
   bool forceLoadObjC = false;
@@ -118,10 +123,13 @@ struct Configuration {
   bool timeTraceEnabled = false;
   bool dataConst = false;
   bool dedupLiterals = true;
+  bool omitDebugInfo = false;
+  bool warnDylibInstallName = false;
   uint32_t headerPad;
   uint32_t dylibCompatibilityVersion = 0;
   uint32_t dylibCurrentVersion = 0;
   uint32_t timeTraceGranularity = 500;
+  unsigned optimize;
   std::string progName;
 
   // For `clang -arch arm64 -arch x86_64`, clang will:
@@ -138,9 +146,12 @@ struct Configuration {
   llvm::StringRef thinLTOJobs;
   llvm::StringRef umbrella;
   uint32_t ltoo = 2;
+  llvm::CachePruningPolicy thinLTOCachePolicy;
+  llvm::StringRef thinLTOCacheDir;
   bool deadStripDylibs = false;
   bool demangle = false;
   bool deadStrip = false;
+  bool errorForArchMismatch = false;
   PlatformInfo platformInfo;
   NamespaceKind namespaceKind = NamespaceKind::twolevel;
   UndefinedSymbolTreatment undefinedSymbolTreatment =
@@ -153,12 +164,19 @@ struct Configuration {
   std::vector<llvm::StringRef> runtimePaths;
   std::vector<std::string> astPaths;
   std::vector<Symbol *> explicitUndefineds;
+  llvm::StringSet<> explicitDynamicLookups;
   // There are typically few custom sectionAlignments or segmentProtections,
   // so use a vector instead of a map.
   std::vector<SectionAlign> sectionAlignments;
   std::vector<SegmentProtection> segmentProtections;
 
   llvm::DenseMap<llvm::StringRef, SymbolPriorityEntry> priorities;
+  llvm::MapVector<std::pair<const InputSection *, const InputSection *>,
+                  uint64_t>
+      callGraphProfile;
+  bool callGraphProfileSort = false;
+  llvm::StringRef printSymbolOrder;
+
   SectionRenameMap sectionRenameMap;
   SegmentRenameMap segmentRenameMap;
 
@@ -167,9 +185,11 @@ struct Configuration {
 
   bool zeroModTime = false;
 
+  llvm::StringRef osoPrefix;
+
   llvm::MachO::Architecture arch() const { return platformInfo.target.Arch; }
 
-  llvm::MachO::PlatformKind platform() const {
+  llvm::MachO::PlatformType platform() const {
     return platformInfo.target.Platform;
   }
 };
@@ -188,7 +208,14 @@ struct SymbolPriorityEntry {
   llvm::DenseMap<llvm::StringRef, size_t> objectFiles;
 };
 
-extern Configuration *config;
+// Whether to force-load an archive.
+enum class ForceLoad {
+  Default, // Apply -all_load or -ObjC behaviors if those flags are enabled
+  Yes,     // Always load the archive, regardless of other flags
+  No,      // Never load the archive, regardless of other flags
+};
+
+extern std::unique_ptr<Configuration> config;
 
 } // namespace macho
 } // namespace lld

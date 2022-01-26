@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 //
 // Test which verifies that readonly attribute is generated for unexpected access mode value.
 
@@ -60,7 +60,7 @@ struct _ImplT {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t>
-class accessor {
+class __attribute__((sycl_special_class)) accessor {
 
 public:
   void use(void) const {}

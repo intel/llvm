@@ -265,11 +265,18 @@ OPTIONS
 
  Show code coverage only for functions with the given name.
 
+.. option:: -name-allowlist=<FILE>
+
+ Show code coverage only for functions listed in the given file. Each line in
+ the file should start with `allowlist_fun:`, immediately followed by the name
+ of the function to accept. This name can be a wildcard expression.
+
 .. option:: -name-whitelist=<FILE>
 
  Show code coverage only for functions listed in the given file. Each line in
  the file should start with `whitelist_fun:`, immediately followed by the name
- of the function to accept. This name can be a wildcard expression.
+ of the function to accept. This name can be a wildcard expression. This option
+ will be deprecated for `-name-allowlist=<FILE>` in future releases.
 
 .. option:: -name-regex=<PATTERN>
 
@@ -309,6 +316,12 @@ OPTIONS
  Use N threads to write file reports (only applicable when -output-dir is
  specified). When N=0, llvm-cov auto-detects an appropriate number of threads to
  use. This is the default.
+
+.. option:: -compilation-dir=<dir>
+
+ Directory used as a base for relative coverage mapping paths. Only applicable
+ when binaries have been compiled with one of `-fcoverage-prefix-map`
+ `-fcoverage-compilation-dir`, or `-ffile-compilation-dir`.
 
 .. option:: -line-coverage-gt=<N>
 
@@ -399,6 +412,12 @@ OPTIONS
 
  Skip source code files with file paths that match the given regular expression.
 
+.. option:: -compilation-dir=<dir>
+
+ Directory used as a base for relative coverage mapping paths. Only applicable
+ when binaries have been compiled with one of `-fcoverage-prefix-map`
+ `-fcoverage-compilation-dir`, or `-ffile-compilation-dir`.
+
 .. program:: llvm-cov export
 
 .. _llvm-cov-export:
@@ -467,3 +486,9 @@ OPTIONS
 
  Use N threads to export coverage data. When N=0, llvm-cov auto-detects an
  appropriate number of threads to use. This is the default.
+
+.. option:: -compilation-dir=<dir>
+
+ Directory used as a base for relative coverage mapping paths. Only applicable
+ when binaries have been compiled with one of `-fcoverage-prefix-map`
+ `-fcoverage-compilation-dir`, or `-ffile-compilation-dir`.

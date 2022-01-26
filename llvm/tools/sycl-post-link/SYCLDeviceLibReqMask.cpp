@@ -18,9 +18,17 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/Module.h"
 
+#include <string>
+#include <unordered_map>
+
 static constexpr char DEVICELIB_FUNC_PREFIX[] = "__devicelib_";
 
+using namespace llvm;
+
 namespace {
+
+using SYCLDeviceLibFuncMap = std::unordered_map<std::string, DeviceLibExt>;
+
 // Please update SDLMap if any item is added to or removed from
 // fallback device libraries in libdevice.
 SYCLDeviceLibFuncMap SDLMap = {
@@ -159,6 +167,8 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_ctan", DeviceLibExt::cl_intel_devicelib_complex_fp64},
     {"__devicelib_ctanh", DeviceLibExt::cl_intel_devicelib_complex_fp64},
     {"__devicelib_memcpy", DeviceLibExt::cl_intel_devicelib_cstring},
+    {"__devicelib_memset", DeviceLibExt::cl_intel_devicelib_cstring},
+    {"__devicelib_memcmp", DeviceLibExt::cl_intel_devicelib_cstring},
 };
 
 // Each fallback device library corresponds to one bit in "require mask" which

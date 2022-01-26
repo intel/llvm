@@ -60,23 +60,14 @@ entry:
   ret i32 %result
 }
 
-; If bitcast isn't considered a safe phi/select use, the alloca
-; remains as an array.
-; FIXME: Why isn't this identical to test2?
 define float @test2_bitcast() {
 ; CHECK-LABEL: @test2_bitcast(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[A_SROA_0:%.*]] = alloca i32, align 4
-; CHECK-NEXT:    [[A_SROA_3:%.*]] = alloca i32, align 4
-; CHECK-NEXT:    store i32 0, i32* [[A_SROA_0]], align 4
-; CHECK-NEXT:    store i32 1, i32* [[A_SROA_3]], align 4
-; CHECK-NEXT:    [[A_SROA_0_0_A_SROA_0_0_V0:%.*]] = load i32, i32* [[A_SROA_0]], align 4
-; CHECK-NEXT:    [[A_SROA_3_0_A_SROA_3_4_V1:%.*]] = load i32, i32* [[A_SROA_3]], align 4
-; CHECK-NEXT:    [[COND:%.*]] = icmp sle i32 [[A_SROA_0_0_A_SROA_0_0_V0]], [[A_SROA_3_0_A_SROA_3_4_V1]]
-; CHECK-NEXT:    [[SELECT:%.*]] = select i1 [[COND]], i32* [[A_SROA_3]], i32* [[A_SROA_0]]
-; CHECK-NEXT:    [[SELECT_BC:%.*]] = bitcast i32* [[SELECT]] to float*
-; CHECK-NEXT:    [[RESULT:%.*]] = load float, float* [[SELECT_BC]], align 4
-; CHECK-NEXT:    ret float [[RESULT]]
+; CHECK-NEXT:    [[COND:%.*]] = icmp sle i32 0, 1
+; CHECK-NEXT:    [[TMP0:%.*]] = bitcast i32 1 to float
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i32 0 to float
+; CHECK-NEXT:    [[RESULT_SROA_SPECULATED:%.*]] = select i1 [[COND]], float [[TMP0]], float [[TMP1]]
+; CHECK-NEXT:    ret float [[RESULT_SROA_SPECULATED]]
 ;
 entry:
   %a = alloca [2 x i32]
@@ -246,8 +237,8 @@ declare void @f(i32*, i32*)
 define i32 @test6(i32* %b) {
 ; CHECK-LABEL: @test6(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[SELECT2:%.*]] = select i1 false, i32* undef, i32* [[B:%.*]]
-; CHECK-NEXT:    [[SELECT3:%.*]] = select i1 false, i32* undef, i32* [[B]]
+; CHECK-NEXT:    [[SELECT2:%.*]] = select i1 false, i32* poison, i32* [[B:%.*]]
+; CHECK-NEXT:    [[SELECT3:%.*]] = select i1 false, i32* poison, i32* [[B]]
 ; CHECK-NEXT:    call void @f(i32* [[SELECT2]], i32* [[SELECT3]])
 ; CHECK-NEXT:    ret i32 1
 ;
@@ -281,7 +272,7 @@ define i32 @test7() {
 ; CHECK:       good:
 ; CHECK-NEXT:    br label [[EXIT:%.*]]
 ; CHECK:       bad:
-; CHECK-NEXT:    [[P_SROA_SPECULATE_LOAD_BAD:%.*]] = load i32, i32* undef, align 4
+; CHECK-NEXT:    [[P_SROA_SPECULATE_LOAD_BAD:%.*]] = load i32, i32* poison, align 4
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    [[P_SROA_SPECULATED:%.*]] = phi i32 [ 0, [[GOOD]] ], [ [[P_SROA_SPECULATE_LOAD_BAD]], [[BAD]] ]
@@ -534,7 +525,7 @@ define i32 @PR13905() {
 ; CHECK:       loop2:
 ; CHECK-NEXT:    br i1 undef, label [[LOOP1]], label [[EXIT]]
 ; CHECK:       exit:
-; CHECK-NEXT:    [[PHI2:%.*]] = phi i32* [ undef, [[LOOP2]] ], [ null, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    [[PHI2:%.*]] = phi i32* [ poison, [[LOOP2]] ], [ null, [[ENTRY:%.*]] ]
 ; CHECK-NEXT:    ret i32 undef
 ;
 

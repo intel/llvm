@@ -62,10 +62,9 @@ protected:
   }
 };
 
-static std::vector<detail::plugin> Plugins = pi::initializeAndRemoveInvalid();
-
-INSTANTIATE_TEST_CASE_P(
-    PlatformTestImpl, PlatformTest, testing::ValuesIn(Plugins),
+INSTANTIATE_TEST_SUITE_P(
+    PlatformTestImpl, PlatformTest,
+    testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<PlatformTest::ParamType> &info) {
       return pi::GetBackendString(info.param.getBackend());
     });

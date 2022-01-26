@@ -56,8 +56,6 @@ IMPL_AS(unsigned int, j, u, 4)
 #ifdef cl_khr_int64_base_atomics
 IMPL_AS(long, l, , 8)
 IMPL_AS(unsigned long, m, u, 8)
-IMPL_AS(long, x, , 8)
-IMPL_AS(unsigned long, y, u, 8)
 #endif
 
 #undef FDECL

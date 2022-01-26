@@ -9,11 +9,14 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/spinlock.hpp>
+#include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/thread_pool.hpp>
+#include <detail/xpti_registry.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -50,6 +53,15 @@ ProgramManager &GlobalHandler::getProgramManager() {
   return getOrCreate(MProgramManager);
 }
 
+std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+GlobalHandler::getPlatformToDefaultContextCache() {
+  return getOrCreate(MPlatformToDefaultContextCache);
+}
+
+std::mutex &GlobalHandler::getPlatformToDefaultContextCacheMutex() {
+  return getOrCreate(MPlatformToDefaultContextCacheMutex);
+}
+
 Sync &GlobalHandler::getSync() { return getOrCreate(MSync); }
 
 std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
@@ -71,15 +83,60 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return getOrCreate(MDeviceFilterList, InitValue);
 }
 
+XPTIRegistry &GlobalHandler::getXPTIRegistry() {
+  return getOrCreate(MXPTIRegistry);
+}
+
 std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
   return getOrCreate(MHandlerExtendedMembersMutex);
 }
 
+ThreadPool &GlobalHandler::getHostTaskThreadPool() {
+  int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
+  ThreadPool &TP = getOrCreate(MHostTaskThreadPool, Size);
+
+  return TP;
+}
+
+void releaseDefaultContexts() {
+  // Release shared-pointers to SYCL objects.
+#ifndef _WIN32
+  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
+#else
+  // Windows does not maintain dependencies between dynamically loaded libraries
+  // and can unload SYCL runtime dependencies before sycl.dll's DllMain has
+  // finished. To avoid calls to nowhere, intentionally leak platform to device
+  // cache. This will prevent destructors from being called, thus no PI cleanup
+  // routines will be called in the end.
+  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
+#endif
+}
+
+struct DefaultContextReleaseHandler {
+  ~DefaultContextReleaseHandler() { releaseDefaultContexts(); }
+};
+
+void GlobalHandler::registerDefaultContextReleaseHandler() {
+  static DefaultContextReleaseHandler handler{};
+}
+
 void shutdown() {
+  // Ensure neither host task is working so that no default context is accessed
+  // upon its release
+  if (GlobalHandler::instance().MHostTaskThreadPool.Inst)
+    GlobalHandler::instance().MHostTaskThreadPool.Inst->finishAndWait();
+
+  // If default contexts are requested after the first default contexts have
+  // been released there may be a new default context. These must be released
+  // prior to closing the plugins.
+  // Note: Releasing a default context here may cause failures in plugins with
+  // global state as the global state may have been released.
+  releaseDefaultContexts();
+
   // First, release resources, that may access plugins.
+  GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
-  GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
 
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
@@ -107,7 +164,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    shutdown();
+    if (!lpReserved)
+      shutdown();
     break;
   case DLL_PROCESS_ATTACH:
   case DLL_THREAD_ATTACH:

@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device \
-// RUN:   -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice \
+// RUN:   -internal-isystem %S/Inputs -triple spir64-unknown-unknown \
 // RUN:   -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // This test checks
@@ -30,7 +30,7 @@ void test(int val) {
   // --- Attributes
   // CHECK: {{.*}} !kernel_arg_accessor_ptr ![[ACC_PTR_ATTR:[0-9]+]] !sycl_explicit_simd !{{[0-9]+}} {{.*}}{
   // --- init_esimd call is expected instead of __init:
-  // CHECK:   call spir_func void @{{.*}}__init_esimd{{.*}}(%"{{.*}}sycl::accessor" addrspace(4)* {{[^,]*}} %{{[0-9]+}}, i32 addrspace(1)* %{{[0-9]+}})
+  // CHECK:   call spir_func void @{{.*}}__init_esimd{{.*}}(%"{{.*}}sycl::accessor" addrspace(4)* {{[^,]*}} %{{[0-9]+}}, i32 addrspace(1)* noundef %{{[0-9]+}})
   // CHECK-LABEL: }
   // CHECK: ![[ACC_PTR_ATTR]] = !{i1 true, i1 false, i1 true}
 }

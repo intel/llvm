@@ -46,7 +46,7 @@ template <typename From> void check_convert_from() {
   check_signed_unsigned_convert_to<From, int>();
   check_signed_unsigned_convert_to<From, long>();
   check_signed_unsigned_convert_to<From, long long>();
-  check_signed_unsigned_convert_to<From, half>();
+  check_signed_unsigned_convert_to<From, sycl::half>();
   check_signed_unsigned_convert_to<From, float>();
   check_signed_unsigned_convert_to<From, double>();
 }
@@ -122,7 +122,7 @@ int main() {
   check_convert_from<int>();
   check_convert_from<long>();
   check_convert_from<long long>();
-  check_convert_from<half>();
+  check_convert_from<sycl::half>();
   check_convert_from<float>();
   check_convert_from<double>();
 

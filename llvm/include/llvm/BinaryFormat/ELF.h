@@ -19,8 +19,10 @@
 #ifndef LLVM_BINARYFORMAT_ELF_H
 #define LLVM_BINARYFORMAT_ELF_H
 
+#include "llvm/ADT/StringRef.h"
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 namespace llvm {
 namespace ELF {
@@ -606,6 +608,8 @@ enum {
   EF_HEXAGON_MACH_V67 = 0x00000067,  // Hexagon V67
   EF_HEXAGON_MACH_V67T = 0x00008067, // Hexagon V67T
   EF_HEXAGON_MACH_V68 = 0x00000068,  // Hexagon V68
+  EF_HEXAGON_MACH_V69 = 0x00000069,  // Hexagon V69
+  EF_HEXAGON_MACH = 0x000003ff,      // Hexagon V..
 
   // Highest ISA version flags
   EF_HEXAGON_ISA_MACH = 0x00000000, // Same as specified in bits[11:0]
@@ -621,6 +625,8 @@ enum {
   EF_HEXAGON_ISA_V66 = 0x00000066,  // Hexagon V66 ISA
   EF_HEXAGON_ISA_V67 = 0x00000067,  // Hexagon V67 ISA
   EF_HEXAGON_ISA_V68 = 0x00000068,  // Hexagon V68 ISA
+  EF_HEXAGON_ISA_V69 = 0x00000069,  // Hexagon V69 ISA
+  EF_HEXAGON_ISA = 0x000003ff,      // Hexagon V.. ISA
 };
 
 // Hexagon-specific section indexes for common small data
@@ -650,12 +656,19 @@ enum : unsigned {
   EF_RISCV_FLOAT_ABI_SINGLE = 0x0002,
   EF_RISCV_FLOAT_ABI_DOUBLE = 0x0004,
   EF_RISCV_FLOAT_ABI_QUAD = 0x0006,
-  EF_RISCV_RVE = 0x0008
+  EF_RISCV_RVE = 0x0008,
+  EF_RISCV_TSO = 0x0010,
 };
 
 // ELF Relocation types for RISC-V
 enum {
 #include "ELFRelocs/RISCV.def"
+};
+
+enum {
+  // Symbol may follow different calling convention than the standard calling
+  // convention.
+  STO_RISCV_VARIANT_CC = 0x80
 };
 
 // ELF Relocation types for S390/zSeries
@@ -744,10 +757,12 @@ enum : unsigned {
   EF_AMDGPU_MACH_AMDGCN_RESERVED_0X41 = 0x041,
   EF_AMDGPU_MACH_AMDGCN_GFX1013       = 0x042,
   EF_AMDGPU_MACH_AMDGCN_RESERVED_0X43 = 0x043,
+  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X44 = 0x044,
+  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X45 = 0x045,
 
   // First/last AMDGCN-based processors.
   EF_AMDGPU_MACH_AMDGCN_FIRST = EF_AMDGPU_MACH_AMDGCN_GFX600,
-  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_RESERVED_0X43,
+  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_RESERVED_0X45,
 
   // Indicates if the "xnack" target feature is enabled for all code contained
   // in the object.
@@ -1592,6 +1607,23 @@ enum {
   NT_FREEBSD_PROCSTAT_AUXV = 16,
 };
 
+// NetBSD core note types.
+enum {
+  NT_NETBSDCORE_PROCINFO = 1,
+  NT_NETBSDCORE_AUXV = 2,
+  NT_NETBSDCORE_LWPSTATUS = 24,
+};
+
+// OpenBSD core note types.
+enum {
+  NT_OPENBSD_PROCINFO = 10,
+  NT_OPENBSD_AUXV = 11,
+  NT_OPENBSD_REGS = 20,
+  NT_OPENBSD_FPREGS = 21,
+  NT_OPENBSD_XFPREGS = 22,
+  NT_OPENBSD_WCOOKIE = 23,
+};
+
 // AMDGPU-specific section indices.
 enum {
   SHN_AMDGPU_LDS = 0xff00, // Variable in LDS; symbol encoded like SHN_COMMON
@@ -1612,6 +1644,13 @@ enum {
 enum {
   // Note types with values between 0 and 31 (inclusive) are reserved.
   NT_AMDGPU_METADATA = 32
+};
+
+// LLVMOMPOFFLOAD specific notes.
+enum : unsigned {
+  NT_LLVM_OPENMP_OFFLOAD_VERSION = 1,
+  NT_LLVM_OPENMP_OFFLOAD_PRODUCER = 2,
+  NT_LLVM_OPENMP_OFFLOAD_PRODUCER_VERSION = 3
 };
 
 enum {
@@ -1649,14 +1688,14 @@ struct Elf64_Chdr {
   Elf64_Xword ch_addralign;
 };
 
-// Node header for ELF32.
+// Note header for ELF32.
 struct Elf32_Nhdr {
   Elf32_Word n_namesz;
   Elf32_Word n_descsz;
   Elf32_Word n_type;
 };
 
-// Node header for ELF64.
+// Note header for ELF64.
 struct Elf64_Nhdr {
   Elf64_Word n_namesz;
   Elf64_Word n_descsz;
@@ -1671,6 +1710,12 @@ enum {
   ELFCOMPRESS_LOPROC = 0x70000000, // Start of processor-specific.
   ELFCOMPRESS_HIPROC = 0x7fffffff  // End of processor-specific.
 };
+
+/// Convert an architecture name into ELF's e_machine value.
+uint16_t convertArchNameToEMachine(StringRef Arch);
+
+/// Convert an ELF's e_machine value into an architecture name.
+StringRef convertEMachineToArchName(uint16_t EMachine);
 
 } // end namespace ELF
 } // end namespace llvm

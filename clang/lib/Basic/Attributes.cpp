@@ -8,17 +8,29 @@ using namespace clang;
 int clang::hasAttribute(AttrSyntax Syntax, const IdentifierInfo *Scope,
                         const IdentifierInfo *Attr, const TargetInfo &Target,
                         const LangOptions &LangOpts) {
+  StringRef ScopeName = Scope ? Scope->getName() : "";
   StringRef Name = Attr->getName();
   // Normalize the attribute name, __foo__ becomes foo.
-  if (Name.size() >= 4 && Name.startswith("__") && Name.endswith("__"))
+  // FIXME: Normalization does not work correctly for attributes in
+  // __sycl_detail__ namespace. Should normalization work for
+  // attributes not in gnu and clang namespace?
+  if (ScopeName != "__sycl_detail__" && Name.size() >= 4 &&
+      Name.startswith("__") && Name.endswith("__"))
     Name = Name.substr(2, Name.size() - 4);
 
   // Normalize the scope name, but only for gnu and clang attributes.
-  StringRef ScopeName = Scope ? Scope->getName() : "";
   if (ScopeName == "__gnu__")
     ScopeName = "gnu";
   else if (ScopeName == "_Clang")
     ScopeName = "clang";
+
+  // As a special case, look for the omp::sequence and omp::directive
+  // attributes. We support those, but not through the typical attribute
+  // machinery that goes through TableGen. We support this in all OpenMP modes
+  // so long as double square brackets are enabled.
+  if (LangOpts.OpenMP && LangOpts.DoubleSquareBracketAttributes &&
+      ScopeName == "omp")
+    return (Name == "directive" || Name == "sequence") ? 1 : 0;
 
 #include "clang/Basic/AttrHasAttributeImpl.inc"
 

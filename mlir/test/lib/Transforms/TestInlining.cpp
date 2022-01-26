@@ -22,17 +22,17 @@
 #include "llvm/ADT/StringSet.h"
 
 using namespace mlir;
-using namespace mlir::test;
+using namespace test;
 
 namespace {
-struct Inliner : public PassWrapper<Inliner, FunctionPass> {
+struct Inliner : public PassWrapper<Inliner, OperationPass<FuncOp>> {
   StringRef getArgument() const final { return "test-inline"; }
   StringRef getDescription() const final {
     return "Test inlining region calls";
   }
 
-  void runOnFunction() override {
-    auto function = getFunction();
+  void runOnOperation() override {
+    auto function = getOperation();
 
     // Collect each of the direct function calls within the module.
     SmallVector<CallIndirectOp, 16> callers;
@@ -51,7 +51,7 @@ struct Inliner : public PassWrapper<Inliner, FunctionPass> {
       // Inline the functional region operation, but only clone the internal
       // region if there is more than one use.
       if (failed(inlineRegion(
-              interface, &callee.body(), caller, caller.getArgOperands(),
+              interface, &callee.getBody(), caller, caller.getArgOperands(),
               caller.getResults(), caller.getLoc(),
               /*shouldCloneInlinedRegion=*/!callee.getResult().hasOneUse())))
         continue;
@@ -64,7 +64,7 @@ struct Inliner : public PassWrapper<Inliner, FunctionPass> {
     }
   }
 };
-} // end anonymous namespace
+} // namespace
 
 namespace mlir {
 namespace test {

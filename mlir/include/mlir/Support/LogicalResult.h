@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SUPPORT_LOGICAL_RESULT_H
-#define MLIR_SUPPORT_LOGICAL_RESULT_H
+#ifndef MLIR_SUPPORT_LOGICALRESULT_H
+#define MLIR_SUPPORT_LOGICALRESULT_H
 
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/Optional.h"
@@ -85,6 +85,10 @@ public:
   FailureOr() : FailureOr(failure()) {}
   FailureOr(T &&y) : Optional<T>(std::forward<T>(y)) {}
   FailureOr(const T &y) : Optional<T>(y) {}
+  template <typename U,
+            std::enable_if_t<std::is_constructible<T, U>::value> * = nullptr>
+  FailureOr(const FailureOr<U> &other)
+      : Optional<T>(failed(other) ? Optional<T>() : Optional<T>(*other)) {}
 
   operator LogicalResult() const { return success(this->hasValue()); }
 
@@ -96,4 +100,4 @@ private:
 
 } // namespace mlir
 
-#endif // MLIR_SUPPORT_LOGICAL_RESULT_H
+#endif // MLIR_SUPPORT_LOGICALRESULT_H

@@ -21,7 +21,6 @@
 namespace llvm {
 
 class GCNTargetMachine;
-class LLVMContext;
 class GCNSubtarget;
 class MachineIRBuilder;
 
@@ -89,6 +88,8 @@ public:
 
   bool legalizeBuildVector(MachineInstr &MI, MachineRegisterInfo &MRI,
                            MachineIRBuilder &B) const;
+  bool legalizeCTLZ_CTTZ(MachineInstr &MI, MachineRegisterInfo &MRI,
+                         MachineIRBuilder &B) const;
 
   bool loadInputValue(Register DstReg, MachineIRBuilder &B,
                       const ArgDescriptor *Arg,
@@ -107,8 +108,8 @@ public:
                                      Register Den) const;
 
   void legalizeUnsignedDIV_REM64Impl(MachineIRBuilder &B, Register DstDivReg,
-                                     Register DstRemReg, Register Numer,
-                                     Register Denom) const;
+                                     Register DstRemReg, Register Num,
+                                     Register Den) const;
 
   bool legalizeSignedDIV_REM(MachineInstr &MI, MachineRegisterInfo &MRI,
                              MachineIRBuilder &B) const;
@@ -142,8 +143,11 @@ public:
   bool legalizeIsAddrSpace(MachineInstr &MI, MachineRegisterInfo &MRI,
                            MachineIRBuilder &B, unsigned AddrSpace) const;
 
-  std::tuple<Register, unsigned, unsigned>
-  splitBufferOffsets(MachineIRBuilder &B, Register OrigOffset) const;
+  std::pair<Register, unsigned> splitBufferOffsets(MachineIRBuilder &B,
+                                                   Register OrigOffset) const;
+  void updateBufferMMO(MachineMemOperand *MMO, Register VOffset,
+                       Register SOffset, unsigned ImmOffset, Register VIndex,
+                       MachineRegisterInfo &MRI) const;
 
   Register handleD16VData(MachineIRBuilder &B, MachineRegisterInfo &MRI,
                           Register Reg, bool ImageStore = false) const;

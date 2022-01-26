@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
+#include <utility>
+
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/IR/MLIRContext.h"
@@ -31,8 +33,8 @@ struct DistributeTiledLoopPattern
   DistributeTiledLoopPattern(MLIRContext *context,
                              LinalgLoopDistributionOptions options,
                              LinalgTransformationFilter marker)
-      : OpRewritePattern<linalg::TiledLoopOp>(context), options(options),
-        marker(marker) {}
+      : OpRewritePattern<linalg::TiledLoopOp>(context),
+        options(std::move(options)), marker(std::move(marker)) {}
   LogicalResult matchAndRewrite(linalg::TiledLoopOp op,
                                 PatternRewriter &rewriter) const override {
     if (failed(marker.checkAndNotify(rewriter, op)))
@@ -53,7 +55,7 @@ struct DistributeTiledLoopPattern
       if (procInfoCallback == options.procInfoMap.end())
         continue;
 
-      if (!isParallelIteratorType(op.iterator_types()[i])) {
+      if (!isParallelIterator(op.iterator_types()[i])) {
         op.emitOpError("only support for parallel loops is implemented");
         return failure();
       }

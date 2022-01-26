@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/IR/IntegerSet.h"
@@ -30,12 +30,12 @@ namespace {
 /// identity layout ones.
 struct SimplifyAffineStructures
     : public SimplifyAffineStructuresBase<SimplifyAffineStructures> {
-  void runOnFunction() override;
+  void runOnOperation() override;
 
   /// Utility to simplify an affine attribute and update its entry in the parent
   /// operation if necessary.
   template <typename AttributeT>
-  void simplifyAndUpdateAttribute(Operation *op, Identifier name,
+  void simplifyAndUpdateAttribute(Operation *op, StringAttr name,
                                   AttributeT attr) {
     auto &simplified = simplifiedAttributes[attr];
     if (simplified == attr)
@@ -69,32 +69,35 @@ struct SimplifyAffineStructures
   DenseMap<Attribute, Attribute> simplifiedAttributes;
 };
 
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::createSimplifyAffineStructuresPass() {
   return std::make_unique<SimplifyAffineStructures>();
 }
 
-void SimplifyAffineStructures::runOnFunction() {
-  auto func = getFunction();
+void SimplifyAffineStructures::runOnOperation() {
+  auto func = getOperation();
   simplifiedAttributes.clear();
   RewritePatternSet patterns(func.getContext());
+  AffineApplyOp::getCanonicalizationPatterns(patterns, func.getContext());
   AffineForOp::getCanonicalizationPatterns(patterns, func.getContext());
   AffineIfOp::getCanonicalizationPatterns(patterns, func.getContext());
-  AffineApplyOp::getCanonicalizationPatterns(patterns, func.getContext());
   FrozenRewritePatternSet frozenPatterns(std::move(patterns));
+
+  // The simplification of affine attributes will likely simplify the op. Try to
+  // fold/apply canonicalization patterns when we have affine dialect ops.
+  SmallVector<Operation *> opsToSimplify;
   func.walk([&](Operation *op) {
     for (auto attr : op->getAttrs()) {
-      if (auto mapAttr = attr.second.dyn_cast<AffineMapAttr>())
-        simplifyAndUpdateAttribute(op, attr.first, mapAttr);
-      else if (auto setAttr = attr.second.dyn_cast<IntegerSetAttr>())
-        simplifyAndUpdateAttribute(op, attr.first, setAttr);
+      if (auto mapAttr = attr.getValue().dyn_cast<AffineMapAttr>())
+        simplifyAndUpdateAttribute(op, attr.getName(), mapAttr);
+      else if (auto setAttr = attr.getValue().dyn_cast<IntegerSetAttr>())
+        simplifyAndUpdateAttribute(op, attr.getName(), setAttr);
     }
 
-    // The simplification of the attribute will likely simplify the op. Try to
-    // fold / apply canonicalization patterns when we have affine dialect ops.
     if (isa<AffineForOp, AffineIfOp, AffineApplyOp>(op))
-      (void)applyOpPatternsAndFold(op, frozenPatterns);
+      opsToSimplify.push_back(op);
   });
+  (void)applyOpPatternsAndFold(opsToSimplify, frozenPatterns, /*strict=*/true);
 }

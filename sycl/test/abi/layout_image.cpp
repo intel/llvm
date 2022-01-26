@@ -68,7 +68,7 @@ sycl::image<2> Img{sycl::image_channel_order::rgba, sycl::image_channel_type::fp
 // CHECK-NEXT: 136 |             const void * _M_const_object
 // CHECK-NEXT: 136 |             void (*)(void) _M_function_pointer
 // CHECK-NEXT: 136 |             void (class std::_Undefined_class::*)(void) _M_member_pointer
-// CHECK-NEXT: 136 |           char [16] _M_pod_data
+// CHECK-NEXT: 136 |           char[16] _M_pod_data
 // CHECK-NEXT: 152 |         std::_Function_base::_Manager_type _M_manager
 // CHECK-NEXT: 160 |       std::function<void (void)>::_Invoker_type _M_invoker
 // CHECK-NEXT: 168 |     class std::shared_ptr<const void> MSharedPtrStorage
@@ -80,7 +80,7 @@ sycl::image<2> Img{sycl::image_channel_order::rgba, sycl::image_channel_type::fp
 // CHECK-NEXT: 184 |   _Bool MIsArrayImage
 // CHECK-NEXT: 192 |   class sycl::range<2> MRange
 // CHECK-NEXT: 192 |     class sycl::detail::array<2> (base)
-// CHECK-NEXT: 192 |       size_t [2] common_array
+// CHECK-NEXT: 192 |       size_t[2] common_array
 // CHECK-NEXT: 208 |   enum sycl::image_channel_order MOrder
 // CHECK-NEXT: 212 |   enum sycl::image_channel_type MType
 // CHECK-NEXT: 216 |   uint8_t MNumChannels

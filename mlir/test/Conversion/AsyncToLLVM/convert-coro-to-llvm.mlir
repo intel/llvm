@@ -14,7 +14,12 @@ func @coro_begin() {
   // CHECK: %[[ID:.*]] = llvm.intr.coro.id
   %0 = async.coro.id
   // CHECK: %[[SIZE:.*]] = llvm.intr.coro.size : i64
-  // CHECK: %[[ALLOC:.*]] = llvm.call @malloc(%[[SIZE]])
+  // CHECK: %[[C63:.*]] = llvm.mlir.constant(63 : i64) : i64
+  // CHECK: %[[SIZE2:.*]] = llvm.add %[[SIZE]], %[[C63]] : i64
+  // CHECK: %[[CN64:.*]] = llvm.mlir.constant(-64 : i64) : i64
+  // CHECK: %[[SIZE3:.*]] = llvm.and %[[SIZE2]], %[[CN64]] : i64
+  // CHECK: %[[ALIGN:.*]] = llvm.mlir.constant(64 : i64) : i64
+  // CHECK: %[[ALLOC:.*]] = llvm.call @aligned_alloc(%[[ALIGN]], %[[SIZE3]])
   // CHECK: %[[HDL:.*]] = llvm.intr.coro.begin %[[ID]], %[[ALLOC]]
   %1 = async.coro.begin %0
   return
@@ -64,7 +69,7 @@ func @coro_suspend() {
   // CHECK: %[[FINAL:.*]] = llvm.mlir.constant(false) : i1
   // CHECK: %[[RET:.*]] = llvm.intr.coro.suspend %[[STATE]], %[[FINAL]]
   // CHECK: %[[SEXT:.*]] = llvm.sext %[[RET]] : i8 to i32
-  // CHECK: llvm.switch %[[SEXT]], ^[[SUSPEND:[b0-9]+]]
+  // CHECK: llvm.switch %[[SEXT]] : i32, ^[[SUSPEND:[b0-9]+]]
   // CHECK-NEXT: 0: ^[[RESUME:[b0-9]+]]
   // CHECK-NEXT: 1: ^[[CLEANUP:[b0-9]+]]
   async.coro.suspend %2, ^suspend, ^resume, ^cleanup

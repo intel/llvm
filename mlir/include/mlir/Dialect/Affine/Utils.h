@@ -13,28 +13,27 @@
 #ifndef MLIR_DIALECT_AFFINE_UTILS_H
 #define MLIR_DIALECT_AFFINE_UTILS_H
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/IR/AffineExpr.h"
-#include "mlir/Support/LLVM.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallVector.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 
 namespace mlir {
 
 class AffineForOp;
 class AffineIfOp;
 class AffineParallelOp;
-struct LogicalResult;
-struct LoopReduction;
+class DominanceInfo;
 class Operation;
+class PostDominanceInfo;
+
+struct LogicalResult;
 
 using ReductionLoopMap = DenseMap<Operation *, SmallVector<LoopReduction, 2>>;
 
-/// Replaces parallel affine.for op with 1-d affine.parallel op.
-/// mlir::isLoopParallel detects the parallel affine.for ops.
-/// Parallelizes the specified reductions. Parallelization will fail in presence
-/// of loop iteration arguments that are not listed in `parallelReductions`.
-/// There is no cost model currently used to drive this parallelization.
+/// Replaces a parallel affine.for op with a 1-d affine.parallel op. `forOp`'s
+/// body is taken by the affine.parallel op and the former is erased.
+/// (mlir::isLoopParallel can be used to detect a parallel affine.for op.) The
+/// reductions specified in `parallelReductions` are also parallelized.
+/// Parallelization will fail in the presence of loop iteration arguments that
+/// are not listed in `parallelReductions`.
 LogicalResult
 affineParallelize(AffineForOp forOp,
                   ArrayRef<LoopReduction> parallelReductions = {});
@@ -67,7 +66,7 @@ LogicalResult hoistAffineIfOp(AffineIfOp ifOp, bool *folded = nullptr);
 ///    affine.for %arg2 = 0 to 64 {
 ///      affine.for %arg3 = 0 to 128 step 8 {
 ///        affine.for %arg4 = 0 to 512 step 4 {
-///          %cst = constant 0.000000e+00 : f32
+///          %cst = arith.constant 0.000000e+00 : f32
 ///          %0 = vector.transfer_read %arg0[%arg2, %arg3, %arg4], %cst : ...
 ///          vector.transfer_write %0, %arg1[%arg2, %arg3, %arg4] : ...
 ///        }
@@ -88,6 +87,12 @@ struct VectorizationStrategy {
   // reduction descriptors.
   ReductionLoopMap reductionLoops;
 };
+
+/// Replace affine store and load accesses by scalars by forwarding stores to
+/// loads and eliminate invariant affine loads; consequently, eliminate dead
+/// allocs.
+void affineScalarReplace(FuncOp f, DominanceInfo &domInfo,
+                         PostDominanceInfo &postDomInfo);
 
 /// Vectorizes affine loops in 'loops' using the n-D vectorization factors in
 /// 'vectorSizes'. By default, each vectorization factor is applied

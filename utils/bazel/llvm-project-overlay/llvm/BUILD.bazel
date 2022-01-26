@@ -33,28 +33,27 @@ enum_targets_gen(
     targets = llvm_targets,
 )
 
+# Enabled targets with ASM printers.
+llvm_target_asm_printers = [
+    t
+    for t in llvm_targets
+    if glob(["lib/Target/{}/*AsmPrinter.cpp".format(t)])
+]
+
 enum_targets_gen(
     name = "asm_printers_def_gen",
     src = "include/llvm/Config/AsmPrinters.def.in",
     out = "include/llvm/Config/AsmPrinters.def",
     macro_name = "ASM_PRINTER",
-    targets = llvm_targets,
+    targets = llvm_target_asm_printers,
 )
 
-# List of targets with ASM parsers, filtered to our list of overall targets.
-llvm_target_asm_parsers = [t for t in [
-    "AArch64",
-    "AMDGPU",
-    "ARM",
-    "BPF",
-    "Hexagon",
-    "Lanai",
-    "PowerPC",
-    "RISCV",
-    "Sparc",
-    "WebAssembly",
-    "X86",
-] if t in llvm_targets]
+# Enabled targets with ASM parsers.
+llvm_target_asm_parsers = [
+    t
+    for t in llvm_targets
+    if glob(["lib/Target/{}/AsmParser/CMakeLists.txt".format(t)])
+]
 
 enum_targets_gen(
     name = "asm_parsers_def_gen",
@@ -64,20 +63,12 @@ enum_targets_gen(
     targets = llvm_target_asm_parsers,
 )
 
-# List of targets with disassemblers, filtered to our list of overall targets.
-llvm_target_disassemblers = [t for t in [
-    "AArch64",
-    "AMDGPU",
-    "ARM",
-    "BPF",
-    "Hexagon",
-    "Lanai",
-    "PowerPC",
-    "RISCV",
-    "Sparc",
-    "WebAssembly",
-    "X86",
-] if t in llvm_targets]
+# Enabled targets with disassemblers.
+llvm_target_disassemblers = [
+    t
+    for t in llvm_targets
+    if glob(["lib/Target/{}/Disassembler/CMakeLists.txt".format(t)])
+]
 
 enum_targets_gen(
     name = "disassemblers_def_gen",
@@ -87,12 +78,27 @@ enum_targets_gen(
     targets = llvm_target_disassemblers,
 )
 
+# Enabled targets with MCA.
+llvm_target_mcas = [
+    t
+    for t in llvm_targets
+    if glob(["lib/Target/{}/MCA/CMakeLists.txt".format(t)])
+]
+
+enum_targets_gen(
+    name = "target_mca_def_gen",
+    src = "include/llvm/Config/TargetMCAs.def.in",
+    out = "include/llvm/Config/TargetMCAs.def",
+    macro_name = "TARGETMCA",
+    targets = llvm_target_mcas,
+)
+
 # TODO: Need to replace this with something that actually extracts the git
 # commit from the LLVM source (submodule or http_archive).
 genrule(
     name = "version_info_gen",
     outs = ["include/llvm/Config/VersionInfo.h"],
-    cmd = "echo \"#define LLVM_VERSION_INFO \\\"git\\\"\" > $@",
+    cmd = "echo '#define LLVM_VERSION_INFO \"git\"' > $@",
 )
 
 template_rule(
@@ -130,6 +136,7 @@ cc_library(
         "include/llvm/Config/AsmPrinters.def",
         "include/llvm/Config/Disassemblers.def",
         "include/llvm/Config/Targets.def",
+        "include/llvm/Config/TargetMCAs.def",
         # Needed for include scanner to find execinfo.h
         "include/llvm/Config/config.h",
     ],
@@ -167,6 +174,8 @@ cc_library(
         "lib/Support/*.cpp",
         "lib/Support/*.h",
         "lib/Support/*.inc",
+        # To avoid a dependency cycle.
+        "include/llvm/Option/*.h",
     ]) + select({
         "@bazel_tools//src/conditions:windows": glob([
             "lib/Support/Windows/*.h",
@@ -180,10 +189,10 @@ cc_library(
     hdrs = glob([
         "include/llvm/Support/**/*.h",
         "include/llvm/ADT/*.h",
-        "include/llvm/MC/*.h",  # TODO(maskray): Fix the layering issue.
     ]) + [
         "include/llvm-c/Core.h",
         "include/llvm-c/DataTypes.h",
+        "include/llvm-c/Deprecated.h",
         "include/llvm-c/DisassemblerTypes.h",
         "include/llvm-c/Error.h",
         "include/llvm-c/ErrorHandling.h",
@@ -198,6 +207,12 @@ cc_library(
     includes = ["include"],
     linkopts = select({
         "@bazel_tools//src/conditions:windows": [],
+        "@bazel_tools//src/conditions:freebsd": [
+            "-pthread",
+            "-lexecinfo",
+            "-ldl",
+            "-lm",
+        ],
         "//conditions:default": [
             "-pthread",
             "-ldl",
@@ -383,6 +398,20 @@ cc_library(
 )
 
 cc_library(
+    name = "Debuginfod",
+    srcs = glob([
+        "lib/Debuginfod/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/llvm/Debuginfod/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":Support",
+    ],
+)
+
+cc_library(
     name = "MC",
     srcs = glob([
         "lib/MC/*.cpp",
@@ -433,6 +462,7 @@ cc_library(
         ":DebugInfo",
         ":DebugInfoDWARF",
         ":DebugInfoPDB",
+        ":Debuginfod",
         ":Demangle",
         ":Object",
         ":Support",
@@ -444,6 +474,11 @@ cc_library(
     srcs = glob([
         "utils/TableGen/*.cpp",
         "utils/TableGen/GlobalISel/*.cpp",
+
+        # Some tablegen sources include headers from MC, so these have to be
+        # listed here. MC uses headers produced by tablegen, so it cannot be a
+        # regular dependency.
+        "include/llvm/MC/*.h",
 
         # We have to include these headers here as well as in the `hdrs` below
         # to allow the `.cpp` files to use file-relative-inclusion to find
@@ -461,7 +496,6 @@ cc_library(
     features = ["-header_modules"],
     strip_include_prefix = "utils/TableGen",
     deps = [
-        ":MC",
         ":Support",
         ":TableGen",
         ":config",
@@ -585,7 +619,10 @@ gentbl(
     tbl_outs = [("-gen-attrs", "include/llvm/IR/Attributes.inc")],
     tblgen = ":llvm-tblgen",
     td_file = "include/llvm/IR/Attributes.td",
-    td_srcs = ["include/llvm/IR/Attributes.td"],
+    td_srcs = [
+        "include/llvm/IR/Attributes.td",
+        "include/llvm/IR/AttributesAMDGPU.td",
+    ],
 )
 
 cc_library(
@@ -802,6 +839,7 @@ cc_library(
     copts = llvm_copts,
     deps = [
         ":Core",
+        ":DebugInfoDWARF",
         ":Support",
         ":config",
     ],
@@ -830,22 +868,11 @@ cc_library(
             "lib/Analysis/*.h",
             "lib/Analysis/*.def",
         ],
-        exclude = [
-            # TODO(mtrofin): Add these files to the build.
-            "lib/Analysis/MLInlineAdvisor.cpp",
-            "lib/Analysis/DevelopmentModeInlineAdvisor.cpp",
-            "lib/Analysis/ReleaseModeModelRunner.cpp",
-            "lib/Analysis/TFUtils.cpp",
-        ],
     ),
     hdrs = glob(
         [
             "include/llvm/Analysis/*.h",
             "include/llvm/Analysis/Utils/*.h",
-        ],
-        exclude = [
-            # TODO(mtrofin): Add this file to the build.
-            "include/llvm/Analysis/Utils/TFUtils.h",
         ],
     ) + [
         "include/llvm-c/Analysis.h",
@@ -910,6 +937,23 @@ cc_library(
         ":MC",
         ":Support",
         ":config",
+    ],
+)
+
+cc_library(
+    name = "DWP",
+    srcs = glob([
+        "lib/DWP/*.cpp",
+        "lib/DWP/*.h",
+    ]),
+    hdrs = glob(["include/llvm/DWP/*.h"]),
+    copts = llvm_copts,
+    deps = [
+        ":DebugInfoDWARF",
+        ":MC",
+        ":Object",
+        ":Support",
+        ":Target",
     ],
 )
 
@@ -1131,6 +1175,7 @@ cc_library(
     deps = [
         ":Analysis",
         ":Core",
+        ":Scalar",
         ":Support",
         ":TransformUtils",
     ],
@@ -1474,6 +1519,21 @@ llvm_target_lib_list = [lib for lib in [
         ],
     },
     {
+        "name": "AVR",
+        "short_name": "AVR",
+        "tbl_outs": [
+            ("-gen-asm-matcher", "lib/Target/AVR/AVRGenAsmMatcher.inc"),
+            ("-gen-asm-writer", "lib/Target/AVR/AVRGenAsmWriter.inc"),
+            ("-gen-callingconv", "lib/Target/AVR/AVRGenCallingConv.inc"),
+            ("-gen-dag-isel", "lib/Target/AVR/AVRGenDAGISel.inc"),
+            ("-gen-disassembler", "lib/Target/AVR/AVRGenDisassemblerTables.inc"),
+            ("-gen-emitter", "lib/Target/AVR/AVRGenMCCodeEmitter.inc"),
+            ("-gen-instr-info", "lib/Target/AVR/AVRGenInstrInfo.inc"),
+            ("-gen-register-info", "lib/Target/AVR/AVRGenRegisterInfo.inc"),
+            ("-gen-subtarget", "lib/Target/AVR/AVRGenSubtargetInfo.inc"),
+        ],
+    },
+    {
         "name": "BPF",
         "short_name": "BPF",
         "tbl_outs": [
@@ -1520,6 +1580,41 @@ llvm_target_lib_list = [lib for lib in [
         ],
     },
     {
+        "name": "Mips",
+        "short_name": "Mips",
+        "tbl_outs": [
+            ("-gen-asm-matcher", "lib/Target/Mips/MipsGenAsmMatcher.inc"),
+            ("-gen-asm-writer", "lib/Target/Mips/MipsGenAsmWriter.inc"),
+            ("-gen-callingconv", "lib/Target/Mips/MipsGenCallingConv.inc"),
+            ("-gen-dag-isel", "lib/Target/Mips/MipsGenDAGISel.inc"),
+            ("-gen-disassembler", "lib/Target/Mips/MipsGenDisassemblerTables.inc"),
+            ("-gen-emitter", "lib/Target/Mips/MipsGenMCCodeEmitter.inc"),
+            ("-gen-exegesis", "lib/Target/Mips/MipsGenExegesis.inc"),
+            ("-gen-fast-isel", "lib/Target/Mips/MipsGenFastISel.inc"),
+            ("-gen-global-isel", "lib/Target/Mips/MipsGenGlobalISel.inc"),
+            ("-gen-instr-info", "lib/Target/Mips/MipsGenInstrInfo.inc"),
+            ("-gen-pseudo-lowering", "lib/Target/Mips/MipsGenMCPseudoLowering.inc"),
+            ("-gen-register-bank", "lib/Target/Mips/MipsGenRegisterBank.inc"),
+            ("-gen-register-info", "lib/Target/Mips/MipsGenRegisterInfo.inc"),
+            ("-gen-subtarget", "lib/Target/Mips/MipsGenSubtargetInfo.inc"),
+        ],
+    },
+    {
+        "name": "MSP430",
+        "short_name": "MSP430",
+        "tbl_outs": [
+            ("-gen-asm-matcher", "lib/Target/MSP430/MSP430GenAsmMatcher.inc"),
+            ("-gen-asm-writer", "lib/Target/MSP430/MSP430GenAsmWriter.inc"),
+            ("-gen-callingconv", "lib/Target/MSP430/MSP430GenCallingConv.inc"),
+            ("-gen-dag-isel", "lib/Target/MSP430/MSP430GenDAGISel.inc"),
+            ("-gen-disassembler", "lib/Target/MSP430/MSP430GenDisassemblerTables.inc"),
+            ("-gen-emitter", "lib/Target/MSP430/MSP430GenMCCodeEmitter.inc"),
+            ("-gen-instr-info", "lib/Target/MSP430/MSP430GenInstrInfo.inc"),
+            ("-gen-register-info", "lib/Target/MSP430/MSP430GenRegisterInfo.inc"),
+            ("-gen-subtarget", "lib/Target/MSP430/MSP430GenSubtargetInfo.inc"),
+        ],
+    },
+    {
         "name": "NVPTX",
         "short_name": "NVPTX",
         "tbl_outs": [
@@ -1561,6 +1656,21 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-callingconv", "lib/Target/Sparc/SparcGenCallingConv.inc"),
             ("-gen-subtarget", "lib/Target/Sparc/SparcGenSubtargetInfo.inc"),
             ("-gen-disassembler", "lib/Target/Sparc/SparcGenDisassemblerTables.inc"),
+        ],
+    },
+    {
+        "name": "SystemZ",
+        "short_name": "SystemZ",
+        "tbl_outs": [
+            ("-gen-asm-matcher", "lib/Target/SystemZ/SystemZGenAsmMatcher.inc"),
+            ("-gen-asm-writer", "lib/Target/SystemZ/SystemZGenAsmWriter.inc"),
+            ("-gen-callingconv", "lib/Target/SystemZ/SystemZGenCallingConv.inc"),
+            ("-gen-dag-isel", "lib/Target/SystemZ/SystemZGenDAGISel.inc"),
+            ("-gen-disassembler", "lib/Target/SystemZ/SystemZGenDisassemblerTables.inc"),
+            ("-gen-emitter", "lib/Target/SystemZ/SystemZGenMCCodeEmitter.inc"),
+            ("-gen-instr-info", "lib/Target/SystemZ/SystemZGenInstrInfo.inc"),
+            ("-gen-register-info", "lib/Target/SystemZ/SystemZGenRegisterInfo.inc"),
+            ("-gen-subtarget", "lib/Target/SystemZ/SystemZGenSubtargetInfo.inc"),
         ],
     },
     {
@@ -1615,6 +1725,19 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-subtarget", "lib/Target/X86/X86GenSubtargetInfo.inc"),
             ("-gen-x86-EVEX2VEX-tables", "lib/Target/X86/X86GenEVEX2VEXTables.inc"),
             ("-gen-exegesis", "lib/Target/X86/X86GenExegesis.inc"),
+        ],
+    },
+    {
+        "name": "XCore",
+        "short_name": "XCore",
+        "tbl_outs": [
+            ("-gen-asm-writer", "lib/Target/XCore/XCoreGenAsmWriter.inc"),
+            ("-gen-callingconv", "lib/Target/XCore/XCoreGenCallingConv.inc"),
+            ("-gen-dag-isel", "lib/Target/XCore/XCoreGenDAGISel.inc"),
+            ("-gen-disassembler", "lib/Target/XCore/XCoreGenDisassemblerTables.inc"),
+            ("-gen-instr-info", "lib/Target/XCore/XCoreGenInstrInfo.inc"),
+            ("-gen-register-info", "lib/Target/XCore/XCoreGenRegisterInfo.inc"),
+            ("-gen-subtarget", "lib/Target/XCore/XCoreGenSubtargetInfo.inc"),
         ],
     },
 ] if lib["name"] in llvm_targets]
@@ -1874,6 +1997,24 @@ gentbl(
             ":" + target["name"] + "UtilsAndDesc",
         ],
     )],
+    [cc_library(
+        name = target["name"] + "TargetMCA",
+        srcs = glob([
+            "lib/Target/" + target["name"] + "/MCA/*.cpp",
+            "lib/Target/" + target["name"] + "/MCA/*.c",
+            "lib/Target/" + target["name"] + "/MCA/*.h",
+        ]),
+        copts = llvm_copts,
+        deps = [
+            ":MC",
+            ":MCA",
+            ":MCParser",
+            ":Support",
+            ":" + target["name"] + "DisassemblerInternalHeaders",
+            ":" + target["name"] + "Info",
+            ":" + target["name"] + "UtilsAndDesc",
+        ],
+    )],
 ] for target in llvm_target_lib_list]
 
 cc_library(
@@ -1899,6 +2040,15 @@ cc_library(
     copts = llvm_copts,
     deps = [
         target["name"] + "Disassembler"
+        for target in llvm_target_lib_list
+    ],
+)
+
+cc_library(
+    name = "AllTargetsMCAs",
+    copts = llvm_copts,
+    deps = [
+        target["name"] + "TargetMCA"
         for target in llvm_target_lib_list
     ],
 )
@@ -2137,6 +2287,7 @@ cc_library(
     name = "OrcTargetProcess",
     srcs = glob([
         "lib/ExecutionEngine/Orc/TargetProcess/*.cpp",
+        "lib/ExecutionEngine/Orc/TargetProcess/*.h",
     ]),
     hdrs = glob([
         "include/llvm/ExecutionEngine/Orc/TargetProcess/*.h",
@@ -2328,7 +2479,6 @@ cc_library(
         "tools/llvm-exegesis/lib/*.cpp",
         "tools/llvm-exegesis/lib/X86/*.cpp",
         "tools/llvm-exegesis/lib/X86/*.h",
-
         # We have to include these headers here as well as in the `hdrs` below
         # to allow the `.cpp` files to use file-relative-inclusion to find
         # them, even though consumers of this library use inclusion relative to
@@ -2726,27 +2876,9 @@ cc_binary(
     stamp = 0,
     deps = [
         ":AllTargetsCodeGens",
-        ":DebugInfoDWARF",
+        ":DWP",
         ":MC",
-        ":Object",
         ":Support",
-        ":Target",
-    ],
-)
-
-cc_binary(
-    name = "llvm-elfabi",
-    srcs = glob([
-        "tools/llvm-elfabi/*.cpp",
-        "tools/llvm-elfabi/*.h",
-    ]),
-    copts = llvm_copts,
-    stamp = 0,
-    deps = [
-        ":InterfaceStub",
-        ":Object",
-        ":Support",
-        ":TextAPI",
     ],
 )
 
@@ -2978,7 +3110,9 @@ cc_binary(
     name = "llvm-mca",
     srcs = glob([
         "tools/llvm-mca/*.cpp",
+        "tools/llvm-mca/*.h",
         "tools/llvm-mca/Views/*.cpp",
+        "tools/llvm-mca/Views/*.h",
     ]),
     copts = llvm_copts,
     stamp = 0,
@@ -2986,6 +3120,7 @@ cc_binary(
         ":AllTargetsAsmParsers",
         ":AllTargetsCodeGens",
         ":AllTargetsDisassemblers",
+        ":AllTargetsMCAs",
         ":MC",
         ":MCA",
         ":MCParser",
@@ -3164,6 +3299,20 @@ gentbl(
     td_srcs = [
         "include/llvm/Option/OptParser.td",
         "tools/llvm-objcopy/CommonOpts.td",
+    ],
+)
+
+cc_binary(
+    name = "llvm-stress",
+    srcs = glob([
+        "tools/llvm-stress/*.cpp",
+        "tools/llvm-stress/*.h",
+    ]),
+    copts = llvm_copts,
+    stamp = 0,
+    deps = [
+        ":Core",
+        ":Support",
     ],
 )
 
@@ -3385,6 +3534,18 @@ binary_alias(
     binary = ":llvm-rc",
 )
 
+gentbl(
+    name = "ReadobjOptsTableGen",
+    strip_include_prefix = "tools/llvm-readobj",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/llvm-readobj/Opts.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/llvm-readobj/Opts.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
 cc_binary(
     name = "llvm-readobj",
     srcs = glob([
@@ -3401,6 +3562,8 @@ cc_binary(
         ":DebugInfoDWARF",
         ":Demangle",
         ":Object",
+        ":Option",
+        ":ReadobjOptsTableGen",
         ":Support",
     ],
 )
@@ -3421,6 +3584,7 @@ cc_binary(
     includes = ["tools/llvm-reduce"],
     stamp = 0,
     deps = [
+        ":AllTargetsAsmParsers",
         ":AllTargetsCodeGens",
         ":BitReader",
         ":Core",
@@ -3544,6 +3708,7 @@ cc_binary(
     deps = [
         ":DebugInfoDWARF",
         ":DebugInfoPDB",
+        ":Debuginfod",
         ":Object",
         ":Option",
         ":Support",
@@ -3687,6 +3852,17 @@ cc_library(
         ":BitWriter",
         ":Core",
         ":Scalar",
+        ":Support",
+    ],
+)
+
+cc_library(
+    name = "Diff",
+    testonly = True,
+    srcs = glob(["tools/llvm-diff/lib/*.cpp"]),
+    hdrs = glob(["tools/llvm-diff/lib/*.h"]),
+    deps = [
+        ":Core",
         ":Support",
     ],
 )
@@ -3865,9 +4041,7 @@ cc_binary(
     srcs = glob([
         "tools/lli/ChildTarget/*.cpp",
         "tools/lli/ChildTarget/*.h",
-    ]) + [
-        "tools/lli/RemoteJITUtils.h",
-    ],
+    ]),
     copts = llvm_copts,
     # The tests load code into this binary that expect to see symbols
     # from libstdc++ such as __cxa_begin_catch and _ZTIi. The latter
@@ -3932,9 +4106,8 @@ cc_binary(
     copts = llvm_copts,
     stamp = 0,
     deps = [
-        ":AsmParser",
-        ":BitReader",
         ":Core",
+        ":Diff",
         ":IRReader",
         ":Support",
     ],
@@ -4031,6 +4204,45 @@ cc_binary(
         ":Object",
         ":Support",
         ":TextAPI",
+    ],
+)
+
+gentbl(
+    name = "TLICheckerOptsTableGen",
+    strip_include_prefix = "tools/llvm-tli-checker",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/llvm-tli-checker/Opts.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/llvm-tli-checker/Opts.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
+cc_binary(
+    name = "llvm-tli-checker",
+    testonly = True,
+    srcs = glob([
+        "tools/llvm-tli-checker/*.cpp",
+        "tools/llvm-tli-checker/*.h",
+    ]),
+    copts = llvm_copts,
+    stamp = 0,
+    deps = [
+        ":Analysis",
+        ":BinaryFormat",
+        ":BitReader",
+        ":BitstreamReader",
+        ":Core",
+        ":Demangle",
+        ":MC",
+        ":MCParser",
+        ":Object",
+        ":Option",
+        ":Remarks",
+        ":Support",
+        ":TextAPI",
+        ":TLICheckerOptsTableGen",
     ],
 )
 

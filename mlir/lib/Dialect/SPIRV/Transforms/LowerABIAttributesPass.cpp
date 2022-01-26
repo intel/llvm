@@ -156,7 +156,7 @@ public:
   using OpConversionPattern<spirv::FuncOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(spirv::FuncOp funcOp, ArrayRef<Value> operands,
+  matchAndRewrite(spirv::FuncOp funcOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -168,7 +168,7 @@ class LowerABIAttributesPass final
 } // namespace
 
 LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
-    spirv::FuncOp funcOp, ArrayRef<Value> operands,
+    spirv::FuncOp funcOp, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   if (!funcOp->getAttrOfType<spirv::EntryPointABIAttr>(
           spirv::getEntryPointABIAttrName())) {
@@ -178,8 +178,11 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
   TypeConverter::SignatureConversion signatureConverter(
       funcOp.getType().getNumInputs());
 
+  auto &typeConverter = *getTypeConverter<SPIRVTypeConverter>();
+  auto indexType = typeConverter.getIndexType();
+
   auto attrName = spirv::getInterfaceVarABIAttrName();
-  for (auto argType : llvm::enumerate(funcOp.getType().getInputs())) {
+  for (const auto &argType : llvm::enumerate(funcOp.getType().getInputs())) {
     auto abiInfo = funcOp.getArgAttrOfType<spirv::InterfaceVarABIAttr>(
         argType.index(), attrName);
     if (!abiInfo) {
@@ -206,7 +209,6 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
     // before the use. There might be multiple loads and currently there is no
     // easy way to replace all uses with a sequence of operations.
     if (argType.value().cast<spirv::SPIRVType>().isScalarOrVector()) {
-      auto indexType = SPIRVTypeConverter::getIndexType(funcOp.getContext());
       auto zero =
           spirv::ConstantOp::getZero(indexType, funcOp.getLoc(), rewriter);
       auto loadPtr = rewriter.create<spirv::AccessChainOp>(

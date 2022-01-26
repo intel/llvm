@@ -14,6 +14,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/Cuda.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
@@ -135,6 +136,12 @@ static cl::opt<unsigned>
                     cl::desc("Alignment of bundle for binary files"),
                     cl::init(1), cl::cat(ClangOffloadBundlerCategory));
 
+static cl::opt<bool>
+    AddTargetSymbols("add-target-symbols-to-bundled-object",
+                     cl::desc("Add .tgtsym section with target symbol names to "
+                              "the output file when bundling object files.\n"),
+                     cl::init(true), cl::cat(ClangOffloadBundlerCategory));
+
 /// Magic string that marks the existence of offloading data.
 #define OFFLOAD_BUNDLER_MAGIC_STR "__CLANG_OFFLOAD_BUNDLE__"
 
@@ -156,21 +163,28 @@ static std::string BundlerExecutable;
 ///  * Offload Kind - Host, OpenMP, or HIP
 ///  * Triple - Standard LLVM Triple
 ///  * GPUArch (Optional) - Processor name, like gfx906 or sm_30
-/// In presence of Proc, the Triple should contain separator "-" for all
-/// standard four components, even if they are empty.
+
 struct OffloadTargetInfo {
   StringRef OffloadKind;
   llvm::Triple Triple;
   StringRef GPUArch;
 
   OffloadTargetInfo(const StringRef Target) {
-    SmallVector<StringRef, 6> Components;
-    Target.split(Components, '-', 5);
-    Components.resize(6);
-    this->OffloadKind = Components[0];
-    this->Triple = llvm::Triple(Components[1], Components[2], Components[3],
-                                Components[4]);
-    this->GPUArch = Components[5];
+    auto TargetFeatures = Target.split(':');
+    auto TripleOrGPU = TargetFeatures.first.rsplit('-');
+
+    if (clang::StringToCudaArch(TripleOrGPU.second) !=
+        clang::CudaArch::UNKNOWN) {
+      auto KindTriple = TripleOrGPU.first.split('-');
+      this->OffloadKind = KindTriple.first;
+      this->Triple = llvm::Triple(KindTriple.second);
+      this->GPUArch = Target.substr(Target.find(TripleOrGPU.second));
+    } else {
+      auto KindTriple = TargetFeatures.first.split('-');
+      this->OffloadKind = KindTriple.first;
+      this->Triple = llvm::Triple(KindTriple.second);
+      this->GPUArch = "";
+    }
   }
 
   bool hasHostKind() const { return this->OffloadKind == "host"; }
@@ -202,6 +216,26 @@ struct OffloadTargetInfo {
 static Triple getTargetTriple(StringRef Target) {
   auto OffloadInfo = OffloadTargetInfo(Target);
   return Triple(OffloadInfo.getTriple());
+}
+
+static StringRef getDeviceFileExtension(StringRef Device,
+                                        StringRef BundleFileName) {
+  if (Device.contains("gfx"))
+    return ".bc";
+  if (Device.contains("sm_"))
+    return ".cubin";
+  return sys::path::extension(BundleFileName);
+}
+
+static std::string getDeviceLibraryFileName(StringRef BundleFileName,
+                                            StringRef Device) {
+  StringRef LibName = sys::path::stem(BundleFileName);
+  StringRef Extension = getDeviceFileExtension(Device, BundleFileName);
+
+  std::string Result;
+  Result += LibName;
+  Result += Extension;
+  return Result;
 }
 
 /// Generic file handler interface.
@@ -368,7 +402,7 @@ class BinaryFileHandler final : public FileHandler {
   std::string CurWriteBundleTarget;
 
 public:
-  BinaryFileHandler() : FileHandler() {}
+  BinaryFileHandler() {}
 
   ~BinaryFileHandler() final {}
 
@@ -643,9 +677,23 @@ class ObjectFileHandler final : public FileHandler {
             return createStringError(inconvertibleErrorCode(),
                                      Err.getMessage());
 
+          bool UpdateBuf = false;
           if (!Mod->getModuleInlineAsm().empty()) {
             Mod->setModuleInlineAsm("");
-
+            UpdateBuf = true;
+          }
+          for (auto I = Mod->global_begin(), E = Mod->global_end(); I != E;) {
+            GlobalVariable &GV = *I++;
+            // Do not add globals with constant address space to the tgtsym.
+            if (!GV.isDeclaration() && !GV.hasLocalLinkage() &&
+                GV.getAddressSpace() == 2) {
+              GV.replaceAllUsesWith(UndefValue::get(GV.getType()));
+              GV.dropAllReferences();
+              GV.eraseFromParent();
+              UpdateBuf = true;
+            }
+          }
+          if (UpdateBuf) {
             SmallVector<char, 0> ModuleBuf;
             raw_svector_ostream ModuleOS(ModuleBuf);
             WriteBitcodeToFile(*Mod, ModuleOS);
@@ -701,8 +749,7 @@ class ObjectFileHandler final : public FileHandler {
 
 public:
   ObjectFileHandler(std::unique_ptr<ObjectFile> ObjIn)
-      : FileHandler(), Obj(std::move(ObjIn)),
-        CurrentSection(Obj->section_begin()),
+      : Obj(std::move(ObjIn)), CurrentSection(Obj->section_begin()),
         NextSection(Obj->section_begin()) {}
 
   ~ObjectFileHandler() final {}
@@ -811,22 +858,24 @@ public:
                                     OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
                                     "=readonly,exclude"));
     }
-    // Add a section with symbol names that are defined in target objects to the
-    // output fat object.
-    Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
-    if (!SymbolsOrErr)
-      return SymbolsOrErr.takeError();
+    if (AddTargetSymbols) {
+      // Add a section with symbol names that are defined in target objects to
+      // the output fat object.
+      Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
+      if (!SymbolsOrErr)
+        return SymbolsOrErr.takeError();
 
-    if (!SymbolsOrErr->empty()) {
-      // Add section with symbols names to fat object.
-      Expected<StringRef> SymbolsFileOrErr =
-          TempFiles.Create(makeArrayRef(*SymbolsOrErr));
-      if (!SymbolsFileOrErr)
-        return SymbolsFileOrErr.takeError();
+      if (!SymbolsOrErr->empty()) {
+        // Add section with symbols names to fat object.
+        Expected<StringRef> SymbolsFileOrErr =
+            TempFiles.Create(makeArrayRef(*SymbolsOrErr));
+        if (!SymbolsFileOrErr)
+          return SymbolsFileOrErr.takeError();
 
-      ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
-                                    SYMBOLS_SECTION_NAME + "=" +
-                                    *SymbolsFileOrErr));
+        ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
+                                      SYMBOLS_SECTION_NAME + "=" +
+                                      *SymbolsFileOrErr));
+      }
     }
     ObjcopyArgs.push_back("--");
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
@@ -955,8 +1004,7 @@ protected:
   }
 
 public:
-  TextFileHandler(StringRef Comment)
-      : FileHandler(), Comment(Comment), ReadChars(0) {
+  TextFileHandler(StringRef Comment) : Comment(Comment), ReadChars(0) {
     BundleStartString =
         "\n" + Comment.str() + " " OFFLOAD_BUNDLER_MAGIC_STR "__START__ ";
     BundleEndString =
@@ -1391,8 +1439,22 @@ static Error UnbundleFiles() {
     auto Output = Worklist.find(CurTriple);
     // The file may have more bundles for other targets, that we don't care
     // about. Therefore, move on to the next triple
-    if (Output == Worklist.end())
-      continue;
+    if (Output == Worklist.end()) {
+      // FIXME: temporary solution for supporting binaries produced by old
+      // versions of SYCL toolchain. Old versions used triples with 'sycldevice'
+      // environment component of the triple, whereas new toolchain use
+      // 'unknown' value for that triple component. Here we assume that if we
+      // are looking for a bundle for sycl offload kind, for the same target
+      // triple there might be either one with 'sycldevice' environment or with
+      // 'unknown' environment, but not both. So we will look for any of these
+      // two variants.
+      if (!CurTriple.startswith("sycl-") || !CurTriple.endswith("-sycldevice"))
+        continue;
+      Output =
+          Worklist.find(CurTriple.drop_back(11 /*length of "-sycldevice"*/));
+      if (Output == Worklist.end())
+        continue;
+    }
 
     // Check if the output file can be opened and copy the bundle to it.
     std::error_code EC;
@@ -1494,7 +1556,21 @@ static Expected<bool> CheckBundledSection() {
     return std::move(Err);
 
   StringRef triple = TargetNames.front();
-  // Read all the bundles that are in the work list. If we find no bundles we
+
+  // FIXME: temporary solution for supporting binaries produced by old versions
+  // of SYCL toolchain. Old versions used triples with 'sycldevice' environment
+  // component of the triple, whereas new toolchain use 'unknown' value for that
+  // triple component. Here we assume that if we are looking for a bundle for
+  // sycl offload kind, for the same target triple there might be either one
+  // with 'sycldevice' environment or with 'unknown' environment, but not both.
+  // So we will look for any of these two variants.
+  OffloadTargetInfo TI(triple);
+  bool checkCompatibleTriple =
+      (TI.OffloadKind == "sycl") &&
+      (TI.Triple.getEnvironment() == Triple::UnknownEnvironment);
+  TI.Triple.setEnvironmentName("sycldevice");
+  std::string compatibleTriple = Twine("sycl-" + TI.Triple.str()).str();
+
   // assume the file is meant for the host target.
   bool found = false;
   while (!found) {
@@ -1506,7 +1582,9 @@ static Expected<bool> CheckBundledSection() {
     if (!*CurTripleOrErr)
       break;
 
-    if (*CurTripleOrErr == triple) {
+    if (*CurTripleOrErr == triple ||
+        (checkCompatibleTriple &&
+         *CurTripleOrErr == StringRef(compatibleTriple))) {
       found = true;
       break;
     }
@@ -1527,9 +1605,10 @@ bool isCodeObjectCompatible(OffloadTargetInfo &CodeObjectInfo,
 
   // Compatible in case of exact match.
   if (CodeObjectInfo == TargetInfo) {
-    DEBUG_WITH_TYPE(
-        "CodeObjectCompatibility",
-        dbgs() << "Compatible: Exact match: " << CodeObjectInfo.str() << "\n");
+    DEBUG_WITH_TYPE("CodeObjectCompatibility",
+                    dbgs() << "Compatible: Exact match: \t[CodeObject: "
+                           << CodeObjectInfo.str()
+                           << "]\t:\t[Target: " << TargetInfo.str() << "]\n");
     return true;
   }
 
@@ -1563,8 +1642,8 @@ bool isCodeObjectCompatible(OffloadTargetInfo &CodeObjectInfo,
 
 /// @brief Computes a list of targets among all given targets which are
 /// compatible with this code object
-/// @param [in] Code Object \p CodeObject
-/// @param [out] List of all compatible targets \p CompatibleTargets among all
+/// @param [in] CodeObjectInfo Code Object
+/// @param [out] CompatibleTargets List of all compatible targets among all
 /// given targets
 /// @return false, if no compatible target is found.
 static bool
@@ -1684,7 +1763,9 @@ static Error UnbundleArchive() {
           BundledObjectFileName.assign(BundledObjectFile);
           auto OutputBundleName =
               Twine(llvm::sys::path::stem(BundledObjectFileName) + "-" +
-                    CodeObject)
+                    CodeObject +
+                    getDeviceLibraryFileName(BundledObjectFileName,
+                                             CodeObjectInfo.GPUArch))
                   .str();
           // Replace ':' in optional target feature list with '_' to ensure
           // cross-platform validity.
@@ -1740,9 +1821,19 @@ static Error UnbundleArchive() {
     } else if (!AllowMissingBundles) {
       std::string ErrMsg =
           Twine("no compatible code object found for the target '" + Target +
-                "' in heterogenous archive library: " + IFName)
+                "' in heterogeneous archive library: " + IFName)
               .str();
       return createStringError(inconvertibleErrorCode(), ErrMsg);
+    } else { // Create an empty archive file if no compatible code object is
+             // found and "allow-missing-bundles" is enabled. It ensures that
+             // the linker using output of this step doesn't complain about
+             // the missing input file.
+      std::vector<llvm::NewArchiveMember> EmptyArchive;
+      EmptyArchive.clear();
+      if (Error WriteErr = writeArchive(FileName, EmptyArchive, true,
+                                        getDefaultArchiveKindForHost(), true,
+                                        false, nullptr))
+        return WriteErr;
     }
   }
 

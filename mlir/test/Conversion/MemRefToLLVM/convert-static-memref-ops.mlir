@@ -13,7 +13,7 @@ func @zero_d_alloc() -> memref<f32> {
 // CHECK: llvm.insertvalue %[[ptr]], %{{.*}}[1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64)>
 // CHECK: %[[c0:.*]] = llvm.mlir.constant(0 : index) : i64
 // CHECK: llvm.insertvalue %[[c0]], %{{.*}}[2] : !llvm.struct<(ptr<f32>, ptr<f32>, i64)>
-// CHECK: llvm.mlir.cast %{{.*}}
+// CHECK: unrealized_conversion_cast %{{.*}}
 
   %0 = memref.alloc() : memref<f32>
   return %0 : memref<f32>
@@ -23,7 +23,7 @@ func @zero_d_alloc() -> memref<f32> {
 
 // CHECK-LABEL: func @zero_d_dealloc
 func @zero_d_dealloc(%arg0: memref<f32>) {
-// CHECK: llvm.mlir.cast
+// CHECK: unrealized_conversion_cast
 // CHECK: %[[ptr:.*]] = llvm.extractvalue %{{.*}}[0] : !llvm.struct<(ptr<f32>, ptr<f32>, i64)>
 // CHECK: %[[bc:.*]] = llvm.bitcast %[[ptr]] : !llvm.ptr<f32> to !llvm.ptr<i8>
 // CHECK: llvm.call @free(%[[bc]]) : (!llvm.ptr<i8>) -> ()
@@ -128,8 +128,8 @@ func @zero_d_load(%arg0: memref<f32>) -> f32 {
 // CHECK:         %[[I:.*]]: index,
 // CHECK:         %[[J:.*]]: index)
 func @static_load(%static : memref<10x42xf32>, %i : index, %j : index) {
-// CHECK:  %[[II:.*]] = llvm.mlir.cast %[[I]]
-// CHECK:  %[[JJ:.*]] = llvm.mlir.cast %[[J]]
+// CHECK:  %[[II:.*]] = builtin.unrealized_conversion_cast %[[I]]
+// CHECK:  %[[JJ:.*]] = builtin.unrealized_conversion_cast %[[J]]
 // CHECK:  %[[ptr:.*]] = llvm.extractvalue %{{.*}}[1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
 // CHECK:  %[[st0:.*]] = llvm.mlir.constant(42 : index) : i64
 // CHECK:  %[[offI:.*]] = llvm.mul %[[II]], %[[st0]] : i64
@@ -156,8 +156,8 @@ func @zero_d_store(%arg0: memref<f32>, %arg1: f32) {
 // CHECK:         %[[MEMREF:.*]]: memref<10x42xf32>,
 // CHECK-SAME:    %[[I:.*]]: index, %[[J:.*]]: index,
 func @static_store(%static : memref<10x42xf32>, %i : index, %j : index, %val : f32) {
-// CHECK: %[[II:.*]] = llvm.mlir.cast %[[I]]
-// CHECK: %[[JJ:.*]] = llvm.mlir.cast %[[J]]
+// CHECK: %[[II:.*]] = builtin.unrealized_conversion_cast %[[I]]
+// CHECK: %[[JJ:.*]] = builtin.unrealized_conversion_cast %[[J]]
 // CHECK: %[[ptr:.*]] = llvm.extractvalue %{{.*}}[1] : !llvm.struct<(ptr<f32>, ptr<f32>, i64, array<2 x i64>, array<2 x i64>)>
 // CHECK: %[[st0:.*]] = llvm.mlir.constant(42 : index) : i64
 // CHECK: %[[offI:.*]] = llvm.mul %[[II]], %[[st0]] : i64
@@ -174,19 +174,19 @@ func @static_store(%static : memref<10x42xf32>, %i : index, %j : index, %val : f
 // CHECK-LABEL: func @static_memref_dim
 func @static_memref_dim(%static : memref<42x32x15x13x27xf32>) {
 // CHECK:  llvm.mlir.constant(42 : index) : i64
-  %c0 = constant 0 : index
+  %c0 = arith.constant 0 : index
   %0 = memref.dim %static, %c0 : memref<42x32x15x13x27xf32>
 // CHECK:  llvm.mlir.constant(32 : index) : i64
-  %c1 = constant 1 : index
+  %c1 = arith.constant 1 : index
   %1 = memref.dim %static, %c1 : memref<42x32x15x13x27xf32>
 // CHECK:  llvm.mlir.constant(15 : index) : i64
-  %c2 = constant 2 : index
+  %c2 = arith.constant 2 : index
   %2 = memref.dim %static, %c2 : memref<42x32x15x13x27xf32>
 // CHECK:  llvm.mlir.constant(13 : index) : i64
-  %c3 = constant 3 : index
+  %c3 = arith.constant 3 : index
   %3 = memref.dim %static, %c3 : memref<42x32x15x13x27xf32>
 // CHECK:  llvm.mlir.constant(27 : index) : i64
-  %c4 = constant 4 : index
+  %c4 = arith.constant 4 : index
   %4 = memref.dim %static, %c4 : memref<42x32x15x13x27xf32>
   return
 }
@@ -197,10 +197,10 @@ func @static_memref_dim(%static : memref<42x32x15x13x27xf32>) {
 // a data layout specification.
 module attributes { dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<index, 32>> } {
   func @address() {
-    %c1 = constant 1 : index
+    %c1 = arith.constant 1 : index
     %0 = memref.alloc(%c1) : memref<? x vector<2xf32>>
-    // CHECK: %[[CST_S:.*]] = constant 1 : index
-    // CHECK: %[[CST:.*]] = llvm.mlir.cast
+    // CHECK: %[[CST_S:.*]] = arith.constant 1 : index
+    // CHECK: %[[CST:.*]] = builtin.unrealized_conversion_cast
     // CHECK: llvm.mlir.null
     // CHECK: llvm.getelementptr %{{.*}}[[CST]]
     // CHECK: llvm.ptrtoint %{{.*}} : !llvm.ptr<{{.*}}> to i32

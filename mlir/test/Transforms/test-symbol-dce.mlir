@@ -1,5 +1,5 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -symbol-dce -split-input-file -verify-diagnostics | FileCheck %s
-// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="module(symbol-dce)" -split-input-file | FileCheck %s --check-prefix=NESTED
+// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="builtin.module(symbol-dce)" -split-input-file | FileCheck %s --check-prefix=NESTED
 
 // Check that trivially dead and trivially live non-nested cases are handled.
 
@@ -84,7 +84,17 @@ module {
 
 // -----
 
+// Check that unknown symbol references are OK.
 module {
-  // expected-error@+1 {{unable to resolve reference to symbol}}
+  // CHECK-NOT: func private @dead_private_function
+  func private @dead_private_function()
+
+  // CHECK: func private @live_private_function
+  func private @live_private_function()
+
+  // CHECK: "live.user"() {uses = [@live_private_function]} : () -> ()
+  "live.user"() {uses = [@live_private_function]} : () -> ()
+
+  // CHECK: "live.user"() {uses = [@unknown_symbol]} : () -> ()
   "live.user"() {uses = [@unknown_symbol]} : () -> ()
 }

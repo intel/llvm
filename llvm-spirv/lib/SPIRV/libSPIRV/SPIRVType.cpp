@@ -151,7 +151,8 @@ bool SPIRVType::isTypeArray() const { return OpCode == OpTypeArray; }
 bool SPIRVType::isTypeBool() const { return OpCode == OpTypeBool; }
 
 bool SPIRVType::isTypeComposite() const {
-  return isTypeVector() || isTypeArray() || isTypeStruct();
+  return isTypeVector() || isTypeArray() || isTypeStruct() ||
+         isTypeJointMatrixINTEL();
 }
 
 bool SPIRVType::isTypeFloat(unsigned Bits) const {
@@ -192,6 +193,10 @@ bool SPIRVType::isTypeImage() const { return OpCode == OpTypeImage; }
 bool SPIRVType::isTypeStruct() const { return OpCode == OpTypeStruct; }
 
 bool SPIRVType::isTypeVector() const { return OpCode == OpTypeVector; }
+
+bool SPIRVType::isTypeJointMatrixINTEL() const {
+  return OpCode == internal::OpTypeJointMatrixINTEL;
+}
 
 bool SPIRVType::isTypeVectorBool() const {
   return isTypeVector() && getVectorComponentType()->isTypeBool();
@@ -265,4 +270,18 @@ void SPIRVTypeForwardPointer::decode(std::istream &I) {
   SPIRVId PointerId;
   Decoder >> PointerId >> SC;
 }
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL(
+    SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType, SPIRVValue *Rows,
+    SPIRVValue *Columns, SPIRVValue *Layout, SPIRVValue *Scope)
+    : SPIRVType(M, FixedWC, OC, TheId), CompType(CompType), Rows(Rows),
+      Columns(Columns), Layout(Layout), Scope(Scope) {}
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL()
+    : SPIRVType(OC), CompType(nullptr), Rows(nullptr), Columns(nullptr),
+      Layout(nullptr), Scope(nullptr) {}
+
+_SPIRV_IMP_ENCDEC6(SPIRVTypeJointMatrixINTEL, Id, CompType, Rows, Columns,
+                   Layout, Scope)
+
 } // namespace SPIRV

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
@@ -106,6 +106,7 @@ public:
   /// PropList.
   ///
   /// \param Platform is an instance of SYCL platform.
+  /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
   explicit context(const platform &Platform, async_handler AsyncHandler,
                    const property_list &PropList = {});
@@ -148,8 +149,9 @@ public:
   ///
   /// \param ClContext is an instance of OpenCL cl_context.
   /// \param AsyncHandler is an instance of async_handler.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   context(cl_context ClContext, async_handler AsyncHandler = {});
+#endif
 
   /// Queries this SYCL context for information.
   ///
@@ -188,8 +190,9 @@ public:
   /// The OpenCL cl_context handle is retained on return.
   ///
   /// \return a valid instance of OpenCL cl_context.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_context get() const;
+#endif
 
   /// Checks if this context is a SYCL host context.
   ///
@@ -214,10 +217,10 @@ public:
   /// Gets the native handle of the SYCL context.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
-  auto get_native() const -> typename interop<BackendName, context>::type {
-    return reinterpret_cast<typename interop<BackendName, context>::type>(
-        getNative());
+  template <backend Backend>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  backend_return_t<Backend, context> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, context>>(getNative());
   }
 
 private:

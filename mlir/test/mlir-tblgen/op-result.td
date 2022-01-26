@@ -51,7 +51,7 @@ def OpD : NS_Op<"type_attr_as_result_type", [FirstAttrDerivedResultType]> {
 
 // CHECK-LABEL: OpD definitions
 // CHECK: void OpD::build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes)
-// CHECK: odsState.addTypes({attr.second.cast<::mlir::TypeAttr>().getValue()});
+// CHECK: odsState.addTypes({attr.getValue().cast<::mlir::TypeAttr>().getValue()});
 
 def OpE : NS_Op<"value_attr_as_result_type", [FirstAttrDerivedResultType]> {
   let arguments = (ins I32:$x, F32Attr:$attr);
@@ -60,7 +60,7 @@ def OpE : NS_Op<"value_attr_as_result_type", [FirstAttrDerivedResultType]> {
 
 // CHECK-LABEL: OpE definitions
 // CHECK: void OpE::build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes)
-// CHECK: odsState.addTypes({attr.second.getType()});
+// CHECK: odsState.addTypes({attr.getValue().getType()});
 
 def OpF : NS_Op<"one_variadic_result_op", []> {
   let results = (outs Variadic<I32>:$x);
@@ -115,12 +115,23 @@ def OpK : NS_Op<"only_input_is_variadic_with_same_value_type_op", [SameOperandsA
 
 // Test with inferred shapes and interleaved with operands/attributes.
 //
-def OpL : NS_Op<"op_with_all_types_constraint",
+def OpL1 : NS_Op<"op_with_all_types_constraint",
     [AllTypesMatch<["a", "b"]>]> {
   let arguments = (ins I32Attr:$attr1, AnyType:$a);
   let results = (outs Res<AnyType, "output b", []>:$b);
 }
 
-// CHECK-LABEL: LogicalResult OpL::inferReturnTypes
+// CHECK-LABEL: LogicalResult OpL1::inferReturnTypes
 // CHECK-NOT: }
 // CHECK: inferredReturnTypes[0] = operands[0].getType();
+
+def OpL2 : NS_Op<"op_with_all_types_constraint",
+    [AllTypesMatch<["c", "b"]>, AllTypesMatch<["a", "d"]>]> {
+  let arguments = (ins I32Attr:$attr1, AnyType:$a, AnyType:$a2, AnyType:$c);
+  let results = (outs Res<AnyType, "output b", []>:$b, AnyType:$d);
+}
+
+// CHECK-LABEL: LogicalResult OpL2::inferReturnTypes
+// CHECK-NOT: }
+// CHECK: inferredReturnTypes[0] = operands[2].getType();
+// CHECK: inferredReturnTypes[1] = operands[0].getType();

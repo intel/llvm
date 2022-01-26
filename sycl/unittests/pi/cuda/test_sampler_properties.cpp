@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "gtest/gtest.h"
+
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
-#include <gtest/gtest.h>
+
 #include <vector>
 
 namespace {
@@ -21,7 +23,8 @@ class SamplerPropertiesTest
     : public ::testing::TestWithParam<std::tuple<
           pi_bool, pi_sampler_filter_mode, pi_sampler_addressing_mode>> {
 protected:
-  detail::plugin *plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin =
+      pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;
   pi_device device_;
@@ -38,14 +41,14 @@ protected:
 
   void SetUp() override {
     // skip the tests if the CUDA backend is not available
-    if (plugin == nullptr) {
+    if (!plugin.has_value()) {
       GTEST_SKIP();
     }
 
     std::tie(normalizedCoords_, filterMode_, addressMode_) = GetParam();
 
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin->getBackend(), backend::cuda);
+    ASSERT_EQ(plugin->getBackend(), backend::ext_oneapi_cuda);
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
@@ -67,11 +70,11 @@ protected:
 
     pi_sampler_properties sampler_properties[] = {
         PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS,
-        normalizedCoords_,
+        static_cast<pi_sampler_properties>(normalizedCoords_),
         PI_SAMPLER_PROPERTIES_ADDRESSING_MODE,
-        addressMode_,
+        static_cast<pi_sampler_properties>(addressMode_),
         PI_SAMPLER_PROPERTIES_FILTER_MODE,
-        filterMode_,
+        static_cast<pi_sampler_properties>(filterMode_),
         0};
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piSamplerCreate>(
@@ -80,7 +83,7 @@ protected:
   }
 
   void TearDown() override {
-    if (plugin) {
+    if (plugin.has_value()) {
       plugin->call<detail::PiApiKind::piSamplerRelease>(sampler_);
       plugin->call<detail::PiApiKind::piDeviceRelease>(device_);
       plugin->call<detail::PiApiKind::piContextRelease>(context_);
@@ -118,8 +121,8 @@ TEST_P(SamplerPropertiesTest, piCheckAddressingMode) {
   ASSERT_EQ(actualAddressMode, addressMode_);
 }
 
-INSTANTIATE_TEST_CASE_P(
-    SamplerPropertiesTesttImpl, SamplerPropertiesTest,
+INSTANTIATE_TEST_SUITE_P(
+    SamplerPropertiesTestImpl, SamplerPropertiesTest,
     ::testing::Combine(
         ::testing::Values(PI_TRUE, PI_FALSE),
         ::testing::Values(PI_SAMPLER_FILTER_MODE_LINEAR,

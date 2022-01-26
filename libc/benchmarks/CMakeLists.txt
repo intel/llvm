@@ -10,14 +10,14 @@ set(LLVM_LINK_COMPONENTS Support)
 set(GOOGLE_BENCHMARK_TARGET_FLAGS ${BENCHMARK_DIALECT_FLAG})
 if (LIBCXX_BENCHMARK_GCC_TOOLCHAIN)
   set(GOOGLE_BENCHMARK_TARGET_FLAGS
-      -gcc-toolchain ${LIBCXX_BENCHMARK_GCC_TOOLCHAIN})
+      --gcc-toolchain=${LIBCXX_BENCHMARK_GCC_TOOLCHAIN})
 endif()
 string(REPLACE ";" " " GOOGLE_BENCHMARK_TARGET_FLAGS "${GOOGLE_BENCHMARK_TARGET_FLAGS}")
 
 ExternalProject_Add(google-benchmark
     EXCLUDE_FROM_ALL ON
     PREFIX google-benchmark
-    SOURCE_DIR ${LIBC_SOURCE_DIR}/../llvm/utils/benchmark
+    SOURCE_DIR ${LLVM_THIRD_PARTY_DIR}/benchmark
     INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/google-benchmark
     CMAKE_CACHE_ARGS
         -DBUILD_SHARED_LIBS:BOOL=OFF
@@ -112,8 +112,13 @@ add_library(libc-memory-benchmark
     EXCLUDE_FROM_ALL
     LibcMemoryBenchmark.cpp
     LibcMemoryBenchmark.h
+    LibcFunctionPrototypes.h
     MemorySizeDistributions.cpp
     MemorySizeDistributions.h
+)
+target_include_directories(libc-memory-benchmark
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(libc-memory-benchmark
     PUBLIC
@@ -160,14 +165,43 @@ function(add_libc_multi_impl_benchmark name)
         get_target_property(entrypoint_object_file ${fq_config_name} "OBJECT_FILE_RAW")
         target_link_libraries(${benchmark_name} PUBLIC json ${entrypoint_object_file})
         string(TOUPPER ${name} name_upper)
-        target_compile_definitions(${benchmark_name} PRIVATE "-DLIBC_BENCHMARK_FUNCTION_${name_upper}=1" "-DLIBC_BENCHMARK_FUNCTION_NAME=\"${fq_config_name}\"")
+        target_compile_definitions(${benchmark_name} PRIVATE "-DLIBC_BENCHMARK_FUNCTION_${name_upper}=__llvm_libc::${name}" "-DLIBC_BENCHMARK_FUNCTION_NAME=\"${fq_config_name}\"")
     else()
       message(STATUS "Skipping benchmark for '${fq_config_name}' insufficient host cpu features '${required_cpu_features}'")
     endif()
   endforeach()
 endfunction()
 
-add_libc_multi_impl_benchmark(memcpy)
-add_libc_multi_impl_benchmark(memset)
+add_libc_multi_impl_benchmark(bcmp)
 add_libc_multi_impl_benchmark(bzero)
 add_libc_multi_impl_benchmark(memcmp)
+add_libc_multi_impl_benchmark(memcpy)
+add_libc_multi_impl_benchmark(memmove)
+add_libc_multi_impl_benchmark(memset)
+
+#==============================================================================
+# Google Benchmarking tool
+#==============================================================================
+
+# This target uses the Google Benchmark facility to report throughput for llvm
+# libc memory functions compiled for the host machine. This is useful to
+# continuously monitor the performance of the memory functions.
+add_executable(libc.benchmarks.memory_functions.opt_host
+  EXCLUDE_FROM_ALL
+  LibcMemoryGoogleBenchmarkMain.cpp
+  LibcDefaultImplementations.cpp
+)
+
+target_link_libraries(libc.benchmarks.memory_functions.opt_host
+  PRIVATE
+  libc-memory-benchmark
+  libc.src.string.memcmp_opt_host
+  libc.src.string.bcmp_opt_host
+  libc.src.string.memcpy_opt_host
+  libc.src.string.memset_opt_host
+  libc.src.string.bzero_opt_host
+  libc.src.string.memmove_opt_host
+  benchmark_main
+)
+
+add_subdirectory(automemcpy)

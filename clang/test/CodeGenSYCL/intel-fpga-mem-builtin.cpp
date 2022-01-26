@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux-sycldevice -std=c++11 -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -std=c++11 -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s
 
 #define PARAM_1 1U << 7
 #define PARAM_2 1U << 8
@@ -12,7 +12,7 @@ struct State {
 // CHECK: [[ANN1:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:0}
 // CHECK: [[ANN2:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}
 
-// CHECK: define {{.*}}spir_func void @{{.*}}(float addrspace(4)* %A, i32 addrspace(4)* %B, [[STRUCT]] addrspace(4)* %C, [[STRUCT]] addrspace(4)*{{.*}}%D)
+// CHECK: define {{.*}}spir_func void @{{.*}}(float addrspace(4)* noundef %A, i32 addrspace(4)* noundef %B, [[STRUCT]] addrspace(4)* noundef %C, [[STRUCT]] addrspace(4)*{{.*}}%D)
 void foo(float *A, int *B, State *C, State &D) {
   float *x;
   int *y;

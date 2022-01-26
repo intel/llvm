@@ -8,7 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // transform_view::<iterator>::base
 
@@ -17,30 +17,32 @@
 #include "test_macros.h"
 #include "../types.h"
 
-template<class V, class F>
-concept BaseInvocable = requires(std::ranges::iterator_t<std::ranges::transform_view<V, F>> iter) {
-  iter.base();
+template<class It>
+concept HasBase = requires(It it) {
+  static_cast<It>(it).base();
 };
 
 constexpr bool test() {
   {
-    std::ranges::transform_view<ContiguousView, Increment> transformView;
-    auto iter = std::move(transformView).begin();
-    ASSERT_SAME_TYPE(int*, decltype(iter.base()));
-    assert(iter.base() == globalBuff);
-    ASSERT_SAME_TYPE(int*, decltype(std::move(iter).base()));
-    assert(std::move(iter).base() == globalBuff);
+    using TransformView = std::ranges::transform_view<MoveOnlyView, PlusOneMutable>;
+    TransformView tv;
+    auto begin = tv.begin();
+    ASSERT_SAME_TYPE(decltype(begin.base()), int*);
+    assert(begin.base() == globalBuff);
+    ASSERT_SAME_TYPE(decltype(std::move(begin).base()), int*);
+    assert(std::move(begin).base() == globalBuff);
   }
-
   {
-    std::ranges::transform_view<InputView, Increment> transformView;
-    auto iter = transformView.begin();
-    assert(std::move(iter).base() == globalBuff);
-    ASSERT_SAME_TYPE(cpp20_input_iterator<int *>, decltype(std::move(iter).base()));
+    using TransformView = std::ranges::transform_view<InputView, PlusOneMutable>;
+    TransformView tv;
+    auto begin = tv.begin();
+    static_assert(!HasBase<decltype(begin)&>);
+    static_assert(HasBase<decltype(begin)&&>);
+    static_assert(!HasBase<const decltype(begin)&>);
+    static_assert(!HasBase<const decltype(begin)&&>);
+    std::same_as<cpp20_input_iterator<int *>> auto it = std::move(begin).base();
+    assert(base(it) == globalBuff);
   }
-
-  static_assert(!BaseInvocable<InputView, Increment>);
-
   return true;
 }
 

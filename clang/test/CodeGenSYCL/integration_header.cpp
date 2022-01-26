@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -sycl-std=2020 -fsycl-int-header=%t.h %s -emit-llvm -o %t.ll
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -sycl-std=2020 -fsycl-int-header=%t.h %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.h %s
 //
 // CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
@@ -48,9 +48,10 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 40 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 52 },
 // CHECK-EMPTY:
+// CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
 //
-// CHECK: template <> struct KernelInfo<class first_kernel> {
+// CHECK: template <> struct KernelInfo<first_kernel> {
 // CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
 // CHECK: template <> struct KernelInfo<::fourth_kernel<::template_arg_ns::namespaced_arg<1>>> {
 

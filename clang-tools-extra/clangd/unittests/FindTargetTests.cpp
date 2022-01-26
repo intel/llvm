@@ -342,6 +342,15 @@ TEST_F(TargetDeclTest, Types) {
   Flags.clear();
 
   Code = R"cpp(
+  template<template<typename> class ...T>
+  class C {
+    C<[[T...]]> foo;
+    };
+  )cpp";
+  EXPECT_DECLS("TemplateArgumentLoc", {"template <typename> class ...T"});
+  Flags.clear();
+
+  Code = R"cpp(
     struct S{};
     S X;
     [[decltype]](X) Y;
@@ -995,6 +1004,20 @@ TEST_F(TargetDeclTest, ObjC) {
     }
   )cpp";
   EXPECT_DECLS("ObjCPropertyRefExpr", "+ (id)sharedInstance");
+
+  Code = R"cpp(
+    @interface Foo
+    + ([[id]])sharedInstance;
+    @end
+  )cpp";
+  EXPECT_DECLS("TypedefTypeLoc");
+
+  Code = R"cpp(
+    @interface Foo
+    + ([[instancetype]])sharedInstance;
+    @end
+  )cpp";
+  EXPECT_DECLS("TypedefTypeLoc");
 }
 
 class FindExplicitReferencesTest : public ::testing::Test {
@@ -1260,11 +1283,7 @@ TEST_F(FindExplicitReferencesTest, All) {
         "0: targets = {x}, decl\n"
         "1: targets = {vector}\n"
         "2: targets = {x}\n"},
-// Handle UnresolvedLookupExpr.
-// FIXME
-// This case fails when expensive checks are enabled.
-// Seems like the order of ns1::func and ns2::func isn't defined.
-#ifndef EXPENSIVE_CHECKS
+       // Handle UnresolvedLookupExpr.
        {R"cpp(
             namespace ns1 { void func(char*); }
             namespace ns2 { void func(int*); }
@@ -1278,7 +1297,6 @@ TEST_F(FindExplicitReferencesTest, All) {
         )cpp",
         "0: targets = {ns1::func, ns2::func}\n"
         "1: targets = {t}\n"},
-#endif
        // Handle UnresolvedMemberExpr.
        {R"cpp(
             struct X {

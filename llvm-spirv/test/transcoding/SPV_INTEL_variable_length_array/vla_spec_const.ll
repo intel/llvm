@@ -57,7 +57,7 @@
 ; CHECK-SPIRV: ReturnValue [[#SPEC_CONST]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" = type { %"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" }
 %"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" = type { i8 }

@@ -1,6 +1,6 @@
 // REQUIRES: x86-registered-target
 // REQUIRES: powerpc-registered-target
-// UNSUPPORTED: darwin
+// UNSUPPORTED: darwin, aix
 
 //
 // Generate all the types of files we can bundle.
@@ -33,6 +33,7 @@
 // CK-HELP: {{.*}}one. The resulting file can also be unbundled into different files by
 // CK-HELP: {{.*}}this tool if -unbundle is provided.
 // CK-HELP: {{.*}}USAGE: clang-offload-bundler [options]
+// CK-HELP: {{.*}}-add-target-symbols-to-bundled-object {{.*}}- Add .tgtsym section with target symbol names to the output file when bundling object files.
 // CK-HELP: {{.*}}-allow-missing-bundles {{.*}}- Create empty files if bundles are missing when unbundling
 // CK-HELP: {{.*}}-inputs=<string>  - [<input file>,...]
 // CK-HELP: {{.*}}-list {{.*}}- List bundle IDs in the bundled file.
@@ -324,9 +325,9 @@
 // RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple -inputs=%t.bundle3.bc -check-section
 // RUN: clang-offload-bundler -type=bc -targets=openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle3.bc -check-section
 // RUN: clang-offload-bundler -type=bc -targets=openmp-x86_64-pc-linux-gnu -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux -inputs=%t.bundle3.bc -check-section
 
 //
 // Check archive bundle.
@@ -447,15 +448,24 @@
 // Check archive unbundling
 //
 // Create few code object bundles and archive them to create an input archive
-// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-amdgcn-amd-amdhsa--gfx906,openmp-amdgcn-amd-amdhsa--gfx908 -inputs=%t.o,%t.tgt1,%t.tgt2 -outputs=%t.simple.bundle
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-amdgcn-amd-amdhsa-gfx906,openmp-amdgcn-amd-amdhsa--gfx908 -inputs=%t.o,%t.tgt1,%t.tgt2 -outputs=%t.simple.bundle
 // RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-amdgcn-amd-amdhsa--gfx903 -inputs=%t.o,%t.tgt1 -outputs=%t.simple1.bundle
 // RUN: llvm-ar cr %t.input-archive.a %t.simple.bundle %t.simple1.bundle
 
-// RUN: clang-offload-bundler -unbundle -type=a -targets=openmp-amdgcn-amd-amdhsa--gfx906,openmp-amdgcn-amd-amdhsa--gfx908 -inputs=%t.input-archive.a -outputs=%t-archive-gfx906-simple.a,%t-archive-gfx908-simple.a
+// RUN: clang-offload-bundler -unbundle -type=a -targets=openmp-amdgcn-amd-amdhsa-gfx906,openmp-amdgcn-amd-amdhsa-gfx908 -inputs=%t.input-archive.a -outputs=%t-archive-gfx906-simple.a,%t-archive-gfx908-simple.a
 // RUN: llvm-ar t %t-archive-gfx906-simple.a | FileCheck %s -check-prefix=GFX906
-// GFX906: simple-openmp-amdgcn-amd-amdhsa--gfx906
+// GFX906: simple-openmp-amdgcn-amd-amdhsa-gfx906
 // RUN: llvm-ar t %t-archive-gfx908-simple.a | FileCheck %s -check-prefix=GFX908
 // GFX908-NOT: {{gfx906}}
+
+// Check for error if no compatible code object is found in the heterogeneous archive library
+// RUN: not clang-offload-bundler -unbundle -type=a -targets=openmp-amdgcn-amd-amdhsa-gfx803 -inputs=%t.input-archive.a -outputs=%t-archive-gfx803-incompatible.a 2>&1 | FileCheck %s -check-prefix=INCOMPATIBLEARCHIVE
+// INCOMPATIBLEARCHIVE: error: no compatible code object found for the target 'openmp-amdgcn-amd-amdhsa-gfx803' in heterogeneous archive library
+
+// Check creation of empty archive if allow-missing-bundles is present and no compatible code object is found in the heterogeneous archive library
+// RUN: clang-offload-bundler -unbundle -type=a -targets=openmp-amdgcn-amd-amdhsa-gfx803 -inputs=%t.input-archive.a -outputs=%t-archive-gfx803-empty.a -allow-missing-bundles
+// RUN: cat %t-archive-gfx803-empty.a | FileCheck %s -check-prefix=EMPTYARCHIVE
+// EMPTYARCHIVE: !<arch>
 
 // Some code so that we can create a binary out of this file.
 int A = 0;

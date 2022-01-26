@@ -33,8 +33,9 @@ enum DataLessPropKind {
   UsePrimaryContext = 6,
   InitializeToIdentity = 7,
   UseDefaultStream = 8,
+  DiscardEvents = 9,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 8,
+  LastKnownDataLessPropKind = 9,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };

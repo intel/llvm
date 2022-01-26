@@ -98,6 +98,9 @@ public:
                                  AtomicOrdering Ord) const override;
   TargetLoweringBase::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
+  ISD::NodeType getExtendForAtomicOps() const override {
+    return ISD::ANY_EXTEND;
+  }
 
   /// Custom Lower {
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
@@ -216,4 +219,4 @@ public:
 };
 } // namespace llvm
 
-#endif // VE_ISELLOWERING_H
+#endif // LLVM_LIB_TARGET_VE_VEISELLOWERING_H

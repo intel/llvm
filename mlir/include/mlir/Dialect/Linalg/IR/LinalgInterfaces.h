@@ -19,6 +19,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 
 namespace mlir {
@@ -30,10 +31,6 @@ struct OpOperandVector : public SmallVector<OpOperand *> {
   operator SmallVector<Value>();
 };
 
-/// Returns the values obtained by applying `map` to the list of values.
-SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
-                                       AffineMap map, ValueRange values);
-
 /// Checks whether `linalgOp` conforms to ContractionOpInterface.
 // TODO: embed within `isa<ContractionOpInterface>` if possible / natural.
 bool isaContractionOpInterface(LinalgOp linalgOp);
@@ -42,6 +39,9 @@ namespace detail {
 
 /// Verify that `op` conforms to ContractionOpInterface.
 LogicalResult verifyContractionInterface(Operation *op);
+
+/// Verify that `op` conforms to the ConvolutionOpInterface.
+LogicalResult verifyConvolutionInterface(Operation *op);
 
 /// Verify that `op` conforms to the invariants of StructuredOpInterface
 LogicalResult verifyStructuredOpInterface(Operation *op);

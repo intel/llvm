@@ -15,7 +15,6 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_MCTARGETDESC_AMDGPUHSAMETADATASTREAMER_H
 #define LLVM_LIB_TARGET_AMDGPU_MCTARGETDESC_AMDGPUHSAMETADATASTREAMER_H
 
-#include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/BinaryFormat/MsgPackDocument.h"
 #include "llvm/Support/AMDGPUMetadata.h"
 #include "llvm/Support/Alignment.h"
@@ -31,8 +30,14 @@ class MDNode;
 class Module;
 struct SIProgramInfo;
 class Type;
+class GCNSubtarget;
 
 namespace AMDGPU {
+
+namespace IsaInfo {
+class AMDGPUTargetID;
+}
+
 namespace HSAMD {
 
 class MetadataStreamer {
@@ -82,7 +87,8 @@ protected:
 
   void emitKernelAttrs(const Function &Func, msgpack::MapDocNode Kern);
 
-  void emitKernelArgs(const Function &Func, msgpack::MapDocNode Kern);
+  void emitKernelArgs(const Function &Func, const GCNSubtarget &ST,
+                      msgpack::MapDocNode Kern);
 
   void emitKernelArg(const Argument &Arg, unsigned &Offset,
                      msgpack::ArrayDocNode Args);
@@ -94,8 +100,8 @@ protected:
                      StringRef BaseTypeName = "", StringRef AccQual = "",
                      StringRef TypeQual = "");
 
-  void emitHiddenKernelArgs(const Function &Func, unsigned &Offset,
-                            msgpack::ArrayDocNode Args);
+  void emitHiddenKernelArgs(const Function &Func, const GCNSubtarget &ST,
+                            unsigned &Offset, msgpack::ArrayDocNode Args);
 
   msgpack::DocNode &getRootMetadata(StringRef Key) {
     return HSAMetadataDoc->getRoot().getMap(/*Convert=*/true)[Key];
@@ -169,7 +175,7 @@ private:
 
   void emitKernelAttrs(const Function &Func);
 
-  void emitKernelArgs(const Function &Func);
+  void emitKernelArgs(const Function &Func, const GCNSubtarget &ST);
 
   void emitKernelArg(const Argument &Arg);
 
@@ -179,7 +185,7 @@ private:
                      StringRef BaseTypeName = "", StringRef AccQual = "",
                      StringRef TypeQual = "");
 
-  void emitHiddenKernelArgs(const Function &Func);
+  void emitHiddenKernelArgs(const Function &Func, const GCNSubtarget &ST);
 
   const Metadata &getHSAMetadata() const {
     return HSAMetadata;

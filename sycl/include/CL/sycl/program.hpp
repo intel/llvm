@@ -8,7 +8,10 @@
 
 #pragma once
 
+#ifdef __SYCL_INTERNAL_API
+
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
@@ -364,10 +367,10 @@ public:
   /// Gets the native handle of the SYCL platform.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
-  auto get_native() const -> typename interop<BackendName, program>::type {
-    return reinterpret_cast<typename interop<BackendName, program>::type>(
-        getNative());
+  template <backend Backend>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  backend_return_t<Backend, program> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, program>>(getNative());
   }
 
 private:
@@ -427,3 +430,5 @@ template <> struct hash<cl::sycl::program> {
   }
 };
 } // namespace std
+
+#endif

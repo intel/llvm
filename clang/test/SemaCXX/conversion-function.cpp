@@ -120,7 +120,9 @@ void f(Yb& a) {
   char ch = a;  // OK. calls Yb::operator char();
 }
 
-// Test conversion + copy construction.
+// Test conversion + copy construction. This is a pure C++98 test.
+// However we may extend implicit moves into C++98, we must make sure the
+// result here is not changed.
 class AutoPtrRef { };
 
 class AutoPtr {
@@ -187,7 +189,7 @@ namespace source_locations {
   template<typename T>
   struct E2 {
     operator T
-    * // expected-error{{pointer to a reference}}
+    * // expected-error{{'operator type-parameter-0-0 *' declared as a pointer to a reference of type 'int &'}}
     () const;
   };
 

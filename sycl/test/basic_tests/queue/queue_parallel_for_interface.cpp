@@ -90,7 +90,8 @@ void test_number_event(sycl::queue q, sycl::event e) {
   });
 }
 
-void test_number_event_vector(sycl::queue q, const sycl::vector_class<sycl::event> &events) {
+void test_number_event_vector(sycl::queue q,
+                              const std::vector<sycl::event> &events) {
   q.parallel_for<class NumberEventVector>(1, events, [=](auto i) {
     static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
                   "lambda arg type is unexpected");
@@ -130,7 +131,7 @@ int main() {
 
   test_number_event_vector(q, {e1, e2});
 
-  sycl::vector_class<sycl::event> events{e1, e2};
+  std::vector<sycl::event> events{e1, e2};
   test_braced_init_list_event<class BracedInitList1EventVector, sycl::range, 1>(q, events);
   test_braced_init_list_event<class BracedInitList2EventVector, sycl::range, 2>(q, events);
   test_braced_init_list_event<class BracedInitList3EventVector, sycl::range, 3>(q, events);

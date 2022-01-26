@@ -9,15 +9,26 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(CompilerRTBuiltins C ASM)
   set(COMPILER_RT_STANDALONE_BUILD TRUE)
   set(COMPILER_RT_BUILTINS_STANDALONE_BUILD TRUE)
+
+  set(COMPILER_RT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+
+  set(LLVM_COMMON_CMAKE_UTILS "${COMPILER_RT_SOURCE_DIR}/../cmake")
+
+  # Add path for custom modules
   list(INSERT CMAKE_MODULE_PATH 0
-    "${CMAKE_SOURCE_DIR}/../../cmake"
-    "${CMAKE_SOURCE_DIR}/../../cmake/Modules")
+    "${COMPILER_RT_SOURCE_DIR}/cmake"
+    "${COMPILER_RT_SOURCE_DIR}/cmake/Modules"
+    "${LLVM_COMMON_CMAKE_UTILS}"
+    "${LLVM_COMMON_CMAKE_UTILS}/Modules"
+    )
+
   include(base-config-ix)
   include(CompilerRTUtils)
 
   load_llvm_config()
   construct_compiler_rt_default_triple()
 
+  include(SetPlatformToolchainTools)
   if(APPLE)
     include(CompilerRTDarwinUtils)
   endif()
@@ -25,15 +36,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     include(UseLibtool)
   endif()
   include(AddCompilerRT)
-
-  if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-    set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> -X32_64 qc <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X32_64 qc <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> -X32_64 q <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> -X32_64 q <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> -X32_64 <TARGET>")
-    set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -X32_64 <TARGET>")
-  endif()
 endif()
 
 if (COMPILER_RT_STANDALONE_BUILD)
@@ -492,7 +494,6 @@ if(MINGW)
     arm/aeabi_uidivmod.S
     arm/aeabi_uldivmod.S
     arm/chkstk.S
-    mingw_fixfloat.c
     ${arm_SOURCES}
   )
 elseif(NOT WIN32)
@@ -531,10 +532,8 @@ foreach(pat cas swp ldadd ldclr ldeor ldset)
     foreach(model 1 2 3 4)
       if(pat STREQUAL "cas" OR NOT size STREQUAL "16")
         set(helper_asm "${OA_HELPERS_DIR}/outline_atomic_${pat}${size}_${model}.S")
-        add_custom_command(
-          OUTPUT ${helper_asm}
-          COMMAND ${CMAKE_COMMAND} -E ${COMPILER_RT_LINK_OR_COPY} "${CMAKE_CURRENT_SOURCE_DIR}/aarch64/lse.S" "${helper_asm}"
-        )
+        list(APPEND lse_builtins "${helper_asm}")
+        list(APPEND arm64_lse_commands COMMAND ${CMAKE_COMMAND} -E ${COMPILER_RT_LINK_OR_COPY} "${CMAKE_CURRENT_SOURCE_DIR}/aarch64/lse.S" "${helper_asm}")
         set_source_files_properties("${helper_asm}"
           PROPERTIES
           COMPILE_DEFINITIONS "L_${pat};SIZE=${size};MODEL=${model}"
@@ -610,6 +609,8 @@ set(mips64el_SOURCES ${GENERIC_TF_SOURCES}
 
 set(powerpc_SOURCES ${GENERIC_SOURCES})
 
+set(powerpcspe_SOURCES ${GENERIC_SOURCES})
+
 set(powerpc64_SOURCES
   ppc/divtc3.c
   ppc/fixtfdi.c
@@ -677,6 +678,10 @@ if (APPLE)
 else ()
   set(BUILTIN_CFLAGS "")
 
+  if (COMPILER_RT_HAS_FCF_PROTECTION_FLAG)
+    append_list_if(COMPILER_RT_ENABLE_CET -fcf-protection=full BUILTIN_CFLAGS)
+  endif()
+
   append_list_if(COMPILER_RT_HAS_FLOAT16 -DCOMPILER_RT_HAS_FLOAT16 BUILTIN_CFLAGS)
 
   append_list_if(COMPILER_RT_HAS_STD_C11_FLAG -std=c11 BUILTIN_CFLAGS)
@@ -741,9 +746,20 @@ else ()
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
+      if(arch STREQUAL "aarch64")
+        add_custom_target(
+          lse_builtin_symlinks
+          BYPRODUCTS ${lse_builtins}
+          ${arm64_lse_commands}
+        )
+
+        set(deps_aarch64 lse_builtin_symlinks)
+      endif()
+
       add_compiler_rt_runtime(clang_rt.builtins
                               STATIC
                               ARCHS ${arch}
+                              DEPS ${deps_${arch}}
                               SOURCES ${${arch}_SOURCES}
                               DEFS ${BUILTIN_DEFS}
                               CFLAGS ${BUILTIN_CFLAGS_${arch}}

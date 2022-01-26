@@ -59,7 +59,7 @@ enum ArchExtKind : uint64_t {
   AEK_CDECP5 =      1 << 27,
   AEK_CDECP6 =      1 << 28,
   AEK_CDECP7 =      1 << 29,
-
+  AEK_PACBTI =      1 << 30,
   // Unsupported extensions.
   AEK_OS       =    1ULL << 59,
   AEK_IWMMXT   =    1ULL << 60,
@@ -252,7 +252,6 @@ StringRef getArchExtFeature(StringRef ArchExt);
 bool appendArchExtFeatures(StringRef CPU, ARM::ArchKind AK, StringRef ArchExt,
                            std::vector<StringRef> &Features,
                            unsigned &ArgFPUKind);
-StringRef getHWDivName(uint64_t HWDivKind);
 
 // Information by Name
 unsigned getDefaultFPU(StringRef CPU, ArchKind AK);

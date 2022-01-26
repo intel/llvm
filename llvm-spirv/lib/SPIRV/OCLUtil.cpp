@@ -194,6 +194,7 @@ template <> void SPIRVMap<OclExt::Kind, std::string>::init() {
   _SPIRV_OP(cl_khr_mipmap_image_writes)
   _SPIRV_OP(cl_khr_egl_event)
   _SPIRV_OP(cl_khr_srgb_image_writes)
+  _SPIRV_OP(cl_khr_extended_bit_ops)
 #undef _SPIRV_OP
 }
 
@@ -206,6 +207,7 @@ template <> void SPIRVMap<OclExt::Kind, SPIRVCapabilityKind>::init() {
   add(OclExt::cl_khr_subgroups, CapabilityGroups);
   add(OclExt::cl_khr_mipmap_image, CapabilityImageMipmap);
   add(OclExt::cl_khr_mipmap_image_writes, CapabilityImageMipmap);
+  add(OclExt::cl_khr_extended_bit_ops, CapabilityBitInstructions);
 }
 
 /// Map OpenCL work functions to SPIR-V builtin variables.
@@ -291,7 +293,7 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(isgreaterequal, FOrdGreaterThanEqual)
   _SPIRV_OP(isless, FOrdLessThan)
   _SPIRV_OP(islessequal, FOrdLessThanEqual)
-  _SPIRV_OP(islessgreater, LessOrGreater)
+  _SPIRV_OP(islessgreater, FOrdNotEqual)
   _SPIRV_OP(isordered, Ordered)
   _SPIRV_OP(isunordered, Unordered)
   _SPIRV_OP(isfinite, IsFinite)
@@ -414,6 +416,11 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // cl_khr_subgroup_shuffle_relative
   _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
   _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
+  // cl_khr_extended_bit_ops
+  _SPIRV_OP(bitfield_insert, BitFieldInsert)
+  _SPIRV_OP(bitfield_extract_signed, BitFieldSExtract)
+  _SPIRV_OP(bitfield_extract_unsigned, BitFieldUExtract)
+  _SPIRV_OP(bit_reverse, BitReverse)
 #undef _SPIRV_OP
 }
 
@@ -655,34 +662,37 @@ size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC) {
   return 1;
 }
 
+// atomic_fetch_[add, min, max] and atomic_fetch_[add, min, max]_explicit
+// functions declared in clang headers should be translated to corresponding
+// FP-typed Atomic Instructions
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
   if (!DemangledName.startswith(kOCLBuiltinName::AtomicPrefix) &&
       !DemangledName.startswith(kOCLBuiltinName::AtomPrefix))
     return false;
 
   return llvm::StringSwitch<bool>(DemangledName)
-      .EndsWith("add", true)
       .EndsWith("sub", true)
+      .EndsWith("atomic_add", true)
+      .EndsWith("atomic_min", true)
+      .EndsWith("atomic_max", true)
+      .EndsWith("atom_add", true)
+      .EndsWith("atom_min", true)
+      .EndsWith("atom_max", true)
       .EndsWith("inc", true)
       .EndsWith("dec", true)
       .EndsWith("cmpxchg", true)
-      .EndsWith("min", true)
-      .EndsWith("max", true)
       .EndsWith("and", true)
       .EndsWith("or", true)
       .EndsWith("xor", true)
-      .EndsWith("add_explicit", true)
       .EndsWith("sub_explicit", true)
       .EndsWith("or_explicit", true)
       .EndsWith("xor_explicit", true)
       .EndsWith("and_explicit", true)
-      .EndsWith("min_explicit", true)
-      .EndsWith("max_explicit", true)
       .Default(false);
 }
 
 BarrierLiterals getBarrierLiterals(CallInst *CI) {
-  auto N = CI->getNumArgOperands();
+  auto N = CI->arg_size();
   assert(N == 1 || N == 2);
 
   StringRef DemangledName;
@@ -758,7 +768,8 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
     return 0;
   assert(NamedMD->getNumOperands() > 0 && "Invalid SPIR");
   if (!AllowMulti && NamedMD->getNumOperands() != 1)
-    report_fatal_error("Multiple OCL version metadata not allowed");
+    report_fatal_error(
+        llvm::Twine("Multiple OCL version metadata not allowed"));
 
   // If the module was linked with another module, there may be multiple
   // operands.
@@ -769,7 +780,7 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
   auto Ver = GetVer(0);
   for (unsigned I = 1, E = NamedMD->getNumOperands(); I != E; ++I)
     if (Ver != GetVer(I))
-      report_fatal_error("OCL version mismatch");
+      report_fatal_error(llvm::Twine("OCL version mismatch"));
 
   return encodeOCLVer(Ver.first, Ver.second, 0);
 }
@@ -964,6 +975,7 @@ public:
   OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
   OCLBuiltinFuncMangleInfo(ArrayRef<Type *> ArgTypes)
       : ArgTypes(ArgTypes.vec()) {}
+  Type *getArgTy(unsigned I) { return F->getFunctionType()->getParamType(I); }
   void init(StringRef UniqName) override {
     // Make a local copy as we will modify the string in init function
     std::string TempStorage = UniqName.str();
@@ -1002,20 +1014,9 @@ public:
       FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
       if (InvokeTy->getNumParams() > 1)
         setLocalArgBlock(BlockArgIdx);
-    } else if (NameRef.equals("enqueue_kernel")) {
-      assert(F && "lack of necessary information");
-      setEnumArg(1, SPIR::PRIMITIVE_KERNEL_ENQUEUE_FLAGS_T);
-      addUnsignedArg(3);
-      setArgAttr(4, SPIR::ATTR_CONST);
-      // If there are arguments other then block context then these are pointers
-      // to local memory so this built-in must be mangled accordingly.
-      const size_t BlockArgIdx = 6;
-      FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
-      if (InvokeTy->getNumParams() > 1) {
-        setLocalArgBlock(BlockArgIdx);
-        addUnsignedArg(BlockArgIdx + 1);
-        setVarArg(BlockArgIdx + 2);
-      }
+    } else if (NameRef.startswith("__enqueue_kernel")) {
+      // clang doesn't mangle enqueue_kernel builtins
+      setAsDontMangle();
     } else if (NameRef.startswith("get_") || NameRef.equals("nan") ||
                NameRef.equals("mem_fence") || NameRef.startswith("shuffle")) {
       addUnsignedArg(-1);
@@ -1253,9 +1254,9 @@ public:
     } else if (NameRef.startswith("intel_sub_group_block_write")) {
       // distinguish write to image and other data types as position
       // of uint argument is different though name is the same.
-      assert(ArgTypes.size() && "lack of necessary information");
-      if (ArgTypes[0]->isPointerTy() &&
-          ArgTypes[0]->getPointerElementType()->isIntegerTy()) {
+      auto *Arg0Ty = getArgTy(0);
+      if (Arg0Ty->isPointerTy() &&
+          Arg0Ty->getPointerElementType()->isIntegerTy()) {
         addUnsignedArg(0);
         addUnsignedArg(1);
       } else {
@@ -1264,9 +1265,9 @@ public:
     } else if (NameRef.startswith("intel_sub_group_block_read")) {
       // distinguish read from image and other data types as position
       // of uint argument is different though name is the same.
-      assert(ArgTypes.size() && "lack of necessary information");
-      if (ArgTypes[0]->isPointerTy() &&
-          ArgTypes[0]->getPointerElementType()->isIntegerTy()) {
+      auto *Arg0Ty = getArgTy(0);
+      if (Arg0Ty->isPointerTy() &&
+          Arg0Ty->getPointerElementType()->isIntegerTy()) {
         setArgAttr(0, SPIR::ATTR_CONST);
         addUnsignedArg(0);
       }
@@ -1284,6 +1285,11 @@ public:
         }
       } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
         addUnsignedArg(1);
+    } else if (NameRef.startswith("bitfield_insert")) {
+      addUnsignedArgs(2, 3);
+    } else if (NameRef.startswith("bitfield_extract_signed") ||
+               NameRef.startswith("bitfield_extract_unsigned")) {
+      addUnsignedArgs(1, 2);
     }
 
     // Store the final version of a function name
@@ -1292,6 +1298,8 @@ public:
   // Auxiliarry information, it is expected that it is relevant at the moment
   // the init method is called.
   Function *F;                  // SPIRV decorated function
+  // TODO: ArgTypes argument should get removed once all SPV-IR related issues
+  // are resolved
   std::vector<Type *> ArgTypes; // Arguments of OCL builtin
 };
 
@@ -1494,6 +1502,15 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
         "Incorrect vector length for intel_subgroup_block builtins");
   }
   return OSS.str();
+}
+
+void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
+                                    std::string &Name) {
+  std::string QName = rmap<std::string>(Acc);
+  // transform: read_only -> ro, write_only -> wo, read_write -> rw
+  QName = QName.substr(0, 1) + QName.substr(QName.find("_") + 1, 1) + "_";
+  assert(!Name.empty() && "image name should not be empty");
+  Name.insert(Name.size() - 1, QName);
 }
 } // namespace OCLUtil
 

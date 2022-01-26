@@ -29,7 +29,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-13-dev llvm-13-tools clang-13 libclang-13-dev
+sudo apt-get install llvm-14-dev llvm-14-tools clang-14 libclang-14-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -93,6 +93,54 @@ Building clang from sources takes time and resources and it can be avoided:
   moment, see [KhronosGroup/SPIRV-LLVM-Translator#477](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/477)
   to track progress, discuss and contribute.
 
+### Build with SPIRV-Tools
+
+The translator can use [SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools) to generate assembly with widely adopted syntax.
+If SPIRV-Tools have been installed prior to the build it will be detected and
+used automatically. However it is also possible to enable use of SPIRV-Tools
+from a custom location using the following instructions:
+
+1. Checkout, build and install SPIRV-Tools using
+   [the following instructions](https://github.com/KhronosGroup/SPIRV-Tools#build).
+   Example using CMake with Ninja:
+```
+cmake -G Ninja <SPIRV-Tools source location> -DCMAKE_INSTALL_PREFIX=<SPIRV-Tools installation location>
+ninja install
+```
+2. Point pkg-config to the SPIR-V tools installation when configuring the translator by setting
+   `PKG_CONFIG_PATH=<SPIRV-Tools installation location>/lib/pkgconfig/` variable
+   before the cmake line invocation.
+   Example:
+```
+PKG_CONFIG_PATH=<SPIRV-Tools installation location>/lib/pkgconfig/ cmake <other options>
+```
+
+To verify the SPIR-V Tools integration in the translator build, run the following line
+```
+llvm-spirv --spirv-tools-dis input.bc -o -
+```
+The output should be printed in the standard assembly syntax.
+
+## Configuring SPIR-V Headers
+
+The translator build is dependent on the official Khronos header file
+`spirv.hpp` that maps SPIR-V extensions, decorations, instructions,
+etc. onto numeric tokens. The official header version is available at
+[KhronosGroup/SPIRV-Headers](https://github.com/KhronosGroup/SPIRV-Headers).
+There are several options for accessing the header file:
+- By default, the header file repository will be downloaded from
+  Khronos Group GitHub and put into `<build_dir>/SPIRV-Headers`.
+- If you are building the translator in-tree, you can manually
+  download the SPIR-V Headers repo into `llvm/projects` - this
+  location will be automatically picked up by the LLVM build
+  scripts. Make sure the folder retains its default naming in
+  that of `SPIRV-Headers`.
+- Any build type can also use an external installation of SPIR-V
+  Headers - if you have the headers downloaded somewhere in your
+  system and want to use that version, simply extend your CMake
+  command with `-DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers"
+  -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>`.
+
 ## Test instructions
 
 All tests related to the translator are placed in the [test](test) directory. A number of the tests require spirv-as (part of SPIR-V Tools) to run, but the remainder of the tests can still be run without this. Optionally the tests can make use of spirv-val (part of SPIRV-Tools) in order to validate the generated SPIR-V against the official SPIR-V specification.
@@ -105,7 +153,7 @@ make test
 ```
 This requires that the `-DLLVM_SPIRV_INCLUDE_TESTS=ON` argument is
 passed to CMake during the build step. Additionally,
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-13/build/utils/lit/lit.py"` is
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-14/build/utils/lit/lit.py"` is
 needed when building with a pre-installed version of LLVM.
 
 The translator test suite can be disabled by passing
@@ -133,6 +181,7 @@ To translate between LLVM IR and SPIR-V:
     * `-o file_name` - to specify output name
     * `-spirv-debug` - output debugging information
     * `-spirv-text` - read/write SPIR-V in an internal textual format for debugging purpose. The textual format is not defined by SPIR-V spec.
+    * `--spirv-tools-dis` - print SPIR-V assembly in SPIRV-Tools format. Only available on [builds with SPIRV-Tools](#build-with-spirv-tools).
     * `-help` - to see full list of options
 
 Translation from LLVM IR to SPIR-V and then back to LLVM IR is not guaranteed to
@@ -153,7 +202,7 @@ the version of the SPIR-V file which is being generated/consumed.
   the input file and emit an error if the SPIR-V version in it is higher than
   one specified via this option.
 
-Allowed values are `1.0`/`1.1`.
+Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, and `1.4`.
 
 More information can be found in
 [SPIR-V versions and extensions handling](docs/SPIRVVersionsAndExtensionsHandling.rst)

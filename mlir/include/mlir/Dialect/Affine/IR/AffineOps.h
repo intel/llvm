@@ -54,9 +54,9 @@ bool isTopLevelValue(Value value);
 // memref '%src' in memory space 0 at indices [%i + 3, %j] to memref '%dst' in
 // memory space 1 at indices [%k + 7, %l], would be specified as follows:
 //
-//   %num_elements = constant 256
-//   %idx = constant 0 : index
-//   %tag = alloc() : memref<1xi32, 4>
+//   %num_elements = arith.constant 256
+//   %idx = arith.constant 0 : index
+//   %tag = memref.alloc() : memref<1xi32, 4>
 //   affine.dma_start %src[%i + 3, %j], %dst[%k + 7, %l], %tag[%idx],
 //     %num_elements :
 //       memref<40x128xf32, 0>, memref<2x1024xf32, 1>, memref<1xi32, 2>
@@ -188,14 +188,14 @@ public:
   /// Returns the AffineMapAttr associated with 'memref'.
   NamedAttribute getAffineMapAttrForMemRef(Value memref) {
     if (memref == getSrcMemRef())
-      return {Identifier::get(getSrcMapAttrName(), getContext()),
+      return {StringAttr::get(getContext(), getSrcMapAttrName()),
               getSrcMapAttr()};
     if (memref == getDstMemRef())
-      return {Identifier::get(getDstMapAttrName(), getContext()),
+      return {StringAttr::get(getContext(), getDstMapAttrName()),
               getDstMapAttr()};
     assert(memref == getTagMemRef() &&
            "DmaStartOp expected source, destination or tag memref");
-    return {Identifier::get(getTagMapAttrName(), getContext()),
+    return {StringAttr::get(getContext(), getTagMapAttrName()),
             getTagMapAttr()};
   }
 
@@ -303,7 +303,7 @@ public:
   /// associated with 'memref'.
   NamedAttribute getAffineMapAttrForMemRef(Value memref) {
     assert(memref == getTagMemRef());
-    return {Identifier::get(getTagMapAttrName(), getContext()),
+    return {StringAttr::get(getContext(), getTagMapAttrName()),
             getTagMapAttr()};
   }
 
@@ -363,6 +363,10 @@ AffineApplyOp makeComposedAffineApply(OpBuilder &b, Location loc, AffineMap map,
 AffineApplyOp makeComposedAffineApply(OpBuilder &b, Location loc, AffineExpr e,
                                       ValueRange values);
 
+/// Returns the values obtained by applying `map` to the list of values.
+SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
+                                       AffineMap map, ValueRange values);
+
 /// Given an affine map `map` and its input `operands`, this method composes
 /// into `map`, maps of AffineApplyOps whose results are the values in
 /// `operands`, iteratively until no more of `operands` are the result of an
@@ -372,12 +376,13 @@ AffineApplyOp makeComposedAffineApply(OpBuilder &b, Location loc, AffineExpr e,
 /// argument.
 void fullyComposeAffineMapAndOperands(AffineMap *map,
                                       SmallVectorImpl<Value> *operands);
-
+} // namespace mlir
 #include "mlir/Dialect/Affine/IR/AffineOpsDialect.h.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Affine/IR/AffineOps.h.inc"
 
+namespace mlir {
 /// Returns true if the provided value is the induction variable of a
 /// AffineForOp.
 bool isForInductionVar(Value val);
@@ -406,6 +411,20 @@ void buildAffineLoopNest(OpBuilder &builder, Location loc, ValueRange lbs,
                          function_ref<void(OpBuilder &, Location, ValueRange)>
                              bodyBuilderFn = nullptr);
 
+/// Replace `loop` with a new loop where `newIterOperands` are appended with
+/// new initialization values and `newYieldedValues` are added as new yielded
+/// values. The returned ForOp has `newYieldedValues.size()` new result values.
+/// Additionally, if `replaceLoopResults` is true, all uses of
+/// `loop.getResults()` are replaced with the first `loop.getNumResults()`
+/// return values  of the original loop respectively. The original loop is
+/// deleted and the new loop returned.
+/// Prerequisite: `newIterOperands.size() == newYieldedValues.size()`.
+AffineForOp replaceForOpWithNewYields(OpBuilder &b, AffineForOp loop,
+                                      ValueRange newIterOperands,
+                                      ValueRange newYieldedValues,
+                                      ValueRange newIterArgs,
+                                      bool replaceLoopResults = true);
+
 /// AffineBound represents a lower or upper bound in the for operation.
 /// This class does not own the underlying operands. Instead, it refers
 /// to the operands stored in the AffineForOp. Its life span should not exceed
@@ -421,9 +440,9 @@ public:
   using operand_iterator = AffineForOp::operand_iterator;
   using operand_range = AffineForOp::operand_range;
 
-  operand_iterator operand_begin() { return op.operand_begin() + opStart; }
-  operand_iterator operand_end() { return op.operand_begin() + opEnd; }
-  operand_range getOperands() { return {operand_begin(), operand_end()}; }
+  operand_iterator operandBegin() { return op.operand_begin() + opStart; }
+  operand_iterator operandEnd() { return op.operand_begin() + opEnd; }
+  operand_range getOperands() { return {operandBegin(), operandEnd()}; }
 
 private:
   // 'affine.for' operation that contains this bound.
@@ -440,6 +459,6 @@ private:
   friend class AffineForOp;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif

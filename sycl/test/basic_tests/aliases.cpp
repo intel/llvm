@@ -26,8 +26,7 @@ namespace s = cl::sycl;
   ASSERT(s::int, int, N)                                                       \
   ASSERT(s::long, long, N)                                                     \
   ASSERT(s::float, float, N)                                                   \
-  ASSERT(s::double, double, N)                                                 \
-  ASSERT(s::half, half, N);
+  ASSERT(s::double, double, N);
 
 // cl_char, cl_uchar, cl_short, cl_ushort, cl_int, cl_uint, cl_long, cl_ulong,
 // cl_float, cl_double and cl_half

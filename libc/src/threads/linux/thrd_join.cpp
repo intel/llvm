@@ -7,12 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/threads/thrd_join.h"
-#include "config/linux/syscall.h" // For syscall function.
-#include "include/sys/syscall.h"  // For syscall numbers.
-#include "include/threads.h"      // For thrd_* type definitions.
+#include "include/sys/syscall.h"          // For syscall numbers.
+#include "include/threads.h"              // For thrd_* type definitions.
+#include "src/__support/OSUtil/syscall.h" // For syscall function.
 #include "src/__support/common.h"
 #include "src/sys/mman/munmap.h"
-#include "src/threads/linux/thread_utils.h"
+#include "src/threads/linux/Futex.h"
+#include "src/threads/linux/Thread.h"
 
 #include <linux/futex.h> // For futex operations.
 #include <stdatomic.h>   // For atomic_load.
@@ -20,8 +21,8 @@
 namespace __llvm_libc {
 
 LLVM_LIBC_FUNCTION(int, thrd_join, (thrd_t * thread, int *retval)) {
-  FutexData *clear_tid_address =
-      reinterpret_cast<FutexData *>(thread->__clear_tid);
+  FutexWord *clear_tid_address =
+      reinterpret_cast<FutexWord *>(thread->__clear_tid);
 
   // The kernel should set the value at the clear tid address to zero.
   // If not, it is a spurious wake and we should continue to wait on
@@ -30,7 +31,7 @@ LLVM_LIBC_FUNCTION(int, thrd_join, (thrd_t * thread, int *retval)) {
     // We cannot do a FUTEX_WAIT_PRIVATE here as the kernel does a
     // FUTEX_WAKE and not a FUTEX_WAKE_PRIVATE.
     __llvm_libc::syscall(SYS_futex, clear_tid_address, FUTEX_WAIT,
-                         ThreadParams::ClearTIDValue, nullptr);
+                         ThreadParams::CLEAR_TID_VALUE, nullptr);
   }
 
   *retval = thread->__retval;

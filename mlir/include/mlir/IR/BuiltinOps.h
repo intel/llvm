@@ -13,7 +13,8 @@
 #ifndef MLIR_IR_BUILTINOPS_H_
 #define MLIR_IR_BUILTINOPS_H_
 
-#include "mlir/IR/FunctionSupport.h"
+#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/IR/RegionKindInterface.h"
 #include "mlir/IR/SymbolTable.h"
@@ -45,26 +46,9 @@ public:
   OwningModuleRef(OwningOpRef<ModuleOp> &&other)
       : OwningOpRef<ModuleOp>(std::move(other)) {}
 };
-} // end namespace mlir
+} // namespace mlir
 
 namespace llvm {
-// Functions hash just like pointers.
-template <>
-struct DenseMapInfo<mlir::FuncOp> {
-  static mlir::FuncOp getEmptyKey() {
-    auto *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
-    return mlir::FuncOp::getFromOpaquePointer(pointer);
-  }
-  static mlir::FuncOp getTombstoneKey() {
-    auto *pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
-    return mlir::FuncOp::getFromOpaquePointer(pointer);
-  }
-  static unsigned getHashValue(mlir::FuncOp val) {
-    return hash_value(val.getAsOpaquePointer());
-  }
-  static bool isEqual(mlir::FuncOp lhs, mlir::FuncOp rhs) { return lhs == rhs; }
-};
-
 /// Allow stealing the low bits of FuncOp.
 template <>
 struct PointerLikeTypeTraits<mlir::FuncOp> {
@@ -74,7 +58,7 @@ struct PointerLikeTypeTraits<mlir::FuncOp> {
   static inline mlir::FuncOp getFromVoidPointer(void *p) {
     return mlir::FuncOp::getFromOpaquePointer(p);
   }
-  static constexpr int NumLowBitsAvailable = 3;
+  static constexpr int numLowBitsAvailable = 3;
 };
 
 /// Allow stealing the low bits of ModuleOp.
@@ -87,8 +71,8 @@ public:
   static inline mlir::ModuleOp getFromVoidPointer(void *p) {
     return mlir::ModuleOp::getFromOpaquePointer(p);
   }
-  static constexpr int NumLowBitsAvailable = 3;
+  static constexpr int numLowBitsAvailable = 3;
 };
-} // end namespace llvm
+} // namespace llvm
 
 #endif // MLIR_IR_BUILTINOPS_H_

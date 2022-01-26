@@ -37,7 +37,6 @@ if(DEFINED LIBCXX_ENABLE_STATIC
   message(FATAL_ERROR "LIBCXXABI_LINK_TESTS_WITH_SHARED_LIBCXX being OFF requires LIBCXX_ENABLE_STATIC to be ON")
 endif()
 
-pythonize_bool(LIBCXXABI_BUILD_32_BITS)
 pythonize_bool(LIBCXX_ENABLE_SHARED)
 pythonize_bool(LIBCXXABI_ENABLE_SHARED)
 pythonize_bool(LIBCXXABI_ENABLE_THREADS)
@@ -86,13 +85,19 @@ if (LLVM_USE_SANITIZER)
   serialize_lit_param(use_sanitizer "\"${LLVM_USE_SANITIZER}\"")
 endif()
 
-if (TARGET_TRIPLE)
-  serialize_lit_param(target_triple "\"${TARGET_TRIPLE}\"")
+if (LIBCXXABI_TARGET_TRIPLE)
+  serialize_lit_param(target_triple "\"${LIBCXXABI_TARGET_TRIPLE}\"")
 endif()
 
-if (LIBCXXABI_BUILD_32_BITS)
-  serialize_lit_param(enable_32bit True)
-endif()
+foreach(param IN LISTS LIBCXXABI_TEST_PARAMS)
+  string(REGEX REPLACE "(.+)=(.+)" "\\1" name "${param}")
+  string(REGEX REPLACE "(.+)=(.+)" "\\2" value "${param}")
+  serialize_lit_param("${name}" "\"${value}\"")
+endforeach()
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/configs/cmake-bridge.cfg.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/cmake-bridge.cfg"
+               @ONLY)
 
 configure_lit_site_cfg(
   "${LIBCXXABI_TEST_CONFIG}"
@@ -101,5 +106,4 @@ configure_lit_site_cfg(
 
 add_lit_testsuite(check-cxxabi "Running libcxxabi tests"
   ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS ${LIBCXXABI_TEST_DEPS}
-  PARAMS "${LIBCXXABI_TEST_PARAMS}")
+  DEPENDS ${LIBCXXABI_TEST_DEPS})

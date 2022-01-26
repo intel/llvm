@@ -115,6 +115,15 @@ protected:
                          Value allocatedPtr, Value alignedPtr,
                          ArrayRef<Value> sizes, ArrayRef<Value> strides,
                          ConversionPatternRewriter &rewriter) const;
+
+  /// Copies the memory descriptor for any operands that were unranked
+  /// descriptors originally to heap-allocated memory (if toDynamic is true) or
+  /// to stack-allocated memory (otherwise). Also frees the previously used
+  /// memory (that is assumed to be heap-allocated) if toDynamic is false.
+  LogicalResult copyUnrankedDescriptors(OpBuilder &builder, Location loc,
+                                        TypeRange origTypes,
+                                        SmallVectorImpl<Value> &operands,
+                                        bool toDynamic) const;
 };
 
 /// Utility class for operation conversions targeting the LLVM dialect that
@@ -122,6 +131,8 @@ protected:
 template <typename SourceOp>
 class ConvertOpToLLVMPattern : public ConvertToLLVMPattern {
 public:
+  using OpAdaptor = typename SourceOp::Adaptor;
+
   explicit ConvertOpToLLVMPattern(LLVMTypeConverter &typeConverter,
                                   PatternBenefit benefit = 1)
       : ConvertToLLVMPattern(SourceOp::getOperationName(),
@@ -131,7 +142,8 @@ public:
   /// Wrappers around the RewritePattern methods that pass the derived op type.
   void rewrite(Operation *op, ArrayRef<Value> operands,
                ConversionPatternRewriter &rewriter) const final {
-    rewrite(cast<SourceOp>(op), operands, rewriter);
+    rewrite(cast<SourceOp>(op), OpAdaptor(operands, op->getAttrDictionary()),
+            rewriter);
   }
   LogicalResult match(Operation *op) const final {
     return match(cast<SourceOp>(op));
@@ -139,26 +151,27 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    return matchAndRewrite(cast<SourceOp>(op), operands, rewriter);
+    return matchAndRewrite(cast<SourceOp>(op),
+                           OpAdaptor(operands, op->getAttrDictionary()),
+                           rewriter);
   }
 
   /// Rewrite and Match methods that operate on the SourceOp type. These must be
   /// overridden by the derived pattern class.
-  virtual void rewrite(SourceOp op, ArrayRef<Value> operands,
-                       ConversionPatternRewriter &rewriter) const {
-    llvm_unreachable("must override rewrite or matchAndRewrite");
-  }
   virtual LogicalResult match(SourceOp op) const {
     llvm_unreachable("must override match or matchAndRewrite");
   }
+  virtual void rewrite(SourceOp op, OpAdaptor adaptor,
+                       ConversionPatternRewriter &rewriter) const {
+    llvm_unreachable("must override rewrite or matchAndRewrite");
+  }
   virtual LogicalResult
-  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
+  matchAndRewrite(SourceOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const {
-    if (succeeded(match(op))) {
-      rewrite(op, operands, rewriter);
-      return success();
-    }
-    return failure();
+    if (failed(match(op)))
+      return failure();
+    rewrite(op, adaptor, rewriter);
+    return success();
   }
 
 private:
@@ -180,11 +193,11 @@ public:
   /// Converts the type of the result to an LLVM type, pass operands as is,
   /// preserve attributes.
   LogicalResult
-  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
+  matchAndRewrite(SourceOp op, typename SourceOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     return LLVM::detail::oneToOneRewrite(op, TargetOp::getOperationName(),
-                                         operands, *this->getTypeConverter(),
-                                         rewriter);
+                                         adaptor.getOperands(),
+                                         *this->getTypeConverter(), rewriter);
   }
 };
 

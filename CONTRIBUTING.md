@@ -38,7 +38,9 @@ see [ABI Policy Guide](sycl/doc/ABIPolicyGuide.md) for more information.
   - [clang-format](https://clang.llvm.org/docs/ClangFormat.html) and
     [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) tools can be
     integrated into your workflow to ensure formatting and stylistic
-    compliance of your changes.
+    compliance of your changes. To avoid code formatting misalignment with
+    GitHub Actions check we recommend using 10 version of clang-format tool
+    (default version on Ubuntu 20.04).
   - use
 
     ```bash
@@ -60,26 +62,37 @@ Every product change should be accompanied with corresponding test modification
 (adding new test(s), extending, removing or modifying existing test(s)).
 
 There are 3 types of tests which are used for DPC++ toolchain validation:
-* DPC++ in-tree LIT tests including [check-llvm](../../llvm/test),
-[check-clang](../../clang/test), [check-llvm-spirv](../../llvm-spirv/test) and
-[check-sycl](../../sycl/test) targets stored in this repository. These tests
+* DPC++ in-tree tests including [check-llvm](llvm/test),
+[check-clang](clang/test), [check-llvm-spirv](llvm-spirv/test) and
+[check-sycl](sycl/test) targets stored in this repository. These tests
 should not have hardware (e.g. GPU, FPGA, etc.) or external software
 dependencies (e.g. OpenCL, Level Zero, CUDA runtimes). All tests not following
 this approach should be moved to DPC++ end-to-end or SYCL-CTS tests.
-However, the tests for a feature under active development requiring atomic
-change for tests and product can be put to
-[sycl/test/on-device](../../sycl/test/on-device) temporarily. It is developer
-responsibility to move the tests to DPC++ E2E test suite or SYCL-CTS once
-the feature is stabilized.
+Generally, any functional change to any of the DPC++ toolchain components
+should be accompanied by one or more tests of this type when possible. They
+allow verifying individual components and tend to be more lightweight than
+end-to-end or SYCL-CTS tests.
 
-    **Guidelines for adding DPC++ in-tree LIT tests (DPC++ Clang FE tests)**:
+    **General guidelines for adding DPC++ in-tree tests**:
+
     - Use `sycl::` namespace instead of `cl::sycl::`
+
+    - Add a helpful comment describing what the test does at the beginning and
+    other comments throughout the test as necessary.
+
+    - Try to follow descriptive naming convention for variables, functions as
+    much as possible.
+    Please refer to
+    [LLVM naming convention](https://llvm.org/docs/CodingStandards.html#name-types-functions-variables-and-enumerators-properly)
+
+    **DPC++ clang FE tests**:
 
     - Include sycl mock headers as system headers.
     Example: `-internal-isystem %S/Inputs`
     `#include "sycl.hpp"`
 
-    - Use SYCL functions for invoking kernels from the mock header `(single_task, parallel_for, parallel_for_work_group)`
+    - Use SYCL functions for invoking kernels from the mock header
+    `(single_task, parallel_for, parallel_for_work_group)`
     Example:
     ```bash
     `#include "Inputs/sycl.hpp"`
@@ -89,10 +102,14 @@ the feature is stabilized.
     });
     ```
 
-    - Add a helpful comment describing what the test does at the beginning and other comments throughout the test as necessary.
+    **DPC++ headers and runtime tests**:
 
-    - Try to follow descriptive naming convention for variables, functions as much as possible.
-    Please refer [LLVM naming convention](https://llvm.org/docs/CodingStandards.html#name-types-functions-variables-and-enumerators-properly)
+    - [check-sycl](sycl/test) target contains 2 types of tests: LIT tests and
+    unit tests. LIT tests make compile-time checks of DPC++ headers, e.g. device
+    code IR verification, static_assert tests. Unit tests check DPC++ runtime
+    behavior and do not perform any device code compilation, instead relying on
+    redefining plugin API with [PiMock](sycl/unittests/helpers/PiMock.hpp) when
+    necessary.
 
 * DPC++ end-to-end (E2E) tests which are extension to
 [LLVM\* test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL).

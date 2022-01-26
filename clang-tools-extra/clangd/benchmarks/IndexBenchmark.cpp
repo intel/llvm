@@ -23,11 +23,13 @@ namespace clangd {
 namespace {
 
 std::unique_ptr<SymbolIndex> buildMem() {
-  return loadIndex(IndexFilename, /*UseDex=*/false);
+  return loadIndex(IndexFilename, clang::clangd::SymbolOrigin::Static,
+                   /*UseDex=*/false);
 }
 
 std::unique_ptr<SymbolIndex> buildDex() {
-  return loadIndex(IndexFilename, /*UseDex=*/true);
+  return loadIndex(IndexFilename, clang::clangd::SymbolOrigin::Static,
+                   /*UseDex=*/true);
 }
 
 // Reads JSON array of serialized FuzzyFindRequest's from user-provided file.
@@ -106,7 +108,7 @@ BENCHMARK(DexBuild);
 int main(int argc, char *argv[]) {
   if (argc < 3) {
     llvm::errs() << "Usage: " << argv[0]
-                 << " global-symbol-index.yaml requests.json "
+                 << " global-symbol-index.dex requests.json "
                     "BENCHMARK_OPTIONS...\n";
     return -1;
   }

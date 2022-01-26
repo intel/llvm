@@ -33,13 +33,16 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <iterator>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -92,6 +95,16 @@ const NamedDecl *getTemplatePattern(const NamedDecl *D) {
     }
   }
   return nullptr;
+}
+
+// Returns true if the `TypedefNameDecl` should not be reported.
+bool shouldSkipTypedef(const TypedefNameDecl *TD) {
+  // These should be treated as keywords rather than decls - the typedef is an
+  // odd implementation detail.
+  if (TD == TD->getASTContext().getObjCInstanceTypeDecl() ||
+      TD == TD->getASTContext().getObjCIdDecl())
+    return true;
+  return false;
 }
 
 // TargetFinder locates the entities that an AST node refers to.
@@ -354,6 +367,10 @@ public:
         Outer.add(ET->desugar(), Flags);
       }
 
+      void VisitUsingType(const UsingType *ET) {
+        Outer.add(ET->getFoundDecl(), Flags);
+      }
+
       void VisitInjectedClassNameType(const InjectedClassNameType *ICNT) {
         Outer.add(ICNT->getDecl(), Flags);
       }
@@ -364,7 +381,7 @@ public:
       void VisitDeducedType(const DeducedType *DT) {
         // FIXME: In practice this doesn't work: the AutoType you find inside
         // TypeLoc never has a deduced type. https://llvm.org/PR42914
-        Outer.add(DT->getDeducedType(), Flags | Rel::Underlying);
+        Outer.add(DT->getDeducedType(), Flags);
       }
       void VisitDeducedTemplateSpecializationType(
           const DeducedTemplateSpecializationType *DTST) {
@@ -395,6 +412,8 @@ public:
         }
       }
       void VisitTypedefType(const TypedefType *TT) {
+        if (shouldSkipTypedef(TT->getDecl()))
+          return;
         Outer.add(TT->getDecl(), Flags);
       }
       void
@@ -495,7 +514,8 @@ public:
     // DeclRefExpr).
     if (Arg.getKind() == TemplateArgument::Template ||
         Arg.getKind() == TemplateArgument::TemplateExpansion) {
-      if (TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl()) {
+      if (TemplateDecl *TD =
+              Arg.getAsTemplateOrTemplatePattern().getAsTemplateDecl()) {
         report(TD, Flags);
       }
     }
@@ -842,6 +862,13 @@ refInTypeLoc(TypeLoc L, const HeuristicResolver *Resolver) {
       }
     }
 
+    void VisitUsingTypeLoc(UsingTypeLoc L) {
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  L.getLocalSourceRange().getBegin(),
+                                  /*IsDecl=*/false,
+                                  {L.getFoundDecl()}});
+    }
+
     void VisitTagTypeLoc(TagTypeLoc L) {
       Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
                                   L.getNameLoc(),
@@ -903,6 +930,8 @@ refInTypeLoc(TypeLoc L, const HeuristicResolver *Resolver) {
     }
 
     void VisitTypedefTypeLoc(TypedefTypeLoc L) {
+      if (shouldSkipTypedef(L.getTypedefNameDecl()))
+        return;
       Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
                                   L.getNameLoc(),
                                   /*IsDecl=*/false,
@@ -1143,14 +1172,13 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, DeclRelationSet RS) {
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, ReferenceLoc R) {
   // note we cannot print R.NameLoc without a source manager.
   OS << "targets = {";
-  bool First = true;
+  llvm::SmallVector<std::string> Targets;
   for (const NamedDecl *T : R.Targets) {
-    if (!First)
-      OS << ", ";
-    else
-      First = false;
-    OS << printQualifiedName(*T) << printTemplateSpecializationArgs(*T);
+    llvm::raw_string_ostream Target(Targets.emplace_back());
+    Target << printQualifiedName(*T) << printTemplateSpecializationArgs(*T);
   }
+  llvm::sort(Targets);
+  OS << llvm::join(Targets, ", ");
   OS << "}";
   if (R.Qualifier) {
     OS << ", qualifier = '";

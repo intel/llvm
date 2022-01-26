@@ -190,15 +190,12 @@ entry:
 define arm_aapcs_vfpcc <4 x i64> @sext32_0213_0ext(<8 x i32> %src1, i32 %src2) {
 ; CHECK-LABEL: sext32_0213_0ext:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9}
-; CHECK-NEXT:    vpush {d8, d9}
-; CHECK-NEXT:    vmov.f32 s16, s1
 ; CHECK-NEXT:    vmov q3[2], q3[0], r0, r0
-; CHECK-NEXT:    vmov.f32 s18, s3
 ; CHECK-NEXT:    vmullb.s32 q2, q0, q3
-; CHECK-NEXT:    vmullb.s32 q1, q4, q3
+; CHECK-NEXT:    vmov.f32 s0, s1
+; CHECK-NEXT:    vmov.f32 s2, s3
+; CHECK-NEXT:    vmullb.s32 q1, q0, q3
 ; CHECK-NEXT:    vmov q0, q2
-; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
   %shuf1 = shufflevector <8 x i32> %src1, <8 x i32> undef, <4 x i32> <i32 0, i32 2, i32 1, i32 3>
@@ -213,15 +210,12 @@ entry:
 define arm_aapcs_vfpcc <4 x i64> @sext32_0ext_0213(<8 x i32> %src1, i32 %src2) {
 ; CHECK-LABEL: sext32_0ext_0213:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9}
-; CHECK-NEXT:    vpush {d8, d9}
-; CHECK-NEXT:    vmov.f32 s16, s1
 ; CHECK-NEXT:    vmov q3[2], q3[0], r0, r0
-; CHECK-NEXT:    vmov.f32 s18, s3
 ; CHECK-NEXT:    vmullb.s32 q2, q3, q0
-; CHECK-NEXT:    vmullb.s32 q1, q3, q4
+; CHECK-NEXT:    vmov.f32 s0, s1
+; CHECK-NEXT:    vmov.f32 s2, s3
+; CHECK-NEXT:    vmullb.s32 q1, q3, q0
 ; CHECK-NEXT:    vmov q0, q2
-; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
   %shuf1 = shufflevector <8 x i32> %src1, <8 x i32> undef, <4 x i32> <i32 0, i32 2, i32 1, i32 3>
@@ -241,8 +235,8 @@ define arm_aapcs_vfpcc <4 x i64> @sext32_0213_ext0(<8 x i32> %src1, i32 %src2) {
 ; CHECK-NEXT:    vmov q1, q0
 ; CHECK-NEXT:    vmov r1, s6
 ; CHECK-NEXT:    vmov r3, s4
-; CHECK-NEXT:    vmov.f32 s8, s5
-; CHECK-NEXT:    vmov.f32 s10, s7
+; CHECK-NEXT:    vmov.f32 s4, s5
+; CHECK-NEXT:    vmov.f32 s6, s7
 ; CHECK-NEXT:    umull lr, r12, r1, r0
 ; CHECK-NEXT:    umull r2, r5, r3, r0
 ; CHECK-NEXT:    vmov q0[2], q0[0], r2, lr
@@ -252,10 +246,10 @@ define arm_aapcs_vfpcc <4 x i64> @sext32_0213_ext0(<8 x i32> %src1, i32 %src2) {
 ; CHECK-NEXT:    mla r5, r3, r2, r5
 ; CHECK-NEXT:    asrs r3, r3, #31
 ; CHECK-NEXT:    mla r1, r1, r0, r4
-; CHECK-NEXT:    vmov r4, s8
+; CHECK-NEXT:    vmov r4, s4
 ; CHECK-NEXT:    mla r3, r3, r0, r5
 ; CHECK-NEXT:    vmov q0[3], q0[1], r3, r1
-; CHECK-NEXT:    vmov r1, s10
+; CHECK-NEXT:    vmov r1, s6
 ; CHECK-NEXT:    umull r5, lr, r4, r0
 ; CHECK-NEXT:    umull r3, r12, r1, r0
 ; CHECK-NEXT:    vmov q1[2], q1[0], r5, r3
@@ -286,8 +280,8 @@ define arm_aapcs_vfpcc <4 x i64> @sext32_ext0_0213(<8 x i32> %src1, i32 %src2) {
 ; CHECK-NEXT:    asrs r4, r0, #31
 ; CHECK-NEXT:    vmov r1, s6
 ; CHECK-NEXT:    vmov r3, s4
-; CHECK-NEXT:    vmov.f32 s8, s5
-; CHECK-NEXT:    vmov.f32 s10, s7
+; CHECK-NEXT:    vmov.f32 s4, s5
+; CHECK-NEXT:    vmov.f32 s6, s7
 ; CHECK-NEXT:    umull lr, r12, r0, r1
 ; CHECK-NEXT:    umull r2, r5, r0, r3
 ; CHECK-NEXT:    vmov q0[2], q0[0], r2, lr
@@ -296,10 +290,10 @@ define arm_aapcs_vfpcc <4 x i64> @sext32_ext0_0213(<8 x i32> %src1, i32 %src2) {
 ; CHECK-NEXT:    mla r1, r4, r1, r2
 ; CHECK-NEXT:    asrs r2, r3, #31
 ; CHECK-NEXT:    mla r2, r0, r2, r5
-; CHECK-NEXT:    vmov r5, s8
+; CHECK-NEXT:    vmov r5, s4
 ; CHECK-NEXT:    mla r2, r4, r3, r2
 ; CHECK-NEXT:    vmov q0[3], q0[1], r2, r1
-; CHECK-NEXT:    vmov r1, s10
+; CHECK-NEXT:    vmov r1, s6
 ; CHECK-NEXT:    umull r3, lr, r0, r5
 ; CHECK-NEXT:    umull r2, r12, r0, r1
 ; CHECK-NEXT:    vmov q1[2], q1[0], r3, r2
@@ -474,15 +468,12 @@ entry:
 define arm_aapcs_vfpcc <4 x i64> @zext32_0213_0ext(<8 x i32> %src1, i32 %src2) {
 ; CHECK-LABEL: zext32_0213_0ext:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9}
-; CHECK-NEXT:    vpush {d8, d9}
-; CHECK-NEXT:    vmov.f32 s16, s1
 ; CHECK-NEXT:    vmov q3[2], q3[0], r0, r0
-; CHECK-NEXT:    vmov.f32 s18, s3
 ; CHECK-NEXT:    vmullb.u32 q2, q0, q3
-; CHECK-NEXT:    vmullb.u32 q1, q4, q3
+; CHECK-NEXT:    vmov.f32 s0, s1
+; CHECK-NEXT:    vmov.f32 s2, s3
+; CHECK-NEXT:    vmullb.u32 q1, q0, q3
 ; CHECK-NEXT:    vmov q0, q2
-; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
   %shuf1 = shufflevector <8 x i32> %src1, <8 x i32> undef, <4 x i32> <i32 0, i32 2, i32 1, i32 3>
@@ -497,15 +488,12 @@ entry:
 define arm_aapcs_vfpcc <4 x i64> @zext32_0ext_0213(<8 x i32> %src1, i32 %src2) {
 ; CHECK-LABEL: zext32_0ext_0213:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    .vsave {d8, d9}
-; CHECK-NEXT:    vpush {d8, d9}
-; CHECK-NEXT:    vmov.f32 s16, s1
 ; CHECK-NEXT:    vmov q3[2], q3[0], r0, r0
-; CHECK-NEXT:    vmov.f32 s18, s3
 ; CHECK-NEXT:    vmullb.u32 q2, q3, q0
-; CHECK-NEXT:    vmullb.u32 q1, q3, q4
+; CHECK-NEXT:    vmov.f32 s0, s1
+; CHECK-NEXT:    vmov.f32 s2, s3
+; CHECK-NEXT:    vmullb.u32 q1, q3, q0
 ; CHECK-NEXT:    vmov q0, q2
-; CHECK-NEXT:    vpop {d8, d9}
 ; CHECK-NEXT:    bx lr
 entry:
   %shuf1 = shufflevector <8 x i32> %src1, <8 x i32> undef, <4 x i32> <i32 0, i32 2, i32 1, i32 3>
@@ -522,13 +510,13 @@ define arm_aapcs_vfpcc <4 x i64> @zext32_0213_ext0(<8 x i32> %src1, i32 %src2) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    vmov r1, s2
 ; CHECK-NEXT:    vmov r3, s0
-; CHECK-NEXT:    vmov.f32 s4, s1
-; CHECK-NEXT:    vmov.f32 s6, s3
+; CHECK-NEXT:    vmov.f32 s0, s1
+; CHECK-NEXT:    vmov.f32 s2, s3
 ; CHECK-NEXT:    umull r1, r12, r1, r0
 ; CHECK-NEXT:    umull r3, r2, r3, r0
 ; CHECK-NEXT:    vmov q2[2], q2[0], r3, r1
-; CHECK-NEXT:    vmov r1, s6
-; CHECK-NEXT:    vmov r3, s4
+; CHECK-NEXT:    vmov r1, s2
+; CHECK-NEXT:    vmov r3, s0
 ; CHECK-NEXT:    vmov q2[3], q2[1], r2, r12
 ; CHECK-NEXT:    vmov q0, q2
 ; CHECK-NEXT:    umull r1, r2, r1, r0
@@ -551,13 +539,13 @@ define arm_aapcs_vfpcc <4 x i64> @zext32_ext0_0213(<8 x i32> %src1, i32 %src2) {
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    vmov r1, s2
 ; CHECK-NEXT:    vmov r3, s0
-; CHECK-NEXT:    vmov.f32 s4, s1
-; CHECK-NEXT:    vmov.f32 s6, s3
+; CHECK-NEXT:    vmov.f32 s0, s1
+; CHECK-NEXT:    vmov.f32 s2, s3
 ; CHECK-NEXT:    umull r1, r12, r0, r1
 ; CHECK-NEXT:    umull r3, r2, r0, r3
 ; CHECK-NEXT:    vmov q2[2], q2[0], r3, r1
-; CHECK-NEXT:    vmov r1, s6
-; CHECK-NEXT:    vmov r3, s4
+; CHECK-NEXT:    vmov r1, s2
+; CHECK-NEXT:    vmov r3, s0
 ; CHECK-NEXT:    vmov q2[3], q2[1], r2, r12
 ; CHECK-NEXT:    vmov q0, q2
 ; CHECK-NEXT:    umull r1, r2, r0, r1
@@ -712,7 +700,7 @@ entry:
 define arm_aapcs_vfpcc <8 x i32> @sext16_02461357_0ext(<16 x i16> %src1, i16 %src2) {
 ; CHECK-LABEL: sext16_02461357_0ext:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vdup.32 q2, r0
+; CHECK-NEXT:    vdup.16 q2, r0
 ; CHECK-NEXT:    vrev32.16 q1, q0
 ; CHECK-NEXT:    vmullb.s16 q1, q1, q2
 ; CHECK-NEXT:    vmullb.s16 q0, q0, q2
@@ -731,7 +719,7 @@ define arm_aapcs_vfpcc <8 x i32> @sext16_0ext_02461357(<16 x i16> %src1, i16 %sr
 ; CHECK-LABEL: sext16_0ext_02461357:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    vrev32.16 q1, q0
-; CHECK-NEXT:    vdup.32 q2, r0
+; CHECK-NEXT:    vdup.16 q2, r0
 ; CHECK-NEXT:    vmullb.s16 q1, q2, q1
 ; CHECK-NEXT:    vmullb.s16 q0, q2, q0
 ; CHECK-NEXT:    bx lr
@@ -922,7 +910,7 @@ entry:
 define arm_aapcs_vfpcc <8 x i32> @zext16_02461357_0ext(<16 x i16> %src1, i16 %src2) {
 ; CHECK-LABEL: zext16_02461357_0ext:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vdup.32 q2, r0
+; CHECK-NEXT:    vdup.16 q2, r0
 ; CHECK-NEXT:    vrev32.16 q1, q0
 ; CHECK-NEXT:    vmullb.u16 q1, q1, q2
 ; CHECK-NEXT:    vmullb.u16 q0, q0, q2
@@ -941,7 +929,7 @@ define arm_aapcs_vfpcc <8 x i32> @zext16_0ext_02461357(<16 x i16> %src1, i16 %sr
 ; CHECK-LABEL: zext16_0ext_02461357:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    vrev32.16 q1, q0
-; CHECK-NEXT:    vdup.32 q2, r0
+; CHECK-NEXT:    vdup.16 q2, r0
 ; CHECK-NEXT:    vmullb.u16 q1, q2, q1
 ; CHECK-NEXT:    vmullb.u16 q0, q2, q0
 ; CHECK-NEXT:    bx lr
@@ -1132,7 +1120,7 @@ entry:
 define arm_aapcs_vfpcc <16 x i16> @sext8_0246810121413579111315_0ext(<32 x i8> %src1, i8 %src2) {
 ; CHECK-LABEL: sext8_0246810121413579111315_0ext:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vdup.16 q2, r0
+; CHECK-NEXT:    vdup.8 q2, r0
 ; CHECK-NEXT:    vrev16.8 q1, q0
 ; CHECK-NEXT:    vmullb.s8 q1, q1, q2
 ; CHECK-NEXT:    vmullb.s8 q0, q0, q2
@@ -1151,7 +1139,7 @@ define arm_aapcs_vfpcc <16 x i16> @sext8_0ext_0246810121413579111315(<32 x i8> %
 ; CHECK-LABEL: sext8_0ext_0246810121413579111315:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    vrev16.8 q1, q0
-; CHECK-NEXT:    vdup.16 q2, r0
+; CHECK-NEXT:    vdup.8 q2, r0
 ; CHECK-NEXT:    vmullb.s8 q1, q2, q1
 ; CHECK-NEXT:    vmullb.s8 q0, q2, q0
 ; CHECK-NEXT:    bx lr
@@ -1342,7 +1330,7 @@ entry:
 define arm_aapcs_vfpcc <16 x i16> @zext8_0246810121413579111315_0ext(<32 x i8> %src1, i8 %src2) {
 ; CHECK-LABEL: zext8_0246810121413579111315_0ext:
 ; CHECK:       @ %bb.0: @ %entry
-; CHECK-NEXT:    vdup.16 q2, r0
+; CHECK-NEXT:    vdup.8 q2, r0
 ; CHECK-NEXT:    vrev16.8 q1, q0
 ; CHECK-NEXT:    vmullb.u8 q1, q1, q2
 ; CHECK-NEXT:    vmullb.u8 q0, q0, q2
@@ -1361,7 +1349,7 @@ define arm_aapcs_vfpcc <16 x i16> @zext8_0ext_0246810121413579111315(<32 x i8> %
 ; CHECK-LABEL: zext8_0ext_0246810121413579111315:
 ; CHECK:       @ %bb.0: @ %entry
 ; CHECK-NEXT:    vrev16.8 q1, q0
-; CHECK-NEXT:    vdup.16 q2, r0
+; CHECK-NEXT:    vdup.8 q2, r0
 ; CHECK-NEXT:    vmullb.u8 q1, q2, q1
 ; CHECK-NEXT:    vmullb.u8 q0, q2, q0
 ; CHECK-NEXT:    bx lr

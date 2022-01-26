@@ -44,6 +44,9 @@ set(UBSAN_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 append_rtti_flag(OFF UBSAN_CFLAGS)
 append_list_if(SANITIZER_CAN_USE_CXXABI -DUBSAN_CAN_USE_CXXABI UBSAN_CFLAGS)
 
+# Too many existing bugs, needs cleanup.
+append_list_if(COMPILER_RT_HAS_WNO_FORMAT -Wno-format UBSAN_CFLAGS)
+
 set(UBSAN_STANDALONE_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 append_rtti_flag(OFF UBSAN_STANDALONE_CFLAGS)
 append_list_if(SANITIZER_CAN_USE_CXXABI -DUBSAN_CAN_USE_CXXABI UBSAN_STANDALONE_CFLAGS)
@@ -51,6 +54,11 @@ append_list_if(SANITIZER_CAN_USE_CXXABI -DUBSAN_CAN_USE_CXXABI UBSAN_STANDALONE_
 set(UBSAN_CXXFLAGS ${SANITIZER_COMMON_CFLAGS})
 append_rtti_flag(ON UBSAN_CXXFLAGS)
 append_list_if(SANITIZER_CAN_USE_CXXABI -DUBSAN_CAN_USE_CXXABI UBSAN_CXXFLAGS)
+
+# Silence warnings in system headers with MSVC.
+if(NOT CLANG_CL)
+  append_list_if(COMPILER_RT_HAS_EXTERNAL_FLAG "/experimental:external /external:W0 /external:anglebrackets" UBSAN_CXXFLAGS)
+endif()
 
 set(UBSAN_LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS})
 
@@ -80,7 +88,7 @@ if(APPLE)
   if(COMPILER_RT_HAS_UBSAN)
     # Initializer of standalone UBSan runtime.
     add_compiler_rt_object_libraries(RTUbsan_standalone
-      OS ${SANITIZER_COMMON_SUPPORTED_OS}
+      OS ${UBSAN_SUPPORTED_OS}
       ARCHS ${UBSAN_SUPPORTED_ARCH}
       SOURCES ${UBSAN_STANDALONE_SOURCES}
       ADDITIONAL_HEADERS ${UBSAN_HEADERS}
@@ -91,7 +99,7 @@ if(APPLE)
 
     add_compiler_rt_runtime(clang_rt.ubsan
       SHARED
-      OS ${SANITIZER_COMMON_SUPPORTED_OS}
+      OS ${UBSAN_SUPPORTED_OS}
       ARCHS ${UBSAN_SUPPORTED_ARCH}
       OBJECT_LIBS RTUbsan
                   RTUbsan_standalone
@@ -105,7 +113,7 @@ if(APPLE)
 
     add_compiler_rt_runtime(clang_rt.ubsan
       STATIC
-      OS ${SANITIZER_COMMON_SUPPORTED_OS}
+      OS ${UBSAN_SUPPORTED_OS}
       ARCHS ${UBSAN_SUPPORTED_ARCH}
       OBJECT_LIBS RTUbsan
                   RTUbsan_standalone

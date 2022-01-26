@@ -22,6 +22,7 @@
 #include "polly/Options.h"
 #include "polly/ScopDetection.h"
 #include "polly/ScopInfo.h"
+#include "polly/Support/ISLTools.h"
 #include "polly/Support/SCEVValidator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -31,8 +32,8 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Linker/Linker.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -219,8 +220,8 @@ static MustKillsInfo computeMustKillsInfo(const Scop &S) {
       KillMemIds.push_back(isl::manage(SAI->getBasePtrId().release()));
   }
 
-  Info.TaggedMustKills = isl::union_map::empty(ParamSpace);
-  Info.MustKills = isl::union_map::empty(ParamSpace);
+  Info.TaggedMustKills = isl::union_map::empty(ParamSpace.ctx());
+  Info.MustKills = isl::union_map::empty(ParamSpace.ctx());
 
   // Initialising KillsSchedule to `isl_set_empty` creates an empty node in the
   // schedule:
@@ -847,7 +848,7 @@ void GPUNodeBuilder::prepareManagedDeviceArrays() {
     if (Offset) {
       HostPtr = Builder.CreatePointerCast(
           HostPtr, ScopArray->getElementType()->getPointerTo());
-      HostPtr = Builder.CreateGEP(HostPtr, Offset);
+      HostPtr = Builder.CreateGEP(ScopArray->getElementType(), HostPtr, Offset);
     }
 
     HostPtr = Builder.CreatePointerCast(HostPtr, Builder.getInt8PtrTy());
@@ -1124,11 +1125,11 @@ Value *GPUNodeBuilder::getArraySize(gpu_array_info *Array) {
   if (!gpu_array_is_scalar(Array)) {
     isl::multi_pw_aff ArrayBound = isl::manage_copy(Array->bound);
 
-    isl::pw_aff OffsetDimZero = ArrayBound.get_pw_aff(0);
+    isl::pw_aff OffsetDimZero = ArrayBound.at(0);
     isl::ast_expr Res = Build.expr_from(OffsetDimZero);
 
     for (unsigned int i = 1; i < Array->n_index; i++) {
-      isl::pw_aff Bound_I = ArrayBound.get_pw_aff(i);
+      isl::pw_aff Bound_I = ArrayBound.at(i);
       isl::ast_expr Expr = Build.expr_from(Bound_I);
       Res = Res.mul(Expr);
     }
@@ -1151,7 +1152,7 @@ Value *GPUNodeBuilder::getArrayOffset(gpu_array_info *Array) {
 
   isl::set ZeroSet = isl::set::universe(Min.get_space());
 
-  for (long i = 0, n = Min.tuple_dim(); i < n; i++)
+  for (unsigned i : rangeIslSize(0, Min.tuple_dim()))
     ZeroSet = ZeroSet.fix_si(isl::dim::set, i, 0);
 
   if (Min.is_subset(ZeroSet)) {
@@ -1160,7 +1161,7 @@ Value *GPUNodeBuilder::getArrayOffset(gpu_array_info *Array) {
 
   isl::ast_expr Result = isl::ast_expr::from_val(isl::val(Min.ctx(), 0));
 
-  for (long i = 0, n = Min.tuple_dim(); i < n; i++) {
+  for (unsigned i : rangeIslSize(0, Min.tuple_dim())) {
     if (i > 0) {
       isl::pw_aff Bound_I =
           isl::manage(isl_multi_pw_aff_get_pw_aff(Array->bound, i - 1));
@@ -1211,7 +1212,7 @@ void GPUNodeBuilder::createDataTransfer(__isl_take isl_ast_node *TransferStmt,
   if (Offset) {
     HostPtr = Builder.CreatePointerCast(
         HostPtr, ScopArray->getElementType()->getPointerTo());
-    HostPtr = Builder.CreateGEP(HostPtr, Offset);
+    HostPtr = Builder.CreateGEP(ScopArray->getElementType(), HostPtr, Offset);
   }
 
   HostPtr = Builder.CreatePointerCast(HostPtr, Builder.getInt8PtrTy());
@@ -1307,7 +1308,7 @@ void GPUNodeBuilder::createUser(__isl_take isl_ast_node *UserStmt) {
 }
 
 void GPUNodeBuilder::createFor(__isl_take isl_ast_node *Node) {
-  createForSequential(isl::manage(Node), false);
+  createForSequential(isl::manage(Node).as<isl::ast_node_for>(), false);
 }
 
 void GPUNodeBuilder::createKernelCopy(ppcg_kernel_stmt *KernelStmt) {
@@ -1596,7 +1597,7 @@ std::tuple<Value *, Value *> GPUNodeBuilder::getGridSizes(ppcg_kernel *Kernel) {
 
   isl::multi_pw_aff GridSizePwAffs = isl::manage_copy(Kernel->grid_size);
   for (long i = 0; i < Kernel->n_grid; i++) {
-    isl::pw_aff Size = GridSizePwAffs.get_pw_aff(i);
+    isl::pw_aff Size = GridSizePwAffs.at(i);
     isl::ast_expr GridSize = Context.expr_from(Size);
     Value *Res = ExprBuilder.create(GridSize.release());
     Res = Builder.CreateTrunc(Res, Builder.getInt32Ty());
@@ -1627,7 +1628,8 @@ GPUNodeBuilder::getBlockSizes(ppcg_kernel *Kernel) {
 void GPUNodeBuilder::insertStoreParameter(Instruction *Parameters,
                                           Instruction *Param, int Index) {
   Value *Slot = Builder.CreateGEP(
-      Parameters, {Builder.getInt64(0), Builder.getInt64(Index)});
+      Parameters->getType()->getPointerElementType(), Parameters,
+      {Builder.getInt64(0), Builder.getInt64(Index)});
   Value *ParamTyped = Builder.CreatePointerCast(Param, Builder.getInt8PtrTy());
   Builder.CreateStore(ParamTyped, Slot);
 }
@@ -1681,11 +1683,12 @@ GPUNodeBuilder::createLaunchParameters(ppcg_kernel *Kernel, Function *F,
     if (Offset) {
       DevArray = Builder.CreatePointerCast(
           DevArray, SAI->getElementType()->getPointerTo());
-      DevArray = Builder.CreateGEP(DevArray, Builder.CreateNeg(Offset));
+      DevArray = Builder.CreateGEP(SAI->getElementType(), DevArray,
+                                   Builder.CreateNeg(Offset));
       DevArray = Builder.CreatePointerCast(DevArray, Builder.getInt8PtrTy());
     }
     Value *Slot = Builder.CreateGEP(
-        Parameters, {Builder.getInt64(0), Builder.getInt64(Index)});
+        ArrayTy, Parameters, {Builder.getInt64(0), Builder.getInt64(Index)});
 
     if (gpu_array_is_read_only_scalar(&Prog->array[i])) {
       Value *ValPtr = nullptr;
@@ -2883,8 +2886,10 @@ public:
     isl::pw_aff Val = isl::aff::var_on_domain(LS, isl::dim::set, 0);
     isl::pw_aff OuterMin = AccessSet.dim_min(0);
     isl::pw_aff OuterMax = AccessSet.dim_max(0);
-    OuterMin = OuterMin.add_dims(isl::dim::in, Val.dim(isl::dim::in));
-    OuterMax = OuterMax.add_dims(isl::dim::in, Val.dim(isl::dim::in));
+    OuterMin = OuterMin.add_dims(isl::dim::in,
+                                 unsignedFromIslSize(Val.dim(isl::dim::in)));
+    OuterMax = OuterMax.add_dims(isl::dim::in,
+                                 unsignedFromIslSize(Val.dim(isl::dim::in)));
     OuterMin = OuterMin.set_tuple_id(isl::dim::in, Array->getBasePtrId());
     OuterMax = OuterMax.set_tuple_id(isl::dim::in, Array->getBasePtrId());
 
@@ -2908,7 +2913,8 @@ public:
 
       isl::pw_aff Val = isl::aff::var_on_domain(
           isl::local_space(Array->getSpace()), isl::dim::set, i);
-      PwAff = PwAff.add_dims(isl::dim::in, Val.dim(isl::dim::in));
+      PwAff = PwAff.add_dims(isl::dim::in,
+                             unsignedFromIslSize(Val.dim(isl::dim::in)));
       PwAff = PwAff.set_tuple_id(isl::dim::in, Val.get_tuple_id(isl::dim::in));
       isl::set Set = PwAff.gt_set(Val);
       Extent = Set.intersect(Extent);
@@ -3247,6 +3253,7 @@ public:
     PPCGGen->kernel_id = 0;
 
     // Set scheduling strategy to same strategy PPCG is using.
+    isl_options_set_schedule_serialize_sccs(PPCGGen->ctx, false);
     isl_options_set_schedule_outer_coincidence(PPCGGen->ctx, true);
     isl_options_set_schedule_maximize_band_depth(PPCGGen->ctx, true);
     isl_options_set_schedule_whole_component(PPCGGen->ctx, false);

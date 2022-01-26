@@ -47,7 +47,7 @@
 // RUN:  | FileCheck -check-prefix=PHASES-PREPROCESS %s
 // PHASES-PREPROCESS: 0: input, {{.*}}, c++, (device-sycl)
 // PHASES-PREPROCESS: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
-// PHASES-PREPROCESS: 2: offload, "device-sycl (spir64-unknown-unknown-sycldevice)" {1}, c++-cpp-output
+// PHASES-PREPROCESS: 2: offload, "device-sycl (spir64-unknown-unknown)" {1}, c++-cpp-output
 
 // RUN: %clang -ccc-print-phases -MM -fsycl -fsycl-device-only %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=PHASES-PREPROC-DEPS %s
@@ -55,4 +55,4 @@
 // RUN:  | FileCheck -check-prefix=PHASES-PREPROC-DEPS %s
 // PHASES-PREPROC-DEPS: 0: input, {{.*}}, c++, (device-sycl)
 // PHASES-PROPROC-DEPS: 1: preprocessor, {0}, dependencies, (device-sycl)
-// PHASES-PREPROC-DEPS: 2: offload, "device-sycl (spir64-unknown-unknown-sycldevice)" {1}, dependencies
+// PHASES-PREPROC-DEPS: 2: offload, "device-sycl (spir64-unknown-unknown)" {1}, dependencies

@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_SEMA_ATTRIBUTELIST_H
-#define LLVM_CLANG_SEMA_ATTRIBUTELIST_H
+#ifndef LLVM_CLANG_SEMA_PARSEDATTR_H
+#define LLVM_CLANG_SEMA_PARSEDATTR_H
 
 #include "clang/Basic/AttrSubjectMatchRules.h"
 #include "clang/Basic/AttributeCommonInfo.h"
@@ -70,6 +70,8 @@ struct ParsedAttrInfo {
     const char *NormalizedFullName;
   };
   ArrayRef<Spelling> Spellings;
+  // The names of the known arguments of this attribute.
+  ArrayRef<const char *> ArgNames;
 
   ParsedAttrInfo(AttributeCommonInfo::Kind AttrKind =
                      AttributeCommonInfo::NoSemaHandlerAttribute)
@@ -95,11 +97,9 @@ struct ParsedAttrInfo {
                                    const Decl *D) const {
     return true;
   }
-  /// Check if this attribute is allowed by the language we are compiling, and
-  /// issue a diagnostic if not.
-  virtual bool diagLangOpts(Sema &S, const ParsedAttr &Attr) const {
-    return true;
-  }
+  /// Check if this attribute is allowed by the language we are compiling.
+  virtual bool acceptsLangOpts(const LangOptions &LO) const { return true; }
+
   /// Check if this attribute is allowed when compiling for the given target.
   virtual bool existsInTarget(const TargetInfo &Target) const {
     return true;
@@ -128,6 +128,7 @@ struct ParsedAttrInfo {
   }
 
   static const ParsedAttrInfo &get(const AttributeCommonInfo &A);
+  static ArrayRef<const ParsedAttrInfo *> getAllBuiltin();
 };
 
 typedef llvm::Registry<ParsedAttrInfo> ParsedAttrInfoRegistry;
@@ -901,7 +902,7 @@ public:
                                                 ParsedAttr> {
     iterator() : iterator_adaptor_base(nullptr) {}
     iterator(VecTy::iterator I) : iterator_adaptor_base(I) {}
-    reference operator*() { return **I; }
+    reference operator*() const { return **I; }
     friend class ParsedAttributesView;
   };
   struct const_iterator
@@ -1087,7 +1088,7 @@ struct ParsedAttributesWithRange : ParsedAttributes {
   SourceRange Range;
 };
 struct ParsedAttributesViewWithRange : ParsedAttributesView {
-  ParsedAttributesViewWithRange() : ParsedAttributesView() {}
+  ParsedAttributesViewWithRange() {}
   void clearListOnly() {
     ParsedAttributesView::clearListOnly();
     Range = SourceRange();
@@ -1104,6 +1105,7 @@ enum AttributeArgumentNType {
   AANT_ArgumentString,
   AANT_ArgumentIdentifier,
   AANT_ArgumentConstantExpr,
+  AANT_ArgumentBuiltinFunction,
 };
 
 /// These constants match the enumerated choices of
@@ -1126,14 +1128,14 @@ enum AttributeDeclKind {
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                              const ParsedAttr &At) {
-  DB.AddTaggedVal(reinterpret_cast<intptr_t>(At.getAttrName()),
+  DB.AddTaggedVal(reinterpret_cast<uint64_t>(At.getAttrName()),
                   DiagnosticsEngine::ak_identifierinfo);
   return DB;
 }
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                              const ParsedAttr *At) {
-  DB.AddTaggedVal(reinterpret_cast<intptr_t>(At->getAttrName()),
+  DB.AddTaggedVal(reinterpret_cast<uint64_t>(At->getAttrName()),
                   DiagnosticsEngine::ak_identifierinfo);
   return DB;
 }
@@ -1148,7 +1150,7 @@ template <typename ACI,
               std::is_same<ACI, AttributeCommonInfo>::value, int> = 0>
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                            const ACI &CI) {
-  DB.AddTaggedVal(reinterpret_cast<intptr_t>(CI.getAttrName()),
+  DB.AddTaggedVal(reinterpret_cast<uint64_t>(CI.getAttrName()),
                   DiagnosticsEngine::ak_identifierinfo);
   return DB;
 }
@@ -1158,11 +1160,11 @@ template <typename ACI,
               std::is_same<ACI, AttributeCommonInfo>::value, int> = 0>
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                            const ACI* CI) {
-  DB.AddTaggedVal(reinterpret_cast<intptr_t>(CI->getAttrName()),
+  DB.AddTaggedVal(reinterpret_cast<uint64_t>(CI->getAttrName()),
                   DiagnosticsEngine::ak_identifierinfo);
   return DB;
 }
 
 } // namespace clang
 
-#endif // LLVM_CLANG_SEMA_ATTRIBUTELIST_H
+#endif // LLVM_CLANG_SEMA_PARSEDATTR_H

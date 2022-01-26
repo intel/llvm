@@ -217,7 +217,7 @@ define zeroext i8 @test_abi_zext_ret(i8* %addr) {
 ; CHECK: [[RHS_ADDR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[STACK8]]
 ; CHECK: [[RHS:%[0-9]+]]:_(s64) = G_LOAD [[RHS_ADDR]](p0) :: (invariant load (s64) from %fixed-stack.[[STACK8]])
 ; CHECK: [[ADDR_ADDR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[STACK16]]
-; CHECK: [[ADDR:%[0-9]+]]:_(p0) = G_LOAD [[ADDR_ADDR]](p0) :: (invariant load (s64) from %fixed-stack.[[STACK16]], align 16)
+; CHECK: [[ADDR:%[0-9]+]]:_(p0) = G_LOAD [[ADDR_ADDR]](p0) :: (invariant load (p0) from %fixed-stack.[[STACK16]], align 16)
 ; CHECK: [[SUM:%[0-9]+]]:_(s64) = G_ADD [[LHS]], [[RHS]]
 ; CHECK: G_STORE [[SUM]](s64), [[ADDR]](p0)
 define void @test_stack_slots([8 x i64], i64 %lhs, i64 %rhs, i64* %addr) {
@@ -240,7 +240,7 @@ define void @test_stack_slots([8 x i64], i64 %lhs, i64 %rhs, i64* %addr) {
 ; CHECK: G_STORE [[C12]](s64), [[C12_LOC]](p0) :: (store (s64) into stack + 8, align 1)
 ; CHECK: [[PTR_OFFS:%[0-9]+]]:_(s64) = G_CONSTANT i64 16
 ; CHECK: [[PTR_LOC:%[0-9]+]]:_(p0) = G_PTR_ADD [[SP]], [[PTR_OFFS]](s64)
-; CHECK: G_STORE [[PTR]](p0), [[PTR_LOC]](p0) :: (store (s64) into stack + 16, align 1)
+; CHECK: G_STORE [[PTR]](p0), [[PTR_LOC]](p0) :: (store (p0) into stack + 16, align 1)
 ; CHECK: BL @test_stack_slots
 ; CHECK: ADJCALLSTACKUP 24, 0, implicit-def $sp, implicit $sp
 define void @test_call_stack() {
@@ -254,7 +254,10 @@ define void @test_call_stack() {
 ; CHECK-NEXT: isImmutable: true,
 ; CHECK: [[ADDR:%[0-9]+]]:_(p0) = G_FRAME_INDEX %fixed-stack.[[SLOT]]
 ; CHECK: [[LOAD:%[0-9]+]]:_(s32) = G_LOAD [[ADDR]](p0) :: (invariant load (s8) from %fixed-stack.[[SLOT]], align 16)
-; CHECK-NEXT: {{%[0-9]+}}:_(s1) = G_TRUNC [[LOAD]]
+; CHECK: [[TRUNC8:%[0-9]+]]:_(s8) = G_TRUNC [[LOAD]]
+; CHECK: [[TRUNCASSERT:%[0-9]+]]:_(s8) = G_ASSERT_ZEXT [[TRUNC8]], 1
+; CHECK: {{%[0-9]+}}:_(s1) = G_TRUNC [[TRUNCASSERT]]
+
 define void @test_mem_i1([8 x i64], i1 %in) {
   ret void
 }

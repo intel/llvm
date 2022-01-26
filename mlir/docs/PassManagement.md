@@ -23,24 +23,25 @@ further below. All passes in MLIR derive from `OperationPass` and adhere to the
 following restrictions; any noncompliance will lead to problematic behavior in
 multithreaded and other advanced scenarios:
 
-*   Modify any state referenced or relied upon outside the current being
-    operated on. This includes adding or removing operations from the parent
-    block, changing the attributes(depending on the contract of the current
-    operation)/operands/results/successors of the current operation.
-*   Modify the state of another operation not nested within the current
+*   Must not modify any state referenced or relied upon outside the current
+    being operated on. This includes adding or removing operations from the
+    parent block, changing the attributes(depending on the contract of the
+    current operation)/operands/results/successors of the current operation.
+*   Must not modify the state of another operation not nested within the current
     operation being operated on.
     *   Other threads may be operating on these operations simultaneously.
-*   Inspect the state of sibling operations.
+*   Must not inspect the state of sibling operations.
     *   Other threads may be modifying these operations in parallel.
     *   Inspecting the state of ancestor/parent operations is permitted.
-*   Maintain mutable pass state across invocations of `runOnOperation`. A pass
-    may be run on many different operations with no guarantee of execution
-    order.
+*   Must not maintain mutable pass state across invocations of `runOnOperation`.
+    A pass may be run on many different operations with no guarantee of
+    execution order.
     *   When multithreading, a specific pass instance may not even execute on
         all operations within the IR. As such, a pass should not rely on running
         on all operations.
-*   Maintain any global mutable state, e.g. static variables within the source
-    file. All mutable state should be maintained by an instance of the pass.
+*   Must not maintain any global mutable state, e.g. static variables within the
+    source file. All mutable state should be maintained by an instance of the
+    pass.
 *   Must be copy-constructible
     *   Multiple instances of the pass may be created by the pass manager to
         process operations in parallel.
@@ -81,7 +82,7 @@ struct MyFunctionPass : public PassWrapper<MyFunctionPass,
     });
   }
 };
-} // end anonymous namespace
+} // namespace
 
 /// Register this pass so that it can be built via from a textual pass pipeline.
 /// (Pass registration is discussed more below)
@@ -343,7 +344,7 @@ structure:
 // explicitly specific, the default is the builtin `module` operation.
 PassManager pm(ctx);
 // Note: We could also create the above `PassManager` this way.
-PassManager pm(ctx, /*operationName=*/"module");
+PassManager pm(ctx, /*operationName=*/"builtin.module");
 
 // Add a pass on the top-level module operation.
 pm.addPass(std::make_unique<MyModulePass>());
@@ -405,7 +406,7 @@ top-level `PassManager::run` method. A simple example is shown below:
 void MyModulePass::runOnOperation() {
   ModuleOp module = getOperation();
   if (hasSomeSpecificProperty(module)) {
-    OpPassManager dynamicPM("module");
+    OpPassManager dynamicPM("builtin.module");
     ...; // Build the dynamic pipeline.
     if (failed(runPipeline(dynamicPM, module)))
       return signalPassFailure();
@@ -531,12 +532,12 @@ A pipeline view that models the structure of the pass manager, this is the
 default view:
 
 ```shell
-$ mlir-opt -pass-pipeline='func(my-pass,my-pass)' foo.mlir -pass-statistics
+$ mlir-opt -pass-pipeline='builtin.func(my-pass,my-pass)' foo.mlir -pass-statistics
 
 ===-------------------------------------------------------------------------===
                          ... Pass statistics report ...
 ===-------------------------------------------------------------------------===
-'func' Pipeline
+'builtin.func' Pipeline
   MyPass
     (S) 15 exampleStat - An example statistic
   VerifierPass
@@ -550,7 +551,7 @@ A list view that aggregates the statistics of all instances of a specific pass
 together:
 
 ```shell
-$ mlir-opt -pass-pipeline='func(my-pass, my-pass)' foo.mlir -pass-statistics -pass-statistics-display=list
+$ mlir-opt -pass-pipeline='builtin.func(my-pass, my-pass)' foo.mlir -pass-statistics -pass-statistics-display=list
 
 ===-------------------------------------------------------------------------===
                          ... Pass statistics report ...
@@ -656,7 +657,7 @@ options           ::= '{' (key ('=' value)?)+ '}'
 
 *   `op-name`
     *   This corresponds to the mnemonic name of an operation to run passes on,
-        e.g. `func` or `module`.
+        e.g. `builtin.func` or `builtin.module`.
 *   `pass-name` | `pass-pipeline-name`
     *   This corresponds to the argument of a registered pass or pass pipeline,
         e.g. `cse` or `canonicalize`.
@@ -675,7 +676,7 @@ $ mlir-opt foo.mlir -cse -canonicalize -convert-std-to-llvm='use-bare-ptr-memref
 Can also be specified as (via the `-pass-pipeline` flag):
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func(cse,canonicalize),convert-std-to-llvm{use-bare-ptr-memref-call-conv=1}'
+$ mlir-opt foo.mlir -pass-pipeline='builtin.func(cse,canonicalize),convert-std-to-llvm{use-bare-ptr-memref-call-conv=1}'
 ```
 
 In order to support round-tripping a pass to the textual representation using
@@ -996,7 +997,7 @@ pipeline. This display mode is available in mlir-opt via
 `-mlir-timing-display=list`.
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing -mlir-timing-display=list
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing -mlir-timing-display=list
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1021,7 +1022,7 @@ the most time, and can also be used to identify when analyses are being
 invalidated and recomputed. This is the default display mode.
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1029,7 +1030,7 @@ $ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse,canonicaliz
   Total Execution Time: 0.0249 seconds
 
    ---Wall Time---  --- Name ---
-   0.0058 ( 70.8%)  'func' Pipeline
+   0.0058 ( 70.8%)  'builtin.func' Pipeline
    0.0004 (  4.3%)    CSE
    0.0002 (  2.6%)      (A) DominanceInfo
    0.0004 (  4.8%)    VerifierPass
@@ -1052,7 +1053,7 @@ perceived time, or clock time, whereas the `User Time` will display the total
 cpu time.
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing
+$ mlir-opt foo.mlir -pass-pipeline='builtin.func(cse,canonicalize)' -convert-std-to-llvm -mlir-timing
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1060,7 +1061,7 @@ $ mlir-opt foo.mlir -pass-pipeline='func(cse,canonicalize)' -convert-std-to-llvm
   Total Execution Time: 0.0078 seconds
 
    ---User Time---   ---Wall Time---  --- Name ---
-   0.0177 ( 88.5%)     0.0057 ( 71.3%)  'func' Pipeline
+   0.0177 ( 88.5%)     0.0057 ( 71.3%)  'builtin.func' Pipeline
    0.0044 ( 22.0%)     0.0015 ( 18.9%)    CSE
    0.0029 ( 14.5%)     0.0012 ( 15.2%)      (A) DominanceInfo
    0.0038 ( 18.9%)     0.0015 ( 18.7%)    VerifierPass
@@ -1088,12 +1089,12 @@ this instrumentation:
     *   Print the IR before every pass in the pipeline.
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func(cse)' -print-ir-before=cse
+$ mlir-opt foo.mlir -pass-pipeline='builtin.func(cse)' -print-ir-before=cse
 
 *** IR Dump Before CSE ***
 func @simple_constant() -> (i32, i32) {
-  %c1_i32 = constant 1 : i32
-  %c1_i32_0 = constant 1 : i32
+  %c1_i32 = arith.constant 1 : i32
+  %c1_i32_0 = arith.constant 1 : i32
   return %c1_i32, %c1_i32_0 : i32, i32
 }
 ```
@@ -1104,11 +1105,11 @@ func @simple_constant() -> (i32, i32) {
     *   Print the IR after every pass in the pipeline.
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func(cse)' -print-ir-after=cse
+$ mlir-opt foo.mlir -pass-pipeline='builtin.func(cse)' -print-ir-after=cse
 
 *** IR Dump After CSE ***
 func @simple_constant() -> (i32, i32) {
-  %c1_i32 = constant 1 : i32
+  %c1_i32 = arith.constant 1 : i32
   return %c1_i32, %c1_i32 : i32, i32
 }
 ```
@@ -1125,11 +1126,11 @@ func @simple_constant() -> (i32, i32) {
         printing.
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func(cse,cse)' -print-ir-after=cse -print-ir-after-change
+$ mlir-opt foo.mlir -pass-pipeline='builtin.func(cse,cse)' -print-ir-after=cse -print-ir-after-change
 
 *** IR Dump After CSE ***
 func @simple_constant() -> (i32, i32) {
-  %c1_i32 = constant 1 : i32
+  %c1_i32 = arith.constant 1 : i32
   return %c1_i32, %c1_i32 : i32, i32
 }
 ```
@@ -1140,11 +1141,11 @@ func @simple_constant() -> (i32, i32) {
         above.
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func(cse,bad-pass)' -print-ir-failure
+$ mlir-opt foo.mlir -pass-pipeline='builtin.func(cse,bad-pass)' -print-ir-failure
 
 *** IR Dump After BadPass Failed ***
 func @simple_constant() -> (i32, i32) {
-  %c1_i32 = constant 1 : i32
+  %c1_i32 = arith.constant 1 : i32
   return %c1_i32, %c1_i32 : i32, i32
 }
 ```
@@ -1156,26 +1157,26 @@ func @simple_constant() -> (i32, i32) {
         is disabled(`-mlir-disable-threading`)
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func(cse)' -print-ir-after=cse -print-ir-module-scope
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.func(cse)' -print-ir-after=cse -print-ir-module-scope
 
-*** IR Dump After CSE ***  ('func' operation: @bar)
+*** IR Dump After CSE ***  ('builtin.func' operation: @bar)
 func @bar(%arg0: f32, %arg1: f32) -> f32 {
   ...
 }
 
 func @simple_constant() -> (i32, i32) {
-  %c1_i32 = constant 1 : i32
-  %c1_i32_0 = constant 1 : i32
+  %c1_i32 = arith.constant 1 : i32
+  %c1_i32_0 = arith.constant 1 : i32
   return %c1_i32, %c1_i32_0 : i32, i32
 }
 
-*** IR Dump After CSE ***  ('func' operation: @simple_constant)
+*** IR Dump After CSE ***  ('builtin.func' operation: @simple_constant)
 func @bar(%arg0: f32, %arg1: f32) -> f32 {
   ...
 }
 
 func @simple_constant() -> (i32, i32) {
-  %c1_i32 = constant 1 : i32
+  %c1_i32 = arith.constant 1 : i32
   return %c1_i32, %c1_i32 : i32, i32
 }
 ```
@@ -1193,7 +1194,7 @@ was executing, as well as the initial IR before any passes were run. A potential
 reproducible may have the form:
 
 ```mlir
-// configuration: -pass-pipeline='func(cse,canonicalize),inline' -verify-each
+// configuration: -pass-pipeline='builtin.func(cse,canonicalize),inline' -verify-each
 
 module {
   func @foo() {
@@ -1228,7 +1229,7 @@ For example, if the failure in the previous example came from `canonicalize`,
 the following reproducer will be generated:
 
 ```mlir
-// configuration: -pass-pipeline='func(canonicalize)' -verify-each -mlir-disable-threading
+// configuration: -pass-pipeline='builtin.func(canonicalize)' -verify-each -mlir-disable-threading
 
 module {
   func @foo() {

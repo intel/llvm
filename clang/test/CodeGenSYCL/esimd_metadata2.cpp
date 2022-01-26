@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -fsycl-is-device -S -emit-llvm %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-ESIMD
+// RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown -fsycl-is-device -S -emit-llvm %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-ESIMD
 
 // This test checks that attribute !intel_reqd_sub_group_size !1
 // is added for kernels with !sycl_explicit_simd

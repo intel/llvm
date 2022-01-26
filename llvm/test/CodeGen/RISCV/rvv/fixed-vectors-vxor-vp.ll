@@ -4,6 +4,18 @@
 ; RUN: llc -mtriple=riscv64 -mattr=+experimental-v -riscv-v-vector-bits-min=128 -verify-machineinstrs < %s \
 ; RUN:   | FileCheck %s --check-prefixes=CHECK,RV64
 
+declare <8 x i7> @llvm.vp.xor.v8i7(<8 x i7>, <8 x i7>, <8 x i1>, i32)
+
+define <8 x i7> @vxor_vv_v8i7(<8 x i7> %va, <8 x i7> %b, <8 x i1> %m, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vv_v8i7:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf2, ta, mu
+; CHECK-NEXT:    vxor.vv v8, v8, v9, v0.t
+; CHECK-NEXT:    ret
+  %v = call <8 x i7> @llvm.vp.xor.v8i7(<8 x i7> %va, <8 x i7> %b, <8 x i1> %m, i32 %evl)
+  ret <8 x i7> %v
+}
+
 declare <2 x i8> @llvm.vp.xor.v2i8(<2 x i8>, <2 x i8>, <2 x i1>, i32)
 
 define <2 x i8> @vxor_vv_v2i8(<2 x i8> %va, <2 x i8> %b, <2 x i1> %m, i32 zeroext %evl) {
@@ -308,6 +320,108 @@ define <8 x i8> @vxor_vi_v8i8_unmasked_1(<8 x i8> %va, i32 zeroext %evl) {
   %m = shufflevector <8 x i1> %head, <8 x i1> undef, <8 x i32> zeroinitializer
   %v = call <8 x i8> @llvm.vp.xor.v8i8(<8 x i8> %va, <8 x i8> %vb, <8 x i1> %m, i32 %evl)
   ret <8 x i8> %v
+}
+
+declare <9 x i8> @llvm.vp.xor.v9i8(<9 x i8>, <9 x i8>, <9 x i1>, i32)
+
+define <9 x i8> @vxor_vv_v9i8(<9 x i8> %va, <9 x i8> %b, <9 x i1> %m, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vv_v9i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, mu
+; CHECK-NEXT:    vxor.vv v8, v8, v9, v0.t
+; CHECK-NEXT:    ret
+  %v = call <9 x i8> @llvm.vp.xor.v9i8(<9 x i8> %va, <9 x i8> %b, <9 x i1> %m, i32 %evl)
+  ret <9 x i8> %v
+}
+
+define <9 x i8> @vxor_vv_v9i8_unmasked(<9 x i8> %va, <9 x i8> %b, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vv_v9i8_unmasked:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, mu
+; CHECK-NEXT:    vxor.vv v8, v8, v9
+; CHECK-NEXT:    ret
+  %head = insertelement <9 x i1> undef, i1 true, i32 0
+  %m = shufflevector <9 x i1> %head, <9 x i1> undef, <9 x i32> zeroinitializer
+  %v = call <9 x i8> @llvm.vp.xor.v9i8(<9 x i8> %va, <9 x i8> %b, <9 x i1> %m, i32 %evl)
+  ret <9 x i8> %v
+}
+
+define <9 x i8> @vxor_vx_v9i8(<9 x i8> %va, i8 %b, <9 x i1> %m, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vx_v9i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a1, e8, m1, ta, mu
+; CHECK-NEXT:    vxor.vx v8, v8, a0, v0.t
+; CHECK-NEXT:    ret
+  %elt.head = insertelement <9 x i8> undef, i8 %b, i32 0
+  %vb = shufflevector <9 x i8> %elt.head, <9 x i8> undef, <9 x i32> zeroinitializer
+  %v = call <9 x i8> @llvm.vp.xor.v9i8(<9 x i8> %va, <9 x i8> %vb, <9 x i1> %m, i32 %evl)
+  ret <9 x i8> %v
+}
+
+define <9 x i8> @vxor_vx_v9i8_unmasked(<9 x i8> %va, i8 %b, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vx_v9i8_unmasked:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a1, e8, m1, ta, mu
+; CHECK-NEXT:    vxor.vx v8, v8, a0
+; CHECK-NEXT:    ret
+  %elt.head = insertelement <9 x i8> undef, i8 %b, i32 0
+  %vb = shufflevector <9 x i8> %elt.head, <9 x i8> undef, <9 x i32> zeroinitializer
+  %head = insertelement <9 x i1> undef, i1 true, i32 0
+  %m = shufflevector <9 x i1> %head, <9 x i1> undef, <9 x i32> zeroinitializer
+  %v = call <9 x i8> @llvm.vp.xor.v9i8(<9 x i8> %va, <9 x i8> %vb, <9 x i1> %m, i32 %evl)
+  ret <9 x i8> %v
+}
+
+define <9 x i8> @vxor_vi_v9i8(<9 x i8> %va, <9 x i1> %m, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vi_v9i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, mu
+; CHECK-NEXT:    vxor.vi v8, v8, 7, v0.t
+; CHECK-NEXT:    ret
+  %elt.head = insertelement <9 x i8> undef, i8 7, i32 0
+  %vb = shufflevector <9 x i8> %elt.head, <9 x i8> undef, <9 x i32> zeroinitializer
+  %v = call <9 x i8> @llvm.vp.xor.v9i8(<9 x i8> %va, <9 x i8> %vb, <9 x i1> %m, i32 %evl)
+  ret <9 x i8> %v
+}
+
+define <9 x i8> @vxor_vi_v9i8_unmasked(<9 x i8> %va, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vi_v9i8_unmasked:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, mu
+; CHECK-NEXT:    vxor.vi v8, v8, 7
+; CHECK-NEXT:    ret
+  %elt.head = insertelement <9 x i8> undef, i8 7, i32 0
+  %vb = shufflevector <9 x i8> %elt.head, <9 x i8> undef, <9 x i32> zeroinitializer
+  %head = insertelement <9 x i1> undef, i1 true, i32 0
+  %m = shufflevector <9 x i1> %head, <9 x i1> undef, <9 x i32> zeroinitializer
+  %v = call <9 x i8> @llvm.vp.xor.v9i8(<9 x i8> %va, <9 x i8> %vb, <9 x i1> %m, i32 %evl)
+  ret <9 x i8> %v
+}
+
+define <9 x i8> @vxor_vi_v9i8_1(<9 x i8> %va, <9 x i1> %m, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vi_v9i8_1:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, mu
+; CHECK-NEXT:    vnot.v v8, v8, v0.t
+; CHECK-NEXT:    ret
+  %elt.head = insertelement <9 x i8> undef, i8 -1, i32 0
+  %vb = shufflevector <9 x i8> %elt.head, <9 x i8> undef, <9 x i32> zeroinitializer
+  %v = call <9 x i8> @llvm.vp.xor.v9i8(<9 x i8> %va, <9 x i8> %vb, <9 x i1> %m, i32 %evl)
+  ret <9 x i8> %v
+}
+
+define <9 x i8> @vxor_vi_v9i8_unmasked_1(<9 x i8> %va, i32 zeroext %evl) {
+; CHECK-LABEL: vxor_vi_v9i8_unmasked_1:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e8, m1, ta, mu
+; CHECK-NEXT:    vxor.vi v8, v8, -1
+; CHECK-NEXT:    ret
+  %elt.head = insertelement <9 x i8> undef, i8 -1, i32 0
+  %vb = shufflevector <9 x i8> %elt.head, <9 x i8> undef, <9 x i32> zeroinitializer
+  %head = insertelement <9 x i1> undef, i1 true, i32 0
+  %m = shufflevector <9 x i1> %head, <9 x i1> undef, <9 x i32> zeroinitializer
+  %v = call <9 x i8> @llvm.vp.xor.v9i8(<9 x i8> %va, <9 x i8> %vb, <9 x i1> %m, i32 %evl)
+  ret <9 x i8> %v
 }
 
 declare <16 x i8> @llvm.vp.xor.v16i8(<16 x i8>, <16 x i8>, <16 x i1>, i32)
@@ -1261,9 +1375,9 @@ define <2 x i64> @vxor_vx_v2i64(<2 x i64> %va, i64 %b, <2 x i1> %m, i32 zeroext 
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v25, (a0), zero
+; RV32-NEXT:    vlse64.v v9, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m1, ta, mu
-; RV32-NEXT:    vxor.vv v8, v8, v25, v0.t
+; RV32-NEXT:    vxor.vv v8, v8, v9, v0.t
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -1287,9 +1401,9 @@ define <2 x i64> @vxor_vx_v2i64_unmasked(<2 x i64> %va, i64 %b, i32 zeroext %evl
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v25, (a0), zero
+; RV32-NEXT:    vlse64.v v9, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m1, ta, mu
-; RV32-NEXT:    vxor.vv v8, v8, v25
+; RV32-NEXT:    vxor.vv v8, v8, v9
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -1391,9 +1505,9 @@ define <4 x i64> @vxor_vx_v4i64(<4 x i64> %va, i64 %b, <4 x i1> %m, i32 zeroext 
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v26, (a0), zero
+; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m2, ta, mu
-; RV32-NEXT:    vxor.vv v8, v8, v26, v0.t
+; RV32-NEXT:    vxor.vv v8, v8, v10, v0.t
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -1417,9 +1531,9 @@ define <4 x i64> @vxor_vx_v4i64_unmasked(<4 x i64> %va, i64 %b, i32 zeroext %evl
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v26, (a0), zero
+; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m2, ta, mu
-; RV32-NEXT:    vxor.vv v8, v8, v26
+; RV32-NEXT:    vxor.vv v8, v8, v10
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -1521,9 +1635,9 @@ define <8 x i64> @vxor_vx_v8i64(<8 x i64> %va, i64 %b, <8 x i1> %m, i32 zeroext 
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 8, e64, m4, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v28, (a0), zero
+; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m4, ta, mu
-; RV32-NEXT:    vxor.vv v8, v8, v28, v0.t
+; RV32-NEXT:    vxor.vv v8, v8, v12, v0.t
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -1547,9 +1661,9 @@ define <8 x i64> @vxor_vx_v8i64_unmasked(<8 x i64> %va, i64 %b, i32 zeroext %evl
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 8, e64, m4, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v28, (a0), zero
+; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m4, ta, mu
-; RV32-NEXT:    vxor.vv v8, v8, v28
+; RV32-NEXT:    vxor.vv v8, v8, v12
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;

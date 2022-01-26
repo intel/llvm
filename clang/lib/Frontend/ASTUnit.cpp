@@ -807,7 +807,8 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   if (ToLoad >= LoadASTOnly)
     AST->Ctx = new ASTContext(*AST->LangOpts, AST->getSourceManager(),
                               PP.getIdentifierTable(), PP.getSelectorTable(),
-                              PP.getBuiltinInfo());
+                              PP.getBuiltinInfo(),
+                              AST->getTranslationUnitKind());
 
   DisableValidationForModuleKind disableValid =
       DisableValidationForModuleKind::None;
@@ -816,7 +817,7 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   AST->Reader = new ASTReader(
       PP, *AST->ModuleCache, AST->Ctx.get(), PCHContainerRdr, {},
       /*isysroot=*/"",
-      /*DisableValidation=*/disableValid, AllowASTWithCompilerErrors);
+      /*DisableValidationKind=*/disableValid, AllowASTWithCompilerErrors);
 
   AST->Reader->setListener(std::make_unique<ASTInfoCollector>(
       *AST->PP, AST->Ctx.get(), *AST->HSOpts, *AST->PPOpts, *AST->LangOpts,
@@ -1068,9 +1069,7 @@ static void
 checkAndRemoveNonDriverDiags(SmallVectorImpl<StoredDiagnostic> &StoredDiags) {
   // Get rid of stored diagnostics except the ones from the driver which do not
   // have a source location.
-  StoredDiags.erase(
-      std::remove_if(StoredDiags.begin(), StoredDiags.end(), isNonDriverDiag),
-      StoredDiags.end());
+  llvm::erase_if(StoredDiags, isNonDriverDiag);
 }
 
 static void checkAndSanitizeDiags(SmallVectorImpl<StoredDiagnostic> &
@@ -1923,9 +1922,10 @@ namespace {
     void ProcessOverloadCandidates(Sema &S, unsigned CurrentArg,
                                    OverloadCandidate *Candidates,
                                    unsigned NumCandidates,
-                                   SourceLocation OpenParLoc) override {
+                                   SourceLocation OpenParLoc,
+                                   bool Braced) override {
       Next.ProcessOverloadCandidates(S, CurrentArg, Candidates, NumCandidates,
-                                     OpenParLoc);
+                                     OpenParLoc, Braced);
     }
 
     CodeCompletionAllocator &getAllocator() override {
@@ -1988,6 +1988,7 @@ static void CalculateHiddenNames(const CodeCompletionContext &Context,
   case CodeCompletionContext::CCC_ObjCClassMessage:
   case CodeCompletionContext::CCC_ObjCCategoryName:
   case CodeCompletionContext::CCC_IncludedFile:
+  case CodeCompletionContext::CCC_Attribute:
   case CodeCompletionContext::CCC_NewName:
     // We're looking for nothing, or we're looking for names that cannot
     // be hidden.

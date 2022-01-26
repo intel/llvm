@@ -17,12 +17,7 @@ entry:
 }
 
 !opencl.enable.FP_CONTRACT = !{}
-!opencl.spir.version = !{!2}
-!opencl.ocl.version = !{!2}
-!opencl.used.extensions = !{!3}
-!opencl.used.optional.core.features = !{!3}
-!opencl.compiler.options = !{!3}
 
-!1 = !{!1}
-!2 = !{i32 1, i32 2}
-!3 = !{}
+!1 = !{!2}
+!2 = distinct !{!2, !3}
+!3 = distinct !{!3}

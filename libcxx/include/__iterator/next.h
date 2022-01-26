@@ -23,9 +23,6 @@
 #pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _InputIter>
@@ -41,42 +38,53 @@ inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX14
 
 #if !defined(_LIBCPP_HAS_NO_RANGES)
 
+// [range.iter.op.next]
+
 namespace ranges {
-struct __next_fn final : private __function_like {
-  constexpr explicit __next_fn(__tag __x) noexcept : __function_like(__x) {}
+namespace __next {
+
+struct __fn final : private __function_like {
+  _LIBCPP_HIDE_FROM_ABI
+  constexpr explicit __fn(__tag __x) noexcept : __function_like(__x) {}
 
   template <input_or_output_iterator _Ip>
+  _LIBCPP_HIDE_FROM_ABI
   constexpr _Ip operator()(_Ip __x) const {
     ++__x;
     return __x;
   }
 
   template <input_or_output_iterator _Ip>
+  _LIBCPP_HIDE_FROM_ABI
   constexpr _Ip operator()(_Ip __x, iter_difference_t<_Ip> __n) const {
     ranges::advance(__x, __n);
     return __x;
   }
 
   template <input_or_output_iterator _Ip, sentinel_for<_Ip> _Sp>
+  _LIBCPP_HIDE_FROM_ABI
   constexpr _Ip operator()(_Ip __x, _Sp __bound) const {
     ranges::advance(__x, __bound);
     return __x;
   }
 
   template <input_or_output_iterator _Ip, sentinel_for<_Ip> _Sp>
+  _LIBCPP_HIDE_FROM_ABI
   constexpr _Ip operator()(_Ip __x, iter_difference_t<_Ip> __n, _Sp __bound) const {
     ranges::advance(__x, __n, __bound);
     return __x;
   }
 };
 
-inline constexpr auto next = __next_fn(__function_like::__tag());
+} // namespace __next
+
+inline namespace __cpo {
+  inline constexpr auto next = __next::__fn(__function_like::__tag());
+} // namespace __cpo
 } // namespace ranges
 
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
 
-_LIBCPP_POP_MACROS
-
-#endif // _LIBCPP___ITERATOR_PRIMITIVES_H
+#endif // _LIBCPP___ITERATOR_NEXT_H

@@ -15,50 +15,28 @@ DEFAULT_TARGETS = [
     "AArch64",
     "AMDGPU",
     "ARM",
+    "AVR",
     "BPF",
     "Hexagon",
     "Lanai",
+    "Mips",
+    "MSP430",
     "NVPTX",
     "PowerPC",
     "RISCV",
     "Sparc",
+    "SystemZ",
     "WebAssembly",
     "X86",
+    "XCore",
 ]
 
-def _is_absolute(path):
-    """Returns `True` if `path` is an absolute path.
-
-    Args:
-      path: A path (which is a string).
-    Returns:
-      `True` if `path` is an absolute path.
-    """
-    return path.startswith("/") or (len(path) > 2 and path[1] == ":")
-
-def _join_path(a, b):
-    if _is_absolute(b):
-        return b
-    return str(a) + "/" + str(b)
-
 def _overlay_directories(repository_ctx):
-    src_workspace_path = repository_ctx.path(
-        repository_ctx.attr.src_workspace,
-    ).dirname
+    src_path = repository_ctx.path(Label("//:WORKSPACE")).dirname
+    bazel_path = src_path.get_child("utils").get_child("bazel")
+    overlay_path = bazel_path.get_child("llvm-project-overlay")
+    script_path = bazel_path.get_child("overlay_directories.py")
 
-    src_path = _join_path(src_workspace_path, repository_ctx.attr.src_path)
-
-    overlay_workspace_path = repository_ctx.path(
-        repository_ctx.attr.overlay_workspace,
-    ).dirname
-    overlay_path = _join_path(
-        overlay_workspace_path,
-        repository_ctx.attr.overlay_path,
-    )
-
-    overlay_script = repository_ctx.path(
-        repository_ctx.attr._overlay_script,
-    )
     python_bin = repository_ctx.which("python3")
     if not python_bin:
         # Windows typically just defines "python" as python3. The script itself
@@ -70,7 +48,7 @@ def _overlay_directories(repository_ctx):
 
     cmd = [
         python_bin,
-        overlay_script,
+        script_path,
         "--src",
         src_path,
         "--overlay",
@@ -107,14 +85,6 @@ llvm_configure = repository_rule(
     local = True,
     configure = True,
     attrs = {
-        "_overlay_script": attr.label(
-            default = Label("//:overlay_directories.py"),
-            allow_single_file = True,
-        ),
-        "overlay_workspace": attr.label(default = Label("//:WORKSPACE")),
-        "overlay_path": attr.string(default = DEFAULT_OVERLAY_PATH),
-        "src_workspace": attr.label(default = Label("//:WORKSPACE")),
-        "src_path": attr.string(mandatory = True),
         "targets": attr.string_list(default = DEFAULT_TARGETS),
     },
 )

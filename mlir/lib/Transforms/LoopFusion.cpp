@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/LoopAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineExpr.h"
@@ -49,40 +49,43 @@ namespace {
 struct LoopFusion : public AffineLoopFusionBase<LoopFusion> {
   LoopFusion() = default;
   LoopFusion(unsigned fastMemorySpace, uint64_t localBufSizeThresholdBytes,
-             bool maximalFusion) {
+             bool maximalFusion, enum FusionMode affineFusionMode) {
     this->fastMemorySpace = fastMemorySpace;
     this->localBufSizeThreshold = localBufSizeThresholdBytes / 1024;
     this->maximalFusion = maximalFusion;
+    this->affineFusionMode = affineFusionMode;
   }
 
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::createLoopFusionPass(unsigned fastMemorySpace,
-                           uint64_t localBufSizeThreshold, bool maximalFusion) {
+                           uint64_t localBufSizeThreshold, bool maximalFusion,
+                           enum FusionMode affineFusionMode) {
   return std::make_unique<LoopFusion>(fastMemorySpace, localBufSizeThreshold,
-                                      maximalFusion);
+                                      maximalFusion, affineFusionMode);
 }
 
 namespace {
 
 // LoopNestStateCollector walks loop nests and collects load and store
-// operations, and whether or not an IfInst was encountered in the loop nest.
+// operations, and whether or not a region holding op other than ForOp and IfOp
+// was encountered in the loop nest.
 struct LoopNestStateCollector {
   SmallVector<AffineForOp, 4> forOps;
   SmallVector<Operation *, 4> loadOpInsts;
   SmallVector<Operation *, 4> storeOpInsts;
-  bool hasNonForRegion = false;
+  bool hasNonAffineRegionOp = false;
 
   void collect(Operation *opToWalk) {
     opToWalk->walk([&](Operation *op) {
       if (isa<AffineForOp>(op))
         forOps.push_back(cast<AffineForOp>(op));
-      else if (op->getNumRegions() != 0)
-        hasNonForRegion = true;
+      else if (op->getNumRegions() != 0 && !isa<AffineIfOp>(op))
+        hasNonAffineRegionOp = true;
       else if (isa<AffineReadOpInterface>(op))
         loadOpInsts.push_back(op);
       else if (isa<AffineWriteOpInterface>(op))
@@ -195,7 +198,7 @@ public:
   // The next unique identifier to use for newly created graph nodes.
   unsigned nextNodeId = 0;
 
-  MemRefDependenceGraph() {}
+  MemRefDependenceGraph() = default;
 
   // Initializes the dependence graph based on operations in 'f'.
   // Returns true on success, false otherwise.
@@ -298,14 +301,15 @@ public:
       memrefEdgeCount[value]--;
     }
     // Remove 'srcId' from 'inEdges[dstId]'.
-    for (auto it = inEdges[dstId].begin(); it != inEdges[dstId].end(); ++it) {
+    for (auto *it = inEdges[dstId].begin(); it != inEdges[dstId].end(); ++it) {
       if ((*it).id == srcId && (*it).value == value) {
         inEdges[dstId].erase(it);
         break;
       }
     }
     // Remove 'dstId' from 'outEdges[srcId]'.
-    for (auto it = outEdges[srcId].begin(); it != outEdges[srcId].end(); ++it) {
+    for (auto *it = outEdges[srcId].begin(); it != outEdges[srcId].end();
+         ++it) {
       if ((*it).id == dstId && (*it).value == value) {
         outEdges[srcId].erase(it);
         break;
@@ -723,7 +727,7 @@ void gatherEscapingMemrefs(unsigned id, MemRefDependenceGraph *mdg,
   }
 }
 
-} // end anonymous namespace
+} // namespace
 
 // Initializes the data dependence graph by walking operations in 'f'.
 // Assigns each node in the graph a node id based on program order in 'f'.
@@ -744,9 +748,9 @@ bool MemRefDependenceGraph::init(FuncOp f) {
       // all loads and store accesses it contains.
       LoopNestStateCollector collector;
       collector.collect(&op);
-      // Return false if a non 'affine.for' region was found (not currently
-      // supported).
-      if (collector.hasNonForRegion)
+      // Return false if a region holding op other than 'affine.for' and
+      // 'affine.if' was found (not currently supported).
+      if (collector.hasNonAffineRegionOp)
         return false;
       Node node(nextNodeId++, &op);
       for (auto *opInst : collector.loadOpInsts) {
@@ -915,12 +919,12 @@ static Value createPrivateMemRef(AffineForOp forOp, Operation *srcStoreOpInst,
   assert(numElements.hasValue() &&
          "non-constant number of elts in local buffer");
 
-  const FlatAffineConstraints *cst = region.getConstraints();
+  const FlatAffineValueConstraints *cst = region.getConstraints();
   // 'outerIVs' holds the values that this memory region is symbolic/parametric
   // on; this would correspond to loop IVs surrounding the level at which the
   // slice is being materialized.
   SmallVector<Value, 8> outerIVs;
-  cst->getIdValues(rank, cst->getNumIds(), &outerIVs);
+  cst->getValues(rank, cst->getNumIds(), &outerIVs);
 
   // Build 'rank' AffineExprs from MemRefRegion 'lbs'
   SmallVector<AffineExpr, 4> offsets;
@@ -978,7 +982,7 @@ static Value createPrivateMemRef(AffineForOp forOp, Operation *srcStoreOpInst,
       replaceAllMemRefUsesWith(oldMemRef, newMemRef, {}, indexRemap,
                                /*extraOperands=*/outerIVs,
                                /*symbolOperands=*/{},
-                               /*domInstFilter=*/&*forOp.getBody()->begin());
+                               /*domOpFilter=*/&*forOp.getBody()->begin());
   assert(succeeded(res) &&
          "replaceAllMemrefUsesWith should always succeed here");
   (void)res;
@@ -1390,13 +1394,25 @@ public:
       worklist.push_back(node.id);
     }
   }
+  /// Run only sibling fusion on the `mdg`.
+  void runSiblingFusionOnly() {
+    fuseSiblingNodes();
+    eraseUnusedMemRefAllocations();
+  }
+
+  /// Run only producer/consumer fusion on the `mdg`.
+  void runProducerConsumerFusionOnly() {
+    fuseProducerConsumerNodes(
+        /*maxSrcUserCount=*/std::numeric_limits<unsigned>::max());
+    eraseUnusedMemRefAllocations();
+  }
 
   // Run the GreedyFusion pass.
   // *) First pass through the nodes fuses single-use producer nodes into their
   //    unique consumer.
   // *) Second pass fuses sibling nodes which share no dependence edges.
   // *) Third pass fuses any remaining producer nodes into their users.
-  void run() {
+  void runGreedyFusion() {
     // TODO: Run this repeatedly until a fixed-point is reached.
     fuseProducerConsumerNodes(/*maxSrcUserCount=*/1);
     fuseSiblingNodes();
@@ -1550,7 +1566,7 @@ public:
             // producer scenarios will still go through profitability analysis
             // if only one of the stores is involved the producer-consumer
             // relationship of the candidate loops.
-            assert(producerStores.size() > 0 && "Expected producer store");
+            assert(!producerStores.empty() && "Expected producer store");
             if (producerStores.size() > 1)
               LLVM_DEBUG(llvm::dbgs() << "Skipping profitability analysis. Not "
                                          "supported for this case\n");
@@ -1682,6 +1698,7 @@ public:
   // Visits each node in the graph, and for each node, attempts to fuse it with
   // its sibling nodes (nodes which share a parent, but no dependence edges).
   void fuseSiblingNodes() {
+    LLVM_DEBUG(llvm::dbgs() << "--- Sibling Fusion ---\n");
     init();
     while (!worklist.empty()) {
       unsigned dstId = worklist.back();
@@ -1773,10 +1790,14 @@ public:
       assert(bestDstLoopDepth > 0 && "Unexpected loop fusion depth");
       assert(!depthSliceUnions[bestDstLoopDepth - 1].isEmpty() &&
              "Fusion depth has no computed slice union");
-
+      // Check if source loop is being inserted in the innermost
+      // destination loop. Based on this, the fused loop may be optimized
+      // further inside `fuseLoops`.
+      bool isInnermostInsertion = (bestDstLoopDepth == dstLoopDepthTest);
       // Fuse computation slice of 'sibLoopNest' into 'dstLoopNest'.
       mlir::fuseLoops(sibAffineForOp, dstAffineForOp,
-                      depthSliceUnions[bestDstLoopDepth - 1]);
+                      depthSliceUnions[bestDstLoopDepth - 1],
+                      isInnermostInsertion);
 
       auto dstForInst = cast<AffineForOp>(dstNode->op);
       // Update operation position of fused loop nest (if needed).
@@ -1952,11 +1973,11 @@ public:
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
-void LoopFusion::runOnFunction() {
+void LoopFusion::runOnOperation() {
   MemRefDependenceGraph g;
-  if (!g.init(getFunction()))
+  if (!g.init(getOperation()))
     return;
 
   Optional<unsigned> fastMemorySpaceOpt;
@@ -1965,5 +1986,11 @@ void LoopFusion::runOnFunction() {
   unsigned localBufSizeThresholdBytes = localBufSizeThreshold * 1024;
   GreedyFusion fusion(&g, localBufSizeThresholdBytes, fastMemorySpaceOpt,
                       maximalFusion, computeToleranceThreshold);
-  fusion.run();
+
+  if (affineFusionMode == FusionMode::ProducerConsumer)
+    fusion.runProducerConsumerFusionOnly();
+  else if (affineFusionMode == FusionMode::Sibling)
+    fusion.runSiblingFusionOnly();
+  else
+    fusion.runGreedyFusion();
 }

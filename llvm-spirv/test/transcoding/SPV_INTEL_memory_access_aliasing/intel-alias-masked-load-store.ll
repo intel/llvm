@@ -47,19 +47,19 @@
 ; CHECK-SPIRV: AliasDomainDeclINTEL [[DOMAIN3:[0-9]+]]
 ; CHECK-SPIRV: AliasScopeDeclINTEL [[SCOPE3:[0-9]+]] [[DOMAIN3]]
 ; CHECK-SPIRV: AliasScopeListDeclINTEL [[LIST3:[0-9]+]] [[SCOPE3]]
-; CHECK-SPIRV: DecorateId [[TARGET1:[0-9]+]] AliasScopeINTEL [[LIST1]]
-; CHECK-SPIRV: DecorateId [[TARGET2:[0-9]+]] AliasScopeINTEL [[LIST1]]
-; CHECK-SPIRV: DecorateId [[TARGET3:[0-9]+]] AliasScopeINTEL [[LIST3]]
-; CHECK-SPIRV: DecorateId [[TARGET4:[0-9]+]] AliasScopeINTEL [[LIST3]]
-; CHECK-SPIRV: DecorateId [[TARGET5:[0-9]+]] NoAliasINTEL [[LIST1]]
-; CHECK-SPIRV: DecorateId [[TARGET2]] NoAliasINTEL [[LIST2]]
-; CHECK-SPIRV: DecorateId [[TARGET6:[0-9]+]] NoAliasINTEL [[LIST3]]
-; CHECK-SPIRV: FunctionCall {{.*}} [[TARGET1]]
-; CHECK-SPIRV: FunctionCall {{.*}} [[TARGET2]]
-; CHECK-SPIRV: FunctionCall {{.*}} [[TARGET5]]
-; CHECK-SPIRV: FunctionCall {{.*}} [[TARGET3]]
-; CHECK-SPIRV: FunctionCall {{.*}} [[TARGET4]]
-; CHECK-SPIRV: FunctionCall {{.*}} [[TARGET6]]
+; CHECK-SPIRV-DAG: DecorateId [[TARGET2:[0-9]+]] NoAliasINTEL [[LIST2]]
+; CHECK-SPIRV-DAG: DecorateId [[TARGET2]] AliasScopeINTEL [[LIST1]]
+; CHECK-SPIRV-DAG: DecorateId [[TARGET1:[0-9]+]] AliasScopeINTEL [[LIST1]]
+; CHECK-SPIRV-DAG: DecorateId [[TARGET3:[0-9]+]] AliasScopeINTEL [[LIST3]]
+; CHECK-SPIRV-DAG: DecorateId [[TARGET4:[0-9]+]] AliasScopeINTEL [[LIST3]]
+; CHECK-SPIRV-DAG: DecorateId [[TARGET5:[0-9]+]] NoAliasINTEL [[LIST1]]
+; CHECK-SPIRV-DAG: DecorateId [[TARGET6:[0-9]+]] NoAliasINTEL [[LIST3]]
+; CHECK-SPIRV-DAG: FunctionCall {{.*}} [[TARGET1]]
+; CHECK-SPIRV-DAG: FunctionCall {{.*}} [[TARGET2]]
+; CHECK-SPIRV-DAG: FunctionCall {{.*}} [[TARGET5]]
+; CHECK-SPIRV-DAG: FunctionCall {{.*}} [[TARGET3]]
+; CHECK-SPIRV-DAG: FunctionCall {{.*}} [[TARGET4]]
+; CHECK-SPIRV-DAG: FunctionCall {{.*}} [[TARGET6]]
 
 ; CHECK-SPIRV-NEGATIVE-NOT: Capability MemoryAccessAliasingINTEL
 ; CHECK-SPIRV-NEGATIVE-NOT: Extension "SPV_INTEL_memory_access_aliasing"
@@ -72,7 +72,7 @@
 ; ModuleID = 'optimized_intel_restrict.bc'
 source_filename = "intel_restrict.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nofree norecurse nounwind willreturn mustprogress
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_restrict(i32 addrspace(1)* noalias %_arg_, i32 addrspace(1)* noalias %_arg_1, i32 addrspace(1)* noalias %_arg_3) local_unnamed_addr #0 !kernel_arg_buffer_location !4 {

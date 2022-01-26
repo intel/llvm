@@ -9,7 +9,7 @@
 #include "Config.h"
 #include "ConfigFragment.h"
 #include "ConfigTesting.h"
-#include "Features.h"
+#include "Feature.h"
 #include "TestFS.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "llvm/ADT/None.h"
@@ -121,14 +121,15 @@ TEST_F(ConfigCompileTests, Condition) {
 }
 
 TEST_F(ConfigCompileTests, CompileCommands) {
+  Frag.CompileFlags.Compiler.emplace("tpc.exe");
   Frag.CompileFlags.Add.emplace_back("-foo");
   Frag.CompileFlags.Remove.emplace_back("--include-directory=");
   std::vector<std::string> Argv = {"clang", "-I", "bar/", "--", "a.cc"};
   EXPECT_TRUE(compileAndApply());
-  EXPECT_THAT(Conf.CompileFlags.Edits, SizeIs(2));
+  EXPECT_THAT(Conf.CompileFlags.Edits, SizeIs(3));
   for (auto &Edit : Conf.CompileFlags.Edits)
     Edit(Argv);
-  EXPECT_THAT(Argv, ElementsAre("clang", "-foo", "--", "a.cc"));
+  EXPECT_THAT(Argv, ElementsAre("tpc.exe", "-foo", "--", "a.cc"));
 }
 
 TEST_F(ConfigCompileTests, CompilationDatabase) {
@@ -244,6 +245,25 @@ TEST_F(ConfigCompileTests, PathSpecMatch) {
   }
 }
 
+TEST_F(ConfigCompileTests, DiagnosticsIncludeCleaner) {
+  // Defaults to None.
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
+            Config::UnusedIncludesPolicy::None);
+
+  Frag = {};
+  Frag.Diagnostics.UnusedIncludes.emplace("None");
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
+            Config::UnusedIncludesPolicy::None);
+
+  Frag = {};
+  Frag.Diagnostics.UnusedIncludes.emplace("Strict");
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
+            Config::UnusedIncludesPolicy::Strict);
+}
+
 TEST_F(ConfigCompileTests, DiagnosticSuppression) {
   Frag.Diagnostics.Suppress.emplace_back("bugprone-use-after-move");
   Frag.Diagnostics.Suppress.emplace_back("unreachable-code");
@@ -257,19 +277,20 @@ TEST_F(ConfigCompileTests, DiagnosticSuppression) {
                                    "unreachable-code", "unused-variable",
                                    "typecheck_bool_condition",
                                    "unexpected_friend", "warn_alloca"));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(diag::warn_unreachable,
-                                            Conf.Diagnostics.Suppress));
+  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(
+      diag::warn_unreachable, Conf.Diagnostics.Suppress, LangOptions()));
   // Subcategory not respected/suppressed.
-  EXPECT_FALSE(isBuiltinDiagnosticSuppressed(diag::warn_unreachable_break,
-                                             Conf.Diagnostics.Suppress));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(diag::warn_unused_variable,
-                                            Conf.Diagnostics.Suppress));
+  EXPECT_FALSE(isBuiltinDiagnosticSuppressed(
+      diag::warn_unreachable_break, Conf.Diagnostics.Suppress, LangOptions()));
+  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(
+      diag::warn_unused_variable, Conf.Diagnostics.Suppress, LangOptions()));
   EXPECT_TRUE(isBuiltinDiagnosticSuppressed(diag::err_typecheck_bool_condition,
-                                            Conf.Diagnostics.Suppress));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(diag::err_unexpected_friend,
-                                            Conf.Diagnostics.Suppress));
-  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(diag::warn_alloca,
-                                            Conf.Diagnostics.Suppress));
+                                            Conf.Diagnostics.Suppress,
+                                            LangOptions()));
+  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(
+      diag::err_unexpected_friend, Conf.Diagnostics.Suppress, LangOptions()));
+  EXPECT_TRUE(isBuiltinDiagnosticSuppressed(
+      diag::warn_alloca, Conf.Diagnostics.Suppress, LangOptions()));
 
   Frag.Diagnostics.Suppress.emplace_back("*");
   EXPECT_TRUE(compileAndApply());
@@ -288,16 +309,26 @@ TEST_F(ConfigCompileTests, Tidy) {
   Tidy.CheckOptions.emplace_back(std::make_pair(
       std::string("example-check.ExampleOption"), std::string("0")));
   EXPECT_TRUE(compileAndApply());
-  EXPECT_EQ(
-      Conf.Diagnostics.ClangTidy.Checks,
-      "bugprone-use-after-move,llvm-*,-llvm-include-order,-readability-*");
   EXPECT_EQ(Conf.Diagnostics.ClangTidy.CheckOptions.size(), 2U);
   EXPECT_EQ(Conf.Diagnostics.ClangTidy.CheckOptions.lookup("StrictMode"),
             "true");
   EXPECT_EQ(Conf.Diagnostics.ClangTidy.CheckOptions.lookup(
                 "example-check.ExampleOption"),
             "0");
+#if CLANGD_TIDY_CHECKS
+  EXPECT_EQ(
+      Conf.Diagnostics.ClangTidy.Checks,
+      "bugprone-use-after-move,llvm-*,-llvm-include-order,-readability-*");
   EXPECT_THAT(Diags.Diagnostics, IsEmpty());
+#else // !CLANGD_TIDY_CHECKS
+  EXPECT_EQ(Conf.Diagnostics.ClangTidy.Checks, "llvm-*,-readability-*");
+  EXPECT_THAT(
+      Diags.Diagnostics,
+      ElementsAre(
+          DiagMessage(
+              "clang-tidy check 'bugprone-use-after-move' was not found"),
+          DiagMessage("clang-tidy check 'llvm-include-order' was not found")));
+#endif
 }
 
 TEST_F(ConfigCompileTests, TidyBadChecks) {

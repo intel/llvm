@@ -7,12 +7,6 @@ import re
 import subprocess
 import sys
 
-if sys.version_info[0] > 2:
-  class string:
-    expandtabs = str.expandtabs
-else:
-  import string
-
 ##### Common utilities for update_*test_checks.py
 
 
@@ -36,9 +30,15 @@ def parse_commandline_args(parser):
                       help='List of regular expressions to replace matching value names')
   parser.add_argument('--prefix-filecheck-ir-name', default='',
                       help='Add a prefix to FileCheck IR value names to avoid conflicts with scripted names')
+  parser.add_argument('--global-value-regex', nargs='+', default=[],
+                      help='List of regular expressions that a global value declaration must match to generate a check (has no effect if checking globals is not enabled)')
+  parser.add_argument('--global-hex-value-regex', nargs='+', default=[],
+                      help='List of regular expressions such that, for matching global value declarations, literal integer values should be encoded in hex in the associated FileCheck directives')
   args = parser.parse_args()
-  global _verbose
+  global _verbose, _global_value_regex, _global_hex_value_regex
   _verbose = args.verbose
+  _global_value_regex = args.global_value_regex
+  _global_hex_value_regex = args.global_hex_value_regex
   return args
 
 
@@ -141,16 +141,31 @@ def should_add_line_to_output(input_line, prefix_set, skip_global_checks = False
 
   return True
 
+# Perform lit-like substitutions
+def getSubstitutions(sourcepath):
+  sourcedir = os.path.dirname(sourcepath)
+  return [('%s', sourcepath),
+          ('%S', sourcedir),
+          ('%p', sourcedir),
+          ('%{pathsep}', os.pathsep)]
+
+def applySubstitutions(s, substitutions):
+  for a,b in substitutions:
+    s = s.replace(a, b)
+  return s
+
 # Invoke the tool that is being tested.
 def invoke_tool(exe, cmd_args, ir, preprocess_cmd=None, verbose=False):
   with open(ir) as ir_file:
+    substitutions = getSubstitutions(ir)
+
     # TODO Remove the str form which is used by update_test_checks.py and
     # update_llc_test_checks.py
     # The safer list form is used by update_cc_test_checks.py
     if preprocess_cmd:
       # Allow pre-processing the IR file (e.g. using sed):
       assert isinstance(preprocess_cmd, str)  # TODO: use a list instead of using shell
-      preprocess_cmd = preprocess_cmd.replace('%s', ir).strip()
+      preprocess_cmd = applySubstitutions(preprocess_cmd, substitutions).strip()
       if verbose:
         print('Pre-processing input file: ', ir, " with command '",
               preprocess_cmd, "'", sep="", file=sys.stderr)
@@ -159,12 +174,17 @@ def invoke_tool(exe, cmd_args, ir, preprocess_cmd=None, verbose=False):
         pp = subprocess.Popen(preprocess_cmd, shell=True, stdin=devnull,
                               stdout=subprocess.PIPE)
         ir_file = pp.stdout
+
     if isinstance(cmd_args, list):
-      stdout = subprocess.check_output([exe] + cmd_args, stdin=ir_file)
+      args = [applySubstitutions(a, substitutions) for a in cmd_args]
+      stdout = subprocess.check_output([exe] + args, stdin=ir_file)
     else:
-      stdout = subprocess.check_output(exe + ' ' + cmd_args,
+      stdout = subprocess.check_output(exe + ' ' + applySubstitutions(cmd_args, substitutions),
                                        shell=True, stdin=ir_file)
     if sys.version_info[0] > 2:
+      # FYI, if you crashed here with a decode error, your run line probably
+      # results in bitcode or other binary format being written to the pipe.
+      # For an opt test, you probably want to add -S or -disable-output.
       stdout = stdout.decode()
   # Fix line endings to unix CR style.
   return stdout.replace('\r\n', '\n')
@@ -243,7 +263,7 @@ def scrub_body(body):
   # whitespace in place.
   body = SCRUB_WHITESPACE_RE.sub(r' ', body)
   # Expand the tabs used for indentation.
-  body = string.expandtabs(body, 2)
+  body = str.expandtabs(body, 2)
   # Strip trailing whitespace.
   body = SCRUB_TRAILING_WHITESPACE_TEST_RE.sub(r'', body)
   return body
@@ -262,7 +282,7 @@ class function_body(object):
     self.extrascrub = extra
     self.args_and_sig = args_and_sig
     self.attrs = attrs
-  def is_same_except_arg_names(self, extrascrub, args_and_sig, attrs):
+  def is_same_except_arg_names(self, extrascrub, args_and_sig, attrs, is_asm):
     arg_names = set()
     def drop_arg_names(match):
         arg_names.add(match.group(variable_group_in_ir_value_match))
@@ -281,6 +301,11 @@ class function_body(object):
     ans1 = IR_VALUE_RE.sub(drop_arg_names, args_and_sig)
     if ans0 != ans1:
         return False
+    if is_asm:
+        # Check without replacements, the replacements are not applied to the
+        # body for asm checks.
+        return self.extrascrub == extrascrub
+
     es0 = IR_VALUE_RE.sub(repl_arg_names, self.extrascrub)
     es1 = IR_VALUE_RE.sub(repl_arg_names, extrascrub)
     es0 = SCRUB_IR_COMMENT_RE.sub(r'', es0)
@@ -319,7 +344,7 @@ class FunctionTestBuilder:
   def global_var_dict(self):
     return self._global_var_dict
 
-  def process_run_line(self, function_re, scrubber, raw_tool_output, prefixes):
+  def process_run_line(self, function_re, scrubber, raw_tool_output, prefixes, is_asm):
     build_global_values_dictionary(self._global_var_dict, raw_tool_output, prefixes)
     for m in function_re.finditer(raw_tool_output):
       if not m:
@@ -385,7 +410,8 @@ class FunctionTestBuilder:
                 self._func_dict[prefix][func].is_same_except_arg_names(
                 scrubbed_extra,
                 args_and_sig,
-                attrs)):
+                attrs,
+                is_asm)):
               self._func_dict[prefix][func].scrub = scrubbed_extra
               self._func_dict[prefix][func].args_and_sig = args_and_sig
               continue
@@ -604,6 +630,12 @@ def generalize_check_lines(lines, is_analyze, vars_seen, global_vars_seen):
   for i, line in enumerate(lines):
     # An IR variable named '%.' matches the FileCheck regex string.
     line = line.replace('%.', '%dot')
+    for regex in _global_hex_value_regex:
+      if re.match('^@' + regex + ' = ', line):
+        line = re.sub(r'\bi([0-9]+) ([0-9]+)',
+            lambda m : 'i' + m.group(1) + ' [[#' + hex(int(m.group(2))) + ']]',
+            line)
+        break
     # Ignore any comments, since the check lines will too.
     scrubbed_line = SCRUB_IR_COMMENT_RE.sub(r'', line)
     lines[i] = scrubbed_line
@@ -796,13 +828,27 @@ def add_global_checks(glob_val_dict, comment_marker, prefix_list, output_lines, 
         if not glob_val_dict[checkprefix][nameless_value.check_prefix]:
           continue
 
-        output_lines.append(comment_marker + SEPARATOR)
-
+        check_lines = []
         global_vars_seen_before = [key for key in global_vars_seen.keys()]
         for line in glob_val_dict[checkprefix][nameless_value.check_prefix]:
+          if _global_value_regex:
+            matched = False
+            for regex in _global_value_regex:
+              if re.match('^@' + regex + ' = ', line):
+                matched = True
+                break
+            if not matched:
+              continue
           tmp = generalize_check_lines([line], is_analyze, set(), global_vars_seen)
           check_line = '%s %s: %s' % (comment_marker, checkprefix, tmp[0])
+          check_lines.append(check_line)
+        if not check_lines:
+          continue
+
+        output_lines.append(comment_marker + SEPARATOR)
+        for check_line in check_lines:
           output_lines.append(check_line)
+
         printed_prefixes.add((checkprefix, nameless_value.check_prefix))
 
         # Remembe new global variables we have not seen before

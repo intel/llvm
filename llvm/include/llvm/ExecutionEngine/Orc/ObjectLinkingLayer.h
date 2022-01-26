@@ -27,7 +27,6 @@
 #include <functional>
 #include <list>
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -38,10 +37,6 @@ class EHFrameRegistrar;
 class LinkGraph;
 class Symbol;
 } // namespace jitlink
-
-namespace object {
-class ObjectFile;
-} // namespace object
 
 namespace orc {
 
@@ -102,7 +97,11 @@ public:
   using ReturnObjectBufferFunction =
       std::function<void(std::unique_ptr<MemoryBuffer>)>;
 
-  /// Construct an ObjectLinkingLayer.
+  /// Construct an ObjectLinkingLayer using the ExecutorProcessControl
+  /// instance's memory manager.
+  ObjectLinkingLayer(ExecutionSession &ES);
+
+  /// Construct an ObjectLinkingLayer using a custom memory manager.
   ObjectLinkingLayer(ExecutionSession &ES,
                      jitlink::JITLinkMemoryManager &MemMgr);
 
@@ -181,13 +180,13 @@ public:
   }
 
 private:
-  using AllocPtr = std::unique_ptr<jitlink::JITLinkMemoryManager::Allocation>;
+  using FinalizedAlloc = jitlink::JITLinkMemoryManager::FinalizedAlloc;
 
   void modifyPassConfig(MaterializationResponsibility &MR,
                         jitlink::LinkGraph &G,
                         jitlink::PassConfiguration &PassConfig);
   void notifyLoaded(MaterializationResponsibility &MR);
-  Error notifyEmitted(MaterializationResponsibility &MR, AllocPtr Alloc);
+  Error notifyEmitted(MaterializationResponsibility &MR, FinalizedAlloc FA);
 
   Error handleRemoveResources(ResourceKey K) override;
   void handleTransferResources(ResourceKey DstKey, ResourceKey SrcKey) override;
@@ -198,7 +197,7 @@ private:
   bool OverrideObjectFlags = false;
   bool AutoClaimObjectSymbols = false;
   ReturnObjectBufferFunction ReturnObjectBuffer;
-  DenseMap<ResourceKey, std::vector<AllocPtr>> Allocs;
+  DenseMap<ResourceKey, std::vector<FinalizedAlloc>> Allocs;
   std::vector<std::unique_ptr<Plugin>> Plugins;
 };
 
@@ -217,17 +216,11 @@ public:
                                    ResourceKey SrcKey) override;
 
 private:
-
-  struct EHFrameRange {
-    JITTargetAddress Addr = 0;
-    size_t Size;
-  };
-
   std::mutex EHFramePluginMutex;
   ExecutionSession &ES;
   std::unique_ptr<jitlink::EHFrameRegistrar> Registrar;
-  DenseMap<MaterializationResponsibility *, EHFrameRange> InProcessLinks;
-  DenseMap<ResourceKey, std::vector<EHFrameRange>> EHFrameRanges;
+  DenseMap<MaterializationResponsibility *, ExecutorAddrRange> InProcessLinks;
+  DenseMap<ResourceKey, std::vector<ExecutorAddrRange>> EHFrameRanges;
 };
 
 } // end namespace orc

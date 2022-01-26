@@ -1,9 +1,9 @@
 // RUN: mlir-opt %s \
 // RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-linalg-to-loops --convert-vector-to-scf --convert-scf-to-std \
+// RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
 // RUN: TENSOR1="%mlir_integration_test_dir/data/zero.mtx" \
 // RUN: mlir-cpu-runner \
@@ -66,19 +66,19 @@ module {
   // Main driver that reads matrix from file and calls the kernel.
   //
   func @entry() {
-    %d0 = constant 0.0 : f64
-    %c0 = constant 0 : index
-    %c1 = constant 1 : index
+    %d0 = arith.constant 0.0 : f64
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
 
     // Read the sparse matrix from file, construct sparse storage.
     %fileName = call @getTensorFilename(%c0) : (index) -> (!Filename)
     %a = sparse_tensor.new %fileName
-      : !llvm.ptr<i8> to tensor<?x?xf64, #SparseMatrix>
+      : !Filename to tensor<?x?xf64, #SparseMatrix>
 
     // Initialize all-dense annotated "sparse" matrix to all zeros.
     %fileZero = call @getTensorFilename(%c1) : (index) -> (!Filename)
     %x = sparse_tensor.new %fileZero
-      : !llvm.ptr<i8> to tensor<?x?xf64, #DenseMatrix>
+      : !Filename to tensor<?x?xf64, #DenseMatrix>
 
     // Call the kernel.
     %0 = call @dense_output(%a, %x)
@@ -94,6 +94,10 @@ module {
       : tensor<?x?xf64, #DenseMatrix> to memref<?xf64>
     %v = vector.load %m[%c0] : memref<?xf64>, vector<25xf64>
     vector.print %v : vector<25xf64>
+
+    // Release the resources.
+    sparse_tensor.release %a : tensor<?x?xf64, #SparseMatrix>
+    sparse_tensor.release %x : tensor<?x?xf64, #DenseMatrix>
 
     return
   }

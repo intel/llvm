@@ -8,7 +8,7 @@
 
 #include "mlir/Analysis/AliasAnalysis/LocalAliasAnalysis.h"
 
-#include "mlir/IR/FunctionSupport.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -74,12 +74,14 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
   };
 
   // Check branches from the parent operation.
+  Optional<unsigned> regionIndex;
   if (region) {
+    // Determine the actual region number from the passed region.
+    regionIndex = region->getRegionNumber();
     if (Optional<unsigned> operandIndex =
             getOperandIndexIfPred(/*predIndex=*/llvm::None)) {
       collectUnderlyingAddressValues(
-          branch.getSuccessorEntryOperands(
-              region->getRegionNumber())[*operandIndex],
+          branch.getSuccessorEntryOperands(*regionIndex)[*operandIndex],
           maxDepth, visited, output);
     }
   }
@@ -89,8 +91,12 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
     if (Optional<unsigned> operandIndex = getOperandIndexIfPred(i)) {
       for (Block &block : op->getRegion(i)) {
         Operation *term = block.getTerminator();
-        if (term->hasTrait<OpTrait::ReturnLike>()) {
-          collectUnderlyingAddressValues(term->getOperand(*operandIndex),
+        // Try to determine possible region-branch successor operands for the
+        // current region.
+        auto successorOperands =
+            getRegionBranchSuccessorOperands(term, regionIndex);
+        if (successorOperands) {
+          collectUnderlyingAddressValues((*successorOperands)[*operandIndex],
                                          maxDepth, visited, output);
         } else if (term->getNumSuccessors()) {
           // Otherwise, if this terminator may exit the region we can't make
@@ -234,7 +240,7 @@ getAllocEffectFor(Value value, Optional<MemoryEffects::EffectInstance> &effect,
   // freed on all paths within the region, or is just not captured by anything.
   // For now assume allocation scope to the function scope (we don't care if
   // pointer escape outside function).
-  allocScopeOp = op->getParentWithTrait<OpTrait::FunctionLike>();
+  allocScopeOp = op->getParentOfType<FunctionOpInterface>();
   return success();
 }
 

@@ -159,15 +159,6 @@ class Configuration(object):
         self.lit_config.note("Running against the C++ Library at {}".format(self.cxx_runtime_root))
         self.lit_config.note("Linking against the ABI Library at {}".format(self.abi_library_root))
         self.lit_config.note("Running against the ABI Library at {}".format(self.abi_runtime_root))
-        sys.stderr.flush()  # Force flushing to avoid broken output on Windows
-
-    def get_test_format(self):
-        from libcxx.test.format import LibcxxTestFormat
-        return LibcxxTestFormat(
-            self.cxx,
-            self.use_clang_verify,
-            self.executor,
-            exec_env=self.exec_env)
 
     def configure_cxx(self):
         # Gather various compiler parameters.
@@ -286,12 +277,6 @@ class Configuration(object):
         support_path = os.path.join(self.libcxx_src_root, 'test/support')
         self.cxx.compile_flags += ['-I' + support_path]
 
-        # On GCC, the libc++ headers cause errors due to throw() decorators
-        # on operator new clashing with those from the test suite, so we
-        # don't enable warnings in system headers on GCC.
-        if self.cxx.type != 'gcc':
-            self.cxx.compile_flags += ['-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER']
-
         # Add includes for the PSTL headers
         pstl_src_root = self.get_lit_conf('pstl_src_root')
         pstl_obj_root = self.get_lit_conf('pstl_obj_root')
@@ -303,11 +288,6 @@ class Configuration(object):
 
     def configure_compile_flags_header_includes(self):
         support_path = os.path.join(self.libcxx_src_root, 'test', 'support')
-        if self.cxx_stdlib_under_test != 'libstdc++' and \
-           not self.target_info.is_windows() and \
-           not self.target_info.is_zos():
-            self.cxx.compile_flags += [
-                '-include', os.path.join(support_path, 'nasty_macros.h')]
         if self.cxx_stdlib_under_test == 'msvc':
             self.cxx.compile_flags += [
                 '-include', os.path.join(support_path,
@@ -473,6 +453,7 @@ class Configuration(object):
         sub.append(('%{flags}',         ' '.join(map(self.quote, flags))))
         sub.append(('%{compile_flags}', ' '.join(map(self.quote, compile_flags))))
         sub.append(('%{link_flags}',    ' '.join(map(self.quote, self.cxx.link_flags))))
+        sub.append(('%{install}',       self.quote(self.config.install_root)))
 
         codesign_ident = self.get_lit_conf('llvm_codesign_identity', '')
         env_vars = ' '.join('%s=%s' % (k, self.quote(v)) for (k, v) in self.exec_env.items())

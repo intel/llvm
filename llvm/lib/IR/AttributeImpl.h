@@ -136,7 +136,7 @@ class IntAttributeImpl : public EnumAttributeImpl {
 public:
   IntAttributeImpl(Attribute::AttrKind Kind, uint64_t Val)
       : EnumAttributeImpl(IntAttrEntry, Kind), Val(Val) {
-    assert(Attribute::doesAttrKindHaveArgument(Kind) &&
+    assert(Attribute::isIntAttrKind(Kind) &&
            "Wrong kind for int attribute!");
   }
 
@@ -253,13 +253,10 @@ public:
   uint64_t getDereferenceableBytes() const;
   uint64_t getDereferenceableOrNullBytes() const;
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
-  std::pair<unsigned, unsigned> getVScaleRangeArgs() const;
+  unsigned getVScaleRangeMin() const;
+  Optional<unsigned> getVScaleRangeMax() const;
   std::string getAsString(bool InAttrGrp) const;
-  Type *getByValType() const;
-  Type *getStructRetType() const;
-  Type *getByRefType() const;
-  Type *getPreallocatedType() const;
-  Type *getInAllocaType() const;
+  Type *getAttributeType(Attribute::AttrKind Kind) const;
 
   using iterator = const Attribute *;
 

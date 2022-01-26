@@ -10,7 +10,7 @@ configure_file(
   @ONLY)
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  if (NOT EXISTS ${LLVM_EXTERNAL_XPTI_SOURCE_DIR})
+  if (NOT DEFINED LLVM_EXTERNAL_XPTI_SOURCE_DIR)
     message (FATAL_ERROR "Undefined LLVM_EXTERNAL_XPTI_SOURCE_DIR variable: Must be set when XPTI tracing is set to ON")
   endif()
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
@@ -43,15 +43,23 @@ function(add_sycl_rt_library LIB_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
+  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
+
   if (MSVC)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
+    # Install stripped PDB
+    add_stripped_pdb(${LIB_NAME})
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
     set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
+    set(abi_linker_script "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt")
     target_link_libraries(
-      ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
+      ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
+    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${abi_linker_script})
+    target_link_libraries(
+        ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
     set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
     if (SYCL_ENABLE_XPTI_TRACING)
       target_link_libraries(${LIB_NAME} PRIVATE dl)
@@ -97,7 +105,6 @@ function(add_sycl_rt_library LIB_NAME)
 endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
-    "${sycl_inc_dir}/CL/sycl.hpp"
     "backend/opencl.cpp"
     "backend/level_zero.cpp"
     "backend.cpp"
@@ -149,6 +156,7 @@ set(SYCL_SOURCES
     "detail/sycl_mem_obj_t.cpp"
     "detail/usm/usm_impl.cpp"
     "detail/util.cpp"
+    "detail/xpti_registry.cpp"
     "accessor.cpp"
     "context.cpp"
     "device.cpp"
@@ -169,8 +177,10 @@ set(SYCL_SOURCES
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
+    "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
+    "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
 
 if (MSVC)

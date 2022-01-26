@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // This test checks a kernel with an argument that is a POD array.
 
@@ -46,7 +46,7 @@ int main() {
 
 // Check kernel_B parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_B
-// CHECK-SAME:(%struct{{.*}}.__wrapper_class* byval(%struct{{.*}}.__wrapper_class) align 4 %[[ARR_ARG:.*]])
+// CHECK-SAME:(%struct{{.*}}.__wrapper_class* noundef byval(%struct{{.*}}.__wrapper_class) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
 // CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon, align 4
@@ -71,7 +71,7 @@ int main() {
 
 // Check kernel_C parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_C
-// CHECK-SAME:(%struct{{.*}}.__wrapper_class{{.*}}* byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
+// CHECK-SAME:(%struct{{.*}}.__wrapper_class{{.*}}* noundef byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
 // CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
@@ -97,7 +97,7 @@ int main() {
 
 // Check kernel_D parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_D
-// CHECK-SAME:(%struct{{.*}}.__wrapper_class{{.*}}* byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
+// CHECK-SAME:(%struct{{.*}}.__wrapper_class{{.*}}* noundef byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
 // CHECK: %[[LOCAL_OBJECTA:[0-9]+]] = alloca %class{{.*}}.anon{{.*}}, align 4

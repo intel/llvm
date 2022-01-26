@@ -305,12 +305,12 @@ public:
 
 class LazyObject : public Symbol {
 public:
-  LazyObject(LazyObjFile *f, StringRef n)
-      : Symbol(LazyObjectKind, n), file(f) {}
+  LazyObject(InputFile *f, StringRef n) : Symbol(LazyObjectKind, n), file(f) {}
   static bool classof(const Symbol *s) { return s->kind() == LazyObjectKind; }
-  LazyObjFile *file;
+  InputFile *file;
 };
 
+// MinGW only.
 class LazyDLLSymbol : public Symbol {
 public:
   LazyDLLSymbol(DLLFile *f, DLLFile::Symbol *s, StringRef n)

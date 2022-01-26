@@ -1,3 +1,7 @@
+// Unsupported on AIX because we don't support the requisite "__clangast"
+// section in XCOFF yet.
+// UNSUPPORTED: aix
+
 // RUN: rm -rf %t && mkdir %t
 // RUN: cp %S/Inputs/modules-pch/* %t
 
@@ -6,7 +10,7 @@
 // RUN: sed "s|DIR|%/t|g" %S/Inputs/modules-pch/cdb_pch.json > %t/cdb.json
 // RUN: echo -%t > %t/result_pch.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full \
-// RUN:   -generate-modules-path-args -module-files-dir %t/build -mode preprocess >> %t/result_pch.json
+// RUN:   -generate-modules-path-args -module-files-dir %t/build >> %t/result_pch.json
 // RUN: cat %t/result_pch.json | sed 's:\\\\\?:/:g' | FileCheck %s -check-prefix=CHECK-PCH
 //
 // Check we didn't build the PCH during dependency scanning.
@@ -59,7 +63,6 @@
 // CHECK-PCH-NEXT:       "clang-modulemap-file": "[[PREFIX]]/module.modulemap",
 // CHECK-PCH-NEXT:       "command-line": [
 // CHECK-PCH-NEXT:         "-cc1"
-// CHECK-PCH:              "-fmodule-map-file=[[PREFIX]]/module.modulemap"
 // CHECK-PCH:              "-emit-module"
 // CHECK-PCH:              "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_COMMON_2]]/ModCommon2-{{.*}}.pcm"
 // CHECK-PCH:              "-fmodules"
@@ -90,12 +93,9 @@
 // CHECK-PCH-NEXT:       "command-line": [
 // CHECK-PCH-NEXT:         "-fno-implicit-modules",
 // CHECK-PCH-NEXT:         "-fno-implicit-module-maps",
-// CHECK-PCH-DAG:          "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_COMMON_1]]/ModCommon1-{{.*}}.pcm",
-// CHECK-PCH-DAG:          "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_COMMON_2]]/ModCommon2-{{.*}}.pcm",
-// CHECK-PCH-DAG:          "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_PCH]]/ModPCH-{{.*}}.pcm",
-// CHECK-PCH-NEXT:         "-fmodule-map-file=[[PREFIX]]/module.modulemap",
-// CHECK-PCH-NEXT:         "-fmodule-map-file=[[PREFIX]]/module.modulemap",
-// CHECK-PCH-NEXT:         "-fmodule-map-file=[[PREFIX]]/module.modulemap"
+// CHECK-PCH-NEXT:         "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_COMMON_1]]/ModCommon1-{{.*}}.pcm",
+// CHECK-PCH-NEXT:         "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_COMMON_2]]/ModCommon2-{{.*}}.pcm",
+// CHECK-PCH-NEXT:         "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_PCH]]/ModPCH-{{.*}}.pcm"
 // CHECK-PCH-NEXT:       ],
 // CHECK-PCH-NEXT:       "file-deps": [
 // CHECK-PCH-NEXT:         "[[PREFIX]]/pch.h"
@@ -127,9 +127,8 @@
 //
 // RUN: sed "s|DIR|%/t|g" %S/Inputs/modules-pch/cdb_tu.json > %t/cdb.json
 // RUN: echo -%t > %t/result_tu.json
-// FIXME: Make this work with '-mode preprocess-minimized-sources'.
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full \
-// RUN:   -generate-modules-path-args -module-files-dir %t/build -mode preprocess >> %t/result_tu.json
+// RUN:   -generate-modules-path-args -module-files-dir %t/build >> %t/result_tu.json
 // RUN: cat %t/result_tu.json | sed 's:\\\\\?:/:g' | FileCheck %s -check-prefix=CHECK-TU
 //
 // CHECK-TU:      -[[PREFIX:.*]]
@@ -164,8 +163,7 @@
 // CHECK-TU-NEXT:       "command-line": [
 // CHECK-TU-NEXT:         "-fno-implicit-modules",
 // CHECK-TU-NEXT:         "-fno-implicit-module-maps",
-// CHECK-TU-NEXT:         "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_TU]]/ModTU-{{.*}}.pcm",
-// CHECK-TU-NEXT:         "-fmodule-map-file=[[PREFIX]]/module.modulemap"
+// CHECK-TU-NEXT:         "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_TU]]/ModTU-{{.*}}.pcm"
 // CHECK-TU-NEXT:       ],
 // CHECK-TU-NEXT:       "file-deps": [
 // CHECK-TU-NEXT:         "[[PREFIX]]/tu.c",
@@ -193,7 +191,7 @@
 // RUN: sed "s|DIR|%/t|g" %S/Inputs/modules-pch/cdb_tu_with_common.json > %t/cdb.json
 // RUN: echo -%t > %t/result_tu_with_common.json
 // RUN: clang-scan-deps -compilation-database %t/cdb.json -format experimental-full \
-// RUN:   -generate-modules-path-args -module-files-dir %t/build -mode preprocess >> %t/result_tu_with_common.json
+// RUN:   -generate-modules-path-args -module-files-dir %t/build >> %t/result_tu_with_common.json
 // RUN: cat %t/result_tu_with_common.json | sed 's:\\\\\?:/:g' | FileCheck %s -check-prefix=CHECK-TU-WITH-COMMON
 //
 // CHECK-TU-WITH-COMMON:      -[[PREFIX:.*]]
@@ -204,7 +202,6 @@
 // CHECK-TU-WITH-COMMON-NEXT:       "clang-modulemap-file": "[[PREFIX]]/module.modulemap",
 // CHECK-TU-WITH-COMMON-NEXT:       "command-line": [
 // CHECK-TU-WITH-COMMON-NEXT:         "-cc1",
-// CHECK-TU-WITH-COMMON:              "-fmodule-map-file=[[PREFIX]]/module.modulemap"
 // CHECK-TU-WITH-COMMON:              "-emit-module",
 // CHECK-TU-WITH-COMMON:              "-fmodule-file=[[PREFIX]]/build/{{.*}}/ModCommon1-{{.*}}.pcm",
 // CHECK-TU-WITH-COMMON:              "-fmodule-name=ModTUWithCommon",
@@ -230,11 +227,8 @@
 // CHECK-TU-WITH-COMMON-NEXT:       "command-line": [
 // CHECK-TU-WITH-COMMON-NEXT:         "-fno-implicit-modules",
 // CHECK-TU-WITH-COMMON-NEXT:         "-fno-implicit-module-maps",
-// FIXME: Figure out why we need `=ModCommon2` here for Clang to pick up the PCM.
-// CHECK-TU-WITH-COMMON-NEXT:         "-fmodule-file=ModCommon2=[[PREFIX]]/build/{{.*}}/ModCommon2-{{.*}}.pcm",
-// CHECK-TU-WITH-COMMON-NEXT:         "-fmodule-map-file=[[PREFIX]]/module.modulemap"
-// CHECK-TU-WITH-COMMON-NEXT:         "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_TU_WITH_COMMON]]/ModTUWithCommon-{{.*}}.pcm",
-// CHECK-TU-WITH-COMMON-NEXT:         "-fmodule-map-file=[[PREFIX]]/module.modulemap"
+// CHECK-TU-WITH-COMMON-NEXT:         "-fmodule-file=[[PREFIX]]/build/{{.*}}/ModCommon2-{{.*}}.pcm",
+// CHECK-TU-WITH-COMMON-NEXT:         "-fmodule-file=[[PREFIX]]/build/[[HASH_MOD_TU_WITH_COMMON]]/ModTUWithCommon-{{.*}}.pcm"
 // CHECK-TU-WITH-COMMON-NEXT:       ],
 // CHECK-TU-WITH-COMMON-NEXT:       "file-deps": [
 // CHECK-TU-WITH-COMMON-NEXT:         "[[PREFIX]]/tu_with_common.c",

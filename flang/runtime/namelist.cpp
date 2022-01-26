@@ -1,4 +1,4 @@
-//===-- runtime/namelist.cpp ------------------------------------*- C++ -*-===//
+//===-- runtime/namelist.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,8 +8,9 @@
 
 #include "namelist.h"
 #include "descriptor-io.h"
-#include "io-api.h"
 #include "io-stmt.h"
+#include "flang/Runtime/io-api.h"
+#include <algorithm>
 #include <cstring>
 #include <limits>
 
@@ -133,7 +134,7 @@ static bool HandleSubscripts(IoStatementState &io, Descriptor &desc,
   // ambiguous within the parentheses.
   SubscriptValue lower[maxRank], upper[maxRank], stride[maxRank];
   int j{0};
-  std::size_t elemLen{source.ElementBytes()};
+  std::size_t contiguousStride{source.ElementBytes()};
   bool ok{true};
   std::optional<char32_t> ch{io.GetNextNonBlank()};
   for (; ch && *ch != ')'; ++j) {
@@ -142,7 +143,9 @@ static bool HandleSubscripts(IoStatementState &io, Descriptor &desc,
       const Dimension &dim{source.GetDimension(j)};
       dimLower = dim.LowerBound();
       dimUpper = dim.UpperBound();
-      dimStride = elemLen ? dim.ByteStride() / elemLen : 1;
+      dimStride =
+          dim.ByteStride() / std::max<SubscriptValue>(contiguousStride, 1);
+      contiguousStride *= dim.Extent();
     } else if (ok) {
       handler.SignalError(
           "Too many subscripts for rank-%d NAMELIST group item '%s'",
@@ -222,6 +225,67 @@ static bool HandleSubscripts(IoStatementState &io, Descriptor &desc,
   return false;
 }
 
+static bool HandleSubstring(
+    IoStatementState &io, Descriptor &desc, const char *name) {
+  IoErrorHandler &handler{io.GetIoErrorHandler()};
+  auto pair{desc.type().GetCategoryAndKind()};
+  if (!pair || pair->first != TypeCategory::Character) {
+    handler.SignalError("Substring reference to non-character item '%s'", name);
+    return false;
+  }
+  int kind{pair->second};
+  SubscriptValue chars{static_cast<SubscriptValue>(desc.ElementBytes()) / kind};
+  // Allow for blanks in substring bounds; they're nonstandard, but not
+  // ambiguous within the parentheses.
+  io.HandleRelativePosition(1); // skip '('
+  std::optional<SubscriptValue> lower, upper;
+  std::optional<char32_t> ch{io.GetNextNonBlank()};
+  if (ch) {
+    if (*ch == ':') {
+      lower = 1;
+    } else {
+      lower = GetSubscriptValue(io);
+      ch = io.GetNextNonBlank();
+    }
+  }
+  if (ch && ch == ':') {
+    io.HandleRelativePosition(1);
+    ch = io.GetNextNonBlank();
+    if (ch) {
+      if (*ch == ')') {
+        upper = chars;
+      } else {
+        upper = GetSubscriptValue(io);
+        ch = io.GetNextNonBlank();
+      }
+    }
+  }
+  if (ch && *ch == ')') {
+    io.HandleRelativePosition(1);
+    if (lower && upper) {
+      if (*lower > *upper) {
+        // An empty substring, whatever the values are
+        desc.raw().elem_len = 0;
+        return true;
+      }
+      if (*lower >= 1 || *upper <= chars) {
+        // Offset the base address & adjust the element byte length
+        desc.raw().elem_len = (*upper - *lower + 1) * kind;
+        desc.set_base_addr(reinterpret_cast<void *>(
+            reinterpret_cast<char *>(desc.raw().base_addr) +
+            kind * (*lower - 1)));
+        return true;
+      }
+    }
+    handler.SignalError(
+        "Bad substring bounds for NAMELIST input group item '%s'", name);
+  } else {
+    handler.SignalError(
+        "Bad substring (missing ')') for NAMELIST input group item '%s'", name);
+  }
+  return false;
+}
+
 static bool HandleComponent(IoStatementState &io, Descriptor &desc,
     const Descriptor &source, const char *name) {
   IoErrorHandler &handler{io.GetIoErrorHandler()};
@@ -233,7 +297,7 @@ static bool HandleComponent(IoStatementState &io, Descriptor &desc,
         type{addendum ? addendum->derivedType() : nullptr}) {
       if (const typeInfo::Component *
           comp{type->FindDataComponent(compName, std::strlen(compName))}) {
-        comp->EstablishDescriptor(desc, source, nullptr, handler);
+        comp->CreatePointerDescriptor(desc, source, handler);
         return true;
       } else {
         handler.SignalError(
@@ -241,6 +305,10 @@ static bool HandleComponent(IoStatementState &io, Descriptor &desc,
             "a component of its derived type",
             compName, name);
       }
+    } else if (source.type().IsDerived()) {
+      handler.Crash("Derived type object '%s' in NAMELIST is missing its "
+                    "derived type information!",
+          name);
     } else {
       handler.SignalError("NAMELIST component reference '%%%s' of input group "
                           "item %s for non-derived type",
@@ -260,7 +328,10 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
   ConnectionState &connection{io.GetConnectionState()};
   connection.modes.inNamelist = true;
   IoErrorHandler &handler{io.GetIoErrorHandler()};
+  auto *listInput{io.get_if<ListDirectedStatementState<Direction::Input>>()};
+  RUNTIME_CHECK(handler, listInput != nullptr);
   // Check the group header
+  io.BeginReadingRecord();
   std::optional<char32_t> next{io.GetNextNonBlank()};
   if (!next || *next != '&') {
     handler.SignalError(
@@ -309,14 +380,36 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
     StaticDescriptor<maxRank, true, 16> staticDesc[2];
     int whichStaticDesc{0};
     next = io.GetCurrentChar();
+    bool hadSubscripts{false};
+    bool hadSubstring{false};
     if (next && (*next == '(' || *next == '%')) {
       do {
         Descriptor &mutableDescriptor{staticDesc[whichStaticDesc].descriptor()};
         whichStaticDesc ^= 1;
         if (*next == '(') {
-          HandleSubscripts(io, mutableDescriptor, *useDescriptor, name);
+          if (!hadSubstring && (hadSubscripts || useDescriptor->rank() == 0)) {
+            mutableDescriptor = *useDescriptor;
+            mutableDescriptor.raw().attribute = CFI_attribute_pointer;
+            if (!HandleSubstring(io, mutableDescriptor, name)) {
+              return false;
+            }
+            hadSubstring = true;
+          } else if (hadSubscripts) {
+            handler.SignalError("Multiple sets of subscripts for item '%s' in "
+                                "NAMELIST group '%s'",
+                name, group.groupName);
+            return false;
+          } else if (!HandleSubscripts(
+                         io, mutableDescriptor, *useDescriptor, name)) {
+            return false;
+          }
+          hadSubscripts = true;
         } else {
-          HandleComponent(io, mutableDescriptor, *useDescriptor, name);
+          if (!HandleComponent(io, mutableDescriptor, *useDescriptor, name)) {
+            return false;
+          }
+          hadSubscripts = false;
+          hadSubstring = false;
         }
         useDescriptor = &mutableDescriptor;
         next = io.GetCurrentChar();
@@ -330,7 +423,8 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
       return false;
     }
     io.HandleRelativePosition(1);
-    // Read the values into the descriptor
+    // Read the values into the descriptor.  An array can be short.
+    listInput->ResetForNextNamelistItem();
     if (!descr::DescriptorIO<Direction::Input>(io, *useDescriptor)) {
       return false;
     }
@@ -346,6 +440,27 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
   }
   io.HandleRelativePosition(1);
   return true;
+}
+
+bool IsNamelistName(IoStatementState &io) {
+  if (io.get_if<ListDirectedStatementState<Direction::Input>>()) {
+    ConnectionState &connection{io.GetConnectionState()};
+    if (connection.modes.inNamelist) {
+      SavedPosition savedPosition{io};
+      if (auto ch{io.GetNextNonBlank()}) {
+        if (IsLegalIdStart(*ch)) {
+          do {
+            io.HandleRelativePosition(1);
+            ch = io.GetCurrentChar();
+          } while (ch && IsLegalIdChar(*ch));
+          ch = io.GetNextNonBlank();
+          // TODO: how to deal with NaN(...) ambiguity?
+          return ch && (*ch == '=' || *ch == '(' || *ch == '%');
+        }
+      }
+    }
+  }
+  return false;
 }
 
 } // namespace Fortran::runtime::io

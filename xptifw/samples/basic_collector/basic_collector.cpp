@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
+#include "xpti/xpti_trace_framework.h"
 #include "xpti_timers.hpp"
-#include "xpti_trace_framework.h"
 
 #include <chrono>
 #include <cstdio>
@@ -50,7 +50,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // registered stream ID
     GStreamID = xptiRegisterStream(stream_name);
     xpti::string_id_t dev_id = xptiRegisterString("sycl_device", &tstr);
-
+    (void)dev_id;
     // Register our lone callback to all pre-defined trace point types
     xptiRegisterCallback(GStreamID,
                          (uint16_t)xpti::trace_point_type_t::graph_create,
@@ -125,7 +125,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   uint32_t CPU = GThreadIDEnum.enumID(TID);
   std::string Name;
 
-  if (Payload->name_sid != xpti::invalid_id) {
+  if (Payload->name_sid() != xpti::invalid_id) {
     Name = truncate(Payload->name);
   } else {
     Name = "<unknown>";
@@ -144,7 +144,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
            xptiLookupString(Item.second));
   }
 
-  if (Payload->source_file_sid != xpti::invalid_id && Payload->line_no > 0) {
+  if (Payload->source_file_sid() != xpti::invalid_id && Payload->line_no > 0) {
     printf("---[Source file:line no] %s:%d\n", Payload->source_file,
            Payload->line_no);
   }

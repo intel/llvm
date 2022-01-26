@@ -3,6 +3,7 @@
 
 declare void @use(float)
 declare void @use_vec(<2 x float>)
+declare float @llvm.vector.reduce.fadd.v4f32(float, <4 x float>)
 
 ; -x + y => y - x
 
@@ -386,4 +387,143 @@ define float @fmul_fneg2_extra_use3(float %x, float %py, float %z) {
   call void @use(float %mul)
   %r = fadd float %mul, %z
   ret float %r
+}
+
+define float @fadd_rdx(float %x, <4 x float> %v) {
+; CHECK-LABEL: @fadd_rdx(
+; CHECK-NEXT:    [[TMP1:%.*]] = call fast float @llvm.vector.reduce.fadd.v4f32(float [[X:%.*]], <4 x float> [[V:%.*]])
+; CHECK-NEXT:    ret float [[TMP1]]
+;
+  %rdx = call fast float @llvm.vector.reduce.fadd.v4f32(float 0.0, <4 x float> %v)
+  %add = fadd fast float %rdx, %x
+  ret float %add
+}
+
+define float @fadd_rdx_commute(float %x, <4 x float> %v) {
+; CHECK-LABEL: @fadd_rdx_commute(
+; CHECK-NEXT:    [[D:%.*]] = fdiv float 4.200000e+01, [[X:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call reassoc nsz float @llvm.vector.reduce.fadd.v4f32(float [[D]], <4 x float> [[V:%.*]])
+; CHECK-NEXT:    ret float [[TMP1]]
+;
+  %d = fdiv float 42.0, %x
+  %rdx = call float @llvm.vector.reduce.fadd.v4f32(float -0.0, <4 x float> %v)
+  %add = fadd reassoc nsz float %d, %rdx
+  ret float %add
+}
+
+; Negative test - require nsz to be safer (and reassoc obviously).
+
+define float @fadd_rdx_fmf(float %x, <4 x float> %v) {
+; CHECK-LABEL: @fadd_rdx_fmf(
+; CHECK-NEXT:    [[RDX:%.*]] = call float @llvm.vector.reduce.fadd.v4f32(float 0.000000e+00, <4 x float> [[V:%.*]])
+; CHECK-NEXT:    [[ADD:%.*]] = fadd reassoc float [[RDX]], [[X:%.*]]
+; CHECK-NEXT:    ret float [[ADD]]
+;
+  %rdx = call float @llvm.vector.reduce.fadd.v4f32(float 0.0, <4 x float> %v)
+  %add = fadd reassoc float %rdx, %x
+  ret float %add
+}
+
+; Negative test - don't replace a single add with another reduction.
+
+define float @fadd_rdx_extra_use(float %x, <4 x float> %v) {
+; CHECK-LABEL: @fadd_rdx_extra_use(
+; CHECK-NEXT:    [[RDX:%.*]] = call float @llvm.vector.reduce.fadd.v4f32(float 0.000000e+00, <4 x float> [[V:%.*]])
+; CHECK-NEXT:    call void @use(float [[RDX]])
+; CHECK-NEXT:    [[ADD:%.*]] = fadd fast float [[RDX]], [[X:%.*]]
+; CHECK-NEXT:    ret float [[ADD]]
+;
+  %rdx = call float @llvm.vector.reduce.fadd.v4f32(float 0.0, <4 x float> %v)
+  call void @use(float %rdx)
+  %add = fadd fast float %rdx, %x
+  ret float %add
+}
+
+define float @fadd_rdx_nonzero_start_const_op(<4 x float> %v) {
+; CHECK-LABEL: @fadd_rdx_nonzero_start_const_op(
+; CHECK-NEXT:    [[TMP1:%.*]] = call reassoc ninf nsz float @llvm.vector.reduce.fadd.v4f32(float 3.300000e+01, <4 x float> [[V:%.*]])
+; CHECK-NEXT:    ret float [[TMP1]]
+;
+  %rdx = call float @llvm.vector.reduce.fadd.v4f32(float 42.0, <4 x float> %v)
+  %add = fadd reassoc nsz ninf float %rdx, -9.0
+  ret float %add
+}
+
+; Negative test - we don't change the order of ops unless it saves an instruction.
+
+define float @fadd_rdx_nonzero_start_variable_op(float %x, <4 x float> %v) {
+; CHECK-LABEL: @fadd_rdx_nonzero_start_variable_op(
+; CHECK-NEXT:    [[RDX:%.*]] = call float @llvm.vector.reduce.fadd.v4f32(float 4.200000e+01, <4 x float> [[V:%.*]])
+; CHECK-NEXT:    [[ADD:%.*]] = fadd fast float [[RDX]], [[X:%.*]]
+; CHECK-NEXT:    ret float [[ADD]]
+;
+  %rdx = call float @llvm.vector.reduce.fadd.v4f32(float 42.0, <4 x float> %v)
+  %add = fadd fast float %rdx, %x
+  ret float %add
+}
+
+; (X * C) + X --> X * (C + 1)
+
+define float @fadd_fmul_common_op(float %x) {
+; CHECK-LABEL: @fadd_fmul_common_op(
+; CHECK-NEXT:    [[A:%.*]] = fmul reassoc nsz float [[X:%.*]], 4.300000e+01
+; CHECK-NEXT:    ret float [[A]]
+;
+  %m = fmul reassoc nsz float %x, 42.0
+  %a = fadd reassoc nsz float %m, %x
+  ret float %a
+}
+
+; Splat constant is ok.
+
+define <2 x float> @fadd_fmul_common_op_vec(<2 x float> %x) {
+; CHECK-LABEL: @fadd_fmul_common_op_vec(
+; CHECK-NEXT:    [[A:%.*]] = fmul reassoc nsz <2 x float> [[X:%.*]], <float 4.300000e+01, float 4.300000e+01>
+; CHECK-NEXT:    ret <2 x float> [[A]]
+;
+  %m = fmul reassoc nsz <2 x float> %x, <float 42.0, float 42.0>
+  %a = fadd reassoc nsz <2 x float> %m, %x
+  ret <2 x float> %a
+}
+
+; Non-splat constant is ok.
+
+define <2 x float> @fadd_fmul_common_op_commute_vec(<2 x float> %px) {
+; CHECK-LABEL: @fadd_fmul_common_op_commute_vec(
+; CHECK-NEXT:    [[X:%.*]] = fmul <2 x float> [[PX:%.*]], [[PX]]
+; CHECK-NEXT:    [[A:%.*]] = fmul reassoc nsz <2 x float> [[X]], <float 4.300000e+01, float -4.200000e+01>
+; CHECK-NEXT:    ret <2 x float> [[A]]
+;
+  %x = fmul <2 x float> %px, %px ; thwart complexity-based canonicalization
+  %m = fmul reassoc nsz <2 x float> %x, <float 42.0, float -43.0>
+  %a = fadd reassoc nsz <2 x float> %x, %m
+  ret <2 x float> %a
+}
+
+; Extra use is ok.
+
+define float @fadd_fmul_common_op_use(float %x) {
+; CHECK-LABEL: @fadd_fmul_common_op_use(
+; CHECK-NEXT:    [[M:%.*]] = fmul reassoc nsz float [[X:%.*]], 4.200000e+01
+; CHECK-NEXT:    call void @use(float [[M]])
+; CHECK-NEXT:    [[A:%.*]] = fmul reassoc nsz float [[X]], 4.300000e+01
+; CHECK-NEXT:    ret float [[A]]
+;
+  %m = fmul reassoc nsz float %x, 42.0
+  call void @use(float %m)
+  %a = fadd reassoc nsz float %m, %x
+  ret float %a
+}
+
+; Negative test - must have 'reassoc' FMF
+
+define float @fadd_fmul_common_op_wrong_fmf(float %x) {
+; CHECK-LABEL: @fadd_fmul_common_op_wrong_fmf(
+; CHECK-NEXT:    [[M:%.*]] = fmul ninf nsz float [[X:%.*]], 4.200000e+01
+; CHECK-NEXT:    [[A:%.*]] = fadd ninf nsz float [[M]], [[X]]
+; CHECK-NEXT:    ret float [[A]]
+;
+  %m = fmul ninf nsz float %x, 42.0
+  %a = fadd ninf nsz float %m, %x
+  ret float %a
 }

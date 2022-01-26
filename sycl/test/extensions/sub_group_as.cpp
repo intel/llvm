@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -O3 -S -emit-llvm -x c++ %s -o - | FileCheck %s --check-prefix CHECK-O3
-// RUN: %clangxx -fsycl -fsycl-device-only -O0 -S -emit-llvm -x c++ %s -o - | FileCheck %s --check-prefix CHECK-O0
+// RUN: %clangxx -fsycl -fsycl-device-only -O3 -S -emit-llvm -x c++ -Xclang -disable-noundef-analysis %s -o - | FileCheck %s --check-prefix CHECK-O3
+// RUN: %clangxx -fsycl -fsycl-device-only -O0 -S -emit-llvm -x c++ -Xclang -disable-noundef-analysis %s -o - | FileCheck %s --check-prefix CHECK-O0
 // Test compilation with -O3 when all methods are inlined in kernel function
 // and -O0 when helper methods are preserved.
 #include <CL/sycl.hpp>
@@ -24,9 +24,8 @@ int main(int argc, char *argv[]) {
   {
     cl::sycl::buffer<int, 1> buf(host_mem, N);
     queue.submit([&](cl::sycl::handler &cgh) {
-      auto global =
-          buf.get_access<cl::sycl::access::mode::read_write,
-                         cl::sycl::access::target::global_buffer>(cgh);
+      auto global = buf.get_access<cl::sycl::access::mode::read_write,
+                                   cl::sycl::access::target::device>(cgh);
       sycl::accessor<int, 1, sycl::access::mode::read_write,
                      sycl::access::target::local>
           local(N, cgh);

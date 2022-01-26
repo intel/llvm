@@ -20,6 +20,8 @@
 
 #include <chrono>
 #include <cassert>
+#include <ratio>
+#include <type_traits>
 
 #include "test_macros.h"
 
@@ -44,7 +46,7 @@ constexpr unsigned long long powers[] = {
 	100000000000000000ULL,
 	1000000000000000000ULL,
 	10000000000000000000ULL
-	};
+};
 
 template <typename Duration, unsigned width>
 constexpr bool check_precision()

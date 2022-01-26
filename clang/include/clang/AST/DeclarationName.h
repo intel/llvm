@@ -34,11 +34,9 @@ class ASTContext;
 template <typename> class CanQual;
 class DeclarationName;
 class DeclarationNameTable;
-class MultiKeywordSelector;
 struct PrintingPolicy;
 class TemplateDecl;
 class TypeSourceInfo;
-class UsingDirectiveDecl;
 
 using CanQualType = CanQual<Type>;
 
@@ -660,13 +658,13 @@ class DeclarationNameLoc {
 
   // The location (if any) of the operator keyword is stored elsewhere.
   struct CXXOpName {
-    unsigned BeginOpNameLoc;
-    unsigned EndOpNameLoc;
+    SourceLocation::UIntTy BeginOpNameLoc;
+    SourceLocation::UIntTy EndOpNameLoc;
   };
 
   // The location (if any) of the operator keyword is stored elsewhere.
   struct CXXLitOpName {
-    unsigned OpNameLoc;
+    SourceLocation::UIntTy OpNameLoc;
   };
 
   // struct {} CXXUsingDirective;

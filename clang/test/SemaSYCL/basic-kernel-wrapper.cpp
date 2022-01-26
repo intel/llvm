@@ -70,5 +70,5 @@ int main() {
 // Check kernel wrapper attributes
 
 // CHECK: OpenCLKernelAttr {{.*}} Implicit
-// CHECK: AsmLabelAttr {{.*}} Implicit "{{.*}}kernel_wrapper{{.*}}"
 // CHECK: ArtificialAttr {{.*}} Implicit
+// CHECK: AsmLabelAttr {{.*}} Implicit "{{.*}}kernel_wrapper{{.*}}"

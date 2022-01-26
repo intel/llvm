@@ -299,6 +299,29 @@ Instruction *InstCombinerImpl::foldIntegerTypedPHI(PHINode &PN) {
                                           IntToPtr->getOperand(0)->getType());
 }
 
+// Remove RoundTrip IntToPtr/PtrToInt Cast on PHI-Operand and
+// fold Phi-operand to bitcast.
+Instruction *InstCombinerImpl::foldPHIArgIntToPtrToPHI(PHINode &PN) {
+  // convert ptr2int ( phi[ int2ptr(ptr2int(x))] ) --> ptr2int ( phi [ x ] )
+  // Make sure all uses of phi are ptr2int.
+  if (!all_of(PN.users(), [](User *U) { return isa<PtrToIntInst>(U); }))
+    return nullptr;
+
+  // Iterating over all operands to check presence of target pointers for
+  // optimization.
+  bool OperandWithRoundTripCast = false;
+  for (unsigned OpNum = 0; OpNum != PN.getNumIncomingValues(); ++OpNum) {
+    if (auto *NewOp =
+            simplifyIntToPtrRoundTripCast(PN.getIncomingValue(OpNum))) {
+      PN.setIncomingValue(OpNum, NewOp);
+      OperandWithRoundTripCast = true;
+    }
+  }
+  if (!OperandWithRoundTripCast)
+    return nullptr;
+  return &PN;
+}
+
 /// If we have something like phi [insertvalue(a,b,0), insertvalue(c,d,0)],
 /// turn this into a phi[a,c] and phi[b,d] and a single insertvalue.
 Instruction *
@@ -641,10 +664,7 @@ Instruction *InstCombinerImpl::foldPHIArgLoadIntoPHI(PHINode &PN) {
     return nullptr;
 
   // When processing loads, we need to propagate two bits of information to the
-  // sunk load: whether it is volatile, and what its alignment is.  We currently
-  // don't sink loads when some have their alignment specified and some don't.
-  // visitLoadInst will propagate an alignment onto the load when TD is around,
-  // and if TD isn't around, we can't handle the mixed case.
+  // sunk load: whether it is volatile, and what its alignment is.
   bool isVolatile = FirstLI->isVolatile();
   Align LoadAlignment = FirstLI->getAlign();
   unsigned LoadAddrSpace = FirstLI->getPointerAddressSpace();
@@ -676,7 +696,7 @@ Instruction *InstCombinerImpl::foldPHIArgLoadIntoPHI(PHINode &PN) {
         !isSafeAndProfitableToSinkLoad(LI))
       return nullptr;
 
-    LoadAlignment = std::min(LoadAlignment, Align(LI->getAlign()));
+    LoadAlignment = std::min(LoadAlignment, LI->getAlign());
 
     // If the PHI is of volatile loads and the load block has multiple
     // successors, sinking it would remove a load of the volatile value from
@@ -1304,6 +1324,9 @@ Instruction *InstCombinerImpl::visitPHINode(PHINode &PN) {
     return replaceInstUsesWith(PN, V);
 
   if (Instruction *Result = foldPHIArgZextsIntoPHI(PN))
+    return Result;
+
+  if (Instruction *Result = foldPHIArgIntToPtrToPHI(PN))
     return Result;
 
   // If all PHI operands are the same operation, pull them through the PHI,

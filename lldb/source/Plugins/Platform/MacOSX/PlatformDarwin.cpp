@@ -237,7 +237,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
 
   Status err;
 
-  if (IsHost()) {
+  if (CheckLocalSharedCache()) {
     // When debugging on the host, we are most likely using the same shared
     // cache as our inferior. The dylibs from the shared cache might not
     // exist on the filesystem, so let's use the images in our own memory
@@ -514,632 +514,138 @@ bool PlatformDarwin::ModuleIsExcludedForUnconstrainedSearches(
   return obj_type == ObjectFile::eTypeDynamicLinker;
 }
 
-bool PlatformDarwin::x86GetSupportedArchitectureAtIndex(uint32_t idx,
-                                                        ArchSpec &arch) {
+void PlatformDarwin::x86GetSupportedArchitectures(
+    std::vector<ArchSpec> &archs) {
   ArchSpec host_arch = HostInfo::GetArchitecture(HostInfo::eArchKindDefault);
+  archs.push_back(host_arch);
+
   if (host_arch.GetCore() == ArchSpec::eCore_x86_64_x86_64h) {
-    switch (idx) {
-    case 0:
-      arch = host_arch;
-      return true;
-
-    case 1:
-      arch.SetTriple("x86_64-apple-macosx");
-      return true;
-
-    case 2:
-      arch = HostInfo::GetArchitecture(HostInfo::eArchKind32);
-      return true;
-
-    default:
-      return false;
-    }
+    archs.push_back(ArchSpec("x86_64-apple-macosx"));
+    archs.push_back(HostInfo::GetArchitecture(HostInfo::eArchKind32));
   } else {
-    if (idx == 0) {
-      arch = HostInfo::GetArchitecture(HostInfo::eArchKindDefault);
-      return arch.IsValid();
-    } else if (idx == 1) {
-      ArchSpec platform_arch(
-          HostInfo::GetArchitecture(HostInfo::eArchKindDefault));
-      ArchSpec platform_arch64(
-          HostInfo::GetArchitecture(HostInfo::eArchKind64));
-      if (platform_arch.IsExactMatch(platform_arch64)) {
-        // This macosx platform supports both 32 and 64 bit. Since we already
-        // returned the 64 bit arch for idx == 0, return the 32 bit arch for
-        // idx == 1
-        arch = HostInfo::GetArchitecture(HostInfo::eArchKind32);
-        return arch.IsValid();
-      }
-    }
+    ArchSpec host_arch64 = HostInfo::GetArchitecture(HostInfo::eArchKind64);
+    if (host_arch.IsExactMatch(host_arch64))
+      archs.push_back(HostInfo::GetArchitecture(HostInfo::eArchKind32));
   }
-  return false;
 }
 
-// The architecture selection rules for arm processors These cpu subtypes have
-// distinct names (e.g. armv7f) but armv7 binaries run fine on an armv7f
-// processor.
-
-bool PlatformDarwin::ARMGetSupportedArchitectureAtIndex(uint32_t idx,
-                                                        ArchSpec &arch) {
-  ArchSpec system_arch(GetSystemArchitecture());
-
-// When lldb is running on a watch or tv, set the arch OS name appropriately.
-#if defined(TARGET_OS_TV) && TARGET_OS_TV == 1
-#define OSNAME "tvos"
-#elif defined(TARGET_OS_WATCH) && TARGET_OS_WATCH == 1
-#define OSNAME "watchos"
-#elif defined(TARGET_OS_BRIDGE) && TARGET_OS_BRIDGE == 1
-#define OSNAME "bridgeos"
-#else
-#define OSNAME "ios"
-#endif
-
-#if TARGET_OS_OSX
-  if (IsHost()) {
-    if (idx == 0) {
-      arch.SetTriple("arm64e-apple-macosx");
-      return true;
-    } else if (idx == 1) {
-      arch.SetTriple("arm64-apple-macosx");
-      return true;
-    }
-    return false;
-  }
-#endif
-
-  const ArchSpec::Core system_core = system_arch.GetCore();
-  switch (system_core) {
+static llvm::ArrayRef<const char *> GetCompatibleArchs(ArchSpec::Core core) {
+  switch (core) {
   default:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("arm64-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv7-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv7f-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv7k-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("armv7s-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("armv7m-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("armv7em-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 10:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 11:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 12:
-      arch.SetTriple("thumbv7-apple-" OSNAME);
-      return true;
-    case 13:
-      arch.SetTriple("thumbv7f-apple-" OSNAME);
-      return true;
-    case 14:
-      arch.SetTriple("thumbv7k-apple-" OSNAME);
-      return true;
-    case 15:
-      arch.SetTriple("thumbv7s-apple-" OSNAME);
-      return true;
-    case 16:
-      arch.SetTriple("thumbv7m-apple-" OSNAME);
-      return true;
-    case 17:
-      arch.SetTriple("thumbv7em-apple-" OSNAME);
-      return true;
-    case 18:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 19:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 20:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 21:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 22:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_arm64:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("arm64-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv7s-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv7f-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv7m-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("armv7em-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("armv7-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 10:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 11:
-      arch.SetTriple("thumbv7-apple-" OSNAME);
-      return true;
-    case 12:
-      arch.SetTriple("thumbv7f-apple-" OSNAME);
-      return true;
-    case 13:
-      arch.SetTriple("thumbv7k-apple-" OSNAME);
-      return true;
-    case 14:
-      arch.SetTriple("thumbv7s-apple-" OSNAME);
-      return true;
-    case 15:
-      arch.SetTriple("thumbv7m-apple-" OSNAME);
-      return true;
-    case 16:
-      arch.SetTriple("thumbv7em-apple-" OSNAME);
-      return true;
-    case 17:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 18:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 19:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 20:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 21:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv7f:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv7f-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv7-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("thumbv7f-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("thumbv7-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 10:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 11:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 12:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 13:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv7k:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv7k-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv7-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("thumbv7k-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("thumbv7-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 10:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 11:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 12:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 13:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv7s:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv7s-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv7-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("thumbv7s-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("thumbv7-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 10:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 11:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 12:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 13:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv7m:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv7m-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv7-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("thumbv7m-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("thumbv7-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 10:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 11:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 12:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 13:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv7em:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv7em-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv7-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("thumbv7em-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("thumbv7-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 10:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 11:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 12:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 13:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv7:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv7-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("thumbv7-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 10:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 11:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv6m:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv6m-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("thumbv6m-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 8:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 9:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv6:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv6-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("thumbv6-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 6:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 7:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv5:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv5-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("thumbv5-apple-" OSNAME);
-      return true;
-    case 4:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 5:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
-
-  case ArchSpec::eCore_arm_armv4:
-    switch (idx) {
-    case 0:
-      arch.SetTriple("armv4-apple-" OSNAME);
-      return true;
-    case 1:
-      arch.SetTriple("arm-apple-" OSNAME);
-      return true;
-    case 2:
-      arch.SetTriple("thumbv4t-apple-" OSNAME);
-      return true;
-    case 3:
-      arch.SetTriple("thumb-apple-" OSNAME);
-      return true;
-    default:
-      break;
-    }
-    break;
+    LLVM_FALLTHROUGH;
+  case ArchSpec::eCore_arm_arm64e: {
+    static const char *g_arm64e_compatible_archs[] = {
+        "arm64e",    "arm64",    "armv7",    "armv7f",   "armv7k",   "armv7s",
+        "armv7m",    "armv7em",  "armv6m",   "armv6",    "armv5",    "armv4",
+        "arm",       "thumbv7",  "thumbv7f", "thumbv7k", "thumbv7s", "thumbv7m",
+        "thumbv7em", "thumbv6m", "thumbv6",  "thumbv5",  "thumbv4t", "thumb",
+    };
+    return {g_arm64e_compatible_archs};
   }
-  arch.Clear();
-  return false;
+  case ArchSpec::eCore_arm_arm64: {
+    static const char *g_arm64_compatible_archs[] = {
+        "arm64",    "armv7",    "armv7f",   "armv7k",   "armv7s",   "armv7m",
+        "armv7em",  "armv6m",   "armv6",    "armv5",    "armv4",    "arm",
+        "thumbv7",  "thumbv7f", "thumbv7k", "thumbv7s", "thumbv7m", "thumbv7em",
+        "thumbv6m", "thumbv6",  "thumbv5",  "thumbv4t", "thumb",
+    };
+    return {g_arm64_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv7: {
+    static const char *g_armv7_compatible_archs[] = {
+        "armv7",   "armv6m",   "armv6",   "armv5",   "armv4",    "arm",
+        "thumbv7", "thumbv6m", "thumbv6", "thumbv5", "thumbv4t", "thumb",
+    };
+    return {g_armv7_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv7f: {
+    static const char *g_armv7f_compatible_archs[] = {
+        "armv7f",  "armv7",   "armv6m",   "armv6",   "armv5",
+        "armv4",   "arm",     "thumbv7f", "thumbv7", "thumbv6m",
+        "thumbv6", "thumbv5", "thumbv4t", "thumb",
+    };
+    return {g_armv7f_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv7k: {
+    static const char *g_armv7k_compatible_archs[] = {
+        "armv7k",  "armv7",   "armv6m",   "armv6",   "armv5",
+        "armv4",   "arm",     "thumbv7k", "thumbv7", "thumbv6m",
+        "thumbv6", "thumbv5", "thumbv4t", "thumb",
+    };
+    return {g_armv7k_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv7s: {
+    static const char *g_armv7s_compatible_archs[] = {
+        "armv7s",  "armv7",   "armv6m",   "armv6",   "armv5",
+        "armv4",   "arm",     "thumbv7s", "thumbv7", "thumbv6m",
+        "thumbv6", "thumbv5", "thumbv4t", "thumb",
+    };
+    return {g_armv7s_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv7m: {
+    static const char *g_armv7m_compatible_archs[] = {
+        "armv7m",  "armv7",   "armv6m",   "armv6",   "armv5",
+        "armv4",   "arm",     "thumbv7m", "thumbv7", "thumbv6m",
+        "thumbv6", "thumbv5", "thumbv4t", "thumb",
+    };
+    return {g_armv7m_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv7em: {
+    static const char *g_armv7em_compatible_archs[] = {
+        "armv7em", "armv7",   "armv6m",    "armv6",   "armv5",
+        "armv4",   "arm",     "thumbv7em", "thumbv7", "thumbv6m",
+        "thumbv6", "thumbv5", "thumbv4t",  "thumb",
+    };
+    return {g_armv7em_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv6m: {
+    static const char *g_armv6m_compatible_archs[] = {
+        "armv6m",   "armv6",   "armv5",   "armv4",    "arm",
+        "thumbv6m", "thumbv6", "thumbv5", "thumbv4t", "thumb",
+    };
+    return {g_armv6m_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv6: {
+    static const char *g_armv6_compatible_archs[] = {
+        "armv6",   "armv5",   "armv4",    "arm",
+        "thumbv6", "thumbv5", "thumbv4t", "thumb",
+    };
+    return {g_armv6_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv5: {
+    static const char *g_armv5_compatible_archs[] = {
+        "armv5", "armv4", "arm", "thumbv5", "thumbv4t", "thumb",
+    };
+    return {g_armv5_compatible_archs};
+  }
+  case ArchSpec::eCore_arm_armv4: {
+    static const char *g_armv4_compatible_archs[] = {
+        "armv4",
+        "arm",
+        "thumbv4t",
+        "thumb",
+    };
+    return {g_armv4_compatible_archs};
+  }
+  }
+  return {};
+}
+
+/// The architecture selection rules for arm processors These cpu subtypes have
+/// distinct names (e.g. armv7f) but armv7 binaries run fine on an armv7f
+/// processor.
+void PlatformDarwin::ARMGetSupportedArchitectures(
+    std::vector<ArchSpec> &archs, llvm::Optional<llvm::Triple::OSType> os) {
+  const ArchSpec system_arch = GetSystemArchitecture();
+  const ArchSpec::Core system_core = system_arch.GetCore();
+  for (const char *arch : GetCompatibleArchs(system_core)) {
+    llvm::Triple triple;
+    triple.setArchName(arch);
+    triple.setVendor(llvm::Triple::VendorType::Apple);
+    if (os)
+      triple.setOS(*os);
+    archs.push_back(ArchSpec(triple));
+  }
 }
 
 static FileSpec GetXcodeSelectPath() {
@@ -1226,12 +732,9 @@ PlatformDarwin::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
     return 1;
 }
 
-lldb::ProcessSP
-PlatformDarwin::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
-                             Target *target, // Can be NULL, if NULL create
-                                             // a new target, else use existing
-                                             // one
-                             Status &error) {
+lldb::ProcessSP PlatformDarwin::DebugProcess(ProcessLaunchInfo &launch_info,
+                                             Debugger &debugger, Target &target,
+                                             Status &error) {
   ProcessSP process_sp;
 
   if (IsHost()) {
@@ -1622,7 +1125,7 @@ ConstString PlatformDarwin::GetFullNameForDylib(ConstString basename) {
 }
 
 llvm::VersionTuple PlatformDarwin::GetOSVersion(Process *process) {
-  if (process && strstr(GetPluginName().GetCString(), "-simulator")) {
+  if (process && GetPluginName().contains("-simulator")) {
     lldb_private::ProcessInstanceInfo proc_info;
     if (Host::GetProcessInfo(process->GetID(), proc_info)) {
       const Environment &env = proc_info.GetEnvironment();

@@ -8,9 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/assert_happened.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/service_kernel_names.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
@@ -20,6 +22,11 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
+// Explicitly request format macros
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
+#include <cinttypes>
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
@@ -58,15 +65,29 @@
 #define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
+// Helper macro to identify if fallback assert is needed
+// FIXME remove __NVPTX__ condition once devicelib supports CUDA
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT)
+#define __SYCL_USE_FALLBACK_ASSERT 1
+#else
+#define __SYCL_USE_FALLBACK_ASSERT 0
+#endif
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Forward declaration
 class context;
 class device;
+class queue;
+
 namespace detail {
 class queue_impl;
-}
+#if __SYCL_USE_FALLBACK_ASSERT
+static event submitAssertCapture(queue &, event &, queue *,
+                                 const detail::code_location &);
+#endif
+} // namespace detail
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
@@ -178,9 +199,10 @@ public:
   /// \param ClQueue is a valid instance of OpenCL queue.
   /// \param SyclContext is a valid SYCL context.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   queue(cl_command_queue ClQueue, const context &SyclContext,
         const async_handler &AsyncHandler = {});
+#endif
 
   queue(const queue &RHS) = default;
 
@@ -196,8 +218,9 @@ public:
 
   /// \return a valid instance of OpenCL queue, which is retained before being
   /// returned.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_command_queue get() const;
+#endif
 
   /// \return an associated SYCL context.
   context get_context() const;
@@ -214,6 +237,11 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
+  // A shorthand for `get_device().has()' which is expected to be a bit quicker
+  // than the long version
+  bool device_has(aspect Aspect) const;
+
+public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
@@ -223,7 +251,29 @@ public:
   template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    return submit_impl(CGF, CodeLoc);
+#if __SYCL_USE_FALLBACK_ASSERT
+    if (!is_host()) {
+      auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
+                                          event &E) {
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert && !device_has(aspect::accelerator)) {
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          // Fallback assert isn't supported for FPGA
+          submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
+                              CodeLoc);
+        }
+      };
+
+      auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      return discard_or_return(Event);
+    } else
+#endif // __SYCL_USE_FALLBACK_ASSERT
+    {
+      auto Event = submit_impl(CGF, CodeLoc);
+      return discard_or_return(Event);
+    }
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -241,7 +291,35 @@ public:
   event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    return submit_impl(CGF, SecondaryQueue, CodeLoc);
+#if __SYCL_USE_FALLBACK_ASSERT
+    if (!is_host()) {
+      auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+                             bool IsKernel, bool KernelUsesAssert, event &E) {
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert && !device_has(aspect::accelerator)) {
+          // Only secondary queues on devices need to be added to the assert
+          // capture.
+          // TODO: Handle case where primary queue is host but the secondary
+          // queue is not.
+          queue *DeviceSecondaryQueue =
+              SecondaryQueue.is_host() ? nullptr : &SecondaryQueue;
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          // Fallback assert isn't supported for FPGA
+          submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
+        }
+      };
+
+      auto Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                               PostProcess);
+      return discard_or_return(Event);
+    } else
+#endif // __SYCL_USE_FALLBACK_ASSERT
+    {
+      auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      return discard_or_return(Event);
+    }
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -251,8 +329,38 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
+  event ext_oneapi_submit_barrier(_CODELOCONLYPARAM(&CodeLoc)) {
+    return submit(
+        [=](handler &CGH) { CGH.ext_oneapi_barrier(); } _CODELOCFW(CodeLoc));
+  }
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all commands previously submitted to this queue have entered the
+  /// complete state.
+  ///
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return a SYCL event object, which corresponds to the queue the command
+  /// group is being enqueued on.
+  __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
   event submit_barrier(_CODELOCONLYPARAM(&CodeLoc)) {
-    return submit([=](handler &CGH) { CGH.barrier(); } _CODELOCFW(CodeLoc));
+    _CODELOCARG(&CodeLoc);
+    return ext_oneapi_submit_barrier(CodeLoc);
+  }
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all events in WaitList have entered the complete state. If WaitList
+  /// is empty, then ext_oneapi_submit_barrier has no effect.
+  ///
+  /// \param WaitList is a vector of valid SYCL events that need to complete
+  /// before barrier command can be executed.
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return a SYCL event object, which corresponds to the queue the command
+  /// group is being enqueued on.
+  event ext_oneapi_submit_barrier(
+      const std::vector<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_barrier(WaitList);
+    } _CODELOCFW(CodeLoc));
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -264,10 +372,11 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
+  __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
   event
   submit_barrier(const std::vector<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
-    return submit(
-        [=](handler &CGH) { CGH.barrier(WaitList); } _CODELOCFW(CodeLoc));
+    _CODELOCARG(&CodeLoc);
+    return ext_oneapi_submit_barrier(WaitList, CodeLoc);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -356,7 +465,7 @@ public:
   /// \return an event representing fill operation.
   template <typename T>
   event fill(void *Ptr, const T &Pattern, size_t Count,
-             const vector_class<event> &DepEvents) {
+             const std::vector<event> &DepEvents) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.fill<T>(Ptr, Pattern, Count);
@@ -398,7 +507,7 @@ public:
   /// dependencies.
   /// \return an event representing fill operation.
   event memset(void *Ptr, int Value, size_t Count,
-               const vector_class<event> &DepEvents);
+               const std::vector<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -438,7 +547,7 @@ public:
   /// dependencies.
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count,
-               const vector_class<event> &DepEvents);
+               const std::vector<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -483,7 +592,7 @@ public:
   /// \return an event representing copy operation.
   template <typename T>
   event copy(const T *Src, T *Dest, size_t Count,
-             const vector_class<event> &DepEvents) {
+             const std::vector<event> &DepEvents) {
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
 
@@ -526,7 +635,7 @@ public:
   /// dependencies.
   /// \return an event representing advice operation.
   event mem_advise(const void *Ptr, size_t Length, int Advice,
-                   const vector_class<event> &DepEvents);
+                   const std::vector<event> &DepEvents);
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -564,7 +673,7 @@ public:
   /// dependencies.
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count,
-                 const vector_class<event> &DepEvents) {
+                 const std::vector<event> &DepEvents) {
     return submit([=](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.prefetch(Ptr, Count);
@@ -577,8 +686,14 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
-
     return submit(
         [&](handler &CGH) {
           CGH.template single_task<KernelName, KernelType>(KernelFunc);
@@ -594,6 +709,13 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -612,6 +734,13 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const std::vector<event> &DepEvents,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -927,10 +1056,10 @@ public:
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
-  auto get_native() const -> typename interop<BackendName, queue>::type {
-    return reinterpret_cast<typename interop<BackendName, queue>::type>(
-        getNative());
+  template <backend Backend>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  backend_return_t<Backend, queue> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, queue>>(getNative());
   }
 
 private:
@@ -944,12 +1073,48 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
+#if __SYCL_USE_FALLBACK_ASSERT
+  friend event detail::submitAssertCapture(queue &, event &, queue *,
+                                           const detail::code_location &);
+#endif
+
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+
+  /// Checks if the event needs to be discarded and if so, discards it and
+  /// returns a discarded event. Otherwise, it returns input event.
+  event discard_or_return(const event &Event);
+
+  // Function to postprocess submitted command
+  // Arguments:
+  // bool IsKernel - true if the submitted command was kernel, false otherwise
+  // bool KernelUsesAssert - true if submitted kernel uses assert, only
+  //                         meaningful when IsKernel is true
+  // event &Event - event after which post processing should be executed
+  using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
+
+  /// A template-free version of submit.
+  /// \param CGH command group function/handler
+  /// \param CodeLoc code location
+  ///
+  /// This method stores additional information within event_impl class instance
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                    const detail::code_location &CodeLoc,
+                                    const SubmitPostProcessF &PostProcess);
+  /// A template-free version of submit.
+  /// \param CGH command group function/handler
+  /// \param secondQueue fallback queue
+  /// \param CodeLoc code location
+  ///
+  /// This method stores additional information within event_impl class instance
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                    queue secondQueue,
+                                    const detail::code_location &CodeLoc,
+                                    const SubmitPostProcessF &PostProcess);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.
@@ -1013,7 +1178,92 @@ private:
         },
         CodeLoc);
   }
+
+  buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
 };
+
+namespace detail {
+#if __SYCL_USE_FALLBACK_ASSERT
+#define __SYCL_ASSERT_START 1
+/**
+ * Submit copy task for assert failure flag and host-task to check the flag
+ * \param Event kernel's event to depend on i.e. the event represents the
+ *              kernel to check for assertion failure
+ * \param SecondaryQueue secondary queue for submit process, null if not used
+ * \returns host tasks event
+ *
+ * This method doesn't belong to queue class to overcome msvc behaviour due to
+ * which it gets compiled and exported without any integration header and, thus,
+ * with no proper KernelInfo instance.
+ */
+event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
+                          const detail::code_location &CodeLoc) {
+  using AHBufT = buffer<detail::AssertHappened, 1>;
+
+  AHBufT &Buffer = Self.getAssertHappenedBuffer();
+
+  event CopierEv, CheckerEv, PostCheckerEv;
+  auto CopierCGF = [&](handler &CGH) {
+    CGH.depends_on(Event);
+
+    auto Acc = Buffer.get_access<access::mode::write>(CGH);
+
+    CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
+      __devicelib_assert_read(&Acc[0]);
+#else
+      (void)Acc;
+#endif // defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
+    });
+  };
+  auto CheckerCGF = [&CopierEv, &Buffer](handler &CGH) {
+    CGH.depends_on(CopierEv);
+    using mode = access::mode;
+    using target = access::target;
+
+    auto Acc = Buffer.get_access<mode::read, target::host_buffer>(CGH);
+
+    CGH.host_task([=] {
+      const detail::AssertHappened *AH = &Acc[0];
+
+      // Don't use assert here as msvc will insert reference to __imp__wassert
+      // which won't be properly resolved in separate compile use-case
+#ifndef NDEBUG
+      if (AH->Flag == __SYCL_ASSERT_START)
+        throw sycl::runtime_error(
+            "Internal Error. Invalid value in assert description.",
+            PI_INVALID_VALUE);
+#endif
+
+      if (AH->Flag) {
+        const char *Expr = AH->Expr[0] ? AH->Expr : "<unknown expr>";
+        const char *File = AH->File[0] ? AH->File : "<unknown file>";
+        const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
+
+        fprintf(stderr,
+                "%s:%d: %s: global id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64
+                "], local id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64 "] "
+                "Assertion `%s` failed.\n",
+                File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
+                AH->LID1, AH->LID2, Expr);
+        abort(); // no need to release memory as it's abort anyway
+      }
+    });
+  };
+
+  if (SecondaryQueue) {
+    CopierEv = Self.submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
+    CheckerEv = Self.submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
+  } else {
+    CopierEv = Self.submit_impl(CopierCGF, CodeLoc);
+    CheckerEv = Self.submit_impl(CheckerCGF, CodeLoc);
+  }
+
+  return CheckerEv;
+}
+#undef __SYCL_ASSERT_START
+#endif // __SYCL_USE_FALLBACK_ASSERT
+} // namespace detail
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
@@ -1026,3 +1276,5 @@ template <> struct hash<cl::sycl::queue> {
   }
 };
 } // namespace std
+
+#undef __SYCL_USE_FALLBACK_ASSERT

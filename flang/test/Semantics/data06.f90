@@ -1,5 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
-! REQUIRES: shell
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! DATA statement errors
 subroutine s1
   type :: t1
@@ -44,8 +43,6 @@ subroutine s1
   data jx/'abc'/
   !ERROR: DATA statement value could not be converted to the type 'INTEGER(4)' of the object 'jx'
   data jx/t1()/
-  !ERROR: DATA statement value could not be converted to the type 'INTEGER(4)' of the object 'jx'
-  data jx/.false./
   !ERROR: DATA statement value 'jy' for 'jx' is not a constant
   data jx/jy/
 end subroutine

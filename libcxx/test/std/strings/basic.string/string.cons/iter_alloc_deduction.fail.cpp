@@ -8,8 +8,6 @@
 
 // <string>
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: clang-4.0
-// UNSUPPORTED: apple-clang-9
 
 // template<class InputIterator,
 //      class Allocator = allocator<typename iterator_traits<InputIterator>::value_type>>
@@ -30,7 +28,7 @@
 
 #include "test_macros.h"
 
-class NotAnItertor {};
+class NotAnIterator {};
 
 template <typename T>
 struct NotAnAllocator { typedef T value_type; };
@@ -38,7 +36,7 @@ struct NotAnAllocator { typedef T value_type; };
 int main(int, char**)
 {
     { // Not an iterator at all
-    std::basic_string s1{NotAnItertor{}, NotAnItertor{}, std::allocator<char>{}}; // expected-error {{no viable constructor or deduction guide for deduction of template arguments of 'basic_string'}}
+    std::basic_string s1{NotAnIterator{}, NotAnIterator{}, std::allocator<char>{}}; // expected-error {{no viable constructor or deduction guide for deduction of template arguments of 'basic_string'}}
     }
     { // Not an input iterator
     std::basic_string<char16_t> s0;

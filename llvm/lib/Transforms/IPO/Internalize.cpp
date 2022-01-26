@@ -131,14 +131,14 @@ bool InternalizePass::maybeInternalize(
       // If a comdat with one member is not externally visible, we can drop it.
       // Otherwise, the comdat can be used to establish dependencies among the
       // group of sections. Thus we have to keep the comdat but switch it to
-      // noduplicates.
-      // Note: noduplicates is not necessary for COFF. wasm doesn't support
-      // noduplicates.
+      // nodeduplicate.
+      // Note: nodeduplicate is not necessary for COFF. wasm doesn't support
+      // nodeduplicate.
       ComdatInfo &Info = ComdatMap.find(C)->second;
       if (Info.Size == 1)
         GO->setComdat(nullptr);
       else if (!IsWasm)
-        C->setSelectionKind(Comdat::NoDuplicates);
+        C->setSelectionKind(Comdat::NoDeduplicate);
     }
 
     if (GV.hasLocalLinkage())
@@ -201,21 +201,6 @@ bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
     AlwaysPreserved.insert(V->getName());
   }
 
-  // Mark all functions not in the api as internal.
-  IsWasm = Triple(M.getTargetTriple()).isOSBinFormatWasm();
-  for (Function &I : M) {
-    if (!maybeInternalize(I, ComdatMap))
-      continue;
-    Changed = true;
-
-    if (ExternalNode)
-      // Remove a callgraph edge from the external node to this function.
-      ExternalNode->removeOneAbstractEdgeTo((*CG)[&I]);
-
-    ++NumFunctions;
-    LLVM_DEBUG(dbgs() << "Internalizing func " << I.getName() << "\n");
-  }
-
   // Never internalize the llvm.used symbol.  It is used to implement
   // attribute((used)).
   // FIXME: Shouldn't this just filter on llvm.metadata section??
@@ -236,6 +221,21 @@ bool InternalizePass::internalizeModule(Module &M, CallGraph *CG) {
     AlwaysPreserved.insert("__ssp_canary_word");
   else
     AlwaysPreserved.insert("__stack_chk_guard");
+
+  // Mark all functions not in the api as internal.
+  IsWasm = Triple(M.getTargetTriple()).isOSBinFormatWasm();
+  for (Function &I : M) {
+    if (!maybeInternalize(I, ComdatMap))
+      continue;
+    Changed = true;
+
+    if (ExternalNode)
+      // Remove a callgraph edge from the external node to this function.
+      ExternalNode->removeOneAbstractEdgeTo((*CG)[&I]);
+
+    ++NumFunctions;
+    LLVM_DEBUG(dbgs() << "Internalizing func " << I.getName() << "\n");
+  }
 
   // Mark all global variables with initializers that are not in the api as
   // internal as well.

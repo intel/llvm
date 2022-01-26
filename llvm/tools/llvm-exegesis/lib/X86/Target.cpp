@@ -918,9 +918,10 @@ std::vector<InstructionTemplate> ExegesisX86Target::generateInstructionVariants(
       continue;
     case X86::OperandType::OPERAND_COND_CODE: {
       Exploration = true;
-      auto CondCodes = seq((int)X86::CondCode::COND_O,
-                           1 + (int)X86::CondCode::LAST_VALID_COND);
-      Choices.reserve(std::distance(CondCodes.begin(), CondCodes.end()));
+      auto CondCodes = enum_seq_inclusive(X86::CondCode::COND_O,
+                                          X86::CondCode::LAST_VALID_COND,
+                                          force_iteration_on_noniterable_enum);
+      Choices.reserve(CondCodes.size());
       for (int CondCode : CondCodes)
         Choices.emplace_back(MCOperand::createImm(CondCode));
       break;

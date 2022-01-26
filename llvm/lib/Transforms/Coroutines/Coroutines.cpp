@@ -123,9 +123,11 @@ Value *coro::LowererBase::makeSubFnCall(Value *Arg, int Index,
 static bool isCoroutineIntrinsicName(StringRef Name) {
   // NOTE: Must be sorted!
   static const char *const CoroIntrinsics[] = {
+      "llvm.coro.align",
       "llvm.coro.alloc",
       "llvm.coro.async.context.alloc",
       "llvm.coro.async.context.dealloc",
+      "llvm.coro.async.resume",
       "llvm.coro.async.size.replace",
       "llvm.coro.async.store_resume",
       "llvm.coro.begin",
@@ -140,7 +142,6 @@ static bool isCoroutineIntrinsicName(StringRef Name) {
       "llvm.coro.id.retcon",
       "llvm.coro.id.retcon.once",
       "llvm.coro.noop",
-      "llvm.coro.param",
       "llvm.coro.prepare.async",
       "llvm.coro.prepare.retcon",
       "llvm.coro.promise",
@@ -268,6 +269,9 @@ void coro::Shape::buildFrom(Function &F) {
       case Intrinsic::coro_size:
         CoroSizes.push_back(cast<CoroSizeInst>(II));
         break;
+      case Intrinsic::coro_align:
+        CoroAligns.push_back(cast<CoroAlignInst>(II));
+        break;
       case Intrinsic::coro_frame:
         CoroFrames.push_back(cast<CoroFrameInst>(II));
         break;
@@ -311,10 +315,9 @@ void coro::Shape::buildFrom(Function &F) {
         if (CoroBegin)
           report_fatal_error(
                 "coroutine should have exactly one defining @llvm.coro.begin");
-        CB->addAttribute(AttributeList::ReturnIndex, Attribute::NonNull);
-        CB->addAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);
-        CB->removeAttribute(AttributeList::FunctionIndex,
-                            Attribute::NoDuplicate);
+        CB->addRetAttr(Attribute::NonNull);
+        CB->addRetAttr(Attribute::NoAlias);
+        CB->removeFnAttr(Attribute::NoDuplicate);
         CoroBegin = CB;
         break;
       }
@@ -361,7 +364,7 @@ void coro::Shape::buildFrom(Function &F) {
 
     // Replace all coro.ends with unreachable instruction.
     for (AnyCoroEndInst *CE : CoroEnds)
-      changeToUnreachable(CE, /*UseLLVMTrap=*/false);
+      changeToUnreachable(CE);
 
     return;
   }
@@ -571,8 +574,8 @@ void coro::Shape::emitDealloc(IRBuilder<> &Builder, Value *Ptr,
   llvm_unreachable("Unknown coro::ABI enum");
 }
 
-LLVM_ATTRIBUTE_NORETURN
-static void fail(const Instruction *I, const char *Reason, Value *V) {
+[[noreturn]] static void fail(const Instruction *I, const char *Reason,
+                              Value *V) {
 #ifndef NDEBUG
   I->dump();
   if (V) {
@@ -697,7 +700,7 @@ void CoroIdAsyncInst::checkWellFormed() const {
 
 static void checkAsyncContextProjectFunction(const Instruction *I,
                                              Function *F) {
-  auto *FunTy = cast<FunctionType>(F->getType()->getPointerElementType());
+  auto *FunTy = cast<FunctionType>(F->getValueType());
   if (!FunTy->getReturnType()->isPointerTy() ||
       !FunTy->getReturnType()->getPointerElementType()->isIntegerTy(8))
     fail(I,
@@ -722,7 +725,7 @@ void CoroAsyncEndInst::checkWellFormed() const {
     return;
   auto *FnTy =
       cast<FunctionType>(MustTailCallFunc->getType()->getPointerElementType());
-  if (FnTy->getNumParams() != (getNumArgOperands() - 3))
+  if (FnTy->getNumParams() != (arg_size() - 3))
     fail(this,
          "llvm.coro.end.async must tail call function argument type must "
          "match the tail arguments",

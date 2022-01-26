@@ -4,6 +4,23 @@
 ; RUN: llc -mtriple=riscv64 -mattr=+experimental-v -riscv-v-vector-bits-min=128 -verify-machineinstrs < %s \
 ; RUN:   | FileCheck %s --check-prefixes=CHECK,RV64
 
+declare <8 x i7> @llvm.vp.srem.v8i7(<8 x i7>, <8 x i7>, <8 x i1>, i32)
+
+define <8 x i7> @vrem_vv_v8i7(<8 x i7> %va, <8 x i7> %b, <8 x i1> %m, i32 zeroext %evl) {
+; CHECK-LABEL: vrem_vv_v8i7:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
+; CHECK-NEXT:    vadd.vv v9, v9, v9
+; CHECK-NEXT:    vsra.vi v9, v9, 1
+; CHECK-NEXT:    vadd.vv v8, v8, v8
+; CHECK-NEXT:    vsra.vi v8, v8, 1
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf2, ta, mu
+; CHECK-NEXT:    vrem.vv v8, v8, v9, v0.t
+; CHECK-NEXT:    ret
+  %v = call <8 x i7> @llvm.vp.srem.v8i7(<8 x i7> %va, <8 x i7> %b, <8 x i1> %m, i32 %evl)
+  ret <8 x i7> %v
+}
+
 declare <2 x i8> @llvm.vp.srem.v2i8(<2 x i8>, <2 x i8>, <2 x i1>, i32)
 
 define <2 x i8> @vrem_vv_v2i8(<2 x i8> %va, <2 x i8> %b, <2 x i1> %m, i32 zeroext %evl) {
@@ -102,6 +119,18 @@ define <4 x i8> @vrem_vx_v4i8_unmasked(<4 x i8> %va, i8 %b, i32 zeroext %evl) {
   %m = shufflevector <4 x i1> %head, <4 x i1> undef, <4 x i32> zeroinitializer
   %v = call <4 x i8> @llvm.vp.srem.v4i8(<4 x i8> %va, <4 x i8> %vb, <4 x i1> %m, i32 %evl)
   ret <4 x i8> %v
+}
+
+declare <6 x i8> @llvm.vp.srem.v6i8(<6 x i8>, <6 x i8>, <6 x i1>, i32)
+
+define <6 x i8> @vrem_vv_v6i8(<6 x i8> %va, <6 x i8> %b, <6 x i1> %m, i32 zeroext %evl) {
+; CHECK-LABEL: vrem_vv_v6i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e8, mf2, ta, mu
+; CHECK-NEXT:    vrem.vv v8, v8, v9, v0.t
+; CHECK-NEXT:    ret
+  %v = call <6 x i8> @llvm.vp.srem.v6i8(<6 x i8> %va, <6 x i8> %b, <6 x i1> %m, i32 %evl)
+  ret <6 x i8> %v
 }
 
 declare <8 x i8> @llvm.vp.srem.v8i8(<8 x i8>, <8 x i8>, <8 x i1>, i32)
@@ -637,9 +666,9 @@ define <2 x i64> @vrem_vx_v2i64(<2 x i64> %va, i64 %b, <2 x i1> %m, i32 zeroext 
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v25, (a0), zero
+; RV32-NEXT:    vlse64.v v9, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m1, ta, mu
-; RV32-NEXT:    vrem.vv v8, v8, v25, v0.t
+; RV32-NEXT:    vrem.vv v8, v8, v9, v0.t
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -663,9 +692,9 @@ define <2 x i64> @vrem_vx_v2i64_unmasked(<2 x i64> %va, i64 %b, i32 zeroext %evl
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v25, (a0), zero
+; RV32-NEXT:    vlse64.v v9, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m1, ta, mu
-; RV32-NEXT:    vrem.vv v8, v8, v25
+; RV32-NEXT:    vrem.vv v8, v8, v9
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -715,9 +744,9 @@ define <4 x i64> @vrem_vx_v4i64(<4 x i64> %va, i64 %b, <4 x i1> %m, i32 zeroext 
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v26, (a0), zero
+; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m2, ta, mu
-; RV32-NEXT:    vrem.vv v8, v8, v26, v0.t
+; RV32-NEXT:    vrem.vv v8, v8, v10, v0.t
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -741,9 +770,9 @@ define <4 x i64> @vrem_vx_v4i64_unmasked(<4 x i64> %va, i64 %b, i32 zeroext %evl
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v26, (a0), zero
+; RV32-NEXT:    vlse64.v v10, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m2, ta, mu
-; RV32-NEXT:    vrem.vv v8, v8, v26
+; RV32-NEXT:    vrem.vv v8, v8, v10
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -793,9 +822,9 @@ define <8 x i64> @vrem_vx_v8i64(<8 x i64> %va, i64 %b, <8 x i1> %m, i32 zeroext 
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 8, e64, m4, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v28, (a0), zero
+; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m4, ta, mu
-; RV32-NEXT:    vrem.vv v8, v8, v28, v0.t
+; RV32-NEXT:    vrem.vv v8, v8, v12, v0.t
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;
@@ -819,9 +848,9 @@ define <8 x i64> @vrem_vx_v8i64_unmasked(<8 x i64> %va, i64 %b, i32 zeroext %evl
 ; RV32-NEXT:    sw a0, 8(sp)
 ; RV32-NEXT:    vsetivli zero, 8, e64, m4, ta, mu
 ; RV32-NEXT:    addi a0, sp, 8
-; RV32-NEXT:    vlse64.v v28, (a0), zero
+; RV32-NEXT:    vlse64.v v12, (a0), zero
 ; RV32-NEXT:    vsetvli zero, a2, e64, m4, ta, mu
-; RV32-NEXT:    vrem.vv v8, v8, v28
+; RV32-NEXT:    vrem.vv v8, v8, v12
 ; RV32-NEXT:    addi sp, sp, 16
 ; RV32-NEXT:    ret
 ;

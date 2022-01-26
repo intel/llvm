@@ -12,6 +12,7 @@
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/backend_impl.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <algorithm>
@@ -87,7 +88,7 @@ event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent) {
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
-                    const vector_class<event> &DepEvents) {
+                    const std::vector<event> &DepEvents) {
   return impl->memset(impl, Ptr, Value, Count, DepEvents);
 }
 
@@ -100,7 +101,7 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent) {
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
-                    const vector_class<event> &DepEvents) {
+                    const std::vector<event> &DepEvents) {
   return impl->memcpy(impl, Dest, Src, Count, DepEvents);
 }
 
@@ -118,8 +119,17 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
-                        const vector_class<event> &DepEvents) {
+                        const std::vector<event> &DepEvents) {
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
+}
+
+event queue::discard_or_return(const event &Event) {
+  if (impl->MDiscardEvents) {
+    using detail::event_impl;
+    auto Impl = std::make_shared<event_impl>(event_impl::HES_Discarded);
+    return detail::createSyclObjFromImpl<event>(Impl);
+  }
+  return Event;
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH,
@@ -130,6 +140,19 @@ event queue::submit_impl(std::function<void(handler &)> CGH,
 event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
+}
+
+event queue::submit_impl_and_postprocess(
+    std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
+    const SubmitPostProcessF &PostProcess) {
+  return impl->submit(CGH, impl, CodeLoc, &PostProcess);
+}
+
+event queue::submit_impl_and_postprocess(
+    std::function<void(handler &)> CGH, queue SecondQueue,
+    const detail::code_location &CodeLoc,
+    const SubmitPostProcessF &PostProcess) {
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
@@ -175,5 +198,13 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
+buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
+  return impl->getAssertHappenedBuffer();
+}
+
+bool queue::device_has(aspect Aspect) const {
+  // avoid creating sycl object from impl
+  return impl->getDeviceImplPtr()->has(Aspect);
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -7,13 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/fenv/feraiseexcept.h"
+#include "src/__support/FPUtil/FEnvUtils.h"
 #include "src/__support/common.h"
-#include "utils/FPUtil/FEnv.h"
 
 namespace __llvm_libc {
 
 LLVM_LIBC_FUNCTION(int, feraiseexcept, (int e)) {
-  return fputil::raiseExcept(e);
+  return fputil::raise_except(e);
 }
 
 } // namespace __llvm_libc

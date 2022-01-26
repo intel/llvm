@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestTU.h"
+#include "CompileCommands.h"
 #include "Compiler.h"
 #include "Diagnostics.h"
 #include "TestFS.h"
@@ -56,6 +57,9 @@ ParseInputs TestTU::inputs(MockFS &FS) const {
   // Put the file name at the end -- this allows the extra arg (-xc++) to
   // override the language setting.
   Argv.push_back(FullFilename);
+
+  auto Mangler = CommandMangler::forTests();
+  Mangler.adjust(Inputs.CompileCommand.CommandLine, FullFilename);
   Inputs.CompileCommand.Filename = FullFilename;
   Inputs.CompileCommand.Directory = testRoot();
   Inputs.Contents = Code;
@@ -155,7 +159,7 @@ ParsedAST TestTU::build() const {
 SymbolSlab TestTU::headerSymbols() const {
   auto AST = build();
   return std::get<0>(indexHeaderSymbols(/*Version=*/"null", AST.getASTContext(),
-                                        AST.getPreprocessorPtr(),
+                                        AST.getPreprocessor(),
                                         AST.getCanonicalIncludes()));
 }
 
@@ -168,7 +172,7 @@ std::unique_ptr<SymbolIndex> TestTU::index() const {
   auto AST = build();
   auto Idx = std::make_unique<FileIndex>();
   Idx->updatePreamble(testPath(Filename), /*Version=*/"null",
-                      AST.getASTContext(), AST.getPreprocessorPtr(),
+                      AST.getASTContext(), AST.getPreprocessor(),
                       AST.getCanonicalIncludes());
   Idx->updateMain(testPath(Filename), AST);
   return std::move(Idx);

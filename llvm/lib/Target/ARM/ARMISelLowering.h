@@ -69,6 +69,7 @@ class VectorType;
     CALL_PRED,   // Function call that's predicable.
     CALL_NOLINK, // Function call with branch not branch-and-link.
     tSECALL,     // CMSE non-secure function call.
+    t2CALL_BTI,  // Thumb function call followed by BTI instruction.
     BRCOND,      // Conditional branch.
     BR_JT,       // Jumptable branch.
     BR2_JT,      // Jumptable branch (2 level - jumptable entry is a jump).
@@ -139,7 +140,9 @@ class VectorType;
     PREDICATE_CAST,  // Predicate cast for MVE i1 types
     VECTOR_REG_CAST, // Reinterpret the current contents of a vector register
 
-    MVETRUNC,     // Legalization aid for truncating two vectors into one.
+    MVESEXT,  // Legalization aids for extending a vector into two/four vectors.
+    MVEZEXT,  //  or truncating two/four vectors into one. Eventually becomes
+    MVETRUNC, //  stack store/load sequence, if not optimized to anything else.
 
     VCMP,  // Vector compare.
     VCMPZ, // Vector compare to zero.
@@ -423,6 +426,7 @@ class VectorType;
     SDValue PerformBRCONDCombine(SDNode *N, SelectionDAG &DAG) const;
     SDValue PerformCMOVToBFICombine(SDNode *N, SelectionDAG &DAG) const;
     SDValue PerformIntrinsicCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+    SDValue PerformMVEExtCombine(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue PerformMVETruncCombine(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
@@ -677,7 +681,7 @@ class VectorType;
                                    unsigned &Cost) const override;
 
     bool canMergeStoresTo(unsigned AddressSpace, EVT MemVT,
-                          const SelectionDAG &DAG) const override {
+                          const MachineFunction &MF) const override {
       // Do not merge to larger than i32.
       return (MemVT.getSizeInBits() <= 32);
     }
@@ -709,6 +713,9 @@ class VectorType;
                                       Align Alignment,
                                       const DataLayout &DL) const;
 
+    bool isMulAddWithConstProfitable(const SDValue &AddNode,
+                                     const SDValue &ConstNode) const override;
+
     bool alignLoopsWithOptSize() const override;
 
     /// Returns the number of interleaved accesses that will be generated when
@@ -729,6 +736,8 @@ class VectorType;
                                            CombineLevel Level) const override;
 
     bool preferIncOfAddToSubOfNot(EVT VT) const override;
+
+    bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
 
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>
@@ -753,7 +762,7 @@ class VectorType;
 
     bool HasStandaloneRem = true;
 
-    void addTypeForNEON(MVT VT, MVT PromotedLdStVT, MVT PromotedBitwiseVT);
+    void addTypeForNEON(MVT VT, MVT PromotedLdStVT);
     void addDRTypeForNEON(MVT VT);
     void addQRTypeForNEON(MVT VT);
     std::pair<SDValue, SDValue> getARMXALUOOp(SDValue Op, SelectionDAG &DAG, SDValue &ARMcc) const;

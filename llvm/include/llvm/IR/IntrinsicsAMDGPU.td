@@ -684,7 +684,14 @@ class AMDGPUDimAtomicProfile<string opmod,
   let IsAtomic = true;
 }
 
-class AMDGPUDimGetResInfoProfile<AMDGPUDimProps dim> : AMDGPUDimProfile<"GET_RESINFO", dim> {
+class AMDGPUDimAtomicFloatProfile<string opmod, AMDGPUDimProps dim,
+                                  list<AMDGPUArg> dataargs>
+    : AMDGPUDimAtomicProfile<opmod, dim, dataargs> {
+  let RetTypes = [llvm_anyfloat_ty];
+}
+
+class AMDGPUDimGetResInfoProfile<AMDGPUDimProps dim>
+    : AMDGPUDimProfile<"GET_RESINFO", dim> {
   let RetTypes = [llvm_anyfloat_ty];
   let DataArgs = [];
   let AddrArgs = [AMDGPUArg<llvm_anyint_ty, "mip">];
@@ -860,17 +867,24 @@ defset list<AMDGPUImageDimIntrinsic> AMDGPUImageDimIntrinsics = {
 // atomic intrinsics
 //////////////////////////////////////////////////////////////////////////
 defset list<AMDGPUImageDimIntrinsic> AMDGPUImageDimAtomicIntrinsics = {
-  multiclass AMDGPUImageDimAtomicX<string opmod, list<AMDGPUArg> dataargs> {
-    foreach dim = AMDGPUDims.All in {
-      def !strconcat(NAME, "_", dim.Name)
-        : AMDGPUImageDimIntrinsic<
-            AMDGPUDimAtomicProfile<opmod, dim, dataargs>,
-            [], [SDNPMemOperand]>;
-    }
+  multiclass AMDGPUImageDimAtomicX<string opmod, list<AMDGPUArg> dataargs,
+                                   int isFloat = 0> {
+        foreach dim = AMDGPUDims.All in {
+          def !strconcat(NAME, "_", dim.Name): AMDGPUImageDimIntrinsic<
+              !if (isFloat, AMDGPUDimAtomicFloatProfile<opmod, dim, dataargs>,
+                   AMDGPUDimAtomicProfile<opmod, dim, dataargs>),
+              [], [SDNPMemOperand]>;
+        }
   }
 
-  multiclass AMDGPUImageDimAtomic<string opmod> {
-    defm "" : AMDGPUImageDimAtomicX<opmod, [AMDGPUArg<LLVMMatchType<0>, "vdata">]>;
+  multiclass AMDGPUImageDimAtomic<string opmod, int isFloat = 0> {
+    defm ""
+        : AMDGPUImageDimAtomicX<opmod, [AMDGPUArg<LLVMMatchType<0>, "vdata">],
+                                isFloat>;
+  }
+
+  multiclass AMDGPUImageDimFloatAtomic<string opmod> {
+    defm "" : AMDGPUImageDimAtomic<opmod, 1 /*isFloat*/>;
   }
 
   defm int_amdgcn_image_atomic_swap : AMDGPUImageDimAtomic<"ATOMIC_SWAP">;
@@ -878,8 +892,10 @@ defset list<AMDGPUImageDimIntrinsic> AMDGPUImageDimAtomicIntrinsics = {
   defm int_amdgcn_image_atomic_sub : AMDGPUImageDimAtomic<"ATOMIC_SUB">;
   defm int_amdgcn_image_atomic_smin : AMDGPUImageDimAtomic<"ATOMIC_SMIN">;
   defm int_amdgcn_image_atomic_umin : AMDGPUImageDimAtomic<"ATOMIC_UMIN">;
+  defm int_amdgcn_image_atomic_fmin : AMDGPUImageDimFloatAtomic<"ATOMIC_FMIN">;
   defm int_amdgcn_image_atomic_smax : AMDGPUImageDimAtomic<"ATOMIC_SMAX">;
   defm int_amdgcn_image_atomic_umax : AMDGPUImageDimAtomic<"ATOMIC_UMAX">;
+  defm int_amdgcn_image_atomic_fmax : AMDGPUImageDimFloatAtomic<"ATOMIC_FMAX">;
   defm int_amdgcn_image_atomic_and : AMDGPUImageDimAtomic<"ATOMIC_AND">;
   defm int_amdgcn_image_atomic_or : AMDGPUImageDimAtomic<"ATOMIC_OR">;
   defm int_amdgcn_image_atomic_xor : AMDGPUImageDimAtomic<"ATOMIC_XOR">;
@@ -1015,8 +1031,10 @@ def int_amdgcn_raw_buffer_atomic_add : AMDGPURawBufferAtomic;
 def int_amdgcn_raw_buffer_atomic_sub : AMDGPURawBufferAtomic;
 def int_amdgcn_raw_buffer_atomic_smin : AMDGPURawBufferAtomic;
 def int_amdgcn_raw_buffer_atomic_umin : AMDGPURawBufferAtomic;
+def int_amdgcn_raw_buffer_atomic_fmin : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
 def int_amdgcn_raw_buffer_atomic_smax : AMDGPURawBufferAtomic;
 def int_amdgcn_raw_buffer_atomic_umax : AMDGPURawBufferAtomic;
+def int_amdgcn_raw_buffer_atomic_fmax : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
 def int_amdgcn_raw_buffer_atomic_and : AMDGPURawBufferAtomic;
 def int_amdgcn_raw_buffer_atomic_or : AMDGPURawBufferAtomic;
 def int_amdgcn_raw_buffer_atomic_xor : AMDGPURawBufferAtomic;
@@ -1035,10 +1053,6 @@ def int_amdgcn_raw_buffer_atomic_cmpswap : Intrinsic<
 
 // gfx908 intrinsic
 def int_amdgcn_raw_buffer_atomic_fadd : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
-
-// gfx90a intrinsics
-def int_amdgcn_raw_buffer_atomic_fmin : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
-def int_amdgcn_raw_buffer_atomic_fmax : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
 
 class AMDGPUStructBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = false> : Intrinsic <
   !if(NoRtn, [], [data_ty]),
@@ -1270,7 +1284,7 @@ def int_amdgcn_s_dcache_inv :
 
 def int_amdgcn_s_memtime :
   GCCBuiltin<"__builtin_amdgcn_s_memtime">,
-  Intrinsic<[llvm_i64_ty], [], [IntrWillReturn]>;
+  Intrinsic<[llvm_i64_ty], [], [IntrNoMem, IntrHasSideEffects, IntrWillReturn]>;
 
 def int_amdgcn_s_sleep :
   GCCBuiltin<"__builtin_amdgcn_s_sleep">,
@@ -1500,12 +1514,6 @@ def int_amdgcn_writelane :
   [IntrNoMem, IntrConvergent, IntrWillReturn]
 >;
 
-// FIXME: Deprecated. This is equivalent to llvm.fshr
-def int_amdgcn_alignbit : Intrinsic<[llvm_i32_ty],
-  [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
-  [IntrNoMem, IntrSpeculatable, IntrWillReturn]
->;
-
 def int_amdgcn_alignbyte : GCCBuiltin<"__builtin_amdgcn_alignbyte">,
   Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
   [IntrNoMem, IntrSpeculatable, IntrWillReturn]
@@ -1517,6 +1525,16 @@ def int_amdgcn_mul_i24 : Intrinsic<[llvm_i32_ty],
 >;
 
 def int_amdgcn_mul_u24 : Intrinsic<[llvm_i32_ty],
+  [llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable, IntrWillReturn]
+>;
+
+def int_amdgcn_mulhi_i24 : Intrinsic<[llvm_i32_ty],
+  [llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable, IntrWillReturn]
+>;
+
+def int_amdgcn_mulhi_u24 : Intrinsic<[llvm_i32_ty],
   [llvm_i32_ty, llvm_i32_ty],
   [IntrNoMem, IntrSpeculatable, IntrWillReturn]
 >;
@@ -1702,7 +1720,7 @@ def int_amdgcn_s_dcache_wb_vol :
 
 def int_amdgcn_s_memrealtime :
   GCCBuiltin<"__builtin_amdgcn_s_memrealtime">,
-  Intrinsic<[llvm_i64_ty], [], [IntrWillReturn]>;
+  Intrinsic<[llvm_i64_ty], [], [IntrNoMem, IntrHasSideEffects, IntrWillReturn]>;
 
 // llvm.amdgcn.ds.permute <index> <src>
 def int_amdgcn_ds_permute :
@@ -1765,9 +1783,11 @@ def int_amdgcn_global_atomic_csub : AMDGPUGlobalAtomicRtn<llvm_i32_ty>;
 
 // uint4 llvm.amdgcn.image.bvh.intersect.ray <node_ptr>, <ray_extent>, <ray_origin>,
 //                                           <ray_dir>, <ray_inv_dir>, <texture_descr>
+// <node_ptr> is i32 or i64.
+// <ray_dir> and <ray_inv_dir> are both v3f16 or both v3f32.
 def int_amdgcn_image_bvh_intersect_ray :
   Intrinsic<[llvm_v4i32_ty],
-            [llvm_anyint_ty, llvm_float_ty, llvm_v4f32_ty, llvm_anyvector_ty,
+            [llvm_anyint_ty, llvm_float_ty, llvm_v3f32_ty, llvm_anyvector_ty,
              LLVMMatchType<1>, llvm_v4i32_ty],
             [IntrReadMem, IntrWillReturn]>;
 

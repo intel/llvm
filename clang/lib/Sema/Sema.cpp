@@ -22,12 +22,14 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/CXXFieldCollector.h"
 #include "clang/Sema/DelayedDiagnostic.h"
@@ -54,6 +56,34 @@ SourceLocation Sema::getLocForEndOfToken(SourceLocation Loc, unsigned Offset) {
 }
 
 ModuleLoader &Sema::getModuleLoader() const { return PP.getModuleLoader(); }
+
+DarwinSDKInfo *
+Sema::getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
+                                              StringRef Platform) {
+  auto *SDKInfo = getDarwinSDKInfoForAvailabilityChecking();
+  if (!SDKInfo && !WarnedDarwinSDKInfoMissing) {
+    Diag(Loc, diag::warn_missing_sdksettings_for_availability_checking)
+        << Platform;
+    WarnedDarwinSDKInfoMissing = true;
+  }
+  return SDKInfo;
+}
+
+DarwinSDKInfo *Sema::getDarwinSDKInfoForAvailabilityChecking() {
+  if (CachedDarwinSDKInfo)
+    return CachedDarwinSDKInfo->get();
+  auto SDKInfo = parseDarwinSDKInfo(
+      PP.getFileManager().getVirtualFileSystem(),
+      PP.getHeaderSearchInfo().getHeaderSearchOpts().Sysroot);
+  if (SDKInfo && *SDKInfo) {
+    CachedDarwinSDKInfo = std::make_unique<DarwinSDKInfo>(std::move(**SDKInfo));
+    return CachedDarwinSDKInfo->get();
+  }
+  if (!SDKInfo)
+    llvm::consumeError(SDKInfo.takeError());
+  CachedDarwinSDKInfo = std::unique_ptr<DarwinSDKInfo>();
+  return nullptr;
+}
 
 IdentifierInfo *
 Sema::InventAbbreviatedTemplateParameterTypeName(IdentifierInfo *ParamName,
@@ -147,7 +177,7 @@ public:
 } // end namespace clang
 
 const unsigned Sema::MaxAlignmentExponent;
-const unsigned Sema::MaximumAlignment;
+const uint64_t Sema::MaximumAlignment;
 
 Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
            TranslationUnitKind TUKind, CodeCompleteConsumer *CodeCompleter)
@@ -165,7 +195,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       CodeSegStack(nullptr), FpPragmaStack(FPOptionsOverride()),
       CurInitSeg(nullptr), VisContext(nullptr),
       PragmaAttributeCurrentTargetDecl(nullptr),
-      IsBuildingRecoveryCallExpr(false), Cleanup{}, LateTemplateParser(nullptr),
+      IsBuildingRecoveryCallExpr(false), LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
       StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
@@ -184,6 +214,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       ThreadSafetyDeclCache(nullptr), VarDataSharingAttributesStack(nullptr),
       CurScope(nullptr), Ident_super(nullptr), Ident___float128(nullptr),
       SyclIntHeader(nullptr), SyclIntFooter(nullptr) {
+  assert(pp.TUKind == TUKind);
   TUScope = nullptr;
   isConstantEvaluatedOverride = false;
 
@@ -329,10 +360,11 @@ void Sema::Initialize() {
         Context.getTargetInfo().getSupportedOpenCLOpts(), getLangOpts());
     addImplicitTypedef("sampler_t", Context.OCLSamplerTy);
     addImplicitTypedef("event_t", Context.OCLEventTy);
-    if (getLangOpts().OpenCLCPlusPlus || getLangOpts().OpenCLVersion >= 200) {
+    if (getLangOpts().getOpenCLCompatibleVersion() >= 200) {
       addImplicitTypedef("clk_event_t", Context.OCLClkEventTy);
       addImplicitTypedef("queue_t", Context.OCLQueueTy);
-      addImplicitTypedef("reserve_id_t", Context.OCLReserveIDTy);
+      if (getLangOpts().OpenCLPipes)
+        addImplicitTypedef("reserve_id_t", Context.OCLReserveIDTy);
       addImplicitTypedef("atomic_int", Context.getAtomicType(Context.IntTy));
       addImplicitTypedef("atomic_uint",
                          Context.getAtomicType(Context.UnsignedIntTy));
@@ -371,6 +403,11 @@ void Sema::Initialize() {
         AddPointerSizeDependentTypes();
       }
 
+      if (getOpenCLOptions().isSupported("cl_khr_fp16", getLangOpts())) {
+        auto AtomicHalfT = Context.getAtomicType(Context.HalfTy);
+        addImplicitTypedef("atomic_half", AtomicHalfT);
+      }
+
       std::vector<QualType> Atomic64BitTypes;
       if (getOpenCLOptions().isSupported("cl_khr_int64_base_atomics",
                                          getLangOpts()) &&
@@ -407,13 +444,10 @@ void Sema::Initialize() {
 #include "clang/Basic/AArch64SVEACLETypes.def"
   }
 
-  if (Context.getTargetInfo().getTriple().isPPC64() &&
-      Context.getTargetInfo().hasFeature("paired-vector-memops")) {
-    if (Context.getTargetInfo().hasFeature("mma")) {
+  if (Context.getTargetInfo().getTriple().isPPC64()) {
 #define PPC_VECTOR_MMA_TYPE(Name, Id, Size) \
       addImplicitTypedef(#Name, Context.Id##Ty);
 #include "clang/Basic/PPCTypes.def"
-    }
 #define PPC_VECTOR_VSX_TYPE(Name, Id, Size) \
     addImplicitTypedef(#Name, Context.Id##Ty);
 #include "clang/Basic/PPCTypes.def"
@@ -634,16 +668,36 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
   if (ExprTy == TypeTy)
     return E;
 
-  // C++1z [conv.array]: The temporary materialization conversion is applied.
-  // We also use this to fuel C++ DR1213, which applies to C++11 onwards.
-  if (Kind == CK_ArrayToPointerDecay && getLangOpts().CPlusPlus &&
-      E->getValueKind() == VK_PRValue) {
-    // The temporary is an lvalue in C++98 and an xvalue otherwise.
-    ExprResult Materialized = CreateMaterializeTemporaryExpr(
-        E->getType(), E, !getLangOpts().CPlusPlus11);
-    if (Materialized.isInvalid())
-      return ExprError();
-    E = Materialized.get();
+  if (Kind == CK_ArrayToPointerDecay) {
+    // C++1z [conv.array]: The temporary materialization conversion is applied.
+    // We also use this to fuel C++ DR1213, which applies to C++11 onwards.
+    if (getLangOpts().CPlusPlus && E->isPRValue()) {
+      // The temporary is an lvalue in C++98 and an xvalue otherwise.
+      ExprResult Materialized = CreateMaterializeTemporaryExpr(
+          E->getType(), E, !getLangOpts().CPlusPlus11);
+      if (Materialized.isInvalid())
+        return ExprError();
+      E = Materialized.get();
+    }
+    // C17 6.7.1p6 footnote 124: The implementation can treat any register
+    // declaration simply as an auto declaration. However, whether or not
+    // addressable storage is actually used, the address of any part of an
+    // object declared with storage-class specifier register cannot be
+    // computed, either explicitly(by use of the unary & operator as discussed
+    // in 6.5.3.2) or implicitly(by converting an array name to a pointer as
+    // discussed in 6.3.2.1).Thus, the only operator that can be applied to an
+    // array declared with storage-class specifier register is sizeof.
+    if (VK == VK_PRValue && !getLangOpts().CPlusPlus && !E->isPRValue()) {
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(E)) {
+        if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          if (VD->getStorageClass() == SC_Register) {
+            Diag(E->getExprLoc(), diag::err_typecheck_address_of)
+                << /*register variable*/ 3 << E->getSourceRange();
+            return ExprError();
+          }
+        }
+      }
+    }
   }
 
   if (ImplicitCastExpr *ImpCast = dyn_cast<ImplicitCastExpr>(E)) {
@@ -1042,6 +1096,9 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   }
 
   if (getLangOpts().SYCLIsDevice) {
+    // Set the names of the kernels, now that the names have settled down. This
+    // needs to happen before we generate the integration headers.
+    SetSYCLKernelNames();
     // Emit SYCL integration header for current translation unit if needed
     if (SyclIntHeader != nullptr)
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
@@ -1423,7 +1480,7 @@ NamedDecl *Sema::getCurFunctionOrMethodDecl() {
 
 LangAS Sema::getDefaultCXXMethodAddrSpace() const {
   if (getLangOpts().OpenCL)
-    return LangAS::opencl_generic;
+    return getASTContext().getDefaultOpenCLPointeeAddrSpace();
   return LangAS::Default;
 }
 
@@ -1630,6 +1687,15 @@ public:
   }
 
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
+    if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
+      if (auto *VD = dyn_cast<VarDecl>(D)) {
+        if (!S.checkAllowedSYCLInitializer(VD)) {
+          S.Diag(Loc, diag::err_sycl_restrict)
+              << Sema::KernelConstStaticVariable;
+          return;
+        }
+      }
+    }
     if (isa<VarDecl>(D))
       return;
     if (auto *FD = dyn_cast<FunctionDecl>(D)) {
@@ -1712,8 +1778,15 @@ public:
   // Emit any deferred diagnostics for FD
   void emitDeferredDiags(FunctionDecl *FD, bool ShowCallStack) {
     auto It = S.DeviceDeferredDiags.find(FD);
-    if (It == S.DeviceDeferredDiags.end())
+    if (It == S.DeviceDeferredDiags.end()) {
+      // If this is a template instantiation, check if its declaration
+      // is on the deferred diagnostics stack.
+      if (FD->isTemplateInstantiation()) {
+        FD = FD->getTemplateInstantiationPattern();
+        emitDeferredDiags(FD, ShowCallStack);
+      }
       return;
+    }
     bool HasWarningOrError = false;
     bool FirstDiag = true;
     for (Sema::DeviceDeferredDiagnostic &D : It->second) {
@@ -1875,9 +1948,18 @@ Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
   return DB;
 }
 
-void Sema::checkDeviceDecl(ValueDecl *D, SourceLocation Loc) {
-  if (isUnevaluatedContext())
+void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
+  if (isUnevaluatedContext() || Ty.isNull())
     return;
+
+  // The original idea behind checkTypeSupport function is that unused
+  // declarations can be replaced with an array of bytes of the same size during
+  // codegen, such replacement doesn't seem to be possible for types without
+  // constant byte size like zero length arrays. So, do a deep check for SYCL.
+  if (D && LangOpts.SYCLIsDevice) {
+    llvm::DenseSet<QualType> Visited;
+    deepTypeCheckForSYCLDevice(Loc, Visited, D);
+  }
 
   Decl *C = cast<Decl>(getCurLexicalContext());
 
@@ -1895,46 +1977,117 @@ void Sema::checkDeviceDecl(ValueDecl *D, SourceLocation Loc) {
 
   // Try to associate errors with the lexical context, if that is a function, or
   // the value declaration otherwise.
-  FunctionDecl *FD =
-      isa<FunctionDecl>(C) ? cast<FunctionDecl>(C) : dyn_cast<FunctionDecl>(D);
-  auto CheckType = [&](QualType Ty) {
+  FunctionDecl *FD = isa<FunctionDecl>(C) ? cast<FunctionDecl>(C)
+                                          : dyn_cast_or_null<FunctionDecl>(D);
+
+  auto CheckDeviceType = [&](QualType Ty) {
     if (Ty->isDependentType())
       return;
 
-    if (Ty->isExtIntType()) {
-      if (!Context.getTargetInfo().hasExtIntType()) {
-        targetDiag(Loc, diag::err_device_unsupported_type, FD)
-            << D << false /*show bit size*/ << 0 /*bitsize*/
+    if (Ty->isBitIntType()) {
+      if (!Context.getTargetInfo().hasBitIntType()) {
+        PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
+        if (D)
+          PD << D;
+        else
+          PD << "expression";
+        targetDiag(Loc, PD, FD)
+            << false /*show bit size*/ << 0 /*bitsize*/ << false /*return*/
             << Ty << Context.getTargetInfo().getTriple().str();
       }
       return;
+    }
+
+    // Check if we are dealing with two 'long double' but with different
+    // semantics.
+    bool LongDoubleMismatched = false;
+    if (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128) {
+      const llvm::fltSemantics &Sem = Context.getFloatTypeSemantics(Ty);
+      if ((&Sem != &llvm::APFloat::PPCDoubleDouble() &&
+           !Context.getTargetInfo().hasFloat128Type()) ||
+          (&Sem == &llvm::APFloat::PPCDoubleDouble() &&
+           !Context.getTargetInfo().hasIbm128Type()))
+        LongDoubleMismatched = true;
     }
 
     if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type()) ||
         ((Ty->isFloat128Type() ||
           (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
          !Context.getTargetInfo().hasFloat128Type()) ||
+        (Ty->isIbm128Type() && !Context.getTargetInfo().hasIbm128Type()) ||
         (Ty->isIntegerType() && Context.getTypeSize(Ty) == 128 &&
-         !Context.getTargetInfo().hasInt128Type())) {
-      if (targetDiag(Loc, diag::err_device_unsupported_type, FD)
-          << D << true /*show bit size*/
+         !Context.getTargetInfo().hasInt128Type()) ||
+        LongDoubleMismatched) {
+      PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
+      if (D)
+        PD << D;
+      else
+        PD << "expression";
+
+      if (targetDiag(Loc, PD, FD)
+          << true /*show bit size*/
           << static_cast<unsigned>(Context.getTypeSize(Ty)) << Ty
-          << Context.getTargetInfo().getTriple().str())
-        D->setInvalidDecl();
-      targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
+          << false /*return*/ << Context.getTargetInfo().getTriple().str()) {
+        if (D)
+          D->setInvalidDecl();
+      }
+      if (D)
+        targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
     }
   };
 
-  QualType Ty = D->getType();
-  CheckType(Ty);
+  auto CheckType = [&](QualType Ty, bool IsRetTy = false) {
+    if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice) ||
+        LangOpts.CUDAIsDevice)
+      CheckDeviceType(Ty);
 
+    QualType UnqualTy = Ty.getCanonicalType().getUnqualifiedType();
+    const TargetInfo &TI = Context.getTargetInfo();
+    if (!TI.hasLongDoubleType() && UnqualTy == Context.LongDoubleTy) {
+      PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
+      if (D)
+        PD << D;
+      else
+        PD << "expression";
+
+      if (Diag(Loc, PD, FD)
+          << false /*show bit size*/ << 0 << Ty << false /*return*/
+          << Context.getTargetInfo().getTriple().str()) {
+        if (D)
+          D->setInvalidDecl();
+      }
+      if (D)
+        targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
+    }
+
+    bool IsDouble = UnqualTy == Context.DoubleTy;
+    bool IsFloat = UnqualTy == Context.FloatTy;
+    if (IsRetTy && !TI.hasFPReturn() && (IsDouble || IsFloat)) {
+      PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
+      if (D)
+        PD << D;
+      else
+        PD << "expression";
+
+      if (Diag(Loc, PD, FD)
+          << false /*show bit size*/ << 0 << Ty << true /*return*/
+          << Context.getTargetInfo().getTriple().str()) {
+        if (D)
+          D->setInvalidDecl();
+      }
+      if (D)
+        targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
+    }
+  };
+
+  CheckType(Ty);
   if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
     for (const auto &ParamTy : FPTy->param_types())
       CheckType(ParamTy);
-    CheckType(FPTy->getReturnType());
+    CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
   }
   if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
-    CheckType(FNPTy->getReturnType());
+    CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
 }
 
 /// Looks through the macro-expansion chain for the given
@@ -2033,7 +2186,7 @@ static void checkEscapingByref(VarDecl *VD, Sema &S) {
   Expr *VarRef =
       new (S.Context) DeclRefExpr(S.Context, VD, false, T, VK_LValue, Loc);
   ExprResult Result;
-  auto IE = InitializedEntity::InitializeBlock(Loc, T, false);
+  auto IE = InitializedEntity::InitializeBlock(Loc, T);
   if (S.getLangOpts().CPlusPlus2b) {
     auto *E = ImplicitCastExpr::Create(S.Context, T, CK_NoOp, VarRef, nullptr,
                                        VK_XValue, FPOptionsOverride());

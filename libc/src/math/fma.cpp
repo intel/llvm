@@ -9,10 +9,11 @@
 #include "src/math/fma.h"
 #include "src/__support/common.h"
 
-#include "utils/FPUtil/FMA.h"
+#include "src/__support/FPUtil/FMA.h"
 
 namespace __llvm_libc {
 
+INLINE_FMA
 LLVM_LIBC_FUNCTION(double, fma, (double x, double y, double z)) {
   return fputil::fma(x, y, z);
 }

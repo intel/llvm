@@ -31,17 +31,10 @@ using MBBVector = SmallVector<MachineBasicBlock *, 4>;
 
 namespace {
 
-static cl::opt<bool> EnableSpillVGPRToAGPR(
-  "amdgpu-spill-vgpr-to-agpr",
-  cl::desc("Enable spilling VGPRs to AGPRs"),
-  cl::ReallyHidden,
-  cl::init(true));
-
 class SILowerSGPRSpills : public MachineFunctionPass {
 private:
   const SIRegisterInfo *TRI = nullptr;
   const SIInstrInfo *TII = nullptr;
-  VirtRegMap *VRM = nullptr;
   LiveIntervals *LIS = nullptr;
 
   // Save and Restore blocks of the current function. Typically there is a
@@ -71,6 +64,7 @@ char SILowerSGPRSpills::ID = 0;
 
 INITIALIZE_PASS_BEGIN(SILowerSGPRSpills, DEBUG_TYPE,
                       "SI lower SGPR spill instructions", false, false)
+INITIALIZE_PASS_DEPENDENCY(LiveIntervals)
 INITIALIZE_PASS_DEPENDENCY(VirtRegMap)
 INITIALIZE_PASS_END(SILowerSGPRSpills, DEBUG_TYPE,
                     "SI lower SGPR spill instructions", false, false)
@@ -133,7 +127,7 @@ static void insertCSRRestores(MachineBasicBlock &RestoreBlock,
   // FIXME: Just emit the readlane/writelane directly
   if (!TFI->restoreCalleeSavedRegisters(RestoreBlock, I, CSI, TRI)) {
     for (const CalleeSavedInfo &CI : reverse(CSI)) {
-      unsigned Reg = CI.getReg();
+      Register Reg = CI.getReg();
       const TargetRegisterClass *RC =
         TRI->getMinimalPhysRegClass(Reg, MVT::i32);
 
@@ -245,56 +239,12 @@ bool SILowerSGPRSpills::spillCalleeSavedRegs(MachineFunction &MF) {
   return false;
 }
 
-// Find lowest available VGPR and use it as VGPR reserved for SGPR spills.
-static bool lowerShiftReservedVGPR(MachineFunction &MF,
-                                   const GCNSubtarget &ST) {
-  SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
-  const Register PreReservedVGPR = FuncInfo->VGPRReservedForSGPRSpill;
-  // Early out if pre-reservation of a VGPR for SGPR spilling is disabled.
-  if (!PreReservedVGPR)
-    return false;
-
-  // If there are no free lower VGPRs available, default to using the
-  // pre-reserved register instead.
-  const SIRegisterInfo *TRI = ST.getRegisterInfo();
-  Register LowestAvailableVGPR =
-      TRI->findUnusedRegister(MF.getRegInfo(), &AMDGPU::VGPR_32RegClass, MF);
-  if (!LowestAvailableVGPR)
-    LowestAvailableVGPR = PreReservedVGPR;
-
-  MachineFrameInfo &FrameInfo = MF.getFrameInfo();
-  // Create a stack object for a possible spill in the function prologue.
-  // Note Non-CSR VGPR also need this as we may overwrite inactive lanes.
-  Optional<int> FI = FrameInfo.CreateSpillStackObject(4, Align(4));
-
-  // Find saved info about the pre-reserved register.
-  const auto *ReservedVGPRInfoItr =
-      llvm::find_if(FuncInfo->getSGPRSpillVGPRs(),
-                    [PreReservedVGPR](const auto &SpillRegInfo) {
-                      return SpillRegInfo.VGPR == PreReservedVGPR;
-                    });
-
-  assert(ReservedVGPRInfoItr != FuncInfo->getSGPRSpillVGPRs().end());
-  auto Index =
-      std::distance(FuncInfo->getSGPRSpillVGPRs().begin(), ReservedVGPRInfoItr);
-
-  FuncInfo->setSGPRSpillVGPRs(LowestAvailableVGPR, FI, Index);
-
-  for (MachineBasicBlock &MBB : MF) {
-    assert(LowestAvailableVGPR.isValid() && "Did not find an available VGPR");
-    MBB.addLiveIn(LowestAvailableVGPR);
-    MBB.sortUniqueLiveIns();
-  }
-
-  return true;
-}
-
 bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
   TII = ST.getInstrInfo();
   TRI = &TII->getRegisterInfo();
 
-  VRM = getAnalysisIfAvailable<VirtRegMap>();
+  LIS = getAnalysisIfAvailable<LiveIntervals>();
 
   assert(SaveBlocks.empty() && RestoreBlocks.empty());
 
@@ -310,76 +260,37 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
   if (!MFI.hasStackObjects() && !HasCSRs) {
     SaveBlocks.clear();
     RestoreBlocks.clear();
-    if (FuncInfo->VGPRReservedForSGPRSpill) {
-      // Free the reserved VGPR for later possible use by frame lowering.
-      FuncInfo->removeVGPRForSGPRSpill(FuncInfo->VGPRReservedForSGPRSpill, MF);
-      MRI.freezeReservedRegs(MF);
-    }
     return false;
   }
 
-  const bool SpillVGPRToAGPR = ST.hasMAIInsts() && FuncInfo->hasSpilledVGPRs()
-    && EnableSpillVGPRToAGPR;
-
   bool MadeChange = false;
-
-  const bool SpillToAGPR = EnableSpillVGPRToAGPR && ST.hasMAIInsts();
-  std::unique_ptr<RegScavenger> RS;
-
   bool NewReservedRegs = false;
 
   // TODO: CSR VGPRs will never be spilled to AGPRs. These can probably be
   // handled as SpilledToReg in regular PrologEpilogInserter.
   const bool HasSGPRSpillToVGPR = TRI->spillSGPRToVGPR() &&
                                   (HasCSRs || FuncInfo->hasSpilledSGPRs());
-  if (HasSGPRSpillToVGPR || SpillVGPRToAGPR) {
+  if (HasSGPRSpillToVGPR) {
     // Process all SGPR spills before frame offsets are finalized. Ideally SGPRs
     // are spilled to VGPRs, in which case we can eliminate the stack usage.
     //
     // This operates under the assumption that only other SGPR spills are users
     // of the frame index.
 
-    lowerShiftReservedVGPR(MF, ST);
-
     // To track the spill frame indices handled in this pass.
     BitVector SpillFIs(MFI.getObjectIndexEnd(), false);
 
     for (MachineBasicBlock &MBB : MF) {
-      MachineBasicBlock::iterator Next;
-      for (auto I = MBB.begin(), E = MBB.end(); I != E; I = Next) {
-        MachineInstr &MI = *I;
-        Next = std::next(I);
-
-        if (SpillToAGPR && TII->isVGPRSpill(MI)) {
-          // Try to eliminate stack used by VGPR spills before frame
-          // finalization.
-          unsigned FIOp = AMDGPU::getNamedOperandIdx(MI.getOpcode(),
-                                                     AMDGPU::OpName::vaddr);
-          int FI = MI.getOperand(FIOp).getIndex();
-          Register VReg =
-              TII->getNamedOperand(MI, AMDGPU::OpName::vdata)->getReg();
-          if (FuncInfo->allocateVGPRSpillToAGPR(MF, FI,
-                                                TRI->isAGPR(MRI, VReg))) {
-            NewReservedRegs = true;
-            if (!RS)
-              RS.reset(new RegScavenger());
-
-            // FIXME: change to enterBasicBlockEnd()
-            RS->enterBasicBlock(MBB);
-            TRI->eliminateFrameIndex(MI, 0, FIOp, RS.get());
-            SpillFIs.set(FI);
-            continue;
-          }
-        }
-
-        if (!TII->isSGPRSpill(MI) || !TRI->spillSGPRToVGPR())
+      for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+        if (!TII->isSGPRSpill(MI))
           continue;
 
         int FI = TII->getNamedOperand(MI, AMDGPU::OpName::addr)->getIndex();
         assert(MFI.getStackID(FI) == TargetStackID::SGPRSpill);
         if (FuncInfo->allocateSGPRSpillToVGPR(MF, FI)) {
           NewReservedRegs = true;
-          bool Spilled = TRI->eliminateSGPRToVGPRSpillFrameIndex(MI, FI, nullptr);
+          bool Spilled = TRI->eliminateSGPRToVGPRSpillFrameIndex(MI, FI,
+                                                                 nullptr, LIS);
           (void)Spilled;
           assert(Spilled && "failed to spill SGPR to VGPR when allocated");
           SpillFIs.set(FI);
@@ -387,16 +298,10 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
       }
     }
 
+    // FIXME: Adding to live-ins redundant with reserving registers.
     for (MachineBasicBlock &MBB : MF) {
       for (auto SSpill : FuncInfo->getSGPRSpillVGPRs())
         MBB.addLiveIn(SSpill.VGPR);
-
-      for (MCPhysReg Reg : FuncInfo->getVGPRSpillAGPRs())
-        MBB.addLiveIn(Reg);
-
-      for (MCPhysReg Reg : FuncInfo->getAGPRSpillVGPRs())
-        MBB.addLiveIn(Reg);
-
       MBB.sortUniqueLiveIns();
 
       // FIXME: The dead frame indices are replaced with a null register from
@@ -407,14 +312,18 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
         if (MI.isDebugValue() && MI.getOperand(0).isFI() &&
             SpillFIs[MI.getOperand(0).getIndex()]) {
           MI.getOperand(0).ChangeToRegister(Register(), false /*isDef*/);
-          MI.getOperand(0).setIsDebug();
         }
       }
     }
 
+    // All those frame indices which are dead by now should be removed from the
+    // function frame. Otherwise, there is a side effect such as re-mapping of
+    // free frame index ids by the later pass(es) like "stack slot coloring"
+    // which in turn could mess-up with the book keeping of "frame index to VGPR
+    // lane".
+    FuncInfo->removeDeadFrameIndices(MFI);
+
     MadeChange = true;
-  } else if (FuncInfo->VGPRReservedForSGPRSpill) {
-    FuncInfo->removeVGPRForSGPRSpill(FuncInfo->VGPRReservedForSGPRSpill, MF);
   }
 
   SaveBlocks.clear();

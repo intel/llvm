@@ -1,4 +1,4 @@
-= SYCL_INTEL_enqueue_barrier
+= SYCL_EXT_ONEAPI_ENQUEUE_BARRIER
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -25,11 +25,6 @@ NOTE: This document is better viewed when rendered as html with asciidoctor.  Gi
 
 This document presents a series of changes proposed for a future version of the SYCL Specification. The goal of this proposal is to provide non-blocking APIs that provide synchronization on SYCL command queue for programmers.
 
-
-== Name Strings
-
-+SYCL_INTEL_enqueue_barrier+
-
 == Notice
 
 Copyright (c) 2019-2020 Intel Corporation.  All rights reserved.
@@ -45,19 +40,35 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: 1
+Revision: 2
 
 == Contact
 Please open an issue in the https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/[extensions repository]
 
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_ENQUEUE_BARRIER` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6.
+This extension is written against the SYCL 2020 specification, revision 3.
 
 == Overview
 
-SYCL 1.2.1 defines a graph-based task execution model, based on kernels or explicit memory operations submitted to out-of-order queues. Dependencies between these kernels are represented by
-accessors that form data dependence edges in the execution graph. The USM extension <<usmlink,[1]>> doesn't have accessors, so instead solves
+SYCL 2020 defines a graph-based task execution model, based on kernels or explicit memory operations submitted to out-of-order queues. Dependencies between these kernels are represented by
+accessors that form data dependence edges in the execution graph. Unified Shared Memory (USM) doesn't have accessors, so instead solves
 this by defining `handler::depends_on` methods to specify event-based control dependencies between command groups.
 
 There are situations where defining dependencies based on events is more explicit than desired or required by an application. For instance, the user may know that a given task depends on all previously submitted tasks. Instead of explicitly adding all the required depends_on calls, the user could express this intent via a single call, making the program more concise and explicit.
@@ -75,9 +86,9 @@ two new members to the `queue` class:
 [grid="rows"]
 [options="header"]
 |========================================
-|*handler::barrier*|*queue::submit_barrier*
-|`void barrier()` | `event submit_barrier()`
-|`void barrier( const vector_class<event> &waitList )` | `event submit_barrier( const vector_class<event> &waitList )`
+|*handler::ext_oneapi_barrier*|*queue::ext_oneapi_submit_barrier*
+|`void ext_oneapi_barrier()` | `event ext_oneapi_submit_barrier()`
+|`void ext_oneapi_barrier( const std::vector<event> &waitList )` | `event ext_oneapi_submit_barrier( const std::vector<event> &waitList )`
 |========================================
 
 The first variant of the barrier takes no parameters, and waits for all previously submitted commands to the queue to enter the `info::event_command_status::complete` state before any command later submitted to the same queue is allowed to execute. A second variant of the barrier accepts a list of events, with the behavior that no commands submitted to the same queue after barrier submission may execute until all events in the `waitList` have entered the `info::event_command_status::complete` state.  Both variants are non-blocking from the host program perspective, in that they do not wait for the barrier conditions to have been met before returning.
@@ -93,7 +104,7 @@ Some forms of the new barrier methods return an `event`, which can be used to pe
 
 CG4 doesn't execute until all previous command groups submitted to the same queue (CG1, CG2, CG3) have entered the completed state.
 
-==== 1. Using `handler::barrier()`:
+==== 1. Using `handler::ext_oneapi_barrier()`:
 
 [source,c++,NoName,linenums]
 ----
@@ -109,7 +120,7 @@ Queue.submit([&](cl::sycl::handler& cgh) {
 });
 
 Queue.submit([&](cl::sycl::handler& cgh) {
-  cgh.barrier();
+  cgh.ext_oneapi_barrier();
 });
 
 Queue.submit([&](cl::sycl::handler& cgh) {
@@ -118,7 +129,7 @@ Queue.submit([&](cl::sycl::handler& cgh) {
 ...
 ----
 
-==== 2. Using `queue::submit_barrier()`:
+==== 2. Using `queue::ext_oneapi_submit_barrier()`:
 
 [source,c++,NoName,linenums]
 ----
@@ -133,7 +144,7 @@ Queue.submit([&](cl::sycl::handler& cgh) {
   // CG3
 });
 
-Queue.submit_barrier();
+Queue.ext_oneapi_submit_barrier();
 
 Queue.submit([&](cl::sycl::handler& cgh) {
   // CG4
@@ -146,7 +157,7 @@ Queue.submit([&](cl::sycl::handler& cgh) {
 
 CG3 requires CG1 (in Queue1) and CG2 (in Queue2) to have completed before it (CG3) begins execution.
 
-==== 1. Using `handler::barrier()`:
+==== 1. Using `handler::ext_oneapi_barrier()`:
 
 [source,c++,NoName,linenums]
 ----
@@ -160,7 +171,7 @@ auto event_barrier2 = Queue2.submit([&](cl::sycl::handler& cgh) {
 });
 
 Queue3.submit([&](cl::sycl::handler& cgh) {
-  cgh.barrier( vector_class<event>{event_barrier1, event_barrier2} );
+  cgh.ext_oneapi_barrier( std::vector<event>{event_barrier1, event_barrier2} );
 });
 
 Queue3.submit([&](cl::sycl::handler& cgh) {
@@ -169,7 +180,7 @@ Queue3.submit([&](cl::sycl::handler& cgh) {
 ...
 ----
 
-==== 2. Using `queue::submit_barrier()`:
+==== 2. Using `queue::ext_oneapi_submit_barrier()`:
 
 [source,c++,NoName,linenums]
 ----
@@ -182,7 +193,7 @@ auto event_barrier2 = Queue2.submit([&](cl::sycl::handler& cgh) {
   // CG2
 });
 
-Queue3.submit_barrier( vector_class<event>{event_barrier1, event_barrier2} );
+Queue3.ext_oneapi_submit_barrier( std::vector<event>{event_barrier1, event_barrier2} );
 
 Queue3.submit([&](cl::sycl::handler& cgh) {
   // CG3
@@ -211,44 +222,45 @@ void wait();
 template <typename T>
 event submit(T cgf, const queue &secondaryQueue);
 
-event submit_barrier();
+event ext_oneapi_submit_barrier();
 
-event submit_barrier( const vector_class<event> &waitList );
+event ext_oneapi_submit_barrier( const std::vector<event> &waitList );
 
 void wait();
 ...
 ----
-=== Add rows to Table 4.22
+=== Add rows to Table 28
 
 [cols="70,300"]
 [grid="rows"]
 [options="header"]
 |========================================
 |*Member functions*|*Description*
-|`event submit_barrier()` | Same effect as submitting a `handler::barrier()` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (implicitly from all previously submitted commands to the same queue) have entered the `info::event_command_status::complete` state.
-|`event submit_barrier( const vector_class<event> &waitList )` | Same effect as submitting a `handler:barrier( const vector_class<event> &waitList )` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (explicitly from `waitList`) have entered the `info::event_command_status::complete` state.
+|`event ext_oneapi_submit_barrier()` | Same effect as submitting a `handler::ext_oneapi_barrier()` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (implicitly from all previously submitted commands to the same queue) have entered the `info::event_command_status::complete` state.
+|`event ext_oneapi_submit_barrier( const std::vector<event> &waitList )` | Same effect as submitting a `handler:ext_oneapi_barrier( const std::vector<event> &waitList )` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (explicitly from `waitList`) have entered the `info::event_command_status::complete` state.
 |========================================
 
 
-=== Modify Section 4.8.2
+=== Modify Section 4.9.3
 
 ==== Change first sentence from:
-A command group scope in SYCL, as it is defined in Section 3.4.1, consists of a single kernel or explicit memory
-operation (handler methods such as copy, update_host, fill), together with its requirements.
+The member functions and objects defined in this scope will define the requirements for the kernel execution or 
+explicit memory operation, and will be used by the SYCL runtime to evaluate if the operation is ready for execution.
 
 ==== To:
 
-A command group scope in SYCL, as it is defined in Section 3.4.1, consists of a single kernel, explicit memory
-operation (handler methods such as copy, update_host, fill) or barrier, together with its requirements.
+The member functions and objects defined in this scope will define the requirements for the kernel execution,  
+explicit memory operation or barrier, and will be used by the SYCL runtime to evaluate if the operation is ready for execution.
 
-=== Modify part of Section 4.8.3
+
+=== Modify part of Section 4.9.4
 
 *Change from:*
 [source,c++,NoName,linenums]
 ----
 ...
-template<typename T, int dim, access::mode mode, access::target tgt>
-void fill(accessor<T, dim, mode, tgt> dest, const T& src);
+template <typename T>
+void fill(void *ptr, const T &pattern, size_t count);
 
 };
 ...
@@ -258,38 +270,35 @@ void fill(accessor<T, dim, mode, tgt> dest, const T& src);
 [source,c++,NoName,linenums]
 ----
 ...
-template<typename T, int dim, access::mode mode, access::target tgt>
-void fill(accessor<T, dim, mode, tgt> dest, const T& src);
+template <typename T>
+void fill(void *ptr, const T &pattern, size_t count);
 
-void barrier();
+void ext_oneapi_barrier();
 
-void barrier( const vector_class<event> &waitList );
+void ext_oneapi_barrier( const std::vector<event> &waitList );
 
 };
 ...
 ----
 
-=== Add a new section between Section 4.8.6 and 4.8.7
+=== Add a new section between Section 4.9.4 and 4.9.5
 
-4.8.X SYCL functions for enqueued synchronization barriers
+4.9.X SYCL functions for enqueued synchronization barriers
 
 Barriers may be submitted to a queue, with the effect that they prevent later operations submitted to the same queue from executing until the barrier wait conditions have been satisfied. The wait conditions can be explicitly described by `waitList` or implicitly from all previously submitted commands to the same queue. There are no constraints on the context from which queues may participate in the `waitList`. Enqueued barriers do not block host program execution, but instead form additional dependence edges with the execution task graph. 
 
-Barriers can be created by two members of the `handler` class that force synchronization on the SYCL command queue. The first variant of the `handler` barrier (`handler::barrier()`) takes no parameters, and waits for all previously submitted commands to the queue to enter the `info::event_command_status::complete` state before any command later submitted to the same queue is allowed to execute. The second variant of the `handler` barrier (`handler::barrier( const vector_class<event> &waitList )`) accepts a list of events, with the behavior that no commands submitted to the same queue after barrier submission may execute until all events in the waitList have entered the `info::event_command_status::complete` state. 
+Barriers can be created by two members of the `handler` class that force synchronization on the SYCL command queue. The first variant of the `handler` barrier (`handler::barrier()`) takes no parameters, and waits for all previously submitted commands to the queue to enter the `info::event_command_status::complete` state before any command later submitted to the same queue is allowed to execute. The second variant of the `handler` barrier (`handler::barrier( const std::vector<event> &waitList )`) accepts a list of events, with the behavior that no commands submitted to the same queue after barrier submission may execute until all events in the waitList have entered the `info::event_command_status::complete` state. 
 
-=== Add a new table in the new section between 4.8.6 and 4.8.7: Member functions of the handler class.
+=== Add a new table in the new section between 4.9.4 and 4.9.5: Member functions of the handler class.
 
 [cols="70,300"]
 [grid="rows"]
 [options="header"]
 |========================================
 |*Member functions*|*Description*
-|`void barrier()` | Prevents any commands submitted afterward to this queue from executing until all commands previously submitted to this queue have entered the `info::event_command_status::complete` state.
-|`void barrier( const vector_class<event> &waitList` ) | Prevents any commands submitted afterward to this queue from executing until all events in `waitList` have entered the `info::event_command_status::complete` state.  If `waitList` is empty, then the barrier has no effect.
+|`void ext_oneapi_barrier()` | Prevents any commands submitted afterward to this queue from executing until all commands previously submitted to this queue have entered the `info::event_command_status::complete` state.
+|`void ext_oneapi_barrier( const std::vector<event> &waitList` ) | Prevents any commands submitted afterward to this queue from executing until all events in `waitList` have entered the `info::event_command_status::complete` state.  If `waitList` is empty, then the barrier has no effect.
 |========================================
-
-== References
-1. [[usmlink]]https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/USM.adoc
 
 == Issues
 
@@ -303,6 +312,7 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-02-26|Ye Ting|*Initial public release*
+|2|2021-08-30|Dmitry Vodopyanov|*Updated according to SYCL 2020 reqs for extensions*
 |========================================
 
 //************************************************************************

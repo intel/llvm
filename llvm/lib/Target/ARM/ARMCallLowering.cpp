@@ -45,6 +45,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <utility>
 
 using namespace llvm;
@@ -109,7 +110,7 @@ struct ARMOutgoingValueHandler : public CallLowering::OutgoingValueHandler {
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     assert(VA.isRegLoc() && "Value shouldn't be assigned to reg");
     assert(VA.getLocReg() == PhysReg && "Assigning to the wrong reg?");
 
@@ -129,8 +130,9 @@ struct ARMOutgoingValueHandler : public CallLowering::OutgoingValueHandler {
     MIRBuilder.buildStore(ExtReg, Addr, *MMO);
   }
 
-  unsigned assignCustomValue(const CallLowering::ArgInfo &Arg,
-                             ArrayRef<CCValAssign> VAs) override {
+  unsigned assignCustomValue(CallLowering::ArgInfo &Arg,
+                             ArrayRef<CCValAssign> VAs,
+                             std::function<void()> *Thunk) override {
     assert(Arg.Regs.size() == 1 && "Can't handle multple regs yet");
 
     CCValAssign VA = VAs[0];
@@ -158,9 +160,15 @@ struct ARMOutgoingValueHandler : public CallLowering::OutgoingValueHandler {
     if (!IsLittle)
       std::swap(NewRegs[0], NewRegs[1]);
 
+    if (Thunk) {
+      *Thunk = [=]() {
+        assignValueToReg(NewRegs[0], VA.getLocReg(), VA);
+        assignValueToReg(NewRegs[1], NextVA.getLocReg(), NextVA);
+      };
+      return 1;
+    }
     assignValueToReg(NewRegs[0], VA.getLocReg(), VA);
     assignValueToReg(NewRegs[1], NextVA.getLocReg(), NextVA);
-
     return 1;
   }
 
@@ -273,7 +281,7 @@ struct ARMIncomingValueHandler : public CallLowering::IncomingValueHandler {
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     assert(VA.isRegLoc() && "Value shouldn't be assigned to reg");
     assert(VA.getLocReg() == PhysReg && "Assigning to the wrong reg?");
 
@@ -297,8 +305,9 @@ struct ARMIncomingValueHandler : public CallLowering::IncomingValueHandler {
     }
   }
 
-  unsigned assignCustomValue(const ARMCallLowering::ArgInfo &Arg,
-                             ArrayRef<CCValAssign> VAs) override {
+  unsigned assignCustomValue(ARMCallLowering::ArgInfo &Arg,
+                             ArrayRef<CCValAssign> VAs,
+                             std::function<void()> *Thunk) override {
     assert(Arg.Regs.size() == 1 && "Can't handle multple regs yet");
 
     CCValAssign VA = VAs[0];
@@ -525,7 +534,7 @@ bool ARMCallLowering::lowerCall(MachineIRBuilder &MIRBuilder, CallLoweringInfo &
 
   MIRBuilder.buildInstr(ARM::ADJCALLSTACKUP)
       .addImm(ArgAssigner.StackOffset)
-      .addImm(0)
+      .addImm(-1ULL)
       .add(predOps(ARMCC::AL));
 
   return true;

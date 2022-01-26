@@ -125,12 +125,7 @@ PlatformSP PlatformRemoteiOS::CreateInstance(bool force, const ArchSpec *arch) {
   return lldb::PlatformSP();
 }
 
-lldb_private::ConstString PlatformRemoteiOS::GetPluginNameStatic() {
-  static ConstString g_name("remote-ios");
-  return g_name;
-}
-
-const char *PlatformRemoteiOS::GetDescriptionStatic() {
+llvm::StringRef PlatformRemoteiOS::GetDescriptionStatic() {
   return "Remote iOS platform plug-in.";
 }
 
@@ -138,9 +133,17 @@ const char *PlatformRemoteiOS::GetDescriptionStatic() {
 PlatformRemoteiOS::PlatformRemoteiOS()
     : PlatformRemoteDarwinDevice() {}
 
-bool PlatformRemoteiOS::GetSupportedArchitectureAtIndex(uint32_t idx,
-                                                        ArchSpec &arch) {
-  return ARMGetSupportedArchitectureAtIndex(idx, arch);
+std::vector<ArchSpec> PlatformRemoteiOS::GetSupportedArchitectures() {
+  std::vector<ArchSpec> result;
+  ARMGetSupportedArchitectures(result, llvm::Triple::IOS);
+  return result;
+}
+
+bool PlatformRemoteiOS::CheckLocalSharedCache() const {
+  // You can run iPhone and iPad apps on Mac with Apple Silicon. At the
+  // platform level there's no way to distinguish them from remote iOS
+  // applications. Make sure we still read from our own shared cache.
+  return true;
 }
 
 llvm::StringRef PlatformRemoteiOS::GetDeviceSupportDirectoryName() {

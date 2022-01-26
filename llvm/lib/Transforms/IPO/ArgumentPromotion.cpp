@@ -139,7 +139,7 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
        ++I, ++ArgNo) {
     if (ByValArgsToTransform.count(&*I)) {
       // Simple byval argument? Just add all the struct element types.
-      Type *AgTy = cast<PointerType>(I->getType())->getElementType();
+      Type *AgTy = I->getParamByValType();
       StructType *STy = cast<StructType>(AgTy);
       llvm::append_range(Params, STy->elements());
       ArgAttrVec.insert(ArgAttrVec.end(), STy->getNumElements(),
@@ -148,7 +148,7 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
     } else if (!ArgsToPromote.count(&*I)) {
       // Unchanged argument
       Params.push_back(I->getType());
-      ArgAttrVec.push_back(PAL.getParamAttributes(ArgNo));
+      ArgAttrVec.push_back(PAL.getParamAttrs(ArgNo));
     } else if (I->use_empty()) {
       // Dead argument (which are always marked as promotable)
       ++NumArgumentsDead;
@@ -177,9 +177,8 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
         // Since loads will only have a single operand, and GEPs only a single
         // non-index operand, this will record direct loads without any indices,
         // and gep+loads with the GEP indices.
-        for (User::op_iterator II = UI->op_begin() + 1, IE = UI->op_end();
-             II != IE; ++II)
-          Indices.push_back(cast<ConstantInt>(*II)->getSExtValue());
+        for (const Use &I : llvm::drop_begin(UI->operands()))
+          Indices.push_back(cast<ConstantInt>(I)->getSExtValue());
         // GEPs with a single 0 index can be merged with direct loads
         if (Indices.size() == 1 && Indices.front() == 0)
           Indices.clear();
@@ -231,8 +230,8 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
 
   // Recompute the parameter attributes list based on the new arguments for
   // the function.
-  NF->setAttributes(AttributeList::get(F->getContext(), PAL.getFnAttributes(),
-                                       PAL.getRetAttributes(), ArgAttrVec));
+  NF->setAttributes(AttributeList::get(F->getContext(), PAL.getFnAttrs(),
+                                       PAL.getRetAttrs(), ArgAttrVec));
   ArgAttrVec.clear();
 
   F->getParent()->getFunctionList().insert(F->getIterator(), NF);
@@ -257,10 +256,10 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
          ++I, ++AI, ++ArgNo)
       if (!ArgsToPromote.count(&*I) && !ByValArgsToTransform.count(&*I)) {
         Args.push_back(*AI); // Unmodified argument
-        ArgAttrVec.push_back(CallPAL.getParamAttributes(ArgNo));
+        ArgAttrVec.push_back(CallPAL.getParamAttrs(ArgNo));
       } else if (ByValArgsToTransform.count(&*I)) {
         // Emit a GEP and load for each element of the struct.
-        Type *AgTy = cast<PointerType>(I->getType())->getElementType();
+        Type *AgTy = I->getParamByValType();
         StructType *STy = cast<StructType>(AgTy);
         Value *Idxs[2] = {
             ConstantInt::get(Type::getInt32Ty(F->getContext()), 0), nullptr};
@@ -313,9 +312,7 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
               IRB.CreateLoad(OrigLoad->getType(), V, V->getName() + ".val");
           newLoad->setAlignment(OrigLoad->getAlign());
           // Transfer the AA info too.
-          AAMDNodes AAInfo;
-          OrigLoad->getAAMetadata(AAInfo);
-          newLoad->setAAMetadata(AAInfo);
+          newLoad->setAAMetadata(OrigLoad->getAAMetadata());
 
           Args.push_back(newLoad);
           ArgAttrVec.push_back(AttributeSet());
@@ -325,7 +322,7 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
     // Push any varargs arguments on the list.
     for (; AI != CB.arg_end(); ++AI, ++ArgNo) {
       Args.push_back(*AI);
-      ArgAttrVec.push_back(CallPAL.getParamAttributes(ArgNo));
+      ArgAttrVec.push_back(CallPAL.getParamAttrs(ArgNo));
     }
 
     SmallVector<OperandBundleDef, 1> OpBundles;
@@ -341,9 +338,9 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
       NewCS = NewCall;
     }
     NewCS->setCallingConv(CB.getCallingConv());
-    NewCS->setAttributes(
-        AttributeList::get(F->getContext(), CallPAL.getFnAttributes(),
-                           CallPAL.getRetAttributes(), ArgAttrVec));
+    NewCS->setAttributes(AttributeList::get(F->getContext(),
+                                            CallPAL.getFnAttrs(),
+                                            CallPAL.getRetAttrs(), ArgAttrVec));
     NewCS->copyMetadata(CB, {LLVMContext::MD_prof, LLVMContext::MD_dbg});
     Args.clear();
     ArgAttrVec.clear();
@@ -387,7 +384,7 @@ doPromotion(Function *F, SmallPtrSetImpl<Argument *> &ArgsToPromote,
       Instruction *InsertPt = &NF->begin()->front();
 
       // Just add all the struct element types.
-      Type *AgTy = cast<PointerType>(I->getType())->getElementType();
+      Type *AgTy = I->getParamByValType();
       Align StructAlign = *I->getParamAlign();
       Value *TheAlloca = new AllocaInst(AgTy, DL.getAllocaAddrSpace(), nullptr,
                                         StructAlign, "", InsertPt);
@@ -838,14 +835,20 @@ bool ArgumentPromotionPass::areFunctionArgsABICompatible(
     const Function &F, const TargetTransformInfo &TTI,
     SmallPtrSetImpl<Argument *> &ArgsToPromote,
     SmallPtrSetImpl<Argument *> &ByValArgsToTransform) {
+  // TODO: Check individual arguments so we can promote a subset?
+  SmallVector<Type *, 32> Types;
+  for (Argument *Arg : ArgsToPromote)
+    Types.push_back(Arg->getType()->getPointerElementType());
+  for (Argument *Arg : ByValArgsToTransform)
+    Types.push_back(Arg->getParamByValType());
+
   for (const Use &U : F.uses()) {
     CallBase *CB = dyn_cast<CallBase>(U.getUser());
     if (!CB)
       return false;
     const Function *Caller = CB->getCaller();
     const Function *Callee = CB->getCalledFunction();
-    if (!TTI.areFunctionArgsABICompatible(Caller, Callee, ArgsToPromote) ||
-        !TTI.areFunctionArgsABICompatible(Caller, Callee, ByValArgsToTransform))
+    if (!TTI.areTypesABICompatible(Caller, Callee, Types))
       return false;
   }
   return true;
@@ -1018,11 +1021,12 @@ PreservedAnalyses ArgumentPromotionPass::run(LazyCallGraph::SCC &C,
   do {
     LocalChange = false;
 
+    FunctionAnalysisManager &FAM =
+        AM.getResult<FunctionAnalysisManagerCGSCCProxy>(C, CG).getManager();
+
     for (LazyCallGraph::Node &N : C) {
       Function &OldF = N.getFunction();
 
-      FunctionAnalysisManager &FAM =
-          AM.getResult<FunctionAnalysisManagerCGSCCProxy>(C, CG).getManager();
       // FIXME: This lambda must only be used with this function. We should
       // skip the lambda and just get the AA results directly.
       auto AARGetter = [&](Function &F) -> AAResults & {
@@ -1045,6 +1049,13 @@ PreservedAnalyses ArgumentPromotionPass::run(LazyCallGraph::SCC &C,
       C.getOuterRefSCC().replaceNodeFunction(N, *NewF);
       FAM.clear(OldF, OldF.getName());
       OldF.eraseFromParent();
+
+      PreservedAnalyses FuncPA;
+      FuncPA.preserveSet<CFGAnalyses>();
+      for (auto *U : NewF->users()) {
+        auto *UserF = cast<CallBase>(U)->getFunction();
+        FAM.invalidate(*UserF, FuncPA);
+      }
     }
 
     Changed |= LocalChange;
@@ -1053,7 +1064,12 @@ PreservedAnalyses ArgumentPromotionPass::run(LazyCallGraph::SCC &C,
   if (!Changed)
     return PreservedAnalyses::all();
 
-  return PreservedAnalyses::none();
+  PreservedAnalyses PA;
+  // We've cleared out analyses for deleted functions.
+  PA.preserve<FunctionAnalysisManagerCGSCCProxy>();
+  // We've manually invalidated analyses for functions we've modified.
+  PA.preserveSet<AllAnalysesOn<Function>>();
+  return PA;
 }
 
 namespace {

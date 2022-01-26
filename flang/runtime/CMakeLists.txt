@@ -33,18 +33,22 @@ include_directories(AFTER ${CMAKE_CURRENT_BINARY_DIR})
 add_flang_library(FortranRuntime
   ISO_Fortran_binding.cpp
   allocatable.cpp
+  assign.cpp
   buffer.cpp
+  command.cpp
   complex-reduction.c
   copy.cpp
   character.cpp
   connection.cpp
   derived.cpp
+  derived-api.cpp
   descriptor.cpp
   descriptor-io.cpp
   dot-product.cpp
   edit-input.cpp
   edit-output.cpp
   environment.cpp
+  extensions.cpp
   extrema.cpp
   file.cpp
   findloc.cpp
@@ -60,12 +64,15 @@ add_flang_library(FortranRuntime
   misc-intrinsic.cpp
   namelist.cpp
   numeric.cpp
+  ragged.cpp
   random.cpp
   reduction.cpp
+  pointer.cpp
   product.cpp
   stat.cpp
   stop.cpp
   sum.cpp
+  support.cpp
   terminator.cpp
   time-intrinsic.cpp
   tools.cpp

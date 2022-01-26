@@ -317,21 +317,44 @@ struct TlsBlock {
 };
 }  // namespace
 
+#ifdef __s390__
+extern "C" uptr __tls_get_offset(void *arg);
+
+static uptr TlsGetOffset(uptr ti_module, uptr ti_offset) {
+  // The __tls_get_offset ABI requires %r12 to point to GOT and %r2 to be an
+  // offset of a struct tls_index inside GOT. We don't possess either of the
+  // two, so violate the letter of the "ELF Handling For Thread-Local
+  // Storage" document and assume that the implementation just dereferences
+  // %r2 + %r12.
+  uptr tls_index[2] = {ti_module, ti_offset};
+  register uptr r2 asm("2") = 0;
+  register void *r12 asm("12") = tls_index;
+  asm("basr %%r14, %[__tls_get_offset]"
+      : "+r"(r2)
+      : [__tls_get_offset] "r"(__tls_get_offset), "r"(r12)
+      : "memory", "cc", "0", "1", "3", "4", "5", "14");
+  return r2;
+}
+#else
 extern "C" void *__tls_get_addr(size_t *);
+#endif
 
 static int CollectStaticTlsBlocks(struct dl_phdr_info *info, size_t size,
                                   void *data) {
   if (!info->dlpi_tls_modid)
     return 0;
   uptr begin = (uptr)info->dlpi_tls_data;
-#ifndef __s390__
   if (!g_use_dlpi_tls_data) {
     // Call __tls_get_addr as a fallback. This forces TLS allocation on glibc
     // and FreeBSD.
+#ifdef __s390__
+    begin = (uptr)__builtin_thread_pointer() +
+            TlsGetOffset(info->dlpi_tls_modid, 0);
+#else
     size_t mod_and_off[2] = {info->dlpi_tls_modid, 0};
     begin = (uptr)__tls_get_addr(mod_and_off);
-  }
 #endif
+  }
   for (unsigned i = 0; i != info->dlpi_phnum; ++i)
     if (info->dlpi_phdr[i].p_type == PT_TLS) {
       static_cast<InternalMmapVector<TlsBlock> *>(data)->push_back(
@@ -580,6 +603,34 @@ static int AddModuleSegments(const char *module_name, dl_phdr_info *info,
       bool writable = phdr->p_flags & PF_W;
       cur_module.addAddressRange(cur_beg, cur_end, executable,
                                  writable);
+    } else if (phdr->p_type == PT_NOTE) {
+#  ifdef NT_GNU_BUILD_ID
+      uptr off = 0;
+      while (off + sizeof(ElfW(Nhdr)) < phdr->p_memsz) {
+        auto *nhdr = reinterpret_cast<const ElfW(Nhdr) *>(info->dlpi_addr +
+                                                          phdr->p_vaddr + off);
+        constexpr auto kGnuNamesz = 4;  // "GNU" with NUL-byte.
+        static_assert(kGnuNamesz % 4 == 0, "kGnuNameSize is aligned to 4.");
+        if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == kGnuNamesz) {
+          if (off + sizeof(ElfW(Nhdr)) + nhdr->n_namesz + nhdr->n_descsz >
+              phdr->p_memsz) {
+            // Something is very wrong, bail out instead of reading potentially
+            // arbitrary memory.
+            break;
+          }
+          const char *name =
+              reinterpret_cast<const char *>(nhdr) + sizeof(*nhdr);
+          if (internal_memcmp(name, "GNU", 3) == 0) {
+            const char *value = reinterpret_cast<const char *>(nhdr) +
+                                sizeof(*nhdr) + kGnuNamesz;
+            cur_module.setUuid(value, nhdr->n_descsz);
+            break;
+          }
+        }
+        off += sizeof(*nhdr) + RoundUpTo(nhdr->n_namesz, 4) +
+               RoundUpTo(nhdr->n_descsz, 4);
+      }
+#  endif
     }
   }
   modules->push_back(cur_module);

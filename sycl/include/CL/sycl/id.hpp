@@ -1,4 +1,4 @@
-//==----------- id.hpp --- SYCL iteration id -------------------------==//
+//==-------------------- id.hpp --- SYCL iteration id ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,6 +16,13 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+// Forward declarations
+namespace detail {
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernel;
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernelWithKH;
+} // namespace detail
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
 
@@ -85,6 +92,7 @@ public:
   id(ParamTy<N, 3, const item<dimensions, with_offset>> &item)
       : base(item.get_id(0), item.get_id(1), item.get_id(2)) {}
 
+  __SYCL_DEPRECATED("range() conversion is deprecated")
   explicit operator range<dimensions>() const {
     range<dimensions> result(
         detail::InitializedVal<dimensions, range>::template get<0>());
@@ -143,10 +151,11 @@ public:
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT_BASE(op)                                                \
-  id<dimensions> operator op(const id<dimensions> &rhs) const {                \
+  friend id<dimensions> operator op(const id<dimensions> &lhs,                 \
+                                    const id<dimensions> &rhs) {               \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      result.common_array[i] = this->common_array[i] op rhs.common_array[i];   \
+      result.common_array[i] = lhs.common_array[i] op rhs.common_array[i];     \
     }                                                                          \
     return result;                                                             \
   }
@@ -156,10 +165,11 @@ public:
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
-  EnableIfIntegral<T, id<dimensions>> operator op(const T &rhs) const {        \
+  friend EnableIfIntegral<T, id<dimensions>> operator op(                      \
+      const id<dimensions> &lhs, const T &rhs) {                               \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      result.common_array[i] = this->common_array[i] op rhs;                   \
+      result.common_array[i] = lhs.common_array[i] op rhs;                     \
     }                                                                          \
     return result;                                                             \
   }                                                                            \
@@ -175,10 +185,11 @@ public:
 #else
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
-  id<dimensions> operator op(const size_t &rhs) const {                        \
+  friend id<dimensions> operator op(const id<dimensions> &lhs,                 \
+                                    const size_t &rhs) {                       \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      result.common_array[i] = this->common_array[i] op rhs;                   \
+      result.common_array[i] = lhs.common_array[i] op rhs;                     \
     }                                                                          \
     return result;                                                             \
   }                                                                            \
@@ -214,17 +225,18 @@ public:
 
 // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
 #define __SYCL_GEN_OPT(op)                                                     \
-  id<dimensions> &operator op(const id<dimensions> &rhs) {                     \
+  friend id<dimensions> &operator op(id<dimensions> &lhs,                      \
+                                     const id<dimensions> &rhs) {              \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      this->common_array[i] op rhs.common_array[i];                            \
+      lhs.common_array[i] op rhs.common_array[i];                              \
     }                                                                          \
-    return *this;                                                              \
+    return lhs;                                                                \
   }                                                                            \
-  id<dimensions> &operator op(const size_t &rhs) {                             \
+  friend id<dimensions> &operator op(id<dimensions> &lhs, const size_t &rhs) { \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      this->common_array[i] op rhs;                                            \
+      lhs.common_array[i] op rhs;                                              \
     }                                                                          \
-    return *this;                                                              \
+    return lhs;                                                                \
   }
 
   __SYCL_GEN_OPT(+=)
@@ -240,8 +252,56 @@ public:
 
 #undef __SYCL_GEN_OPT
 
+// OP is unary +, -
+#define __SYCL_GEN_OPT(op)                                                     \
+  friend id<dimensions> operator op(const id<dimensions> &rhs) {               \
+    id<dimensions> result;                                                     \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      result.common_array[i] = (op rhs.common_array[i]);                       \
+    }                                                                          \
+    return result;                                                             \
+  }
+
+  __SYCL_GEN_OPT(+)
+  __SYCL_GEN_OPT(-)
+
+#undef __SYCL_GEN_OPT
+
+// OP is prefix ++, --
+#define __SYCL_GEN_OPT(op)                                                     \
+  friend id<dimensions> &operator op(id<dimensions> &rhs) {                    \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      op rhs.common_array[i];                                                  \
+    }                                                                          \
+    return rhs;                                                                \
+  }
+
+  __SYCL_GEN_OPT(++)
+  __SYCL_GEN_OPT(--)
+
+#undef __SYCL_GEN_OPT
+
+// OP is postfix ++, --
+#define __SYCL_GEN_OPT(op)                                                     \
+  friend id<dimensions> operator op(id<dimensions> &lhs, int) {                \
+    id<dimensions> old_lhs;                                                    \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      old_lhs.common_array[i] = lhs.common_array[i];                           \
+      op lhs.common_array[i];                                                  \
+    }                                                                          \
+    return old_lhs;                                                            \
+  }
+
+  __SYCL_GEN_OPT(++)
+  __SYCL_GEN_OPT(--)
+
+#undef __SYCL_GEN_OPT
+
 private:
-  friend class handler;
+  // Friend to get access to private method set_allowed_range().
+  template <typename, int, typename> friend class detail::RoundedRangeKernel;
+  template <typename, int, typename>
+  friend class detail::RoundedRangeKernelWithKH;
   void set_allowed_range(range<dimensions> rnwi) { (void)rnwi[0]; }
 };
 
@@ -283,19 +343,15 @@ id(size_t, size_t)->id<2>;
 id(size_t, size_t, size_t)->id<3>;
 #endif
 
-namespace detail {
-template <int Dims> id<Dims> store_id(const id<Dims> *i) {
-  return get_or_store(i);
-}
-} // namespace detail
-
 template <int Dims>
 __SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_id() instead")
 id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<id<Dims>>());
 #else
-  return detail::store_id<Dims>(nullptr);
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host device");
 #endif
 }
 
@@ -304,9 +360,11 @@ namespace oneapi {
 namespace experimental {
 template <int Dims> id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(detail::declptr<id<Dims>>());
+  return sycl::detail::Builder::getElement(sycl::detail::declptr<id<Dims>>());
 #else
-  return sycl::detail::store_id<Dims>(nullptr);
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host device");
 #endif
 }
 } // namespace experimental

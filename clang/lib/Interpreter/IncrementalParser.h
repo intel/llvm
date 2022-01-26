@@ -13,7 +13,9 @@
 #ifndef LLVM_CLANG_LIB_INTERPRETER_INCREMENTALPARSER_H
 #define LLVM_CLANG_LIB_INTERPRETER_INCREMENTALPARSER_H
 
-#include "clang/Interpreter/Transaction.h"
+#include "clang/Interpreter/PartialTranslationUnit.h"
+
+#include "clang/AST/GlobalDecl.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
@@ -28,9 +30,6 @@ class LLVMContext;
 namespace clang {
 class ASTConsumer;
 class CompilerInstance;
-class CodeGenerator;
-class DeclGroupRef;
-class FrontendAction;
 class IncrementalAction;
 class Parser;
 
@@ -55,7 +54,7 @@ class IncrementalParser {
 
   /// List containing every information about every incrementally parsed piece
   /// of code.
-  std::list<Transaction> Transactions;
+  std::list<PartialTranslationUnit> PTUs;
 
 public:
   IncrementalParser(std::unique_ptr<CompilerInstance> Instance,
@@ -65,12 +64,16 @@ public:
   const CompilerInstance *getCI() const { return CI.get(); }
 
   /// Parses incremental input by creating an in-memory file.
-  ///\returns a \c Transaction which holds information about the \c Decls and
-  /// \c llvm::Module corresponding to the input.
-  llvm::Expected<Transaction &> Parse(llvm::StringRef Input);
+  ///\returns a \c PartialTranslationUnit which holds information about the
+  /// \c TranslationUnitDecl and \c llvm::Module corresponding to the input.
+  llvm::Expected<PartialTranslationUnit &> Parse(llvm::StringRef Input);
+
+  /// Uses the CodeGenModule mangled name cache and avoids recomputing.
+  ///\returns the mangled name of a \c GD.
+  llvm::StringRef GetMangledName(GlobalDecl GD) const;
 
 private:
-  llvm::Expected<Transaction &> ParseOrWrapTopLevelDecl();
+  llvm::Expected<PartialTranslationUnit &> ParseOrWrapTopLevelDecl();
 };
 } // end namespace clang
 

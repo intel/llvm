@@ -8,7 +8,7 @@ define amdgpu_gs void @main(<4 x i32> %arg, i32 %arg1) {
 ; GFX10-LABEL: main:
 ; GFX10:       ; %bb.0: ; %bb
 ; GFX10-NEXT:    s_mov_b32 s1, exec_lo
-; GFX10-NEXT:  BB0_1: ; =>This Inner Loop Header: Depth=1
+; GFX10-NEXT:  .LBB0_1: ; =>This Inner Loop Header: Depth=1
 ; GFX10-NEXT:    v_readfirstlane_b32 s4, v0
 ; GFX10-NEXT:    v_readfirstlane_b32 s5, v1
 ; GFX10-NEXT:    v_readfirstlane_b32 s6, v2
@@ -18,9 +18,11 @@ define amdgpu_gs void @main(<4 x i32> %arg, i32 %arg1) {
 ; GFX10-NEXT:    s_and_b32 s0, vcc_lo, s0
 ; GFX10-NEXT:    s_and_saveexec_b32 s0, s0
 ; GFX10-NEXT:    buffer_load_format_d16_xyz v[5:6], v4, s[4:7], 0 idxen
+; GFX10-NEXT:    ; implicit-def: $vgpr0_vgpr1_vgpr2_vgpr3
+; GFX10-NEXT:    ; implicit-def: $vgpr4
 ; GFX10-NEXT:    s_waitcnt_depctr 0xffe3
 ; GFX10-NEXT:    s_xor_b32 exec_lo, exec_lo, s0
-; GFX10-NEXT:    s_cbranch_execnz BB0_1
+; GFX10-NEXT:    s_cbranch_execnz .LBB0_1
 ; GFX10-NEXT:  ; %bb.2:
 ; GFX10-NEXT:    s_mov_b32 exec_lo, s1
 ; GFX10-NEXT:    s_waitcnt vmcnt(0)
@@ -33,7 +35,7 @@ define amdgpu_gs void @main(<4 x i32> %arg, i32 %arg1) {
 ; GFX9-LABEL: main:
 ; GFX9:       ; %bb.0: ; %bb
 ; GFX9-NEXT:    s_mov_b64 s[2:3], exec
-; GFX9-NEXT:  BB0_1: ; =>This Inner Loop Header: Depth=1
+; GFX9-NEXT:  .LBB0_1: ; =>This Inner Loop Header: Depth=1
 ; GFX9-NEXT:    v_readfirstlane_b32 s4, v0
 ; GFX9-NEXT:    v_readfirstlane_b32 s5, v1
 ; GFX9-NEXT:    v_readfirstlane_b32 s6, v2
@@ -44,8 +46,10 @@ define amdgpu_gs void @main(<4 x i32> %arg, i32 %arg1) {
 ; GFX9-NEXT:    s_and_saveexec_b64 s[0:1], s[0:1]
 ; GFX9-NEXT:    s_nop 0
 ; GFX9-NEXT:    buffer_load_format_d16_xyz v[5:6], v4, s[4:7], 0 idxen
+; GFX9-NEXT:    ; implicit-def: $vgpr0_vgpr1_vgpr2_vgpr3
+; GFX9-NEXT:    ; implicit-def: $vgpr4
 ; GFX9-NEXT:    s_xor_b64 exec, exec, s[0:1]
-; GFX9-NEXT:    s_cbranch_execnz BB0_1
+; GFX9-NEXT:    s_cbranch_execnz .LBB0_1
 ; GFX9-NEXT:  ; %bb.2:
 ; GFX9-NEXT:    s_mov_b64 exec, s[2:3]
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
@@ -57,7 +61,7 @@ define amdgpu_gs void @main(<4 x i32> %arg, i32 %arg1) {
 ; GFX8-LABEL: main:
 ; GFX8:       ; %bb.0: ; %bb
 ; GFX8-NEXT:    s_mov_b64 s[2:3], exec
-; GFX8-NEXT:  BB0_1: ; =>This Inner Loop Header: Depth=1
+; GFX8-NEXT:  .LBB0_1: ; =>This Inner Loop Header: Depth=1
 ; GFX8-NEXT:    v_readfirstlane_b32 s4, v0
 ; GFX8-NEXT:    v_readfirstlane_b32 s5, v1
 ; GFX8-NEXT:    v_readfirstlane_b32 s6, v2
@@ -68,14 +72,15 @@ define amdgpu_gs void @main(<4 x i32> %arg, i32 %arg1) {
 ; GFX8-NEXT:    s_and_saveexec_b64 s[0:1], s[0:1]
 ; GFX8-NEXT:    s_nop 0
 ; GFX8-NEXT:    buffer_load_format_d16_xyz v[5:6], v4, s[4:7], 0 idxen
+; GFX8-NEXT:    ; implicit-def: $vgpr0_vgpr1_vgpr2_vgpr3
+; GFX8-NEXT:    ; implicit-def: $vgpr4
 ; GFX8-NEXT:    s_xor_b64 exec, exec, s[0:1]
-; GFX8-NEXT:    s_cbranch_execnz BB0_1
+; GFX8-NEXT:    s_cbranch_execnz .LBB0_1
 ; GFX8-NEXT:  ; %bb.2:
 ; GFX8-NEXT:    s_mov_b64 exec, s[2:3]
 ; GFX8-NEXT:    s_waitcnt vmcnt(0)
-; GFX8-NEXT:    v_alignbit_b32 v0, v6, v5, 16
-; GFX8-NEXT:    v_lshrrev_b32_e32 v1, 16, v0
-; GFX8-NEXT:    v_and_b32_e32 v0, 0xffff, v0
+; GFX8-NEXT:    v_lshrrev_b32_e32 v0, 16, v5
+; GFX8-NEXT:    v_and_b32_e32 v1, 0xffff, v6
 ; GFX8-NEXT:    v_mov_b32_e32 v2, 0
 ; GFX8-NEXT:    s_mov_b32 m0, -1
 ; GFX8-NEXT:    ds_write2_b32 v2, v0, v1 offset0:7 offset1:8

@@ -11,7 +11,7 @@
 
 using namespace cl::sycl;
 
-TEST_F(SchedulerTest, MemObjCommandCleanup) {
+TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   MockScheduler MS;
   buffer<int, 1> BufA(range<1>(1));
   buffer<int, 1> BufB(range<1>(1));
@@ -50,4 +50,32 @@ TEST_F(SchedulerTest, MemObjCommandCleanup) {
   ASSERT_EQ(MockDirectUser->MDeps.size(), 1U);
   EXPECT_EQ(MockDirectUser->MDeps[0].MDepCommand, MockAllocaB.get());
   EXPECT_TRUE(IndirectUserDeleted);
+}
+
+TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
+  MockScheduler MS;
+  buffer<int, 1> Buf(range<1>(1));
+  detail::Requirement MockReq = getMockRequirement(Buf);
+  std::vector<detail::Command *> AuxCmds;
+  detail::MemObjRecord *MemObjRec = MS.getOrInsertMemObjRecord(
+      detail::getSyclObjImpl(MQueue), &MockReq, AuxCmds);
+
+  // Create a fake alloca.
+  detail::AllocaCommand *MockAllocaCmd =
+      new detail::AllocaCommand(detail::getSyclObjImpl(MQueue), MockReq);
+  MemObjRec->MAllocaCommands.push_back(MockAllocaCmd);
+
+  // Add another mock command and add MockAllocaCmd as its user.
+  MockCommand DepCmd(detail::getSyclObjImpl(MQueue), MockReq);
+  addEdge(MockAllocaCmd, &DepCmd, nullptr);
+
+  // Check that DepCmd.MUsers size reflect the dependency properly.
+  ASSERT_EQ(DepCmd.MUsers.size(), 1U);
+  ASSERT_EQ(DepCmd.MUsers.count(MockAllocaCmd), 1U);
+
+  MS.cleanupCommandsForRecord(MemObjRec);
+  MS.removeRecordForMemObj(detail::getSyclObjImpl(Buf).get());
+
+  // Check that DepCmd has its MUsers field cleared.
+  ASSERT_EQ(DepCmd.MUsers.size(), 0U);
 }

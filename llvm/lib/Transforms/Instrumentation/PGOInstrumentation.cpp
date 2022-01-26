@@ -110,6 +110,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -198,12 +199,14 @@ static cl::opt<bool>
                             "warnings about missing profile data for "
                             "functions."));
 
+namespace llvm {
 // Command line option to enable/disable the warning about a hash mismatch in
 // the profile data.
-static cl::opt<bool>
+cl::opt<bool>
     NoPGOWarnMismatch("no-pgo-warn-mismatch", cl::init(false), cl::Hidden,
                       cl::desc("Use this option to turn off/on "
                                "warnings about profile cfg mismatch."));
+} // namespace llvm
 
 // Command line option to enable/disable the warning about a hash mismatch in
 // the profile data for Comdat functions, which often turns out to be false
@@ -270,14 +273,14 @@ static cl::opt<bool> PGOVerifyBFI(
              "internal option -pass-remakrs-analysis=pgo."));
 
 static cl::opt<unsigned> PGOVerifyBFIRatio(
-    "pgo-verify-bfi-ratio", cl::init(5), cl::Hidden,
-    cl::desc("Set the threshold for pgo-verify-big -- only print out "
+    "pgo-verify-bfi-ratio", cl::init(2), cl::Hidden,
+    cl::desc("Set the threshold for pgo-verify-bfi:  only print out "
              "mismatched BFI if the difference percentage is greater than "
              "this value (in percentage)."));
 
 static cl::opt<unsigned> PGOVerifyBFICutoff(
-    "pgo-verify-bfi-cutoff", cl::init(1), cl::Hidden,
-    cl::desc("Set the threshold for pgo-verify-bfi -- skip the counts whose "
+    "pgo-verify-bfi-cutoff", cl::init(5), cl::Hidden,
+    cl::desc("Set the threshold for pgo-verify-bfi: skip the counts whose "
              "profile count value is below."));
 
 namespace llvm {
@@ -288,6 +291,8 @@ extern cl::opt<PGOViewCountsType> PGOViewCounts;
 // Command line option to specify the name of the function for CFG dump
 // Defined in Analysis/BlockFrequencyInfo.cpp:  -view-bfi-func-name=
 extern cl::opt<std::string> ViewBlockFreqFuncName;
+
+extern cl::opt<bool> DebugInfoCorrelate;
 } // namespace llvm
 
 static cl::opt<bool>
@@ -462,7 +467,11 @@ public:
 private:
   bool runOnModule(Module &M) override {
     createProfileFileNameVar(M, InstrProfileOutput);
-    createIRLevelProfileFlagVar(M, /* IsCS */ true, PGOInstrumentEntry);
+    // The variable in a comdat may be discarded by LTO. Ensure the
+    // declaration will be retained.
+    appendToCompilerUsed(M, createIRLevelProfileFlagVar(M, /*IsCS=*/true,
+                                                        PGOInstrumentEntry,
+                                                        DebugInfoCorrelate));
     return false;
   }
   std::string InstrProfileOutput;
@@ -868,7 +877,10 @@ populateEHOperandBundle(VPCandidateInfo &Cand,
                         DenseMap<BasicBlock *, ColorVector> &BlockColors,
                         SmallVectorImpl<OperandBundleDef> &OpBundles) {
   auto *OrigCall = dyn_cast<CallBase>(Cand.AnnotatedInst);
-  if (OrigCall && !isa<IntrinsicInst>(OrigCall)) {
+  if (!OrigCall)
+    return;
+
+  if (!isa<IntrinsicInst>(OrigCall)) {
     // The instrumentation call should belong to the same funclet as a
     // non-intrinsic call, so just copy the operand bundle, if any exists.
     Optional<OperandBundleUse> ParentFunclet =
@@ -1610,7 +1622,8 @@ static bool InstrumentAllFunctions(
   // For the context-sensitve instrumentation, we should have a separated pass
   // (before LTO/ThinLTO linking) to create these variables.
   if (!IsCS)
-    createIRLevelProfileFlagVar(M, /* IsCS */ false, PGOInstrumentEntry);
+    createIRLevelProfileFlagVar(M, /*IsCS=*/false, PGOInstrumentEntry,
+                                DebugInfoCorrelate);
   std::unordered_multimap<Comdat *, GlobalValue *> ComdatMembers;
   collectComdatMembers(M, ComdatMembers);
 
@@ -1630,7 +1643,11 @@ static bool InstrumentAllFunctions(
 PreservedAnalyses
 PGOInstrumentationGenCreateVar::run(Module &M, ModuleAnalysisManager &AM) {
   createProfileFileNameVar(M, CSInstrName);
-  createIRLevelProfileFlagVar(M, /* IsCS */ true, PGOInstrumentEntry);
+  // The variable in a comdat may be discarded by LTO. Ensure the declaration
+  // will be retained.
+  appendToCompilerUsed(M, createIRLevelProfileFlagVar(M, /*IsCS=*/true,
+                                                      PGOInstrumentEntry,
+                                                      DebugInfoCorrelate));
   return PreservedAnalyses::all();
 }
 
@@ -1677,7 +1694,7 @@ static void fixFuncEntryCount(PGOUseFunc &Func, LoopInfo &LI,
   BlockFrequencyInfo NBFI(F, NBPI, LI);
 #ifndef NDEBUG
   auto BFIEntryCount = F.getEntryCount();
-  assert(BFIEntryCount.hasValue() && (BFIEntryCount.getCount() > 0) &&
+  assert(BFIEntryCount.hasValue() && (BFIEntryCount->getCount() > 0) &&
          "Invalid BFI Entrycount");
 #endif
   auto SumCount = APFloat::getZero(APFloat::IEEEdouble());
@@ -1765,7 +1782,7 @@ static void verifyFuncBFI(PGOUseFunc &Func, LoopInfo &LI,
       uint64_t Diff = (BFICountValue >= CountValue)
                           ? BFICountValue - CountValue
                           : CountValue - BFICountValue;
-      if (Diff < CountValue / 100 * PGOVerifyBFIRatio)
+      if (Diff <= CountValue / 100 * PGOVerifyBFIRatio)
         continue;
     }
     BBMisMatchNum++;

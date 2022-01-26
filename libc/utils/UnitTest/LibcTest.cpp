@@ -1,4 +1,4 @@
-//===-- Implementation of the base class for libc unittests ---------------===//
+//===-- Implementation of the base class for libc unittests----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -44,7 +44,7 @@ std::string describeValue(std::string Value) { return std::string(Value); }
 
 // When the value is __uint128_t, also show its hexadecimal digits.
 // Using template to force exact match, prevent ambiguous promotion.
-template <> std::string describeValue<__uint128_t>(__uint128_t Value) {
+std::string describeValue128(__uint128_t Value) {
   std::string S(sizeof(__uint128_t) * 2, '0');
 
   for (auto I = S.rbegin(), End = S.rend(); I != End; ++I, Value >>= 4) {
@@ -53,6 +53,13 @@ template <> std::string describeValue<__uint128_t>(__uint128_t Value) {
   }
 
   return "0x" + S;
+}
+
+template <> std::string describeValue<__int128_t>(__int128_t Value) {
+  return describeValue128(Value);
+}
+template <> std::string describeValue<__uint128_t>(__uint128_t Value) {
+  return describeValue128(Value);
 }
 
 template <typename ValType>
@@ -143,14 +150,18 @@ void Test::addTest(Test *T) {
   End = T;
 }
 
-int Test::runTests() {
+int Test::runTests(const char *TestFilter) {
   int TestCount = 0;
   int FailCount = 0;
-  for (Test *T = Start; T != nullptr; T = T->Next, ++TestCount) {
+  for (Test *T = Start; T != nullptr; T = T->Next) {
     const char *TestName = T->getName();
+    std::string StrTestName(TestName);
     constexpr auto GREEN = "\033[32m";
     constexpr auto RED = "\033[31m";
     constexpr auto RESET = "\033[0m";
+    if ((TestFilter != nullptr) && (StrTestName != TestFilter)) {
+      continue;
+    }
     std::cout << GREEN << "[ RUN      ] " << RESET << TestName << '\n';
     RunContext Ctx;
     T->SetUp();
@@ -167,13 +178,21 @@ int Test::runTests() {
       std::cout << GREEN << "[       OK ] " << RESET << TestName << '\n';
       break;
     }
+    ++TestCount;
   }
 
-  std::cout << "Ran " << TestCount << " tests. "
-            << " PASS: " << TestCount - FailCount << ' '
-            << " FAIL: " << FailCount << '\n';
+  if (TestCount > 0) {
+    std::cout << "Ran " << TestCount << " tests. "
+              << " PASS: " << TestCount - FailCount << ' '
+              << " FAIL: " << FailCount << '\n';
+  } else {
+    std::cout << "No tests run.\n";
+    if (TestFilter) {
+      std::cout << "No matching test for " << TestFilter << '\n';
+    }
+  }
 
-  return FailCount > 0 ? 1 : 0;
+  return FailCount > 0 || TestCount == 0 ? 1 : 0;
 }
 
 template bool Test::test<char, 0>(TestCondition Cond, char LHS, char RHS,
@@ -196,6 +215,11 @@ template bool Test::test<long long, 0>(TestCondition Cond, long long LHS,
                                        long long RHS, const char *LHSStr,
                                        const char *RHSStr, const char *File,
                                        unsigned long Line);
+
+template bool Test::test<__int128_t, 0>(TestCondition Cond, __int128_t LHS,
+                                        __int128_t RHS, const char *LHSStr,
+                                        const char *RHSStr, const char *File,
+                                        unsigned long Line);
 
 template bool Test::test<unsigned char, 0>(TestCondition Cond,
                                            unsigned char LHS, unsigned char RHS,
@@ -267,22 +291,22 @@ bool Test::testMatch(bool MatchResult, MatcherBase &Matcher, const char *LHSStr,
 bool Test::testProcessKilled(testutils::FunctionCaller *Func, int Signal,
                              const char *LHSStr, const char *RHSStr,
                              const char *File, unsigned long Line) {
-  testutils::ProcessStatus Result = testutils::invokeInSubprocess(Func, 500);
+  testutils::ProcessStatus Result = testutils::invoke_in_subprocess(Func, 500);
 
-  if (const char *error = Result.getError()) {
+  if (const char *error = Result.get_error()) {
     Ctx->markFail();
     std::cout << File << ":" << Line << ": FAILURE\n" << error << '\n';
     return false;
   }
 
-  if (Result.timedOut()) {
+  if (Result.timed_out()) {
     Ctx->markFail();
     std::cout << File << ":" << Line << ": FAILURE\n"
               << "Process timed out after " << 500 << " milliseconds.\n";
     return false;
   }
 
-  if (Result.exitedNormally()) {
+  if (Result.exited_normally()) {
     Ctx->markFail();
     std::cout << File << ":" << Line << ": FAILURE\n"
               << "Expected " << LHSStr
@@ -290,41 +314,41 @@ bool Test::testProcessKilled(testutils::FunctionCaller *Func, int Signal,
     return false;
   }
 
-  int KilledBy = Result.getFatalSignal();
+  int KilledBy = Result.get_fatal_signal();
   assert(KilledBy != 0 && "Not killed by any signal");
   if (Signal == -1 || KilledBy == Signal)
     return true;
 
-  using testutils::signalAsString;
+  using testutils::signal_as_string;
   Ctx->markFail();
   std::cout << File << ":" << Line << ": FAILURE\n"
             << "              Expected: " << LHSStr << '\n'
             << "To be killed by signal: " << Signal << '\n'
-            << "              Which is: " << signalAsString(Signal) << '\n'
+            << "              Which is: " << signal_as_string(Signal) << '\n'
             << "  But it was killed by: " << KilledBy << '\n'
-            << "              Which is: " << signalAsString(KilledBy) << '\n';
+            << "              Which is: " << signal_as_string(KilledBy) << '\n';
   return false;
 }
 
 bool Test::testProcessExits(testutils::FunctionCaller *Func, int ExitCode,
                             const char *LHSStr, const char *RHSStr,
                             const char *File, unsigned long Line) {
-  testutils::ProcessStatus Result = testutils::invokeInSubprocess(Func, 500);
+  testutils::ProcessStatus Result = testutils::invoke_in_subprocess(Func, 500);
 
-  if (const char *error = Result.getError()) {
+  if (const char *error = Result.get_error()) {
     Ctx->markFail();
     std::cout << File << ":" << Line << ": FAILURE\n" << error << '\n';
     return false;
   }
 
-  if (Result.timedOut()) {
+  if (Result.timed_out()) {
     Ctx->markFail();
     std::cout << File << ":" << Line << ": FAILURE\n"
               << "Process timed out after " << 500 << " milliseconds.\n";
     return false;
   }
 
-  if (!Result.exitedNormally()) {
+  if (!Result.exited_normally()) {
     Ctx->markFail();
     std::cout << File << ":" << Line << ": FAILURE\n"
               << "Expected " << LHSStr << '\n'
@@ -333,7 +357,7 @@ bool Test::testProcessExits(testutils::FunctionCaller *Func, int ExitCode,
     return false;
   }
 
-  int ActualExit = Result.getExitCode();
+  int ActualExit = Result.get_exit_code();
   if (ActualExit == ExitCode)
     return true;
 
@@ -349,5 +373,3 @@ bool Test::testProcessExits(testutils::FunctionCaller *Func, int ExitCode,
 #endif // ENABLE_SUBPROCESS_TESTS
 } // namespace testing
 } // namespace __llvm_libc
-
-int main() { return __llvm_libc::testing::Test::runTests(); }

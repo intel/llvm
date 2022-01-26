@@ -1,0 +1,55 @@
+119734787 65536 393230 25 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Int64
+2 Capability GenericPointer
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2
+4 EntryPoint 6 8 "foo"
+3 Source 0 0
+8 Name 5 "__spirv_WorkgroupSize"
+4 Name 9 "entry"
+4 Name 13 "GroupID"
+3 Name 24 "mul"
+
+4 Decorate 5 BuiltIn 25
+3 Decorate 5 Constant
+10 Decorate 5 LinkageAttributes "__spirv_WorkgroupSize" Import
+4 Decorate 13 Alignment 8
+4 Decorate 5 Alignment 32
+4 TypeInt 2 64 0
+5 Constant 2 10 3 0
+5 Constant 2 16 0 0
+5 Constant 2 20 2 0
+4 TypeVector 3 2 3
+4 TypePointer 4 5 3
+2 TypeVoid 6
+3 TypeFunction 7 6
+4 TypeArray 11 2 10
+4 TypePointer 12 7 11
+4 TypePointer 14 8 3
+4 TypePointer 17 8 2
+4 Variable 4 5 5
+
+5 Function 6 8 0 7
+
+2 Label 9
+4 Variable 12 13 7
+4 PtrCastToGeneric 14 15 5
+6 PtrAccessChain 17 18 15 16 16
+4 PtrCastToGeneric 14 19 5
+6 PtrAccessChain 17 21 19 16 20
+6 Load 2 22 18 2 32
+6 Load 2 23 21 2 8
+5 IMul 2 24 22 23
+1 Return
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s -check-prefix=CHECK-LLVM
+
+; CHECK-LLVM-NOT: __spirv_WorkgroupSize
+; CHECK-LLVM: __spirv_BuiltInWorkgroupSize

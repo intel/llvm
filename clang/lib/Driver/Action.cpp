@@ -59,6 +59,10 @@ const char *Action::getClassName(ActionClass AC) {
     return "append-footer";
   case StaticLibJobClass:
     return "static-lib-linker";
+  case ForEachWrappingClass:
+    return "foreach";
+  case SpirvToIrWrapperJobClass:
+    return "spirv-to-ir-wrapper";
   }
 
   llvm_unreachable("invalid class");
@@ -435,8 +439,12 @@ void OffloadUnbundlingJobAction::anchor() {}
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input)
     : JobAction(OffloadUnbundlingJobClass, Input, Input->getType()) {}
 
+OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input,
+                                                       types::ID Type)
+    : JobAction(OffloadUnbundlingJobClass, Input, Type) {}
+
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(ActionList &Inputs,
-                                                       types:: ID Type)
+                                                       types::ID Type)
     : JobAction(OffloadUnbundlingJobClass, Inputs, Type) {}
 
 void OffloadWrapperJobAction::anchor() {}
@@ -474,8 +482,11 @@ SPIRCheckJobAction::SPIRCheckJobAction(Action *Input, types::ID Type)
 
 void SYCLPostLinkJobAction::anchor() {}
 
-SYCLPostLinkJobAction::SYCLPostLinkJobAction(Action *Input, types::ID Type)
-    : JobAction(SYCLPostLinkJobClass, Input, Type) {}
+SYCLPostLinkJobAction::SYCLPostLinkJobAction(Action *Input,
+                                             types::ID ShadowOutputType,
+                                             types::ID TrueOutputType)
+    : JobAction(SYCLPostLinkJobClass, Input, ShadowOutputType),
+      TrueOutputType(TrueOutputType) {}
 
 void BackendCompileJobAction::anchor() {}
 
@@ -489,12 +500,17 @@ BackendCompileJobAction::BackendCompileJobAction(Action *Input,
 
 void FileTableTformJobAction::anchor() {}
 
-FileTableTformJobAction::FileTableTformJobAction(Action *Input, types::ID Type)
-    : JobAction(FileTableTformJobClass, Input, Type) {}
+FileTableTformJobAction::FileTableTformJobAction(Action *Input,
+                                                 types::ID ShadowOutputType,
+                                                 types::ID TrueOutputType)
+    : JobAction(FileTableTformJobClass, Input, ShadowOutputType),
+      TrueOutputType(TrueOutputType) {}
 
 FileTableTformJobAction::FileTableTformJobAction(ActionList &Inputs,
-                                                 types::ID Type)
-    : JobAction(FileTableTformJobClass, Inputs, Type) {}
+                                                 types::ID ShadowOutputType,
+                                                 types::ID TrueOutputType)
+    : JobAction(FileTableTformJobClass, Inputs, ShadowOutputType),
+      TrueOutputType(TrueOutputType) {}
 
 void FileTableTformJobAction::addExtractColumnTform(StringRef ColumnName,
                                                     bool WithColTitle) {
@@ -533,3 +549,21 @@ void StaticLibJobAction::anchor() {}
 
 StaticLibJobAction::StaticLibJobAction(ActionList &Inputs, types::ID Type)
     : JobAction(StaticLibJobClass, Inputs, Type) {}
+
+void SpirvToIrWrapperJobAction::anchor() {}
+
+SpirvToIrWrapperJobAction::SpirvToIrWrapperJobAction(Action *Input,
+                                                     types::ID Type)
+    : JobAction(SpirvToIrWrapperJobClass, Input, Type) {}
+
+ForEachWrappingAction::ForEachWrappingAction(JobAction *TFormInput,
+                                             JobAction *Job)
+    : Action(ForEachWrappingClass, {TFormInput, Job}, Job->getType()) {}
+
+JobAction *ForEachWrappingAction::getTFormInput() const {
+  return llvm::cast<JobAction>(getInputs()[0]);
+}
+
+JobAction *ForEachWrappingAction::getJobAction() const {
+  return llvm::cast<JobAction>(getInputs()[1]);
+}

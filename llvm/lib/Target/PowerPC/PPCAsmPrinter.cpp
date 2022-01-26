@@ -58,13 +58,13 @@
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/MC/MCSymbolXCOFF.h"
 #include "llvm/MC/SectionKind.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Process.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -347,7 +347,6 @@ bool PPCAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
 // At the moment, all inline asm memory operands are a single register.
 // In any case, the output of this routine should always be just one
 // assembler operand.
-
 bool PPCAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
                                           const char *ExtraCode,
                                           raw_ostream &O) {
@@ -875,18 +874,19 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     EmitToStreamer(*OutStreamer, TmpInst);
     return;
   }
-  case PPC::ADDItoc: {
+  case PPC::ADDItoc:
+  case PPC::ADDItoc8: {
     assert(IsAIX && TM.getCodeModel() == CodeModel::Small &&
-           "Operand only valid in AIX 32 bit mode");
+           "PseudoOp only valid for small code model AIX");
 
-    // Transform %rN = ADDItoc @op1, %r2.
+    // Transform %rN = ADDItoc/8 @op1, %r2.
     LowerPPCMachineInstrToMCInst(MI, TmpInst, *this);
 
     // Change the opcode to load address.
-    TmpInst.setOpcode(PPC::LA);
+    TmpInst.setOpcode((!IsPPC64) ? (PPC::LA) : (PPC::LA8));
 
     const MachineOperand &MO = MI->getOperand(1);
-    assert(MO.isGlobal() && "Invalid operand for ADDItoc.");
+    assert(MO.isGlobal() && "Invalid operand for ADDItoc[8].");
 
     // Map the operand to its corresponding MCSymbol.
     const MCSymbol *const MOSymbol = getMCSymbolForTOCPseudoMO(MO, *this);
@@ -1494,7 +1494,7 @@ void PPCLinuxAsmPrinter::emitInstruction(const MachineInstr *MI) {
     //
     // Update compiler-rt/lib/xray/xray_powerpc64.cc accordingly when number
     // of instructions change.
-    OutStreamer->emitCodeAlignment(8);
+    OutStreamer->emitCodeAlignment(8, &getSubtargetInfo());
     MCSymbol *BeginOfSled = OutContext.createTempSymbol();
     OutStreamer->emitLabel(BeginOfSled);
     EmitToStreamer(*OutStreamer, RetInst);
@@ -2023,9 +2023,10 @@ void PPCAIXAsmPrinter::emitTracebackTable() {
   // Set the 4th byte of the mandatory field.
   FirstHalfOfMandatoryField |= TracebackTable::IsFunctionNamePresentMask;
 
-  static_assert(XCOFF::AllocRegNo == 31, "Unexpected register usage!");
-  if (MRI.isPhysRegUsed(Subtarget->isPPC64() ? PPC::X31 : PPC::R31,
-                        /* SkipRegMaskTest */ true))
+  const PPCRegisterInfo *RegInfo =
+      static_cast<const PPCRegisterInfo *>(Subtarget->getRegisterInfo());
+  Register FrameReg = RegInfo->getFrameRegister(*MF);
+  if (FrameReg == (Subtarget->isPPC64() ? PPC::X31 : PPC::R31))
     FirstHalfOfMandatoryField |= TracebackTable::IsAllocaUsedMask;
 
   const SmallVectorImpl<Register> &MustSaveCRs = FI->getMustSaveCRs();
@@ -2356,7 +2357,7 @@ void PPCAIXAsmPrinter::emitGlobalVariableHelper(const GlobalVariable *GV) {
   if (GV->hasCommonLinkage() || GVKind.isBSSLocal() ||
       GVKind.isThreadBSSLocal()) {
     Align Alignment = GV->getAlign().getValueOr(DL.getPreferredAlign(GV));
-    uint64_t Size = DL.getTypeAllocSize(GV->getType()->getElementType());
+    uint64_t Size = DL.getTypeAllocSize(GV->getValueType());
     GVSym->setStorageClass(
         TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(GV));
 
@@ -2527,7 +2528,7 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
 
   // Construct an aliasing list for each GlobalObject.
   for (const auto &Alias : M.aliases()) {
-    const GlobalObject *Base = Alias.getBaseObject();
+    const GlobalObject *Base = Alias.getAliaseeObject();
     if (!Base)
       report_fatal_error(
           "alias without a base object is not yet supported on AIX");
@@ -2574,6 +2575,18 @@ void PPCAIXAsmPrinter::emitInstruction(const MachineInstr *MI) {
     if (MI->getOperand(0).isSymbol())
       report_fatal_error("Tail call for extern symbol not yet supported.");
     break;
+  case PPC::DST:
+  case PPC::DST64:
+  case PPC::DSTT:
+  case PPC::DSTT64:
+  case PPC::DSTST:
+  case PPC::DSTST64:
+  case PPC::DSTSTT:
+  case PPC::DSTSTT64:
+    EmitToStreamer(
+        *OutStreamer,
+        MCInstBuilder(PPC::ORI).addReg(PPC::R0).addReg(PPC::R0).addImm(0));
+    return;
   }
   return PPCAsmPrinter::emitInstruction(MI);
 }

@@ -4,7 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 #pragma once
-#include "xpti_data_types.h"
+
+#include "xpti/xpti_data_types.h"
 
 #include <atomic>
 #include <mutex>
@@ -161,8 +162,7 @@ class Hash64x64Table {
 public:
   using ht_lut_t = std::unordered_map<int64_t, int64_t>;
 
-  Hash64x64Table(int size = 1024)
-      : MForward(size), MReverse(size), MTableSize(size) {
+  Hash64x64Table(int size = 1024) : MForward(size), MReverse(size) {
 #ifdef XPTI_STATISTICS
     MInsertions = 0;
     MRetrievals = 0;
@@ -267,10 +267,9 @@ public:
   }
 
 private:
-  ht_lut_t MForward;  ///< Forward lookup hash map
-  ht_lut_t MReverse;  ///< Reverse lookup hash map
-  int32_t MTableSize; ///< Initial size of the hash map
-  std::mutex MMutex;  ///< Mutex required to implement a double-check pattern
+  ht_lut_t MForward; ///< Forward lookup hash map
+  ht_lut_t MReverse; ///< Reverse lookup hash map
+  std::mutex MMutex; ///< Mutex required to implement a double-check pattern
 #ifdef XPTI_STATISTICS
   safe_uint64_t MInsertions, ///< Thread-safe tracking of insertions
       MRetrievals;           ///< Thread-safe tracking of lookups

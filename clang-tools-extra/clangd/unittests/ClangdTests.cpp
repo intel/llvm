@@ -54,10 +54,8 @@ namespace clangd {
 namespace {
 
 using ::testing::AllOf;
-using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::Field;
-using ::testing::Gt;
 using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::SizeIs;
@@ -624,10 +622,8 @@ TEST(ClangdServerTest, InvalidCompileCommand) {
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
 
   auto FooCpp = testPath("foo.cpp");
-  // clang cannot create CompilerInvocation if we pass two files in the
-  // CompileCommand. We pass the file in ExtraFlags once and CDB adds another
-  // one in getCompileCommand().
-  CDB.ExtraClangFlags.push_back(FooCpp);
+  // clang cannot create CompilerInvocation in this case.
+  CDB.ExtraClangFlags.push_back("-###");
 
   // Clang can't parse command args in that case, but we shouldn't crash.
   runAddDocument(Server, FooCpp, "int main() {}");
@@ -637,7 +633,8 @@ TEST(ClangdServerTest, InvalidCompileCommand) {
   EXPECT_ERROR(runFindDocumentHighlights(Server, FooCpp, Position()));
   EXPECT_ERROR(runRename(Server, FooCpp, Position(), "new_name",
                          clangd::RenameOptions()));
-  EXPECT_ERROR(runSignatureHelp(Server, FooCpp, Position()));
+  EXPECT_ERROR(
+      runSignatureHelp(Server, FooCpp, Position(), MarkupKind::PlainText));
   // Identifier-based fallback completion.
   EXPECT_THAT(cantFail(runCodeComplete(Server, FooCpp, Position(),
                                        clangd::CodeCompleteOptions()))
@@ -1080,7 +1077,7 @@ TEST(ClangdServerTest, FallbackWhenPreambleIsNotReady) {
   Opts.RunParser = CodeCompleteOptions::ParseIfReady;
 
   // This will make compile command broken and preamble absent.
-  CDB.ExtraClangFlags = {"yolo.cc"};
+  CDB.ExtraClangFlags = {"-###"};
   Server.addDocument(FooCpp, Code.code());
   ASSERT_TRUE(Server.blockUntilIdleForTest());
   auto Res = cantFail(runCodeComplete(Server, FooCpp, Code.point(), Opts));

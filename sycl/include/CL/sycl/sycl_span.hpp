@@ -227,7 +227,7 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __f, pointer __l)
       : __data{__f} {
     (void)__l;
-    _SYCL_SPAN_ASSERT(_Extent == distance(__f, __l),
+    _SYCL_SPAN_ASSERT(_Extent == std::distance(__f, __l),
                       "size mismatch in span's constructor (ptr, ptr)");
   }
 
@@ -428,7 +428,7 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __ptr, size_type __count)
       : __data{__ptr}, __size{__count} {}
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __f, pointer __l)
-      : __data{__f}, __size{static_cast<size_t>(distance(__f, __l))} {}
+      : __data{__f}, __size{static_cast<size_t>(std::distance(__f, __l))} {}
 
   template <size_t _Sz>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
@@ -608,7 +608,11 @@ as_writable_bytes(span<_Tp, _Extent> __s) noexcept
 }
 
 //  Deduction guides
-template <class _Tp, size_t _Sz> span(_Tp (&)[_Sz])->span<_Tp, _Sz>;
+
+// array arg deduction guide. dynamic_extent arg used to select
+// the correct template. The _Sz will be used for the __size of the span.
+template <class _Tp, size_t _Sz>
+span(_Tp (&)[_Sz]) -> span<_Tp, dynamic_extent>;
 
 template <class _Tp, size_t _Sz> span(std::array<_Tp, _Sz> &)->span<_Tp, _Sz>;
 

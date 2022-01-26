@@ -140,7 +140,8 @@ namespace Intrinsic {
       Subdivide2Argument,
       Subdivide4Argument,
       VecOfBitcastsToInt,
-      AMX
+      AMX,
+      PPCQuad,
     } Kind;
 
     union {
@@ -244,6 +245,8 @@ namespace Intrinsic {
 
   // Checks if the intrinsic name matches with its signature and if not
   // returns the declaration with the same signature and remangled name.
+  // An existing GlobalValue with the wanted name but with a wrong prototype
+  // or of the wrong kind will be renamed by adding ".renamed" to the name.
   llvm::Optional<Function*> remangleIntrinsicFunction(Function *F);
 
 } // End Intrinsic namespace

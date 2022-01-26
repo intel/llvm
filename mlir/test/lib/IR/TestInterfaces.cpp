@@ -10,7 +10,7 @@
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
-using namespace mlir::test;
+using namespace test;
 
 namespace {
 /// This test checks various aspects of Type interface generation and
@@ -40,7 +40,7 @@ struct TestTypeInterfaces
     });
   }
 };
-} // end anonymous namespace
+} // namespace
 
 namespace mlir {
 namespace test {

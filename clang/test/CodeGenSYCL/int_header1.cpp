@@ -15,7 +15,7 @@
 // CHECK-NEXT:struct IsThisValid;
 // CHECK-NEXT:}}
 
-// CHECK:template <> struct KernelInfo<class KernelName> {
+// CHECK:template <> struct KernelInfo<KernelName> {
 // CHECK:template <> struct KernelInfo<::nm1::nm2::KernelName0> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName1> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName3<::nm1::nm2::KernelName0>> {

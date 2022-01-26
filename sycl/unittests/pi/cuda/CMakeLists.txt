@@ -1,7 +1,7 @@
-set(LLVM_REQUIRES_EH 1)
 add_sycl_unittest(PiCudaTests OBJECT
   test_base_objects.cpp
   test_commands.cpp
+  test_contexts.cpp
   test_device.cpp
   test_interop_get_native.cpp
   test_kernels.cpp

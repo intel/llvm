@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -fsyntax-only
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s -fsyntax-only
 // RUN: FileCheck -input-file=%t.h %s
 
 // This test checks the integration header generated when
@@ -23,9 +23,10 @@
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12 },
 // CHECK-EMPTY:
+// CHECK-NEXT:   { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
 
-// CHECK: template <> struct KernelInfo<class kernel_A> {
+// CHECK: template <> struct KernelInfo<kernel_A> {
 
 #include "Inputs/sycl.hpp"
 

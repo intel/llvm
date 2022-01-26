@@ -158,9 +158,25 @@ define i8* @test7(i8* %b, i8** %e) {
   ret i8* %gep
 }
 
+define i64* @undef_inbounds_var_idx(i64 %idx) {
+; CHECK-LABEL: @undef_inbounds_var_idx(
+; CHECK-NEXT:    ret i64* poison
+;
+  %el = getelementptr inbounds i64, i64* undef, i64 %idx
+  ret i64* %el
+}
+
+define i64* @undef_no_inbounds_var_idx(i64 %idx) {
+; CHECK-LABEL: @undef_no_inbounds_var_idx(
+; CHECK-NEXT:    ret i64* undef
+;
+  %el = getelementptr i64, i64* undef, i64 %idx
+  ret i64* %el
+}
+
 define <8 x i64*> @undef_vec1() {
 ; CHECK-LABEL: @undef_vec1(
-; CHECK-NEXT:    ret <8 x i64*> undef
+; CHECK-NEXT:    ret <8 x i64*> poison
 ;
   %el = getelementptr inbounds i64, i64* undef, <8 x i64> undef
   ret <8 x i64*> %el
@@ -233,7 +249,7 @@ define <4 x float*> @vector_idx_mix_scalar_vector() {
 
 define <vscale x 4 x i32*> @scalable_idx_scalar() {
 ; CHECK-LABEL: @scalable_idx_scalar(
-; CHECK-NEXT:    ret <vscale x 4 x i32*> getelementptr (i32, <vscale x 4 x i32*> zeroinitializer, <vscale x 4 x i64> shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> undef, i64 1, i32 0), <vscale x 4 x i64> undef, <vscale x 4 x i32> zeroinitializer))
+; CHECK-NEXT:    ret <vscale x 4 x i32*> getelementptr (i32, <vscale x 4 x i32*> zeroinitializer, <vscale x 4 x i64> shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> poison, i64 1, i32 0), <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer))
 ;
   %gep = getelementptr i32, <vscale x 4 x i32*> zeroinitializer, i64 1
   ret <vscale x 4 x i32*> %gep
@@ -256,8 +272,6 @@ define <vscale x 2 x i64*> @ptr_idx_mix_scalar_scalable_vector() {
 }
 
 ; Check ConstantExpr::getGetElementPtr() using ElementCount for size queries - end.
-
-; TODO: these should return poison
 
 define i8* @poison() {
 ; CHECK-LABEL: @poison(

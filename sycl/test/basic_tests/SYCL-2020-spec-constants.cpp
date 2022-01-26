@@ -37,6 +37,21 @@ constexpr sycl::specialization_id<uint64_t> uint64_id(8);
 // constexpr sycl::specialization_id<half> half_id(9.0);
 constexpr sycl::specialization_id<float> float_id(10.0);
 constexpr sycl::specialization_id<double> double_id(11.0);
+constexpr sycl::marray<double, 5> ma;
+constexpr sycl::specialization_id<sycl::marray<double, 5>> marray_id5(11.0);
+constexpr sycl::specialization_id<sycl::marray<double, 1>> marray_id1(11.0);
+constexpr sycl::specialization_id<sycl::marray<double, 5>> marray_id_def(ma);
+constexpr sycl::vec<double, 4> v{};
+constexpr sycl::specialization_id<sycl::vec<double, 4>> vec_id_def(v);
+constexpr sycl::specialization_id<sycl::vec<double, 1>> vec_id1(11.0);
+constexpr sycl::specialization_id<sycl::vec<double, 4>> vec_id4(11.0);
+
+constexpr sycl::vec<long long, 1> vv(1);
+
+template <typename T> inline constexpr auto helper(int x) { return T{x}; }
+
+constexpr sycl::specialization_id<sycl::vec<long long, 1>>
+    vec_helper1(helper<sycl::vec<long long, 1>>(1));
 
 struct composite {
   int a;
@@ -101,6 +116,6 @@ int main() {
 // CHECK-DAG: [[UNIQUE_PREFIX]]____ZL9uint64_id=2|
 // FIXME: check line for half constant
 
-// CHECK-RT-NOT: [SYCL/specialization constants default values]
+// CHECK-RT: [SYCL/specialization constants default values]
 // CHECK-DEF: [SYCL/specialization constants default values]
 // CHECK-DEF: all=2|

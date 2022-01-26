@@ -16,17 +16,23 @@ add_entrypoint_object(
     ../call_once.h
   DEPENDS
     .threads_utils
-    libc.config.linux.linux_syscall_h
     libc.include.sys_syscall
     libc.include.threads
+    libc.src.__support.OSUtil.osutil
 )
 
 add_header_library(
   threads_utils
   HDRS
-    thread_utils.h
+    CndVar.h
+    Futex.h
+    Mutex.h
+    Thread.h
   DEPENDS
     .thread_start_args_h
+    libc.include.sys_syscall
+    libc.include.threads
+    libc.src.__support.OSUtil.osutil
 )
 
 add_entrypoint_object(
@@ -37,14 +43,15 @@ add_entrypoint_object(
     ../thrd_create.h
   DEPENDS
     .threads_utils
-    libc.config.linux.linux_syscall_h
     libc.include.errno
     libc.include.sys_syscall
     libc.include.threads
     libc.src.__support.common
+    libc.src.__support.OSUtil.osutil
     libc.src.errno.__errno_location
     libc.src.sys.mman.mmap
   COMPILE_OPTIONS
+    -O3
     -fno-omit-frame-pointer # This allows us to sniff out the thread args from
                             # the new thread's stack reliably.
 )
@@ -57,11 +64,11 @@ add_entrypoint_object(
     ../thrd_join.h
   DEPENDS
     .threads_utils
-    libc.config.linux.linux_syscall_h
     libc.include.sys_syscall
     libc.include.threads
-    libc.src.sys.mman.munmap
     libc.src.__support.common
+    libc.src.__support.OSUtil.osutil
+    libc.src.sys.mman.munmap
 )
 
 add_entrypoint_object(
@@ -76,6 +83,17 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  mtx_destroy
+  SRCS
+    mtx_destroy.cpp
+  HDRS
+    ../mtx_destroy.h
+  DEPENDS
+    .threads_utils
+    libc.include.threads
+)
+
+add_entrypoint_object(
   mtx_lock
   SRCS
     mtx_lock.cpp
@@ -83,8 +101,6 @@ add_entrypoint_object(
     ../mtx_lock.h
   DEPENDS
     .threads_utils
-    libc.config.linux.linux_syscall_h
-    libc.include.sys_syscall
     libc.include.threads
 )
 
@@ -96,7 +112,60 @@ add_entrypoint_object(
     ../mtx_unlock.h
   DEPENDS
     .threads_utils
-    libc.config.linux.linux_syscall_h
-    libc.include.sys_syscall
+    libc.include.threads
+)
+
+add_entrypoint_object(
+  cnd_init
+  SRCS
+    cnd_init.cpp
+  HDRS
+    ../cnd_init.h
+  DEPENDS
+    .threads_utils
+    libc.include.threads
+)
+
+add_entrypoint_object(
+  cnd_destroy
+  SRCS
+    cnd_destroy.cpp
+  HDRS
+    ../cnd_destroy.h
+  DEPENDS
+    .threads_utils
+    libc.include.threads
+)
+
+add_entrypoint_object(
+  cnd_wait
+  SRCS
+    cnd_wait.cpp
+  HDRS
+    ../cnd_wait.h
+  DEPENDS
+    .threads_utils
+    libc.include.threads
+)
+
+add_entrypoint_object(
+  cnd_signal
+  SRCS
+    cnd_signal.cpp
+  HDRS
+    ../cnd_signal.h
+  DEPENDS
+    .threads_utils
+    libc.include.threads
+)
+
+add_entrypoint_object(
+  cnd_broadcast
+  SRCS
+    cnd_broadcast.cpp
+  HDRS
+    ../cnd_broadcast.h
+  DEPENDS
+    .threads_utils
     libc.include.threads
 )

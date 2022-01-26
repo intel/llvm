@@ -14,12 +14,16 @@ cl_intel_devicelib_cassert
                                 __generic const char *func,
                                 size_t gid0, size_t gid1, size_t gid2,
                                 size_t lid0, size_t lid1, size_t lid2);
+
 Semantic:
 the function is called when an assertion expression `expr` is false,
 and it indicates that a program does not execute as expected.
 The function should print a message containing the information
 provided in the arguments. In addition to that, the function is free
 to terminate the current kernel invocation.
+
+Fallback implementation of the function raises a flag to be read later by `__devicelib_assert_read`.
+The flag remains raised until the program finishes.
 
 Arguments:
 
@@ -32,6 +36,16 @@ Arguments:
 Example of a message:
 .. code:
    foo.cpp:42: void foo(int): global id: [0,0,0], local id: [0,0,0] Assertion `buf[wiID] == 0 && "Invalid value"` failed.
+
+.. code:
+   int __devicelib_assert_read();
+
+Semantic:
+the function is called to read assert failure flag raised by
+`__devicelib_assert_fail`.
+The function is only used in fallback implementation.
+Invoking `__devicelib_assert_read` after a kernel doesn't imply the kernel has
+assertion failed.
 
 See also: assert_extension_.
 .. _assert_extension: ../Assert/SYCL_ONEAPI_ASSERT.asciidoc)
@@ -229,3 +243,19 @@ Those __devicelib_* functions have the same argument type and return type as cor
 complex math functions from <complex.h>, please refer to ISO/IEC 14882:2011 for details. The
 "double __complex__" type is C99 complex type and it is an alias to "struct {double, double}"
 in LLVM IR and SPIR-V.
+
+cl_intel_devicelib_cstring
+==========================
+
+.. code:
+   void *__devicelib_memcpy(void *dest, const void *src, size_t n);
+   void *__devicelib_memset(void *dest, int c, size_t n);
+   int __devicelib_memcmp(const void *s1, const void *s2, size_t n);
+
+Semantic:
+Those __devicelib_* functions perform the same operation as the corresponding C string
+library functions.
+
+Arguments:
+Those __devicelib_* functions have the same argument type and return type as corresponding
+string functions from <string.h>, please refer to ISO/IEC 14882:2011 for details.

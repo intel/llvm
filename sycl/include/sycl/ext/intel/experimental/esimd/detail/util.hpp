@@ -15,6 +15,12 @@
 
 #include <type_traits>
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define __ESIMD_INTRIN SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+#else
+#define __ESIMD_INTRIN inline
+#endif // __SYCL_DEVICE_ONLY__
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
@@ -82,10 +88,6 @@ template <typename T> struct is_esimd_vector : public std::false_type {};
 template <typename T, int N>
 struct is_esimd_vector<simd<T, N>> : public std::true_type {};
 
-template <typename T>
-using is_esimd_scalar =
-    typename std::bool_constant<cl::sycl::detail::is_arithmetic<T>::value>;
-
 template <typename T, int N>
 using is_hw_int_type =
     typename std::bool_constant<std::is_integral_v<T> && (sizeof(T) == N)>;
@@ -109,7 +111,7 @@ using is_fp_or_dword_type =
 
 /// Convert types into vector types
 template <typename T> struct simd_type { using type = simd<T, 1>; };
-template <typename T, int N> struct simd_type<vector_type<T, N>> {
+template <typename T, int N> struct simd_type<raw_vector_type<T, N>> {
   using type = simd<T, N>;
 };
 
@@ -140,6 +142,21 @@ template <> struct word_type<char> { using type = short; };
 template <> struct word_type<int> { using type = short; };
 template <> struct word_type<uchar> { using type = ushort; };
 template <> struct word_type<uint> { using type = ushort; };
+
+// Utility for compile time loop unrolling.
+template <unsigned N> class ForHelper {
+  template <unsigned I, typename Action> static inline void repeat(Action A) {
+    if constexpr (I < N)
+      A(I);
+    if constexpr (I + 1 < N)
+      repeat<I + 1, Action>(A);
+  }
+
+public:
+  template <typename Action> static inline void unroll(Action A) {
+    ForHelper::template repeat<0, Action>(A);
+  }
+};
 
 } // namespace detail
 

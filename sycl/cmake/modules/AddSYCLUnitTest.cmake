@@ -4,9 +4,11 @@
 # Produces a binary names `basename(test_dirname)`.
 macro(add_sycl_unittest test_dirname link_variant)
   # Enable exception handling for these unit tests
-  set(LLVM_REQUIRES_EH 1)
+  set(LLVM_REQUIRES_EH ON)
+  set(LLVM_REQUIRES_RTTI ON)
 
-  if (MSVC AND CMAKE_BUILD_TYPE MATCHES "Debug")
+  string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
+  if (MSVC AND build_type_lower MATCHES "debug")
     set(sycl_obj_target "sycld_object")
     set(sycl_so_target "sycld")
   else()
@@ -20,7 +22,8 @@ macro(add_sycl_unittest test_dirname link_variant)
   else()
     add_unittest(SYCLUnitTests ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
-    target_compile_definitions(${test_dirname} PRIVATE __SYCL_BUILD_SYCL_DLL)
+    target_compile_definitions(${test_dirname}
+                               PRIVATE __SYCL_BUILD_SYCL_DLL)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()

@@ -14,6 +14,8 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/Process.h"
 
+#define DEBUG_TYPE "orc"
+
 namespace llvm {
 namespace orc {
 
@@ -21,69 +23,23 @@ ExecutorProcessControl::MemoryAccess::~MemoryAccess() {}
 
 ExecutorProcessControl::~ExecutorProcessControl() {}
 
-Error ExecutorProcessControl::associateJITSideWrapperFunctions(
-    JITDylib &JD, WrapperFunctionAssociationMap WFs) {
-
-  // Look up tag addresses.
-  auto &ES = JD.getExecutionSession();
-  auto TagAddrs =
-      ES.lookup({{&JD, JITDylibLookupFlags::MatchAllSymbols}},
-                SymbolLookupSet::fromMapKeys(
-                    WFs, SymbolLookupFlags::WeaklyReferencedSymbol));
-  if (!TagAddrs)
-    return TagAddrs.takeError();
-
-  // Associate tag addresses with implementations.
-  std::lock_guard<std::mutex> Lock(TagToFuncMapMutex);
-  for (auto &KV : *TagAddrs) {
-    auto TagAddr = KV.second.getAddress();
-    if (TagToFunc.count(TagAddr))
-      return make_error<StringError>("Tag " + formatv("{0:x16}", TagAddr) +
-                                         " (for " + *KV.first +
-                                         ") already registered",
-                                     inconvertibleErrorCode());
-    auto I = WFs.find(KV.first);
-    assert(I != WFs.end() && I->second &&
-           "AsyncWrapperFunction implementation missing");
-    TagToFunc[KV.second.getAddress()] =
-        std::make_shared<AsyncWrapperFunction>(std::move(I->second));
-  }
-  return Error::success();
-}
-
-void ExecutorProcessControl::runJITSideWrapperFunction(
-    SendResultFunction SendResult, JITTargetAddress TagAddr,
-    ArrayRef<char> ArgBuffer) {
-
-  std::shared_ptr<AsyncWrapperFunction> F;
-  {
-    std::lock_guard<std::mutex> Lock(TagToFuncMapMutex);
-    auto I = TagToFunc.find(TagAddr);
-    if (I != TagToFunc.end())
-      F = I->second;
-  }
-
-  if (F)
-    (*F)(std::move(SendResult), ArgBuffer.data(), ArgBuffer.size());
-  else
-    SendResult(shared::WrapperFunctionResult::createOutOfBandError(
-        ("No function registered for tag " + formatv("{0:x16}", TagAddr))
-            .str()));
-}
-
 SelfExecutorProcessControl::SelfExecutorProcessControl(
-    std::shared_ptr<SymbolStringPool> SSP, Triple TargetTriple,
-    unsigned PageSize, std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr)
-    : ExecutorProcessControl(std::move(SSP)) {
+    std::shared_ptr<SymbolStringPool> SSP, std::unique_ptr<TaskDispatcher> D,
+    Triple TargetTriple, unsigned PageSize,
+    std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr)
+    : ExecutorProcessControl(std::move(SSP), std::move(D)) {
 
   OwnedMemMgr = std::move(MemMgr);
   if (!OwnedMemMgr)
-    OwnedMemMgr = std::make_unique<jitlink::InProcessMemoryManager>();
+    OwnedMemMgr = std::make_unique<jitlink::InProcessMemoryManager>(
+        sys::Process::getPageSizeEstimate());
 
   this->TargetTriple = std::move(TargetTriple);
   this->PageSize = PageSize;
   this->MemMgr = OwnedMemMgr.get();
   this->MemAccess = this;
+  this->JDI = {ExecutorAddr::fromPtr(jitDispatchViaWrapperFunctionManager),
+               ExecutorAddr::fromPtr(this)};
   if (this->TargetTriple.isOSBinFormatMachO())
     GlobalManglingPrefix = '_';
 }
@@ -91,7 +47,20 @@ SelfExecutorProcessControl::SelfExecutorProcessControl(
 Expected<std::unique_ptr<SelfExecutorProcessControl>>
 SelfExecutorProcessControl::Create(
     std::shared_ptr<SymbolStringPool> SSP,
+    std::unique_ptr<TaskDispatcher> D,
     std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr) {
+
+  if (!SSP)
+    SSP = std::make_shared<SymbolStringPool>();
+
+  if (!D) {
+#if LLVM_ENABLE_THREADS
+    D = std::make_unique<DynamicThreadPoolTaskDispatcher>();
+#else
+    D = std::make_unique<InPlaceTaskDispatcher>();
+#endif
+  }
+
   auto PageSize = sys::Process::getPageSize();
   if (!PageSize)
     return PageSize.takeError();
@@ -99,7 +68,8 @@ SelfExecutorProcessControl::Create(
   Triple TT(sys::getProcessTriple());
 
   return std::make_unique<SelfExecutorProcessControl>(
-      std::move(SSP), std::move(TT), *PageSize, std::move(MemMgr));
+      std::move(SSP), std::move(D), std::move(TT), *PageSize,
+      std::move(MemMgr));
 }
 
 Expected<tpctypes::DylibHandle>
@@ -135,7 +105,7 @@ SelfExecutorProcessControl::lookupSymbols(ArrayRef<LookupRequest> Request) {
         // FIXME: Collect all failing symbols before erroring out.
         SymbolNameVector MissingSymbols;
         MissingSymbols.push_back(Sym);
-        return make_error<SymbolsNotFound>(std::move(MissingSymbols));
+        return make_error<SymbolsNotFound>(SSP, std::move(MissingSymbols));
       }
       R.back().push_back(pointerToJITTargetAddress(Addr));
     }
@@ -145,57 +115,82 @@ SelfExecutorProcessControl::lookupSymbols(ArrayRef<LookupRequest> Request) {
 }
 
 Expected<int32_t>
-SelfExecutorProcessControl::runAsMain(JITTargetAddress MainFnAddr,
+SelfExecutorProcessControl::runAsMain(ExecutorAddr MainFnAddr,
                                       ArrayRef<std::string> Args) {
   using MainTy = int (*)(int, char *[]);
-  return orc::runAsMain(jitTargetAddressToFunction<MainTy>(MainFnAddr), Args);
+  return orc::runAsMain(MainFnAddr.toPtr<MainTy>(), Args);
 }
 
-void SelfExecutorProcessControl::runWrapperAsync(SendResultFunction SendResult,
-                                                 JITTargetAddress WrapperFnAddr,
-                                                 ArrayRef<char> ArgBuffer) {
+void SelfExecutorProcessControl::callWrapperAsync(ExecutorAddr WrapperFnAddr,
+                                                  IncomingWFRHandler SendResult,
+                                                  ArrayRef<char> ArgBuffer) {
   using WrapperFnTy =
-      shared::detail::CWrapperFunctionResult (*)(const char *Data, size_t Size);
-  auto *WrapperFn = jitTargetAddressToFunction<WrapperFnTy>(WrapperFnAddr);
+      shared::CWrapperFunctionResult (*)(const char *Data, size_t Size);
+  auto *WrapperFn = WrapperFnAddr.toPtr<WrapperFnTy>();
   SendResult(WrapperFn(ArgBuffer.data(), ArgBuffer.size()));
 }
 
-Error SelfExecutorProcessControl::disconnect() { return Error::success(); }
+Error SelfExecutorProcessControl::disconnect() {
+  D->shutdown();
+  return Error::success();
+}
 
-void SelfExecutorProcessControl::writeUInt8s(ArrayRef<tpctypes::UInt8Write> Ws,
-                                             WriteResultFn OnWriteComplete) {
+void SelfExecutorProcessControl::writeUInt8sAsync(
+    ArrayRef<tpctypes::UInt8Write> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    *jitTargetAddressToPointer<uint8_t *>(W.Address) = W.Value;
+    *W.Addr.toPtr<uint8_t *>() = W.Value;
   OnWriteComplete(Error::success());
 }
 
-void SelfExecutorProcessControl::writeUInt16s(
+void SelfExecutorProcessControl::writeUInt16sAsync(
     ArrayRef<tpctypes::UInt16Write> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    *jitTargetAddressToPointer<uint16_t *>(W.Address) = W.Value;
+    *W.Addr.toPtr<uint16_t *>() = W.Value;
   OnWriteComplete(Error::success());
 }
 
-void SelfExecutorProcessControl::writeUInt32s(
+void SelfExecutorProcessControl::writeUInt32sAsync(
     ArrayRef<tpctypes::UInt32Write> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    *jitTargetAddressToPointer<uint32_t *>(W.Address) = W.Value;
+    *W.Addr.toPtr<uint32_t *>() = W.Value;
   OnWriteComplete(Error::success());
 }
 
-void SelfExecutorProcessControl::writeUInt64s(
+void SelfExecutorProcessControl::writeUInt64sAsync(
     ArrayRef<tpctypes::UInt64Write> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    *jitTargetAddressToPointer<uint64_t *>(W.Address) = W.Value;
+    *W.Addr.toPtr<uint64_t *>() = W.Value;
   OnWriteComplete(Error::success());
 }
 
-void SelfExecutorProcessControl::writeBuffers(
+void SelfExecutorProcessControl::writeBuffersAsync(
     ArrayRef<tpctypes::BufferWrite> Ws, WriteResultFn OnWriteComplete) {
   for (auto &W : Ws)
-    memcpy(jitTargetAddressToPointer<char *>(W.Address), W.Buffer.data(),
-           W.Buffer.size());
+    memcpy(W.Addr.toPtr<char *>(), W.Buffer.data(), W.Buffer.size());
   OnWriteComplete(Error::success());
+}
+
+shared::CWrapperFunctionResult
+SelfExecutorProcessControl::jitDispatchViaWrapperFunctionManager(
+    void *Ctx, const void *FnTag, const char *Data, size_t Size) {
+
+  LLVM_DEBUG({
+    dbgs() << "jit-dispatch call with tag " << FnTag << " and " << Size
+           << " byte payload.\n";
+  });
+
+  std::promise<shared::WrapperFunctionResult> ResultP;
+  auto ResultF = ResultP.get_future();
+  static_cast<SelfExecutorProcessControl *>(Ctx)
+      ->getExecutionSession()
+      .runJITDispatchHandler(
+          [ResultP = std::move(ResultP)](
+              shared::WrapperFunctionResult Result) mutable {
+            ResultP.set_value(std::move(Result));
+          },
+          pointerToJITTargetAddress(FnTag), {Data, Size});
+
+  return ResultF.get().release();
 }
 
 } // end namespace orc

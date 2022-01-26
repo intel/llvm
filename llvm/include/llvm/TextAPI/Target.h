@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TEXTAPI_MACHO_TARGET_H
-#define LLVM_TEXTAPI_MACHO_TARGET_H
+#ifndef LLVM_TEXTAPI_TARGET_H
+#define LLVM_TEXTAPI_TARGET_H
 
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/Error.h"
@@ -24,17 +24,17 @@ namespace MachO {
 class Target {
 public:
   Target() = default;
-  Target(Architecture Arch, PlatformKind Platform)
+  Target(Architecture Arch, PlatformType Platform)
       : Arch(Arch), Platform(Platform) {}
   explicit Target(const llvm::Triple &Triple)
-      : Arch(mapToArchitecture(Triple)), Platform(mapToPlatformKind(Triple)) {}
+      : Arch(mapToArchitecture(Triple)), Platform(mapToPlatformType(Triple)) {}
 
   static llvm::Expected<Target> create(StringRef Target);
 
   operator std::string() const;
 
   Architecture Arch;
-  PlatformKind Platform;
+  PlatformType Platform;
 };
 
 inline bool operator==(const Target &LHS, const Target &RHS) {
@@ -67,4 +67,4 @@ raw_ostream &operator<<(raw_ostream &OS, const Target &Target);
 } // namespace MachO
 } // namespace llvm
 
-#endif // LLVM_TEXTAPI_MACHO_TARGET_H
+#endif // LLVM_TEXTAPI_TARGET_H

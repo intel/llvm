@@ -76,8 +76,8 @@ void mlir::getUsedValuesDefinedAbove(MutableArrayRef<Region> regions,
 /// Erase the unreachable blocks within the provided regions. Returns success
 /// if any blocks were erased, failure otherwise.
 // TODO: We could likely merge this with the DCE algorithm below.
-static LogicalResult eraseUnreachableBlocks(RewriterBase &rewriter,
-                                            MutableArrayRef<Region> regions) {
+LogicalResult mlir::eraseUnreachableBlocks(RewriterBase &rewriter,
+                                           MutableArrayRef<Region> regions) {
   // Set of blocks found to be reachable within a given region.
   llvm::df_iterator_default_set<Block *, 16> reachable;
   // If any blocks were found to be dead.
@@ -364,8 +364,8 @@ static LogicalResult deleteDeadness(RewriterBase &rewriter,
 //
 // This function returns success if any operations or arguments were deleted,
 // failure otherwise.
-static LogicalResult runRegionDCE(RewriterBase &rewriter,
-                                  MutableArrayRef<Region> regions) {
+LogicalResult mlir::runRegionDCE(RewriterBase &rewriter,
+                                 MutableArrayRef<Region> regions) {
   LiveMap liveMap;
   do {
     liveMap.resetChanged();
@@ -417,7 +417,7 @@ struct BlockEquivalenceData {
   /// produced within the block before this operation.
   DenseMap<Operation *, unsigned> opOrderIndex;
 };
-} // end anonymous namespace
+} // namespace
 
 BlockEquivalenceData::BlockEquivalenceData(Block *block)
     : block(block), hash(0) {
@@ -428,7 +428,9 @@ BlockEquivalenceData::BlockEquivalenceData(Block *block)
       orderIt += numResults;
     }
     auto opHash = OperationEquivalence::computeHash(
-        &op, OperationEquivalence::Flags::IgnoreOperands);
+        &op, OperationEquivalence::ignoreHashValue,
+        OperationEquivalence::ignoreHashValue,
+        OperationEquivalence::IgnoreLocations);
     hash = llvm::hash_combine(hash, opHash);
   }
 }
@@ -475,7 +477,7 @@ private:
   /// replaced by arguments when the cluster gets merged.
   std::set<std::pair<int, int>> operandsToMerge;
 };
-} // end anonymous namespace
+} // namespace
 
 LogicalResult BlockMergeCluster::addToCluster(BlockEquivalenceData &blockData) {
   if (leaderData.hash != blockData.hash)
@@ -491,7 +493,9 @@ LogicalResult BlockMergeCluster::addToCluster(BlockEquivalenceData &blockData) {
   for (int opI = 0; lhsIt != lhsE && rhsIt != rhsE; ++lhsIt, ++rhsIt, ++opI) {
     // Check that the operations are equivalent.
     if (!OperationEquivalence::isEquivalentTo(
-            &*lhsIt, &*rhsIt, OperationEquivalence::Flags::IgnoreOperands))
+            &*lhsIt, &*rhsIt, OperationEquivalence::ignoreValueEquivalence,
+            OperationEquivalence::ignoreValueEquivalence,
+            OperationEquivalence::Flags::IgnoreLocations))
       return failure();
 
     // Compare the operands of the two operations. If the operand is within
@@ -585,7 +589,7 @@ LogicalResult BlockMergeCluster::merge(RewriterBase &rewriter) {
         1 + blocksToMerge.size(),
         SmallVector<Value, 8>(operandsToMerge.size()));
     unsigned curOpIndex = 0;
-    for (auto it : llvm::enumerate(operandsToMerge)) {
+    for (const auto &it : llvm::enumerate(operandsToMerge)) {
       unsigned nextOpOffset = it.value().first - curOpIndex;
       curOpIndex = it.value().first;
 
@@ -597,8 +601,11 @@ LogicalResult BlockMergeCluster::merge(RewriterBase &rewriter) {
         newArguments[i][it.index()] = operand.get();
 
         // Update the operand and insert an argument if this is the leader.
-        if (i == 0)
-          operand.set(leaderBlock->addArgument(operand.get().getType()));
+        if (i == 0) {
+          Value operandVal = operand.get();
+          operand.set(leaderBlock->addArgument(operandVal.getType(),
+                                               operandVal.getLoc()));
+        }
       }
     }
     // Update the predecessors for each of the blocks.

@@ -60,7 +60,7 @@ public:
 
 TimingManager::TimingManager() : impl(std::make_unique<TimingManagerImpl>()) {}
 
-TimingManager::~TimingManager() {}
+TimingManager::~TimingManager() = default;
 
 /// Get the root timer of this timing manager.
 Timer TimingManager::getRootTimer() {
@@ -178,11 +178,11 @@ public:
   TimerImpl(std::string &&name) : threadId(llvm::get_threadid()), name(name) {}
 
   /// Start the timer.
-  void start() { startTime = std::chrono::system_clock::now(); }
+  void start() { startTime = std::chrono::steady_clock::now(); }
 
   /// Stop the timer.
   void stop() {
-    auto newTime = std::chrono::system_clock::now() - startTime;
+    auto newTime = std::chrono::steady_clock::now() - startTime;
     wallTime += newTime;
     userTime += newTime;
   }
@@ -196,9 +196,9 @@ public:
   TimerImpl *nest(const void *id, function_ref<std::string()> nameBuilder) {
     auto tid = llvm::get_threadid();
     if (tid == threadId)
-      return nestTail(children[id], std::move(nameBuilder));
+      return nestTail(children[id], nameBuilder);
     std::unique_lock<std::mutex> lock(asyncMutex);
-    return nestTail(asyncChildren[tid][id], std::move(nameBuilder));
+    return nestTail(asyncChildren[tid][id], nameBuilder);
   }
 
   /// Tail-called from `nest()`.
@@ -256,7 +256,7 @@ public:
   void mergeChildren(ChildrenMap &&other) {
     if (children.empty()) {
       children = std::move(other);
-      for (auto &child : other)
+      for (auto &child : children)
         child.second->mergeAsyncChildren();
     } else {
       for (auto &child : other)
@@ -384,7 +384,7 @@ public:
   }
 
   /// The last time instant at which the timer was started.
-  std::chrono::time_point<std::chrono::system_clock> startTime;
+  std::chrono::time_point<std::chrono::steady_clock> startTime;
 
   /// Accumulated wall time. If multiple threads of execution are merged into
   /// this timer, the wall time will hold the maximum wall time of each thread
@@ -524,7 +524,7 @@ void DefaultTimingManager::stopTimer(void *handle) {
 
 void *DefaultTimingManager::nestTimer(void *handle, const void *id,
                                       function_ref<std::string()> nameBuilder) {
-  return static_cast<TimerImpl *>(handle)->nest(id, std::move(nameBuilder));
+  return static_cast<TimerImpl *>(handle)->nest(id, nameBuilder);
 }
 
 void DefaultTimingManager::hideTimer(void *handle) {
@@ -549,7 +549,7 @@ struct DefaultTimingManagerOptions {
           clEnumValN(DisplayMode::Tree, "tree",
                      "display the results ina with a nested tree view"))};
 };
-} // end anonymous namespace
+} // namespace
 
 static llvm::ManagedStatic<DefaultTimingManagerOptions> options;
 

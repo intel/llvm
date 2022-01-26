@@ -94,11 +94,22 @@ Value *IRBuilderBase::CreateVScale(Constant *Scaling, const Twine &Name) {
 }
 
 Value *IRBuilderBase::CreateStepVector(Type *DstType, const Twine &Name) {
-  if (isa<ScalableVectorType>(DstType))
-    return CreateIntrinsic(Intrinsic::experimental_stepvector, {DstType}, {},
-                           nullptr, Name);
-
   Type *STy = DstType->getScalarType();
+  if (isa<ScalableVectorType>(DstType)) {
+    Type *StepVecType = DstType;
+    // TODO: We expect this special case (element type < 8 bits) to be
+    // temporary - once the intrinsic properly supports < 8 bits this code
+    // can be removed.
+    if (STy->getScalarSizeInBits() < 8)
+      StepVecType =
+          VectorType::get(getInt8Ty(), cast<ScalableVectorType>(DstType));
+    Value *Res = CreateIntrinsic(Intrinsic::experimental_stepvector,
+                                 {StepVecType}, {}, nullptr, Name);
+    if (StepVecType != DstType)
+      Res = CreateTrunc(Res, DstType);
+    return Res;
+  }
+
   unsigned NumEls = cast<FixedVectorType>(DstType)->getNumElements();
 
   // Create a vector of consecutive numbers from zero to VF.
@@ -973,10 +984,8 @@ CallInst *IRBuilderBase::CreateConstrainedFPCall(
 
 Value *IRBuilderBase::CreateSelect(Value *C, Value *True, Value *False,
                                    const Twine &Name, Instruction *MDFrom) {
-  if (auto *CC = dyn_cast<Constant>(C))
-    if (auto *TC = dyn_cast<Constant>(True))
-      if (auto *FC = dyn_cast<Constant>(False))
-        return Insert(Folder.CreateSelect(CC, TC, FC), Name);
+  if (auto *V = Folder.FoldSelect(C, True, False))
+    return V;
 
   SelectInst *Sel = SelectInst::Create(C, True, False);
   if (MDFrom) {
@@ -1143,9 +1152,11 @@ Value *IRBuilderBase::CreateExtractInteger(
 Value *IRBuilderBase::CreatePreserveArrayAccessIndex(
     Type *ElTy, Value *Base, unsigned Dimension, unsigned LastIndex,
     MDNode *DbgInfo) {
-  assert(isa<PointerType>(Base->getType()) &&
-         "Invalid Base ptr type for preserve.array.access.index.");
   auto *BaseType = Base->getType();
+  assert(isa<PointerType>(BaseType) &&
+         "Invalid Base ptr type for preserve.array.access.index.");
+  assert(cast<PointerType>(BaseType)->isOpaqueOrPointeeTypeMatches(ElTy) &&
+         "Pointer element type mismatch");
 
   Value *LastIndexV = getInt32(LastIndex);
   Constant *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
@@ -1162,6 +1173,8 @@ Value *IRBuilderBase::CreatePreserveArrayAccessIndex(
   Value *DimV = getInt32(Dimension);
   CallInst *Fn =
       CreateCall(FnPreserveArrayAccessIndex, {Base, DimV, LastIndexV});
+  Fn->addParamAttr(
+      0, Attribute::get(Fn->getContext(), Attribute::ElementType, ElTy));
   if (DbgInfo)
     Fn->setMetadata(LLVMContext::MD_preserve_access_index, DbgInfo);
 
@@ -1190,9 +1203,11 @@ Value *IRBuilderBase::CreatePreserveUnionAccessIndex(
 Value *IRBuilderBase::CreatePreserveStructAccessIndex(
     Type *ElTy, Value *Base, unsigned Index, unsigned FieldIndex,
     MDNode *DbgInfo) {
-  assert(isa<PointerType>(Base->getType()) &&
-         "Invalid Base ptr type for preserve.struct.access.index.");
   auto *BaseType = Base->getType();
+  assert(isa<PointerType>(BaseType) &&
+         "Invalid Base ptr type for preserve.struct.access.index.");
+  assert(cast<PointerType>(BaseType)->isOpaqueOrPointeeTypeMatches(ElTy) &&
+         "Pointer element type mismatch");
 
   Value *GEPIndex = getInt32(Index);
   Constant *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
@@ -1206,6 +1221,8 @@ Value *IRBuilderBase::CreatePreserveStructAccessIndex(
   Value *DIIndex = getInt32(FieldIndex);
   CallInst *Fn = CreateCall(FnPreserveStructAccessIndex,
                             {Base, GEPIndex, DIIndex});
+  Fn->addParamAttr(
+      0, Attribute::get(Fn->getContext(), Attribute::ElementType, ElTy));
   if (DbgInfo)
     Fn->setMetadata(LLVMContext::MD_preserve_access_index, DbgInfo);
 

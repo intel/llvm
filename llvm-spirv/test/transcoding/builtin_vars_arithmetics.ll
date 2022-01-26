@@ -7,6 +7,9 @@
 ; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV
 
+; Check that produced builtin-call-based SPV-IR is recognized by the translator
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+
 ; The IR was generated from the following source:
 ; #include <CL/sycl.hpp>
 ;
@@ -32,15 +35,15 @@
 ; clang++ -fsycl -fsycl-device-only emit-llvm tmp.cpp -o tmp.bc
 ; llvm-spirv tmp.bc -spirv-text -o builtin_vars_arithmetics.ll
 
-; CHECK-SPIRV: Decorate [[GlobalInvocationId:[0-9]+]] BuiltIn 28
-; CHECK-SPIRV: Decorate [[GlobalSize:[0-9]+]] BuiltIn 31
-; CHECK-SPIRV: Decorate [[GlobalOffset:[0-9]+]] BuiltIn 33
-; CHECK-SPIRV: Decorate [[GlobalInvocationId]] Constant
-; CHECK-SPIRV: Decorate [[GlobalSize]] Constant
-; CHECK-SPIRV: Decorate [[GlobalOffset]] Constant
-; CHECK-SPIRV: Decorate [[GlobalOffset]] LinkageAttributes "__spirv_BuiltInGlobalOffset" Import 
-; CHECK-SPIRV: Decorate [[GlobalSize]] LinkageAttributes "__spirv_BuiltInGlobalSize" Import 
-; CHECK-SPIRV: Decorate [[GlobalInvocationId]] LinkageAttributes "__spirv_BuiltInGlobalInvocationId" Import 
+; CHECK-SPIRV-DAG: Decorate [[GlobalInvocationId:[0-9]+]] BuiltIn 28
+; CHECK-SPIRV-DAG: Decorate [[GlobalSize:[0-9]+]] BuiltIn 31
+; CHECK-SPIRV-DAG: Decorate [[GlobalOffset:[0-9]+]] BuiltIn 33
+; CHECK-SPIRV-DAG: Decorate [[GlobalInvocationId]] Constant
+; CHECK-SPIRV-DAG: Decorate [[GlobalSize]] Constant
+; CHECK-SPIRV-DAG: Decorate [[GlobalOffset]] Constant
+; CHECK-SPIRV-DAG: Decorate [[GlobalOffset]] LinkageAttributes "__spirv_BuiltInGlobalOffset" Import 
+; CHECK-SPIRV-DAG: Decorate [[GlobalSize]] LinkageAttributes "__spirv_BuiltInGlobalSize" Import 
+; CHECK-SPIRV-DAG: Decorate [[GlobalInvocationId]] LinkageAttributes "__spirv_BuiltInGlobalInvocationId" Import 
 ;
 ; CHECK-LLVM-NOT: addrspacecast <3 x 64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x 64> addrspace(4)*
 ; CHECK-LLVM-NOT: load <3 x i64>
@@ -72,7 +75,7 @@
 ; CHECK-LLVM  %21 = sub <3 x i64> %[[GlobSizeVec]], %[[GOffSetVec]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 %"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range" = type { %"class._ZTSN2cl4sycl6detail5arrayILi2EEE.cl::sycl::detail::array" }
 %"class._ZTSN2cl4sycl6detail5arrayILi2EEE.cl::sycl::detail::array" = type { [2 x i64] }

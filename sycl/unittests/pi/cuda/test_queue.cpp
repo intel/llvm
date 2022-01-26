@@ -13,7 +13,6 @@
 #include "TestGetPlatforms.hpp"
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
@@ -24,7 +23,8 @@ using namespace sycl;
 struct CudaTestQueue : public ::testing::TestWithParam<platform> {
 
 protected:
-  detail::plugin *plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin =
+      pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;
   pi_device device_;
@@ -32,12 +32,12 @@ protected:
 
   void SetUp() override {
     // skip the tests if the CUDA backend is not available
-    if (!plugin) {
+    if (!plugin.has_value()) {
       GTEST_SKIP();
     }
 
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin->getBackend(), backend::cuda);
+    ASSERT_EQ(plugin->getBackend(), backend::ext_oneapi_cuda);
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
@@ -59,7 +59,7 @@ protected:
   }
 
   void TearDown() override {
-    if (plugin) {
+    if (plugin.has_value()) {
       plugin->call<detail::PiApiKind::piDeviceRelease>(device_);
       plugin->call<detail::PiApiKind::piContextRelease>(context_);
     }
@@ -163,9 +163,9 @@ TEST_P(CudaTestQueue, SYCLQueueDefaultStream) {
   std::vector<device> CudaDevices = GetParam().get_devices();
   auto deviceA_ = CudaDevices[0];
   queue Queue(deviceA_, async_handler{},
-              {property::queue::cuda::use_default_stream{}});
+              {ext::oneapi::cuda::property::queue::use_default_stream{}});
 
-  CUstream CudaStream = get_native<backend::cuda>(Queue);
+  CUstream CudaStream = get_native<backend::ext_oneapi_cuda>(Queue);
   unsigned int flags;
   cuStreamGetFlags(CudaStream, &flags);
   ASSERT_EQ(flags, CU_STREAM_DEFAULT);

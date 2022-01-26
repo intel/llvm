@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/sycl/aspects.hpp>
-#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -25,6 +25,7 @@ namespace sycl {
 class device_selector;
 namespace detail {
 class device_impl;
+auto getDeviceComparisonLambda();
 }
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
@@ -40,8 +41,9 @@ public:
   /// in accordance with the requirements described in 4.3.1.
   ///
   /// \param DeviceId is OpenCL device represented with cl_device_id
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   explicit device(cl_device_id DeviceId);
+#endif
 
   /// Constructs a SYCL device instance using the device selected
   /// by the DeviceSelector provided.
@@ -65,8 +67,9 @@ public:
   ///
   /// \return a valid cl_device_id instance in accordance with the requirements
   /// described in 4.3.1.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_device_id get() const;
+#endif
 
   /// Check if device is a host device
   ///
@@ -183,9 +186,14 @@ public:
   /// Gets the native handle of the SYCL device.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
-  auto get_native() const -> typename interop<BackendName, device>::type {
-    return (typename interop<BackendName, device>::type)getNative();
+  template <backend Backend>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  backend_return_t<Backend, device> get_native() const {
+    // In CUDA CUdevice isn't an opaque pointer, unlike a lot of the others,
+    // but instead a 32-bit int (on all relevant systems). Different
+    // backends use the same function for this purpose so static_cast is
+    // needed in some cases but not others, so a C-style cast was chosen.
+    return (backend_return_t<Backend, device>)getNative();
   }
 
   /// Indicates if the SYCL device has the given feature.
@@ -212,6 +220,8 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  friend auto detail::getDeviceComparisonLambda();
 };
 
 } // namespace sycl

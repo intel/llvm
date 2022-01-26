@@ -1,0 +1,332 @@
+= SYCL_INTEL_bf16_conversion
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Notice
+
+IMPORTANT: This specification is a draft.
+
+Copyright (c) 2021 Intel Corporation. All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 3.
+
+== Status
+
+Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Revision: 3
+
+== Introduction
+
+This extension adds functionality to convert value of single-precision
+floating-point type(`float`) to `bfloat16` type and vice versa. The extension
+doesn't add support for `bfloat16` type as such, instead it uses 16-bit integer
+type(`uint16_t`) as a storage for `bfloat16` values.
+
+The purpose of conversion from float to bfloat16 is to reduce ammount of memory
+required to store floating-point numbers. Computations are expected to be done with
+32-bit floating-point values.
+
+This extension is an optional kernel feature as described in
+https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features[section 5.7]
+of the SYCL 2020 spec. Therefore, attempting to submit a kernel using this
+feature to a device that does not support it should cause a synchronous
+`errc::kernel_not_supported` exception to be thrown from the kernel invocation
+command (e.g. from `parallel_for`).
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_BF16_CONVERSION` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro’s
+ value to determine which of the extension’s APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_intel_bf16_conversion
+}
+}
+----
+
+If a SYCL device has the `ext_intel_bf16_conversion` aspect, then it natively
+supports conversion of values of `float` type to `bfloat16` and back.
+
+If the device doesn't have the aspect, objects of `bfloat16` class must not be
+used in the device code.
+
+== New `bfloat16` class
+
+The `bfloat16` class below provides the conversion functionality. Conversion
+from `float` to `bfloat16` is done with round to nearest even(RTE) rounding
+mode.
+
+[source]
+----
+namespace sycl {
+namespace ext {
+namespace intel {
+namespace experimental {
+
+class bfloat16 {
+  using storage_t = uint16_t;
+  storage_t value;
+
+public:
+  bfloat16() = default;
+  bfloat16(const bfloat16 &) = default;
+  ~bfloat16() = default;
+
+  // Explicit conversion functions
+  static storage_t from_float(const float &a);
+  static float to_float(const storage_t &a);
+
+  // Convert from float to bfloat16
+  bfloat16(const float &a);
+  bfloat16 &operator=(const float &a);
+
+  // Convert from bfloat16 to float
+  operator float() const;
+
+  // Get bfloat16 as uint16.
+  operator storage_t() const;
+
+  // Convert to bool type
+  explicit operator bool();
+
+  friend bfloat16 operator-(bfloat16 &bf) { /* ... */ }
+
+  // OP is: prefix ++, --
+  friend bfloat16 &operatorOP(bfloat16 &bf) { /* ... */ }
+
+  // OP is: postfix ++, --
+  friend bfloat16 operatorOP(bfloat16 &bf, int) { /* ... */ }
+
+  // OP is: +=, -=, *=, /=
+  friend bfloat16 &operatorOP(bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }
+
+  // OP is +, -, *, /
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }
+  template <typename T>
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }
+  template <typename T>
+  friend bfloat16 operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }
+
+  // OP is ==,!=, <, >, <=, >=
+  friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }
+  template <typename T>
+  friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }
+  template <typename T>
+  friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }
+};
+
+} // namespace experimental
+} // namespace intel
+} // namespace ext
+} // namespace sycl
+----
+
+Table 1. Member functions of `bfloat16` class.
+|===
+| Member Function | Description
+
+|  `static storage_t from_float(const float &a);`
+|  Explicitly convert from `float` to `bfloat16`.
+
+|  `static float to_float(const storage_t &a);`
+|  Interpret `a` as `bfloat16` and explicitly convert it to `float`.
+
+| `bfloat16(const float& a);`
+| Construct `bfloat16` from `float`. Converts `float` to `bfloat16`.
+
+| `bfloat16 &operator=(const float &a);`
+| Replace the value with `a` converted to `bfloat16`
+
+| `operator float() const;`
+|  Return `bfloat16` value converted to `float`.
+
+| `operator storage_t() const;`
+| Return `uint16_t` value, whose bits represent `bfloat16` value.
+
+| `explicit operator bool() { /* ... */ }`
+| Convert `bfloat16` to `bool` type. Return `false` if the value equals to
+  zero, return `true` otherwise.
+
+| `friend bfloat16 operator-(bfloat16 &bf) { /* ... */ }`
+| Construct new instance of `bfloat16` class with negated value of the `bf`.
+
+| `friend bfloat16 &operatorOP(bfloat16 &bf) { /* ... */ }`
+| Perform an in-place `OP` prefix arithmetic operation on the `bf`,
+  assigning the result to the `bf` and return the `bf`.
+
+  OP is: `++, --`
+
+| `friend bfloat16 operatorOP(bfloat16 &bf, int) { /* ... */ }`
+| Perform an in-place `OP` postfix arithmetic operation on `bf`, assigning
+  the result to the `bf` and return a copy of `bf` before the operation is
+  performed.
+
+  OP is: `++, --`
+
+| `friend bfloat16 operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }`
+| Perform an in-place `OP` arithmetic operation between the `lhs` and the `rhs`
+  and return the `lhs`.
+
+  OP is: `+=, -=, *=, /=`
+
+| `friend type operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }`
+| Construct a new instance of the `bfloat16` class with the value of the new
+  `bfloat16` instance being the result of an OP arithmetic operation between
+  the `lhs` `bfloat16` and `rhs` `bfloat16` values.
+
+  OP is `+, -, *, /`
+
+| `template <typename T>
+  friend bfloat16 operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
+| Construct a new instance of the `bfloat16` class with the value of the new
+  `bfloat16` instance being the result of an OP arithmetic operation between
+  the `lhs` `bfloat16` value and `rhs` of template type `T`. Type `T` must be
+  convertible to `float`.
+
+  OP is `+, -, *, /`
+
+| `template <typename T>
+  friend bfloat16 operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
+| Construct a new instance of the `bfloat16` class with the value of the new
+  `bfloat16` instance being the result of an OP arithmetic operation between
+  the `lhs` of template type `T` and `rhs` `bfloat16` value. Type `T` must be
+  convertible to `float`.
+
+  OP is `+, -, *, /`
+
+| `friend bool operatorOP(const bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` `bfloat16` and `rhs` `bfloat16`
+  values and return the result as a boolean value.
+
+OP is `==, !=, <, >, <=, >=`
+
+| `template <typename T>
+  friend bool operatorOP(const bfloat16 &lhs, const T &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` `bfloat16` and `rhs` of
+  template type `T` and return the result as a boolean value. Type `T` must be
+  convertible to `float`.
+
+OP is `==, !=, <, >, <=, >=`
+
+| `template <typename T>
+  friend bool operatorOP(const T &lhs, const bfloat16 &rhs) { /* ... */ }`
+| Perform comparison operation OP between `lhs` of template type `T` and `rhs`
+  `bfloat16` value and return the result as a boolean value. Type `T` must be
+  convertible to `float`.
+
+OP is `==, !=, <, >, <=, >=`
+|===
+
+== Example
+
+[source]
+----
+#include <sycl/sycl.hpp>
+#include <sycl/ext/intel/experimental/bfloat16.hpp>
+
+using sycl::ext::intel::experimental::bfloat16;
+
+bfloat16 operator+(const bfloat16 &lhs, const bfloat16 &rhs) {
+  return static_cast<float>(lhs) + static_cast<float>(rhs);
+}
+
+float foo(float a, float b) {
+  // Convert from float to bfloat16.
+  bfloat16 A {a};
+  bfloat16 B {b};
+
+  // Convert A and B from bfloat16 to float, do addition on floating-pointer
+  // numbers, then convert the result to bfloat16 and store it in C.
+  bfloat16 C = A + B;
+
+  // Return the result converted from bfloat16 to float.
+  return C;
+}
+
+int main (int argc, char *argv[]) {
+  float data[3] = {7.0, 8.1, 0.0};
+  sycl::device dev;
+  sycl::queue deviceQueue{dev};
+  sycl::buffer<float, 1> buf {data, sycl::range<1> {3}};
+
+  if (dev.has(sycl::aspect::ext_intel_bf16_conversion)) {
+    deviceQueue.submit ([&] (sycl::handler& cgh) {
+      auto numbers = buf.get_access<sycl::access::mode::read_write> (cgh);
+      cgh.single_task<class simple_kernel> ([=] () {
+        numbers[2] = foo(numbers[0], numbers[1]);
+      });
+    });
+  }
+  return 0;
+}
+----
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-08-02|Alexey Sotkin |Initial public working draft
+|2|2021-08-17|Alexey Sotkin |Add explicit conversion functions +
+                             Add operator overloadings +
+                             Apply code review suggestions
+|3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
+|========================================

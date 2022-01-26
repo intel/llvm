@@ -56,31 +56,23 @@ file formats.
 
  Display the address-significance table.
 
-.. option:: --color
-
- Use colors in the output for warnings and errors.
-
 .. option:: --expand-relocs
 
- When used with :option:`--relocations`, display each relocation in an expanded
+ When used with :option:`--relocs`, display each relocation in an expanded
  multi-line format.
 
-.. option:: --file-headers, -h
+.. option:: --file-header, -h
 
  Display file headers.
 
 .. option:: --headers, -e
 
- Equivalent to setting: :option:`--file-headers`, :option:`--program-headers`,
+ Equivalent to setting: :option:`--file-header`, :option:`--program-headers`,
  and :option:`--sections`.
 
 .. option:: --help
 
  Display a summary of command line options.
-
-.. option:: --help-list
-
- Display an uncategorized summary of command line options.
 
 .. option:: --hex-dump=<section[,section,...]>, -x
 
@@ -124,7 +116,7 @@ file formats.
  section index or section name.
 
 .. option:: --string-table
- 
+
  Display contents of the string table.
 
 .. option:: --symbols, --syms, -s
@@ -181,7 +173,7 @@ The following options are implemented only for the ELF file format.
 
  Display the callgraph profile section.
 
-.. option:: --elf-hash-histogram, --histogram, -I
+.. option:: --histogram, -I
 
  Display a bucket list histogram for dynamic symbol hash tables.
 
@@ -191,11 +183,12 @@ The following options are implemented only for the ELF file format.
 
 .. option:: --elf-output-style=<value>
 
- Format ELF information in the specified style. Valid options are ``LLVM`` and
- ``GNU``. ``LLVM`` output (the default) is an expanded and structured format,
- whilst ``GNU`` output mimics the equivalent GNU :program:`readelf` output.
+ Format ELF information in the specified style. Valid options are ``LLVM``,
+ ``GNU``, and ``JSON``. ``LLVM`` output (the default) is an expanded and
+ structured format. ``GNU`` output mimics the equivalent GNU :program:`readelf`
+ output. ``JSON`` is JSON formatted output intended for machine consumption.
 
-.. option:: --elf-section-groups, --section-groups, -g
+.. option:: --section-groups, -g
 
  Display section groups.
 
@@ -214,6 +207,11 @@ The following options are implemented only for the ELF file format.
 .. option:: --notes, -n
 
  Display all notes.
+
+.. option:: --pretty-print
+
+ When used with :option:`--elf-output-style`, JSON output will be formatted in
+ a more readable format.
 
 .. option:: --program-headers, --segments, -l
 
@@ -318,6 +316,15 @@ The following options are implemented only for the PE/COFF file format.
 .. option:: --coff-resources
 
  Display the .rsrc section.
+
+XCOFF SPECIFIC OPTIONS
+----------------------
+
+The following options are implemented only for the XCOFF file format.
+
+.. option:: --auxiliary-header
+
+  Display XCOFF Auxiliary header.
 
 EXIT STATUS
 -----------

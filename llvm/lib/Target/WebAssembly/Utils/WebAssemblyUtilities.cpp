@@ -18,6 +18,31 @@
 #include "llvm/MC/MCContext.h"
 using namespace llvm;
 
+// Exception handling & setjmp-longjmp handling related options. These are
+// defined here to be shared between WebAssembly and its subdirectories.
+
+// Emscripten's asm.js-style exception handling
+cl::opt<bool> WebAssembly::WasmEnableEmEH(
+    "enable-emscripten-cxx-exceptions",
+    cl::desc("WebAssembly Emscripten-style exception handling"),
+    cl::init(false));
+// Emscripten's asm.js-style setjmp/longjmp handling
+cl::opt<bool> WebAssembly::WasmEnableEmSjLj(
+    "enable-emscripten-sjlj",
+    cl::desc("WebAssembly Emscripten-style setjmp/longjmp handling"),
+    cl::init(false));
+// Exception handling using wasm EH instructions
+cl::opt<bool>
+    WebAssembly::WasmEnableEH("wasm-enable-eh",
+                              cl::desc("WebAssembly exception handling"),
+                              cl::init(false));
+// setjmp/longjmp handling using wasm EH instrutions
+cl::opt<bool>
+    WebAssembly::WasmEnableSjLj("wasm-enable-sjlj",
+                                cl::desc("WebAssembly setjmp/longjmp handling"),
+                                cl::init(false));
+
+// Function names in libc++abi and libunwind
 const char *const WebAssembly::CxaBeginCatchFn = "__cxa_begin_catch";
 const char *const WebAssembly::CxaRethrowFn = "__cxa_rethrow";
 const char *const WebAssembly::StdTerminateFn = "_ZSt9terminatev";
@@ -109,6 +134,31 @@ MCSymbolWasm *WebAssembly::getOrCreateFunctionTableSymbol(
     Sym->setFunctionTable();
     // The default function table is synthesized by the linker.
     Sym->setUndefined();
+  }
+  // MVP object files can't have symtab entries for tables.
+  if (!(Subtarget && Subtarget->hasReferenceTypes()))
+    Sym->setOmitFromLinkingSection();
+  return Sym;
+}
+
+MCSymbolWasm *WebAssembly::getOrCreateFuncrefCallTableSymbol(
+    MCContext &Ctx, const WebAssemblySubtarget *Subtarget) {
+  StringRef Name = "__funcref_call_table";
+  MCSymbolWasm *Sym = cast_or_null<MCSymbolWasm>(Ctx.lookupSymbol(Name));
+  if (Sym) {
+    if (!Sym->isFunctionTable())
+      Ctx.reportError(SMLoc(), "symbol is not a wasm funcref table");
+  } else {
+    Sym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(Name));
+
+    // Setting Weak ensure only one table is left after linking when multiple
+    // modules define the table.
+    Sym->setWeak(true);
+
+    wasm::WasmLimits Limits = {0, 1, 1};
+    wasm::WasmTableType TableType = {wasm::WASM_TYPE_FUNCREF, Limits};
+    Sym->setType(wasm::WASM_SYMBOL_TYPE_TABLE);
+    Sym->setTableType(TableType);
   }
   // MVP object files can't have symtab entries for tables.
   if (!(Subtarget && Subtarget->hasReferenceTypes()))

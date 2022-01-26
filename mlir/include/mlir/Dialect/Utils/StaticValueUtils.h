@@ -21,9 +21,10 @@
 
 namespace mlir {
 
-/// Helper function to dispatch an OpFoldResult into either the `dynamicVec` if
-/// it is a Value or into `staticVec` if it is an IntegerAttr.
-/// In the case of a Value, a copy of the `sentinel` value is also pushed to
+/// Helper function to dispatch an OpFoldResult into `staticVec` if:
+///   a) it is an IntegerAttr
+/// In other cases, the OpFoldResult is dispached to the `dynamicVec`.
+/// In such dynamic cases, a copy of the `sentinel` value is also pushed to
 /// `staticVec`. This is useful to extract mixed static and dynamic entries that
 /// come from an AttrSizedOperandSegments trait.
 void dispatchIndexOpFoldResult(OpFoldResult ofr,
@@ -31,11 +32,8 @@ void dispatchIndexOpFoldResult(OpFoldResult ofr,
                                SmallVectorImpl<int64_t> &staticVec,
                                int64_t sentinel);
 
-/// Helper function to dispatch multiple OpFoldResults into either the
-/// `dynamicVec` (for Values) or into `staticVec` (for IntegerAttrs).
-/// In the case of a Value, a copy of the `sentinel` value is also pushed to
-/// `staticVec`. This is useful to extract mixed static and dynamic entries that
-/// come from an AttrSizedOperandSegments trait.
+/// Helper function to dispatch multiple OpFoldResults according to the behavior
+/// of `dispatchIndexOpFoldResult(OpFoldResult ofr` for a single OpFoldResult.
 void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
                                 SmallVectorImpl<Value> &dynamicVec,
                                 SmallVectorImpl<int64_t> &staticVec,
@@ -43,6 +41,14 @@ void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
 
 /// Extract int64_t values from the assumed ArrayAttr of IntegerAttr.
 SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr);
+
+/// Given a value, try to extract a constant Attribute. If this fails, return
+/// the original value.
+OpFoldResult getAsOpFoldResult(Value val);
+
+/// Given an array of values, try to extract a constant Attribute from each
+/// value. If this fails, return the original value.
+SmallVector<OpFoldResult> getAsOpFoldResult(ArrayRef<Value> values);
 
 /// If ofr is a constant integer or an IntegerAttr, return the integer.
 Optional<int64_t> getConstantIntValue(OpFoldResult ofr);

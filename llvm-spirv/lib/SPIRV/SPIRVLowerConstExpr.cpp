@@ -167,45 +167,23 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
       };
 
       WorkList.pop_front();
+
       for (unsigned OI = 0, OE = II->getNumOperands(); OI != OE; ++OI) {
-        auto Op = II->getOperand(OI);
-        auto *Vec = dyn_cast<ConstantVector>(Op);
-        if (Vec && std::all_of(Vec->op_begin(), Vec->op_end(), [](Value *V) {
-              return isa<ConstantExpr>(V) || isa<Function>(V);
-            })) {
-          // Expand a vector of constexprs and construct it back with series of
-          // insertelement instructions
-          std::list<Value *> OpList;
-          std::transform(Vec->op_begin(), Vec->op_end(),
-                         std::back_inserter(OpList),
-                         [LowerOp](Value *V) { return LowerOp(V); });
-          Value *Repl = nullptr;
-          unsigned Idx = 0;
-          auto *PhiII = dyn_cast<PHINode>(II);
-          auto *InsPoint = PhiII ? &PhiII->getIncomingBlock(OI)->back() : II;
-          std::list<Instruction *> ReplList;
-          for (auto V : OpList) {
-            if (auto *Inst = dyn_cast<Instruction>(V))
-              ReplList.push_back(Inst);
-            Repl = InsertElementInst::Create(
-                (Repl ? Repl : UndefValue::get(Vec->getType())), V,
-                ConstantInt::get(Type::getInt32Ty(M->getContext()), Idx++), "",
-                InsPoint);
-          }
-          II->replaceUsesOfWith(Op, Repl);
-          WorkList.splice(WorkList.begin(), ReplList);
-        } else if (auto CE = dyn_cast<ConstantExpr>(Op)) {
+        auto *Op = II->getOperand(OI);
+        if (auto *CE = dyn_cast<ConstantExpr>(Op)) {
           WorkList.push_front(cast<Instruction>(LowerOp(CE)));
         } else if (auto MDAsVal = dyn_cast<MetadataAsValue>(Op)) {
           Metadata *MD = MDAsVal->getMetadata();
           if (auto ConstMD = dyn_cast<ConstantAsMetadata>(MD)) {
             Constant *C = ConstMD->getValue();
-            if (auto CE = dyn_cast<ConstantExpr>(C)) {
-              Value *RepInst = LowerOp(CE);
-              Metadata *RepMD = ValueAsMetadata::get(RepInst);
+            Value *ReplInst = nullptr;
+            if (auto *CE = dyn_cast<ConstantExpr>(C))
+              ReplInst = LowerOp(CE);
+            if (ReplInst) {
+              Metadata *RepMD = ValueAsMetadata::get(ReplInst);
               Value *RepMDVal = MetadataAsValue::get(M->getContext(), RepMD);
               II->setOperand(OI, RepMDVal);
-              WorkList.push_front(cast<Instruction>(RepInst));
+              WorkList.push_front(cast<Instruction>(ReplInst));
             }
           }
         }

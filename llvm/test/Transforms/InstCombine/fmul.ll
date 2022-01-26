@@ -380,7 +380,7 @@ define void @test8(i32* %inout) {
 ; CHECK-NEXT:    [[LOCAL_VAR_7_0:%.*]] = phi <4 x float> [ <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, [[ENTRY:%.*]] ], [ [[TMP0:%.*]], [[FOR_BODY:%.*]] ]
 ; CHECK-NEXT:    br i1 undef, label [[FOR_BODY]], label [[FOR_END:%.*]]
 ; CHECK:       for.body:
-; CHECK-NEXT:    [[TMP0]] = insertelement <4 x float> [[LOCAL_VAR_7_0]], float 0.000000e+00, i32 2
+; CHECK-NEXT:    [[TMP0]] = insertelement <4 x float> [[LOCAL_VAR_7_0]], float 0.000000e+00, i64 2
 ; CHECK-NEXT:    br label [[FOR_COND]]
 ; CHECK:       for.end:
 ; CHECK-NEXT:    ret void
@@ -795,7 +795,7 @@ define <2 x float> @fmul_fadd_distribute_vec(<2 x float> %x) {
 define <vscale x 2 x float> @fmul_fadd_distribute_scalablevec(<vscale x 2 x float> %x) {
 ; CHECK-LABEL: @fmul_fadd_distribute_scalablevec(
 ; CHECK-NEXT:    [[TMP1:%.*]] = fmul reassoc <vscale x 2 x float> [[X:%.*]], shufflevector (<vscale x 2 x float> insertelement (<vscale x 2 x float> undef, float 6.000000e+03, i32 0), <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer)
-; CHECK-NEXT:    [[T3:%.*]] = fadd reassoc <vscale x 2 x float> [[TMP1]], shufflevector (<vscale x 2 x float> insertelement (<vscale x 2 x float> undef, float 1.200000e+07, i32 0), <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer)
+; CHECK-NEXT:    [[T3:%.*]] = fadd reassoc <vscale x 2 x float> [[TMP1]], shufflevector (<vscale x 2 x float> insertelement (<vscale x 2 x float> poison, float 1.200000e+07, i32 0), <vscale x 2 x float> poison, <vscale x 2 x i32> zeroinitializer)
 ; CHECK-NEXT:    ret <vscale x 2 x float> [[T3]]
 ;
   %t1 = fadd <vscale x 2 x float> shufflevector (<vscale x 2 x float> insertelement (<vscale x 2 x float> undef, float 2.0e+3, i32 0), <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer), %x

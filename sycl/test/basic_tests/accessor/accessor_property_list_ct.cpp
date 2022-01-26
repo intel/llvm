@@ -7,7 +7,7 @@
 using namespace sycl::ext::oneapi;
 
 void foo(sycl::accessor<int, 1, sycl::access::mode::read_write,
-                        sycl::access::target::global_buffer,
+                        sycl::access::target::device,
                         sycl::access::placeholder::true_t,
                         accessor_property_list<property::no_alias::instance<>,
                                                property::no_offset::instance<>>>
@@ -111,7 +111,7 @@ int main() {
     accessor_property_list PL{sycl::no_init, no_alias};
     sycl::accessor acc_1(buf_data, PL);
     sycl::accessor<int, 1, sycl::access::mode::read_write,
-                   sycl::access::target::global_buffer,
+                   sycl::access::target::device,
                    sycl::access::placeholder::true_t,
                    accessor_property_list<property::no_alias::instance<>>>
         acc_2(acc_1);

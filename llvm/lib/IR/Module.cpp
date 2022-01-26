@@ -114,6 +114,10 @@ GlobalValue *Module::getNamedValue(StringRef Name) const {
   return cast_or_null<GlobalValue>(getValueSymbolTable().lookup(Name));
 }
 
+unsigned Module::getNumNamedValues() const {
+  return getValueSymbolTable().size();
+}
+
 /// getMDKindID - Return a unique non-zero ID for the specified metadata kind.
 /// This ID is uniqued across modules in the current LLVMContext.
 unsigned Module::getMDKindID(StringRef Name) const {
@@ -746,8 +750,8 @@ void Module::setSDKVersion(const VersionTuple &V) {
                 ConstantDataArray::get(Context, Entries));
 }
 
-VersionTuple Module::getSDKVersion() const {
-  auto *CM = dyn_cast_or_null<ConstantAsMetadata>(getModuleFlag("SDK Version"));
+static VersionTuple getSDKVersionMD(Metadata *MD) {
+  auto *CM = dyn_cast_or_null<ConstantAsMetadata>(MD);
   if (!CM)
     return {};
   auto *Arr = dyn_cast_or_null<ConstantDataArray>(CM->getValue());
@@ -769,6 +773,10 @@ VersionTuple Module::getSDKVersion() const {
     }
   }
   return Result;
+}
+
+VersionTuple Module::getSDKVersion() const {
+  return getSDKVersionMD(getModuleFlag("SDK Version"));
 }
 
 GlobalVariable *llvm::collectUsedGlobalVariables(
@@ -804,4 +812,14 @@ void Module::setPartialSampleProfileRatio(const ModuleSummaryIndex &Index) {
                         ProfileSummary::PSK_Sample);
     }
   }
+}
+
+StringRef Module::getDarwinTargetVariantTriple() const {
+  if (const auto *MD = getModuleFlag("darwin.target_variant.triple"))
+    return cast<MDString>(MD)->getString();
+  return "";
+}
+
+VersionTuple Module::getDarwinTargetVariantSDKVersion() const {
+  return getSDKVersionMD(getModuleFlag("darwin.target_variant.SDK Version"));
 }

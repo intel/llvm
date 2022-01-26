@@ -75,7 +75,12 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
+  // For ABI compatibility
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
+              const size_t SizeInBytes, event AvailableEvent,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator);
+
+  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
@@ -281,8 +286,12 @@ public:
     MAllocator->setAlignment(RequiredAlign);
   }
 
+  // For ABI compatibility
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
                                      cl_mem MemObject);
+
+  static size_t getBufSizeForContext(const ContextImplPtr &Context,
+                                     pi_native_handle MemObject);
 
   __SYCL_DLL_LOCAL void *allocateMem(ContextImplPtr Context,
                                      bool InitFromUserData, void *HostPtr,
@@ -294,11 +303,15 @@ public:
     throw runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
-  __SYCL_DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
+  __SYCL_DLL_LOCAL MemObjType getType() const override {
+    return MemObjType::Undefined;
+  }
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
   bool hasUserDataPtr() const { return MUserPtr != nullptr; };
+
+  bool isInterop() const;
 
 protected:
   // An allocateMem helper that determines which host ptr to use
@@ -316,6 +329,7 @@ protected:
   ContextImplPtr MInteropContext;
   // OpenCL's memory object handle passed by user to interoperability
   // constructor.
+  // TODO update this member to support other backends.
   cl_mem MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.

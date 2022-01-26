@@ -195,14 +195,6 @@ int SemanticsContext::GetDefaultKind(TypeCategory category) const {
   return defaultKinds_.GetDefaultKind(category);
 }
 
-bool SemanticsContext::IsEnabled(common::LanguageFeature feature) const {
-  return languageFeatures_.IsEnabled(feature);
-}
-
-bool SemanticsContext::ShouldWarn(common::LanguageFeature feature) const {
-  return languageFeatures_.ShouldWarn(feature);
-}
-
 const DeclTypeSpec &SemanticsContext::MakeNumericType(
     TypeCategory category, int kind) {
   if (kind == 0) {
@@ -332,7 +324,7 @@ SourceName SemanticsContext::SaveTempName(std::string &&name) {
 
 SourceName SemanticsContext::GetTempName(const Scope &scope) {
   for (const auto &str : tempNames_) {
-    if (str.size() > 5 && str.substr(0, 5) == ".F18.") {
+    if (IsTempName(str)) {
       SourceName name{str};
       if (scope.find(name) == scope.end()) {
         return name;
@@ -342,7 +334,39 @@ SourceName SemanticsContext::GetTempName(const Scope &scope) {
   return SaveTempName(".F18."s + std::to_string(tempNames_.size()));
 }
 
+bool SemanticsContext::IsTempName(const std::string &name) {
+  return name.size() > 5 && name.substr(0, 5) == ".F18.";
+}
+
+Scope *SemanticsContext::GetBuiltinModule(const char *name) {
+  return ModFileReader{*this}.Read(
+      SourceName{name, std::strlen(name)}, nullptr, true /*silence errors*/);
+}
+
+void SemanticsContext::UseFortranBuiltinsModule() {
+  if (builtinsScope_ == nullptr) {
+    builtinsScope_ = GetBuiltinModule("__fortran_builtins");
+    if (builtinsScope_) {
+      intrinsics_.SupplyBuiltins(*builtinsScope_);
+    }
+  }
+}
+
 bool Semantics::Perform() {
+  // Implicitly USE the __Fortran_builtins module so that special types
+  // (e.g., __builtin_team_type) are available to semantics, esp. for
+  // intrinsic checking.
+  if (!program_.v.empty()) {
+    const auto *frontModule{std::get_if<common::Indirection<parser::Module>>(
+        &program_.v.front().u)};
+    if (frontModule &&
+        std::get<parser::Statement<parser::ModuleStmt>>(frontModule->value().t)
+                .statement.v.source == "__fortran_builtins") {
+      // Don't try to read the builtins module when we're actually building it.
+    } else {
+      context_.UseFortranBuiltinsModule();
+    }
+  }
   return ValidateLabels(context_, program_) &&
       parser::CanonicalizeDo(program_) && // force line break
       CanonicalizeAcc(context_.messages(), program_) &&

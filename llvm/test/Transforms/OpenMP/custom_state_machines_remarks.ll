@@ -1,10 +1,11 @@
 ; RUN: opt -passes=openmp-opt -pass-remarks=openmp-opt -pass-remarks-missed=openmp-opt -pass-remarks-analysis=openmp-opt -disable-output < %s 2>&1 | FileCheck %s
 target triple = "nvptx64"
 
-; CHECK: remark: llvm/test/Transforms/OpenMP/custom_state_machines_remarks.c:11:1: Generic-mode kernel is executed with a customized state machine that requires a fallback [1 known parallel regions, 2 unkown parallel regions] (bad)
-; CHECK: remark: llvm/test/Transforms/OpenMP/custom_state_machines_remarks.c:13:5: State machine fallback caused by this call. If it is a false positive, use `__attribute__((assume("omp_no_openmp")))` (or "omp_no_parallelism")
-; CHECK: remark: llvm/test/Transforms/OpenMP/custom_state_machines_remarks.c:15:5: State machine fallback caused by this call. If it is a false positive, use `__attribute__((assume("omp_no_openmp")))` (or "omp_no_parallelism")
-; CHECK: remark: llvm/test/Transforms/OpenMP/custom_state_machines_remarks.c:20:1: Generic-mode kernel is executed with a customized state machine [1 known parallel regions] (good)
+; CHECK: remark: llvm/test/Transforms/OpenMP/custom_state_machines_remarks.c:11:1: Generic-mode kernel is executed with a customized state machine that requires a fallback.
+; CHECK: remark: llvm/test/Transforms/OpenMP/custom_state_machines_remarks.c:13:5: Call may contain unknown parallel regions. Use `__attribute__((assume("omp_no_parallelism")))` to override.
+; CHECK: remark: llvm/test/Transforms/OpenMP/custom_state_machines_remarks.c:15:5: Call may contain unknown parallel regions. Use `__attribute__((assume("omp_no_parallelism")))` to override.
+; CHECK: remark: llvm/test/Transforms/OpenMP/custom_state_machines_remarks.c:20:1: Rewriting generic-mode kernel with a customized state machine.
+
 
 ;; void unknown(void);
 ;; void known(void) {
@@ -13,7 +14,7 @@ target triple = "nvptx64"
 ;;     unknown();
 ;;   }
 ;; }
-;; 
+;;
 ;; void test_fallback(void) {
 ;;   #pragma omp target teams
 ;;   {
@@ -59,7 +60,7 @@ target triple = "nvptx64"
 define weak void @__omp_offloading_2a_d80d3d_test_fallback_l11() local_unnamed_addr #0 !dbg !15 {
 entry:
   %captured_vars_addrs.i.i = alloca [0 x i8*], align 8
-  %0 = call i32 @__kmpc_target_init(%struct.ident_t* nonnull @1, i1 false, i1 true, i1 true) #3, !dbg !18
+  %0 = call i32 @__kmpc_target_init(%struct.ident_t* nonnull @1, i8 1, i1 true, i1 true) #3, !dbg !18
   %exec_user_code = icmp eq i32 %0, -1, !dbg !18
   br i1 %exec_user_code, label %user_code.entry, label %common.ret, !dbg !18
 
@@ -76,11 +77,11 @@ user_code.entry:                                  ; preds = %entry
   call void @__kmpc_parallel_51(%struct.ident_t* noundef nonnull @13, i32 %3, i32 noundef 1, i32 noundef -1, i32 noundef -1, i8* noundef bitcast (void (i32*, i32*)* @__omp_outlined__2 to i8*), i8* noundef bitcast (void (i16, i32)* @__omp_outlined__2_wrapper to i8*), i8** noundef nonnull %4, i64 noundef 0) #3, !dbg !23
   call void @llvm.lifetime.end.p0i8(i64 0, i8* nonnull %2) #3, !dbg !26
   call void @unknown() #6, !dbg !27
-  call void @__kmpc_target_deinit(%struct.ident_t* nonnull @5, i1 false, i1 true) #3, !dbg !28
+  call void @__kmpc_target_deinit(%struct.ident_t* nonnull @5, i8 1, i1 true) #3, !dbg !28
   br label %common.ret
 }
 
-declare i32 @__kmpc_target_init(%struct.ident_t*, i1, i1, i1) local_unnamed_addr
+declare i32 @__kmpc_target_init(%struct.ident_t*, i8, i1, i1) local_unnamed_addr
 
 ; Function Attrs: convergent
 declare void @unknown() local_unnamed_addr #1
@@ -98,13 +99,13 @@ entry:
 ; Function Attrs: nounwind
 declare i32 @__kmpc_global_thread_num(%struct.ident_t*) local_unnamed_addr #3
 
-declare void @__kmpc_target_deinit(%struct.ident_t*, i1, i1) local_unnamed_addr
+declare void @__kmpc_target_deinit(%struct.ident_t*, i8, i1) local_unnamed_addr
 
 ; Function Attrs: norecurse nounwind
 define weak void @__omp_offloading_2a_d80d3d_test_no_fallback_l20() local_unnamed_addr #4 !dbg !32 {
 entry:
   %captured_vars_addrs.i2.i = alloca [0 x i8*], align 8
-  %0 = call i32 @__kmpc_target_init(%struct.ident_t* nonnull @7, i1 false, i1 true, i1 true) #3, !dbg !33
+  %0 = call i32 @__kmpc_target_init(%struct.ident_t* nonnull @7, i8 1, i1 true, i1 true) #3, !dbg !33
   %exec_user_code = icmp eq i32 %0, -1, !dbg !33
   br i1 %exec_user_code, label %user_code.entry, label %common.ret, !dbg !33
 
@@ -129,7 +130,7 @@ user_code.entry:                                  ; preds = %entry
   call void @llvm.lifetime.end.p0i8(i64 0, i8* nonnull %2) #3, !dbg !45
   call void @no_openmp()
   call void @no_parallelism()
-  call void @__kmpc_target_deinit(%struct.ident_t* nonnull @11, i1 false, i1 true) #3, !dbg !46
+  call void @__kmpc_target_deinit(%struct.ident_t* nonnull @11, i8 1, i1 true) #3, !dbg !46
   br label %common.ret
 }
 

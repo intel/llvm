@@ -44,6 +44,9 @@ TRACELOGGING_DEFINE_PROVIDER(g_asan_provider, "AddressSanitizerLoggingProvider",
 #define TraceLoggingUnregister(x)
 #endif
 
+// For WaitOnAddress
+#  pragma comment(lib, "synchronization.lib")
+
 // A macro to tell the compiler that this part of the code cannot be reached,
 // if the compiler supports this feature. Since we're using this in
 // code that is called when terminating the process, the expansion of the
@@ -333,6 +336,11 @@ bool MprotectNoAccess(uptr addr, uptr size) {
   return VirtualProtect((LPVOID)addr, size, PAGE_NOACCESS, &old_protection);
 }
 
+bool MprotectReadOnly(uptr addr, uptr size) {
+  DWORD old_protection;
+  return VirtualProtect((LPVOID)addr, size, PAGE_READONLY, &old_protection);
+}
+
 void ReleaseMemoryPagesToOS(uptr beg, uptr end) {
   uptr beg_aligned = RoundDownTo(beg, GetPageSizeCached()),
        end_aligned = RoundDownTo(end, GetPageSizeCached());
@@ -560,6 +568,10 @@ u64 MonotonicNanoTime() { return NanoTime(); }
 
 void Abort() {
   internal__exit(3);
+}
+
+bool CreateDir(const char *pathname) {
+  return CreateDirectoryA(pathname, nullptr) != 0;
 }
 
 #if !SANITIZER_GO
@@ -813,26 +825,16 @@ uptr GetRSS() {
 void *internal_start_thread(void *(*func)(void *arg), void *arg) { return 0; }
 void internal_join_thread(void *th) { }
 
-// ---------------------- BlockingMutex ---------------- {{{1
-
-BlockingMutex::BlockingMutex() {
-  CHECK(sizeof(SRWLOCK) <= sizeof(opaque_storage_));
-  internal_memset(this, 0, sizeof(*this));
+void FutexWait(atomic_uint32_t *p, u32 cmp) {
+  WaitOnAddress(p, &cmp, sizeof(cmp), INFINITE);
 }
 
-void BlockingMutex::Lock() {
-  AcquireSRWLockExclusive((PSRWLOCK)opaque_storage_);
-  CHECK_EQ(owner_, 0);
-  owner_ = GetThreadSelf();
+void FutexWake(atomic_uint32_t *p, u32 count) {
+  if (count == 1)
+    WakeByAddressSingle(p);
+  else
+    WakeByAddressAll(p);
 }
-
-void BlockingMutex::Unlock() {
-  CheckLocked();
-  owner_ = 0;
-  ReleaseSRWLockExclusive((PSRWLOCK)opaque_storage_);
-}
-
-void BlockingMutex::CheckLocked() const { CHECK_EQ(owner_, GetThreadSelf()); }
 
 uptr GetTlsSize() {
   return 0;
@@ -948,13 +950,18 @@ void SignalContext::InitPcSpBp() {
   CONTEXT *context_record = (CONTEXT *)context;
 
   pc = (uptr)exception_record->ExceptionAddress;
-#ifdef _WIN64
+#  if SANITIZER_WINDOWS64
+#    if SANITIZER_ARM64
+  bp = (uptr)context_record->Fp;
+  sp = (uptr)context_record->Sp;
+#    else
   bp = (uptr)context_record->Rbp;
   sp = (uptr)context_record->Rsp;
-#else
+#    endif
+#  else
   bp = (uptr)context_record->Ebp;
   sp = (uptr)context_record->Esp;
-#endif
+#  endif
 }
 
 uptr SignalContext::GetAddress() const {
@@ -1117,7 +1124,7 @@ bool IsProcessRunning(pid_t pid) {
 int WaitForProcess(pid_t pid) { return -1; }
 
 // FIXME implement on this platform.
-void GetMemoryProfile(fill_profile_f cb, uptr *stats, uptr stats_size) { }
+void GetMemoryProfile(fill_profile_f cb, uptr *stats) {}
 
 void CheckNoDeepBind(const char *filename, int flag) {
   // Do nothing.

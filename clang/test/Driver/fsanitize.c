@@ -1,3 +1,4 @@
+// UNSUPPORTED: default-pie-on-linux
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=undefined -fsanitize-trap=undefined %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UNDEFINED-TRAP
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=undefined -fsanitize-trap=undefined -fno-sanitize-trap=signed-integer-overflow %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UNDEFINED-TRAP2
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=undefined -fsanitize-undefined-trap-on-error %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UNDEFINED-TRAP
@@ -247,6 +248,20 @@
 // CHECK-ASAN-GLOBALS: -cc1{{.*}}-fsanitize-address-globals-dead-stripping
 // CHECK-NO-ASAN-GLOBALS-NOT: -cc1{{.*}}-fsanitize-address-globals-dead-stripping
 
+// RUN: %clang -target x86_64-linux-gnu -fsanitize-address-outline-instrumentation %s -### 2>&1 | \
+// RUN:     FileCheck %s --check-prefix=CHECK-ASAN-OUTLINE-WARN
+// CHECK-ASAN-OUTLINE-WARN: warning: argument unused during compilation: '-fsanitize-address-outline-instrumentation'
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-address-outline-instrumentation %s -### 2>&1 | \
+// RUN:     FileCheck %s --check-prefix=CHECK-ASAN-OUTLINE-OK
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fno-sanitize-address-outline-instrumentation -fsanitize-address-outline-instrumentation %s -### 2>&1 | \
+// RUN:     FileCheck %s --check-prefix=CHECK-ASAN-OUTLINE-OK
+// CHECK-ASAN-OUTLINE-OK: "-mllvm" "-asan-instrumentation-with-call-threshold=0"
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fno-sanitize-address-outline-instrumentation %s -### 2>&1 | \
+// RUN:     FileCheck %s --check-prefix=CHECK-NO-CHECK-ASAN-CALLBACK
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-address-outline-instrumentation -fno-sanitize-address-outline-instrumentation %s -### 2>&1 | \
+// RUN:     FileCheck %s --check-prefix=CHECK-NO-CHECK-ASAN-CALLBACK
+// CHECK-NO-CHECK-ASAN-CALLBACK-NOT: "-mllvm" "-asan-instrumentation-with-call-threshold=0"
+
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-address-use-odr-indicator %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-ODR-INDICATOR
 // RUN: %clang_cl --target=x86_64-windows -fsanitize=address -fsanitize-address-use-odr-indicator -### -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-ODR-INDICATOR
 // CHECK-ASAN-ODR-INDICATOR: -cc1{{.*}}-fsanitize-address-use-odr-indicator
@@ -334,7 +349,7 @@
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=memory %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-PIE
 // RUN: %clang -target x86_64-unknown-freebsd -fsanitize=memory %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-PIE
 // RUN: %clang -target aarch64-linux-gnu -fsanitize=memory %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-PIE
-// RUN: %clang -target arm-linux-androideabi -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-PIC-NO-PIE
+// RUN: %clang -target arm-linux-androideabi -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-PIE
 // RUN: %clang -target arm-linux-androideabi24 -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-PIE
 // RUN: %clang -target aarch64-linux-android -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-PIE
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-PIE

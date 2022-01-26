@@ -958,6 +958,38 @@ define i9 @fshr_ops_poison6() {
   ret i9 %r
 }
 
+define i8 @fshl_zero(i8 %shamt) {
+; CHECK-LABEL: @fshl_zero(
+; CHECK-NEXT:    ret i8 0
+;
+  %r = call i8 @llvm.fshl.i8(i8 0, i8 0, i8 %shamt)
+  ret i8 %r
+}
+
+define <2 x i8> @fshr_zero_vec(<2 x i8> %shamt) {
+; CHECK-LABEL: @fshr_zero_vec(
+; CHECK-NEXT:    ret <2 x i8> zeroinitializer
+;
+  %r = call <2 x i8> @llvm.fshr.v2i8(<2 x i8> zeroinitializer, <2 x i8> <i8 0, i8 undef>, <2 x i8> %shamt)
+  ret <2 x i8> %r
+}
+
+define <2 x i7> @fshl_ones_vec(<2 x i7> %shamt) {
+; CHECK-LABEL: @fshl_ones_vec(
+; CHECK-NEXT:    ret <2 x i7> <i7 -1, i7 -1>
+;
+  %r = call <2 x i7> @llvm.fshl.v2i7(<2 x i7> <i7 undef, i7 -1>, <2 x i7> <i7 -1, i7 undef>, <2 x i7> %shamt)
+  ret <2 x i7> %r
+}
+
+define i9 @fshr_ones(i9 %shamt) {
+; CHECK-LABEL: @fshr_ones(
+; CHECK-NEXT:    ret i9 -1
+;
+  %r = call i9 @llvm.fshr.i9(i9 -1, i9 -1, i9 %shamt)
+  ret i9 %r
+}
+
 declare double @llvm.fma.f64(double,double,double)
 declare double @llvm.fmuladd.f64(double,double,double)
 
@@ -1513,5 +1545,21 @@ define <3 x i33> @ctlz_ashr_sign_bit_vec(<3 x i33> %x) {
   %r = call <3 x i33> @llvm.ctlz.v3i33(<3 x i33> %s, i1 true)
   ret <3 x i33> %r
 }
+
+declare i8* @llvm.ptrmask.p0i8.i64(i8* , i64)
+
+define i1 @capture_vs_recurse(i64 %mask) {
+; CHECK-LABEL: @capture_vs_recurse(
+; CHECK-NEXT:    [[A:%.*]] = call noalias i8* @malloc(i64 8)
+; CHECK-NEXT:    [[B:%.*]] = call nonnull i8* @llvm.ptrmask.p0i8.i64(i8* [[A]], i64 [[MASK:%.*]])
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8* [[A]], [[B]]
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %a = call noalias i8* @malloc(i64 8)
+  %b = call nonnull i8* @llvm.ptrmask.p0i8.i64(i8* %a, i64 %mask)
+  %cmp = icmp eq i8* %a, %b
+  ret i1 %cmp
+}
+
 
 attributes #0 = { nobuiltin readnone }

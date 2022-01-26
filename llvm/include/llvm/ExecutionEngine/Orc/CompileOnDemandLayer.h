@@ -47,17 +47,11 @@
 #include <list>
 #include <memory>
 #include <set>
-#include <string>
 #include <utility>
 #include <vector>
 
 namespace llvm {
-
-class Value;
-
 namespace orc {
-
-class ExtractingIRMaterializationUnit;
 
 class CompileOnDemandLayer : public IRLayer {
   friend class PartitioningIRMaterializationUnit;

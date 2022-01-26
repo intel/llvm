@@ -334,7 +334,8 @@ IslExprBuilder::createAccessAddress(isl_ast_expr *Expr) {
     IndexOp = createMul(IndexOp, DimSize, "polly.access.mul." + BaseName);
   }
 
-  Access = Builder.CreateGEP(Base, IndexOp, "polly.access." + BaseName);
+  Access = Builder.CreateGEP(SAI->getElementType(), Base, IndexOp,
+                             "polly.access." + BaseName);
 
   if (PollyDebugPrinting)
     RuntimeDebugBuilder::createCPUPrinter(Builder, "\n");
@@ -525,8 +526,8 @@ Value *IslExprBuilder::createOpICmp(__isl_take isl_ast_expr *Expr) {
   isl_ast_op_type OpType = isl_ast_expr_get_op_type(Expr);
   assert(OpType >= isl_ast_op_eq && OpType <= isl_ast_op_gt &&
          "Unsupported ICmp isl ast expression");
-  assert(isl_ast_op_eq + 4 == isl_ast_op_gt &&
-         "Isl ast op type interface changed");
+  static_assert(isl_ast_op_eq + 4 == isl_ast_op_gt,
+                "Isl ast op type interface changed");
 
   CmpInst::Predicate Predicates[5][2] = {
       {CmpInst::ICMP_EQ, CmpInst::ICMP_EQ},

@@ -128,8 +128,8 @@ entry:
 
 ; GCN-LABEL: {{^}}i32_fastcc_i32_i32_a32i32:
 ; GCN: s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GCN-DAG: buffer_load_dword [[LOAD_0:v[0-9]+]], off, s[0:3], s32{{$}}
-; GCN-DAG: buffer_load_dword [[LOAD_1:v[0-9]+]], off, s[0:3], s32 offset:4
+; GCN-DAG: buffer_load_dword [[LOAD_0:v[0-9]+]], off, s[0:3], s32 offset:4{{$}}
+; GCN-DAG: buffer_load_dword [[LOAD_1:v[0-9]+]], off, s[0:3], s32 offset:8{{$}}
 
 ; CIVI-NEXT: v_add_{{i|u}}32_e32 v0, vcc, v0, v1
 ; CIVI: v_add_{{i|u}}32_e32 v0, vcc, v0, [[LOAD_0]]
@@ -154,11 +154,13 @@ define fastcc i32 @i32_fastcc_i32_i32_a32i32(i32 %arg0, i32 %arg1, [32 x i32] %l
 
 ; GCN-DAG: buffer_load_dword [[LOAD_0:v[0-9]+]], off, s[0:3], s32{{$}}
 ; GCN-DAG: buffer_load_dword [[LOAD_1:v[0-9]+]], off, s[0:3], s32 offset:4
+; GCN-DAG: buffer_load_dword [[LOAD_2:v[0-9]+]], off, s[0:3], s32 offset:8
 
 ; GCN-NOT: s32
 
 ; GCN-DAG: buffer_store_dword [[LOAD_0]], off, s[0:3], s32{{$}}
 ; GCN-DAG: buffer_store_dword [[LOAD_1]], off, s[0:3], s32 offset:4
+; GCN-DAG: buffer_store_dword [[LOAD_2]], off, s[0:3], s32 offset:8
 
 ; GCN-NOT: s32
 ; GCN: s_setpc_b64
@@ -170,7 +172,7 @@ entry:
 
 ; GCN-LABEL: {{^}}sibling_call_i32_fastcc_i32_i32_a32i32_stack_object:
 ; GCN-DAG: v_mov_b32_e32 [[NINE:v[0-9]+]], 9
-; GCN: buffer_store_dword [[NINE]], off, s[0:3], s32 offset:28
+; GCN: buffer_store_dword [[NINE]], off, s[0:3], s32 offset:32
 ; GCN: s_setpc_b64
 define fastcc i32 @sibling_call_i32_fastcc_i32_i32_a32i32_stack_object(i32 %a, i32 %b, [32 x i32] %c) #1 {
 entry:
@@ -197,15 +199,15 @@ entry:
 ; Have another non-tail in the function
 ; GCN-LABEL: {{^}}sibling_call_i32_fastcc_i32_i32_other_call:
 ; GCN: s_or_saveexec_b64 s{{\[[0-9]+:[0-9]+\]}}, -1
-; GCN-NEXT: buffer_store_dword v42, off, s[0:3], s32 offset:8 ; 4-byte Folded Spill
+; GCN-NEXT: buffer_store_dword [[CSRV:v[0-9]+]], off, s[0:3], s32 offset:8 ; 4-byte Folded Spill
 ; GCN-NEXT: s_mov_b64 exec
 ; GCN: s_mov_b32 s33, s32
 ; GCN-DAG: s_addk_i32 s32, 0x400
 
-; GCN-DAG: buffer_store_dword v40, off, s[0:3], s33 offset:4 ; 4-byte Folded Spill
-; GCN-DAG: buffer_store_dword v41, off, s[0:3], s33 ; 4-byte Folded Spill
-; GCN-DAG: v_writelane_b32 v42, s34, 0
-; GCN-DAG: v_writelane_b32 v42, s35, 1
+; GCN-DAG: buffer_store_dword v41, off, s[0:3], s33 offset:4 ; 4-byte Folded Spill
+; GCN-DAG: buffer_store_dword v42, off, s[0:3], s33 ; 4-byte Folded Spill
+; GCN-DAG: v_writelane_b32 [[CSRV]], s34, 0
+; GCN-DAG: v_writelane_b32 [[CSRV]], s35, 1
 
 ; GCN-DAG: s_getpc_b64 s[4:5]
 ; GCN-DAG: s_add_u32 s4, s4, i32_fastcc_i32_i32@gotpcrel32@lo+4
@@ -214,20 +216,20 @@ entry:
 
 ; GCN: s_swappc_b64
 
-; GCN-DAG: buffer_load_dword v41, off, s[0:3], s33 ; 4-byte Folded Reload
-; GCN-DAG: buffer_load_dword v40, off, s[0:3], s33 offset:4 ; 4-byte Folded Reload
+; GCN-DAG: buffer_load_dword v42, off, s[0:3], s33 ; 4-byte Folded Reload
+; GCN-DAG: buffer_load_dword v41, off, s[0:3], s33 offset:4 ; 4-byte Folded Reload
 
 ; GCN: s_getpc_b64 s[4:5]
 ; GCN-NEXT: s_add_u32 s4, s4, sibling_call_i32_fastcc_i32_i32@rel32@lo+4
 ; GCN-NEXT: s_addc_u32 s5, s5, sibling_call_i32_fastcc_i32_i32@rel32@hi+12
 
-; GCN-DAG: v_readlane_b32 s34, v42, 0
-; GCN-DAG: v_readlane_b32 s35, v42, 1
+; GCN-DAG: v_readlane_b32 s34, [[CSRV]], 0
+; GCN-DAG: v_readlane_b32 s35, [[CSRV]], 1
 
 ; GCN: s_addk_i32 s32, 0xfc00
 ; GCN-NEXT: v_readlane_b32 s33,
 ; GCN-NEXT: s_or_saveexec_b64 s[6:7], -1
-; GCN-NEXT: buffer_load_dword v42, off, s[0:3], s32 offset:8 ; 4-byte Folded Reload
+; GCN-NEXT: buffer_load_dword [[CSRV]], off, s[0:3], s32 offset:8 ; 4-byte Folded Reload
 ; GCN-NEXT: s_mov_b64 exec, s[6:7]
 ; GCN-NEXT: s_setpc_b64 s[4:5]
 define fastcc i32 @sibling_call_i32_fastcc_i32_i32_other_call(i32 %a, i32 %b, i32 %c) #1 {
@@ -259,7 +261,7 @@ entry:
 
 ; GCN-LABEL: {{^}}sibling_call_stack_objecti32_fastcc_i32_i32_a32i32_larger_arg_area:
 ; GCN-NOT: s33
-; GCN: buffer_store_dword v{{[0-9]+}}, off, s[0:3], s32 offset:44
+; GCN: buffer_store_dword v{{[0-9]+}}, off, s[0:3], s32 offset:48
 
 ; GCN-NOT: s33
 ; GCN: s_setpc_b64 s[4:5]
@@ -349,7 +351,8 @@ declare hidden void @void_fastcc_byval_and_stack_passed([3 x i32] addrspace(5)* 
 ; GCN-DAG: buffer_store_dword [[NINE]], off, s[0:3], s32{{$}}
 ; GCN-DAG: buffer_store_dword [[NINE]], off, s[0:3], s32 offset:4{{$}}
 ; GCN-DAG: buffer_store_dword [[NINE]], off, s[0:3], s32 offset:8{{$}}
-; GCN-DAG: buffer_store_dword v0, off, s[0:3], s32 offset:12
+; GCN-DAG: buffer_store_dword [[NINE]], off, s[0:3], s32 offset:12{{$}}
+; GCN-DAG: buffer_store_dword v0, off, s[0:3], s32 offset:16
 
 ; GCN: v_mov_b32_e32 v0, 0
 ; GCN: v_mov_b32_e32 v30, 0

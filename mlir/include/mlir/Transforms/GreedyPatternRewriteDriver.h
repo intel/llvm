@@ -33,8 +33,11 @@ public:
   bool enableRegionSimplification = true;
 
   /// This specifies the maximum number of times the rewriter will iterate
-  /// between applying patterns and simplifying regions.
-  unsigned maxIterations = 10;
+  /// between applying patterns and simplifying regions. Use `kNoIterationLimit`
+  /// to disable this iteration limit.
+  int64_t maxIterations = 10;
+
+  static constexpr int64_t kNoIterationLimit = -1;
 };
 
 //===----------------------------------------------------------------------===//
@@ -77,6 +80,20 @@ LogicalResult applyOpPatternsAndFold(Operation *op,
                                      const FrozenRewritePatternSet &patterns,
                                      bool *erased = nullptr);
 
-} // end namespace mlir
+/// Applies the specified rewrite patterns on `ops` while also trying to fold
+/// these ops as well as any other ops that were in turn created due to such
+/// rewrites. Furthermore, any pre-existing ops in the IR outside of `ops`
+/// remain completely unmodified if `strict` is set to true. If `strict` is
+/// false, other operations that use results of rewritten ops or supply operands
+/// to such ops are in turn simplified; any other ops still remain unmodified
+/// (i.e., regardless of `strict`). Note that ops in `ops` could be erased as a
+/// result of folding, becoming dead, or via pattern rewrites. If more far
+/// reaching simplification is desired, applyPatternsAndFoldGreedily should be
+/// used. Returns true if at all any IR was rewritten.
+bool applyOpPatternsAndFold(ArrayRef<Operation *> ops,
+                            const FrozenRewritePatternSet &patterns,
+                            bool strict);
+
+} // namespace mlir
 
 #endif // MLIR_TRANSFORMS_GREEDYPATTERNREWRITEDRIVER_H_

@@ -46,6 +46,7 @@ protected:
 };
 
 const char archive[] = "!<arch>\x0A";
+const char big_archive[] = "<bigaf>\x0A";
 const char bitcode[] = "\xde\xc0\x17\x0b";
 const char coff_object[] = "\x00\x00......";
 const char coff_bigobj[] =
@@ -54,6 +55,8 @@ const char coff_bigobj[] =
 const char coff_import_library[] = "\x00\x00\xff\xff....";
 const char elf_relocatable[] = {0x7f, 'E', 'L', 'F', 1, 2, 1, 0, 0,
                                 0,    0,   0,   0,   0, 0, 0, 0, 1};
+
+const char goff_object[] = "\x03\xF0\x00";
 const char macho_universal_binary[] = "\xca\xfe\xba\xbe...\x00";
 const char macho_object[] =
     "\xfe\xed\xfa\xce........\x00\x00\x00\x01............";
@@ -94,12 +97,14 @@ TEST_F(MagicTest, Magic) {
   } types[] = {
 #define DEFINE(magic) {#magic, magic, sizeof(magic), file_magic::magic}
       DEFINE(archive),
+      {"big_archive", big_archive, sizeof(big_archive), file_magic::archive},
       DEFINE(bitcode),
       DEFINE(coff_object),
       {"coff_bigobj", coff_bigobj, sizeof(coff_bigobj),
        file_magic::coff_object},
       DEFINE(coff_import_library),
       DEFINE(elf_relocatable),
+      DEFINE(goff_object),
       DEFINE(macho_universal_binary),
       DEFINE(macho_object),
       DEFINE(macho_executable),

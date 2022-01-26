@@ -3,6 +3,7 @@ add_llvm_component_library(LLVMJITLink
   JITLink.cpp
   JITLinkGeneric.cpp
   JITLinkMemoryManager.cpp
+  MemoryFlags.cpp
 
   # Formats:
 
@@ -13,12 +14,15 @@ add_llvm_component_library(LLVMJITLink
   MachOLinkGraphBuilder.cpp
 
   # ELF
-
   ELF.cpp
   ELFLinkGraphBuilder.cpp
+  ELF_aarch64.cpp
+  ELF_riscv.cpp
   ELF_x86_64.cpp
 
   # Architectures:
+  aarch64.cpp
+  riscv.cpp
   x86_64.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -33,10 +37,11 @@ add_llvm_component_library(LLVMJITLink
   OrcTargetProcess
   Support
   )
- 
+
 target_link_libraries(LLVMJITLink
   PRIVATE
   LLVMObject
+  LLVMOrcShared
   LLVMOrcTargetProcess
   LLVMSupport
 )

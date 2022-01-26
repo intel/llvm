@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: libcpp-has-no-threads
 
 // <atomic>
 
@@ -111,5 +109,5 @@ int main(int, char**)
         assert(atomic_flag_test_explicit(&f, std::memory_order_seq_cst) == 1);
     }
 
-  return 0;
+    return 0;
 }

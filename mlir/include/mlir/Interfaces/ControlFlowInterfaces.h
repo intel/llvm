@@ -41,9 +41,6 @@ LogicalResult verifyBranchSuccessorOperands(Operation *op, unsigned succNo,
 // RegionBranchOpInterface
 //===----------------------------------------------------------------------===//
 
-// A constant value to represent unknown number of region invocations.
-extern const int64_t kUnknownNumRegionInvocations;
-
 namespace detail {
 /// Verify that types match along control flow edges described the given op.
 LogicalResult verifyTypesAlongControlFlowEdges(Operation *op);
@@ -52,9 +49,10 @@ LogicalResult verifyTypesAlongControlFlowEdges(Operation *op);
 /// This class represents a successor of a region. A region successor can either
 /// be another region, or the parent operation. If the successor is a region,
 /// this class represents the destination region, as well as a set of arguments
-/// from that region that will be populated by values from the current region.
+/// from that region that will be populated when control flows into the region.
 /// If the successor is the parent operation, this class represents an optional
-/// set of results that will be populated by values from the current region.
+/// set of results that will be populated when control returns to the parent
+/// operation.
 ///
 /// This interface assumes that the values from the current region that are used
 /// to populate the successor inputs are the operands of the return-like
@@ -67,8 +65,7 @@ public:
       : region(region), inputs(regionInputs) {}
   /// Initialize a successor that branches back to/out of the parent operation.
   RegionSuccessor(Optional<Operation::result_range> results = {})
-      : region(nullptr), inputs(results ? ValueRange(*results) : ValueRange()) {
-  }
+      : inputs(results ? ValueRange(*results) : ValueRange()) {}
 
   /// Return the given region successor. Returns nullptr if the successor is the
   /// parent operation.
@@ -82,9 +79,39 @@ public:
   ValueRange getSuccessorInputs() const { return inputs; }
 
 private:
-  Region *region;
+  Region *region{nullptr};
   ValueRange inputs;
 };
+
+/// Return `true` if `a` and `b` are in mutually exclusive regions as per
+/// RegionBranchOpInterface.
+bool insideMutuallyExclusiveRegions(Operation *a, Operation *b);
+
+//===----------------------------------------------------------------------===//
+// RegionBranchTerminatorOpInterface
+//===----------------------------------------------------------------------===//
+
+/// Returns true if the given operation is either annotated with the
+/// `ReturnLike` trait or implements the `RegionBranchTerminatorOpInterface`.
+bool isRegionReturnLike(Operation *operation);
+
+/// Returns the mutable operands that are passed to the region with the given
+/// `regionIndex`. If the operation does not implement the
+/// `RegionBranchTerminatorOpInterface` and is not marked as `ReturnLike`, the
+/// result will be `llvm::None`. In all other cases, the resulting
+/// `OperandRange` represents all operands that are passed to the specified
+/// successor region. If `regionIndex` is `llvm::None`, all operands that are
+/// passed to the parent operation will be returned.
+Optional<MutableOperandRange>
+getMutableRegionBranchSuccessorOperands(Operation *operation,
+                                        Optional<unsigned> regionIndex);
+
+/// Returns the read only operands that are passed to the region with the given
+/// `regionIndex`. See `getMutableRegionBranchSuccessorOperands` for more
+/// information.
+Optional<OperandRange>
+getRegionBranchSuccessorOperands(Operation *operation,
+                                 Optional<unsigned> regionIndex);
 
 //===----------------------------------------------------------------------===//
 // ControlFlow Traits
@@ -109,7 +136,7 @@ struct ReturnLike : public TraitBase<ConcreteType, ReturnLike> {
 };
 } // namespace OpTrait
 
-} // end namespace mlir
+} // namespace mlir
 
 //===----------------------------------------------------------------------===//
 // ControlFlow Interfaces

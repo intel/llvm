@@ -171,8 +171,8 @@ PHINode *Loop::getCanonicalInductionVariable() const {
 }
 
 /// Get the latch condition instruction.
-static ICmpInst *getLatchCmpInst(const Loop &L) {
-  if (BasicBlock *Latch = L.getLoopLatch())
+ICmpInst *Loop::getLatchCmpInst() const {
+  if (BasicBlock *Latch = getLoopLatch())
     if (BranchInst *BI = dyn_cast_or_null<BranchInst>(Latch->getTerminator()))
       if (BI->isConditional())
         return dyn_cast<ICmpInst>(BI->getCondition());
@@ -183,7 +183,7 @@ static ICmpInst *getLatchCmpInst(const Loop &L) {
 /// Return the final value of the loop induction variable if found.
 static Value *findFinalIVValue(const Loop &L, const PHINode &IndVar,
                                const Instruction &StepInst) {
-  ICmpInst *LatchCmpInst = getLatchCmpInst(L);
+  ICmpInst *LatchCmpInst = L.getLatchCmpInst();
   if (!LatchCmpInst)
     return nullptr;
 
@@ -297,19 +297,20 @@ PHINode *Loop::getInductionVariable(ScalarEvolution &SE) const {
 
   BasicBlock *Header = getHeader();
   assert(Header && "Expected a valid loop header");
-  ICmpInst *CmpInst = getLatchCmpInst(*this);
+  ICmpInst *CmpInst = getLatchCmpInst();
   if (!CmpInst)
     return nullptr;
 
-  Instruction *LatchCmpOp0 = dyn_cast<Instruction>(CmpInst->getOperand(0));
-  Instruction *LatchCmpOp1 = dyn_cast<Instruction>(CmpInst->getOperand(1));
+  Value *LatchCmpOp0 = CmpInst->getOperand(0);
+  Value *LatchCmpOp1 = CmpInst->getOperand(1);
 
   for (PHINode &IndVar : Header->phis()) {
     InductionDescriptor IndDesc;
     if (!InductionDescriptor::isInductionPHI(&IndVar, this, &SE, IndDesc))
       continue;
 
-    Instruction *StepInst = IndDesc.getInductionBinOp();
+    BasicBlock *Latch = getLoopLatch();
+    Value *StepInst = IndVar.getIncomingValueForBlock(Latch);
 
     // case 1:
     // IndVar = phi[{InitialValue, preheader}, {StepInst, latch}]
@@ -1100,6 +1101,11 @@ llvm::Optional<int> llvm::getOptionalIntLoopAttribute(const Loop *TheLoop,
     return None;
 
   return IntMD->getSExtValue();
+}
+
+int llvm::getIntLoopAttribute(const Loop *TheLoop, StringRef Name,
+                              int Default) {
+  return getOptionalIntLoopAttribute(TheLoop, Name).getValueOr(Default);
 }
 
 static const char *LLVMLoopMustProgress = "llvm.loop.mustprogress";

@@ -17,6 +17,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/Utils.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "normalize-memrefs"
 
@@ -40,7 +41,7 @@ struct NormalizeMemRefs : public NormalizeMemRefsBase<NormalizeMemRefs> {
   Operation *createOpResultsNormalized(FuncOp funcOp, Operation *oldOp);
 };
 
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>> mlir::createNormalizeMemRefsPass() {
   return std::make_unique<NormalizeMemRefs>();
@@ -91,13 +92,9 @@ void NormalizeMemRefs::runOnOperation() {
 /// are satisfied will the value become a candidate for replacement.
 /// TODO: Extend this for DimOps.
 static bool isMemRefNormalizable(Value::user_range opUsers) {
-  if (llvm::any_of(opUsers, [](Operation *op) {
-        if (op->hasTrait<OpTrait::MemRefsNormalizable>())
-          return false;
-        return true;
-      }))
-    return false;
-  return true;
+  return llvm::all_of(opUsers, [](Operation *op) {
+    return op->hasTrait<OpTrait::MemRefsNormalizable>();
+  });
 }
 
 /// Set all the calling functions and the callees of the function as not
@@ -114,8 +111,8 @@ void NormalizeMemRefs::setCalleesAndCallersNonNormalizable(
   // Caller of the function.
   Optional<SymbolTable::UseRange> symbolUses = funcOp.getSymbolUses(moduleOp);
   for (SymbolTable::SymbolUse symbolUse : *symbolUses) {
-    // TODO: Extend this for ops that are FunctionLike. This would require
-    // creating an OpInterface for FunctionLike ops.
+    // TODO: Extend this for ops that are FunctionOpInterface. This would
+    // require creating an OpInterface for FunctionOpInterface ops.
     FuncOp parentFuncOp = symbolUse.getUser()->getParentOfType<FuncOp>();
     for (FuncOp &funcOp : normalizableFuncs) {
       if (parentFuncOp == funcOp) {
@@ -128,10 +125,10 @@ void NormalizeMemRefs::setCalleesAndCallersNonNormalizable(
 
   // Functions called by this function.
   funcOp.walk([&](CallOp callOp) {
-    StringRef callee = callOp.getCallee();
+    StringAttr callee = callOp.getCalleeAttr().getAttr();
     for (FuncOp &funcOp : normalizableFuncs) {
       // We compare FuncOp and callee's name.
-      if (callee == funcOp.getName()) {
+      if (callee == funcOp.getNameAttr()) {
         setCalleesAndCallersNonNormalizable(funcOp, moduleOp,
                                             normalizableFuncs);
         break;
@@ -224,7 +221,7 @@ void NormalizeMemRefs::updateFunctionSignature(FuncOp funcOp,
         // memref type is normalized.
         // TODO: When selective normalization is implemented, handle multiple
         // results case where some are normalized, some aren't.
-        if (memrefType.getAffineMaps().empty())
+        if (memrefType.getLayout().isIdentity())
           resultTypes[operandEn.index()] = memrefType;
       }
     });
@@ -254,10 +251,9 @@ void NormalizeMemRefs::updateFunctionSignature(FuncOp funcOp,
     auto callOp = dyn_cast<CallOp>(userOp);
     if (!callOp)
       continue;
-    StringRef callee = callOp.getCallee();
-    Operation *newCallOp = builder.create<CallOp>(
-        userOp->getLoc(), resultTypes, builder.getSymbolRefAttr(callee),
-        userOp->getOperands());
+    Operation *newCallOp =
+        builder.create<CallOp>(userOp->getLoc(), callOp.getCalleeAttr(),
+                               resultTypes, userOp->getOperands());
     bool replacingMemRefUsesFailed = false;
     bool returnTypeChanged = false;
     for (unsigned resIndex : llvm::seq<unsigned>(0, userOp->getNumResults())) {
@@ -269,15 +265,15 @@ void NormalizeMemRefs::updateFunctionSignature(FuncOp funcOp,
       if (oldResult.getType() == newResult.getType())
         continue;
       AffineMap layoutMap =
-          oldResult.getType().dyn_cast<MemRefType>().getAffineMaps().front();
+          oldResult.getType().cast<MemRefType>().getLayout().getAffineMap();
       if (failed(replaceAllMemRefUsesWith(oldResult, /*newMemRef=*/newResult,
                                           /*extraIndices=*/{},
                                           /*indexRemap=*/layoutMap,
                                           /*extraOperands=*/{},
                                           /*symbolOperands=*/{},
-                                          /*domInstFilter=*/nullptr,
-                                          /*postDomInstFilter=*/nullptr,
-                                          /*allowDereferencingOps=*/true,
+                                          /*domOpFilter=*/nullptr,
+                                          /*postDomOpFilter=*/nullptr,
+                                          /*allowNonDereferencingOps=*/true,
                                           /*replaceInDeallocOp=*/true))) {
         // If it failed (due to escapes for example), bail out.
         // It should never hit this part of the code because it is called by
@@ -301,8 +297,8 @@ void NormalizeMemRefs::updateFunctionSignature(FuncOp funcOp,
       // TODO: Further optimization - Check if the memref is indeed part of
       // ReturnOp at the parentFuncOp and only then updation of signature is
       // required.
-      // TODO: Extend this for ops that are FunctionLike. This would require
-      // creating an OpInterface for FunctionLike ops.
+      // TODO: Extend this for ops that are FunctionOpInterface. This would
+      // require creating an OpInterface for FunctionOpInterface ops.
       FuncOp parentFuncOp = newCallOp->getParentOfType<FuncOp>();
       funcOpsToUpdate.insert(parentFuncOp);
     }
@@ -336,6 +332,8 @@ void NormalizeMemRefs::normalizeFuncOpMemRefs(FuncOp funcOp,
   OpBuilder b(funcOp);
 
   FunctionType functionType = funcOp.getType();
+  SmallVector<Location> functionArgLocs(llvm::map_range(
+      funcOp.getArguments(), [](BlockArgument arg) { return arg.getLoc(); }));
   SmallVector<Type, 8> inputTypes;
   // Walk over each argument of a function to perform memref normalization (if
   for (unsigned argIndex :
@@ -360,18 +358,18 @@ void NormalizeMemRefs::normalizeFuncOpMemRefs(FuncOp funcOp,
     }
 
     // Insert a new temporary argument with the new memref type.
-    BlockArgument newMemRef =
-        funcOp.front().insertArgument(argIndex, newMemRefType);
+    BlockArgument newMemRef = funcOp.front().insertArgument(
+        argIndex, newMemRefType, functionArgLocs[argIndex]);
     BlockArgument oldMemRef = funcOp.getArgument(argIndex + 1);
-    AffineMap layoutMap = memrefType.getAffineMaps().front();
+    AffineMap layoutMap = memrefType.getLayout().getAffineMap();
     // Replace all uses of the old memref.
     if (failed(replaceAllMemRefUsesWith(oldMemRef, /*newMemRef=*/newMemRef,
                                         /*extraIndices=*/{},
                                         /*indexRemap=*/layoutMap,
                                         /*extraOperands=*/{},
                                         /*symbolOperands=*/{},
-                                        /*domInstFilter=*/nullptr,
-                                        /*postDomInstFilter=*/nullptr,
+                                        /*domOpFilter=*/nullptr,
+                                        /*postDomOpFilter=*/nullptr,
                                         /*allowNonDereferencingOps=*/true,
                                         /*replaceInDeallocOp=*/true))) {
       // If it failed (due to escapes for example), bail out. Removing the
@@ -412,16 +410,16 @@ void NormalizeMemRefs::normalizeFuncOpMemRefs(FuncOp funcOp,
           if (oldMemRefType == newMemRefType)
             continue;
           // TODO: Assume single layout map. Multiple maps not supported.
-          AffineMap layoutMap = oldMemRefType.getAffineMaps().front();
+          AffineMap layoutMap = oldMemRefType.getLayout().getAffineMap();
           if (failed(replaceAllMemRefUsesWith(oldMemRef,
                                               /*newMemRef=*/newMemRef,
                                               /*extraIndices=*/{},
                                               /*indexRemap=*/layoutMap,
                                               /*extraOperands=*/{},
                                               /*symbolOperands=*/{},
-                                              /*domInstFilter=*/nullptr,
-                                              /*postDomInstFilter=*/nullptr,
-                                              /*allowDereferencingOps=*/true,
+                                              /*domOpFilter=*/nullptr,
+                                              /*postDomOpFilter=*/nullptr,
+                                              /*allowNonDereferencingOps=*/true,
                                               /*replaceInDeallocOp=*/true))) {
             newOp->erase();
             replacingMemRefUsesFailed = true;
@@ -460,7 +458,6 @@ void NormalizeMemRefs::normalizeFuncOpMemRefs(FuncOp funcOp,
       MemRefType newMemRefType = normalizeMemRefType(memrefType, b,
                                                      /*numSymbolicOperands=*/0);
       resultTypes.push_back(newMemRefType);
-      continue;
     }
 
     FunctionType newFuncType =
@@ -518,6 +515,6 @@ Operation *NormalizeMemRefs::createOpResultsNormalized(FuncOp funcOp,
       newRegion->takeBody(oldRegion);
     }
     return bb.createOperation(result);
-  } else
-    return oldOp;
+  }
+  return oldOp;
 }

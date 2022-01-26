@@ -91,7 +91,7 @@ class Command {
   // By resetting the parser options, we lost the standard -help flag.
   llvm::cl::opt<bool, false, llvm::cl::parser<bool>> Help{
       "help", llvm::cl::desc("Display available options"),
-      llvm::cl::ValueDisallowed, llvm::cl::cat(llvm::cl::GeneralCategory)};
+      llvm::cl::ValueDisallowed, llvm::cl::cat(llvm::cl::getGeneralCategory())};
   // FIXME: Allow commands to signal failure.
   virtual void run() = 0;
 
@@ -334,7 +334,8 @@ public:
     }
 
     // Auto-detects input format when parsing
-    auto IndexIn = clang::clangd::readIndexFile(Buffer->get()->getBuffer());
+    auto IndexIn = clang::clangd::readIndexFile(Buffer->get()->getBuffer(),
+                                                SymbolOrigin::Static);
     if (!IndexIn) {
       llvm::errs() << llvm::toString(IndexIn.takeError()) << "\n";
       return;
@@ -374,7 +375,7 @@ std::unique_ptr<SymbolIndex> openIndex(llvm::StringRef Index) {
   return Index.startswith("remote:")
              ? remote::getClient(Index.drop_front(strlen("remote:")),
                                  ProjectRoot)
-             : loadIndex(Index, /*UseDex=*/true);
+             : loadIndex(Index, SymbolOrigin::Static, /*UseDex=*/true);
 }
 
 bool runCommand(std::string Request, const SymbolIndex &Index) {

@@ -28,8 +28,7 @@ struct FuncObj {
 };
 
 struct Func {
-  // expected-warning@+2 {{attribute 'intelfpga::max_work_group_size' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::max_work_group_size' instead?}}
+  // expected-warning@+1 {{unknown attribute 'max_work_group_size' ignored}}
   [[intelfpga::max_work_group_size(1, 1, 1)]] void operator()() const {}
 };
 
@@ -69,10 +68,8 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // expected-warning@+3 {{attribute 'intelfpga::max_work_group_size' is deprecated}}
-    // expected-note@+2 {{did you mean to use 'intel::max_work_group_size' instead?}}
     h.single_task<class test_kernel2>(
-        []() [[intelfpga::max_work_group_size(8, 8, 8)]]{});
+        []() [[intel::max_work_group_size(8, 8, 8)]]{});
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}

@@ -37,14 +37,16 @@ static bool defaultIsSmallAlloc(Value alloc, unsigned maximumSizeInBytes,
   if (!type || !alloc.getDefiningOp<memref::AllocOp>())
     return false;
   if (!type.hasStaticShape()) {
-    // Check if the dynamic shape dimension of the alloc is produced by RankOp.
-    // If this is the case, it is likely to be small. Furthermore, the dimension
-    // is limited to the maximum rank of the allocated memref to avoid large
-    // values by multiplying several small values.
+    // Check if the dynamic shape dimension of the alloc is produced by
+    // `memref.rank`. If this is the case, it is likely to be small.
+    // Furthermore, the dimension is limited to the maximum rank of the
+    // allocated memref to avoid large values by multiplying several small
+    // values.
     if (type.getRank() <= maxRankOfAllocatedMemRef) {
-      return llvm::all_of(
-          alloc.getDefiningOp()->getOperands(),
-          [&](Value operand) { return operand.getDefiningOp<RankOp>(); });
+      return llvm::all_of(alloc.getDefiningOp()->getOperands(),
+                          [&](Value operand) {
+                            return operand.getDefiningOp<memref::RankOp>();
+                          });
     }
     return false;
   }
@@ -64,8 +66,7 @@ leavesAllocationScope(Region *parentRegion,
       // If there is at least one alias that leaves the parent region, we know
       // that this alias escapes the whole region and hence the associated
       // allocation leaves allocation scope.
-      if (use->hasTrait<OpTrait::ReturnLike>() &&
-          use->getParentRegion() == parentRegion)
+      if (isRegionReturnLike(use) && use->getParentRegion() == parentRegion)
         return true;
     }
   }
@@ -283,7 +284,7 @@ struct BufferAllocationLoopHoistingState : BufferAllocationHoistingStateBase {
   using BufferAllocationHoistingStateBase::BufferAllocationHoistingStateBase;
 
   /// Remembers the dominator block of all aliases.
-  Block *aliasDominatorBlock;
+  Block *aliasDominatorBlock = nullptr;
 
   /// Computes the upper bound for the placement block search.
   Block *computeUpperBound(Block *dominatorBlock, Block *dependencyBlock) {
@@ -363,10 +364,10 @@ public:
 /// blocks.
 struct BufferHoistingPass : BufferHoistingBase<BufferHoistingPass> {
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     // Hoist all allocations into dominator blocks.
     BufferAllocationHoisting<BufferAllocationHoistingState> optimizer(
-        getFunction());
+        getOperation());
     optimizer.hoist();
   }
 };
@@ -374,10 +375,10 @@ struct BufferHoistingPass : BufferHoistingBase<BufferHoistingPass> {
 /// The buffer loop hoisting pass that hoists allocation nodes out of loops.
 struct BufferLoopHoistingPass : BufferLoopHoistingBase<BufferLoopHoistingPass> {
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     // Hoist all allocations out of loops.
     BufferAllocationHoisting<BufferAllocationLoopHoistingState> optimizer(
-        getFunction());
+        getOperation());
     optimizer.hoist();
   }
 };
@@ -409,9 +410,9 @@ public:
     return success();
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     // Move all allocation nodes and convert candidates into allocas.
-    BufferPlacementPromotion optimizer(getFunction());
+    BufferPlacementPromotion optimizer(getOperation());
     optimizer.promote(isSmallAlloc);
   }
 
@@ -419,7 +420,7 @@ private:
   std::function<bool(Value)> isSmallAlloc;
 };
 
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<Pass> mlir::createBufferHoistingPass() {
   return std::make_unique<BufferHoistingPass>();

@@ -55,7 +55,7 @@ void event::wait_and_throw(const std::vector<event> &EventList) {
 std::vector<event> event::get_wait_list() {
   std::vector<event> Result;
 
-  for (auto &EventImpl : detail::Scheduler::getInstance().getWaitList(impl))
+  for (auto &EventImpl : impl->getWaitList())
     Result.push_back(detail::createSyclObjFromImpl<event>(EventImpl));
 
   return Result;
@@ -89,6 +89,11 @@ event::event(std::shared_ptr<detail::event_impl> event_impl)
 backend event::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle event::getNative() const { return impl->getNative(); }
+
+std::vector<pi_native_handle> event::getNativeVector() const {
+  std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
+  return ReturnVector;
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

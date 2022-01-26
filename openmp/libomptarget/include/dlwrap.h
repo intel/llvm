@@ -71,14 +71,18 @@
 // DLWRAP_INTERNAL is similar, except the function it expands to is:
 // static int dlwrap_foo(char x0, double x1) { ... }
 // so that the function pointer call can be wrapped in library-specific code
+//
+// DLWRAP_INITIALIZE() declares static functions:
+#define DLWRAP_INITIALIZE()                                                    \
+  namespace dlwrap {                                                           \
+  static size_t size();                                                        \
+  static const char *symbol(size_t); /* get symbol name in [0, size()) */      \
+  static void **                                                               \
+      pointer(size_t); /* get pointer to function pointer in [0, size()) */    \
+  }
 
-// DLWRAP_FINALIZE() expands to definitions of:
+// DLWRAP_FINALIZE() implements the functions from DLWRAP_INITIALIZE
 #define DLWRAP_FINALIZE() DLWRAP_FINALIZE_IMPL()
-namespace dlwrap {
-static size_t size();
-static const char *symbol(size_t); // get symbol name in [0, size())
-static void **pointer(size_t); // get pointer to function pointer in [0, size())
-} // namespace dlwrap
 
 // Implementation details follow.
 
@@ -127,6 +131,10 @@ constexpr std::array<const char *, N> static getSymbolArray(
   return {{dlwrap::type::symbol<Is>::call()...}};
 }
 
+template <size_t Requested, size_t Required> constexpr void verboseAssert() {
+  static_assert(Requested == Required, "Arity Error");
+}
+
 } // namespace dlwrap
 
 #define DLWRAP_INSTANTIATE(SYM_USE, SYM_DEF, ARITY)                            \
@@ -153,12 +161,12 @@ constexpr std::array<const char *, N> static getSymbolArray(
   struct SYMBOL##_Trait : public dlwrap::trait<decltype(&SYMBOL)> {            \
     using T = dlwrap::trait<decltype(&SYMBOL)>;                                \
     static T::FunctionType get() {                                             \
+      verboseAssert<ARITY, trait<decltype(&SYMBOL)>::nargs>();                 \
       constexpr size_t Index = DLWRAP_ID() - 1;                                \
       void *P = *dlwrap::pointer(Index);                                       \
       return reinterpret_cast<T::FunctionType>(P);                             \
     }                                                                          \
   };                                                                           \
-  static_assert(ARITY == trait<decltype(&SYMBOL)>::nargs, "Arity Error");      \
   }
 
 #define DLWRAP_IMPL(SYMBOL, ARITY)                                             \

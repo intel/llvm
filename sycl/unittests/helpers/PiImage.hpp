@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/platform_impl.hpp>
@@ -355,6 +354,15 @@ inline PiProperty makeSpecConstant(std::vector<char> &ValData,
   return Prop;
 }
 
+/// Utility function to mark kernel as the one using assert
+inline void setKernelUsesAssert(const std::vector<std::string> &Names,
+                                PiPropertySet &Set) {
+  PiArray<PiProperty> Value;
+  for (const std::string &N : Names)
+    Value.push_back({N, {4, 0}, PI_PROPERTY_TYPE_UINT32});
+  Set.insert(__SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
+}
+
 /// Utility function to add specialization constants to property set.
 ///
 /// This function overrides the default spec constant values.
@@ -391,6 +399,28 @@ makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
     Entries.push_back(std::move(E));
   }
   return Entries;
+}
+
+/// Utility function to create a kernel params optimization info property.
+///
+/// \param Name is a property name.
+/// \param NumArgs is a total number of arguments of a kernel.
+/// \param ElimArgMask is a bit mask of eliminated kernel arguments IDs.
+inline PiProperty
+makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
+                       const std::vector<unsigned char> &ElimArgMask) {
+  const size_t BYTES_FOR_SIZE = 8;
+  auto *EAMSizePtr = reinterpret_cast<const unsigned char *>(&NumArgs);
+  std::vector<char> DescData;
+  DescData.resize(BYTES_FOR_SIZE + ElimArgMask.size());
+  std::uninitialized_copy(EAMSizePtr, EAMSizePtr + BYTES_FOR_SIZE,
+                          DescData.data());
+  std::uninitialized_copy(ElimArgMask.begin(), ElimArgMask.end(),
+                          DescData.data() + BYTES_FOR_SIZE);
+
+  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+
+  return Prop;
 }
 
 } // namespace unittest

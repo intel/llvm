@@ -192,8 +192,8 @@ public:
       LLVMOrcMaterializationUnitMaterializeFunction Materialize,
       LLVMOrcMaterializationUnitDiscardFunction Discard,
       LLVMOrcMaterializationUnitDestroyFunction Destroy)
-      : llvm::orc::MaterializationUnit(std::move(InitialSymbolFlags),
-                                       std::move(InitSymbol)),
+      : llvm::orc::MaterializationUnit(
+            Interface(std::move(InitialSymbolFlags), std::move(InitSymbol))),
         Name(std::move(Name)), Ctx(Ctx), Materialize(Materialize),
         Discard(Discard), Destroy(Destroy) {}
 
@@ -240,6 +240,48 @@ static JITSymbolFlags toJITSymbolFlags(LLVMJITSymbolFlags F) {
   return JSF;
 }
 
+static LLVMJITSymbolFlags fromJITSymbolFlags(JITSymbolFlags JSF) {
+  LLVMJITSymbolFlags F = {0, 0};
+  if (JSF & JITSymbolFlags::Exported)
+    F.GenericFlags |= LLVMJITSymbolGenericFlagsExported;
+  if (JSF & JITSymbolFlags::Weak)
+    F.GenericFlags |= LLVMJITSymbolGenericFlagsWeak;
+  if (JSF & JITSymbolFlags::Callable)
+    F.GenericFlags |= LLVMJITSymbolGenericFlagsCallable;
+  if (JSF & JITSymbolFlags::MaterializationSideEffectsOnly)
+    F.GenericFlags |= LLVMJITSymbolGenericFlagsMaterializationSideEffectsOnly;
+
+  F.TargetFlags = JSF.getTargetFlags();
+
+  return F;
+}
+
+static SymbolMap toSymbolMap(LLVMOrcCSymbolMapPairs Syms, size_t NumPairs) {
+  SymbolMap SM;
+  for (size_t I = 0; I != NumPairs; ++I) {
+    JITSymbolFlags Flags = toJITSymbolFlags(Syms[I].Sym.Flags);
+    SM[OrcV2CAPIHelper::moveToSymbolStringPtr(unwrap(Syms[I].Name))] =
+        JITEvaluatedSymbol(Syms[I].Sym.Address, Flags);
+  }
+  return SM;
+}
+
+static SymbolDependenceMap
+toSymbolDependenceMap(LLVMOrcCDependenceMapPairs Pairs, size_t NumPairs) {
+  SymbolDependenceMap SDM;
+  for (size_t I = 0; I != NumPairs; ++I) {
+    JITDylib *JD = unwrap(Pairs[I].JD);
+    SymbolNameSet Names;
+
+    for (size_t J = 0; J != Pairs[I].Names.Length; ++J) {
+      auto Sym = Pairs[I].Names.Symbols[J];
+      Names.insert(OrcV2CAPIHelper::moveToSymbolStringPtr(unwrap(Sym)));
+    }
+    SDM[JD] = Names;
+  }
+  return SDM;
+}
+
 } // end anonymous namespace
 
 void LLVMOrcExecutionSessionSetErrorReporter(
@@ -251,7 +293,8 @@ void LLVMOrcExecutionSessionSetErrorReporter(
 
 LLVMOrcSymbolStringPoolRef
 LLVMOrcExecutionSessionGetSymbolStringPool(LLVMOrcExecutionSessionRef ES) {
-  return wrap(unwrap(ES)->getSymbolStringPool().get());
+  return wrap(
+      unwrap(ES)->getExecutorProcessControl().getSymbolStringPool().get());
 }
 
 void LLVMOrcSymbolStringPoolClearDeadEntries(LLVMOrcSymbolStringPoolRef SSP) {
@@ -334,13 +377,7 @@ LLVMOrcMaterializationUnitRef LLVMOrcCreateCustomMaterializationUnit(
 
 LLVMOrcMaterializationUnitRef
 LLVMOrcAbsoluteSymbols(LLVMOrcCSymbolMapPairs Syms, size_t NumPairs) {
-  SymbolMap SM;
-  for (size_t I = 0; I != NumPairs; ++I) {
-    JITSymbolFlags Flags = toJITSymbolFlags(Syms[I].Sym.Flags);
-    SM[OrcV2CAPIHelper::moveToSymbolStringPtr(unwrap(Syms[I].Name))] =
-        JITEvaluatedSymbol(Syms[I].Sym.Address, Flags);
-  }
-
+  SymbolMap SM = toSymbolMap(Syms, NumPairs);
   return wrap(absoluteSymbols(std::move(SM)).release());
 }
 
@@ -362,6 +399,150 @@ LLVMOrcMaterializationUnitRef LLVMOrcLazyReexports(
   return wrap(lazyReexports(*unwrap(LCTM), *unwrap(ISM), *unwrap(SourceJD),
                             std::move(SAM))
                   .release());
+}
+
+void LLVMOrcDisposeMaterializationResponsibility(
+    LLVMOrcMaterializationResponsibilityRef MR) {
+  std::unique_ptr<MaterializationResponsibility> TmpMR(unwrap(MR));
+}
+
+LLVMOrcJITDylibRef LLVMOrcMaterializationResponsibilityGetTargetDylib(
+    LLVMOrcMaterializationResponsibilityRef MR) {
+  return wrap(&unwrap(MR)->getTargetJITDylib());
+}
+
+LLVMOrcExecutionSessionRef
+LLVMOrcMaterializationResponsibilityGetExecutionSession(
+    LLVMOrcMaterializationResponsibilityRef MR) {
+  return wrap(&unwrap(MR)->getExecutionSession());
+}
+
+LLVMOrcCSymbolFlagsMapPairs LLVMOrcMaterializationResponsibilityGetSymbols(
+    LLVMOrcMaterializationResponsibilityRef MR, size_t *NumPairs) {
+
+  auto Symbols = unwrap(MR)->getSymbols();
+  LLVMOrcCSymbolFlagsMapPairs Result = static_cast<LLVMOrcCSymbolFlagsMapPairs>(
+      safe_malloc(Symbols.size() * sizeof(LLVMOrcCSymbolFlagsMapPair)));
+  size_t I = 0;
+  for (auto const &pair : Symbols) {
+    auto Name = wrap(OrcV2CAPIHelper::getRawPoolEntryPtr(pair.first));
+    auto Flags = pair.second;
+    Result[I] = {Name, fromJITSymbolFlags(Flags)};
+    I++;
+  }
+  *NumPairs = Symbols.size();
+  return Result;
+}
+
+void LLVMOrcDisposeCSymbolFlagsMap(LLVMOrcCSymbolFlagsMapPairs Pairs) {
+  free(Pairs);
+}
+
+LLVMOrcSymbolStringPoolEntryRef
+LLVMOrcMaterializationResponsibilityGetInitializerSymbol(
+    LLVMOrcMaterializationResponsibilityRef MR) {
+  auto Sym = unwrap(MR)->getInitializerSymbol();
+  return wrap(OrcV2CAPIHelper::getRawPoolEntryPtr(Sym));
+}
+
+LLVMOrcSymbolStringPoolEntryRef *
+LLVMOrcMaterializationResponsibilityGetRequestedSymbols(
+    LLVMOrcMaterializationResponsibilityRef MR, size_t *NumSymbols) {
+
+  auto Symbols = unwrap(MR)->getRequestedSymbols();
+  LLVMOrcSymbolStringPoolEntryRef *Result =
+      static_cast<LLVMOrcSymbolStringPoolEntryRef *>(safe_malloc(
+          Symbols.size() * sizeof(LLVMOrcSymbolStringPoolEntryRef)));
+  size_t I = 0;
+  for (auto &Name : Symbols) {
+    Result[I] = wrap(OrcV2CAPIHelper::getRawPoolEntryPtr(Name));
+    I++;
+  }
+  *NumSymbols = Symbols.size();
+  return Result;
+}
+
+void LLVMOrcDisposeSymbols(LLVMOrcSymbolStringPoolEntryRef *Symbols) {
+  free(Symbols);
+}
+
+LLVMErrorRef LLVMOrcMaterializationResponsibilityNotifyResolved(
+    LLVMOrcMaterializationResponsibilityRef MR, LLVMOrcCSymbolMapPairs Symbols,
+    size_t NumPairs) {
+  SymbolMap SM = toSymbolMap(Symbols, NumPairs);
+  return wrap(unwrap(MR)->notifyResolved(std::move(SM)));
+}
+
+LLVMErrorRef LLVMOrcMaterializationResponsibilityNotifyEmitted(
+    LLVMOrcMaterializationResponsibilityRef MR) {
+  return wrap(unwrap(MR)->notifyEmitted());
+}
+
+LLVMErrorRef LLVMOrcMaterializationResponsibilityDefineMaterializing(
+    LLVMOrcMaterializationResponsibilityRef MR,
+    LLVMOrcCSymbolFlagsMapPairs Syms, size_t NumSyms) {
+  SymbolFlagsMap SFM;
+  for (size_t I = 0; I != NumSyms; ++I)
+    SFM[OrcV2CAPIHelper::moveToSymbolStringPtr(unwrap(Syms[I].Name))] =
+        toJITSymbolFlags(Syms[I].Flags);
+
+  return wrap(unwrap(MR)->defineMaterializing(std::move(SFM)));
+}
+
+LLVMErrorRef LLVMOrcMaterializationResponsibilityReplace(
+    LLVMOrcMaterializationResponsibilityRef MR,
+    LLVMOrcMaterializationUnitRef MU) {
+  std::unique_ptr<MaterializationUnit> TmpMU(unwrap(MU));
+  return wrap(unwrap(MR)->replace(std::move(TmpMU)));
+}
+
+LLVMErrorRef LLVMOrcMaterializationResponsibilityDelegate(
+    LLVMOrcMaterializationResponsibilityRef MR,
+    LLVMOrcSymbolStringPoolEntryRef *Symbols, size_t NumSymbols,
+    LLVMOrcMaterializationResponsibilityRef *Result) {
+  SymbolNameSet Syms;
+  for (size_t I = 0; I != NumSymbols; I++) {
+    Syms.insert(OrcV2CAPIHelper::moveToSymbolStringPtr(unwrap(Symbols[I])));
+  }
+  auto OtherMR = unwrap(MR)->delegate(Syms);
+
+  if (!OtherMR) {
+    return wrap(OtherMR.takeError());
+  }
+  *Result = wrap(OtherMR->release());
+  return LLVMErrorSuccess;
+}
+
+void LLVMOrcMaterializationResponsibilityAddDependencies(
+    LLVMOrcMaterializationResponsibilityRef MR,
+    LLVMOrcSymbolStringPoolEntryRef Name,
+    LLVMOrcCDependenceMapPairs Dependencies, size_t NumPairs) {
+
+  SymbolDependenceMap SDM = toSymbolDependenceMap(Dependencies, NumPairs);
+  auto Sym = OrcV2CAPIHelper::moveToSymbolStringPtr(unwrap(Name));
+  unwrap(MR)->addDependencies(Sym, SDM);
+}
+
+void LLVMOrcMaterializationResponsibilityAddDependenciesForAll(
+    LLVMOrcMaterializationResponsibilityRef MR,
+    LLVMOrcCDependenceMapPairs Dependencies, size_t NumPairs) {
+
+  SymbolDependenceMap SDM = toSymbolDependenceMap(Dependencies, NumPairs);
+  unwrap(MR)->addDependenciesForAll(SDM);
+}
+
+void LLVMOrcMaterializationResponsibilityFailMaterialization(
+    LLVMOrcMaterializationResponsibilityRef MR) {
+  unwrap(MR)->failMaterialization();
+}
+
+void LLVMOrcIRTransformLayerEmit(LLVMOrcIRTransformLayerRef IRLayer,
+                                 LLVMOrcMaterializationResponsibilityRef MR,
+                                 LLVMOrcThreadSafeModuleRef TSM) {
+  std::unique_ptr<ThreadSafeModule> TmpTSM(unwrap(TSM));
+  unwrap(IRLayer)->emit(
+      std::unique_ptr<MaterializationResponsibility>(unwrap(MR)),
+      std::move(*TmpTSM));
 }
 
 LLVMOrcJITDylibRef
@@ -430,12 +611,67 @@ LLVMErrorRef LLVMOrcCreateDynamicLibrarySearchGeneratorForProcess(
       DynamicLibrarySearchGenerator::GetForCurrentProcess(GlobalPrefix, Pred);
 
   if (!ProcessSymsGenerator) {
-    *Result = 0;
+    *Result = nullptr;
     return wrap(ProcessSymsGenerator.takeError());
   }
 
   *Result = wrap(ProcessSymsGenerator->release());
   return LLVMErrorSuccess;
+}
+
+LLVMErrorRef LLVMOrcCreateDynamicLibrarySearchGeneratorForPath(
+    LLVMOrcDefinitionGeneratorRef *Result, const char *FileName,
+    char GlobalPrefix, LLVMOrcSymbolPredicate Filter, void *FilterCtx) {
+  assert(Result && "Result can not be null");
+  assert(FileName && "FileName can not be null");
+  assert((Filter || !FilterCtx) &&
+         "if Filter is null then FilterCtx must also be null");
+
+  DynamicLibrarySearchGenerator::SymbolPredicate Pred;
+  if (Filter)
+    Pred = [=](const SymbolStringPtr &Name) -> bool {
+      return Filter(FilterCtx, wrap(OrcV2CAPIHelper::getRawPoolEntryPtr(Name)));
+    };
+
+  auto LibrarySymsGenerator =
+      DynamicLibrarySearchGenerator::Load(FileName, GlobalPrefix, Pred);
+
+  if (!LibrarySymsGenerator) {
+    *Result = nullptr;
+    return wrap(LibrarySymsGenerator.takeError());
+  }
+
+  *Result = wrap(LibrarySymsGenerator->release());
+  return LLVMErrorSuccess;
+}
+
+LLVMErrorRef LLVMOrcCreateStaticLibrarySearchGeneratorForPath(
+    LLVMOrcDefinitionGeneratorRef *Result, LLVMOrcObjectLayerRef ObjLayer,
+    const char *FileName, const char *TargetTriple) {
+  assert(Result && "Result can not be null");
+  assert(FileName && "Filename can not be null");
+  assert(ObjLayer && "ObjectLayer can not be null");
+
+  if (TargetTriple) {
+    auto TT = Triple(TargetTriple);
+    auto LibrarySymsGenerator =
+        StaticLibraryDefinitionGenerator::Load(*unwrap(ObjLayer), FileName, TT);
+    if (!LibrarySymsGenerator) {
+      *Result = nullptr;
+      return wrap(LibrarySymsGenerator.takeError());
+    }
+    *Result = wrap(LibrarySymsGenerator->release());
+    return LLVMErrorSuccess;
+  } else {
+    auto LibrarySymsGenerator =
+        StaticLibraryDefinitionGenerator::Load(*unwrap(ObjLayer), FileName);
+    if (!LibrarySymsGenerator) {
+      *Result = nullptr;
+      return wrap(LibrarySymsGenerator.takeError());
+    }
+    *Result = wrap(LibrarySymsGenerator->release());
+    return LLVMErrorSuccess;
+  }
 }
 
 LLVMOrcThreadSafeContextRef LLVMOrcCreateNewThreadSafeContext(void) {
@@ -476,7 +712,7 @@ LLVMErrorRef LLVMOrcJITTargetMachineBuilderDetectHost(
 
   auto JTMB = JITTargetMachineBuilder::detectHost();
   if (!JTMB) {
-    Result = 0;
+    Result = nullptr;
     return wrap(JTMB.takeError());
   }
 
@@ -640,7 +876,7 @@ LLVMErrorRef LLVMOrcCreateLLJIT(LLVMOrcLLJITRef *Result,
   LLVMOrcDisposeLLJITBuilder(Builder);
 
   if (!J) {
-    Result = 0;
+    Result = nullptr;
     return wrap(J.takeError());
   }
 
@@ -747,6 +983,10 @@ void LLVMOrcRTDyldObjectLinkingLayerRegisterJITEventListener(
 
 LLVMOrcIRTransformLayerRef LLVMOrcLLJITGetIRTransformLayer(LLVMOrcLLJITRef J) {
   return wrap(&unwrap(J)->getIRTransformLayer());
+}
+
+const char *LLVMOrcLLJITGetDataLayoutStr(LLVMOrcLLJITRef J) {
+  return unwrap(J)->getDataLayout().getStringRepresentation().c_str();
 }
 
 LLVMOrcIndirectStubsManagerRef

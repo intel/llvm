@@ -121,7 +121,7 @@ public:
 
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override {
     for (int i = static_cast<int>(CudaArch::SM_20);
-         i < static_cast<int>(CudaArch::LAST); ++i)
+         i < static_cast<int>(CudaArch::Generic); ++i)
       Values.emplace_back(CudaArchToString(static_cast<CudaArch>(i)));
   }
 
@@ -155,6 +155,10 @@ public:
     Opts["cl_khr_3d_image_writes"] = true;
   }
 
+  const llvm::omp::GV &getGridValue() const override {
+    return llvm::omp::NVPTXGridValues;
+  }
+
   /// \returns If a target requires an address within a target specific address
   /// space \p AddressSpace to be converted in order to be used, then return the
   /// corresponding target specific DWARF address space.
@@ -185,7 +189,7 @@ public:
     TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 };
 } // namespace targets
 } // namespace clang

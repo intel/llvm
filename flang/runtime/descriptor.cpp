@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "descriptor.h"
+#include "flang/Runtime/descriptor.h"
 #include "derived.h"
 #include "memory.h"
+#include "stat.h"
 #include "terminator.h"
 #include "type-info.h"
 #include <cassert>
@@ -18,12 +19,6 @@
 namespace Fortran::runtime {
 
 Descriptor::Descriptor(const Descriptor &that) { *this = that; }
-
-Descriptor::~Descriptor() {
-  if (raw_.attribute != CFI_attribute_pointer) {
-    Deallocate();
-  }
-}
 
 Descriptor &Descriptor::operator=(const Descriptor &that) {
   std::memcpy(this, &that, that.SizeInBytes());
@@ -139,7 +134,6 @@ int Descriptor::Allocate() {
     return CFI_ERROR_MEM_ALLOCATION;
   }
   // TODO: image synchronization
-  // TODO: derived type initialization
   raw_.base_addr = p;
   if (int dims{rank()}) {
     std::size_t stride{ElementBytes()};
@@ -152,34 +146,22 @@ int Descriptor::Allocate() {
   return 0;
 }
 
-int Descriptor::Deallocate(bool finalize) {
-  Destroy(finalize);
-  return ISO::CFI_deallocate(&raw_);
-}
-
-void Descriptor::Destroy(bool finalize) const {
-  if (const DescriptorAddendum * addendum{Addendum()}) {
-    if (const typeInfo::DerivedType * dt{addendum->derivedType()}) {
-      if (addendum->flags() & DescriptorAddendum::DoNotFinalize) {
-        finalize = false;
+int Descriptor::Destroy(bool finalize) {
+  if (raw_.attribute == CFI_attribute_pointer) {
+    return StatOk;
+  } else {
+    if (auto *addendum{Addendum()}) {
+      if (const auto *derived{addendum->derivedType()}) {
+        if (!derived->noDestructionNeeded()) {
+          runtime::Destroy(*this, finalize, *derived);
+        }
       }
-      runtime::Destroy(*this, finalize, *dt);
     }
+    return Deallocate();
   }
 }
 
-bool Descriptor::IncrementSubscripts(
-    SubscriptValue *subscript, const int *permutation) const {
-  for (int j{0}; j < raw_.rank; ++j) {
-    int k{permutation ? permutation[j] : j};
-    const Dimension &dim{GetDimension(k)};
-    if (subscript[k]++ < dim.UpperBound()) {
-      return true;
-    }
-    subscript[k] = dim.LowerBound();
-  }
-  return false;
-}
+int Descriptor::Deallocate() { return ISO::CFI_deallocate(&raw_); }
 
 bool Descriptor::DecrementSubscripts(
     SubscriptValue *subscript, const int *permutation) const {
@@ -207,29 +189,6 @@ std::size_t Descriptor::ZeroBasedElementNumber(
   return result;
 }
 
-bool Descriptor::SubscriptsForZeroBasedElementNumber(SubscriptValue *subscript,
-    std::size_t elementNumber, const int *permutation) const {
-  std::size_t coefficient{1};
-  std::size_t dimCoefficient[maxRank];
-  for (int j{0}; j < raw_.rank; ++j) {
-    int k{permutation ? permutation[j] : j};
-    const Dimension &dim{GetDimension(k)};
-    dimCoefficient[j] = coefficient;
-    coefficient *= dim.Extent();
-  }
-  if (elementNumber >= coefficient) {
-    return false; // out of range
-  }
-  for (int j{raw_.rank - 1}; j >= 0; --j) {
-    int k{permutation ? permutation[j] : j};
-    const Dimension &dim{GetDimension(k)};
-    std::size_t quotient{elementNumber / dimCoefficient[j]};
-    subscript[k] = quotient + dim.LowerBound();
-    elementNumber -= quotient * dimCoefficient[j];
-  }
-  return true;
-}
-
 bool Descriptor::EstablishPointerSection(const Descriptor &source,
     const SubscriptValue *lower, const SubscriptValue *upper,
     const SubscriptValue *stride) {
@@ -246,6 +205,13 @@ bool Descriptor::EstablishPointerSection(const Descriptor &source,
     }
   }
   raw_.rank = newRank;
+  if (const auto *sourceAddendum = source.Addendum()) {
+    if (auto *addendum{Addendum()}) {
+      *addendum = *sourceAddendum;
+    } else {
+      return false;
+    }
+  }
   return CFI_section(&raw_, &source.raw_, lower, upper, stride) == CFI_SUCCESS;
 }
 
@@ -278,7 +244,6 @@ void Descriptor::Dump(FILE *f) const {
 DescriptorAddendum &DescriptorAddendum::operator=(
     const DescriptorAddendum &that) {
   derivedType_ = that.derivedType_;
-  flags_ = that.flags_;
   auto lenParms{that.LenParameters()};
   for (std::size_t j{0}; j < lenParms; ++j) {
     len_[j] = that.len_[j];
@@ -297,8 +262,10 @@ std::size_t DescriptorAddendum::LenParameters() const {
 
 void DescriptorAddendum::Dump(FILE *f) const {
   std::fprintf(
-      f, "  derivedType @ %p\n", reinterpret_cast<const void *>(derivedType_));
-  std::fprintf(f, "  flags 0x%jx\n", static_cast<std::intmax_t>(flags_));
-  // TODO: LEN parameter values
+      f, "  derivedType @ %p\n", reinterpret_cast<const void *>(derivedType()));
+  std::size_t lenParms{LenParameters()};
+  for (std::size_t j{0}; j < lenParms; ++j) {
+    std::fprintf(f, "  len[%zd] %jd\n", j, static_cast<std::intmax_t>(len_[j]));
+  }
 }
 } // namespace Fortran::runtime
