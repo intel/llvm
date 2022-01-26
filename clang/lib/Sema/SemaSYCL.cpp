@@ -1566,8 +1566,8 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 // A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
-  bool IsSIMD = false;
   DiagnosticsEngine &Diag;
+  bool IsSIMD = false;
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
