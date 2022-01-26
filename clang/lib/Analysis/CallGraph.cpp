@@ -42,6 +42,17 @@ STATISTIC(NumBlockCallEdges, "Number of block call edges");
 
 namespace {
 
+static bool isConstExprVar(const Decl *D) {
+  if (!D)
+    return false;
+
+  if (const auto *VD = dyn_cast<VarDecl>(D))
+    if (VD->isConstexpr())
+      return true;
+
+  return false;
+}
+
 /// A helper class, which walks the AST and locates all the call sites in the
 /// given function body.
 class CGBuilder : public StmtVisitor<CGBuilder> {
@@ -148,6 +159,19 @@ public:
     }
 
     StmtVisitor::VisitIfStmt(If);
+  }
+
+  void VisitDeclStmt(DeclStmt *DS) {
+    if (G->shouldSkipConstantExpressions()) {
+      Decl **DeclPointer = DS->decls().begin();
+      for (Stmt *SubStmt : DS->children()) {
+        const Decl *D = *DeclPointer;
+        if (!isConstExprVar(*DeclPointer) && SubStmt)
+          this->Visit(SubStmt);
+        ++DeclPointer;
+      }
+    } else
+      StmtVisitor::VisitDeclStmt(DS);
   }
 
   void VisitChildren(Stmt *S) {
