@@ -114,4 +114,5 @@ TYPE("fpga_aoco",                FPGA_AOCO,    INVALID,         "aoco",   phases
 TYPE("fpga_dep",                 FPGA_Dependencies, INVALID,    "d",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("fpga_dep_list",            FPGA_Dependencies_List, INVALID, "txt",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("host_dep_image",           Host_Dependencies_Image, INVALID, "out", phases::Compile, phases::Backend, phases::Assemble, phases::Link)
+TYPE("api-information",          API_INFO,     INVALID,         "json",   phases::Compile)
 TYPE("none",                     Nothing,      INVALID,         nullptr,  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
