@@ -120,6 +120,9 @@ sub_group get_sub_group();
 ----
 size_t get_linear_id();
 ----
+_Preconditions_: The currently executing kernel must have been launched with a
+`sycl::range` or `sycl::nd_range` argument.
+
 _Returns_: A `size_t` representing the current work-item's linear position in
 the global iteration space. Multi-dimensional indices are converted into a
 linear index following the linearization equations defined in Section 3.11.1 of
