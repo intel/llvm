@@ -641,7 +641,7 @@ public:
       Expr *NonDirectCallee = e->getCallee();
       if (!NonDirectCallee->isValueDependent())
         MaybeConstantExpr =
-            NonDirectCallee->isEvaluatable(SemaRef.getASTContext());
+            NonDirectCallee->isCXX11ConstantExpr(SemaRef.getASTContext());
       if (!MaybeConstantExpr)
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << Sema::KernelCallFunctionPointer;

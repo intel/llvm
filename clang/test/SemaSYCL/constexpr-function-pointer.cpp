@@ -2,7 +2,8 @@
 
 [[intel::device_indirectly_callable]] void t() {}
 
-const auto F = t;
+constexpr auto F = t;
+const auto F1 = t;
 
 typedef void (*SomeFunc)();
 
@@ -20,8 +21,8 @@ __attribute__((sycl_device)) void bar() {
   // OK
   constexpr auto f = t;
   f();
-  // OK
   const auto f1 = t;
+  // expected-error@+1 {{SYCL kernel cannot call through a function pointer}}
   f1();
   auto f2 = t;
   // expected-error@+1 {{SYCL kernel cannot call through a function pointer}}
@@ -29,10 +30,14 @@ __attribute__((sycl_device)) void bar() {
 
   // OK
   F();
+  // expected-error@+1 {{SYCL kernel cannot call through a function pointer}}
+  F1();
 
-  // foo is a constexpr - OK
-  const auto ff = foo();
+  constexpr auto ff = foo();
   ff();
+  const auto ff1 = foo();
+  // expected-error@+1 {{SYCL kernel cannot call through a function pointer}}
+  ff1();
   const auto fff = foo1();
   // expected-error@+1 {{SYCL kernel cannot call through a function pointer}}
   fff();
