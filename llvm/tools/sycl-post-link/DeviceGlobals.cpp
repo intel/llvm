@@ -70,6 +70,7 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
          "The 'sycl-device-global-size' attribute must contain a number"
          " representing the size of the underlying type T of the device"
          " global variable");
+  (void)error;
   return value;
 }
 
