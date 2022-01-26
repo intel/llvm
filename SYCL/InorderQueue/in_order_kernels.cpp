@@ -4,9 +4,6 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-//
-// Linking issues on AMD
-// XFAIL: hip_amd
 
 // SYCL ordered queue kernel shortcut test
 //
