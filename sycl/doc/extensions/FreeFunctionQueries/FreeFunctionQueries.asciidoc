@@ -134,8 +134,8 @@ _Preconditions_: `Dimensions` must match the dimensionality of the currently
 executing kernel. The currently executing kernel must have been launched with a
 `sycl::range` or `sycl::nd_range` argument.
 
-_Returns_: A `sycl::id` instance representing the current work-item in a
-`sycl::range`.
+_Returns_: A `sycl::id` instance representing the current work-item in the
+global iteration space.
 
 [source,c++]
 ----
