@@ -2162,6 +2162,7 @@
 ?getNativeImpl@kernel@sycl@cl@@AEBA_KXZ
 ?getNativeMem@interop_handle@sycl@cl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@sycl@cl@@AEBA_KXZ
+?getNativeVector@event@sycl@cl@@AEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ?getOSMemSize@OSUtil@detail@sycl@cl@@SA_KXZ
 ?getOSModuleHandle@OSUtil@detail@sycl@cl@@SA_JPEBX@Z
 ?getOrCreateSampler@sampler_impl@detail@sycl@cl@@QEAAPEAU_pi_sampler@@AEBVcontext@34@@Z

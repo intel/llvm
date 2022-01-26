@@ -439,7 +439,8 @@ namespace oneapi {
 namespace experimental {
 template <int Dims> group<Dims> this_group() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(detail::declptr<group<Dims>>());
+  return sycl::detail::Builder::getElement(
+      sycl::detail::declptr<group<Dims>>());
 #else
   throw sycl::exception(
       sycl::make_error_code(sycl::errc::feature_not_supported),
