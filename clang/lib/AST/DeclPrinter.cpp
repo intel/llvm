@@ -891,7 +891,10 @@ void DeclPrinter::VisitVarDecl(VarDecl *D) {
     }
   }
 
-  printDeclType(T, D->getName());
+  printDeclType(T, (isa<ParmVarDecl>(D) && Policy.CleanUglifiedParameters &&
+                    D->getIdentifier())
+                       ? D->getIdentifier()->deuglifiedName()
+                       : D->getName());
   Expr *Init = D->getInit();
   if (!Policy.SuppressInitializers && Init) {
     bool ImplicitInit = false;
@@ -1137,8 +1140,12 @@ void DeclPrinter::VisitTemplateDecl(const TemplateDecl *D) {
     else if (TTP->getDeclName())
       Out << ' ';
 
-    if (TTP->getDeclName())
-      Out << TTP->getDeclName();
+    if (TTP->getDeclName()) {
+      if (Policy.CleanUglifiedParameters && TTP->getIdentifier())
+        Out << TTP->getIdentifier()->deuglifiedName();
+      else
+        Out << TTP->getDeclName();
+    }
   } else if (auto *TD = D->getTemplatedDecl())
     Visit(TD);
   else if (const auto *Concept = dyn_cast<ConceptDecl>(D)) {
@@ -1748,8 +1755,12 @@ void DeclPrinter::VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *TTP) {
   else if (TTP->getDeclName())
     Out << ' ';
 
-  if (TTP->getDeclName())
-    Out << TTP->getDeclName();
+  if (TTP->getDeclName()) {
+    if (Policy.CleanUglifiedParameters && TTP->getIdentifier())
+      Out << TTP->getIdentifier()->deuglifiedName();
+    else
+      Out << TTP->getDeclName();
+  }
 
   if (TTP->hasDefaultArgument() && !Policy.SuppressDefaultTemplateArguments) {
     Out << " = ";
@@ -1761,7 +1772,8 @@ void DeclPrinter::VisitNonTypeTemplateParmDecl(
     const NonTypeTemplateParmDecl *NTTP) {
   StringRef Name;
   if (IdentifierInfo *II = NTTP->getIdentifier())
-    Name = II->getName();
+    Name =
+        Policy.CleanUglifiedParameters ? II->deuglifiedName() : II->getName();
   printDeclType(NTTP->getType(), Name, NTTP->isParameterPack());
 
   if (NTTP->hasDefaultArgument() && !Policy.SuppressDefaultTemplateArguments) {

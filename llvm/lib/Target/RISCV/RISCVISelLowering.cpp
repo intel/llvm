@@ -1547,6 +1547,19 @@ bool RISCVTargetLowering::isLegalElementTypeForRVV(Type *ScalarTy) const {
   return false;
 }
 
+static SDValue getVLOperand(SDValue Op) {
+  assert((Op.getOpcode() == ISD::INTRINSIC_WO_CHAIN ||
+          Op.getOpcode() == ISD::INTRINSIC_W_CHAIN) &&
+         "Unexpected opcode");
+  bool HasChain = Op.getOpcode() == ISD::INTRINSIC_W_CHAIN;
+  unsigned IntNo = Op.getConstantOperandVal(HasChain ? 1 : 0);
+  const RISCVVIntrinsicsTable::RISCVVIntrinsicInfo *II =
+      RISCVVIntrinsicsTable::getRISCVVIntrinsicInfo(IntNo);
+  if (!II)
+    return SDValue();
+  return Op.getOperand(II->VLOperand + 1 + HasChain);
+}
+
 static bool useRVVForFixedLengthVectorVT(MVT VT,
                                          const RISCVSubtarget &Subtarget) {
   assert(VT.isFixedLengthVector() && "Expected a fixed length vector type!");
@@ -2452,8 +2465,12 @@ static SDValue lowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG,
           SDVTList VTs = DAG.getVTList({ContainerVT, MVT::Other});
           SDValue IntID =
               DAG.getTargetConstant(Intrinsic::riscv_vlse, DL, XLenVT);
-          SDValue Ops[] = {Ld->getChain(), IntID, NewAddr,
-                           DAG.getRegister(RISCV::X0, XLenVT), VL};
+          SDValue Ops[] = {Ld->getChain(),
+                           IntID,
+                           DAG.getUNDEF(ContainerVT),
+                           NewAddr,
+                           DAG.getRegister(RISCV::X0, XLenVT),
+                           VL};
           SDValue NewLoad = DAG.getMemIntrinsicNode(
               ISD::INTRINSIC_W_CHAIN, DL, VTs, Ops, SVT,
               DAG.getMachineFunction().getMachineMemOperand(
@@ -4368,7 +4385,7 @@ static SDValue lowerVectorIntrinsicSplats(SDValue Op, SelectionDAG &DAG,
   // We need to convert the scalar to a splat vector.
   // FIXME: Can we implicitly truncate the scalar if it is known to
   // be sign extended?
-  SDValue VL = Op.getOperand(II->VLOperand + 1 + HasChain);
+  SDValue VL = getVLOperand(Op);
   assert(VL.getValueType() == XLenVT);
   ScalarOp = splatSplitI64WithVL(DL, VT, ScalarOp, VL, DAG);
   return DAG.getNode(Op->getOpcode(), DL, Op->getVTList(), Operands);
@@ -4456,7 +4473,7 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     //   vmerge.vvm vDest, vSrc, vVal, mMask
     MVT VT = Op.getSimpleValueType();
     SDValue Vec = Op.getOperand(1);
-    SDValue VL = Op.getOperand(3);
+    SDValue VL = getVLOperand(Op);
 
     SDValue SplattedVal = splatSplitI64WithVL(DL, VT, Scalar, VL, DAG);
     SDValue SplattedIdx = DAG.getNode(RISCVISD::VMV_V_X_VL, DL, VT,
@@ -4502,7 +4519,7 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                                    DAG.getConstant(1, DL, XLenVT));
 
     // Double the VL since we halved SEW.
-    SDValue VL = Op.getOperand(NumOps - (1 + OpOffset));
+    SDValue VL = getVLOperand(Op);
     SDValue I32VL =
         DAG.getNode(ISD::SHL, DL, XLenVT, VL, DAG.getConstant(1, DL, XLenVT));
 
@@ -4574,7 +4591,9 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
 
     auto *Load = cast<MemIntrinsicSDNode>(Op);
     SmallVector<SDValue, 8> Ops{Load->getChain(), IntID};
-    if (!IsUnmasked)
+    if (IsUnmasked)
+      Ops.push_back(DAG.getUNDEF(ContainerVT));
+    else
       Ops.push_back(PassThru);
     Ops.push_back(Op.getOperand(3)); // Ptr
     Ops.push_back(Op.getOperand(4)); // Stride
@@ -5432,7 +5451,9 @@ SDValue RISCVTargetLowering::lowerMaskedLoad(SDValue Op,
   unsigned IntID =
       IsUnmasked ? Intrinsic::riscv_vle : Intrinsic::riscv_vle_mask;
   SmallVector<SDValue, 8> Ops{Chain, DAG.getTargetConstant(IntID, DL, XLenVT)};
-  if (!IsUnmasked)
+  if (IsUnmasked)
+    Ops.push_back(DAG.getUNDEF(ContainerVT));
+  else
     Ops.push_back(PassThru);
   Ops.push_back(BasePtr);
   if (!IsUnmasked)
@@ -5813,7 +5834,9 @@ SDValue RISCVTargetLowering::lowerMaskedGather(SDValue Op,
   unsigned IntID =
       IsUnmasked ? Intrinsic::riscv_vluxei : Intrinsic::riscv_vluxei_mask;
   SmallVector<SDValue, 8> Ops{Chain, DAG.getTargetConstant(IntID, DL, XLenVT)};
-  if (!IsUnmasked)
+  if (IsUnmasked)
+    Ops.push_back(DAG.getUNDEF(ContainerVT));
+  else
     Ops.push_back(PassThru);
   Ops.push_back(BasePtr);
   Ops.push_back(Index);

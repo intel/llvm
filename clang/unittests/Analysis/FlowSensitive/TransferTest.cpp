@@ -22,7 +22,6 @@
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include <cassert>
 #include <string>
 #include <utility>
 
@@ -30,6 +29,7 @@ namespace {
 
 using namespace clang;
 using namespace dataflow;
+using namespace test;
 using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::IsNull;
@@ -57,21 +57,6 @@ protected:
         llvm::Succeeded());
   }
 };
-
-/// Returns the `ValueDecl` for the given identifier.
-///
-/// Requirements:
-///
-///  `Name` must be unique in `ASTCtx`.
-static const ValueDecl *findValueDecl(ASTContext &ASTCtx,
-                                      llvm::StringRef Name) {
-  auto TargetNodes = ast_matchers::match(
-      ast_matchers::valueDecl(ast_matchers::hasName(Name)).bind("v"), ASTCtx);
-  assert(TargetNodes.size() == 1 && "Name must be unique");
-  auto *const Result = ast_matchers::selectFirst<ValueDecl>("v", TargetNodes);
-  assert(Result != nullptr);
-  return Result;
-}
 
 TEST_F(TransferTest, IntVarDecl) {
   std::string Code = R"(
@@ -1950,6 +1935,39 @@ TEST_F(TransferTest, AggregateInitialization) {
           EXPECT_EQ(&QuuxVal->getChild(*QuxDecl), QuxArgVal);
         });
   }
+}
+
+TEST_F(TransferTest, AssignToUnionMember) {
+  std::string Code = R"(
+    union A {
+      int Foo;
+    };
+
+    void target(int Bar) {
+      A Baz;
+      Baz.Foo = Bar;
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *BazDecl = findValueDecl(ASTCtx, "Baz");
+                ASSERT_THAT(BazDecl, NotNull());
+                ASSERT_TRUE(BazDecl->getType()->isUnionType());
+
+                const auto *BazLoc = dyn_cast_or_null<AggregateStorageLocation>(
+                    Env.getStorageLocation(*BazDecl, SkipPast::None));
+                ASSERT_THAT(BazLoc, NotNull());
+
+                // FIXME: Add support for union types.
+                EXPECT_THAT(Env.getValue(*BazLoc), IsNull());
+              });
 }
 
 } // namespace
