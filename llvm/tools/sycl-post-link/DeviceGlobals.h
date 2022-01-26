@@ -17,6 +17,7 @@
 
 #include "llvm/ADT/MapVector.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -49,6 +50,9 @@ public:
   // vector<"variable properties"> map.
   static DeviceGlobalPropertyMapTy
   collectDeviceGlobalProperties(const Module &M);
+
+  // Counts how many device global variables are found in the module.
+  static ptrdiff_t countDeviceGlobals(const Module &M);
 };
 
 } // end namespace llvm

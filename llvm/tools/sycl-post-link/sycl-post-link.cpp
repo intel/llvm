@@ -634,8 +634,7 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
     // Extract device global maps per module
     auto DevGlobalPropertyMap =
         DeviceGlobalsPass::collectDeviceGlobalProperties(M);
-    if (!DevGlobalPropertyMap.empty())
-      PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
   }
 
   std::error_code EC;
@@ -696,6 +695,12 @@ bool processSpecConstants(Module &M) {
   // perform the spec constant intrinsics transformation on resulting module
   PreservedAnalyses Res = RunSpecConst.run(M, MAM);
   return !Res.areAllPreserved();
+}
+
+bool processDeviceGlobals(Module &M) {
+  if (DeviceGlobals.getNumOccurrences() == 0)
+    return false;
+  return DeviceGlobalsPass::countDeviceGlobals(M) > 0;
 }
 
 // Module split helper.
@@ -778,6 +783,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     std::tie(ResM, SplitModuleEntryPoints) = MSplit.nextSplit();
 
     bool SpecConstsMet = processSpecConstants(*ResM);
+    bool DeviceGlobalsMet = processDeviceGlobals(*ResM);
 
     if (IROutputOnly) {
       // the result is the transformed input LLVM IR file rather than a file
@@ -793,6 +799,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       std::string ResModuleFile{};
       bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
                                  !IsLLVMUsedRemoved && !SpecConstsMet &&
+                                 !DeviceGlobalsMet &&
                                  (MSplit.totalSplits() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
@@ -811,7 +818,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
                                        EmitProgramMetadata,
                                        EmitExportedSymbols,
                                        IsEsimd,
-                                       DeviceGlobals};
+                                       DeviceGlobalsMet};
       std::string PropSetFile = makeResultFileName(".prop", I, FileSuffix);
       saveModuleProperties(*ResM, SplitModuleEntryPoints, ImgPSInfo,
                            PropSetFile);
