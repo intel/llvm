@@ -149,12 +149,6 @@ public:
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
 
-  template <typename EltTy>
-  __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
-  auto format() {
-    return bit_cast_view<EltTy>();
-  }
-
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width> auto bit_cast_view() {
     using TopRegionTy =
@@ -163,12 +157,6 @@ public:
     using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(0, 0);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
-  }
-
-  template <typename EltTy, int Height, int Width>
-  __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
-  auto format() {
-    return bit_cast_view<EltTy, Height, Width>();
   }
 
   /// 1D region select, apply a region on top of this object.
@@ -379,27 +367,10 @@ public:
     return v[i];
   }
 
-  /// Read a single element from a 1D region, by value only.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
-  __SYCL_DEPRECATED("use operator[] form.")
-  element_type operator()(int i) const {
-    const auto v = read();
-    return v[i];
-  }
-
   /// Return a writeable view of a single element.
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   auto operator[](int i) {
-    return select<1, 1>(i);
-  }
-
-  /// Return a writeable view of a single element.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
-  __SYCL_DEPRECATED("use operator[] form.")
-  auto operator()(int i) {
     return select<1, 1>(i);
   }
 
