@@ -437,6 +437,13 @@ __ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
   return Res[0];
 }
 
+/// Store a scalar value into an accessor.
+/// \ingroup sycl_esimd
+template <typename T, typename AccessorTy>
+__ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
+  scatter<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset), simd<T, 1>(val));
+}
+
 /// Gathering read for the given starting pointer \p p and \p offsets.
 /// Up to 4 data elements may be accessed at each address depending on the
 /// enabled channel \p Mask.
