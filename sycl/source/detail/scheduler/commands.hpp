@@ -188,9 +188,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() {
-    MEvent->cleanupDependencyEvents();
-  }
+  virtual ~Command() { MEvent->cleanupDependencyEvents(); }
 
   const char *getBlockReason() const;
 
