@@ -166,6 +166,9 @@ reduce_over_group(Group g, T x, sycl::plus<T> binary_op) {
   result.imag(reduce_over_group(g, x.imag(), sycl::plus<>()));
   return result;
 #else
+  (void)g;
+  (void)x;
+  (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -259,6 +262,7 @@ joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
   return joint_reduce(g, first, last, init, binary_op);
 #else
   (void)g;
+  (void)first;
   (void)last;
   (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
@@ -312,6 +316,7 @@ joint_reduce(Group g, Ptr first, Ptr last,
   return joint_reduce(g, first, last, init, binary_op);
 #else
   (void)g;
+  (void)first;
   (void)last;
   (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
@@ -338,7 +343,10 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, sycl::plus<T> binary_op) {
   return reduce_over_group(g, partial, init, binary_op);
 #else
   (void)g;
+  (void)first;
   (void)last;
+  (void)init;
+  (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -627,6 +635,9 @@ exclusive_scan_over_group(Group g, T x, sycl::plus<T> binary_op) {
   result.imag(exclusive_scan_over_group(g, x.imag(), sycl::plus<>()));
   return result;
 #else
+  (void)g;
+  (void)x;
+  (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -833,9 +844,11 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
   return result + N;
 #else
   (void)g;
+  (void)first;
   (void)last;
   (void)result;
   (void)init;
+  (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -916,6 +929,9 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   result.imag(inclusive_scan_over_group(g, x.imag(), sycl::plus<>()));
   return result;
 #else
+  (void)g;
+  (void)x;
+  (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -1093,8 +1109,11 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   return result + N;
 #else
   (void)g;
+  (void)first;
   (void)last;
   (void)result;
+  (void)binary_op;
+  (void)init;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
