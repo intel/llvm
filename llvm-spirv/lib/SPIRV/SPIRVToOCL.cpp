@@ -912,7 +912,7 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
         // reference image
         int NumImages = std::count_if(Args.begin(), Args.end(), [](Value *Arg) {
           if (auto *PT = dyn_cast<PointerType>(Arg->getType())) {
-            if (auto *ST = dyn_cast<StructType>(PT->getElementType())) {
+            if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType())) {
               if (ST->getName().startswith("spirv.VmeImageINTEL"))
                 return true;
             }

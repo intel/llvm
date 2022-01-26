@@ -349,16 +349,12 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
     assert(PtrTy &&
            "Expected a pointer to an array to represent joint matrix type");
     size_t TypeLayout[4] = {0, 0, 0, 0};
-    ArrayType *ArrayTy;
-    auto GetTypeLayout = [&](auto *Ty) -> size_t {
-      ArrayTy = dyn_cast<ArrayType>(Ty->getElementType());
-      assert(ArrayTy &&
-             "Expected a pointer to an array to represent joint matrix type");
-      return ArrayTy->getNumElements();
-    };
-    TypeLayout[0] = GetTypeLayout(PtrTy);
-    for (size_t I = 1; I != 4; ++I)
-      TypeLayout[I] = GetTypeLayout(ArrayTy);
+    ArrayType *ArrayTy = dyn_cast<ArrayType>(PtrTy->getPointerElementType());
+    TypeLayout[0] = ArrayTy->getNumElements();
+    for (size_t I = 1; I != 4; ++I) {
+      ArrayTy = dyn_cast<ArrayType>(ArrayTy->getElementType());
+      TypeLayout[I] = ArrayTy->getNumElements();
+    }
 
     auto *ElemTy = ArrayTy->getElementType();
     std::string ElemTyStr;

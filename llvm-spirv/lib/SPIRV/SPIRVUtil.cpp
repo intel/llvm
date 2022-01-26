@@ -248,7 +248,7 @@ bool isVoidFuncTy(FunctionType *FT) { return FT->getReturnType()->isVoidTy(); }
 
 bool isPointerToOpaqueStructType(llvm::Type *Ty) {
   if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque())
         return true;
   return false;
@@ -256,7 +256,7 @@ bool isPointerToOpaqueStructType(llvm::Type *Ty) {
 
 bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name) {
   if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque() && ST->getName() == Name)
         return true;
   return false;
@@ -264,7 +264,7 @@ bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name) {
 
 bool isSPIRVSamplerType(llvm::Type *Ty) {
   if (auto *PT = dyn_cast<PointerType>(Ty))
-    if (auto *ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque()) {
         auto Name = ST->getName();
         if (Name.startswith(std::string(kSPIRVTypeName::PrefixAndDelim) +
@@ -277,7 +277,7 @@ bool isSPIRVSamplerType(llvm::Type *Ty) {
 
 bool isOCLImageType(llvm::Type *Ty, StringRef *Name) {
   if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque()) {
         auto FullName = ST->getName();
         if (FullName.find(kSPR2TypeName::ImagePrefix) == 0) {
@@ -294,7 +294,7 @@ bool isOCLImageType(llvm::Type *Ty, StringRef *Name) {
 ///   type Name as spirv.BaseTyName.Postfixes.
 bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix) {
   if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque()) {
         auto FullName = ST->getName();
         std::string N =

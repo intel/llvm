@@ -1288,7 +1288,7 @@ void transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI) {
         Attribute::isTypeAttrKind(LlvmAttrKind)
             ? Attribute::get(CI->getContext(), LlvmAttrKind,
                              cast<PointerType>(CI->getOperand(ArgNo)->getType())
-                                 ->getElementType())
+                                 ->getPointerElementType())
             : Attribute::get(CI->getContext(), LlvmAttrKind);
     CI->addParamAttr(ArgNo, LlvmAttr);
   }
@@ -2411,7 +2411,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       else {
         IID = Intrinsic::ptr_annotation;
         auto *PtrTy = dyn_cast<PointerType>(Ty);
-        if (PtrTy && isa<IntegerType>(PtrTy->getElementType()))
+        if (PtrTy && isa<IntegerType>(PtrTy->getPointerElementType()))
           RetTy = PtrTy;
         // Whether a struct or a pointer to some other type,
         // bitcast to i8*
@@ -2808,7 +2808,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
       Type *AttrTy = nullptr;
       switch (LLVMKind) {
       case Attribute::AttrKind::ByVal:
-        AttrTy = cast<PointerType>(I->getType())->getElementType();
+        AttrTy = cast<PointerType>(I->getType())->getPointerElementType();
         break;
       case Attribute::AttrKind::StructRet:
         AttrTy = I->getType();
