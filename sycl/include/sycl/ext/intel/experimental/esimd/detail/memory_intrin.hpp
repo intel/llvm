@@ -22,19 +22,12 @@
 #ifndef __SYCL_DEVICE_ONLY__
 // ESIMD_CPU Emulation support using esimd_cpu plugin
 
-// Definition macro to be referenced in CM header files for preventing
-// build failure caused by symbol conflicts between llvm and CM -
-// e.g. vector.
-#define __SYCL_EXPLICIT_SIMD_PLUGIN__
-
 // Header files required for accessing CM-managed resources - image,
 // buffer, runtime API etc.
 namespace cm_support {
 #include <CL/cm_rt.h>
 } // namespace cm_support
-#undef __SYCL_EXPLICIT_SIMD_PLUGIN__
 
-#undef __SYCL_EXPLICIT_SIMD_PLUGIN__
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
