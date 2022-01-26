@@ -1130,6 +1130,25 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
               std::make_pair(EntriesIt->name, std::move(KernelID)));
         }
       }
+      // ... and initialize associated device_global information
+      {
+        std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+
+        auto DeviceGlobals = Img->getDeviceGlobals();
+        for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
+          auto Entry = m_DeviceGlobals.find(DeviceGlobal->Name);
+          assert(Entry != m_DeviceGlobals.end() &&
+                 "Device global has not been registered.");
+                 
+          pi::ByteArray DeviceGlobalInfo =
+              pi::DeviceBinaryProperty(DeviceGlobal).asByteArray();
+          assert(DeviceGlobalInfo.size() > 13 && "Unexpected property size");
+          const std::uint32_t TypeSize =
+              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
+          const std::uint32_t DeviceImageScopeDecorated = DeviceGlobalInfo[12];
+          Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
+        }
+      }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
 
       cacheKernelUsesAssertInfo(M, *Img);
@@ -1377,6 +1396,15 @@ kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
   }
 
   return KernelID->second;
+}
+
+void ProgramManager::addDeviceGlobalEntry(void *DeviceGlobalPtr,
+                                          const char *UniqueId) {
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+
+  assert(m_DeviceGlobals.find(UniqueId) == m_DeviceGlobals.end() &&
+         "Device global has already been registered.");
+  m_DeviceGlobals.insert({UniqueId, DeviceGlobalMapEntry(DeviceGlobalPtr)});
 }
 
 std::vector<device_image_plain>
