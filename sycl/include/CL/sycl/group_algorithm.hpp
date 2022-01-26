@@ -589,6 +589,10 @@ group_broadcast(Group g, T x) {
 }
 
 // ---- exclusive_scan_over_group
+//   this function has two overloads, one with three arguments and one with four
+//   (init)
+//       the three argument version is specialized thrice: scalar, complex and
+//       vector
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -604,6 +608,25 @@ exclusive_scan_over_group(Group, T x, BinaryOperation binary_op) {
   return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
                             sycl::detail::spirv::group_scope<Group>::value>(
       typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+#else
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+// complex specialization. T is std::complex<float> or similar.
+//   binary op is  sycl::plus<std::complex<float>>
+template <typename Group, typename T>
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                     detail::is_complex<T>::value &&
+                     detail::is_native_op<T, sycl::plus<T>>::value),
+                    T>
+exclusive_scan_over_group(Group g, T x, sycl::plus<T> binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  T result;
+  result.real(exclusive_scan_over_group(g, x.real(), sycl::plus<>()));
+  result.imag(exclusive_scan_over_group(g, x.imag(), sycl::plus<>()));
+  return result;
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -630,6 +653,8 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   return result;
 }
 
+// four argument version of exclusive_scan_over_group is specialized twice
+// once for vector_arithmetic, once for (scalar_arithmetic || complex)
 template <typename Group, typename V, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<V>::value &&
@@ -653,12 +678,13 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<V>::value &&
-                     detail::is_scalar_arithmetic<T>::value &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> &&
+     (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
+     (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
+     detail::is_native_op<V, BinaryOperation>::value &&
+     detail::is_native_op<T, BinaryOperation>::value),
+    T>
 exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value ||
@@ -684,6 +710,9 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 // ---- joint_exclusive_scan
+//    has two overloads: 5 arguments and 6 arguments,
+//    each is specialized twice: is_arithmetic and is_complex.
+
 template <typename Group, typename InPtr, typename OutPtr, typename T,
           class BinaryOperation>
 detail::enable_if_t<
@@ -763,6 +792,71 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
       sycl::known_identity_v<BinaryOperation,
                              typename detail::remove_pointer<OutPtr>::type>,
       binary_op);
+}
+
+// specialized for complex
+template <typename Group, typename InPtr, typename OutPtr, typename T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
+     detail::is_pointer<OutPtr>::value &&
+     detail::is_complex<typename detail::remove_pointer<InPtr>::type>::value &&
+     detail::is_complex<T>::value &&
+     detail::is_native_op<
+         typename detail::remove_pointer<InPtr>::type,
+         sycl::plus<typename detail::remove_pointer<InPtr>::type>>::value &&
+     detail::is_native_op<T, sycl::plus<T>>::value),
+    OutPtr>
+joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
+                     sycl::plus<T> binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
+  ptrdiff_t N = last - first;
+  auto roundup = [=](const ptrdiff_t &v,
+                     const ptrdiff_t &divisor) -> ptrdiff_t {
+    return ((v + divisor - 1) / divisor) * divisor;
+  };
+  typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
+      x;
+  typename detail::remove_pointer<OutPtr>::type carry = init;
+  for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
+    ptrdiff_t i = chunk + offset;
+    if (i < N) {
+      x = first[i];
+    }
+    typename detail::remove_pointer<OutPtr>::type out =
+        exclusive_scan_over_group(g, x, carry, binary_op);
+    if (i < N) {
+      result[i] = out;
+    }
+    carry = group_broadcast(g, binary_op(out, x), stride - 1);
+  }
+  return result + N;
+#else
+  (void)g;
+  (void)last;
+  (void)result;
+  (void)init;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename InPtr, typename OutPtr>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
+     detail::is_pointer<OutPtr>::value &&
+     detail::is_complex<typename detail::remove_pointer<InPtr>::type>::value &&
+     detail::is_native_op<
+         typename detail::remove_pointer<InPtr>::type,
+         sycl::plus<typename detail::remove_pointer<InPtr>::type>>::value),
+    OutPtr>
+joint_exclusive_scan(
+    Group g, InPtr first, InPtr last, OutPtr result,
+    sycl::plus<typename detail::remove_pointer<InPtr>::type> binary_op) {
+  using T = typename detail::remove_pointer<InPtr>::type;
+  T init{0, 0};
+  return joint_exclusive_scan(g, first, last, result, init, binary_op);
 }
 
 // ---- inclusive_scan_over_group
