@@ -558,7 +558,7 @@ struct _pi_context : _pi_object {
   // pool then create new one. The HostVisible parameter tells if we need a
   // slot for a host-visible event.
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
-                                           bool HostVisible = false);
+                                           bool HostVisible);
 
   // Decrement number of events living in the pool upon event destroy
   // and return the pool to the cache if there are no unreleased events.
@@ -595,7 +595,7 @@ private:
   // head. In case there is no next pool, a new pool is created and made the
   // head.
   //
-  std::list<ze_event_pool_handle_t> ZeEventPoolCache;
+  std::list<ze_event_pool_handle_t> ZeDeviceScopeEventPoolCache;
   // Cache of event pools to which host-visible events are added to.
   std::list<ze_event_pool_handle_t> ZeHostVisibleEventPoolCache;
 
@@ -775,6 +775,9 @@ struct _pi_queue : _pi_object {
   // executed. Otherwise OpenCommandList containing compute commands is
   // executed.
   pi_result executeOpenCommandList(bool IsCopy);
+
+  // Execute the open command containing the event.
+  pi_result executeOpenCommandListWithEvent(pi_event Event);
 
   // Wrapper function to execute both OpenCommandLists (Copy and Compute).
   // This wrapper is helpful when all 'open' commands need to be executed.
@@ -958,18 +961,21 @@ struct _pi_event : _pi_object {
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
-  // In case we use device-only events/pools these are their host-visible
-  // counterparts. The idea is that two Level-Zero events co-exist:
-  // - one is always created with device-scope and used for GPU book-keeping.
-  // - the other host-visible proxy event is created on demand when we need
-  //   to query/wait on a device-scope event from the host.
+  // In case we use device-only events this holds their host-visible
+  // counterpart. If this event is itself host-visble then HostVisibleEvent
+  // points to this event. If this event is not host-visible then this field can
+  // be: 1) null, meaning that a host-visible event wasn't yet created 2) a PI
+  // event created internally that host will actually be redirected
+  //    to wait/query instead of this PI event.
   //
-  ze_event_handle_t ZeHostVisibleEvent = {nullptr};
-  ze_event_pool_handle_t ZeHostVisibleEventPool = {nullptr};
+  // The HostVisibleEvent is a reference counted PI event and can be used more
+  // than by just this one event, depending on the mode (see EventsScope).
+  //
+  pi_event HostVisibleEvent = {nullptr};
+  bool IsHostVisible() const { return this == HostVisibleEvent; }
+
   // Get the host-visible event or create one and enqueue its signal.
   pi_result getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
-  // Return the host-visible event if one was already created before, or null.
-  ze_event_handle_t getHostVisibleEvent() const;
 
   // Level Zero command list where the command signaling this event was appended
   // to. This is currently used to remember/destroy the command list after all
@@ -1075,6 +1081,11 @@ struct _pi_program : _pi_object {
       : Context{Context}, OwnZeModule{OwnZeModule}, State{St},
         ZeModule{ZeModule}, ZeBuildLog{nullptr} {}
 
+  // Construct a program in Invalid state with a custom error message.
+  _pi_program(state St, pi_context Context, const std::string &ErrorMessage)
+      : Context{Context}, OwnZeModule{true}, ErrorMessage{ErrorMessage},
+        State{St}, ZeModule{nullptr}, ZeBuildLog{nullptr} {}
+
   ~_pi_program();
 
   const pi_context Context; // Context of the program.
@@ -1082,6 +1093,10 @@ struct _pi_program : _pi_object {
   // Indicates if we own the ZeModule or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   const bool OwnZeModule;
+
+  // This error message is used only in Invalid state to hold a custom error
+  // message from a call to piProgramLink.
+  const std::string ErrorMessage;
 
   // Protects accesses to all the non-const member variables.  Exclusive access
   // is required to modify any of these members.

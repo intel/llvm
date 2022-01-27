@@ -7,9 +7,9 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-PRE: %spirv.JointMatrixINTEL._float_2_2_0_3 = type opaque
-; CHECK-PRE: %spirv.JointMatrixINTEL._half_2_16_0_3 = type opaque
-; CHECK-PRE: %spirv.JointMatrixINTEL._half_16_2_3_3 = type opaque
+; CHECK-PRE: %spirv.JointMatrixINTEL._float_2_2_0_3
+; CHECK-PRE: %spirv.JointMatrixINTEL._half_2_16_0_3
+; CHECK-PRE: %spirv.JointMatrixINTEL._half_16_2_3_3
 
 ; CHECK-SPIRV-DAG: TypeFloat [[#FloatTy:]] 32
 ; CHECK-SPIRV-DAG: TypeFloat [[#HalfTy:]] 16
@@ -22,9 +22,9 @@
 ; CHECK-SPIRV: TypeJointMatrixINTEL [[#ATy:]] [[#HalfTy]] [[#Two]] [[#Sixteen]] [[#Zero]] [[#Three]]
 ; CHECK-SPIRV: TypeJointMatrixINTEL [[#BTy:]] [[#HalfTy]] [[#Sixteen]] [[#Two]] [[#Three]] [[#Three]]
 
-; CHECK-LLVM: %spirv.JointMatrixINTEL._float_2_2_0_3 = type opaque
-; CHECK-LLVM: %spirv.JointMatrixINTEL._half_2_16_0_3 = type opaque
-; CHECK-LLVM: %spirv.JointMatrixINTEL._half_16_2_3_3 = type opaque
+; CHECK-LLVM: %spirv.JointMatrixINTEL._float_2_2_0_3
+; CHECK-LLVM: %spirv.JointMatrixINTEL._half_2_16_0_3
+; CHECK-LLVM: %spirv.JointMatrixINTEL._half_16_2_3_3
 
 ; ModuleID = 'joint_matrix_test-sycl-spir64-unknown-unknown.bc'
 source_filename = "joint_matrix_test.cpp"
@@ -35,10 +35,10 @@ target triple = "spir64-unknown-unknown"
 %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range" = type { %"class._ZTSN2cl4sycl6detail5arrayILi1EEE.cl::sycl::detail::array" }
 %"class._ZTSN2cl4sycl6detail5arrayILi1EEE.cl::sycl::detail::array" = type { [1 x i64] }
 %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id" = type { %"class._ZTSN2cl4sycl6detail5arrayILi1EEE.cl::sycl::detail::array" }
-%"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" = type { half }
-%"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" = type opaque
-%"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" = type opaque
-%"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELNS_12MatrixLayoutE3ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" = type opaque
+%"class.cl::sycl::detail::half_impl::half" = type { half }
+%"struct.__spv::__spirv_JointMatrixINTEL" = type { [2 x [2 x [1 x [4 x float]]]]* }
+%"struct.__spv::__spirv_JointMatrixINTEL.0" = type { [2 x [16 x [1 x [4 x %"class.cl::sycl::detail::half_impl::half"]]]]* }
+%"struct.__spv::__spirv_JointMatrixINTEL.1" = type { [16 x [2 x [4 x [4 x %"class.cl::sycl::detail::half_impl::half"]]]]* }
 
 $_ZTSN2cl4sycl6detail16AssertInfoCopierE = comdat any
 
@@ -64,7 +64,7 @@ entry:
 declare extern_weak dso_local spir_func void @__devicelib_assert_read(i8 addrspace(4)*) local_unnamed_addr #1
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZ4mainE11matrix_test(float addrspace(1)* %_arg_, i64 %_arg_1, %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(1)* %_arg_3, %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(1)* %_arg_5) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !6 !intel_reqd_sub_group_size !7 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4mainE11matrix_test(float addrspace(1)* %_arg_, i64 %_arg_1, %"class.cl::sycl::detail::half_impl::half" addrspace(1)* %_arg_3, %"class.cl::sycl::detail::half_impl::half" addrspace(1)* %_arg_5) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !6 !intel_reqd_sub_group_size !7 {
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32, !noalias !8
   %1 = extractelement <3 x i64> %0, i64 1
@@ -86,50 +86,50 @@ entry:
   %add.ptr.i51 = getelementptr inbounds float, float addrspace(1)* %_arg_, i64 %mul6.i
   %add.ptr7.i52 = getelementptr inbounds float, float addrspace(1)* %add.ptr.i51, i64 %sub5.i
   %add.ptr7.i = addrspacecast float addrspace(1)* %add.ptr7.i52 to float addrspace(4)*
-  %call8.i = tail call spir_func %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIfLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPS5_mS1_S3_i(float addrspace(4)* %add.ptr7.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
-  %add.ptr11.i53 = getelementptr inbounds %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half", %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(1)* %_arg_3, i64 %mul6.i
-  %add.ptr16.i55 = getelementptr inbounds %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half", %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(1)* %_arg_5, i64 %sub5.i
+  %call8.i = tail call spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIfLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPS5_mS1_S3_i(float addrspace(4)* %add.ptr7.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
+  %add.ptr11.i53 = getelementptr inbounds %"class.cl::sycl::detail::half_impl::half", %"class.cl::sycl::detail::half_impl::half" addrspace(1)* %_arg_3, i64 %mul6.i
+  %add.ptr16.i55 = getelementptr inbounds %"class.cl::sycl::detail::half_impl::half", %"class.cl::sycl::detail::half_impl::half" addrspace(1)* %_arg_5, i64 %sub5.i
   br label %for.cond.i
 
 for.cond.i:                                       ; preds = %for.body.i, %entry
   %k.0.i = phi i32 [ 0, %entry ], [ %add.i, %for.body.i ]
-  %C.0.i = phi %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* [ %call8.i, %entry ], [ %call19.i, %for.body.i ]
+  %C.0.i = phi %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* [ %call8.i, %entry ], [ %call19.i, %for.body.i ]
   %cmp.i = icmp ult i32 %k.0.i, 32
   br i1 %cmp.i, label %for.body.i, label %_ZZ4mainENKUlN2cl4sycl7nd_itemILi2EEEE_clES2_.exit
 
 for.body.i:                                       ; preds = %for.cond.i
   %idx.ext46.i = zext i32 %k.0.i to i64
-  %add.ptr12.i54 = getelementptr inbounds %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half", %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(1)* %add.ptr11.i53, i64 %idx.ext46.i
-  %add.ptr12.i = addrspacecast %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(1)* %add.ptr12.i54 to %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(4)*
-  %call13.i = tail call spir_func %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPSA_mS6_S8_i(%"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(4)* %add.ptr12.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
+  %add.ptr12.i54 = getelementptr inbounds %"class.cl::sycl::detail::half_impl::half", %"class.cl::sycl::detail::half_impl::half" addrspace(1)* %add.ptr11.i53, i64 %idx.ext46.i
+  %add.ptr12.i = addrspacecast %"class.cl::sycl::detail::half_impl::half" addrspace(1)* %add.ptr12.i54 to %"class.cl::sycl::detail::half_impl::half" addrspace(4)*
+  %call13.i = tail call spir_func %"struct.__spv::__spirv_JointMatrixINTEL.0" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPSA_mS6_S8_i(%"class.cl::sycl::detail::half_impl::half" addrspace(4)* %add.ptr12.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
   %mul14.i = shl nuw nsw i32 %k.0.i, 5
   %idx.ext1547.i = zext i32 %mul14.i to i64
-  %add.ptr17.i56 = getelementptr inbounds %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half", %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(1)* %add.ptr16.i55, i64 %idx.ext1547.i
-  %add.ptr17.i = addrspacecast %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(1)* %add.ptr17.i56 to %"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(4)*
-  %call18.i = tail call spir_func %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELNS_12MatrixLayoutE3ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELN5__spv12MatrixLayoutE3ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPSA_mS6_S8_i(%"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(4)* %add.ptr17.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
-  %call19.i = tail call spir_func %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z27__spirv_JointMatrixMadINTELIN2cl4sycl6detail9half_impl4halfEfLm2ELm16ELm2ELN5__spv12MatrixLayoutE0ELS6_3ELS6_0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT6_EXT7_EEEPNS9_IT_XT1_EXT2_EXT4_EXT7_EEEPNS9_ISD_XT2_EXT3_EXT5_EXT7_EEESC_S8_(%"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %call13.i, %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELNS_12MatrixLayoutE3ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %call18.i, %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %C.0.i, i32 3) #3
+  %add.ptr17.i56 = getelementptr inbounds %"class.cl::sycl::detail::half_impl::half", %"class.cl::sycl::detail::half_impl::half" addrspace(1)* %add.ptr16.i55, i64 %idx.ext1547.i
+  %add.ptr17.i = addrspacecast %"class.cl::sycl::detail::half_impl::half" addrspace(1)* %add.ptr17.i56 to %"class.cl::sycl::detail::half_impl::half" addrspace(4)*
+  %call18.i = tail call spir_func %"struct.__spv::__spirv_JointMatrixINTEL.1" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELN5__spv12MatrixLayoutE3ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPSA_mS6_S8_i(%"class.cl::sycl::detail::half_impl::half" addrspace(4)* %add.ptr17.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
+  %call19.i = tail call spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z27__spirv_JointMatrixMadINTELIN2cl4sycl6detail9half_impl4halfEfLm2ELm16ELm2ELN5__spv12MatrixLayoutE0ELS6_3ELS6_0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT6_EXT7_EEEPNS9_IT_XT1_EXT2_EXT4_EXT7_EEEPNS9_ISD_XT2_EXT3_EXT5_EXT7_EEESC_S8_(%"struct.__spv::__spirv_JointMatrixINTEL.0" addrspace(4)* %call13.i, %"struct.__spv::__spirv_JointMatrixINTEL.1" addrspace(4)* %call18.i, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %C.0.i, i32 3) #3
   %add.i = add nuw nsw i32 %k.0.i, 16
   br label %for.cond.i, !llvm.loop !20
 
 _ZZ4mainENKUlN2cl4sycl7nd_itemILi2EEEE_clES2_.exit: ; preds = %for.cond.i
-  tail call spir_func void @_Z29__spirv_JointMatrixStoreINTELIfLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEvPT_PNS0_24__spirv_JointMatrixINTELIS4_XT0_EXT1_EXT2_EXT3_EEEmS1_S3_i(float addrspace(4)* %add.ptr7.i, %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %C.0.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
+  tail call spir_func void @_Z29__spirv_JointMatrixStoreINTELIfLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEvPT_PNS0_24__spirv_JointMatrixINTELIS4_XT0_EXT1_EXT2_EXT3_EEEmS1_S3_i(float addrspace(4)* %add.ptr7.i, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %C.0.i, i64 %_arg_1, i32 0, i32 3, i32 0) #3
   ret void
 }
 
 ; Function Attrs: convergent
-declare dso_local spir_func %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIfLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPS5_mS1_S3_i(float addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
+declare dso_local spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIfLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPS5_mS1_S3_i(float addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPSA_mS6_S8_i(%"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
+declare dso_local spir_func %"struct.__spv::__spirv_JointMatrixINTEL.0" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPSA_mS6_S8_i(%"class.cl::sycl::detail::half_impl::half" addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELNS_12MatrixLayoutE3ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELN5__spv12MatrixLayoutE3ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPSA_mS6_S8_i(%"class._ZTSN2cl4sycl6detail9half_impl4halfE.cl::sycl::detail::half_impl::half" addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
+declare dso_local spir_func %"struct.__spv::__spirv_JointMatrixINTEL.1" addrspace(4)* @_Z28__spirv_JointMatrixLoadINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELN5__spv12MatrixLayoutE3ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEEPSA_mS6_S8_i(%"class.cl::sycl::detail::half_impl::half" addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z27__spirv_JointMatrixMadINTELIN2cl4sycl6detail9half_impl4halfEfLm2ELm16ELm2ELN5__spv12MatrixLayoutE0ELS6_3ELS6_0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT6_EXT7_EEEPNS9_IT_XT1_EXT2_EXT4_EXT7_EEEPNS9_ISD_XT2_EXT3_EXT5_EXT7_EEESC_S8_(%"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm2ELm16ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIN2cl4sycl6detail9half_impl4halfELm16ELm2ELNS_12MatrixLayoutE3ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, i32) local_unnamed_addr #1
+declare dso_local spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z27__spirv_JointMatrixMadINTELIN2cl4sycl6detail9half_impl4halfEfLm2ELm16ELm2ELN5__spv12MatrixLayoutE0ELS6_3ELS6_0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT6_EXT7_EEEPNS9_IT_XT1_EXT2_EXT4_EXT7_EEEPNS9_ISD_XT2_EXT3_EXT5_EXT7_EEESC_S8_(%"struct.__spv::__spirv_JointMatrixINTEL.0" addrspace(4)*, %"struct.__spv::__spirv_JointMatrixINTEL.1" addrspace(4)*, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, i32) local_unnamed_addr #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func void @_Z29__spirv_JointMatrixStoreINTELIfLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEvPT_PNS0_24__spirv_JointMatrixINTELIS4_XT0_EXT1_EXT2_EXT3_EEEmS1_S3_i(float addrspace(4)*, %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIfLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
+declare dso_local spir_func void @_Z29__spirv_JointMatrixStoreINTELIfLm2ELm2ELN5__spv12MatrixLayoutE0ELNS0_5Scope4FlagE3EEvPT_PNS0_24__spirv_JointMatrixINTELIS4_XT0_EXT1_EXT2_EXT3_EEEmS1_S3_i(float addrspace(4)*, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, i64, i32, i32, i32) local_unnamed_addr #1
 
 ; Function Attrs: inaccessiblememonly nofree nosync nounwind willreturn
 declare void @llvm.assume(i1 noundef) #2

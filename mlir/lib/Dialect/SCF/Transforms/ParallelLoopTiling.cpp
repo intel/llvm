@@ -160,8 +160,8 @@ mlir::scf::tileParallelLoop(ParallelOp op, ArrayRef<int64_t> tileSizes,
     ifInbound.getThenRegion().takeBody(op.getRegion());
     Block &thenBlock = ifInbound.getThenRegion().front();
     b.setInsertionPointToStart(innerLoop.getBody());
-    for (auto ivs : llvm::enumerate(llvm::zip(innerLoop.getInductionVars(),
-                                              outerLoop.getInductionVars()))) {
+    for (const auto &ivs : llvm::enumerate(llvm::zip(
+             innerLoop.getInductionVars(), outerLoop.getInductionVars()))) {
       auto newIndex = b.create<arith::AddIOp>(
           op.getLoc(), std::get<0>(ivs.value()), std::get<1>(ivs.value()));
       thenBlock.getArgument(ivs.index())
@@ -195,9 +195,9 @@ struct ParallelLoopTiling
     this->noMinMaxBounds = noMinMaxBounds;
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     SmallVector<ParallelOp, 2> innermostPloops;
-    getInnermostParallelLoops(getFunction().getOperation(), innermostPloops);
+    getInnermostParallelLoops(getOperation().getOperation(), innermostPloops);
     for (ParallelOp ploop : innermostPloops) {
       // FIXME: Add reduction support.
       if (ploop.getNumReductions() == 0)

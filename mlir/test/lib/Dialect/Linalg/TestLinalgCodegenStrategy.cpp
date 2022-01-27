@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -27,13 +29,14 @@ using namespace mlir::linalg;
 
 namespace {
 struct TestLinalgCodegenStrategy
-    : public PassWrapper<TestLinalgCodegenStrategy, FunctionPass> {
+    : public PassWrapper<TestLinalgCodegenStrategy, OperationPass<FuncOp>> {
   StringRef getArgument() const final { return "test-linalg-codegen-strategy"; }
   StringRef getDescription() const final {
     return "Test Linalg Codegen Strategy.";
   }
   TestLinalgCodegenStrategy() = default;
-  TestLinalgCodegenStrategy(const TestLinalgCodegenStrategy &pass) {}
+  TestLinalgCodegenStrategy(const TestLinalgCodegenStrategy &pass)
+      : PassWrapper(pass) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
     // clang-format off
@@ -50,11 +53,11 @@ struct TestLinalgCodegenStrategy
   template <typename LinalgNamedOp>
   void applyStrategyToNamedLinalgOp();
 
-  void runOnFunction() override;
+  void runOnOperation() override;
 
-  void runStrategy(LinalgTilingAndFusionOptions tilingAndFusionOptions,
-                   LinalgTilingOptions tilingOptions,
-                   LinalgTilingOptions registerTilingOptions,
+  void runStrategy(const LinalgTilingAndFusionOptions &tilingAndFusionOptions,
+                   const LinalgTilingOptions &tilingOptions,
+                   const LinalgTilingOptions &registerTilingOptions,
                    LinalgPaddingOptions paddingOptions,
                    vector::VectorContractLowering vectorContractLowering,
                    vector::VectorTransferSplit vectorTransferSplit);
@@ -165,28 +168,29 @@ struct TestLinalgCodegenStrategy
 };
 
 void TestLinalgCodegenStrategy::runStrategy(
-    LinalgTilingAndFusionOptions tilingAndFusionOptions,
-    LinalgTilingOptions tilingOptions,
-    LinalgTilingOptions registerTilingOptions,
+    const LinalgTilingAndFusionOptions &tilingAndFusionOptions,
+    const LinalgTilingOptions &tilingOptions,
+    const LinalgTilingOptions &registerTilingOptions,
     LinalgPaddingOptions paddingOptions,
     vector::VectorContractLowering vectorContractLowering,
     vector::VectorTransferSplit vectorTransferSplit) {
   CodegenStrategy strategy;
   strategy
       .tileAndFuseIf(fuse && !tileSizes.empty(), anchorOpName,
-                     tilingAndFusionOptions)
-      .tileIf(!fuse && !tileSizes.empty(), anchorOpName, tilingOptions)
+                     std::move(tilingAndFusionOptions))
+      .tileIf(!fuse && !tileSizes.empty(), anchorOpName,
+              std::move(tilingOptions))
       .promoteIf(!fuse && promote, anchorOpName,
                  LinalgPromotionOptions()
                      .setAlignment(16)
                      .setUseFullTileBuffersByDefault(promoteFullTile))
       .tileIf(!fuse && !registerTileSizes.empty(), anchorOpName,
-              registerTilingOptions)
+              std::move(registerTilingOptions))
       .promoteIf(!fuse && registerPromote, anchorOpName,
                  LinalgPromotionOptions()
                      .setAlignment(16)
                      .setUseFullTileBuffersByDefault(registerPromoteFullTile))
-      .padIf(pad, "", paddingOptions)
+      .padIf(pad, "", std::move(paddingOptions))
       .decomposeIf(decompose)
       .generalizeIf(generalize, "")
       .interchangeIf(!iteratorInterchange.empty(), iteratorInterchange)
@@ -204,7 +208,7 @@ void TestLinalgCodegenStrategy::runStrategy(
               .enableContractionLowering()
               .enableTransferToSCFConversion());
   // Created a nested OpPassManager and run.
-  FuncOp funcOp = getFunction();
+  FuncOp funcOp = getOperation();
   OpPassManager dynamicPM("builtin.func");
   strategy.configurePassPipeline(dynamicPM, funcOp.getContext(), runEnablePass);
   if (failed(runPipeline(dynamicPM, funcOp)))
@@ -221,8 +225,8 @@ static Value getNeutralOfLinalgOp(OpBuilder &b, OpOperand &op) {
 }
 
 /// Apply transformations specified as patterns.
-void TestLinalgCodegenStrategy::runOnFunction() {
-  if (!anchorFuncOpName.empty() && anchorFuncOpName != getFunction().getName())
+void TestLinalgCodegenStrategy::runOnOperation() {
+  if (!anchorFuncOpName.empty() && anchorFuncOpName != getOperation().getName())
     return;
 
   LinalgTilingAndFusionOptions tilingAndFusionOptions;

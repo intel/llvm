@@ -36,7 +36,7 @@ static std::string buildIDToString(BuildIDRef ID) {
 
 Expected<SmallVector<StringRef>> getDefaultDebuginfodUrls() {
   const char *DebuginfodUrlsEnv = std::getenv("DEBUGINFOD_URLS");
-  if (DebuginfodUrlsEnv == NULL)
+  if (DebuginfodUrlsEnv == nullptr)
     return SmallVector<StringRef>();
 
   SmallVector<StringRef> DebuginfodUrls;
@@ -52,6 +52,7 @@ Expected<std::string> getDefaultDebuginfodCacheDirectory() {
   if (!sys::path::cache_directory(CacheDirectory))
     return createStringError(
         errc::io_error, "Unable to determine appropriate cache directory.");
+  sys::path::append(CacheDirectory, "llvm-debuginfod", "client");
   return std::string(CacheDirectory);
 }
 

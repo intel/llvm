@@ -17,6 +17,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   Loops.cpp
   LinalgStrategyPasses.cpp
   NamedOpConversions.cpp
+  PadOpInterchange.cpp
   Promotion.cpp
   Tiling.cpp
   Transforms.cpp
@@ -37,7 +38,6 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRArithmetic
   MLIRBufferizableOpInterface
   MLIRComplex
-  MLIRComprehensiveBufferize
   MLIRInferTypeOpInterface
   MLIRIR
   MLIRMemRef
@@ -45,9 +45,11 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRLinalgAnalysis
   MLIRLinalgBufferizableOpInterfaceImpl
   MLIRLinalgUtils
+  MLIRModuleBufferization
   MLIRSCF
   MLIRSCFBufferizableOpInterfaceImpl
   MLIRSCFTransforms
+  MLIRStdBufferizableOpInterfaceImpl
   MLIRPass
   MLIRStandard
   MLIRStandardOpsTransforms

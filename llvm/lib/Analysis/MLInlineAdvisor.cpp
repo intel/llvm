@@ -22,6 +22,7 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/FunctionPropertiesAnalysis.h"
 #include "llvm/Analysis/InlineCost.h"
+#include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/MLInlineAdvisor.h"
 #include "llvm/Analysis/MLModelRunner.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -90,7 +91,8 @@ MLInlineAdvisor::MLInlineAdvisor(Module &M, ModuleAnalysisManager &MAM,
                                  std::unique_ptr<MLModelRunner> Runner)
     : InlineAdvisor(
           M, MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager()),
-      ModelRunner(std::move(Runner)), CG(new CallGraph(M)),
+      ModelRunner(std::move(Runner)),
+      CG(MAM.getResult<LazyCallGraphAnalysis>(M)),
       InitialIRSize(getModuleIRSize()), CurrentIRSize(InitialIRSize) {
   assert(ModelRunner);
 
@@ -100,7 +102,8 @@ MLInlineAdvisor::MLInlineAdvisor(Module &M, ModuleAnalysisManager &MAM,
   // critical in behavioral cloning - i.e. training a model to mimic the manual
   // heuristic's decisions - and, thus, equally important for training for
   // improvement.
-  for (auto I = scc_begin(CG.get()); !I.isAtEnd(); ++I) {
+  CallGraph CGraph(M);
+  for (auto I = scc_begin(&CGraph); !I.isAtEnd(); ++I) {
     const std::vector<CallGraphNode *> &CGNodes = *I;
     unsigned Level = 0;
     for (auto *CGNode : CGNodes) {
@@ -110,7 +113,7 @@ MLInlineAdvisor::MLInlineAdvisor(Module &M, ModuleAnalysisManager &MAM,
       for (auto &I : instructions(F)) {
         if (auto *CS = getInlinableCS(I)) {
           auto *Called = CS->getCalledFunction();
-          auto Pos = FunctionLevels.find(Called);
+          auto Pos = FunctionLevels.find(&CG.get(*Called));
           // In bottom up traversal, an inlinable callee is either in the
           // same SCC, or to a function in a visited SCC. So not finding its
           // level means we haven't visited it yet, meaning it's in this SCC.
@@ -123,24 +126,73 @@ MLInlineAdvisor::MLInlineAdvisor(Module &M, ModuleAnalysisManager &MAM,
     for (auto *CGNode : CGNodes) {
       Function *F = CGNode->getFunction();
       if (F && !F->isDeclaration())
-        FunctionLevels[F] = Level;
+        FunctionLevels[&CG.get(*F)] = Level;
     }
   }
+  for (auto KVP : FunctionLevels) {
+    AllNodes.insert(KVP.first);
+    EdgeCount += getLocalCalls(KVP.first->getFunction());
+  }
+  NodeCount = AllNodes.size();
+}
+
+unsigned MLInlineAdvisor::getInitialFunctionLevel(const Function &F) const {
+  return CG.lookup(F) ? FunctionLevels.at(CG.lookup(F)) : 0;
 }
 
 void MLInlineAdvisor::onPassEntry() {
   // Function passes executed between InlinerPass runs may have changed the
   // module-wide features.
-  if (!Invalid)
-    return;
-  NodeCount = 0;
-  EdgeCount = 0;
-  for (auto &F : M)
-    if (!F.isDeclaration()) {
-      ++NodeCount;
-      EdgeCount += getLocalCalls(F);
+  // The cgscc pass manager rules are such that:
+  // - if a pass leads to merging SCCs, then the pipeline is restarted on the
+  // merged SCC
+  // - if a pass leads to splitting the SCC, then we continue with one of the
+  // splits
+  // This means that the NodesInLastSCC is a superset (not strict) of the nodes
+  // that subsequent passes would have processed
+  // - in addition, if new Nodes were created by a pass (e.g. CoroSplit),
+  // they'd be adjacent to Nodes in the last SCC. So we just need to check the
+  // boundary of Nodes in NodesInLastSCC for Nodes we haven't seen. We don't
+  // care about the nature of the Edge (call or ref).
+  NodeCount -= static_cast<int64_t>(NodesInLastSCC.size());
+  while (!NodesInLastSCC.empty()) {
+    const auto *N = NodesInLastSCC.front();
+    NodesInLastSCC.pop_front();
+    // The Function wrapped by N could have been deleted since we last saw it.
+    if (N->isDead()) {
+      assert(!N->getFunction().isDeclaration());
+      continue;
     }
-  Invalid = false;
+    ++NodeCount;
+    EdgeCount += getLocalCalls(N->getFunction());
+    for (const auto &E : *(*N)) {
+      const auto *AdjNode = &E.getNode();
+      assert(!AdjNode->isDead() && !AdjNode->getFunction().isDeclaration());
+      auto I = AllNodes.insert(AdjNode);
+      if (I.second)
+        NodesInLastSCC.push_back(AdjNode);
+    }
+  }
+
+  EdgeCount -= EdgesOfLastSeenNodes;
+  EdgesOfLastSeenNodes = 0;
+}
+
+void MLInlineAdvisor::onPassExit(LazyCallGraph::SCC *LastSCC) {
+  if (!LastSCC)
+    return;
+  // Keep track of the nodes and edges we last saw. Then, in onPassEntry,
+  // we update the node count and edge count from the subset of these nodes that
+  // survived.
+  assert(NodesInLastSCC.empty());
+  assert(NodeCount >= LastSCC->size());
+  EdgesOfLastSeenNodes = 0;
+  for (const auto &N : *LastSCC) {
+    assert(!N.isDead());
+    EdgesOfLastSeenNodes += getLocalCalls(N.getFunction());
+    NodesInLastSCC.push_back(&N);
+  }
+  assert(EdgeCount >= EdgesOfLastSeenNodes);
 }
 
 int64_t MLInlineAdvisor::getLocalCalls(Function &F) {
@@ -192,7 +244,7 @@ void MLInlineAdvisor::onSuccessfulInlining(const MLInlineAdvice &Advice,
 
 int64_t MLInlineAdvisor::getModuleIRSize() const {
   int64_t Ret = 0;
-  for (auto &F : CG->getModule())
+  for (auto &F : M)
     if (!F.isDeclaration())
       Ret += getIRSize(F);
   return Ret;
@@ -263,7 +315,7 @@ std::unique_ptr<InlineAdvice> MLInlineAdvisor::getAdviceImpl(CallBase &CB) {
   *ModelRunner->getTensor<int64_t>(FeatureIndex::CalleeBasicBlockCount) =
       CalleeBefore.BasicBlockCount;
   *ModelRunner->getTensor<int64_t>(FeatureIndex::CallSiteHeight) =
-      FunctionLevels[&Caller];
+      getInitialFunctionLevel(Caller);
   *ModelRunner->getTensor<int64_t>(FeatureIndex::NodeCount) = NodeCount;
   *ModelRunner->getTensor<int64_t>(FeatureIndex::NrCtantParams) = NrCtantParams;
   *ModelRunner->getTensor<int64_t>(FeatureIndex::EdgeCount) = EdgeCount;
