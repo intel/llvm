@@ -145,6 +145,19 @@ variables in production code.</span>
 | `SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST` | Integer | When set to 0, disables filtering of signaled events from wait lists when using the Level Zero backend. The default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE` | Any(\*) | This environment variable enables users to control use of copy engines for copy operations. If the value is an integer, it will allow the use of copy engines, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The value of this environment variable can also be a pair of the form "lower_index:upper_index" where the indices point to copy engines in a list of all available copy engines. The default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
-| `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. The default is 0, meaning all events are host-visible. |
+| `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 the Level Zero plugin would create all events having device-scope and add proxy host-visible event at the end of each command-list submission. The default is 0, meaning all events are host-visible. |
+
+## Debugging variables for CUDA Plugin
+
+:warning: **Warning:** <span style="color:red">the environment variables
+described below are used for development and debugging of DPC++ compiler
+and runtime. Their semantics are subject to change. Do not rely on these
+variables in production code.</span>
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT` (experimental) | Any(\*) | Enable support of images. This option is experimental since the image support is not fully implemented. |
+
+`(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
 [xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md

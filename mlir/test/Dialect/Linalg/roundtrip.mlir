@@ -259,7 +259,7 @@ func @generic_without_inputs(%arg0 : memref<?x?x?xf32>) {
   linalg.generic  {indexing_maps = [#map0],
                    iterator_types = ["parallel", "parallel", "parallel"]}
                   outs(%arg0 : memref<?x?x?xf32>) {
-   ^bb0(%arg3: f32):  // no predecessors
+   ^bb0(%arg3: f32):  
       %cst = arith.constant 0.000000e+00 : f32
       linalg.yield %cst : f32
     }
@@ -322,7 +322,7 @@ func @generic_with_multiple_tensor_outputs(
     iterator_types = ["reduction"]}
     ins(%arg0, %arg1 : tensor<?xi32>, tensor<?xi32>)
     outs(%1, %3 : tensor<i32>, tensor<i32>) {
-  ^bb0(%arg3: i32, %arg4: i32, %arg5: i32, %arg6: i32):  // no predecessors
+  ^bb0(%arg3: i32, %arg4: i32, %arg5: i32, %arg6: i32):  
     %5 = arith.cmpi sge, %arg3, %arg5 : i32
     %6 = select %5, %arg3, %arg5 : i32
     %7 = arith.cmpi eq, %arg3, %arg5 : i32
@@ -435,15 +435,18 @@ func @named_ops(%a3: memref<?x?x?xf32>, %b3: memref<?x?x?xf32>, %c3: memref<?x?x
 
 // -----
 
+#attr = {"foo"}
 func @init_tensor(%arg0 : index, %arg1 : index)
 {
   %0 = linalg.init_tensor [3, 42] : tensor<3x42xf32>
   %1 = linalg.init_tensor [4, %arg0, %arg1, 5] : tensor<4x?x?x5xf32>
+  %2 = linalg.init_tensor [2, 2] : tensor<2x2xf32, #attr>
   return
 }
 // CHECK-LABEL: func @init_tensor
 //       CHECK:   linalg.init_tensor [3, 42] : tensor<3x42xf32>
 //       CHECK:   linalg.init_tensor [4, %{{.*}}, %{{.*}}, 5] : tensor<4x?x?x5xf32>
+//       CHECK:   linalg.init_tensor [2, 2] : tensor<2x2xf32, {foo}>
 
 // -----
 

@@ -30,11 +30,8 @@ using namespace mlir;
 template <typename OpTy>
 static void createForAllDimensions(OpBuilder &builder, Location loc,
                                    SmallVectorImpl<Value> &values) {
-  for (StringRef dim : {"x", "y", "z"}) {
-    Value v = builder.create<OpTy>(loc, builder.getIndexType(),
-                                   builder.getStringAttr(dim));
-    values.push_back(v);
-  }
+  for (auto dim : {gpu::Dimension::x, gpu::Dimension::y, gpu::Dimension::z})
+    values.push_back(builder.create<OpTy>(loc, builder.getIndexType(), dim));
 }
 
 /// Adds operations generating block/thread ids and grid/block dimensions at the
@@ -54,7 +51,7 @@ static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
   createForAllDimensions<gpu::BlockDimOp>(builder, loc, indexOps);
   // Replace the leading 12 function args with the respective thread/block index
   // operations. Iterate backwards since args are erased and indices change.
-  for (auto indexOp : enumerate(indexOps))
+  for (const auto &indexOp : enumerate(indexOps))
     map.map(firstBlock.getArgument(indexOp.index()), indexOp.value());
 }
 
@@ -78,7 +75,8 @@ static bool isSinkingBeneficiary(Operation *op) {
 /// is updated with results that will be available after sinking the identified
 /// ops.
 static bool
-extractBeneficiaryOps(Operation *op, SetVector<Value> existingDependencies,
+extractBeneficiaryOps(Operation *op,
+                      const SetVector<Value> &existingDependencies,
                       SetVector<Operation *> &beneficiaryOps,
                       llvm::SmallPtrSetImpl<Value> &availableValues) {
   if (beneficiaryOps.count(op))
@@ -173,7 +171,7 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   // Map arguments from gpu.launch region to the arguments of the gpu.func
   // operation.
   Block &entryBlock = outlinedFuncBody.front();
-  for (auto operand : enumerate(operands))
+  for (const auto &operand : enumerate(operands))
     map.map(operand.value(), entryBlock.getArgument(operand.index()));
 
   // Clone the region of the gpu.launch operation into the gpu.func operation.
@@ -321,7 +319,7 @@ private:
     // If a valid data layout spec was provided, attach it to the kernel module.
     // Otherwise, the default data layout will be used.
     if (dataLayoutSpec)
-      kernelModule->setAttr("dlspec", dataLayoutSpec);
+      kernelModule->setAttr(DLTIDialect::kDataLayoutAttrName, dataLayoutSpec);
 
     SymbolTable symbolTable(kernelModule);
     symbolTable.insert(kernelFunc);

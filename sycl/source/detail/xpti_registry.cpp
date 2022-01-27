@@ -16,6 +16,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
 xpti::trace_event_data_t *XPTIRegistry::createTraceEvent(
     const void *Obj, const void *FuncPtr, uint64_t &IId,
     const detail::code_location &CodeLoc, uint16_t TraceEventType) {
@@ -32,6 +33,8 @@ xpti::trace_event_data_t *XPTIRegistry::createTraceEvent(
   return xptiMakeEvent(Name.c_str(), &Payload, TraceEventType, xpti_at::active,
                        &IId);
 }
+#endif // XPTI_ENABLE_INSTRUMENTATION
+
 void XPTIRegistry::bufferConstructorNotification(
     const void *UserObj, const detail::code_location &CodeLoc) {
   (void)UserObj;

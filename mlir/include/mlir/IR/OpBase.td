@@ -314,11 +314,11 @@ class Dialect {
 
   // If this dialect should use default generated attribute parser boilerplate:
   // it'll dispatch the parsing to every individual attributes directly.
-  bit useDefaultAttributePrinterParser = 0;
+  bit useDefaultAttributePrinterParser = 1;
 
   // If this dialect should use default generated type parser boilerplate:
   // it'll dispatch the parsing to every individual types directly.
-  bit useDefaultTypePrinterParser = 0;
+  bit useDefaultTypePrinterParser = 1;
 
   // If this dialect overrides the hook for canonicalization patterns.
   bit hasCanonicalizer = 0;
@@ -2044,8 +2044,6 @@ def Idempotent  : NativeOpTrait<"IsIdempotent">;
 def Involution  : NativeOpTrait<"IsInvolution">;
 // Op behaves like a constant.
 def ConstantLike : NativeOpTrait<"ConstantLike">;
-// Op behaves like a function.
-def FunctionLike : NativeOpTrait<"FunctionLike">;
 // Op is isolated from above.
 def IsolatedFromAbove : NativeOpTrait<"IsIsolatedFromAbove">;
 // Op results are float or vectors/tensors thereof.
@@ -2226,6 +2224,10 @@ class Interface<string name> {
   // An optional code block containing extra declarations to place in the
   // interface declaration.
   code extraClassDeclaration = "";
+
+  // An optional code block containing extra declarations to place in both
+  // the interface and trait declaration.
+  code extraSharedClassDeclaration = "";
 }
 
 // AttrInterface represents an interface registered to an attribute.
@@ -2445,6 +2447,11 @@ class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {
   // Additional code that will be added to the public part of the generated
   // C++ code of the op declaration.
   code extraClassDeclaration = ?;
+
+  // Additional code that will be added to the generated source file. The
+  // generated code is placed inside the op's C++ namespace. `$cppClass` is
+  // replaced by the op's C++ class name.
+  code extraClassDefinition = ?;
 }
 
 // Base class for ops with static/dynamic offset, sizes and strides
@@ -2465,13 +2472,14 @@ class BaseOpWithOffsetSizesAndStrides<Dialect dialect, string mnemonic,
 
   code extraBaseClassDeclaration = [{
     /// Returns the dynamic sizes for this subview operation if specified.
-    operand_range getDynamicSizes() { return sizes(); }
+    ::mlir::Operation::operand_range getDynamicSizes() { return sizes(); }
 
     /// Return the list of Range (i.e. offset, size, stride). Each
     /// Range entry contains either the dynamic value or a ConstantIndexOp
     /// constructed with `b` at location `loc`.
-    SmallVector<Range, 8> getOrCreateRanges(OpBuilder &b, Location loc) {
-      return mlir::getOrCreateRanges(*this, b, loc);
+    ::mlir::SmallVector<::mlir::Range, 8> getOrCreateRanges(
+        ::mlir::OpBuilder &b, ::mlir::Location loc) {
+      return ::mlir::getOrCreateRanges(*this, b, loc);
     }
   }];
 }

@@ -64,7 +64,7 @@ using namespace mlir;
 /// Walks over all immediate return-like terminators in the given region.
 static LogicalResult
 walkReturnOperations(Region *region,
-                     std::function<LogicalResult(Operation *)> func) {
+                     llvm::function_ref<LogicalResult(Operation *)> func) {
   for (Block &block : *region) {
     Operation *terminator = block.getTerminator();
     // Skip non region-return-like terminators.
@@ -638,9 +638,12 @@ struct BufferDeallocationPass : BufferDeallocationBase<BufferDeallocationPass> {
     registry.addOpInterface<memref::AllocOp, DefaultAllocationInterface>();
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
+    FuncOp func = getOperation();
+    if (func.isExternal())
+      return;
+
     // Ensure that there are supported loops only.
-    FuncOp func = getFunction();
     Backedges backedges(func);
     if (backedges.size()) {
       func.emitError("Only structured control-flow loops are supported.");

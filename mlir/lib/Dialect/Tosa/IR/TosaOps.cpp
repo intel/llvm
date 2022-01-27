@@ -458,6 +458,79 @@ void MaxPool2dOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
   results.insert<MaxPool2dIsNoOp>(context);
 }
 
+struct ClampIsNoOp : public OpRewritePattern<tosa::ClampOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tosa::ClampOp op,
+                                PatternRewriter &rewriter) const override {
+    Value input = op.input();
+    auto inputType = op.input().getType().template dyn_cast<RankedTensorType>();
+    auto inputElementType = inputType.getElementType();
+
+    if (!inputType.hasStaticShape()) {
+      return failure();
+    }
+
+    if (inputElementType.isF32()) {
+      auto minClamp = op.min_fp();
+      auto maxClamp = op.max_fp();
+      bool isMin = (minClamp.isLargest() || minClamp.isInfinity()) &&
+                   minClamp.isNegative();
+      bool isMax = (maxClamp.isLargest() || maxClamp.isInfinity()) &&
+                   !maxClamp.isNegative();
+
+      if (isMin && isMax) {
+        rewriter.replaceOp(op, input);
+        return success();
+      }
+      return failure();
+    }
+
+    if (inputElementType.isUnsignedInteger()) {
+      int64_t minClamp = op.min_int();
+      int64_t maxClamp = op.max_int();
+
+      int64_t intMin =
+          APInt::getMinValue(inputElementType.getIntOrFloatBitWidth())
+              .getZExtValue();
+      int64_t intMax =
+          APInt::getMaxValue(inputElementType.getIntOrFloatBitWidth())
+              .getZExtValue();
+
+      if (minClamp <= intMin && maxClamp >= intMax) {
+        rewriter.replaceOp(op, input);
+        return success();
+      }
+      return failure();
+    }
+
+    if (inputElementType.isa<IntegerType>()) {
+      int64_t minClamp = op.min_int();
+      int64_t maxClamp = op.max_int();
+
+      int64_t intMin =
+          APInt::getSignedMinValue(inputElementType.getIntOrFloatBitWidth())
+              .getSExtValue();
+      int64_t intMax =
+          APInt::getSignedMaxValue(inputElementType.getIntOrFloatBitWidth())
+              .getSExtValue();
+
+      if (minClamp <= intMin && maxClamp >= intMax) {
+        rewriter.replaceOp(op, input);
+        return success();
+      }
+      return failure();
+    }
+
+    return failure();
+  }
+};
+
+void ClampOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<ClampIsNoOp>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // Operator Folders.
 //===----------------------------------------------------------------------===//
@@ -1206,7 +1279,7 @@ LogicalResult tosa::ResizeOp::inferReturnTypeComponents(
     inWidth = inputShape.getDimSize(2);
   }
 
-  int32_t shift = adaptor.shift().getValue().getSExtValue();
+  int32_t shift = adaptor.shift();
   llvm::SmallVector<int64_t> newShape;
   getI64Values(adaptor.output_size(), newShape);
   outputShape[1] = newShape[0];
@@ -1791,7 +1864,7 @@ LogicalResult IfOp::inferReturnTypeComponents(
     if (resultKnowledge.size() != yieldOp.getNumOperands())
       return failure();
 
-    for (auto it : llvm::enumerate(yieldOp.getOperands())) {
+    for (const auto &it : llvm::enumerate(yieldOp.getOperands())) {
       int32_t index = it.index();
       auto meet = ValueKnowledge::meet(
           resultKnowledge[index],
@@ -1835,7 +1908,7 @@ LogicalResult WhileOp::inferReturnTypeComponents(
     if (resultKnowledge.size() != yieldOp.getNumOperands())
       return failure();
 
-    for (auto it : llvm::enumerate(yieldOp.getOperands())) {
+    for (const auto &it : llvm::enumerate(yieldOp.getOperands())) {
       int32_t index = it.index();
       if (auto meet = ValueKnowledge::meet(
               resultKnowledge[index],

@@ -29,6 +29,7 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Core/Diagnostic.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
@@ -719,7 +720,7 @@ void ClangTidyDiagnosticConsumer::checkFilters(SourceLocation Location,
   }
 
   if (!*Context.getOptions().SystemHeaders &&
-      Sources.isInSystemHeader(Location))
+      (Sources.isInSystemHeader(Location) || Sources.isInSystemMacro(Location)))
     return;
 
   // FIXME: We start with a conservative approach here, but the actual type of
@@ -863,7 +864,7 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
     }
   }
 
-  std::vector<bool> Apply(ErrorFixes.size(), true);
+  llvm::BitVector Apply(ErrorFixes.size(), true);
   for (auto &FileAndEvents : FileEvents) {
     std::vector<Event> &Events = FileAndEvents.second;
     // Sweep.

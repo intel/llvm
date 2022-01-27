@@ -18,6 +18,7 @@
 #include "RISCVRegisterBankInfo.h"
 #include "RISCVTargetMachine.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
@@ -49,6 +50,16 @@ static cl::opt<unsigned> RVVVectorELENMax(
     "riscv-v-fixed-length-vector-elen-max",
     cl::desc("The maximum ELEN value to use for fixed length vectors."),
     cl::init(64), cl::Hidden);
+
+static cl::opt<bool> RISCVDisableUsingConstantPoolForLargeInts(
+    "riscv-disable-using-constant-pool-for-large-ints",
+    cl::desc("Disable using constant pool for large integers."),
+    cl::init(false), cl::Hidden);
+
+static cl::opt<unsigned> RISCVMaxBuildIntsCost(
+    "riscv-max-build-ints-cost",
+    cl::desc("The maximum cost used for building integers."), cl::init(0),
+    cl::Hidden);
 
 void RISCVSubtarget::anchor() {}
 
@@ -110,12 +121,35 @@ const RegisterBankInfo *RISCVSubtarget::getRegBankInfo() const {
   return RegBankInfo.get();
 }
 
+bool RISCVSubtarget::useConstantPoolForLargeInts() const {
+  return !RISCVDisableUsingConstantPoolForLargeInts;
+}
+
+unsigned RISCVSubtarget::getMaxBuildIntsCost() const {
+  // Loading integer from constant pool needs two instructions (the reason why
+  // the minimum cost is 2): an address calculation instruction and a load
+  // instruction. Usually, address calculation and instructions used for
+  // building integers (addi, slli, etc.) can be done in one cycle, so here we
+  // set the default cost to (LoadLatency + 1) if no threshold is provided.
+  return RISCVMaxBuildIntsCost == 0
+             ? getSchedModel().LoadLatency + 1
+             : std::max<unsigned>(2, RISCVMaxBuildIntsCost);
+}
+
 unsigned RISCVSubtarget::getMaxRVVVectorSizeInBits() const {
   assert(hasVInstructions() &&
          "Tried to get vector length without Zve or V extension support!");
   if (RVVVectorBitsMax == 0)
     return 0;
-  assert(RVVVectorBitsMax >= 128 && RVVVectorBitsMax <= 65536 &&
+
+  // ZvlLen specifies the minimum required vlen. The upper bound provided by
+  // riscv-v-vector-bits-max should be no less than it.
+  if (RVVVectorBitsMax < ZvlLen)
+    report_fatal_error("riscv-v-vector-bits-max specified is lower "
+                       "than the Zvl*b limitation");
+
+  // FIXME: Change to >= 32 when VLEN = 32 is supported
+  assert(RVVVectorBitsMax >= 64 && RVVVectorBitsMax <= 65536 &&
          isPowerOf2_32(RVVVectorBitsMax) &&
          "V extension requires vector length to be in the range of 128 to "
          "65536 and a power of 2!");
@@ -127,10 +161,17 @@ unsigned RISCVSubtarget::getMaxRVVVectorSizeInBits() const {
 }
 
 unsigned RISCVSubtarget::getMinRVVVectorSizeInBits() const {
+  // ZvlLen specifies the minimum required vlen. The lower bound provided by
+  // riscv-v-vector-bits-min should be no less than it.
+  if (RVVVectorBitsMin != 0 && RVVVectorBitsMin < ZvlLen)
+    report_fatal_error("riscv-v-vector-bits-min specified is lower "
+                       "than the Zvl*b limitation");
+
   assert(hasVInstructions() &&
          "Tried to get vector length without Zve or V extension support!");
+  // FIXME: Change to >= 32 when VLEN = 32 is supported
   assert((RVVVectorBitsMin == 0 ||
-          (RVVVectorBitsMin >= 128 && RVVVectorBitsMax <= 65536 &&
+          (RVVVectorBitsMin >= 64 && RVVVectorBitsMax <= 65536 &&
            isPowerOf2_32(RVVVectorBitsMin))) &&
          "V extension requires vector length to be in the range of 128 to "
          "65536 and a power of 2!");

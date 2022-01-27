@@ -44,6 +44,8 @@ add_object_library(
     libc.include.errno
     libc.include.math
     libc.src.errno.__errno_location
+  COMPILE_OPTIONS
+    -Wno-c++17-extensions
 )
 
 add_object_library(
@@ -54,6 +56,8 @@ add_object_library(
     sincosf_data.cpp
   DEPENDS
     .math_utils
+  COMPILE_OPTIONS
+    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -66,6 +70,9 @@ add_entrypoint_object(
     .sincosf_utils
     libc.include.math
     libc.src.errno.__errno_location
+  COMPILE_OPTIONS
+    -O3
+    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -81,6 +88,7 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.fputil
   COMPILE_OPTIONS
     -O3
+    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -93,6 +101,9 @@ add_entrypoint_object(
     .sincosf_utils
     libc.include.math
     libc.src.errno.__errno_location
+  COMPILE_OPTIONS
+    -O3
+    -Wno-c++17-extensions
 )
 
 add_entrypoint_object(
@@ -645,6 +656,30 @@ add_entrypoint_object(
     -O2
 )
 
+add_object_library(
+  common_constants
+  HDRS
+    common_constants.h
+  SRCS
+    common_constants.cpp
+  COMPILE_OPTIONS
+    -Wno-c++17-extensions
+)
+
+add_entrypoint_object(
+  log2f
+  SRCS
+    log2f.cpp
+  HDRS
+    ../log2f.h
+  DEPENDS
+    .common_constants
+    libc.src.__support.FPUtil.fputil
+  COMPILE_OPTIONS
+    -O3
+    -Wno-c++17-extensions
+)
+
 add_entrypoint_object(
   logf
   SRCS
@@ -652,6 +687,7 @@ add_entrypoint_object(
   HDRS
     ../logf.h
   DEPENDS
+    .common_constants
     libc.src.__support.FPUtil.fputil
   COMPILE_OPTIONS
     -O3
