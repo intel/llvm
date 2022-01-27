@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -sycl-std=2020 -std=c++17 %s
 
-[[intel::device_indirectly_callable]] void t() {}
+void t() {}
 
 constexpr auto F = t;
 const auto F1 = t;
