@@ -19,8 +19,8 @@
 [[intel::max_work_group_size(32, 32, 32)]] void f4() {} // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}} \
 
 [[intel::max_work_group_size(6, 6, 6)]]                 // expected-note {{previous attribute is here}}
-[[intel::max_work_group_size(16, 16, 16)]] void
-f5() {}                                               // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}} 
+[[intel::max_work_group_size(16, 16, 16)]] void       // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}}
+f5() {}
 
 [[intel::max_work_group_size(2, 2, 2)]] void f6();    // expected-note {{previous attribute is here}}
 [[intel::max_work_group_size(32, 32, 32)]] void f6(); // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}} \

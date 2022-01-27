@@ -74,20 +74,11 @@ template <int size>
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).
 
-// TODO: Crash happens now due to the upport for checking
-// max_work_group_size and max_global_work_dim
-// attributes when merging, so the test crashes instead of 
-// any diagnostic when it shouldn't.
-/*template <int N>
-[[intel::max_work_group_size(N, N, N)]] void func5();
+//TODO: Test case compiles now without any diagnostic but it shouldn't.
+template <int N>
+[[intel::max_work_group_size(N, N, N)]] void func5(); // OK now. Error is expected here.
 template <int N>
 [[intel::max_global_work_dim(0)]] void func5();
-*/
-
-template <int N>
-[[intel::max_global_work_dim(0)]] void func5();
-template <int N>
-[[intel::max_work_group_size(N, N, N)]] void func5(); // expected-error {{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
 
 template <int N>
 [[sycl::reqd_work_group_size(N)]] void func6(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
@@ -104,20 +95,10 @@ template <int N>
 template <int N>
 [[intel::max_global_work_dim(0)]] void func8();
 
-// TODO: Crash happens now due to the upport for checking
-// max_work_group_size and max_global_work_dim
-// attributes when merging, so the test crashes instead of
-// without any diagnostic when it shouldn't.
-/*template <int N>
+template <int N>
 [[intel::max_work_group_size(N, N, N)]] void func9();
 template <int N>
 [[intel::max_global_work_dim(0)]] void func9();
-*/
-
-template <int N>
-[[intel::max_global_work_dim(0)]] void func9();
-template <int N>
-[[intel::max_work_group_size(N, N, N)]] void func9();
 
 template <int N>
 [[sycl::reqd_work_group_size(N)]] void func10();
@@ -134,11 +115,21 @@ template <int N>
 template <int N>
 [[intel::max_global_work_dim(0)]] void func12();
 
+template <int N>
+[[intel::max_global_work_dim(0)]] void func13();
+template <int N>
+[[intel::max_work_group_size(N, N, N)]] void func13(); // expected-error {{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+
+template <int N>
+[[intel::max_global_work_dim(0)]] void func14();
+template <int N>
+[[intel::max_work_group_size(N, N, N)]] void func14();
+
 int check() {
   func3<3>();  // OK
   func3<-1>(); // expected-note {{in instantiation of function template specialization 'func3<-1>' requested here}}
   func4<2>();  // expected-note {{in instantiation of function template specialization 'func4<2>' requested here}}
-  func5<2>();  // expected-note {{in instantiation of function template specialization 'func5<2>' requested here}}
+  func5<6>();  // OK now. Expecte note here.
   func6<2>();  // expected-note {{in instantiation of function template specialization 'func6<2>' requested here}}
   func7<2>();  // expected-note {{in instantiation of function template specialization 'func7<2>' requested here}}
   func8<2>();  // expected-note {{in instantiation of function template specialization 'func8<2>' requested here}}
@@ -146,12 +137,14 @@ int check() {
   func10<1>(); // OK
   func11<1>(); // OK
   func12<1>(); // OK
+  func13<6>(); // expected-note {{in instantiation of function template specialization 'func13<6>' requested here}}
+  func14<1>(); // OK
   return 0;
 }
 
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
 [[intel::max_global_work_dim(2)]]
-[[intel::max_global_work_dim(2)]] void func13() {}
+[[intel::max_global_work_dim(2)]] void func15() {}
 
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
 // CHECK: TemplateArgument integral 3
@@ -162,7 +155,7 @@ int check() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
 
-// CHECK: FunctionDecl {{.*}} {{.*}} func13 'void ()'
+// CHECK: FunctionDecl {{.*}} {{.*}} func15 'void ()'
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 2

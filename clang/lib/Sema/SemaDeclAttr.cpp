@@ -3473,8 +3473,7 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
         return E;
       }
 
-      unsigned Val = ArgVal.getZExtValue();
-      if (Val == 0) {
+      if (ArgVal == 0) {
         Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
             << CI << E->getSourceRange();
         return nullptr;
@@ -3491,18 +3490,17 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   if (!XDim || !YDim || !ZDim)
     return;
 
-  // Test the attribute value.
-  const auto *DeclXDimExpr = dyn_cast<ConstantExpr>(XDim);
-  const auto *DeclYDimExpr = dyn_cast<ConstantExpr>(YDim);
-  const auto *DeclZDimExpr = dyn_cast<ConstantExpr>(ZDim);
-
   // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr, check to see if
   // the attributes hold equal values (1, 1, 1) in case the value of
   // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+      // Test the attribute value.
+      const auto *DeclXDimExpr = dyn_cast<ConstantExpr>(XDim);
+      const auto *DeclYDimExpr = dyn_cast<ConstantExpr>(YDim);
+      const auto *DeclZDimExpr = dyn_cast<ConstantExpr>(ZDim);
       // If the value is dependent, we can not test anything.
-      if (!DeclExpr)
+      if (!DeclXDimExpr || !DeclYDimExpr || !DeclZDimExpr)
         return;
 
       if (DeclExpr->getResultAsAPSInt() == 0 &&
@@ -3570,21 +3568,21 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-      // If the value is dependent, we can not test anything.
-      if (!DeclExpr)
-        return nullptr;
-
       // Test the attribute value.
       const auto *DeclXDimExpr = dyn_cast<ConstantExpr>(A.getXDim());
       const auto *DeclYDimExpr = dyn_cast<ConstantExpr>(A.getYDim());
       const auto *DeclZDimExpr = dyn_cast<ConstantExpr>(A.getZDim());
+      // If the value is dependent, we can not test anything.
+      if (!DeclXDimExpr || !DeclYDimExpr || !DeclZDimExpr)
+        return nullptr;
+
       if (DeclExpr->getResultAsAPSInt() == 0 &&
           (DeclXDimExpr->getResultAsAPSInt() != 1 ||
            DeclYDimExpr->getResultAsAPSInt() != 1 ||
            DeclZDimExpr->getResultAsAPSInt() != 1)) {
-        Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+         Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
             << &A << DeclAttr;
-        return nullptr;
+         return nullptr;
       }
     }
   }
@@ -4065,7 +4063,7 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
   // ReqdWorkGroupSizeAttr, check to see if they hold equal values
   // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
   // equals to 0.
-  const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+  const auto *MergeExpr = cast<ConstantExpr>(A.getValue());
   if (MergeExpr->getResultAsAPSInt() == 0) {
     if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(*this, D,
                                                                   A) ||
