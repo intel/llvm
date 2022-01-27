@@ -116,6 +116,12 @@ static bool PrintPiTrace = false;
 // Sycl RT calls piTearDown().
 static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 
+// Single-entry cache for piPlatformsGet call.
+static pi_platform PiPlatformCache;
+static sycl::detail::SpinLock *PiPlatformCacheMutex =
+    new sycl::detail::SpinLock;
+static bool PiPlatformCachePopulated = false;
+
 // Mapping between surface index and CM-managed surface
 static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
     new std::unordered_map<unsigned int, _pi_mem *>;
@@ -459,9 +465,15 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformCacheMutex};
+  if (!PiPlatformCachePopulated) {
+    PiPlatformCache = new _pi_platform();
+    PiPlatformCache->CmEmuVersion = std::string("0.0.1");
+    PiPlatformCachePopulated = true;
+  }
+
   if (Platforms && NumEntries > 0) {
-    *Platforms = new _pi_platform();
-    Platforms[0]->CmEmuVersion = std::string("0.0.1");
+    *Platforms = PiPlatformCache;
   }
 
   return PI_SUCCESS;
