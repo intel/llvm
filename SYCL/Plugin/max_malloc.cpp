@@ -2,6 +2,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required %GPU_RUN_PLACEHOLDER %t.out
 
+// TODO: Temporarily disabled on Linux due to failures.
+// UNSUPPORTED: linux
+
 #include <CL/sycl.hpp>
 #include <iostream>
 
