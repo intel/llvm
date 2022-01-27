@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mangle_common.cl"
+#include "mangle_common.h"
 #include <spirv/spirv.h>
 #include <utils.h>
 
