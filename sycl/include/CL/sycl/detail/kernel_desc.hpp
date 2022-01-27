@@ -66,8 +66,6 @@ template <auto &SpecName> const char *get_spec_constant_symbolic_ID_impl();
 template <auto &SpecName> const char *get_spec_constant_symbolic_ID();
 #endif
 
-//template<typename CodeLocation> const detail::ContextImplPtr *detail::code_location();
-// { return ""; }
 #ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() { return 0; }

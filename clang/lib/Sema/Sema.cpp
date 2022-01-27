@@ -2697,7 +2697,3 @@ const llvm::MapVector<FieldDecl *, Sema::DeleteLocs> &
 Sema::getMismatchingDeleteExpressions() const {
   return DeleteExprs;
 }
-
-//void SYCLIntegrationHeader::KernelDesc::updateFileName(const FunctionDecl *SyclKernel, std::string FileName, SourceLocation KernelLoc) {
-//  FileName(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getFilename();
-//}

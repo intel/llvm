@@ -411,10 +411,6 @@ private:
       this->Name = Name.str();
       this->StableName = StableName.str();
     }
-    // Populate FileName, LineNumber and ColumnNumber in Sema.cpp or elsehwere instead of here
-    // so that including SourceManager header can be avoided
-    void updateCodeLocationMembers(const FunctionDecl *SyclKernel, SourceLocation KernelLoc);
-    void updateFileName(const FunctionDecl *SyclKernel, std::string FileName, SourceLocation KernelLoc);
   };
 
   /// Returns the latest invocation descriptor started by
