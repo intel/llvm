@@ -85,6 +85,11 @@ Therefore, the solution is to adjust the default linker script to explicitly
 put `__CLANG_OFFLOAD_BUNDLE__*` sections at the end of the binary so they are
 not inserted between any other two sections.
 
+**TODO**: provide an example of a linker script that works
+**TODO**: describe how this solution should be applied: will compiler implcitly
+use the correct linker script or shall user explicitly set the correct linker
+script? What if user already has a linker script?
+
 ## Generic solution
 
 This solution will work on both Linux and Windows, but it requires more
@@ -118,8 +123,8 @@ also complicates packaging/installing/deployment of the application due to extra
 files being produced by the toolchain.
 
 Note: we specifically do not consider a case when compiler implicitly generates
-several files as a result of compilation, because it won't be possible properly
-integrate that into existing build system.
+several files as a result of compilation, because it won't be possible to
+properly integrate that into existing build systems.
 
 The following sections will describe in more details how each of the approaches
 can be implemented. The first approach requires less changes in the toolchain
@@ -176,6 +181,10 @@ during link stage:
   specified targets, allowing user to create several libraries from the same set
   of fat object where each library is built for different set of targets.
 
+**TODO**: on Linux, linked shared library is always loaded and its constructors
+are called regardless of whether any functions from that library are actually
+used. Need to check if it works the same way on Windows.
+
 ### Outlining device code into a separate file
 
 In this mode, user will still have to invoke the compiler for linking two times,
@@ -226,37 +235,4 @@ custom file format), then we can distinguish between them by either parsing an
 extension of a specified output file or by providing a one more command line
 option to choose between one approach or another.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-mjk
-
+**TODO**: complete this section.
