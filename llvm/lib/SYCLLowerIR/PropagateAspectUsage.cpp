@@ -31,7 +31,7 @@ public:
   bool runOnModule(Module &M) override {
     ModuleAnalysisManager MAM;
     auto PA = Impl.run(M, MAM);
-    return !PA.areAllPreserved(); // TODO: figure out
+    return !PA.areAllPreserved();
   }
 
 private:
@@ -47,6 +47,8 @@ INITIALIZE_PASS(SYCLPropagateAspectUsageLegacyPass, "PropagateAspectUsage",
 ModulePass *llvm::createPropagateAspectUsagePass() {
   return new SYCLPropagateAspectUsageLegacyPass();
 }
+
+namespace {
 
 using AspectsTy = SmallSet<int, 4>;
 using TypesWithAspectsTy = std::unordered_map<Type *, AspectsTy>;
@@ -91,7 +93,6 @@ void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
   while (!queue.empty()) {
     Type *T = queue.front();
     queue.pop();
-    dbgs() << "Pop: Type*: " << T << ", Type: " << *T << "\n";
     if (Visited.count(T))
       continue;
 
@@ -101,15 +102,23 @@ void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
       if (Visited.count(TT))
         continue;
 
-      dbgs() << "Push: Type*: " << TT << ", Type: " << *TT << "\n";
       queue.push(TT);
     }
   }
 }
 
 TypesWithAspectsTy
-GetAllTypesWithAspects(std::unordered_set<Type *> &Types,
-                       TypesWithAspectsTy &TypesWithAspects) {
+GetTypesWithAspectsFromModule(Module &M, TypesWithAspectsTy &TypesWithAspects) {
+  std::unordered_set<Type *> Types;
+  Type *DoubleTy = Type::getDoubleTy(M.getContext());
+  // TODO: use aspects::fp64 instead of constant?
+  TypesWithAspects[DoubleTy].insert(6);
+
+  Types.insert(DoubleTy);
+  for (Type *T : M.getIdentifiedStructTypes()) {
+    Types.insert(T);
+  }
+
   std::unordered_map<Type *, std::vector<Type *>> Edges;
   for (Type *T : Types) {
     for (size_t i = 0; i != T->getNumContainedTypes(); ++i) {
@@ -139,9 +148,13 @@ GetAllTypesWithAspects(std::unordered_set<Type *> &Types,
   return Result;
 }
 
+/// GetAspectsFromType() function finds all aspects which might be
+/// reached from type @T. It encompases composite structures and
+/// pointers.
+/// It is important to maintain and pass @Cache structure so that procedure
+/// doesn't get into infite loop.
 AspectsTy GetAspectsFromType(Type *T, TypesWithAspectsTy &Types,
                              TypesWithAspectsTy &Cache) {
-  dbgs() << "CheckType: " << *T << ", ptr: " << T << "\n";
   auto it = Types.find(T);
   if (it != Types.end()) {
     Cache[T] = it->second;
@@ -156,11 +169,8 @@ AspectsTy GetAspectsFromType(Type *T, TypesWithAspectsTy &Types,
   Cache[T] = {};
   AspectsTy Result;
 
-  dbgs() << "Check contained types. num: " << T->getNumContainedTypes() << "\n";
   for (size_t i = 0; i != T->getNumContainedTypes(); ++i) {
     Type *TT = T->getContainedType(i);
-    dbgs() << "Check contained Type, index: " << i << " Type: " << *TT
-           << ", ptr: " << TT << "\n";
     AspectsTy Aspects = GetAspectsFromType(TT, Types, Cache);
     Result.insert(Aspects.begin(), Aspects.end());
   }
@@ -171,16 +181,12 @@ AspectsTy GetAspectsFromType(Type *T, TypesWithAspectsTy &Types,
 
 AspectsTy GetAspectsUsedByInstruction(Instruction &I, TypesWithAspectsTy &Types,
                                       TypesWithAspectsTy &Cache) {
-  dbgs() << "GetAspectsUsedByInstruction: " << I << "\n";
-
   Type *ReturnType = I.getType();
   SmallSet<int, 4> Aspects = GetAspectsFromType(ReturnType, Types, Cache);
   SmallSet<int, 4> Result = Aspects;
 
-  dbgs() << "Check Operands. NumOperands: " << I.getNumOperands() << "\n";
   int i = 0;
   for (auto OpIt = I.op_begin(); OpIt != I.op_end(); ++OpIt, ++i) {
-    dbgs() << "Check Operand: " << i << ", : " << **OpIt << "\n";
     Type *T = (*OpIt)->getType();
     Aspects = GetAspectsFromType(T, Types, Cache);
     Result.insert(Aspects.begin(), Aspects.end());
@@ -221,10 +227,10 @@ template <class Container>
 void CheckDeclaredAspects(LLVMContext &C, const Function *F,
                           const Container &Aspects) {
   MDNode *MDN = F->getMetadata("intel_declared_aspects");
-  if (MDN == nullptr)
+  if (!MDN)
     return;
 
-  SmallSet<int, 10> DeclaredAspects;
+  AspectsTy DeclaredAspects;
   for (unsigned i = 0; i != MDN->getNumOperands(); ++i) {
     const ConstantAsMetadata *CM =
         dyn_cast<const ConstantAsMetadata>(MDN->getOperand(i));
@@ -246,7 +252,7 @@ void CheckDeclaredAspects(LLVMContext &C, const Function *F,
         "for function \"{0}\" there is the list of missed aspects: [{1}]",
         F->getName(), AspectsStr);
 
-    C.diagnose(MissedAspectDiagnosticInfo(Msg));
+    emitWarning(C, Msg);
   }
 }
 
@@ -302,32 +308,9 @@ void PropagateAspects(Function *F, CallGraphTy &CG,
   AspectsMap[F].insert(LocalAspects.begin(), LocalAspects.end());
 }
 
-void PrintTypes(std::unordered_map<Type *, SmallSet<int, 4>> &M) {
-  dbgs() << "PrintTypes:\n";
-  for (auto it : M) {
-    dbgs() << "Type*: " << it.first << ", Type: " << *it.first
-           << ", Aspects: " << Join(it.second, ',') << "\n";
-  }
-}
-
-PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
-                                                ModuleAnalysisManager &MAM) {
-  TypesWithAspectsTy TypesWithAspects = GetTypesWithAspectsFromMetadata(M);
-  Type *DoubleTy = Type::getDoubleTy(M.getContext());
-  TypesWithAspects[DoubleTy].insert(
-      6); // TODO: use aspects::fp64 instead of constant?
-
-  std::unordered_set<Type *> Types;
-  Types.insert(DoubleTy);
-  for (Type *T : M.getIdentifiedStructTypes()) {
-    Types.insert(T);
-  }
-
-  TypesWithAspectsTy TypesWithAspects2 =
-      GetAllTypesWithAspects(Types, TypesWithAspects);
-  PrintTypes(TypesWithAspects2);
-
-  FunctionToAspectsMapTy FunctionToAspectsMap;
+FunctionToAspectsMapTy
+GetFunctionsAspects(Module &M, TypesWithAspectsTy &TypesWithAspects) {
+  FunctionToAspectsMapTy FunctionToAspects;
   CallGraphTy CG;
   std::vector<Function *> Kernels;
   TypesWithAspectsTy Cache;
@@ -342,8 +325,8 @@ PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
 
     for (auto &I : instructions(F)) {
       SmallSet<int, 4> Aspects =
-          GetAspectsUsedByInstruction(I, TypesWithAspects2, Cache);
-      FunctionToAspectsMap[&F].insert(Aspects.begin(), Aspects.end());
+          GetAspectsUsedByInstruction(I, TypesWithAspects, Cache);
+      FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
       if (auto *CI = dyn_cast<CallInst>(&I)) {
         if (!CI->isIndirectCall())
           CG[&F].insert(CI->getCalledFunction());
@@ -353,11 +336,24 @@ PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
 
   SmallPtrSet<Function *, 16> Visited;
   for (Function *F : Kernels) {
-    PropagateAspects(F, CG, FunctionToAspectsMap, Visited);
+    PropagateAspects(F, CG, FunctionToAspects, Visited);
   }
 
-  CreateAspectMetadataForFunctions(FunctionToAspectsMap);
-  CheckAllDeclaredAspects(FunctionToAspectsMap);
+  return FunctionToAspects;
+}
+
+} // anonymous namespace
+
+PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
+                                                ModuleAnalysisManager &MAM) {
+  TypesWithAspectsTy TypesWithAspects = GetTypesWithAspectsFromMetadata(M);
+  TypesWithAspects = GetTypesWithAspectsFromModule(M, TypesWithAspects);
+
+  FunctionToAspectsMapTy FunctionToAspects =
+      GetFunctionsAspects(M, TypesWithAspects);
+
+  CreateAspectMetadataForFunctions(FunctionToAspects);
+  CheckAllDeclaredAspects(FunctionToAspects);
 
   return PreservedAnalyses::all();
 }
