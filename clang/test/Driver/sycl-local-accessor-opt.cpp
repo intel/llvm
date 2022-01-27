@@ -9,3 +9,7 @@
 // RUN:   %clang -fsycl -fsycl-targets=nvptx64-nvidia-cuda -### %s 2>&1 \
 // RUN:   | FileCheck %s
 // CHECK: "-sycl-enable-local-accessor"
+
+// RUN:   %clang -fsycl -fsycl-targets=nvptx64-nvidia-cuda -S -### %s 2>&1 \
+// RUN:   | FileCheck %s
+// CHECK: "-sycl-enable-local-accessor"
