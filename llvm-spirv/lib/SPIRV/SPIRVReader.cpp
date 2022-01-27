@@ -160,7 +160,7 @@ static void addNamedMetadataStringSet(LLVMContext *Context, Module *M,
   NamedMD->addOperand(MDNode::get(*Context, ValueVec));
 }
 
-static void addOCLKernelArgumentMetadata(
+static void addKernelArgumentMetadata(
     LLVMContext *Context, const std::string &MDName, SPIRVFunction *BF,
     llvm::Function *Fn,
     std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
@@ -3553,12 +3553,82 @@ void SPIRVToLLVM::transGlobalAnnotations() {
   }
 }
 
+static llvm::MDNode *
+transDecorationsToMetadataList(llvm::LLVMContext *Context,
+                               std::vector<SPIRVDecorate const *> Decorates) {
+  SmallVector<Metadata *, 4> MDs;
+  MDs.reserve(Decorates.size());
+  for (const auto *Deco : Decorates) {
+    std::vector<Metadata *> OPs;
+    auto *KindMD = ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(*Context), Deco->getDecorateKind()));
+    OPs.push_back(KindMD);
+    switch (static_cast<size_t>(Deco->getDecorateKind())) {
+    case DecorationLinkageAttributes: {
+      const auto *const LinkAttrDeco =
+          static_cast<const SPIRVDecorateLinkageAttr *>(Deco);
+      auto *const LinkNameMD =
+          MDString::get(*Context, LinkAttrDeco->getLinkageName());
+      auto *const LinkTypeMD = ConstantAsMetadata::get(ConstantInt::get(
+          Type::getInt32Ty(*Context), LinkAttrDeco->getLinkageType()));
+      OPs.push_back(LinkNameMD);
+      OPs.push_back(LinkTypeMD);
+      break;
+    }
+    case DecorationMergeINTEL: {
+      const auto MergeAttrLits = Deco->getVecLiteral();
+      std::string FirstString = getString(MergeAttrLits);
+      std::string SecondString =
+          getString(MergeAttrLits.cbegin() + getVec(FirstString).size(),
+                    MergeAttrLits.cend());
+      OPs.push_back(MDString::get(*Context, FirstString));
+      OPs.push_back(MDString::get(*Context, SecondString));
+      break;
+    }
+    case DecorationMemoryINTEL:
+    case DecorationUserSemantic: {
+      auto *const StrMD =
+          MDString::get(*Context, getString(Deco->getVecLiteral()));
+      OPs.push_back(StrMD);
+      break;
+    }
+    default: {
+      for (const SPIRVWord Lit : Deco->getVecLiteral()) {
+        auto *const LitMD = ConstantAsMetadata::get(
+            ConstantInt::get(Type::getInt32Ty(*Context), Lit));
+        OPs.push_back(LitMD);
+      }
+      break;
+    }
+    }
+    MDs.push_back(MDNode::get(*Context, OPs));
+  }
+  return MDNode::get(*Context, MDs);
+}
+
+void SPIRVToLLVM::transVarDecorationsToMetadata(SPIRVValue *BV, Value *V) {
+  if (!BV->isVariable())
+    return;
+
+  if (auto *GV = dyn_cast<GlobalVariable>(V)) {
+    std::vector<SPIRVDecorate const *> Decorates = BV->getDecorations();
+    if (!Decorates.empty()) {
+      MDNode *MDList = transDecorationsToMetadataList(Context, Decorates);
+      GV->setMetadata(SPIRV_MD_DECORATIONS, MDList);
+    }
+  }
+}
+
 bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
   if (!transAlign(BV, V))
     return false;
 
   transIntelFPGADecorations(BV, V);
   transMemAliasingINTELDecorations(BV, V);
+
+  // Decoration metadata is only enabled in SPIR-V friendly mode
+  if (BM->getDesiredBIsRepresentation() == BIsRepresentation::SPIRVFriendlyIR)
+    transVarDecorationsToMetadata(BV, V);
 
   DbgTran->transDbgInfo(BV, V);
   return true;
@@ -3691,6 +3761,23 @@ static bool transKernelArgTypeMedataFromString(LLVMContext *Ctx,
   return true;
 }
 
+void SPIRVToLLVM::transFunctionDecorationsToMetadata(SPIRVFunction *BF,
+                                                     Function *F) {
+  size_t TotalParameterDecorations = 0;
+  BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
+    TotalParameterDecorations += Arg->getNumDecorations();
+  });
+  if (TotalParameterDecorations == 0)
+    return;
+
+  // Generate metadata for spirv.ParameterDecorations
+  addKernelArgumentMetadata(Context, SPIRV_MD_PARAMETER_DECORATIONS, BF, F,
+                            [=](SPIRVFunctionParameter *Arg) {
+                              return transDecorationsToMetadataList(
+                                  Context, Arg->getDecorations());
+                            });
+}
+
 bool SPIRVToLLVM::transMetadata() {
   SmallVector<Function *, 2> CtorKernels;
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
@@ -3701,6 +3788,10 @@ bool SPIRVToLLVM::transMetadata() {
     transOCLMetadata(BF);
     transVectorComputeMetadata(BF);
     transFPGAFunctionMetadata(BF, F);
+
+    // Decoration metadata is only enabled in SPIR-V friendly mode
+    if (BM->getDesiredBIsRepresentation() == BIsRepresentation::SPIRVFriendlyIR)
+      transFunctionDecorationsToMetadata(BF, F);
 
     if (BF->hasDecorate(internal::DecorationCallableFunctionINTEL))
       F->addFnAttr(kVCMetadata::VCCallable);
@@ -3806,7 +3897,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
     return true;
 
   // Generate metadata for kernel_arg_addr_space
-  addOCLKernelArgumentMetadata(
+  addKernelArgumentMetadata(
       Context, SPIR_MD_KERNEL_ARG_ADDR_SPACE, BF, F,
       [=](SPIRVFunctionParameter *Arg) {
         SPIRVType *ArgTy = Arg->getType();
@@ -3819,31 +3910,31 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
             ConstantInt::get(Type::getInt32Ty(*Context), AS));
       });
   // Generate metadata for kernel_arg_access_qual
-  addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_ACCESS_QUAL, BF, F,
-                               [=](SPIRVFunctionParameter *Arg) {
-                                 std::string Qual;
-                                 auto T = Arg->getType();
-                                 if (T->isTypeOCLImage()) {
-                                   auto ST = static_cast<SPIRVTypeImage *>(T);
-                                   Qual = transOCLImageTypeAccessQualifier(ST);
-                                 } else if (T->isTypePipe()) {
-                                   auto PT = static_cast<SPIRVTypePipe *>(T);
-                                   Qual = transOCLPipeTypeAccessQualifier(PT);
-                                 } else
-                                   Qual = "none";
-                                 return MDString::get(*Context, Qual);
-                               });
+  addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_ACCESS_QUAL, BF, F,
+                            [=](SPIRVFunctionParameter *Arg) {
+                              std::string Qual;
+                              auto *T = Arg->getType();
+                              if (T->isTypeOCLImage()) {
+                                auto *ST = static_cast<SPIRVTypeImage *>(T);
+                                Qual = transOCLImageTypeAccessQualifier(ST);
+                              } else if (T->isTypePipe()) {
+                                auto *PT = static_cast<SPIRVTypePipe *>(T);
+                                Qual = transOCLPipeTypeAccessQualifier(PT);
+                              } else
+                                Qual = "none";
+                              return MDString::get(*Context, Qual);
+                            });
   // Generate metadata for kernel_arg_type
   if (!transKernelArgTypeMedataFromString(Context, BM, F,
                                           SPIR_MD_KERNEL_ARG_TYPE))
-    addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_TYPE, BF, F,
-                                 [=](SPIRVFunctionParameter *Arg) {
-                                   return transOCLKernelArgTypeName(Arg);
-                                 });
+    addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_TYPE, BF, F,
+                              [=](SPIRVFunctionParameter *Arg) {
+                                return transOCLKernelArgTypeName(Arg);
+                              });
   // Generate metadata for kernel_arg_type_qual
   if (!transKernelArgTypeMedataFromString(Context, BM, F,
                                           SPIR_MD_KERNEL_ARG_TYPE_QUAL))
-    addOCLKernelArgumentMetadata(
+    addKernelArgumentMetadata(
         Context, SPIR_MD_KERNEL_ARG_TYPE_QUAL, BF, F,
         [=](SPIRVFunctionParameter *Arg) {
           std::string Qual;
@@ -3861,17 +3952,16 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
           return MDString::get(*Context, Qual);
         });
   // Generate metadata for kernel_arg_base_type
-  addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_BASE_TYPE, BF, F,
-                               [=](SPIRVFunctionParameter *Arg) {
-                                 return transOCLKernelArgTypeName(Arg);
-                               });
+  addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_BASE_TYPE, BF, F,
+                            [=](SPIRVFunctionParameter *Arg) {
+                              return transOCLKernelArgTypeName(Arg);
+                            });
   // Generate metadata for kernel_arg_name
   if (BM->isGenArgNameMDEnabled()) {
-    addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_NAME, BF, F,
-                                 [=](SPIRVFunctionParameter *Arg) {
-                                   return MDString::get(*Context,
-                                                        Arg->getName());
-                                 });
+    addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_NAME, BF, F,
+                              [=](SPIRVFunctionParameter *Arg) {
+                                return MDString::get(*Context, Arg->getName());
+                              });
   }
   // Generate metadata for kernel_arg_buffer_location
   addBufferLocationMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {

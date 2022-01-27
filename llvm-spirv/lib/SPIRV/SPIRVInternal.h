@@ -289,6 +289,9 @@ typedef SPIRVMap<spv::Scope, std::string> SPIRVMatrixScopeMap;
 #define SPIR_MD_KERNEL_ARG_TYPE_QUAL "kernel_arg_type_qual"
 #define SPIR_MD_KERNEL_ARG_NAME "kernel_arg_name"
 
+#define SPIRV_MD_PARAMETER_DECORATIONS "spirv.ParameterDecorations"
+#define SPIRV_MD_DECORATIONS "spirv.Decorations"
+
 #define OCL_TYPE_NAME_SAMPLER_T "sampler_t"
 #define SPIR_TYPE_NAME_EVENT_T "opencl.event_t"
 #define SPIR_TYPE_NAME_CLK_EVENT_T "opencl.clk_event_t"

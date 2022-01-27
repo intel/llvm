@@ -548,7 +548,7 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst) {
     SPIRVFunction *BF = static_cast<SPIRVFunction *>(E);
     llvm::Function *F = SPIRVReader->transFunction(BF);
     assert(F && "Translation of function failed!");
-    if (!F->hasMetadata())
+    if (!F->hasMetadata("dbg"))
       F->setMetadata("dbg", DIS);
   }
   return DIS;
@@ -657,7 +657,7 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     SPIRVValue *V = BM->get<SPIRVValue>(Ops[VariableIdx]);
     Value *Var = SPIRVReader->transValue(V, nullptr, nullptr);
     llvm::GlobalVariable *GV = dyn_cast_or_null<llvm::GlobalVariable>(Var);
-    if (GV && !GV->hasMetadata())
+    if (GV && !GV->hasMetadata("dbg"))
       GV->addMetadata("dbg", *VarDecl);
   }
   return VarDecl;

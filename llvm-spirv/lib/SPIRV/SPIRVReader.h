@@ -241,6 +241,8 @@ private:
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
   void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
+  void transVarDecorationsToMetadata(SPIRVValue *BV, Value *V);
+  void transFunctionDecorationsToMetadata(SPIRVFunction *BF, Function *F);
 }; // class SPIRVToLLVM
 
 } // namespace SPIRV
