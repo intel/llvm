@@ -4685,7 +4685,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
     PresumedLoc PLoc = S.Context.getSourceManager().getPresumedLoc(
-        S.Context.getSourceManager().getExpansionRange(K.KernelLocation).getEnd());
+        S.Context.getSourceManager()
+            .getExpansionRange(K.KernelLocation)
+            .getEnd());
     std::string FileName = PLoc.getFilename();
     unsigned LineNumber = PLoc.getLine();
     unsigned ColumnNumber = PLoc.getColumn();
@@ -4724,7 +4726,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getColumnNumber() { return "
-        << ColumnNumber << "; }\n";
+      << ColumnNumber << "; }\n";
     O << "};\n";
     CurStart += N;
   }

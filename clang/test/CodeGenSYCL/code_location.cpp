@@ -6,8 +6,8 @@
 int main() {
   cl::sycl::queue q;
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
-  q.submit([&](cl::sycl::handler &h) { h.single_task<class KernelName>([](){}); });
-return 0;
+  q.submit([&](cl::sycl::handler &h) { h.single_task<class KernelName>([]() {}); });
+  return 0;
 }
 
 // CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '4', 'm', 'a', 'i', 'n', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
