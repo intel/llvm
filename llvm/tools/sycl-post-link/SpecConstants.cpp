@@ -236,18 +236,20 @@ MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
-    const Module &M, Type *Ty, unsigned &Index, unsigned &Offset,
+    const Module &M, Type *Ty, const unsigned *&IDIter, unsigned &Offset,
     std::vector<SpecConstantDescriptor> &Result) {
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       // TODO: this is a spot for potential optimization: for arrays we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(), Index,
+      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(), IDIter,
                                             Offset, Result);
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
+    const unsigned BaseOffset = Offset;
+    unsigned LocalOffset = Offset;
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
       auto *ElTy = StructTy->getElementType(I);
       // When handling elements of a structure, we do not use manually
@@ -255,10 +257,23 @@ void collectCompositeElementsInfoRecursive(
       // encountered elements), but instead rely on data provided for us by
       // DataLayout, because the structure can be unpacked, i.e. padded in
       // order to ensure particular alignment of its elements.
-      unsigned LocalOffset = Offset + SL->getElementOffset(I);
-      collectCompositeElementsInfoRecursive(M, ElTy, Index, LocalOffset,
+      LocalOffset = Offset + SL->getElementOffset(I);
+      collectCompositeElementsInfoRecursive(M, ElTy, IDIter, LocalOffset,
                                             Result);
     }
+
+    // Add a special descriptor if the struct has padding at the end.
+    const unsigned PostStructPadding =
+        BaseOffset + SL->getSizeInBytes() - LocalOffset;
+    if (PostStructPadding > 0) {
+      SpecConstantDescriptor Desc;
+      // ID of padding descriptors is the max value possible.
+      Desc.ID = std::numeric_limits<unsigned>::max();
+      Desc.Offset = LocalOffset;
+      Desc.Size = PostStructPadding;
+      Result.push_back(Desc);
+    }
+
     // Update "global" offset according to the total size of a handled struct
     // type.
     Offset += SL->getSizeInBytes();
@@ -267,15 +282,18 @@ void collectCompositeElementsInfoRecursive(
       // TODO: this is a spot for potential optimization: for vectors we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(), Index,
+      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(), IDIter,
                                             Offset, Result);
     }
   } else { // Assume that we encountered some scalar element
     SpecConstantDescriptor Desc;
-    Desc.ID = 0; // To be filled later
+    Desc.ID = *IDIter;
     Desc.Offset = Offset;
     Desc.Size = M.getDataLayout().getTypeStoreSize(Ty);
-    Result[Index++] = Desc;
+    Result.push_back(Desc);
+
+    // Move current ID and offset
+    ++IDIter;
     Offset += Desc.Size;
   }
 }
@@ -392,13 +410,19 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
   MDOps.push_back(MDString::get(Ctx, SymbolicID));
 
   if (IsNativeSpecConstant) {
-    std::vector<SpecConstantDescriptor> Result(IDs.size());
-    unsigned Index = 0, Offset = 0;
-    collectCompositeElementsInfoRecursive(M, SCTy, Index, Offset, Result);
+    std::vector<SpecConstantDescriptor> Result;
+    Result.reserve(IDs.size());
+    unsigned Offset = 0;
+    const unsigned *IDPtr = IDs.data();
+    collectCompositeElementsInfoRecursive(M, SCTy, IDPtr, Offset, Result);
+
+    // We may have padding elements so size should be at least the same size as
+    // the ID vector.
+    assert(Result.size() >= IDs.size());
 
     for (unsigned I = 0; I < Result.size(); ++I) {
       MDOps.push_back(ConstantAsMetadata::get(
-          Constant::getIntegerValue(Int32Ty, APInt(32, IDs[I]))));
+          Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].ID))));
       MDOps.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].Offset))));
       MDOps.push_back(ConstantAsMetadata::get(
