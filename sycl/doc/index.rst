@@ -41,11 +41,8 @@ Developing oneAPI DPC++ Compiler
    SYCLInstrumentationUsingXPTI
    ITTAnnotations
    DeviceGlobal
-<<<<<<< Updated upstream
    CompileTimeProperties
-=======
    HugeObjectFilesSupport
->>>>>>> Stashed changes
 
 Development BKMs
 ~~~~~~~~~~~~~~~~
