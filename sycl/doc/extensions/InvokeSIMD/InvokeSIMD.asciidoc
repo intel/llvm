@@ -21,27 +21,26 @@ IMPORTANT: This specification is a draft.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
-
 This extension introduces a mechanism to invoke explicitly vectorized functions
 written using SIMD types from a SYCL kernel.
 
 == Notice
 
-Copyright (c) 2021 Intel Corporation.  All rights reserved.
+Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
 
 == Status
 
 Working Draft
 
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+This is a proposed extension specification, intended to gather community
+feedback. Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state. The specification itself may also change in
+incompatible ways before it is finalized. Shipping software products should not
+rely on APIs defined in this specification.
 
 == Version
 
-Built On: {docdate} +
-Revision: 3
+Revision: 4
 
 == Contacts
 
@@ -51,7 +50,7 @@ Jason Sewall, Intel (jason 'dot' sewall 'at' intel 'dot' com) +
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 2 and the following extensions:
+This extension is written against the SYCL 2020 specification, Revision 4 and the following extensions:
 
 - SPV_INTEL_function_pointers
 - SYCL_EXT_ONEAPI_UNIFORM
@@ -385,6 +384,26 @@ Since this execution model guarantees SIMD-like behavior, there is no need for
 the user to insert any form of explicit synchronization functions to ensure
 memory consistency across SIMD lanes.
 
+Due to potential differences in execution model, a SIMD function cannot call
+any function that was compiled for a SPMD context. `SYCL_EXTERNAL` functions
+defined in a different translation unit to the SIMD function are not required
+to be compiled for SIMD contexts by default, and as a result such functions
+are incompatible with SIMD functions by default.
+
+NOTE: Implementations are encouraged to throw an error in cases where this
+behavior can be detected, and to do so as early as possible.
+
+This extension does not define a mechanism for requesting a `SYCL_EXTERNAL`
+function to be compiled for a SIMD context. Any such mechanism and its
+interaction with `invoke_simd` is implementation-defined.
+
+NOTE: An explicit mechanism is required because the presence or absence of a
+`sycl::ext::oneapi::experimental::simd` class is not sufficient to determine
+the execution model associated with a function. For example, the execution
+model for a function accepting only scalar parameters and performing only
+scalar arithmetic is ambiguous: it could be called by each work-item in SPMD
+code, or called as-if by a single work-item in a SIMD function.
+
 == Issues
 
 . Should we allow reference arguments?
@@ -428,13 +447,5 @@ SYCL 2020 specification states that this only applies to inter-device transfers.
 |1|2021-03-30|John Pennycook|*Initial public working draft*
 |2|2021-03-31|John Pennycook|*Rename extension and add feature test macro*
 |3|2021-04-23|John Pennycook|*Split uniform wrapper into separate extension*
+|4|2022-01-20|John Pennycook|*Clarify interaction with SYCL_EXTERNAL*
 |========================================
-
-//************************************************************************
-//Other formatting suggestions:
-//
-//* Use *bold* text for host APIs, or [source] syntax highlighting.
-//* Use +mono+ text for device APIs, or [source] syntax highlighting.
-//* Use +mono+ text for extension names, types, or enum values.
-//* Use _italics_ for parameters.
-//************************************************************************
