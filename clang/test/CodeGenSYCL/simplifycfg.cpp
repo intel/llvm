@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -flegacy-pass-manager %s -O3 -S -o - | FileCheck %s
-// RUN: %clangxx -fsycl -fsycl-device-only -fno-legacy-pass-manager %s -O3 -S -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -flegacy-pass-manager -mllvm -sycl-opt %s -emit-llvm  -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fno-legacy-pass-manager -mllvm -sycl-opt %s -emit-llvm -o - | FileCheck %s
 //
 // This test checks that foo (which is @_Z3foov) is called twice after O3 optimizations.
 //
