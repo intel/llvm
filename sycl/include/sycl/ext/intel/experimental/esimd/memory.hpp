@@ -875,7 +875,7 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 /// @ingroup sycl_esimd_memory_slm
 
 /// Declare per-work-group slm size.
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size)
+__ESIMD_API void slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
