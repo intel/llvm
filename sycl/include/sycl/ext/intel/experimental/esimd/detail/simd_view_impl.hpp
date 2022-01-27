@@ -381,7 +381,7 @@ public:
 
   /// \tparam Rep is number of times region has to be replicated.
   template <int Rep> get_simd_t<element_type, Rep> replicate() {
-    return read().replicate<Rep>(0);
+    return read().template replicate<Rep>();
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -389,8 +389,8 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return replicate<Rep, 0, W>(0, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_w(uint16_t OffsetX) {
+    return replicate_vs_w<Rep, 0, W>(0, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -399,9 +399,9 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
-    return replicate<Rep, 0, W>(OffsetY, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_w(uint16_t OffsetY,
+                                                uint16_t OffsetX) {
+    return replicate_vs_w<Rep, 0, W>(OffsetY, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -410,8 +410,8 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return replicate<Rep, VS, W, 1>(0, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_vs_w(uint16_t OffsetX) {
+    return replicate_vs_w_hs<Rep, VS, W, 1>(0, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -421,9 +421,9 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
-    return replicate<Rep, VS, W, 1>(OffsetY, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_vs_w(uint16_t OffsetY,
+                                                   uint16_t OffsetX) {
+    return replicate_vs_w_hs<Rep, VS, W, 1>(OffsetY, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -433,7 +433,7 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate_vs_w_hs(uint16_t OffsetX) {
     return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetX);
   }
 
@@ -445,8 +445,8 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate_vs_w_hs(uint16_t OffsetY,
+                                                      uint16_t OffsetX) {
     constexpr int RowSize = is2D() ? getSizeX() : 0;
     return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetY * RowSize +
                                                              OffsetX);
