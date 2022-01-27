@@ -74,7 +74,7 @@ template <int size>
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).
 
-//TODO: Test case compiles now without any diagnostic but it shouldn't.
+// TODO: Test case compiles now without any diagnostic but it shouldn't.
 template <int N>
 [[intel::max_work_group_size(N, N, N)]] void func5(); // OK now. Error is expected here.
 template <int N>
@@ -143,9 +143,7 @@ int check() {
 }
 
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
-[[intel::max_global_work_dim(2)]]
-[[intel::max_global_work_dim(2)]] void func15() {}
-
+[[intel::max_global_work_dim(2)]] [[intel::max_global_work_dim(2)]] void func15() {}
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
 // CHECK: TemplateArgument integral 3
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}

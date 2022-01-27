@@ -3580,9 +3580,9 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
           (DeclXDimExpr->getResultAsAPSInt() != 1 ||
            DeclYDimExpr->getResultAsAPSInt() != 1 ||
            DeclZDimExpr->getResultAsAPSInt() != 1)) {
-         Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
+        Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
             << &A << DeclAttr;
-         return nullptr;
+        return nullptr;
       }
     }
   }
@@ -3594,8 +3594,6 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
 // Handles max_work_group_size.
 static void handleSYCLIntelMaxWorkGroupSize(Sema &S, Decl *D,
                                             const ParsedAttr &AL) {
-  S.CheckDeprecatedSYCLAttributeSpelling(AL);
-
   S.AddSYCLIntelMaxWorkGroupSizeAttr(D, AL, AL.getArgAsExpr(0),
                                      AL.getArgAsExpr(1), AL.getArgAsExpr(2));
 }

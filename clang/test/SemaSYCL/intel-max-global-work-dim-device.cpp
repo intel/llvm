@@ -106,10 +106,7 @@ struct TRIFuncObjGood9 {
   operator()() const;
 };
 
-[[intel::max_global_work_dim(1)]]
-void TRIFuncObjGood9::operator()() const {}
-
-
+[[intel::max_global_work_dim(1)]] void TRIFuncObjGood9::operator()() const {}
 
 // FIXME: We do not have support yet for checking
 // max_work_group_size and max_global_work_dim
@@ -232,9 +229,7 @@ struct TRIFuncObjBad15 {
   operator()() const;
 };
 
-[[intel::max_global_work_dim(0)]]
-void TRIFuncObjBad15::operator()() const {}
-
+[[intel::max_global_work_dim(0)]] void TRIFuncObjBad15::operator()() const {}
 #endif // TRIGGER_ERROR
 
 int main() {
