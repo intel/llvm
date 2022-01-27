@@ -875,7 +875,15 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 /// @ingroup sycl_esimd_memory_slm
 
 /// Declare per-work-group slm size.
-__ESIMD_API void slm_init(uint32_t size)
+#ifdef __SYCL_DEVICE_ONLY__
+// TODO slm_init should call __esimd_slm_init (TBD) and declared as __ESIMD_API
+// on both host and device. Currently __ESIMD_API on device leads to:
+// "... cannot call an undefined function without SYCL_EXTERNAL attribute"
+__ESIMD_INTRIN
+#else
+__ESIMD_API
+#endif
+void slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
