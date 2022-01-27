@@ -4689,9 +4689,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     std::string FileName = PLoc.getFilename();
     unsigned LineNumber = PLoc.getLine();
     unsigned ColumnNumber = PLoc.getColumn();
-    QualType KernelNameType =
-              calculateKernelNameType(S.getASTContext(), K.SyclKernel);
-    std::string KernelName = KernelNameType->getAsCXXRecordDecl()->getName().str();
+    std::string KernelName = K.NameType->getAsCXXRecordDecl()->getName().str();
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
