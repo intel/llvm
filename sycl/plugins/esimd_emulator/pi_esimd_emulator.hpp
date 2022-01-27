@@ -56,16 +56,27 @@ struct _pi_object {
 struct _pi_platform {
   _pi_platform() = default;
 
+  // Single-entry Cache pi_devices for reuse
+  std::unique_ptr<_pi_device> PiDeviceCache;
+  std::mutex PiDeviceCacheMutex;
+  bool DeviceCachePopulated = false;
+
+  // Check the device cache and load it if necessary.
+  pi_result populateDeviceCacheIfNeeded();
+
   // Keep Version information.
   std::string CmEmuVersion;
 };
 
 struct _pi_device : _pi_object {
-  _pi_device(pi_platform ArgPlt, cm_support::CmDevice *ArgCmDev)
-      : Platform{ArgPlt}, CmDevicePtr{ArgCmDev} {}
+  _pi_device(pi_platform ArgPlt, cm_support::CmDevice *ArgCmDev,
+             std::string ArgVersionStr)
+      : Platform{ArgPlt}, CmDevicePtr{ArgCmDev}, VersionStr{ArgVersionStr} {}
 
   pi_platform Platform;
   cm_support::CmDevice *CmDevicePtr = nullptr;
+
+  std::string VersionStr;
 };
 
 struct _pi_context : _pi_object {

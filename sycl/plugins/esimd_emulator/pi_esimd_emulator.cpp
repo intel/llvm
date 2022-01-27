@@ -139,9 +139,6 @@ static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
 
-// For PI_DEVICE_INFO_VERSION info
-static char CmEmuDeviceVersionString[32];
-
 using IDBuilder = sycl::detail::Builder;
 
 template <int NDims>
@@ -526,6 +523,11 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_PLATFORM;
   }
 
+  pi_result Res = Platform->populateDeviceCacheIfNeeded();
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
   // CM has single-root-GPU-device without sub-device support.
   pi_uint32 DeviceCount = (DeviceType & PI_DEVICE_TYPE_GPU) ? 1 : 0;
 
@@ -547,10 +549,23 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   if (DeviceCount == 0) {
-    /// No GPU entry to fill 'Device' array
+    /// No GPU entry to fill 'Devices' array
     return PI_SUCCESS;
   }
 
+  if (Devices) {
+    *Devices = Platform->PiDeviceCache.get();
+  }
+  return PI_SUCCESS;
+}
+
+// Check the device cache and load it if necessary.
+pi_result _pi_platform::populateDeviceCacheIfNeeded() {
+  std::lock_guard<std::mutex> Lock(PiDeviceCacheMutex);
+
+  if (DeviceCachePopulated) {
+    return PI_SUCCESS;
+  }
   cm_support::CmDevice *CmDevice = nullptr;
   // TODO FIXME Implement proper version checking and reporting:
   // - version passed to cm_support::CreateCmDevice
@@ -563,6 +578,10 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   unsigned int Version = 0;
 
   int Result = cm_support::CreateCmDevice(CmDevice, Version);
+
+  if (Result != cm_support::CM_SUCCESS) {
+    return PI_INVALID_DEVICE;
+  }
 
   // CM Device version info consists of two decimal numbers - major
   // and minor. Minor is single-digit. Version info is encoded into a
@@ -579,21 +598,13 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_DEVICE;
   }
 
-  sprintf(CmEmuDeviceVersionString, "%d.%d", (int)(Version / 100),
-          (int)(Version % 10));
+  std::ostringstream StrFormat;
+  StrFormat << (int)(Version / 100) << "." << (int)(Version % 10);
 
-  if (Result != cm_support::CM_SUCCESS) {
-    return PI_INVALID_DEVICE;
-  }
-
-  // FIXME / TODO : piDevicesGet always must return same pointer for
-  // 'Devices[0]' from cached entry. Reference : level-zero
-  // platform/device implementation with PiDevicesCache and
-  // PiDevicesCache
-  if (Devices) {
-    Devices[0] = new _pi_device(Platform, CmDevice);
-  }
-
+  std::unique_ptr<_pi_device> Device(
+      new _pi_device(this, CmDevice, StrFormat.str()));
+  PiDeviceCache = std::move(Device);
+  DeviceCachePopulated = true;
   return PI_SUCCESS;
 }
 
@@ -655,7 +666,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // cl_khr_int64_extended_atomics
     return ReturnValue("");
   case PI_DEVICE_INFO_VERSION:
-    return ReturnValue(CmEmuDeviceVersionString);
+    return ReturnValue(Device->VersionStr.c_str());
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{false});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
