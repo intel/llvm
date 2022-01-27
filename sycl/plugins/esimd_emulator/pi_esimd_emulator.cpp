@@ -29,7 +29,6 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
-// TODO : Rename esimdcpu to esimdemu for next CM_EMU release
 #include <esimdemu_support.h>
 
 #include <cstdarg>
@@ -118,8 +117,10 @@ static bool PrintPiTrace = false;
 static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 
 // Mapping between surface index and CM-managed surface
-static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap;
-static sycl::detail::SpinLock *PiESimdSurfaceMapLock;
+static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
+    new std::unordered_map<unsigned int, _pi_mem *>;
+static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
+    new sycl::detail::SpinLock;
 
 // To be compared with ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION in device
 // interface header file
@@ -432,8 +433,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  PiESimdSurfaceMap = new std::unordered_map<unsigned int, _pi_mem *>;
-  PiESimdSurfaceMapLock = new sycl::detail::SpinLock;
 
   if (PiTraceValue == -1) { // Means print all PI traces
     PrintPiTrace = true;
@@ -1017,13 +1016,9 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   Status = CmBuf->GetIndex(CmIndex);
   const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
-  if (PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) !=
-      PiESimdSurfaceMap->end()) {
-    if (PrintPiTrace) {
-      std::cerr << "Failure from CM-managed buffer creation" << std::endl;
-    }
-    return PI_INVALID_MEM_OBJECT;
-  }
+  assert(PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) ==
+             PiESimdSurfaceMap->end() &&
+         "Failure from CM-managed buffer creation");
 
   // Initialize the buffer with user data provided with 'HostPtr'
   if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
