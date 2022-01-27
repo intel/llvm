@@ -36,12 +36,12 @@ namespace esimd {
 /// The main simd vector class.
 ///
 /// A vector of elements, which compiler tries to map to a GPU register.
-/// Supports all standard C++ unary and banary
-/// . Additionally this class
-/// supports region operations that map to Intel GPU regions. The type of
-/// a region select or format operation is of simd_view type, which models
-/// read-update-write semantics.
+/// Supports all standard C++ unary and binary operations. See more details
+/// in the base class' docs: \c detail::simd_obj_impl.
 ///
+/// @tparam Ty element type. Can be any C++ integer or floating point type or
+///    \c sycl::half.
+/// @tparam N the number of elements.
 template <typename Ty, int N>
 class simd : public detail::simd_obj_impl<
                  detail::__raw_t<Ty>, N, simd<Ty, N>,

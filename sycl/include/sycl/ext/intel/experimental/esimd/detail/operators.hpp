@@ -30,6 +30,7 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 namespace detail {
+// clang-format off
 /// @ingroup sycl_esimd_core
 /// @{
 /// @defgroup sycl_esimd_core_binops C++ binary operators overloads for ESIMD.
@@ -102,8 +103,8 @@ namespace detail {
 /// | <tt>\> </tt> |      +                 |         +                     |         |
 /// | <tt>\<=</tt> |      +                 |         +                     |         |
 /// | <tt>\>=</tt> |      +                 |         +                     |         |
-
 /// @}
+// clang-format on
 
 ////////////////////////////////////////////////////////////////////////////////
 // simd_obj_impl global operators
