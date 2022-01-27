@@ -23,4 +23,3 @@ template <typename Ty> Ty atomic_add_fetch(Ty *ptr, Ty val) {
 }
 
 /// @endcond ESIMD_DETAIL
-

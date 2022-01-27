@@ -654,7 +654,6 @@ template <class T1, class T2 = T1>
 using computation_type_t =
     typename computation_type<remove_cvref_t<T1>, remove_cvref_t<T2>>::type;
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // sycl::half traits
 ////////////////////////////////////////////////////////////////////////////////
@@ -725,4 +724,3 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 /// @endcond ESIMD_DETAIL
-

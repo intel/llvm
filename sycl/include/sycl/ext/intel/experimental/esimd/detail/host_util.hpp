@@ -462,4 +462,3 @@ template <> struct dwordtype<unsigned int> { static const bool value = true; };
 #endif // #ifndef __SYCL_DEVICE_ONLY__
 
 /// @endcond ESIMD_DETAIL
-

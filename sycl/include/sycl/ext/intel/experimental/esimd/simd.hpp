@@ -162,7 +162,7 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 template <typename Ty, int N>
 std::ostream &operator<<(std::ostream &OS, const __SEIEE::simd<Ty, N> &V)
 #ifdef __SYCL_DEVICE_ONLY__
-{}
+    {}
 #else
 {
   OS << "{";

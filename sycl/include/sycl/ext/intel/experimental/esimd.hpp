@@ -11,8 +11,9 @@
 #pragma once
 
 /// @defgroup sycl_esimd DPC++ Explicit SIMD API
-/// This is a low-level API providing direct access to Intel GPU hardware features.
-/// ESIMD overview can be found [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md).
+/// This is a low-level API providing direct access to Intel GPU hardware
+/// features. ESIMD overview can be found
+/// [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md).
 
 ///@{
 /// @ingroup sycl_esimd
@@ -37,7 +38,8 @@
 /// @defgroup sycl_esimd_misc Miscellaneous ESIMD convenience functions.
 
 /// The main components of the API are:
-///   - @ref sycl_esimd_core - core API defining main vector data types and their
+///   - @ref sycl_esimd_core - core API defining main vector data types and
+///   their
 ///     interfaces.
 ///   - @ref sycl_esimd_memory
 ///   - @ref sycl_esimd_math

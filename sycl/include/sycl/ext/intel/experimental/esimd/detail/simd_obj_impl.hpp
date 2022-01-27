@@ -100,7 +100,7 @@ namespace detail {
 // template arguments are needed, template aliases can be used
 // (simd_mask_type).
 //
-  template <typename RawTy, int N, class Derived, class SFINAE>
+template <typename RawTy, int N, class Derived, class SFINAE>
 class simd_obj_impl {
   template <typename, typename> friend class simd_view;
   template <typename, int> friend class simd;

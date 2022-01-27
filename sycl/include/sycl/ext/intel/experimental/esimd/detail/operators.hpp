@@ -281,9 +281,7 @@ __ESIMD_DEF_SIMD_OBJ_IMPL_CMP_OP(||, BinOp::log_or,
                                  __SEIEED::is_simd_mask_type_v<SimdTx>)
 
 #undef __ESIMD_DEF_SIMD_OBJ_IMPL_CMP_OP
-} // namespace __SEIEED
 
-namespace __SEIEED {
 ////////////////////////////////////////////////////////////////////////////////
 // simd_view global operators
 ////////////////////////////////////////////////////////////////////////////////

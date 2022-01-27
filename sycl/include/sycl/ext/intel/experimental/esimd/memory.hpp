@@ -868,7 +868,6 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 
 /// @} sycl_esimd_memory_atomics
 
-
 /// @defgroup sycl_esimd_memory_slm Shared local memory access functions.
 /// @ingroup sycl_esimd_memory
 
@@ -878,11 +877,12 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 /// Declare per-work-group slm size.
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
-;
+    ;
 #else
-{ throw sycl::feature_not_supported(); }
+{
+  throw sycl::feature_not_supported();
+}
 #endif // __SYCL_DEVICE_ONLY__
-
 
 /// SLM gather.
 ///

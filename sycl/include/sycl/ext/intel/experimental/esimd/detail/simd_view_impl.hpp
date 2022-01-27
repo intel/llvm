@@ -415,7 +415,8 @@ public:
     return select<1, 1>(i);
   }
 
-  /// @name Replicate. Create a new simd object from a subset of elements referred to by this \c simd_view_impl object.
+  /// @name Replicate. Create a new simd object from a subset of elements
+  /// referred to by this \c simd_view_impl object.
   /// @{
 
   /// \tparam Rep is number of times region has to be replicated.

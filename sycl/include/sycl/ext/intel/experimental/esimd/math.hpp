@@ -28,8 +28,8 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
-  /// @{
-  /// @ingroup sycl_esimd_math
+/// @{
+/// @ingroup sycl_esimd_math
 
 /// Conversion of input vector elements of type \p T1 into vector of elements of
 /// type \p T0 with saturation.
@@ -1458,8 +1458,8 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, exp2, exp)
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sqrt, sqrt)
 // This also includes double (in addition to half and float):
 __ESIMD_UNARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
-                              (sizeof(T) >= 4),
-                          sqrt_ieee, ieee_sqrt)
+                                (sizeof(T) >= 4),
+                            sqrt_ieee, ieee_sqrt)
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, rsqrt, rsqrt)
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sin, sin)
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
@@ -1512,11 +1512,11 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
   }
 
 __ESIMD_BINARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
-                               sizeof(T) <= 4,
-                           pow, pow)
+                                 sizeof(T) <= 4,
+                             pow, pow)
 __ESIMD_BINARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
-                               sizeof(T) >= 4,
-                           div_ieee, ieee_div)
+                                 sizeof(T) >= 4,
+                             div_ieee, ieee_div)
 
 #undef __ESIMD_BINARY_INTRINSIC_DEF
 
@@ -1792,10 +1792,9 @@ __ESIMD_API
 /// @return a vector of \c uint32_t, where each element is set to bit count of
 ///     the corresponding element of the source operand.
 template <typename T, int N>
-ESIMD_NODEBUG
-    ESIMD_INLINE std::enable_if_t<std::is_integral<T>::value && (sizeof(T) <= 4),
-                                  simd<uint32_t, N>>
-    cbit(simd<T, N> src) {
+ESIMD_NODEBUG ESIMD_INLINE std::enable_if_t<
+    std::is_integral<T>::value && (sizeof(T) <= 4), simd<uint32_t, N>>
+cbit(simd<T, N> src) {
   return __esimd_cbit<T, N>(src.data());
 }
 
@@ -2623,7 +2622,8 @@ ESIMD_INLINE ESIMD_NODEBUG T0 hmin(simd<T1, SZ> v) {
 ///   \li \c std::plus, performs addition operation
 ///   \li \c std::multiplies, performs multiplication operation
 /// @param v the vector to perfrom reduction on
-/// @param op reduction operation object, used to auto-deduce the BinaryOperation
+/// @param op reduction operation object, used to auto-deduce the
+/// BinaryOperation
 ///   template parameter.
 /// @return result of the reduction
 // TODO 1) enforce BinaryOperation constraints 2) support std::minimum/maximum
