@@ -692,7 +692,7 @@ bool processSpecConstants(Module &M) {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
 
-  // perform the spec constant intrinsics transformation on resulting module
+  // Perform the spec constant intrinsics transformation on resulting module
   PreservedAnalyses Res = RunSpecConst.run(M, MAM);
   return !Res.areAllPreserved();
 }
@@ -700,7 +700,18 @@ bool processSpecConstants(Module &M) {
 bool processDeviceGlobals(Module &M) {
   if (DeviceGlobals.getNumOccurrences() == 0)
     return false;
-  return DeviceGlobalsPass::countDeviceGlobals(M) > 0;
+  if (DeviceGlobalsPass::countDeviceGlobals(M) == 0)
+    return false;
+  ModulePassManager RunDeviceGlobals;
+  ModuleAnalysisManager MAM;
+  DeviceGlobalsPass DGP;
+  // Register required analysis
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  RunDeviceGlobals.addPass(std::move(DGP));
+
+  // Enrich the module with device global metadata
+  RunDeviceGlobals.run(M, MAM);
+  return true;
 }
 
 // Module split helper.

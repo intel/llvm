@@ -16,6 +16,7 @@
 #pragma once
 
 #include "llvm/ADT/MapVector.h"
+#include "llvm/IR/PassManager.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -43,8 +44,12 @@ struct DeviceGlobalProperty {
 using DeviceGlobalPropertyMapTy =
     MapVector<StringRef, std::vector<DeviceGlobalProperty>>;
 
-class DeviceGlobalsPass {
+class DeviceGlobalsPass : public PassInfoMixin<DeviceGlobalsPass> {
 public:
+  // Enriches the module with metadata that describes the found device global
+  // variables for the SPIRV-LLVM Translator.
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
+
   // Searches given module for occurrences of device global variable-specific
   // metadata and builds "device global variable name" ->
   // vector<"variable properties"> map.
