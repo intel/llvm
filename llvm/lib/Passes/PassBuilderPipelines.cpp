@@ -581,7 +581,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
     FPM.addPass(SimplifyCFGPass());
   else
     FPM.addPass(SimplifyCFGPass(
-      SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true)));
+        SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true)));
 
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
@@ -1037,11 +1037,11 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   // before SLP vectorization.
   if (!SYCLOptimizationMode)
     FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions()
-                                  .forwardSwitchCondToPhi(true)
-                                  .convertSwitchToLookupTable(true)
-                                  .needCanonicalLoops(false)
-                                  .hoistCommonInsts(true)
-                                  .sinkCommonInsts(true)));
+                                    .forwardSwitchCondToPhi(true)
+                                    .convertSwitchToLookupTable(true)
+                                    .needCanonicalLoops(false)
+                                    .hoistCommonInsts(true)
+                                    .sinkCommonInsts(true)));
 
   if (IsFullLTO) {
     FPM.addPass(SCCPPass());

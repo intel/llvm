@@ -27,4 +27,3 @@ SYCL_EXTERNAL void bar(int i) {
     foo();
   }
 }
-
