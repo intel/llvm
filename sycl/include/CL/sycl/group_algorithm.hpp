@@ -104,15 +104,16 @@ template <typename T, typename BinaryOperation> struct is_native_op {
 // ---- is_complex
 template <typename T>
 struct is_complex
-    : std::bool_constant<std::is_same_v<T, std::complex<float>> ||
-                         std::is_same_v<T, std::complex<double>> ||
-                         std::is_same_v<T, std::complex<long double>>> {};
+    : std::integral_constant<
+          bool, std::is_same<T, std::complex<float>>::value ||
+                    std::is_same<T, std::complex<double>>::value ||
+                    std::is_same<T, std::complex<long double>>::value> {};
 
 // ---- is_arithmetic_or_complex
 template <typename T>
 using is_arithmetic_or_complex =
-    std::bool_constant<sycl::detail::is_complex<T>::value ||
-                       sycl::detail::is_arithmetic<T>::value>;
+    std::integral_constant<bool, sycl::detail::is_complex<T>::value ||
+                                     sycl::detail::is_arithmetic<T>::value>;
 
 // ---- identity_for_ga_op
 //   the group algorithms support std::complex, limited to sycl::plus operation
