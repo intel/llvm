@@ -395,18 +395,6 @@ private:
     /// Whether this kernel is an ESIMD one.
     bool IsESIMDKernel;
 
-    /// Kernel code_locaiton - file name.
-    ///std::string FileName;
-
-    /// Kernel code_location - function name.
-    ///std::string FunctionName;
-
-    /// Kernel code_location - line number.
-    ///unsigned LineNumber;
-
-    /// Kernel code_location - column number.
-    ///unsigned ColumnNumber;
-
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
 
@@ -418,14 +406,10 @@ private:
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
         : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
           IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel) {}
-          //FileName(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getFilename()) {}
-          //LineNumber(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getLineNumber()),  
-          //ColumnNumber(SyclKernel->getASTContext().getSourceManager().getPresumedLoc(KernelLoc).getColumnNumber()) {}
 
     void updateKernelNames(StringRef Name, StringRef StableName) {
       this->Name = Name.str();
       this->StableName = StableName.str();
-      //this->FunctionName = this->Name();
     }
     // Populate FileName, LineNumber and ColumnNumber in Sema.cpp or elsehwere instead of here
     // so that including SourceManager header can be avoided

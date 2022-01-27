@@ -4687,14 +4687,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     PresumedLoc PLoc = S.Context.getSourceManager().getPresumedLoc(
         S.Context.getSourceManager().getExpansionRange(K.KernelLocation).getEnd());
     std::string FileName = PLoc.getFilename();
-    std::string FunctionName = "main";
     unsigned LineNumber = PLoc.getLine();
     unsigned ColumnNumber = PLoc.getColumn();
-    //std::string FileName = S.Context.getSourceManager().getPresumedLoc(K.KernelLocation).getFilename();
-    //FileID fileID = S.Context.getSourceManager().getFileID(K.KernelLocation);
-    //unsigned LineNumber = S.Context.getSourceManager().getPresumedLoc(K.KernelLocation).getLinenumber();
-    //unsigned LineNumber = S.Context.getSourceManager().getPresumedLineNumber(K.KernelLocation);
-    //unsigned ColumnNumber = S.Context.getSourceManager().getPresumedColumnNumber(K.KernelLocation);
+    QualType KernelNameType =
+              calculateKernelNameType(S.getASTContext(), K.SyclKernel);
+    std::string KernelName = KernelNameType->getAsCXXRecordDecl()->getName().str();
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
@@ -4723,7 +4720,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getFunctionName() { return "
-      << FunctionName << "; }\n";
+      << KernelName << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getLineNumber() { return " << LineNumber
       << "; }\n";
