@@ -529,10 +529,7 @@ __esimd_svm_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
 
 #ifndef __SYCL_DEVICE_ONLY__
 __ESIMD_INTRIN void __esimd_slm_init(size_t size) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  I->cm_slm_init_ptr(size);
+  sycl::detail::getESIMDDeviceInterface()->cm_slm_init_ptr(size);
 }
 #endif // ifndef __SYCL_DEVICE_ONLY__
 
@@ -542,10 +539,7 @@ __ESIMD_INTRIN void __esimd_barrier()
     ;
 #else
 {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  I->cm_barrier_ptr();
+  sycl::detail::getESIMDDeviceInterface()->cm_barrier_ptr();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -555,10 +549,7 @@ __ESIMD_INTRIN void __esimd_sbarrier(__SEIEE::split_barrier_action flag)
     ;
 #else
 {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  I->cm_sbarrier_ptr((uint32_t)flag);
+  sycl::detail::getESIMDDeviceInterface()->cm_sbarrier_ptr((uint32_t)flag);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -568,9 +559,7 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
     ;
 #else
 {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  I->cm_fence_ptr();
+  sycl::detail::getESIMDDeviceInterface()->cm_fence_ptr();
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -844,9 +833,8 @@ __esimd_dword_atomic0(__SEIEED::simd_mask_storage_t<N> pred,
   __SEIEED::vector_type_t<Ty, N> retv;
 
   if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    sycl::detail::ESIMDDeviceInterface *I =
-        sycl::detail::getESIMDDeviceInterface();
-    char *WriteBase = I->__cm_emu_get_slm_ptr();
+    char *WriteBase =
+        sycl::detail::getESIMDDeviceInterface()->__cm_emu_get_slm_ptr();
 
     for (int i = 0; i < N; i++) {
       if (pred[i]) {
@@ -919,10 +907,6 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
 #else
 {
   __SEIEED::vector_type_t<Ty, M * N> vals;
-
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
   char *readBase;
   uint32_t bpp;
   uint32_t imgWidth;
@@ -932,8 +916,8 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
   assert((handle != __SEIEE::detail::SLM_BTI) &&
          "__esimd_media_ld cannot access SLM");
 
-  I->sycl_get_cm_image_params_index_ptr(handle, &readBase, &imgWidth,
-                                        &imgHeight, &bpp, &mutexLock);
+  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_index_ptr(
+      handle, &readBase, &imgWidth, &imgHeight, &bpp, &mutexLock);
 
   std::unique_lock<std::mutex> lock(*mutexLock);
 
@@ -1135,10 +1119,7 @@ __ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  return I->sycl_get_cm_surface_index_ptr(
+  return sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_surface_index_ptr(
       __SEIEED::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
