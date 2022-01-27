@@ -134,7 +134,7 @@ static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
 
 // To be compared with ESIMD_DEVICE_INTERFACE_VERSION in device
 // interface header file
-#define ESIMDEmuPluginInterfaceVersion 2
+#define ESIMDEmuPluginInterfaceVersion 1
 
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
