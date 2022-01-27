@@ -2160,10 +2160,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   case OpVectorExtractDynamic: {
-    auto CE = static_cast<SPIRVVectorExtractDynamic *>(BV);
+    auto *VED = static_cast<SPIRVVectorExtractDynamic *>(BV);
+    SPIRVValue *Vec = VED->getVector();
+    if (Vec->getType()->getOpCode() == internal::OpTypeJointMatrixINTEL) {
+      return mapValue(BV, transSPIRVBuiltinFromInst(VED, BB));
+    }
     return mapValue(
-        BV, ExtractElementInst::Create(transValue(CE->getVector(), F, BB),
-                                       transValue(CE->getIndex(), F, BB),
+        BV, ExtractElementInst::Create(transValue(Vec, F, BB),
+                                       transValue(VED->getIndex(), F, BB),
                                        BV->getName(), BB));
   }
 
@@ -2189,12 +2193,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   case OpVectorInsertDynamic: {
-    auto CI = static_cast<SPIRVVectorInsertDynamic *>(BV);
+    auto *VID = static_cast<SPIRVVectorInsertDynamic *>(BV);
+    SPIRVValue *Vec = VID->getVector();
+    if (Vec->getType()->getOpCode() == internal::OpTypeJointMatrixINTEL) {
+      return mapValue(BV, transSPIRVBuiltinFromInst(VID, BB));
+    }
     return mapValue(
-        BV, InsertElementInst::Create(transValue(CI->getVector(), F, BB),
-                                      transValue(CI->getComponent(), F, BB),
-                                      transValue(CI->getIndex(), F, BB),
-                                      BV->getName(), BB));
+        BV, InsertElementInst::Create(
+                transValue(Vec, F, BB), transValue(VID->getComponent(), F, BB),
+                transValue(VID->getIndex(), F, BB), BV->getName(), BB));
   }
 
   case OpVectorShuffle: {
