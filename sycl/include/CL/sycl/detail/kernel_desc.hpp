@@ -81,7 +81,6 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
 #endif
-
 };
 #else
 template <char...> struct KernelInfoData {
