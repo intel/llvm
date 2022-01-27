@@ -57,6 +57,11 @@
 
 // Macros for internal use
 #define __ESIMD_NS sycl::ext::intel::experimental::esimd
+#define __ESIMD_QUOTE1(m) #m
+#define __ESIMD_QUOTE(m) __ESIMD_QUOTE1(m)
+#define __ESIMD_NS_QUOTED __ESIMD_QUOTE(__ESIMD_NS)
+#define __ESIMD_DEPRECATED(new_api)                                            \
+  __SYCL_DEPRECATED("use " __ESIMD_NS_QUOTED "::" __ESIMD_QUOTE(new_api))
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
