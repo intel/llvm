@@ -79,7 +79,9 @@ public:
     impl = std::make_shared<detail::buffer_impl>(
         size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
@@ -90,7 +92,9 @@ public:
         size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
@@ -101,7 +105,9 @@ public:
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
@@ -113,7 +119,9 @@ public:
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   template <typename _T = T>
@@ -126,7 +134,9 @@ public:
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   template <typename _T = T>
@@ -140,7 +150,9 @@ public:
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer(const std::shared_ptr<T> &hostData,
@@ -153,7 +165,10 @@ public:
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(),
+                                  (void *)hostData.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
@@ -166,7 +181,10 @@ public:
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(),
+                                  (void *)hostData.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer(const std::shared_ptr<T> &hostData,
@@ -178,7 +196,10 @@ public:
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(),
+                                  (void *)hostData.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
@@ -190,7 +211,10 @@ public:
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(),
+                                  (void *)hostData.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   template <class InputIterator, int N = dimensions,
@@ -205,7 +229,9 @@ public:
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), &first,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   template <class InputIterator, int N = dimensions,
@@ -219,7 +245,9 @@ public:
         first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), &first,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   // This constructor is a prototype for a future SYCL specification
@@ -235,7 +263,9 @@ public:
         detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   // This constructor is a prototype for a future SYCL specification
@@ -252,7 +282,9 @@ public:
       : impl(b.impl), Range(subRange),
         OffsetInBytes(getOffsetInBytes<T>(baseIndex, b.Range)),
         IsSubBuffer(true) {
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
 
     if (b.is_sub_buffer())
       throw cl::sycl::invalid_object_error(
@@ -281,7 +313,9 @@ public:
         detail::pi::cast<pi_native_handle>(MemObject), SyclContext, BufSize,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
         AvailableEvent);
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 #endif
 
@@ -289,14 +323,18 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : impl(rhs.impl), Range(rhs.Range), OffsetInBytes(rhs.OffsetInBytes),
         IsSubBuffer(rhs.IsSubBuffer) {
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer(buffer &&rhs,
          const detail::code_location CodeLoc = detail::code_location::current())
       : impl(std::move(rhs.impl)), Range(rhs.Range),
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   buffer &operator=(const buffer &rhs) = default;
@@ -485,7 +523,9 @@ private:
         MemObject, SyclContext, BufSize,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
         AvailableEvent);
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   // Reinterpret contructor
@@ -495,7 +535,9 @@ private:
          const detail::code_location CodeLoc = detail::code_location::current())
       : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset),
         IsSubBuffer(isSubBuffer) {
-    impl->constructorNotification(CodeLoc, (void *)impl.get());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+				  sizeof(T));
   }
 
   template <typename Type, int N>

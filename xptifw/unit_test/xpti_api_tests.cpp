@@ -286,6 +286,11 @@ TEST_F(xptiApiTest, xptiRegisterCallbackGoodInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_shadow,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+
+  Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_begin,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
@@ -376,6 +381,11 @@ TEST_F(xptiApiTest, xptiNotifySubscribersBadInput) {
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
 
   Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_shadow,
+      nullptr, nullptr, 0, nullptr);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
+
+  Result = xptiNotifySubscribers(
       StreamID, (uint16_t)xpti::trace_point_type_t::mem_alloc_begin, nullptr,
       nullptr, 0, nullptr);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_INVALIDARG);
@@ -443,12 +453,29 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
       StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_destruct,
       fn_callback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_release,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_accessor,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_kernel,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiRegisterCallback(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_shadow,
+      fn_callback);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
-  xpti::offload_buffer_data_t UserBufferData{0x01020304};
+  xpti::offload_buffer_data_t UserBufferData{1, 5, "int", 4, 2, {3, 2, 0}};
   xpti::offload_buffer_association_data_t AssociationData{0x01020304,
                                                           0x05060708};
   xpti::offload_accessor_data_t UserAccessorData{0x01020304, 0x09000102, 1, 2};
   xpti::offload_kernel_data_t UserKernelData{0x01020304};
+  xpti::offload_buffer_shadow_data_t UserBufferShadowData{0x01, 0x05};
 
   tmp = func_callback_update;
   Result = xptiNotifySubscribers(
@@ -474,6 +501,10 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
   Result = xptiNotifySubscribers(
       StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_kernel,
       nullptr, (xpti::trace_event_data_t *)1, 0, &UserKernelData);
+  EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
+  Result = xptiNotifySubscribers(
+      StreamID, (uint16_t)xpti::trace_point_type_t::offload_alloc_shadow,
+      nullptr, (xpti::trace_event_data_t *)1, 0, &UserBufferShadowData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   Result = xptiRegisterCallback(

@@ -36,16 +36,28 @@ xpti::trace_event_data_t *XPTIRegistry::createTraceEvent(
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 void XPTIRegistry::bufferConstructorNotification(
-    const void *UserObj, const detail::code_location &CodeLoc) {
+    const void *UserObj, const detail::code_location &CodeLoc,
+    const void *HostObj, const void *Type, uint32_t Dim, uint32_t ElemSize,
+    uint32_t Range[3]) {
   (void)UserObj;
   (void)CodeLoc;
+  (void)HostObj;
+  (void)Type;
+  (void)Dim;
+  (void)ElemSize;
+  (void)Range;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
   if (!xptiTraceEnabled())
     return;
 
   uint64_t IId;
-  xpti::offload_buffer_data_t BufConstr{(uintptr_t)UserObj};
+  xpti::offload_buffer_data_t BufConstr{(uintptr_t)UserObj,
+                                        (uintptr_t)HostObj,
+                                        (const char *)Type,
+                                        ElemSize,
+                                        Dim,
+                                        Range};
 
   xpti::trace_event_data_t *TraceEvent = createTraceEvent(
       UserObj, UserObj, IId, CodeLoc, xpti::trace_offload_buffer_event);

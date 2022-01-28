@@ -90,7 +90,9 @@ public:
   }
 
   static void bufferConstructorNotification(const void *,
-                                            const detail::code_location &);
+                                            const detail::code_location &,
+                                            const void *, const void *,
+                                            uint32_t, uint32_t, uint32_t[3]);
   static void bufferAssociateNotification(const void *, const void *);
   static void bufferReleaseNotification(const void *, const void *);
   static void bufferDestructorNotification(const void *);
