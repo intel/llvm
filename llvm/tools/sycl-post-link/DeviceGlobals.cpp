@@ -27,27 +27,27 @@ constexpr StringRef SYCL_UNIQUE_ID_ATTR = "sycl-unique-id";
 constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "device_image_scope";
 constexpr StringRef SYCL_HOST_ACCESS_ATTR = "host_access";
 constexpr StringRef SYCL_INIT_MODE_ATTR = "init_mode";
-constexpr StringRef SYCL_IMPLEMENT_IN_CSR_ATTR = "implement_in_csr";
+constexpr StringRef SYCL_IMPL_IN_CSR_ATTR = "implement_in_csr";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 constexpr uint32_t SPIRV_INIT_MODE_DECOR = 6148;
-constexpr uint32_t SPIRV_IMPLEMENT_IN_CSR_DECOR = 6149;
+constexpr uint32_t SPIRV_IMPL_IN_CSR_DECOR = 6149;
 
-enum class DecorValueType {
+enum class DecorValueTy {
   uint,
   boolean,
 };
 
 struct Decor {
   uint32_t code;
-  DecorValueType type;
+  DecorValueTy type;
 };
 
 const StringMap<Decor> SpirvDecorMap = {
-    {SYCL_HOST_ACCESS_ATTR, {SPIRV_HOST_ACCESS_DECOR, DecorValueType::uint}},
-    {SYCL_INIT_MODE_ATTR, {SPIRV_INIT_MODE_DECOR, DecorValueType::uint}},
-    {SYCL_IMPLEMENT_IN_CSR_ATTR, {SPIRV_IMPLEMENT_IN_CSR_DECOR, DecorValueType::boolean}}};
+    {SYCL_HOST_ACCESS_ATTR, {SPIRV_HOST_ACCESS_DECOR, DecorValueTy::uint}},
+    {SYCL_INIT_MODE_ATTR, {SPIRV_INIT_MODE_DECOR, DecorValueTy::uint}},
+    {SYCL_IMPL_IN_CSR_ATTR, {SPIRV_IMPL_IN_CSR_DECOR, DecorValueTy::boolean}}};
 
 /// Converts the string into a boolean value. If the string is equal to "false"
 /// we consider its value as /c false, /true otherwise.
@@ -85,9 +85,8 @@ uint32_t getAttributeAsInteger(const GlobalVariable &GV,
   assert(GV.hasAttribute(AttributeName) &&
          "The global variable GV must have the requested attribute");
   uint32_t value;
-  bool error = GV.getAttribute(AttributeName)
-                   .getValueAsString()
-                   .getAsInteger(10, value);
+  bool error =
+      GV.getAttribute(AttributeName).getValueAsString().getAsInteger(10, value);
   assert(!error && "The attribute's value is not a number");
   (void)error;
   return value;
@@ -152,17 +151,17 @@ bool isDeviceGlobalVariable(const GlobalVariable &GV) {
 MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, Type *Ty, uint32_t Decor,
                                 uint32_t Value) {
   SmallVector<Metadata *, 2> MD;
-  MD.push_back(ConstantAsMetadata::get(
-        Constant::getIntegerValue(Ty, APInt(32, Decor))));
-  MD.push_back(ConstantAsMetadata::get(
-        Constant::getIntegerValue(Ty, APInt(32, Value))));
+  MD.push_back(
+      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Decor))));
+  MD.push_back(
+      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Value))));
   return MDNode::get(Ctx, MD);
 }
 
 } // namespace
 
-PreservedAnalyses
-DeviceGlobalsPass::run(Module &M, ModuleAnalysisManager &MAM) {
+PreservedAnalyses DeviceGlobalsPass::run(Module &M,
+                                         ModuleAnalysisManager &MAM) {
   LLVMContext &Ctx = M.getContext();
   unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
   auto *Int32Ty = Type::getInt32Ty(Ctx);
@@ -185,11 +184,11 @@ DeviceGlobalsPass::run(Module &M, ModuleAnalysisManager &MAM) {
         continue;
       auto Decor = DecorIt->second;
       auto DecorCode = Decor.code;
-      auto DecorValue = Decor.type == DecorValueType::uint ?
-          getAttributeAsInteger(GV, AttributeKind) :
-          hasProperty(GV, AttributeKind) ? 1 : 0;
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, Int32Ty,
-                                              DecorCode, DecorValue));
+      auto DecorValue = Decor.type == DecorValueTy::uint
+                            ? getAttributeAsInteger(GV, AttributeKind)
+                            : hasProperty(GV, AttributeKind);
+      MDOps.push_back(
+          buildSpirvDecorMetadata(Ctx, Int32Ty, DecorCode, DecorValue));
     }
 
     if (!MDOps.empty())
@@ -214,15 +213,13 @@ DeviceGlobalsPass::collectDeviceGlobalProperties(const Module &M) {
     if (!isDeviceGlobalVariable(GV))
       continue;
 
-    DGM[getUniqueId(GV)] = {
-        {{getUnderlyingTypeSize(GV),
-          hasProperty(GV, SYCL_DEVICE_IMAGE_SCOPE_ATTR)}}};
+    DGM[getUniqueId(GV)] = {{{getUnderlyingTypeSize(GV),
+                              hasProperty(GV, SYCL_DEVICE_IMAGE_SCOPE_ATTR)}}};
   }
 
   return DGM;
 }
 
-ptrdiff_t
-DeviceGlobalsPass::countDeviceGlobals(const Module &M) {
+ptrdiff_t DeviceGlobalsPass::countDeviceGlobals(const Module &M) {
   return count_if(M.globals(), isDeviceGlobalVariable);
 }

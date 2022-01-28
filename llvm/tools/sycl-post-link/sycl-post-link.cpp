@@ -808,10 +808,9 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       // no spec constants and no splitting.
       // We cannot reuse input module for ESIMD code since it was transformed.
       std::string ResModuleFile{};
-      bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
-                                 !IsLLVMUsedRemoved && !SpecConstsMet &&
-                                 !DeviceGlobalsMet &&
-                                 (MSplit.totalSplits() == 1);
+      bool CanReuseInputModule =
+          !SyclAndEsimdCode && !IsEsimd && !IsLLVMUsedRemoved &&
+          !SpecConstsMet && !DeviceGlobalsMet && (MSplit.totalSplits() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
       else {
