@@ -17,8 +17,7 @@ float __ocml_modf_f32(float, float *);
   __CLC_XCONCAT(__CLC_XCONCAT(_Z16__spirv_ocl_modf, IN), OUT)
 #define VEC_TYPE(T, N) __CLC_XCONCAT(__CLC_XCONCAT(__CLC_XCONCAT(Dv, N), _), T)
 #define VEC_FUNCNAME(N, MANGLED_TYPE, MANGLED_PTR)                             \
-  FUNCNAME(VEC_TYPE(MANGLED_TYPE, N),                                          \
-           __CLC_XCONCAT(MANGLED_PTR, VEC_TYPE(MANGLED_TYPE, N)))
+  FUNCNAME(VEC_TYPE(MANGLED_TYPE, N), __CLC_XCONCAT(MANGLED_PTR, S_))
 
 #define MANUALLY_MANGLED_MODF_IMPL(ADDRSPACE, BUILTIN, ARG1_TYPE,              \
                                    MANGLED_ARG1_TYPE, MANGLED_POINTER_TYPE,    \
