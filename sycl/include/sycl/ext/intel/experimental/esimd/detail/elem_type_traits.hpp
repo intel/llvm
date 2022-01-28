@@ -85,6 +85,8 @@
 
 #include <CL/sycl/half_type.hpp>
 
+/// @cond ESIMD_DETAIL
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace __SEIEED {
 
@@ -580,7 +582,6 @@ template <typename T>
 static inline constexpr bool is_generic_floating_point_v =
     element_type_traits<T>::is_floating_point;
 
-// @{
 // Get computation type of a binary operator given its operand types:
 // - if both types are arithmetic - return CPP's "common real type" of the
 //   computation (matches C++)
@@ -653,8 +654,6 @@ template <class T1, class T2 = T1>
 using computation_type_t =
     typename computation_type<remove_cvref_t<T1>, remove_cvref_t<T2>>::type;
 
-// @}
-
 ////////////////////////////////////////////////////////////////////////////////
 // sycl::half traits
 ////////////////////////////////////////////////////////////////////////////////
@@ -723,3 +722,5 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 
 } // namespace __SEIEED
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_DETAIL
