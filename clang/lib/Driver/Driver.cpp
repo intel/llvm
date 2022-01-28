@@ -3003,8 +3003,8 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
       return false;
     for (auto LPath : LibPaths) {
       SmallString<128> FullName(LPath);
-      llvm::sys::path::append(
-          FullName, Twine("lib" + LibName.substr(2) + ".a").str());
+      llvm::sys::path::append(FullName,
+                              Twine("lib" + LibName.substr(2) + ".a").str());
       if (llvm::sys::fs::exists(FullName)) {
         LibArgs.push_back(Args.MakeArgString(FullName));
         return true;
