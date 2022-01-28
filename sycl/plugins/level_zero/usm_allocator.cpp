@@ -191,7 +191,7 @@ public:
       return More;
     };
 
-    auto MemParser = [=](std::string &Params, SystemMemory::MemType M) {
+    auto MemParser = [=, this](std::string &Params, SystemMemory::MemType M) {
       bool ParamWasSet;
       SystemMemory::MemType LM = M;
       if (M == SystemMemory::All)
