@@ -67,7 +67,8 @@ def Linalg_InitTensorOp : Linalg_Op<"init_tensor",
 
     // Infer the shape of the result tensor given the static shapes
     // and element type of the result tensor.
-    static Type inferResultType(ArrayRef<int64_t> staticSizes, Type elementType);
+    static Type inferResultType(ArrayRef<int64_t> staticSizes, Type elementType,
+                                Attribute encoding = {});
 
     // Return true if the size of the tensor is dynamic at `idx`
     bool isDynamicSize(unsigned idx) {
@@ -544,7 +545,8 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
 
       getOperation()->insertOperands(getNumControlOperands() + numInputs,
                                      operand);
-      getBody()->insertArgument(numLoops + numInputs, operand.getType());
+      getBody()->insertArgument(numLoops + numInputs, operand.getType(), 
+                                getLoc());
       getOperation()->setAttr(
           TiledLoopOp::getOperandSegmentSizeAttr(),
           builder.getI32VectorAttr(
@@ -561,7 +563,7 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
       getOperation()->insertOperands(
           getNumControlOperands() + numInputs + numOutputs, operand);
       getBody()->insertArgument(numLoops + numInputs + numOutputs,
-                                operand.getType());
+                                operand.getType(), getLoc());
       getOperation()->setAttr(
           TiledLoopOp::getOperandSegmentSizeAttr(),
           builder.getI32VectorAttr(

@@ -14,13 +14,13 @@ using namespace sycl::ext::intel::experimental::esimd;
 // Math sin,cos,log,exp functions are translated into scalar __spirv_ocl_ calls
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> sycl_math(simd<float, 16> x) {
   simd<float, 16> v = 0;
-  //CHECK: call spir_func float @_Z15__spirv_ocl_cosf
+  //CHECK: call spir_func noundef float @_Z15__spirv_ocl_cosf
   v = sycl::cos(x);
-  //CHECK: call spir_func float @_Z15__spirv_ocl_sinf
+  //CHECK: call spir_func noundef float @_Z15__spirv_ocl_sinf
   v = sycl::sin(v);
-  //CHECK: call spir_func float @_Z15__spirv_ocl_logf
+  //CHECK: call spir_func noundef float @_Z15__spirv_ocl_logf
   v = sycl::log(v);
-  //CHECK: call spir_func float @_Z15__spirv_ocl_expf
+  //CHECK: call spir_func noundef float @_Z15__spirv_ocl_expf
   v = sycl::exp(v);
   return v;
 }
@@ -30,13 +30,13 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> sycl_math(simd<float, 16> x) {
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16>
 esimd_math(simd<float, 16> x) {
   simd<float, 16> v = 0;
-  //CHECK: call spir_func <16 x float> @_Z11__esimd_cos
+  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_cos
   v = esimd::cos(x);
-  //CHECK: call spir_func <16 x float> @_Z11__esimd_sin
+  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_sin
   v = esimd::sin(v);
-  //CHECK: call spir_func <16 x float> @_Z11__esimd_log
+  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_log
   v = esimd::log2(v);
-  //CHECK: call spir_func <16 x float> @_Z11__esimd_exp
+  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_exp
   v = esimd::exp2(v);
   return v;
 }
@@ -46,9 +46,9 @@ esimd_math(simd<float, 16> x) {
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16>
 esimd_math_emu(simd<float, 16> x) {
   simd<float, 16> v = 0;
-  //CHECK: call spir_func <16 x float> @_Z11__esimd_log
+  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_log
   v = esimd::log(x);
-  //CHECK: call spir_func <16 x float> @_Z11__esimd_exp
+  //CHECK: call spir_func noundef <16 x float> @_Z11__esimd_exp
   v = esimd::exp(v);
   return v;
 }

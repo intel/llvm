@@ -62,6 +62,7 @@ MODULE_PASS("globalsplit", GlobalSplitPass())
 MODULE_PASS("hotcoldsplit", HotColdSplittingPass())
 MODULE_PASS("inferattrs", InferFunctionAttrsPass())
 MODULE_PASS("inliner-wrapper", ModuleInlinerWrapperPass())
+MODULE_PASS("print<inline-advisor>", InlineAdvisorAnalysisPrinterPass(dbgs()))
 MODULE_PASS("inliner-wrapper-no-mandatory-first", ModuleInlinerWrapperPass(
   getInlineParams(),
   false))
@@ -421,7 +422,7 @@ FUNCTION_PASS_WITH_PARAMS("msan",
                              return MemorySanitizerPass(Opts);
                            },
                           parseMSanPassOptions,
-                          "recover;kernel;track-origins=N")
+                          "recover;kernel;eager-checks;track-origins=N")
 FUNCTION_PASS_WITH_PARAMS("simplifycfg",
                           "SimplifyCFGPass",
                            [](SimplifyCFGOptions Opts) {

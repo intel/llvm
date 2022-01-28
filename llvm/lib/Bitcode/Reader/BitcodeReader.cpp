@@ -1349,7 +1349,7 @@ Error BitcodeReader::parseAttributeBlock() {
         return error("Invalid record");
 
       for (unsigned i = 0, e = Record.size(); i != e; i += 2) {
-        AttrBuilder B;
+        AttrBuilder B(Context);
         decodeLLVMAttributesForBitcode(B, Record[i+1]);
         Attrs.push_back(AttributeList::get(Context, Record[i], B));
       }
@@ -1591,7 +1591,7 @@ Error BitcodeReader::parseAttributeGroupBlock() {
       uint64_t GrpID = Record[0];
       uint64_t Idx = Record[1]; // Index of the object this attribute refers to.
 
-      AttrBuilder B;
+      AttrBuilder B(Context);
       for (unsigned i = 2, e = Record.size(); i != e; ++i) {
         if (Record[i] == 0) {        // Enum attribute
           Attribute::AttrKind Kind;
@@ -3835,6 +3835,11 @@ Error BitcodeReader::parseModule(uint64_t ResumeBit,
       if (Error Err = parseComdatRecord(Record))
         return Err;
       break;
+    // FIXME: BitcodeReader should handle {GLOBALVAR, FUNCTION, ALIAS, IFUNC}
+    // written by ThinLinkBitcodeWriter. See
+    // `ThinLinkBitcodeWriter::writeSimplifiedModuleInfo` for the format of each
+    // record
+    // (https://github.com/llvm/llvm-project/blob/b6a93967d9c11e79802b5e75cec1584d6c8aa472/llvm/lib/Bitcode/Writer/BitcodeWriter.cpp#L4714)
     case bitc::MODULE_CODE_GLOBALVAR:
       if (Error Err = parseGlobalVarRecord(Record))
         return Err;

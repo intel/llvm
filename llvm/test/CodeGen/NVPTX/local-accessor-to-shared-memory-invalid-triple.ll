@@ -1,6 +1,6 @@
 ; This test checks that the Local Accessor to Shared Memory pass does not run with the
 ; `nvptx64-nvidia-nvcl` triple.
-; RUN: llc -march=nvptx64 -mcpu=sm_20 < %s | FileCheck %s
+; RUN: llc -march=nvptx64 -mcpu=sm_20 -sycl-enable-local-accessor < %s | FileCheck %s
 ; CHECK: .param .u64 .ptr .shared .align 4 _ZTS14example_kernel_param_0
 
 ; ModuleID = 'local-accessor-to-shared-memory-invalid-triple.ll'

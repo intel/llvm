@@ -85,7 +85,7 @@ static uint32_t cpuSubtype() {
 
   if (config->outputType == MH_EXECUTE && !config->staticLink &&
       target->cpuSubtype == CPU_SUBTYPE_X86_64_ALL &&
-      config->platform() == PlatformKind::macOS &&
+      config->platform() == PLATFORM_MACOS &&
       config->platformInfo.minimum >= VersionTuple(10, 5))
     subtype |= CPU_SUBTYPE_LIB64;
 
@@ -1283,7 +1283,10 @@ void BitcodeBundleSection::finalize() {
   using namespace llvm::sys::fs;
   CHECK_EC(createTemporaryFile("bitcode-bundle", "xar", xarPath));
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   xar_t xar(xar_open(xarPath.data(), O_RDWR));
+#pragma clang diagnostic pop
   if (!xar)
     fatal("failed to open XAR temporary file at " + xarPath);
   CHECK_EC(xar_opt_set(xar, XAR_OPT_COMPRESSION, XAR_OPT_VAL_NONE));
@@ -1379,26 +1382,15 @@ DeduplicatedCStringSection::DeduplicatedCStringSection()
 void DeduplicatedCStringSection::finalizeContents() {
   // Add all string pieces to the string table builder to create section
   // contents.
-  for (const CStringInputSection *isec : inputs)
+  for (CStringInputSection *isec : inputs) {
     for (size_t i = 0, e = isec->pieces.size(); i != e; ++i)
       if (isec->pieces[i].live)
-        builder.add(isec->getCachedHashStringRef(i));
-
-  // Fix the string table content. After this, the contents will never change.
-  builder.finalizeInOrder();
-
-  // finalize() fixed tail-optimized strings, so we can now get
-  // offsets of strings. Get an offset for each string and save it
-  // to a corresponding SectionPiece for easy access.
-  for (CStringInputSection *isec : inputs) {
-    for (size_t i = 0, e = isec->pieces.size(); i != e; ++i) {
-      if (!isec->pieces[i].live)
-        continue;
-      isec->pieces[i].outSecOff =
-          builder.getOffset(isec->getCachedHashStringRef(i));
-      isec->isFinal = true;
-    }
+        isec->pieces[i].outSecOff =
+            builder.add(isec->getCachedHashStringRef(i));
+    isec->isFinal = true;
   }
+
+  builder.finalizeInOrder();
 }
 
 // This section is actually emitted as __TEXT,__const by ld64, but clang may
@@ -1474,7 +1466,7 @@ void WordLiteralSection::writeTo(uint8_t *buf) const {
 void macho::createSyntheticSymbols() {
   auto addHeaderSymbol = [](const char *name) {
     symtab->addSynthetic(name, in.header->isec, /*value=*/0,
-                         /*privateExtern=*/true, /*includeInSymtab=*/false,
+                         /*isPrivateExtern=*/true, /*includeInSymtab=*/false,
                          /*referencedDynamically=*/false);
   };
 
@@ -1487,11 +1479,11 @@ void macho::createSyntheticSymbols() {
     // Otherwise, it's an absolute symbol.
     if (config->isPic)
       symtab->addSynthetic("__mh_execute_header", in.header->isec, /*value=*/0,
-                           /*privateExtern=*/false, /*includeInSymtab=*/true,
+                           /*isPrivateExtern=*/false, /*includeInSymtab=*/true,
                            /*referencedDynamically=*/true);
     else
       symtab->addSynthetic("__mh_execute_header", /*isec=*/nullptr, /*value=*/0,
-                           /*privateExtern=*/false, /*includeInSymtab=*/true,
+                           /*isPrivateExtern=*/false, /*includeInSymtab=*/true,
                            /*referencedDynamically=*/true);
     break;
 

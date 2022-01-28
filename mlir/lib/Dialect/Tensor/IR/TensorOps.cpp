@@ -268,13 +268,12 @@ OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
         fromElements.getResult().getType().cast<RankedTensorType>();
     // The case where the type encodes the size of the dimension is handled
     // above.
-    assert(resultType.getShape()[index.getInt()] ==
-           RankedTensorType::kDynamicSize);
+    assert(ShapedType::isDynamic(resultType.getShape()[index.getInt()]));
 
     // Find the operand of the fromElements that corresponds to this index.
     auto dynExtents = fromElements.dynamicExtents().begin();
     for (auto dim : resultType.getShape().take_front(index.getInt()))
-      if (dim == RankedTensorType::kDynamicSize)
+      if (ShapedType::isDynamic(dim))
         dynExtents++;
 
     return Value{*dynExtents};
@@ -496,8 +495,9 @@ void GenerateOp::build(
   Region *bodyRegion = result.regions.front().get();
   auto rank = resultTy.cast<RankedTensorType>().getRank();
   SmallVector<Type, 2> argumentTypes(rank, b.getIndexType());
+  SmallVector<Location, 2> argumentLocs(rank, result.location);
   Block *bodyBlock =
-      b.createBlock(bodyRegion, bodyRegion->end(), argumentTypes);
+      b.createBlock(bodyRegion, bodyRegion->end(), argumentTypes, argumentLocs);
   bodyBuilder(b, result.location, bodyBlock->getArguments());
 }
 
@@ -523,13 +523,13 @@ struct StaticTensorGenerate : public OpRewritePattern<GenerateOp> {
     auto operandsIt = tensorFromElements.dynamicExtents().begin();
 
     for (int64_t dim : resultType.getShape()) {
-      if (dim != RankedTensorType::kDynamicSize) {
+      if (!ShapedType::isDynamic(dim)) {
         newShape.push_back(dim);
         continue;
       }
       APInt index;
       if (!matchPattern(*operandsIt, m_ConstantInt(&index))) {
-        newShape.push_back(RankedTensorType::kDynamicSize);
+        newShape.push_back(ShapedType::kDynamicSize);
         newOperands.push_back(*operandsIt++);
         continue;
       }
@@ -555,7 +555,7 @@ struct StaticTensorGenerate : public OpRewritePattern<GenerateOp> {
 /// Canonicalizes the pattern of the form
 ///
 /// %tensor = tensor.generate %x {
-///   ^bb0(%arg0: index):  // no predecessors
+///   ^bb0(%arg0: index):
 ///   <computation>
 ///   yield %1 : index
 /// } : tensor<?xindex>
@@ -661,7 +661,7 @@ static LogicalResult verify(ReshapeOp op) {
         return op.emitOpError("source and destination tensor should have the "
                               "same number of elements");
     }
-    if (shapeSize == TensorType::kDynamicSize)
+    if (ShapedType::isDynamic(shapeSize))
       return op.emitOpError("cannot use shape operand with dynamic length to "
                             "reshape to statically-ranked tensor type");
     if (shapeSize != resultRankedType.getRank())

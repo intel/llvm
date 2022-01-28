@@ -266,6 +266,21 @@ struct get_device_info<std::vector<memory_order>,
   }
 };
 
+// Specialization for atomic_memory_scope_capabilities, PI returns a bitfield
+template <>
+struct get_device_info<std::vector<memory_scope>,
+                       info::device::atomic_memory_scope_capabilities> {
+  static std::vector<memory_scope> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_scope_capabilities result;
+    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(
+            info::device::atomic_memory_scope_capabilities),
+        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+    return readMemoryScopeBitfield(result);
+  }
+};
+
 // Specialization for exec_capabilities, OpenCL returns a bitfield
 template <>
 struct get_device_info<std::vector<info::execution_capability>,
@@ -762,6 +777,13 @@ inline std::vector<memory_order>
 get_device_info_host<info::device::atomic_memory_order_capabilities>() {
   return {memory_order::relaxed, memory_order::acquire, memory_order::release,
           memory_order::acq_rel, memory_order::seq_cst};
+}
+
+template <>
+inline std::vector<memory_scope>
+get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
+  return {memory_scope::work_item, memory_scope::sub_group,
+          memory_scope::work_group, memory_scope::device, memory_scope::system};
 }
 
 template <>
