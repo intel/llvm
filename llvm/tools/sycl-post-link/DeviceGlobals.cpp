@@ -35,19 +35,26 @@ constexpr uint32_t SPIRV_INIT_MODE_DECOR = 6148;
 constexpr uint32_t SPIRV_IMPL_IN_CSR_DECOR = 6149;
 
 enum class DecorValueTy {
+  // the value is an unsigned number (uint32_t)
   uint,
+  // the value is a boolean value (bool)
   boolean,
 };
 
 struct Decor {
-  uint32_t code;
-  DecorValueTy type;
+  uint32_t Code;
+  DecorValueTy Type;
+  // The variable name (from sycl-unique-id) is required as a secondary extra
+  // operand
+  bool NeedVarName;
 };
 
 const StringMap<Decor> SpirvDecorMap = {
-    {SYCL_HOST_ACCESS_ATTR, {SPIRV_HOST_ACCESS_DECOR, DecorValueTy::uint}},
-    {SYCL_INIT_MODE_ATTR, {SPIRV_INIT_MODE_DECOR, DecorValueTy::uint}},
-    {SYCL_IMPL_IN_CSR_ATTR, {SPIRV_IMPL_IN_CSR_DECOR, DecorValueTy::boolean}}};
+    {SYCL_HOST_ACCESS_ATTR,
+     {SPIRV_HOST_ACCESS_DECOR, DecorValueTy::uint, true}},
+    {SYCL_INIT_MODE_ATTR, {SPIRV_INIT_MODE_DECOR, DecorValueTy::uint, false}},
+    {SYCL_IMPL_IN_CSR_ATTR,
+     {SPIRV_IMPL_IN_CSR_DECOR, DecorValueTy::boolean, false}}};
 
 /// Converts the string into a boolean value. If the string is equal to "false"
 /// we consider its value as /c false, /true otherwise.
@@ -158,7 +165,28 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, Type *Ty, uint32_t Decor,
   return MDNode::get(Ctx, MD);
 }
 
-} // namespace
+/// Builds a metadata node for a SPIR-V decoration.
+///
+/// @param Ctx     [in] the LLVM Context.
+/// @param Ty      [in] the type of the decoration code and value.
+/// @param Decor   [in] the decoration code.
+/// @param Value   [in] the decoration value.
+/// @param VarName [in] the variable's name, the secondary "extra operands".
+///
+/// @returns a pointer to the metadata node created for the required decoration
+/// and its value.
+MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, Type *Ty, uint32_t Decor,
+                                uint32_t Value, StringRef VarName) {
+  SmallVector<Metadata *, 3> MD;
+  MD.push_back(
+      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Decor))));
+  MD.push_back(
+      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Value))));
+  MD.push_back(MDString::get(Ctx, VarName));
+  return MDNode::get(Ctx, MD);
+}
+
+} // anonymous namespace
 
 PreservedAnalyses DeviceGlobalsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
@@ -183,12 +211,16 @@ PreservedAnalyses DeviceGlobalsPass::run(Module &M,
       if (DecorIt == SpirvDecorMap.end())
         continue;
       auto Decor = DecorIt->second;
-      auto DecorCode = Decor.code;
-      auto DecorValue = Decor.type == DecorValueTy::uint
+      auto DecorCode = Decor.Code;
+      auto DecorValue = Decor.Type == DecorValueTy::uint
                             ? getAttributeAsInteger(GV, AttributeKind)
                             : hasProperty(GV, AttributeKind);
-      MDOps.push_back(
-          buildSpirvDecorMetadata(Ctx, Int32Ty, DecorCode, DecorValue));
+      MDNode *MDOp =
+          Decor.NeedVarName
+              ? buildSpirvDecorMetadata(Ctx, Int32Ty, DecorCode, DecorValue,
+                                        getUniqueId(GV))
+              : buildSpirvDecorMetadata(Ctx, Int32Ty, DecorCode, DecorValue);
+      MDOps.push_back(MDOp);
     }
 
     if (!MDOps.empty())

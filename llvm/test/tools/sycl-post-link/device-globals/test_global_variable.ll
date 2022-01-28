@@ -70,7 +70,7 @@ attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "device_i
 
 ; Ensure that the generated metadata nodes are correct
 ; CHECK-IR-DAG: !0 = !{!1, !2, !3}
-; CHECK-IR-DAG: !1 = !{i32 6147, i32 1}
+; CHECK-IR-DAG: !1 = !{i32 6147, i32 1, !"6da74a122db9f35d____ZL7dg_int1"}
 ; CHECK-IR-DAG: !2 = !{i32 6149, i32 1}
 ; CHECK-IR-DAG: !3 = !{i32 6148, i32 0}
 
@@ -79,10 +79,10 @@ attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "device_i
 ; CHECK-IR-DAG: !6 = !{i32 6148, i32 1}
 
 ; CHECK-IR-DAG: !7 = !{!8, !2, !3}
-; CHECK-IR-DAG: !8 = !{i32 6147, i32 0}
+; CHECK-IR-DAG: !8 = !{i32 6147, i32 0, !"9d329ad59055e972____ZL8dg_bool3"}
 
 ; CHECK-IR-DAG: !9 = !{!10}
-; CHECK-IR-DAG: !10 = !{i32 6147, i32 2}
+; CHECK-IR-DAG: !10 = !{i32 6147, i32 2, !"dda2bad52c45c432____ZL8dg_bool4"}
 
 ; Ensure that the default values are correct.
 ; ABAAAAAAAAABAAAAAxxxxx is decoded to
