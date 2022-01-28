@@ -70,6 +70,9 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @{
+/// @ingroup sycl_esimd_core
+
 using uchar = unsigned char;
 using ushort = unsigned short;
 using uint = unsigned int;
@@ -160,6 +163,8 @@ enum class split_barrier_action : uint8_t {
 /// addressable by GPU in "stateful" memory model, and each surface is
 /// identified by its "binding table index" - surface index.
 using SurfaceIndex = unsigned int;
+
+/// @} sycl_esimd_core
 
 } // namespace esimd
 } // namespace experimental
