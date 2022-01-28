@@ -606,7 +606,7 @@ protected:
         EmptyCommand *>
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
                 const QueueImplPtr &Queue, Command::BlockReason Reason,
-                std::vector<Command *> &ToEnqueue);
+                std::vector<Command *> &ToEnqueue, bool AddDepsToLeaves = true);
 
   protected:
     /// Finds a command dependency corresponding to the record.
