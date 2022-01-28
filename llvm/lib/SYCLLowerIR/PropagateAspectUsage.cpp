@@ -51,11 +51,11 @@ ModulePass *llvm::createPropagateAspectUsagePass() {
 namespace {
 
 using AspectsSetTy = SmallSet<int, 4>;
-using TypeToAspectsMapTy = std::unordered_map<Type *, AspectsSetTy>;
+using TypeToAspectsMapTy = std::unordered_map<const Type *, AspectsSetTy>;
 
 /// Retrieves from metadata (intel_types_that_use_aspects) types
 /// and aspects these types depend on.
-TypeToAspectsMapTy GetTypesThatUseAspectsFromMetadata(Module &M) {
+TypeToAspectsMapTy GetTypesThatUseAspectsFromMetadata(const Module &M) {
   NamedMDNode *Node = M.getNamedMetadata("intel_types_that_use_aspects");
   TypeToAspectsMapTy Result;
   if (!Node)
@@ -85,19 +85,20 @@ TypeToAspectsMapTy GetTypesThatUseAspectsFromMetadata(Module &M) {
   return Result;
 }
 
-using TypesEdgesTy = std::unordered_map<Type *, std::vector<Type *>>;
+using TypesEdgesTy =
+    std::unordered_map<const Type *, std::vector<const Type *>>;
 
 /// Propagates aspects from type @Start to all types which
 /// are reachable by edges @Edges by BFS algorithm.
 /// Result is recorded in @ResultAspects.
-void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
+void PropagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
                                   const AspectsSetTy &AspectsToPropagate,
                                   TypeToAspectsMapTy &ResultAspects) {
-  SmallPtrSet<Type *, 16> Visited;
-  std::queue<Type *> queue;
+  SmallPtrSet<const Type *, 16> Visited;
+  std::queue<const Type *> queue;
   queue.push(Start);
   while (!queue.empty()) {
-    Type *T = queue.front();
+    const Type *T = queue.front();
     queue.pop();
     if (Visited.count(T))
       continue;
@@ -105,7 +106,11 @@ void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
     Visited.insert(T);
     ResultAspects[T].insert(AspectsToPropagate.begin(),
                             AspectsToPropagate.end());
-    for (Type *TT : Edges[T]) {
+    if (!Edges.count(T)) {
+      continue;
+    }
+
+    for (const Type *TT : Edges.at(T)) {
       if (Visited.count(TT))
         continue;
 
@@ -134,8 +139,9 @@ void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
 /// Time complexity: O((V + E) * T) where T is the number of input types
 /// containing aspects.
 TypeToAspectsMapTy
-GetTypesWithAspectsFromModule(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
-  std::unordered_set<Type *> TypesToProcess;
+GetTypesWithAspectsFromModule(const Module &M,
+                              TypeToAspectsMapTy &TypesWithAspects) {
+  std::unordered_set<const Type *> TypesToProcess;
   Type *DoubleTy = Type::getDoubleTy(M.getContext());
   static constexpr int AspectFP64 = 6; // TODO: add the link to spec
   TypesWithAspects[DoubleTy].insert(AspectFP64);
@@ -145,9 +151,9 @@ GetTypesWithAspectsFromModule(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
     TypesToProcess.insert(T);
   }
 
-  std::unordered_map<Type *, std::vector<Type *>> Edges;
-  for (Type *T : TypesToProcess) {
-    for (Type *TT : T->subtypes()) {
+  TypesEdgesTy Edges;
+  for (const Type *T : TypesToProcess) {
+    for (const Type *TT : T->subtypes()) {
       // If TT = %A*** then we want to get TT = %A
       while (TT->isPointerTy()) {
         TT = TT->getContainedType(0);
@@ -162,7 +168,7 @@ GetTypesWithAspectsFromModule(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   }
 
   TypeToAspectsMapTy Result;
-  for (auto &It : TypesWithAspects) {
+  for (const auto &It : TypesWithAspects) {
     PropagateAspectsThroughTypes(Edges, It.first, It.second, Result);
   }
 
@@ -173,7 +179,7 @@ GetTypesWithAspectsFromModule(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
 /// It encompases composite structures and pointers.
 /// NB! This function inserts new records in @Types map for new discovered
 /// types. For the best perfomance pass this map in the next invocations.
-AspectsSetTy GetAspectsFromType(Type *T, TypeToAspectsMapTy &Types) {
+AspectsSetTy GetAspectsFromType(const Type *T, TypeToAspectsMapTy &Types) {
   auto it = Types.find(T);
   if (it != Types.end()) {
     return it->second;
@@ -183,7 +189,7 @@ AspectsSetTy GetAspectsFromType(Type *T, TypeToAspectsMapTy &Types) {
   Types[T] = {};
   AspectsSetTy Result;
 
-  for (Type *TT : T->subtypes()) {
+  for (const Type *TT : T->subtypes()) {
     AspectsSetTy Aspects = GetAspectsFromType(TT, Types);
     Result.insert(Aspects.begin(), Aspects.end());
   }
@@ -196,11 +202,11 @@ AspectsSetTy GetAspectsFromType(Type *T, TypeToAspectsMapTy &Types) {
 /// Function inspects return type and all operand's types.
 /// NB! This function inserts new records in @Types map for new discovered
 /// types. For the best perfomance pass this map in the next invocations.
-AspectsSetTy GetAspectsUsedByInstruction(Instruction &I,
+AspectsSetTy GetAspectsUsedByInstruction(const Instruction &I,
                                          TypeToAspectsMapTy &Types) {
   Type *ReturnType = I.getType();
   AspectsSetTy Result = GetAspectsFromType(ReturnType, Types);
-  for (auto &OperandIt : I.operands()) {
+  for (const auto &OperandIt : I.operands()) {
     Type *T = OperandIt->getType();
     AspectsSetTy Aspects = GetAspectsFromType(T, Types);
     Result.insert(Aspects.begin(), Aspects.end());
@@ -302,9 +308,9 @@ void CreateUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
   }
 }
 
-void CheckUsedAndDeclaredAspects(FunctionToAspectsMapTy &Map) {
-  for (auto &It : Map) {
-    Function *F = It.first;
+void CheckUsedAndDeclaredAspects(const FunctionToAspectsMapTy &Map) {
+  for (const auto &It : Map) {
+    const Function *F = It.first;
     auto &Aspects = It.second;
     if (Aspects.empty())
       continue;
