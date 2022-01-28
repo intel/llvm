@@ -34,15 +34,15 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj, const void *HostObj,
                                           const void *Type, uint32_t Dim,
-                                          uint32_t ElemSize,
-                                          uint32_t Range[3]) {
+                                          uint32_t ElemSize, size_t Range[3]) {
   XPTIRegistry::bufferConstructorNotification(UserObj, CodeLoc, HostObj, Type,
                                               Dim, ElemSize, Range);
 }
 // TODO: remove once ABI break is allowed
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj) {
-  constructorNotification(CodeLoc, UserObj, nullptr, "", 0, 0, {0, 0, 0});
+  size_t r[3] = {0, 0, 0};
+  constructorNotification(CodeLoc, UserObj, nullptr, "", 0, 0, r);
 }
 
 void buffer_impl::destructorNotification(void *UserObj) {

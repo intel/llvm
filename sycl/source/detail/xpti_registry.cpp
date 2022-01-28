@@ -25,7 +25,7 @@ xpti::trace_event_data_t *XPTIRegistry::createTraceEvent(
                                          const_cast<void *>(FuncPtr));
   xpti::payload_t Payload(
       Name.c_str(), (CodeLoc.fileName() ? CodeLoc.fileName() : ""),
-      CodeLoc.lineNumber(), CodeLoc.columnNumber(), (void *)Obj);
+      CodeLoc.lineNumber(), CodeLoc.columnNumber(), const_cast<void *>(Obj));
 
   // Calls could be at different user-code locations; We create a new event
   // based on the code location info and if this has been seen before, a
@@ -38,7 +38,7 @@ xpti::trace_event_data_t *XPTIRegistry::createTraceEvent(
 void XPTIRegistry::bufferConstructorNotification(
     const void *UserObj, const detail::code_location &CodeLoc,
     const void *HostObj, const void *Type, uint32_t Dim, uint32_t ElemSize,
-    uint32_t Range[3]) {
+    size_t Range[3]) {
   (void)UserObj;
   (void)CodeLoc;
   (void)HostObj;
@@ -57,7 +57,7 @@ void XPTIRegistry::bufferConstructorNotification(
                                         (const char *)Type,
                                         ElemSize,
                                         Dim,
-                                        Range};
+                                        {Range[0], Range[1], Range[2]}};
 
   xpti::trace_event_data_t *TraceEvent = createTraceEvent(
       UserObj, "buffer", IId, CodeLoc, xpti::trace_offload_buffer_event);
@@ -66,7 +66,8 @@ void XPTIRegistry::bufferConstructorNotification(
 #endif
 }
 
-void XPTIRegistry::bufferAssociateNotification(void *UserObj, void *MemObj) {
+void XPTIRegistry::bufferAssociateNotification(const void *UserObj,
+                                               const void *MemObj) {
   (void)UserObj;
   (void)MemObj;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -82,7 +83,8 @@ void XPTIRegistry::bufferAssociateNotification(void *UserObj, void *MemObj) {
 #endif
 }
 
-void XPTIRegistry::bufferReleaseNotification(void *UserObj, void *MemObj) {
+void XPTIRegistry::bufferReleaseNotification(const void *UserObj,
+                                             const void *MemObj) {
   (void)UserObj;
   (void)MemObj;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -98,7 +100,7 @@ void XPTIRegistry::bufferReleaseNotification(void *UserObj, void *MemObj) {
 #endif
 }
 
-void XPTIRegistry::bufferDestructorNotification(void *UserObj) {
+void XPTIRegistry::bufferDestructorNotification(const void *UserObj) {
   (void)UserObj;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
@@ -112,8 +114,8 @@ void XPTIRegistry::bufferDestructorNotification(void *UserObj) {
 }
 
 void XPTIRegistry::bufferAccessorNotification(
-    void *UserObj, void *AccessorObj, uint32_t Target, uint32_t Mode,
-    const detail::code_location &CodeLoc) {
+    const void *UserObj, const void *AccessorObj, uint32_t Target,
+    uint32_t Mode, const detail::code_location &CodeLoc) {
   (void)UserObj;
   (void)AccessorObj;
   (void)CodeLoc;

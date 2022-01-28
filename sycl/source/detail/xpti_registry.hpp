@@ -92,17 +92,13 @@ public:
   static void bufferConstructorNotification(const void *,
                                             const detail::code_location &,
                                             const void *, const void *,
-                                            uint32_t, uint32_t, uint32_t[3]);
+                                            uint32_t, uint32_t, size_t[3]);
   static void bufferAssociateNotification(const void *, const void *);
   static void bufferReleaseNotification(const void *, const void *);
   static void bufferDestructorNotification(const void *);
   static void bufferAccessorNotification(const void *, const void *, uint32_t,
                                          uint32_t,
                                          const detail::code_location &);
-  static xpti::trace_event_data_t *
-  createTraceEvent(void *Obj, const char *ObjName, uint64_t &IId,
-                   const detail::code_location &CodeLoc,
-                   uint16_t TraceEventType);
 
 private:
   std::unordered_set<std::string> MActiveStreams;
@@ -110,7 +106,7 @@ private:
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   static xpti::trace_event_data_t *
-  createTraceEvent(void *Obj, const char *ObjName, uint64_t &IId,
+  createTraceEvent(const void *Obj, const void *ObjName, uint64_t &IId,
                    const detail::code_location &CodeLoc,
                    uint16_t TraceEventType);
 #endif // XPTI_ENABLE_INSTRUMENTATION

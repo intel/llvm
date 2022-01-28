@@ -390,7 +390,7 @@ enum class trace_point_type_t : uint16_t {
   /// Used to notify about creation accessor for ofload buffer
   offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
   /// Used to notify about ishado copy of offlod buffer
-  offload_alloc_shadow= XPTI_TRACE_POINT_BEGIN(25),
+  offload_alloc_shadow = XPTI_TRACE_POINT_BEGIN(25),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -531,7 +531,7 @@ struct offload_buffer_data_t {
   /// Buffer dimensions number.
   uint32_t dim = 0;
   /// Buffer size for each dimension.
-  uint32_t range[3] = {0};
+  size_t range[3] = {0, 0, 0};
 };
 
 /// Describes shadow copy for offload buffer
