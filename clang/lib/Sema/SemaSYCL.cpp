@@ -4688,10 +4688,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         S.Context.getSourceManager()
             .getExpansionRange(K.KernelLocation)
             .getEnd());
-    std::string FileName = PLoc.getFilename();
-    unsigned LineNumber = PLoc.getLine();
-    unsigned ColumnNumber = PLoc.getColumn();
-    std::string KernelName = K.NameType->getAsCXXRecordDecl()->getName().str();
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
@@ -4716,17 +4712,19 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFileName() { return " << FileName
+    O << "  static constexpr const char* getFileName() { return "
+      << std::string(PLoc.getFilename())
+             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1)
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getFunctionName() { return "
-      << KernelName << "; }\n";
+      << K.NameType->getAsCXXRecordDecl()->getName() << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getLineNumber() { return " << LineNumber
-      << "; }\n";
+    O << "  static constexpr unsigned getLineNumber() { return "
+      << PLoc.getLine() << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getColumnNumber() { return "
-      << ColumnNumber << "; }\n";
+      << PLoc.getColumn() << "; }\n";
     O << "};\n";
     CurStart += N;
   }
