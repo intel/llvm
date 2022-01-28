@@ -74,6 +74,9 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @{
+/// @ingroup sycl_esimd_core
+
 using uchar = unsigned char;
 using ushort = unsigned short;
 using uint = unsigned int;
@@ -259,6 +262,8 @@ using EsimdSbarrierType = split_barrier_action;
 // deprecation message.
 #define ESIMD_SBARRIER_WAIT EsimdSbarrierType::WAIT
 #define ESIMD_SBARRIER_SIGNAL EsimdSbarrierType::SIGNAL
+
+/// @} sycl_esimd_core
 
 } // namespace esimd
 } // namespace experimental

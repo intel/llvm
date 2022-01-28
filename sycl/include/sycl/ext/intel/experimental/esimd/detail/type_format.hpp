@@ -11,6 +11,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -82,3 +84,5 @@ using compute_format_type_2d_t =
 
 } // namespace __SEIEED
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_DETAIL

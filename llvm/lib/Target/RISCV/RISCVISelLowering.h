@@ -63,11 +63,11 @@ enum NodeType : unsigned {
   CLZW,
   CTZW,
   // RV64IB/RV32IB funnel shifts, with the semantics of the named RISC-V
-  // instructions, but the same operand order as fshl/fshr intrinsics.
+  // instructions. Operand order is rs1, rs3, rs2/shamt.
   FSR,
   FSL,
-  // RV64IB funnel shifts, with the semantics of the named RISC-V instructions,
-  // but the same operand order as fshl/fshr intrinsics.
+  // RV64IB funnel shifts, with the semantics of the named RISC-V instructions.
+  // Operand order is rs1, rs3, rs2/shamt.
   FSRW,
   FSLW,
   // FPR<->GPR transfer operations when the FPR is smaller than XLEN, needed as
@@ -670,6 +670,15 @@ namespace RISCVVIntrinsicsTable {
 struct RISCVVIntrinsicInfo {
   unsigned IntrinsicID;
   uint8_t SplatOperand;
+  uint8_t VLOperand;
+  bool hasSplatOperand() const {
+    // 0xF is not valid. See NoSplatOperand in IntrinsicsRISCV.td.
+    return SplatOperand != 0xF;
+  }
+  bool hasVLOperand() const {
+    // 0x1F is not valid. See NoVLOperand in IntrinsicsRISCV.td.
+    return VLOperand != 0x1F;
+  }
 };
 
 using namespace RISCV;

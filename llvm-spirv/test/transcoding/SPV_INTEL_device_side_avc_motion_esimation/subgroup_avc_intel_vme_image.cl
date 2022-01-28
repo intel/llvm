@@ -213,7 +213,7 @@ void foo(__read_only image2d_t src, __read_only image2d_t ref,
 // CHECK-SPIRV: SubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTEL [[RefResultTy]] {{.*}} [[VmeImg21]] {{.*}} [[RefPayload]]
 // CHECK-LLVM: call spir_func %[[RefResultTy]]* @_Z53intel_sub_group_avc_ref_evaluate_with_multi_reference14ocl_image2d_rojh11ocl_sampler37ocl_intel_sub_group_avc_ref_payload_t(%[[ImageTy]] addrspace(1)* %[[SrcImg]], i32 0, i8 0, %[[SamplerTy]] addrspace(2)* %[[Sampler]], %[[RefPayloadTy]]* %[[RefPayload]])
 // CHECK-LLVM-SPIRV: %[[VmeImg26:.*]] = call spir_func %[[VmeImageTy]] addrspace(1)* @_Z21__spirv_VmeImageINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(%[[ImageTy]] addrspace(1)* %[[SrcImg]], %[[SamplerTy]] addrspace(2)* %[[Sampler]])
-// CHECK-LLVM-SPIRV: call spir_func %[[RefResultTy]]* @_Z63__spirv_SubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTELPU3AS141__spirv_VmeImageINTEL__void_1_0_0_0_0_0_0icP26__spirv_AvcRefPayloadINTEL(%[[VmeImageTy]] addrspace(1)* %[[VmeImg26]], i32 0, i8 0, %[[RefPayloadTy]]* %[[RefPayload]])
+// CHECK-LLVM-SPIRV: call spir_func %[[RefResultTy]]* @_Z63__spirv_SubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTELPU3AS141__spirv_VmeImageINTEL__void_1_0_0_0_0_0_0jhP26__spirv_AvcRefPayloadINTEL(%[[VmeImageTy]] addrspace(1)* %[[VmeImg26]], i32 0, i8 0, %[[RefPayloadTy]]* %[[RefPayload]])
 
 // CHECK-SPIRV: VmeImageINTEL [[VmeImageTy]] [[VmeImg23:[0-9]+]] [[SrcImg]] [[Sampler]]
 // CHECK-SPIRV: VmeImageINTEL [[VmeImageTy]] [[VmeImg24:[0-9]+]] [[RefImg]] [[Sampler]]
@@ -243,7 +243,7 @@ void foo(__read_only image2d_t src, __read_only image2d_t ref,
 // CHECK-SPIRV: SubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL [[SicResultTy]] {{.*}} [[VmeImg29]] {{.*}} [[SicPayload]]
 // CHECK-LLVM: call spir_func %[[SicResultTy]]* @_Z53intel_sub_group_avc_sic_evaluate_with_multi_reference14ocl_image2d_rojh11ocl_sampler37ocl_intel_sub_group_avc_sic_payload_t(%[[ImageTy]] addrspace(1)* %[[SrcImg]], i32 0, i8 0, %[[SamplerTy]] addrspace(2)* %[[Sampler]], %[[SicPayloadTy]]* %[[SicPayload]])
 // CHECK-LLVM-SPIRV: %[[VmeImg33:.*]] = call spir_func %[[VmeImageTy]] addrspace(1)* @_Z21__spirv_VmeImageINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(%[[ImageTy]] addrspace(1)* %[[SrcImg]], %[[SamplerTy]] addrspace(2)* %[[Sampler]])
-// CHECK-LLVM-SPIRV: call spir_func %[[SicResultTy]]* @_Z63__spirv_SubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTELPU3AS141__spirv_VmeImageINTEL__void_1_0_0_0_0_0_0icP26__spirv_AvcSicPayloadINTEL(%[[VmeImageTy]] addrspace(1)* %[[VmeImg33]], i32 0, i8 0, %[[SicPayloadTy]]* %[[SicPayload]])
+// CHECK-LLVM-SPIRV: call spir_func %[[SicResultTy]]* @_Z63__spirv_SubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTELPU3AS141__spirv_VmeImageINTEL__void_1_0_0_0_0_0_0jhP26__spirv_AvcSicPayloadINTEL(%[[VmeImageTy]] addrspace(1)* %[[VmeImg33]], i32 0, i8 0, %[[SicPayloadTy]]* %[[SicPayload]])
 
 // CHECK-SPIRV: VmeImageINTEL [[VmeImageTy]] [[VmeImg30:[0-9]+]] [[SrcImg]] [[Sampler]]
 // CHECK-SPIRV: SubgroupAvcSicEvaluateIpeINTEL [[SicResultTy]] {{.*}} [[VmeImg30]] [[SicPayload]]

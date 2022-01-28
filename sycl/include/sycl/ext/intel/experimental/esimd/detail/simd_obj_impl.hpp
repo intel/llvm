@@ -25,8 +25,10 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
-/// Flags for use with simd load/store operations.
-/// \ingroup sycl_esimd
+/// @{
+/// @ingroup sycl_esimd_core
+
+/// @name Alignment type tags for use with simd load/store operations.
 /// @{
 /// element_aligned_tag type. Flag of this type should be used in load and store
 /// operations when memory address is aligned by simd object's element type.
@@ -70,33 +72,34 @@ template <> struct is_simd_flag_type<vector_aligned_tag> : std::true_type {};
 template <unsigned N>
 struct is_simd_flag_type<overaligned_tag<N>> : std::true_type {};
 
+/// Checks if given type is a simd load/store flag.
+/// @tparam T the type to check
 template <typename T>
 static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 
 namespace detail {
 
-/// The simd_obj_impl vector class.
-///
 /// This is a base class for all ESIMD simd classes with real storage (simd,
 /// simd_mask_impl). It wraps a clang vector as the storage for the elements.
 /// Additionally this class supports region operations that map to Intel GPU
 /// regions. The type of a region select or bit_cast_view operation is of
-/// simd_view type, which models read-update-write semantics.
-///
-/// For the is_simd_obj_impl_derivative helper to work correctly, all derived
-/// classes must be templated by element type and number of elements. If fewer
-/// template arguments are needed, template aliases can be used
-/// (simd_mask_type).
+/// simd_view type, which models a "window" into this object's storage and can
+/// used to read and modify it.
 ///
 /// \tparam RawTy raw (storage) element type
 /// \tparam N number of elements
 /// \tparam Derived - a class derived from this one; this class and its
 ///    derivatives must follow the 'curiously recurring template' pattern.
+///    Note that for some element types, the element type in the \c Derived
+///    type and this type may differ - for example, half type.
 /// \tparam SFINAE - defaults to 'void' in the forward declarion within
 ///    types.hpp, used to disable invalid specializations.
 ///
-/// \ingroup sycl_esimd
-///
+// For the is_simd_obj_impl_derivative helper to work correctly, all derived
+// classes must be templated by element type and number of elements. If fewer
+// template arguments are needed, template aliases can be used
+// (simd_mask_type).
+//
 template <typename RawTy, int N, class Derived, class SFINAE>
 class simd_obj_impl {
   template <typename, typename> friend class simd_view;
@@ -107,13 +110,13 @@ class simd_obj_impl {
   using Ty = element_type;
 
 public:
-  /// The underlying builtin data type.
+  /// The underlying raw storage vector data type.
   using raw_vector_type = vector_type_t<RawTy, N>;
 
-  /// The element type of this simd_obj_impl object.
+  /// The element type of the raw storage vector.
   using raw_element_type = RawTy;
 
-  /// The number of elements in this simd_obj_impl object.
+  /// The number of elements in this object.
   static constexpr int length = N;
 
 protected:
@@ -464,7 +467,7 @@ public:
   }
   ///@}
 
-  /// Any operation.
+  /// 'any' operation.
   ///
   /// \return 1 if any element is set, 0 otherwise.
   template <typename T1 = Ty,
@@ -473,7 +476,7 @@ public:
     return __esimd_any<Ty, N>(data());
   }
 
-  /// All operation.
+  /// 'all' operation.
   ///
   /// \return 1 if all elements are set, 0 otherwise.
   template <typename T1 = Ty,
@@ -1014,6 +1017,8 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
   }
 }
 } // namespace detail
+
+/// @} sycl_esimd_core
 
 } // namespace esimd
 } // namespace experimental

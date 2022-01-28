@@ -6,55 +6,108 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clcmacro.h>
+#include "mangle_common.h"
 #include <spirv/spirv.h>
+#include <utils.h>
 
 double __ocml_modf_f64(double, double *);
 float __ocml_modf_f32(float, float *);
 
-#define __CLC_MODF_IMPL(ADDRSPACE, BUILTIN, FP_TYPE, ARG_TYPE)                 \
-  _CLC_OVERLOAD _CLC_DEF ARG_TYPE __spirv_ocl_modf(ARG_TYPE x,                 \
-                                                   ADDRSPACE ARG_TYPE *iptr) { \
-    FP_TYPE stack_iptr;                                                        \
-    ARG_TYPE ret = BUILTIN(x, &stack_iptr);                                    \
-    *iptr = stack_iptr;                                                        \
+#define FUNCNAME(IN, OUT)                                                      \
+  __CLC_XCONCAT(__CLC_XCONCAT(_Z16__spirv_ocl_modf, IN), OUT)
+#define VEC_TYPE(T, N) __CLC_XCONCAT(__CLC_XCONCAT(__CLC_XCONCAT(Dv, N), _), T)
+#define VEC_FUNCNAME(N, MANGLED_TYPE, MANGLED_PTR)                             \
+  FUNCNAME(VEC_TYPE(MANGLED_TYPE, N), __CLC_XCONCAT(MANGLED_PTR, S_))
+
+#define MANUALLY_MANGLED_MODF_IMPL(ADDRSPACE, BUILTIN, ARG1_TYPE,              \
+                                   MANGLED_ARG1_TYPE, MANGLED_POINTER_TYPE,    \
+                                   FP_TYPE)                                    \
+  _CLC_DEF ARG1_TYPE FUNCNAME(MANGLED_ARG1_TYPE, MANGLED_POINTER_TYPE)(        \
+      ARG1_TYPE x, __attribute((address_space(ADDRSPACE))) ARG1_TYPE * ptr) {  \
+    FP_TYPE stack_ptr;                                                         \
+    ARG1_TYPE ret = BUILTIN(x, &stack_ptr);                                    \
+    *ptr = stack_ptr;                                                          \
     return ret;                                                                \
   }
 
-#define __CLC_MODF(BUILTIN, FP_TYPE, ARG_TYPE)                                 \
-  __CLC_MODF_IMPL(private, BUILTIN, FP_TYPE, ARG_TYPE)                         \
-  __CLC_MODF_IMPL(local, BUILTIN, FP_TYPE, ARG_TYPE)                           \
-  __CLC_MODF_IMPL(global, BUILTIN, FP_TYPE, ARG_TYPE)
+#define __CLC_MODF(BUILTIN, ARG_TYPE, MANGLED_ARG_TYPE, FP_TYPE)               \
+  MANUALLY_MANGLED_MODF_IMPL(0, BUILTIN, ARG_TYPE, MANGLED_ARG_TYPE,           \
+                             __CLC_XCONCAT(P, MANGLED_ARG_TYPE), FP_TYPE)      \
+  MANUALLY_MANGLED_MODF_IMPL(1, BUILTIN, ARG_TYPE, MANGLED_ARG_TYPE,           \
+                             __CLC_XCONCAT(PU3AS1, MANGLED_ARG_TYPE), FP_TYPE) \
+  MANUALLY_MANGLED_MODF_IMPL(3, BUILTIN, ARG_TYPE, MANGLED_ARG_TYPE,           \
+                             __CLC_XCONCAT(PU3AS3, MANGLED_ARG_TYPE), FP_TYPE) \
+  MANUALLY_MANGLED_MODF_IMPL(5, BUILTIN, ARG_TYPE, MANGLED_ARG_TYPE,           \
+                             __CLC_XCONCAT(PU3AS5, MANGLED_ARG_TYPE), FP_TYPE)
 
-__CLC_MODF(__ocml_modf_f32, float, float)
+#define FNAME_GENERIC(N) VEC_FUNCNAME(N, f, P)
+#define FNAME_GLOBAL(N) VEC_FUNCNAME(N, f, PU3AS1)
+#define FNAME_LOCAL(N) VEC_FUNCNAME(N, f, PU3AS3)
+#define FNAME_PRIVATE(N) VEC_FUNCNAME(N, f, PU3AS5)
 
+__CLC_MODF(__ocml_modf_f32, float, f, float)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, Pf), FNAME_GENERIC, float, 0,
+                                  float)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, PU3AS1f), FNAME_GLOBAL, float, 1,
+                                  float)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, PU3AS3f), FNAME_LOCAL, float, 3,
+                                  float)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, PU3AS5f), FNAME_PRIVATE, float, 5,
+                                  float)
 
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_modf, float,
-                      private, float)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_modf, float,
-                      local, float)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_modf, float,
-                      global, float)
+#undef FNAME_GENERIC
+#undef FNAME_GLOBAL
+#undef FNAME_LOCAL
+#undef FNAME_PRIVATE
 
 #ifdef cl_khr_fp64
-__CLC_MODF(__ocml_modf_f64, double, double)
 
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_modf, double,
-                      private, double)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_modf, double,
-                      local, double)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_modf, double,
-                      global, double)
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
+#define FNAME_GENERIC(N) VEC_FUNCNAME(N, d, P)
+#define FNAME_GLOBAL(N) VEC_FUNCNAME(N, d, PU3AS1)
+#define FNAME_LOCAL(N) VEC_FUNCNAME(N, d, PU3AS3)
+#define FNAME_PRIVATE(N) VEC_FUNCNAME(N, d, PU3AS5)
+
+__CLC_MODF(__ocml_modf_f64, double, d, double)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, Pd), FNAME_GENERIC, double, 0,
+                                  double)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, PU3AS1d), FNAME_GLOBAL, double, 1,
+                                  double)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, PU3AS3d), FNAME_LOCAL, double, 3,
+                                  double)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, PU3AS5d), FNAME_PRIVATE, double,
+                                  5, double)
+
+#undef FNAME_GENERIC
+#undef FNAME_GLOBAL
+#undef FNAME_LOCAL
+#undef FNAME_PRIVATE
+
 #endif
 
 #ifdef cl_khr_fp16
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-__CLC_MODF(__ocml_modf_f32, float, half)
 
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_modf, half,
-                      private, half)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_modf, half,
-                      local, half)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_modf, half,
-                      global, half)
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+#define FNAME_GENERIC(N) VEC_FUNCNAME(N, Dh, P)
+#define FNAME_GLOBAL(N) VEC_FUNCNAME(N, Dh, PU3AS1)
+#define FNAME_LOCAL(N) VEC_FUNCNAME(N, Dh, PU3AS3)
+#define FNAME_PRIVATE(N) VEC_FUNCNAME(N, Dh, PU3AS5)
+
+__CLC_MODF(__ocml_modf_f32, half, Dh, float)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PDh), FNAME_GENERIC, half, 0,
+                                  half)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PU3AS1Dh), FNAME_GLOBAL, half, 1,
+                                  half)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PU3AS3Dh), FNAME_LOCAL, half, 3,
+                                  half)
+MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PU3AS5Dh), FNAME_PRIVATE, half,
+                                  5, half)
+
+#undef FNAME_GENERIC
+#undef FNAME_GLOBAL
+#undef FNAME_LOCAL
+#undef FNAME_PRIVATE
+
 #endif

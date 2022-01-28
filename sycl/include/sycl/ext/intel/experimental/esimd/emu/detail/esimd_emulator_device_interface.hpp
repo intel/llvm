@@ -6,15 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-// \file esimdemu_device_interface.hpp
-// Declarations for ESIMD_EMULATOR-device specific definitions.
-// ESIMD intrinsic and LibCM functionalities required by intrinsic defined
-//
-// This interface is for ESIMD intrinsic emulation implementations
-// such as slm_access to access ESIMD_EMULATOR specific-support therefore
-// it has to be defined and shared as include directory
-//
-// \ingroup sycl_pi_esimd_emulator
+/// @cond ESIMD_EMU
+
+/// \file esimd_emulator_device_interface.hpp
+/// Declarations for ESIMD_EMULATOR-device specific definitions.
+/// ESIMD intrinsic and LibCM functionalities required by intrinsic defined
+///
+/// This interface is for ESIMD intrinsic emulation implementations
+/// such as slm_access to access ESIMD_EMULATOR specific-support therefore
+/// it has to be defined and shared as include directory
+///
+/// \ingroup sycl_pi_esimd_emulator
 
 #pragma once
 
@@ -30,8 +32,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// This is the device interface version required (and used) by this
-// implementation of the ESIMD CPU emulator.
+/// This is the device interface version required (and used) by this
+/// implementation of the ESIMD CPU emulator.
 #define ESIMD_DEVICE_INTERFACE_VERSION 1
 
 // 'ESIMDDeviceInterface' structure defines interface for ESIMD CPU
@@ -58,9 +60,9 @@ struct ESIMDDeviceInterface {
 // Increment whenever the 'data' field interpretation within PluginOpaqueData is
 // changed.
 #define ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION 0
-// This structure denotes a ESIMD EMU plugin-specific data returned via the
-// piextPluginGetOpaqueData PI call. Depending on the \c version field, the
-// second \c data field can be interpreted differently.
+/// This structure denotes a ESIMD EMU plugin-specific data returned via the
+/// piextPluginGetOpaqueData PI call. Depending on the \c version field, the
+/// second \c data field can be interpreted differently.
 struct ESIMDEmuPluginOpaqueData {
   uintptr_t version;
   void *data;
@@ -71,3 +73,5 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface();
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_EMU

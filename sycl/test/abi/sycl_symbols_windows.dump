@@ -23,6 +23,7 @@
 ??$get_info@$0BAAA@@device@sycl@cl@@QEBA?AW4device_type@info@12@XZ
 ??$get_info@$0BAAB@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0BAABA@@context@sycl@cl@@QEBA?AV?$vector@W4memory_order@sycl@cl@@V?$allocator@W4memory_order@sycl@cl@@@std@@@std@@XZ
+??$get_info@$0BAABB@@context@sycl@cl@@QEBA?AV?$vector@W4memory_scope@sycl@cl@@V?$allocator@W4memory_scope@sycl@cl@@@std@@@std@@XZ
 ??$get_info@$0BAAC@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0BAACA@@device@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0BAACB@@device@sycl@cl@@QEBAIXZ
@@ -115,6 +116,7 @@
 ??$get_info@$0BAJA@@queue@sycl@cl@@QEBA?AVcontext@12@XZ
 ??$get_info@$0BAJB@@queue@sycl@cl@@QEBA?AVdevice@12@XZ
 ??$get_info@$0BAJC@@queue@sycl@cl@@QEBAIXZ
+??$get_info@$0BBAAA@@device@sycl@cl@@QEBA?AV?$vector@W4memory_scope@sycl@cl@@V?$allocator@W4memory_scope@sycl@cl@@@std@@@std@@XZ
 ??$get_info@$0BBGA@@program@sycl@cl@@QEBAIXZ
 ??$get_info@$0BBGB@@program@sycl@cl@@QEBA?AVcontext@12@XZ
 ??$get_info@$0BBGD@@program@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@XZ
@@ -2162,6 +2164,7 @@
 ?getNativeImpl@kernel@sycl@cl@@AEBA_KXZ
 ?getNativeMem@interop_handle@sycl@cl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@sycl@cl@@AEBA_KXZ
+?getNativeVector@event@sycl@cl@@AEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ?getOSMemSize@OSUtil@detail@sycl@cl@@SA_KXZ
 ?getOSModuleHandle@OSUtil@detail@sycl@cl@@SA_JPEBX@Z
 ?getOrCreateSampler@sampler_impl@detail@sycl@cl@@QEAAPEAU_pi_sampler@@AEBVcontext@34@@Z

@@ -37,6 +37,7 @@ math/log.cl
 math/log10.cl
 math/log1p.cl
 math/logb.cl
+math/mangle_common.h
 math/modf.cl
 math/nextafter.cl
 math/pow.cl

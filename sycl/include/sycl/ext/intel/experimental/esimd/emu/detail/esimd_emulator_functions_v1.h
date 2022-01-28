@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+/// @cond ESIMD_EMU
+
 /// \file esimd_emulator_functions_v1.h
 ///
 /// \ingroup sycl_pi_esimd_emulator
@@ -55,3 +57,4 @@ void (*sycl_get_cm_buffer_params_index_ptr)(unsigned int, char **, uint32_t *,
 void (*sycl_get_cm_image_params_index_ptr)(unsigned int, char **, uint32_t *,
                                            uint32_t *, uint32_t *,
                                            std::mutex **);
+/// @endcond ESIMD_EMU
