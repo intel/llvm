@@ -58,7 +58,7 @@ __SYCL_INLINE_CONSTEXPR bool is_group_v =
 namespace detail {
 // Type for Intel device UUID extension.
 // For details about this extension, see
-// sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+// sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md
 using uuid_type = std::array<unsigned char, 16>;
 
 template <typename T, typename R> struct copy_cv_qualifiers;
