@@ -25,6 +25,8 @@ __SYCL_PARAM_TRAITS_SPEC(device, image_support, bool)
 __SYCL_PARAM_TRAITS_SPEC(device, atomic64, bool)
 __SYCL_PARAM_TRAITS_SPEC(device, atomic_memory_order_capabilities,
                          std::vector<cl::sycl::memory_order>)
+__SYCL_PARAM_TRAITS_SPEC(device, atomic_memory_scope_capabilities,
+                         std::vector<cl::sycl::memory_scope>)
 __SYCL_PARAM_TRAITS_SPEC(device, max_read_image_args, pi_uint32)
 __SYCL_PARAM_TRAITS_SPEC(device, max_write_image_args, pi_uint32)
 __SYCL_PARAM_TRAITS_SPEC(device, image2d_max_width, size_t)

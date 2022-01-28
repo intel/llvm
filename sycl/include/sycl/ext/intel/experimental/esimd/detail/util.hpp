@@ -10,6 +10,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <CL/sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
@@ -166,3 +168,5 @@ public:
 } // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_DETAIL
