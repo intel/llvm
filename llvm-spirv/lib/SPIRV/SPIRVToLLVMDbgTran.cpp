@@ -44,9 +44,10 @@
 #include "SPIRVReader.h"
 #include "SPIRVType.h"
 
-#include "llvm/IR/DIBuilder.h"
-#include "llvm/IR/Module.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 
 using namespace std;
 using namespace SPIRVDebug::Operand;
@@ -998,9 +999,16 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
   case SPIRVDebug::Value: {
     using namespace SPIRVDebug::Operand::DebugValue;
     auto LocalVar = GetLocalVar(Ops[DebugLocalVarIdx]);
-    return Builder.insertDbgValueIntrinsic(
-        GetValue(Ops[ValueIdx]), LocalVar.first,
-        GetExpression(Ops[ExpressionIdx]), LocalVar.second, BB);
+    Value *Val = GetValue(Ops[ValueIdx]);
+    DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
+    auto *DbgValIntr = Builder.insertDbgValueIntrinsic(
+        Val, LocalVar.first, Expr, LocalVar.second, BB);
+    if (Expr->getNumLocationOperands() == 1) {
+      SmallVector<ValueAsMetadata *, 1> MDs = {ValueAsMetadata::get(Val)};
+      DIArgList *AL = DIArgList::get(M->getContext(), MDs);
+      cast<DbgVariableIntrinsic>(DbgValIntr)->setRawLocation(AL);
+    }
+    return DbgValIntr;
   }
   default:
     llvm_unreachable("Unknown debug intrinsic!");
