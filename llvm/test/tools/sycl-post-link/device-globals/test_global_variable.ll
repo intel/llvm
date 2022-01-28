@@ -17,13 +17,13 @@ target triple = "spir64-unknown-unknown"
 %class.anon.0 = type { i8 }
 
 @_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #0
-; CHECK-IR: @_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !0 #0
+; CHECK-IR: @_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations ![[#MN0:]] #0
 @_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #1
-; CHECK-IR: @_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !4 #1
+; CHECK-IR: @_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations ![[#MN4:]] #1
 @_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #2
-; CHECK-IR: @_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations !7 #2
+; CHECK-IR: @_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations ![[#MN7:]] #2
 @_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #3
-; CHECK-IR: @_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations !9 #3
+; CHECK-IR: @_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations ![[#MN9:]] #3
 @_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #6
 ; CHECK-IR-NOT: @_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 !spirv.Decorations
 
@@ -69,20 +69,20 @@ attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "device_i
 !5 = !{!"clang version 14.0.0"}
 
 ; Ensure that the generated metadata nodes are correct
-; CHECK-IR-DAG: !0 = !{!1, !2, !3}
-; CHECK-IR-DAG: !1 = !{i32 6147, i32 1, !"6da74a122db9f35d____ZL7dg_int1"}
-; CHECK-IR-DAG: !2 = !{i32 6149, i32 1}
-; CHECK-IR-DAG: !3 = !{i32 6148, i32 0}
+; CHECK-IR-DAG: ![[#MN0]] = !{![[#MN1:]], ![[#MN2:]], ![[#MN3:]]}
+; CHECK-IR-DAG: ![[#MN1]] = !{i32 6147, i32 1, !"6da74a122db9f35d____ZL7dg_int1"}
+; CHECK-IR-DAG: ![[#MN2]] = !{i32 6149, i32 1}
+; CHECK-IR-DAG: ![[#MN3]] = !{i32 6148, i32 0}
 
-; CHECK-IR-DAG: !4 = !{!5, !6}
-; CHECK-IR-DAG: !5 = !{i32 6149, i32 0}
-; CHECK-IR-DAG: !6 = !{i32 6148, i32 1}
+; CHECK-IR-DAG: ![[#MN4]] = !{![[#MN5:]], ![[#MN6:]]}
+; CHECK-IR-DAG: ![[#MN5]] = !{i32 6149, i32 0}
+; CHECK-IR-DAG: ![[#MN6]] = !{i32 6148, i32 1}
 
-; CHECK-IR-DAG: !7 = !{!8, !2, !3}
-; CHECK-IR-DAG: !8 = !{i32 6147, i32 0, !"9d329ad59055e972____ZL8dg_bool3"}
+; CHECK-IR-DAG: ![[#MN7]] = !{![[#MN8:]], ![[#MN2]], ![[#MN3]]}
+; CHECK-IR-DAG: ![[#MN8]] = !{i32 6147, i32 0, !"9d329ad59055e972____ZL8dg_bool3"}
 
-; CHECK-IR-DAG: !9 = !{!10}
-; CHECK-IR-DAG: !10 = !{i32 6147, i32 2, !"dda2bad52c45c432____ZL8dg_bool4"}
+; CHECK-IR-DAG: ![[#MN9]] = !{![[#MN10:]]}
+; CHECK-IR-DAG: ![[#MN10]] = !{i32 6147, i32 2, !"dda2bad52c45c432____ZL8dg_bool4"}
 
 ; Ensure that the default values are correct.
 ; ABAAAAAAAAABAAAAAxxxxx is decoded to
