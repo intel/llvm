@@ -661,6 +661,8 @@ bool isOCLImageType(llvm::Type *Ty, StringRef *Name = nullptr);
 ///   type name as spirv.BaseTyName.Postfixes.
 bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix = 0);
 
+bool isSYCLHalfType(llvm::Type *Ty);
+
 /// Decorate a function name as __spirv_{Name}_
 std::string decorateSPIRVFunction(const std::string &S);
 
@@ -762,6 +764,19 @@ Instruction *mutateCallInstSPIRV(
 void mutateFunction(
     Function *F,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
+    BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
+    bool TakeName = true);
+
+/// Mutate function by change the arguments & the return type.
+/// \param ArgMutate mutates the function arguments.
+/// \param RetMutate mutates the function return value.
+/// \param TakeName Take the original function's name if a new function with
+///   different type needs to be created.
+void mutateFunction(
+    Function *F,
+    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
+        ArgMutate,
+    std::function<Instruction *(CallInst *)> RetMutate,
     BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
     bool TakeName = true);
 

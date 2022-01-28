@@ -310,6 +310,21 @@ bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix) {
   return false;
 }
 
+bool isSYCLHalfType(llvm::Type *Ty) {
+  if (auto *ST = dyn_cast<StructType>(Ty)) {
+    if (!ST->hasName())
+      return false;
+    StringRef Name = ST->getName();
+    Name.consume_front("class.");
+    if ((Name.startswith("cl::sycl::") ||
+         Name.startswith("__sycl_internal::")) &&
+        Name.endswith("::half")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
                               StringRef Name, BuiltinFuncMangleInfo *Mangle,
                               AttributeList *Attrs, bool TakeName) {
@@ -344,6 +359,8 @@ Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
     }
     LLVM_DEBUG(dbgs() << "[getOrCreateFunction] ";
                if (F) dbgs() << *F << " => "; dbgs() << *NewF << '\n';);
+    if (F)
+      NewF->setDSOLocal(F->isDSOLocal());
     F = NewF;
     F->setCallingConv(CallingConv::SPIR_FUNC);
     if (Attrs)
@@ -700,6 +717,21 @@ void mutateFunction(
   for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
     if (auto CI = dyn_cast<CallInst>(*I++))
       mutateCallInst(M, CI, ArgMutate, Mangle, Attrs, TakeFuncName);
+  }
+  if (F->use_empty())
+    F->eraseFromParent();
+}
+
+void mutateFunction(
+    Function *F,
+    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
+        ArgMutate,
+    std::function<Instruction *(CallInst *)> RetMutate,
+    BuiltinFuncMangleInfo *Mangle, AttributeList *Attrs, bool TakeName) {
+  auto *M = F->getParent();
+  for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
+    if (auto *CI = dyn_cast<CallInst>(*I++))
+      mutateCallInst(M, CI, ArgMutate, RetMutate, Mangle, Attrs, TakeName);
   }
   if (F->use_empty())
     F->eraseFromParent();
