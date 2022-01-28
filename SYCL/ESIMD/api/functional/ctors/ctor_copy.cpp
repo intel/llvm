@@ -88,7 +88,9 @@ private:
 
 // The main test routine.
 // Using functor class to be able to iterate over the pre-defined data types.
-template <typename DataT, int NumElems, typename TestCaseT> class run_test {
+template <typename DataT, typename DimT, typename TestCaseT> class run_test {
+  static constexpr int NumElems = DimT::value;
+
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
     bool passed = true;
@@ -155,11 +157,10 @@ int main(int, char **) {
 
   const auto types = get_tested_types<tested_types::all>();
   const auto dims = get_all_dimensions();
+  const auto contexts = unnamed_type_pack<initializer, var_decl, rval_in_expr,
+                                          const_ref>::generate();
 
-  passed &= for_all_types_and_dims<run_test, initializer>(types, dims, queue);
-  passed &= for_all_types_and_dims<run_test, var_decl>(types, dims, queue);
-  passed &= for_all_types_and_dims<run_test, rval_in_expr>(types, dims, queue);
-  passed &= for_all_types_and_dims<run_test, const_ref>(types, dims, queue);
+  passed &= for_all_combinations<run_test>(types, dims, contexts, queue);
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;

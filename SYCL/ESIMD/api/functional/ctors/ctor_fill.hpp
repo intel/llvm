@@ -36,7 +36,7 @@ struct initializer {
 
 // Descriptor class for the case of calling constructor in variable declaration
 // context.
-struct var_dec {
+struct var_decl {
   static std::string get_description() { return "variable declaration"; }
 
   template <typename DataT, int NumElems>
@@ -48,7 +48,7 @@ struct var_dec {
 
 // Descriptor class for the case of calling constructor in rvalue in an
 // expression context.
-struct rval_in_express {
+struct rval_in_expr {
   static std::string get_description() { return "rvalue in an expression"; }
 
   template <typename DataT, int NumElems>
@@ -191,30 +191,32 @@ public:
   }
 };
 
-template <typename DataT, int NumElems, typename TestCaseT, typename BaseVal,
-          typename Step>
+template <init_val... Values> auto get_init_values_pack() {
+  return value_pack<init_val, Values...>::generate_unnamed();
+}
+
+template <typename DataT, typename DimT, typename TestCaseT, typename BaseValT,
+          typename StepT>
 class run_test {
+  static constexpr int NumElems = DimT::value;
+  static constexpr init_val BaseVal = BaseValT::value;
+  static constexpr init_val Step = StepT::value;
+  using KernelT = kernel_for_fill<DataT, NumElems, TestCaseT, BaseVal, Step>;
+
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
-    static_assert(std::is_same_v<typename BaseVal::value_type, init_val>,
-                  "BaseVal template parameter should be init_val type.");
-    static_assert(std::is_same_v<typename Step::value_type, init_val>,
-                  "Step template parameter should be init_val type.");
-
     shared_vector<DataT> result(NumElems, shared_allocator<DataT>(queue));
 
-    const auto base_value = get_value<DataT, BaseVal::value>();
-    const auto step_value = get_value<DataT, Step::value>(base_value);
+    const auto base_value = get_value<DataT, BaseVal>();
+    const auto step_value = get_value<DataT, Step>(base_value);
 
     queue.submit([&](sycl::handler &cgh) {
       DataT *const out = result.data();
 
-      cgh.single_task<kernel_for_fill<DataT, NumElems, TestCaseT,
-                                      BaseVal::value, Step::value>>(
-          [=]() SYCL_ESIMD_KERNEL {
-            TestCaseT::template call_simd_ctor<DataT, NumElems>(
-                base_value, step_value, out);
-          });
+      cgh.single_task<KernelT>([=]() SYCL_ESIMD_KERNEL {
+        TestCaseT::template call_simd_ctor<DataT, NumElems>(base_value,
+                                                            step_value, out);
+      });
     });
     queue.wait_and_throw();
     bool passed = true;
@@ -228,8 +230,7 @@ public:
     // constructor.
     DataT expected_value = base_value;
     for (size_t i = 1; i < result.size(); ++i) {
-      if constexpr (BaseVal::value == init_val::nan ||
-                    Step::value == init_val::nan) {
+      if constexpr (BaseVal == init_val::nan || Step == init_val::nan) {
 
         if (!std::isnan(result[i])) {
           passed = false;
@@ -241,9 +242,8 @@ public:
           log_msg += ", with context: " + TestCaseT::get_description();
           log_msg += ". The element at index: " + std::to_string(i) +
                      ", is not nan, but it should.";
-          log_msg +=
-              ", with base value: " + init_val_to_string<BaseVal::value>();
-          log_msg += ", with step value: " + init_val_to_string<Step::value>();
+          log_msg += ", with base value: " + init_val_to_string<BaseVal>();
+          log_msg += ", with step value: " + init_val_to_string<Step>();
 
           log::note(log_msg);
         }
@@ -262,33 +262,12 @@ private:
   bool fail_test(size_t index, DataT retrieved, DataT expected,
                  const std::string &data_type) {
     const auto description =
-        FillCtorTestDescription<DataT, NumElems, TestCaseT, BaseVal::value,
-                                Step::value>(index, retrieved, expected,
-                                             data_type);
+        FillCtorTestDescription<DataT, NumElems, TestCaseT, BaseVal, Step>(
+            index, retrieved, expected, data_type);
     log::fail(description);
 
     return false;
   }
 };
-
-// Iterating over provided types and dimensions, running test for each of
-// them.
-template <typename TestT, init_val BaseVal, init_val Step, typename... Types,
-          int... Dims>
-bool run_verification(
-    sycl::queue &queue,
-    const esimd_functional::values_pack<Dims...> &dimensions,
-    const esimd_functional::named_type_pack<Types...> &types) {
-
-  typedef std::integral_constant<init_val, BaseVal> base_value;
-  typedef std::integral_constant<init_val, Step> step_value;
-
-  bool passed = true;
-  passed &= esimd_functional::for_all_types_and_dims<run_test, TestT,
-                                                     base_value, step_value>(
-      types, dimensions, queue);
-
-  return passed;
-}
 
 } // namespace esimd_test::api::functional::ctors

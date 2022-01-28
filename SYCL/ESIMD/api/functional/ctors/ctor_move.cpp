@@ -91,7 +91,8 @@ public:
 // The core test functionality.
 // Runs a TestCaseT, specific for each C++ context, for a simd<DataT,NumElems>
 // instance
-template <typename DataT, int NumElems, typename TestCaseT> class run_test {
+template <typename DataT, typename DimT, typename TestCaseT> class run_test {
+  static constexpr int NumElems = DimT::value;
   using KernelName = ctors::Kernel<DataT, NumElems, TestCaseT>;
 
 public:
@@ -217,15 +218,14 @@ int main(int, char **) {
   bool passed = true;
   const auto types = get_tested_types<tested_types::all>();
   const auto dims = get_all_dimensions();
+  const auto contexts = unnamed_type_pack<initializer, var_decl, rval_in_expr,
+                                          const_ref>::generate();
 
   sycl::queue queue(esimd_test::ESIMDSelector{},
                     esimd_test::createExceptionHandler());
 
   // Run for all combinations possible
-  passed &= for_all_types_and_dims<run_test, initializer>(types, dims, queue);
-  passed &= for_all_types_and_dims<run_test, var_decl>(types, dims, queue);
-  passed &= for_all_types_and_dims<run_test, rval_in_expr>(types, dims, queue);
-  passed &= for_all_types_and_dims<run_test, const_ref>(types, dims, queue);
+  passed &= for_all_combinations<run_test>(types, dims, contexts, queue);
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;

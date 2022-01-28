@@ -28,6 +28,7 @@
 
 using namespace sycl::ext::intel::experimental::esimd;
 using namespace esimd_test::api::functional;
+using init_val = ctors::init_val;
 
 int main(int, char **) {
   sycl::queue queue(esimd_test::ESIMDSelector{},
@@ -35,31 +36,30 @@ int main(int, char **) {
 
   bool passed = true;
 
-  const auto fp_types = get_tested_types<tested_types::fp>();
-  const auto single_dim = values_pack<8>();
+  // Using single dimension and context to verify the accuracy of operations
+  // with floating point data types
+  const auto types = get_tested_types<tested_types::fp>();
+  const auto dims = get_dimensions<8>();
+  const auto contexts = unnamed_type_pack<ctors::var_decl>::generate();
 
 // Run for specific combinations of types, base and step values and vector
 // length.
-// The first init_val value it's a base value and the second init_val value
-// it's a step value.
 #ifdef SIMD_RUN_TEST_WITH_DENORM_INIT_VAL_AND_ULP_STEP
-  passed &= ctors::run_verification<ctors::var_dec, ctors::init_val::denorm,
-                                    ctors::init_val::ulp>(queue, single_dim,
-                                                          fp_types);
+  {
+    const auto base_values = ctors::get_init_values_pack<init_val::denorm>();
+    const auto step_values = ctors::get_init_values_pack<init_val::ulp>();
+    passed &= for_all_combinations<ctors::run_test>(
+        types, dims, contexts, base_values, step_values, queue);
+  }
 #endif
-  passed &= ctors::run_verification<ctors::var_dec, ctors::init_val::inexact,
-                                    ctors::init_val::ulp>(queue, single_dim,
-                                                          fp_types);
-  passed &= ctors::run_verification<ctors::var_dec, ctors::init_val::min,
-                                    ctors::init_val::ulp>(queue, single_dim,
-                                                          fp_types);
-
-  passed &= ctors::run_verification<ctors::var_dec, ctors::init_val::inexact,
-                                    ctors::init_val::ulp_half>(
-      queue, single_dim, fp_types);
-  passed &= ctors::run_verification<ctors::var_dec, ctors::init_val::min,
-                                    ctors::init_val::ulp_half>(
-      queue, single_dim, fp_types);
+  {
+    const auto base_values =
+        ctors::get_init_values_pack<init_val::inexact, init_val::min>();
+    const auto step_values =
+        ctors::get_init_values_pack<init_val::ulp, init_val::ulp_half>();
+    passed &= for_all_combinations<ctors::run_test>(
+        types, dims, contexts, base_values, step_values, queue);
+  }
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;
