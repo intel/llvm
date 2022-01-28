@@ -49,6 +49,16 @@ This file describes macros that have effect on SYCL compiler and run-time.
   support do not impose any extra overhead. One can check to see if a device has
   native support for `assert()` via `aspect::ext_oneapi_native_assert`.
 
+- **SYCL2020_CONFORMANT_APIS**
+  This macro is used to comply with the SYCL 2020 specification, as some of the current 
+  implementations may be widespread and not conform to it.
+  Description of what it changes:
+  1) According to spec, `backend_return_t` for opencl event 
+  should be `std::vector<cl_event>` instead of `cl_event`. Defining this macro 
+  will change the behavior of `sycl::get_native()` function and using types for 
+  next structs: `interop<backend::opencl, event>`, `BackendInput<backend::opencl, event>`, 
+  `BackendReturn<backend::opencl, event>` to be in line with the spec.
+
 ## Version macros
 
 - `__LIBSYCL_MAJOR_VERSION` is set to SYCL runtime library major version.
