@@ -69,20 +69,20 @@ attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "device_i
 !5 = !{!"clang version 14.0.0"}
 
 ; Ensure that the generated metadata nodes are correct
-; CHECK-IR:      !0 = !{!1, !2, !3}
-; CHECK-IR-NEXT: !1 = !{i32 6147, i32 1}
-; CHECK-IR-NEXT: !2 = !{i32 6149, i32 1}
-; CHECK-IR-NEXT: !3 = !{i32 6148, i32 0}
+; CHECK-IR-DAG: !0 = !{!1, !2, !3}
+; CHECK-IR-DAG: !1 = !{i32 6147, i32 1}
+; CHECK-IR-DAG: !2 = !{i32 6149, i32 1}
+; CHECK-IR-DAG: !3 = !{i32 6148, i32 0}
 
-; CHECK-IR:      !4 = !{!5, !6}
-; CHECK-IR-NEXT: !5 = !{i32 6149, i32 0}
-; CHECK-IR-NEXT: !6 = !{i32 6148, i32 1}
+; CHECK-IR-DAG: !4 = !{!5, !6}
+; CHECK-IR-DAG: !5 = !{i32 6149, i32 0}
+; CHECK-IR-DAG: !6 = !{i32 6148, i32 1}
 
-; CHECK-IR:      !7 = !{!8, !2, !3}
-; CHECK-IR-NEXT: !8 = !{i32 6147, i32 0}
+; CHECK-IR-DAG: !7 = !{!8, !2, !3}
+; CHECK-IR-DAG: !8 = !{i32 6147, i32 0}
 
-; CHECK-IR:      !9 = !{!10}
-; CHECK-IR-NEXT: !10 = !{i32 6147, i32 2}
+; CHECK-IR-DAG: !9 = !{!10}
+; CHECK-IR-DAG: !10 = !{i32 6147, i32 2}
 
 ; Ensure that the default values are correct.
 ; ABAAAAAAAAABAAAAAxxxxx is decoded to
