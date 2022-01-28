@@ -100,10 +100,9 @@ public:
                                          uint32_t,
                                          const detail::code_location &);
   static xpti::trace_event_data_t *
-  createTraceEvent(const void *, const void *, uint64_t &,
-                   const detail::code_location &, uint16_t);
-  static void kernelAccessorNotification(const void *, const void *,
-                                         cl::sycl::detail::code_location);
+  createTraceEvent(void *Obj, const char *ObjName, uint64_t &IId,
+                   const detail::code_location &CodeLoc,
+                   uint16_t TraceEventType);
 
 private:
   std::unordered_set<std::string> MActiveStreams;
