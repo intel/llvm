@@ -135,25 +135,25 @@ void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
 /// containing aspects.
 TypeToAspectsMapTy
 GetTypesWithAspectsFromModule(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
-  std::unordered_set<Type *> Types;
+  std::unordered_set<Type *> TypesToProcess;
   Type *DoubleTy = Type::getDoubleTy(M.getContext());
   static constexpr int AspectFP64 = 6; // TODO: add the link to spec
   TypesWithAspects[DoubleTy].insert(AspectFP64);
 
-  Types.insert(DoubleTy);
+  TypesToProcess.insert(DoubleTy);
   for (Type *T : M.getIdentifiedStructTypes()) {
-    Types.insert(T);
+    TypesToProcess.insert(T);
   }
 
   std::unordered_map<Type *, std::vector<Type *>> Edges;
-  for (Type *T : Types) {
+  for (Type *T : TypesToProcess) {
     for (Type *TT : T->subtypes()) {
       // If TT = %A*** then we want to get TT = %A
       while (TT->isPointerTy()) {
         TT = TT->getContainedType(0);
       }
 
-      if (!Types.count(TT)) {
+      if (!TypesToProcess.count(TT)) {
         continue; // We are not interested in some types. For example, IntTy.
       }
 
@@ -247,7 +247,7 @@ template <class Container> std::string Join(const Container &C, char sep) {
 /// warning is emitted.
 template <class Container>
 void CheckDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
-                                     const Container &Aspects) {
+                                     const Container &UsedAspects) {
   MDNode *MDN = F->getMetadata("intel_declared_aspects");
   if (!MDN)
     return;
@@ -263,7 +263,7 @@ void CheckDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
   }
 
   AspectsSetTy MissedAspects;
-  for (int Aspect : Aspects) {
+  for (int Aspect : UsedAspects) {
     if (DeclaredAspects.count(Aspect) == 0) {
       MissedAspects.insert(Aspect);
     }
@@ -284,17 +284,17 @@ using FunctionToAspectsMapTy = DenseMap<Function *, SmallSet<int, 4>>;
 using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 
 void CreateUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
-  for (auto &it : Map) {
-    Function *F = it.first;
-    AspectsSetTy &Aspects = it.second;
+  for (auto &It : Map) {
+    Function *F = It.first;
+    AspectsSetTy &Aspects = It.second;
     if (Aspects.empty())
       continue;
 
     LLVMContext &C = F->getContext();
     SmallVector<Metadata *, 16> AspectsMetadata;
-    for (int aspect : Aspects) {
+    for (int Aspect : Aspects) {
       AspectsMetadata.push_back(ConstantAsMetadata::get(
-          ConstantInt::getSigned(Type::getInt32Ty(C), aspect)));
+          ConstantInt::getSigned(Type::getInt32Ty(C), Aspect)));
     }
 
     MDNode *MDN = MDNode::get(C, AspectsMetadata);
@@ -303,9 +303,9 @@ void CreateUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
 }
 
 void CheckUsedAndDeclaredAspects(FunctionToAspectsMapTy &Map) {
-  for (auto &it : Map) {
-    Function *F = it.first;
-    auto &Aspects = it.second;
+  for (auto &It : Map) {
+    Function *F = It.first;
+    auto &Aspects = It.second;
     if (Aspects.empty())
       continue;
 
@@ -337,7 +337,7 @@ void PropagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 
 /// Returns a map of functions with corresponding used aspects.
 FunctionToAspectsMapTy
-GetFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
+BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   FunctionToAspectsMapTy FunctionToAspects;
   CallGraphTy CG;
   std::vector<Function *> Kernels;
@@ -346,7 +346,7 @@ GetFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
     if (CC != CallingConv::SPIR_FUNC && CC != CallingConv::SPIR_KERNEL)
       continue;
 
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (CC == CallingConv::SPIR_KERNEL) {
       Kernels.push_back(&F);
     }
 
@@ -376,7 +376,7 @@ PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
   TypesWithAspects = GetTypesWithAspectsFromModule(M, TypesWithAspects);
 
   FunctionToAspectsMapTy FunctionToAspects =
-      GetFunctionsToAspectsMap(M, TypesWithAspects);
+      BuildFunctionsToAspectsMap(M, TypesWithAspects);
 
   CreateUsedAspectsMetadataForFunctions(FunctionToAspects);
   CheckUsedAndDeclaredAspects(FunctionToAspects);
