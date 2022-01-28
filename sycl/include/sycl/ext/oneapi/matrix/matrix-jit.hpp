@@ -451,11 +451,12 @@ public:
   }
 };
 
-// uint16_t here represents bf16 type as we have been doing for the
-// previous matrix implementations. Since the AMX and DPAS implementations don't
-// support uint16_t, this should raise no problem. Our plan is to move towards
-// SYCL bfloat16 once it makes itself to the specification (it is experimental
-// right now).
+// Note that similarly to the other matrix functions, uint16_t is used here to
+// represent bf16 type. Since the AMX and DPAS implementations don't support
+// uint16_t, this interpretation is possible. This design choice was made before
+// the introduction of SYCL experimental bfloat16 type. Our plan is to move
+// towards using the SYCL bfloat16. But since it is still experimental, we will
+// probably keep both uint16 interpretation and SYCL bfloat16.
 template <size_t NumRows, size_t NumCols, matrix_layout Layout, typename Group>
 class wi_element<uint16_t, NumRows, NumCols, Layout, Group> {
   joint_matrix<uint16_t, NumRows, NumCols, Layout, Group> &M;
@@ -508,9 +509,10 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  // For now we use the following functions for convertion(bf16=>fp32,
-  // fp32=>bf16) as a workaround. In the future we will use
-  // __spirv_ConvertFToBF16INTEL and __spirv_ConvertBF16ToFINTEL
+  // We use here the following functions for conversion (bf16=>fp32 and
+  // fp32=>bf16). This is a workaround until we are able to use
+  // __spirv_ConvertFToBF16INTEL and __spirv_ConvertBF16ToFINTEL once these are
+  // supported in the CPU backend
   static float make_fp32(uint16_t x) {
     unsigned int y = x;
     y = y << 16;
