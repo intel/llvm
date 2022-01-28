@@ -132,24 +132,48 @@ constexpr int get_num_channels_enabled(rgba_channel_mask M) {
          is_channel_enabled(M, rgba_channel::A);
 }
 
-/// Represents an atomic operation.
+/// Represents an atomic operation. Operations always return the old value(s) of
+/// the target memory location(s) as it was before the operation was applied.
+/// Each operation is annotated with a pseudocode illustrating its semantics,
+/// \c addr is a memory address (one of the many, as the atomic operation is
+/// vector) the operation is applied at, \c src0 is its first argumnet,
+/// \c src1 - second.
 enum class atomic_op : uint8_t {
+  /// Addition: <code>*addr = *addr + src0</code>.
   add = 0x0,
+  /// Subtraction: <code>*addr = *addr - src0</code>.
   sub = 0x1,
+  /// Increment: <code>*addr = *addr + 1</code>.
   inc = 0x2,
+  /// Decrement: <code>*addr = *addr - 1</code>.
   dec = 0x3,
+  /// Minimum: <code>*addr = min(*addr, src0)</code>.
   min = 0x4,
+  /// Maximum: <code>*addr = max(*addr, src0)</code>.
   max = 0x5,
+  /// Exchange. <code>*addr == src0;</code>
   xchg = 0x6,
+  /// Compare and exchange. <code>if (*addr == src0) *sddr = src1;</code>
   cmpxchg = 0x7,
+  /// Bit \c and: <code>*addr = *addr & src0</code>.
   bit_and = 0x8,
+  /// Bit \c or: <code>*addr = *addr | src0</code>.
   bit_or = 0x9,
+  /// Bit \c xor: <code>*addr = *addr | src0</code>.
   bit_xor = 0xa,
+  /// Minimum (signed integer): <code>*addr = min(*addr, src0)</code>.
   minsint = 0xb,
+  /// Maximum (signed integer): <code>*addr = max(*addr, src0)</code>.
   maxsint = 0xc,
+  /// Minimum (floating point): <code>*addr = min(*addr, src0)</code>.
   fmax = 0x10,
+  /// Maximum (floating point): <code>*addr = max(*addr, src0)</code>.
   fmin = 0x11,
+  /// Compare and exchange (floating point).
+  /// <code>if (*addr == src0) *addr = src1;</code>
   fcmpwr = 0x12,
+  /// Decrement: <code>*addr = *addr - 1</code>. The only operation which
+  /// returns new value of the destination rather than old.
   predec = 0xff,
 };
 

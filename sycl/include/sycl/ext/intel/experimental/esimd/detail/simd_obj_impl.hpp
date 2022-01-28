@@ -25,10 +25,14 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @addtogroup sycl_esimd_core
 /// @{
-/// @ingroup sycl_esimd_core
 
-/// @name Alignment type tags for use with simd load/store operations.
+/// @defgroup sycl_esimd_core_align Alignment control
+/// Alignment type tags and related APIs for use with ESIMD memory access
+/// operations.
+
+/// @addtogroup sycl_esimd_core_align
 /// @{
 /// element_aligned_tag type. Flag of this type should be used in load and store
 /// operations when memory address is aligned by simd object's element type.
@@ -60,7 +64,6 @@ inline constexpr element_aligned_tag element_aligned = {};
 inline constexpr vector_aligned_tag vector_aligned = {};
 
 template <unsigned N> inline constexpr overaligned_tag<N> overaligned = {};
-/// @}
 
 /// Checks if type is a simd load/store flag.
 template <typename T> struct is_simd_flag_type : std::false_type {};
@@ -76,6 +79,8 @@ struct is_simd_flag_type<overaligned_tag<N>> : std::true_type {};
 /// @tparam T the type to check
 template <typename T>
 static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
+
+/// @} alignment tags
 
 /// @cond ESIMD_DETAIL
 
@@ -165,9 +170,9 @@ private:
   }
 
 public:
-  /// @{
-  /// Constructors.
   simd_obj_impl() = default;
+
+  /// Copy constructor.
   simd_obj_impl(const simd_obj_impl &other) {
     __esimd_dbg_print(simd_obj_impl(const simd_obj_impl &other));
     set(other.data());
@@ -233,8 +238,6 @@ public:
     __esimd_dbg_print(simd_obj_impl(AccessorT acc, uint32_t offset, Flags));
     copy_from(acc, offset, Flags{});
   }
-
-  /// @}
 
   // Load the object's value from array.
   template <int N1>
