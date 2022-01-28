@@ -323,7 +323,7 @@ void PropagateAspectsThroughCG(Function *F, CallGraphTy &CG,
                                SmallPtrSet<Function *, 16> &Visited) {
   AspectsSetTy LocalAspects;
   for (Function *Callee : CG[F]) {
-    if (Visited.contains(Callee)) {
+    if (!Visited.contains(Callee)) {
       Visited.insert(Callee);
       PropagateAspectsThroughCG(Callee, CG, AspectsMap, Visited);
     }
