@@ -14,13 +14,11 @@
 #ifndef LLVM_SYCLPROPAGATE_ASPECT_USAGE_H
 #define LLVM_SYCLPROPAGATE_ASPECT_USAGE_H
 
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 
-#include <vector>
-
 namespace llvm {
+
+class Module;
 
 class PropagateAspectUsagePass
     : public PassInfoMixin<PropagateAspectUsagePass> {

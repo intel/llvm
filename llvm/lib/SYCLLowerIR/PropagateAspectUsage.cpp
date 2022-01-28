@@ -1,5 +1,6 @@
 #include "llvm/SYCLLowerIR/PropagateAspectUsage.h"
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticInfo.h"
@@ -10,7 +11,6 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include <queue>
 #include <unordered_map>
@@ -50,31 +50,34 @@ ModulePass *llvm::createPropagateAspectUsagePass() {
 
 namespace {
 
-using AspectsTy = SmallSet<int, 4>;
-using TypesWithAspectsTy = std::unordered_map<Type *, AspectsTy>;
+using AspectsSetTy = SmallSet<int, 4>;
+using TypeToAspectsMapTy = std::unordered_map<Type *, AspectsSetTy>;
 
-TypesWithAspectsTy GetTypesWithAspectsFromMetadata(Module &M) {
+/// Retrieves from metadata (intel_types_that_use_aspects) types
+/// and aspects these types depend on.
+TypeToAspectsMapTy GetTypesThatUseAspectsFromMetadata(Module &M) {
   NamedMDNode *Node = M.getNamedMetadata("intel_types_that_use_aspects");
-  TypesWithAspectsTy Result;
+  TypeToAspectsMapTy Result;
   if (!Node)
     return Result;
 
   LLVMContext &C = M.getContext();
-  for (size_t i = 0; i != Node->getNumOperands(); ++i) {
-    MDNode *N = Node->getOperand(i);
-    assert(N->getNumOperands() > 1 && "intel_types_that_use_aspect metadata "
-                                      "shouldn't contain empty metadata nodes");
+  for (auto OperandIt : Node->operands()) {
+    MDNode &N = *OperandIt;
+    assert(N.getNumOperands() > 1 && "intel_types_that_use_aspect metadata "
+                                     "shouldn't contain empty metadata nodes");
 
-    MDString *TypeName = cast<MDString>(N->getOperand(0));
+    MDString *TypeName = cast<MDString>(N.getOperand(0));
     Type *T = StructType::getTypeByName(C, TypeName->getString());
-    if (!T) {
-      // TODO: warn?
-      continue;
-    }
+    assert(T &&
+           "invalid type referenced by intel_types_that_use_aspect metadata");
 
-    AspectsTy &Aspects = Result[T];
-    for (size_t j = 1; j != N->getNumOperands(); ++j) {
-      Constant *C = cast<ConstantAsMetadata>(N->getOperand(j))->getValue();
+    AspectsSetTy &Aspects = Result[T];
+    for (size_t I = 1; I != N.getNumOperands(); ++I) {
+      ConstantAsMetadata *CAM = dyn_cast<ConstantAsMetadata>(N.getOperand(I));
+      assert(CAM && "constant metadata is expected in "
+                    "intel_types_that_use_aspect list's entry");
+      Constant *C = CAM->getValue();
       Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
     }
   }
@@ -84,10 +87,13 @@ TypesWithAspectsTy GetTypesWithAspectsFromMetadata(Module &M) {
 
 using TypesEdgesTy = std::unordered_map<Type *, std::vector<Type *>>;
 
+/// Propagates aspects from type @Start to all types which
+/// are reachable by edges @Edges by BFS algorithm.
+/// Result is recorded in @ResultAspects.
 void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
-                                  AspectsTy &Aspects,
-                                  TypesWithAspectsTy &ResultAspects) {
-  std::unordered_set<Type *> Visited;
+                                  const AspectsSetTy &AspectsToPropagate,
+                                  TypeToAspectsMapTy &ResultAspects) {
+  SmallPtrSet<Type *, 16> Visited;
   std::queue<Type *> queue;
   queue.push(Start);
   while (!queue.empty()) {
@@ -97,7 +103,8 @@ void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
       continue;
 
     Visited.insert(T);
-    ResultAspects[T].insert(Aspects.begin(), Aspects.end());
+    ResultAspects[T].insert(AspectsToPropagate.begin(),
+                            AspectsToPropagate.end());
     for (Type *TT : Edges[T]) {
       if (Visited.count(TT))
         continue;
@@ -107,12 +114,31 @@ void PropagateAspectsThroughTypes(TypesEdgesTy &Edges, Type *Start,
   }
 }
 
-TypesWithAspectsTy
-GetTypesWithAspectsFromModule(Module &M, TypesWithAspectsTy &TypesWithAspects) {
+/// Returns all types with corresponding aspects from module @M. Type T in the
+/// result contains an aspect A if there is a way with instance of T to access
+/// by internal fields or pointers another type TT which uses corresponding
+/// aspect A.
+/// @TypesWithAspects argument consist of known types with aspects
+/// from metadata information.
+///
+/// The algorithm is the following:
+/// 1) Make a list of all structure types from module @M. List also consist of
+///    DoubleTy since it is optional as well.
+/// 2) Make from list a type graph which consist of nodes corresponding to types
+///    and directed edges between nodes. An edge from type A to type B
+///    corresponds to the fact that A is accessible from an instance of type B
+///    (by direct field or pointer in B).
+/// 3) For every known type with aspects propagate it's aspects over graph.
+///    Every propagation is a separate run of BFS algorithm.
+///
+/// Time complexity: O((V + E) * T) where T is the number of input types
+/// containing aspects.
+TypeToAspectsMapTy
+GetTypesWithAspectsFromModule(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   std::unordered_set<Type *> Types;
   Type *DoubleTy = Type::getDoubleTy(M.getContext());
-  // TODO: use aspects::fp64 instead of constant?
-  TypesWithAspects[DoubleTy].insert(6);
+  static constexpr int AspectFP64 = 6; // TODO: add the link to spec
+  TypesWithAspects[DoubleTy].insert(AspectFP64);
 
   Types.insert(DoubleTy);
   for (Type *T : M.getIdentifiedStructTypes()) {
@@ -137,10 +163,10 @@ GetTypesWithAspectsFromModule(Module &M, TypesWithAspectsTy &TypesWithAspects) {
     }
   }
 
-  TypesWithAspectsTy Result;
+  TypeToAspectsMapTy Result;
   for (auto it : TypesWithAspects) {
     Type *T = it.first;
-    AspectsTy Aspects;
+    AspectsSetTy Aspects;
     Aspects.insert(it.second.begin(), it.second.end());
     PropagateAspectsThroughTypes(Edges, T, Aspects, Result);
   }
@@ -153,8 +179,8 @@ GetTypesWithAspectsFromModule(Module &M, TypesWithAspectsTy &TypesWithAspects) {
 /// pointers.
 /// It is important to maintain and pass @Cache structure so that procedure
 /// doesn't get into infite loop.
-AspectsTy GetAspectsFromType(Type *T, TypesWithAspectsTy &Types,
-                             TypesWithAspectsTy &Cache) {
+AspectsSetTy GetAspectsFromType(Type *T, TypeToAspectsMapTy &Types,
+                                TypeToAspectsMapTy &Cache) {
   auto it = Types.find(T);
   if (it != Types.end()) {
     Cache[T] = it->second;
@@ -167,11 +193,11 @@ AspectsTy GetAspectsFromType(Type *T, TypesWithAspectsTy &Types,
   }
 
   Cache[T] = {};
-  AspectsTy Result;
+  AspectsSetTy Result;
 
   for (size_t i = 0; i != T->getNumContainedTypes(); ++i) {
     Type *TT = T->getContainedType(i);
-    AspectsTy Aspects = GetAspectsFromType(TT, Types, Cache);
+    AspectsSetTy Aspects = GetAspectsFromType(TT, Types, Cache);
     Result.insert(Aspects.begin(), Aspects.end());
   }
 
@@ -179,8 +205,9 @@ AspectsTy GetAspectsFromType(Type *T, TypesWithAspectsTy &Types,
   return Result;
 }
 
-AspectsTy GetAspectsUsedByInstruction(Instruction &I, TypesWithAspectsTy &Types,
-                                      TypesWithAspectsTy &Cache) {
+AspectsSetTy GetAspectsUsedByInstruction(Instruction &I,
+                                         TypeToAspectsMapTy &Types,
+                                         TypeToAspectsMapTy &Cache) {
   Type *ReturnType = I.getType();
   SmallSet<int, 4> Aspects = GetAspectsFromType(ReturnType, Types, Cache);
   SmallSet<int, 4> Result = Aspects;
@@ -230,7 +257,7 @@ void CheckDeclaredAspects(LLVMContext &C, const Function *F,
   if (!MDN)
     return;
 
-  AspectsTy DeclaredAspects;
+  AspectsSetTy DeclaredAspects;
   for (unsigned i = 0; i != MDN->getNumOperands(); ++i) {
     const ConstantAsMetadata *CM =
         dyn_cast<const ConstantAsMetadata>(MDN->getOperand(i));
@@ -309,11 +336,11 @@ void PropagateAspects(Function *F, CallGraphTy &CG,
 }
 
 FunctionToAspectsMapTy
-GetFunctionsAspects(Module &M, TypesWithAspectsTy &TypesWithAspects) {
+GetFunctionsAspects(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   FunctionToAspectsMapTy FunctionToAspects;
   CallGraphTy CG;
   std::vector<Function *> Kernels;
-  TypesWithAspectsTy Cache;
+  TypeToAspectsMapTy Cache;
   for (Function &F : M.functions()) {
     auto CC = F.getCallingConv();
     if (CC != CallingConv::SPIR_FUNC && CC != CallingConv::SPIR_KERNEL)
@@ -346,7 +373,7 @@ GetFunctionsAspects(Module &M, TypesWithAspectsTy &TypesWithAspects) {
 
 PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
-  TypesWithAspectsTy TypesWithAspects = GetTypesWithAspectsFromMetadata(M);
+  TypeToAspectsMapTy TypesWithAspects = GetTypesThatUseAspectsFromMetadata(M);
   TypesWithAspects = GetTypesWithAspectsFromModule(M, TypesWithAspects);
 
   FunctionToAspectsMapTy FunctionToAspects =
