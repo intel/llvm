@@ -3446,7 +3446,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     }
   }
 
-  pi_result Result;
+  pi_result Result = PI_SUCCESS;
   if (DeviceIsIntegrated) {
     if (HostPtrImported) {
       // When HostPtr is imported we use it for the buffer.
