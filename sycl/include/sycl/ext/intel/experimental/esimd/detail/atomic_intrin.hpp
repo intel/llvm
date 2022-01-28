@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <CL/sycl/exception.hpp>
 
 // This function implements atomic update of pre-existing variable in the
@@ -19,3 +21,5 @@ template <typename Ty> Ty atomic_add_fetch(Ty *ptr, Ty val) {
   return __atomic_add_fetch(ptr, val, __ATOMIC_RELAXED);
 #endif
 }
+
+/// @endcond ESIMD_DETAIL

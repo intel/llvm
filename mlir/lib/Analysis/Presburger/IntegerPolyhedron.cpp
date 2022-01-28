@@ -21,6 +21,7 @@
 #define DEBUG_TYPE "presburger"
 
 using namespace mlir;
+using namespace presburger_utils;
 using llvm::SmallDenseMap;
 using llvm::SmallDenseSet;
 
@@ -759,8 +760,10 @@ Optional<SmallVector<int64_t, 8>> IntegerPolyhedron::findIntegerSample() const {
   // full-dimensional cone and is hence non-empty.
   Simplex shrunkenConeSimplex(cone);
   assert(!shrunkenConeSimplex.isEmpty() && "Shrunken cone cannot be empty!");
+
+  // The sample will always exist since the shrunken cone is non-empty.
   SmallVector<Fraction, 8> shrunkenConeSample =
-      shrunkenConeSimplex.getRationalSample();
+      *shrunkenConeSimplex.getRationalSample();
 
   SmallVector<int64_t, 8> coneSample(llvm::map_range(shrunkenConeSample, ceil));
 
@@ -797,8 +800,7 @@ bool IntegerPolyhedron::containsPoint(ArrayRef<int64_t> point) const {
   return true;
 }
 
-void IntegerPolyhedron::getLocalReprs(
-    std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> &repr) const {
+void IntegerPolyhedron::getLocalReprs(std::vector<MaybeLocalRepr> &repr) const {
   std::vector<SmallVector<int64_t, 8>> dividends(getNumLocalIds());
   SmallVector<unsigned, 4> denominators(getNumLocalIds());
   getLocalReprs(dividends, denominators, repr);
@@ -807,15 +809,14 @@ void IntegerPolyhedron::getLocalReprs(
 void IntegerPolyhedron::getLocalReprs(
     std::vector<SmallVector<int64_t, 8>> &dividends,
     SmallVector<unsigned, 4> &denominators) const {
-  std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> repr(
-      getNumLocalIds());
+  std::vector<MaybeLocalRepr> repr(getNumLocalIds());
   getLocalReprs(dividends, denominators, repr);
 }
 
 void IntegerPolyhedron::getLocalReprs(
     std::vector<SmallVector<int64_t, 8>> &dividends,
     SmallVector<unsigned, 4> &denominators,
-    std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> &repr) const {
+    std::vector<MaybeLocalRepr> &repr) const {
 
   repr.resize(getNumLocalIds());
   dividends.resize(getNumLocalIds());
@@ -833,11 +834,13 @@ void IntegerPolyhedron::getLocalReprs(
     changed = false;
     for (unsigned i = 0, e = getNumLocalIds(); i < e; ++i) {
       if (!foundRepr[i + divOffset]) {
-        if (auto res = presburger_utils::computeSingleVarRepr(
-                *this, foundRepr, divOffset + i, dividends[i],
-                denominators[i])) {
+        auto res = computeSingleVarRepr(*this, foundRepr, divOffset + i,
+                                        dividends[i], denominators[i]);
+        if (res.kind == ReprKind::Inequality) {
           foundRepr[i + divOffset] = true;
-          repr[i] = res;
+          repr[i].kind = ReprKind::Inequality;
+          repr[i].repr.inEqualityPair = {res.repr.inEqualityPair.lowerBoundIdx,
+                                         res.repr.inEqualityPair.upperBoundIdx};
           changed = true;
         }
       }
@@ -847,7 +850,7 @@ void IntegerPolyhedron::getLocalReprs(
   // Set 0 denominator for identifiers for which no division representation
   // could be found.
   for (unsigned i = 0, e = repr.size(); i < e; ++i)
-    if (!repr[i].hasValue())
+    if (repr[i].kind == ReprKind::None)
       denominators[i] = 0;
 }
 

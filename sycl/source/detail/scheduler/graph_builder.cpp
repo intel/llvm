@@ -129,7 +129,6 @@ static void handleVisitedNodes(std::vector<Command *> &Visited) {
   for (Command *Cmd : Visited) {
     if (Cmd->MMarks.MToBeDeleted) {
       Cmd->getEvent()->setCommand(nullptr);
-      Cmd->getEvent()->cleanupDependencyEvents();
       delete Cmd;
     } else
       Cmd->MMarks.MVisited = false;
@@ -1187,7 +1186,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
   }
 
   Cmd->getEvent()->setCommand(nullptr);
-  Cmd->getEvent()->cleanupDependencyEvents();
   delete Cmd;
 }
 

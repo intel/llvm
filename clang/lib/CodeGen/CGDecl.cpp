@@ -266,8 +266,7 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   // OpenCL/SYCL variables in local address space and CUDA shared
   // variables cannot have an initializer.
   llvm::Constant *Init = nullptr;
-  if (Ty.getAddressSpace() == LangAS::opencl_local ||
-      Ty.getAddressSpace() == LangAS::sycl_local ||
+  if (AS == LangAS::opencl_local || AS == LangAS::sycl_local ||
       D.hasAttr<CUDASharedAttr>() || D.hasAttr<LoaderUninitializedAttr>())
     Init = llvm::UndefValue::get(LTy);
   else
