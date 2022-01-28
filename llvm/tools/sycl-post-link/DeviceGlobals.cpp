@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
 
@@ -32,6 +33,21 @@ constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 constexpr uint32_t SPIRV_INIT_MODE_DECOR = 6148;
 constexpr uint32_t SPIRV_IMPLEMENT_IN_CSR_DECOR = 6149;
+
+enum class DecorValueType {
+  uint,
+  boolean,
+};
+
+struct Decor {
+  uint32_t code;
+  DecorValueType type;
+};
+
+const StringMap<Decor> SpirvDecorMap = {
+    {SYCL_HOST_ACCESS_ATTR, {SPIRV_HOST_ACCESS_DECOR, DecorValueType::uint}},
+    {SYCL_INIT_MODE_ATTR, {SPIRV_INIT_MODE_DECOR, DecorValueType::uint}},
+    {SYCL_IMPLEMENT_IN_CSR_ATTR, {SPIRV_IMPLEMENT_IN_CSR_DECOR, DecorValueType::boolean}}};
 
 /// Converts the string into a boolean value. If the string is equal to "false"
 /// we consider its value as /c false, /true otherwise.
@@ -159,31 +175,25 @@ DeviceGlobalsPass::run(Module &M, ModuleAnalysisManager &MAM) {
     // enumerations in the SYCL headers are the same as in the descriptions of
     // the HostAccessINTEL and InitModeINTEL decorations in the
     // SPV_INTEL_global_variable_decorations extension.
-    SmallVector<Metadata *, 4> MDOps;                                             
-    if (GV.hasAttribute(SYCL_HOST_ACCESS_ATTR)) {
-      uint32_t HostAccessValue =
-          getAttributeAsInteger(GV, SYCL_HOST_ACCESS_ATTR);
+    SmallVector<Metadata *, 4> MDOps;
+    for (auto &Attribute : GV.getAttributes()) {
+      if (!Attribute.isStringAttribute())
+        continue;
+      auto AttributeKind = Attribute.getKindAsString();
+      auto DecorIt = SpirvDecorMap.find(AttributeKind);
+      if (DecorIt == SpirvDecorMap.end())
+        continue;
+      auto Decor = DecorIt->second;
+      auto DecorCode = Decor.code;
+      auto DecorValue = Decor.type == DecorValueType::uint ?
+          getAttributeAsInteger(GV, AttributeKind) :
+          hasProperty(GV, AttributeKind) ? 1 : 0;
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, Int32Ty,
-                                              SPIRV_HOST_ACCESS_DECOR,
-                                              HostAccessValue));
+                                              DecorCode, DecorValue));
     }
 
-    if (GV.hasAttribute(SYCL_INIT_MODE_ATTR)) {
-      uint32_t InitModeValue = getAttributeAsInteger(GV, SYCL_INIT_MODE_ATTR);
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, Int32Ty,
-                                              SPIRV_INIT_MODE_DECOR,
-                                              InitModeValue));
-    }
-
-    if (GV.hasAttribute(SYCL_IMPLEMENT_IN_CSR_ATTR)) {
-      uint32_t InCSRValue =
-          hasProperty(GV, SYCL_IMPLEMENT_IN_CSR_ATTR) ? 1 : 0;
-      MDOps.push_back(buildSpirvDecorMetadata(Ctx, Int32Ty,
-                                              SPIRV_IMPLEMENT_IN_CSR_DECOR,
-                                              InCSRValue));    
-    }
-
-    GV.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
+    if (!MDOps.empty())
+      GV.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
   }
 
   // The pass just adds some metadata to the module, it should not ruine
