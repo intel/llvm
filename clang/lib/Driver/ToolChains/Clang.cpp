@@ -5800,7 +5800,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Enable local accessor to shared memory pass for SYCL.
-  if (isa<BackendJobAction>(JA) && IsSYCL) {
+  if (isa<BackendJobAction>(JA) && IsSYCLOffloadDevice &&
+      (Triple.isNVPTX() || Triple.isAMDGCN())) {
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-sycl-enable-local-accessor");
   }
