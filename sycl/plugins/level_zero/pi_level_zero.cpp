@@ -5372,6 +5372,10 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   *Event = new _pi_event(ZeEvent, nullptr /* ZeEventPool */, Context,
                          PI_COMMAND_TYPE_USER, OwnNativeHandle);
 
+  // Assume native event is host-visible, or otherwise we'd
+  // need to create a host-visible proxy for it.
+  (*Event)->HostVisibleEvent = *Event;
+
   return PI_SUCCESS;
 }
 
