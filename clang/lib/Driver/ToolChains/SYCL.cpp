@@ -652,8 +652,6 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       default:
         DAL->append(A);
         break;
-      case options::OPT_fcoverage_mapping:
-        break;
       }
     }
   }
