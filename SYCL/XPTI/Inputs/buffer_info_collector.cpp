@@ -100,8 +100,8 @@ XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
   switch (Type) {
   case xpti::trace_point_type_t::offload_alloc_construct: {
     auto BufConstr = (xpti::offload_buffer_data_t *)UserData;
-    std::cout << IId << "|Create buffer|" << BufConstr->user_object_handle
-              << "|" << Event->reserved.payload->name << "|"
+    std::cout << IId << "|Create buffer|0x" << std::hex
+              << BufConstr->user_object_handle << "|" << std::dec
               << Event->reserved.payload->source_file << ":"
               << Event->reserved.payload->line_no << ":"
               << Event->reserved.payload->column_no << "\n";
@@ -110,28 +110,30 @@ XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
   }
   case xpti::trace_point_type_t::offload_alloc_associate: {
     auto BufAssoc = (xpti::offload_buffer_association_data_t *)UserData;
-    std::cout << IId << "|Associate buffer|" << BufAssoc->user_object_handle
-              << "|" << BufAssoc->mem_object_handle << std::endl;
+    std::cout << IId << "|Associate buffer|0x" << std::hex
+              << BufAssoc->user_object_handle << "|0x"
+              << BufAssoc->mem_object_handle << std::dec << std::endl;
     break;
   }
   case xpti::trace_point_type_t::offload_alloc_release: {
     auto BufRelease = (xpti::offload_buffer_association_data_t *)UserData;
-    std::cout << IId << "|Release buffer|" << BufRelease->user_object_handle
-              << "|" << BufRelease->mem_object_handle << std::endl;
+    std::cout << IId << "|Release buffer|0x" << std::hex
+              << BufRelease->user_object_handle << "|0x"
+              << BufRelease->mem_object_handle << std::dec << std::endl;
     break;
   }
   case xpti::trace_point_type_t::offload_alloc_destruct: {
     auto BufDestr = (xpti::offload_buffer_data_t *)UserData;
-    std::cout << IId << "|Destruct buffer|" << BufDestr->user_object_handle
-              << "\n";
+    std::cout << IId << "|Destruct buffer|0x" << std::hex
+              << BufDestr->user_object_handle << std::dec << std::endl;
     break;
   }
   case xpti::trace_point_type_t::offload_alloc_accessor: {
     auto BufAccessor = (xpti::offload_accessor_data_t *)UserData;
-    std::cout << IId << "|Construct accessor|" << BufAccessor->buffer_handle
-              << "|" << BufAccessor->accessor_handle << "|"
+    std::cout << IId << "|Construct accessor|0x" << std::hex
+              << BufAccessor->buffer_handle << "|0x"
+              << BufAccessor->accessor_handle << std::dec << "|"
               << BufAccessor->target << "|" << BufAccessor->mode << "|"
-              << Event->reserved.payload->name << "|"
               << Event->reserved.payload->source_file << ":"
               << Event->reserved.payload->line_no << ":"
               << Event->reserved.payload->column_no << "\n";
