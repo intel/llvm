@@ -1,6 +1,10 @@
 // RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S -o %t.ll %s
 // RUN: FileCheck %s --input-file %t.ll
 
+// these are the RUN directive used by main sycl branch today.
+// RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S %s -flegacy-pass-manager -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S %s -fno-legacy-pass-manager -o - | FileCheck %s
+
 #include <CL/sycl.hpp>
 
 using namespace sycl;
