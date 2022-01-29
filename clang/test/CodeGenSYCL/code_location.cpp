@@ -77,4 +77,3 @@ int test4() {
 // CHECK: static constexpr unsigned getLineNumber() { return 67; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 11; }
 //};
-
