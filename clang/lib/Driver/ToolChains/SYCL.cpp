@@ -335,7 +335,6 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   // will be compiled to an aocx file.
   InputInfoList ForeachInputs;
   InputInfoList FPGADepFiles;
-  StringRef CreatedReportName;
   ArgStringList CmdArgs{"-device=fpga_fast_emu"};
 
   for (const auto &II : Inputs) {
