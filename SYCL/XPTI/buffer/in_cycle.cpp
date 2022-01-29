@@ -53,18 +53,18 @@ int main() {
   // Create a SYCL queue.
   sycl::queue Queue{};
 
-  // CHECK:{{[0-9]+}}|Create buffer|[[#USERID1:]]|{{.*}}in_cycle.cpp:17:24|{{.*}}in_cycle.cpp:17:24
-  // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID1:]]
-  // CHECK:{{[0-9]+}}|Release buffer|[[#USERID1]]|[[#BEID1:]]
-  // CHECK:{{[0-9]+}}|Destruct buffer|[[#USERID1]]
-  // CHECK:{{[0-9]+}}|Create buffer|[[#USERID2:]]|{{.*}}in_cycle.cpp:17:24|{{.*}}in_cycle.cpp:17:24
-  // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID2]]|[[#BEID2:]]
-  // CHECK:{{[0-9]+}}|Release buffer|[[#USERID2]]|[[#BEID2:]]
-  // CHECK:{{[0-9]+}}|Destruct buffer|[[#USERID2]]
-  // CHECK:{{[0-9]+}}|Create buffer|[[#USERID3:]]|{{.*}}in_cycle.cpp:17:24|{{.*}}in_cycle.cpp:17:24
-  // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID3]]|[[#BEID3:]]
-  // CHECK:{{[0-9]+}}|Release buffer|[[#USERID3]]|[[#BEID3:]]
-  // CHECK:{{[0-9]+}}|Destruct buffer|[[#USERID3]]
+  // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:[0-9,a-f,x]*]]|{{.*}}in_cycle.cpp:17:24
+  // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
+  // CHECK:{{[0-9]+}}|Release buffer|[[USERID1]]|[[BEID1]]
+  // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID1]]
+  // CHECK:{{[0-9]+}}|Create buffer|[[USERID2:[0-9,a-f,x]*]]|{{.*}}in_cycle.cpp:17:24
+  // CHECK:{{[0-9]+}}|Associate buffer|[[USERID2]]|[[BEID2:.*]]
+  // CHECK:{{[0-9]+}}|Release buffer|[[USERID2]]|[[BEID2]]
+  // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID2]]
+  // CHECK:{{[0-9]+}}|Create buffer|[[USERID3:[0-9,a-f,x]*]]|{{.*}}in_cycle.cpp:17:24
+  // CHECK:{{[0-9]+}}|Associate buffer|[[USERID3]]|[[BEID3:.*]]
+  // CHECK:{{[0-9]+}}|Release buffer|[[USERID3]]|[[BEID3]]
+  // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID3]]
   for (int i = 0; i < 3; i++)
     MismatchFound &= func(Queue);
   return MismatchFound;

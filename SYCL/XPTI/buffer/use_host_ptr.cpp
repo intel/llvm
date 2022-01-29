@@ -18,11 +18,11 @@ int main() {
   int Array[4];
   {
     sycl::range<1> NumOfWorkItems{4};
-    // CHECK:{{[0-9]+}}|Create buffer|[[#USERID1:]]|{{.*}}use_host_ptr.cpp:22:26|{{.*}}use_host_ptr.cpp:22:26
+    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|{{.*}}use_host_ptr.cpp:[[# @LINE + 1]]:26
     sycl::buffer<int, 1> Buffer1(Array, NumOfWorkItems,
                                  {sycl::property::buffer::use_host_ptr()});
 
-    // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID1:]]
+    // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
     Queue.submit([&](sycl::handler &cgh) {
       // Get write only access to the buffer on a device.
       auto Accessor1 = Buffer1.get_access<sycl::access::mode::write>(cgh);
@@ -44,6 +44,6 @@ int main() {
 
   return MismatchFound;
 }
-// CHECK:{{[0-9]+}}|Release buffer|[[#USERID1]]|[[#BEID1:]]
-// CHECK:{{[0-9]+}}|Destruct buffer|[[#USERID1]]
+// CHECK:{{[0-9]+}}|Release buffer|[[USERID1]]|[[BEID1]]
+// CHECK:{{[0-9]+}}|Destruct buffer|[[USERID1]]
 #endif

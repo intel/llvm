@@ -17,23 +17,23 @@ int main() {
 
   {
     sycl::range<1> NumOfWorkItems{128};
-    // CHECK:{{[0-9]+}}|Create buffer|[[#USERID1:]]|{{.*}}sub_buffer.cpp:21:26|{{.*}}sub_buffer.cpp:21:26
+    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:26
     sycl::buffer<int, 1> Buffer1(NumOfWorkItems);
-    // CHECK:{{[0-9]+}}|Create buffer|[[#USERID1:]]|{{.*}}sub_buffer.cpp:23:26|{{.*}}sub_buffer.cpp:23:26
+    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:26
     sycl::buffer<int, 1> SubBuffer{Buffer1, sycl::range<1>{32},
                                    sycl::range<1>{32}};
 
     Queue.submit([&](sycl::handler &cgh) {
-      // CHECK: {{[0-9]+}}|Construct accessor|[[#USERID1]]|[[#ACCID1:]]|2014|1025|{{.*}}sub_buffer.cpp:28:24|{{.*}}sub_buffer.cpp:28:24
+      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:24
       auto Accessor1 = SubBuffer.get_access<sycl::access::mode::write>(cgh);
-      // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID1:]]
-      // CHECK:{{[0-9]+}}|Associate buffer|[[#USERID1]]|[[#BEID2:]]
+      // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
+      // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID2:.*]]
       cgh.parallel_for<class FillBuffer>(
           sycl::range<1>{32}, [=](sycl::id<1> WIid) {
             Accessor1[WIid] = static_cast<int>(WIid.get(0));
           });
     });
-    // CHECK: {{[0-9]+}}|Construct accessor|[[#USERID1]]|[[#ACCID2:]]|2018|1024|{{.*}}sub_buffer.cpp:37:22|{{.*}}sub_buffer.cpp:37:22
+    // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2018|1024|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:22
     auto Accessor1 = Buffer1.get_access<sycl::access::mode::read>();
     for (size_t I = 32; I < 64; ++I) {
       if (Accessor1[I] != I - 32) {
@@ -47,7 +47,7 @@ int main() {
 
   return MismatchFound;
 }
-// CHECK:{{[0-9]+}}|Release buffer|[[#USERID1]]|[[#BEID1:]]
-// CHECK:{{[0-9]+}}|Release buffer|[[#USERID1]]|[[#BEID2:]]
-// CHECK:{{[0-9]+}}|Destruct buffer|[[#USERID1]]
+// CHECK:{{[0-9]+}}|Release buffer|[[USERID1]]|[[BEID1]]
+// CHECK:{{[0-9]+}}|Release buffer|[[USERID1]]|[[BEID2]]
+// CHECK:{{[0-9]+}}|Destruct buffer|[[USERID1]]
 #endif
