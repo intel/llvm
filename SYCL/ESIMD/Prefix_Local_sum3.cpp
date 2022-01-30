@@ -211,21 +211,21 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
       cnt_table.select<1, 1, 8, 4>(j, 3) += cnt_table.select<1, 1, 8, 4>(j, 1);
       // step 3
       cnt_table.select<1, 1, 4, 1>(j, 4) +=
-          cnt_table.replicate<1, 0, 4, 0>(j, 3);
+          cnt_table.replicate_vs_w_hs<1, 0, 4, 0>(j, 3);
       cnt_table.select<1, 1, 4, 1>(j, 12) +=
-          cnt_table.replicate<1, 0, 4, 0>(j, 11);
+          cnt_table.replicate_vs_w_hs<1, 0, 4, 0>(j, 11);
       cnt_table.select<1, 1, 4, 1>(j, 20) +=
-          cnt_table.replicate<1, 0, 4, 0>(j, 19);
+          cnt_table.replicate_vs_w_hs<1, 0, 4, 0>(j, 19);
       cnt_table.select<1, 1, 4, 1>(j, 28) +=
-          cnt_table.replicate<1, 0, 4, 0>(j, 27);
+          cnt_table.replicate_vs_w_hs<1, 0, 4, 0>(j, 27);
       // step 4
       cnt_table.select<1, 1, 8, 1>(j, 8) +=
-          cnt_table.replicate<1, 0, 8, 0>(j, 7);
+          cnt_table.replicate_vs_w_hs<1, 0, 8, 0>(j, 7);
       cnt_table.select<1, 1, 8, 1>(j, 24) +=
-          cnt_table.replicate<1, 0, 8, 0>(j, 23);
+          cnt_table.replicate_vs_w_hs<1, 0, 8, 0>(j, 23);
       // step 5
       cnt_table.select<1, 1, 16, 1>(j, 16) +=
-          cnt_table.replicate<1, 0, 16, 0>(j, 15);
+          cnt_table.replicate_vs_w_hs<1, 0, 16, 0>(j, 15);
     }
     scatter_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset, S,
                                                         p);

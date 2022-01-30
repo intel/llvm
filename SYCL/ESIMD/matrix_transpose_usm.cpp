@@ -78,34 +78,34 @@ ESIMD_INLINE simd<T, 64> transpose_matrix(simd<T, 64> v1) {
   auto t2 = v2.template bit_cast_view<T, 4, 16>();
 
   // j = 1
-  t2.row(0).merge(t1.template replicate<8, 1, 2, 0>(0, 0),
-                  t1.template replicate<8, 1, 2, 0>(2, 0), mask);
-  t2.row(1).merge(t1.template replicate<8, 1, 2, 0>(0, 8),
-                  t1.template replicate<8, 1, 2, 0>(2, 8), mask);
-  t2.row(2).merge(t1.template replicate<8, 1, 2, 0>(1, 0),
-                  t1.template replicate<8, 1, 2, 0>(3, 0), mask);
-  t2.row(3).merge(t1.template replicate<8, 1, 2, 0>(1, 8),
-                  t1.template replicate<8, 1, 2, 0>(3, 8), mask);
+  t2.row(0).merge(t1.template replicate_vs_w_hs<8, 1, 2, 0>(0, 0),
+                  t1.template replicate_vs_w_hs<8, 1, 2, 0>(2, 0), mask);
+  t2.row(1).merge(t1.template replicate_vs_w_hs<8, 1, 2, 0>(0, 8),
+                  t1.template replicate_vs_w_hs<8, 1, 2, 0>(2, 8), mask);
+  t2.row(2).merge(t1.template replicate_vs_w_hs<8, 1, 2, 0>(1, 0),
+                  t1.template replicate_vs_w_hs<8, 1, 2, 0>(3, 0), mask);
+  t2.row(3).merge(t1.template replicate_vs_w_hs<8, 1, 2, 0>(1, 8),
+                  t1.template replicate_vs_w_hs<8, 1, 2, 0>(3, 8), mask);
 
   // j = 2
-  t1.row(0).merge(t2.template replicate<8, 1, 2, 0>(0, 0),
-                  t2.template replicate<8, 1, 2, 0>(2, 0), mask);
-  t1.row(1).merge(t2.template replicate<8, 1, 2, 0>(0, 8),
-                  t2.template replicate<8, 1, 2, 0>(2, 8), mask);
-  t1.row(2).merge(t2.template replicate<8, 1, 2, 0>(1, 0),
-                  t2.template replicate<8, 1, 2, 0>(3, 0), mask);
-  t1.row(3).merge(t2.template replicate<8, 1, 2, 0>(1, 8),
-                  t2.template replicate<8, 1, 2, 0>(3, 8), mask);
+  t1.row(0).merge(t2.template replicate_vs_w_hs<8, 1, 2, 0>(0, 0),
+                  t2.template replicate_vs_w_hs<8, 1, 2, 0>(2, 0), mask);
+  t1.row(1).merge(t2.template replicate_vs_w_hs<8, 1, 2, 0>(0, 8),
+                  t2.template replicate_vs_w_hs<8, 1, 2, 0>(2, 8), mask);
+  t1.row(2).merge(t2.template replicate_vs_w_hs<8, 1, 2, 0>(1, 0),
+                  t2.template replicate_vs_w_hs<8, 1, 2, 0>(3, 0), mask);
+  t1.row(3).merge(t2.template replicate_vs_w_hs<8, 1, 2, 0>(1, 8),
+                  t2.template replicate_vs_w_hs<8, 1, 2, 0>(3, 8), mask);
 
   // j = 4
-  t2.row(0).merge(t1.template replicate<8, 1, 2, 0>(0, 0),
-                  t1.template replicate<8, 1, 2, 0>(2, 0), mask);
-  t2.row(1).merge(t1.template replicate<8, 1, 2, 0>(0, 8),
-                  t1.template replicate<8, 1, 2, 0>(2, 8), mask);
-  t2.row(2).merge(t1.template replicate<8, 1, 2, 0>(1, 0),
-                  t1.template replicate<8, 1, 2, 0>(3, 0), mask);
-  t2.row(3).merge(t1.template replicate<8, 1, 2, 0>(1, 8),
-                  t1.template replicate<8, 1, 2, 0>(3, 8), mask);
+  t2.row(0).merge(t1.template replicate_vs_w_hs<8, 1, 2, 0>(0, 0),
+                  t1.template replicate_vs_w_hs<8, 1, 2, 0>(2, 0), mask);
+  t2.row(1).merge(t1.template replicate_vs_w_hs<8, 1, 2, 0>(0, 8),
+                  t1.template replicate_vs_w_hs<8, 1, 2, 0>(2, 8), mask);
+  t2.row(2).merge(t1.template replicate_vs_w_hs<8, 1, 2, 0>(1, 0),
+                  t1.template replicate_vs_w_hs<8, 1, 2, 0>(3, 0), mask);
+  t2.row(3).merge(t1.template replicate_vs_w_hs<8, 1, 2, 0>(1, 8),
+                  t1.template replicate_vs_w_hs<8, 1, 2, 0>(3, 8), mask);
   return v2;
 }
 
