@@ -67,7 +67,7 @@ void enableL0Tracing() {
   zel_core_callbacks_t Prologue = {};
   zel_core_callbacks_t Epilogue = {};
 
-#define _ZE_API(call, cb, domain, params_type) \
+#define _ZE_API(call, domain, cb, params_type) \
   Prologue.domain.cb = [](params_type *Params, ze_result_t, void *, void **) { \
     if (xptiTraceEnabled()) { \
       uint8_t CallStreamID = xptiRegisterStream(L0_CALL_STREAM_NAME); \
