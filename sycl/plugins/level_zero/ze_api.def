@@ -1,3 +1,11 @@
-_ZE_API(ze_init, pfnInitCb, Global, ze_init_params_t)
-_ZE_API(ze_driver_get, pfnGetCb, Driver, ze_driver_get_params_t)
-_ZE_API(ze_driver_get_api_version, pfnGetApiVersionCb, Driver, ze_driver_get_api_version_params_t)
+// Common
+_ZE_API(zeInit, pfnInitCb, Global, ze_init_params_t)
+
+// Driver
+_ZE_API(zeDriverGet, pfnGetCb, Driver, ze_driver_get_params_t)
+_ZE_API(zeDriverGetAPIVersion, pfnGetApiVersionCb, Driver, ze_driver_get_api_version_params_t)
+
+// Command queue
+_ZE_API(zeCommandQueueCreate, pfnCreateCb, CommandQueue, ze_command_queue_create_params_t)
+_ZE_API(zeCommandQueueExecuteCommandLists, pfnExecuteCommandListsCb, CommandQueue, ze_command_queue_execute_command_lists_params_t)
+
