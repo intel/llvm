@@ -36,6 +36,8 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
 }
 
+void enableL0Tracing();
+
 namespace {
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
@@ -7941,6 +7943,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <CL/sycl/detail/pi.def>
+
+  if (std::getenv("SYCL_L0_ENABLE_TRACING") != nullptr) {
+    enableL0Tracing();
+  }
 
   return PI_SUCCESS;
 }
