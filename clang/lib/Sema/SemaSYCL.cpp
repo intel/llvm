@@ -4713,18 +4713,33 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getFileName() { return "
+#ifndef NDEBUG
       << std::string(PLoc.getFilename())
              .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1)
+#endif
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getFunctionName() { return "
-      << K.NameType->getAsCXXRecordDecl()->getName() << "; }\n";
+#ifndef NDEBUG
+      << K.NameType->getAsCXXRecordDecl()->getName()
+#endif
+      << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getLineNumber() { return "
-      << PLoc.getLine() << "; }\n";
+#ifndef NDEBUG
+      << PLoc.getLine()
+#else
+      << 0
+#endif
+      << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getColumnNumber() { return "
-      << PLoc.getColumn() << "; }\n";
+#ifndef NDEBUG
+      << PLoc.getColumn()
+#else
+      << 0
+#endif
+      << "; }\n";
     O << "};\n";
     CurStart += N;
   }

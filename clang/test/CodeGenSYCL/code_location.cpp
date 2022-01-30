@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem -DNDEBUG -sycl-std=2020 -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem -sycl-std=2020 -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
-// %clang_cc1 -fsycl-is-device -internal-isystem -sycl-std=2020 -fsycl-int-header=%t2.h %s -o %t2.out
-// FileCheck -input-file=%t2.h %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem -sycl-std=2020 -DNDEBUG -fsycl-int-header=%t2.h %s -o %t2.out
+// RUN: FileCheck -input-file=%t2.h %s
 
 #include "Inputs/sycl.hpp"
-
+#ifndef NDEBUG
 int test1() {
   cl::sycl::queue q;
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
@@ -13,7 +13,6 @@ int test1() {
 }
 // Specializations of KernelInfo for kernel function types:
 // CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '5', 't', 'e', 's', 't', '1', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
-// CHECK: static constexpr const char* getName() { return "_ZTSZZ5test1vENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_"; }
 // CHECK: static constexpr const char* getFileName() { return code_location.cpp; }
 // CHECK: static constexpr const char* getFunctionName() { return ; }
 // CHECK: static constexpr unsigned getLineNumber() { return 10; }
@@ -26,6 +25,7 @@ int test1() {
 // CHECK: static constexpr unsigned getLineNumber() { return 11; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 72; }
 //};
+
 class KernelName2;
 int test2() {
   cl::sycl::queue q;
@@ -77,3 +77,25 @@ int test4() {
 // CHECK: static constexpr unsigned getLineNumber() { return 67; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 11; }
 //};
+
+#else
+int test5() {
+  cl::sycl::queue q;
+  q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
+  q.submit([&](cl::sycl::handler &h) { h.single_task<class KernelName5>([]() {}); });
+  return 0;
+}
+
+// CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '5', 't', 'e', 's', 't', '5', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
+// CHECK: static constexpr const char* getFileName() { return ; }
+// CHECK: static constexpr const char* getFunctionName() { return ; }
+// CHECK: static constexpr unsigned getLineNumber() { return 0; }
+// CHECK: static constexpr unsigned getColumnNumber() { return 0; }
+//};
+// CHECK: template <> struct KernelInfo<KernelName5> {
+// CHECK: static constexpr const char* getFileName() { return ; }
+// CHECK: static constexpr const char* getFunctionName() { return ; }
+// CHECK: static constexpr unsigned getLineNumber() { return 0; }
+// CHECK: static constexpr unsigned getColumnNumber() { return 0; }
+//};
+#endif
