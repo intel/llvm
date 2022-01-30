@@ -6,6 +6,8 @@
 // Missing __spirv_ImageWrite, __spirv_SampledImage,
 // __spirv_ImageSampleExplicitLod on AMD
 // XFAIL: hip_amd
+// Temporarily disable test on Windows due to regressions in GPU driver.
+// UNSUPPORTED: windows
 
 /*
     This file sets up an image, initializes it with data,

@@ -4,7 +4,8 @@
 // The test is written using conversion specifiers table from cppreference [1]
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
-// UNSUPPORTED: hip_amd
+// Temporarily disable test on Windows due to regressions in GPU driver.
+// UNSUPPORTED: hip_amd, windows
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER

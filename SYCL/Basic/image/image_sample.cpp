@@ -1,7 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
+// Temporarily disable test on Windows due to regressions in GPU driver.
+// UNSUPPORTED: cuda || hip, windows
 
 #include <CL/sycl.hpp>
 

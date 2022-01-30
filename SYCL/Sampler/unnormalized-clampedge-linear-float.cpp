@@ -1,4 +1,5 @@
-// UNSUPPORTED: hip
+// Temporarily disable test on Windows due to regressions in GPU driver.
+// UNSUPPORTED: hip, windows
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
