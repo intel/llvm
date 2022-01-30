@@ -1,0 +1,3 @@
+_ZE_API(ze_init, pfnInitCb, Global, ze_init_params_t)
+_ZE_API(ze_driver_get, pfnGetCb, Driver, ze_driver_get_params_t)
+_ZE_API(ze_driver_get_api_version, pfnGetApiVersionCb, Driver, ze_driver_get_api_version_params_t)

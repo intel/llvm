@@ -102,13 +102,24 @@ target_include_directories(LevelZeroLoader-Headers
 
 include_directories("${sycl_inc_dir}")
 
+if (SYCL_ENABLE_XPTI_TRACING)
+  set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
+endif()
+
 add_library(pi_level_zero SHARED
   "${sycl_inc_dir}/CL/sycl/detail/pi.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tracing.cpp"
+  ${XPTI_PROXY_SRC}
 )
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  target_compile_definitions(pi_level_zero PRIVATE XPTI_ENABLE_INSTRUMENTATION)
+  target_include_directories(pi_level_zero PRIVATE "${CMAKE_SOURCE_DIR}/../xpti/include")
+endif()
 
 if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
