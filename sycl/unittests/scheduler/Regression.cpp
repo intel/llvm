@@ -77,6 +77,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
       /*HKernel*/
       std::make_unique<detail::HostKernel<decltype(Kernel), void, 1>>(HKernel),
       /*SyclKernel*/ nullptr,
+      /*isSingleTask*/ false,
       /*ArgsStorage*/ {},
       /*AccStorage*/ {},
       /*SharedPtrStorage*/ {},

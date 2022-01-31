@@ -16,6 +16,7 @@
 
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
+#include <CL/sycl/detail/cg_types.hpp> // for HostKernelBase
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/helpers.hpp>
@@ -142,37 +143,20 @@ static char ESimdEmuVersionString[32];
 
 using IDBuilder = sycl::detail::Builder;
 
+using HostKernelBase = cl::sycl::detail::HostKernelBase;
 template <int NDims>
-using KernelFunc = std::function<void(const sycl::nd_item<NDims> &)>;
+using KernelWithNDItem = std::function<void(const sycl::nd_item<NDims> &)>;
 
 // Struct to wrap dimension info and lambda function to be invoked by
 // CM Kernel launcher that only accepts raw function pointer for
-// kernel execution. Function instances of 'InvokeLambda' un-wrap this
-// struct instance and invoke lambda function ('Func')
-template <int NDims> struct LambdaWrapper {
-  KernelFunc<NDims> Func;
+// kernel execution. Function instances of 'KernelWithNDItemWrapper' un-wrap
+// this struct instance and invoke lambda function ('Func')
+template <int NDims> struct KernelWithNDItemWrapperData {
+  KernelWithNDItem<NDims> Func;
   const sycl::range<NDims> &LocalSize;
   const sycl::range<NDims> &GlobalSize;
   const sycl::id<NDims> &GlobalOffset;
-  LambdaWrapper(KernelFunc<NDims> ArgFunc,
-                const sycl::range<NDims> &ArgLocalSize,
-                const sycl::range<NDims> &ArgGlobalSize,
-                const sycl::id<NDims> &ArgGlobalOffset)
-      : Func(ArgFunc), LocalSize(ArgLocalSize), GlobalSize(ArgGlobalSize),
-        GlobalOffset(ArgGlobalOffset) {}
 };
-
-// Function to generate a lambda wrapper object above
-template <int NDims>
-auto MakeLambdaWrapper(KernelFunc<NDims> ArgFunc,
-                       const sycl::range<NDims> &LocalSize,
-                       const sycl::range<NDims> &GlobalSize,
-                       const sycl::id<NDims> &GlobalOffset) {
-  std::unique_ptr<LambdaWrapper<NDims>> Wrapper =
-      std::make_unique<LambdaWrapper<NDims>>(LambdaWrapper<NDims>(
-          KernelFunc<NDims>(ArgFunc), LocalSize, GlobalSize, GlobalOffset));
-  return Wrapper;
-}
 
 // A helper structure to create multi-dimensional range when
 // dimensionality is given as a template parameter. `create` function
@@ -199,69 +183,65 @@ template <> struct RangeBuilder<3> {
 // Function template to generate entry point of kernel execution as
 // raw function pointer. CM kernel launcher executes one instance of
 // this function per 'NDims'
-template <int NDims> void InvokeLambda(void *Wrapper) {
-  auto *WrappedLambda = reinterpret_cast<LambdaWrapper<NDims> *>(Wrapper);
-  sycl::range<NDims> GroupSize(
-      sycl::detail::InitializedVal<NDims, sycl::range>::template get<0>());
+template <int NDims>
+void KernelWithNDItemWrapper(KernelWithNDItemWrapperData<NDims> *kernelData) {
 
-  for (int I = 0; I < NDims /*Dims*/; ++I) {
-    GroupSize[I] = WrappedLambda->GlobalSize[I] / WrappedLambda->LocalSize[I];
+  sycl::range<NDims> GroupSize{
+      sycl::detail::InitializedVal<NDims, sycl::range>::template get<0>()};
+
+  for (int i = 0; i < NDims; ++i) {
+    GroupSize[i] = kernelData->GlobalSize[i] / kernelData->LocalSize[i];
   }
 
   const sycl::id<NDims> LocalID = RangeBuilder<NDims>::create(
       [](int i) { return cm_support::get_thread_idx(i); });
 
   const sycl::id<NDims> GroupID = RangeBuilder<NDims>::create(
-      [](int Id) { return cm_support::get_group_idx(Id); });
+      [](int i) { return cm_support::get_group_idx(i); });
 
   const sycl::group<NDims> Group = IDBuilder::createGroup<NDims>(
-      WrappedLambda->GlobalSize, WrappedLambda->LocalSize, GroupSize, GroupID);
+      kernelData->GlobalSize, kernelData->LocalSize, GroupSize, GroupID);
 
-  const sycl::id<NDims> GlobalID = GroupID * WrappedLambda->LocalSize +
-                                   LocalID + WrappedLambda->GlobalOffset;
+  const sycl::id<NDims> GlobalID =
+      GroupID * kernelData->LocalSize + LocalID + kernelData->GlobalOffset;
+
   const sycl::item<NDims, /*Offset=*/true> GlobalItem =
-      IDBuilder::createItem<NDims, true>(WrappedLambda->GlobalSize, GlobalID,
-                                         WrappedLambda->GlobalOffset);
+      IDBuilder::createItem<NDims, true>(kernelData->GlobalSize, GlobalID,
+                                         kernelData->GlobalOffset);
+
   const sycl::item<NDims, /*Offset=*/false> LocalItem =
-      IDBuilder::createItem<NDims, false>(WrappedLambda->LocalSize, LocalID);
+      IDBuilder::createItem<NDims, false>(kernelData->LocalSize, LocalID);
 
   const sycl::nd_item<NDims> NDItem =
       IDBuilder::createNDItem<NDims>(GlobalItem, LocalItem, Group);
 
-  WrappedLambda->Func(NDItem);
+  kernelData->Func(NDItem);
 }
 
-// libCMBatch class defines interface for lauching kernels with
-// software multi-threads
+// Interface for lauching kernels using libcm from CM EMU project.
 template <int DIMS> class libCMBatch {
 private:
-  // Kernel function
-  KernelFunc<DIMS> MKernel;
-
-  // Space-dimension info
-  std::vector<uint32_t> GroupDim;
-  std::vector<uint32_t> SpaceDim;
+  const KernelWithNDItem<DIMS> &MKernel;
+  std::vector<uint32_t> GroupDim{1, 1, 1}, SpaceDim{1, 1, 1};
 
 public:
-  libCMBatch(KernelFunc<DIMS> Kernel)
-      : MKernel(Kernel), GroupDim{1, 1, 1}, SpaceDim{1, 1, 1} {}
+  libCMBatch(const KernelWithNDItem<DIMS> &Kernel) : MKernel(Kernel) {}
 
-  /// Invoking kernel lambda function wrapped by 'LambdaWrapper' using
-  /// 'InvokeLambda' function.
   void runIterationSpace(const sycl::range<DIMS> &LocalSize,
                          const sycl::range<DIMS> &GlobalSize,
                          const sycl::id<DIMS> &GlobalOffset) {
-    auto WrappedLambda =
-        MakeLambdaWrapper<DIMS>(MKernel, LocalSize, GlobalSize, GlobalOffset);
 
     for (int I = 0; I < DIMS; I++) {
       SpaceDim[I] = (uint32_t)LocalSize[I];
       GroupDim[I] = (uint32_t)(GlobalSize[I] / LocalSize[I]);
     }
 
-    EsimdemuKernel Esimdemu((fptrVoid)InvokeLambda<DIMS>, GroupDim, SpaceDim);
+    const auto kernelWrapperArg = KernelWithNDItemWrapperData<DIMS>{
+        MKernel, LocalSize, GlobalSize, GlobalOffset};
 
-    Esimdemu.launchMT(sizeof(struct LambdaWrapper<DIMS>), WrappedLambda.get());
+    EsimdemuKernel{reinterpret_cast<fptrVoid>(KernelWithNDItemWrapper<DIMS>),
+                   GroupDim, SpaceDim}
+        .launchMT(sizeof(kernelWrapperArg), &kernelWrapperArg);
   }
 };
 
@@ -389,17 +369,27 @@ template <int NDims> struct InvokeImpl {
       return sycl::range<NDims>{Array[0], Array[1], Array[2]};
   }
 
-  static void invoke(void *Fptr, const size_t *GlobalWorkOffset,
+  static void invoke(HostKernelBase &hostKernel, const size_t *GlobalWorkOffset,
                      const size_t *GlobalWorkSize,
                      const size_t *LocalWorkSize) {
-    auto GlobalSize = get_range(GlobalWorkSize);
-    auto LocalSize = get_range(LocalWorkSize);
-    sycl::id<NDims> GlobalOffset = get_range(GlobalWorkOffset);
+    libCMBatch<NDims>{
+        *reinterpret_cast<KernelWithNDItem<NDims> *>(hostKernel.getPtr())}
+        .runIterationSpace(get_range(LocalWorkSize), get_range(GlobalWorkSize),
+                           sycl::id<NDims>{get_range(GlobalWorkOffset)});
+  }
+};
 
-    auto KFunc = reinterpret_cast<KernelFunc<NDims> *>(Fptr);
-    libCMBatch<NDims> CmThreading(*KFunc);
-
-    CmThreading.runIterationSpace(LocalSize, GlobalSize, GlobalOffset);
+// NB: single_task() case for kernels with no runtime params.
+// NB: Note that those are not wrapped in the "normalized form" of
+// NB: KernelWithNDItem (which abstracts
+// cl::sycl::detail::HostKernelBase::call() for different runtime args), NB: so
+// using cl::sycl::detail::HostKernelBase interface directly here.
+template <> struct InvokeImpl<0> {
+  static void invoke(HostKernelBase &hostKernel,
+                     const sycl::nd_range<1> &NDRange) {
+    cl::sycl::detail::NDRDescT NDRDesc;
+    NDRDesc.set(NDRange);
+    hostKernel.call(NDRDesc, nullptr);
   }
 };
 
@@ -1636,14 +1626,14 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
                       const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                       pi_uint32 NumEventsInWaitList,
                       const pi_event *EventWaitList, pi_event *Event) {
+
   const size_t LocalWorkSz[] = {1, 1, 1};
 
   if (Kernel == nullptr) {
     return PI_INVALID_KERNEL;
   }
 
-  // WorkDim == 0 is reserved for 'single_task()' kernel with no
-  // argument
+  // WorkDim == 0 is for single_task.
   if (WorkDim > 3) {
     return PI_INVALID_WORK_GROUP_SIZE;
   }
@@ -1665,28 +1655,26 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     RetEv->IsDummyEvent = true;
   }
 
+  HostKernelBase &hostKernel = *reinterpret_cast<HostKernelBase *>(Kernel);
+
   switch (WorkDim) {
   case 0:
-    // TODO : intel/llvm_test_suite
-    // single_task() support - void(*)(void)
-    DIE_NO_IMPLEMENTATION;
+    InvokeImpl<0>::invoke(
+        hostKernel, cl::sycl::nd_range<1>{GlobalWorkSize[0], LocalWorkSize[0],
+                                          GlobalWorkOffset[0]});
     break;
-
   case 1:
-    InvokeImpl<1>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
+    InvokeImpl<1>::invoke(hostKernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
     break;
-
   case 2:
-    InvokeImpl<2>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
+    InvokeImpl<2>::invoke(hostKernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
     break;
-
   case 3:
-    InvokeImpl<3>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
+    InvokeImpl<3>::invoke(hostKernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
     break;
-
   default:
     DIE_NO_IMPLEMENTATION;
     break;

@@ -217,6 +217,7 @@ event handler::finalize() {
   }
 
   const auto &type = getType();
+
   if (type == detail::CG::Kernel &&
       MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
     // if user does not add a new dependency to the dependency graph, i.e.
@@ -230,6 +231,7 @@ event handler::finalize() {
     auto EnqueueKernel = [&]() {
       // 'Result' for single point of return
       cl_int Result = CL_INVALID_VALUE;
+
       if (MQueue->is_host()) {
         MHostKernel->call(
             MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
@@ -237,12 +239,11 @@ event handler::finalize() {
       } else {
         if (MQueue->getPlugin().getBackend() ==
             backend::ext_intel_esimd_emulator) {
-          // Dims==0 for 'single_task() - void(void) type'
-          uint32_t Dims = (MArgs.size() > 0) ? MNDRDesc.Dims : 0;
           MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
-              nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()), Dims,
-              &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
-              &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
+              nullptr, reinterpret_cast<pi_kernel>(MHostKernel.get()),
+              MIsSingleTask ? 0 : MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
+              &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
+              nullptr);
           Result = CL_SUCCESS;
         } else {
           Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
@@ -291,10 +292,11 @@ event handler::finalize() {
     // assert feature to check if kernel uses assertions
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
-        std::move(MArgsStorage), std::move(MAccStorage),
-        std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), std::move(MArgs), MKernelName, MOSModuleHandle,
-        std::move(MStreamStorage), MCGType, MCodeLoc));
+        std::move(MIsSingleTask), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), std::move(MArgs),
+        MKernelName, MOSModuleHandle, std::move(MStreamStorage), MCGType,
+        MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:

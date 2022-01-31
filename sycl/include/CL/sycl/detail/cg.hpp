@@ -244,6 +244,7 @@ public:
   NDRDescT MNDRDesc;
   std::unique_ptr<HostKernelBase> MHostKernel;
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
+  bool MIsSingleTask;
   std::vector<ArgDesc> MArgs;
   std::string MKernelName;
   detail::OSModuleHandle MOSModuleHandle;
@@ -251,7 +252,7 @@ public:
 
   CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
-               std::vector<std::vector<char>> ArgsStorage,
+               bool IsSingleTask, std::vector<std::vector<char>> ArgsStorage,
                std::vector<detail::AccessorImplPtr> AccStorage,
                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                std::vector<Requirement *> Requirements,
@@ -264,9 +265,9 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
-        MStreams(std::move(Streams)) {
+        MSyclKernel(std::move(SyclKernel)), MIsSingleTask(IsSingleTask),
+        MArgs(std::move(Args)), MKernelName(std::move(KernelName)),
+        MOSModuleHandle(OSModuleHandle), MStreams(std::move(Streams)) {
     assert((getType() == RunOnHostIntel || getType() == Kernel) &&
            "Wrong type of exec kernel CG.");
   }

@@ -481,6 +481,7 @@ private:
 
   ~handler() = default;
 
+  bool isSingleTask() const { return MIsSingleTask; }
   bool is_host() { return MIsHost; }
 
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
@@ -580,7 +581,7 @@ private:
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
-    auto HostKernelPtr =
+    const auto HostKernelPtr =
         new detail::HostKernel<decltype(NormalizedKernelFunc),
                                sycl::nd_item<Dims>, Dims>(NormalizedKernelFunc);
     MHostKernel.reset(HostKernelPtr);
@@ -674,6 +675,8 @@ private:
   ResetHostKernel(const KernelType &KernelFunc) {
     MHostKernel.reset(
         new detail::HostKernel<KernelType, ArgT, Dims>(KernelFunc));
+    if constexpr (std::is_same_v<ArgT, void>)
+      MIsSingleTask = true;
     return (KernelType *)(MHostKernel->getPtr());
   }
 
@@ -2651,6 +2654,7 @@ private:
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   bool MIsHost = false;
+  bool MIsSingleTask = false;
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;

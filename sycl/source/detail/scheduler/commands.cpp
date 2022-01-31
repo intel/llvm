@@ -2292,12 +2292,11 @@ cl_int ExecCGCommand::enqueueImp() {
       } else {
         assert(MQueue->getPlugin().getBackend() ==
                backend::ext_intel_esimd_emulator);
-        // Dims==0 for 'single_task() - void(void) type'
-        uint32_t Dims = (Args.size() > 0) ? NDRDesc.Dims : 0;
+
         MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(
-            nullptr,
-            reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-            Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+            nullptr, reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel.get()),
+            ExecKernel->MIsSingleTask ? 0 : NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
             &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
       }
 
