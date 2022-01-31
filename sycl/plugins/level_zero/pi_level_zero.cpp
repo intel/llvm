@@ -2150,6 +2150,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // std::array<std::byte, 16>. For details about this extension,
     // see sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md.
     return ReturnValue(Device->ZeDeviceProperties->uuid.id);
+  case PI_DEVICE_INFO_ATOMIC_64: {
+    if (Device->ZeDeviceModuleProperties->flags &
+        ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS) {
+      bool result = true;
+      std::memcpy(ParamValue, &result, sizeof(bool));
+      return PI_SUCCESS;
+    }
+    return PI_INVALID_VALUE;
+  }
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
     //     "Returns a space separated list of extension names (the extension
