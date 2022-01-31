@@ -250,7 +250,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SRL_PARTS, XLenVT, Custom);
   setOperationAction(ISD::SRA_PARTS, XLenVT, Custom);
 
-  if (Subtarget.hasStdExtZbb() || Subtarget.hasStdExtZbp()) {
+  if (Subtarget.hasStdExtZbb() || Subtarget.hasStdExtZbp() ||
+      Subtarget.hasStdExtZbkb()) {
     if (Subtarget.is64Bit()) {
       setOperationAction(ISD::ROTL, MVT::i32, Custom);
       setOperationAction(ISD::ROTR, MVT::i32, Custom);
@@ -278,7 +279,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     // With Zbb we have an XLen rev8 instruction, but not GREVI. So we'll
     // pattern match it directly in isel.
     setOperationAction(ISD::BSWAP, XLenVT,
-                       Subtarget.hasStdExtZbb() ? Legal : Expand);
+                       (Subtarget.hasStdExtZbb() || Subtarget.hasStdExtZbkb())
+                           ? Legal
+                           : Expand);
   }
 
   if (Subtarget.hasStdExtZbb()) {
@@ -569,6 +572,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::SELECT, VT, Custom);
       setOperationAction(ISD::SELECT_CC, VT, Expand);
       setOperationAction(ISD::VSELECT, VT, Expand);
+      setOperationAction(ISD::VP_MERGE, VT, Expand);
       setOperationAction(ISD::VP_SELECT, VT, Expand);
 
       setOperationAction(ISD::VP_AND, VT, Custom);
@@ -1232,7 +1236,9 @@ bool RISCVTargetLowering::hasAndNotCompare(SDValue Y) const {
   if (VT.isVector())
     return false;
 
-  return Subtarget.hasStdExtZbb() && !isa<ConstantSDNode>(Y);
+  return (Subtarget.hasStdExtZbb() || Subtarget.hasStdExtZbp() ||
+          Subtarget.hasStdExtZbkb()) &&
+         !isa<ConstantSDNode>(Y);
 }
 
 /// Check if sinking \p I's operands to I's basic block is profitable, because

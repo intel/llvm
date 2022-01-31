@@ -27,7 +27,7 @@
 ; RUN:   | FileCheck %s --check-prefix=VERBOSE --check-prefix=CONV "--implicit-check-not={{DW_TAG|NULL}}"
 
 
-; SPLITCONV: Compile Unit:{{.*}} DWO_id = 0x62f17241069b1fa3
+; SPLITCONV: Compile Unit:{{.*}} DWO_id = 0x24191746f389535f
 ; SPLIT: DW_TAG_skeleton_unit
 
 ; CONV: DW_TAG_compile_unit
@@ -41,6 +41,8 @@
 ; CONV-NEXT:DW_AT_encoding {{.*}}DW_ATE_signed)
 ; CONV-NEXT:DW_AT_byte_size {{.*}}0x04)
 ; CONV-NOT: DW_AT
+; CONV:   DW_TAG_base_type
+; CONV:   DW_TAG_base_type
 ; CONV:   DW_TAG_subprogram
 ; CONV:     DW_TAG_formal_parameter
 ; CONV:     DW_TAG_variable
@@ -50,11 +52,14 @@
 ; VERBOSE-SAME: [[SIG32]] ->
 ; CONV-SAME: [[SIG32]]) "DW_ATE_signed_32", DW_OP_stack_value)
 ; CONV:       DW_AT_name {{.*}}"y")
+; CONV:     DW_TAG_variable
 ; CONV:     NULL
 ; CONV:   DW_TAG_base_type
 ; CONV:     DW_AT_name {{.*}}"signed char")
 ; CONV:   DW_TAG_base_type
 ; CONV:     DW_AT_name {{.*}}"int")
+; CONV:   DW_TAG_base_type
+; CONV:     DW_AT_name {{.*}}"unsigned long long")
 ; CONV:   NULL
 
 ; NOCONV: DW_TAG_compile_unit

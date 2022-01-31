@@ -5719,6 +5719,7 @@ cc_binary(
         "//mlir/test:TestIR",
         "//mlir/test:TestLinalg",
         "//mlir/test:TestMath",
+        "//mlir/test:TestMemRef",
         "//mlir/test:TestPass",
         "//mlir/test:TestReducer",
         "//mlir/test:TestRewrite",
@@ -6580,27 +6581,6 @@ cc_library(
 )
 
 cc_library(
-    name = "ArithBufferizableOpInterfaceImpl",
-    srcs = [
-        "lib/Dialect/Linalg/ComprehensiveBufferize/ArithInterfaceImpl.cpp",
-    ],
-    hdrs = [
-        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/ArithInterfaceImpl.h",
-    ],
-    includes = ["include"],
-    deps = [
-        ":ArithmeticDialect",
-        ":BufferizationDialect",
-        ":BufferizationTransforms",
-        ":IR",
-        ":MemRefDialect",
-        ":Support",
-        ":TransformUtils",
-        "//llvm:Support",
-    ],
-)
-
-cc_library(
     name = "LinalgBufferizableOpInterfaceImpl",
     srcs = [
         "lib/Dialect/Linalg/ComprehensiveBufferize/LinalgInterfaceImpl.cpp",
@@ -6875,8 +6855,8 @@ cc_library(
         ":AffineBufferizableOpInterfaceImpl",
         ":AffineUtils",
         ":Analysis",
-        ":ArithBufferizableOpInterfaceImpl",
         ":ArithmeticDialect",
+        ":ArithmeticTransforms",
         ":BufferizationDialect",
         ":BufferizationTransforms",
         ":ComplexDialect",
@@ -7367,8 +7347,8 @@ cc_library(
         ":ComplexBaseIncGen",
         ":ComplexOpsIncGen",
         ":IR",
+        ":InferTypeOpInterface",
         ":SideEffectInterfaces",
-        ":StandardOps",
         ":Support",
         ":VectorInterfaces",
         "//llvm:Support",
@@ -7565,7 +7545,10 @@ cc_library(
         "lib/Dialect/Arithmetic/Transforms/*.cpp",
         "lib/Dialect/Arithmetic/Transforms/*.h",
     ]),
-    hdrs = ["include/mlir/Dialect/Arithmetic/Transforms/Passes.h"],
+    hdrs = [
+        "include/mlir/Dialect/Arithmetic/Transforms/BufferizableOpInterfaceImpl.h",
+        "include/mlir/Dialect/Arithmetic/Transforms/Passes.h",
+    ],
     includes = ["include"],
     deps = [
         ":ArithmeticDialect",
@@ -7576,7 +7559,10 @@ cc_library(
         ":MemRefDialect",
         ":Pass",
         ":StandardOps",
+        ":Support",
+        ":TransformUtils",
         ":Transforms",
+        "//llvm:Support",
     ],
 )
 
@@ -7831,6 +7817,7 @@ cc_library(
         ":Affine",
         ":AffineUtils",
         ":ArithmeticDialect",
+        ":ArithmeticTransforms",
         ":IR",
         ":InferTypeOpInterface",
         ":MemRefDialect",
