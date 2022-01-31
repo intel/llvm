@@ -47,9 +47,9 @@ define dso_local spir_kernel void @kernel3() {
 ;     |      |
 ;     |      v
 ;    *|      B1
-;     |     / \
-;     |    v   v
-;     E1<--C1   D
+;     |     /
+;     |    v
+;     E1<--C1
 ;     |    ^
 ;    *|    |*
 ;     v    |
@@ -58,7 +58,7 @@ define dso_local spir_kernel void @kernel3() {
 ;
 
 %A1 = type { %B1 }
-%B1 = type { %C1, %D }
+%B1 = type { %C1}
 %C1 = type { %E1 }
 %D1 = type { i32 }
 %E1 = type { %A1*, %F1* }
@@ -68,7 +68,7 @@ define dso_local spir_kernel void @kernel3() {
 
 ; CHECK-DAG: dso_local spir_kernel void @kernel4() !intel_used_aspects !3 {
 define dso_local spir_kernel void @kernel4() {
-  %tmp = alloca %F1
+  %tmp = alloca %A1
   ret void
 }
 
@@ -77,4 +77,4 @@ define dso_local spir_kernel void @kernel4() {
 !1 = !{!"D1", i32 2}
 
 ; CHECK-DAG: !2 = !{i32 1}
-; CHECK-DAG: !3 = !{i32 1, i32 2}
+; CHECK-DAG: !3 = !{i32 2}

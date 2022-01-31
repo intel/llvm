@@ -17,7 +17,7 @@
 ; Doesn't contain optionals
 %D2 = type { %B, %C }
 
-; Contains %D which contains optional %A
+; Contains %D1 which contains optional %A
 %E = type { %B, %C, %D1 }
 
 ; Contains a pointer on %D1 which contains optional %A

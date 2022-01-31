@@ -2,7 +2,10 @@
 ;
 ; Test checks structures with pointers.
 
-; By default only %D is optional.
+; In this test, the only type which is explicitly marked as optional is %D
+; Various test cases check if the pass is able to deal with various
+; type hierarchies and correctly propagate aspects.
+;
 ; %A and %B are optional because they contain %D.
 ; %C contains a pointer on %A. Because of that there is a path
 ; to %D which means that %C is optional as well.
