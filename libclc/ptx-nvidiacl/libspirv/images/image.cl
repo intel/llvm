@@ -148,14 +148,19 @@ void __nvvm_sust_3d_v4i32_clamp(write_only image3d_t, int, int, int, int, int,
 
 int __nvvm_suq_width(long) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_height(long) __asm("llvm.nvvm.suq.height");
-int __nvvm_suq_depth(long) __asm("llvm.nvvm.suq.depth");
+int __nvvm_suq_depth(long arg) {
+  // suq.depth generates runtime errors in CUDA
+  return -1;
+}
 
 int __nvvm_suq_width_1i(read_only image1d_t) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_width_2i(read_only image2d_t) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_width_3i(read_only image3d_t) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_height_2i(read_only image2d_t) __asm("llvm.nvvm.suq.height");
 int __nvvm_suq_height_3i(read_only image3d_t) __asm("llvm.nvvm.suq.height");
-int __nvvm_suq_depth_3i(read_only image3d_t) __asm("llvm.nvvm.suq.depth");
+int __nvvm_suq_depth_3i(read_only image3d_t arg) {
+  return -1;
+}
 
 // Helpers
 

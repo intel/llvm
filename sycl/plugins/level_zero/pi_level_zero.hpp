@@ -811,6 +811,9 @@ struct _pi_mem : _pi_object {
   // Flag to indicate that this memory is allocated in host memory
   bool OnHost;
 
+  // Flag to indicate that the host ptr has been imported into USM
+  bool HostPtrImported;
+
   // Supplementary data to keep track of the mappings of this memory
   // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
   struct Mapping {
@@ -838,8 +841,10 @@ struct _pi_mem : _pi_object {
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false,
+          bool ImportedHostPtr = false)
+      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost},
+        HostPtrImported{ImportedHostPtr}, Mappings{} {}
 
 private:
   // The key is the host pointer representing an active mapping.
@@ -856,9 +861,9 @@ struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
   _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
              _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
-             bool MemOnHost = false)
-      : _pi_mem(Ctx, HostPtr, MemOnHost), ZeMem{Mem}, SubBuffer{Parent, Origin,
-                                                                Size} {}
+             bool MemOnHost = false, bool ImportedHostPtr = false)
+      : _pi_mem(Ctx, HostPtr, MemOnHost, ImportedHostPtr), ZeMem{Mem},
+        SubBuffer{Parent, Origin, Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 
