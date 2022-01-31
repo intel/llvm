@@ -1,4 +1,7 @@
-; RUN: opt --PropagateAspectUsage < %s -S | FileCheck %s
+; RUN: opt --PropagateAspectUsage < %s -S > %t.ll
+; RUN: FileCheck %s < %t.ll --check-prefix CHECK-FIRST
+; RUN: FileCheck %s < %t.ll --check-prefix CHECK-SECOND
+; RUN: FileCheck %s < %t.ll --check-prefix CHECK-THIRD
 ;
 ; Test checks that function graph is proceeded correctly.
 ;
@@ -14,33 +17,33 @@
 
 %B = type { i32 }
 
-; CHECK-DAG: dso_local spir_kernel void @kernel1() !intel_used_aspects !2 {
+; CHECK-FIRST-DAG: dso_local spir_kernel void @kernel1() !intel_used_aspects ![[NODE1:[0-9]+]] {
 define dso_local spir_kernel void @kernel1() {
   call spir_func void @func1()
   call spir_func void @func2()
   ret void
 }
 
-; CHECK-DAG: dso_local spir_kernel void @kernel2() !intel_used_aspects !3 {
+; CHECK-SECOND-DAG: dso_local spir_kernel void @kernel2() !intel_used_aspects ![[NODE2:[0-9]+]] {
 define dso_local spir_kernel void @kernel2() {
   call spir_func void @func2()
   call spir_func void @func3()
   ret void
 }
 
-; CHECK-DAG: dso_local spir_func void @func1() {
+; CHECK-FIRST-DAG: dso_local spir_func void @func1() {
 define dso_local spir_func void @func1() {
   %tmp = alloca i32
   ret void
 }
 
-; CHECK-DAG: dso_local spir_func void @func2() !intel_used_aspects !2 {
+; CHECK-SECOND-DAG: dso_local spir_func void @func2() !intel_used_aspects ![[NODE1:[0-9]+]] {
 define dso_local spir_func void @func2() {
   %tmp = alloca %A
   ret void
 }
 
-; CHECK-DAG: dso_local spir_func void @func3() !intel_used_aspects !4 {
+; CHECK-THIRD-DAG: dso_local spir_func void @func3() !intel_used_aspects ![[NODE3:[0-9]+]] {
 define dso_local spir_func void @func3() {
   %tmp = alloca %B
   ret void
@@ -50,6 +53,10 @@ define dso_local spir_func void @func3() {
 !0 = !{!"A", i32 1}
 !1 = !{!"B", i32 2}
 
-; CHECK-DAG: !2 = !{i32 1}
-; CHECK-DAG: !3 = !{i32 1, i32 2}
-; CHECK-DAG: !4 = !{i32 2}
+; CHECK-FIRST: ![[NODE1]] = !{i32 1}
+
+; CHECK-SECOND: ![[NODE2]] = !{
+; CHECK-SECOND-SAME: i32 1
+; CHECK-SECOND-SAME: i32 2
+
+; CHECK-THIRD: ![[NODE3]] = !{i32 2}

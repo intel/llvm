@@ -1,4 +1,6 @@
-; RUN: opt --PropagateAspectUsage < %s -S | FileCheck %s
+; RUN: opt --PropagateAspectUsage < %s -S > %t.ll
+; RUN: FileCheck %s < %t.ll --check-prefix CHECK-FIRST
+; RUN: FileCheck %s < %t.ll --check-prefix CHECK-SECOND
 ;
 ; Test checks complex types graphs.
 
@@ -25,19 +27,19 @@
 %G = type { %C* }
 
 
-; CHECK-DAG: dso_local spir_kernel void @kernel1() !intel_used_aspects !2 {
+; CHECK-FIRST-DAG: dso_local spir_kernel void @kernel1() !intel_used_aspects ![[NODE1:[0-9]+]] {
 define dso_local spir_kernel void @kernel1() {
   %tmp = alloca %A
   ret void
 }
 
-; CHECK-DAG: dso_local spir_kernel void @kernel2() !intel_used_aspects !2 {
+; CHECK-FIRST-DAG: dso_local spir_kernel void @kernel2() !intel_used_aspects ![[NODE1:[0-9]+]] {
 define dso_local spir_kernel void @kernel2() {
   %tmp = alloca %C
   ret void
 }
 
-; CHECK-DAG: dso_local spir_kernel void @kernel3() !intel_used_aspects !2 {
+; CHECK-FIRST-DAG: dso_local spir_kernel void @kernel3() !intel_used_aspects ![[NODE1:[0-9]+]] {
 define dso_local spir_kernel void @kernel3() {
   %tmp = alloca %F
   ret void
@@ -66,7 +68,7 @@ define dso_local spir_kernel void @kernel3() {
 %G1 = type { %C1*, %D1 }
 
 
-; CHECK-DAG: dso_local spir_kernel void @kernel4() !intel_used_aspects !3 {
+; CHECK-SECOND-DAG: dso_local spir_kernel void @kernel4() !intel_used_aspects ![[NODE2:[0-9]+]] {
 define dso_local spir_kernel void @kernel4() {
   %tmp = alloca %A1
   ret void
@@ -76,5 +78,5 @@ define dso_local spir_kernel void @kernel4() {
 !0 = !{!"D", i32 1}
 !1 = !{!"D1", i32 2}
 
-; CHECK-DAG: !2 = !{i32 1}
-; CHECK-DAG: !3 = !{i32 2}
+; CHECK-FIRST-DAG: ![[NODE1]] = !{i32 1}
+; CHECK-SECOND-DAG: ![[NODE2]] = !{i32 2}

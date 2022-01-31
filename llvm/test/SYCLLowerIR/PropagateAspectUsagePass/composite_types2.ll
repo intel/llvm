@@ -1,4 +1,7 @@
-; RUN: opt --PropagateAspectUsage < %s -S | FileCheck %s
+; RUN: opt --PropagateAspectUsage < %s -S > %t.ll
+; RUN: FileCheck %s < %t.ll --check-prefix CHECK-A
+; RUN: FileCheck %s < %t.ll --check-prefix CHECK-B
+; RUN: FileCheck %s < %t.ll --check-prefix CHECK-C
 ;
 ; Test checks simple composite structures.
 
@@ -8,19 +11,19 @@
 
 %C = type { i32 }
 
-; CHECK-DAG: dso_local spir_kernel void @kernelA() !intel_used_aspects !2 {
+; CHECK-A: dso_local spir_kernel void @kernelA() !intel_used_aspects ![[NODE_A:[0-9]+]] {
 define dso_local spir_kernel void @kernelA() {
   %tmp = alloca %A
   ret void
 }
 
-; CHECK-DAG: dso_local spir_kernel void @kernelB() !intel_used_aspects !3 {
+; CHECK-B: dso_local spir_kernel void @kernelB() !intel_used_aspects ![[NODE_B:[0-9]+]] {
 define dso_local spir_kernel void @kernelB() {
   %tmp = alloca %B
   ret void
 }
 
-; CHECK-DAG: dso_local spir_kernel void @kernelC() !intel_used_aspects !4 {
+; CHECK-C: dso_local spir_kernel void @kernelC() !intel_used_aspects ![[NODE_C:[0-9]+]] {
 define dso_local spir_kernel void @kernelC() {
   %tmp = alloca %C
   ret void
@@ -31,6 +34,10 @@ define dso_local spir_kernel void @kernelC() {
 !1 = !{!"C", i32 2}
 
 ; Check metadata which should appear
-; CHECK-DAG: !3 = !{i32 1}
-; CHECK-DAG: !4 = !{i32 2}
-; CHECK-DAG: !2 = !{i32 1, i32 2}
+; CHECK-B: ![[NODE_B]] = !{i32 1}
+
+; CHECK-C: ![[NODE_C]] = !{i32 2}
+
+; CHECK-A: ![[NODE_A]] = !{
+; CHECK-A-SAME: i32 1
+; CHECK-A-SAME: i32 2
