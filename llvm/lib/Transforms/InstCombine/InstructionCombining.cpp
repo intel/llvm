@@ -1287,6 +1287,70 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
   return replaceInstUsesWith(I, NewPN);
 }
 
+Instruction *InstCombinerImpl::foldBinopWithPhiOperands(BinaryOperator &BO) {
+  // TODO: This should be similar to the incoming values check in foldOpIntoPhi:
+  //       we are guarding against replicating the binop in >1 predecessor.
+  //       This could miss matching a phi with 2 constant incoming values.
+  auto *Phi0 = dyn_cast<PHINode>(BO.getOperand(0));
+  auto *Phi1 = dyn_cast<PHINode>(BO.getOperand(1));
+  if (!Phi0 || !Phi1 || !Phi0->hasOneUse() || !Phi1->hasOneUse() ||
+      Phi0->getNumOperands() != 2 || Phi1->getNumOperands() != 2)
+    return nullptr;
+
+  // TODO: Remove the restriction for binop being in the same block as the phis.
+  if (BO.getParent() != Phi0->getParent() ||
+      BO.getParent() != Phi1->getParent())
+    return nullptr;
+
+  // Match a pair of incoming constants for one of the predecessor blocks.
+  BasicBlock *ConstBB, *OtherBB;
+  Constant *C0, *C1;
+  if (match(Phi0->getIncomingValue(0), m_ImmConstant(C0))) {
+    ConstBB = Phi0->getIncomingBlock(0);
+    OtherBB = Phi0->getIncomingBlock(1);
+  } else if (match(Phi0->getIncomingValue(1), m_ImmConstant(C0))) {
+    ConstBB = Phi0->getIncomingBlock(1);
+    OtherBB = Phi0->getIncomingBlock(0);
+  } else {
+    return nullptr;
+  }
+  if (!match(Phi1->getIncomingValueForBlock(ConstBB), m_ImmConstant(C1)))
+    return nullptr;
+
+  // The block that we are hoisting to must reach here unconditionally.
+  // Otherwise, we could be speculatively executing an expensive or
+  // non-speculative op.
+  auto *PredBlockBranch = dyn_cast<BranchInst>(OtherBB->getTerminator());
+  if (!PredBlockBranch || PredBlockBranch->isConditional() ||
+      !DT.isReachableFromEntry(OtherBB))
+    return nullptr;
+
+  // TODO: This check could be tightened to only apply to binops (div/rem) that
+  //       are not safe to speculatively execute. But that could allow hoisting
+  //       potentially expensive instructions (fdiv for example).
+  for (auto BBIter = BO.getParent()->begin(); &*BBIter != &BO; ++BBIter)
+    if (!isGuaranteedToTransferExecutionToSuccessor(&*BBIter))
+      return nullptr;
+
+  // Make a new binop in the predecessor block with the non-constant incoming
+  // values.
+  Builder.SetInsertPoint(PredBlockBranch);
+  Value *NewBO = Builder.CreateBinOp(BO.getOpcode(),
+                                     Phi0->getIncomingValueForBlock(OtherBB),
+                                     Phi1->getIncomingValueForBlock(OtherBB));
+  if (auto *NotFoldedNewBO = dyn_cast<BinaryOperator>(NewBO))
+    NotFoldedNewBO->copyIRFlags(&BO);
+
+  // Fold constants for the predecessor block with constant incoming values.
+  Constant *NewC = ConstantExpr::get(BO.getOpcode(), C0, C1);
+
+  // Replace the binop with a phi of the new values. The old phis are dead.
+  PHINode *NewPhi = PHINode::Create(BO.getType(), 2);
+  NewPhi->addIncoming(NewBO, OtherBB);
+  NewPhi->addIncoming(NewC, ConstBB);
+  return NewPhi;
+}
+
 Instruction *InstCombinerImpl::foldBinOpIntoSelectOrPhi(BinaryOperator &I) {
   if (!isa<Constant>(I.getOperand(1)))
     return nullptr;
@@ -1308,7 +1372,7 @@ Instruction *InstCombinerImpl::foldBinOpIntoSelectOrPhi(BinaryOperator &I) {
 Type *
 InstCombinerImpl::FindElementAtOffset(PointerType *PtrTy, int64_t IntOffset,
                                       SmallVectorImpl<Value *> &NewIndices) {
-  Type *Ty = PtrTy->getElementType();
+  Type *Ty = PtrTy->getPointerElementType();
   if (!Ty->isSized())
     return nullptr;
 
@@ -2247,7 +2311,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   // type. For now, skip these.
   if (StrippedPtr != PtrOp && !StrippedPtrTy->isOpaque()) {
     bool HasZeroPointerIndex = false;
-    Type *StrippedPtrEltTy = StrippedPtrTy->getElementType();
+    Type *StrippedPtrEltTy = StrippedPtrTy->getNonOpaquePointerElementType();
 
     if (auto *C = dyn_cast<ConstantInt>(GEP.getOperand(1)))
       HasZeroPointerIndex = C->isZero();
@@ -2434,7 +2498,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   if (auto *BCI = dyn_cast<BitCastInst>(ASCStrippedPtrOp)) {
     Value *SrcOp = BCI->getOperand(0);
     PointerType *SrcType = cast<PointerType>(BCI->getSrcTy());
-    Type *SrcEltType = SrcType->getElementType();
+    Type *SrcEltType = SrcType->getPointerElementType();
 
     // GEP directly using the source operand if this GEP is accessing an element
     // of a bitcasted pointer to vector or array of the same dimensions:
@@ -3966,12 +4030,11 @@ bool InstCombinerImpl::run() {
       // predecessor, so that we don't have to split the critical edge.
       // Another option where we can sink is a block that ends with a
       // terminator that does not pass control to other block (such as
-      // return or unreachable). In this case:
+      // return or unreachable or resume). In this case:
       //   - I dominates the User (by SSA form);
       //   - the User will be executed at most once.
       // So sinking I down to User is always profitable or neutral.
-      if (UserParent->getUniquePredecessor() == BB ||
-          (isa<ReturnInst>(Term) || isa<UnreachableInst>(Term))) {
+      if (UserParent->getUniquePredecessor() == BB || succ_empty(Term)) {
         assert(DT.dominates(BB, UserParent) && "Dominance relation broken?");
         return UserParent;
       }
