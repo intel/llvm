@@ -103,21 +103,21 @@ public:
   // Minimum allocation size that will be requested from the system.
   // By default this is the minimum allocation size of each memory type.
   // Memory types are host, device, shared.
-  size_t SlabMinSize[3] = {64 * 1024, 64 * 1024, 2 * 1024 * 1024};
+  size_t SlabMinSize[3] = {64 * 1024, 2 * 1024 * 1024, 2 * 1024 * 1024};
 
   // Allocations up to this limit will be subject to chunking/pooling
-  size_t MaxPoolableSize[3] = {0, 32 * 1024, 0};
+  size_t MaxPoolableSize[3] = {2 * 1024 * 1024, 4 * 1024 * 1024, 0};
 
   // When pooling, each bucket will hold a max of 4 unfreed slabs
-  size_t Capacity[3] = {0, 0, 0};
+  size_t Capacity[3] = {4, 4, 0};
 
   // Maximum memory left unfreed in pool
-  size_t MaxPoolSize = 0;
+  size_t MaxPoolSize = 16 * 1024 * 1024;
 
   size_t CurPoolSize = 0;
   size_t CurPoolSizes[3] = {0, 0, 0};
 
-  bool EnableBuffers = false;
+  bool EnableBuffers = true;
 
   // Whether to print pool usage statistics
   int PoolTrace = 0;
@@ -424,6 +424,15 @@ class Bucket {
   // routines, slab map and etc.
   USMAllocContext::USMAllocImpl &OwnAllocCtx;
 
+  // For counting number of slabs in the pool.
+  // For non-chunked slabs each slab has a single allocation so the
+  // count of entries in the Available list gives the number in the pool.
+  // For chunked slabs there may be some chunks in use and others free.
+  // Only those with 0 chunks in use are consider in the pool.
+  // We need a separate counter of chunked slabs in pool because
+  // the length of the Available list is not enough in this case.
+  size_t chunkedSlabsInPool;
+
   // Statistics
   size_t allocCount;
   size_t allocPoolCount;
@@ -435,13 +444,13 @@ class Bucket {
 
 public:
   Bucket(size_t Sz, USMAllocContext::USMAllocImpl &AllocCtx)
-      : Size{Sz}, OwnAllocCtx{AllocCtx}, allocCount(0), allocPoolCount(0),
-        freeCount(0), currSlabsInUse(0), currSlabsInPool(0), maxSlabsInUse(0),
-        maxSlabsInPool(0) {}
+      : Size{Sz}, OwnAllocCtx{AllocCtx}, chunkedSlabsInPool(0), allocCount(0),
+        allocPoolCount(0), freeCount(0), currSlabsInUse(0), currSlabsInPool(0),
+        maxSlabsInUse(0), maxSlabsInPool(0) {}
 
   // Get pointer to allocation that is one piece of an available slab in this
   // bucket.
-  void *getChunk(bool &FromAllocatedSlab);
+  void *getChunk(bool &FromSlab, bool& FromPool);
 
   // Get pointer to allocation that is a full slab in this bucket.
   void *getSlab(bool &FromPool);
@@ -461,7 +470,7 @@ public:
   USMAllocContext::USMAllocImpl &getUsmAllocCtx() { return OwnAllocCtx; }
 
   // Check whether an allocation to be freed can be placed in the pool.
-  bool CanPool();
+  bool CanPool(bool& ToPool);
 
   // The minimum allocation size for a slab in this bucket.
   size_t SlabMinSize();
@@ -489,13 +498,13 @@ public:
 
 private:
   void onFreeChunk(Slab &, bool &ToPool);
+  
+  void decrementPool(bool &FromPool);
 
   // Get a slab to be used for chunked allocations.
-  // These slabs are used for allocations <= ChunkCutOff and not pooled.
-  decltype(AvailableSlabs.begin()) getAvailSlab(bool &FromAllocatedSlab);
+  decltype(AvailableSlabs.begin()) getAvailSlab(bool &FromSlab, bool &FromPool);
 
   // Get a slab that will be used as a whole for a single allocation.
-  // These slabs are > ChunkCutOff in size and pooled.
   decltype(AvailableSlabs.begin()) getAvailFullSlab(bool &FromPool);
 };
 
@@ -522,8 +531,8 @@ public:
     }
   }
 
-  void *allocate(size_t Size, size_t Alignment, bool &FromPool);
-  void *allocate(size_t Size, bool &FromPool);
+  void *allocate(size_t Size, size_t Alignment, bool &FromSlab, bool &FromPool);
+  void *allocate(size_t Size, bool &FromSlab, bool &FromPool);
   void deallocate(void *Ptr, bool &ToPool);
 
   SystemMemory &getMemHandle() { return *MemHandle; }
@@ -679,6 +688,17 @@ void *Slab::getEnd() const {
 
 bool Slab::hasAvail() { return NumAllocated != getNumChunks(); }
 
+void Bucket::decrementPool(bool &FromPool) {
+  // If a slab was available in the pool then note that the current pooled
+  // size has reduced by the size of this slab.
+  FromPool = true;
+  if (USMSettings.PoolTrace > 1) {
+    updateStats(1, -1);
+    USMSettings.CurPoolSizes[getMemType()] -= Size;
+  }
+  USMSettings.CurPoolSize -= Size;
+}
+
 auto Bucket::getAvailFullSlab(bool &FromPool)
     -> decltype(AvailableSlabs.begin()) {
   // Return a slab that will be used for a single allocation.
@@ -690,14 +710,7 @@ auto Bucket::getAvailFullSlab(bool &FromPool)
     if (USMSettings.PoolTrace > 1)
       updateStats(1, 0);
   } else {
-    // If a slab was available in the pool then note that the current pooled
-    // size has reduced by the size of this slab.
-    FromPool = true;
-    if (USMSettings.PoolTrace > 1) {
-      updateStats(1, -1);
-      USMSettings.CurPoolSizes[getMemType()] -= Size;
-    }
-    USMSettings.CurPoolSize -= Size;
+    decrementPool(FromPool);
   }
 
   return AvailableSlabs.begin();
@@ -719,30 +732,20 @@ void Bucket::freeSlab(Slab &Slab, bool &ToPool) {
   std::lock_guard<std::mutex> Lg(BucketLock);
   auto SlabIter = Slab.getIterator();
   assert(SlabIter != UnavailableSlabs.end());
-  if (CanPool()) {
+  if (CanPool(ToPool)) {
     auto It =
         AvailableSlabs.insert(AvailableSlabs.begin(), std::move(*SlabIter));
     UnavailableSlabs.erase(SlabIter);
     (*It)->setIterator(It);
-
-    if (USMSettings.PoolTrace > 1) {
-      updateStats(-1, 1);
-      ToPool = true;
-    }
   } else {
     UnavailableSlabs.erase(SlabIter);
-
-    if (USMSettings.PoolTrace > 1) {
-      updateStats(-1, 0);
-      ToPool = false;
-    }
   }
 }
 
-auto Bucket::getAvailSlab(bool &FromAllocatedSlab)
+auto Bucket::getAvailSlab(bool &FromSlab, bool &FromPool)
     -> decltype(AvailableSlabs.begin()) {
 
-  FromAllocatedSlab = true;
+  FromSlab = false;
   if (AvailableSlabs.size() == 0) {
     auto It = AvailableSlabs.insert(AvailableSlabs.begin(),
                                     std::make_unique<Slab>(*this));
@@ -750,16 +753,26 @@ auto Bucket::getAvailSlab(bool &FromAllocatedSlab)
 
     if (USMSettings.PoolTrace > 1)
       updateStats(1, 0);
-    FromAllocatedSlab = false;
+    FromPool = false;
+  } else {
+    if ((*(AvailableSlabs.begin()))->getNumAllocated() == 0) {
+      // If this was an empty slab, it was in the pool.
+      // Now it is no longer in the pool, so update count.
+      --chunkedSlabsInPool;
+      decrementPool(FromPool);
+    } else {
+      // From partially filled slab
+      FromSlab = true;
+    }
   }
 
   return AvailableSlabs.begin();
 }
 
-void *Bucket::getChunk(bool &FromAllocatedSlab) {
+void *Bucket::getChunk(bool &FromSlab, bool &FromPool) {
   std::lock_guard<std::mutex> Lg(BucketLock);
 
-  auto SlabIt = getAvailSlab(FromAllocatedSlab);
+  auto SlabIt = getAvailSlab(FromSlab, FromPool);
   auto *FreeChunk = (*SlabIt)->getChunk();
 
   // If the slab is full, move it to unavailable slabs and update its iterator
@@ -798,32 +811,50 @@ void Bucket::onFreeChunk(Slab &Slab, bool &ToPool) {
     (*It)->setIterator(It);
   }
 
-  // Remove the slab when all the chunks from it are deallocated
-  // Note: since the slab is stored as unique_ptr, just remove it from
-  // the list to remove the list to destroy the object
+  // Check if slab is empty, and pool it if we can.
   if (Slab.getNumAllocated() == 0) {
-    auto It = Slab.getIterator();
-    assert(It != AvailableSlabs.end());
-
-    AvailableSlabs.erase(It);
-
-    if (USMSettings.PoolTrace > 1)
-      updateStats(-1, 0);
-
-    ToPool = false;
+    // The slab is now empty.
+    // If pool has capacity then put the slab in the pool.
+    if (!CanPool(ToPool)) {
+      // Note: since the slab is stored as unique_ptr, just remove it from
+      // the list to remove the list to destroy the object
+      auto It = Slab.getIterator();
+      assert(It != AvailableSlabs.end());
+      AvailableSlabs.erase(It);
+    }
   }
 }
 
-bool Bucket::CanPool() {
+bool Bucket::CanPool(bool &ToPool) {
   std::lock_guard<sycl::detail::SpinLock> Lock{PoolLock};
-  size_t NewFreeSlabsInBucket = AvailableSlabs.size() + 1;
+  size_t NewFreeSlabsInBucket;
+  // Check if this bucket is used in chunked form or as full slabs.
+  bool chunkedBucket = getSize() <= ChunkCutOff();
+  if (chunkedBucket)
+    NewFreeSlabsInBucket = chunkedSlabsInPool + 1;
+  else
+    NewFreeSlabsInBucket = AvailableSlabs.size() + 1;
   if (Capacity() >= NewFreeSlabsInBucket) {
-    size_t NewPoolSize = USMSettings.CurPoolSize + Size;
+    size_t SlabAllocSize = getSize();
+    if (SlabAllocSize < SlabMinSize())
+      SlabAllocSize = SlabMinSize();
+    size_t NewPoolSize = USMSettings.CurPoolSize + SlabAllocSize;
     if (USMSettings.MaxPoolSize >= NewPoolSize) {
       USMSettings.CurPoolSize = NewPoolSize;
-      USMSettings.CurPoolSizes[getMemType()] += Size;
+      USMSettings.CurPoolSizes[getMemType()] += SlabAllocSize;
+      if (chunkedBucket)
+        ++chunkedSlabsInPool;
+
+      if (USMSettings.PoolTrace > 1) {
+        updateStats(-1, 1);
+        ToPool = true;
+      }
       return true;
     }
+  }
+  if (USMSettings.PoolTrace > 1) {
+    updateStats(-1, 0);
+    ToPool = false;
   }
   return false;
 }
@@ -870,7 +901,8 @@ void Bucket::printStats() {
 
 // SystemMemory &Bucket::getMemHandle() { return OwnAllocCtx.getMemHandle(); }
 
-void *USMAllocContext::USMAllocImpl::allocate(size_t Size, bool &FromPool) {
+void *USMAllocContext::USMAllocImpl::allocate(size_t Size, bool &FromSlab,
+                                              bool &FromPool) {
   void *Ptr;
 
   if (Size == 0)
@@ -886,7 +918,7 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, bool &FromPool) {
   if (Size > Bucket.ChunkCutOff())
     Ptr = Bucket.getSlab(FromPool);
   else
-    Ptr = Bucket.getChunk(FromPool);
+    Ptr = Bucket.getChunk(FromSlab, FromPool);
 
   if (USMSettings.PoolTrace > 1)
     Bucket.countAlloc(FromPool);
@@ -895,14 +927,14 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, bool &FromPool) {
 }
 
 void *USMAllocContext::USMAllocImpl::allocate(size_t Size, size_t Alignment,
-                                              bool &FromPool) {
+                                              bool &FromSlab, bool &FromPool) {
   void *Ptr;
 
   if (Size == 0)
     return nullptr;
 
   if (Alignment <= 1)
-    return allocate(Size, FromPool);
+    return allocate(Size, FromSlab, FromPool);
 
   size_t AlignedSize = (Size > 1) ? AlignUp(Size, Alignment) : Alignment;
 
@@ -918,7 +950,7 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, size_t Alignment,
   if (AlignedSize > Bucket.ChunkCutOff()) {
     Ptr = Bucket.getSlab(FromPool);
   } else {
-    Ptr = Bucket.getChunk(FromPool);
+    Ptr = Bucket.getChunk(FromSlab, FromPool);
   }
 
   if (USMSettings.PoolTrace > 1)
@@ -987,8 +1019,12 @@ USMAllocContext::USMAllocContext(std::unique_ptr<SystemMemory> MemHandle)
     : pImpl(std::make_unique<USMAllocImpl>(std::move(MemHandle))) {}
 
 void *USMAllocContext::allocate(size_t size) {
+  // For full-slab allocations indicates whether slab is from Pool.
   bool FromPool;
-  auto Ptr = pImpl->allocate(size, FromPool);
+  // For chunked allocations indicates whether from existing Slab.
+  // If existing Slab, then FromPool indicates whether slab was from Pool.
+  bool FromSlab;
+  auto Ptr = pImpl->allocate(size, FromSlab, FromPool);
 
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
@@ -1001,7 +1037,8 @@ void *USMAllocContext::allocate(size_t size) {
 
 void *USMAllocContext::allocate(size_t size, size_t alignment) {
   bool FromPool;
-  auto Ptr = pImpl->allocate(size, alignment, FromPool);
+  bool FromSlab;
+  auto Ptr = pImpl->allocate(size, alignment, FromSlab, FromPool);
 
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
