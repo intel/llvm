@@ -610,13 +610,12 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
   // convert to more optimized IR using more aggressive simplify CFG options.
   // The extra sinking transform can create larger basic blocks, so do this
   // before SLP vectorization.
-  if (!SYCLOptimizationMode)
-    PM.add(createCFGSimplificationPass(SimplifyCFGOptions()
-                                           .forwardSwitchCondToPhi(true)
-                                           .convertSwitchToLookupTable(true)
-                                           .needCanonicalLoops(false)
-                                           .hoistCommonInsts(true)
-                                           .sinkCommonInsts(true)));
+  PM.add(createCFGSimplificationPass(SimplifyCFGOptions()
+                                         .forwardSwitchCondToPhi(true)
+                                         .convertSwitchToLookupTable(true)
+                                         .needCanonicalLoops(false)
+                                         .hoistCommonInsts(true)
+                                         .sinkCommonInsts(true)));
 
   if (IsFullLTO) {
     PM.add(createSCCPPass());                 // Propagate exposed constants
