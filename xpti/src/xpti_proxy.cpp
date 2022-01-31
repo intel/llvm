@@ -18,6 +18,8 @@ enum functions_t {
   XPTI_FRAMEWORK_FINALIZE,
   XPTI_INITIALIZE,
   XPTI_FINALIZE,
+  XPTI_GET_UNIVERSAL_ID,
+  XPTI_SET_UNIVERSAL_ID,
   XPTI_GET_UNIQUE_ID,
   XPTI_REGISTER_STRING,
   XPTI_LOOKUP_STRING,
@@ -49,6 +51,8 @@ class ProxyLoader {
       {XPTI_FRAMEWORK_FINALIZE, "xptiFrameworkFinalize"},
       {XPTI_INITIALIZE, "xptiInitialize"},
       {XPTI_FINALIZE, "xptiFinalize"},
+      {XPTI_GET_UNIVERSAL_ID, "xptiGetUniversalId"},
+      {XPTI_SET_UNIVERSAL_ID, "xptiSetUniversalId"},
       {XPTI_GET_UNIQUE_ID, "xptiGetUniqueId"},
       {XPTI_REGISTER_STRING, "xptiRegisterString"},
       {XPTI_LOOKUP_STRING, "xptiLookupString"},
@@ -204,6 +208,27 @@ XPTI_EXPORT_API void xptiFinalize(const char *stream) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_FINALIZE);
     if (f) {
       (*(xpti_finalize_t)f)(stream);
+    }
+  }
+}
+
+XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_GET_UNIVERSAL_ID);
+    if (f) {
+      return (*reinterpret_cast<xpti_get_universal_id_t>(f))();
+    }
+  }
+  return xpti::invalid_id;
+}
+
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_SET_UNIVERSAL_ID);
+    if (f) {
+      return (*reinterpret_cast<xpti_set_universal_id_t>(f))(uid);
     }
   }
 }
