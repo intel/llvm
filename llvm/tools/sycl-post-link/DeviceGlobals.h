@@ -1,4 +1,4 @@
-//===----- DeviceGlobals.h - SYCL Device Globals Pass ---------------------===//
+//===--- DeviceGlobals.h - get required into about SYCL Device Globals ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,24 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A transformation pass which converts symbolic device globals attributes
-// to integer id-based ones to later map to SPIRV device globals. The class
-// also contains a number of static methods to extract corresponding
-// attributes of the device global variables and save them as a property set
-// for the runtime.
+// The file contains a number of functions to extract corresponding attributes
+// of the device global variables and save them as a property set for the
+// runtime.
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
 #include "llvm/ADT/MapVector.h"
-#include "llvm/IR/PassManager.h"
 
-#include <cstddef>
 #include <cstdint>
 #include <vector>
 
 namespace llvm {
 
+class GlobalVariable;
 class Module;
 class StringRef;
 
@@ -44,20 +41,29 @@ struct DeviceGlobalProperty {
 using DeviceGlobalPropertyMapTy =
     MapVector<StringRef, std::vector<DeviceGlobalProperty>>;
 
-class DeviceGlobalsPass : public PassInfoMixin<DeviceGlobalsPass> {
-public:
-  // Enriches the module with metadata that describes the found device global
-  // variables for the SPIRV-LLVM Translator.
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
+/// Searches given module for occurrences of device global variable-specific
+/// metadata and builds "device global variable name" ->
+/// vector<"variable properties"> map.
+///
+/// @param M [in] LLVM Module.
+///
+/// @returns the "device global variable name" -> vector<"variable properties">
+/// map.
+DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M);
 
-  // Searches given module for occurrences of device global variable-specific
-  // metadata and builds "device global variable name" ->
-  // vector<"variable properties"> map.
-  static DeviceGlobalPropertyMapTy
-  collectDeviceGlobalProperties(const Module &M);
+/// Returns \c true if the device global variable has the unique id
+///
+/// @param GV [in] Device Global variable.
+///
+/// @returns \c true if the variable has the unique id, \c false otherwise.
+bool hasVariableUniqueId(const GlobalVariable &GV);
 
-  // Counts how many device global variables are found in the module.
-  static ptrdiff_t countDeviceGlobals(const Module &M);
-};
+/// Returns the unique id for the device global variable.
+///
+/// @param GV [in] Device Global variable.
+///
+/// @returns the unique id of the device global variable represented
+/// in the LLVM IR by \c GV.
+StringRef getVariableUniqueId(const GlobalVariable &GV);
 
 } // end namespace llvm
