@@ -15,12 +15,8 @@ void kernel(int *ptr) SYCL_ESIMD_FUNCTION {
   simd<int, 32 * 4> v1(0, 1);
 
   auto v0 = gather_rgba<int, 32, rgba_channel_mask::ABGR>(ptr, offsets);
-  // Deprecated form:
-  v0 = gather4<int, 32, ESIMD_ABGR_ENABLE>(ptr, offsets);
 
   v0 = v0 + v1;
 
   scatter_rgba<int, 32, rgba_channel_mask::ABGR>(ptr, offsets, v0);
-  // Deprecated form:
-  scatter4<int, 32, ESIMD_ABGR_ENABLE>(ptr, v0, offsets);
 }

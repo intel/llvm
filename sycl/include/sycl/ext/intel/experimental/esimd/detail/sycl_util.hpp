@@ -11,6 +11,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <CL/sycl/accessor.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -88,3 +90,5 @@ using EnableIfAccessor = sycl::detail::enable_if_t<
 } // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_DETAIL
