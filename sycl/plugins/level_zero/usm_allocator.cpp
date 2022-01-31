@@ -450,7 +450,7 @@ public:
 
   // Get pointer to allocation that is one piece of an available slab in this
   // bucket.
-  void *getChunk(bool &FromSlab, bool& FromPool);
+  void *getChunk(bool &FromSlab, bool &FromPool);
 
   // Get pointer to allocation that is a full slab in this bucket.
   void *getSlab(bool &FromPool);
@@ -470,7 +470,7 @@ public:
   USMAllocContext::USMAllocImpl &getUsmAllocCtx() { return OwnAllocCtx; }
 
   // Check whether an allocation to be freed can be placed in the pool.
-  bool CanPool(bool& ToPool);
+  bool CanPool(bool &ToPool);
 
   // The minimum allocation size for a slab in this bucket.
   size_t SlabMinSize();
@@ -498,7 +498,7 @@ public:
 
 private:
   void onFreeChunk(Slab &, bool &ToPool);
-  
+
   void decrementPool(bool &FromPool);
 
   // Get a slab to be used for chunked allocations.
