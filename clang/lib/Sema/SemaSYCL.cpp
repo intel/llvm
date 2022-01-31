@@ -4712,18 +4712,18 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFileName() { return "
+    O << "  static constexpr const char* getFileName() { return \""
 #ifndef NDEBUG
       << std::string(PLoc.getFilename())
              .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1)
 #endif
-      << "; }\n";
+      << "\"; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFunctionName() { return "
+    O << "  static constexpr const char* getFunctionName() { return \""
 #ifndef NDEBUG
-      << K.NameType->getAsCXXRecordDecl()->getName()
+      << K.NameType->getAsCXXRecordDecl()->getQualifiedNameAsString()
 #endif
-      << "; }\n";
+      << "\"; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getLineNumber() { return "
 #ifndef NDEBUG

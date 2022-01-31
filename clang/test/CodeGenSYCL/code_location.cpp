@@ -13,15 +13,15 @@ int test1() {
 }
 // Specializations of KernelInfo for kernel function types:
 // CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '5', 't', 'e', 's', 't', '1', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
-// CHECK: static constexpr const char* getFileName() { return code_location.cpp; }
-// CHECK: static constexpr const char* getFunctionName() { return ; }
+// CHECK: static constexpr const char* getFileName() { return "code_location.cpp"; }
+// CHECK: static constexpr const char* getFunctionName() { return ""; }
 // CHECK: static constexpr unsigned getLineNumber() { return 10; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 54; }
 //};
 
 // CHECK: template <> struct KernelInfo<KernelName> {
-// CHECK: static constexpr const char* getFileName() { return code_location.cpp; }
-// CHECK: static constexpr const char* getFunctionName() { return KernelName; }
+// CHECK: static constexpr const char* getFileName() { return "code_location.cpp"; }
+// CHECK: static constexpr const char* getFunctionName() { return "KernelName"; }
 // CHECK: static constexpr unsigned getLineNumber() { return 11; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 72; }
 //};
@@ -37,14 +37,14 @@ int test2() {
 }
 
 // CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '5', 't', 'e', 's', 't', '2', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
-// CHECK: static constexpr const char* getFileName() { return code_location.cpp; }
-// CHECK: static constexpr const char* getFunctionName() { return ; }
+// CHECK: static constexpr const char* getFileName() { return "code_location.cpp"; }
+// CHECK: static constexpr const char* getFunctionName() { return ""; }
 // CHECK: static constexpr unsigned getLineNumber() { return 33; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 44; }
 //};
 // CHECK: template <> struct KernelInfo<::KernelName2> {
-// CHECK: static constexpr const char* getFileName() { return code_location.cpp; }
-// CHECK: static constexpr const char* getFunctionName() { return KernelName2; }
+// CHECK: static constexpr const char* getFileName() { return "code_location.cpp"; }
+// CHECK: static constexpr const char* getFunctionName() { return "KernelName2"; }
 // CHECK: static constexpr unsigned getLineNumber() { return 35; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 44; }
 //};
@@ -58,8 +58,8 @@ int test3() {
 }
 
 // CHECK: template <> struct KernelInfo<::KernelName3<::KernelName2>> {
-// CHECK: static constexpr const char* getFileName() { return code_location.cpp; }
-// CHECK: static constexpr const char* getFunctionName() { return KernelName3; }
+// CHECK: static constexpr const char* getFileName() { return "code_location.cpp"; }
+// CHECK: static constexpr const char* getFunctionName() { return "KernelName3"; }
 // CHECK: static constexpr unsigned getLineNumber() { return 56; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 44; }
 //};
@@ -72,8 +72,8 @@ int test4() {
 }
 
 // CHECK: template <> struct KernelInfo<KernelName4> {
-// CHECK: static constexpr const char* getFileName() { return code_location.cpp; }
-// CHECK: static constexpr const char* getFunctionName() { return KernelName4; }
+// CHECK: static constexpr const char* getFileName() { return "code_location.cpp"; }
+// CHECK: static constexpr const char* getFunctionName() { return "KernelName4"; }
 // CHECK: static constexpr unsigned getLineNumber() { return 67; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 11; }
 //};
