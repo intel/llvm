@@ -4,7 +4,7 @@ This document describes the implementation design for the DPC++ extension
 [SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL][1], which allows applications to declare
 global variables in device code.
 
-[1]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc>
+[1]: <extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc>
 
 
 ## Requirements
