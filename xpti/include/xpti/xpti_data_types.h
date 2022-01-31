@@ -389,8 +389,6 @@ enum class trace_point_type_t : uint16_t {
   offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
   /// Used to notify about creation accessor for ofload buffer
   offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
-  /// Used to notify about ishado copy of offlod buffer
-  offload_alloc_shadow = XPTI_TRACE_POINT_BEGIN(25),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -534,14 +532,6 @@ struct offload_buffer_data_t {
   size_t range[3] = {0, 0, 0};
 };
 
-/// Describes shadow copy for offload buffer
-struct offload_buffer_shadow_data_t {
-  /// A pointer to user level memory offload object.
-  uintptr_t user_object_handle = 0;
-  /// A pointer to shadow memory offload object.
-  uintptr_t shadow_object_handle = 0;
-};
-
 /// Describes offload accessor
 struct offload_accessor_data_t {
   /// A pointer to user level buffer offload object.
@@ -671,8 +661,6 @@ constexpr uint16_t trace_offload_alloc_release =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_release);
 constexpr uint16_t trace_offload_alloc_accessor =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_accessor);
-constexpr uint16_t trace_offload_alloc_shadow =
-    static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_shadow);
 
 constexpr uint16_t trace_graph_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::graph);
