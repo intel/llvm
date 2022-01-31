@@ -542,6 +542,7 @@ pi_result piProgramCreate(pi_context context, const void *il, size_t length,
   std::string extStr(extSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, extSize,
                               &extStr.front(), nullptr);
+
   if (ret_err != CL_SUCCESS ||
       extStr.find("cl_khr_il_program") == std::string::npos) {
     if (res_program != nullptr)
