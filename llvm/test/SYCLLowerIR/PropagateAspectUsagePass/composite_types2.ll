@@ -38,6 +38,4 @@ define dso_local spir_kernel void @kernelC() {
 
 ; CHECK-C: ![[NODE_C]] = !{i32 2}
 
-; CHECK-A: ![[NODE_A]] = !{
-; CHECK-A-SAME: i32 1
-; CHECK-A-SAME: i32 2
+; CHECK-A: ![[NODE_A]] = !{{[{]}}{{i32 1, i32 2|i32 2, i32 1}}{{[}]}}

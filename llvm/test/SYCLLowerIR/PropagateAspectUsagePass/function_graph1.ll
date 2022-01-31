@@ -37,7 +37,7 @@ define dso_local spir_func void @func1() {
   ret void
 }
 
-; CHECK-SECOND-DAG: dso_local spir_func void @func2() !intel_used_aspects ![[NODE1:[0-9]+]] {
+; CHECK-FIRST-DAG: dso_local spir_func void @func2() !intel_used_aspects ![[NODE1:[0-9]+]] {
 define dso_local spir_func void @func2() {
   %tmp = alloca %A
   ret void
@@ -55,8 +55,6 @@ define dso_local spir_func void @func3() {
 
 ; CHECK-FIRST: ![[NODE1]] = !{i32 1}
 
-; CHECK-SECOND: ![[NODE2]] = !{
-; CHECK-SECOND-SAME: i32 1
-; CHECK-SECOND-SAME: i32 2
+; CHECK-SECOND: ![[NODE2]] = !{{[{]}}{{i32 1, i32 2|i32 2, i32 1}}{{[}]}}
 
 ; CHECK-THIRD: ![[NODE3]] = !{i32 2}
