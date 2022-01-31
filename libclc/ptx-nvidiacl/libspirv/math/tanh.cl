@@ -14,12 +14,11 @@
 int __clc_nvvm_reflect_arch();
 int __clc_nvvm_reflect_approx_tanh();
 
-float __select_tanhf (float x){
-  if(__clc_nvvm_reflect_approx_tanh() && __clc_nvvm_reflect_arch() >= 800) {
+float __select_tanhf (float x) {
+  if (__clc_nvvm_reflect_approx_tanh() && __clc_nvvm_reflect_arch() >= 800) {
     return __nvvm_tanh_approx_f(x);
-  } else {
-    return __nv_tanhf(x);
   }
+  return __nv_tanhf(x);
 }
 
 #define __CLC_FUNCTION __spirv_ocl_tanh
