@@ -45,16 +45,16 @@ please let us know!
 [width="40%",cols="25,25"]
 |========================================
 | Last Modified Date | 2022-01-13
-| Revision           | A
+| Revision           | 1
 |========================================
 
 == Dependencies
 
 This extension is written against the SPIR-V Specification,
-Version 1.5, Revision 5.
+Version 1.5, Revision 6.
 
 Also it modifies OpenCL Extended Instruction Set Specification, Version 1.00,
-Revision 6.
+Revision 7.
 
 This extension requires SPIR-V 1.0.
 
