@@ -25,6 +25,7 @@ Using Clang as a Compiler
    CrossCompilation
    ClangStaticAnalyzer
    ThreadSafetyAnalysis
+   DataFlowAnalysisIntro
    AddressSanitizer
    ThreadSanitizer
    MemorySanitizer
@@ -83,6 +84,7 @@ Using Clang Tools
    ClangFormattedStatus
    ClangNvlinkWrapper
    ClangOffloadBundler
+   ClangOffloadWrapper
 
 Design Documents
 ================

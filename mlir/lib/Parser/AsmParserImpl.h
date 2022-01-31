@@ -27,7 +27,7 @@ class AsmParserImpl : public BaseT {
 public:
   AsmParserImpl(llvm::SMLoc nameLoc, Parser &parser)
       : nameLoc(nameLoc), parser(parser) {}
-  ~AsmParserImpl() override {}
+  ~AsmParserImpl() override = default;
 
   /// Return the location of the original name token.
   llvm::SMLoc getNameLoc() const override { return nameLoc; }
@@ -343,6 +343,29 @@ public:
     return success(static_cast<bool>(result));
   }
 
+  /// Parse a custom attribute with the provided callback, unless the next
+  /// token is `#`, in which case the generic parser is invoked.
+  ParseResult parseCustomAttributeWithFallback(
+      Attribute &result, Type type,
+      function_ref<ParseResult(Attribute &result, Type type)> parseAttribute)
+      override {
+    if (parser.getToken().isNot(Token::hash_identifier))
+      return parseAttribute(result, type);
+    result = parser.parseAttribute(type);
+    return success(static_cast<bool>(result));
+  }
+
+  /// Parse a custom attribute with the provided callback, unless the next
+  /// token is `#`, in which case the generic parser is invoked.
+  ParseResult parseCustomTypeWithFallback(
+      Type &result,
+      function_ref<ParseResult(Type &result)> parseType) override {
+    if (parser.getToken().isNot(Token::exclamation_identifier))
+      return parseType(result);
+    result = parser.parseType();
+    return success(static_cast<bool>(result));
+  }
+
   OptionalParseResult parseOptionalAttribute(Attribute &result,
                                              Type type) override {
     return parser.parseOptionalAttribute(result, type);
@@ -403,22 +426,6 @@ public:
       parser.getState().asmState->addUses(SymbolRefAttr::get(result),
                                           atToken.getLocRange());
     }
-    return success();
-  }
-
-  /// Parse a loc(...) specifier if present, filling in result if so.
-  ParseResult
-  parseOptionalLocationSpecifier(Optional<Location> &result) override {
-    // If there is a 'loc' we parse a trailing location.
-    if (!parser.consumeIf(Token::kw_loc))
-      return success();
-    LocationAttr directLoc;
-    if (parser.parseToken(Token::l_paren, "expected '(' in location") ||
-        parser.parseLocationInstance(directLoc) ||
-        parser.parseToken(Token::r_paren, "expected ')' in location"))
-      return failure();
-
-    result = directLoc;
     return success();
   }
 
@@ -493,6 +500,6 @@ protected:
   bool emittedError = false;
 };
 } // namespace detail
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_LIB_PARSER_ASMPARSERIMPL_H

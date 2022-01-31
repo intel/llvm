@@ -70,6 +70,7 @@ piProgramRelease
 piProgramRetain
 piQueueCreate
 piQueueFinish
+piQueueFlush
 piQueueGetInfo
 piQueueRelease
 piQueueRetain

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
@@ -41,15 +41,16 @@ static llvm::cl::opt<bool> clTestLoopFusionTransformation(
 
 namespace {
 
-struct TestLoopFusion : public PassWrapper<TestLoopFusion, FunctionPass> {
+struct TestLoopFusion
+    : public PassWrapper<TestLoopFusion, OperationPass<FuncOp>> {
   StringRef getArgument() const final { return "test-loop-fusion"; }
   StringRef getDescription() const final {
     return "Tests loop fusion utility functions.";
   }
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
-} // end anonymous namespace
+} // namespace
 
 // Run fusion dependence check on 'loops[i]' and 'loops[j]' at loop depths
 // in range ['loopDepth' + 1, 'maxLoopDepth'].
@@ -156,7 +157,7 @@ using LoopFunc = function_ref<bool(AffineForOp, AffineForOp, unsigned, unsigned,
 // If 'return_on_change' is true, returns on first invocation of 'fn' which
 // returns true.
 static bool iterateLoops(ArrayRef<SmallVector<AffineForOp, 2>> depthToLoops,
-                         LoopFunc fn, bool return_on_change = false) {
+                         LoopFunc fn, bool returnOnChange = false) {
   bool changed = false;
   for (unsigned loopDepth = 0, end = depthToLoops.size(); loopDepth < end;
        ++loopDepth) {
@@ -167,7 +168,7 @@ static bool iterateLoops(ArrayRef<SmallVector<AffineForOp, 2>> depthToLoops,
         if (j != k)
           changed |=
               fn(loops[j], loops[k], j, k, loopDepth, depthToLoops.size());
-        if (changed && return_on_change)
+        if (changed && returnOnChange)
           return true;
       }
     }
@@ -175,23 +176,23 @@ static bool iterateLoops(ArrayRef<SmallVector<AffineForOp, 2>> depthToLoops,
   return changed;
 }
 
-void TestLoopFusion::runOnFunction() {
+void TestLoopFusion::runOnOperation() {
   std::vector<SmallVector<AffineForOp, 2>> depthToLoops;
   if (clTestLoopFusionTransformation) {
     // Run loop fusion until a fixed point is reached.
     do {
       depthToLoops.clear();
       // Gather all AffineForOps by loop depth.
-      gatherLoops(getFunction(), depthToLoops);
+      gatherLoops(getOperation(), depthToLoops);
 
       // Try to fuse all combinations of src/dst loop nests in 'depthToLoops'.
     } while (iterateLoops(depthToLoops, testLoopFusionTransformation,
-                          /*return_on_change=*/true));
+                          /*returnOnChange=*/true));
     return;
   }
 
   // Gather all AffineForOps by loop depth.
-  gatherLoops(getFunction(), depthToLoops);
+  gatherLoops(getOperation(), depthToLoops);
 
   // Run tests on all combinations of src/dst loop nests in 'depthToLoops'.
   if (clTestDependenceCheck)

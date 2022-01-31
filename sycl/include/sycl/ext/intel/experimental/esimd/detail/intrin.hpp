@@ -11,6 +11,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
@@ -139,12 +141,15 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
+template <class T> using __st = __raw_t<T>;
+
 /// read from a basic region of a vector, return a vector
 template <typename BT, int BN, typename RTy>
-__SEIEED::vector_type_t<typename RTy::element_type, RTy::length> ESIMD_INLINE
-readRegion(const __SEIEED::vector_type_t<BT, BN> &Base, RTy Region) {
-  using ElemTy = typename RTy::element_type;
-  auto Base1 = bitcast<ElemTy, BT, BN>(Base);
+__SEIEED::vector_type_t<__st<typename RTy::element_type>, RTy::length>
+    ESIMD_INLINE readRegion(const __SEIEED::vector_type_t<__st<BT>, BN> &Base,
+                            RTy Region) {
+  using ElemTy = __st<typename RTy::element_type>;
+  auto Base1 = bitcast<ElemTy, __st<BT>, BN>(Base);
   constexpr int Bytes = BN * sizeof(BT);
   if constexpr (Bytes == RTy::Size_in_bytes)
     // This is a no-op format.
@@ -163,14 +168,14 @@ readRegion(const __SEIEED::vector_type_t<BT, BN> &Base, RTy Region) {
 
 /// read from a nested region of a vector, return a vector
 template <typename BT, int BN, typename T, typename U>
-ESIMD_INLINE __SEIEED::vector_type_t<typename T::element_type, T::length>
-readRegion(const __SEIEED::vector_type_t<BT, BN> &Base,
+ESIMD_INLINE __SEIEED::vector_type_t<__st<typename T::element_type>, T::length>
+readRegion(const __SEIEED::vector_type_t<__st<BT>, BN> &Base,
            std::pair<T, U> Region) {
   // parent-region type
   using PaTy = typename shape_type<U>::type;
   constexpr int BN1 = PaTy::length;
   using BT1 = typename PaTy::element_type;
-  using ElemTy = typename T::element_type;
+  using ElemTy = __st<typename T::element_type>;
   // Recursively read the base
   auto Base1 = readRegion<BT, BN>(Base, Region.second);
   if constexpr (!T::Is_2D || BN1 * sizeof(BT1) == T::Size_in_bytes)
@@ -178,7 +183,7 @@ readRegion(const __SEIEED::vector_type_t<BT, BN> &Base,
     return readRegion<BT1, BN1>(Base1, Region.first);
   else {
     static_assert(T::Is_2D);
-    static_assert(std::is_same<ElemTy, BT1>::value);
+    static_assert(std::is_same<ElemTy, __st<BT1>>::value);
     // To read a 2D region, we need the parent region
     // Read full rows with non-trivial vertical and horizontal stride = 1.
     constexpr int M = T::Size_y * PaTy::Size_x;
@@ -340,3 +345,5 @@ __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
 }
 
 #endif // __SYCL_DEVICE_ONLY__
+
+/// @endcond ESIMD_DETAIL

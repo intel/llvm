@@ -2419,8 +2419,9 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     auto ThisVarDecl = dyn_cast_or_null<VarDecl>(ThisDecl);
     auto RunSignatureHelp = [&]() {
       QualType PreferredType = Actions.ProduceConstructorSignatureHelp(
-          getCurScope(), ThisVarDecl->getType()->getCanonicalTypeInternal(),
-          ThisDecl->getLocation(), Exprs, T.getOpenLocation());
+          ThisVarDecl->getType()->getCanonicalTypeInternal(),
+          ThisDecl->getLocation(), Exprs, T.getOpenLocation(),
+          /*Braced=*/false);
       CalledSignatureHelp = true;
       return PreferredType;
     };
@@ -2439,8 +2440,9 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     if (ParseExpressionList(Exprs, CommaLocs, ExpressionStarts)) {
       if (ThisVarDecl && PP.isCodeCompletionReached() && !CalledSignatureHelp) {
         Actions.ProduceConstructorSignatureHelp(
-            getCurScope(), ThisVarDecl->getType()->getCanonicalTypeInternal(),
-            ThisDecl->getLocation(), Exprs, T.getOpenLocation());
+            ThisVarDecl->getType()->getCanonicalTypeInternal(),
+            ThisDecl->getLocation(), Exprs, T.getOpenLocation(),
+            /*Braced=*/false);
         CalledSignatureHelp = true;
       }
       Actions.ActOnInitializerError(ThisDecl);
@@ -2892,7 +2894,8 @@ void Parser::ParseAlignmentSpecifier(ParsedAttributes &Attrs,
 }
 
 ExprResult Parser::ParseExtIntegerArgument() {
-  assert(Tok.is(tok::kw__ExtInt) && "Not an extended int type");
+  assert(Tok.isOneOf(tok::kw__ExtInt, tok::kw__BitInt) &&
+         "Not an extended int type");
   ConsumeToken();
 
   BalancedDelimiterTracker T(*this, tok::l_paren);
@@ -3078,7 +3081,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
   ParsedAttributesWithRange attrs(AttrFactory);
   // We use Sema's policy to get bool macros right.
   PrintingPolicy Policy = Actions.getPrintingPolicy();
-  while (1) {
+  while (true) {
     bool isInvalid = false;
     bool isStorageClass = false;
     const char *PrevSpec = nullptr;
@@ -3574,12 +3577,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
             }
           }
           ConsumedEnd = Tok.getLocation();
+          DS.setTypeofParensRange(Tracker.getRange());
           // Even if something went wrong above, continue as if we've seen
           // `decltype(auto)`.
           isInvalid = DS.SetTypeSpecType(TST_decltype_auto, Loc, PrevSpec,
                                          DiagID, TemplateId, Policy);
         } else {
-          isInvalid = DS.SetTypeSpecType(TST_auto, Loc, PrevSpec, DiagID,
+          isInvalid = DS.SetTypeSpecType(TST_auto, AutoLoc, PrevSpec, DiagID,
                                          TemplateId, Policy);
         }
         break;
@@ -3883,11 +3887,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       isInvalid = DS.SetTypeSpecType(DeclSpec::TST_int, Loc, PrevSpec,
                                      DiagID, Policy);
       break;
-    case tok::kw__ExtInt: {
+    case tok::kw__ExtInt:
+    case tok::kw__BitInt: {
+      DiagnoseBitIntUse(Tok);
       ExprResult ER = ParseExtIntegerArgument();
       if (ER.isInvalid())
         continue;
-      isInvalid = DS.SetExtIntType(Loc, ER.get(), PrevSpec, DiagID, Policy);
+      isInvalid = DS.SetBitIntType(Loc, ER.get(), PrevSpec, DiagID, Policy);
       ConsumedEnd = PrevTokLocation;
       break;
     }
@@ -4267,7 +4273,7 @@ void Parser::ParseStructDeclaration(
   // Read struct-declarators until we find the semicolon.
   bool FirstDeclarator = true;
   SourceLocation CommaLoc;
-  while (1) {
+  while (true) {
     ParsingFieldDeclarator DeclaratorInfo(*this, DS);
     DeclaratorInfo.D.setCommaLoc(CommaLoc);
 
@@ -4534,7 +4540,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
 
     CXXScopeSpec Spec;
     if (ParseOptionalCXXScopeSpecifier(Spec, /*ObjectType=*/nullptr,
-                                       /*ObjectHadErrors=*/false,
+                                       /*ObjectHasErrors=*/false,
                                        /*EnteringContext=*/true))
       return;
 
@@ -5016,6 +5022,7 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw_char32_t:
   case tok::kw_int:
   case tok::kw__ExtInt:
+  case tok::kw__BitInt:
   case tok::kw___bf16:
   case tok::kw_half:
   case tok::kw_float:
@@ -5098,6 +5105,7 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw_char32_t:
   case tok::kw_int:
   case tok::kw__ExtInt:
+  case tok::kw__BitInt:
   case tok::kw_half:
   case tok::kw___bf16:
   case tok::kw_float:
@@ -5269,6 +5277,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
 
   case tok::kw_int:
   case tok::kw__ExtInt:
+  case tok::kw__BitInt:
   case tok::kw_half:
   case tok::kw___bf16:
   case tok::kw_float:
@@ -5415,7 +5424,7 @@ bool Parser::isConstructorDeclarator(bool IsUnqualified, bool DeductionGuide) {
   // Parse the C++ scope specifier.
   CXXScopeSpec SS;
   if (ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
-                                     /*ObjectHadErrors=*/false,
+                                     /*ObjectHasErrors=*/false,
                                      /*EnteringContext=*/true)) {
     TPA.Revert();
     return false;
@@ -5573,7 +5582,7 @@ void Parser::ParseTypeQualifierListOpt(
 
   SourceLocation EndLoc;
 
-  while (1) {
+  while (true) {
     bool isInvalid = false;
     const char *PrevSpec = nullptr;
     unsigned DiagID = 0;
@@ -5797,7 +5806,7 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
                            D.getContext() == DeclaratorContext::Member;
     CXXScopeSpec SS;
     ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
-                                   /*ObjectHadErrors=*/false, EnteringContext);
+                                   /*ObjectHasErrors=*/false, EnteringContext);
 
     if (SS.isNotEmpty()) {
       if (Tok.isNot(tok::star)) {
@@ -6026,7 +6035,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
                              D.getContext() == DeclaratorContext::Member;
       ParseOptionalCXXScopeSpecifier(
           D.getCXXScopeSpec(), /*ObjectType=*/nullptr,
-          /*ObjectHadErrors=*/false, EnteringContext);
+          /*ObjectHasErrors=*/false, EnteringContext);
     }
 
     if (D.getCXXScopeSpec().isValid()) {
@@ -6265,7 +6274,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
   if (D.hasName() && !D.getNumTypeObjects())
     MaybeParseCXX11Attributes(D);
 
-  while (1) {
+  while (true) {
     if (Tok.is(tok::l_paren)) {
       bool IsFunctionDeclaration = D.isFunctionDeclaratorAFunctionDeclaration();
       // Enter function-declaration scope, limiting any declarators to the
@@ -7476,4 +7485,25 @@ bool Parser::TryAltiVecTokenOutOfLine(DeclSpec &DS, SourceLocation Loc,
     return true;
   }
   return false;
+}
+
+void Parser::DiagnoseBitIntUse(const Token &Tok) {
+  // If the token is for _ExtInt, diagnose it as being deprecated. Otherwise,
+  // the token is about _BitInt and gets (potentially) diagnosed as use of an
+  // extension.
+  assert(Tok.isOneOf(tok::kw__ExtInt, tok::kw__BitInt) &&
+         "expected either an _ExtInt or _BitInt token!");
+
+  SourceLocation Loc = Tok.getLocation();
+  if (Tok.is(tok::kw__ExtInt)) {
+    Diag(Loc, diag::warn_ext_int_deprecated)
+        << FixItHint::CreateReplacement(Loc, "_BitInt");
+  } else {
+    // In C2x mode, diagnose that the use is not compatible with pre-C2x modes.
+    // Otherwise, diagnose that the use is a Clang extension.
+    if (getLangOpts().C2x)
+      Diag(Loc, diag::warn_c17_compat_bit_int);
+    else
+      Diag(Loc, diag::ext_bit_int) << getLangOpts().CPlusPlus;
+  }
 }

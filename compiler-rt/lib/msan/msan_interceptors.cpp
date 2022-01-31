@@ -990,12 +990,13 @@ static void SignalAction(int signo, void *si, void *uc) {
   ScopedThreadLocalStateBackup stlsb;
   UnpoisonParam(3);
   __msan_unpoison(si, sizeof(__sanitizer_sigaction));
-  __msan_unpoison(uc, __sanitizer::ucontext_t_sz);
+  __msan_unpoison(uc, ucontext_t_sz(uc));
 
   typedef void (*sigaction_cb)(int, void *, void *);
   sigaction_cb cb =
       (sigaction_cb)atomic_load(&sigactions[signo], memory_order_relaxed);
   cb(signo, si, uc);
+  CHECK_UNPOISONED(uc, ucontext_t_sz(uc));
 }
 
 static void read_sigaction(const __sanitizer_sigaction *act) {
@@ -1064,6 +1065,8 @@ INTERCEPTOR(int, pthread_join, void *th, void **retval) {
     __msan_unpoison(retval, sizeof(*retval));
   return res;
 }
+
+DEFINE_REAL_PTHREAD_FUNCTIONS
 
 extern char *tzname[2];
 
@@ -1705,6 +1708,7 @@ void InitializeInterceptors() {
 #else
   INTERCEPT_FUNCTION(pthread_create);
 #endif
+  INTERCEPT_FUNCTION(pthread_join);
   INTERCEPT_FUNCTION(pthread_key_create);
 
 #if SANITIZER_NETBSD

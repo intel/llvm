@@ -123,6 +123,7 @@
 ; CHECK-NEXT:      Machine Optimization Remark Emitter
 ; CHECK-NEXT:      Greedy Register Allocator
 ; CHECK-NEXT:      Virtual Register Rewriter
+; CHECK-NEXT:      Register Allocation Pass Scoring
 ; CHECK-NEXT:      Stack Slot Coloring
 ; CHECK-NEXT:      Machine Copy Propagation Pass
 ; CHECK-NEXT:      Machine Loop Invariant Code Motion
@@ -179,6 +180,7 @@
 ; CHECK-NEXT:      Live DEBUG_VALUE analysis
 ; CHECK-NEXT:    Machine Outliner
 ; CHECK-NEXT:    FunctionPass Manager
+; CHECK-NEXT:      ARM Branch Targets
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      ARM constant island placement and branch shortening pass
 ; CHECK-NEXT:      MachineDominator Tree Construction

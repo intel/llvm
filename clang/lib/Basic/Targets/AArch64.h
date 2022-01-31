@@ -53,6 +53,8 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   bool HasMatmulFP32;
   bool HasLSE;
   bool HasFlagM;
+  bool HasHBC;
+  bool HasMOPS;
 
   llvm::AArch64::ArchKind ArchKind;
 
@@ -92,11 +94,15 @@ public:
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV87A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
+  void getTargetDefinesARMV88A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
   void getTargetDefinesARMV9A(const LangOptions &Opts,
                               MacroBuilder &Builder) const;
   void getTargetDefinesARMV91A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV92A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV93A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
@@ -150,7 +156,7 @@ public:
   const char *getBFloat16Mangling() const override { return "u6__bf16"; };
   bool hasInt128Type() const override;
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 };
 
 class LLVM_LIBRARY_VISIBILITY AArch64leTargetInfo : public AArch64TargetInfo {

@@ -707,9 +707,6 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
   iterator_range<MachineBasicBlock::iterator> Range,
   SmallSet<Register, 4> &SGPROperandRegs,
   MachineRegisterInfo &MRI) const {
-  SmallVector<Register, 4> ResultRegs;
-  SmallVector<Register, 4> InitResultRegs;
-  SmallVector<Register, 4> PhiRegs;
 
   // Track use registers which have already been expanded with a readfirstlane
   // sequence. This may have multiple uses if moving a sequence.
@@ -721,8 +718,11 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
   const TargetRegisterClass *WaveRC = TRI->getWaveMaskRegClass();
   const unsigned WaveAndOpc = Subtarget.isWave32() ?
     AMDGPU::S_AND_B32 : AMDGPU::S_AND_B64;
-  const unsigned MovTermOpc = Subtarget.isWave32() ?
-    AMDGPU::S_MOV_B32_term : AMDGPU::S_MOV_B64_term;
+  const unsigned MovExecOpc =
+      Subtarget.isWave32() ? AMDGPU::S_MOV_B32 : AMDGPU::S_MOV_B64;
+  const unsigned MovExecTermOpc =
+      Subtarget.isWave32() ? AMDGPU::S_MOV_B32_term : AMDGPU::S_MOV_B64_term;
+
   const unsigned XorTermOpc = Subtarget.isWave32() ?
     AMDGPU::S_XOR_B32_term : AMDGPU::S_XOR_B64_term;
   const unsigned AndSaveExecOpc =  Subtarget.isWave32() ?
@@ -773,15 +773,6 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
     .addMBB(&MBB)
     .addReg(NewExec)
     .addMBB(LoopBB);
-
-  for (auto Result : zip(InitResultRegs, ResultRegs, PhiRegs)) {
-    B.buildInstr(TargetOpcode::G_PHI)
-      .addDef(std::get<2>(Result))
-      .addReg(std::get<0>(Result)) // Initial value / implicit_def
-      .addMBB(&MBB)
-      .addReg(std::get<1>(Result)) // Mid-loop value.
-      .addMBB(LoopBB);
-  }
 
   const DebugLoc &DL = B.getDL();
 
@@ -1008,12 +999,12 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
   B.buildInstr(AMDGPU::SI_WATERFALL_LOOP).addMBB(LoopBB);
 
   // Save the EXEC mask before the loop.
-  BuildMI(MBB, MBB.end(), DL, TII->get(MovTermOpc), SaveExecReg)
+  BuildMI(MBB, MBB.end(), DL, TII->get(MovExecOpc), SaveExecReg)
     .addReg(ExecReg);
 
   // Restore the EXEC mask after the loop.
   B.setMBB(*RestoreExecBB);
-  B.buildInstr(MovTermOpc)
+  B.buildInstr(MovExecTermOpc)
     .addDef(ExecReg)
     .addReg(SaveExecReg);
 
@@ -1174,18 +1165,25 @@ bool AMDGPURegisterBankInfo::applyMappingLoad(MachineInstr &MI,
       // 96-bit loads are only available for vector loads. We need to split this
       // into a 64-bit part, and 32 (unless we can widen to a 128-bit load).
       if (MMO->getAlign() < Align(16)) {
+        MachineFunction *MF = MI.getParent()->getParent();
+        ApplyRegBankMapping ApplyBank(*this, MRI, DstBank);
+        MachineIRBuilder B(MI, ApplyBank);
+        LegalizerHelper Helper(*MF, ApplyBank, B);
         LLT Part64, Part32;
         std::tie(Part64, Part32) = splitUnequalType(LoadTy, 64);
-        auto Load0 = B.buildLoadFromOffset(Part64, PtrReg, *MMO, 0);
-        auto Load1 = B.buildLoadFromOffset(Part32, PtrReg, *MMO, 8);
-
-        auto Undef = B.buildUndef(LoadTy);
-        auto Ins0 = B.buildInsert(LoadTy, Undef, Load0, 0);
-        B.buildInsert(MI.getOperand(0), Ins0, Load1, 64);
+        if (Helper.reduceLoadStoreWidth(cast<GAnyLoad>(MI), 0, Part64) !=
+            LegalizerHelper::Legalized)
+          return false;
+        return true;
       } else {
         LLT WiderTy = widen96To128(LoadTy);
         auto WideLoad = B.buildLoadFromOffset(WiderTy, PtrReg, *MMO, 0);
-        B.buildExtract(MI.getOperand(0), WideLoad, 0);
+        if (WiderTy.isScalar())
+          B.buildTrunc(MI.getOperand(0), WideLoad);
+        else {
+          B.buildDeleteTrailingVectorElements(MI.getOperand(0).getReg(),
+                                              WideLoad);
+        }
       }
     }
 
@@ -2958,7 +2956,9 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
     break;
   }
   case AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD:
-  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE: {
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD_D16:
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE:
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE_D16: {
     const AMDGPU::RsrcIntrinsic *RSrcIntrin
       = AMDGPU::lookupRsrcIntrinsic(MI.getIntrinsicID());
     assert(RSrcIntrin && RSrcIntrin->IsImage);
@@ -3696,6 +3696,16 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     OpdsMapping[1] = AMDGPU::getValueMapping(SrcBankID, 32);
     break;
   }
+  case AMDGPU::G_AMDGPU_WAVE_ADDRESS: {
+    // This case is weird because we expect a physical register in the source,
+    // but need to set a bank anyway.
+    //
+    // We could select the result to SGPR or VGPR, but for the one current use
+    // it's more practical to always use VGPR.
+    OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, 32);
+    OpdsMapping[1] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, 32);
+    break;
+  }
   case AMDGPU::G_INSERT: {
     unsigned BankID = getMappingType(MRI, MI);
     unsigned DstSize = getSizeInBits(MI.getOperand(0).getReg(), MRI, *TRI);
@@ -4083,7 +4093,6 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_mqsad_pk_u16_u8:
     case Intrinsic::amdgcn_mqsad_u32_u8:
     case Intrinsic::amdgcn_cvt_pk_u8_f32:
-    case Intrinsic::amdgcn_alignbit:
     case Intrinsic::amdgcn_alignbyte:
     case Intrinsic::amdgcn_perm:
     case Intrinsic::amdgcn_fdot2:
@@ -4281,7 +4290,9 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     break;
   }
   case AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD:
-  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE: {
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD_D16:
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE:
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE_D16: {
     auto IntrID = MI.getIntrinsicID();
     const AMDGPU::RsrcIntrinsic *RSrcIntrin = AMDGPU::lookupRsrcIntrinsic(IntrID);
     assert(RSrcIntrin && "missing RsrcIntrinsic for image intrinsic");

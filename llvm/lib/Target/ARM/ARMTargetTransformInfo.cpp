@@ -334,8 +334,9 @@ InstructionCost ARMTTIImpl::getIntImmCodeSizeCost(unsigned Opcode, unsigned Idx,
 }
 
 // Checks whether Inst is part of a min(max()) or max(min()) pattern
-// that will match to an SSAT instruction
-static bool isSSATMinMaxPattern(Instruction *Inst, const APInt &Imm) {
+// that will match to an SSAT instruction. Returns the instruction being
+// saturated, or null if no saturation pattern was found.
+static Value *isSSATMinMaxPattern(Instruction *Inst, const APInt &Imm) {
   Value *LHS, *RHS;
   ConstantInt *C;
   SelectPatternFlavor InstSPF = matchSelectPattern(Inst, LHS, RHS).Flavor;
@@ -358,12 +359,27 @@ static bool isSSATMinMaxPattern(Instruction *Inst, const APInt &Imm) {
       return false;
     };
 
-    if (isSSatMin(Inst->getOperand(1)) ||
-        (Inst->hasNUses(2) && (isSSatMin(*Inst->user_begin()) ||
-                               isSSatMin(*(++Inst->user_begin())))))
-      return true;
+    if (isSSatMin(Inst->getOperand(1)))
+      return cast<Instruction>(Inst->getOperand(1))->getOperand(1);
+    if (Inst->hasNUses(2) &&
+        (isSSatMin(*Inst->user_begin()) || isSSatMin(*(++Inst->user_begin()))))
+      return Inst->getOperand(1);
   }
-  return false;
+  return nullptr;
+}
+
+// Look for a FP Saturation pattern, where the instruction can be simplified to
+// a fptosi.sat. max(min(fptosi)). The constant in this case is always free.
+static bool isFPSatMinMaxPattern(Instruction *Inst, const APInt &Imm) {
+  if (Imm.getBitWidth() != 64 ||
+      Imm != APInt::getHighBitsSet(64, 33)) // -2147483648
+    return false;
+  Value *FP = isSSATMinMaxPattern(Inst, Imm);
+  if (!FP && isa<ICmpInst>(Inst) && Inst->hasOneUse())
+    FP = isSSATMinMaxPattern(cast<Instruction>(*Inst->user_begin()), Imm);
+  if (!FP)
+    return false;
+  return isa<FPToSIInst>(FP);
 }
 
 InstructionCost ARMTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
@@ -422,6 +438,9 @@ InstructionCost ARMTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
          isSSATMinMaxPattern(cast<Instruction>(*Inst->user_begin()), Imm)))
       return 0;
   }
+
+  if (Inst && ST->hasVFP2Base() && isFPSatMinMaxPattern(Inst, Imm))
+    return 0;
 
   // We can convert <= -1 to < 0, which is generally quite cheap.
   if (Inst && Opcode == Instruction::ICmp && Idx == 1 && Imm.isAllOnesValue()) {
@@ -1095,18 +1114,6 @@ bool ARMTTIImpl::isLegalMaskedLoad(Type *DataTy, Align Alignment) {
 
 bool ARMTTIImpl::isLegalMaskedGather(Type *Ty, Align Alignment) {
   if (!EnableMaskedGatherScatters || !ST->hasMVEIntegerOps())
-    return false;
-
-  // This method is called in 2 places:
-  //  - from the vectorizer with a scalar type, in which case we need to get
-  //  this as good as we can with the limited info we have (and rely on the cost
-  //  model for the rest).
-  //  - from the masked intrinsic lowering pass with the actual vector type.
-  // For MVE, we have a custom lowering pass that will already have custom
-  // legalised any gathers that we can to MVE intrinsics, and want to expand all
-  // the rest. The pass runs before the masked intrinsic lowering pass, so if we
-  // are here, we know we want to expand.
-  if (isa<VectorType>(Ty))
     return false;
 
   unsigned EltWidth = Ty->getScalarSizeInBits();

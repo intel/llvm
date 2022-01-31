@@ -23,7 +23,6 @@ set(ASAN_UNITTEST_HEADERS
 set(ASAN_UNITTEST_COMMON_CFLAGS
   ${COMPILER_RT_UNITTEST_CFLAGS}
   ${COMPILER_RT_GTEST_CFLAGS}
-  ${COMPILER_RT_ASAN_SHADOW_SCALE_LLVM_FLAG}
   -I${COMPILER_RT_SOURCE_DIR}/include
   -I${COMPILER_RT_SOURCE_DIR}/lib
   -I${COMPILER_RT_SOURCE_DIR}/lib/asan
@@ -52,7 +51,6 @@ list(APPEND ASAN_UNITTEST_COMMON_LINK_FLAGS -g)
 
 # Use -D instead of definitions to please custom compile command.
 list(APPEND ASAN_UNITTEST_COMMON_CFLAGS
-  ${COMPILER_RT_ASAN_SHADOW_SCALE_FLAG}
   -DASAN_HAS_IGNORELIST=1
   -DASAN_HAS_EXCEPTIONS=1
   -DASAN_UAR=0
@@ -263,6 +261,7 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS AND NOT ANDROID)
       set(ASAN_TEST_RUNTIME_OBJECTS
         $<TARGET_OBJECTS:RTAsan.${arch}>
         $<TARGET_OBJECTS:RTAsan_cxx.${arch}>
+        $<TARGET_OBJECTS:RTAsan_static.${arch}>
         $<TARGET_OBJECTS:RTInterception.${arch}>
         $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
         $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
@@ -288,6 +287,7 @@ if(ANDROID)
     # Test w/o ASan instrumentation. Link it with ASan statically.
     add_executable(AsanNoinstTest # FIXME: .arch?
       $<TARGET_OBJECTS:RTAsan.${arch}>
+      $<TARGET_OBJECTS:RTAsan_static.${arch}>
       $<TARGET_OBJECTS:RTInterception.${arch}>
       $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
       $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>

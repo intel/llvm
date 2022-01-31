@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_IR_OPERATION_SUPPORT_H
-#define MLIR_IR_OPERATION_SUPPORT_H
+#ifndef MLIR_IR_OPERATIONSUPPORT_H
+#define MLIR_IR_OPERATIONSUPPORT_H
 
 #include "mlir/IR/BlockSupport.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -29,7 +29,7 @@
 
 namespace llvm {
 class BitVector;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 class Dialect;
@@ -231,9 +231,7 @@ public:
   /// Lookup the registered operation information for the given operation.
   /// Returns None if the operation isn't registered.
   static Optional<RegisteredOperationName> lookup(StringRef name,
-                                                  MLIRContext *ctx) {
-    return OperationName(name, ctx).getRegisteredInfo();
-  }
+                                                  MLIRContext *ctx);
 
   /// Register a new operation in a Dialect object.
   /// This constructor is used by Dialect objects when they register the list of
@@ -424,7 +422,7 @@ std::pair<IteratorT, bool> findAttrSorted(IteratorT first, IteratorT last,
   return findAttrUnsorted(first, last, name);
 }
 
-} // end namespace impl
+} // namespace impl
 
 //===----------------------------------------------------------------------===//
 // NamedAttrList
@@ -582,9 +580,12 @@ struct OperationState {
 
 public:
   OperationState(Location location, StringRef name);
-
   OperationState(Location location, OperationName name);
 
+  OperationState(Location location, OperationName name, ValueRange operands,
+                 TypeRange types, ArrayRef<NamedAttribute> attributes,
+                 BlockRange successors = {},
+                 MutableArrayRef<std::unique_ptr<Region>> regions = {});
   OperationState(Location location, StringRef name, ValueRange operands,
                  TypeRange types, ArrayRef<NamedAttribute> attributes,
                  BlockRange successors = {},
@@ -688,7 +689,7 @@ private:
   /// A pointer to the operand storage.
   OpOperand *operandStorage;
 };
-} // end namespace detail
+} // namespace detail
 
 //===----------------------------------------------------------------------===//
 // OpPrintingFlags
@@ -1171,7 +1172,7 @@ struct OperationEquivalence {
 /// Enable Bitmask enums for OperationEquivalence::Flags.
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
-} // end namespace mlir
+} // namespace mlir
 
 namespace llvm {
 template <>
@@ -1223,6 +1224,6 @@ struct PointerLikeTypeTraits<mlir::RegisteredOperationName>
   }
 };
 
-} // end namespace llvm
+} // namespace llvm
 
 #endif

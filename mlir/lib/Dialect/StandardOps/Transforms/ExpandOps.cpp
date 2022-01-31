@@ -13,13 +13,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 using namespace mlir;
 
@@ -39,18 +40,18 @@ namespace {
 ///   %new_value = select %cmp, %current, %fval : f32
 ///   atomic_yield %new_value : f32
 /// }
-struct AtomicRMWOpConverter : public OpRewritePattern<AtomicRMWOp> {
+struct AtomicRMWOpConverter : public OpRewritePattern<memref::AtomicRMWOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AtomicRMWOp op,
+  LogicalResult matchAndRewrite(memref::AtomicRMWOp op,
                                 PatternRewriter &rewriter) const final {
     arith::CmpFPredicate predicate;
-    switch (op.getKind()) {
-    case AtomicRMWKind::maxf:
+    switch (op.kind()) {
+    case arith::AtomicRMWKind::maxf:
       predicate = arith::CmpFPredicate::OGT;
       break;
-    case AtomicRMWKind::minf:
+    case arith::AtomicRMWKind::minf:
       predicate = arith::CmpFPredicate::OLT;
       break;
     default:
@@ -58,13 +59,13 @@ public:
     }
 
     auto loc = op.getLoc();
-    auto genericOp = rewriter.create<GenericAtomicRMWOp>(loc, op.getMemref(),
-                                                         op.getIndices());
+    auto genericOp =
+        rewriter.create<GenericAtomicRMWOp>(loc, op.memref(), op.indices());
     OpBuilder bodyBuilder =
         OpBuilder::atBlockEnd(genericOp.getBody(), rewriter.getListener());
 
     Value lhs = genericOp.getCurrentValue();
-    Value rhs = op.getValue();
+    Value rhs = op.value();
     Value cmp = bodyBuilder.create<arith::CmpFOp>(loc, predicate, lhs, rhs);
     Value select = bodyBuilder.create<SelectOp>(loc, cmp, lhs, rhs);
     bodyBuilder.create<AtomicYieldOp>(loc, select);
@@ -120,7 +121,7 @@ public:
 };
 
 struct StdExpandOpsPass : public StdExpandOpsBase<StdExpandOpsPass> {
-  void runOnFunction() override {
+  void runOnOperation() override {
     MLIRContext &ctx = getContext();
 
     RewritePatternSet patterns(&ctx);
@@ -129,15 +130,16 @@ struct StdExpandOpsPass : public StdExpandOpsBase<StdExpandOpsPass> {
 
     target.addLegalDialect<arith::ArithmeticDialect, memref::MemRefDialect,
                            StandardOpsDialect>();
-    target.addDynamicallyLegalOp<AtomicRMWOp>([](AtomicRMWOp op) {
-      return op.getKind() != AtomicRMWKind::maxf &&
-             op.getKind() != AtomicRMWKind::minf;
-    });
+    target.addDynamicallyLegalOp<memref::AtomicRMWOp>(
+        [](memref::AtomicRMWOp op) {
+          return op.kind() != arith::AtomicRMWKind::maxf &&
+                 op.kind() != arith::AtomicRMWKind::minf;
+        });
     target.addDynamicallyLegalOp<memref::ReshapeOp>([](memref::ReshapeOp op) {
       return !op.shape().getType().cast<MemRefType>().hasStaticShape();
     });
-    if (failed(
-            applyPartialConversion(getFunction(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };

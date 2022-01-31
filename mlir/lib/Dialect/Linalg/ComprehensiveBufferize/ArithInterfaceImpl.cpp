@@ -9,53 +9,48 @@
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/ArithInterfaceImpl.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h"
+#include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Transforms/BufferUtils.h"
+
+using namespace mlir::bufferization;
 
 namespace mlir {
 namespace linalg {
 namespace comprehensive_bufferize {
 namespace arith_ext {
 
+/// Bufferization of arith.constant. Replace with memref.get_global.
 struct ConstantOpInterface
     : public BufferizableOpInterface::ExternalModel<ConstantOpInterface,
                                                     arith::ConstantOp> {
-  SmallVector<OpOperand *> getAliasingOpOperand(Operation *op,
-                                                OpResult opResult) const {
-    return {};
-  }
-
-  LogicalResult bufferize(Operation *op, OpBuilder &b,
-                          BufferizationState &state) const {
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
     auto constantOp = cast<arith::ConstantOp>(op);
-    if (!constantOp.getResult().getType().isa<TensorType>())
-      return success();
-    assert(constantOp.getType().dyn_cast<RankedTensorType>() &&
-           "not a constant ranked tensor");
+
+    // Only ranked tensors are supported.
+    if (!constantOp.getType().isa<RankedTensorType>())
+      return failure();
+
+    // Only constants inside a module are supported.
     auto moduleOp = constantOp->getParentOfType<ModuleOp>();
-    if (!moduleOp) {
-      return constantOp.emitError(
-          "cannot bufferize constants not within builtin.module op");
-    }
+    if (!moduleOp)
+      return failure();
+
+    // Create global memory segment and replace tensor with memref pointing to
+    // that memory segment.
     GlobalCreator globalCreator(moduleOp);
-
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(constantOp);
-
     auto globalMemref = globalCreator.getGlobalFor(constantOp);
-    Value memref = b.create<memref::GetGlobalOp>(
-        constantOp.getLoc(), globalMemref.type(), globalMemref.getName());
-    state.aliasInfo.insertNewBufferEquivalence(memref, constantOp.getResult());
-    state.mapBuffer(constantOp, memref);
+    replaceOpWithNewBufferizedOp<memref::GetGlobalOp>(
+        rewriter, op, globalMemref.type(), globalMemref.getName());
 
     return success();
   }
 
-  bool isWritable(Operation *op, Value value) const {
+  bool isWritable(Operation *op, Value value,
+                  const BufferizationState &state) const {
     // Memory locations returned by memref::GetGlobalOp may not be written to.
     assert(value.isa<OpResult>());
     return false;

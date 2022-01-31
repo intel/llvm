@@ -13,7 +13,6 @@
 #ifndef STANDARD_OPS
 #define STANDARD_OPS
 
-include "mlir/Dialect/StandardOps/IR/StandardOpsBase.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
@@ -28,7 +27,7 @@ def StandardOps_Dialect : Dialect {
   let cppNamespace = "::mlir";
   let dependentDialects = ["arith::ArithmeticDialect"];
   let hasConstantMaterializer = 1;
-  let emitAccessorPrefix = kEmitAccessorPrefix_Both;
+  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
 }
 
 // Base class for Standard dialect ops.
@@ -179,52 +178,6 @@ def AssertOp : Std_Op<"assert"> {
   let hasCanonicalizeMethod = 1;
 }
 
-//===----------------------------------------------------------------------===//
-// AtomicRMWOp
-//===----------------------------------------------------------------------===//
-
-def AtomicRMWOp : Std_Op<"atomic_rmw", [
-      AllTypesMatch<["value", "result"]>,
-      TypesMatchWith<"value type matches element type of memref",
-                     "memref", "value",
-                     "$_self.cast<MemRefType>().getElementType()">
-    ]> {
-  let summary = "atomic read-modify-write operation";
-  let description = [{
-    The `atomic_rmw` operation provides a way to perform a read-modify-write
-    sequence that is free from data races. The kind enumeration specifies the
-    modification to perform. The value operand represents the new value to be
-    applied during the modification. The memref operand represents the buffer
-    that the read and write will be performed against, as accessed by the
-    specified indices. The arity of the indices is the rank of the memref. The
-    result represents the latest value that was stored.
-
-    Example:
-
-    ```mlir
-    %x = atomic_rmw "addf" %value, %I[%i] : (f32, memref<10xf32>) -> f32
-    ```
-  }];
-
-  let arguments = (ins
-      AtomicRMWKindAttr:$kind,
-      AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$value,
-      MemRefOf<[AnySignlessInteger, AnyFloat]>:$memref,
-      Variadic<Index>:$indices);
-  let results = (outs AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$result);
-
-  let assemblyFormat = [{
-    $kind $value `,` $memref `[` $indices `]` attr-dict `:` `(` type($value) `,`
-    type($memref) `)` `->` type($result)
-  }];
-
-  let extraClassDeclaration = [{
-    MemRefType getMemRefType() {
-      return memref().getType().cast<MemRefType>();
-    }
-  }];
-}
-
 def GenericAtomicRMWOp : Std_Op<"generic_atomic_rmw", [
       SingleBlockImplicitTerminator<"AtomicYieldOp">,
       TypesMatchWith<"result type matches element type of memref",
@@ -276,7 +229,7 @@ def GenericAtomicRMWOp : Std_Op<"generic_atomic_rmw", [
       return getRegion().getArgument(0);
     }
     MemRefType getMemRefType() {
-      return memref().getType().cast<MemRefType>();
+      return getMemref().getType().cast<MemRefType>();
     }
   }];
 }
@@ -555,7 +508,7 @@ def CondBranchOp : Std_Op<"cond_br",
 
     /// Erase the operand at 'index' from the true operand list.
     void eraseTrueOperand(unsigned index)  {
-      trueDestOperandsMutable().erase(index);
+      getTrueDestOperandsMutable().erase(index);
     }
 
     // Accessors for operands to the 'false' destination.
@@ -575,7 +528,7 @@ def CondBranchOp : Std_Op<"cond_br",
 
     /// Erase the operand at 'index' from the false operand list.
     void eraseFalseOperand(unsigned index) {
-      falseDestOperandsMutable().erase(index);
+      getFalseDestOperandsMutable().erase(index);
     }
 
   private:
@@ -656,32 +609,6 @@ def ConstantOp : Std_Op<"constant",
   }];
 
   let hasFolder = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// RankOp
-//===----------------------------------------------------------------------===//
-
-def RankOp : Std_Op<"rank", [NoSideEffect]> {
-  let summary = "rank operation";
-  let description = [{
-    The `rank` operation takes a memref/tensor operand and returns its rank.
-
-    Example:
-
-    ```mlir
-    %1 = rank %arg0 : tensor<*xf32>
-    %2 = rank %arg1 : memref<*xf32>
-    ```
-  }];
-
-  let arguments = (ins AnyTypeOf<[AnyRankedOrUnrankedMemRef, AnyTensor],
-                                 "any memref or tensor type">:$memrefOrTensor);
-  let results = (outs Index);
-  let verifier = ?;
-
-  let hasFolder = 1;
-  let assemblyFormat = "$memrefOrTensor attr-dict `:` type($memrefOrTensor)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -889,13 +816,13 @@ def SwitchOp : Std_Op<"switch",
   let extraClassDeclaration = [{
     /// Return the operands for the case destination block at the given index.
     OperandRange getCaseOperands(unsigned index) {
-      return caseOperands()[index];
+      return getCaseOperands()[index];
     }
 
     /// Return a mutable range of operands for the case destination block at the
     /// given index.
     MutableOperandRange getCaseOperandsMutable(unsigned index) {
-      return caseOperandsMutable()[index];
+      return getCaseOperandsMutable()[index];
     }
   }];
 

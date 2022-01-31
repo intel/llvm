@@ -306,7 +306,7 @@ def testDetachedOperation():
             "foo": StringAttr.get("foo_value"),
             "bar": StringAttr.get("bar_value"),
         })
-    # CHECK: %0:2 = "custom.op1"() ( {
+    # CHECK: %0:2 = "custom.op1"() ({
     # CHECK: }) {bar = "bar_value", foo = "foo_value"} : () -> (si32, si32)
     print(op1)
 
@@ -360,8 +360,8 @@ def testOperationWithRegion():
     i32 = IntegerType.get_signed(32)
     op1 = Operation.create("custom.op1", regions=1)
     block = op1.regions[0].blocks.append(i32, i32)
-    # CHECK: "custom.op1"() ( {
-    # CHECK: ^bb0(%arg0: si32, %arg1: si32):  // no predecessors
+    # CHECK: "custom.op1"() ({
+    # CHECK: ^bb0(%arg0: si32, %arg1: si32):
     # CHECK:   "custom.terminator"() : () -> ()
     # CHECK: }) : () -> ()
     terminator = Operation.create("custom.terminator")
@@ -555,7 +555,7 @@ def testOperationPrint():
   print(bytes_value)
 
   # Test get_asm with options.
-  # CHECK: value = opaque<"_", "0xDEADBEEF"> : tensor<4xi32>
+  # CHECK: value = opaque<"elided_large_const", "0xDEADBEEF"> : tensor<4xi32>
   # CHECK: "std.return"(%arg0) : (i32) -> () -:4:7
   module.operation.print(
       large_elements_limit=2,
@@ -645,7 +645,7 @@ def testInvalidOperationStrSoftFails():
     invalid_op = create_invalid_operation()
     # Verify that we fallback to the generic printer for safety.
     # CHECK: // Verification failed, printing generic form
-    # CHECK: "builtin.module"() ( {
+    # CHECK: "builtin.module"() ({
     # CHECK: }) : () -> ()
     print(invalid_op)
     # CHECK: .verify = False
@@ -833,79 +833,6 @@ def testDetachFromParent():
 
     print(m1)
     # CHECK-NOT: func private @foo
-
-
-# CHECK-LABEL: TEST: testSymbolTable
-@run
-def testSymbolTable():
-  with Context() as ctx:
-    ctx.allow_unregistered_dialects = True
-    m1 = Module.parse("""
-      func private @foo()
-      func private @bar()""")
-    m2 = Module.parse("""
-      func private @qux()
-      func private @foo()
-      "foo.bar"() : () -> ()""")
-
-    symbol_table = SymbolTable(m1.operation)
-
-    # CHECK: func private @foo
-    # CHECK: func private @bar
-    assert "foo" in symbol_table
-    print(symbol_table["foo"])
-    assert "bar" in symbol_table
-    bar = symbol_table["bar"]
-    print(symbol_table["bar"])
-
-    assert "qux" not in symbol_table
-
-    del symbol_table["bar"]
-    try:
-      symbol_table.erase(symbol_table["bar"])
-    except KeyError:
-      pass
-    else:
-      assert False, "expected KeyError"
-
-    # CHECK: module
-    # CHECK:   func private @foo()
-    print(m1)
-    assert "bar" not in symbol_table
-
-    try:
-      print(bar)
-    except RuntimeError as e:
-      if "the operation has been invalidated" not in str(e):
-        raise
-    else:
-      assert False, "expected RuntimeError due to invalidated operation"
-
-    qux = m2.body.operations[0]
-    m1.body.append(qux)
-    symbol_table.insert(qux)
-    assert "qux" in symbol_table
-
-    # Check that insertion actually renames this symbol in the symbol table.
-    foo2 = m2.body.operations[0]
-    m1.body.append(foo2)
-    updated_name = symbol_table.insert(foo2)
-    assert foo2.name.value != "foo"
-    assert foo2.name == updated_name
-
-    # CHECK: module
-    # CHECK:   func private @foo()
-    # CHECK:   func private @qux()
-    # CHECK:   func private @foo{{.*}}
-    print(m1)
-
-    try:
-      symbol_table.insert(m2.body.operations[0])
-    except ValueError as e:
-      if "Expected operation to have a symbol name" not in str(e):
-        raise
-    else:
-      assert False, "exepcted ValueError when adding a non-symbol"
 
 
 # CHECK-LABEL: TEST: testOperationHash

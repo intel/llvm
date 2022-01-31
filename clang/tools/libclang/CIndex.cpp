@@ -1671,6 +1671,8 @@ bool CursorVisitor::VisitRValueReferenceTypeLoc(RValueReferenceTypeLoc TL) {
   return Visit(TL.getPointeeLoc());
 }
 
+bool CursorVisitor::VisitUsingTypeLoc(UsingTypeLoc TL) { return false; }
+
 bool CursorVisitor::VisitAttributedTypeLoc(AttributedTypeLoc TL) {
   return Visit(TL.getModifiedLoc());
 }
@@ -1820,8 +1822,8 @@ DEFAULT_TYPELOC_IMPL(Enum, TagType)
 DEFAULT_TYPELOC_IMPL(SubstTemplateTypeParm, Type)
 DEFAULT_TYPELOC_IMPL(SubstTemplateTypeParmPack, Type)
 DEFAULT_TYPELOC_IMPL(Auto, Type)
-DEFAULT_TYPELOC_IMPL(ExtInt, Type)
-DEFAULT_TYPELOC_IMPL(DependentExtInt, Type)
+DEFAULT_TYPELOC_IMPL(BitInt, Type)
+DEFAULT_TYPELOC_IMPL(DependentBitInt, Type)
 
 bool CursorVisitor::VisitCXXRecordDecl(CXXRecordDecl *D) {
   // Visit the nested-name-specifier, if present.
@@ -2277,6 +2279,8 @@ void OMPClauseEnqueue::VisitOMPWriteClause(const OMPWriteClause *) {}
 void OMPClauseEnqueue::VisitOMPUpdateClause(const OMPUpdateClause *) {}
 
 void OMPClauseEnqueue::VisitOMPCaptureClause(const OMPCaptureClause *) {}
+
+void OMPClauseEnqueue::VisitOMPCompareClause(const OMPCompareClause *) {}
 
 void OMPClauseEnqueue::VisitOMPSeqCstClause(const OMPSeqCstClause *) {}
 
@@ -4950,7 +4954,7 @@ CXStringSet *clang_Cursor_getObjCManglings(CXCursor C) {
 
 CXPrintingPolicy clang_getCursorPrintingPolicy(CXCursor C) {
   if (clang_Cursor_isNull(C))
-    return 0;
+    return nullptr;
   return new PrintingPolicy(getCursorContext(C).getPrintingPolicy());
 }
 
@@ -6976,16 +6980,16 @@ CXToken *clang_getToken(CXTranslationUnit TU, CXSourceLocation Location) {
 
   if (isNotUsableTU(TU)) {
     LOG_BAD_TU(TU);
-    return NULL;
+    return nullptr;
   }
 
   ASTUnit *CXXUnit = cxtu::getASTUnit(TU);
   if (!CXXUnit)
-    return NULL;
+    return nullptr;
 
   SourceLocation Begin = cxloc::translateSourceLocation(Location);
   if (Begin.isInvalid())
-    return NULL;
+    return nullptr;
   SourceManager &SM = CXXUnit->getSourceManager();
   std::pair<FileID, unsigned> DecomposedEnd = SM.getDecomposedLoc(Begin);
   DecomposedEnd.second +=
@@ -6998,7 +7002,7 @@ CXToken *clang_getToken(CXTranslationUnit TU, CXSourceLocation Location) {
   getTokens(CXXUnit, SourceRange(Begin, End), CXTokens);
 
   if (CXTokens.empty())
-    return NULL;
+    return nullptr;
 
   CXTokens.resize(1);
   CXToken *Token = static_cast<CXToken *>(llvm::safe_malloc(sizeof(CXToken)));

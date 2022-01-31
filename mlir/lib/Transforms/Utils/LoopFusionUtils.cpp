@@ -12,11 +12,11 @@
 
 #include "mlir/Transforms/LoopFusionUtils.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/LoopAnalysis.h"
 #include "mlir/Analysis/SliceAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -54,9 +54,9 @@ static void getLoadAndStoreMemRefAccesses(Operation *opA,
 static bool isDependentLoadOrStoreOp(Operation *op,
                                      DenseMap<Value, bool> &values) {
   if (auto loadOp = dyn_cast<AffineReadOpInterface>(op)) {
-    return values.count(loadOp.getMemRef()) > 0 &&
-           values[loadOp.getMemRef()] == true;
-  } else if (auto storeOp = dyn_cast<AffineWriteOpInterface>(op)) {
+    return values.count(loadOp.getMemRef()) > 0 && values[loadOp.getMemRef()];
+  }
+  if (auto storeOp = dyn_cast<AffineWriteOpInterface>(op)) {
     return values.count(storeOp.getMemRef()) > 0;
   }
   return false;

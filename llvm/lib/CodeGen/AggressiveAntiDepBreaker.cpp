@@ -120,8 +120,7 @@ bool AggressiveAntiDepState::IsLive(unsigned Reg) {
 AggressiveAntiDepBreaker::AggressiveAntiDepBreaker(
     MachineFunction &MFi, const RegisterClassInfo &RCI,
     TargetSubtargetInfo::RegClassVector &CriticalPathRCs)
-    : AntiDepBreaker(), MF(MFi), MRI(MF.getRegInfo()),
-      TII(MF.getSubtarget().getInstrInfo()),
+    : MF(MFi), MRI(MF.getRegInfo()), TII(MF.getSubtarget().getInstrInfo()),
       TRI(MF.getSubtarget().getRegisterInfo()), RegClassInfo(RCI) {
   /* Collect a bitset of all registers that are only broken if they
      are on the critical path. */
@@ -561,8 +560,7 @@ bool AggressiveAntiDepBreaker::FindSuitableFreeRegisters(
                     << ":\n");
   std::map<unsigned, BitVector> RenameRegisterMap;
   unsigned SuperReg = 0;
-  for (unsigned i = 0, e = Regs.size(); i != e; ++i) {
-    unsigned Reg = Regs[i];
+  for (unsigned Reg : Regs) {
     if ((SuperReg == 0) || TRI->isSuperRegister(SuperReg, Reg))
       SuperReg = Reg;
 
@@ -584,8 +582,7 @@ bool AggressiveAntiDepBreaker::FindSuitableFreeRegisters(
   }
 
   // All group registers should be a subreg of SuperReg.
-  for (unsigned i = 0, e = Regs.size(); i != e; ++i) {
-    unsigned Reg = Regs[i];
+  for (unsigned Reg : Regs) {
     if (Reg == SuperReg) continue;
     bool IsSub = TRI->isSubRegister(SuperReg, Reg);
     // FIXME: remove this once PR18663 has been properly fixed. For now,
@@ -646,8 +643,7 @@ bool AggressiveAntiDepBreaker::FindSuitableFreeRegisters(
     // For each referenced group register (which must be a SuperReg or
     // a subregister of SuperReg), find the corresponding subregister
     // of NewSuperReg and make sure it is free to be renamed.
-    for (unsigned i = 0, e = Regs.size(); i != e; ++i) {
-      unsigned Reg = Regs[i];
+    for (unsigned Reg : Regs) {
       unsigned NewReg = 0;
       if (Reg == SuperReg) {
         NewReg = NewSuperReg;

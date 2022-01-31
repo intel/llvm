@@ -4,8 +4,10 @@ add_mlir_dialect_library(MLIRVector
   VectorMultiDimReductionTransforms.cpp
   VectorOps.cpp
   VectorTransferOpTransforms.cpp
+  VectorTransferSplitRewritePatterns.cpp
   VectorTransferPermutationMapRewritePatterns.cpp
   VectorTransforms.cpp
+  VectorUnrollDistribute.cpp
   VectorUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -25,7 +27,7 @@ add_mlir_dialect_library(MLIRVector
   MLIRLinalg
   MLIRMemRef
   MLIRSCF
-  MLIRLoopAnalysis
+  MLIRAffineAnalysis
   MLIRDataLayoutInterfaces
   MLIRSideEffectInterfaces
   MLIRVectorInterfaces

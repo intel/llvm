@@ -124,21 +124,21 @@ ScopedGlobalProcessor::~ScopedGlobalProcessor() {
   gp->mtx.Unlock();
 }
 
-void AllocatorLock() NO_THREAD_SAFETY_ANALYSIS {
+void AllocatorLock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   global_proc()->internal_alloc_mtx.Lock();
   InternalAllocatorLock();
 }
 
-void AllocatorUnlock() NO_THREAD_SAFETY_ANALYSIS {
+void AllocatorUnlock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   InternalAllocatorUnlock();
   global_proc()->internal_alloc_mtx.Unlock();
 }
 
-void GlobalProcessorLock() NO_THREAD_SAFETY_ANALYSIS {
+void GlobalProcessorLock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   global_proc()->mtx.Lock();
 }
 
-void GlobalProcessorUnlock() NO_THREAD_SAFETY_ANALYSIS {
+void GlobalProcessorUnlock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
   global_proc()->mtx.Unlock();
 }
 
@@ -197,6 +197,12 @@ void *user_alloc_internal(ThreadState *thr, uptr pc, uptr sz, uptr align,
         Min(kMaxAllowedMallocSize, max_user_defined_malloc_size);
     GET_STACK_TRACE_FATAL(thr, pc);
     ReportAllocationSizeTooBig(sz, malloc_limit, &stack);
+  }
+  if (UNLIKELY(IsRssLimitExceeded())) {
+    if (AllocatorMayReturnNull())
+      return nullptr;
+    GET_STACK_TRACE_FATAL(thr, pc);
+    ReportRssLimitExceeded(&stack);
   }
   void *p = allocator()->Allocate(&thr->proc()->alloc_cache, sz, align);
   if (UNLIKELY(!p)) {
@@ -358,7 +364,7 @@ void *user_pvalloc(ThreadState *thr, uptr pc, uptr sz) {
 }
 
 uptr user_alloc_usable_size(const void *p) {
-  if (p == 0)
+  if (p == 0 || !IsAppMem((uptr)p))
     return 0;
   MBlock *b = ctx->metamap.GetBlock((uptr)p);
   if (!b)

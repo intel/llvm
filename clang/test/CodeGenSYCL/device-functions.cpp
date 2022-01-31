@@ -24,4 +24,4 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE11fake_kernel()
 // CHECK: define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon addrspace(4)* {{[^,]*}} %this)
 // CHECK: define {{.*}}spir_func void @_Z3foov()
-// CHECK: define linkonce_odr spir_func i32 @_Z3barIiET_S0_(i32 %arg)
+// CHECK: define linkonce_odr spir_func noundef i32 @_Z3barIiET_S0_(i32 noundef %arg)

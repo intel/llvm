@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Transforms/Bufferize.h"
+#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "PassDetail.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -41,16 +41,17 @@ public:
 };
 } // namespace
 
-void mlir::populateStdBufferizePatterns(BufferizeTypeConverter &typeConverter,
-                                        RewritePatternSet &patterns) {
+void mlir::populateStdBufferizePatterns(
+    bufferization::BufferizeTypeConverter &typeConverter,
+    RewritePatternSet &patterns) {
   patterns.add<BufferizeSelectOp>(typeConverter, patterns.getContext());
 }
 
 namespace {
 struct StdBufferizePass : public StdBufferizeBase<StdBufferizePass> {
-  void runOnFunction() override {
+  void runOnOperation() override {
     auto *context = &getContext();
-    BufferizeTypeConverter typeConverter;
+    bufferization::BufferizeTypeConverter typeConverter;
     RewritePatternSet patterns(context);
     ConversionTarget target(*context);
 
@@ -65,8 +66,8 @@ struct StdBufferizePass : public StdBufferizeBase<StdBufferizePass> {
       return typeConverter.isLegal(op.getType()) ||
              !op.getCondition().getType().isa<IntegerType>();
     });
-    if (failed(
-            applyPartialConversion(getFunction(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };

@@ -60,8 +60,8 @@ using namespace llvm::sys;
 namespace lld {
 namespace coff {
 
-Configuration *config;
-LinkerDriver *driver;
+std::unique_ptr<Configuration> config;
+std::unique_ptr<LinkerDriver> driver;
 
 bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
           raw_ostream &stderrOS) {
@@ -80,8 +80,8 @@ bool link(ArrayRef<const char *> args, bool canExitEarly, raw_ostream &stdoutOS,
   stderrOS.enable_colors(stderrOS.has_colors());
 
   COFFLinkerContext ctx;
-  config = make<Configuration>();
-  driver = make<LinkerDriver>(ctx);
+  config = std::make_unique<Configuration>();
+  driver = std::make_unique<LinkerDriver>(ctx);
 
   driver->linkerMain(args);
 
@@ -208,17 +208,11 @@ void LinkerDriver::addBuffer(std::unique_ptr<MemoryBuffer> mb,
     ctx.symtab.addFile(make<ArchiveFile>(ctx, mbref));
     break;
   case file_magic::bitcode:
-    if (lazy)
-      ctx.symtab.addFile(make<LazyObjFile>(ctx, mbref));
-    else
-      ctx.symtab.addFile(make<BitcodeFile>(ctx, mbref, "", 0));
+    ctx.symtab.addFile(make<BitcodeFile>(ctx, mbref, "", 0, lazy));
     break;
   case file_magic::coff_object:
   case file_magic::coff_import_library:
-    if (lazy)
-      ctx.symtab.addFile(make<LazyObjFile>(ctx, mbref));
-    else
-      ctx.symtab.addFile(make<ObjFile>(ctx, mbref));
+    ctx.symtab.addFile(make<ObjFile>(ctx, mbref, lazy));
     break;
   case file_magic::pdb:
     ctx.symtab.addFile(make<PDBInputFile>(ctx, mbref));
@@ -282,7 +276,8 @@ void LinkerDriver::addArchiveBuffer(MemoryBufferRef mb, StringRef symName,
   if (magic == file_magic::coff_object) {
     obj = make<ObjFile>(ctx, mb);
   } else if (magic == file_magic::bitcode) {
-    obj = make<BitcodeFile>(ctx, mb, parentName, offsetInArchive);
+    obj =
+        make<BitcodeFile>(ctx, mb, parentName, offsetInArchive, /*lazy=*/false);
   } else {
     error("unknown file type: " + mb.getBufferIdentifier());
     return;
@@ -815,6 +810,7 @@ static void createImportLibrary(bool asLib) {
     e2.Name = std::string(e1.name);
     e2.SymbolName = std::string(e1.symbolName);
     e2.ExtName = std::string(e1.extName);
+    e2.AliasTarget = std::string(e1.aliasTarget);
     e2.Ordinal = e1.ordinal;
     e2.Noname = e1.noname;
     e2.Data = e1.data;
@@ -913,6 +909,7 @@ static void parseModuleDefs(StringRef path) {
     }
     e2.name = saver.save(e1.Name);
     e2.extName = saver.save(e1.ExtName);
+    e2.aliasTarget = saver.save(e1.AliasTarget);
     e2.ordinal = e1.Ordinal;
     e2.noname = e1.Noname;
     e2.data = e1.Data;
@@ -2085,7 +2082,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (args.hasArg(OPT_include_optional)) {
     // Handle /includeoptional
     for (auto *arg : args.filtered(OPT_include_optional))
-      if (dyn_cast_or_null<LazyArchive>(ctx.symtab.find(arg->getValue())))
+      if (isa_and_nonnull<LazyArchive>(ctx.symtab.find(arg->getValue())))
         addUndefined(arg->getValue());
     while (run());
   }

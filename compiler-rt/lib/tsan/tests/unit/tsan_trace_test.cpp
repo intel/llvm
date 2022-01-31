@@ -16,12 +16,10 @@
 #include "gtest/gtest.h"
 #include "tsan_rtl.h"
 
-#if SANITIZER_MAC || !defined(__x86_64__)
-// These tests are currently crashing on Mac:
-// https://reviews.llvm.org/D107911
-// and on ppc64: https://reviews.llvm.org/D110546#3025422
+#if !defined(__x86_64__)
+// These tests are currently crashing on ppc64:
+// https://reviews.llvm.org/D110546#3025422
 // due to the way we create thread contexts
-// (but they crashed on Mac with normal pthread_create as well).
 // There must be some difference in thread initialization
 // between normal execution and unit tests.
 #  define TRACE_TEST(SUITE, NAME) TEST(SUITE, DISABLED_##NAME)
@@ -88,7 +86,7 @@ TRACE_TEST(Trace, RestoreAccess) {
   // The previous one is equivalent, but RestoreStack must prefer
   // the last of the matchig accesses.
   CHECK(TryTraceMemoryAccess(thr, 0x2002, 0x3000, 8, kAccessRead));
-  SlotPairLocker locker(thr, thr->fast_state.sid());
+  Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
   ThreadRegistryLock lock1(&ctx->thread_registry);
   Lock lock2(&ctx->slot_mtx);
   Tid tid = kInvalidTid;
@@ -148,7 +146,7 @@ TRACE_TEST(Trace, MemoryAccessSize) {
                                  kAccessRead);
           break;
       }
-      SlotPairLocker locker(thr, thr->fast_state.sid());
+      Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
       ThreadRegistryLock lock1(&ctx->thread_registry);
       Lock lock2(&ctx->slot_mtx);
       Tid tid = kInvalidTid;
@@ -176,7 +174,7 @@ TRACE_TEST(Trace, RestoreMutexLock) {
   TraceMutexLock(thr, EventType::kLock, 0x4000, 0x5000, 0x6000);
   TraceMutexLock(thr, EventType::kRLock, 0x4001, 0x5001, 0x6001);
   TraceMutexLock(thr, EventType::kRLock, 0x4002, 0x5001, 0x6002);
-  SlotPairLocker locker(thr, thr->fast_state.sid());
+  Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
   ThreadRegistryLock lock1(&ctx->thread_registry);
   Lock lock2(&ctx->slot_mtx);
   Tid tid = kInvalidTid;
@@ -219,7 +217,7 @@ TRACE_TEST(Trace, MultiPart) {
   FuncEntry(thr, 0x4000);
   TraceMutexLock(thr, EventType::kRLock, 0x4001, 0x5001, 0x6001);
   CHECK(TryTraceMemoryAccess(thr, 0x2002, 0x3000, 8, kAccessRead));
-  SlotPairLocker locker(thr, thr->fast_state.sid());
+  Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
   ThreadRegistryLock lock1(&ctx->thread_registry);
   Lock lock2(&ctx->slot_mtx);
   Tid tid = kInvalidTid;

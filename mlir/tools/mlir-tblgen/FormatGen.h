@@ -21,7 +21,7 @@
 
 namespace llvm {
 class SourceMgr;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 namespace tblgen {
@@ -59,6 +59,7 @@ public:
     kw_functional_type,
     kw_operands,
     kw_params,
+    kw_qualified,
     kw_ref,
     kw_regions,
     kw_results,
@@ -147,15 +148,18 @@ private:
 bool shouldEmitSpaceBefore(StringRef value, bool lastWasPunctuation);
 
 /// Returns true if the given string can be formatted as a keyword.
-bool canFormatStringAsKeyword(StringRef value);
+bool canFormatStringAsKeyword(StringRef value,
+                              function_ref<void(Twine)> emitError = nullptr);
 
 /// Returns true if the given string is valid format literal element.
-bool isValidLiteral(StringRef value);
+/// If `emitError` is provided, it is invoked with the reason for the failure.
+bool isValidLiteral(StringRef value,
+                    function_ref<void(Twine)> emitError = nullptr);
 
 /// Whether a failure in parsing the assembly format should be a fatal error.
 extern llvm::cl::opt<bool> formatErrorIsFatal;
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TOOLS_MLIRTBLGEN_FORMATGEN_H_

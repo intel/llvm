@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -88,7 +90,8 @@ size_t PassRegistryEntry::getOptionWidth() const {
 void mlir::registerPassPipeline(
     StringRef arg, StringRef description, const PassRegistryFunction &function,
     std::function<void(function_ref<void(const PassOptions &)>)> optHandler) {
-  PassPipelineInfo pipelineInfo(arg, description, function, optHandler);
+  PassPipelineInfo pipelineInfo(arg, description, function,
+                                std::move(optHandler));
   bool inserted = passPipelineRegistry->try_emplace(arg, pipelineInfo).second;
   assert(inserted && "Pass pipeline registered multiple times");
   (void)inserted;
@@ -111,8 +114,9 @@ void mlir::registerPass(const PassAllocatorFunction &function) {
   std::unique_ptr<Pass> pass = function();
   StringRef arg = pass->getArgument();
   if (arg.empty())
-    llvm::report_fatal_error(
-        "Trying to register a pass that does not override `getArgument()`");
+    llvm::report_fatal_error(llvm::Twine("Trying to register '") +
+                             pass->getName() +
+                             "' pass that does not override `getArgument()`");
   StringRef description = pass->getDescription();
   PassInfo passInfo(arg, description, function);
   passRegistry->try_emplace(arg, passInfo);
@@ -301,7 +305,7 @@ private:
   std::vector<PipelineElement> pipeline;
 };
 
-} // end anonymous namespace
+} // namespace
 
 /// Try to initialize this pipeline with the given pipeline text. An option is
 /// given to enable accurate error reporting.
@@ -478,10 +482,6 @@ LogicalResult TextualPipeline::addToPipeline(
   return success();
 }
 
-/// This function parses the textual representation of a pass pipeline, and adds
-/// the result to 'pm' on success. This function returns failure if the given
-/// pipeline was invalid. 'errorStream' is an optional parameter that, if
-/// non-null, will be used to emit errors found during parsing.
 LogicalResult mlir::parsePassPipeline(StringRef pipeline, OpPassManager &pm,
                                       raw_ostream &errorStream) {
   TextualPipeline pipelineParser;
@@ -496,6 +496,24 @@ LogicalResult mlir::parsePassPipeline(StringRef pipeline, OpPassManager &pm,
   return success();
 }
 
+FailureOr<OpPassManager> mlir::parsePassPipeline(StringRef pipeline,
+                                                 raw_ostream &errorStream) {
+  // Pipelines are expected to be of the form `<op-name>(<pipeline>)`.
+  size_t pipelineStart = pipeline.find_first_of('(');
+  if (pipelineStart == 0 || pipelineStart == StringRef::npos ||
+      !pipeline.consume_back(")")) {
+    errorStream << "expected pass pipeline to be wrapped with the anchor "
+                   "operation type, e.g. `builtin.module(...)";
+    return failure();
+  }
+
+  StringRef opName = pipeline.take_front(pipelineStart);
+  OpPassManager pm(opName);
+  if (failed(parsePassPipeline(pipeline.drop_front(1 + pipelineStart), pm)))
+    return failure();
+  return pm;
+}
+
 //===----------------------------------------------------------------------===//
 // PassNameParser
 //===----------------------------------------------------------------------===//
@@ -504,13 +522,13 @@ namespace {
 /// This struct represents the possible data entries in a parsed pass pipeline
 /// list.
 struct PassArgData {
-  PassArgData() : registryEntry(nullptr) {}
+  PassArgData() = default;
   PassArgData(const PassRegistryEntry *registryEntry)
       : registryEntry(registryEntry) {}
 
   /// This field is used when the parsed option corresponds to a registered pass
   /// or pass pipeline.
-  const PassRegistryEntry *registryEntry;
+  const PassRegistryEntry *registryEntry{nullptr};
 
   /// This field is set when instance specific pass options have been provided
   /// on the command line.
@@ -520,7 +538,7 @@ struct PassArgData {
   /// pipeline.
   TextualPipeline pipeline;
 };
-} // end anonymous namespace
+} // namespace
 
 namespace llvm {
 namespace cl {
@@ -538,8 +556,8 @@ struct OptionValue<PassArgData> final
 
   PassArgData value;
 };
-} // end namespace cl
-} // end namespace llvm
+} // namespace cl
+} // namespace llvm
 
 namespace {
 
@@ -686,14 +704,14 @@ struct PassPipelineCLParserImpl {
   /// The set of passes and pass pipelines to run.
   llvm::cl::list<PassArgData, bool, PassNameParser> passList;
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 /// Construct a pass pipeline parser with the given command line description.
 PassPipelineCLParser::PassPipelineCLParser(StringRef arg, StringRef description)
     : impl(std::make_unique<detail::PassPipelineCLParserImpl>(
           arg, description, /*passNamesOnly=*/false)) {}
-PassPipelineCLParser::~PassPipelineCLParser() {}
+PassPipelineCLParser::~PassPipelineCLParser() = default;
 
 /// Returns true if this parser contains any valid options to add.
 bool PassPipelineCLParser::hasAnyOccurrences() const {
@@ -736,7 +754,7 @@ PassNameCLParser::PassNameCLParser(StringRef arg, StringRef description)
           arg, description, /*passNamesOnly=*/true)) {
   impl->passList.setMiscFlag(llvm::cl::CommaSeparated);
 }
-PassNameCLParser::~PassNameCLParser() {}
+PassNameCLParser::~PassNameCLParser() = default;
 
 /// Returns true if this parser contains any valid options to add.
 bool PassNameCLParser::hasAnyOccurrences() const {

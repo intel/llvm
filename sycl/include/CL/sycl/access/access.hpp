@@ -58,6 +58,7 @@ enum class address_space : int {
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
+enum class decorated : int { no = 0, yes = 1, legacy = 2 };
 } // namespace access
 
 using access::target;
@@ -160,6 +161,11 @@ struct DecoratedType;
 template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::private_space> {
   using type = __OPENCL_PRIVATE_AS__ ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = ElementType;
 };
 
 template <typename ElementType>

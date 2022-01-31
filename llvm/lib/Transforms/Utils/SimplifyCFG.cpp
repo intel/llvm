@@ -2052,109 +2052,119 @@ static bool SinkCommonCodeFromPredecessors(BasicBlock *BB,
   if (ScanIdx == 0)
     return false;
 
-  // Okay, we *could* sink last ScanIdx instructions. But how many can we
-  // actually sink before encountering instruction that is unprofitable to sink?
-  auto ProfitableToSinkInstruction = [&](LockstepReverseIterator &LRI) {
-    unsigned NumPHIdValues = 0;
-    for (auto *I : *LRI)
-      for (auto *V : PHIOperands[I]) {
-        if (!InstructionsToSink.contains(V))
-          ++NumPHIdValues;
-        // FIXME: this check is overly optimistic. We may end up not sinking
-        // said instruction, due to the very same profitability check.
-        // See @creating_too_many_phis in sink-common-code.ll.
-      }
-    LLVM_DEBUG(dbgs() << "SINK: #phid values: " << NumPHIdValues << "\n");
-    unsigned NumPHIInsts = NumPHIdValues / UnconditionalPreds.size();
-    if ((NumPHIdValues % UnconditionalPreds.size()) != 0)
+  bool followedByDeoptOrUnreachable = IsBlockFollowedByDeoptOrUnreachable(BB);
+
+  if (!followedByDeoptOrUnreachable) {
+    // Okay, we *could* sink last ScanIdx instructions. But how many can we
+    // actually sink before encountering instruction that is unprofitable to
+    // sink?
+    auto ProfitableToSinkInstruction = [&](LockstepReverseIterator &LRI) {
+      unsigned NumPHIdValues = 0;
+      for (auto *I : *LRI)
+        for (auto *V : PHIOperands[I]) {
+          if (!InstructionsToSink.contains(V))
+            ++NumPHIdValues;
+          // FIXME: this check is overly optimistic. We may end up not sinking
+          // said instruction, due to the very same profitability check.
+          // See @creating_too_many_phis in sink-common-code.ll.
+        }
+      LLVM_DEBUG(dbgs() << "SINK: #phid values: " << NumPHIdValues << "\n");
+      unsigned NumPHIInsts = NumPHIdValues / UnconditionalPreds.size();
+      if ((NumPHIdValues % UnconditionalPreds.size()) != 0)
         NumPHIInsts++;
 
-    return NumPHIInsts <= 1;
-  };
+      return NumPHIInsts <= 1;
+    };
 
-  // We've determined that we are going to sink last ScanIdx instructions,
-  // and recorded them in InstructionsToSink. Now, some instructions may be
-  // unprofitable to sink. But that determination depends on the instructions
-  // that we are going to sink.
+    // We've determined that we are going to sink last ScanIdx instructions,
+    // and recorded them in InstructionsToSink. Now, some instructions may be
+    // unprofitable to sink. But that determination depends on the instructions
+    // that we are going to sink.
 
-  // First, forward scan: find the first instruction unprofitable to sink,
-  // recording all the ones that are profitable to sink.
-  // FIXME: would it be better, after we detect that not all are profitable.
-  // to either record the profitable ones, or erase the unprofitable ones?
-  // Maybe we need to choose (at runtime) the one that will touch least instrs?
-  LRI.reset();
-  int Idx = 0;
-  SmallPtrSet<Value *, 4> InstructionsProfitableToSink;
-  while (Idx < ScanIdx) {
-    if (!ProfitableToSinkInstruction(LRI)) {
-      // Too many PHIs would be created.
-      LLVM_DEBUG(
-          dbgs() << "SINK: stopping here, too many PHIs would be created!\n");
-      break;
-    }
-    InstructionsProfitableToSink.insert((*LRI).begin(), (*LRI).end());
-    --LRI;
-    ++Idx;
-  }
-
-  // If no instructions can be sunk, early-return.
-  if (Idx == 0)
-    return false;
-
-  // Did we determine that (only) some instructions are unprofitable to sink?
-  if (Idx < ScanIdx) {
-    // Okay, some instructions are unprofitable.
-    ScanIdx = Idx;
-    InstructionsToSink = InstructionsProfitableToSink;
-
-    // But, that may make other instructions unprofitable, too.
-    // So, do a backward scan, do any earlier instructions become unprofitable?
-    assert(!ProfitableToSinkInstruction(LRI) &&
-           "We already know that the last instruction is unprofitable to sink");
-    ++LRI;
-    --Idx;
-    while (Idx >= 0) {
-      // If we detect that an instruction becomes unprofitable to sink,
-      // all earlier instructions won't be sunk either,
-      // so preemptively keep InstructionsProfitableToSink in sync.
-      // FIXME: is this the most performant approach?
-      for (auto *I : *LRI)
-        InstructionsProfitableToSink.erase(I);
+    // First, forward scan: find the first instruction unprofitable to sink,
+    // recording all the ones that are profitable to sink.
+    // FIXME: would it be better, after we detect that not all are profitable.
+    // to either record the profitable ones, or erase the unprofitable ones?
+    // Maybe we need to choose (at runtime) the one that will touch least
+    // instrs?
+    LRI.reset();
+    int Idx = 0;
+    SmallPtrSet<Value *, 4> InstructionsProfitableToSink;
+    while (Idx < ScanIdx) {
       if (!ProfitableToSinkInstruction(LRI)) {
-        // Everything starting with this instruction won't be sunk.
-        ScanIdx = Idx;
-        InstructionsToSink = InstructionsProfitableToSink;
+        // Too many PHIs would be created.
+        LLVM_DEBUG(
+            dbgs() << "SINK: stopping here, too many PHIs would be created!\n");
+        break;
       }
+      InstructionsProfitableToSink.insert((*LRI).begin(), (*LRI).end());
+      --LRI;
+      ++Idx;
+    }
+
+    // If no instructions can be sunk, early-return.
+    if (Idx == 0)
+      return false;
+
+    // Did we determine that (only) some instructions are unprofitable to sink?
+    if (Idx < ScanIdx) {
+      // Okay, some instructions are unprofitable.
+      ScanIdx = Idx;
+      InstructionsToSink = InstructionsProfitableToSink;
+
+      // But, that may make other instructions unprofitable, too.
+      // So, do a backward scan, do any earlier instructions become
+      // unprofitable?
+      assert(
+          !ProfitableToSinkInstruction(LRI) &&
+          "We already know that the last instruction is unprofitable to sink");
       ++LRI;
       --Idx;
+      while (Idx >= 0) {
+        // If we detect that an instruction becomes unprofitable to sink,
+        // all earlier instructions won't be sunk either,
+        // so preemptively keep InstructionsProfitableToSink in sync.
+        // FIXME: is this the most performant approach?
+        for (auto *I : *LRI)
+          InstructionsProfitableToSink.erase(I);
+        if (!ProfitableToSinkInstruction(LRI)) {
+          // Everything starting with this instruction won't be sunk.
+          ScanIdx = Idx;
+          InstructionsToSink = InstructionsProfitableToSink;
+        }
+        ++LRI;
+        --Idx;
+      }
     }
-  }
 
-  // If no instructions can be sunk, early-return.
-  if (ScanIdx == 0)
-    return false;
+    // If no instructions can be sunk, early-return.
+    if (ScanIdx == 0)
+      return false;
+  }
 
   bool Changed = false;
 
   if (HaveNonUnconditionalPredecessors) {
-    // It is always legal to sink common instructions from unconditional
-    // predecessors. However, if not all predecessors are unconditional,
-    // this transformation might be pessimizing. So as a rule of thumb,
-    // don't do it unless we'd sink at least one non-speculatable instruction.
-    // See https://bugs.llvm.org/show_bug.cgi?id=30244
-    LRI.reset();
-    int Idx = 0;
-    bool Profitable = false;
-    while (Idx < ScanIdx) {
-      if (!isSafeToSpeculativelyExecute((*LRI)[0])) {
-        Profitable = true;
-        break;
+    if (!followedByDeoptOrUnreachable) {
+      // It is always legal to sink common instructions from unconditional
+      // predecessors. However, if not all predecessors are unconditional,
+      // this transformation might be pessimizing. So as a rule of thumb,
+      // don't do it unless we'd sink at least one non-speculatable instruction.
+      // See https://bugs.llvm.org/show_bug.cgi?id=30244
+      LRI.reset();
+      int Idx = 0;
+      bool Profitable = false;
+      while (Idx < ScanIdx) {
+        if (!isSafeToSpeculativelyExecute((*LRI)[0])) {
+          Profitable = true;
+          break;
+        }
+        --LRI;
+        ++Idx;
       }
-      --LRI;
-      ++Idx;
+      if (!Profitable)
+        return false;
     }
-    if (!Profitable)
-      return false;
 
     LLVM_DEBUG(dbgs() << "SINK: Splitting edge\n");
     // We have a conditional edge and we're going to sink some instructions.
@@ -3629,7 +3639,7 @@ static bool tryWidenCondBranchToCondBranch(BranchInst *PBI, BranchInst *BI,
     return false; // TODO
   // Use lambda to lazily compute expensive condition after cheap ones.
   auto NoSideEffects = [](BasicBlock &BB) {
-    return !llvm::any_of(BB, [](const Instruction &I) {
+    return llvm::none_of(BB, [](const Instruction &I) {
         return I.mayWriteToMemory() || I.mayHaveSideEffects();
       });
   };
@@ -3936,7 +3946,7 @@ bool SimplifyCFGOpt::SimplifyTerminatorOnSelect(Instruction *OldTerm,
   BasicBlock *KeepEdge1 = TrueBB;
   BasicBlock *KeepEdge2 = TrueBB != FalseBB ? FalseBB : nullptr;
 
-  SmallPtrSet<BasicBlock *, 2> RemovedSuccessors;
+  SmallSetVector<BasicBlock *, 2> RemovedSuccessors;
 
   // Then remove the rest.
   for (BasicBlock *Succ : successors(OldTerm)) {
@@ -4935,22 +4945,25 @@ static bool eliminateDeadSwitchCases(SwitchInst *SI, DomTreeUpdater *DTU,
                                      AssumptionCache *AC,
                                      const DataLayout &DL) {
   Value *Cond = SI->getCondition();
-  unsigned Bits = Cond->getType()->getIntegerBitWidth();
   KnownBits Known = computeKnownBits(Cond, DL, 0, AC, SI);
 
   // We can also eliminate cases by determining that their values are outside of
   // the limited range of the condition based on how many significant (non-sign)
   // bits are in the condition value.
-  unsigned ExtraSignBits = ComputeNumSignBits(Cond, DL, 0, AC, SI) - 1;
-  unsigned MaxSignificantBitsInCond = Bits - ExtraSignBits;
+  unsigned MaxSignificantBitsInCond =
+      ComputeMaxSignificantBits(Cond, DL, 0, AC, SI);
 
   // Gather dead cases.
   SmallVector<ConstantInt *, 8> DeadCases;
   SmallDenseMap<BasicBlock *, int, 8> NumPerSuccessorCases;
+  SmallVector<BasicBlock *, 8> UniqueSuccessors;
   for (auto &Case : SI->cases()) {
     auto *Successor = Case.getCaseSuccessor();
-    if (DTU)
+    if (DTU) {
+      if (!NumPerSuccessorCases.count(Successor))
+        UniqueSuccessors.push_back(Successor);
       ++NumPerSuccessorCases[Successor];
+    }
     const APInt &CaseVal = Case.getCaseValue()->getValue();
     if (Known.Zero.intersects(CaseVal) || !Known.One.isSubsetOf(CaseVal) ||
         (CaseVal.getMinSignedBits() > MaxSignificantBitsInCond)) {
@@ -4969,8 +4982,8 @@ static bool eliminateDeadSwitchCases(SwitchInst *SI, DomTreeUpdater *DTU,
   bool HasDefault =
       !isa<UnreachableInst>(SI->getDefaultDest()->getFirstNonPHIOrDbg());
   const unsigned NumUnknownBits =
-      Bits - (Known.Zero | Known.One).countPopulation();
-  assert(NumUnknownBits <= Bits);
+      Known.getBitWidth() - (Known.Zero | Known.One).countPopulation();
+  assert(NumUnknownBits <= Known.getBitWidth());
   if (HasDefault && DeadCases.empty() &&
       NumUnknownBits < 64 /* avoid overflow */ &&
       SI->getNumCases() == (1ULL << NumUnknownBits)) {
@@ -4993,9 +5006,9 @@ static bool eliminateDeadSwitchCases(SwitchInst *SI, DomTreeUpdater *DTU,
 
   if (DTU) {
     std::vector<DominatorTree::UpdateType> Updates;
-    for (const std::pair<BasicBlock *, int> &I : NumPerSuccessorCases)
-      if (I.second == 0)
-        Updates.push_back({DominatorTree::Delete, SI->getParent(), I.first});
+    for (auto *Successor : UniqueSuccessors)
+      if (NumPerSuccessorCases[Successor] == 0)
+        Updates.push_back({DominatorTree::Delete, SI->getParent(), Successor});
     DTU->applyUpdates(Updates);
   }
 
@@ -5792,10 +5805,9 @@ static void reuseTableCompare(
   for (auto ValuePair : Values) {
     Constant *CaseConst = ConstantExpr::getICmp(CmpInst->getPredicate(),
                                                 ValuePair.second, CmpOp1, true);
-    if (!CaseConst || CaseConst == DefaultConst || isa<UndefValue>(CaseConst))
+    if (!CaseConst || CaseConst == DefaultConst ||
+        (CaseConst != TrueConst && CaseConst != FalseConst))
       return;
-    assert((CaseConst == TrueConst || CaseConst == FalseConst) &&
-           "Expect true or false as compare result.");
   }
 
   // Check if the branch instruction dominates the phi node. It's a simple
@@ -6060,15 +6072,13 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
     if (Succ == SI->getDefaultDest())
       continue;
     Succ->removePredecessor(BB);
-    RemovedSuccessors.insert(Succ);
+    if (DTU && RemovedSuccessors.insert(Succ).second)
+      Updates.push_back({DominatorTree::Delete, BB, Succ});
   }
   SI->eraseFromParent();
 
-  if (DTU) {
-    for (BasicBlock *RemovedSuccessor : RemovedSuccessors)
-      Updates.push_back({DominatorTree::Delete, BB, RemovedSuccessor});
+  if (DTU)
     DTU->applyUpdates(Updates);
-  }
 
   ++NumLookupTables;
   if (NeedMask)
@@ -6235,7 +6245,7 @@ bool SimplifyCFGOpt::simplifyIndirectBr(IndirectBrInst *IBI) {
 
   // Eliminate redundant destinations.
   SmallPtrSet<Value *, 8> Succs;
-  SmallPtrSet<BasicBlock *, 8> RemovedSuccs;
+  SmallSetVector<BasicBlock *, 8> RemovedSuccs;
   for (unsigned i = 0, e = IBI->getNumDestinations(); i != e; ++i) {
     BasicBlock *Dest = IBI->getDestination(i);
     if (!Dest->hasAddressTaken() || !Succs.insert(Dest).second) {
@@ -6325,8 +6335,8 @@ static bool TryToMergeLandingPad(LandingPadInst *LPad, BranchInst *BI,
 
     // We've found an identical block.  Update our predecessors to take that
     // path instead and make ourselves dead.
-    SmallPtrSet<BasicBlock *, 16> Preds(pred_begin(BB), pred_end(BB));
-    for (BasicBlock *Pred : Preds) {
+    SmallSetVector<BasicBlock *, 16> UniquePreds(pred_begin(BB), pred_end(BB));
+    for (BasicBlock *Pred : UniquePreds) {
       InvokeInst *II = cast<InvokeInst>(Pred->getTerminator());
       assert(II->getNormalDest() != BB && II->getUnwindDest() == BB &&
              "unexpected successor");
@@ -6343,8 +6353,8 @@ static bool TryToMergeLandingPad(LandingPadInst *LPad, BranchInst *BI,
       if (isa<DbgInfoIntrinsic>(Inst))
         Inst.eraseFromParent();
 
-    SmallPtrSet<BasicBlock *, 16> Succs(succ_begin(BB), succ_end(BB));
-    for (BasicBlock *Succ : Succs) {
+    SmallSetVector<BasicBlock *, 16> UniqueSuccs(succ_begin(BB), succ_end(BB));
+    for (BasicBlock *Succ : UniqueSuccs) {
       Succ->removePredecessor(BB);
       if (DTU)
         Updates.push_back({DominatorTree::Delete, BB, Succ});

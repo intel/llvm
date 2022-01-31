@@ -1240,6 +1240,23 @@ def SYCLSpecialClass: InheritableAttr {
   let Documentation = [SYCLSpecialClassDocs];
 }
 
+def SYCLDeviceHas : InheritableAttr {
+  let Spellings = [CXX11<"sycl", "device_has">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Args = [VariadicExprArgument<"Aspects">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLDeviceHasDocs];
+}
+
+def SYCLUsesAspects : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "__uses_aspects__">];
+  let Subjects = SubjectList<[CXXRecord, Function], ErrorDiag>;
+  let Args = [VariadicExprArgument<"Aspects">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  // Only used internally by the SYCL implementation
+  let Documentation = [Undocumented];
+}
+
 // Marks functions which must not be vectorized via horizontal SIMT widening,
 // e.g. because the function is already vectorized. Used to mark SYCL
 // explicit SIMD kernels and functions.
@@ -1263,15 +1280,17 @@ def SYCLRegisterNum : InheritableAttr {
   let Documentation = [SYCLRegisterNumDocs];
 }
 
-// Used by FE to mark ESIMD kernel pointer parameters which correspond to the
+// Used by FE to mark SYCL kernel pointer parameters which correspond to the
 // original lambda's captured accessors. FE turns the attribute to some metadata
-// required by the ESIMD Back-End.
-// Not supposed to be used directly in the source - SYCL device compiler FE
-// automatically adds it for ESIMD kernels, hence undocumented.
-def SYCLSimdAccessorPtr : InheritableAttr {
-  // No spelling, as this attribute can't be created in the source code.
+// required by the device back-end.
+// This attribute does not require custom semantic handling 
+// hence we set the SemaHandler field to 0.
+// The attribute is not for public consumption, and is an implicitly-created attribute
+// that has no visible spelling, hence undocumented.
+def SYCLAccessorPtr : Attr {
+  // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
-  let Subjects = SubjectList<[ParmVar]>;
+  let SemaHandler = 0;
   let Documentation = [Undocumented];
 }
 
@@ -2228,10 +2247,10 @@ def SYCLFPGAPipe : TypeAttr {
   let Documentation = [SYCLFPGAPipeDocs];
 }
 
-def SYCLIntelPipeIO : Attr {
+def SYCLIntelPipeIO : InheritableAttr {
   let Spellings = [GNU<"io_pipe_id">];
   let Args = [ExprArgument<"ID">];
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Var]>;
   let Documentation = [SYCLIntelPipeIOAttrDocs];
 }
@@ -3321,6 +3340,40 @@ def Target : InheritableAttr {
   }];
 }
 
+def TargetClones : InheritableAttr {
+  let Spellings = [GCC<"target_clones">];
+  let Args = [VariadicStringArgument<"featuresStrs">];
+  let Documentation = [TargetClonesDocs];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let AdditionalMembers = [{
+    StringRef getFeatureStr(unsigned Index) const {
+      return *(featuresStrs_begin() + Index);
+    }
+    // 'default' is always moved to the end, so it isn't considered
+    // when mangling the index.
+    unsigned getMangledIndex(unsigned Index) const {
+      if (getFeatureStr(Index) == "default")
+        return std::count_if(featuresStrs_begin(), featuresStrs_end(),
+                              [](StringRef S) { return S != "default"; });
+
+      return std::count_if(featuresStrs_begin(), featuresStrs_begin() + Index,
+                           [](StringRef S) { return S != "default"; });
+    }
+
+    // True if this is the first of this version to appear in the config string.
+    // This is used to make sure we don't try to emit this function multiple
+    // times.
+    bool isFirstOfVersion(unsigned Index) const {
+      StringRef FeatureStr(getFeatureStr(Index));
+      return 0 == std::count_if(
+                      featuresStrs_begin(), featuresStrs_begin() + Index,
+                      [FeatureStr](StringRef S) { return S == FeatureStr; });
+    }
+  }];
+}
+
+def : MutualExclusions<[TargetClones, Target, CPUDispatch, CPUSpecific]>;
+
 def MinVectorWidth : InheritableAttr {
   let Spellings = [Clang<"min_vector_width">];
   let Args = [UnsignedArgument<"VectorWidth">];
@@ -4295,6 +4348,8 @@ def OMPDeclareTargetDecl : InheritableAttr {
     EnumArgument<"DevType", "DevTypeTy",
                  [ "host", "nohost", "any" ],
                  [ "DT_Host", "DT_NoHost", "DT_Any" ]>,
+    ExprArgument<"IndirectExpr">,
+    BoolArgument<"Indirect">,
     UnsignedArgument<"Level">
   ];
   let AdditionalMembers = [{
@@ -4472,6 +4527,14 @@ def ReleaseHandle : InheritableParamAttr {
   let Args = [StringArgument<"HandleType">];
   let Subjects = SubjectList<[ParmVar]>;
   let Documentation = [ReleaseHandleDocs];
+}
+
+def DiagnoseAsBuiltin : InheritableAttr {
+  let Spellings = [Clang<"diagnose_as_builtin">];
+  let Args = [DeclArgument<Function, "Function">,
+              VariadicUnsignedArgument<"ArgIndices">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [DiagnoseAsBuiltinDocs];
 }
 
 def Builtin : InheritableAttr {

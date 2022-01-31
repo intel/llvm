@@ -9,14 +9,19 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 define void @print_call_and_memory(i64 %n, float* noalias %y, float* noalias %x) nounwind uwtable {
 ; CHECK-LABEL: Checking a loop in "print_call_and_memory"
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
+; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
+; CHECK-EMPTY:
 ; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT: for.body:
+; CHECK-NEXT:   EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:   WIDEN-INDUCTION %iv = phi %iv.next, 0
 ; CHECK-NEXT:   CLONE ir<%arrayidx> = getelementptr ir<%y>, ir<%iv>
 ; CHECK-NEXT:   WIDEN ir<%lv> = load ir<%arrayidx>
 ; CHECK-NEXT:   WIDEN-CALL ir<%call> = call @llvm.sqrt.f32(ir<%lv>)
 ; CHECK-NEXT:   CLONE ir<%arrayidx2> = getelementptr ir<%x>, ir<%iv>
 ; CHECK-NEXT:   WIDEN store ir<%arrayidx2>, ir<%call>
+; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
+; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
 ; CHECK-NEXT: }
 ; CHECK-NEXT: No successors
@@ -44,8 +49,11 @@ for.end:                                          ; preds = %for.body, %entry
 define void @print_widen_gep_and_select(i64 %n, float* noalias %y, float* noalias %x, float* %z) nounwind uwtable {
 ; CHECK-LABEL: Checking a loop in "print_widen_gep_and_select"
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
+; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
+; CHECK-EMPTY:
 ; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT: for.body:
+; CHECK-NEXT:   EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:   WIDEN-INDUCTION %iv = phi %iv.next, 0
 ; CHECK-NEXT:   WIDEN-GEP Inv[Var] ir<%arrayidx> = getelementptr ir<%y>, ir<%iv>
 ; CHECK-NEXT:   WIDEN ir<%lv> = load ir<%arrayidx>
@@ -54,6 +62,8 @@ define void @print_widen_gep_and_select(i64 %n, float* noalias %y, float* noalia
 ; CHECK-NEXT:   WIDEN ir<%add> = fadd ir<%lv>, ir<%sel>
 ; CHECK-NEXT:   CLONE ir<%arrayidx2> = getelementptr ir<%x>, ir<%iv>
 ; CHECK-NEXT:   WIDEN store ir<%arrayidx2>, ir<%add>
+; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
+; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
 ; CHECK-NEXT: }
 ; CHECK-NEXT: No successors
@@ -83,13 +93,18 @@ for.end:                                          ; preds = %for.body, %entry
 define float @print_reduction(i64 %n, float* noalias %y) {
 ; CHECK-LABEL: Checking a loop in "print_reduction"
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
+; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
+; CHECK-EMPTY:
 ; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT: for.body:
+; CHECK-NEXT:   EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:   WIDEN-INDUCTION %iv = phi %iv.next, 0
 ; CHECK-NEXT:   WIDEN-REDUCTION-PHI ir<%red> = phi ir<0.000000e+00>, ir<%red.next>
 ; CHECK-NEXT:   CLONE ir<%arrayidx> = getelementptr ir<%y>, ir<%iv>
 ; CHECK-NEXT:   WIDEN ir<%lv> = load ir<%arrayidx>
 ; CHECK-NEXT:   REDUCE ir<%red.next> = ir<%red> + fast reduce.fadd (ir<%lv>)
+; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
+; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
 ; CHECK-NEXT: }
 ; CHECK-NEXT: No successors
@@ -115,8 +130,11 @@ for.end:                                          ; preds = %for.body, %entry
 define void @print_replicate_predicated_phi(i64 %n, i64* %x) {
 ; CHECK-LABEL: Checking a loop in "print_replicate_predicated_phi"
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
+; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
+; CHECK-EMPTY:
 ; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT: for.body:
+; CHECK-NEXT:   EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:   WIDEN-INDUCTION %i = phi 0, %i.next
 ; CHECK-NEXT:   WIDEN ir<%cmp> = icmp ir<%i>, ir<5>
 ; CHECK-NEXT: Successor(s): if.then
@@ -148,6 +166,8 @@ define void @print_replicate_predicated_phi(i64 %n, i64* %x) {
 ; CHECK-NEXT:   BLEND %d = ir<0>/vp<[[NOT]]> vp<[[PRED]]>/ir<%cmp>
 ; CHECK-NEXT:   CLONE ir<%idx> = getelementptr ir<%x>, ir<%i>
 ; CHECK-NEXT:   WIDEN store ir<%idx>, ir<%d>
+; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
+; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
 ; CHECK-NEXT: }
 ; CHECK-NEXT: No successors
@@ -183,8 +203,11 @@ for.end:                                          ; preds = %for.inc
 define void @print_interleave_groups(i32 %C, i32 %D) {
 ; CHECK-LABEL: Checking a loop in "print_interleave_groups"
 ; CHECK:       VPlan 'Initial VPlan for VF={4},UF>=1' {
+; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
+; CHECK-EMPTY:
 ; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT:  for.body:
+; CHECK-NEXT:   EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:   WIDEN-INDUCTION %iv = phi 0, %iv.next
 ; CHECK-NEXT:   CLONE ir<%gep.AB.0> = getelementptr ir<@AB>, ir<0>, ir<%iv>
 ; CHECK-NEXT:   INTERLEAVE-GROUP with factor 4 at %AB.0, ir<%gep.AB.0>
@@ -206,6 +229,8 @@ define void @print_interleave_groups(i32 %C, i32 %D) {
 ; CHECK-NEXT:     store ir<1> to index 1
 ; CHECK-NEXT:     store ir<2> to index 2
 ; CHECK-NEXT:     store ir<%AB.3> to index 3
+; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
+; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
 ; CHECK-NEXT: }
 ; CHECK-NEXT: No successors
@@ -245,8 +270,11 @@ for.end:
 define float @print_fmuladd_strict(float* %a, float* %b, i64 %n) {
 ; CHECK-LABEL: Checking a loop in "print_fmuladd_strict"
 ; CHECK:      VPlan 'Initial VPlan for VF={4},UF>=1' {
+; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
+; CHECK-EMPTY:
 ; CHECK-NEXT: <x1> vector loop: {
 ; CHECK-NEXT: for.body:
+; CHECK-NEXT:   EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:   WIDEN-INDUCTION %iv = phi 0, %iv.next
 ; CHECK-NEXT:   WIDEN-REDUCTION-PHI ir<%sum.07> = phi ir<0.000000e+00>, ir<%muladd>
 ; CHECK-NEXT:   CLONE ir<%arrayidx> = getelementptr ir<%a>, ir<%iv>
@@ -255,6 +283,8 @@ define float @print_fmuladd_strict(float* %a, float* %b, i64 %n) {
 ; CHECK-NEXT:   WIDEN ir<%l.b> = load ir<%arrayidx2>
 ; CHECK-NEXT:   EMIT vp<[[FMUL:%.]]> = fmul nnan ninf nsz ir<%l.a> ir<%l.b>
 ; CHECK-NEXT:   REDUCE ir<[[MULADD:%.+]]> = ir<%sum.07> + nnan ninf nsz reduce.fadd (vp<[[FMUL]]>)
+; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
+; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT:   No successors
 ; CHECK-NEXT: }
 
@@ -277,5 +307,104 @@ for.end:
   ret float %muladd
 }
 
+define void @debug_loc_vpinstruction(i32* nocapture %asd, i32* nocapture %bsd) !dbg !5 {
+; CHECK-LABEL: Checking a loop in "debug_loc_vpinstruction"
+; CHECK:    VPlan 'Initial VPlan for VF={4},UF>=1' {
+; CHECK-NEXT: Live-in vp<[[VEC_TC:%.+]]> = vector-trip-count
+; CHECK-EMPTY:
+; CHECK-NEXT: <x1> vector loop: {
+; CHECK-NEXT:  loop:
+; CHECK-NEXT:    EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
+; CHECK-NEXT:    WIDEN-INDUCTION %iv = phi 0, %iv.next
+; CHECK-NEXT:    CLONE ir<%isd> = getelementptr ir<%asd>, ir<%iv>
+; CHECK-NEXT:    WIDEN ir<%lsd> = load ir<%isd>
+; CHECK-NEXT:    WIDEN ir<%psd> = add ir<%lsd>, ir<23>
+; CHECK-NEXT:    WIDEN ir<%cmp1> = icmp ir<%lsd>, ir<100>
+; CHECK-NEXT:  Successor(s): check
+; CHECK-EMPTY:
+; CHECK-NEXT:  check:
+; CHECK-NEXT:    WIDEN ir<%cmp2> = icmp ir<%lsd>, ir<200>
+; CHECK-NEXT:  Successor(s): if.then
+; CHECK-EMPTY:
+; CHECK-NEXT:  if.then:
+; CHECK-NEXT:    EMIT vp<[[NOT1:%.+]]> = not ir<%cmp1>, !dbg /tmp/s.c:5:3
+; CHECK-NEXT:    EMIT vp<[[SEL1:%.+]]> = select vp<[[NOT1]]> ir<%cmp2> ir<false>, !dbg /tmp/s.c:5:21
+; CHECK-NEXT:    EMIT vp<[[OR1:%.+]]> = or vp<[[SEL1]]> ir<%cmp1>
+; CHECK-NEXT:  Successor(s): pred.sdiv
+; CHECK-EMPTY:
+; CHECK-NEXT:  <xVFxUF> pred.sdiv: {
+; CHECK-NEXT:    pred.sdiv.entry:
+; CHECK-NEXT:      BRANCH-ON-MASK vp<[[OR1]]>
+; CHECK-NEXT:    Successor(s): pred.sdiv.if, pred.sdiv.continue
+; CHECK-NEXT:    CondBit: vp<[[OR1]]> (if.then)
+; CHECK-EMPTY:
+; CHECK-NEXT:    pred.sdiv.if:
+; CHECK-NEXT:      REPLICATE ir<%sd1> = sdiv ir<%psd>, ir<%lsd> (S->V)
+; CHECK-NEXT:    Successor(s): pred.sdiv.continue
+; CHECK-EMPTY:
+; CHECK-NEXT:    pred.sdiv.continue:
+; CHECK-NEXT:      PHI-PREDICATED-INSTRUCTION vp<[[PHI:%.+]]> = ir<%sd1>
+; CHECK-NEXT:    No successors
+; CHECK-NEXT:  }
+; CHECK-NEXT:  Successor(s): if.then.0
+; CHECK-EMPTY:
+; CHECK-NEXT:  if.then.0:
+; CHECK-NEXT:  Successor(s): if.end
+; CHECK-EMPTY:
+; CHECK-NEXT:  if.end:
+; CHECK-NEXT:    EMIT vp<[[NOT2:%.+]]> = not ir<%cmp2>
+; CHECK-NEXT:    EMIT vp<[[SEL2:%.+]]> = select vp<[[NOT1]]> vp<[[NOT2]]> ir<false>
+; CHECK-NEXT:    BLEND %ysd.0 = vp<[[PHI]]>/vp<[[OR1]]> ir<%psd>/vp<[[SEL2]]>
+; CHECK-NEXT:    WIDEN store ir<%isd>, ir<%ysd.0>
+; CHECK-NEXT:    EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
+; CHECK-NEXT:    EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
+; CHECK-NEXT:  No successors
+; CHECK-NEXT:}
+; CHECK-NEXT:No successors
+; CHECK-NEXT:}
+;
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %if.end ]
+  %isd = getelementptr inbounds i32, i32* %asd, i64 %iv
+  %lsd = load i32, i32* %isd, align 4
+  %psd = add nsw i32 %lsd, 23
+  %cmp1 = icmp slt i32 %lsd, 100
+  br i1 %cmp1, label %if.then, label %check, !dbg !7
+
+check:
+  %cmp2 = icmp sge i32 %lsd, 200
+  br i1 %cmp2, label %if.then, label %if.end, !dbg !8
+
+if.then:
+  %sd1 = sdiv i32 %psd, %lsd
+  br label %if.end
+
+if.end:
+  %ysd.0 = phi i32 [ %sd1, %if.then ], [ %psd, %check ]
+  store i32 %ysd.0, i32* %isd, align 4
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond = icmp eq i64 %iv.next, 128
+  br i1 %exitcond, label %exit, label %loop
+
+exit:
+  ret void
+}
+
 declare float @llvm.sqrt.f32(float) nounwind readnone
 declare float @llvm.fmuladd.f32(float, float, float)
+
+!llvm.dbg.cu = !{!0}
+!llvm.module.flags = !{!3, !4}
+
+!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang", isOptimized: true, runtimeVersion: 0, emissionKind: NoDebug, enums: !2)
+!1 = !DIFile(filename: "/tmp/s.c", directory: "/tmp")
+!2 = !{}
+!3 = !{i32 2, !"Debug Info Version", i32 3}
+!4 = !{i32 7, !"PIC Level", i32 2}
+!5 = distinct !DISubprogram(name: "f", scope: !1, file: !1, line: 4, type: !6, scopeLine: 4, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !2)
+!6 = !DISubroutineType(types: !2)
+!7 = !DILocation(line: 5, column: 3, scope: !5)
+!8 = !DILocation(line: 5, column: 21, scope: !5)

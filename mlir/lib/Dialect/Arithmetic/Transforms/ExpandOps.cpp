@@ -7,10 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 using namespace mlir;
+
+/// Create an integer or index constant.
+static Value createConst(Location loc, Type type, int value,
+                         PatternRewriter &rewriter) {
+  return rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getIntegerAttr(type, value));
+}
 
 namespace {
 
@@ -21,19 +31,16 @@ struct CeilDivUIOpConverter : public OpRewritePattern<arith::CeilDivUIOp> {
   LogicalResult matchAndRewrite(arith::CeilDivUIOp op,
                                 PatternRewriter &rewriter) const final {
     Location loc = op.getLoc();
-    Value a = op.lhs();
-    Value b = op.rhs();
-    Value zero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(a.getType(), 0));
+    Value a = op.getLhs();
+    Value b = op.getRhs();
+    Value zero = createConst(loc, a.getType(), 0, rewriter);
     Value compare =
         rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, a, zero);
-    Value one = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(a.getType(), 1));
+    Value one = createConst(loc, a.getType(), 1, rewriter);
     Value minusOne = rewriter.create<arith::SubIOp>(loc, a, one);
     Value quotient = rewriter.create<arith::DivUIOp>(loc, minusOne, b);
     Value plusOne = rewriter.create<arith::AddIOp>(loc, quotient, one);
-    Value res = rewriter.create<SelectOp>(loc, compare, zero, plusOne);
-    rewriter.replaceOp(op, {res});
+    rewriter.replaceOpWithNewOp<SelectOp>(op, compare, zero, plusOne);
     return success();
   }
 };
@@ -46,16 +53,12 @@ struct CeilDivSIOpConverter : public OpRewritePattern<arith::CeilDivSIOp> {
   LogicalResult matchAndRewrite(arith::CeilDivSIOp op,
                                 PatternRewriter &rewriter) const final {
     Location loc = op.getLoc();
-    auto signedCeilDivIOp = cast<arith::CeilDivSIOp>(op);
-    Type type = signedCeilDivIOp.getType();
-    Value a = signedCeilDivIOp.getLhs();
-    Value b = signedCeilDivIOp.getRhs();
-    Value plusOne = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(type, 1));
-    Value zero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(type, 0));
-    Value minusOne = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(type, -1));
+    Type type = op.getType();
+    Value a = op.getLhs();
+    Value b = op.getRhs();
+    Value plusOne = createConst(loc, type, 1, rewriter);
+    Value zero = createConst(loc, type, 0, rewriter);
+    Value minusOne = createConst(loc, type, -1, rewriter);
     // Compute x = (b>0) ? -1 : 1.
     Value compare =
         rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, b, zero);
@@ -87,9 +90,8 @@ struct CeilDivSIOpConverter : public OpRewritePattern<arith::CeilDivSIOp> {
     Value secondTerm = rewriter.create<arith::AndIOp>(loc, aPos, bPos);
     Value compareRes =
         rewriter.create<arith::OrIOp>(loc, firstTerm, secondTerm);
-    Value res = rewriter.create<SelectOp>(loc, compareRes, posRes, negRes);
     // Perform substitution and return success.
-    rewriter.replaceOp(op, {res});
+    rewriter.replaceOpWithNewOp<SelectOp>(op, compareRes, posRes, negRes);
     return success();
   }
 };
@@ -102,16 +104,12 @@ struct FloorDivSIOpConverter : public OpRewritePattern<arith::FloorDivSIOp> {
   LogicalResult matchAndRewrite(arith::FloorDivSIOp op,
                                 PatternRewriter &rewriter) const final {
     Location loc = op.getLoc();
-    arith::FloorDivSIOp signedFloorDivIOp = cast<arith::FloorDivSIOp>(op);
-    Type type = signedFloorDivIOp.getType();
-    Value a = signedFloorDivIOp.getLhs();
-    Value b = signedFloorDivIOp.getRhs();
-    Value plusOne = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(type, 1));
-    Value zero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(type, 0));
-    Value minusOne = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(type, -1));
+    Type type = op.getType();
+    Value a = op.getLhs();
+    Value b = op.getRhs();
+    Value plusOne = createConst(loc, type, 1, rewriter);
+    Value zero = createConst(loc, type, 0, rewriter);
+    Value minusOne = createConst(loc, type, -1, rewriter);
     // Compute x = (b<0) ? 1 : -1.
     Value compare =
         rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, b, zero);
@@ -141,9 +139,8 @@ struct FloorDivSIOpConverter : public OpRewritePattern<arith::FloorDivSIOp> {
     Value secondTerm = rewriter.create<arith::AndIOp>(loc, aPos, bNeg);
     Value compareRes =
         rewriter.create<arith::OrIOp>(loc, firstTerm, secondTerm);
-    Value res = rewriter.create<SelectOp>(loc, compareRes, negRes, posRes);
     // Perform substitution and return success.
-    rewriter.replaceOp(op, {res});
+    rewriter.replaceOpWithNewOp<SelectOp>(op, compareRes, negRes, posRes);
     return success();
   }
 };
@@ -159,19 +156,17 @@ public:
     Value rhs = op.getRhs();
 
     Location loc = op.getLoc();
+    // If any operand is NaN, 'cmp' will be true (and 'select' returns 'lhs').
+    static_assert(pred == arith::CmpFPredicate::UGT ||
+                  pred == arith::CmpFPredicate::ULT,
+                  "pred must be either UGT or ULT");
     Value cmp = rewriter.create<arith::CmpFOp>(loc, pred, lhs, rhs);
     Value select = rewriter.create<SelectOp>(loc, cmp, lhs, rhs);
 
-    auto floatType = getElementTypeOrSelf(lhs.getType()).cast<FloatType>();
+    // Handle the case where rhs is NaN: 'isNaN(rhs) ? rhs : select'.
     Value isNaN = rewriter.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UNO,
-                                                 lhs, rhs);
-
-    Value nan = rewriter.create<arith::ConstantFloatOp>(
-        loc, APFloat::getQNaN(floatType.getFloatSemantics()), floatType);
-    if (VectorType vectorType = lhs.getType().dyn_cast<VectorType>())
-      nan = rewriter.create<SplatOp>(loc, vectorType, nan);
-
-    rewriter.replaceOpWithNewOp<SelectOp>(op, isNaN, nan, select);
+                                                 rhs, rhs);
+    rewriter.replaceOpWithNewOp<SelectOp>(op, isNaN, rhs, select);
     return success();
   }
 };
@@ -194,7 +189,7 @@ public:
 
 struct ArithmeticExpandOpsPass
     : public ArithmeticExpandOpsBase<ArithmeticExpandOpsPass> {
-  void runOnFunction() override {
+  void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
 
@@ -214,13 +209,13 @@ struct ArithmeticExpandOpsPass
       arith::MinUIOp
     >();
     // clang-format on
-    if (failed(
-            applyPartialConversion(getFunction(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 void mlir::arith::populateArithmeticExpandOpsPatterns(
     RewritePatternSet &patterns) {
@@ -229,8 +224,8 @@ void mlir::arith::populateArithmeticExpandOpsPatterns(
     CeilDivSIOpConverter,
     CeilDivUIOpConverter,
     FloorDivSIOpConverter,
-    MaxMinFOpConverter<MaxFOp, arith::CmpFPredicate::OGT>,
-    MaxMinFOpConverter<MinFOp, arith::CmpFPredicate::OLT>,
+    MaxMinFOpConverter<MaxFOp, arith::CmpFPredicate::UGT>,
+    MaxMinFOpConverter<MinFOp, arith::CmpFPredicate::ULT>,
     MaxMinIOpConverter<MaxSIOp, arith::CmpIPredicate::sgt>,
     MaxMinIOpConverter<MaxUIOp, arith::CmpIPredicate::ugt>,
     MaxMinIOpConverter<MinSIOp, arith::CmpIPredicate::slt>,

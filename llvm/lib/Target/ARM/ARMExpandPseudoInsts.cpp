@@ -1144,7 +1144,7 @@ static bool determineFPRegsToClear(const MachineInstr &MI,
     if (!Op.isReg())
       continue;
 
-    unsigned Reg = Op.getReg();
+    Register Reg = Op.getReg();
     if (Op.isDef()) {
       if ((Reg >= ARM::Q0 && Reg <= ARM::Q7) ||
           (Reg >= ARM::D0 && Reg <= ARM::D15) ||
@@ -1356,7 +1356,7 @@ void ARMExpandPseudo::CMSESaveClearFPRegsV8(
   std::vector<unsigned> NonclearedFPRegs;
   for (const MachineOperand &Op : MBBI->operands()) {
     if (Op.isReg() && Op.isUse()) {
-      unsigned Reg = Op.getReg();
+      Register Reg = Op.getReg();
       assert(!ARM::DPRRegClass.contains(Reg) ||
              ARM::DPR_VFP2RegClass.contains(Reg));
       assert(!ARM::QPRRegClass.contains(Reg));
@@ -1451,9 +1451,9 @@ void ARMExpandPseudo::CMSESaveClearFPRegsV8(
   // restore FPSCR from stack and clear bits 0-4, 7, 28-31
   // The other bits are program global according to the AAPCS
   if (passesFPReg) {
-    BuildMI(MBB, MBBI, DL, TII->get(ARM::t2LDRi8), SpareReg)
+    BuildMI(MBB, MBBI, DL, TII->get(ARM::tLDRspi), SpareReg)
         .addReg(ARM::SP)
-        .addImm(0x40)
+        .addImm(0x10)
         .add(predOps(ARMCC::AL));
     BuildMI(MBB, MBBI, DL, TII->get(ARM::t2BICri), SpareReg)
         .addReg(SpareReg)
@@ -1543,7 +1543,7 @@ void ARMExpandPseudo::CMSERestoreFPRegsV8(
   std::vector<unsigned> NonclearedFPRegs;
   for (const MachineOperand &Op : MBBI->operands()) {
     if (Op.isReg() && Op.isDef()) {
-      unsigned Reg = Op.getReg();
+      Register Reg = Op.getReg();
       assert(!ARM::DPRRegClass.contains(Reg) ||
              ARM::DPR_VFP2RegClass.contains(Reg));
       assert(!ARM::QPRRegClass.contains(Reg));
@@ -1663,7 +1663,7 @@ static bool definesOrUsesFPReg(const MachineInstr &MI) {
   for (const MachineOperand &Op : MI.operands()) {
     if (!Op.isReg())
       continue;
-    unsigned Reg = Op.getReg();
+    Register Reg = Op.getReg();
     if ((Reg >= ARM::Q0 && Reg <= ARM::Q7) ||
         (Reg >= ARM::D0 && Reg <= ARM::D15) ||
         (Reg >= ARM::S0 && Reg <= ARM::S31))
@@ -2160,6 +2160,11 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       return true;
     }
     case ARM::tBXNS_RET: {
+      // For v8.0-M.Main we need to authenticate LR before clearing FPRs, which
+      // uses R12 as a scratch register.
+      if (!STI->hasV8_1MMainlineOps() && AFI->shouldSignReturnAddress())
+        BuildMI(MBB, MBBI, DebugLoc(), TII->get(ARM::t2AUT));
+
       MachineBasicBlock &AfterBB = CMSEClearFPRegs(MBB, MBBI);
 
       if (STI->hasV8_1MMainlineOps()) {
@@ -2169,6 +2174,9 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
             .addReg(ARM::SP)
             .addImm(4)
             .add(predOps(ARMCC::AL));
+
+        if (AFI->shouldSignReturnAddress())
+          BuildMI(AfterBB, AfterBB.end(), DebugLoc(), TII->get(ARM::t2AUT));
       }
 
       // Clear all GPR that are not a use of the return instruction.
@@ -2193,7 +2201,7 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     }
     case ARM::tBLXNS_CALL: {
       DebugLoc DL = MBBI->getDebugLoc();
-      unsigned JumpReg = MBBI->getOperand(0).getReg();
+      Register JumpReg = MBBI->getOperand(0).getReg();
 
       // Figure out which registers are live at the point immediately before the
       // call. When we indiscriminately push a set of registers, the live
@@ -2523,17 +2531,21 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     case ARM::LDRLIT_ga_pcrel:
     case ARM::LDRLIT_ga_pcrel_ldr:
     case ARM::tLDRLIT_ga_abs:
+    case ARM::t2LDRLIT_ga_pcrel:
     case ARM::tLDRLIT_ga_pcrel: {
       Register DstReg = MI.getOperand(0).getReg();
       bool DstIsDead = MI.getOperand(0).isDead();
       const MachineOperand &MO1 = MI.getOperand(1);
       auto Flags = MO1.getTargetFlags();
       const GlobalValue *GV = MO1.getGlobal();
-      bool IsARM =
-          Opcode != ARM::tLDRLIT_ga_pcrel && Opcode != ARM::tLDRLIT_ga_abs;
+      bool IsARM = Opcode != ARM::tLDRLIT_ga_pcrel &&
+                   Opcode != ARM::tLDRLIT_ga_abs &&
+                   Opcode != ARM::t2LDRLIT_ga_pcrel;
       bool IsPIC =
           Opcode != ARM::LDRLIT_ga_abs && Opcode != ARM::tLDRLIT_ga_abs;
       unsigned LDRLITOpc = IsARM ? ARM::LDRi12 : ARM::tLDRpci;
+      if (Opcode == ARM::t2LDRLIT_ga_pcrel)
+        LDRLITOpc = ARM::t2LDRpci;
       unsigned PICAddOpc =
           IsARM
               ? (Opcode == ARM::LDRLIT_ga_pcrel_ldr ? ARM::PICLDR : ARM::PICADD)
@@ -3066,6 +3078,22 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       MIB.cloneMemRefs(MI);
       for (const MachineOperand &MO : llvm::drop_begin(MI.operands()))
         MIB.add(MO);
+      MI.eraseFromParent();
+      return true;
+    }
+    case ARM::t2CALL_BTI: {
+      MachineFunction &MF = *MI.getMF();
+      MachineInstrBuilder MIB =
+          BuildMI(MF, MI.getDebugLoc(), TII->get(ARM::tBL));
+      MIB.cloneMemRefs(MI);
+      for (unsigned i = 0; i < MI.getNumOperands(); ++i)
+        MIB.add(MI.getOperand(i));
+      if (MI.isCandidateForCallSiteEntry())
+        MF.moveCallSiteInfo(&MI, MIB.getInstr());
+      MIBundleBuilder Bundler(MBB, MI);
+      Bundler.append(MIB);
+      Bundler.append(BuildMI(MF, MI.getDebugLoc(), TII->get(ARM::t2BTI)));
+      finalizeBundle(MBB, Bundler.begin(), Bundler.end());
       MI.eraseFromParent();
       return true;
     }

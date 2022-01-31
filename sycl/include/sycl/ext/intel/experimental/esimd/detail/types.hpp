@@ -24,6 +24,10 @@
 
 #include <cstdint>
 
+#define __SEIEED sycl::ext::intel::experimental::esimd::detail
+#define __SEIEE sycl::ext::intel::experimental::esimd
+#define __SEIEEED sycl::ext::intel::experimental::esimd::emu::detail
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
@@ -35,11 +39,23 @@ namespace esimd {
 template <typename Ty, int N> class simd;
 template <typename BaseTy, typename RegionTy> class simd_view;
 
+/// @cond ESIMD_DETAIL
+
 namespace detail {
+
+namespace csd = cl::sycl::detail;
+
+template <int N>
+using uint_type_t = std::conditional_t<
+    N == 1, uint8_t,
+    std::conditional_t<
+        N == 2, uint16_t,
+        std::conditional_t<N == 4, uint32_t,
+                           std::conditional_t<N == 8, uint64_t, void>>>>;
 
 // forward declarations of major internal simd classes
 template <typename Ty, int N> class simd_mask_impl;
-template <typename ElT, int N, class Derived, class SFINAE = void>
+template <typename RawT, int N, class Derived, class SFINAE = void>
 class simd_obj_impl;
 
 // @{
@@ -71,100 +87,6 @@ static inline constexpr bool is_clang_vector_type_v =
     is_clang_vector_type<T>::value;
 
 // @}
-
-// @{
-// Checks if given type T derives from simd_obj_impl or is equal to it.
-template <typename T>
-struct is_simd_obj_impl_derivative : public std::false_type {
-  using element_type = invalid_element_type;
-};
-
-// Specialization for the simd_obj_impl type itself.
-template <typename ElT, int N, class Derived>
-struct is_simd_obj_impl_derivative<simd_obj_impl<ElT, N, Derived>>
-    : public std::true_type {
-  using element_type = ElT;
-};
-
-// Specialization for all other types.
-template <typename ElT, int N, template <typename, int> class Derived>
-struct is_simd_obj_impl_derivative<Derived<ElT, N>>
-    : public std::conditional_t<
-          std::is_base_of_v<simd_obj_impl<ElT, N, Derived<ElT, N>>,
-                            Derived<ElT, N>>,
-          std::true_type, std::false_type> {
-  using element_type = std::conditional_t<
-      std::is_base_of_v<simd_obj_impl<ElT, N, Derived<ElT, N>>,
-                        Derived<ElT, N>>,
-      ElT, void>;
-};
-
-// Convenience shortcut.
-template <typename T>
-inline constexpr bool is_simd_obj_impl_derivative_v =
-    is_simd_obj_impl_derivative<T>::value;
-// @}
-
-// @{
-// "Resizes" given simd type \c T to given number of elements \c N.
-template <class SimdT, int Ndst> struct resize_a_simd_type;
-
-// Specialization for the simd_obj_impl type.
-template <typename ElT, int Nsrc, int Ndst,
-          template <typename, int> class SimdT>
-struct resize_a_simd_type<simd_obj_impl<ElT, Nsrc, SimdT<ElT, Nsrc>>, Ndst> {
-  using type = simd_obj_impl<ElT, Ndst, SimdT<ElT, Ndst>>;
-};
-
-// Specialization for the simd_obj_impl type derivatives.
-template <typename ElT, int Nsrc, int Ndst,
-          template <typename, int> class SimdT>
-struct resize_a_simd_type<SimdT<ElT, Nsrc>, Ndst> {
-  using type = SimdT<ElT, Ndst>;
-};
-
-// Convenience shortcut.
-template <class SimdT, int Ndst>
-using resize_a_simd_type_t = typename resize_a_simd_type<SimdT, Ndst>::type;
-// @}
-
-// @{
-// Converts element type of given simd type \c SimdT to
-// given scalar type \c DstElemT.
-template <class SimdT, typename DstElemT> struct convert_simd_elem_type;
-
-// Specialization for the simd_obj_impl type.
-template <typename SrcElemT, int N, typename DstElemT,
-          template <typename, int> class SimdT>
-struct convert_simd_elem_type<simd_obj_impl<SrcElemT, N, SimdT<SrcElemT, N>>,
-                              DstElemT> {
-  using type = simd_obj_impl<DstElemT, N, SimdT<DstElemT, N>>;
-};
-
-// Specialization for the simd_obj_impl type derivatives.
-template <typename SrcElemT, int N, typename DstElemT,
-          template <typename, int> class SimdT>
-struct convert_simd_elem_type<SimdT<SrcElemT, N>, DstElemT> {
-  using type = SimdT<DstElemT, N>;
-};
-
-// Convenience shortcut.
-template <class SimdT, typename DstElemT>
-using convert_simd_elem_type_t =
-    typename convert_simd_elem_type<SimdT, DstElemT>::type;
-
-// @}
-
-// Constructs a simd type with the same template type as in \c SimdT, and
-// given element type and number.
-template <class SimdT, typename ElT, int N>
-using construct_a_simd_type_t =
-    convert_simd_elem_type_t<resize_a_simd_type_t<SimdT, N>, ElT>;
-
-// @}
-
-namespace csd = cl::sycl::detail;
-using half = cl::sycl::detail::half_impl::StorageT;
 
 template <typename T>
 using remove_cvref_t = csd::remove_cv_t<csd::remove_reference_t<T>>;
@@ -198,8 +120,15 @@ struct is_vectorizable : std::conditional_t<is_esimd_arithmetic_type_v<Ty>,
 template <typename Ty>
 static inline constexpr bool is_vectorizable_v = is_vectorizable<Ty>::value;
 
-// vector_type, using clang vector type extension.
-template <typename Ty, int N> struct vector_type {
+template <typename T>
+static inline constexpr bool is_esimd_scalar_v =
+    cl::sycl::detail::is_arithmetic<T>::value;
+
+template <typename T>
+using is_esimd_scalar = typename std::bool_constant<is_esimd_scalar_v<T>>;
+
+// raw_vector_type, using clang vector type extension.
+template <typename Ty, int N> struct raw_vector_type {
   static_assert(!std::is_const<Ty>::value, "const element type not supported");
   static_assert(is_vectorizable_v<Ty>, "element type not supported");
   static_assert(N > 0, "zero-element vector not supported");
@@ -209,85 +138,98 @@ template <typename Ty, int N> struct vector_type {
 };
 
 template <typename Ty, int N>
-using vector_type_t = typename vector_type<Ty, N>::type;
+using vector_type_t = typename raw_vector_type<Ty, N>::type;
+
+// @{
+// Checks if given type T derives from simd_obj_impl or is equal to it.
+template <typename T>
+struct is_simd_obj_impl_derivative : public std::false_type {};
+
+// Specialization for the simd_obj_impl type itself.
+template <typename RawT, int N, class Derived>
+struct is_simd_obj_impl_derivative<simd_obj_impl<RawT, N, Derived>>
+    : public std::true_type {};
+
+template <class T, class SFINAE = void> struct element_type_traits;
+template <class T>
+using __raw_t = typename __SEIEED::element_type_traits<T>::RawT;
+template <class T>
+using __cpp_t = typename __SEIEED::element_type_traits<T>::EnclosingCppT;
+
+// Specialization for all other types.
+template <typename T, int N, template <typename, int> class Derived>
+struct is_simd_obj_impl_derivative<Derived<T, N>>
+    : public std::conditional_t<
+          std::is_base_of_v<simd_obj_impl<__raw_t<T>, N, Derived<T, N>>,
+                            Derived<T, N>>,
+          std::true_type, std::false_type> {};
+
+// Convenience shortcut.
+template <typename T>
+inline constexpr bool is_simd_obj_impl_derivative_v =
+    is_simd_obj_impl_derivative<T>::value;
+// @}
+
+// @{
+// "Resizes" given simd type \c T to given number of elements \c N.
+template <class SimdT, int Ndst> struct resize_a_simd_type;
+
+// Specialization for the simd_obj_impl type.
+template <typename T, int Nsrc, int Ndst, template <typename, int> class SimdT>
+struct resize_a_simd_type<simd_obj_impl<__raw_t<T>, Nsrc, SimdT<T, Nsrc>>,
+                          Ndst> {
+  using type = simd_obj_impl<__raw_t<T>, Ndst, SimdT<T, Ndst>>;
+};
+
+// Specialization for the simd_obj_impl type derivatives.
+template <typename T, int Nsrc, int Ndst, template <typename, int> class SimdT>
+struct resize_a_simd_type<SimdT<T, Nsrc>, Ndst> {
+  using type = SimdT<T, Ndst>;
+};
+
+// Convenience shortcut.
+template <class SimdT, int Ndst>
+using resize_a_simd_type_t = typename resize_a_simd_type<SimdT, Ndst>::type;
+// @}
+
+// @{
+// Converts element type of given simd type \c SimdT to
+// given scalar type \c NewElemT.
+template <class SimdT, typename NewElemT> struct convert_simd_elem_type;
+
+// Specialization for the simd_obj_impl type.
+template <typename OldElemT, int N, typename NewElemT,
+          template <typename, int> class SimdT>
+struct convert_simd_elem_type<
+    simd_obj_impl<__raw_t<OldElemT>, N, SimdT<OldElemT, N>>, NewElemT> {
+  using type = simd_obj_impl<__raw_t<NewElemT>, N, SimdT<NewElemT, N>>;
+};
+
+// Specialization for the simd_obj_impl type derivatives.
+template <typename OldElemT, int N, typename NewElemT,
+          template <typename, int> class SimdT>
+struct convert_simd_elem_type<SimdT<OldElemT, N>, NewElemT> {
+  using type = SimdT<NewElemT, N>;
+};
+
+// Convenience shortcut.
+template <class SimdT, typename NewElemT>
+using convert_simd_elem_type_t =
+    typename convert_simd_elem_type<SimdT, NewElemT>::type;
+
+// @}
+
+// Constructs a simd type with the same template type as in \c SimdT, and
+// given element type and number.
+template <class SimdT, typename T, int N>
+using construct_a_simd_type_t =
+    convert_simd_elem_type_t<resize_a_simd_type_t<SimdT, N>, T>;
+
+// @}
 
 // must match simd_mask<N>::element_type
 template <int N>
 using simd_mask_storage_t = vector_type_t<simd_mask_elem_type, N>;
-
-// Compute the simd_view type of a 1D format operation.
-template <typename BaseTy, typename EltTy> struct compute_format_type;
-
-template <typename Ty, int N, typename EltTy> struct compute_format_type_impl {
-  static constexpr int Size = sizeof(Ty) * N / sizeof(EltTy);
-  static constexpr int Stride = 1;
-  using type = region1d_t<EltTy, Size, Stride>;
-};
-
-template <typename Ty, int N, typename EltTy,
-          template <typename, int> class SimdT>
-struct compute_format_type<SimdT<Ty, N>, EltTy>
-    : compute_format_type_impl<Ty, N, EltTy> {};
-
-template <typename Ty, int N, typename EltTy, class SimdT>
-struct compute_format_type<simd_obj_impl<Ty, N, SimdT>, EltTy>
-    : compute_format_type_impl<Ty, N, EltTy> {};
-
-template <typename BaseTy, typename RegionTy, typename EltTy>
-struct compute_format_type<simd_view<BaseTy, RegionTy>, EltTy> {
-  using ShapeTy = typename shape_type<RegionTy>::type;
-  static constexpr int Size = ShapeTy::Size_in_bytes / sizeof(EltTy);
-  static constexpr int Stride = 1;
-  using type = region1d_t<EltTy, Size, Stride>;
-};
-
-template <typename Ty, typename EltTy>
-using compute_format_type_t = typename compute_format_type<Ty, EltTy>::type;
-
-// Compute the simd_view type of a 2D format operation.
-template <typename BaseTy, typename EltTy, int Height, int Width>
-struct compute_format_type_2d;
-
-template <typename Ty, int N, typename EltTy, int Height, int Width>
-struct compute_format_type_2d_impl {
-  static constexpr int Prod = sizeof(Ty) * N / sizeof(EltTy);
-  static_assert(Prod == Width * Height, "size mismatch");
-
-  static constexpr int SizeX = Width;
-  static constexpr int StrideX = 1;
-  static constexpr int SizeY = Height;
-  static constexpr int StrideY = 1;
-  using type = region2d_t<EltTy, SizeY, StrideY, SizeX, StrideX>;
-};
-
-template <typename Ty, int N, typename EltTy, int Height, int Width,
-          template <typename, int> class SimdT>
-struct compute_format_type_2d<SimdT<Ty, N>, EltTy, Height, Width>
-    : compute_format_type_2d_impl<Ty, N, EltTy, Height, Width> {};
-
-template <typename Ty, int N, typename EltTy, int Height, int Width,
-          class SimdT>
-struct compute_format_type_2d<simd_obj_impl<Ty, N, SimdT>, EltTy, Height, Width>
-    : compute_format_type_2d_impl<Ty, N, EltTy, Height, Width> {};
-
-template <typename BaseTy, typename RegionTy, typename EltTy, int Height,
-          int Width>
-struct compute_format_type_2d<simd_view<BaseTy, RegionTy>, EltTy, Height,
-                              Width> {
-  using ShapeTy = typename shape_type<RegionTy>::type;
-  static constexpr int Prod = ShapeTy::Size_in_bytes / sizeof(EltTy);
-  static_assert(Prod == Width * Height, "size mismatch");
-
-  static constexpr int SizeX = Width;
-  static constexpr int StrideX = 1;
-  static constexpr int SizeY = Height;
-  static constexpr int StrideY = 1;
-  using type = region2d_t<EltTy, SizeY, StrideY, SizeX, StrideX>;
-};
-
-template <typename Ty, typename EltTy, int Height, int Width>
-using compute_format_type_2d_t =
-    typename compute_format_type_2d<Ty, EltTy, Height, Width>::type;
 
 // @{
 // Checks if given type is a view of any simd type (simd or simd_mask).
@@ -371,56 +313,49 @@ struct element_type<T, std::enable_if_t<is_clang_vector_type_v<T>>> {
   using type = typename is_clang_vector_type<T>::element_type;
 };
 
-// @}
+template <typename T> using element_type_t = typename element_type<T>::type;
 
-// @{
-// Get computation type of a binary operator given its operand types:
-// - if both types are arithmetic - return CPP's "common real type" of the
-//   computation (matches C++)
-// - if both types are simd types, they must be of the same length N,
-//   and the returned type is simd<T, N>, where N is the "common real type" of
-//   the element type of the operands (diverges from clang)
-// - otherwise, one type is simd and another is arithmetic - the simd type is
-//   returned (matches clang)
-
-struct invalid_computation_type;
-
-template <class T1, class T2, class SFINAE = void> struct computation_type {
-  using type = invalid_computation_type;
+// Determine element type of simd_obj_impl's Derived type w/o having to have
+// complete instantiation of the Derived type (is required by element_type_t,
+// hence can't be used here).
+template <class T> struct simd_like_obj_info {
+  using element_type = T;
+  static inline constexpr int vector_length = 0;
 };
 
-template <class T1, class T2>
-struct computation_type<
-    T1, T2, std::enable_if_t<is_vectorizable_v<T1> && is_vectorizable_v<T2>>> {
-  using type = decltype(std::declval<T1>() + std::declval<T2>());
+template <class T, int N> struct simd_like_obj_info<simd<T, N>> {
+  using element_type = T;
+  static inline constexpr int vector_length = N;
 };
 
-template <class T1, class T2>
-struct computation_type<
-    T1, T2,
-    std::enable_if_t<is_simd_like_type_v<T1> && is_simd_like_type_v<T2>>> {
-private:
-  using Ty1 = typename element_type<T1>::type;
-  using Ty2 = typename element_type<T2>::type;
-  using EltTy = typename computation_type<Ty1, Ty2>::type;
-  static constexpr int N1 = T1::length;
-  static constexpr int N2 = T2::length;
-  static_assert(N1 == N2, "size mismatch");
-
-public:
-  using type = simd<EltTy, N1>;
+template <class T, int N> struct simd_like_obj_info<simd_mask_impl<T, N>> {
+  using element_type = simd_mask_elem_type; // equals T
+  static inline constexpr int vector_length = N;
 };
 
-template <class T1, class T2 = T1>
-using computation_type_t =
-    typename computation_type<remove_cvref_t<T1>, remove_cvref_t<T2>>::type;
+template <class BaseT, class RegionT>
+struct simd_like_obj_info<simd_view<BaseT, RegionT>> {
+  using element_type = typename RegionT::element_type;
+  static inline constexpr int vector_length = RegionT::length;
+};
+
+template <typename T>
+using get_vector_element_type = typename simd_like_obj_info<T>::element_type;
+
+template <typename T>
+static inline constexpr int get_vector_length =
+    simd_like_obj_info<T>::vector_length;
 
 // @}
 
 template <typename To, typename From>
 std::enable_if_t<is_clang_vector_type_v<To> && is_clang_vector_type_v<From>, To>
-convert(From Val) {
-  return __builtin_convertvector(Val, To);
+    ESIMD_INLINE convert(From Val) {
+  if constexpr (std::is_same_v<To, From>) {
+    return Val;
+  } else {
+    return __builtin_convertvector(Val, To);
+  }
 }
 
 /// Base case for checking if a type U is one of the types.
@@ -462,19 +397,9 @@ bitcast(vector_type_t<FromEltTy, FromN> Val) {
   return reinterpret_cast<VTy>(Val);
 }
 
-inline std::ostream &operator<<(std::ostream &O, half const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
-}
-
-inline std::istream &operator>>(std::istream &I, half &rhs) {
-  float ValFloat = 0.0f;
-  I >> ValFloat;
-  rhs = ValFloat;
-  return I;
-}
-
 } // namespace detail
+
+/// @endcond ESIMD_DETAIL
 
 // Alias for backward compatibility.
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;

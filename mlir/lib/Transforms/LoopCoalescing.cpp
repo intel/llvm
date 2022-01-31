@@ -43,7 +43,8 @@ struct LoopCoalescingPass : public LoopCoalescingBase<LoopCoalescingPass> {
     for (unsigned i = 0, e = loops.size(); i < e; ++i) {
       operandsDefinedAbove[i] = i;
       for (unsigned j = 0; j < i; ++j) {
-        if (areValuesDefinedAbove(loops[i].getOperands(), loops[j].region())) {
+        if (areValuesDefinedAbove(loops[i].getOperands(),
+                                  loops[j].getRegion())) {
           operandsDefinedAbove[i] = j;
           break;
         }
@@ -82,8 +83,8 @@ struct LoopCoalescingPass : public LoopCoalescingBase<LoopCoalescingPass> {
     }
   }
 
-  void runOnFunction() override {
-    FuncOp func = getFunction();
+  void runOnOperation() override {
+    FuncOp func = getOperation();
     func.walk([&](Operation *op) {
       if (auto scfForOp = dyn_cast<scf::ForOp>(op))
         walkLoop(scfForOp);

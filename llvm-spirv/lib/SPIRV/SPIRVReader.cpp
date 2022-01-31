@@ -332,21 +332,15 @@ SPIRVToLLVM::transVMEImageTypeName(SPIRV::SPIRVTypeVmeImageINTEL *VT) {
               : AccessQualifierReadOnly));
 }
 
-std::string
-SPIRVToLLVM::transOCLPipeTypeName(SPIRV::SPIRVTypePipe *PT,
-                                  bool UseSPIRVFriendlyFormat,
-                                  SPIRVAccessQualifierKind PipeAccess) {
+std::string SPIRVToLLVM::transPipeTypeName(SPIRV::SPIRVTypePipe *PT) {
+  SPIRVAccessQualifierKind PipeAccess = PT->getAccessQualifier();
+
   assert((PipeAccess == AccessQualifierReadOnly ||
           PipeAccess == AccessQualifierWriteOnly) &&
          "Invalid access qualifier");
 
-  if (!UseSPIRVFriendlyFormat)
-    return PipeAccess == AccessQualifierWriteOnly ? kSPR2TypeName::PipeWO
-                                                  : kSPR2TypeName::PipeRO;
-  else
-    return std::string(kSPIRVTypeName::PrefixAndDelim) + kSPIRVTypeName::Pipe +
-           kSPIRVTypeName::Delimiter + kSPIRVTypeName::PostfixDelim +
-           PipeAccess;
+  return std::string(kSPIRVTypeName::PrefixAndDelim) + kSPIRVTypeName::Pipe +
+         kSPIRVTypeName::Delimiter + kSPIRVTypeName::PostfixDelim + PipeAccess;
 }
 
 std::string
@@ -444,11 +438,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   }
   case OpTypePipe: {
     auto PT = static_cast<SPIRVTypePipe *>(T);
-    return mapType(T, getOrCreateOpaquePtrType(
-                          M,
-                          transOCLPipeTypeName(PT, IsClassMember,
-                                               PT->getAccessQualifier()),
-                          getOCLOpaqueTypeAddrSpace(T->getOpCode())));
+    return mapType(
+        T, getOrCreateOpaquePtrType(M, transPipeTypeName(PT),
+                                    getOCLOpaqueTypeAddrSpace(T->getOpCode())));
   }
   case OpTypePipeStorage: {
     auto PST = static_cast<SPIRVTypePipeStorage *>(T);
@@ -1460,7 +1452,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpConstantSampler: {
     auto BCS = static_cast<SPIRVConstantSampler *>(BV);
-    return mapValue(BV, oclTransConstantSampler(BCS, BB));
+    // Intentially do not map this value. We want to generate constant
+    // sampler initializer every time constant sampler is used, otherwise
+    // initializer may not dominate all its uses.
+    return oclTransConstantSampler(BCS, BB);
   }
 
   case OpConstantPipeStorage: {
@@ -1492,6 +1487,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
     SPIRVStorageClassKind BS = BVar->getStorageClass();
     SPIRVValue *Init = BVar->getInitializer();
+
+    if (isSPIRVSamplerType(Ty) && BS == StorageClassUniformConstant) {
+      // Skip generating llvm code during translation of a variable definition,
+      // generate code only for its uses
+      if (!BB)
+        return nullptr;
+
+      assert(Init && "UniformConstant OpVariable with sampler type must have "
+                     "an initializer!");
+      return transValue(Init, F, BB);
+    }
+
     if (BS == StorageClassFunction && !Init) {
       assert(BB && "Invalid BB");
       return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
@@ -2110,12 +2117,12 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCompositeConstruct: {
     auto CC = static_cast<SPIRVCompositeConstruct *>(BV);
-    auto Constituents = transValue(CC->getConstituents(), F, BB);
+    auto Constituents = transValue(CC->getOperands(), F, BB);
     std::vector<Constant *> CV;
     for (const auto &I : Constituents) {
       CV.push_back(dyn_cast<Constant>(I));
     }
-    switch (BV->getType()->getOpCode()) {
+    switch (static_cast<size_t>(BV->getType()->getOpCode())) {
     case OpTypeVector:
       return mapValue(BV, ConstantVector::get(CV));
     case OpTypeArray:
@@ -2126,6 +2133,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return mapValue(BV,
                       ConstantStruct::get(
                           dyn_cast<StructType>(transType(CC->getType())), CV));
+    case internal::OpTypeJointMatrixINTEL:
+      return mapValue(BV, transSPIRVBuiltinFromInst(CC, BB));
     default:
       llvm_unreachable("Unhandled type!");
     }
@@ -2533,12 +2542,14 @@ static std::string getFuncAPIntSuffix(const Type *RetTy, const Type *In1Ty,
   return Suffix.str();
 }
 
-CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
-                                           BasicBlock *BB) {
+Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   // LLVM fixed point functions return value:
   // iN (arbitrary precision integer of N bits length)
   // Arguments:
   // A(iN), S(i1), I(i32), rI(i32), Quantization(i32), Overflow(i32)
+  // If return value wider than 64 bit:
+  // iN addrspace(4)* sret(iN), A(iN), S(i1), I(i32), rI(i32),
+  // Quantization(i32), Overflow(i32)
 
   // SPIR-V fixed point instruction contains:
   // <id>ResTy Res<id> In<id> Literal S Literal I Literal rI Literal Q Literal O
@@ -2551,9 +2562,29 @@ CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
   IntegerType *Int32Ty = IntegerType::get(*Context, 32);
   IntegerType *Int1Ty = IntegerType::get(*Context, 1);
 
-  SmallVector<Type *, 7> ArgTys = {InTy,    Int1Ty,  Int32Ty,
-                                   Int32Ty, Int32Ty, Int32Ty};
-  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
+  SmallVector<Type *, 8> ArgTys;
+  std::vector<Value *> Args;
+  Args.reserve(8);
+  if (RetTy->getIntegerBitWidth() > 64) {
+    llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+    Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+    Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
+    ArgTys.emplace_back(RetPtrTy);
+    Args.emplace_back(RetValPtr);
+  }
+
+  ArgTys.insert(ArgTys.end(),
+                {InTy, Int1Ty, Int32Ty, Int32Ty, Int32Ty, Int32Ty});
+
+  auto Words = Inst->getOpWords();
+  Args.emplace_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
+  Args.emplace_back(ConstantInt::get(Int1Ty, Words[1]));
+  for (int I = 2; I <= 5; I++)
+    Args.emplace_back(ConstantInt::get(Int32Ty, Words[I]));
+
+  Type *FuncRetTy =
+      (RetTy->getIntegerBitWidth() <= 64) ? RetTy : Type::getVoidTy(*Context);
+  FunctionType *FT = FunctionType::get(FuncRetTy, ArgTys, false);
 
   Op OpCode = Inst->getOpCode();
   std::string FuncName =
@@ -2561,29 +2592,25 @@ CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
 
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
-  auto *Fn = cast<Function>(FCallee.getCallee());
-  Fn->setCallingConv(CallingConv::SPIR_FUNC);
+  auto *Func = cast<Function>(FCallee.getCallee());
+  Func->setCallingConv(CallingConv::SPIR_FUNC);
   if (isFuncNoUnwind())
-    Fn->addFnAttr(Attribute::NoUnwind);
+    Func->addFnAttr(Attribute::NoUnwind);
 
-  // Words contain:
-  // In<id> Literal S Literal I Literal rI Literal Q Literal O
-  auto Words = Inst->getOpWords();
-  std::vector<Value *> Args = {
-      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-      ConstantInt::get(Int1Ty, Words[1]) /* S - indicator of signedness */,
-      ConstantInt::get(Int32Ty,
-                       Words[2]) /* I - fixed-point location of the input */,
-      ConstantInt::get(Int32Ty,
-                       Words[3]) /* rI - fixed-point location of the result*/,
-      ConstantInt::get(Int32Ty, Words[4]) /* Quantization mode */,
-      ConstantInt::get(Int32Ty, Words[5]) /* Overflow mode */};
+  if (RetTy->getIntegerBitWidth() <= 64)
+    return CallInst::Create(FCallee, Args, "", BB);
 
-  return CallInst::Create(FCallee, Args, "", BB);
+  Func->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+  CallInst *APIntInst = CallInst::Create(FCallee, Args, "", BB);
+  APIntInst->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+
+  return static_cast<Value *>(new LoadInst(RetTy, Args[0], "", false, BB));
 }
 
-CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
-                                         bool IsBinaryInst) {
+Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
+                                      bool IsBinaryInst) {
   // Format of instructions Add, Sub, Mul, Div, Hypot, ATan2, Pow, PowR:
   //   LLVM arbitrary floating point functions return value:
   //       iN (arbitrary precision integer of N bits length)
@@ -2605,11 +2632,12 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
 
   // Format of instruction PowN:
   //   LLVM arbitrary floating point functions return value: iN
-  //   Arguments: A(iN), MA(i32), B(iN), Mout(i32), EnableSubnormals(i32),
-  //              RoundingMode(i32), RoundingAccuracy(i32)
+  //   Arguments: A(iN), MA(i32), B(iN), SignOfB(i1), Mout(i32),
+  //              EnableSubnormals(i32), RoundingMode(i32),
+  //              RoundingAccuracy(i32)
   //   where A, B and return values are of arbitrary precision integer type.
   //   SPIR-V arbitrary floating point instruction layout:
-  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal Mout
+  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal SignOfB Literal Mout
   //       Literal EnableSubnormals Literal RoundingMode
   //       Literal RoundingAccuracy
 
@@ -2643,6 +2671,7 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   //       Literal RoundingMode Literal RoundingAccuracy
 
   Type *RetTy = transType(BI->getType());
+  IntegerType *Int1Ty = Type::getInt1Ty(*Context);
   IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
   auto Inst = static_cast<SPIRVArbFloatIntelInst *>(BI);
@@ -2656,15 +2685,26 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   const std::vector<SPIRVWord> Words = Inst->getOpWords();
   auto WordsItr = Words.begin() + 1; /* Skip word for A input id */
 
-  SmallVector<Type *, 8> ArgTys = {ATy, Int32Ty};
-  std::vector<Value *> Args = {
-      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-      ConstantInt::get(Int32Ty, *WordsItr++) /* MA/Mout - width of mantissa */};
+  SmallVector<Type *, 8> ArgTys;
+  std::vector<Value *> Args;
+
+  if (RetTy->getIntegerBitWidth() > 64) {
+    llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+    ArgTys.push_back(RetPtrTy);
+    Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+    Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
+    Args.push_back(RetValPtr);
+  }
+
+  ArgTys.insert(ArgTys.end(), {ATy, Int32Ty});
+  // A - input
+  Args.emplace_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
+  // MA/Mout - width of mantissa
+  Args.emplace_back(ConstantInt::get(Int32Ty, *WordsItr++));
 
   Op OC = Inst->getOpCode();
   if (OC == OpArbitraryFloatCastFromIntINTEL ||
       OC == OpArbitraryFloatCastToIntINTEL) {
-    IntegerType *Int1Ty = Type::getInt1Ty(*Context);
     ArgTys.push_back(Int1Ty);
     Args.push_back(ConstantInt::get(Int1Ty, *WordsItr++)); /* ToSign/FromSign */
   }
@@ -2675,6 +2715,10 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
     ArgTys.push_back(BTy);
     Args.push_back(transValue(Inst->getOperand(2), BB->getParent(), BB));
     ++WordsItr; /* Skip word for B input id */
+    if (OC == OpArbitraryFloatPowNINTEL) {
+      ArgTys.push_back(Int1Ty);
+      Args.push_back(ConstantInt::get(Int1Ty, *WordsItr++)); /* SignOfB */
+    }
   }
 
   std::fill_n(std::back_inserter(ArgTys), Words.end() - WordsItr, Int32Ty);
@@ -2683,9 +2727,12 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                    return ConstantInt::get(Int32Ty, Word);
                  });
 
-  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
   std::string FuncName =
       SPIRVArbFloatIntelMap::rmap(OC) + getFuncAPIntSuffix(RetTy, ATy, BTy);
+
+  Type *FuncRetTy =
+      (RetTy->getIntegerBitWidth() <= 64) ? RetTy : Type::getVoidTy(*Context);
+  FunctionType *FT = FunctionType::get(FuncRetTy, ArgTys, false);
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
   auto *Func = cast<Function>(FCallee.getCallee());
@@ -2693,7 +2740,16 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   if (isFuncNoUnwind())
     Func->addFnAttr(Attribute::NoUnwind);
 
-  return CallInst::Create(Func, Args, "", BB);
+  if (RetTy->getIntegerBitWidth() <= 64)
+    return CallInst::Create(Func, Args, "", BB);
+
+  Func->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+  CallInst *APFloatInst = CallInst::Create(FCallee, Args, "", BB);
+  APFloatInst->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+
+  return static_cast<Value *>(new LoadInst(RetTy, Args[0], "", false, BB));
 }
 
 template <class SourceTy, class FuncTy>
@@ -2767,7 +2823,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
       I->addAttr(A);
     });
 
-    AttrBuilder Builder;
+    AttrBuilder Builder(*Context);
     SPIRVWord MaxOffset = 0;
     if (BA->hasDecorate(DecorationMaxByteOffset, 0, &MaxOffset))
       Builder.addDereferenceableAttr(MaxOffset);
@@ -2854,8 +2910,6 @@ SPIRVToLLVM::transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
     return CastInst::Create(Instruction::Trunc, CI, transType(BI->getType()),
                             "cvt", BB);
   }
-  if (OC == OpGenericPtrMemSemantics)
-    return BinaryOperator::CreateShl(CI, getInt32(M, 8), "", BB);
   if (SPIRVEnableStepExpansion &&
       (DemangledName == "smoothstep" || DemangledName == "step"))
     return expandOCLBuiltinWithScalarArg(CI, DemangledName);
@@ -3052,24 +3106,44 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
                                                     BasicBlock *BB) {
   assert(BB && "Invalid BB");
   const auto OC = BI->getOpCode();
-  bool AddRetTypePostfix = false;
-  if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize ||
-      OC == OpImageRead || OC == OpSubgroupImageBlockReadINTEL ||
-      OC == OpSubgroupBlockReadINTEL || OC == internal::OpJointMatrixLoadINTEL)
-    AddRetTypePostfix = true;
 
-  bool IsRetSigned = false;
-  if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
+  bool AddRetTypePostfix = false;
+  switch (static_cast<size_t>(OC)) {
+  case OpImageQuerySizeLod:
+  case OpImageQuerySize:
+  case OpImageRead:
+  case OpSubgroupImageBlockReadINTEL:
+  case OpSubgroupImageMediaBlockReadINTEL:
+  case OpSubgroupBlockReadINTEL:
+  case OpImageSampleExplicitLod:
+  case OpSDotKHR:
+  case OpUDotKHR:
+  case OpSUDotKHR:
+  case OpSDotAccSatKHR:
+  case OpUDotAccSatKHR:
+  case OpSUDotAccSatKHR:
+  case internal::OpJointMatrixLoadINTEL:
     AddRetTypePostfix = true;
-    if (OC == OpConvertUToF || OC == OpSatConvertUToS)
-      IsRetSigned = true;
+    break;
+  default: {
+    if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit)
+      AddRetTypePostfix = true;
+    break;
+  }
   }
 
-  if (OC == OpImageSampleExplicitLod)
-    AddRetTypePostfix = true;
-
-  if (OpSDotKHR <= BI->getOpCode() && BI->getOpCode() <= OpSUDotAccSatKHR)
-    AddRetTypePostfix = true;
+  bool IsRetSigned;
+  switch (OC) {
+  case OpConvertFToU:
+  case OpSatConvertSToU:
+  case OpUConvert:
+  case OpUDotKHR:
+  case OpUDotAccSatKHR:
+    IsRetSigned = false;
+    break;
+  default:
+    IsRetSigned = true;
+  }
 
   if (AddRetTypePostfix) {
     const Type *RetTy =
@@ -3868,6 +3942,12 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
       F->addParamAttr(ArgNo, Attr);
     }
+    if (BA->hasDecorate(DecorationMediaBlockIOINTEL)) {
+      assert(BA->getType()->isTypeImage() &&
+             "MediaBlockIOINTEL decoration is valid only on image parameters");
+      F->addParamAttr(ArgNo,
+                      Attribute::get(*Context, kVCMetadata::VCMediaBlockIO));
+    }
   }
 
   // Do not add float control if there is no any
@@ -4027,12 +4107,10 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (BF->hasDecorate(internal::DecorationPipelineEnableINTEL)) {
     auto Literals =
         BF->getDecorationLiterals(internal::DecorationPipelineEnableINTEL);
-    if (!Literals[0]) {
-      std::vector<Metadata *> MetadataVec;
-      MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, 1)));
-      F->setMetadata(kSPIR2MD::DisableLoopPipelining,
-                     MDNode::get(*Context, MetadataVec));
-    }
+    std::vector<Metadata *> MetadataVec;
+    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, !Literals[0])));
+    F->setMetadata(kSPIR2MD::DisableLoopPipelining,
+                   MDNode::get(*Context, MetadataVec));
   }
   return true;
 }

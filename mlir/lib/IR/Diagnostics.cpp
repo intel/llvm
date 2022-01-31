@@ -209,7 +209,7 @@ namespace detail {
 struct DiagnosticEngineImpl {
   /// Emit a diagnostic using the registered issue handle if present, or with
   /// the default behavior if not.
-  void emit(Diagnostic diag);
+  void emit(Diagnostic &&diag);
 
   /// A mutex to ensure that diagnostics emission is thread-safe.
   llvm::sys::SmartMutex<true> mutex;
@@ -228,7 +228,7 @@ struct DiagnosticEngineImpl {
 
 /// Emit a diagnostic using the registered issue handle if present, or with
 /// the default behavior if not.
-void DiagnosticEngineImpl::emit(Diagnostic diag) {
+void DiagnosticEngineImpl::emit(Diagnostic &&diag) {
   llvm::sys::SmartScopedLock<true> lock(mutex);
 
   // Try to process the given diagnostic on one of the registered handlers.
@@ -257,7 +257,7 @@ void DiagnosticEngineImpl::emit(Diagnostic diag) {
 //===----------------------------------------------------------------------===//
 
 DiagnosticEngine::DiagnosticEngine() : impl(new DiagnosticEngineImpl()) {}
-DiagnosticEngine::~DiagnosticEngine() {}
+DiagnosticEngine::~DiagnosticEngine() = default;
 
 /// Register a new handler for diagnostics to the engine. This function returns
 /// a unique identifier for the registered handler, which can be used to
@@ -277,7 +277,7 @@ void DiagnosticEngine::eraseHandler(HandlerID handlerID) {
 
 /// Emit a diagnostic using the registered issue handler if present, or with
 /// the default behavior if not.
-void DiagnosticEngine::emit(Diagnostic diag) {
+void DiagnosticEngine::emit(Diagnostic &&diag) {
   assert(diag.getSeverity() != DiagnosticSeverity::Note &&
          "notes should not be emitted directly");
   impl->emit(std::move(diag));
@@ -372,8 +372,8 @@ struct SourceMgrDiagnosticHandlerImpl {
   /// Mapping between file name and buffer ID's.
   llvm::StringMap<unsigned> filenameToBufId;
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 /// Return a processable FileLineColLoc from the given location.
 static Optional<FileLineColLoc> getFileLineColLoc(Location loc) {
@@ -434,7 +434,7 @@ SourceMgrDiagnosticHandler::SourceMgrDiagnosticHandler(
     : SourceMgrDiagnosticHandler(mgr, ctx, llvm::errs(),
                                  std::move(shouldShowLocFn)) {}
 
-SourceMgrDiagnosticHandler::~SourceMgrDiagnosticHandler() {}
+SourceMgrDiagnosticHandler::~SourceMgrDiagnosticHandler() = default;
 
 void SourceMgrDiagnosticHandler::emitDiagnostic(Location loc, Twine message,
                                                 DiagnosticSeverity kind,
@@ -610,8 +610,8 @@ struct SourceMgrDiagnosticVerifierHandlerImpl {
   llvm::Regex expected = llvm::Regex("expected-(error|note|remark|warning) "
                                      "*(@([+-][0-9]+|above|below))? *{{(.*)}}");
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 /// Given a diagnostic kind, return a human readable string for it.
 static StringRef getDiagKindStr(DiagnosticSeverity kind) {
@@ -869,13 +869,13 @@ struct ParallelDiagnosticHandlerImpl : public llvm::PrettyStackTraceEntry {
       return;
 
     // Emit the diagnostics back to the context.
-    emitDiagnostics([&](Diagnostic diag) {
+    emitDiagnostics([&](Diagnostic &diag) {
       return context->getDiagEngine().emit(std::move(diag));
     });
   }
 
   /// Utility method to emit any held diagnostics.
-  void emitDiagnostics(std::function<void(Diagnostic)> emitFn) const {
+  void emitDiagnostics(llvm::function_ref<void(Diagnostic &)> emitFn) const {
     // Stable sort all of the diagnostics that were emitted. This creates a
     // deterministic ordering for the diagnostics based upon which order id they
     // were emitted for.
@@ -883,7 +883,7 @@ struct ParallelDiagnosticHandlerImpl : public llvm::PrettyStackTraceEntry {
 
     // Emit each diagnostic to the context again.
     for (ThreadDiagnostic &diag : diagnostics)
-      emitFn(std::move(diag.diag));
+      emitFn(diag.diag);
   }
 
   /// Set the order id for the current thread.
@@ -907,7 +907,7 @@ struct ParallelDiagnosticHandlerImpl : public llvm::PrettyStackTraceEntry {
       return;
 
     os << "In-Flight Diagnostics:\n";
-    emitDiagnostics([&](Diagnostic diag) {
+    emitDiagnostics([&](const Diagnostic &diag) {
       os.indent(4);
 
       // Print each diagnostic with the format:
@@ -947,12 +947,12 @@ struct ParallelDiagnosticHandlerImpl : public llvm::PrettyStackTraceEntry {
   /// The context to emit the diagnostics to.
   MLIRContext *context;
 };
-} // end namespace detail
-} // end namespace mlir
+} // namespace detail
+} // namespace mlir
 
 ParallelDiagnosticHandler::ParallelDiagnosticHandler(MLIRContext *ctx)
     : impl(new ParallelDiagnosticHandlerImpl(ctx)) {}
-ParallelDiagnosticHandler::~ParallelDiagnosticHandler() {}
+ParallelDiagnosticHandler::~ParallelDiagnosticHandler() = default;
 
 /// Set the order id for the current thread.
 void ParallelDiagnosticHandler::setOrderIDForThread(size_t orderID) {

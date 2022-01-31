@@ -86,6 +86,28 @@ __spirv_JointMatrixSUMadINTEL(
     __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
+template <typename T, std::size_t R, std::size_t C,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
+__spirv_CompositeConstruct(const T v);
+
+template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *);
+
+template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL T __spirv_VectorExtractDynamic(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *, size_t i);
+
+template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *
+__spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *,
+                            T val, size_t i);
+
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
     "SPIR-V built-ins are not available. Please set -fdeclare-spirv-builtins flag."
@@ -239,7 +261,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
 
 #define __SPIRV_ATOMICS(macro, Arg)                                            \
   macro(__attribute__((opencl_global)), Arg)                                   \
-      macro(__attribute__((opencl_local)), Arg)
+      macro(__attribute__((opencl_local)), Arg) macro(, Arg)
 
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, float)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, double)
@@ -675,13 +697,13 @@ __spirv_ArbitraryFloatPowRINTEL(cl::sycl::detail::ap_int<WA> A, int32_t MA,
                                 int32_t RoundingAccuracy = 0) noexcept;
 
 // PowN built-in calculates `A^B` where `A` is arbitrary precision floating
-// point number and `B` is arbitrary precision integer, i.e. its width doesn't
-// depend on sum of exponent and mantissa.
+// point number and `B` is signed or unsigned arbitrary precision integer,
+// i.e. its width doesn't depend on sum of exponent and mantissa.
 template <int WA, int WB, int Wout>
 extern SYCL_EXTERNAL cl::sycl::detail::ap_int<Wout>
 __spirv_ArbitraryFloatPowNINTEL(cl::sycl::detail::ap_int<WA> A, int32_t MA,
-                                cl::sycl::detail::ap_int<WB> B, int32_t Mout,
-                                int32_t EnableSubnormals = 0,
+                                cl::sycl::detail::ap_int<WB> B, bool SignOfB,
+                                int32_t Mout, int32_t EnableSubnormals = 0,
                                 int32_t RoundingMode = 0,
                                 int32_t RoundingAccuracy = 0) noexcept;
 
@@ -725,9 +747,12 @@ template <typename... Args>
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
                    Args... args);
+template <typename... Args>
+extern SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, Args... args);
 #else
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
+extern SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
 #endif
 
 #else // if !__SYCL_DEVICE_ONLY__
