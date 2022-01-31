@@ -13,7 +13,7 @@
 /// @defgroup sycl_esimd DPC++ Explicit SIMD API
 /// This is a low-level API providing direct access to Intel GPU hardware
 /// features. ESIMD overview can be found
-/// [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md).
+/// [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/SYCL_EXT_INTEL_ESIMD/SYCL_EXT_INTEL_ESIMD.md).
 
 ///@{
 /// @ingroup sycl_esimd
