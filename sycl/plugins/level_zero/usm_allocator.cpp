@@ -134,17 +134,16 @@ public:
     // pool size for all contexts.
     // Duplicate specifications will result in the right-most taking effect.
     //
-    // Current defaults are to match pre-2021.3 pooling.
     // EnableBuffers:   Apply chunking/pooling to SYCL buffers.
-    //                  Default 0 (false).
+    //                  Default true.
     // MaxPoolSize:     Limit on overall unfreed memory.
-    //                  Default 0MB.
+    //                  Default 16MB.
     // MaxPoolableSize: Maximum allocation size subject to chunking/pooling.
-    //                  Default 32KB.
+    //                  Default 2MB host, 4MB device and 0 shared.
     // Capacity:        Maximum number of unfreed allocations in each bucket.
-    //                  Default 0.
+    //                  Default 4.
     // SlabMinSize:     Minimum allocation size requested from USM.
-    //                  Default 64KB.
+    //                  Default 64KB host and 2MB device/shared.
     //
     // Example of usage:
     // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M
