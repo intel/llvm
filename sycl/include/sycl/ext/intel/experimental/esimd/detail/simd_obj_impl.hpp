@@ -25,8 +25,10 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
-/// Flags for use with simd load/store operations.
-/// \ingroup sycl_esimd
+/// @{
+/// @ingroup sycl_esimd_core
+
+/// @name Alignment type tags for use with simd load/store operations.
 /// @{
 /// element_aligned_tag type. Flag of this type should be used in load and store
 /// operations when memory address is aligned by simd object's element type.
@@ -70,33 +72,34 @@ template <> struct is_simd_flag_type<vector_aligned_tag> : std::true_type {};
 template <unsigned N>
 struct is_simd_flag_type<overaligned_tag<N>> : std::true_type {};
 
+/// Checks if given type is a simd load/store flag.
+/// @tparam T the type to check
 template <typename T>
 static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 
 namespace detail {
 
-/// The simd_obj_impl vector class.
-///
 /// This is a base class for all ESIMD simd classes with real storage (simd,
 /// simd_mask_impl). It wraps a clang vector as the storage for the elements.
 /// Additionally this class supports region operations that map to Intel GPU
 /// regions. The type of a region select or bit_cast_view operation is of
-/// simd_view type, which models read-update-write semantics.
-///
-/// For the is_simd_obj_impl_derivative helper to work correctly, all derived
-/// classes must be templated by element type and number of elements. If fewer
-/// template arguments are needed, template aliases can be used
-/// (simd_mask_type).
+/// simd_view type, which models a "window" into this object's storage and can
+/// used to read and modify it.
 ///
 /// \tparam RawTy raw (storage) element type
 /// \tparam N number of elements
 /// \tparam Derived - a class derived from this one; this class and its
 ///    derivatives must follow the 'curiously recurring template' pattern.
+///    Note that for some element types, the element type in the \c Derived
+///    type and this type may differ - for example, half type.
 /// \tparam SFINAE - defaults to 'void' in the forward declarion within
 ///    types.hpp, used to disable invalid specializations.
 ///
-/// \ingroup sycl_esimd
-///
+// For the is_simd_obj_impl_derivative helper to work correctly, all derived
+// classes must be templated by element type and number of elements. If fewer
+// template arguments are needed, template aliases can be used
+// (simd_mask_type).
+//
 template <typename RawTy, int N, class Derived, class SFINAE>
 class simd_obj_impl {
   template <typename, typename> friend class simd_view;
@@ -107,13 +110,13 @@ class simd_obj_impl {
   using Ty = element_type;
 
 public:
-  /// The underlying builtin data type.
+  /// The underlying raw storage vector data type.
   using raw_vector_type = vector_type_t<RawTy, N>;
 
-  /// The element type of this simd_obj_impl object.
+  /// The element type of the raw storage vector.
   using raw_element_type = RawTy;
 
-  /// The number of elements in this simd_obj_impl object.
+  /// The number of elements in this object.
   static constexpr int length = N;
 
 protected:
@@ -150,22 +153,6 @@ public:
   simd_obj_impl(const raw_vector_type &Val) {
     __esimd_dbg_print(simd_obj_impl(const raw_vector_type &Val));
     set(Val);
-  }
-
-  /// This constructor is deprecated for two reasons:
-  /// 1) it adds confusion between
-  ///   simd s1(1,2); //calls next constructor
-  ///   simd s2{1,2}; //calls this constructor (uniform initialization syntax)
-  /// 2) no compile-time control over the size of the initializer; e.g. the
-  ///    following will compile:
-  ///   simd<int, 2> x = {1, 2, 3, 4};
-  __SYCL_DEPRECATED("use constructor from array, e.g: simd<int,3> x({1,2,3});")
-  simd_obj_impl(std::initializer_list<RawTy> Ilist) noexcept {
-    __esimd_dbg_print(simd_obj_impl(std::initializer_list<RawTy> Ilist));
-    int i = 0;
-    for (auto It = Ilist.begin(); It != Ilist.end() && i < N; ++It) {
-      M_data[i++] = *It;
-    }
   }
 
   /// Initialize a simd_obj_impl object with an initial value and step.
@@ -291,24 +278,12 @@ public:
     return RetTy{cast_this_to_derived(), TopRegionTy{0}};
   }
 
-  template <typename EltTy>
-  __SYCL_DEPRECATED("use simd_obj_impl::bit_cast_view.")
-  auto format() & {
-    return bit_cast_view<EltTy>();
-  }
-
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width>
   auto bit_cast_view() &[[clang::lifetimebound]] {
     using TopRegionTy = compute_format_type_2d_t<Derived, EltTy, Height, Width>;
     using RetTy = simd_view<Derived, TopRegionTy>;
     return RetTy{cast_this_to_derived(), TopRegionTy{0, 0}};
-  }
-
-  template <typename EltTy, int Height, int Width>
-  __SYCL_DEPRECATED("use simd_obj_impl::bit_cast_view.")
-  auto format() & {
-    return bit_cast_view<EltTy, Height, Width>();
   }
 
   /// 1D region select, apply a region on top of this LValue object.
@@ -344,19 +319,9 @@ public:
   /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return bitcast_to_wrapper_type<Ty>(data()[i]); }
 
-  /// Read single element, return value only (not reference).
-  __SYCL_DEPRECATED("use operator[] form.")
-  Ty operator()(int i) const { return bitcast_to_wrapper_type<Ty>(data()[i]); }
-
   /// Return writable view of a single element.
   simd_view<Derived, region1d_scalar_t<Ty>> operator[](int i)
       [[clang::lifetimebound]] {
-    return select<1, 1>(i);
-  }
-
-  /// Return writable view of a single element.
-  __SYCL_DEPRECATED("use operator[] form.")
-  simd_view<Derived, region1d_scalar_t<Ty>> operator()(int i) {
     return select<1, 1>(i);
   }
 
@@ -395,17 +360,7 @@ public:
   /// \tparam Rep is number of times region has to be replicated.
   /// \return replicated simd_obj_impl instance.
   template <int Rep> resize_a_simd_type_t<Derived, Rep * N> replicate() const {
-    return replicate<Rep, N>(0);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam W is width of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int W>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_w<Rep, W>(Offset);
+    return replicate_w<Rep, N>(0);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -415,17 +370,6 @@ public:
   template <int Rep, int W>
   resize_a_simd_type_t<Derived, Rep * W> replicate_w(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, 0, W, 1>(Offset);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam VS vertical stride of src region to replicate.
-  /// \tparam W is width of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int VS, int W>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_vs_w<Rep, VS, W>(Offset);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -445,18 +389,6 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W, int HS>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w_hs")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_vs_w_hs<Rep, VS, W, HS>(Offset);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam VS vertical stride of src region to replicate.
-  /// \tparam W is width of src region to replicate.
-  /// \tparam HS horizontal stride of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int VS, int W, int HS>
   resize_a_simd_type_t<Derived, Rep * W>
   replicate_vs_w_hs(uint16_t Offset) const {
     return __esimd_rdregion<RawTy, N, Rep * W, VS, W, HS, N>(
@@ -464,7 +396,7 @@ public:
   }
   ///@}
 
-  /// Any operation.
+  /// 'any' operation.
   ///
   /// \return 1 if any element is set, 0 otherwise.
   template <typename T1 = Ty,
@@ -473,7 +405,7 @@ public:
     return __esimd_any<Ty, N>(data());
   }
 
-  /// All operation.
+  /// 'all' operation.
   ///
   /// \return 1 if all elements are set, 0 otherwise.
   template <typename T1 = Ty,
@@ -1014,6 +946,8 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
   }
 }
 } // namespace detail
+
+/// @} sycl_esimd_core
 
 } // namespace esimd
 } // namespace experimental
