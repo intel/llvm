@@ -25,7 +25,7 @@ xpti::trace_event_data_t *XPTIRegistry::createTraceEvent(
                                          const_cast<void *>(FuncPtr));
   xpti::payload_t Payload(
       Name.c_str(), (CodeLoc.fileName() ? CodeLoc.fileName() : ""),
-      CodeLoc.lineNumber(), CodeLoc.columnNumber(), const_cast<void *>(Obj));
+      CodeLoc.lineNumber(), CodeLoc.columnNumber(), Obj);
 
   // Calls could be at different user-code locations; We create a new event
   // based on the code location info and if this has been seen before, a
