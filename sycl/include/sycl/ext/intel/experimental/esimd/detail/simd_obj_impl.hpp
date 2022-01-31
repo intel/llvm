@@ -97,7 +97,7 @@ constexpr vector_type_t<T, N> make_vector(const T (&&Arr)[N]) {
 template <class T, int N, size_t... Is>
 constexpr vector_type_t<T, N> make_vector_impl(T Base, T Stride,
                                                std::index_sequence<Is...>) {
-  return vector_type_t<T, N>{(Base + ((T)Is) * Stride)...};
+  return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
 }
 
 template <class T, int N>
@@ -189,7 +189,7 @@ public:
   /// Initialize a simd_obj_impl object with an initial value and step.
   simd_obj_impl(Ty Val, Ty Step) noexcept {
     __esimd_dbg_print(simd_obj_impl(Ty Val, Ty Step));
-    if constexpr (is_wrapper_elem_type_v<Ty>) {
+    if constexpr (is_wrapper_elem_type_v<Ty> || !std::is_integral_v<Ty>) {
       for (int i = 0; i < N; ++i) {
         M_data[i] = bitcast_to_raw_type(Val);
         Val = binary_op<BinOp::add, Ty>(Val, Step);
