@@ -10,40 +10,50 @@ using namespace sycl::ext::intel::experimental::esimd;
 
 // clang-format off
 
-SYCL_EXTERNAL auto foo(int i) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func void @_Z3fooi(
+// Array-based constructor, FP element type, no loops exected - check.
+SYCL_EXTERNAL auto foo(double i) SYCL_ESIMD_FUNCTION {
+// CHECK: define dso_local spir_func void @_Z3food(
 //   CHECK: {{[^,]*}} %[[RES:[a-zA-Z0-9_\.]+]],
 //   CHECK: {{[^,]*}} %[[I:[a-zA-Z0-9_\.]+]]){{.*}} {
-  simd<int, 2> val({ i, i });
+  simd<double, 2> val({ i, i });
   return val;
-// CHECK: %[[V0:[a-zA-Z0-9_\.]+]] = insertelement <2 x i32> undef, i32 %[[I]], i64 0
-// CHECK-NEXT: %[[V1:[a-zA-Z0-9_\.]+]] = shufflevector <2 x i32> %[[V0]], <2 x i32> poison, <2 x i32> zeroinitializer
+// CHECK: %[[V0:[a-zA-Z0-9_\.]+]] = insertelement <2 x double> undef, double %[[I]], i64 0
+// CHECK-NEXT: %[[V1:[a-zA-Z0-9_\.]+]] = shufflevector <2 x double> %[[V0]], <2 x double> poison, <2 x i32> zeroinitializer
 // CHECK-NEXT: %[[MDATA:[a-zA-Z0-9_\.]+]] = getelementptr inbounds {{.*}} %[[RES]], i64 0, i32 0, i32 0
-// CHECK-NEXT: store <2 x i32> %[[V1]], <2 x i32> addrspace(4)* %[[MDATA]]
+// CHECK-NEXT: store <2 x double> %[[V1]], <2 x double> addrspace(4)* %[[MDATA]]
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 }
 
+// Base + step constructor, FP element type, loops exected - don't check.
 SYCL_EXTERNAL auto bar() SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func void @_Z3barv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
   simd<double, 2> val(17, 3);
   return val;
-// CHECK: %[[MDATA:[a-zA-Z0-9_\.]+]] = getelementptr inbounds {{.*}} %[[RES]], i64 0, i32 0, i32 0
-// CHECK-NEXT: store <2 x double> <double 1.700000e+01, double 2.000000e+01>, <2 x double> addrspace(4)* %[[MDATA]]
-// CHECK-NEXT: ret void
-// CHECK-NEXT: }
 }
 
+// Base + step constructor, integer element type, no loops exected - check.
+SYCL_EXTERNAL auto baz() SYCL_ESIMD_FUNCTION {
+  // CHECK: define dso_local spir_func void @_Z3bazv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
+  simd<int, 2> val(17, 3);
+  return val;
+  // CHECK: %[[MDATA:[a-zA-Z0-9_\.]+]] = getelementptr inbounds {{.*}} %[[RES]], i64 0, i32 0, i32 0
+  // CHECK-NEXT: store <2 x i32> <i32 17, i32 20>, <2 x i32> addrspace(4)* %[[MDATA]]
+  // CHECK-NEXT: ret void
+  // CHECK-NEXT: }
+}
+
+// Broadcast constructor, FP element type, no loops exected - check.
 SYCL_EXTERNAL auto gee() SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z3geev({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
-  simd<int8_t, 2> val(-7);
+  simd<float, 2> val(-7);
   return val;
 // CHECK: %[[MDATA:[a-zA-Z0-9_\.]+]] = getelementptr inbounds {{.*}} %[[RES]], i64 0, i32 0, i32 0
-// CHECK-NEXT: store <2 x i8> <i8 -7, i8 -7>, <2 x i8> addrspace(4)* %[[MDATA]]
+// CHECK-NEXT: store <2 x float> <float -7.000000e+00, float -7.000000e+00>, <2 x float> addrspace(4)* %[[MDATA]]
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 }
 
+// Array-based simd_mask constructor, no loops exected - check.
 SYCL_EXTERNAL auto foomask() SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z7foomaskv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
   simd_mask<2> val({ 1, 0 });
@@ -54,6 +64,7 @@ SYCL_EXTERNAL auto foomask() SYCL_ESIMD_FUNCTION {
 // CHECK-NEXT: }
 }
 
+// Broadcast simd_mask constructor, no loops exected - check.
 SYCL_EXTERNAL auto geemask() SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z7geemaskv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
   simd_mask<2> val(1);
