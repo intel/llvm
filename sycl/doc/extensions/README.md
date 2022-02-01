@@ -21,7 +21,6 @@ DPC++ extensions status:
 | [SYCL_EXT_ONEAPI_DEVICE_GLOBAL](DeviceGlobal/SYCL_INTEL_device_global.asciidoc)                                             | Proposal                                  | |
 | [Property List](PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc)                                                        | Proposal                                  | |
 | [KernelProperties](KernelProperties/KernelProperties.asciidoc)                                                              | Proposal                                  | |
-| [DiscardQueueEvents](DiscardQueueEvents/SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS.asciidoc) | Proposal | |
 
 Legend:
 
