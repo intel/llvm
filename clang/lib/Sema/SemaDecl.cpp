@@ -9194,7 +9194,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
         Diag(D.getDeclSpec().getVirtualSpecLoc(), diag::err_virtual_in_union);
         NewFD->setInvalidDecl();
       }
-    if ((Parent->isClass() || Parent->isStruct()) &&
+      if ((Parent->isClass() || Parent->isStruct()) &&
           Parent->hasAttr<SYCLSpecialClassAttr>() &&
           NewFD->getKind() == Decl::Kind::CXXMethod &&
           NewFD->getName() == "__init" && D.isFunctionDefinition()) {
@@ -16779,7 +16779,7 @@ void Sema::ActOnTagFinishDefinition(Scope *S, Decl *TagD,
       unsigned NumInitMethods = 0;
       for (auto *Method : Def->methods()) {
         if (!Method->getIdentifier())
-            continue;
+          continue;
         if (Method->getName() == "__init")
           NumInitMethods++;
       }
