@@ -108,6 +108,12 @@ public:
 
   size_t get_id(int dimension) const { return index[dimension]; }
 
+  // get_group_id functions are successors in SYCL 2020 for get_id functions
+  // from SYCL 1.2
+  id<Dimensions> get_group_id() const { return index; }
+
+  size_t get_group_id(int dimension) const { return index[dimension]; }
+
   range<Dimensions> get_global_range() const { return globalRange; }
 
   size_t get_global_range(int dimension) const {
