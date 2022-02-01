@@ -17,6 +17,7 @@
 #include "DeviceGlobals.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLKernelParamOptInfo.h"
+#include "SYCLStripDeadDebugInfo.h"
 #include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -195,6 +196,12 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
 cl::opt<bool> DeviceGlobals{
     "device-globals",
     cl::desc("Lower and generate information about device global variables"),
+    cl::cat(PostLinkCat)};
+
+cl::opt<bool> AggressiveStripDebugInfo{
+    "aggressive-strip-debug-info",
+    cl::desc("Strip extra debug info more aggressively. It may significantly "
+             "reduce file size, but lower debugability of device code."),
     cl::cat(PostLinkCat)};
 
 struct GlobalBinImageProps {
@@ -505,8 +512,12 @@ extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
   ModulePassManager MPM;
   // Do cleanup.
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
-  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
+  if (!AggressiveStripDebugInfo)
+    MPM.addPass(StripDeadDebugInfoPass()); // Remove dead debug info.
+  else
+    MPM.addPass(SYCLStripDeadDebugInfo()); // Remove more dead debug info.
+
   MPM.run(*MClone.get(), MAM);
 
   return MClone;

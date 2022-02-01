@@ -24,6 +24,7 @@ add_llvm_tool(sycl-post-link
   SpecConstants.cpp
   SYCLDeviceLibReqMask.cpp
   SYCLKernelParamOptInfo.cpp
+  SYCLStripDeadDebugInfo.cpp
   ADDITIONAL_HEADER_DIRS
   ${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include
   ${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include
