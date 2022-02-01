@@ -102,6 +102,9 @@ supports conversion of values of `float` type to `bfloat16` and back.
 If the device doesn't have the aspect, objects of `bfloat16` class must not be
 used in the device code.
 
+**NOTE**: The `ext_intel_bf16_conversion` aspect is not yet supported.  The
+`bfloat16` class is currently supported only on Xe HP GPU.
+
 == New `bfloat16` class
 
 The `bfloat16` class below provides the conversion functionality. Conversion
