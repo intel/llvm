@@ -3451,13 +3451,13 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 // Handles max_work_group_size attribute.
-// Returns a OneArgResult value; EqualToOne means all argument values are
+// Returns a AttrArgResult value; EqualToOne means all argument values are
 // equal to one, NotEqualToOne means at least one argument value is not
 // equal to one, and Unknown means that at least one of the argument values
 // could not be determined.
 enum class AttrArgResult { Unknown, EqualToOne, NotEqualToOne };
 static AttrArgResult AreAllAttrArgsOne(const Expr *E, const Expr *E1,
-		                       const Expr *E2, const Expr *E3) {
+                                       const Expr *E2, const Expr *E3) {
   // If any of the operand is still value dependent, we can't test anything.
   const auto *CE = dyn_cast<ConstantExpr>(E);
   const auto *CE1 = dyn_cast<ConstantExpr>(E1);
@@ -3467,10 +3467,9 @@ static AttrArgResult AreAllAttrArgsOne(const Expr *E, const Expr *E1,
   if (!CE || !CE1 || !CE2 || !CE3)
     return AttrArgResult::Unknown;
 
-  // Otherwise, test that the values.
+  // Otherwise, test that the attribute values.
   if (CE->getResultAsAPSInt() == 0 &&
-      (CE1->getResultAsAPSInt() != 1 ||
-       CE2->getResultAsAPSInt() != 1 ||
+      (CE1->getResultAsAPSInt() != 1 || CE2->getResultAsAPSInt() != 1 ||
        CE3->getResultAsAPSInt() != 1)) {
     return AttrArgResult::NotEqualToOne;
   }
@@ -3585,9 +3584,8 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
   // equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    AttrArgResult Results[] = {
-        AreAllAttrArgsOne(DeclAttr->getValue(), A.getXDim(), A.getYDim(),
-			  A.getZDim())};
+    AttrArgResult Results[] = {AreAllAttrArgsOne(
+        DeclAttr->getValue(), A.getXDim(), A.getYDim(), A.getZDim())};
 
     if (llvm::is_contained(Results, AttrArgResult::NotEqualToOne)) {
       Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)

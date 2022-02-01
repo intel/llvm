@@ -127,7 +127,7 @@ int check() {
   func3<3>();  // OK
   func3<-1>(); // expected-note {{in instantiation of function template specialization 'func3<-1>' requested here}}
   func4<2>();  // expected-note {{in instantiation of function template specialization 'func4<2>' requested here}}
-  func5<6>();  // expected-note {{in instantiation of function template specialization 'func5<6>' requested here}}
+  func5<2>();  // expected-note {{in instantiation of function template specialization 'func5<2>' requested here}}
   func6<2>();  // expected-note {{in instantiation of function template specialization 'func6<2>' requested here}}
   func7<2>();  // expected-note {{in instantiation of function template specialization 'func7<2>' requested here}}
   func8<2>();  // expected-note {{in instantiation of function template specialization 'func8<2>' requested here}}
