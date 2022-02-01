@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S -o %t.ll %s
-// RUN: FileCheck %s --input-file %t.ll
+// XUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S -o %t.ll %s
+// XUN: FileCheck %s --input-file %t.ll
 
 // these are the RUN directive used by main sycl branch today.
 // RUN: %clangxx -fsycl-device-only -fsycl-id-queries-fit-in-int -fno-sycl-early-optimizations -S %s -flegacy-pass-manager -o - | FileCheck %s
