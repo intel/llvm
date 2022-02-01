@@ -870,7 +870,7 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 #endif
 }
 
-// four argument version of exclusive_scan_over_group is specialized twice
+// four argument version of inclusive_scan_over_group is specialized twice
 // once for (scalar_arithmetic || complex) and once for vector_arithmetic
 template <typename Group, typename V, class BinaryOperation, typename T>
 detail::enable_if_t<
