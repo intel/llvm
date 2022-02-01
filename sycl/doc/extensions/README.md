@@ -15,12 +15,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_static_local_memory_query](StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)                | Proposal                                  | |
 | [Sub-groups for NDRange Parallelism](SubGroupNDRange/SubGroupNDRange.md)                                                    | Deprecated(OpenCL: CPU, GPU)              | |
 | [Sub-groups](SubGroup/SYCL_INTEL_sub_group.asciidoc)                                                                        | Deprecated                                | |
-| [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
-| [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
-| [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
-| [SYCL_EXT_ONEAPI_DEVICE_GLOBAL](DeviceGlobal/SYCL_INTEL_device_global.asciidoc)                                             | Proposal                                  | |
 | [Property List](PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc)                                                        | Proposal                                  | |
-| [KernelProperties](KernelProperties/KernelProperties.asciidoc)                                                              | Proposal                                  | |
 | [DiscardQueueEvents](DiscardQueueEvents/SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS.asciidoc) | Proposal | |
 
 Legend:
