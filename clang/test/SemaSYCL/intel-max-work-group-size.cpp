@@ -15,8 +15,8 @@
 [[intel::max_work_group_size(32, 32, 32)]] void f3(); // OK
 
 // Produce a conflicting attribute warning when the args are different.
-[[intel::max_work_group_size(6, 6, 6)]]                 // expected-note {{previous attribute is here}}
-[[intel::max_work_group_size(16, 16, 16)]] void         // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}}
+[[intel::max_work_group_size(6, 6, 6)]]         // expected-note {{previous attribute is here}}
+[[intel::max_work_group_size(16, 16, 16)]] void // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}}
 f4() {}
 
 // Catch the easy case where the attributes are all specified at once with
