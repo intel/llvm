@@ -81,7 +81,7 @@ program behavior if violated.
 
 ##### Features not supported with ESIMD extension:
 - Ahead-of-time compilation
-- The [C and C++ Standard libraries support](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/C-CXX-StandardLibrary/C-CXX-StandardLibrary.rst)
+- The [C and C++ Standard libraries support](../supported/C-CXX-StandardLibrary.rst)
 - The [Device library extensions](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst)
 - Host device (in some cases)
 
