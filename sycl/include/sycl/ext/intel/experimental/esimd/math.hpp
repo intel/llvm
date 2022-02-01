@@ -1726,7 +1726,12 @@ ESIMD_NODEBUG ESIMD_INLINE T exp(T src0) {
     simd<float, SZ> Result = __esimd_##name<SZ>(src0.data());                  \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
-    return esimd::saturate<T>(Result);                                         \
+    if constexpr (!std::is_same_v<float, T>) {                                 \
+      auto RawRes = esimd::saturate<float>(Result).data();                     \
+      return detail::convert_vector<T, float, SZ>(std::move(RawRes));          \
+    } else {                                                                   \
+      return esimd::saturate<T>(Result);                                       \
+    }                                                                          \
   }                                                                            \
   template <typename T>                                                        \
   __ESIMD_API T name(float src0, int flag = saturation_off) {                  \
