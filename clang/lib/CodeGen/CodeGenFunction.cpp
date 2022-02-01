@@ -744,7 +744,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
           FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
 
-    // For a SYCLDevice ReqdWorkGroupSizeAttr arguments are reversed.
+    // Attributes arguments (first and third) are reversed on SYCLDevice.
     if (getLangOpts().SYCLIsDevice) {
       llvm::Metadata *AttrMDArgs[] = {
           llvm::ConstantAsMetadata::get(Builder.getInt(*A->getZDimVal())),

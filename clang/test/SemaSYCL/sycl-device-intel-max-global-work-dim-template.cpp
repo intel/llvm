@@ -73,10 +73,8 @@ template <int size>
 // In case the value of 'max_global_work_dim' attribute equals to 0 we shall
 // ensure that if max_work_group_size and reqd_work_group_size attributes exist,
 // they hold equal values (1, 1, 1).
-
-// TODO: Test case compiles now without any diagnostic but it shouldn't.
 template <int N>
-[[intel::max_work_group_size(N, N, N)]] void func5(); // OK now. Error is expected here.
+[[intel::max_work_group_size(N, N, N)]] void func5(); // expected-error {{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func5();
 
@@ -129,7 +127,7 @@ int check() {
   func3<3>();  // OK
   func3<-1>(); // expected-note {{in instantiation of function template specialization 'func3<-1>' requested here}}
   func4<2>();  // expected-note {{in instantiation of function template specialization 'func4<2>' requested here}}
-  func5<6>();  // OK now. Expecte note here.
+  func5<6>();  // expected-note {{in instantiation of function template specialization 'func5<6>' requested here}}
   func6<2>();  // expected-note {{in instantiation of function template specialization 'func6<2>' requested here}}
   func7<2>();  // expected-note {{in instantiation of function template specialization 'func7<2>' requested here}}
   func8<2>();  // expected-note {{in instantiation of function template specialization 'func8<2>' requested here}}
