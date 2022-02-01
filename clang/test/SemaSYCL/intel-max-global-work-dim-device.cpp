@@ -111,7 +111,7 @@ struct TRIFuncObjGood9 {
 [[intel::max_global_work_dim(1)]] void TRIFuncObjGood9::operator()() const {}
 
 // FIXME: We do not have support yet for checking
-// max_work_group_size and max_global_work_dim
+// reqd_work_group_size and max_global_work_dim
 // attributes when merging, so the test compiles without
 // any diagnostic when it shouldn't.
 struct TRIFuncObjBad1 {
@@ -123,7 +123,7 @@ struct TRIFuncObjBad1 {
 void TRIFuncObjBad1::operator()() const {}
 
 // FIXME: We do not have support yet for checking
-// max_work_group_size and max_global_work_dim
+// reqd_work_group_size and max_global_work_dim
 // attributes when merging, so the test compiles without
 // any diagnostic when it shouldn't.
 struct TRIFuncObjBad2 {

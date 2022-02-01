@@ -3467,7 +3467,7 @@ static AttrArgResult AreAllAttrArgsOne(const Expr *E, const Expr *E1,
   if (!CE || !CE1 || !CE2 || !CE3)
     return AttrArgResult::Unknown;
 
-  // Otherwise, test that the attribute values.
+  // Otherwise, check if the attribute values are equal to one.
   if (CE->getResultAsAPSInt() == 0 &&
       (CE1->getResultAsAPSInt() != 1 || CE2->getResultAsAPSInt() != 1 ||
        CE3->getResultAsAPSInt() != 1)) {
@@ -3520,10 +3520,7 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // the attribute holds equal values to (1, 1, 1) in case the value of
   // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    AttrArgResult Results[] = {
-        AreAllAttrArgsOne(DeclAttr->getValue(), XDim, YDim, ZDim)};
-
-    if (llvm::is_contained(Results, AttrArgResult::NotEqualToOne)) {
+    if (AreAllAttrArgsOne(DeclAttr->getValue(), XDim, YDim, ZDim) == AttrArgResult::NotEqualToOne) {
       Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << CI << DeclAttr;
       return;
@@ -3584,10 +3581,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
   // equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    AttrArgResult Results[] = {AreAllAttrArgsOne(
-        DeclAttr->getValue(), A.getXDim(), A.getYDim(), A.getZDim())};
-
-    if (llvm::is_contained(Results, AttrArgResult::NotEqualToOne)) {
+    if (AreAllAttrArgsOne(DeclAttr->getValue(),  A.getXDim(), A.getYDim(), A.getZDim()) == AttrArgResult::NotEqualToOne) {	  
       Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << &A << DeclAttr;
       return nullptr;

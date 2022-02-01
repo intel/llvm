@@ -15,19 +15,13 @@
 [[intel::max_work_group_size(32, 32, 32)]] void f3(); // OK
 
 // Produce a conflicting attribute warning when the args are different.
-[[intel::max_work_group_size(16, 16, 16)]] void f4();   // expected-note {{previous attribute is here}}
-[[intel::max_work_group_size(32, 32, 32)]] void f4() {} // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}} \
-
 [[intel::max_work_group_size(6, 6, 6)]]                 // expected-note {{previous attribute is here}}
 [[intel::max_work_group_size(16, 16, 16)]] void         // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}}
-f5() {}
-
-[[intel::max_work_group_size(2, 2, 2)]] void f6();    // expected-note {{previous attribute is here}}
-[[intel::max_work_group_size(32, 32, 32)]] void f6(); // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}} \
+f4() {}
 
 // Catch the easy case where the attributes are all specified at once with
 // different arguments.
-[[intel::max_work_group_size(16, 16, 16), intel::max_work_group_size(2, 2, 2)]] void f7(); // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[intel::max_work_group_size(16, 16, 16), intel::max_work_group_size(2, 2, 2)]] void f5(); // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
 
 // Show that the attribute works on member functions.
 class Functor {
@@ -38,30 +32,30 @@ public:
 
 // Ensure that template arguments behave appropriately based on instantiations.
 template <int N>
-[[intel::max_work_group_size(N, 1, 1)]] void f8(); // #f8
+[[intel::max_work_group_size(N, 1, 1)]] void f6(); // #f6
 
 // Test that template redeclarations also get diagnosed properly.
 template <int X, int Y, int Z>
-[[intel::max_work_group_size(1, 1, 1)]] void f9(); // #f9prev
+[[intel::max_work_group_size(1, 1, 1)]] void f7(); // #f7prev
 
 template <int X, int Y, int Z>
-[[intel::max_work_group_size(X, Y, Z)]] void f9() {} // #f9
+[[intel::max_work_group_size(X, Y, Z)]] void f7() {} // #f7
 
 // Test that a template redeclaration where the difference is known up front is
 // diagnosed immediately, even without instantiation.
 template <int X, int Y, int Z>
-[[intel::max_work_group_size(X, 1, Z)]] void f10(); // expected-note {{previous attribute is here}}
+[[intel::max_work_group_size(X, 1, Z)]] void f8(); // expected-note {{previous attribute is here}}
 template <int X, int Y, int Z>
-[[intel::max_work_group_size(X, 2, Z)]] void f10(); // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}}
+[[intel::max_work_group_size(X, 2, Z)]] void f8(); // expected-warning {{attribute 'max_work_group_size' is already applied with different arguments}}
 
 void instantiate() {
-  f8<1>(); // OK
-  // expected-warning@#f8 {{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
-  f8<-1>(); // expected-note {{in instantiation}}
-  // expected-error@#f8 {{'max_work_group_size' attribute must be greater than 0}}
-  f8<0>();       // expected-note {{in instantiation}}
-  f9<1, 1, 1>(); // OK, args are the same on the redecl.
-  // expected-warning@#f9 {{attribute 'max_work_group_size' is already applied with different arguments}}
-  // expected-note@#f9prev {{previous attribute is here}}
-  f9<2, 2, 2>(); // expected-note {{in instantiation}}
+  f6<1>(); // OK
+  // expected-warning@#f6 {{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  f6<-1>(); // expected-note {{in instantiation}}
+  // expected-error@#f6 {{'max_work_group_size' attribute must be greater than 0}}
+  f6<0>();       // expected-note {{in instantiation}}
+  f7<1, 1, 1>(); // OK, args are the same on the redecl.
+  // expected-warning@#f7 {{attribute 'max_work_group_size' is already applied with different arguments}}
+  // expected-note@#f7prev {{previous attribute is here}}
+  f7<2, 2, 2>(); // expected-note {{in instantiation}}
 }
