@@ -1,5 +1,4 @@
 add_custom_target(SYCLUnitTests)
-add_definitions(-g -O0)
 set_target_properties(SYCLUnitTests PROPERTIES FOLDER "SYCL tests")
 
 foreach(flag_var
