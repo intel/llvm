@@ -22,8 +22,6 @@
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 
-#define SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS 1
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
