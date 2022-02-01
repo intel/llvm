@@ -1618,10 +1618,16 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   // TODO: Set spec constatns here.
 
   // TODO: Handle zero sized Device list.
+
+  const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
+  const RTDeviceBinaryImage &Img = *ImgPtr;
+
+  const char* compileOptions = Img.getCompileOptions();
+
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
       PIDevices.data(),
-      /*options=*/nullptr,
+      /*options=*/compileOptions, // make it done
       /*num_input_headers=*/0, /*input_headers=*/nullptr,
       /*header_include_names=*/nullptr,
       /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
@@ -1649,7 +1655,16 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   PIDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
-
+  
+  std::vector<const char*> linkOptions;
+  for (auto &DeviceImage : DeviceImages) {
+    const std::shared_ptr<device_image_impl> &InputImpl =
+        getSyclObjImpl(DeviceImage);
+    const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
+    const RTDeviceBinaryImage &Img = *ImgPtr;
+    linkOptions.push_back(Img.getLinkOptions());
+  }
+  
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
@@ -1658,7 +1673,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
       ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
-      /*options=*/nullptr, PIPrograms.size(), PIPrograms.data(),
+      /*options=*/linkOptions[0], PIPrograms.size(), PIPrograms.data(),
       /*pfn_notify=*/nullptr,
       /*user_data=*/nullptr, &LinkedProg);
 
