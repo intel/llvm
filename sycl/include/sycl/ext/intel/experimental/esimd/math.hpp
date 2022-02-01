@@ -39,7 +39,10 @@ namespace esimd {
 /// @param src the input vector.
 /// @return vector of elements converted to \p T0 with saturation.
 template <typename T0, typename T1, int SZ>
-__ESIMD_API simd<T0, SZ> saturate(simd<T1, SZ> src) {
+__ESIMD_API std::enable_if_t<!detail::is_generic_floating_point_v<T0> ||
+                                 std::is_same_v<T1, T0>,
+                             simd<T0, SZ>>
+saturate(simd<T1, SZ> src) {
   if constexpr (detail::is_generic_floating_point_v<T0>)
     return __esimd_sat<T0, T1, SZ>(src.data());
   else if constexpr (detail::is_generic_floating_point_v<T1>) {
@@ -54,9 +57,9 @@ __ESIMD_API simd<T0, SZ> saturate(simd<T1, SZ> src) {
       return __esimd_ustrunc_sat<T0, T1, SZ>(src.data());
   } else {
     if constexpr (std::is_signed<T1>::value)
-      return __esimd_sutrunc_sat<T0, T1, SZ>(src.data());
-    else
       return __esimd_sstrunc_sat<T0, T1, SZ>(src.data());
+    else
+      return __esimd_sutrunc_sat<T0, T1, SZ>(src.data());
   }
 }
 
@@ -1723,7 +1726,12 @@ ESIMD_NODEBUG ESIMD_INLINE T exp(T src0) {
     simd<float, SZ> Result = __esimd_##name<SZ>(src0.data());                  \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
-    return esimd::saturate<T>(Result);                                         \
+    if constexpr (!std::is_same_v<float, T>) {                                 \
+      auto RawRes = esimd::saturate<float>(Result).data();                     \
+      return detail::convert_vector<T, float, SZ>(std::move(RawRes));          \
+    } else {                                                                   \
+      return esimd::saturate<T>(Result);                                       \
+    }                                                                          \
   }                                                                            \
   template <typename T>                                                        \
   __ESIMD_API T name(float src0, int flag = saturation_off) {                  \
