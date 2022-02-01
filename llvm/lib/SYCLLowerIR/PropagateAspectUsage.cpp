@@ -1,3 +1,16 @@
+//===---- PropagateAspectUsage.h - PropagateAspectUsage Pass --------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// Pass propagates metadata corresponding to usage of optional device
+// features.
+//
+//===----------------------------------------------------------------------===//
+//
 #include "llvm/SYCLLowerIR/PropagateAspectUsage.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
@@ -74,9 +87,7 @@ TypeToAspectsMapTy GetTypesThatUseAspectsFromMetadata(const Module &M) {
 
     AspectsSetTy &Aspects = Result[T];
     for (size_t I = 1; I != N.getNumOperands(); ++I) {
-      ConstantAsMetadata *CAM = dyn_cast<ConstantAsMetadata>(N.getOperand(I));
-      assert(CAM && "constant metadata is expected in "
-                    "intel_types_that_use_aspect list's entry");
+      ConstantAsMetadata *CAM = cast<ConstantAsMetadata>(N.getOperand(I));
       Constant *C = CAM->getValue();
       Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
     }
@@ -110,18 +121,18 @@ void PropagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
       continue;
 
     for (const Type *TT : Edges.at(T)) {
-      if (Visited.count(TT))
-        continue;
-
-      queue.push(TT);
+      if (!Visited.count(TT))
+        queue.push(TT);
     }
   }
 }
 
-/// Returns all types with corresponding aspects from module @M. Type T in the
-/// result contains an aspect A if there is a way with instance of T to access
-/// by internal fields or pointers another type TT which uses corresponding
-/// aspect A.
+/// Propagates given aspects to all types in module @M. Function accepts
+/// aspects in @TypesWithAspects reference and writes a result in this
+/// reference.
+/// Type T in the result contains an aspect A if Type T is a composite
+/// type (array, struct, vector) which contains elements/fields of
+/// another type TT, which in turn uses the aspect A.
 /// @TypesWithAspects argument consist of known types with aspects
 /// from metadata information.
 ///
@@ -130,16 +141,15 @@ void PropagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
 ///    contains DoubleTy since it is optional as well.
 /// 2) Make from list a type graph which consist of nodes corresponding to types
 ///    and directed edges between nodes. An edge from type A to type B
-///    corresponds to the fact that A is accessible from an instance of type B
-///    (by direct field or pointer in B).
+///    corresponds to the fact that A is contained within B.
+///    Examples: B is a pointer to A, B is a struct containing field of type A.
 /// 3) For every known type with aspects propagate it's aspects over graph.
 ///    Every propagation is a separate run of BFS algorithm.
 ///
 /// Time complexity: O((V + E) * T) where T is the number of input types
 /// containing aspects.
-TypeToAspectsMapTy
-GetTypesWithAspectsFromModule(const Module &M,
-                              TypeToAspectsMapTy &TypesWithAspects) {
+void PropagateAspectsToOtherTypesInModule(
+    const Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   std::unordered_set<const Type *> TypesToProcess;
   Type *DoubleTy = Type::getDoubleTy(M.getContext());
 
@@ -167,10 +177,10 @@ GetTypesWithAspectsFromModule(const Module &M,
   }
 
   TypeToAspectsMapTy Result;
-  for (const auto &It : TypesWithAspects)
-    PropagateAspectsThroughTypes(Edges, It.first, It.second, Result);
-
-  return Result;
+  for (const Type *T : TypesToProcess) {
+    AspectsSetTy &Aspects = TypesWithAspects[T];
+    PropagateAspectsThroughTypes(Edges, T, Aspects, TypesWithAspects);
+  }
 }
 
 /// Returns all aspects which might be reached from type @T.
@@ -178,11 +188,11 @@ GetTypesWithAspectsFromModule(const Module &M,
 /// NB! This function inserts new records in @Types map for new discovered
 /// types. For the best perfomance pass this map in the next invocations.
 AspectsSetTy GetAspectsFromType(const Type *T, TypeToAspectsMapTy &Types) {
-  auto it = Types.find(T);
-  if (it != Types.end())
-    return it->second;
+  auto It = Types.find(T);
+  if (It != Types.end())
+    return It->second;
 
-  // NB! This is essential to no get into infinite recursive loops.
+  // This is essential to no get into infinite recursive loops.
   Types[T] = {};
   AspectsSetTy Result;
 
@@ -229,17 +239,17 @@ void EmitWarning(LLVMContext &C, const StringRef Msg) {
   C.diagnose(MissedAspectDiagnosticInfo(Msg));
 }
 
-template <class Container> std::string Join(const Container &C, char sep) {
+std::string Join(const AspectsSetTy &C, char sep) {
   std::string S;
   bool FirstOccurence = true;
-  for (const auto &Elem : C) {
+  for (int Aspect : C) {
     if (!FirstOccurence) {
       S += sep;
       S += ' ';
     }
 
     FirstOccurence = false;
-    S += std::to_string(Elem);
+    S += std::to_string(Aspect);
   }
 
   return S;
@@ -353,10 +363,9 @@ BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
     for (Instruction &I : instructions(F)) {
       AspectsSetTy Aspects = GetAspectsUsedByInstruction(I, TypesWithAspects);
       FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
-      if (CallInst *CI = dyn_cast<CallInst>(&I)) {
+      if (CallInst *CI = dyn_cast<CallInst>(&I))
         if (!CI->isIndirectCall())
           CG[&F].insert(CI->getCalledFunction());
-      }
     }
   }
 
@@ -372,7 +381,7 @@ BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
 PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   TypeToAspectsMapTy TypesWithAspects = GetTypesThatUseAspectsFromMetadata(M);
-  TypesWithAspects = GetTypesWithAspectsFromModule(M, TypesWithAspects);
+  PropagateAspectsToOtherTypesInModule(M, TypesWithAspects);
 
   FunctionToAspectsMapTy FunctionToAspects =
       BuildFunctionsToAspectsMap(M, TypesWithAspects);
