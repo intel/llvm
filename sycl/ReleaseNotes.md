@@ -7,7 +7,7 @@ Release notes for commit range 4fc5ebe..bd68232
  - Added support for HIP backend
    [06fdabb5][da138cc][de6e848c][104b45ee][2e08d0e][bfbd5af][c19294f]
 ### SYCL Library
- - Added [sRGBA support](doc/extenstions/SRGB/srgb_support.asciidoc)
+ - Added [sRGBA support](doc/extensions/supported/SYCL_EXT_ONEAPI_SRGB.asciidoc)
    [e488327][191efdd]
  - Added a preview feature implementation for the DPC++ experimental
    [matrix extension](doc/extensions/experimental/SYCL_EXT_ONEAPI_MATRIX.asciidoc)
