@@ -116,81 +116,48 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 //
 /// Flat-address gather.
 ///
-template <typename Tx, int n, int ElemsPerAddr = 1,
-          class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
-                              (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
-                               ElemsPerAddr == 4)),
-                             simd<Tx, n * ElemsPerAddr>>
+template <typename Tx, int n, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<n == 8 || n == 16 || n == 32, simd<Tx, n>>
 gather(const Tx *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
 
-  if constexpr (sizeof(T) == 1 && ElemsPerAddr == 2) {
+  if constexpr (sizeof(T) == 1) {
     auto Ret = __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-        pred.data());
-    return __esimd_rdregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 4, 2, 1>(Ret, 0);
-  } else if constexpr (sizeof(T) == 1 && ElemsPerAddr == 1) {
-    auto Ret = __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-        pred.data());
-    return __esimd_rdregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 0, n, 4>(Ret, 0);
-  } else if constexpr (sizeof(T) == 2 && ElemsPerAddr == 1) {
+        addrs.data(), detail::ElemsPerAddrEncoding<1>(), pred.data());
+    return __esimd_rdregion<T, n * 4, n, /*VS*/ 0, n, 4>(Ret, 0);
+  } else if constexpr (sizeof(T) == 2) {
     auto Ret = __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<2>()>(
         addrs.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
     return __esimd_rdregion<T, n * 2, n, /*VS*/ 0, n, 2>(Ret, 0);
-  } else if constexpr (sizeof(T) == 2)
-    return __esimd_svm_gather<T, n,
-                              detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(),
-        pred.data());
-  else
-    return __esimd_svm_gather<T, n,
-                              detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-        pred.data());
+  } else
+    return __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), detail::ElemsPerAddrEncoding<1>(), pred.data());
 }
 
 /// Flat-address scatter.
 ///
-template <typename Tx, int n, int ElemsPerAddr = 1,
-          class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
-                              (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
-                               ElemsPerAddr == 4))>
-scatter(Tx *p, simd<uint32_t, n> offsets, simd<Tx, n * ElemsPerAddr> vals,
+template <typename Tx, int n, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<n == 8 || n == 16 || n == 32>
+scatter(Tx *p, simd<uint32_t, n> offsets, simd<Tx, n> vals,
         simd_mask<n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  if constexpr (sizeof(T) == 1 && ElemsPerAddr == 2) {
+  if constexpr (sizeof(T) == 1) {
     simd<T, n * 4> D;
-    D = __esimd_wrregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 4, 2, 1>(
-        D.data(), vals.data(), 0);
+    D = __esimd_wrregion<T, n * 4, n, /*VS*/ 0, n, 4>(D.data(), vals.data(), 0);
     __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-        pred.data());
-  } else if constexpr (sizeof(T) == 1 && ElemsPerAddr == 1) {
-    simd<T, n * 4> D;
-    D = __esimd_wrregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 0, n, 4>(
-        D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-        pred.data());
-  } else if constexpr (sizeof(T) == 2 && ElemsPerAddr == 1) {
+        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<1>(), pred.data());
+  } else if constexpr (sizeof(T) == 2) {
     simd<T, n * 2> D;
     D = __esimd_wrregion<T, n * 2, n, /*VS*/ 0, n, 2>(D.data(), vals.data(), 0);
     __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<2>()>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
-  } else if constexpr (sizeof(T) == 2)
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
-        addrs.data(), vals.data(),
-        detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(), pred.data());
-  else
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
-        addrs.data(), vals.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
+  } else
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), vals.data(), detail::ElemsPerAddrEncoding<1>(),
         pred.data());
 }
 

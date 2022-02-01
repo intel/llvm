@@ -705,7 +705,7 @@ SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
 device selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
-[Intel FPGA selector(s)](extensions/IntelFPGA/FPGASelector.md)) as
+[Intel FPGA selector(s)](extensions/supported/SYCL_EXT_INTEL_FPGA_DEVICE_SELECTOR.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
 

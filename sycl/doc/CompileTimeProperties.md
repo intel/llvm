@@ -148,7 +148,7 @@ kernel arguments.  For example, the [SYCL\_ONEAPI\_accessor\_properties][6]
 extension could be redesigned to use compile-time properties.  Such a redesign
 might look like:
 
-[6]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/accessor_properties/SYCL_ONEAPI_accessor_properties.asciidoc>
+[6]: <extensions/supported/SYCL_EXT_ONEAPI_ACCESSOR_PROPERTIES.asciidoc>
 
 ```
 namespace sycl {
