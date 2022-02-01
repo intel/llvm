@@ -37,8 +37,8 @@ struct Decor {
   DecorValueTy Type;
 };
 
-#define SYCL_COMPILE_TIME_PROPERTY(PropertyName, Decoration, ValueType) \
-{ PropertyName, { Decoration, ValueType }},
+#define SYCL_COMPILE_TIME_PROPERTY(PropertyName, Decoration, ValueType)        \
+  {PropertyName, {Decoration, ValueType}},
 
 const StringMap<Decor> SpirvDecorMap = {
 #include "CompileTimeProperties.def"

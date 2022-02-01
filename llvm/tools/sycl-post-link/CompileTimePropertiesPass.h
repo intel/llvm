@@ -60,8 +60,7 @@ inline bool hasProperty(const Attribute &Attr) {
 /// @tparam Int [in] The deserved type of the result.
 ///
 /// @returns \c the attribute's value as an @Int.
-template <typename Int>
-Int getAttributeAsInteger(const Attribute &Attr) {
+template <typename Int> Int getAttributeAsInteger(const Attribute &Attr) {
   assert(Attr.isStringAttribute() &&
          "The attribute Attr must be a string attribute");
   Int Value;
