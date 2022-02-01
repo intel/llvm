@@ -106,9 +106,8 @@ void PropagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
     Visited.insert(T);
     ResultAspects[T].insert(AspectsToPropagate.begin(),
                             AspectsToPropagate.end());
-    if (!Edges.count(T)) {
+    if (!Edges.count(T))
       continue;
-    }
 
     for (const Type *TT : Edges.at(T)) {
       if (Visited.count(TT))
@@ -143,34 +142,33 @@ GetTypesWithAspectsFromModule(const Module &M,
                               TypeToAspectsMapTy &TypesWithAspects) {
   std::unordered_set<const Type *> TypesToProcess;
   Type *DoubleTy = Type::getDoubleTy(M.getContext());
-  static constexpr int AspectFP64 = 6; // TODO: add the link to spec
+
+  // 6 is taken from sycl/include/CL/sycl/aspects.hpp
+  static constexpr int AspectFP64 = 6;
   TypesWithAspects[DoubleTy].insert(AspectFP64);
 
   TypesToProcess.insert(DoubleTy);
-  for (Type *T : M.getIdentifiedStructTypes()) {
+  for (Type *T : M.getIdentifiedStructTypes())
     TypesToProcess.insert(T);
-  }
 
   TypesEdgesTy Edges;
   for (const Type *T : TypesToProcess) {
     for (const Type *TT : T->subtypes()) {
       // If TT = %A*** then we want to get TT = %A
-      while (TT->isPointerTy()) {
+      while (TT->isPointerTy())
         TT = TT->getContainedType(0);
-      }
 
-      if (!TypesToProcess.count(TT)) {
-        continue; // We are not interested in some types. For example, IntTy.
-      }
+      // We are not interested in some types. For example, IntTy.
+      if (!TypesToProcess.count(TT))
+        continue;
 
       Edges[TT].push_back(T);
     }
   }
 
   TypeToAspectsMapTy Result;
-  for (const auto &It : TypesWithAspects) {
+  for (const auto &It : TypesWithAspects)
     PropagateAspectsThroughTypes(Edges, It.first, It.second, Result);
-  }
 
   return Result;
 }
@@ -181,9 +179,8 @@ GetTypesWithAspectsFromModule(const Module &M,
 /// types. For the best perfomance pass this map in the next invocations.
 AspectsSetTy GetAspectsFromType(const Type *T, TypeToAspectsMapTy &Types) {
   auto it = Types.find(T);
-  if (it != Types.end()) {
+  if (it != Types.end())
     return it->second;
-  }
 
   // NB! This is essential to no get into infinite recursive loops.
   Types[T] = {};
@@ -270,9 +267,8 @@ void CheckDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
 
   AspectsSetTy MissedAspects;
   for (int Aspect : UsedAspects) {
-    if (DeclaredAspects.count(Aspect) == 0) {
+    if (DeclaredAspects.count(Aspect) == 0)
       MissedAspects.insert(Aspect);
-    }
   }
 
   if (!MissedAspects.empty()) {
@@ -298,10 +294,9 @@ void CreateUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
 
     LLVMContext &C = F->getContext();
     SmallVector<Metadata *, 16> AspectsMetadata;
-    for (int Aspect : Aspects) {
+    for (int Aspect : Aspects)
       AspectsMetadata.push_back(ConstantAsMetadata::get(
           ConstantInt::getSigned(Type::getInt32Ty(C), Aspect)));
-    }
 
     MDNode *MDN = MDNode::get(C, AspectsMetadata);
     F->setMetadata("intel_used_aspects", MDN);
@@ -352,9 +347,8 @@ BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
     if (CC != CallingConv::SPIR_FUNC && CC != CallingConv::SPIR_KERNEL)
       continue;
 
-    if (CC == CallingConv::SPIR_KERNEL) {
+    if (CC == CallingConv::SPIR_KERNEL)
       Kernels.push_back(&F);
-    }
 
     for (Instruction &I : instructions(F)) {
       AspectsSetTy Aspects = GetAspectsUsedByInstruction(I, TypesWithAspects);
@@ -367,9 +361,8 @@ BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   }
 
   SmallPtrSet<Function *, 16> Visited;
-  for (Function *F : Kernels) {
+  for (Function *F : Kernels)
     PropagateAspectsThroughCG(F, CG, FunctionToAspects, Visited);
-  }
 
   return FunctionToAspects;
 }
