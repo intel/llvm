@@ -177,5 +177,10 @@ int main() {
   // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
   Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
   
+  cl::sycl::multi_ptr<int, cl::sycl::access::address_space::global_space> a(
+      nullptr);
+  // expected-warning@+1 {{'atomic<int sycl::access::address_space::global_space>' is deprecated: sycl::atomic is deprecated since SYCL 2020}}
+  cl::sycl::atomic<int> b(a);
+
   return 0;
 }
