@@ -3520,7 +3520,8 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   // the attribute holds equal values to (1, 1, 1) in case the value of
   // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (AreAllAttrArgsOne(DeclAttr->getValue(), XDim, YDim, ZDim) == AttrArgResult::NotEqualToOne) {
+    if (AreAllAttrArgsOne(DeclAttr->getValue(), XDim, YDim, ZDim)
+		          == AttrArgResult::NotEqualToOne) {
       Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << CI << DeclAttr;
       return;
@@ -3581,7 +3582,8 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
   // equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (AreAllAttrArgsOne(DeclAttr->getValue(),  A.getXDim(), A.getYDim(), A.getZDim()) == AttrArgResult::NotEqualToOne) {	  
+    if (AreAllAttrArgsOne(DeclAttr->getValue(), A.getXDim(), A.getYDim(),
+			  A.getZDim()) == AttrArgResult::NotEqualToOne) {
       Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << &A << DeclAttr;
       return nullptr;
