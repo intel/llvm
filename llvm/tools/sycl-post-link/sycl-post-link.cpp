@@ -704,10 +704,9 @@ bool processCompileTimeProperties(Module &M) {
 
   ModulePassManager RunCompileTimeProperties;
   ModuleAnalysisManager MAM;
-  CompileTimePropertiesPass CTPP;
   // Register required analysis
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  RunCompileTimeProperties.addPass(std::move(CTPP));
+  RunCompileTimeProperties.addPass(CompileTimePropertiesPass());
 
   // Enrich the module with compile-time properties metadata
   PreservedAnalyses Res = RunCompileTimeProperties.run(M, MAM);
