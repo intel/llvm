@@ -7,23 +7,14 @@ DPC++ extensions status:
 
 |  Extension  |    Status   |   Comment   |
 |-------------|:------------|:------------|
-| [SYCL_INTEL_bitcast](Bitcast/SYCL_INTEL_bitcast.asciidoc)                                                                   | Supported                                 | As sycl::detail::bit_cast |
-| [SYCL_INTEL_deduction_guides](deduction_guides/SYCL_INTEL_deduction_guides.asciidoc)                                        | Supported                                 | |
-| [SYCL_INTEL_device_specific_kernel_queries](DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc) | Proposal                                  | |
 | [SYCL_INTEL_group_algorithms](GroupAlgorithms/SYCL_INTEL_group_algorithms.asciidoc)                                         | Deprecated                                | |
 | [GroupMask](GroupMask/GroupMask.asciidoc)                                                                                   | Proposal                                  | |
-| [SYCL_INTEL_attribute_style](KernelRHSAttributes/SYCL_INTEL_attribute_style.asciidoc)                                       | Proposal                                  | |
-| [Queue Order Properties](OrderedQueue/OrderedQueue_v2.adoc)                                                                 | Supported                                 | |
-| [Queue Shortcuts](QueueShortcuts/QueueShortcuts.adoc)                                                                       | Supported                                 | |
 | [Reductions for ND-Range Parallelism](Reduction/Reduction.md)                                                               | Partially supported(OpenCL: CPU, GPU; CUDA) | Not supported: multiple reduction vars, multi-dimensional reduction vars |
-| [SYCL_INTEL_relax_standard_layout](RelaxStdLayout/SYCL_INTEL_relax_standard_layout.asciidoc)                                | Supported                                 | |
 | [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
 | [SPV_INTEL_inline_assembly](SPIRV/SPV_INTEL_inline_assembly.asciidoc)                                                       | Supported(OpenCL: GPU)                    | |
 | [SYCL_INTEL_static_local_memory_query](StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)                | Proposal                                  | |
 | [Sub-groups for NDRange Parallelism](SubGroupNDRange/SubGroupNDRange.md)                                                    | Deprecated(OpenCL: CPU, GPU)              | |
 | [Sub-groups](SubGroup/SYCL_INTEL_sub_group.asciidoc)                                                                        | Deprecated                                | |
-| [SYCL_INTEL_unnamed_kernel_lambda](UnnamedKernelLambda/SYCL_INTEL_unnamed_kernel_lambda.asciidoc)                           | Supported(OpenCL)                         | |
-| [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
 | [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
 | [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Experimental. Partially supported         | |
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |

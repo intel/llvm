@@ -77,7 +77,35 @@ struct is_simd_flag_type<overaligned_tag<N>> : std::true_type {};
 template <typename T>
 static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 
+/// @cond ESIMD_DETAIL
+
 namespace detail {
+
+// Functions to support efficient simd constructors - avoiding internal loop
+// over elements.
+template <class T, int N, size_t... Is>
+constexpr vector_type_t<T, N> make_vector_impl(const T (&&Arr)[N],
+                                               std::index_sequence<Is...>) {
+  return vector_type_t<T, N>{Arr[Is]...};
+}
+
+template <class T, int N>
+constexpr vector_type_t<T, N> make_vector(const T (&&Arr)[N]) {
+  return make_vector_impl<T, N>(std::move(Arr), std::make_index_sequence<N>{});
+}
+
+template <class T, int N, size_t... Is>
+constexpr vector_type_t<T, N> make_vector_impl(T Base, T Stride,
+                                               std::index_sequence<Is...>) {
+  return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+}
+
+template <class T, int N>
+constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
+  return make_vector_impl<T, N>(Base, Stride, std::make_index_sequence<N>{});
+}
+
+/// @endcond ESIMD_DETAIL
 
 /// This is a base class for all ESIMD simd classes with real storage (simd,
 /// simd_mask_impl). It wraps a clang vector as the storage for the elements.
@@ -120,10 +148,13 @@ public:
   static constexpr int length = N;
 
 protected:
-  template <int N1, class = std::enable_if_t<N1 == N>>
-  void init_from_array(const RawTy (&&Arr)[N1]) noexcept {
-    for (auto I = 0; I < N; ++I) {
-      M_data[I] = Arr[I];
+  void init_from_array(const Ty (&&Arr)[N]) noexcept {
+    if constexpr (is_wrapper_elem_type_v<Ty>) {
+      for (auto I = 0; I < N; ++I) {
+        M_data[I] = bitcast_to_raw_type(Arr[I]);
+      }
+    } else {
+      M_data = make_vector(std::move(Arr));
     }
   }
 
@@ -155,29 +186,16 @@ public:
     set(Val);
   }
 
-  /// This constructor is deprecated for two reasons:
-  /// 1) it adds confusion between
-  ///   simd s1(1,2); //calls next constructor
-  ///   simd s2{1,2}; //calls this constructor (uniform initialization syntax)
-  /// 2) no compile-time control over the size of the initializer; e.g. the
-  ///    following will compile:
-  ///   simd<int, 2> x = {1, 2, 3, 4};
-  __SYCL_DEPRECATED("use constructor from array, e.g: simd<int,3> x({1,2,3});")
-  simd_obj_impl(std::initializer_list<RawTy> Ilist) noexcept {
-    __esimd_dbg_print(simd_obj_impl(std::initializer_list<RawTy> Ilist));
-    int i = 0;
-    for (auto It = Ilist.begin(); It != Ilist.end() && i < N; ++It) {
-      M_data[i++] = *It;
-    }
-  }
-
   /// Initialize a simd_obj_impl object with an initial value and step.
   simd_obj_impl(Ty Val, Ty Step) noexcept {
     __esimd_dbg_print(simd_obj_impl(Ty Val, Ty Step));
-#pragma unroll
-    for (int i = 0; i < N; ++i) {
-      M_data[i] = bitcast_to_raw_type(Val);
-      Val = binary_op<BinOp::add, Ty>(Val, Step);
+    if constexpr (is_wrapper_elem_type_v<Ty> || !std::is_integral_v<Ty>) {
+      for (int i = 0; i < N; ++i) {
+        M_data[i] = bitcast_to_raw_type(Val);
+        Val = binary_op<BinOp::add, Ty>(Val, Step);
+      }
+    } else {
+      M_data = make_vector<Ty, N>(Val, Step);
     }
   }
 
@@ -191,8 +209,8 @@ public:
 
   /// Construct from an array. To allow e.g. simd_mask_type<N> m({1,0,0,1,...}).
   template <int N1, class = std::enable_if_t<N1 == N>>
-  simd_obj_impl(const RawTy (&&Arr)[N1]) noexcept {
-    __esimd_dbg_print(simd_obj_impl(const RawTy(&&Arr)[N1]));
+  simd_obj_impl(const Ty (&&Arr)[N1]) noexcept {
+    __esimd_dbg_print(simd_obj_impl(const Ty(&&Arr)[N1]));
     init_from_array(std::move(Arr));
   }
 
@@ -294,24 +312,12 @@ public:
     return RetTy{cast_this_to_derived(), TopRegionTy{0}};
   }
 
-  template <typename EltTy>
-  __SYCL_DEPRECATED("use simd_obj_impl::bit_cast_view.")
-  auto format() & {
-    return bit_cast_view<EltTy>();
-  }
-
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width>
   auto bit_cast_view() &[[clang::lifetimebound]] {
     using TopRegionTy = compute_format_type_2d_t<Derived, EltTy, Height, Width>;
     using RetTy = simd_view<Derived, TopRegionTy>;
     return RetTy{cast_this_to_derived(), TopRegionTy{0, 0}};
-  }
-
-  template <typename EltTy, int Height, int Width>
-  __SYCL_DEPRECATED("use simd_obj_impl::bit_cast_view.")
-  auto format() & {
-    return bit_cast_view<EltTy, Height, Width>();
   }
 
   /// 1D region select, apply a region on top of this LValue object.
@@ -347,19 +353,9 @@ public:
   /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return bitcast_to_wrapper_type<Ty>(data()[i]); }
 
-  /// Read single element, return value only (not reference).
-  __SYCL_DEPRECATED("use operator[] form.")
-  Ty operator()(int i) const { return bitcast_to_wrapper_type<Ty>(data()[i]); }
-
   /// Return writable view of a single element.
   simd_view<Derived, region1d_scalar_t<Ty>> operator[](int i)
       [[clang::lifetimebound]] {
-    return select<1, 1>(i);
-  }
-
-  /// Return writable view of a single element.
-  __SYCL_DEPRECATED("use operator[] form.")
-  simd_view<Derived, region1d_scalar_t<Ty>> operator()(int i) {
     return select<1, 1>(i);
   }
 
@@ -398,17 +394,7 @@ public:
   /// \tparam Rep is number of times region has to be replicated.
   /// \return replicated simd_obj_impl instance.
   template <int Rep> resize_a_simd_type_t<Derived, Rep * N> replicate() const {
-    return replicate<Rep, N>(0);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam W is width of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int W>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_w<Rep, W>(Offset);
+    return replicate_w<Rep, N>(0);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -422,35 +408,12 @@ public:
 
   /// \tparam Rep is number of times region has to be replicated.
   /// \tparam VS vertical stride of src region to replicate.
-  /// \tparam W is width of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int VS, int W>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_vs_w<Rep, VS, W>(Offset);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam VS vertical stride of src region to replicate.
   /// \tparam W width of src region to replicate.
   /// \param Offset offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W>
   resize_a_simd_type_t<Derived, Rep * W> replicate_vs_w(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, VS, W, 1>(Offset);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam VS vertical stride of src region to replicate.
-  /// \tparam W is width of src region to replicate.
-  /// \tparam HS horizontal stride of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int VS, int W, int HS>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w_hs")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_vs_w_hs<Rep, VS, W, HS>(Offset);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
