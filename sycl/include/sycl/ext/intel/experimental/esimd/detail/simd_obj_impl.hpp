@@ -77,7 +77,35 @@ struct is_simd_flag_type<overaligned_tag<N>> : std::true_type {};
 template <typename T>
 static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 
+/// @cond ESIMD_DETAIL
+
 namespace detail {
+
+// Functions to support efficient simd constructors - avoiding internal loop
+// over elements.
+template <class T, int N, size_t... Is>
+constexpr vector_type_t<T, N> make_vector_impl(const T (&&Arr)[N],
+                                               std::index_sequence<Is...>) {
+  return vector_type_t<T, N>{Arr[Is]...};
+}
+
+template <class T, int N>
+constexpr vector_type_t<T, N> make_vector(const T (&&Arr)[N]) {
+  return make_vector_impl<T, N>(std::move(Arr), std::make_index_sequence<N>{});
+}
+
+template <class T, int N, size_t... Is>
+constexpr vector_type_t<T, N> make_vector_impl(T Base, T Stride,
+                                               std::index_sequence<Is...>) {
+  return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+}
+
+template <class T, int N>
+constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
+  return make_vector_impl<T, N>(Base, Stride, std::make_index_sequence<N>{});
+}
+
+/// @endcond ESIMD_DETAIL
 
 /// This is a base class for all ESIMD simd classes with real storage (simd,
 /// simd_mask_impl). It wraps a clang vector as the storage for the elements.
@@ -120,10 +148,13 @@ public:
   static constexpr int length = N;
 
 protected:
-  template <int N1, class = std::enable_if_t<N1 == N>>
-  void init_from_array(const RawTy (&&Arr)[N1]) noexcept {
-    for (auto I = 0; I < N; ++I) {
-      M_data[I] = Arr[I];
+  void init_from_array(const Ty (&&Arr)[N]) noexcept {
+    if constexpr (is_wrapper_elem_type_v<Ty>) {
+      for (auto I = 0; I < N; ++I) {
+        M_data[I] = bitcast_to_raw_type(Arr[I]);
+      }
+    } else {
+      M_data = make_vector(std::move(Arr));
     }
   }
 
@@ -158,10 +189,13 @@ public:
   /// Initialize a simd_obj_impl object with an initial value and step.
   simd_obj_impl(Ty Val, Ty Step) noexcept {
     __esimd_dbg_print(simd_obj_impl(Ty Val, Ty Step));
-#pragma unroll
-    for (int i = 0; i < N; ++i) {
-      M_data[i] = bitcast_to_raw_type(Val);
-      Val = binary_op<BinOp::add, Ty>(Val, Step);
+    if constexpr (is_wrapper_elem_type_v<Ty> || !std::is_integral_v<Ty>) {
+      for (int i = 0; i < N; ++i) {
+        M_data[i] = bitcast_to_raw_type(Val);
+        Val = binary_op<BinOp::add, Ty>(Val, Step);
+      }
+    } else {
+      M_data = make_vector<Ty, N>(Val, Step);
     }
   }
 
@@ -175,8 +209,8 @@ public:
 
   /// Construct from an array. To allow e.g. simd_mask_type<N> m({1,0,0,1,...}).
   template <int N1, class = std::enable_if_t<N1 == N>>
-  simd_obj_impl(const RawTy (&&Arr)[N1]) noexcept {
-    __esimd_dbg_print(simd_obj_impl(const RawTy(&&Arr)[N1]));
+  simd_obj_impl(const Ty (&&Arr)[N1]) noexcept {
+    __esimd_dbg_print(simd_obj_impl(const Ty(&&Arr)[N1]));
     init_from_array(std::move(Arr));
   }
 
