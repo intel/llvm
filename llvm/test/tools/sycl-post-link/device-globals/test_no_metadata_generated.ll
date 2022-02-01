@@ -1,7 +1,7 @@
 ; RUN: sycl-post-link --ir-output-only --device-globals %s -S -o - | FileCheck %s
 
 ; This test is intended to check that sycl-post-link doesn't add metadata nodes
-; for device global variables without any compile-time properties.
+; for a non device global variable.
 
 source_filename = "test_global_variable.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -26,8 +26,8 @@ entry:
 ; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
 declare spir_func align 4 dereferenceable(4) i32 addrspace(4)* @_ZNK2cl4sycl3ext6oneapi13device_globalIiJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(4)* align 8 dereferenceable_or_null(8) %this) #1 align 2
 
-; this is a device global variable without any compile-time parameters
-attributes #0 = { "sycl-unique-id"="6da74a122db9f35d____ZL7dg_int1" "device_image_scope"="false" "sycl-device-global-size"="4" }
+; this is not a device global variable
+attributes #0 = { "sycl-unique-id"="6da74a122db9f35d____ZL7dg_int1" "device_image_scope"="false" }
 attributes #1 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { convergent nounwind }
 

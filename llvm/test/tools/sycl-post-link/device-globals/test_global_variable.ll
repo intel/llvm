@@ -21,11 +21,11 @@ target triple = "spir64-unknown-unknown"
 @_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #1
 ; CHECK-IR: @_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations ![[#MN4:]] #[[#ATR1:]]
 @_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #2
-; CHECK-IR: @_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations ![[#MN7:]] #[[#ATR2:]]
+; CHECK-IR: @_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations ![[#MN8:]] #[[#ATR2:]]
 @_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #3
-; CHECK-IR: @_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations ![[#MN9:]] #[[#ATR3:]]
+; CHECK-IR: @_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations ![[#MN10:]] #[[#ATR3:]]
 @_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #6
-; CHECK-IR: @_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations ![[#MN11:]] #[[#ATR4:]]
+; CHECK-IR: @_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations ![[#MN12:]] #[[#ATR4:]]
 
 define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 {
 entry:
@@ -75,18 +75,20 @@ attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "device_i
 ; CHECK-IR-DAG: ![[#MN2]] = !{i32 6148, i32 0}
 ; CHECK-IR-DAG: ![[#MN3]] = !{i32 6147, i32 1, !"6da74a122db9f35d____ZL7dg_int1"}
 
-; CHECK-IR-DAG: ![[#MN4]] = !{![[#MN5:]], ![[#MN6:]]}
+; CHECK-IR-DAG: ![[#MN4]] = !{![[#MN5:]], ![[#MN6:]], ![[#MN7:]]}
 ; CHECK-IR-DAG: ![[#MN5]] = !{i32 6149, i32 0}
 ; CHECK-IR-DAG: ![[#MN6]] = !{i32 6148, i32 1}
+; CHECK-IR-DAG: ![[#MN7]] = !{i32 6147, i32 2, !"7da74a1187b9f35d____ZL7dg_int2"}
 
-; CHECK-IR-DAG: ![[#MN7]] = !{![[#MN1]], ![[#MN2]], ![[#MN8:]]}
-; CHECK-IR-DAG: ![[#MN8]] = !{i32 6147, i32 0, !"9d329ad59055e972____ZL8dg_bool3"}
+; CHECK-IR-DAG: ![[#MN8]] = !{![[#MN1]], ![[#MN2]], ![[#MN9:]]}
+; CHECK-IR-DAG: ![[#MN9]] = !{i32 6147, i32 0, !"9d329ad59055e972____ZL8dg_bool3"}
 
-; CHECK-IR-DAG: ![[#MN9]] = !{![[#MN10:]]}
-; CHECK-IR-DAG: ![[#MN10]] = !{i32 6147, i32 2, !"dda2bad52c45c432____ZL8dg_bool4"}
+; CHECK-IR-DAG: ![[#MN10]] = !{![[#MN11:]]}
+; CHECK-IR-DAG: ![[#MN11]] = !{i32 6147, i32 2, !"dda2bad52c45c432____ZL8dg_bool4"}
 
-; CHECK-IR-DAG: ![[#MN11]] = !{![[#MN1]], ![[#MN2]], ![[#MN12:]]}
-; CHECK-IR-DAG: ![[#MN12]] = !{i32 6147, i32 1, !"6da74a122db9f35d____ZL7no_dg_int1"}
+; For not a device global variable, only actually present compile-time
+; properties are handled
+; CHECK-IR-DAG: ![[#MN12]] = !{![[#MN1]], ![[#MN2]]}
 
 ; Ensure that the default values are correct.
 ; ABAAAAAAAAABAAAAAxxxxx is decoded to

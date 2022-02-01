@@ -24,6 +24,7 @@ constexpr StringRef SYCL_HOST_ACCESS_ATTR = "host_access";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
+constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 2; // Read/Write
 
 enum class DecorValueTy {
   // the value is an unsigned number (uint32_t)
@@ -119,13 +120,15 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
 
     // Some properties should be handled specially.
 
-    // The host_access property is handled specially because the SPIR-V
-    // decoration requires two "extra operands". The second SPIR-V operand
-    // is the "name" (the value of the "sycl-unique-id" property) of the
-    // variable.
-    if (hasVariableUniqueId(GV) && GV.hasAttribute(SYCL_HOST_ACCESS_ATTR)) {
+    // The host_access property is handled specially for device global variables
+    // because the SPIR-V decoration requires two "extra operands". The second
+    // SPIR-V operand is the "name" (the value of the "sycl-unique-id" property)
+    // of the variable.
+    if (isDeviceGlobalVariable(GV)) {
       auto HostAccessDecorValue =
-          getAttributeAsInteger<uint32_t>(GV, SYCL_HOST_ACCESS_ATTR);
+          GV.hasAttribute(SYCL_HOST_ACCESS_ATTR)
+              ? getAttributeAsInteger<uint32_t>(GV, SYCL_HOST_ACCESS_ATTR)
+              : SPIRV_HOST_ACCESS_DEFAULT_VALUE;
       auto VarName = getVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
                                               HostAccessDecorValue, VarName));

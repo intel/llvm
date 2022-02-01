@@ -51,12 +51,13 @@ using DeviceGlobalPropertyMapTy =
 /// map.
 DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M);
 
-/// Returns \c true if the device global variable has the unique id
+/// Return \c true if the variable @GV is a device global variable.
 ///
-/// @param GV [in] Device Global variable.
+/// @param GV [in] A variable to test.
 ///
-/// @returns \c true if the variable has the unique id, \c false otherwise.
-bool hasVariableUniqueId(const GlobalVariable &GV);
+/// @return \c true if the variable is a device global variable, \c false
+/// otherwise.
+bool isDeviceGlobalVariable(const GlobalVariable &GV);
 
 /// Returns the unique id for the device global variable.
 ///

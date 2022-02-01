@@ -47,16 +47,16 @@ uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
 
 namespace llvm {
 
-/// Returns \c true if the device global variable has the unique id
+/// Return \c true if the variable @GV is a device global variable.
 ///
 /// The function checks whether the variable has the LLVM IR attribute \c
-/// sycl-unique-id.
+/// sycl-device-global-size.
+/// @param GV [in] A variable to test.
 ///
-/// @param GV [in] Device Global variable.
-///
-/// @returns \c true if the variable has the unique id, \c false otherwise.
-bool hasVariableUniqueId(const GlobalVariable &GV) {
-  return GV.hasAttribute(SYCL_UNIQUE_ID_ATTR);
+/// @return \c true if the variable is a device global variable, \c false
+/// otherwise.
+bool isDeviceGlobalVariable(const GlobalVariable &GV) {
+  return GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR);
 }
 
 /// Returns the unique id for the device global variable.
@@ -76,18 +76,15 @@ StringRef getVariableUniqueId(const GlobalVariable &GV) {
 }
 
 DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M) {
-  auto IsDeviceGlobalVariable = [](auto &GV) {
-    return GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR);
-  };
   DeviceGlobalPropertyMapTy DGM;
-  auto DevGlobalNum = count_if(M.globals(), IsDeviceGlobalVariable);
+  auto DevGlobalNum = count_if(M.globals(), isDeviceGlobalVariable);
   if (DevGlobalNum == 0)
     return DGM;
 
   DGM.reserve(DevGlobalNum);
 
   for (auto &GV : M.globals()) {
-    if (!IsDeviceGlobalVariable(GV))
+    if (!isDeviceGlobalVariable(GV))
       continue;
 
     DGM[getVariableUniqueId(GV)] = {
