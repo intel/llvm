@@ -37,9 +37,13 @@ struct Decor {
   DecorValueTy Type;
 };
 
+#define SYCL_COMPILE_TIME_PROPERTY(PropertyName, Decoration, ValueType) \
+{ PropertyName, { Decoration, ValueType }},
+
 const StringMap<Decor> SpirvDecorMap = {
-    {"init_mode", {6148, DecorValueTy::uint32}},
-    {"implement_in_csr", {6149, DecorValueTy::boolean}}};
+#include "CompileTimeProperties.def"
+};
+#undef SYCL_COMPILE_TIME_PROPERTY
 
 /// Builds a metadata node for a SPIR-V decoration (both decoration code
 /// and value are \c uint32_t integers).
