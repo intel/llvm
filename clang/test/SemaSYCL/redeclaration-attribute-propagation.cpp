@@ -2,6 +2,7 @@
 // RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -sycl-std=2017 -DTRIGGER_ERROR -Wno-sycl-2017-compat -verify
 // RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -triple spir64 -Wno-sycl-2017-compat | FileCheck %s
 
+// The test checks redeclaration of [[intel:::max_work_group_size()]] and [[sycl::reqd_work_group_size()]] attributes.
 #include "sycl.hpp"
 
 using namespace cl::sycl;

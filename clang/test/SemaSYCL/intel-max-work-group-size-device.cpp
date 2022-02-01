@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -DTRIGGER_ERROR -verify
 // RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -triple spir64 | FileCheck %s
 
+// The test checks support and functionality of [[intel:::max_work_group_size()]] attribute.
 #include "sycl.hpp"
 
 using namespace cl::sycl;
