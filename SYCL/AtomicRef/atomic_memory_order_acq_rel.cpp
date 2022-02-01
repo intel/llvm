@@ -9,7 +9,7 @@
 
 // NOTE: Tests load and store for acquire-release memory ordering.
 
-#include "atomic_memory_order_acq_rel.h"
+#include "atomic_memory_order.h"
 #include <iostream>
 using namespace sycl;
 
@@ -24,21 +24,10 @@ int main() {
     return 0;
   }
 
-  constexpr int N = 32;
-
   // Acquire-release memory order must also support both acquire and release
   // orderings.
   assert(is_supported(supported_memory_orders, memory_order::acquire) &&
          is_supported(supported_memory_orders, memory_order::release));
-  acq_rel_test<int>(q, N);
-  acq_rel_test<unsigned int>(q, N);
-  acq_rel_test<float>(q, N);
-
-  // Include long tests if they are 32 bits wide
-  if constexpr (sizeof(long) == 4) {
-    acq_rel_test<long>(q, N);
-    acq_rel_test<unsigned long>(q, N);
-  }
 
   std::cout << "Test passed." << std::endl;
 }
