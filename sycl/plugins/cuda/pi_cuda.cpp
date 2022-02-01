@@ -4762,6 +4762,12 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
     return PI_PLUGIN_SPECIFIC_ERROR;
   }
 
+  unsigned int is_managed;
+  PI_CHECK_ERROR(cuPointerGetAttribute(
+      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
+  if (!is_managed)
+    return PI_SUCCESS;
+
   // flags is currently unused so fail if set
   if (flags != 0)
     return PI_INVALID_VALUE;
