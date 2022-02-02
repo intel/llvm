@@ -68,8 +68,6 @@ private:
 protected:
   simd_view_impl(BaseTy &Base, RegionTy Region)
       : M_base(Base), M_region(Region) {}
-  simd_view_impl(BaseTy &&Base, RegionTy Region)
-      : M_base(Base), M_region(Region) {}
 
   simd_view_impl(BaseTy &Base) : M_base(Base), M_region(RegionTy(0)) {}
 
