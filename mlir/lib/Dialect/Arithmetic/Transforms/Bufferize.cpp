@@ -35,7 +35,7 @@ struct BufferizeIndexCastOp : public OpConversionPattern<arith::IndexCastOp> {
 /// Pass to bufferize Arithmetic ops.
 struct ArithmeticBufferizePass
     : public ArithmeticBufferizeBase<ArithmeticBufferizePass> {
-  void runOnFunction() override {
+  void runOnOperation() override {
     bufferization::BufferizeTypeConverter typeConverter;
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
@@ -49,13 +49,13 @@ struct ArithmeticBufferizePass
           return typeConverter.isLegal(op.getType());
         });
 
-    if (failed(
-            applyPartialConversion(getFunction(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 void mlir::arith::populateArithmeticBufferizePatterns(
     bufferization::BufferizeTypeConverter &typeConverter,

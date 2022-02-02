@@ -865,6 +865,11 @@ def Vector_InsertStridedSliceOp :
     VectorType getDestVectorType() {
       return dest().getType().cast<VectorType>();
     }
+    bool hasNonUnitStrides() { 
+      return llvm::any_of(strides(), [](Attribute attr) {
+        return attr.cast<IntegerAttr>().getInt() != 1;
+      });
+    }
   }];
 
   let hasFolder = 1;
@@ -1120,6 +1125,11 @@ def Vector_ExtractStridedSliceOp :
     static StringRef getStridesAttrName() { return "strides"; }
     VectorType getVectorType(){ return vector().getType().cast<VectorType>(); }
     void getOffsets(SmallVectorImpl<int64_t> &results);
+    bool hasNonUnitStrides() { 
+      return llvm::any_of(strides(), [](Attribute attr) {
+        return attr.cast<IntegerAttr>().getInt() != 1;
+      });
+    }
   }];
   let hasCanonicalizer = 1;
   let hasFolder = 1;
@@ -2083,7 +2093,7 @@ def Vector_TypeCastOp :
     Example:
 
     ```mlir
-    %A  = alloc() : memref<5x4x3xf32>
+    %A  = memref.alloc() : memref<5x4x3xf32>
     %VA = vector.type_cast %A : memref<5x4x3xf32> to memref<vector<5x4x3xf32>>
     ```
   }];
@@ -2111,7 +2121,7 @@ def Vector_TypeCastOp :
 def Vector_ConstantMaskOp :
   Vector_Op<"constant_mask", [NoSideEffect]>,
     Arguments<(ins I64ArrayAttr:$mask_dim_sizes)>,
-    Results<(outs VectorOf<[I1]>)> {
+    Results<(outs VectorOfAnyRankOf<[I1]>)> {
   let summary = "creates a constant vector mask";
   let description = [{
     Creates and returns a vector mask where elements of the result vector
@@ -2149,7 +2159,8 @@ def Vector_ConstantMaskOp :
 
 def Vector_CreateMaskOp :
   Vector_Op<"create_mask", [NoSideEffect]>,
-    Arguments<(ins Variadic<Index>:$operands)>, Results<(outs VectorOf<[I1]>)> {
+    Arguments<(ins Variadic<Index>:$operands)>,
+    Results<(outs VectorOfAnyRankOf<[I1]>)> {
   let summary = "creates a vector mask";
   let description = [{
     Creates and returns a vector mask where elements of the result vector
@@ -2380,6 +2391,38 @@ def Vector_FlatTransposeOp : Vector_Op<"flat_transpose", [NoSideEffect,
   }];
   let verifier = ?;
   let assemblyFormat = "$matrix attr-dict `:` type($matrix) `->` type($res)";
+}
+
+//===----------------------------------------------------------------------===//
+// VectorScaleOp
+//===----------------------------------------------------------------------===//
+
+// TODO: In the future, we might want to have scalable vectors with different
+//       scales for different dimensions. E.g.: vector<[16]x[16]xf32>, in
+//       which case we might need to add an index to 'vscale' to select one
+//       of them. In order to support GPUs, we might also want to differentiate
+//       between a 'global' scale, a scale that's fixed throughout the
+//       execution, and a 'local' scale that is fixed but might vary with each
+//       call to the function. For that, it might be useful to have a
+//       'vector.scale.global' and a 'vector.scale.local' operation.
+def VectorScaleOp : Vector_Op<"vscale",
+                 [NoSideEffect]> {
+  let summary = "Load vector scale size";
+  let description = [{
+    The `vscale` op returns the scale of the scalable vectors, a positive
+    integer value that is constant at runtime but unknown at compile-time.
+    The scale of the vector indicates the multiplicity of the vectors and
+    vector operations. For example, a `vector<[4]xi32>` is equivalent to
+    `vscale` consecutive `vector<4xi32>`; and an operation on a
+    `vector<[4]xi32>` is equivalent to performing that operation `vscale`
+    times, once on each `<4xi32>` segment of the scalable vector. The `vscale`
+    op can be used to calculate the step in vector-length agnostic (VLA) loops.
+    Right now we only support one contiguous set of scalable dimensions, all of
+    them grouped and scaled with the value returned by 'vscale'.
+  }];
+  let results = (outs Index:$res);
+  let assemblyFormat = "attr-dict";
+  let verifier = ?;
 }
 
 #endif // VECTOR_OPS

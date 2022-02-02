@@ -21,7 +21,7 @@ namespace sycl {
 /// \ingroup sycl_api
 class kernel_handler {
 public:
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
   template <auto &S>
   typename std::remove_reference_t<decltype(S)>::value_type
   get_specialization_constant() {
@@ -35,7 +35,7 @@ public:
         PI_INVALID_OPERATION);
 #endif // __SYCL_DEVICE_ONLY__
   }
-#endif // __cplusplus > 201402L
+#endif // __cplusplus >= 201703L
 
 private:
   void __init_specialization_constants_buffer(

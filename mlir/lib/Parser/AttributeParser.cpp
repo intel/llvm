@@ -335,10 +335,6 @@ static Optional<APInt> buildAttributeAPInt(Type type, bool isNegative,
   unsigned width = type.isIndex() ? IndexType::kInternalStorageBitWidth
                                   : type.getIntOrFloatBitWidth();
 
-  // APInt cannot hold a zero bit value.
-  if (width == 0)
-    return llvm::None;
-
   if (width > result.getBitWidth()) {
     result = result.zext(width);
   } else if (width < result.getBitWidth()) {
@@ -350,7 +346,12 @@ static Optional<APInt> buildAttributeAPInt(Type type, bool isNegative,
     result = result.trunc(width);
   }
 
-  if (isNegative) {
+  if (width == 0) {
+    // 0 bit integers cannot be negative and manipulation of their sign bit will
+    // assert, so short-cut validation here.
+    if (isNegative)
+      return llvm::None;
+  } else if (isNegative) {
     // The value is negative, we have an overflow if the sign bit is not set
     // in the negated apInt.
     result.negate();
@@ -485,7 +486,7 @@ private:
   /// Storage used when parsing elements that were stored as hex values.
   Optional<Token> hexStorage;
 };
-} // end anonymous namespace
+} // namespace
 
 /// Parse the elements of a tensor literal. If 'allowHex' is true, the parser
 /// may also parse a tensor literal that is store as a hex string.
@@ -670,7 +671,7 @@ DenseElementsAttr TensorLiteralParser::getStringAttr(llvm::SMLoc loc,
 
   for (auto val : storage) {
     stringValues.push_back(val.second.getStringValue());
-    stringRefValues.push_back(stringValues.back());
+    stringRefValues.emplace_back(stringValues.back());
   }
 
   return DenseStringElementsAttr::get(type, stringRefValues);
@@ -832,6 +833,7 @@ Attribute Parser::parseDenseElementsAttr(Type attrType) {
 
 /// Parse an opaque elements attribute.
 Attribute Parser::parseOpaqueElementsAttr(Type attrType) {
+  llvm::SMLoc loc = getToken().getLoc();
   consumeToken(Token::kw_opaque);
   if (parseToken(Token::less, "expected '<' after 'opaque'"))
     return nullptr;
@@ -856,7 +858,8 @@ Attribute Parser::parseOpaqueElementsAttr(Type attrType) {
   std::string data;
   if (parseElementAttrHexValues(*this, hexTok, data))
     return nullptr;
-  return OpaqueElementsAttr::get(builder.getStringAttr(name), type, data);
+  return getChecked<OpaqueElementsAttr>(loc, builder.getStringAttr(name), type,
+                                        data);
 }
 
 /// Shaped type for elements attribute.

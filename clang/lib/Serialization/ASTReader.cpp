@@ -142,7 +142,6 @@ using namespace clang;
 using namespace clang::serialization;
 using namespace clang::serialization::reader;
 using llvm::BitstreamCursor;
-using llvm::RoundingMode;
 
 //===----------------------------------------------------------------------===//
 // ChainedASTReaderListener implementation
@@ -4762,11 +4761,11 @@ ASTReader::ASTReadResult ASTReader::readUnhashedControlBlockImpl(
         break;
       unsigned Count = Record[0];
       const char *Byte = Blob.data();
-      F->SearchPathUsage = llvm::BitVector(Count, 0);
+      F->SearchPathUsage = llvm::BitVector(Count, false);
       for (unsigned I = 0; I < Count; ++Byte)
         for (unsigned Bit = 0; Bit < 8 && I < Count; ++Bit, ++I)
           if (*Byte & (1 << Bit))
-            F->SearchPathUsage[I] = 1;
+            F->SearchPathUsage[I] = true;
       break;
     }
   }
@@ -6607,6 +6606,10 @@ void TypeLocReader::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
 
+void TypeLocReader::VisitUsingTypeLoc(UsingTypeLoc TL) {
+  TL.setNameLoc(readSourceLocation());
+}
+
 void TypeLocReader::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
@@ -6625,7 +6628,8 @@ void TypeLocReader::VisitTypeOfTypeLoc(TypeOfTypeLoc TL) {
 }
 
 void TypeLocReader::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
-  TL.setNameLoc(readSourceLocation());
+  TL.setDecltypeLoc(readSourceLocation());
+  TL.setRParenLoc(readSourceLocation());
 }
 
 void TypeLocReader::VisitUnaryTransformTypeLoc(UnaryTransformTypeLoc TL) {
@@ -6648,6 +6652,8 @@ void TypeLocReader::VisitAutoTypeLoc(AutoTypeLoc TL) {
       TL.setArgLocInfo(i, Reader.readTemplateArgumentLocInfo(
                               TL.getTypePtr()->getArg(i).getKind()));
   }
+  if (Reader.readBool())
+    TL.setRParenLoc(readSourceLocation());
 }
 
 void TypeLocReader::VisitDeducedTemplateSpecializationTypeLoc(
@@ -6772,11 +6778,11 @@ void TypeLocReader::VisitPipeTypeLoc(PipeTypeLoc TL) {
   TL.setKWLoc(readSourceLocation());
 }
 
-void TypeLocReader::VisitExtIntTypeLoc(clang::ExtIntTypeLoc TL) {
+void TypeLocReader::VisitBitIntTypeLoc(clang::BitIntTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
-void TypeLocReader::VisitDependentExtIntTypeLoc(
-    clang::DependentExtIntTypeLoc TL) {
+void TypeLocReader::VisitDependentBitIntTypeLoc(
+    clang::DependentBitIntTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
 
@@ -11768,6 +11774,9 @@ OMPClause *OMPClauseReader::readClause() {
   case llvm::omp::OMPC_capture:
     C = new (Context) OMPCaptureClause();
     break;
+  case llvm::omp::OMPC_compare:
+    C = new (Context) OMPCompareClause();
+    break;
   case llvm::omp::OMPC_seq_cst:
     C = new (Context) OMPSeqCstClause();
     break;
@@ -12125,6 +12134,8 @@ void OMPClauseReader::VisitOMPUpdateClause(OMPUpdateClause *C) {
 }
 
 void OMPClauseReader::VisitOMPCaptureClause(OMPCaptureClause *) {}
+
+void OMPClauseReader::VisitOMPCompareClause(OMPCompareClause *) {}
 
 void OMPClauseReader::VisitOMPSeqCstClause(OMPSeqCstClause *) {}
 

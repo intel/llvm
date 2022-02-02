@@ -75,6 +75,12 @@ Status::Status(const Twine &Name, UniqueID UID, sys::TimePoint<> MTime,
     : Name(Name.str()), UID(UID), MTime(MTime), User(User), Group(Group),
       Size(Size), Type(Type), Perms(Perms) {}
 
+Status Status::copyWithNewSize(const Status &In, uint64_t NewSize) {
+  return Status(In.getName(), In.getUniqueID(), In.getLastModificationTime(),
+                In.getUser(), In.getGroup(), NewSize, In.getType(),
+                In.getPermissions());
+}
+
 Status Status::copyWithNewName(const Status &In, const Twine &NewName) {
   return Status(NewName, In.getUniqueID(), In.getLastModificationTime(),
                 In.getUser(), In.getGroup(), In.getSize(), In.getType(),
@@ -1643,10 +1649,19 @@ private:
                                         sys::path::Style::windows_backslash)) {
         path_style = sys::path::Style::windows_backslash;
       } else {
-        assert(NameValueNode && "Name presence should be checked earlier");
-        error(NameValueNode,
+        // Relative VFS root entries are made absolute to the current working
+        // directory, then we can determine the path style from that.
+        auto EC = sys::fs::make_absolute(Name);
+        if (EC) {
+          assert(NameValueNode && "Name presence should be checked earlier");
+          error(
+              NameValueNode,
               "entry with relative path at the root level is not discoverable");
-        return nullptr;
+          return nullptr;
+        }
+        path_style = sys::path::is_absolute(Name, sys::path::Style::posix)
+                         ? sys::path::Style::posix
+                         : sys::path::Style::windows_backslash;
       }
     }
 

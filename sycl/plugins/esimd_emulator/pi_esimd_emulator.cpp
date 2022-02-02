@@ -28,6 +28,7 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
+// TODO : Rename esimdcpu to esimdemu for next CM_EMU release
 #include <esimdemu_support.h>
 
 #include <cstdarg>
@@ -122,6 +123,12 @@ static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 // To be compared with ESIMD_DEVICE_INTERFACE_VERSION in device
 // interface header file
 #define ESIMDEmuPluginInterfaceVersion 1
+
+// For PI_DEVICE_INFO_DRIVER_VERSION info
+static char ESimdEmuVersionString[32];
+
+// For PI_DEVICE_INFO_VERSION info
+static char CmEmuDeviceVersionString[32];
 
 using IDBuilder = sycl::detail::Builder;
 
@@ -354,6 +361,16 @@ extern "C" {
   }                                                                            \
   return PI_SUCCESS;
 
+#define CASE_PI_UNSUPPORTED(not_supported)                                     \
+  case not_supported:                                                          \
+    if (PrintPiTrace) {                                                        \
+      std::cerr << std::endl                                                   \
+                << "Unsupported PI case : " << #not_supported << " in "        \
+                << __FUNCTION__ << ":" << __LINE__ << "(" << __FILE__ << ")"   \
+                << std::endl;                                                  \
+    }                                                                          \
+    return PI_INVALID_OPERATION;
+
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
@@ -363,9 +380,23 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     PrintPiTrace = true;
   }
 
-  if (NumEntries == 0 && Platforms != nullptr) {
-    return PI_INVALID_VALUE;
+  if (NumPlatforms) {
+    *NumPlatforms = 1;
   }
+
+  if (NumEntries == 0) {
+    /// Runtime queries number of Platforms
+    if (Platforms != nullptr) {
+      if (PrintPiTrace) {
+        std::cerr << "Invalid Arguments for piPlatformsGet of esimd_emultor "
+                     "(Platforms!=nullptr) while querying number of platforms"
+                  << std::endl;
+      }
+      return PI_INVALID_VALUE;
+    }
+    return PI_SUCCESS;
+  }
+
   if (Platforms == nullptr && NumPlatforms == nullptr) {
     return PI_INVALID_VALUE;
   }
@@ -373,10 +404,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (Platforms && NumEntries > 0) {
     *Platforms = new _pi_platform();
     Platforms[0]->CmEmuVersion = std::string("0.0.1");
-  }
-
-  if (NumPlatforms) {
-    *NumPlatforms = 1;
   }
 
   return PI_SUCCESS;
@@ -398,7 +425,7 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     return ReturnValue("Intel(R) Corporation");
 
   case PI_PLATFORM_INFO_VERSION:
-    return ReturnValue(Platform->CmEmuVersion);
+    return ReturnValue(Platform->CmEmuVersion.c_str());
 
   case PI_PLATFORM_INFO_PROFILE:
     return ReturnValue("FULL_PROFILE");
@@ -429,9 +456,29 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_PLATFORM;
   }
 
-  // CM has single-root-device without sub-device support.
+  // CM has single-root-GPU-device without sub-device support.
+  pi_uint32 DeviceCount = (DeviceType & PI_DEVICE_TYPE_GPU) ? 1 : 0;
+
   if (NumDevices) {
-    *NumDevices = 1;
+    *NumDevices = DeviceCount;
+  }
+
+  if (NumEntries == 0) {
+    /// Runtime queries number of devices
+    if (Devices != nullptr) {
+      if (PrintPiTrace) {
+        std::cerr << "Invalid Arguments for piDevicesGet of esimd_emultor "
+                     "(Devices!=nullptr) while querying number of platforms"
+                  << std::endl;
+      }
+      return PI_INVALID_VALUE;
+    }
+    return PI_SUCCESS;
+  }
+
+  if (DeviceCount == 0) {
+    /// No GPU entry to fill 'Device' array
+    return PI_SUCCESS;
   }
 
   cm_support::CmDevice *CmDevice = nullptr;
@@ -446,6 +493,24 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   unsigned int Version = 0;
 
   int Result = cm_support::CreateCmDevice(CmDevice, Version);
+
+  // CM Device version info consists of two decimal numbers - major
+  // and minor. Minor is single-digit. Version info is encoded into a
+  // unsigned integer value = 100 * major + minor. Second from right
+  // digit in decimal must be zero as it is used as 'dot'
+  // REF - $CM_EMU/common/cm_version_defs.h - 'CURRENT_CM_VERSION'
+  // e.g. CM version 7.3 => Device version = 703
+
+  if (((Version / 10) % 10) != 0) {
+    if (PrintPiTrace) {
+      std::cerr << "CM_EMU Device version info is incorrect : " << Version
+                << std::endl;
+    }
+    return PI_INVALID_DEVICE;
+  }
+
+  sprintf(CmEmuDeviceVersionString, "%d.%d", (int)(Version / 100),
+          (int)(Version % 10));
 
   if (Result != cm_support::CM_SUCCESS) {
     return PI_INVALID_DEVICE;
@@ -499,7 +564,13 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_IMAGE_SUPPORT:
     return ReturnValue(pi_bool{true});
   case PI_DEVICE_INFO_DRIVER_VERSION:
-    return ReturnValue("0.0.1");
+    /// Combination of ESIMDEmuPluginDataVersion and
+    /// ESIMDEmuPluginInterfaceVersion : 0.a.b
+    /// a : ESIMDEmuPluginInterfaceVersion
+    /// b : ESIMDEmuPluginDataVersion
+    sprintf(ESimdEmuVersionString, "0.%d.%d", ESIMDEmuPluginInterfaceVersion,
+            ESIMDEmuPluginDataVersion);
+    return ReturnValue(ESimdEmuVersionString);
   case PI_DEVICE_INFO_VENDOR:
     return ReturnValue("Intel(R) Corporation");
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
@@ -513,88 +584,183 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
     return ReturnValue("");
+  case PI_DEVICE_INFO_VERSION:
+    return ReturnValue(CmEmuDeviceVersionString);
+  case PI_DEVICE_INFO_COMPILER_AVAILABLE:
+    return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_LINKER_AVAILABLE:
+    return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_MAX_COMPUTE_UNITS:
+    return ReturnValue(pi_uint32{256});
+  case PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
+    return ReturnValue(pi_uint32{0});
+  case PI_DEVICE_INFO_PARTITION_PROPERTIES:
+    return ReturnValue(pi_device_partition_property{0});
+  case PI_DEVICE_INFO_VENDOR_ID:
+    // '0x8086' : 'Intel HD graphics vendor ID'
+    return ReturnValue(pi_uint32{0x8086});
+  case PI_DEVICE_INFO_LOCAL_MEM_SIZE:
+    // Default SLM_MAX_SIZE from CM_EMU
+    return ReturnValue(pi_uint32{65536});
+  case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
+    return ReturnValue(size_t{256});
+  case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
+    // Imported from level_zero
+    return ReturnValue(pi_uint32{8});
+  case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
+  case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
+  case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
+    // Default minimum values required by the SYCL specification.
+    return ReturnValue(size_t{2048});
+  case PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
+    return ReturnValue(pi_uint32{3});
+  case PI_DEVICE_INFO_PARTITION_TYPE:
+    return ReturnValue(pi_device_partition_property{0});
+  case PI_DEVICE_INFO_OPENCL_C_VERSION:
+    return ReturnValue("");
+  case PI_DEVICE_INFO_QUEUE_PROPERTIES:
+    return ReturnValue(pi_queue_properties{PI_QUEUE_ON_DEVICE});
+  case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+    struct {
+      size_t Arr[3];
+    } MaxGroupSize = {{256, 256, 1}};
+    return ReturnValue(MaxGroupSize);
+  }
+  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
+  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
+  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
+  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
+  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
+  case PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
+  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
+  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
+  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
+  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
+  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
+  case PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
+    return ReturnValue(pi_uint32{1});
 
-#define UNSUPPORTED_INFO(info)                                                 \
-  case info:                                                                   \
-    std::cerr << std::endl                                                     \
-              << "Unsupported device info = " << #info                         \
-              << " from ESIMD_EMULATOR" << std::endl;                          \
-    DIE_NO_IMPLEMENTATION;                                                     \
-    break;
+  // Imported from level_zero
+  case PI_DEVICE_INFO_USM_HOST_SUPPORT:
+  case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
+  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
+  case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
+  case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
+    pi_uint64 Supported = 0;
+    // TODO[1.0]: how to query for USM support now?
+    if (true) {
+      // TODO: Use ze_memory_access_capabilities_t
+      Supported = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
+                  PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
+    }
+    return ReturnValue(Supported);
+  }
+  case PI_DEVICE_INFO_ADDRESS_BITS:
+    return ReturnValue(
+        pi_uint32{sizeof(void *) * std::numeric_limits<unsigned char>::digits});
+  case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
+    return ReturnValue(pi_uint32{1000});
+  case PI_DEVICE_INFO_ENDIAN_LITTLE:
+    return ReturnValue(pi_bool{true});
+  case PI_DEVICE_INFO_AVAILABLE:
+    return ReturnValue(pi_bool{true});
+  case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
+  case PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
+    /// TODO : Check
+    return ReturnValue(pi_uint32{0});
+  case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
+    /// TODO : Check. CM_MAX_1D_SURF_WIDTH from CM_EMU
+    return ReturnValue(size_t{0x80000000});
+  case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
+    /// TODO : Check
+    return ReturnValue(size_t{0});
+  case PI_DEVICE_INFO_MAX_SAMPLERS:
+    /// TODO : Check. CM_MAX_SAMPLERS_PER_KERNEL from CM_EMU
+    return ReturnValue(pi_uint32{16});
+  case PI_DEVICE_INFO_MAX_PARAMETER_SIZE:
+    /// TODO : Check
+    return ReturnValue(size_t{32});
+  case PI_DEVICE_INFO_HALF_FP_CONFIG:
+  case PI_DEVICE_INFO_SINGLE_FP_CONFIG:
+  case PI_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+    /// TODO : Check. half_type.hpp from CM_EMU
+    uint64_t FPValue = PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT |
+                       PI_FP_ROUND_TO_NEAREST | PI_FP_ROUND_TO_ZERO |
+                       PI_FP_ROUND_TO_INF | PI_FP_INF_NAN | PI_FP_DENORM |
+                       PI_FP_FMA;
+    return ReturnValue(pi_uint64{FPValue});
+  }
+  case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
+    return ReturnValue(PI_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
+  case PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
+    // TODO : CHECK
+    return ReturnValue(pi_uint32{64});
+  case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
+    // TODO : CHECK
+    return ReturnValue(pi_uint64{0});
+  case PI_DEVICE_INFO_GLOBAL_MEM_SIZE:
+    // TODO : CHECK
+    return ReturnValue(pi_uint64{0});
+  case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
+    // TODO : CHECK
+    return ReturnValue(pi_uint64{0});
+  case PI_DEVICE_INFO_MAX_CONSTANT_ARGS:
+    // TODO : CHECK
+    return ReturnValue(pi_uint32{64});
+  case PI_DEVICE_INFO_LOCAL_MEM_TYPE:
+    // TODO : CHECK
+    return ReturnValue(PI_DEVICE_LOCAL_MEM_TYPE_LOCAL);
+  case PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
+    return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
+    // TODO : CHECK
+    return ReturnValue(size_t{0});
+  case PI_DEVICE_INFO_BUILT_IN_KERNELS:
+    // TODO : CHECK
+    return ReturnValue("");
+  case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE:
+    // TODO : CHECK
+    return ReturnValue(size_t{1024});
+  case PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
+    return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
+    return ReturnValue(pi_device_affinity_domain{0});
+  case PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
+    // TODO : CHECK
+    return ReturnValue(pi_uint64{0});
+  case PI_DEVICE_INFO_EXECUTION_CAPABILITIES:
+    // TODO : CHECK
+    return ReturnValue(
+        pi_device_exec_capabilities{PI_DEVICE_EXEC_CAPABILITIES_KERNEL});
+  case PI_DEVICE_INFO_PROFILE:
+    return ReturnValue("FULL_PROFILE");
+  case PI_DEVICE_INFO_REFERENCE_COUNT:
+    // TODO : CHECK
+    return ReturnValue(pi_uint32{0});
 
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_VENDOR_ID)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_COMPILER_AVAILABLE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_LINKER_AVAILABLE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_COMPUTE_UNITS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_ADDRESS_BITS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_MEM_ALLOC_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_GLOBAL_MEM_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_LOCAL_MEM_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_AVAILABLE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_VERSION)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_REFERENCE_COUNT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PARTITION_PROPERTIES)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PARTITION_TYPE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_OPENCL_C_VERSION)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PRINTF_BUFFER_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PROFILE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_BUILT_IN_KERNELS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_QUEUE_PROPERTIES)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_EXECUTION_CAPABILITIES)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_ENDIAN_LITTLE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PROFILING_TIMER_RESOLUTION)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_LOCAL_MEM_TYPE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_CONSTANT_ARGS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_PARAMETER_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_SAMPLERS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_SINGLE_FP_CONFIG)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_HALF_FP_CONFIG)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_DOUBLE_FP_CONFIG)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_IL_VERSION)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_USM_HOST_SUPPORT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_USM_DEVICE_SUPPORT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
 
-#undef UNSUPPORTED_INFO
+    // Intel-specific extensions
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_PCI_ADDRESS)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SLICES)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IMAGE_SRGB)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_64)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
+    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
+    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
+    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
+
   default:
     DIE_NO_IMPLEMENTATION;
   }
@@ -740,6 +906,13 @@ pi_result piQueueRelease(pi_queue Queue) {
 }
 
 pi_result piQueueFinish(pi_queue) {
+  // No-op as enqueued commands with ESIMD_EMULATOR plugin are blocking
+  // ones that do not return until their completion - kernel execution
+  // and memory read.
+  CONTINUE_NO_IMPLEMENTATION;
+}
+
+pi_result piQueueFlush(pi_queue) {
   // No-op as enqueued commands with ESIMD_EMULATOR plugin are blocking
   // ones that do not return until their completion - kernel execution
   // and memory read.
@@ -897,6 +1070,13 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   switch (ImageDesc->image_type) {
   case PI_MEM_TYPE_IMAGE2D:
     break;
+
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE3D)
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE2D_ARRAY)
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE1D)
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE1D_ARRAY)
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE1D_BUFFER)
+
   default:
     return PI_INVALID_MEM_OBJECT;
   }
@@ -910,6 +1090,18 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
     BytesPerPixel = 4;
     break;
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SNORM_INT8)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SNORM_INT16)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNORM_INT16)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_FLOAT)
   default:
     return PI_IMAGE_FORMAT_NOT_SUPPORTED;
   }
@@ -1337,7 +1529,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     return PI_INVALID_KERNEL;
   }
 
-  if ((WorkDim > 3) || (WorkDim == 0)) {
+  // WorkDim == 0 is reserved for 'single_task()' kernel with no
+  // argument
+  if (WorkDim > 3) {
     return PI_INVALID_WORK_GROUP_SIZE;
   }
 
@@ -1359,6 +1553,12 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   }
 
   switch (WorkDim) {
+  case 0:
+    // TODO : intel/llvm_test_suite
+    // single_task() support - void(*)(void)
+    DIE_NO_IMPLEMENTATION;
+    break;
+
   case 1:
     InvokeImpl<1>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);

@@ -25,7 +25,7 @@ class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
 
 } // namespace property
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 __SYCL_INLINE_CONSTEXPR property::no_init no_init;
 
@@ -61,7 +61,7 @@ struct buffer_location {
   };
 };
 } // namespace property
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 template <int A>
 inline constexpr property::buffer_location::instance<A> buffer_location{};
 #endif
@@ -93,7 +93,7 @@ struct no_alias {
 };
 } // namespace property
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 inline constexpr property::no_offset::instance no_offset;
 inline constexpr property::no_alias::instance no_alias;

@@ -25,9 +25,7 @@ namespace llvm {
 
 class ConstantFP;
 class ConstantInt;
-class DbgVariable;
 class DwarfCompileUnit;
-class MachineOperand;
 class MCDwarfDwoLineTable;
 class MCSymbol;
 
@@ -226,6 +224,9 @@ public:
   /// Add thrown types.
   void addThrownTypes(DIE &Die, DINodeArray ThrownTypes);
 
+  /// Add the accessibility attribute.
+  void addAccess(DIE &Die, DINode::DIFlags Flags);
+
   /// Add a new type attribute to the specified entity.
   ///
   /// This takes and attribute parameter because DW_AT_friend attributes are
@@ -247,7 +248,7 @@ public:
   DIE *getOrCreateTypeDIE(const MDNode *TyNode);
 
   /// Get context owner's DIE.
-  virtual DIE *getOrCreateContextDIE(const DIScope *Context);
+  DIE *getOrCreateContextDIE(const DIScope *Context);
 
   /// Construct DIEs for types that contain vtables.
   void constructContainingTypeDIEs();

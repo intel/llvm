@@ -21,7 +21,7 @@
 
 namespace llvm {
 class SourceMgr;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 namespace tblgen {
@@ -59,6 +59,7 @@ public:
     kw_functional_type,
     kw_operands,
     kw_params,
+    kw_qualified,
     kw_ref,
     kw_regions,
     kw_results,
@@ -158,7 +159,7 @@ bool isValidLiteral(StringRef value,
 /// Whether a failure in parsing the assembly format should be a fatal error.
 extern llvm::cl::opt<bool> formatErrorIsFatal;
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TOOLS_MLIRTBLGEN_FORMATGEN_H_

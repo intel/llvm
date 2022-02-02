@@ -1098,10 +1098,10 @@ void NVPTXAsmPrinter::printModuleLevelGV(const GlobalVariable *GVar,
     O << " .attribute(.managed)";
   }
 
-  if (GVar->getAlignment() == 0)
-    O << " .align " << (int)DL.getPrefTypeAlignment(ETy);
+  if (MaybeAlign A = GVar->getAlign())
+    O << " .align " << A->value();
   else
-    O << " .align " << GVar->getAlignment();
+    O << " .align " << (int)DL.getPrefTypeAlignment(ETy);
 
   if (ETy->isFloatingPointTy() || ETy->isPointerTy() ||
       (ETy->isIntegerTy() && ETy->getScalarSizeInBits() <= 64)) {
@@ -1214,9 +1214,9 @@ void NVPTXAsmPrinter::emitDemotedVars(const Function *f, raw_ostream &O) {
 
   std::vector<const GlobalVariable *> &gvars = localDecls[f];
 
-  for (unsigned i = 0, e = gvars.size(); i != e; ++i) {
+  for (const GlobalVariable *GV : gvars) {
     O << "\t// demoted variable\n\t";
-    printModuleLevelGV(gvars[i], O, true);
+    printModuleLevelGV(GV, O, true);
   }
 }
 
@@ -1290,10 +1290,10 @@ void NVPTXAsmPrinter::emitPTXGlobalVariable(const GlobalVariable *GVar,
 
   O << ".";
   emitPTXAddressSpace(GVar->getType()->getAddressSpace(), O);
-  if (GVar->getAlignment() == 0)
-    O << " .align " << (int)DL.getPrefTypeAlignment(ETy);
+  if (MaybeAlign A = GVar->getAlign())
+    O << " .align " << A->value();
   else
-    O << " .align " << GVar->getAlignment();
+    O << " .align " << (int)DL.getPrefTypeAlignment(ETy);
 
   // Special case for i128
   if (ETy->isIntegerTy(128)) {
@@ -1613,7 +1613,7 @@ void NVPTXAsmPrinter::setAndEmitFunctionVirtualRegisters(
   // We use the per class virtual register number in the ptx output.
   unsigned int numVRs = MRI->getNumVirtRegs();
   for (unsigned i = 0; i < numVRs; i++) {
-    unsigned int vr = Register::index2VirtReg(i);
+    Register vr = Register::index2VirtReg(i);
     const TargetRegisterClass *RC = MRI->getRegClass(vr);
     DenseMap<unsigned, unsigned> &regmap = VRegMapping[RC];
     int n = regmap.size();

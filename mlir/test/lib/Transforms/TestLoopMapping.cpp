@@ -24,7 +24,7 @@ using namespace mlir;
 
 namespace {
 class TestLoopMappingPass
-    : public PassWrapper<TestLoopMappingPass, FunctionPass> {
+    : public PassWrapper<TestLoopMappingPass, OperationPass<FuncOp>> {
 public:
   StringRef getArgument() const final {
     return "test-mapping-to-processing-elements";
@@ -32,14 +32,14 @@ public:
   StringRef getDescription() const final {
     return "test mapping a single loop on a virtual processor grid";
   }
-  explicit TestLoopMappingPass() {}
+  explicit TestLoopMappingPass() = default;
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<AffineDialect, scf::SCFDialect>();
   }
 
-  void runOnFunction() override {
-    FuncOp func = getFunction();
+  void runOnOperation() override {
+    FuncOp func = getOperation();
 
     // SSA values for the transformation are created out of thin air by
     // unregistered "new_processor_id_and_range" operations. This is enough to

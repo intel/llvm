@@ -11,15 +11,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_STANDARD_TRANSFORMS_PASSES_H_
-#define MLIR_DIALECT_STANDARD_TRANSFORMS_PASSES_H_
+#ifndef MLIR_DIALECT_STANDARDOPS_TRANSFORMS_PASSES_H
+#define MLIR_DIALECT_STANDARDOPS_TRANSFORMS_PASSES_H
 
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
 namespace bufferization {
 class BufferizeTypeConverter;
-} // end namespace bufferization
+} // namespace bufferization
 
 class GlobalCreator;
 class RewritePatternSet;
@@ -63,6 +63,6 @@ void populateStdExpandOpsPatterns(RewritePatternSet &patterns);
 #define GEN_PASS_REGISTRATION
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h.inc"
 
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_DIALECT_STANDARD_TRANSFORMS_PASSES_H_
+#endif // MLIR_DIALECT_STANDARDOPS_TRANSFORMS_PASSES_H

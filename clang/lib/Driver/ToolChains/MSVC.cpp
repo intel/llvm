@@ -1275,14 +1275,6 @@ bool MSVCToolChain::getUniversalCRTLibraryPath(const ArgList &Args,
   return true;
 }
 
-static VersionTuple getMSVCVersionFromTriple(const llvm::Triple &Triple) {
-  unsigned Major, Minor, Micro;
-  Triple.getEnvironmentVersion(Major, Minor, Micro);
-  if (Major || Minor || Micro)
-    return VersionTuple(Major, Minor, Micro);
-  return VersionTuple();
-}
-
 static VersionTuple getMSVCVersionFromExe(const std::string &BinDir) {
   VersionTuple Version;
 #ifdef _WIN32
@@ -1422,6 +1414,15 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
         AddSystemIncludeWithSubfolder(DriverArgs, CC1Args, WindowsSDKDir,
                                       "Include", windowsSDKIncludeVersion,
                                       "winrt");
+        if (major >= 10) {
+          llvm::VersionTuple Tuple;
+          if (!Tuple.tryParse(windowsSDKIncludeVersion) &&
+              Tuple.getSubminor().getValueOr(0) >= 17134) {
+            AddSystemIncludeWithSubfolder(DriverArgs, CC1Args, WindowsSDKDir,
+                                          "Include", windowsSDKIncludeVersion,
+                                          "cppwinrt");
+          }
+        }
       } else {
         AddSystemIncludeWithSubfolder(DriverArgs, CC1Args, WindowsSDKDir,
                                       "Include");
@@ -1455,7 +1456,7 @@ VersionTuple MSVCToolChain::computeMSVCVersion(const Driver *D,
   bool IsWindowsMSVC = getTriple().isWindowsMSVCEnvironment();
   VersionTuple MSVT = ToolChain::computeMSVCVersion(D, Args);
   if (MSVT.empty())
-    MSVT = getMSVCVersionFromTriple(getTriple());
+    MSVT = getTriple().getEnvironmentVersion();
   if (MSVT.empty() && IsWindowsMSVC)
     MSVT = getMSVCVersionFromExe(getSubDirectoryPath(SubDirectoryType::Bin));
   if (MSVT.empty() &&

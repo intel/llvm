@@ -75,6 +75,21 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *stream, uint32_t maj,
 /// @return None
 XPTI_EXPORT_API void xptiFinalize(const char *stream);
 
+/// @brief Returns universal ID
+/// @details Universal ID is a 64 bit value, that can be used to correlate
+/// events from different software layers. It is generated once for top SW layer
+/// and then re-used by subsequent layers to identify original source code
+/// location. This value is stored in thread-local storage.
+XPTI_EXPORT_API uint64_t xptiGetUniversalId();
+
+/// @brief Update universal ID value
+/// @detail Save new universal ID value to thread-local storage. This function
+/// is typically called by xpti::framework::tracepoint_t constructor when
+/// updating tracepoint information. See xptiGetUniversalId() for more info
+/// about universal IDs.
+/// @param uid Unique 64 bit identifier.
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid);
+
 /// @brief Generates a unique ID
 /// @details When a tool is subscribing to the event stream and wants to
 /// generate task IDs that do not collide with unique IDs currently being
@@ -433,6 +448,8 @@ typedef xpti::result_t (*xpti_framework_finalize_t)();
 typedef xpti::result_t (*xpti_initialize_t)(const char *, uint32_t, uint32_t,
                                             const char *);
 typedef void (*xpti_finalize_t)(const char *);
+typedef uint64_t (*xpti_get_universal_id_t)();
+typedef void (*xpti_set_universal_id_t)(uint64_t uid);
 typedef uint64_t (*xpti_get_unique_id_t)();
 typedef xpti::string_id_t (*xpti_register_string_t)(const char *, char **);
 typedef const char *(*xpti_lookup_string_t)(xpti::string_id_t);

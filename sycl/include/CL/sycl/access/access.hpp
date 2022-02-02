@@ -58,6 +58,7 @@ enum class address_space : int {
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
+enum class decorated : int { no = 0, yes = 1, legacy = 2 };
 } // namespace access
 
 using access::target;
@@ -71,7 +72,7 @@ template <access_mode mode, target trgt> struct mode_target_tag_t {
   explicit mode_target_tag_t() = default;
 };
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 inline constexpr mode_tag_t<access_mode::read> read_only{};
 inline constexpr mode_tag_t<access_mode::read_write> read_write{};
@@ -160,6 +161,11 @@ struct DecoratedType;
 template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::private_space> {
   using type = __OPENCL_PRIVATE_AS__ ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = ElementType;
 };
 
 template <typename ElementType>

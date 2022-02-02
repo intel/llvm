@@ -1359,16 +1359,6 @@ static constexpr Attribute::AttrKind FnAttrsToStrip[] =
    Attribute::InaccessibleMemOrArgMemOnly,
    Attribute::NoSync, Attribute::NoFree};
 
-// List of all parameter and return attributes which must be stripped when
-// lowering from the abstract machine model.  Note that we list attributes
-// here which aren't valid as return attributes, that is okay.  There are
-// also some additional attributes with arguments which are handled
-// explicitly and are not in this list.
-static constexpr Attribute::AttrKind ParamAttrsToStrip[] =
-  {Attribute::ReadNone, Attribute::ReadOnly, Attribute::WriteOnly,
-   Attribute::NoAlias, Attribute::NoFree};
-
-
 // Create new attribute set containing only attributes which can be transferred
 // from original call to the safepoint.
 static AttributeList legalizeCallAttributes(LLVMContext &Ctx,
@@ -1377,13 +1367,13 @@ static AttributeList legalizeCallAttributes(LLVMContext &Ctx,
     return AL;
 
   // Remove the readonly, readnone, and statepoint function attributes.
-  AttrBuilder FnAttrs = AL.getFnAttrs();
+  AttrBuilder FnAttrs(Ctx, AL.getFnAttrs());
   for (auto Attr : FnAttrsToStrip)
     FnAttrs.removeAttribute(Attr);
 
   for (Attribute A : AL.getFnAttrs()) {
     if (isStatepointDirectiveAttr(A))
-      FnAttrs.remove(A);
+      FnAttrs.removeAttribute(A);
   }
 
   // Just skip parameter and return attributes for now
@@ -2650,24 +2640,19 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
   return !Records.empty();
 }
 
-// Handles both return values and arguments for Functions and calls.
-template <typename AttrHolder>
-static void RemoveNonValidAttrAtIndex(LLVMContext &Ctx, AttrHolder &AH,
-                                      unsigned Index) {
-  AttrBuilder R;
-  AttributeSet AS = AH.getAttributes().getAttributes(Index);
-  if (AS.getDereferenceableBytes())
-    R.addAttribute(Attribute::get(Ctx, Attribute::Dereferenceable,
-                                  AS.getDereferenceableBytes()));
-  if (AS.getDereferenceableOrNullBytes())
-    R.addAttribute(Attribute::get(Ctx, Attribute::DereferenceableOrNull,
-                                  AS.getDereferenceableOrNullBytes()));
-  for (auto Attr : ParamAttrsToStrip)
-    if (AS.hasAttribute(Attr))
-      R.addAttribute(Attr);
-
-  if (!R.empty())
-    AH.setAttributes(AH.getAttributes().removeAttributesAtIndex(Ctx, Index, R));
+// List of all parameter and return attributes which must be stripped when
+// lowering from the abstract machine model.  Note that we list attributes
+// here which aren't valid as return attributes, that is okay.
+static AttributeMask getParamAndReturnAttributesToRemove() {
+  AttributeMask R;
+  R.addAttribute(Attribute::Dereferenceable);
+  R.addAttribute(Attribute::DereferenceableOrNull);
+  R.addAttribute(Attribute::ReadNone);
+  R.addAttribute(Attribute::ReadOnly);
+  R.addAttribute(Attribute::WriteOnly);
+  R.addAttribute(Attribute::NoAlias);
+  R.addAttribute(Attribute::NoFree);
+  return R;
 }
 
 static void stripNonValidAttributesFromPrototype(Function &F) {
@@ -2683,13 +2668,13 @@ static void stripNonValidAttributesFromPrototype(Function &F) {
     return;
   }
 
+  AttributeMask R = getParamAndReturnAttributesToRemove();
   for (Argument &A : F.args())
     if (isa<PointerType>(A.getType()))
-      RemoveNonValidAttrAtIndex(Ctx, F,
-                                A.getArgNo() + AttributeList::FirstArgIndex);
+      F.removeParamAttrs(A.getArgNo(), R);
 
   if (isa<PointerType>(F.getReturnType()))
-    RemoveNonValidAttrAtIndex(Ctx, F, AttributeList::ReturnIndex);
+    F.removeRetAttrs(R);
 
   for (auto Attr : FnAttrsToStrip)
     F.removeFnAttr(Attr);
@@ -2757,13 +2742,13 @@ static void stripNonValidDataFromBody(Function &F) {
 
     stripInvalidMetadataFromInstruction(I);
 
+    AttributeMask R = getParamAndReturnAttributesToRemove();
     if (auto *Call = dyn_cast<CallBase>(&I)) {
       for (int i = 0, e = Call->arg_size(); i != e; i++)
         if (isa<PointerType>(Call->getArgOperand(i)->getType()))
-          RemoveNonValidAttrAtIndex(Ctx, *Call,
-                                    i + AttributeList::FirstArgIndex);
+          Call->removeParamAttrs(i, R);
       if (isa<PointerType>(Call->getType()))
-        RemoveNonValidAttrAtIndex(Ctx, *Call, AttributeList::ReturnIndex);
+        Call->removeRetAttrs(R);
     }
   }
 

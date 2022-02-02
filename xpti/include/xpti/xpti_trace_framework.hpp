@@ -15,6 +15,7 @@
 
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
+#include "xpti_trace_framework.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <string>
@@ -288,10 +289,24 @@ public:
 private:
   std::atomic_flag MLock = ATOMIC_FLAG_INIT;
 };
+
+/// RAII-like helper to call a function upon exit from the scope.
+///
+/// This can be used to ensure that a specific XPTI API is called even if an
+/// exception is thrown on code path. For convenience the function will only be
+/// invoked if instrumentation is enabled.
+struct finally {
+  std::function<void()> MFunc;
+
+  ~finally() {
+    if (xptiTraceEnabled())
+      MFunc();
+  }
+};
+
 } // namespace utils
 
 namespace framework {
-static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
 constexpr uint16_t graph_create =
     (uint16_t)xpti::trace_point_type_t::graph_create;
@@ -412,7 +427,7 @@ public:
     if (p) {
       // We expect the payload input has been populated with the information
       // available at that time
-      uint64_t uid = g_tls_uid;
+      uint64_t uid = xptiGetUniversalId();
       if (uid != xpti::invalid_uid) {
         // We already have a parent SW layer that has a tracepoint defined
         m_payload = xptiQueryPayloadByUID(uid);
@@ -420,7 +435,7 @@ public:
         m_top = true;
         uid = xptiRegisterPayload(p);
         if (uid != xpti::invalid_uid) {
-          g_tls_uid = uid;
+          xptiSetUniversalId(uid);
           m_payload = xptiQueryPayloadByUID(uid);
         }
       }
@@ -428,7 +443,7 @@ public:
   }
   ~tracepoint_t() {
     if (m_top) {
-      g_tls_uid = xpti::invalid_uid;
+      xptiSetUniversalId(xpti::invalid_uid);
     }
   }
 

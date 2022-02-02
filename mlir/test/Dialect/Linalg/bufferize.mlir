@@ -259,7 +259,7 @@ func @bufferize_fill(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK-LABEL: func @bufferize_tensor_collapse_shape(
 // CHECK-SAME:    %[[IN:.*]]: tensor<4x5xf32>
 func @bufferize_tensor_collapse_shape(%arg0: tensor<4x5xf32>) -> tensor<20xf32> {
-  %out = linalg.tensor_collapse_shape %arg0 [[0, 1]] :
+  %out = tensor.collapse_shape %arg0 [[0, 1]] :
      tensor<4x5xf32> into tensor<20xf32>
   return %out : tensor<20xf32>
 }
@@ -278,7 +278,7 @@ func @pad_tensor_dynamic_shape(%arg0: tensor<4x?x2x?xf32>, %arg1: index) -> tens
   %c0 = arith.constant 0 : index
   %cst = arith.constant 0.0 : f32
   %out = linalg.pad_tensor %arg0 low[%c0, %c0, %arg1, %c0] high[%c0, %c0, %c0, %arg1]  {
-  ^bb0(%gen_arg1: index, %gen_arg2: index, %gen_arg3: index, %gen_arg4: index):  // no predecessors
+  ^bb0(%gen_arg1: index, %gen_arg2: index, %gen_arg3: index, %gen_arg4: index):  
     linalg.yield %cst : f32
   } : tensor<4x?x2x?xf32> to tensor<4x?x?x?xf32>
   return %out : tensor<4x?x?x?xf32>

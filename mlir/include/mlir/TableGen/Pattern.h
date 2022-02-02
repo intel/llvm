@@ -28,7 +28,7 @@ namespace llvm {
 class DagInit;
 class Init;
 class Record;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 namespace tblgen {
@@ -398,7 +398,8 @@ public:
   // with index `argIndex` for operator `op`.
   const_iterator findBoundSymbol(StringRef key, DagNode node,
                                  const Operator &op, int argIndex) const;
-  const_iterator findBoundSymbol(StringRef key, SymbolInfo symbolInfo) const;
+  const_iterator findBoundSymbol(StringRef key,
+                                 const SymbolInfo &symbolInfo) const;
 
   // Returns the bounds of a range that includes all the elements which
   // bind to the `key`.
@@ -508,8 +509,8 @@ private:
   RecordOperatorMap *recordOpMap;
 };
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 namespace llvm {
 template <>
@@ -547,6 +548,6 @@ struct DenseMapInfo<mlir::tblgen::DagLeaf> {
     return lhs.def == rhs.def;
   }
 };
-} // end namespace llvm
+} // namespace llvm
 
 #endif // MLIR_TABLEGEN_PATTERN_H_

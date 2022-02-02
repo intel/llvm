@@ -41,7 +41,6 @@ add_llvm_unittest(SupportTests
   GlobPatternTest.cpp
   HashBuilderTest.cpp
   Host.cpp
-  HTTPClient.cpp
   IndexedAccessorTest.cpp
   InstructionCostTest.cpp
   ItaniumManglingCanonicalizerTest.cpp
@@ -71,6 +70,7 @@ add_llvm_unittest(SupportTests
   RISCVAttributeParserTest.cpp
   ScaledNumberTest.cpp
   SimpleTableTest.cpp
+  ScopedPrinterTest.cpp
   SHA256.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp

@@ -104,7 +104,7 @@ private:
 
   std::string getRocmPath();
 };
-} // end namespace
+} // namespace
 
 SerializeToHsacoPass::SerializeToHsacoPass(const SerializeToHsacoPass &other)
     : PassWrapper<SerializeToHsacoPass, gpu::SerializeToBlobPass>(other) {}
@@ -160,7 +160,7 @@ SerializeToHsacoPass::loadLibraries(SmallVectorImpl<char> &path,
     llvm::StringRef pathRef(path.data(), path.size());
     std::unique_ptr<llvm::Module> library =
         llvm::getLazyIRFileModule(pathRef, error, context);
-    path.set_size(dirLength);
+    path.truncate(dirLength);
     if (!library) {
       getOperation().emitError() << "Failed to load library " << file
                                  << " from " << path << error.getMessage();
@@ -306,6 +306,12 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
       return nullptr;
     }
   }
+
+  // Set amdgpu_hostcall if host calls have been linked, as needed by newer LLVM
+  // FIXME: Is there a way to set this during printf() lowering that makes sense
+  if (ret->getFunction("__ockl_hostcall_internal"))
+    if (!ret->getModuleFlag("amdgpu_hostcall"))
+      ret->addModuleFlag(llvm::Module::Override, "amdgpu_hostcall", 1);
   return ret;
 }
 

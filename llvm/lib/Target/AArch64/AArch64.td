@@ -416,6 +416,12 @@ def FeatureHCX : SubtargetFeature<
 def FeatureLS64 : SubtargetFeature<"ls64", "HasLS64",
     "true", "Enable Armv8.7-A LD64B/ST64B Accelerator Extension">;
 
+def FeatureHBC : SubtargetFeature<"hbc", "HasHBC",
+    "true", "Enable Armv8.8-A Hinted Conditional Branches Extension">;
+
+def FeatureMOPS : SubtargetFeature<"mops", "HasMOPS",
+    "true", "Enable Armv8.8-A memcpy and memset acceleration instructions">;
+
 def FeatureBRBE : SubtargetFeature<"brbe", "HasBRBE",
     "true", "Enable Branch Record Buffer Extension">;
 
@@ -454,6 +460,9 @@ def FeatureEL2VMSA : SubtargetFeature<"el2vmsa", "HasEL2VMSA", "true",
 
 def FeatureEL3 : SubtargetFeature<"el3", "HasEL3", "true",
   "Enable Exception Level 3">;
+
+def FeatureFixCortexA53_835769 : SubtargetFeature<"fix-cortex-a53-835769",
+  "FixCortexA53_835769", "true", "Mitigate Cortex-A53 Erratum 835769">;
 
 //===----------------------------------------------------------------------===//
 // Architectures.
@@ -494,6 +503,10 @@ def HasV8_7aOps : SubtargetFeature<
   "v8.7a", "HasV8_7aOps", "true", "Support ARM v8.7a instructions",
   [HasV8_6aOps, FeatureXS, FeatureWFxT, FeatureHCX]>;
 
+def HasV8_8aOps : SubtargetFeature<
+  "v8.8a", "HasV8_8aOps", "true", "Support ARM v8.8a instructions",
+  [HasV8_7aOps, FeatureHBC, FeatureMOPS]>;
+
 def HasV9_0aOps : SubtargetFeature<
   "v9a", "HasV9_0aOps", "true", "Support ARM v9a instructions",
   [HasV8_5aOps, FeatureSVE2]>;
@@ -505,6 +518,10 @@ def HasV9_1aOps : SubtargetFeature<
 def HasV9_2aOps : SubtargetFeature<
   "v9.2a", "HasV9_2aOps", "true", "Support ARM v9.2a instructions",
   [HasV8_7aOps, HasV9_1aOps]>;
+
+def HasV9_3aOps : SubtargetFeature<
+  "v9.3a", "HasV9_3aOps", "true", "Support ARM v9.3a instructions",
+  [HasV8_8aOps, HasV9_2aOps]>;
 
 def HasV8_0rOps : SubtargetFeature<
   "v8r", "HasV8_0rOps", "true", "Support ARM v8r instructions",

@@ -498,7 +498,7 @@ private:
       TemplateSpecializationKind TSK, const TemplateArgumentList *TemplateArgs,
       const ASTTemplateArgumentListInfo *TemplateArgsAsWritten,
       SourceLocation POI, MemberSpecializationInfo *MSInfo)
-      : Function(FD, MSInfo ? 1 : 0), Template(Template, TSK - 1),
+      : Function(FD, MSInfo ? true : false), Template(Template, TSK - 1),
         TemplateArguments(TemplateArgs),
         TemplateArgumentsAsWritten(TemplateArgsAsWritten),
         PointOfInstantiation(POI) {
@@ -1211,13 +1211,12 @@ class TemplateTypeParmDecl final : public TypeDecl,
   DefArgStorage DefaultArgument;
 
   TemplateTypeParmDecl(DeclContext *DC, SourceLocation KeyLoc,
-                       SourceLocation IdLoc, IdentifierInfo *Id,
-                       bool Typename, bool HasTypeConstraint,
-                       Optional<unsigned> NumExpanded)
+                       SourceLocation IdLoc, IdentifierInfo *Id, bool Typename,
+                       bool HasTypeConstraint, Optional<unsigned> NumExpanded)
       : TypeDecl(TemplateTypeParm, DC, IdLoc, Id, KeyLoc), Typename(Typename),
-      HasTypeConstraint(HasTypeConstraint), TypeConstraintInitialized(false),
-      ExpandedParameterPack(NumExpanded),
-      NumExpanded(NumExpanded ? *NumExpanded : 0) {}
+        HasTypeConstraint(HasTypeConstraint), TypeConstraintInitialized(false),
+        ExpandedParameterPack(NumExpanded),
+        NumExpanded(NumExpanded.getValueOr(0)) {}
 
 public:
   static TemplateTypeParmDecl *Create(const ASTContext &C, DeclContext *DC,

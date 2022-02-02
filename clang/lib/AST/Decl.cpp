@@ -604,8 +604,14 @@ static LinkageInfo getExternalLinkageFor(const NamedDecl *D) {
   //   - A name declared at namespace scope that does not have internal linkage
   //     by the previous rules and that is introduced by a non-exported
   //     declaration has module linkage.
-  if (isInModulePurview(D) && !isExportedFromModuleInterfaceUnit(
-                                  cast<NamedDecl>(D->getCanonicalDecl())))
+  //
+  // [basic.namespace.general]/p2
+  //   A namespace is never attached to a named module and never has a name with
+  //   module linkage.
+  if (isInModulePurview(D) &&
+      !isExportedFromModuleInterfaceUnit(
+          cast<NamedDecl>(D->getCanonicalDecl())) &&
+      !isa<NamespaceDecl>(D))
     return LinkageInfo(ModuleLinkage, DefaultVisibility, false);
 
   return LinkageInfo::external();
@@ -780,6 +786,11 @@ LinkageComputer::getLVForNamespaceScopeDecl(const NamedDecl *D,
     //
     // Note that we don't want to make the variable non-external
     // because of this, but unique-external linkage suits us.
+
+    // We need variables inside OpenMP declare target directives to be visible.
+    if (OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(Var))
+      return LinkageInfo::external();
+
     if (Context.getLangOpts().CPlusPlus && !isFirstInExternCContext(Var) &&
         !IgnoreVarTypeLinkage) {
       LinkageInfo TypeLV = getLVForType(*Var->getType(), computation);
@@ -1063,6 +1074,12 @@ LinkageComputer::getLVForClassMember(const NamedDecl *D,
 
   // Finally, merge in information from the class.
   LV.mergeMaybeWithVisibility(classLV, considerClassVisibility);
+
+  // We need variables inside OpenMP declare target directives to be visible.
+  if (const VarDecl *VD = dyn_cast<VarDecl>(D))
+    if (OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(VD))
+      return LinkageInfo(LV.getLinkage(), DefaultVisibility, false);
+
   return LV;
 }
 
@@ -1584,7 +1601,7 @@ std::string NamedDecl::getQualifiedNameAsString(bool WithGlobalNsPrefix) const {
   llvm::raw_string_ostream OS(QualName);
   printQualifiedName(OS, getASTContext().getPrintingPolicy(),
                      WithGlobalNsPrefix);
-  return OS.str();
+  return QualName;
 }
 
 void NamedDecl::printQualifiedName(raw_ostream &OS) const {
@@ -3249,7 +3266,6 @@ bool FunctionDecl::isGlobal() const {
     if (const auto *Namespace = cast<NamespaceDecl>(DC)) {
       if (!Namespace->getDeclName())
         return false;
-      break;
     }
   }
 

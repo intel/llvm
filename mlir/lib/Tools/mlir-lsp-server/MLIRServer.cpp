@@ -133,7 +133,7 @@ static bool isDefOrUse(const AsmParserState::SMDefinition &def, llvm::SMLoc loc,
   }
 
   // Check the uses.
-  auto useIt = llvm::find_if(def.uses, [&](const llvm::SMRange &range) {
+  const auto *useIt = llvm::find_if(def.uses, [&](const llvm::SMRange &range) {
     return contains(range, loc);
   });
   if (useIt != def.uses.end()) {
@@ -619,7 +619,7 @@ void MLIRDocument::findDocumentSymbols(
     // If this operation defines a symbol, record it.
     if (SymbolOpInterface symbol = dyn_cast<SymbolOpInterface>(op)) {
       symbols.emplace_back(symbol.getName(),
-                           op->hasTrait<OpTrait::FunctionLike>()
+                           isa<FunctionOpInterface>(op)
                                ? lsp::SymbolKind::Function
                                : lsp::SymbolKind::Class,
                            getRangeFromLoc(sourceMgr, def->scopeLoc),
@@ -878,7 +878,7 @@ struct lsp::MLIRServer::Impl {
 
 lsp::MLIRServer::MLIRServer(DialectRegistry &registry)
     : impl(std::make_unique<Impl>(registry)) {}
-lsp::MLIRServer::~MLIRServer() {}
+lsp::MLIRServer::~MLIRServer() = default;
 
 void lsp::MLIRServer::addOrUpdateDocument(
     const URIForFile &uri, StringRef contents, int64_t version,

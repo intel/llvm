@@ -10,6 +10,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <CL/sycl/detail/defines.hpp>
 #include <cstdint>
 #include <type_traits>
@@ -135,3 +137,5 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 } // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_DETAIL

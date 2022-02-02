@@ -1,0 +1,27 @@
+119734787 66048 458752 10 0
+2 Capability Addresses
+2 Capability Kernel
+2 Capability LiteralSampler
+3 MemoryModel 1 2
+8 EntryPoint 6 1 "testSamplerVariable"
+3 Source 3 102000
+
+4 TypeInt 3 32 0
+2 TypeVoid 2
+2 TypeSampler 4
+4 TypePointer 5 0 4
+3 TypeFunction 8 2
+6 ConstantSampler 4 6 2 0 0
+5 Variable 5 7 0 6
+
+5 Function 2 1 0 8
+
+2 Label 9
+1 Return
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; Reverse translation shouldn't crash:
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.bc

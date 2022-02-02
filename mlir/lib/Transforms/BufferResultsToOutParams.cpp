@@ -25,7 +25,7 @@ static void updateFuncOp(FuncOp func,
   // Collect information about the results will become appended arguments.
   SmallVector<Type, 6> erasedResultTypes;
   SmallVector<unsigned, 6> erasedResultIndices;
-  for (auto resultType : llvm::enumerate(functionType.getResults())) {
+  for (const auto &resultType : llvm::enumerate(functionType.getResults())) {
     if (resultType.value().isa<BaseMemRefType>()) {
       erasedResultIndices.push_back(resultType.index());
       erasedResultTypes.push_back(resultType.value());
@@ -50,8 +50,9 @@ static void updateFuncOp(FuncOp func,
   // Add the new arguments to the entry block if the function is not external.
   if (func.isExternal())
     return;
-  auto newArgs = func.front().addArguments(erasedResultTypes);
-  appendedEntryArgs.append(newArgs.begin(), newArgs.end());
+  Location loc = func.getLoc();
+  for (Type type : erasedResultTypes)
+    appendedEntryArgs.push_back(func.front().addArgument(type, loc));
 }
 
 // Updates all ReturnOps in the scope of the given FuncOp by either keeping them
@@ -136,7 +137,7 @@ struct BufferResultsToOutParamsPass
       return signalPassFailure();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<Pass> mlir::createBufferResultsToOutParamsPass() {
   return std::make_unique<BufferResultsToOutParamsPass>();

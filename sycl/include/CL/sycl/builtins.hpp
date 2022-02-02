@@ -724,13 +724,21 @@ detail::enable_if_t<detail::is_geninteger<T>::value, T> clz(T x) __NOEXC {
   return __sycl_std::__invoke_clz<T>(x);
 }
 
-namespace ext {
-namespace intel {
 // geninteger ctz (geninteger x)
 template <typename T>
-sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T>
-ctz(T x) __NOEXC {
+detail::enable_if_t<detail::is_geninteger<T>::value, T> ctz(T x) __NOEXC {
   return __sycl_std::__invoke_ctz<T>(x);
+}
+
+// geninteger ctz (geninteger x) for calls with deprecated namespace
+namespace ext {
+namespace intel {
+template <typename T>
+__SYCL_DEPRECATED(
+    "'sycl::ext::intel::ctz' is deprecated, use 'sycl::ctz' instead")
+sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T> ctz(
+    T x) __NOEXC {
+  return sycl::ctz(x);
 }
 } // namespace intel
 } // namespace ext
@@ -1176,7 +1184,7 @@ template <typename T,
           typename = detail::enable_if_t<detail::is_genfloat<T>::value, T>>
 detail::common_rel_ret_t<T> islessgreater(T x, T y) __NOEXC {
   return detail::RelConverter<T>::apply(
-      __sycl_std::__invoke_LessOrGreater<detail::rel_ret_t<T>>(x, y));
+      __sycl_std::__invoke_FOrdNotEqual<detail::rel_ret_t<T>>(x, y));
 }
 
 // int isfinite (half x)

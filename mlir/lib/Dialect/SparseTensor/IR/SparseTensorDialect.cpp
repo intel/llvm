@@ -61,8 +61,8 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
                          "expected an array for dimension level types");
         return {};
       }
-      for (unsigned i = 0, e = arrayAttr.size(); i < e; i++) {
-        auto strAttr = arrayAttr[i].dyn_cast<StringAttr>();
+      for (auto i : arrayAttr) {
+        auto strAttr = i.dyn_cast<StringAttr>();
         if (!strAttr) {
           parser.emitError(parser.getNameLoc(),
                            "expected a string value in dimension level types");
@@ -305,6 +305,18 @@ static LogicalResult verify(LexInsertOp op) {
   return success();
 }
 
+static LogicalResult verify(ExpandOp op) {
+  if (!getSparseTensorEncoding(op.tensor().getType()))
+    return op.emitError("expected a sparse tensor for expansion");
+  return success();
+}
+
+static LogicalResult verify(CompressOp op) {
+  if (!getSparseTensorEncoding(op.tensor().getType()))
+    return op.emitError("expected a sparse tensor for compression");
+  return success();
+}
+
 static LogicalResult verify(LoadOp op) {
   if (!getSparseTensorEncoding(op.tensor().getType()))
     return op.emitError("expected a sparse tensor to materialize");
@@ -334,22 +346,3 @@ void SparseTensorDialect::initialize() {
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SparseTensor/IR/SparseTensorOps.cpp.inc"
-
-Attribute SparseTensorDialect::parseAttribute(DialectAsmParser &parser,
-                                              Type type) const {
-  StringRef attrTag;
-  if (failed(parser.parseKeyword(&attrTag)))
-    return Attribute();
-  Attribute attr;
-  auto parseResult = generatedAttributeParser(parser, attrTag, type, attr);
-  if (parseResult.hasValue())
-    return attr;
-  parser.emitError(parser.getNameLoc(), "unknown sparse tensor attribute");
-  return Attribute();
-}
-
-void SparseTensorDialect::printAttribute(Attribute attr,
-                                         DialectAsmPrinter &printer) const {
-  if (succeeded(generatedAttributePrinter(attr, printer)))
-    return;
-}
