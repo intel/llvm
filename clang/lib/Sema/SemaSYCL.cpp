@@ -4711,36 +4711,43 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFileName() { return \""
-#ifndef NDEBUG
+    O << "  static constexpr const char* getFileName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \""
       << std::string(PLoc.getFilename())
-             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1)
-#endif
-      << "\"; }\n";
+             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFunctionName() { return \"";
-#ifndef NDEBUG
+    O << "  static constexpr const char* getFunctionName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \"";
     SYCLKernelNameTypePrinter Printer(O, Policy);
     Printer.Visit(K.NameType);
-#endif
-    O << "\"; }\n";
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getLineNumber() { return "
-#ifndef NDEBUG
-      << PLoc.getLine()
-#else
-      << 0
-#endif
-      << "; }\n";
+    O << "  static constexpr unsigned getLineNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getLine() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getColumnNumber() { return "
-#ifndef NDEBUG
-      << PLoc.getColumn()
-#else
-      << 0
-#endif
-      << "; }\n";
+    O << "  static constexpr unsigned getColumnNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getColumn() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
     O << "};\n";
     CurStart += N;
   }
