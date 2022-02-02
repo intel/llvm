@@ -1664,7 +1664,12 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
     const RTDeviceBinaryImage &Img = *ImgPtr;
     linkOptions.push_back(Img.getLinkOptions());
   }
-  
+  std::string linkOptionsStr;
+  for (auto str : linkOptions) {
+    if (str != nullptr) {
+      linkOptionsStr += static_cast<std::string>(str) + " ";
+    }
+  }
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
@@ -1673,7 +1678,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
       ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
-      /*options=*/linkOptions[0], PIPrograms.size(), PIPrograms.data(),
+      /*options=*/linkOptionsStr.c_str(), PIPrograms.size(), PIPrograms.data(),
       /*pfn_notify=*/nullptr,
       /*user_data=*/nullptr, &LinkedProg);
 
