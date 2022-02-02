@@ -16,7 +16,7 @@ struct is_device_copyable<sycl::ext::oneapi::experimental::fir>
 template <>
 struct is_device_copyable<const sycl::ext::oneapi::experimental::fir>
     : std::true_type {};
-}
+} // namespace sycl
 
 int main() {
   // Check only compile-time properties are device-copyable
