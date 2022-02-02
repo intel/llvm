@@ -2155,7 +2155,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     if (Device->ZeDeviceModuleProperties->flags &
         ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS)
       result = true;
-    std::memcpy(ParamValue, &result, sizeof(bool));
     return ReturnValue(result);
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
