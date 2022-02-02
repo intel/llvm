@@ -56,18 +56,36 @@ inline bool operator==(const foz &lhs, const foz &rhs) {
 }
 inline bool operator!=(const foz &lhs, const foz &rhs) { return !(lhs == rhs); }
 
+struct fir {
+  fir(float v1, bool v2) : value1(v1), value2(v2) {}
+  // Define copy constructor to make foz non-trivially copyable
+  fir(const foz &f) {
+    value1 = f.value1;
+    value2 = f.value2;
+  }
+  float value1;
+  bool value2;
+};
+
+inline bool operator==(const fir &lhs, const fir &rhs) {
+  return lhs.value1 == rhs.value1 && lhs.value2 == rhs.value2;
+}
+inline bool operator!=(const fir &lhs, const fir &rhs) { return !(lhs == rhs); }
+
 inline constexpr bar_key::value_t bar;
 template <int K> inline constexpr baz_key::value_t<K> baz;
 template <typename... Ts> inline constexpr boo_key::value_t<Ts...> boo;
 
 using foo_key = foo;
 using foz_key = foz;
+using fir_key = fir;
 
 template <> struct is_property_key<bar_key> : std::true_type {};
 template <> struct is_property_key<baz_key> : std::true_type {};
 template <> struct is_property_key<boo_key> : std::true_type {};
 template <> struct is_property_key<foo_key> : std::true_type {};
 template <> struct is_property_key<foz_key> : std::true_type {};
+template <> struct is_property_key<fir_key> : std::true_type {};
 
 template <typename syclObjectT>
 struct is_property_key_of<bar_key, syclObjectT> : std::true_type {};
@@ -79,6 +97,8 @@ template <typename syclObjectT>
 struct is_property_key_of<foo_key, syclObjectT> : std::true_type {};
 template <typename syclObjectT>
 struct is_property_key_of<foz_key, syclObjectT> : std::true_type {};
+template <typename syclObjectT>
+struct is_property_key_of<fir_key, syclObjectT> : std::true_type {};
 
 namespace detail {
 template <> struct PropertyToKind<bar_key> {
@@ -101,6 +121,10 @@ template <> struct PropertyToKind<foz_key> {
   static constexpr PropKind Kind =
       static_cast<enum PropKind>(PropKind::PropKindSize + 4);
 };
+template <> struct PropertyToKind<fir_key> {
+  static constexpr PropKind Kind =
+      static_cast<enum PropKind>(PropKind::PropKindSize + 4);
+};
 
 template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 template <> struct IsCompileTimeProperty<baz_key> : std::true_type {};
@@ -108,6 +132,7 @@ template <> struct IsCompileTimeProperty<boo_key> : std::true_type {};
 
 template <> struct IsRuntimeProperty<foo_key> : std::true_type {};
 template <> struct IsRuntimeProperty<foz_key> : std::true_type {};
+template <> struct IsRuntimeProperty<fir_key> : std::true_type {};
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi
