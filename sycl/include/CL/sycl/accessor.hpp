@@ -2200,8 +2200,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::host_image, IsPlaceholder>
+class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
+               IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::host_image, IsPlaceholder> {
 public:
