@@ -3580,7 +3580,7 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
   // equals to 0.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     if (InvalidWorkGroupSizeAttrs(DeclAttr->getValue(), A.getXDim(),
-			          A.getYDim(), A.getZDim())) {
+                                  A.getYDim(), A.getZDim())) {
       Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
           << &A << DeclAttr;
       return nullptr;
