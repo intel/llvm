@@ -7322,13 +7322,13 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   /**
    * @brief Please note that the following code should be run before the
    * subsequent getAvailableCommandList() call so that there is no
-   * dead-lock from waiting unsubmitted events in an open batch. 
+   * dead-lock from waiting unsubmitted events in an open batch.
    */
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
                                                           EventWaitList, Queue))
     return Res;
-  
+
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
