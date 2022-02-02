@@ -1666,7 +1666,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   }
   std::string linkOptionsStr;
   for (auto str : linkOptions) {
-    if (str != nullptr) {
+    if (str && (linkOptionsStr.find(str) == std::string::npos)) {
       linkOptionsStr += static_cast<std::string>(str) + " ";
     }
   }
