@@ -24,7 +24,7 @@ Release notes for commit range 4fc5ebe..bd68232
    [88cfe16]
  - Added [SYCL_INTEL_bf16_conversion extension document](doc/extensions/experimental/SYCL_EXT_INTEL_BF16_CONVERSION.asciidoc)
    [9f8cc3af]
- - Align [SYCL_EXT_ONEAPI_GROUP_MASK extension](doc/extensions/GroupMask/GroupMask.asciidoc)
+ - Align [SYCL_EXT_ONEAPI_GROUP_MASK extension](doc/extensions/supported/SYCL_EXT_ONEAPI_SUB_GROUP_MASK.asciidoc)
    with SYCL 2020 specification [a06bd1fb]
  - Added [documentation](doc/SYCLInstrumentationUsingXPTI.md) of XPTI related
    tracing in SYCL [1308fe7b]
@@ -1830,7 +1830,7 @@ Release notes for the commit range e8f1f29..ba404be
     [SubGroupAlgorithms](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
     [d9b178f]
   - Added extension introducing group masks and ballot functionality:
-    [GroupMask](doc/extensions/GroupMask/SYCL_INTEL_group_mask.asciidoc)
+    [GroupMask](doc/extensions/supported/SYCL_EXT_ONEAPI_SUB_GROUP_MASK.asciidoc)
     [d9b178f]
   - The project has been renamed to "oneAPI DPC++ Compiler", all documentation
     has been fixed accordingly [7a2e75e]
