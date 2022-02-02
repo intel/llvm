@@ -36,7 +36,7 @@ entry:
 !9 = !{!8}
 !10 = !{!9}
 
-; CHECK-SPV-IR: define spir_kernel void @k(i32 addrspace(1)* %a)
+; CHECK-SPV-IR: define spir_kernel void @k(i32 addrspace(1)* noalias %a)
 ; CHECK-SPV-IR-SAME: !kernel_arg_type_qual ![[KernelArgTypeQual:[0-9]+]]
 ; CHECK-SPV-IR-SAME: !spirv.ParameterDecorations ![[ParamDecoListId:[0-9]+]]
 ; CHECK-SPV-IR-DAG: ![[ParamDecoListId]] = !{![[ParamDecoId:[0-9]+]]}
@@ -46,5 +46,5 @@ entry:
 ; CHECK-SPV-IR-DAG: ![[KernelArgTypeQual]] = !{!"volatile restrict"}
 
 ; CHECK-LLVM-NOT: !spirv.ParameterDecorations
-; CHECK-LLVM: define spir_kernel void @k(i32 addrspace(1)* %a) {{.*}} !kernel_arg_type_qual ![[KernelArgTypeQual:[0-9]+]] {{.*}} {
+; CHECK-LLVM: define spir_kernel void @k(i32 addrspace(1)* noalias %a) {{.*}} !kernel_arg_type_qual ![[KernelArgTypeQual:[0-9]+]] {{.*}} {
 ; CHECK-LLVM-DAG: ![[KernelArgTypeQual]] = !{!"volatile restrict"}
