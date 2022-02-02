@@ -23,7 +23,6 @@
 
 #include "ctor_fill.hpp"
 
-using namespace sycl::ext::intel::experimental::esimd;
 using namespace esimd_test::api::functional;
 using init_val = ctors::init_val;
 
@@ -61,7 +60,7 @@ int main(int, char **) {
   }
   {
     // Validate basic functionality works for every type
-    const auto types = get_tested_types<tested_types::all>();
+    const auto types = get_tested_types<tested_types::core>();
     const auto dims = get_all_dimensions();
     const auto contexts = unnamed_type_pack<ctors::var_decl>::generate();
     {

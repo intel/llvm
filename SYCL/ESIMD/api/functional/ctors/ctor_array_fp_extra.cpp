@@ -1,4 +1,4 @@
-//==------- ctor_vector_core.cpp  - DPC++ ESIMD on-device test -------------==//
+//==------- ctor_array_fp_extra.cpp  - DPC++ ESIMD on-device test ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,15 +14,15 @@
 // RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
-// Test for simd constructor from vector.
-// This test uses different data types, dimensionality and different simd
+// Test for simd constructor from an array.
+// This test uses extra fp data types, dimensionality and different simd
 // constructor invocation contexts.
-// The test do the following actions:
-//  - call init_simd.data() to retreive vector_type and then provide it to the
-//    simd constructor
-//  - bitwise comparing expected and retrieved values
+// The test does the following actions:
+//  - construct fixed-size array that filled with reference values
+//  - use std::move() to provide it to simd constructor
+//  - bitwise compare expected and retrieved values
 
-#include "ctor_vector.hpp"
+#include "ctor_array.hpp"
 
 using namespace esimd_test::api::functional;
 
@@ -30,24 +30,14 @@ int main(int, char **) {
   sycl::queue queue(esimd_test::ESIMDSelector{},
                     esimd_test::createExceptionHandler());
 
-  sycl::device device = queue.get_device();
-  // verify aspect::fp16 due to using sycl::half data type
-  // verify aspect::fp64 due to using double data type
-  if (!device.is_host() && !device.has(sycl::aspect::fp16) &&
-      !device.has(sycl::aspect::fp64)) {
-    std::cout << "Test skipped\n";
-    return 0;
-  }
-
   bool passed = true;
 
-  const auto types = get_tested_types<tested_types::core>();
+  const auto types = get_tested_types<tested_types::fp_extra>();
   const auto dims = get_all_dimensions();
   const auto contexts =
       unnamed_type_pack<ctors::initializer, ctors::var_decl,
                         ctors::rval_in_expr, ctors::const_ref>::generate();
 
-  // Run test for all combinations possible
   passed &= for_all_combinations<ctors::run_test>(types, dims, contexts, queue);
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");

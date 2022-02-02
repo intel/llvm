@@ -1,35 +1,27 @@
-//==------- ctor_move.cpp  - DPC++ ESIMD on-device test --------------------==//
+//===-- ctor_move.hpp - Functions for tests on simd vector constructor
+//      definition. -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, level_zero
-// XREQUIRES: gpu
-// TODO Remove the level_zero restriction once the test is supported on other
-// platforms
-// UNSUPPORTED: cuda, hip
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: *
-// TODO Remove XFAIL once the simd vector provides move constructor
-//
-// Test for esimd move constructor
-// The test creates source simd instance with reference data and invokes move
-// constructor in different C++ contexts to create a new simd instance from the
-// source simd instance. It is expected for a new simd instance to store
-// bitwise same data as the one passed as the source simd constructor.
+///
+/// \file
+/// This file provides functions for tests on simd move constructor.
+///
+//===----------------------------------------------------------------------===//
 
-// The test proxy is used to verify the move constructor was called actually.
-#define __ESIMD_ENABLE_TEST_PROXY
+#pragma once
 
 #include "common.hpp"
+
 #include <algorithm>
 #include <cassert>
 
-using namespace sycl::ext::intel::experimental::esimd;
-using namespace esimd_test::api::functional;
+namespace esimd = sycl::ext::intel::experimental::esimd;
+
+namespace esimd_test::api::functional::ctors {
 
 // Uses the initializer C++ context to call simd move constructor
 struct initializer {
@@ -198,11 +190,11 @@ private:
     bool was_moved = false;
 
     // Prepare the source simd to move
-    simd<DataT, NumElems> source;
+    esimd::simd<DataT, NumElems> source;
     source.copy_from(in);
 
     // Action to run over the simd move constructor result
-    const auto action = [&](const simd<DataT, NumElems> &instance) {
+    const auto action = [&](const esimd::simd<DataT, NumElems> &instance) {
       was_moved = instance.get_test_proxy().was_move_destination();
       instance.copy_to(out);
     };
@@ -214,19 +206,4 @@ private:
   }
 };
 
-int main(int, char **) {
-  bool passed = true;
-  const auto types = get_tested_types<tested_types::all>();
-  const auto dims = get_all_dimensions();
-  const auto contexts = unnamed_type_pack<initializer, var_decl, rval_in_expr,
-                                          const_ref>::generate();
-
-  sycl::queue queue(esimd_test::ESIMDSelector{},
-                    esimd_test::createExceptionHandler());
-
-  // Run for all combinations possible
-  passed &= for_all_combinations<run_test>(types, dims, contexts, queue);
-
-  std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
-  return passed ? 0 : 1;
-}
+} // namespace esimd_test::api::functional::ctors
