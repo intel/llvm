@@ -7347,12 +7347,12 @@ be given.
 
 For example, the attribute can be used as follows.
 
-  .. code-block:: c
+.. code-block:: c
 
-    __attribute__((diagnose_as_builtin(__builtin_memset, 3, 2, 1)))
-    void *mymemset(int n, int c, void *s) {
-      // ...
-    }
+  __attribute__((diagnose_as_builtin(__builtin_memset, 3, 2, 1)))
+  void *mymemset(int n, int c, void *s) {
+    // ...
+  }
 
 This indicates that calls to ``mymemset`` should be diagnosed as if they were
 calls to ``__builtin_memset``. The arguments ``3, 2, 1`` indicate by index the
@@ -7367,12 +7367,12 @@ they would to the builtin function, after all normal arguments. For instance,
 to diagnose a new function as if it were `sscanf`, we can use the attribute as
 follows.
 
-  .. code-block:: c
+.. code-block:: c
 
-    __attribute__((diagnose_as_builtin(sscanf, 1, 2)))
-    int mysscanf(const char *str, const char *format, ...)  {
-      // ...
-    }
+  __attribute__((diagnose_as_builtin(sscanf, 1, 2)))
+  int mysscanf(const char *str, const char *format, ...)  {
+    // ...
+  }
 
 Then the call `mysscanf("abc def", "%4s %4s", buf1, buf2)` will be diagnosed as
 if it were the call `sscanf("abc def", "%4s %4s", buf1, buf2)`.

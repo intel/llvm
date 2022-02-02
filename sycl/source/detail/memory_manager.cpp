@@ -76,8 +76,8 @@ void emitMemAllocEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
 uint64_t emitMemReleaseBeginTrace(uintptr_t ObjHandle, uintptr_t AllocPtr) {
   (void)ObjHandle;
   (void)AllocPtr;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
                                     0 /* guard zone */};
@@ -127,9 +127,12 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
 void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
                            pi_mem_flags Flags, size_t Size, void *HostPtr,
                            pi_mem *RetMem, const pi_mem_properties *Props) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrID = 0;
+#endif
   // We only want to instrument piMemBufferCreate
   {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
     CorrID =
         emitMemAllocBeginTrace(0 /* mem object */, Size, 0 /* guard zone */);
     xpti::utils::finally _{[&] {
@@ -143,6 +146,7 @@ void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
       emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
                            CorrID);
     }};
+#endif
     Plugin.call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr, RetMem,
                                               Props);
   }
@@ -152,6 +156,7 @@ void memReleaseHelper(const plugin &Plugin, pi_mem Mem) {
   // FIXME piMemRelease does not guarante memory release. It is only true if
   // reference counter is 1. However, SYCL runtime currently only calls
   // piMemRetain only for OpenCL interop
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrID = 0;
   // C-style cast is required for MSVC
   uintptr_t MemObjID = (uintptr_t)(Mem);
@@ -162,11 +167,14 @@ void memReleaseHelper(const plugin &Plugin, pi_mem Mem) {
     Plugin.call<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
     Ptr = (uintptr_t)(PtrHandle);
   }
+#endif
   // We only want to instrument piMemRelease
   {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
     CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
     xpti::utils::finally _{
         [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
+#endif
     Plugin.call<PiApiKind::piMemRelease>(Mem);
   }
 }
@@ -176,15 +184,19 @@ void memBufferMapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Buffer,
                         size_t Size, pi_uint32 NumEvents,
                         const pi_event *WaitList, pi_event *Event,
                         void **RetMap) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrID = 0;
   uintptr_t MemObjID = (uintptr_t)(Buffer);
+#endif
   // We only want to instrument piEnqueueMemBufferMap
   {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
     CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
     xpti::utils::finally _{[&] {
       emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
                            0 /* guard zone */, CorrID);
     }};
+#endif
     Plugin.call<PiApiKind::piEnqueueMemBufferMap>(
         Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
         Event, RetMap);
@@ -194,11 +206,14 @@ void memBufferMapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Buffer,
 void memUnmapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Mem,
                     void *MappedPtr, pi_uint32 NumEvents,
                     const pi_event *WaitList, pi_event *Event) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrID = 0;
   uintptr_t MemObjID = (uintptr_t)(Mem);
   uintptr_t Ptr = (uintptr_t)(MappedPtr);
+#endif
   // We only want to instrument piEnqueueMemUnmap
   {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
     CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
     xpti::utils::finally _{[&] {
       // There's no way for SYCL to know, when the pointer is freed, so we have
@@ -210,6 +225,7 @@ void memUnmapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Mem,
       Plugin.call_nocheck<PiApiKind::piEventsWait>(1, Event);
       emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
     }};
+#endif
     Plugin.call<PiApiKind::piEnqueueMemUnmap>(Queue, Mem, MappedPtr, NumEvents,
                                               WaitList, Event);
   }
@@ -282,7 +298,6 @@ void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
     return UserPtr;
 
   void *NewMem = MemObj->allocateHostMem();
-
   // Need to initialize new memory if user provides pointer to read only
   // memory.
   if (UserPtr && HostPtrReadOnly == true)

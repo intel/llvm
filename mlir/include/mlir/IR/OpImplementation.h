@@ -126,7 +126,7 @@ public:
 protected:
   /// Initialize the printer with no internal implementation. In this case, all
   /// virtual methods of this class must be overriden.
-  AsmPrinter() : impl(nullptr) {}
+  AsmPrinter() {}
 
 private:
   AsmPrinter(const AsmPrinter &) = delete;
@@ -141,7 +141,7 @@ private:
   virtual LogicalResult printAlias(Type type);
 
   /// The internal implementation of the printer.
-  Impl *impl;
+  Impl *impl{nullptr};
 };
 
 template <typename AsmPrinterT>
@@ -850,10 +850,6 @@ public:
                                               StringRef attrName,
                                               NamedAttrList &attrs) = 0;
 
-  /// Parse a loc(...) specifier if present, filling in result if so.
-  virtual ParseResult
-  parseOptionalLocationSpecifier(Optional<Location> &result) = 0;
-
   //===--------------------------------------------------------------------===//
   // Type Parsing
   //===--------------------------------------------------------------------===//
@@ -1041,6 +1037,13 @@ public:
   using AsmParser::AsmParser;
   ~OpAsmParser() override;
 
+  /// Parse a loc(...) specifier if present, filling in result if so.
+  /// Location for BlockArgument and Operation may be deferred with an alias, in
+  /// which case an OpaqueLoc is set and will be resolved when parsing
+  /// completes.
+  virtual ParseResult
+  parseOptionalLocationSpecifier(Optional<Location> &result) = 0;
+
   /// Return the name of the specified result in the specified syntax, as well
   /// as the sub-element in the name.  It returns an empty string and ~0U for
   /// invalid result numbers.  For example, in this operation:
@@ -1205,20 +1208,23 @@ public:
 
   /// Parses a region. Any parsed blocks are appended to 'region' and must be
   /// moved to the op regions after the op is created. The first block of the
-  /// region takes 'arguments' of types 'argTypes'. If 'enableNameShadowing' is
-  /// set to true, the argument names are allowed to shadow the names of other
-  /// existing SSA values defined above the region scope. 'enableNameShadowing'
-  /// can only be set to true for regions attached to operations that are
-  /// 'IsolatedFromAbove.
+  /// region takes 'arguments' of types 'argTypes'. If `argLocations` is
+  /// non-empty it contains a location to be attached to each argument. If
+  /// 'enableNameShadowing' is set to true, the argument names are allowed to
+  /// shadow the names of other existing SSA values defined above the region
+  /// scope. 'enableNameShadowing' can only be set to true for regions attached
+  /// to operations that are 'IsolatedFromAbove'.
   virtual ParseResult parseRegion(Region &region,
                                   ArrayRef<OperandType> arguments = {},
                                   ArrayRef<Type> argTypes = {},
+                                  ArrayRef<Location> argLocations = {},
                                   bool enableNameShadowing = false) = 0;
 
   /// Parses a region if present.
   virtual OptionalParseResult
   parseOptionalRegion(Region &region, ArrayRef<OperandType> arguments = {},
                       ArrayRef<Type> argTypes = {},
+                      ArrayRef<Location> argLocations = {},
                       bool enableNameShadowing = false) = 0;
 
   /// Parses a region if present. If the region is present, a new region is

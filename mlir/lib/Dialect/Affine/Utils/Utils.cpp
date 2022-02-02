@@ -13,7 +13,7 @@
 
 #include "mlir/Dialect/Affine/Utils.h"
 
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -537,7 +537,6 @@ static bool hasNoInterveningEffect(Operation *start, T memOp) {
     // Otherwise, conservatively assume generic operations have the effect
     // on the operation
     hasSideEffect = true;
-    return;
   };
 
   // Check all paths from ancestor op `parent` to the operation `to` for the

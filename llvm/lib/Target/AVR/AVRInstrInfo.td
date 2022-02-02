@@ -60,6 +60,9 @@ def AVRlsr : SDNode<"AVRISD::LSR", SDTIntUnaryOp>;
 def AVRrol : SDNode<"AVRISD::ROL", SDTIntUnaryOp>;
 def AVRror : SDNode<"AVRISD::ROR", SDTIntUnaryOp>;
 def AVRasr : SDNode<"AVRISD::ASR", SDTIntUnaryOp>;
+def AVRlslhi : SDNode<"AVRISD::LSLHI", SDTIntUnaryOp>;
+def AVRlsrlo : SDNode<"AVRISD::LSRLO", SDTIntUnaryOp>;
+def AVRasrlo : SDNode<"AVRISD::ASRLO", SDTIntUnaryOp>;
 def AVRlslbn : SDNode<"AVRISD::LSLBN", SDTIntBinOp>;
 def AVRlsrbn : SDNode<"AVRISD::LSRBN", SDTIntBinOp>;
 def AVRasrbn : SDNode<"AVRISD::ASRBN", SDTIntBinOp>;
@@ -1699,21 +1702,34 @@ let mayLoad = 1, hasSideEffects = 0 in {
       : F16<0b1001010111011000, (outs), (ins), "elpm", []>,
       Requires<[HasELPM]>;
 
-  def ELPMRdZ : FLPMX<1, 0,
-                      (outs GPR8
-                       : $dst),
-                      (ins ZREG
-                       : $z),
+  def ELPMRdZ : FLPMX<1, 0, (outs GPR8:$dst), (ins ZREG:$z),
                       "elpm\t$dst, $z", []>,
                 Requires<[HasELPMX]>;
 
-  let Defs = [R31R30] in def ELPMRdZPi : FLPMX<1, 1,
-                                               (outs GPR8
-                                                : $dst),
-                                               (ins ZREG
-                                                : $z),
-                                               "elpm\t$dst, $z+", []>,
-      Requires<[HasELPMX]>;
+  let Defs = [R31R30] in {
+    def ELPMRdZPi : FLPMX<1, 1, (outs GPR8:$dst), (ins ZREG:$z),
+                          "elpm\t$dst, $z+", []>,
+                    Requires<[HasELPMX]>;
+  }
+
+  // These pseudos are combination of the OUT and ELPM instructions.
+  let Defs = [R31R30], hasSideEffects = 1 in {
+    def ELPMBRdZ : Pseudo<(outs GPR8:$dst), (ins ZREG:$z, LD8:$p),
+                          "elpmb\t$dst, $z, $p", []>,
+                   Requires<[HasELPMX]>;
+
+    def ELPMWRdZ : Pseudo<(outs DREGS:$dst), (ins ZREG:$z, LD8:$p),
+                          "elpmw\t$dst, $z, $p", []>,
+                   Requires<[HasELPMX]>;
+
+    def ELPMBRdZPi : Pseudo<(outs GPR8:$dst), (ins ZREG:$z, LD8:$p),
+                            "elpmb\t$dst, $z+, $p", []>,
+                     Requires<[HasELPMX]>;
+
+    def ELPMWRdZPi : Pseudo<(outs DREGS:$dst), (ins ZREG:$z, LD8:$p),
+                            "elpmw\t$dst, $z+, $p", []>,
+                     Requires<[HasELPMX]>;
+  }
 }
 
 // Store program memory operations.
@@ -1848,6 +1864,9 @@ let Constraints = "$src = $rd", Defs = [SREG] in {
                                 : $src)),
                        (implicit SREG)]>;
 
+  def LSLWHiRd : Pseudo<(outs DREGS:$rd), (ins DREGS:$src), "lslwhi\t$rd",
+                        [(set i16:$rd, (AVRlslhi i16:$src)), (implicit SREG)]>;
+
   def LSLWNRd : Pseudo<(outs DLDREGS
                         : $rd),
                        (ins DREGS
@@ -1894,6 +1913,9 @@ let Constraints = "$src = $rd", Defs = [SREG] in {
                         : $rd, (AVRlsr i16
                                 : $src)),
                        (implicit SREG)]>;
+
+  def LSRWLoRd : Pseudo<(outs DREGS:$rd), (ins DREGS:$src), "lsrwlo\t$rd",
+                        [(set i16:$rd, (AVRlsrlo i16:$src)), (implicit SREG)]>;
 
   def LSRWNRd : Pseudo<(outs DLDREGS
                         : $rd),
@@ -1967,6 +1989,9 @@ let Constraints = "$src = $rd", Defs = [SREG] in {
                         : $rd, (AVRasr i16
                                 : $src)),
                        (implicit SREG)]>;
+
+  def ASRWLoRd : Pseudo<(outs DREGS:$rd), (ins DREGS:$src), "asrwlo\t$rd",
+                        [(set i16:$rd, (AVRasrlo i16:$src)), (implicit SREG)]>;
 
   def ROLBRd : Pseudo<(outs GPR8
                        : $rd),

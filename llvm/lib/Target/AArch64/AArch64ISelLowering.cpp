@@ -962,6 +962,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setMinFunctionAlignment(Align(4));
   // Set preferred alignments.
   setPrefLoopAlignment(Align(1ULL << STI.getPrefLoopLogAlignment()));
+  setMaxBytesForAlignment(STI.getMaxBytesForLoopAlignment());
   setPrefFunctionAlignment(Align(1ULL << STI.getPrefFunctionLogAlignment()));
 
   // Only change the limit for entries in a jump table if specified by
@@ -1829,6 +1830,28 @@ void AArch64TargetLowering::computeKnownBitsForTargetNode(
     Known = DAG.computeKnownBits(Op->getOperand(0), Depth + 1);
     Known2 = DAG.computeKnownBits(Op->getOperand(1), Depth + 1);
     Known = KnownBits::commonBits(Known, Known2);
+    break;
+  }
+  case AArch64ISD::BICi: {
+    // Compute the bit cleared value.
+    uint64_t Mask =
+        ~(Op->getConstantOperandVal(1) << Op->getConstantOperandVal(2));
+    Known = DAG.computeKnownBits(Op->getOperand(0), Depth + 1);
+    Known &= KnownBits::makeConstant(APInt(Known.getBitWidth(), Mask));
+    break;
+  }
+  case AArch64ISD::VLSHR: {
+    KnownBits Known2;
+    Known = DAG.computeKnownBits(Op->getOperand(0), Depth + 1);
+    Known2 = DAG.computeKnownBits(Op->getOperand(1), Depth + 1);
+    Known = KnownBits::lshr(Known, Known2);
+    break;
+  }
+  case AArch64ISD::VASHR: {
+    KnownBits Known2;
+    Known = DAG.computeKnownBits(Op->getOperand(0), Depth + 1);
+    Known2 = DAG.computeKnownBits(Op->getOperand(1), Depth + 1);
+    Known = KnownBits::ashr(Known, Known2);
     break;
   }
   case AArch64ISD::LOADgot:
@@ -5380,7 +5403,7 @@ SDValue AArch64TargetLowering::LowerFormalArguments(
         llvm_unreachable("RegVT not supported by FORMAL_ARGUMENTS Lowering");
 
       // Transform the arguments in physical registers into virtual ones.
-      unsigned Reg = MF.addLiveIn(VA.getLocReg(), RC);
+      Register Reg = MF.addLiveIn(VA.getLocReg(), RC);
       ArgValue = DAG.getCopyFromReg(Chain, DL, Reg, RegVT);
 
       // If this is an 8, 16 or 32-bit value, it is really passed promoted
@@ -5542,7 +5565,7 @@ SDValue AArch64TargetLowering::LowerFormalArguments(
 
       // Conservatively forward X8, since it might be used for aggregate return.
       if (!CCInfo.isAllocated(AArch64::X8)) {
-        unsigned X8VReg = MF.addLiveIn(AArch64::X8, &AArch64::GPR64RegClass);
+        Register X8VReg = MF.addLiveIn(AArch64::X8, &AArch64::GPR64RegClass);
         Forwards.push_back(ForwardedRegister(X8VReg, AArch64::X8, MVT::i64));
       }
     }
@@ -5626,7 +5649,7 @@ void AArch64TargetLowering::saveVarArgRegisters(CCState &CCInfo,
     SDValue FIN = DAG.getFrameIndex(GPRIdx, PtrVT);
 
     for (unsigned i = FirstVariadicGPR; i < NumGPRArgRegs; ++i) {
-      unsigned VReg = MF.addLiveIn(GPRArgRegs[i], &AArch64::GPR64RegClass);
+      Register VReg = MF.addLiveIn(GPRArgRegs[i], &AArch64::GPR64RegClass);
       SDValue Val = DAG.getCopyFromReg(Chain, DL, VReg, MVT::i64);
       SDValue Store =
           DAG.getStore(Val.getValue(1), DL, Val, FIN,
@@ -5656,7 +5679,7 @@ void AArch64TargetLowering::saveVarArgRegisters(CCState &CCInfo,
       SDValue FIN = DAG.getFrameIndex(FPRIdx, PtrVT);
 
       for (unsigned i = FirstVariadicFPR; i < NumFPRArgRegs; ++i) {
-        unsigned VReg = MF.addLiveIn(FPRArgRegs[i], &AArch64::FPR128RegClass);
+        Register VReg = MF.addLiveIn(FPRArgRegs[i], &AArch64::FPR128RegClass);
         SDValue Val = DAG.getCopyFromReg(Chain, DL, VReg, MVT::f128);
 
         SDValue Store = DAG.getStore(Val.getValue(1), DL, Val, FIN,
@@ -7256,6 +7279,9 @@ SDValue AArch64TargetLowering::LowerFCOPYSIGN(SDValue Op,
     return getSVESafeBitCast(VT, IntResult, DAG);
   }
 
+  if (!Subtarget->hasNEON())
+    return SDValue();
+
   if (SrcVT.bitsLT(VT))
     In2 = DAG.getNode(ISD::FP_EXTEND, DL, VT, In2);
   else if (SrcVT.bitsGT(VT))
@@ -7795,10 +7821,37 @@ SDValue AArch64TargetLowering::LowerVECTOR_SPLICE(SDValue Op,
                                                   SelectionDAG &DAG) const {
   EVT Ty = Op.getValueType();
   auto Idx = Op.getConstantOperandAPInt(2);
+  int64_t IdxVal = Idx.getSExtValue();
+  assert(Ty.isScalableVector() &&
+         "Only expect scalable vectors for custom lowering of VECTOR_SPLICE");
+
+  // We can use the splice instruction for certain index values where we are
+  // able to efficiently generate the correct predicate. The index will be
+  // inverted and used directly as the input to the ptrue instruction, i.e.
+  // -1 -> vl1, -2 -> vl2, etc. The predicate will then be reversed to get the
+  // splice predicate. However, we can only do this if we can guarantee that
+  // there are enough elements in the vector, hence we check the index <= min
+  // number of elements.
+  Optional<unsigned> PredPattern;
+  if (Ty.isScalableVector() && IdxVal < 0 &&
+      (PredPattern = getSVEPredPatternFromNumElements(std::abs(IdxVal))) !=
+          None) {
+    SDLoc DL(Op);
+
+    // Create a predicate where all but the last -IdxVal elements are false.
+    EVT PredVT = Ty.changeVectorElementType(MVT::i1);
+    SDValue Pred = getPTrue(DAG, DL, PredVT, *PredPattern);
+    Pred = DAG.getNode(ISD::VECTOR_REVERSE, DL, PredVT, Pred);
+
+    // Now splice the two inputs together using the predicate.
+    return DAG.getNode(AArch64ISD::SPLICE, DL, Ty, Pred, Op.getOperand(0),
+                       Op.getOperand(1));
+  }
 
   // This will select to an EXT instruction, which has a maximum immediate
   // value of 255, hence 2048-bits is the maximum value we can lower.
-  if (Idx.sge(-1) && Idx.slt(2048 / Ty.getVectorElementType().getSizeInBits()))
+  if (IdxVal >= 0 &&
+      IdxVal < int64_t(2048 / Ty.getVectorElementType().getSizeInBits()))
     return Op;
 
   return SDValue();
@@ -8227,7 +8280,7 @@ SDValue AArch64TargetLowering::LowerRETURNADDR(SDValue Op,
   } else {
     // Return LR, which contains the return address. Mark it an implicit
     // live-in.
-    unsigned Reg = MF.addLiveIn(AArch64::LR, &AArch64::GPR64RegClass);
+    Register Reg = MF.addLiveIn(AArch64::LR, &AArch64::GPR64RegClass);
     ReturnAddress = DAG.getCopyFromReg(DAG.getEntryNode(), DL, Reg, VT);
   }
 
@@ -9631,14 +9684,12 @@ static SDValue constructDup(SDValue V, int Lane, SDLoc dl, EVT VT,
   MVT CastVT;
   if (getScaledOffsetDup(V, Lane, CastVT)) {
     V = DAG.getBitcast(CastVT, V.getOperand(0).getOperand(0));
-  } else if (V.getOpcode() == ISD::EXTRACT_SUBVECTOR) {
+  } else if (V.getOpcode() == ISD::EXTRACT_SUBVECTOR &&
+             V.getOperand(0).getValueType().is128BitVector()) {
     // The lane is incremented by the index of the extract.
     // Example: dup v2f32 (extract v4f32 X, 2), 1 --> dup v4f32 X, 3
-    auto VecVT = V.getOperand(0).getValueType();
-    if (VecVT.isFixedLengthVector() && VecVT.getFixedSizeInBits() <= 128) {
-      Lane += V.getConstantOperandVal(1);
-      V = V.getOperand(0);
-    }
+    Lane += V.getConstantOperandVal(1);
+    V = V.getOperand(0);
   } else if (V.getOpcode() == ISD::CONCAT_VECTORS) {
     // The lane is decremented if we are splatting from the 2nd operand.
     // Example: dup v4i32 (concat v2i32 X, v2i32 Y), 3 --> dup v4i32 Y, 1
@@ -11012,10 +11063,10 @@ SDValue AArch64TargetLowering::LowerINSERT_SUBVECTOR(SDValue Op,
     if (Vec0.isUndef())
       return Op;
 
-    unsigned int PredPattern =
+    Optional<unsigned> PredPattern =
         getSVEPredPatternFromNumElements(InVT.getVectorNumElements());
     auto PredTy = VT.changeVectorElementType(MVT::i1);
-    SDValue PTrue = getPTrue(DAG, DL, PredTy, PredPattern);
+    SDValue PTrue = getPTrue(DAG, DL, PredTy, *PredPattern);
     SDValue ScalableVec1 = convertToScalableVector(DAG, VT, Vec1);
     return DAG.getNode(ISD::VSELECT, DL, VT, PTrue, ScalableVec1, Vec0);
   }
@@ -12320,7 +12371,7 @@ bool AArch64TargetLowering::lowerInterleavedLoad(
 
   Value *PTrue = nullptr;
   if (UseScalable) {
-    unsigned PgPattern =
+    Optional<unsigned> PgPattern =
         getSVEPredPatternFromNumElements(FVTy->getNumElements());
     if (Subtarget->getMinSVEVectorSizeInBits() ==
             Subtarget->getMaxSVEVectorSizeInBits() &&
@@ -12328,7 +12379,7 @@ bool AArch64TargetLowering::lowerInterleavedLoad(
       PgPattern = AArch64SVEPredPattern::all;
 
     auto *PTruePat =
-        ConstantInt::get(Type::getInt32Ty(LDVTy->getContext()), PgPattern);
+        ConstantInt::get(Type::getInt32Ty(LDVTy->getContext()), *PgPattern);
     PTrue = Builder.CreateIntrinsic(Intrinsic::aarch64_sve_ptrue, {PredTy},
                                     {PTruePat});
   }
@@ -12500,7 +12551,7 @@ bool AArch64TargetLowering::lowerInterleavedStore(StoreInst *SI,
 
   Value *PTrue = nullptr;
   if (UseScalable) {
-    unsigned PgPattern =
+    Optional<unsigned> PgPattern =
         getSVEPredPatternFromNumElements(SubVecTy->getNumElements());
     if (Subtarget->getMinSVEVectorSizeInBits() ==
             Subtarget->getMaxSVEVectorSizeInBits() &&
@@ -12509,7 +12560,7 @@ bool AArch64TargetLowering::lowerInterleavedStore(StoreInst *SI,
       PgPattern = AArch64SVEPredPattern::all;
 
     auto *PTruePat =
-        ConstantInt::get(Type::getInt32Ty(STVTy->getContext()), PgPattern);
+        ConstantInt::get(Type::getInt32Ty(STVTy->getContext()), *PgPattern);
     PTrue = Builder.CreateIntrinsic(Intrinsic::aarch64_sve_ptrue, {PredTy},
                                     {PTruePat});
   }
@@ -18753,7 +18804,7 @@ static SDValue getPredicateForFixedLengthVector(SelectionDAG &DAG, SDLoc &DL,
          DAG.getTargetLoweringInfo().isTypeLegal(VT) &&
          "Expected legal fixed length vector!");
 
-  unsigned PgPattern =
+  Optional<unsigned> PgPattern =
       getSVEPredPatternFromNumElements(VT.getVectorNumElements());
   assert(PgPattern && "Unexpected element count for SVE predicate");
 
@@ -18789,7 +18840,7 @@ static SDValue getPredicateForFixedLengthVector(SelectionDAG &DAG, SDLoc &DL,
     break;
   }
 
-  return getPTrue(DAG, DL, MaskVT, PgPattern);
+  return getPTrue(DAG, DL, MaskVT, *PgPattern);
 }
 
 static SDValue getPredicateForScalableVector(SelectionDAG &DAG, SDLoc &DL,
@@ -19777,7 +19828,7 @@ bool AArch64TargetLowering::SimplifyDemandedBitsForTargetNode(
       Op, OriginalDemandedBits, OriginalDemandedElts, Known, TLO, Depth);
 }
 
-bool AArch64TargetLowering::isConstantUnsignedBitfieldExtactLegal(
+bool AArch64TargetLowering::isConstantUnsignedBitfieldExtractLegal(
     unsigned Opc, LLT Ty1, LLT Ty2) const {
   return Ty1 == Ty2 && (Ty1 == LLT::scalar(32) || Ty1 == LLT::scalar(64));
 }

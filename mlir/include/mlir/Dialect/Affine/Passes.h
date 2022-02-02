@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_AFFINE_TRANSFORMS_PASSES_H
-#define MLIR_DIALECT_AFFINE_TRANSFORMS_PASSES_H
+#ifndef MLIR_DIALECT_AFFINE_PASSES_H
+#define MLIR_DIALECT_AFFINE_PASSES_H
 
 #include "mlir/Pass/Pass.h"
 #include <limits>
@@ -51,7 +51,7 @@ std::unique_ptr<OperationPass<FuncOp>> createAffineDataCopyGenerationPass();
 /// Creates a pass to replace affine memref accesses by scalars using store to
 /// load forwarding and redundant load elimination; consequently also eliminate
 /// dead allocs.
-std::unique_ptr<FunctionPass> createAffineScalarReplacementPass();
+std::unique_ptr<OperationPass<FuncOp>> createAffineScalarReplacementPass();
 
 /// Creates a pass to perform tiling on loop nests.
 std::unique_ptr<OperationPass<FuncOp>>
@@ -93,4 +93,4 @@ std::unique_ptr<OperationPass<FuncOp>> createSuperVectorizePass();
 
 } // namespace mlir
 
-#endif // MLIR_DIALECT_AFFINE_RANSFORMS_PASSES_H
+#endif // MLIR_DIALECT_AFFINE_PASSES_H

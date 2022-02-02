@@ -427,7 +427,8 @@ void TypeLocWriter::VisitTypeOfTypeLoc(TypeOfTypeLoc TL) {
 }
 
 void TypeLocWriter::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
-  Record.AddSourceLocation(TL.getNameLoc());
+  Record.AddSourceLocation(TL.getDecltypeLoc());
+  Record.AddSourceLocation(TL.getRParenLoc());
 }
 
 void TypeLocWriter::VisitUnaryTransformTypeLoc(UnaryTransformTypeLoc TL) {
@@ -451,6 +452,9 @@ void TypeLocWriter::VisitAutoTypeLoc(AutoTypeLoc TL) {
       Record.AddTemplateArgumentLocInfo(TL.getTypePtr()->getArg(I).getKind(),
                                         TL.getArgLocInfo(I));
   }
+  Record.push_back(TL.isDecltypeAuto());
+  if (TL.isDecltypeAuto())
+    Record.AddSourceLocation(TL.getRParenLoc());
 }
 
 void TypeLocWriter::VisitDeducedTemplateSpecializationTypeLoc(
@@ -6251,6 +6255,8 @@ void OMPClauseWriter::VisitOMPUpdateClause(OMPUpdateClause *C) {
 }
 
 void OMPClauseWriter::VisitOMPCaptureClause(OMPCaptureClause *) {}
+
+void OMPClauseWriter::VisitOMPCompareClause(OMPCompareClause *) {}
 
 void OMPClauseWriter::VisitOMPSeqCstClause(OMPSeqCstClause *) {}
 
