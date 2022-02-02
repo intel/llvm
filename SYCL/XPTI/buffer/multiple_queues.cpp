@@ -23,7 +23,7 @@ int main() {
     sycl::queue Queue1{Devices[0]};
     sycl::queue Queue2{Devices[1]};
     sycl::range<1> NumOfWorkItems{4};
-    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:26
+    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|0x{{.*}}|{{i(nt)*}}|4|1|{4,0,0}|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:26
     sycl::buffer<int, 1> Buffer1(Array, NumOfWorkItems);
 
     Queue1.submit([&](sycl::handler &cgh) {

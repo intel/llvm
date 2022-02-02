@@ -15,9 +15,9 @@ int main() {
   bool MismatchFound = false;
   sycl::queue Queue{};
 
-  // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:[0-9,a-f,x]+]]|{{.*}}multiple_buffers.cpp:[[# @LINE + 1]]:26
+  // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:[0-9,a-f,x]+]]|0x0|{{s(hort)*}}|2|1|{4,0,0}|{{.*}}multiple_buffers.cpp:[[# @LINE + 1]]:26
   sycl::buffer<short, 1> Buffer1(4);
-  // CHECK:{{[0-9]+}}|Create buffer|[[USERID2:[0-9,a-f,x]+]]|{{.*}}multiple_buffers.cpp:[[# @LINE + 1]]:25
+  // CHECK:{{[0-9]+}}|Create buffer|[[USERID2:[0-9,a-f,x]+]]|0x0|{{c(har)*}}|1|3|{5,4,3}|{{.*}}multiple_buffers.cpp:[[# @LINE + 1]]:25
   sycl::buffer<char, 3> Buffer2({5, 4, 3});
 
   sycl::range<1> NumOfWorkItems{Buffer1.size()};

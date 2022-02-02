@@ -17,9 +17,9 @@ int main() {
 
   {
     sycl::range<1> NumOfWorkItems{128};
-    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:26
+    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|0x0|{{i(nt)*}}|4|1|{128,0,0}|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:26
     sycl::buffer<int, 1> Buffer1(NumOfWorkItems);
-    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:26
+    // CHECK:{{[0-9]+}}|Create buffer|[[USERID1:0x[0-9,a-f,x]+]]|[[USERID1]]|{{i(nt)*}}|4|1|{32,0,0}|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:26
     sycl::buffer<int, 1> SubBuffer{Buffer1, sycl::range<1>{32},
                                    sycl::range<1>{32}};
 

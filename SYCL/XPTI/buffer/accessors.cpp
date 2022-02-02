@@ -17,7 +17,7 @@ int main() {
   bool MismatchFound = false;
   sycl::queue Queue{};
 
-  // CHECK:{{[0-9]+}}|Create buffer|[[BUFFERID:[0-9,a-f,x]+]]|{{.*}}accessors.cpp:[[# @LINE + 1]]:24
+  // CHECK:{{[0-9]+}}|Create buffer|[[BUFFERID:[0-9,a-f,x]+]]|0x0|{{i(nt)*}}|4|1|{3,0,0}|{{.*}}accessors.cpp:[[# @LINE + 1]]:24
   sycl::buffer<int, 1> Buf(3);
 
   sycl::range<1> Range{Buf.size()};
