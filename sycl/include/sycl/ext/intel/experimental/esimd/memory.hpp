@@ -325,7 +325,7 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
 #else //
   auto surf_ind = __esimd_get_surface_index(acc);
 #endif
-  __esimd_oword_st<T, n>(surf_ind, offset >> 4, vals.data());
+  __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
 }
 
 /// @} sycl_esimd_memory
