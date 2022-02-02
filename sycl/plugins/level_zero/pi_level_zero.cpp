@@ -2269,7 +2269,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_UUID:
     // Intel extension for device UUID. This returns the UUID as
     // std::array<std::byte, 16>. For details about this extension,
-    // see sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md.
+    // see sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md.
     return ReturnValue(Device->ZeDeviceProperties->uuid.id);
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
@@ -3227,19 +3227,28 @@ pi_result piQueueFinish(pi_queue Queue) {
   // Wait until command lists attached to the command queue are executed.
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  std::vector<ze_command_queue_handle_t> ZeQueues;
+  {
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  // execute any command list that may still be open.
-  if (auto Res = Queue->executeAllOpenCommandLists())
-    return Res;
+    // execute any command list that may still be open.
+    if (auto Res = Queue->executeAllOpenCommandLists())
+      return Res;
 
-  ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
-  for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-    if (Queue->ZeCopyCommandQueues[i])
-      ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+    ZeQueues = Queue->ZeCopyCommandQueues;
+    ZeQueues.push_back(Queue->ZeComputeCommandQueue);
   }
 
+  // Don't hold a lock to the queue's mutex while waiting.
+  // This allows continue working with the queue from other threads.
+  for (auto ZeQueue : ZeQueues) {
+    if (ZeQueue)
+      ZE_CALL(zeHostSynchronize, (ZeQueue));
+  }
+
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
   // Prevent unneeded already finished events to show up in the wait list.
   Queue->LastCommandEvent = nullptr;
 
@@ -3389,7 +3398,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
     // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
     // pinned host memory, see:
-    // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc
+    // sycl/doc/extensions/supported/SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY.asciidoc
     // We are however missing such functionality in Level Zero, so we just
     // ignore the flag for now.
     //
@@ -3437,7 +3446,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     }
   }
 
-  pi_result Result;
+  pi_result Result = PI_SUCCESS;
   if (DeviceIsIntegrated) {
     if (HostPtrImported) {
       // When HostPtr is imported we use it for the buffer.
@@ -5371,6 +5380,10 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   auto ZeEvent = pi_cast<ze_event_handle_t>(NativeHandle);
   *Event = new _pi_event(ZeEvent, nullptr /* ZeEventPool */, Context,
                          PI_COMMAND_TYPE_USER, OwnNativeHandle);
+
+  // Assume native event is host-visible, or otherwise we'd
+  // need to create a host-visible proxy for it.
+  (*Event)->HostVisibleEvent = *Event;
 
   return PI_SUCCESS;
 }

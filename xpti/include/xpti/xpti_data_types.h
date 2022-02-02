@@ -168,7 +168,7 @@ struct payload_t {
   //  valid since we can potentially reconstruct the name and the source file
   //  information during post-processing step of symbol resolution; this
   //  indicates a partial but valid payload.
-  payload_t(void *codeptr) {
+  payload_t(const void *codeptr) {
     code_ptr_va = codeptr;
     name = nullptr;         ///< Invalid name string pointer
     source_file = nullptr;  ///< Invalid source file string pointer
@@ -193,7 +193,7 @@ struct payload_t {
     }
   }
 
-  payload_t(const char *func_name, void *codeptr) {
+  payload_t(const char *func_name, const void *codeptr) {
     code_ptr_va = codeptr;
     name = func_name;      ///< Invalid name string pointer
     source_file = nullptr; ///< Invalid source file string pointer
@@ -210,7 +210,7 @@ struct payload_t {
   //  on dynamic backtrace as a possibility. In this case, we send in the
   //  caller/callee information as a string in the form "caller->callee" that
   //  will be used to generate the unique ID.
-  payload_t(const char *kname, const char *caller_callee, void *codeptr) {
+  payload_t(const char *kname, const char *caller_callee, const void *codeptr) {
     if (codeptr) {
       code_ptr_va = codeptr;
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
@@ -231,7 +231,7 @@ struct payload_t {
   //  also have the function name and source file name along with the line and
   //  column number of the trace point that forms the payload.
   payload_t(const char *kname, const char *sf, int line, int col,
-            void *codeptr) {
+            const void *codeptr) {
     code_ptr_va = codeptr;
     /// Capture the rest of the parameters
     name = kname;
@@ -520,6 +520,16 @@ struct trace_event_data_t {
 struct offload_buffer_data_t {
   /// A pointer to user level memory offload object.
   uintptr_t user_object_handle = 0;
+  /// A pointer to host memory offload object.
+  uintptr_t host_object_handle = 0;
+  /// A string representing the type of buffer element.
+  const char *element_type = nullptr;
+  /// Buffer element size in bytes
+  uint32_t element_size = 0;
+  /// Buffer dimensions number.
+  uint32_t dim = 0;
+  /// Buffer size for each dimension.
+  size_t range[3] = {0, 0, 0};
 };
 
 /// Describes offload accessor
