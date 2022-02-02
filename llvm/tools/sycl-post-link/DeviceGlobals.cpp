@@ -68,7 +68,7 @@ bool isDeviceGlobalVariable(const GlobalVariable &GV) {
 ///
 /// @returns the unique id of the device global variable represented
 /// in the LLVM IR by \c GV.
-StringRef getVariableUniqueId(const GlobalVariable &GV) {
+StringRef getGlobalVariableUniqueId(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_UNIQUE_ID_ATTR) &&
          "a 'sycl-unique-id' string must be associated with every device "
          "global variable");
@@ -87,7 +87,7 @@ DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M) {
     if (!isDeviceGlobalVariable(GV))
       continue;
 
-    DGM[getVariableUniqueId(GV)] = {
+    DGM[getGlobalVariableUniqueId(GV)] = {
         {{getUnderlyingTypeSize(GV),
           hasProperty(GV, SYCL_DEVICE_IMAGE_SCOPE_ATTR)}}};
   }

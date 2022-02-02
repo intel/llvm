@@ -129,7 +129,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
           GV.hasAttribute(SYCL_HOST_ACCESS_ATTR)
               ? getAttributeAsInteger<uint32_t>(GV, SYCL_HOST_ACCESS_ATTR)
               : SPIRV_HOST_ACCESS_DEFAULT_VALUE;
-      auto VarName = getVariableUniqueId(GV);
+      auto VarName = getGlobalVariableUniqueId(GV);
       MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
                                               HostAccessDecorValue, VarName));
     }

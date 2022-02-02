@@ -65,6 +65,6 @@ bool isDeviceGlobalVariable(const GlobalVariable &GV);
 ///
 /// @returns the unique id of the device global variable represented
 /// in the LLVM IR by \c GV.
-StringRef getVariableUniqueId(const GlobalVariable &GV);
+StringRef getGlobalVariableUniqueId(const GlobalVariable &GV);
 
 } // end namespace llvm
