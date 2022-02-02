@@ -7,7 +7,6 @@ DPC++ extensions status:
 
 |  Extension  |    Status   |   Comment   |
 |-------------|:------------|:------------|
-| [GroupMask](GroupMask/GroupMask.asciidoc)                                                                                   | Proposal                                  | |
 | [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
 | [SPV_INTEL_inline_assembly](SPIRV/SPV_INTEL_inline_assembly.asciidoc)                                                       | Supported(OpenCL: GPU)                    | |
 | [SYCL_INTEL_static_local_memory_query](StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)                | Proposal                                  | |
