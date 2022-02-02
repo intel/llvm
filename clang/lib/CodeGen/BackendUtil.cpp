@@ -44,6 +44,7 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
+#include "llvm/SYCLLowerIR/PropagateAspectUsage.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
@@ -864,8 +865,10 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     FPM.add(createVerifierPass());
 
   // Set up the per-module pass manager.
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice) {
     MPM.add(createESIMDVerifierPass());
+    MPM.add(createPropagateAspectUsagePass());
+  }
 
   if (!CodeGenOpts.RewriteMapFiles.empty())
     addSymbolRewriterPass(CodeGenOpts, &MPM);
