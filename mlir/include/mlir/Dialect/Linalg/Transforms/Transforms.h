@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H_
-#define DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H_
+#ifndef MLIR_DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H
+#define MLIR_DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H
+
+#include <utility>
 
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -44,10 +46,8 @@ bool skipUnitDimReshape(const OpResult &producer, OpOperand &consumer);
 //===----------------------------------------------------------------------===//
 using LinalgLoops = SmallVector<Operation *, 4>;
 
-/// [DEPRECATED] Populate patterns for vectorization of all ConvN-D ops.
-void populateConvVectorizationPatterns(
-    MLIRContext *context, SmallVectorImpl<RewritePatternSet> &patterns,
-    ArrayRef<int64_t> tileSizes);
+void populatePadTensorTilingPatterns(RewritePatternSet &patterns,
+                                     const LinalgTilingOptions &options);
 
 /// Populate patterns for vectorizing low-D convolution ops. This is a step in
 /// progressive lowering for convolution ops, it assume high-D convolution ops
@@ -85,6 +85,12 @@ void populateFoldReshapeOpsByLinearizationPatterns(RewritePatternSet &patterns);
 /// operation. The patterns are applied only when the tensor reshape involved is
 /// collapsing (introducing) unit-extent dimensions.
 void populateFoldUnitDimsReshapeOpsByLinearizationPatterns(
+    RewritePatternSet &patterns);
+
+/// Pattern to fuse a `linalg.pad_tensor` operation with the producer of its
+/// source, if the producer is a `linalg` operation with all parallel iterator
+/// types.
+void populateFusePadTensorWithProducerLinalgOpPatterns(
     RewritePatternSet &patterns);
 
 /// Patterns to convert from one named op to another. These can be seen as
@@ -437,7 +443,7 @@ struct LinalgTransformationFilter {
                                          Operation *op) const;
   bool hasReplacementFilter(Operation *op) const;
 
-  LinalgTransformationFilter &addFilter(FilterFunction f) {
+  LinalgTransformationFilter &addFilter(const FilterFunction &f) {
     if (f)
       filters.push_back(f);
     return *this;
@@ -544,7 +550,7 @@ struct LinalgTilingOptions {
   /// Set the `tileSizeComputationFunction` to return the values `ts`. The
   /// values must not fold away when tiling. Otherwise, use a more robust
   /// `tileSizeComputationFunction`.
-  LinalgTilingOptions &setTileSizes(SmallVector<Value, 4> ts) {
+  LinalgTilingOptions &setTileSizes(const SmallVector<Value, 4> &ts) {
     tileSizeComputationFunction = [=](OpBuilder &, Operation *) { return ts; };
     return *this;
   }
@@ -912,6 +918,9 @@ private:
   LinalgTransformationFilter filter;
 };
 
+/// Return vector::CombiningKind for the given op.
+llvm::Optional<vector::CombiningKind> getCombinerOpKind(Operation *combinerOp);
+
 //===----------------------------------------------------------------------===//
 // Transformation and lowering options exposed as auxiliary structs.
 //===----------------------------------------------------------------------===//
@@ -1154,7 +1163,7 @@ struct GeneralizePadTensorOpPattern : public OpRewritePattern<PadTensorOp> {
                                OptimizeCopyFn optimizeCopyFn = nullptr,
                                PatternBenefit benefit = 1)
       : OpRewritePattern<PadTensorOp>(context, benefit),
-        optimizeCopyFn(optimizeCopyFn) {}
+        optimizeCopyFn(std::move(optimizeCopyFn)) {}
   LogicalResult matchAndRewrite(PadTensorOp padOp,
                                 PatternRewriter &rewriter) const override;
 
@@ -1229,54 +1238,6 @@ struct LinalgCopyVTWForwardingPattern
   using OpRewritePattern<vector::TransferWriteOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(vector::TransferWriteOp xferOp,
-                                PatternRewriter &rewriter) const override;
-};
-
-/// Converts Convolution op into vector contraction.
-///
-/// Conversion expects ConvOp to have dimensions marked in the *mask* as
-/// false of size 1. This ensures that the ConvOp can be lowered to vector
-/// contraction of dimensions marked in the *mask* as true.
-///
-/// A good example for vectorization is ConvNHWCOp which is 2D Conv op
-/// with channels as the last dimension. Let's vectorize last 3 dimensions.
-/// The initial op definition looks like this:
-/// ```
-/// linalg.conv_2d_nhwc  %arg0, %arg1, %arg2 :
-///   (memref<1x3x3x3xf32>, memref<1x3x3x3xf32>, memref<?x?x?x?xf32>)
-/// ```
-/// This op can be expressed as a dot product between %arg0 (input) and
-/// %arg1 (kernel) which is written into first entry of %arg2 (output). This is
-/// the ConvOp this pass expects and converts into:
-/// ```
-/// #map0 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
-/// #map1 = affine_map<(d0, d1, d2) -> ()>
-/// .....
-/// %0 = vector.transfer_read %arg0[%c0, %c0, %c0, %c0], %c0_f32
-///   : memref<1x3x3x3xf32>, vector<3x3x3xf32>
-/// %1 = vector.transfer_read %arg1[%c0, %c0, %c0, %c0], %c0_f32
-///   : memref<1x3x3x3xf32>, vector<3x3x3xf32>
-/// %2 = vector.contract {indexing_maps = [#map0, #map0, #map1],
-///   iterator_types = ["reduction", "reduction", "reduction"]} %0, %1,
-///   %c0_f32 : vector<3x3x3xf32>, vector<3x3x3xf32> into f32
-/// store %2, %arg2[%c0, %c0, %c0, %c0] : memref<?x?x?x?xf32>
-/// ```
-/// where first 2 operations read input and kernel memory buffers into vectors.
-/// Subsequently, they are contracted together and the result is written to
-/// the first entry of the output buffer.
-template <typename ConvOp, int N>
-class ConvOpVectorization : public OpRewritePattern<ConvOp> {
-  using OpRewritePattern<ConvOp>::OpRewritePattern;
-  SmallVector<bool, 4> mask;
-
-public:
-  ConvOpVectorization(MLIRContext *context, SmallVector<bool, 4> msk)
-      : OpRewritePattern<ConvOp>(context) {
-    assert(msk.size() == N && "Mask size does not match rank");
-    this->mask = msk;
-  }
-
-  LogicalResult matchAndRewrite(ConvOp minOp,
                                 PatternRewriter &rewriter) const override;
 };
 
@@ -1384,4 +1345,4 @@ public:
 } // namespace linalg
 } // namespace mlir
 
-#endif // DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H_
+#endif // MLIR_DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H

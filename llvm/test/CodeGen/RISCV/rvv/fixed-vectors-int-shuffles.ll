@@ -531,13 +531,29 @@ define <8 x i8> @widen_splat_ve3(<4 x i8> %v) {
 ; CHECK-NEXT:    vmv.v.i v9, 0
 ; CHECK-NEXT:    vsetivli zero, 4, e8, mf2, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 0
-; CHECK-NEXT:    vsetivli zero, 4, e8, mf4, ta, mu
-; CHECK-NEXT:    vmv.v.i v8, 0
-; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, tu, mu
-; CHECK-NEXT:    vslideup.vi v9, v8, 4
-; CHECK-NEXT:    vsetvli zero, zero, e8, mf2, ta, mu
+; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
 ; CHECK-NEXT:    vrgather.vi v8, v9, 3
 ; CHECK-NEXT:    ret
   %shuf = shufflevector <4 x i8> %v, <4 x i8> undef, <8 x i32> <i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3, i32 3>
   ret <8 x i8> %shuf
+}
+
+define <4 x i16> @slidedown_v4i16(<4 x i16> %x) {
+; CHECK-LABEL: slidedown_v4i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e16, mf2, ta, mu
+; CHECK-NEXT:    vslidedown.vi v8, v8, 1
+; CHECK-NEXT:    ret
+  %s = shufflevector <4 x i16> %x, <4 x i16> poison, <4 x i32> <i32 1, i32 2, i32 3, i32 undef>
+  ret <4 x i16> %s
+}
+
+define <8 x i32> @slidedown_v8i32(<8 x i32> %x) {
+; CHECK-LABEL: slidedown_v8i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
+; CHECK-NEXT:    vslidedown.vi v8, v8, 3
+; CHECK-NEXT:    ret
+  %s = shufflevector <8 x i32> %x, <8 x i32> poison, <8 x i32> <i32 3, i32 undef, i32 5, i32 6, i32 undef, i32 undef, i32 undef, i32 undef>
+  ret <8 x i32> %s
 }

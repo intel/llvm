@@ -11,7 +11,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def BufferDeallocation : FunctionPass<"buffer-deallocation"> {
+def BufferDeallocation : Pass<"buffer-deallocation", "FuncOp"> {
   let summary = "Adds all required dealloc operations for all allocations in "
                 "the input program";
   let description = [{
@@ -30,7 +30,7 @@ def BufferDeallocation : FunctionPass<"buffer-deallocation"> {
       ^bb1:
         br ^bb3(%arg1 : memref<2xf32>)
       ^bb2:
-        %0 = alloc() : memref<2xf32>
+        %0 = memref.alloc() : memref<2xf32>
         linalg.generic {
           args_in = 1 : i64,
           args_out = 1 : i64,
@@ -57,21 +57,21 @@ def BufferDeallocation : FunctionPass<"buffer-deallocation"> {
       func @condBranch(%arg0: i1, %arg1: memref<2xf32>, %arg2: memref<2xf32>) {
         cond_br %arg0, ^bb1, ^bb2
       ^bb1:  // pred: ^bb0
-        %0 = alloc() : memref<2xf32>
+        %0 = memref.alloc() : memref<2xf32>
         linalg.copy(%arg1, %0) : memref<2xf32>, memref<2xf32>
         br ^bb3(%0 : memref<2xf32>)
       ^bb2:  // pred: ^bb0
-        %1 = alloc() : memref<2xf32>
+        %1 = memref.alloc() : memref<2xf32>
         linalg.generic {
           args_in = 1 : i64,
           args_out = 1 : i64,
           indexing_maps = [#map0, #map0],
           iterator_types = ["parallel"]} %arg1, %1 {
-        ^bb0(%arg3: f32, %arg4: f32):  // no predecessors
+        ^bb0(%arg3: f32, %arg4: f32):
           %4 = exp %arg3 : f32
           linalg.yield %4 : f32
         }: memref<2xf32>, memref<2xf32>
-        %2 = alloc() : memref<2xf32>
+        %2 = memref.alloc() : memref<2xf32>
         linalg.copy(%1, %2) : memref<2xf32>, memref<2xf32>
         dealloc %1 : memref<2xf32>
         br ^bb3(%2 : memref<2xf32>)
@@ -88,7 +88,7 @@ def BufferDeallocation : FunctionPass<"buffer-deallocation"> {
   let constructor = "mlir::bufferization::createBufferDeallocationPass()";
 }
 
-def FinalizingBufferize : FunctionPass<"finalizing-bufferize"> {
+def FinalizingBufferize : Pass<"finalizing-bufferize", "FuncOp"> {
   let summary = "Finalize a partial bufferization";
   let description = [{
     A bufferize pass that finalizes a partial bufferization by removing

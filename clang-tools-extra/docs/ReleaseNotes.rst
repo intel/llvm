@@ -67,6 +67,10 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
+- Make the `cppcoreguidelines-pro-bounds-array-to-pointer-decay` check accept
+  string literal to pointer decay in conditional operator even if operands are
+  of the same length.
+
 - Ignore warnings from macros defined in system headers, if not using the
   `-system-headers` flag.
 
@@ -78,6 +82,9 @@ Improvements to clang-tidy
 
 - Generalized the `modernize-use-default-member-init` check to handle non-default
   constructors.
+
+- Eliminated false positives for `cppcoreguidelines-macro-usage` by restricting
+  the warning about using constants to only macros that expand to literals.
 
 New checks
 ^^^^^^^^^^
@@ -123,6 +130,10 @@ New checks
   Reports identifiers whose names are too short. Currently checks local
   variables and function parameters only.
 
+- New :doc:`misc-misleading-bidirectional <clang-tidy/checks/misc-misleading-bidirectional>` check.
+
+  Inspects string literal and comments for unterminated bidirectional Unicode
+  characters.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
