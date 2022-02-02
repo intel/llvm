@@ -1356,7 +1356,6 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     EmptyCmd->addUser(Cmd);
   }
 
-
   ConnectCmd->MEmptyCmd = EmptyCmd;
 
   return ConnectCmd;
