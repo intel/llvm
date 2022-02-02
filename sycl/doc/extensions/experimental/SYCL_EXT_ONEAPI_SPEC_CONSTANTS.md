@@ -11,8 +11,10 @@ constants based on the
 [proposal](https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md)
 from Codeplay.
 
-**NOTE:** _In future versions it may be superseded by [SYCL 2020
-specification](https://www.khronos.org/registry/SYCL/specs/sycl-2020-provisional.pdf)._
+**NOTE:** This extension is now deprecated.  Use the core SYCL specialization
+constant APIs defined in the
+[SYCL 2020 specification](https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html)
+instead.
 
 A specialization constant is identified by a C++ type name, similarly to a
 kernel, its value is set via `program::set_spec_constant` class API and is
