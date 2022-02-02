@@ -595,7 +595,7 @@ static ParseResult parseIsolatedRegionOp(OpAsmParser &parser,
 
   // Parse the body region, and reuse the operand info as the argument info.
   Region *body = result.addRegion();
-  return parser.parseRegion(*body, argInfo, argType,
+  return parser.parseRegion(*body, argInfo, argType, /*argLocations=*/{},
                             /*enableNameShadowing=*/true);
 }
 
@@ -603,6 +603,7 @@ static void print(OpAsmPrinter &p, IsolatedRegionOp op) {
   p << "test.isolated_region ";
   p.printOperand(op.getOperand());
   p.shadowRegionArgs(op.getRegion(), op.getOperand());
+  p << ' ';
   p.printRegion(op.getRegion(), /*printEntryBlockArgs=*/false);
 }
 

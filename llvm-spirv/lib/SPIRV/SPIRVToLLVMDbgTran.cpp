@@ -224,7 +224,9 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
     if (!getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[I])) {
       SPIRVConstant *C = BM->get<SPIRVConstant>(Ops[I]);
       int64_t Count = static_cast<int64_t>(C->getZExtIntValue());
-      Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
+      C = BM->get<SPIRVConstant>(Ops[Ops.size() / 2 + I]);
+      int64_t LowerBound = static_cast<int64_t>(C->getZExtIntValue());
+      Subscripts.push_back(Builder.getOrCreateSubrange(LowerBound, Count));
       TotalCount *= static_cast<uint64_t>(Count);
       continue;
     }

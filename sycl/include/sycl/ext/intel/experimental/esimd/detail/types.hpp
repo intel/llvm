@@ -39,6 +39,8 @@ namespace esimd {
 template <typename Ty, int N> class simd;
 template <typename BaseTy, typename RegionTy> class simd_view;
 
+/// @cond ESIMD_DETAIL
+
 namespace detail {
 
 namespace csd = cl::sycl::detail;
@@ -396,6 +398,8 @@ bitcast(vector_type_t<FromEltTy, FromN> Val) {
 }
 
 } // namespace detail
+
+/// @endcond ESIMD_DETAIL
 
 // Alias for backward compatibility.
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;

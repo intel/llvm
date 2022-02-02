@@ -117,6 +117,16 @@ struct AttributeVariable
   bool isUnitAttr() const {
     return var->attr.getBaseAttr().getAttrDefName() == "UnitAttr";
   }
+
+  /// Indicate if this attribute is printed "qualified" (that is it is
+  /// prefixed with the `#dialect.mnemonic`).
+  bool shouldBeQualified() { return shouldBeQualifiedFlag; }
+  void setShouldBeQualified(bool qualified = true) {
+    shouldBeQualifiedFlag = qualified;
+  }
+
+private:
+  bool shouldBeQualifiedFlag = false;
 };
 
 /// This class represents a variable that refers to an operand argument.
@@ -237,9 +247,18 @@ public:
   TypeDirective(std::unique_ptr<Element> arg) : operand(std::move(arg)) {}
   Element *getOperand() const { return operand.get(); }
 
+  /// Indicate if this type is printed "qualified" (that is it is
+  /// prefixed with the `!dialect.mnemonic`).
+  bool shouldBeQualified() { return shouldBeQualifiedFlag; }
+  void setShouldBeQualified(bool qualified = true) {
+    shouldBeQualifiedFlag = qualified;
+  }
+
 private:
   /// The operand that is used to format the directive.
   std::unique_ptr<Element> operand;
+
+  bool shouldBeQualifiedFlag = false;
 };
 } // namespace
 
@@ -405,6 +424,14 @@ struct OperationFormat {
     Optional<StringRef> variableTransformer;
   };
 
+  /// The context in which an element is generated.
+  enum class GenContext {
+    /// The element is generated at the top-level or with the same behaviour.
+    Normal,
+    /// The element is generated inside an optional group.
+    Optional
+  };
+
   OperationFormat(const Operator &op)
       : allOperands(false), allOperandTypes(false), allResultTypes(false),
         infersResultTypes(false) {
@@ -423,7 +450,8 @@ struct OperationFormat {
   void genParser(Operator &op, OpClass &opClass);
   /// Generate the parser code for a specific format element.
   void genElementParser(Element *element, MethodBody &body,
-                        FmtContext &attrTypeCtx);
+                        FmtContext &attrTypeCtx,
+                        GenContext genCtx = GenContext::Normal);
   /// Generate the C++ to resolve the types of operands and results during
   /// parsing.
   void genParserTypeResolution(Operator &op, MethodBody &body);
@@ -657,6 +685,10 @@ const char *const typeParserCode = R"(
       return ::mlir::failure();
     {1}RawTypes[0] = type;
   }
+)";
+const char *const qualifiedTypeParserCode = R"(
+  if (parser.parseType({1}RawTypes[0]))
+    return ::mlir::failure();
 )";
 
 /// The code snippet used to generate a parser call for a functional type.
@@ -1194,7 +1226,8 @@ void OperationFormat::genParser(Operator &op, OpClass &opClass) {
 }
 
 void OperationFormat::genElementParser(Element *element, MethodBody &body,
-                                       FmtContext &attrTypeCtx) {
+                                       FmtContext &attrTypeCtx,
+                                       GenContext genCtx) {
   /// Optional Group.
   if (auto *optional = dyn_cast<OptionalElement>(element)) {
     auto elements = llvm::drop_begin(optional->getThenElements(),
@@ -1241,10 +1274,13 @@ void OperationFormat::genElementParser(Element *element, MethodBody &body,
            << "\", parser.getBuilder().getUnitAttr());\n";
     }
 
-    // Generate the rest of the elements normally.
+    // Generate the rest of the elements inside an optional group. Elements in
+    // an optional group after the guard are parsed as required.
     for (Element &childElement : llvm::drop_begin(elements, 1)) {
-      if (&childElement != elidedAnchorElement)
-        genElementParser(&childElement, body, attrTypeCtx);
+      if (&childElement != elidedAnchorElement) {
+        genElementParser(&childElement, body, attrTypeCtx,
+                         GenContext::Optional);
+      }
     }
     body << "  }";
 
@@ -1293,10 +1329,11 @@ void OperationFormat::genElementParser(Element *element, MethodBody &body,
     } else {
       attrTypeStr = "::mlir::Type{}";
     }
-    if (var->attr.isOptional()) {
+    if (genCtx == GenContext::Normal && var->attr.isOptional()) {
       body << formatv(optionalAttrParserCode, var->name, attrTypeStr);
     } else {
-      if (var->attr.getStorageType() == "::mlir::Attribute")
+      if (attr->shouldBeQualified() ||
+          var->attr.getStorageType() == "::mlir::Attribute")
         body << formatv(genericAttrParserCode, var->name, attrTypeStr);
       else
         body << formatv(attrParserCode, var->name, attrTypeStr);
@@ -1368,14 +1405,16 @@ void OperationFormat::genElementParser(Element *element, MethodBody &body,
     } else if (lengthKind == ArgumentLengthKind::Optional) {
       body << llvm::formatv(optionalTypeParserCode, listName);
     } else {
+      const char *parserCode =
+          dir->shouldBeQualified() ? qualifiedTypeParserCode : typeParserCode;
       TypeSwitch<Element *>(dir->getOperand())
           .Case<OperandVariable, ResultVariable>([&](auto operand) {
-            body << formatv(typeParserCode,
+            body << formatv(parserCode,
                             operand->getVar()->constraint.getCPPClassName(),
                             listName);
           })
           .Default([&](auto operand) {
-            body << formatv(typeParserCode, "::mlir::Type", listName);
+            body << formatv(parserCode, "::mlir::Type", listName);
           });
     }
   } else if (auto *dir = dyn_cast<FunctionalTypeDirective>(element)) {
@@ -2022,10 +2061,8 @@ void OperationFormat::genElementPrinter(Element *element, MethodBody &body,
     if (attr->getTypeBuilder())
       body << "  _odsPrinter.printAttributeWithoutType("
            << op.getGetterName(var->name) << "Attr());\n";
-    else if (var->attr.isOptional())
-      body << "_odsPrinter.printAttribute(" << op.getGetterName(var->name)
-           << "Attr());\n";
-    else if (var->attr.getStorageType() == "::mlir::Attribute")
+    else if (attr->shouldBeQualified() ||
+             var->attr.getStorageType() == "::mlir::Attribute")
       body << "  _odsPrinter.printAttribute(" << op.getGetterName(var->name)
            << "Attr());\n";
     else
@@ -2093,6 +2130,11 @@ void OperationFormat::genElementPrinter(Element *element, MethodBody &body,
     if (var && !var->isVariadicOfVariadic() && !var->isVariadic() &&
         !var->isOptional()) {
       std::string cppClass = var->constraint.getCPPClassName();
+      if (dir->shouldBeQualified()) {
+        body << "   _odsPrinter << " << op.getGetterName(var->name)
+             << "().getType();\n";
+        return;
+      }
       body << "  {\n"
            << "    auto type = " << op.getGetterName(var->name)
            << "().getType();\n"
@@ -2253,6 +2295,8 @@ private:
                                              ParserContext context);
   LogicalResult parseOperandsDirective(std::unique_ptr<Element> &element,
                                        llvm::SMLoc loc, ParserContext context);
+  LogicalResult parseQualifiedDirective(std::unique_ptr<Element> &element,
+                                        FormatToken tok, ParserContext context);
   LogicalResult parseReferenceDirective(std::unique_ptr<Element> &element,
                                         llvm::SMLoc loc, ParserContext context);
   LogicalResult parseRegionsDirective(std::unique_ptr<Element> &element,
@@ -2762,6 +2806,8 @@ LogicalResult FormatParser::parseDirective(std::unique_ptr<Element> &element,
     return parseFunctionalTypeDirective(element, dirTok, context);
   case FormatToken::kw_operands:
     return parseOperandsDirective(element, dirTok.getLoc(), context);
+  case FormatToken::kw_qualified:
+    return parseQualifiedDirective(element, dirTok, context);
   case FormatToken::kw_regions:
     return parseRegionsDirective(element, dirTok.getLoc(), context);
   case FormatToken::kw_results:
@@ -3174,6 +3220,27 @@ FormatParser::parseTypeDirective(std::unique_ptr<Element> &element,
 
   element = std::make_unique<TypeDirective>(std::move(operand));
   return ::mlir::success();
+}
+
+LogicalResult
+FormatParser::parseQualifiedDirective(std::unique_ptr<Element> &element,
+                                      FormatToken tok, ParserContext context) {
+  if (failed(parseToken(FormatToken::l_paren,
+                        "expected '(' before argument list")) ||
+      failed(parseElement(element, context)) ||
+      failed(
+          parseToken(FormatToken::r_paren, "expected ')' after argument list")))
+    return failure();
+  if (auto *attr = dyn_cast<AttributeVariable>(element.get())) {
+    attr->setShouldBeQualified();
+  } else if (auto *type = dyn_cast<TypeDirective>(element.get())) {
+    type->setShouldBeQualified();
+  } else {
+    return emitError(
+        tok.getLoc(),
+        "'qualified' directive expects an attribute or a `type` directive");
+  }
+  return success();
 }
 
 LogicalResult

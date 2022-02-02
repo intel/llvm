@@ -226,7 +226,10 @@ gentbl_cc_library(
     ],
     tblgen = ":mlir-tblgen",
     td_file = "include/mlir/IR/BuiltinOps.td",
-    deps = [":BuiltinDialectTdFiles"],
+    deps = [
+        ":BuiltinDialectTdFiles",
+        ":FunctionInterfacesTdFiles",
+    ],
 )
 
 gentbl_cc_library(
@@ -262,7 +265,36 @@ gentbl_cc_library(
     ],
     tblgen = ":mlir-tblgen",
     td_file = "include/mlir/IR/BuiltinTypeInterfaces.td",
-    deps = [":BuiltinDialectTdFiles"],
+    deps = [
+        ":BuiltinDialectTdFiles",
+    ],
+)
+
+td_library(
+    name = "FunctionInterfacesTdFiles",
+    srcs = ["include/mlir/IR/FunctionInterfaces.td"],
+    includes = ["include"],
+    deps = [":OpBaseTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "FunctionInterfacesIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            ["-gen-op-interface-decls"],
+            "include/mlir/IR/FunctionOpInterfaces.h.inc",
+        ),
+        (
+            ["-gen-op-interface-defs"],
+            "include/mlir/IR/FunctionOpInterfaces.cpp.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/IR/FunctionInterfaces.td",
+    deps = [
+        ":OpBaseTdFiles",
+    ],
 )
 
 cc_library(
@@ -293,6 +325,7 @@ cc_library(
         ":CallOpInterfacesIncGen",
         ":CastOpInterfacesIncGen",
         ":DataLayoutInterfacesIncGen",
+        ":FunctionInterfacesIncGen",
         ":InferTypeOpInterfaceIncGen",
         ":OpAsmInterfaceIncGen",
         ":RegionKindInterfaceIncGen",
@@ -382,9 +415,11 @@ mlir_c_api_cc_library(
     srcs = [
         "lib/CAPI/Interfaces/Interfaces.cpp",
     ],
+    capi_deps = [
+        ":CAPIIR",
+    ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":IR",
         ":InferTypeOpInterface",
         "//llvm:Support",
@@ -398,15 +433,16 @@ mlir_c_api_cc_library(
         "lib/CAPI/Dialect/AsyncPasses.cpp",
     ],
     hdrs = ["include/mlir-c/Dialect/Async.h"],
+    capi_deps = [
+        ":CAPIIR",
+    ],
     header_deps = [
         ":AsyncPassIncGen",
-        ":CAPIIRHeaders",
     ],
     includes = ["include"],
     deps = [
         ":Async",
         ":AsyncTransforms",
-        ":CAPIIR",
         ":Pass",
     ],
 )
@@ -420,13 +456,14 @@ mlir_c_api_cc_library(
     hdrs = [
         "include/mlir-c/Dialect/Linalg.h",
     ],
+    capi_deps = [
+        ":CAPIIR",
+    ],
     header_deps = [
-        ":CAPIIRHeaders",
         ":LinalgPassIncGen",
     ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":LinalgOps",
         ":LinalgTransforms",
         ":Pass",
@@ -441,12 +478,11 @@ mlir_c_api_cc_library(
     hdrs = [
         "include/mlir-c/Dialect/LLVM.h",
     ],
-    header_deps = [
-        ":CAPIIRHeaders",
+    capi_deps = [
+        ":CAPIIR",
     ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":LLVMDialect",
     ],
 )
@@ -460,13 +496,14 @@ mlir_c_api_cc_library(
     hdrs = [
         "include/mlir-c/Dialect/GPU.h",
     ],
+    capi_deps = [
+        ":CAPIIR",
+    ],
     header_deps = [
-        ":CAPIIRHeaders",
         ":GPUPassIncGen",
     ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":GPUDialect",
         ":GPUTransforms",
         ":Pass",
@@ -482,13 +519,14 @@ mlir_c_api_cc_library(
     hdrs = [
         "include/mlir-c/Dialect/SparseTensor.h",
     ],
+    capi_deps = [
+        ":CAPIIR",
+    ],
     header_deps = [
-        ":CAPIIRHeaders",
         ":SparseTensorPassIncGen",
     ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":Pass",
         ":SparseTensor",
         ":SparseTensorTransforms",
@@ -504,13 +542,32 @@ mlir_c_api_cc_library(
     hdrs = [
         "include/mlir-c/Dialect/Quant.h",
     ],
+    capi_deps = [
+        ":CAPIIR",
+    ],
+    includes = ["include"],
+    deps = [
+        ":QuantOps",
+    ],
+)
+
+mlir_c_api_cc_library(
+    name = "CAPIPDL",
+    srcs = [
+        "lib/CAPI/Dialect/PDL.cpp",
+    ],
+    hdrs = [
+        "include/mlir-c/Dialect/PDL.h",
+    ],
     header_deps = [
         ":CAPIIRHeaders",
     ],
     includes = ["include"],
     deps = [
         ":CAPIIR",
-        ":QuantOps",
+        ":PDLDialect",
+        ":PDLOpsIncGen",
+        ":PDLTypesIncGen",
     ],
 )
 
@@ -518,13 +575,14 @@ mlir_c_api_cc_library(
     name = "CAPIConversion",
     srcs = ["lib/CAPI/Conversion/Passes.cpp"],
     hdrs = ["include/mlir-c/Conversion.h"],
+    capi_deps = [
+        ":CAPIIR",
+    ],
     header_deps = [
-        ":CAPIIRHeaders",
         ":ConversionPassIncGen",
     ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":ConversionPasses",
         ":Pass",
     ],
@@ -534,12 +592,11 @@ mlir_c_api_cc_library(
     name = "CAPIDebug",
     srcs = ["lib/CAPI/Debug/Debug.cpp"],
     hdrs = ["include/mlir-c/Debug.h"],
-    header_deps = [
-        ":CAPIIRHeaders",
+    capi_deps = [
+        ":CAPIIR",
     ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":Support",
         "//llvm:Support",
     ],
@@ -552,13 +609,14 @@ mlir_c_api_cc_library(
         "include/mlir-c/ExecutionEngine.h",
         "include/mlir/CAPI/ExecutionEngine.h",
     ],
+    capi_deps = [
+        ":CAPIIR",
+    ],
     header_deps = [
-        ":CAPIIRHeaders",
         ":ExecutionEngine",
     ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":ExecutionEngineUtils",
         ":LLVMToLLVMIRTranslation",
         "//llvm:OrcJIT",
@@ -570,13 +628,14 @@ mlir_c_api_cc_library(
     name = "CAPITransforms",
     srcs = ["lib/CAPI/Transforms/Passes.cpp"],
     hdrs = ["include/mlir-c/Transforms.h"],
+    capi_deps = [
+        ":CAPIIR",
+    ],
     header_deps = [
-        ":CAPIIRHeaders",
         ":TransformsPassIncGen",
     ],
     includes = ["include"],
     deps = [
-        ":CAPIIR",
         ":Pass",
         ":Transforms",
     ],
@@ -586,13 +645,12 @@ mlir_c_api_cc_library(
     name = "CAPIRegistration",
     srcs = ["lib/CAPI/Registration/Registration.cpp"],
     hdrs = ["include/mlir-c/Registration.h"],
-    header_deps = [
-        ":CAPIIRHeaders",
+    capi_deps = [
+        ":CAPIIR",
     ],
     includes = ["include"],
     deps = [
         ":AllPassesAndDialects",
-        ":CAPIIR",
         ":LLVMToLLVMIRTranslation",
     ],
 )
@@ -802,8 +860,8 @@ cc_binary(
     ],
     deps = [
         ":CAPIIR",
-        ":CAPISparseTensor",
         ":CAPIRegistration",
+        ":CAPISparseTensor",
         ":MLIRBindingsPythonHeadersAndDeps",
     ],
 )
@@ -1730,6 +1788,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Affine",
+        ":AffineAnalysis",
         ":Analysis",
         ":ArithmeticDialect",
         ":BufferizationDialect",
@@ -2102,6 +2161,25 @@ cc_library(
 )
 
 cc_library(
+    name = "AffineAnalysis",
+    srcs = glob([
+        "lib/Dialect/Affine/Analysis/*.cpp",
+        "lib/Dialect/Affine/Analysis/*.h",
+    ]),
+    hdrs = glob(["include/mlir/Dialect/Affine/Analysis/*.h"]),
+    includes = ["include"],
+    deps = [
+        ":Affine",
+        ":Analysis",
+        ":ArithmeticDialect",
+        ":IR",
+        ":StandardOps",
+        ":Support",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
     name = "AffineUtils",
     srcs = glob(
         [
@@ -2113,6 +2191,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Affine",
+        ":AffineAnalysis",
         ":Analysis",
         ":IR",
         ":MemRefDialect",
@@ -2147,6 +2226,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Affine",
+        ":AffineAnalysis",
         ":AffinePassIncGen",
         ":AffineUtils",
         ":Analysis",
@@ -2667,6 +2747,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Affine",
+        ":AffineAnalysis",
         ":AffineUtils",
         ":Analysis",
         ":ArithmeticDialect",
@@ -2893,6 +2974,7 @@ td_library(
     deps = [
         ":DLTIDialectTdFiles",
         ":DataLayoutInterfacesTdFiles",
+        ":FunctionInterfacesTdFiles",
         ":LLVMOpsTdFiles",
         ":OpBaseTdFiles",
         ":SideEffectInterfacesTdFiles",
@@ -2930,20 +3012,6 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            [
-                "-gen-dialect-decls",
-                "-dialect=gpu",
-            ],
-            "include/mlir/Dialect/GPU/GPUOpsDialect.h.inc",
-        ),
-        (
-            [
-                "-gen-dialect-defs",
-                "-dialect=gpu",
-            ],
-            "include/mlir/Dialect/GPU/GPUOpsDialect.cpp.inc",
-        ),
-        (
             ["-gen-op-interface-decls"],
             "include/mlir/Dialect/GPU/GPUOpInterfaces.h.inc",
         ),
@@ -2962,6 +3030,20 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
+            [
+                "-gen-dialect-decls",
+                "-dialect=gpu",
+            ],
+            "include/mlir/Dialect/GPU/GPUOpsDialect.h.inc",
+        ),
+        (
+            [
+                "-gen-dialect-defs",
+                "-dialect=gpu",
+            ],
+            "include/mlir/Dialect/GPU/GPUOpsDialect.cpp.inc",
+        ),
+        (
             ["-gen-op-decls"],
             "include/mlir/Dialect/GPU/GPUOps.h.inc",
         ),
@@ -2976,6 +3058,14 @@ gentbl_cc_library(
         (
             ["-gen-enum-defs"],
             "include/mlir/Dialect/GPU/GPUOpsEnums.cpp.inc",
+        ),
+        (
+            ["-gen-attrdef-decls"],
+            "include/mlir/Dialect/GPU/GPUOpsAttributes.h.inc",
+        ),
+        (
+            ["-gen-attrdef-defs"],
+            "include/mlir/Dialect/GPU/GPUOpsAttributes.cpp.inc",
         ),
     ],
     tblgen = ":mlir-tblgen",
@@ -3101,6 +3191,7 @@ td_library(
     includes = ["include"],
     deps = [
         ":ControlFlowInterfacesTdFiles",
+        ":FunctionInterfacesTdFiles",
         ":InferTypeOpInterfaceTdFiles",
         ":OpBaseTdFiles",
         ":SideEffectInterfacesTdFiles",
@@ -3516,6 +3607,20 @@ gentbl_cc_library(
             ["-gen-enum-defs"],
             "include/mlir/Dialect/LLVMIR/NVVMOpsEnums.cpp.inc",
         ),
+        (
+            [
+                "-gen-attrdef-decls",
+                "-attrdefs-dialect=nvvm",
+            ],
+            "include/mlir/Dialect/LLVMIR/NVVMOpsAttributes.h.inc",
+        ),
+        (
+            [
+                "-gen-attrdef-defs",
+                "-attrdefs-dialect=nvvm",
+            ],
+            "include/mlir/Dialect/LLVMIR/NVVMOpsAttributes.cpp.inc",
+        ),
     ],
     tblgen = ":mlir-tblgen",
     td_file = "include/mlir/Dialect/LLVMIR/NVVMOps.td",
@@ -3760,6 +3865,7 @@ td_library(
     deps = [
         ":CallInterfacesTdFiles",
         ":ControlFlowInterfacesTdFiles",
+        ":FunctionInterfacesTdFiles",
         ":InferTypeOpInterfaceTdFiles",
         ":OpBaseTdFiles",
         ":SideEffectInterfacesTdFiles",
@@ -4328,6 +4434,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Affine",
+        ":AffineAnalysis",
         ":Analysis",
         ":ArithmeticDialect",
         ":ControlFlowInterfaces",
@@ -4530,6 +4637,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Affine",
+        ":AffineAnalysis",
         ":AllocationOpInterface",
         ":Analysis",
         ":ArithmeticDialect",
@@ -4651,6 +4759,7 @@ cc_library(
     hdrs = ["include/mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"],
     includes = ["include"],
     deps = [
+        ":AffineAnalysis",
         ":Analysis",
         ":ArithmeticDialect",
         ":ConversionPassIncGen",
@@ -5859,7 +5968,10 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            ["-gen-directive-decl"],
+            [
+                "-gen-directive-decl",
+                "-directives-dialect=OpenACC",
+            ],
             "include/mlir/Dialect/OpenACC/AccCommon.td",
         ),
     ],
@@ -5913,6 +6025,20 @@ gentbl_cc_library(
             "include/mlir/Dialect/OpenACC/OpenACCOpsEnums.cpp.inc",
         ),
         (
+            [
+                "-gen-attrdef-decls",
+                "-attrdefs-dialect=acc",
+            ],
+            "include/mlir/Dialect/OpenACC/OpenACCOpsAttributes.h.inc",
+        ),
+        (
+            [
+                "-gen-attrdef-defs",
+                "-attrdefs-dialect=acc",
+            ],
+            "include/mlir/Dialect/OpenACC/OpenACCOpsAttributes.cpp.inc",
+        ),
+        (
             ["-gen-op-doc"],
             "g3doc/Dialects/OpenACC/OpenACCOps.md",
         ),
@@ -5953,7 +6079,10 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            ["-gen-directive-decl"],
+            [
+                "-gen-directive-decl",
+                "-directives-dialect=OpenMP",
+            ],
             "include/mlir/Dialect/OpenMP/OmpCommon.td",
         ),
     ],
@@ -6019,6 +6148,20 @@ gentbl_cc_library(
         (
             ["-gen-type-interface-defs"],
             "include/mlir/Dialect/OpenMP/OpenMPTypeInterfaces.cpp.inc",
+        ),
+        (
+            [
+                "-gen-attrdef-decls",
+                "-attrdefs-dialect=omp",
+            ],
+            "include/mlir/Dialect/OpenMP/OpenMPOpsAttributes.h.inc",
+        ),
+        (
+            [
+                "-gen-attrdef-defs",
+                "-attrdefs-dialect=omp",
+            ],
+            "include/mlir/Dialect/OpenMP/OpenMPOpsAttributes.cpp.inc",
         ),
         (
             ["-gen-op-doc"],
@@ -6363,7 +6506,7 @@ gentbl_cc_library(
 td_library(
     name = "BufferizableOpInterfaceTdFiles",
     srcs = [
-        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.td",
+        "include/mlir/Dialect/Bufferization/IR/BufferizableOpInterface.td",
     ],
     includes = ["include"],
     deps = [
@@ -6377,15 +6520,15 @@ gentbl_cc_library(
     tbl_outs = [
         (
             ["-gen-op-interface-decls"],
-            "include/mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h.inc",
+            "include/mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h.inc",
         ),
         (
             ["-gen-op-interface-defs"],
-            "include/mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.cpp.inc",
+            "include/mlir/Dialect/Bufferization/IR/BufferizableOpInterface.cpp.inc",
         ),
     ],
     tblgen = ":mlir-tblgen",
-    td_file = "include/mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.td",
+    td_file = "include/mlir/Dialect/Bufferization/IR/BufferizableOpInterface.td",
     deps = [
         ":BufferizableOpInterfaceTdFiles",
     ],
@@ -6394,10 +6537,12 @@ gentbl_cc_library(
 cc_library(
     name = "BufferizableOpInterface",
     srcs = [
-        "lib/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.cpp",
+        "lib/Dialect/Bufferization/IR/BufferizableOpInterface.cpp",
+        "lib/Dialect/Bufferization/IR/BufferizationInterfaceImpl.cpp",
     ],
     hdrs = [
-        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h",
+        "include/mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h",
+        "include/mlir/Dialect/Bufferization/IR/BufferizationInterfaceImpl.h",
     ],
     includes = ["include"],
     deps = [
@@ -6458,6 +6603,7 @@ cc_library(
     deps = [
         ":BufferizableOpInterface",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":IR",
         ":LinalgOps",
         ":LinalgStructuredOpsIncGen",
@@ -6477,8 +6623,27 @@ cc_library(
     deps = [
         ":BufferizableOpInterface",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":IR",
         ":SCFDialect",
+        ":Support",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "StdBufferizableOpInterfaceImpl",
+    srcs = [
+        "lib/Dialect/Linalg/ComprehensiveBufferize/StdInterfaceImpl.cpp",
+    ],
+    hdrs = [
+        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/StdInterfaceImpl.h",
+    ],
+    includes = ["include"],
+    deps = [
+        ":BufferizableOpInterface",
+        ":IR",
+        ":StandardOps",
         ":Support",
         "//llvm:Support",
     ],
@@ -6632,11 +6797,11 @@ cc_library(
 cc_library(
     name = "LinalgOps",
     srcs = [
-        "lib/Dialect/Linalg/IR/LinalgOps.cpp",
         "lib/Dialect/Linalg/IR/LinalgDialect.cpp",
+        "lib/Dialect/Linalg/IR/LinalgOps.cpp",
     ],
     hdrs = [
-        "include/mlir/Dialect/Linalg/IR/Linalg.h"
+        "include/mlir/Dialect/Linalg/IR/Linalg.h",
     ],
     includes = ["include"],
     deps = [
@@ -6718,6 +6883,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Affine",
+        ":AffineAnalysis",
         ":AffineBufferizableOpInterfaceImpl",
         ":AffineUtils",
         ":Analysis",
@@ -6727,7 +6893,6 @@ cc_library(
         ":BufferizationDialect",
         ":BufferizationTransforms",
         ":ComplexDialect",
-        ":ComprehensiveBufferize",
         ":DialectUtils",
         ":IR",
         ":InferTypeOpInterface",
@@ -6737,12 +6902,14 @@ cc_library(
         ":LinalgStructuredOpsIncGen",
         ":MathDialect",
         ":MemRefDialect",
+        ":ModuleBufferization",
         ":Pass",
         ":SCFBufferizableOpInterfaceImpl",
         ":SCFDialect",
         ":SCFTransforms",
         ":StandardOps",
         ":StandardOpsTransforms",
+        ":StdBufferizableOpInterfaceImpl",
         ":Support",
         ":TensorBufferizableOpInterfaceImpl",
         ":TensorDialect",
@@ -6756,29 +6923,23 @@ cc_library(
 )
 
 cc_library(
-    name = "ComprehensiveBufferize",
+    name = "ModuleBufferization",
     srcs = [
-        "lib/Dialect/Linalg/ComprehensiveBufferize/BufferizationInterfaceImpl.cpp",
-        "lib/Dialect/Linalg/ComprehensiveBufferize/ComprehensiveBufferize.cpp",
         "lib/Dialect/Linalg/ComprehensiveBufferize/ModuleBufferization.cpp",
     ],
     hdrs = [
-        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizationInterfaceImpl.h",
-        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/ComprehensiveBufferize.h",
         "include/mlir/Dialect/Linalg/ComprehensiveBufferize/ModuleBufferization.h",
     ],
     includes = ["include"],
     deps = [
         ":BufferizableOpInterface",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":DialectUtils",
         ":IR",
-        ":InferTypeOpInterface",
         ":MemRefDialect",
-        ":Pass",
         ":StandardOps",
         ":Support",
-        ":Transforms",
         "//llvm:Support",
     ],
 )
@@ -7052,13 +7213,14 @@ cc_library(
     includes = ["include"],
     deps = [
         ":Analysis",
+        ":ArithmeticDialect",
         ":Dialect",
+        ":DialectUtils",
         ":IR",
         ":InferTypeOpInterface",
         ":LoopLikeInterface",
         ":Pass",
         ":QuantOps",
-        ":SideEffectInterfaces",
         ":StandardOps",
         ":TensorDialect",
         ":TosaDialectIncGen",
@@ -7502,6 +7664,7 @@ cc_library(
     ],
     includes = ["include"],
     deps = [
+        ":ArithmeticDialect",
         ":IR",
         ":MathBaseIncGen",
         ":MathOpsIncGen",
@@ -7789,12 +7952,10 @@ gentbl_cc_library(
 
 cc_library(
     name = "BufferizationDialect",
-    srcs = glob(
-        [
-            "lib/Dialect/Bufferization/IR/Bufferization*.h",
-            "lib/Dialect/Bufferization/IR/Bufferization*.cpp",
-        ],
-    ),
+    srcs = [
+        "lib/Dialect/Bufferization/IR/BufferizationDialect.cpp",
+        "lib/Dialect/Bufferization/IR/BufferizationOps.cpp",
+    ],
     hdrs = ["include/mlir/Dialect/Bufferization/IR/Bufferization.h"],
     includes = ["include"],
     deps = [
@@ -7843,11 +8004,17 @@ cc_library(
     deps = [
         ":AllocationOpInterface",
         ":Analysis",
+        ":BufferizableOpInterface",
         ":BufferizationDialect",
         ":BufferizationPassIncGen",
+        ":ControlFlowInterfaces",
+        ":DialectUtils",
         ":IR",
+        ":InferTypeOpInterface",
         ":MemRefDialect",
         ":Pass",
+        ":StandardOps",
+        ":Support",
         ":Transforms",
         "//llvm:Support",
     ],

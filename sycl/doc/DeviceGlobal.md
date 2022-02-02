@@ -4,7 +4,7 @@ This document describes the implementation design for the DPC++ extension
 [SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL][1], which allows applications to declare
 global variables in device code.
 
-[1]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc>
+[1]: <extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc>
 
 
 ## Requirements
@@ -156,7 +156,7 @@ and it is described more fully by the [compile-time properties][2] design
 document.  This attribute is also used for other classes that have properties,
 so it is not specific to the `device_global` class.
 
-[2]: <https://github.com/intel/llvm/pull/4937>
+[2]: <CompileTimeProperties.md>
 
 Note that the parameter list to
 `[[__sycl_detail__::add_ir_global_variable_attributes()]]` contains one
@@ -379,18 +379,24 @@ reference that variable.
 
 As described in the design for [compile-time properties][2], the
 `sycl-post-link` tool is responsible for generating idiomatic LLVM IR for any
-compile-time properties that need to be generated in SPIR-V.  The
-`sycl-post-link` tool does this for the following properties on each device
-global variable:
+compile-time properties that need to be generated in SPIR-V.
 
-* `host_access`
-* `init_mode`
-* `implement_in_csr`
+The **HostAccessINTEL** decoration is required for all device global variables
+because it provides the name that the DPC++ runtime uses to access the
+variable.  Therefore, the `sycl-post-link` tool always generates idiomatic LLVM
+IR for this decoration.  The first SPIR-V operand is set according to the
+`host_access` property (or set to **Read/Write** if the device global doesn't
+have that property).  The second SPIR-V operation is set to the value of the
+device global's `sycl-unique-id`.
 
-The `host_access` property is handled specially because the SPIR-V decoration
-requires two "extra operands", but the SYCL property has only one operand.  The
-second SPIR-V operand is the "name" of the variable, and the `sycl-post-link`
-tool passes the value from `sycl-unique-id` for this name.
+The `sycl-post-link` tool also generates idiomatic LLVM IR for the
+**InitModeINTEL** decoration (if the device global has the `init_mode`
+property) and for the **ImplementInCSRINTEL** decoration (if the device global
+has the `implement_in_csr` property).  See the
+[SPV\_INTEL\_global\_variable\_decorations][6] SPIR-V extension for details
+about all of these decorations.
+
+[6]: <extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc>
 
 The `sycl-post-link` tool also create a "SYCL/device globals" property set for
 each device code module that contains at least one device global variable.
@@ -479,12 +485,12 @@ runtime does the following:
 
     - Regardless of whether the USM buffer has already been created for the
       variable, the runtime initializes the `usmptr` member in the *device
-      instance* of the variable by using a new [PI interface][6] which copies
+      instance* of the variable by using a new [PI interface][7] which copies
       data from the host to a global variable in a `pi_program`.  It is a
       simple matter to use this interface to overwrite the `usmptr` member with
       the address of the USM buffer.
 
-[6]: <#new-pi-interface-to-copy-to-or-from-a-module-scope-variable>
+[7]: <#new-pi-interface-to-copy-to-or-from-a-module-scope-variable>
 
 Note that the runtime does not need to initialize the `val` member variable of
 device global variables that are decorated with `device_image_scope` because
@@ -530,7 +536,7 @@ contains this variable and uses its normal mechanism for creating a
 `pi_program` from this device code module.  (The algorithm for creating device
 code modules in the `sycl-post-link` tool ensures that there will be no more
 than one module that contains the variable.)  Finally, the runtime uses the
-new [PI interface][6] to copy to or from the contents of the variable in this
+new [PI interface][7] to copy to or from the contents of the variable in this
 `pi_program`.
 
 It is possible that a device global variable with `device_image_scope` is not
@@ -561,9 +567,9 @@ In both cases the `name` parameter is the same as the `sycl-unique-id` string
 that is associated with the device global variable.
 
 The Level Zero backend has existing APIs that can implement these PI
-interfaces.  The plugin first calls [`zeModuleGetGlobalPointer()`][7] to get a
+interfaces.  The plugin first calls [`zeModuleGetGlobalPointer()`][8] to get a
 device pointer for the variable and then calls
-[`zeCommandListAppendMemoryCopy()`][8] to copy to or from that pointer.
+[`zeCommandListAppendMemoryCopy()`][9] to copy to or from that pointer.
 However, the documentation (and implementation) of `zeModuleGetGlobalPointer()`
 needs to be extended slightly.  The description currently says:
 
@@ -592,16 +598,16 @@ This must be changed to say something along these lines:
 > * If `pGlobalName` identifies an imported SPIR-V variable, the module must be
 >   dynamically linked before the variable's pointer may be queried.
 
-[7]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
-[8]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
+[8]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
+[9]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
 
 The OpenCL backend has a proposed extension
-[`cl_intel_global_variable_access`][9] that defines functions
+[`cl_intel_global_variable_access`][10] that defines functions
 `clEnqueueReadGlobalVariableINTEL()` and `clEnqueueWriteGlobalVariableINTEL()`
 which can be easily used to implement these PI interfaces.  This DPC++ design
 depends upon implementation of that OpenCL extension.
 
-[9]: <extensions/DeviceGlobal/cl_intel_global_variable_access.asciidoc>
+[10]: <extensions/DeviceGlobal/cl_intel_global_variable_access.asciidoc>
 
 The CUDA backend has existing APIs `cudaMemcpyToSymbol()` and
 `cudaMemcpyFromSymbol()` which can be used to implement these PI interfaces.

@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/TensorInterfaceImpl.h"
-#include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h"
+#include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
 
 using namespace mlir;
+using namespace mlir::bufferization;
 
 namespace mlir {
 namespace linalg {
@@ -42,7 +43,6 @@ struct CastOpInterface
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const BufferizationAliasInfo &aliasInfo,
                                 const BufferizationState &state) const {
     return BufferRelation::Equivalent;
   }
@@ -68,7 +68,7 @@ struct CastOpInterface
 
     // Compute the new memref type.
     Type resultMemRefType;
-    if (auto rankedTensorType = resultTensorType.isa<RankedTensorType>()) {
+    if (resultTensorType.isa<RankedTensorType>()) {
       resultMemRefType =
           getContiguousMemRefType(resultTensorType, layout, memorySpace);
     } else {
@@ -77,6 +77,9 @@ struct CastOpInterface
     }
 
     // Replace the op with a memref.cast.
+    assert(memref::CastOp::areCastCompatible(resultBuffer->getType(),
+                                             resultMemRefType) &&
+           "CallOp::bufferize: cast incompatible");
     replaceOpWithNewBufferizedOp<memref::CastOp>(rewriter, op, resultMemRefType,
                                                  *resultBuffer);
 
@@ -134,7 +137,6 @@ struct ExtractSliceOpInterface
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const BufferizationAliasInfo &aliasInfo,
                                 const BufferizationState &state) const {
     return BufferRelation::None;
   }
@@ -155,29 +157,42 @@ struct ExtractSliceOpInterface
     Value alloc;
     if (!inplace) {
       FailureOr<Value> allocOrFailure =
-          state.createAlloc(rewriter, loc, extractSliceOp.result(),
-                            state.getOptions().createDeallocs);
+          createAlloc(rewriter, loc, extractSliceOp.result(),
+                      state.getOptions().createDeallocs, state.getOptions());
       if (failed(allocOrFailure))
         return failure();
       alloc = *allocOrFailure;
     }
 
+    // Expand offsets, sizes and strides to the full rank to handle the
+    // rank-reducing case.
+    SmallVector<OpFoldResult> mixedOffsets = extractSliceOp.getMixedOffsets();
+    SmallVector<OpFoldResult> mixedSizes = extractSliceOp.getMixedSizes();
+    SmallVector<OpFoldResult> mixedStrides = extractSliceOp.getMixedStrides();
+    OffsetSizeAndStrideOpInterface::expandToRank(
+        srcMemref, mixedOffsets, mixedSizes, mixedStrides,
+        [&](Value target, int64_t dim) -> OpFoldResult {
+          auto shapedType = target.getType().cast<ShapedType>();
+          if (shapedType.isDynamicDim(dim))
+            return rewriter.create<memref::DimOp>(loc, target, dim).result();
+          return rewriter.getIndexAttr(shapedType.getDimSize(dim));
+        });
     // Bufferize to subview.
-    auto subviewMemRefType =
-        memref::SubViewOp::inferRankReducedResultType(
-            dstTensorType.getRank(), srcMemrefType,
-            extractSliceOp.getMixedOffsets(), extractSliceOp.getMixedSizes(),
-            extractSliceOp.getMixedStrides())
-            .cast<MemRefType>();
+    auto subviewMemRefType = memref::SubViewOp::inferRankReducedResultType(
+                                 dstTensorType.getRank(), srcMemrefType,
+                                 mixedOffsets, mixedSizes, mixedStrides)
+                                 .cast<MemRefType>();
     Value subView = rewriter.create<memref::SubViewOp>(
-        loc, subviewMemRefType, srcMemref, extractSliceOp.getMixedOffsets(),
-        extractSliceOp.getMixedSizes(), extractSliceOp.getMixedStrides());
+        loc, subviewMemRefType, srcMemref, mixedOffsets, mixedSizes,
+        mixedStrides);
 
     // If not inplaceable, copy.
     if (!inplace) {
       // Do not copy if the copied data is never read.
       if (state.isValueRead(extractSliceOp.result()))
-        state.createMemCpy(rewriter, extractSliceOp.getLoc(), subView, alloc);
+        if (failed(createMemCpy(rewriter, extractSliceOp.getLoc(), subView,
+                                alloc, state.getOptions())))
+          return failure();
       subView = alloc;
     }
 
@@ -257,7 +272,6 @@ struct InsertOpInterface
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const BufferizationAliasInfo &aliasInfo,
                                 const BufferizationState &state) const {
     return BufferRelation::Equivalent;
   }
@@ -269,12 +283,12 @@ struct InsertOpInterface
 /// This is one particular type of relationship between ops on tensors that
 /// reduce to an equivalence on buffers. This should be generalized and
 /// exposed as interfaces on the proper types.
-static bool
-areEquivalentExtractSliceOps(const BufferizationAliasInfo &aliasInfo,
-                             ExtractSliceOp st, InsertSliceOp sti) {
+static bool areEquivalentExtractSliceOps(const BufferizationState &state,
+                                         ExtractSliceOp st, InsertSliceOp sti) {
   if (!st || !sti)
     return false;
-  if (!aliasInfo.areEquivalentBufferizedValues(st.source(), sti.dest()))
+  if (sti != sti &&
+      !state.areEquivalentBufferizedValues(st.source(), sti.dest()))
     return false;
   if (!sameOffsetsSizesAndStrides(st, sti, isEqualConstantIntOrValue))
     return false;
@@ -283,12 +297,11 @@ areEquivalentExtractSliceOps(const BufferizationAliasInfo &aliasInfo,
 
 /// Return true if `value` is originating from an ExtractSliceOp that matches
 /// the given InsertSliceOp.
-static bool hasMatchingExtractSliceOp(const BufferizationAliasInfo &aliasInfo,
-                                      const BufferizationState &state,
+static bool hasMatchingExtractSliceOp(const BufferizationState &state,
                                       Value value, InsertSliceOp insertOp) {
   auto condition = [&](Value val) {
     if (auto extractOp = val.getDefiningOp<ExtractSliceOp>())
-      if (areEquivalentExtractSliceOps(aliasInfo, extractOp, insertOp))
+      if (areEquivalentExtractSliceOps(state, extractOp, insertOp))
         return true;
     return false;
   };
@@ -320,15 +333,13 @@ struct InsertSliceOpInterface
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
-                                const BufferizationAliasInfo &aliasInfo,
                                 const BufferizationState &state) const {
     return BufferRelation::Equivalent;
   }
 
   bool isNotConflicting(Operation *op, OpOperand *uRead,
                         OpOperand *uConflictingWrite,
-                        const BufferizationState &state,
-                        const BufferizationAliasInfo &aliasInfo) const {
+                        const BufferizationState &state) const {
     Operation *readingOp = uRead->getOwner();
     Operation *conflictingWritingOp = uConflictingWrite->getOwner();
 
@@ -344,7 +355,7 @@ struct InsertSliceOpInterface
 
       // TODO: Use insertSliceOp.getDestOpOperand etc. when available.
       if (uRead == &insertSliceOp->getOpOperand(1) /*dest*/ &&
-          hasMatchingExtractSliceOp(aliasInfo, state, uConflictingWrite->get(),
+          hasMatchingExtractSliceOp(state, uConflictingWrite->get(),
                                     insertSliceOp))
         // Case 1: The main insight is that InsertSliceOp reads only part of
         // the destination tensor. The overwritten area is not read. If
@@ -362,8 +373,7 @@ struct InsertSliceOpInterface
 
       if (uRead == &insertSliceOp->getOpOperand(0) /*source*/ &&
           uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
-          hasMatchingExtractSliceOp(aliasInfo, state, uRead->get(),
-                                    insertSliceOp))
+          hasMatchingExtractSliceOp(state, uRead->get(), insertSliceOp))
         // Case 2: The read of the source tensor and the write to the dest
         // tensor via an InsertSliceOp is not a conflict if the read is
         // reading exactly that part of an equivalent tensor that the
@@ -394,9 +404,9 @@ struct InsertSliceOpInterface
       // memory segment of %1 with the exact same data. (Effectively, there
       // is no memory write here.)
       if (uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
-          aliasInfo.areEquivalentBufferizedValues(uRead->get(),
-                                                  insertSliceOp.source()) &&
-          hasMatchingExtractSliceOp(aliasInfo, state, insertSliceOp.source(),
+          state.areEquivalentBufferizedValues(uRead->get(),
+                                              insertSliceOp.source()) &&
+          hasMatchingExtractSliceOp(state, insertSliceOp.source(),
                                     insertSliceOp))
         return true;
 
@@ -419,23 +429,37 @@ struct InsertSliceOpInterface
     if (failed(dstMemref))
       return failure();
 
+    // Expand offsets, sizes and strides to the full rank to handle the
+    // rank-reducing case.
+    SmallVector<OpFoldResult> mixedOffsets = insertSliceOp.getMixedOffsets();
+    SmallVector<OpFoldResult> mixedSizes = insertSliceOp.getMixedSizes();
+    SmallVector<OpFoldResult> mixedStrides = insertSliceOp.getMixedStrides();
+    OffsetSizeAndStrideOpInterface::expandToRank(
+        *dstMemref, mixedOffsets, mixedSizes, mixedStrides,
+        [&](Value target, int64_t dim) -> OpFoldResult {
+          auto shapedType = target.getType().cast<ShapedType>();
+          if (shapedType.isDynamicDim(dim))
+            return rewriter.create<memref::DimOp>(loc, target, dim).result();
+          return rewriter.getIndexAttr(shapedType.getDimSize(dim));
+        });
     // Take a subview of the dst.
     auto dstMemrefType = dstMemref->getType().cast<MemRefType>();
     auto subviewMemRefType =
         memref::SubViewOp::inferRankReducedResultType(
             insertSliceOp.getSourceType().getRank(), dstMemrefType,
-            insertSliceOp.getMixedOffsets(), insertSliceOp.getMixedSizes(),
-            insertSliceOp.getMixedStrides())
+            mixedOffsets, mixedSizes, mixedStrides)
             .cast<MemRefType>();
     Value subView = rewriter.create<memref::SubViewOp>(
-        loc, subviewMemRefType, *dstMemref, insertSliceOp.getMixedOffsets(),
-        insertSliceOp.getMixedSizes(), insertSliceOp.getMixedStrides());
+        loc, subviewMemRefType, *dstMemref, mixedOffsets, mixedSizes,
+        mixedStrides);
 
     // Copy tensor. If this tensor.insert_slice has a matching
     // tensor.extract_slice, the copy operation will eventually fold away.
     Value srcMemref =
         *state.getBuffer(rewriter, insertSliceOp->getOpOperand(0) /*source*/);
-    state.createMemCpy(rewriter, loc, srcMemref, subView);
+    if (failed(createMemCpy(rewriter, loc, srcMemref, subView,
+                            state.getOptions())))
+      return failure();
 
     replaceOpWithBufferizedValues(rewriter, op, *dstMemref);
     return success();

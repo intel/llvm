@@ -40,7 +40,7 @@ int main() {
 }
 
 // Check kernel paramters
-// CHECK: define {{.*}}spir_kernel void @{{.*}}derived(%struct.base* byval(%struct.base) align 4 %_arg__base, %struct.__wrapper_class* byval(%struct.__wrapper_class) align 8 %_arg_e, i32 %_arg_a)
+// CHECK: define {{.*}}spir_kernel void @{{.*}}derived(%struct.base* noundef byval(%struct.base) align 4 %_arg__base, %struct.__wrapper_class* noundef byval(%struct.__wrapper_class) align 8 %_arg_e, i32 noundef %_arg_a)
 
 // Check alloca for kernel paramters
 // CHECK: %[[ARG_AA:[a-zA-Z0-9_.]+]] = alloca i32, align 4
