@@ -101,7 +101,12 @@ XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
   case xpti::trace_point_type_t::offload_alloc_construct: {
     auto BufConstr = (xpti::offload_buffer_data_t *)UserData;
     std::cout << IId << "|Create buffer|0x" << std::hex
-              << BufConstr->user_object_handle << "|" << std::dec
+              << BufConstr->user_object_handle << "|0x"
+              << BufConstr->host_object_handle << "|" << std::dec
+              << BufConstr->element_type << "|" << BufConstr->element_size
+              << "|" << BufConstr->dim << "|"
+              << "{" << BufConstr->range[0] << "," << BufConstr->range[1] << ","
+              << BufConstr->range[2] << "}|"
               << Event->reserved.payload->source_file << ":"
               << Event->reserved.payload->line_no << ":"
               << Event->reserved.payload->column_no << "\n";
