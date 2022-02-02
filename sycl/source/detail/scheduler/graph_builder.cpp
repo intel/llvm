@@ -193,8 +193,6 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
         Command *ConnectionCmd = Dependant->addDep(Dep, ToCleanUp);
         if (ConnectionCmd)
           ToEnqueue.push_back(ConnectionCmd);
-        else
-          Dependency->addUser(Dependant);
 
         --(Dependency->MLeafCounter);
         if (Dependency->MLeafCounter == 0 &&
@@ -284,8 +282,6 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
         UpdateCommand->addDep(DepDesc{Dep, StoredReq, AllocaCmd}, ToCleanUp);
     if (ConnCmd)
       ToEnqueue.push_back(ConnCmd);
-    else
-      Dep->addUser(UpdateCommand);
   }
   updateLeaves(Deps, Record, Req->MAccessMode, ToCleanUp);
   addNodeToLeaves(Record, UpdateCommand, Req->MAccessMode, ToEnqueue);
@@ -401,8 +397,6 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
         DepDesc{Dep, NewCmd->getRequirement(), AllocaCmdDst}, ToCleanUp);
     if (ConnCmd)
       ToEnqueue.push_back(ConnCmd);
-    else
-      Dep->addUser(NewCmd);
   }
   updateLeaves(Deps, Record, access::mode::read_write, ToCleanUp);
   addNodeToLeaves(Record, NewCmd, access::mode::read_write, ToEnqueue);
@@ -442,16 +436,12 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
         DepDesc{Dep, UnMapCmd->getRequirement(), LinkedAllocaCmd}, ToCleanUp);
     if (ConnCmd)
       ToEnqueue.push_back(ConnCmd);
-    else
-      Dep->addUser(UnMapCmd);
   }
 
   Command *ConnCmd = MapCmd->addDep(
       DepDesc{UnMapCmd, MapCmd->getRequirement(), HostAllocaCmd}, ToCleanUp);
   if (ConnCmd)
     ToEnqueue.push_back(ConnCmd);
-  else
-    UnMapCmd->addUser(MapCmd);
 
   updateLeaves(Deps, Record, access::mode::read_write, ToCleanUp);
   addNodeToLeaves(Record, MapCmd, access::mode::read_write, ToEnqueue);
@@ -496,8 +486,6 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
         DepDesc{Dep, MemCpyCmd->getRequirement(), SrcAllocaCmd}, ToCleanUp);
     if (ConnCmd)
       ToEnqueue.push_back(ConnCmd);
-    else
-      Dep->addUser(MemCpyCmd);
   }
 
   updateLeaves(Deps, Record, Req->MAccessMode, ToCleanUp);
@@ -788,8 +776,6 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             ToCleanUp);
         if (ConnCmd)
           ToEnqueue.push_back(ConnCmd);
-        else
-          LinkedAllocaCmd->addUser(AllocaCmd);
         LinkedAllocaCmd->MLinkedAllocaCmd = AllocaCmd;
 
         // To ensure that the leader allocation is removed first
@@ -817,8 +803,6 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 DepDesc{Dep, Req, LinkedAllocaCmd}, ToCleanUp);
             if (ConnCmd)
               ToEnqueue.push_back(ConnCmd);
-            else
-              Dep->addUser(AllocaCmd);
           }
           updateLeaves(Deps, Record, Req->MAccessMode, ToCleanUp);
           addNodeToLeaves(Record, AllocaCmd, Req->MAccessMode, ToEnqueue);
@@ -859,7 +843,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
                                      const QueueImplPtr &Queue,
                                      Command::BlockReason Reason,
                                      std::vector<Command *> &ToEnqueue,
-                                     bool AddDepsToLeaves) {
+                                     const bool AddDepsToLeaves) {
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -876,8 +860,10 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
         getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
     EmptyCmd->addRequirement(Cmd, AllocaCmd, Req);
   }
-
-  Cmd->addUser(EmptyCmd);
+  // addRequirement above call addDep that already will add EmptyCmd as user for
+  // Cmd no Reqs size check here so assume it is possible to have no Reqs passed
+  if (!Reqs.size())
+    Cmd->addUser(EmptyCmd);
 
   if (AddDepsToLeaves) {
     const std::vector<DepDesc> &Deps = Cmd->MDeps;
@@ -1007,8 +993,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
           NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd}, ToCleanUp);
       if (ConnCmd)
         ToEnqueue.push_back(ConnCmd);
-      else
-        Dep->addUser(NewCmd.get());
     }
   }
 
@@ -1313,9 +1297,6 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
   }
 
-  if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
-    DepCmd->addUser(ConnectCmd);
-
   EmptyCommand *EmptyCmd = nullptr;
 
   if (Dep.MDepRequirement) {
@@ -1327,14 +1308,17 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
            Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
 
-    std::vector<Command *> ToEnqueue;
+    // ConnectCmd is added as dependency to Cmd
+    // We build the following structure Cmd->EmptyCmd/ConnectCmd->DepCmd
+    // No need to add ConnectCmd to leaves buffer since it is a dependency
+    // for command Cmd that will be added there
 
+    std::vector<Command *> ToEnqueue;
     const std::vector<const Requirement *> Reqs(1, Dep.MDepRequirement);
     EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
                            Scheduler::getInstance().getDefaultHostQueue(),
                            Command::BlockReason::HostTask, ToEnqueue, false);
     assert(ToEnqueue.size() == 0);
-    // Dependencies for EmptyCmd are set in addEmptyCmd for provided Reqs.
 
     // Depend Cmd on empty command
     {
@@ -1346,6 +1330,11 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
       (void)Cmd->addDep(CmdDep, ToCleanUp);
     }
   } else {
+    // It is required condition in another a path and addUser will be set in
+    // addDep
+    if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
+      DepCmd->addUser(ConnectCmd);
+
     std::vector<Command *> ToEnqueue;
     EmptyCmd = addEmptyCmd<Requirement>(
         ConnectCmd, {}, Scheduler::getInstance().getDefaultHostQueue(),
@@ -1363,9 +1352,10 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     // Dismiss the result here as it's not a connection now,
     // 'cause EmptyCmd is host one
     (void)Cmd->addDep(EmptyCmd->getEvent(), ToCleanUp);
+    // Added by addDep in another path
+    EmptyCmd->addUser(Cmd);
   }
 
-  EmptyCmd->addUser(Cmd);
 
   ConnectCmd->MEmptyCmd = EmptyCmd;
 

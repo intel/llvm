@@ -10,8 +10,6 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <detail/config.hpp>
-#include <helpers/CommonRedefinitions.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
 #include <algorithm>
@@ -46,8 +44,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   }
 
   struct QueueRelatedObjects {
-    cl::sycl::context Context;
-    cl::sycl::queue Queue;
+    context Context;
+    queue Queue;
     std::unique_ptr<MockCommand> DepCmd;
     detail::MemObjRecord *Rec;
     detail::AllocaCommandBase *AllocaCmd;
@@ -98,7 +96,7 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
                           ToCleanUp);
     QueueStuff.DepCmd->addUser(NewLeaf.get());
 
-    std::vector<cl::sycl::detail::Command *> ToEnqueue;
+    std::vector<detail::Command *> ToEnqueue;
     MS.addNodeToLeaves(QueueStuff.Rec, NewLeaf.get(), access::mode::write,
                        ToEnqueue);
     AddedLeaves.push_back(std::move(NewLeaf));
