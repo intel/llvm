@@ -48,17 +48,6 @@ template <typename T, typename U = int> struct HasValue : std::false_type {};
 template <typename T>
 struct HasValue<T, decltype((void)T::value, 0)> : std::true_type {};
 
-// Checks that all types in a tuple have unique PropertyID.
-template <typename T> struct AllUnique {};
-template <typename... Ts>
-struct AllUnique<std::tuple<Ts...>> : std::true_type {};
-template <typename T> struct AllUnique<std::tuple<T>> : std::true_type {};
-template <typename L, typename R, typename... Rest>
-struct AllUnique<std::tuple<L, R, Rest...>>
-    : sycl::detail::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
-                                  AllUnique<std::tuple<R, Rest...>>,
-                                  std::false_type> {};
-
 //******************************************************************************
 // Property identification
 //******************************************************************************
@@ -211,6 +200,17 @@ template <typename L, typename R, typename... Rest>
 struct IsSorted<std::tuple<L, R, Rest...>>
     : sycl::detail::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
                                   IsSorted<std::tuple<R, Rest...>>,
+                                  std::false_type> {};
+
+// Checks that all types in a sorted tuple have unique PropertyID.
+template <typename T> struct SortedAllUnique {};
+template <typename... Ts>
+struct SortedAllUnique<std::tuple<Ts...>> : std::true_type {};
+template <typename T> struct SortedAllUnique<std::tuple<T>> : std::true_type {};
+template <typename L, typename R, typename... Rest>
+struct SortedAllUnique<std::tuple<L, R, Rest...>>
+    : sycl::detail::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
+                                  SortedAllUnique<std::tuple<R, Rest...>>,
                                   std::false_type> {};
 
 } // namespace detail

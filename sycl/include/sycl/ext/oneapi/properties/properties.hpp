@@ -132,7 +132,7 @@ template <typename PropertiesT> class properties {
                 "Unrecognized property in property list.");
   static_assert(detail::IsSorted<PropertiesT>::value,
                 "Properties in property list are not sorted.");
-  static_assert(detail::AllUnique<PropertiesT>::value,
+  static_assert(detail::SortedAllUnique<PropertiesT>::value,
                 "Duplicate properties in property list.");
 
 public:
