@@ -52,7 +52,7 @@ attributes #2 = { "sycl-unique-id"="9d329ad59055e972____ZL8dg_bool3" "device_ima
 attributes #3 = { "sycl-unique-id"="dda2bad52c45c432____ZL8dg_bool4" "device_image_scope" "host_access"="2" "sycl-device-global-size"="1" }
 attributes #4 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #5 = { convergent nounwind }
-; no the sycl-device-global-size attribute, this is not a device global variable but it contains compile-time properties,
+; no sycl-device-global-size attribute, this is not a device global variable but it contains compile-time properties,
 ; a metadata node will be generated.
 attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "device_image_scope"="false" "host_access"="1" "implement_in_csr"="true" "init_mode"="0" }
 
