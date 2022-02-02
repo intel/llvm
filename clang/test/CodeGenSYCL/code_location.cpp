@@ -1,8 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem -sycl-std=2020 -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem -sycl-std=2020 -DNDEBUG -fsycl-int-header=%t2.h %s -o %t2.out
-// RUN: FileCheck -input-file=%t2.h %s
-
+// RUN: %clang_cc1 -fsycl-is-host -sycl-std=2020 %s | FileCheck -input-file=%t.h %s
+// : %clang_cc1 -fsycl-is-device -internal-isystem -sycl-std=2020 -DNDEBUG -fsycl-int-header=%t2.h %s -o %t2.out
+// : FileCheck -input-file=%t2.h %s
 #include "Inputs/sycl.hpp"
 #ifndef NDEBUG
 int test1() {
@@ -86,16 +86,16 @@ int test5() {
   return 0;
 }
 
-// CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '5', 't', 'e', 's', 't', '5', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
-// CHECK: static constexpr const char* getFileName() { return ; }
-// CHECK: static constexpr const char* getFunctionName() { return ; }
-// CHECK: static constexpr unsigned getLineNumber() { return 0; }
-// CHECK: static constexpr unsigned getColumnNumber() { return 0; }
+// HECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '5', 't', 'e', 's', 't', '5', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
+// HECK: static constexpr const char* getFileName() { return ; }
+// HECK: static constexpr const char* getFunctionName() { return ; }
+// HECK: static constexpr unsigned getLineNumber() { return 0; }
+// HECK: static constexpr unsigned getColumnNumber() { return 0; }
 //};
-// CHECK: template <> struct KernelInfo<KernelName5> {
-// CHECK: static constexpr const char* getFileName() { return ; }
-// CHECK: static constexpr const char* getFunctionName() { return ; }
-// CHECK: static constexpr unsigned getLineNumber() { return 0; }
-// CHECK: static constexpr unsigned getColumnNumber() { return 0; }
+// HECK: template <> struct KernelInfo<KernelName5> {
+// HECK: static constexpr const char* getFileName() { return ; }
+// HECK: static constexpr const char* getFunctionName() { return ; }
+// HECK: static constexpr unsigned getLineNumber() { return 0; }
+// HECK: static constexpr unsigned getColumnNumber() { return 0; }
 //};
 #endif
