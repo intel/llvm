@@ -4711,6 +4711,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr const char* getFileName() {\n";
     O << "#ifndef NDEBUG\n";
     O << "    return \""
