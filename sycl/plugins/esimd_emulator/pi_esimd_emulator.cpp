@@ -118,13 +118,14 @@ static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 
 // Single-entry cache for piPlatformsGet call.
 static pi_platform PiPlatformCache;
+// TODO/FIXME : Memory leak. Handle with 'piTearDown'.
 static sycl::detail::SpinLock *PiPlatformCacheMutex =
     new sycl::detail::SpinLock;
-static bool PiPlatformCachePopulated = false;
 
 // Mapping between surface index and CM-managed surface
 static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
     new std::unordered_map<unsigned int, _pi_mem *>;
+// TODO/FIXME : Memory leak. Handle with 'piTearDown'.
 static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
     new sycl::detail::SpinLock;
 
@@ -354,13 +355,12 @@ sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
 
   sycl_get_cm_buffer_params_ptr = sycl_get_cm_buffer_params;
   sycl_get_cm_image_params_ptr = sycl_get_cm_image_params;
-  /* From 'esimd_emulator_functions_v1.h' : End */
 
-  /* From 'esimd_emulator_functions_v2.h' : Start */
   sycl_get_cm_surface_index_ptr = sycl_get_cm_surface_index;
   sycl_get_cm_buffer_params_index_ptr = sycl_get_cm_buffer_params_index;
   sycl_get_cm_image_params_index_ptr = sycl_get_cm_image_params_index;
-  /* From 'esimd_emulator_functions_v2.h' : End */
+
+  /* From 'esimd_emulator_functions_v1.h' : End */
 }
 
 /// Implementation for Host Kernel Launch used by
@@ -433,7 +433,7 @@ extern "C" {
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
-
+  static bool PiPlatformCachePopulated = false;
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
 

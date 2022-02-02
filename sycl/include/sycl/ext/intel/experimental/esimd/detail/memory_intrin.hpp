@@ -24,12 +24,6 @@
 #ifndef __SYCL_DEVICE_ONLY__
 // ESIMD_CPU Emulation support using esimd_cpu plugin
 
-// Header files required for accessing CM-managed resources - image,
-// buffer, runtime API etc.
-namespace cm_support {
-#include <CL/cm_rt.h>
-} // namespace cm_support
-
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
