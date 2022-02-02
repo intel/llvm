@@ -271,11 +271,11 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    extension specification [edaee9b]
  - Added [initial draft](doc/extensions/supported/SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO.md)
    for querying of free device memory in LevelZero backend extension [fa428bf]
- - Added [InvokeSIMD](doc/extensions/InvokeSIMD/InvokeSIMD.asciidoc) and
-   [Uniform](doc/extensions/Uniform/Uniform.asciidoc) extensions [72e1611]
+ - Added [InvokeSIMD](doc/extensions/proposed/SYCL_EXT_ONEAPI_INVOKE_SIMD.asciidoc) and
+   [Uniform](doc/extensions/proposed/SYCL_EXT_ONEAPI_UNIFORM.asciidoc) extensions [72e1611]
  - Added [Matrix Programming Extension for DPC++ document](doc/extensions/experimental/SYCL_EXT_ONEAPI_MATRIX.asciidoc) [ace4c733]
  - Implemented SYCL 2020 `sycl::span` [9356d53]
- - Added [device-if](doc/extensions/DeviceIf/device_if.asciidoc) extension
+ - Added [device-if](doc/extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_IF.asciidoc) extension
    [4fb95fc]
  - Added a [programming guide](doc/MultiTileCardWithLevelZero.md) for
    multi-tile and multi-card under Level Zero backend [d581178a]
