@@ -2151,13 +2151,12 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // see sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md.
     return ReturnValue(Device->ZeDeviceProperties->uuid.id);
   case PI_DEVICE_INFO_ATOMIC_64: {
+    bool result = false;
     if (Device->ZeDeviceModuleProperties->flags &
-        ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS) {
-      bool result = true;
-      std::memcpy(ParamValue, &result, sizeof(bool));
-      return PI_SUCCESS;
-    }
-    return PI_INVALID_VALUE;
+        ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS)
+      result = true;
+    std::memcpy(ParamValue, &result, sizeof(bool));
+    return ReturnValue(result);
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:

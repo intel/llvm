@@ -282,10 +282,10 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     result = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
                              extSize, &extStr.front(), nullptr);
     if (extStr.find("cl_khr_int64_base_atomics") == std::string::npos ||
-        extStr.find("cl_khr_int64_extended_atomics") == std::string::npos) {
-      return PI_INVALID_VALUE;
-    }
-    result = true;
+        extStr.find("cl_khr_int64_extended_atomics") == std::string::npos)
+      result = false;
+    else
+      result = true;
     std::memcpy(paramValue, &result, sizeof(bool));
     return PI_SUCCESS;
   }
