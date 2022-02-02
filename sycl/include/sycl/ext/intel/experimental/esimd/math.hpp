@@ -28,8 +28,8 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @addtogroup sycl_esimd_math
 /// @{
-/// @ingroup sycl_esimd_math
 
 /// Conversion of input vector elements of type \p T1 into vector of elements of
 /// type \p T0 with saturation.
@@ -39,7 +39,10 @@ namespace esimd {
 /// @param src the input vector.
 /// @return vector of elements converted to \p T0 with saturation.
 template <typename T0, typename T1, int SZ>
-__ESIMD_API simd<T0, SZ> saturate(simd<T1, SZ> src) {
+__ESIMD_API std::enable_if_t<!detail::is_generic_floating_point_v<T0> ||
+                                 std::is_same_v<T1, T0>,
+                             simd<T0, SZ>>
+saturate(simd<T1, SZ> src) {
   if constexpr (detail::is_generic_floating_point_v<T0>)
     return __esimd_sat<T0, T1, SZ>(src.data());
   else if constexpr (detail::is_generic_floating_point_v<T1>) {
@@ -54,9 +57,9 @@ __ESIMD_API simd<T0, SZ> saturate(simd<T1, SZ> src) {
       return __esimd_ustrunc_sat<T0, T1, SZ>(src.data());
   } else {
     if constexpr (std::is_signed<T1>::value)
-      return __esimd_sutrunc_sat<T0, T1, SZ>(src.data());
-    else
       return __esimd_sstrunc_sat<T0, T1, SZ>(src.data());
+    else
+      return __esimd_sutrunc_sat<T0, T1, SZ>(src.data());
   }
 }
 
@@ -154,8 +157,8 @@ abs(T1 src0, int flag = saturation_off) {
 
 /// @} sycl_esimd_math
 
+/// @addtogroup sycl_esimd_bitmanip
 /// @{
-/// @ingroup sycl_esimd_bitmanip
 
 /// Shift left operation (vector version)
 /// \tparam T0 element type of the returned vector. Must be any integer type.
@@ -495,8 +498,8 @@ asr(T1 src0, T2 src1, int flag = saturation_off) {
 }
 /// @} sycl_esimd_bitmanip
 
+/// @addtogroup sycl_esimd_math
 /// @{
-/// @ingroup sycl_esimd_math
 
 // imul
 #ifndef ESIMD_HAS_LONG_LONG
@@ -1320,8 +1323,8 @@ __ESIMD_API simd<float, SZ> pln(simd<float, 4> src0, simd<float, SZ> src1,
 }
 /// @} sycl_esimd_math
 
+/// @addtogroup sycl_esimd_bitmanip
 /// @{
-/// @ingroup sycl_esimd_bitmanip
 
 /// bf_reverse
 template <typename T0, typename T1, int SZ>
@@ -1399,8 +1402,8 @@ ESIMD_NODEBUG
 
 /// @} sycl_esimd_bitmanip
 
+/// @addtogroup sycl_esimd_math
 /// @{
-/// @ingroup sycl_esimd_math
 
 ////////////////////////////////////////////////////////////////////////////////
 // ESIMD arithmetic intrinsics:
@@ -1709,8 +1712,8 @@ ESIMD_NODEBUG ESIMD_INLINE T exp(T src0) {
 }
 /// @} sycl_esimd_math
 
+/// @addtogroup sycl_esimd_conv
 /// @{
-/// @ingroup sycl_esimd_conv
 
 ////////////////////////////////////////////////////////////////////////////////
 // Rounding intrinsics.
@@ -1723,7 +1726,12 @@ ESIMD_NODEBUG ESIMD_INLINE T exp(T src0) {
     simd<float, SZ> Result = __esimd_##name<SZ>(src0.data());                  \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
-    return esimd::saturate<T>(Result);                                         \
+    if constexpr (!std::is_same_v<float, T>) {                                 \
+      auto RawRes = esimd::saturate<float>(Result).data();                     \
+      return detail::convert_vector<T, float, SZ>(std::move(RawRes));          \
+    } else {                                                                   \
+      return esimd::saturate<T>(Result);                                       \
+    }                                                                          \
   }                                                                            \
   template <typename T>                                                        \
   __ESIMD_API T name(float src0, int flag = saturation_off) {                  \
@@ -1740,8 +1748,8 @@ __ESIMD_INTRINSIC_DEF(rndz)
 #undef __ESIMD_INTRINSIC_DEF
 /// @} sycl_esimd_conv
 
+/// @addtogroup sycl_esimd_bitmanip
 /// @{
-/// @ingroup sycl_esimd_bitmanip
 
 template <int N>
 ESIMD_NODEBUG
@@ -1930,8 +1938,8 @@ fbh(simd_view<BaseTy, RegionTy> src) {
 
 /// @} sycl_esimd_bitmanip
 
+/// @addtogroup sycl_esimd_math
 /// @{
-/// @ingroup sycl_esimd_math
 
 /// \brief DP4A.
 ///

@@ -419,7 +419,7 @@ public:
         *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
