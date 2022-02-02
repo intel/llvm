@@ -44,7 +44,7 @@ int test2() {
 //};
 // CHECK: template <> struct KernelInfo<::KernelName2> {
 // CHECK: static constexpr const char* getFileName() { return "code_location.cpp"; }
-// CHECK: static constexpr const char* getFunctionName() { return "KernelName2"; }
+// CHECK: static constexpr const char* getFunctionName() { return "::KernelName2"; }
 // CHECK: static constexpr unsigned getLineNumber() { return 35; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 44; }
 //};
@@ -59,7 +59,7 @@ int test3() {
 
 // CHECK: template <> struct KernelInfo<::KernelName3<::KernelName2>> {
 // CHECK: static constexpr const char* getFileName() { return "code_location.cpp"; }
-// CHECK: static constexpr const char* getFunctionName() { return "KernelName3"; }
+// CHECK: static constexpr const char* getFunctionName() { return "::KernelName3<::KernelName2>"; }
 // CHECK: static constexpr unsigned getLineNumber() { return 56; }
 // CHECK: static constexpr unsigned getColumnNumber() { return 44; }
 //};

@@ -4719,11 +4719,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 #endif
       << "\"; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFunctionName() { return \""
+    O << "  static constexpr const char* getFunctionName() { return \"";
 #ifndef NDEBUG
-      << K.NameType->getAsCXXRecordDecl()->getQualifiedNameAsString()
+    SYCLKernelNameTypePrinter Printer(O, Policy);
+    Printer.Visit(K.NameType);
 #endif
-      << "\"; }\n";
+    O << "\"; }\n";
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr unsigned getLineNumber() { return "
 #ifndef NDEBUG
