@@ -6,7 +6,7 @@ specifying properties which are known at compile time.  This extension is not
 itself a feature, but rather a building block that can be incorporated into
 other features.
 
-[1]: <extensions/PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc>
+[1]: <extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc>
 
 There are a number of situations where we plan to use compile-time constant
 properties, but this design document does not attempt to address them all.
