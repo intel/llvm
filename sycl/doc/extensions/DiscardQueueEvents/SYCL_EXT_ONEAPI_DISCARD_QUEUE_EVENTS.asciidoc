@@ -168,7 +168,7 @@ enum class event_command_status : int {
 This non-normative section describes the conditions when the DPC++ implementation provides an optimization benefit* for the `discard_events` property.
 
  - The queue must be constructed with the `in_order` property.
- - A kernel submitted to the queue must not use the https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Assert/SYCL_ONEAPI_ASSERT.asciidoc[fallback assert feature].
+ - A kernel submitted to the queue must not use the link:../supported/SYCL_EXT_ONEAPI_ASSERT.asciidoc[fallback assert feature].
  - A queue operation submitted to the queue must not use streams or buffer / image accessors. However, local accessors do not inhibit optimization.
  - Any queue operations using Level Zero backend temporarily work without optimization.
 
