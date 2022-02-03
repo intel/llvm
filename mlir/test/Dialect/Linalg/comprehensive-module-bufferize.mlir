@@ -5,7 +5,11 @@
 // RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="allow-return-memref test-analysis-only analysis-fuzzer-seed=59" -split-input-file -o /dev/null
 // RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="allow-return-memref test-analysis-only analysis-fuzzer-seed=91" -split-input-file -o /dev/null
 
+// Test bufferization using memref types that have no layout map.
+// RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="allow-return-memref fully-dynamic-layout-maps=0" -split-input-file | FileCheck %s --check-prefix=CHECK-NO-LAYOUT-MAP
+
 // CHECK-LABEL: func @transfer_read(%{{.*}}: memref<?xf32, #map>) -> vector<4xf32> {
+// CHECK-NO-LAYOUT-MAP-LABEL: func @transfer_read(%{{.*}}: memref<?xf32>) -> vector<4xf32>
 func @transfer_read(
     %A : tensor<?xf32> {linalg.inplaceable = false})
   -> (vector<4xf32>)
@@ -26,6 +30,7 @@ func @transfer_read(
 
 // CHECK-LABEL: func @fill_inplace(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?xf32, #[[$map_1d_dyn]]>
+// CHECK-NO-LAYOUT-MAP-LABEL: func @fill_inplace(%{{.*}}: memref<?xf32>) {
 func @fill_inplace(
     %A : tensor<?xf32> {linalg.inplaceable = true})
   -> tensor<?xf32>
@@ -63,6 +68,7 @@ func @tensor_extract(%A : tensor<?xf32> {linalg.inplaceable = false}) -> (f32) {
 /// No linalg.inplaceable flag, must allocate.
 // CHECK-LABEL: func @not_inplace(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?xf32, #[[$map_1d_dyn]]>) -> memref<?xf32> {
+// CHECK-NO-LAYOUT-MAP-LABEL: func @not_inplace(%{{.*}}: memref<?xf32>) -> memref<?xf32>
 func @not_inplace(
     %A : tensor<?xf32> {linalg.inplaceable = false})
   -> tensor<?xf32>
@@ -86,6 +92,7 @@ func @not_inplace(
 
 // CHECK-LABEL: func @not_inplace
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?x?xf32, #[[$map_2d_dyn]]>) {
+// CHECK-NO-LAYOUT-MAP-LABEL: func @not_inplace(%{{.*}}: memref<?x?xf32>) {
 func @not_inplace(
     %A : tensor<?x?xf32> {linalg.inplaceable = true})
   -> tensor<?x?xf32>
@@ -597,16 +604,16 @@ func @main() {
   // CHECK-NEXT:   %[[A:.*]] = memref.alloc() {alignment = 128 : i64} : memref<64xf32>
   // CHECK-NEXT:   %[[B:.*]] = memref.alloc() {alignment = 128 : i64} : memref<64xf32>
   // CHECK-NEXT:   %[[C:.*]] = memref.alloc() {alignment = 128 : i64} : memref<f32>
+  // CHECK-NEXT:   %[[cA:.*]] = memref.cast %[[A]] : memref<64xf32> to memref<64xf32, #[[$DYN_1D_MAP]]>
+  // CHECK-NEXT:   %[[cB:.*]] = memref.cast %[[B]] : memref<64xf32> to memref<64xf32, #[[$DYN_1D_MAP]]>
+  // CHECK-NEXT:   %[[cC:.*]] = memref.cast %[[C]] : memref<f32> to memref<f32, #[[$DYN_0D_MAP]]>
   %A = linalg.init_tensor [64] : tensor<64xf32>
   %B = linalg.init_tensor [64] : tensor<64xf32>
   %C = linalg.init_tensor [] : tensor<f32>
 
   // CHECK-NEXT:   linalg.fill(%[[C1]], %[[A]]) : f32, memref<64xf32>
-  // CHECK-NEXT:   %[[cA:.*]] = memref.cast %[[A]] : memref<64xf32> to memref<64xf32, #[[$DYN_1D_MAP]]>
   // CHECK-NEXT:   linalg.fill(%[[C2]], %[[B]]) : f32, memref<64xf32>
-  // CHECK-NEXT:   %[[cB:.*]] = memref.cast %[[B]] : memref<64xf32> to memref<64xf32, #[[$DYN_1D_MAP]]>
   // CHECK-NEXT:   linalg.fill(%[[C0]], %[[C]]) : f32, memref<f32>
-  // CHECK-NEXT:   %[[cC:.*]] = memref.cast %[[C]] : memref<f32> to memref<f32, #[[$DYN_0D_MAP]]>
   %AA = linalg.fill(%v1, %A) : f32, tensor<64xf32> -> tensor<64xf32>
   %BB = linalg.fill(%v2, %B) : f32, tensor<64xf32> -> tensor<64xf32>
   %CC = linalg.fill(%v0, %C) : f32, tensor<f32> -> tensor<f32>

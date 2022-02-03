@@ -13,7 +13,11 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
+    # commit d2f78f24314cd5aad1f633042cf5ae49b0ecdb24
+    # Author: Sergey Semenov <sergey.semenov@intel.com>
+    # Date:   Tue Jan 25 17:59:19 2022 +0000
+    # Fix an issue with GenXIntrinsicDescription.gen includes
+    set(LLVMGenXIntrinsics_GIT_TAG d2f78f24314cd5aad1f633042cf5ae49b0ecdb24)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)

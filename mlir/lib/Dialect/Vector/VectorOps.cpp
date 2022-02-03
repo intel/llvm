@@ -900,7 +900,7 @@ static void print(OpAsmPrinter &p, vector::ExtractOp op) {
 }
 
 static ParseResult parseExtractOp(OpAsmParser &parser, OperationState &result) {
-  llvm::SMLoc attributeLoc, typeLoc;
+  SMLoc attributeLoc, typeLoc;
   NamedAttrList attrs;
   OpAsmParser::OperandType vector;
   Type type;
@@ -2695,7 +2695,7 @@ static void print(OpAsmPrinter &p, TransferReadOp op) {
 static ParseResult parseTransferReadOp(OpAsmParser &parser,
                                        OperationState &result) {
   auto &builder = parser.getBuilder();
-  llvm::SMLoc typesLoc;
+  SMLoc typesLoc;
   OpAsmParser::OperandType sourceInfo;
   SmallVector<OpAsmParser::OperandType, 8> indexInfo;
   OpAsmParser::OperandType paddingInfo;
@@ -3075,7 +3075,7 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
 static ParseResult parseTransferWriteOp(OpAsmParser &parser,
                                         OperationState &result) {
   auto &builder = parser.getBuilder();
-  llvm::SMLoc typesLoc;
+  SMLoc typesLoc;
   OpAsmParser::OperandType vectorInfo, sourceInfo;
   SmallVector<OpAsmParser::OperandType, 8> indexInfo;
   SmallVector<Type, 2> types;
@@ -4235,9 +4235,18 @@ public:
       return failure();
     // Gather constant mask dimension sizes.
     SmallVector<int64_t, 4> maskDimSizes;
-    for (auto operand : createMaskOp.operands()) {
-      auto *defOp = operand.getDefiningOp();
-      maskDimSizes.push_back(cast<arith::ConstantIndexOp>(defOp).value());
+    for (auto it : llvm::zip(createMaskOp.operands(),
+                             createMaskOp.getType().getShape())) {
+      auto *defOp = std::get<0>(it).getDefiningOp();
+      int64_t maxDimSize = std::get<1>(it);
+      int64_t dimSize = cast<arith::ConstantIndexOp>(defOp).value();
+      dimSize = std::min(dimSize, maxDimSize);
+      // If one of dim sizes is zero, set all dims to zero.
+      if (dimSize <= 0) {
+        maskDimSizes.assign(createMaskOp.getType().getRank(), 0);
+        break;
+      }
+      maskDimSizes.push_back(dimSize);
     }
     // Replace 'createMaskOp' with ConstantMaskOp.
     rewriter.replaceOpWithNewOp<ConstantMaskOp>(

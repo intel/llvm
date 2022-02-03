@@ -1563,7 +1563,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // TODO: these numbers should be obtained from block literal structure
   Type *ParamType = getUnderlyingObject(BlockLiteral)->getType();
   if (PointerType *PT = dyn_cast<PointerType>(ParamType))
-    ParamType = PT->getElementType();
+    ParamType = PT->getPointerElementType();
   Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
   Args.push_back(getInt32(M, DL.getPrefTypeAlignment(ParamType)));
 
@@ -1615,7 +1615,7 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
         Value *Param = *Args.rbegin();
         Type *ParamType = getUnderlyingObject(Param)->getType();
         if (PointerType *PT = dyn_cast<PointerType>(ParamType)) {
-          ParamType = PT->getElementType();
+          ParamType = PT->getPointerElementType();
         }
         // Last arg corresponds to SPIRV Param operand.
         // Insert Invoke in front of Param.
@@ -1711,7 +1711,7 @@ static const char *getSubgroupAVCIntelOpKind(StringRef Name) {
 }
 
 static const char *getSubgroupAVCIntelTyKind(Type *Ty) {
-  auto STy = cast<StructType>(cast<PointerType>(Ty)->getElementType());
+  auto *STy = cast<StructType>(cast<PointerType>(Ty)->getPointerElementType());
   auto TName = STy->getName();
   return TName.endswith("_payload_t") ? "payload" : "result";
 }
@@ -1746,7 +1746,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
   // Update names for built-ins mapped on two or more SPIRV instructions
   if (FName.find(Prefix + "ime_get_streamout_major_shape_") == 0) {
     auto PTy = cast<PointerType>(CI->getArgOperand(0)->getType());
-    auto STy = cast<StructType>(PTy->getElementType());
+    auto *STy = cast<StructType>(PTy->getPointerElementType());
     assert(STy->hasName() && "Invalid Subgroup AVC Intel built-in call");
     FName += (STy->getName().contains("single")) ? "_single_reference"
                                                  : "_dual_reference";
