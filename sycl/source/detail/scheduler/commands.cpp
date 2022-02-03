@@ -586,7 +586,15 @@ Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
     ConnectionCmd =
         processDepEvent(NewDep.MDepCommand->getEvent(), NewDep, ToCleanUp);
   }
-  MDeps.push_back(NewDep);
+  // ConnectionCmd insertion builds the following dependency structure:
+  // this -> emptyCmd (for ConnectionCmd) -> ConnectionCmd -> NewDep
+  // that means that this and NewDep are already dependent
+  if (!ConnectionCmd) {
+    MDeps.push_back(NewDep);
+    if (NewDep.MDepCommand)
+      NewDep.MDepCommand->addUser(this);
+  }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitEdgeEventForCommandDependence(
       NewDep.MDepCommand, (void *)NewDep.MDepRequirement->MSYCLMemObj,
