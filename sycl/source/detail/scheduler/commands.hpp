@@ -20,7 +20,6 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/cg.hpp>
-#include <detail/event_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -189,7 +188,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() { MEvent->cleanupDependencyEvents(); }
+  virtual ~Command() = default;
 
   const char *getBlockReason() const;
 
