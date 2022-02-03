@@ -1423,7 +1423,7 @@ private:
             TT_LambdaArrow, TT_NamespaceMacro, TT_OverloadedOperator,
             TT_RegexLiteral, TT_TemplateString, TT_ObjCStringLiteral,
             TT_UntouchableMacroFunc, TT_ConstraintJunctions,
-            TT_StatementAttributeLikeMacro))
+            TT_StatementAttributeLikeMacro, TT_FunctionLikeOrFreestandingMacro))
       CurrentToken->setType(TT_Unknown);
     CurrentToken->Role.reset();
     CurrentToken->MatchingParen = nullptr;
@@ -2353,9 +2353,10 @@ private:
 void TokenAnnotator::setCommentLineLevels(
     SmallVectorImpl<AnnotatedLine *> &Lines) {
   const AnnotatedLine *NextNonCommentLine = nullptr;
-  for (AnnotatedLine *AL : llvm::reverse(Lines)) {
+  for (AnnotatedLine *Line : llvm::reverse(Lines)) {
+    assert(Line->First);
     bool CommentLine = true;
-    for (const FormatToken *Tok = AL->First; Tok; Tok = Tok->Next) {
+    for (const FormatToken *Tok = Line->First; Tok; Tok = Tok->Next) {
       if (!Tok->is(tok::comment)) {
         CommentLine = false;
         break;
@@ -2367,20 +2368,21 @@ void TokenAnnotator::setCommentLineLevels(
     if (NextNonCommentLine && CommentLine &&
         NextNonCommentLine->First->NewlinesBefore <= 1 &&
         NextNonCommentLine->First->OriginalColumn ==
-            AL->First->OriginalColumn) {
+            Line->First->OriginalColumn) {
       // Align comments for preprocessor lines with the # in column 0 if
       // preprocessor lines are not indented. Otherwise, align with the next
       // line.
-      AL->Level = (Style.IndentPPDirectives != FormatStyle::PPDIS_BeforeHash &&
-                   (NextNonCommentLine->Type == LT_PreprocessorDirective ||
-                    NextNonCommentLine->Type == LT_ImportStatement))
-                      ? 0
-                      : NextNonCommentLine->Level;
+      Line->Level =
+          (Style.IndentPPDirectives != FormatStyle::PPDIS_BeforeHash &&
+           (NextNonCommentLine->Type == LT_PreprocessorDirective ||
+            NextNonCommentLine->Type == LT_ImportStatement))
+              ? 0
+              : NextNonCommentLine->Level;
     } else {
-      NextNonCommentLine = AL->First->isNot(tok::r_brace) ? AL : nullptr;
+      NextNonCommentLine = Line->First->isNot(tok::r_brace) ? Line : nullptr;
     }
 
-    setCommentLineLevels(AL->Children);
+    setCommentLineLevels(Line->Children);
   }
 }
 
@@ -3304,14 +3306,11 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
 bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
                                          const FormatToken &Right) {
   const FormatToken &Left = *Right.Previous;
-  auto HasExistingWhitespace = [&Right]() {
-    return Right.WhitespaceRange.getBegin() != Right.WhitespaceRange.getEnd();
-  };
 
   // If the token is finalized don't touch it (as it could be in a
   // clang-format-off section).
   if (Left.Finalized)
-    return HasExistingWhitespace();
+    return Right.hasWhitespaceBefore();
 
   if (Right.Tok.getIdentifierInfo() && Left.Tok.getIdentifierInfo())
     return true; // Never ever merge two identifiers.
@@ -3326,7 +3325,7 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     // or import .....;
     if (Left.is(Keywords.kw_import) && Right.isOneOf(tok::less, tok::ellipsis))
       return true;
-    // No space between module :.
+    // Space between `module :` and `import :`.
     if (Left.isOneOf(Keywords.kw_module, Keywords.kw_import) &&
         Right.is(TT_ModulePartitionColon))
       return true;
@@ -3340,6 +3339,9 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     if (Left.is(tok::ellipsis) && Right.is(tok::identifier) &&
         Line.First->is(Keywords.kw_import))
       return false;
+    // Space in __attribute__((attr)) ::type.
+    if (Left.is(TT_AttributeParen) && Right.is(tok::coloncolon))
+      return true;
 
     if (Left.is(tok::kw_operator))
       return Right.is(tok::coloncolon);
@@ -3373,7 +3375,7 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     // Preserve the existence of a space before a percent for cases like 0x%04x
     // and "%d %d"
     if (Left.is(tok::numeric_constant) && Right.is(tok::percent))
-      return HasExistingWhitespace();
+      return Right.hasWhitespaceBefore();
   } else if (Style.isJson()) {
     if (Right.is(tok::colon))
       return false;
@@ -3554,7 +3556,7 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
       return true;
   }
   if (Left.is(TT_ImplicitStringLiteral))
-    return HasExistingWhitespace();
+    return Right.hasWhitespaceBefore();
   if (Line.Type == LT_ObjCMethodDecl) {
     if (Left.is(TT_ObjCMethodSpecifier))
       return true;
@@ -3639,11 +3641,11 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     return Style.SpaceAfterCStyleCast ||
            Right.isOneOf(TT_BinaryOperator, TT_SelectorName);
 
-  auto ShouldAddSpacesInAngles = [this, &HasExistingWhitespace]() {
+  auto ShouldAddSpacesInAngles = [this, &Right]() {
     if (this->Style.SpacesInAngles == FormatStyle::SIAS_Always)
       return true;
     if (this->Style.SpacesInAngles == FormatStyle::SIAS_Leave)
-      return HasExistingWhitespace();
+      return Right.hasWhitespaceBefore();
     return false;
   };
 
@@ -3669,7 +3671,7 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
     // Generally don't remove existing spaces between an identifier and "::".
     // The identifier might actually be a macro name such as ALWAYS_INLINE. If
     // this turns out to be too lenient, add analysis of the identifier itself.
-    return HasExistingWhitespace();
+    return Right.hasWhitespaceBefore();
   if (Right.is(tok::coloncolon) &&
       !Left.isOneOf(tok::l_brace, tok::comment, tok::l_paren))
     // Put a space between < and :: in vector< ::std::string >

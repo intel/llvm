@@ -9,11 +9,13 @@
 #ifndef LLDB_TARGET_STATISTICS_H
 #define LLDB_TARGET_STATISTICS_H
 
+#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/lldb-forward.h"
 #include "llvm/Support/JSON.h"
 #include <atomic>
 #include <chrono>
+#include <ratio>
 #include <string>
 #include <vector>
 
@@ -107,6 +109,11 @@ struct ModuleStats {
   bool symtab_saved_to_cache = false;
   bool debug_info_index_loaded_from_cache = false;
   bool debug_info_index_saved_to_cache = false;
+};
+
+struct ConstStringStats {
+  llvm::json::Value ToJSON() const;
+  ConstString::MemoryStats stats = ConstString::GetMemoryStats();
 };
 
 /// A class that represents statistics for a since lldb_private::Target.

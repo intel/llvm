@@ -13,10 +13,7 @@
 #ifndef LLVM_ADT_SMALLVECTOR_H
 #define LLVM_ADT_SMALLVECTOR_H
 
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MemAlloc.h"
 #include "llvm/Support/type_traits.h"
 #include <algorithm>
 #include <cassert>
@@ -33,6 +30,8 @@
 #include <utility>
 
 namespace llvm {
+
+template <typename IteratorT> class iterator_range;
 
 /// This is all the stuff common to all SmallVectors.
 ///
