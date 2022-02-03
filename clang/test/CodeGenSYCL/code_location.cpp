@@ -264,3 +264,45 @@ int test5() {
 // CHECK: #endif
 // CHECK:   }
 // CHECK: };
+
+// Check that the location information returned is that of the Functor
+struct Functor {
+  void operator()() const {
+  }
+};
+int test6() {
+  Functor F;
+  cl::sycl::queue q;
+  q.submit([=](cl::sycl::handler &h) { h.single_task<class KernelName6>(F); });
+  return 0;
+}
+// CHECK: template <> struct KernelInfo<KernelName6> {
+// CHECK:   static constexpr const char* getFileName() {
+// CHECK: #ifndef NDEBUG
+// CHECK:     return "code_location.cpp";
+// CHECK: #else
+// CHECK:     return "";
+// CHECK: #endif
+// CHECK:   }
+// CHECK:   static constexpr const char* getFunctionName() {
+// CHECK: #ifndef NDEBUG
+// CHECK:     return "KernelName6";
+// CHECK: #else
+// CHECK:     return "";
+// CHECK: #endif
+// CHECK:   }
+// CHECK:   static constexpr unsigned getLineNumber() {
+// CHECK: #ifndef NDEBUG
+// CHECK:     return 269;
+// CHECK: #else
+// CHECK:     return 0;
+// CHECK: #endif
+// CHECK:   }
+// CHECK:   static constexpr unsigned getColumnNumber() {
+// CHECK: #ifndef NDEBUG
+// CHECK:     return 8;
+// CHECK: #else
+// CHECK:     return 0;
+// CHECK: #endif
+// CHECK:   }
+// CHECK: };
