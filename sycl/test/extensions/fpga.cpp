@@ -42,8 +42,8 @@ using ethernet_write_pipe =
 
 static_assert(std::is_same_v<ethernet_read_pipe::value_type, int>);
 static_assert(std::is_same_v<ethernet_write_pipe::value_type, int>);
-static_assert(ethernet_read_pipe::min_capacity == 0;
-static_assert(ethernet_write_pipe::min_capacity == 0;
+static_assert(ethernet_read_pipe::min_capacity == 0);
+static_assert(ethernet_write_pipe::min_capacity == 0);
 } // namespace intelfpga
 
 int main() {
