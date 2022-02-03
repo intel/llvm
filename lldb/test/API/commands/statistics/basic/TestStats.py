@@ -135,6 +135,7 @@ class TestCase(TestBase):
 
         (lldb) statistics dump
         {
+          "memory" : {...},
           "modules" : [...],
           "targets" : [
             {
@@ -160,12 +161,17 @@ class TestCase(TestBase):
         target = self.createTestTarget()
         debug_stats = self.get_stats()
         debug_stat_keys = [
+            'memory',
             'modules',
             'targets',
             'totalSymbolTableParseTime',
             'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
             'totalDebugInfoByteSize',
             'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
             'totalDebugInfoParseTime',
         ]
         self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)
@@ -193,6 +199,7 @@ class TestCase(TestBase):
 
         (lldb) statistics dump
         {
+          "memory" : {...},
           "modules" : [...],
           "targets" : [
                 {
@@ -223,12 +230,17 @@ class TestCase(TestBase):
                                           lldb.SBFileSpec("main.c"))
         debug_stats = self.get_stats()
         debug_stat_keys = [
+            'memory',
             'modules',
             'targets',
             'totalSymbolTableParseTime',
             'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
             'totalDebugInfoByteSize',
             'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
             'totalDebugInfoParseTime',
         ]
         self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)
@@ -246,6 +258,44 @@ class TestCase(TestBase):
         self.assertGreater(stats['launchOrAttachTime'], 0.0)
         self.assertGreater(stats['targetCreateTime'], 0.0)
 
+    def test_memory(self):
+        """
+            Test "statistics dump" and the memory information.
+        """
+        exe = self.getBuildArtifact("a.out")
+        target = self.createTestTarget(file_path=exe)
+        debug_stats = self.get_stats()
+        debug_stat_keys = [
+            'memory',
+            'modules',
+            'targets',
+            'totalSymbolTableParseTime',
+            'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
+            'totalDebugInfoParseTime',
+            'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
+            'totalDebugInfoByteSize'
+        ]
+        self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)
+
+        memory = debug_stats['memory']
+        memory_keys= [
+            'strings',
+        ]
+        self.verify_keys(memory, '"memory"', memory_keys, None)
+
+        strings = memory['strings']
+        strings_keys= [
+            'bytesTotal',
+            'bytesUsed',
+            'bytesUnused',
+        ]
+        self.verify_keys(strings, '"strings"', strings_keys, None)
+
+
     def find_module_in_metrics(self, path, stats):
         modules = stats['modules']
         for module in modules:
@@ -261,12 +311,17 @@ class TestCase(TestBase):
         target = self.createTestTarget(file_path=exe)
         debug_stats = self.get_stats()
         debug_stat_keys = [
+            'memory',
             'modules',
             'targets',
             'totalSymbolTableParseTime',
             'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
             'totalDebugInfoParseTime',
             'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
             'totalDebugInfoByteSize'
         ]
         self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)
@@ -278,12 +333,16 @@ class TestCase(TestBase):
         exe_module = self.find_module_in_metrics(exe, debug_stats)
         module_keys = [
             'debugInfoByteSize',
+            'debugInfoIndexLoadedFromCache',
             'debugInfoIndexTime',
+            'debugInfoIndexSavedToCache',
             'debugInfoParseTime',
             'identifier',
             'path',
             'symbolTableIndexTime',
+            'symbolTableLoadedFromCache',
             'symbolTableParseTime',
+            'symbolTableSavedToCache',
             'triple',
             'uuid',
         ]
@@ -296,6 +355,7 @@ class TestCase(TestBase):
         Output expected to be something like:
 
         {
+          "memory" : {...},
           "modules" : [...],
           "targets" : [
                 {
@@ -339,12 +399,17 @@ class TestCase(TestBase):
         self.runCmd("b a_function")
         debug_stats = self.get_stats()
         debug_stat_keys = [
+            'memory',
             'modules',
             'targets',
             'totalSymbolTableParseTime',
             'totalSymbolTableIndexTime',
+            'totalSymbolTablesLoadedFromCache',
+            'totalSymbolTablesSavedToCache',
             'totalDebugInfoParseTime',
             'totalDebugInfoIndexTime',
+            'totalDebugInfoIndexLoadedFromCache',
+            'totalDebugInfoIndexSavedToCache',
             'totalDebugInfoByteSize',
         ]
         self.verify_keys(debug_stats, '"debug_stats"', debug_stat_keys, None)

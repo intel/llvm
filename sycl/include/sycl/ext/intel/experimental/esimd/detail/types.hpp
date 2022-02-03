@@ -39,6 +39,8 @@ namespace esimd {
 template <typename Ty, int N> class simd;
 template <typename BaseTy, typename RegionTy> class simd_view;
 
+/// @cond ESIMD_DETAIL
+
 namespace detail {
 
 namespace csd = cl::sycl::detail;
@@ -151,6 +153,8 @@ struct is_simd_obj_impl_derivative<simd_obj_impl<RawT, N, Derived>>
 template <class T, class SFINAE = void> struct element_type_traits;
 template <class T>
 using __raw_t = typename __SEIEED::element_type_traits<T>::RawT;
+template <class T>
+using __cpp_t = typename __SEIEED::element_type_traits<T>::EnclosingCppT;
 
 // Specialization for all other types.
 template <typename T, int N, template <typename, int> class Derived>
@@ -314,21 +318,33 @@ template <typename T> using element_type_t = typename element_type<T>::type;
 // Determine element type of simd_obj_impl's Derived type w/o having to have
 // complete instantiation of the Derived type (is required by element_type_t,
 // hence can't be used here).
-template <class T> struct simd_like_obj_info;
-template <class T, int N> struct simd_like_obj_info<simd<T, N>> {
-  using type = T;
-  static inline constexpr int length = N;
+template <class T> struct simd_like_obj_info {
+  using element_type = T;
+  static inline constexpr int vector_length = 0;
 };
+
+template <class T, int N> struct simd_like_obj_info<simd<T, N>> {
+  using element_type = T;
+  static inline constexpr int vector_length = N;
+};
+
 template <class T, int N> struct simd_like_obj_info<simd_mask_impl<T, N>> {
-  using type = simd_mask_elem_type; // equals T
-  static inline constexpr int length = N;
+  using element_type = simd_mask_elem_type; // equals T
+  static inline constexpr int vector_length = N;
+};
+
+template <class BaseT, class RegionT>
+struct simd_like_obj_info<simd_view<BaseT, RegionT>> {
+  using element_type = typename RegionT::element_type;
+  static inline constexpr int vector_length = RegionT::length;
 };
 
 template <typename T>
-using simd_like_obj_element_type_t = typename simd_like_obj_info<T>::type;
+using get_vector_element_type = typename simd_like_obj_info<T>::element_type;
+
 template <typename T>
-static inline constexpr int simd_like_obj_length =
-    simd_like_obj_info<T>::length;
+static inline constexpr int get_vector_length =
+    simd_like_obj_info<T>::vector_length;
 
 // @}
 
@@ -382,6 +398,8 @@ bitcast(vector_type_t<FromEltTy, FromN> Val) {
 }
 
 } // namespace detail
+
+/// @endcond ESIMD_DETAIL
 
 // Alias for backward compatibility.
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;

@@ -18,4 +18,5 @@ add_sycl_unittest(SchedulerTests OBJECT
     QueueFlushing.cpp
     PostEnqueueCleanup.cpp
     utils.cpp
+    LeafLimitDiffContexts.cpp
 )

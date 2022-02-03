@@ -1525,10 +1525,10 @@ public:
     };
 
   private:
-    llvm::PointerIntPair<CXXMethodDecl*, 2> Pair;
+    llvm::PointerIntPair<CXXMethodDecl *, 2> Pair;
 
   public:
-    SpecialMemberOverloadResult() : Pair() {}
+    SpecialMemberOverloadResult() {}
     SpecialMemberOverloadResult(CXXMethodDecl *MD)
         : Pair(MD, MD->isDeleted() ? NoMemberOrDeleted : Success) {}
 
@@ -1725,7 +1725,10 @@ public:
   /// assignment.
   llvm::DenseMap<const VarDecl *, int> RefsMinusAssignments;
 
+private:
   Optional<std::unique_ptr<DarwinSDKInfo>> CachedDarwinSDKInfo;
+
+  bool WarnedDarwinSDKInfoMissing = false;
 
 public:
   Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
@@ -1755,8 +1758,10 @@ public:
   ASTConsumer &getASTConsumer() const { return Consumer; }
   ASTMutationListener *getASTMutationListener() const;
   ExternalSemaSource* getExternalSource() const { return ExternalSource; }
+
   DarwinSDKInfo *getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
                                                          StringRef Platform);
+  DarwinSDKInfo *getDarwinSDKInfoForAvailabilityChecking();
 
   ///Registers an external source. If an external source already exists,
   /// creates a multiplex external source and appends to it.
@@ -4555,6 +4560,8 @@ public:
                             bool ConsiderLinkage, bool AllowInlineNamespace);
 
   bool CheckRedeclarationModuleOwnership(NamedDecl *New, NamedDecl *Old);
+  bool CheckRedeclarationExported(NamedDecl *New, NamedDecl *Old);
+  bool CheckRedeclarationInModule(NamedDecl *New, NamedDecl *Old);
 
   void DiagnoseAmbiguousLookup(LookupResult &Result);
   //@}
@@ -5102,7 +5109,8 @@ public:
 
   StmtResult ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
                              Scope *CurScope);
-  StmtResult BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp);
+  StmtResult BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
+                             bool AllowRecovery = false);
   StmtResult ActOnCapScopeReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
                                      NamedReturnInfo &NRInfo,
                                      bool SupressSimplerImplicitMoves);
@@ -5293,6 +5301,7 @@ public:
   void DiscardCleanupsInEvaluationContext();
 
   ExprResult TransformToPotentiallyEvaluated(Expr *E);
+  TypeSourceInfo *TransformToPotentiallyEvaluated(TypeSourceInfo *TInfo);
   ExprResult HandleExprEvaluationContextForTypeof(Expr *E);
 
   ExprResult CheckUnevaluatedOperand(Expr *E);
@@ -7768,7 +7777,7 @@ public:
     RequiredTemplateKind(SourceLocation TemplateKWLoc = SourceLocation())
         : TemplateKW(TemplateKWLoc) {}
     /// Template name is unconditionally required.
-    RequiredTemplateKind(TemplateNameIsRequiredTag) : TemplateKW() {}
+    RequiredTemplateKind(TemplateNameIsRequiredTag) {}
 
     SourceLocation getTemplateKeywordLoc() const {
       return TemplateKW.getValueOr(SourceLocation());
@@ -10671,6 +10680,9 @@ private:
     /// The directive kind, `begin declare target` or `declare target`.
     OpenMPDirectiveKind Kind;
 
+    /// The directive with indirect clause.
+    Optional<Expr *> Indirect;
+
     /// The directive location.
     SourceLocation Loc;
 
@@ -10977,7 +10989,7 @@ public:
   /// Called on correct id-expression from the '#pragma omp declare target'.
   void ActOnOpenMPDeclareTargetName(NamedDecl *ND, SourceLocation Loc,
                                     OMPDeclareTargetDeclAttr::MapTypeTy MT,
-                                    OMPDeclareTargetDeclAttr::DevTypeTy DT);
+                                    DeclareTargetContextInfo &DTCI);
 
   /// Check declaration inside target region.
   void
@@ -11528,6 +11540,9 @@ public:
                                      SourceLocation EndLoc);
   /// Called on well-formed 'capture' clause.
   OMPClause *ActOnOpenMPCaptureClause(SourceLocation StartLoc,
+                                      SourceLocation EndLoc);
+  /// Called on well-formed 'compare' clause.
+  OMPClause *ActOnOpenMPCompareClause(SourceLocation StartLoc,
                                       SourceLocation EndLoc);
   /// Called on well-formed 'seq_cst' clause.
   OMPClause *ActOnOpenMPSeqCstClause(SourceLocation StartLoc,
@@ -12415,9 +12430,12 @@ public:
     ConstexprIf, ///< A constant boolean condition from 'if constexpr'.
     Switch       ///< An integral condition for a 'switch' statement.
   };
+  QualType PreferredConditionType(ConditionKind K) const {
+    return K == ConditionKind::Switch ? Context.IntTy : Context.BoolTy;
+  }
 
-  ConditionResult ActOnCondition(Scope *S, SourceLocation Loc,
-                                 Expr *SubExpr, ConditionKind CK);
+  ConditionResult ActOnCondition(Scope *S, SourceLocation Loc, Expr *SubExpr,
+                                 ConditionKind CK, bool MissingOK = false);
 
   ConditionResult ActOnConditionVariable(Decl *ConditionVar,
                                          SourceLocation StmtLoc,
@@ -12887,18 +12905,18 @@ public:
   /// signatures that were considered.
   ///
   /// FIXME: rename to GuessCallArgumentType to reduce confusion.
-  QualType ProduceCallSignatureHelp(Scope *S, Expr *Fn, ArrayRef<Expr *> Args,
+  QualType ProduceCallSignatureHelp(Expr *Fn, ArrayRef<Expr *> Args,
                                     SourceLocation OpenParLoc);
-  QualType ProduceConstructorSignatureHelp(Scope *S, QualType Type,
-                                           SourceLocation Loc,
+  QualType ProduceConstructorSignatureHelp(QualType Type, SourceLocation Loc,
                                            ArrayRef<Expr *> Args,
-                                           SourceLocation OpenParLoc);
-  QualType ProduceCtorInitMemberSignatureHelp(Scope *S, Decl *ConstructorDecl,
-                                              CXXScopeSpec SS,
-                                              ParsedType TemplateTypeTy,
-                                              ArrayRef<Expr *> ArgExprs,
-                                              IdentifierInfo *II,
-                                              SourceLocation OpenParLoc);
+                                           SourceLocation OpenParLoc,
+                                           bool Braced);
+  QualType ProduceCtorInitMemberSignatureHelp(
+      Decl *ConstructorDecl, CXXScopeSpec SS, ParsedType TemplateTypeTy,
+      ArrayRef<Expr *> ArgExprs, IdentifierInfo *II, SourceLocation OpenParLoc,
+      bool Braced);
+  QualType ProduceTemplateArgumentSignatureHelp(
+      TemplateTy, ArrayRef<ParsedTemplateArgument>, SourceLocation LAngleLoc);
   void CodeCompleteInitializer(Scope *S, Decl *D);
   /// Trigger code completion for a record of \p BaseType. \p InitExprs are
   /// expressions in the initializer list seen so far and \p D is the current
@@ -13417,7 +13435,7 @@ private:
     ValueDecl *MD;
     CharUnits Alignment;
 
-    MisalignedMember() : E(), RD(), MD(), Alignment() {}
+    MisalignedMember() : E(), RD(), MD() {}
     MisalignedMember(Expr *E, RecordDecl *RD, ValueDecl *MD,
                      CharUnits Alignment)
         : E(E), RD(RD), MD(MD), Alignment(Alignment) {}
@@ -13603,6 +13621,9 @@ public:
   /// Adds Callee to DeviceCallGraph if we don't know if its caller will be
   /// codegen'ed yet.
   bool checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee);
+  void deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
+                                  llvm::DenseSet<QualType> Visited,
+                                  ValueDecl *DeclToCheck);
 
   /// Finishes analysis of the deferred functions calls that may be not
   /// properly declared for device compilation.

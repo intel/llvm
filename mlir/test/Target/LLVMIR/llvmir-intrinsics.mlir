@@ -350,6 +350,14 @@ llvm.func @memcpy_test(%arg0: i32, %arg2: !llvm.ptr<i8>, %arg3: !llvm.ptr<i8>) {
   llvm.return
 }
 
+// CHECK-LABEL: @memmove_test
+llvm.func @memmove_test(%arg0: i32, %arg2: !llvm.ptr<i8>, %arg3: !llvm.ptr<i8>) {
+  %i1 = llvm.mlir.constant(false) : i1
+  // CHECK: call void @llvm.memmove.p0i8.p0i8.i32(i8* %{{.*}}, i8* %{{.*}}, i32 %{{.*}}, i1 {{.*}})
+  "llvm.intr.memmove"(%arg2, %arg3, %arg0, %i1) : (!llvm.ptr<i8>, !llvm.ptr<i8>, i32, i1) -> ()
+  llvm.return
+}
+
 // CHECK-LABEL: @memset_test
 llvm.func @memset_test(%arg0: i32, %arg2: !llvm.ptr<i8>, %arg3: i8) {
   %i1 = llvm.mlir.constant(false) : i1
@@ -438,6 +446,15 @@ llvm.func @coro_size() {
   llvm.return
 }
 
+// CHECK-LABEL: @coro_align
+llvm.func @coro_align() {
+  // CHECK: call i64 @llvm.coro.align.i64
+  %0 = llvm.intr.coro.align : i64
+  // CHECK: call i32 @llvm.coro.align.i32
+  %1 = llvm.intr.coro.align : i32
+  llvm.return
+}
+
 // CHECK-LABEL: @coro_save
 llvm.func @coro_save(%arg0: !llvm.ptr<i8>) {
   // CHECK: call token @llvm.coro.save
@@ -475,6 +492,13 @@ llvm.func @coro_resume(%arg0: !llvm.ptr<i8>) {
   // CHECK: call void @llvm.coro.resume
   llvm.intr.coro.resume %arg0
   llvm.return
+}
+
+// CHECK-LABEL: @eh_typeid_for
+llvm.func @eh_typeid_for(%arg0 : !llvm.ptr<i8>) {
+    // CHECK: call i32 @llvm.eh.typeid.for
+    %0 = llvm.intr.eh.typeid.for %arg0 : i32
+    llvm.return
 }
 
 // CHECK-LABEL: @stack_save

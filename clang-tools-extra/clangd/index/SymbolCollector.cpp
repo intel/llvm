@@ -43,7 +43,7 @@ namespace {
 /// If \p ND is a template specialization, returns the described template.
 /// Otherwise, returns \p ND.
 const NamedDecl &getTemplateOrThis(const NamedDecl &ND) {
-  if (auto T = ND.getDescribedTemplate())
+  if (auto *T = ND.getDescribedTemplate())
     return *T;
   return ND;
 }
@@ -356,6 +356,10 @@ bool SymbolCollector::shouldCollectSymbol(const NamedDecl &ND,
   // Avoid indexing internal symbols in protobuf generated headers.
   if (isPrivateProtoDecl(ND))
     return false;
+  if (!Opts.CollectReserved &&
+      (hasReservedName(ND) || hasReservedScope(*ND.getDeclContext())))
+    return false;
+
   return true;
 }
 

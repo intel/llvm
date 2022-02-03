@@ -85,6 +85,8 @@
 
 #include <CL/sycl/half_type.hpp>
 
+/// @cond ESIMD_DETAIL
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace __SEIEED {
 
@@ -133,6 +135,10 @@ template <class T, class SFINAE> struct element_type_traits {
   // Whether a value or clang vector value the raw element type can be used
   // directly as operand to std C++ operations.
   static inline constexpr bool use_native_cpp_ops = true;
+  // W/A for MSVC compiler problems which thinks
+  // std::is_floating_point_v<_Float16> is false; so require new element types
+  // implementations to state "is floating point" trait explicitly
+  static inline constexpr bool is_floating_point = false;
 };
 
 // Element type traits specialization for C++ standard element type.
@@ -141,6 +147,7 @@ struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
   using RawT = T;
   using EnclosingCppT = T;
   static inline constexpr bool use_native_cpp_ops = true;
+  static inline constexpr bool is_floating_point = std::is_floating_point_v<T>;
 };
 
 // --- Type conversions
@@ -563,9 +570,8 @@ public:
 // the wrapper floating-point types such as sycl::half.
 template <typename T>
 static inline constexpr bool is_generic_floating_point_v =
-    std::is_floating_point_v<typename element_type_traits<T>::EnclosingCppT>;
+    element_type_traits<T>::is_floating_point;
 
-// @{
 // Get computation type of a binary operator given its operand types:
 // - if both types are arithmetic - return CPP's "common real type" of the
 //   computation (matches C++)
@@ -638,8 +644,6 @@ template <class T1, class T2 = T1>
 using computation_type_t =
     typename computation_type<remove_cvref_t<T1>, remove_cvref_t<T2>>::type;
 
-// @}
-
 ////////////////////////////////////////////////////////////////////////////////
 // sycl::half traits
 ////////////////////////////////////////////////////////////////////////////////
@@ -664,6 +668,8 @@ struct element_type_traits<T, std::enable_if_t<std::is_same_v<T, sycl::half>>> {
   // operations on half type.
   static inline constexpr bool use_native_cpp_ops = false;
 #endif // __SYCL_DEVICE_ONLY__
+
+  static inline constexpr bool is_floating_point = true;
 };
 
 using half_raw = __raw_t<sycl::half>;
@@ -706,3 +712,5 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 
 } // namespace __SEIEED
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_DETAIL

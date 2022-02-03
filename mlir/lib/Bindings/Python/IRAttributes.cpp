@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "IRModule.h"
 
 #include "PybindUtils.h"
@@ -116,7 +118,7 @@ public:
 
   class PyArrayAttributeIterator {
   public:
-    PyArrayAttributeIterator(PyAttribute attr) : attr(attr) {}
+    PyArrayAttributeIterator(PyAttribute attr) : attr(std::move(attr)) {}
 
     PyArrayAttributeIterator &dunderIter() { return *this; }
 
@@ -459,7 +461,7 @@ public:
         arrayInfo.format);
   }
 
-  static PyDenseElementsAttribute getSplat(PyType shapedType,
+  static PyDenseElementsAttribute getSplat(const PyType &shapedType,
                                            PyAttribute &elementAttr) {
     auto contextWrapper =
         PyMlirContext::forContext(mlirTypeGetContext(shapedType));
@@ -671,6 +673,12 @@ public:
       if (width == 1) {
         return mlirDenseElementsAttrGetBoolValue(*this, pos);
       }
+      if (width == 8) {
+        return mlirDenseElementsAttrGetUInt8Value(*this, pos);
+      }
+      if (width == 16) {
+        return mlirDenseElementsAttrGetUInt16Value(*this, pos);
+      }
       if (width == 32) {
         return mlirDenseElementsAttrGetUInt32Value(*this, pos);
       }
@@ -680,6 +688,12 @@ public:
     } else {
       if (width == 1) {
         return mlirDenseElementsAttrGetBoolValue(*this, pos);
+      }
+      if (width == 8) {
+        return mlirDenseElementsAttrGetInt8Value(*this, pos);
+      }
+      if (width == 16) {
+        return mlirDenseElementsAttrGetInt16Value(*this, pos);
       }
       if (width == 32) {
         return mlirDenseElementsAttrGetInt32Value(*this, pos);

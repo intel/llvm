@@ -183,7 +183,8 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
   if (const ConstantInt *C = dyn_cast<ConstantInt>(AI.getArraySize())) {
     if (C->getValue().getActiveBits() <= 64) {
       Type *NewTy = ArrayType::get(AI.getAllocatedType(), C->getZExtValue());
-      AllocaInst *New = IC.Builder.CreateAlloca(NewTy, nullptr, AI.getName());
+      AllocaInst *New = IC.Builder.CreateAlloca(NewTy, AI.getAddressSpace(),
+                                                nullptr, AI.getName());
       New->setAlignment(AI.getAlign());
 
       // Scan to the end of the allocation instructions, to skip over a block of
@@ -199,21 +200,13 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
       Type *IdxTy = IC.getDataLayout().getIntPtrType(AI.getType());
       Value *NullIdx = Constant::getNullValue(IdxTy);
       Value *Idx[2] = {NullIdx, NullIdx};
-      Instruction *NewI = GetElementPtrInst::CreateInBounds(
+      Instruction *GEP = GetElementPtrInst::CreateInBounds(
           NewTy, New, Idx, New->getName() + ".sub");
-      IC.InsertNewInstBefore(NewI, *It);
-
-      // Gracefully handle allocas in other address spaces.
-      if (AI.getType()->getPointerAddressSpace() !=
-          NewI->getType()->getPointerAddressSpace()) {
-        NewI =
-            CastInst::CreatePointerBitCastOrAddrSpaceCast(NewI, AI.getType());
-        IC.InsertNewInstBefore(NewI, *It);
-      }
+      IC.InsertNewInstBefore(GEP, *It);
 
       // Now make everything use the getelementptr instead of the original
       // allocation.
-      return IC.replaceInstUsesWith(AI, NewI);
+      return IC.replaceInstUsesWith(AI, GEP);
     }
   }
 
@@ -308,16 +301,17 @@ void PointerReplacer::replace(Instruction *I) {
     assert(V && "Operand not replaced");
     SmallVector<Value *, 8> Indices;
     Indices.append(GEP->idx_begin(), GEP->idx_end());
-    auto *NewI = GetElementPtrInst::Create(
-        V->getType()->getPointerElementType(), V, Indices);
+    auto *NewI =
+        GetElementPtrInst::Create(GEP->getSourceElementType(), V, Indices);
     IC.InsertNewInstWith(NewI, *GEP);
     NewI->takeName(GEP);
     WorkMap[GEP] = NewI;
   } else if (auto *BC = dyn_cast<BitCastInst>(I)) {
     auto *V = getReplacement(BC->getOperand(0));
     assert(V && "Operand not replaced");
-    auto *NewT = PointerType::get(BC->getType()->getPointerElementType(),
-                                  V->getType()->getPointerAddressSpace());
+    auto *NewT = PointerType::getWithSamePointeeType(
+        cast<PointerType>(BC->getType()),
+        V->getType()->getPointerAddressSpace());
     auto *NewI = new BitCastInst(V, NewT);
     IC.InsertNewInstWith(NewI, *BC);
     NewI->takeName(BC);
@@ -352,8 +346,7 @@ void PointerReplacer::replacePointer(Instruction &I, Value *V) {
 #ifndef NDEBUG
   auto *PT = cast<PointerType>(I.getType());
   auto *NT = cast<PointerType>(V->getType());
-  assert(PT != NT && PT->getElementType() == NT->getElementType() &&
-         "Invalid usage");
+  assert(PT != NT && PT->hasSameElementTypeAs(NT) && "Invalid usage");
 #endif
   WorkMap[&I] = V;
 

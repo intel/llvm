@@ -405,6 +405,23 @@ BUILTIN(__nvvm_ull2d_rp, "dULLi", "")
 BUILTIN(__nvvm_f2h_rn_ftz, "Usf", "")
 BUILTIN(__nvvm_f2h_rn, "Usf", "")
 
+TARGET_BUILTIN(__nvvm_ff2bf16x2_rn, "ZUiff", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_ff2bf16x2_rn_relu, "ZUiff", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_ff2bf16x2_rz, "ZUiff", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_ff2bf16x2_rz_relu, "ZUiff", "", AND(SM_80,PTX70))
+
+TARGET_BUILTIN(__nvvm_ff2f16x2_rn, "V2hff", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_ff2f16x2_rn_relu, "V2hff", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_ff2f16x2_rz, "V2hff", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_ff2f16x2_rz_relu, "V2hff", "", AND(SM_80,PTX70))
+
+TARGET_BUILTIN(__nvvm_f2bf16_rn, "ZUsf", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_f2bf16_rn_relu, "ZUsf", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_f2bf16_rz, "ZUsf", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__nvvm_f2bf16_rz_relu, "ZUsf", "", AND(SM_80,PTX70))
+
+TARGET_BUILTIN(__nvvm_f2tf32_rna, "ZUif", "", AND(SM_80,PTX70))
+
 // Bitcast
 
 BUILTIN(__nvvm_bitcast_f2i, "if", "")
@@ -2036,6 +2053,92 @@ TARGET_BUILTIN(__nvvm_atom_acq_rel_sys_cas_shared_l, "LiLiD*LiLi", "n", SM_70)
 TARGET_BUILTIN(__nvvm_atom_acq_rel_cas_shared_ll, "LLiLLiD*LLiLLi", "n", SM_70)
 TARGET_BUILTIN(__nvvm_atom_acq_rel_cta_cas_shared_ll, "LLiLLiD*LLiLLi", "n", SM_70)
 TARGET_BUILTIN(__nvvm_atom_acq_rel_sys_cas_shared_ll, "LLiLLiD*LLiLLi", "n", SM_70)
+
+#pragma push_macro("LD_VOLATILE_BUILTIN_TYPES")
+#define LD_VOLATILE_BUILTIN_TYPES(ADDR_SPACE) \
+BUILTIN(__nvvm_volatile_ld##ADDR_SPACE##_i, "iiD*", "n") \
+BUILTIN(__nvvm_volatile_ld##ADDR_SPACE##_l, "LiLiD*", "n") \
+BUILTIN(__nvvm_volatile_ld##ADDR_SPACE##_ll, "LLiLLiD*", "n") \
+BUILTIN(__nvvm_volatile_ld##ADDR_SPACE##_f, "ffD*", "n") \
+BUILTIN(__nvvm_volatile_ld##ADDR_SPACE##_d, "ddD*", "n")
+
+#pragma push_macro("LD_BUILTIN_TYPES")
+#define LD_BUILTIN_TYPES(ORDER, SCOPE, ADDR_SPACE) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_i, "iiD*", "n", SM_70) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_l, "LiLiD*", "n", SM_70) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_ll, "LLiLLiD*", "n", SM_70) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_f, "ffD*", "n", SM_70) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_ld##ADDR_SPACE##_d, "ddD*", "n", SM_70)
+
+#pragma push_macro("LD_BUILTIN_AS_TYPES")
+#define LD_BUILTIN_AS_TYPES(ORDER, SCOPE) \
+LD_BUILTIN_TYPES(ORDER, SCOPE, _gen) \
+LD_BUILTIN_TYPES(ORDER, SCOPE, _global) \
+LD_BUILTIN_TYPES(ORDER, SCOPE, _shared)
+
+#pragma push_macro("LD_BUILTIN_SCOPES_AS_TYPES")
+#define LD_BUILTIN_SCOPES_AS_TYPES(ORDER) \
+LD_BUILTIN_AS_TYPES(ORDER, ) \
+LD_BUILTIN_AS_TYPES(ORDER, _cta) \
+LD_BUILTIN_AS_TYPES(ORDER, _sys)
+
+LD_BUILTIN_SCOPES_AS_TYPES()
+LD_BUILTIN_SCOPES_AS_TYPES(_acquire)
+LD_VOLATILE_BUILTIN_TYPES(_gen)
+LD_VOLATILE_BUILTIN_TYPES(_global)
+LD_VOLATILE_BUILTIN_TYPES(_shared)
+
+#undef LD_VOLATILE_BUILTIN_TYPES
+#pragma pop_macro("LD_VOLATILE_BUILTIN_TYPES")
+#undef LD_BUILTIN_TYPES
+#pragma pop_macro("LD_BUILTIN_TYPES")
+#undef LD_BUILTIN_AS_TYPES
+#pragma pop_macro("LD_BUILTIN_AS_TYPES")
+#undef LD_BUILTIN_SCOPES_AS_TYPES
+#pragma pop_macro("LD_BUILTIN_SCOPES_AS_TYPES")
+
+#pragma push_macro("ST_VOLATILE_BUILTIN_TYPES")
+#define ST_VOLATILE_BUILTIN_TYPES(ADDR_SPACE) \
+BUILTIN(__nvvm_volatile_st##ADDR_SPACE##_i, "viD*i", "n") \
+BUILTIN(__nvvm_volatile_st##ADDR_SPACE##_l, "vLiD*Li", "n") \
+BUILTIN(__nvvm_volatile_st##ADDR_SPACE##_ll, "vLLiD*LLi", "n") \
+BUILTIN(__nvvm_volatile_st##ADDR_SPACE##_f, "vfD*f", "n") \
+BUILTIN(__nvvm_volatile_st##ADDR_SPACE##_d, "vdD*d", "n")
+
+#pragma push_macro("ST_BUILTIN_TYPES")
+#define ST_BUILTIN_TYPES(ORDER, SCOPE, ADDR_SPACE) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_i, "viD*i", "n", SM_70) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_l, "vLiD*Li", "n", SM_70) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_ll, "vLLiD*LLi", "n", SM_70) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_f, "vfD*f", "n", SM_70) \
+TARGET_BUILTIN(__nvvm##ORDER##SCOPE##_st##ADDR_SPACE##_d, "vdD*d", "n", SM_70)
+
+#pragma push_macro("ST_BUILTIN_AS_TYPES")
+#define ST_BUILTIN_AS_TYPES(ORDER, SCOPE) \
+ST_BUILTIN_TYPES(ORDER, SCOPE, _gen) \
+ST_BUILTIN_TYPES(ORDER, SCOPE, _global) \
+ST_BUILTIN_TYPES(ORDER, SCOPE, _shared)
+
+#pragma push_macro("ST_BUILTIN_SCOPES_AS_TYPES")
+#define ST_BUILTIN_SCOPES_AS_TYPES(ORDER) \
+ST_BUILTIN_AS_TYPES(ORDER, ) \
+ST_BUILTIN_AS_TYPES(ORDER, _cta) \
+ST_BUILTIN_AS_TYPES(ORDER, _sys)
+
+ST_BUILTIN_SCOPES_AS_TYPES()
+ST_BUILTIN_SCOPES_AS_TYPES(_release)
+ST_VOLATILE_BUILTIN_TYPES(_gen)
+ST_VOLATILE_BUILTIN_TYPES(_global)
+ST_VOLATILE_BUILTIN_TYPES(_shared)
+
+#undef ST_VOLATILE_BUILTIN_TYPES
+#pragma pop_macro("ST_VOLATILE_BUILTIN_TYPES")
+#undef ST_BUILTIN_TYPES
+#pragma pop_macro("ST_BUILTIN_TYPES")
+#undef ST_BUILTIN_AS_TYPES
+#pragma pop_macro("ST_BUILTIN_AS_TYPES")
+#undef ST_BUILTIN_SCOPES_AS_TYPES
+#pragma pop_macro("ST_BUILTIN_SCOPES_AS_TYPES")
 
 // Compiler Error Warn
 BUILTIN(__nvvm_compiler_error, "vcC*4", "n")

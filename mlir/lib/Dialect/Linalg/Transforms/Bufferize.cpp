@@ -43,7 +43,7 @@ allocateBuffersForResults(Location loc, LinalgOp linalgOp, ValueRange outputs,
 
   // Allocate a buffer for every tensor result.
   assert(linalgOp.getNumOutputs() == linalgOp->getNumResults());
-  for (auto en : llvm::enumerate(linalgOp->getResultTypes())) {
+  for (const auto &en : llvm::enumerate(linalgOp->getResultTypes())) {
     size_t resultIndex = en.index();
     Type resultType = en.value();
 
@@ -281,8 +281,8 @@ public:
       return failure();
     rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
         readOp, readOp.getType(), adaptor.source(), adaptor.indices(),
-        adaptor.permutation_map(), adaptor.padding(), adaptor.mask(),
-        adaptor.in_bounds());
+        adaptor.permutation_mapAttr(), adaptor.padding(), adaptor.mask(),
+        adaptor.in_boundsAttr());
     return success();
   }
 };
@@ -299,8 +299,8 @@ public:
       return failure();
     rewriter.create<vector::TransferWriteOp>(
         writeOp.getLoc(), adaptor.vector(), adaptor.source(), adaptor.indices(),
-        adaptor.permutation_map(),
-        adaptor.in_bounds() ? adaptor.in_bounds() : ArrayAttr());
+        adaptor.permutation_mapAttr(),
+        adaptor.in_bounds() ? adaptor.in_boundsAttr() : ArrayAttr());
     rewriter.replaceOp(writeOp, adaptor.source());
     return success();
   }
@@ -320,7 +320,7 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
     target.addLegalDialect<arith::ArithmeticDialect, AffineDialect,
                            memref::MemRefDialect, StandardOpsDialect,
                            tensor::TensorDialect>();
-    target.addIllegalOp<InitTensorOp, PadTensorOp, tensor::CollapseShapeOp,
+    target.addIllegalOp<InitTensorOp, tensor::PadOp, tensor::CollapseShapeOp,
                         tensor::ExpandShapeOp, tensor::ExtractSliceOp,
                         tensor::InsertSliceOp>();
 
@@ -363,5 +363,5 @@ void mlir::linalg::populateLinalgBufferizePatterns(
       VectorTransferWriteOpConverter
     >(typeConverter, patterns.getContext());
   // clang-format on
-  patterns.add<GeneralizePadTensorOpPattern>(patterns.getContext());
+  patterns.add<GeneralizePadOpPattern>(patterns.getContext());
 }

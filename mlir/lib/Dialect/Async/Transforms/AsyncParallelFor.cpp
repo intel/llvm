@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Async/IR/Async.h"
@@ -111,7 +113,7 @@ public:
       AsyncMinTaskSizeComputationFunction computeMinTaskSize)
       : OpRewritePattern(ctx), asyncDispatch(asyncDispatch),
         numWorkerThreads(numWorkerThreads),
-        computeMinTaskSize(computeMinTaskSize) {}
+        computeMinTaskSize(std::move(computeMinTaskSize)) {}
 
   LogicalResult matchAndRewrite(scf::ParallelOp op,
                                 PatternRewriter &rewriter) const override;
@@ -244,7 +246,7 @@ getParallelComputeFunctionType(scf::ParallelOp op, PatternRewriter &rewriter) {
 
 // Create a parallel compute fuction from the parallel operation.
 static ParallelComputeFunction createParallelComputeFunction(
-    scf::ParallelOp op, ParallelComputeFunctionBounds bounds,
+    scf::ParallelOp op, const ParallelComputeFunctionBounds &bounds,
     unsigned numBlockAlignedInnerLoops, PatternRewriter &rewriter) {
   OpBuilder::InsertionGuard guard(rewriter);
   ImplicitLocOpBuilder b(op.getLoc(), rewriter);
@@ -268,7 +270,9 @@ static ParallelComputeFunction createParallelComputeFunction(
   rewriter.getListener()->notifyOperationInserted(func);
 
   // Create function entry block.
-  Block *block = b.createBlock(&func.getBody(), func.begin(), type.getInputs());
+  Block *block =
+      b.createBlock(&func.getBody(), func.begin(), type.getInputs(),
+                    SmallVector<Location>(type.getNumInputs(), op.getLoc()));
   b.setInsertionPointToEnd(block);
 
   ParallelComputeFunctionArgs args = {op.getNumLoops(), func.getArguments()};
@@ -480,7 +484,8 @@ static FuncOp createAsyncDispatchFunction(ParallelComputeFunction &computeFunc,
   rewriter.getListener()->notifyOperationInserted(func);
 
   // Create function entry block.
-  Block *block = b.createBlock(&func.getBody(), func.begin(), type.getInputs());
+  Block *block = b.createBlock(&func.getBody(), func.begin(), type.getInputs(),
+                               SmallVector<Location>(type.getNumInputs(), loc));
   b.setInsertionPointToEnd(block);
 
   Type indexTy = b.getIndexType();
@@ -497,11 +502,12 @@ static FuncOp createAsyncDispatchFunction(ParallelComputeFunction &computeFunc,
   // Create a work splitting while loop for the [blockStart, blockEnd) range.
   SmallVector<Type> types = {indexTy, indexTy};
   SmallVector<Value> operands = {blockStart, blockEnd};
+  SmallVector<Location> locations = {loc, loc};
 
   // Create a recursive dispatch loop.
   scf::WhileOp whileOp = b.create<scf::WhileOp>(types, operands);
-  Block *before = b.createBlock(&whileOp.getBefore(), {}, types);
-  Block *after = b.createBlock(&whileOp.getAfter(), {}, types);
+  Block *before = b.createBlock(&whileOp.getBefore(), {}, types, locations);
+  Block *after = b.createBlock(&whileOp.getAfter(), {}, types, locations);
 
   // Setup dispatch loop condition block: decide if we need to go into the
   // `after` block and launch one more async dispatch.
@@ -902,7 +908,7 @@ std::unique_ptr<Pass> mlir::createAsyncParallelForPass(bool asyncDispatch,
 
 void mlir::async::populateAsyncParallelForPatterns(
     RewritePatternSet &patterns, bool asyncDispatch, int32_t numWorkerThreads,
-    AsyncMinTaskSizeComputationFunction computeMinTaskSize) {
+    const AsyncMinTaskSizeComputationFunction &computeMinTaskSize) {
   MLIRContext *ctx = patterns.getContext();
   patterns.add<AsyncParallelForRewrite>(ctx, asyncDispatch, numWorkerThreads,
                                         computeMinTaskSize);

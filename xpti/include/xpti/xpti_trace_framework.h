@@ -75,6 +75,21 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *stream, uint32_t maj,
 /// @return None
 XPTI_EXPORT_API void xptiFinalize(const char *stream);
 
+/// @brief Returns universal ID
+/// @details Universal ID is a 64 bit value, that can be used to correlate
+/// events from different software layers. It is generated once for top SW layer
+/// and then re-used by subsequent layers to identify original source code
+/// location. This value is stored in thread-local storage.
+XPTI_EXPORT_API uint64_t xptiGetUniversalId();
+
+/// @brief Update universal ID value
+/// @detail Save new universal ID value to thread-local storage. This function
+/// is typically called by xpti::framework::tracepoint_t constructor when
+/// updating tracepoint information. See xptiGetUniversalId() for more info
+/// about universal IDs.
+/// @param uid Unique 64 bit identifier.
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid);
+
 /// @brief Generates a unique ID
 /// @details When a tool is subscribing to the event stream and wants to
 /// generate task IDs that do not collide with unique IDs currently being
@@ -110,6 +125,32 @@ XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *string,
 /// @param id The string ID of the string to lookup.
 /// @return A reference to the string identified by the string ID.
 XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id);
+
+/// @brief Register an object to the object table
+///
+/// @details All object in the XPTI framework are referred to by their object
+/// IDs and this method allow you to register an object and get the object ID
+/// for it. This lifetime of this object reference is equal to the lifetime of
+/// the XPTI framework.
+/// @param data Raw bytes of data to be registered with the object table. If the
+/// object already exists in the table, the previous ID is returned.
+/// @param size Size in bytes of the object.
+/// @param type One of xpti::metadata_type_t values. These only serve as a hint
+/// to the tools for processing unknown values.
+/// @return The ID of the object being registered. If an error occurs
+/// during registration, xpti::invalid_id is returned.
+XPTI_EXPORT_API xpti::object_id_t xptiRegisterObject(const char *data,
+                                                     size_t size, uint8_t type);
+
+/// @brief Lookup an object in the object table with its ID
+///
+/// @details All object in the XPTI framework are referred to by their object
+/// IDs and this method allows you to lookup an object by its object ID. The
+/// lifetime of the returned object reference is equal to the lifetime of the
+/// XPTI framework.
+/// @param id The ID of the object to lookup.
+/// @return A reference to the object identified by the object ID.
+XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t id);
 
 /// @brief Register a payload with the framework
 /// @details Since a payload may contain multiple strings that may have been
@@ -374,14 +415,14 @@ xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
 ///
 /// @param e The event for which the metadata is being added
 /// @param key The key that identifies the metadata as a string
-/// @param value The value for the key as a string
+/// @param value_id The value for the key as an ID of a registered object.
 /// @return The result code which can be one of:
 ///            1. XPTI_RESULT_SUCCESS when the add is successful
 ///            2. XPTI_RESULT_INVALIDARG when the inputs are invalid
 ///            3. XPTI_RESULT_DUPLICATE when the key-value pair already exists
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
                                                const char *key,
-                                               const char *value);
+                                               xpti::object_id_t value_id);
 
 /// @brief Query the metadata table for a given event
 /// @details In order to retrieve metadata information for a given event, you
@@ -433,9 +474,14 @@ typedef xpti::result_t (*xpti_framework_finalize_t)();
 typedef xpti::result_t (*xpti_initialize_t)(const char *, uint32_t, uint32_t,
                                             const char *);
 typedef void (*xpti_finalize_t)(const char *);
+typedef uint64_t (*xpti_get_universal_id_t)();
+typedef void (*xpti_set_universal_id_t)(uint64_t uid);
 typedef uint64_t (*xpti_get_unique_id_t)();
 typedef xpti::string_id_t (*xpti_register_string_t)(const char *, char **);
 typedef const char *(*xpti_lookup_string_t)(xpti::string_id_t);
+typedef xpti::string_id_t (*xpti_register_object_t)(const char *, size_t,
+                                                    uint8_t);
+typedef xpti::object_data_t (*xpti_lookup_object_t)(xpti::object_id_t);
 typedef uint64_t (*xpti_register_payload_t)(xpti::payload_t *);
 typedef uint8_t (*xpti_register_stream_t)(const char *);
 typedef xpti::result_t (*xpti_unregister_stream_t)(const char *);
@@ -456,7 +502,7 @@ typedef xpti::result_t (*xpti_notify_subscribers_t)(
     uint8_t, uint16_t, xpti::trace_event_data_t *, xpti::trace_event_data_t *,
     uint64_t instance, const void *temporal_user_data);
 typedef xpti::result_t (*xpti_add_metadata_t)(xpti::trace_event_data_t *,
-                                              const char *, const char *);
+                                              const char *, xpti::object_id_t);
 typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
 }

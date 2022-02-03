@@ -376,6 +376,24 @@ std::string printType(const QualType QT, const DeclContext &CurContext) {
   return OS.str();
 }
 
+bool hasReservedName(const Decl &D) {
+  if (const auto *ND = llvm::dyn_cast<NamedDecl>(&D))
+    if (const auto *II = ND->getIdentifier())
+      return isReservedName(II->getName());
+  return false;
+}
+
+bool hasReservedScope(const DeclContext &DC) {
+  for (const DeclContext *D = &DC; D; D = D->getParent()) {
+    if (D->isTransparentContext() || D->isInlineNamespace())
+      continue;
+    if (const auto *ND = llvm::dyn_cast<NamedDecl>(D))
+      if (hasReservedName(*ND))
+        return true;
+  }
+  return false;
+}
+
 QualType declaredType(const TypeDecl *D) {
   if (const auto *CTSD = llvm::dyn_cast<ClassTemplateSpecializationDecl>(D))
     if (const auto *TSI = CTSD->getTypeAsWritten())
@@ -438,7 +456,7 @@ public:
     const AutoType *AT = D->getReturnType()->getContainedAutoType();
     if (AT && !AT->getDeducedType().isNull()) {
       DeducedType = AT->getDeducedType();
-    } else if (auto DT = dyn_cast<DecltypeType>(D->getReturnType())) {
+    } else if (auto *DT = dyn_cast<DecltypeType>(D->getReturnType())) {
       // auto in a trailing return type just points to a DecltypeType and
       // getContainedAutoType does not unwrap it.
       if (!DT->getUnderlyingType().isNull())

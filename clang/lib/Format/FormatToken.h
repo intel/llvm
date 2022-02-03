@@ -51,6 +51,7 @@ namespace format {
   TYPE(FunctionAnnotationRParen)                                               \
   TYPE(FunctionDeclarationName)                                                \
   TYPE(FunctionLBrace)                                                         \
+  TYPE(FunctionLikeOrFreestandingMacro)                                        \
   TYPE(FunctionTypeLParen)                                                     \
   TYPE(IfMacro)                                                                \
   TYPE(ImplicitStringLiteral)                                                  \
@@ -442,6 +443,9 @@ public:
   /// This starts an array initializer.
   bool IsArrayInitializer = false;
 
+  /// Is optional and can be removed.
+  bool Optional = false;
+
   /// If this token starts a block, this contains all the unwrapped lines
   /// in it.
   SmallVector<AnnotatedLine *, 1> Children;
@@ -632,6 +636,12 @@ public:
   /// newlines.
   SourceLocation getStartOfNonWhitespace() const {
     return WhitespaceRange.getEnd();
+  }
+
+  /// Returns \c true if the range of whitespace immediately preceding the \c
+  /// Token is not empty.
+  bool hasWhitespaceBefore() const {
+    return WhitespaceRange.getBegin() != WhitespaceRange.getEnd();
   }
 
   prec::Level getPrecedence() const {
