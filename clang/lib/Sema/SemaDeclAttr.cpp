@@ -3453,7 +3453,7 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 // Handles max_work_group_size attribute.
 // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr,
 // check to see if the attribute holds equal values (1, 1, 1).
-// Returns true if the attribute values are equal to one.
+// Returns true if the attribute values are not equal to one.
 static bool InvalidWorkGroupSizeAttrs(const Expr *E, const Expr *E1,
                                       const Expr *E2, const Expr *E3) {
   // If any of the operand is still value dependent, we can't test anything.
