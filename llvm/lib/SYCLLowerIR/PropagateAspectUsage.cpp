@@ -68,7 +68,7 @@ using TypeToAspectsMapTy = std::unordered_map<const Type *, AspectsSetTy>;
 
 /// Retrieves from metadata (intel_types_that_use_aspects) types
 /// and aspects these types depend on.
-TypeToAspectsMapTy GetTypesThatUseAspectsFromMetadata(const Module &M) {
+TypeToAspectsMapTy getTypesThatUseAspectsFromMetadata(const Module &M) {
   NamedMDNode *Node = M.getNamedMetadata("intel_types_that_use_aspects");
   TypeToAspectsMapTy Result;
   if (!Node)
@@ -80,14 +80,14 @@ TypeToAspectsMapTy GetTypesThatUseAspectsFromMetadata(const Module &M) {
     assert(N.getNumOperands() > 1 && "intel_types_that_use_aspect metadata "
                                      "shouldn't contain empty metadata nodes");
 
-    MDString *TypeName = cast<MDString>(N.getOperand(0));
+    auto *TypeName = cast<MDString>(N.getOperand(0));
     Type *T = StructType::getTypeByName(C, TypeName->getString());
     assert(T &&
            "invalid type referenced by intel_types_that_use_aspect metadata");
 
     AspectsSetTy &Aspects = Result[T];
     for (size_t I = 1; I != N.getNumOperands(); ++I) {
-      ConstantAsMetadata *CAM = cast<ConstantAsMetadata>(N.getOperand(I));
+      auto *CAM = cast<ConstantAsMetadata>(N.getOperand(I));
       Constant *C = CAM->getValue();
       Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
     }
@@ -101,28 +101,27 @@ using TypesEdgesTy =
 
 /// Propagates aspects from type @Start to all types which
 /// are reachable by edges @Edges by BFS algorithm.
-/// Result is recorded in @ResultAspects.
-void PropagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
-                                  const AspectsSetTy &AspectsToPropagate,
-                                  TypeToAspectsMapTy &ResultAspects) {
+/// Result is recorded in @Aspects.
+void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
+                                  TypeToAspectsMapTy &Aspects) {
+  const AspectsSetTy &AspectsToPropagate = Aspects[Start];
   SmallPtrSet<const Type *, 16> Visited;
-  std::queue<const Type *> queue;
-  queue.push(Start);
-  while (!queue.empty()) {
-    const Type *T = queue.front();
-    queue.pop();
-    if (Visited.count(T))
+  std::queue<const Type *> Queue;
+  Queue.push(Start);
+  while (!Queue.empty()) {
+    const Type *T = Queue.front();
+    Queue.pop();
+    if (!Visited.insert(T).second)
       continue;
 
-    Visited.insert(T);
-    ResultAspects[T].insert(AspectsToPropagate.begin(),
-                            AspectsToPropagate.end());
-    if (!Edges.count(T))
+    Aspects[T].insert(AspectsToPropagate.begin(), AspectsToPropagate.end());
+    auto It = Edges.find(T);
+    if (It == Edges.end())
       continue;
 
-    for (const Type *TT : Edges.at(T)) {
+    for (const Type *TT : It->second) {
       if (!Visited.count(TT))
-        queue.push(TT);
+        Queue.push(TT);
     }
   }
 }
@@ -139,8 +138,8 @@ void PropagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
 /// The algorithm is the following:
 /// 1) Make a list of all structure types from module @M. The list also
 ///    contains DoubleTy since it is optional as well.
-/// 2) Make from list a type graph which consist of nodes corresponding to types
-///    and directed edges between nodes. An edge from type A to type B
+/// 2) Make from list a type graph which consists of nodes corresponding to
+///    types and directed edges between nodes. An edge from type A to type B
 ///    corresponds to the fact that A is contained within B.
 ///    Examples: B is a pointer to A, B is a struct containing field of type A.
 /// 3) For every known type with aspects propagate it's aspects over graph.
@@ -148,7 +147,7 @@ void PropagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
 ///
 /// Time complexity: O((V + E) * T) where T is the number of input types
 /// containing aspects.
-void PropagateAspectsToOtherTypesInModule(
+void propagateAspectsToOtherTypesInModule(
     const Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   std::unordered_set<const Type *> TypesToProcess;
   Type *DoubleTy = Type::getDoubleTy(M.getContext());
@@ -166,7 +165,7 @@ void PropagateAspectsToOtherTypesInModule(
     for (const Type *TT : T->subtypes()) {
       // If TT = %A*** then we want to get TT = %A
       while (TT->isPointerTy())
-        TT = TT->getContainedType(0);
+        TT = TT->getPointerElementType();
 
       // We are not interested in some types. For example, IntTy.
       if (!TypesToProcess.count(TT))
@@ -178,8 +177,7 @@ void PropagateAspectsToOtherTypesInModule(
 
   TypeToAspectsMapTy Result;
   for (const Type *T : TypesToProcess) {
-    AspectsSetTy &Aspects = TypesWithAspects[T];
-    PropagateAspectsThroughTypes(Edges, T, Aspects, TypesWithAspects);
+    propagateAspectsThroughTypes(Edges, T, TypesWithAspects);
   }
 }
 
@@ -187,7 +185,7 @@ void PropagateAspectsToOtherTypesInModule(
 /// It encompases composite structures and pointers.
 /// NB! This function inserts new records in @Types map for new discovered
 /// types. For the best perfomance pass this map in the next invocations.
-AspectsSetTy GetAspectsFromType(const Type *T, TypeToAspectsMapTy &Types) {
+AspectsSetTy getAspectsFromType(const Type *T, TypeToAspectsMapTy &Types) {
   auto It = Types.find(T);
   if (It != Types.end())
     return It->second;
@@ -197,7 +195,7 @@ AspectsSetTy GetAspectsFromType(const Type *T, TypeToAspectsMapTy &Types) {
   AspectsSetTy Result;
 
   for (const Type *TT : T->subtypes()) {
-    AspectsSetTy Aspects = GetAspectsFromType(TT, Types);
+    AspectsSetTy Aspects = getAspectsFromType(TT, Types);
     Result.insert(Aspects.begin(), Aspects.end());
   }
 
@@ -209,13 +207,13 @@ AspectsSetTy GetAspectsFromType(const Type *T, TypeToAspectsMapTy &Types) {
 /// Function inspects return type and all operand's types.
 /// NB! This function inserts new records in @Types map for new discovered
 /// types. For the best perfomance pass this map in the next invocations.
-AspectsSetTy GetAspectsUsedByInstruction(const Instruction &I,
+AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
                                          TypeToAspectsMapTy &Types) {
   Type *ReturnType = I.getType();
-  AspectsSetTy Result = GetAspectsFromType(ReturnType, Types);
+  AspectsSetTy Result = getAspectsFromType(ReturnType, Types);
   for (const auto &OperandIt : I.operands()) {
     Type *T = OperandIt->getType();
-    AspectsSetTy Aspects = GetAspectsFromType(T, Types);
+    AspectsSetTy Aspects = getAspectsFromType(T, Types);
     Result.insert(Aspects.begin(), Aspects.end());
   }
 
@@ -235,11 +233,11 @@ public:
   void print(DiagnosticPrinter &DP) const override { DP << Msg; }
 };
 
-void EmitWarning(LLVMContext &C, const StringRef Msg) {
+void emitWarning(LLVMContext &C, const StringRef Msg) {
   C.diagnose(MissedAspectDiagnosticInfo(Msg));
 }
 
-std::string Join(const AspectsSetTy &C, char sep) {
+std::string join(const AspectsSetTy &C, char sep) {
   std::string S;
   bool FirstOccurence = true;
   for (int Aspect : C) {
@@ -259,7 +257,7 @@ std::string Join(const AspectsSetTy &C, char sep) {
 /// aspects set @Aspects. If there is a inconsistency then corresponding
 /// warning is emitted.
 template <class Container>
-void CheckDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
+void checkDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
                                      const Container &UsedAspects) {
   MDNode *MDN = F->getMetadata("intel_declared_aspects");
   if (!MDN)
@@ -267,8 +265,7 @@ void CheckDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
 
   AspectsSetTy DeclaredAspects;
   for (auto &OperandIt : MDN->operands()) {
-    const ConstantAsMetadata *CAM =
-        dyn_cast<const ConstantAsMetadata>(OperandIt);
+    const auto *CAM = dyn_cast<const ConstantAsMetadata>(OperandIt);
     assert(CAM &&
            "constant are expected in intel_declared_aspects list's entries");
     DeclaredAspects.insert(
@@ -282,20 +279,20 @@ void CheckDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
   }
 
   if (!MissedAspects.empty()) {
-    std::string AspectsStr = Join(MissedAspects, ',');
+    std::string AspectsStr = join(MissedAspects, ',');
     // TODO: demangle function name and aspect's IDs?
     std::string Msg = formatv(
         "for function \"{0}\" there is the list of missed aspects: [{1}]",
         F->getName(), AspectsStr);
 
-    EmitWarning(C, Msg);
+    emitWarning(C, Msg);
   }
 }
 
 using FunctionToAspectsMapTy = DenseMap<Function *, SmallSet<int, 4>>;
 using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 
-void CreateUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
+void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
   for (auto &It : Map) {
     Function *F = It.first;
     AspectsSetTy &Aspects = It.second;
@@ -313,7 +310,7 @@ void CreateUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
   }
 }
 
-void CheckUsedAndDeclaredAspects(const FunctionToAspectsMapTy &Map) {
+void checkUsedAndDeclaredAspects(const FunctionToAspectsMapTy &Map) {
   for (const auto &It : Map) {
     const Function *F = It.first;
     auto &Aspects = It.second;
@@ -321,7 +318,7 @@ void CheckUsedAndDeclaredAspects(const FunctionToAspectsMapTy &Map) {
       continue;
 
     LLVMContext &C = F->getContext();
-    CheckDeclaredAspectsForFunction(C, F, Aspects);
+    checkDeclaredAspectsForFunction(C, F, Aspects);
   }
 }
 
@@ -329,7 +326,7 @@ void CheckUsedAndDeclaredAspects(const FunctionToAspectsMapTy &Map) {
 /// NB! Call graph corresponds to call graph of SYCL code which
 /// can't contain recursive calls. So there can't be loops in
 /// a call graph. But there can be path's intersections.
-void PropagateAspectsThroughCG(Function *F, CallGraphTy &CG,
+void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
                                FunctionToAspectsMapTy &AspectsMap,
                                SmallPtrSet<Function *, 16> &Visited) {
   if (CG.count(F) == 0)
@@ -339,7 +336,7 @@ void PropagateAspectsThroughCG(Function *F, CallGraphTy &CG,
   for (Function *Callee : CG[F]) {
     if (!Visited.contains(Callee)) {
       Visited.insert(Callee);
-      PropagateAspectsThroughCG(Callee, CG, AspectsMap, Visited);
+      propagateAspectsThroughCG(Callee, CG, AspectsMap, Visited);
     }
 
     auto &CalleeAspects = AspectsMap[Callee];
@@ -351,7 +348,7 @@ void PropagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 
 /// Returns a map of functions with corresponding used aspects.
 FunctionToAspectsMapTy
-BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
+buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   FunctionToAspectsMapTy FunctionToAspects;
   CallGraphTy CG;
   std::vector<Function *> Kernels;
@@ -364,7 +361,7 @@ BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
       Kernels.push_back(&F);
 
     for (Instruction &I : instructions(F)) {
-      AspectsSetTy Aspects = GetAspectsUsedByInstruction(I, TypesWithAspects);
+      AspectsSetTy Aspects = getAspectsUsedByInstruction(I, TypesWithAspects);
       FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
       if (CallInst *CI = dyn_cast<CallInst>(&I))
         if (!CI->isIndirectCall())
@@ -374,7 +371,7 @@ BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
 
   SmallPtrSet<Function *, 16> Visited;
   for (Function *F : Kernels)
-    PropagateAspectsThroughCG(F, CG, FunctionToAspects, Visited);
+    propagateAspectsThroughCG(F, CG, FunctionToAspects, Visited);
 
   return FunctionToAspects;
 }
@@ -383,14 +380,14 @@ BuildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
 
 PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
-  TypeToAspectsMapTy TypesWithAspects = GetTypesThatUseAspectsFromMetadata(M);
-  PropagateAspectsToOtherTypesInModule(M, TypesWithAspects);
+  TypeToAspectsMapTy TypesWithAspects = getTypesThatUseAspectsFromMetadata(M);
+  propagateAspectsToOtherTypesInModule(M, TypesWithAspects);
 
   FunctionToAspectsMapTy FunctionToAspects =
-      BuildFunctionsToAspectsMap(M, TypesWithAspects);
+      buildFunctionsToAspectsMap(M, TypesWithAspects);
 
-  CreateUsedAspectsMetadataForFunctions(FunctionToAspects);
-  CheckUsedAndDeclaredAspects(FunctionToAspects);
+  createUsedAspectsMetadataForFunctions(FunctionToAspects);
+  checkUsedAndDeclaredAspects(FunctionToAspects);
 
   return PreservedAnalyses::all();
 }

@@ -208,7 +208,7 @@ namespace {
       (void) llvm::createExpandMemCmpPass();
       (void) llvm::createExpandVectorPredicationPass();
       (void)llvm::createESIMDVerifierPass();
-      (void) llvm::createPropagateAspectUsagePass();
+      (void)llvm::createPropagateAspectUsagePass();
       std::string buf;
       llvm::raw_string_ostream os(buf);
       (void) llvm::createPrintModulePass(os);

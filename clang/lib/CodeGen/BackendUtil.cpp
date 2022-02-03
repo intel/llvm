@@ -44,8 +44,8 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
-#include "llvm/SYCLLowerIR/PropagateAspectUsage.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
+#include "llvm/SYCLLowerIR/PropagateAspectUsage.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -1392,16 +1392,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PB.registerPipelineStartEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDVerifierPass());
+            MPM.addPass(PropagateAspectUsagePass());
           });
 
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
     bool IsLTO = CodeGenOpts.PrepareForLTO;
-
-    PB.registerPipelineStartEPCallback(
-        [&](ModulePassManager &MPM, OptimizationLevel) {
-          if (LangOpts.SYCLIsDevice)
-            MPM.addPass(PropagateAspectUsagePass());
-        });
 
     if (LangOpts.ObjCAutoRefCount) {
       PB.registerPipelineStartEPCallback(
