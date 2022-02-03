@@ -49,9 +49,9 @@ const StringMap<Decor> SpirvDecorMap = {
 /// Builds a metadata node for a SPIR-V decoration (both decoration code
 /// and value are \c uint32_t integers).
 ///
-/// @param Ctx   [in] the LLVM Context.
-/// @param Decor [in] the decoration code.
-/// @param Value [in] the decoration value.
+/// @param Ctx    [in] the LLVM Context.
+/// @param OpCode [in] the SPIR-V OpCode code.
+/// @param Value  [in] the SPIR-V decoration value.
 ///
 /// @returns a pointer to the metadata node created for the required decoration
 /// and its value.
@@ -59,8 +59,8 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
                                 uint32_t Value) {
   auto *Ty = Type::getInt32Ty(Ctx);
   SmallVector<Metadata *, 2> MD;
-  MD.push_back(
-      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Decor))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OpCode))));
   MD.push_back(
       ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Value))));
   return MDNode::get(Ctx, MD);
@@ -70,10 +70,10 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
 /// and value are \c uint32_t integers, and the secondary extra operand is a
 /// string).
 ///
-/// @param Ctx       [in] the LLVM Context.
-/// @param Decor     [in] the decoration code.
-/// @param Value     [in] the decoration value.
-/// @param Secondary [in] the secondary "extra operands" (\c StringRef).
+/// @param Ctx        [in] the LLVM Context.
+/// @param OpCode     [in] the SPIR-V OpCode code.
+/// @param Value      [in] the SPIR-V decoration value.
+/// @param Secondary  [in] the secondary "extra operands" (\c StringRef).
 ///
 /// @returns a pointer to the metadata node created for the required decoration
 /// and its value.
@@ -81,8 +81,8 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
                                 uint32_t Value, StringRef Secondary) {
   auto *Ty = Type::getInt32Ty(Ctx);
   SmallVector<Metadata *, 3> MD;
-  MD.push_back(
-      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Decor))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OpCode))));
   MD.push_back(
       ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Value))));
   MD.push_back(MDString::get(Ctx, Secondary));
