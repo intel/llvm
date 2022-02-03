@@ -64,7 +64,7 @@ public:
 
   ~NamespaceEmitter() {
     for (StringRef ns : llvm::reverse(namespaces))
-      os << "} // end namespace " << ns << "\n";
+      os << "} // namespace " << ns << "\n";
   }
 
 private:
@@ -203,7 +203,7 @@ private:
 
   /// A generic function to emit constraints
   void emitConstraints(const ConstraintMap &constraints, StringRef selfName,
-                       const char *const codeTemplate);
+                       const char *codeTemplate);
 
   /// Assign a unique name to a unique constraint.
   std::string getUniqueName(StringRef kind, unsigned index);
@@ -243,7 +243,7 @@ struct stringifier<Optional<OptionalT>> {
                                : std::string();
   }
 };
-} // end namespace detail
+} // namespace detail
 
 /// Generically convert a value to a std::string.
 template <typename T> std::string stringify(T &&t) {

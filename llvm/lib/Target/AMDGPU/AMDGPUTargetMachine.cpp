@@ -43,6 +43,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -231,13 +232,6 @@ static cl::opt<bool, true> LateCFGStructurize(
   cl::location(AMDGPUTargetMachine::EnableLateStructurizeCFG),
   cl::Hidden);
 
-static cl::opt<bool, true> EnableAMDGPUFixedFunctionABIOpt(
-  "amdgpu-fixed-function-abi",
-  cl::desc("Enable all implicit function arguments"),
-  cl::location(AMDGPUTargetMachine::EnableFixedFunctionABI),
-  cl::init(true),
-  cl::Hidden);
-
 // Enable lib calls simplifications
 static cl::opt<bool> EnableLibCallSimplify(
   "amdgpu-simplify-libcall",
@@ -385,6 +379,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUResourceUsageAnalysisPass(*PR);
   initializeGCNNSAReassignPass(*PR);
   initializeGCNPreRAOptimizationsPass(*PR);
+
+  // SYCL-specific passes, needed here to be available to `opt`.
+  initializeLocalAccessorToSharedMemoryPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -505,7 +502,6 @@ AMDGPUTargetMachine::AMDGPUTargetMachine(const Target &T, const Triple &TT,
 
 bool AMDGPUTargetMachine::EnableLateStructurizeCFG = false;
 bool AMDGPUTargetMachine::EnableFunctionCalls = false;
-bool AMDGPUTargetMachine::EnableFixedFunctionABI = false;
 bool AMDGPUTargetMachine::EnableLowerModuleLDS = true;
 
 AMDGPUTargetMachine::~AMDGPUTargetMachine() = default;
@@ -1042,6 +1038,10 @@ void AMDGPUPassConfig::addIRPasses() {
   // but EarlyCSE can do neither of them.
   if (isPassEnabled(EnableScalarIRPasses))
     addEarlyCSEOrGVNPass();
+
+  if (TM.getTargetTriple().getArch() == Triple::amdgcn &&
+      TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA)
+    addPass(createLocalAccessorToSharedMemoryPass());
 }
 
 void AMDGPUPassConfig::addCodeGenPrepare() {

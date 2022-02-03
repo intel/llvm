@@ -191,7 +191,8 @@ enum OperandType : unsigned {
   OPERAND_SIMM12,
   OPERAND_UIMM20,
   OPERAND_UIMMLOG2XLEN,
-  OPERAND_LAST_RISCV_IMM = OPERAND_UIMMLOG2XLEN,
+  OPERAND_RVKRNUM,
+  OPERAND_LAST_RISCV_IMM = OPERAND_RVKRNUM,
   // Operand is either a register or uimm5, this is used by V extension pseudo
   // instructions to represent a value that be passed as AVL to either vsetvli
   // or vsetivli.
@@ -298,6 +299,16 @@ struct SysReg {
 #define GET_SysRegsList_DECL
 #include "RISCVGenSearchableTables.inc"
 } // end namespace RISCVSysReg
+
+namespace RISCVInsnOpcode {
+struct RISCVOpcode {
+  const char *Name;
+  unsigned Value;
+};
+
+#define GET_RISCVOpcodesList_DECL
+#include "RISCVGenSearchableTables.inc"
+} // end namespace RISCVInsnOpcode
 
 namespace RISCVABI {
 

@@ -52,13 +52,6 @@ public:
 
   StringRef name;
 
-  // This pointer points to the "real" instance of this instance.
-  // Usually Repl == this. However, if ICF merges two sections,
-  // Repl pointer of one section points to another section. So,
-  // if you need to get a pointer to this instance, do not use
-  // this but instead this->Repl.
-  SectionBase *repl;
-
   uint8_t sectionKind : 3;
 
   // The next two bit fields are only used by InputSectionBase, but we
@@ -102,9 +95,9 @@ protected:
   constexpr SectionBase(Kind sectionKind, StringRef name, uint64_t flags,
                         uint32_t entsize, uint32_t alignment, uint32_t type,
                         uint32_t info, uint32_t link)
-      : name(name), repl(this), sectionKind(sectionKind), bss(false),
-        keepUnique(false), partition(0), alignment(alignment), flags(flags),
-        entsize(entsize), type(type), link(link), info(info) {}
+      : name(name), sectionKind(sectionKind), bss(false), keepUnique(false),
+        partition(0), alignment(alignment), flags(flags), entsize(entsize),
+        type(type), link(link), info(info) {}
 };
 
 // This corresponds to a section of an input file.
@@ -137,13 +130,16 @@ public:
   // one or two jump instructions at the end that could be relaxed to a smaller
   // instruction. The members below help trimming the trailing jump instruction
   // and shrinking a section.
-  unsigned bytesDropped = 0;
+  uint8_t bytesDropped = 0;
 
   // Whether the section needs to be padded with a NOP filler due to
   // deleteFallThruJmpInsn.
   bool nopFiller = false;
 
-  void drop_back(uint64_t num) { bytesDropped += num; }
+  void drop_back(unsigned num) {
+    assert(bytesDropped + num < 256);
+    bytesDropped += num;
+  }
 
   void push_back(uint64_t num) {
     assert(bytesDropped >= num);
@@ -162,8 +158,6 @@ public:
       uncompress();
     return rawData;
   }
-
-  uint64_t getOffsetInFile() const;
 
   // Input sections are part of an output section. Special sections
   // like .eh_frame and merge sections are first combined into a
@@ -187,11 +181,10 @@ public:
 
   // Get the function symbol that encloses this offset from within the
   // section.
-  template <class ELFT>
   Defined *getEnclosingFunction(uint64_t offset);
 
   // Returns a source location string. Used to construct an error message.
-  template <class ELFT> std::string getLocation(uint64_t offset);
+  std::string getLocation(uint64_t offset);
   std::string getSrcMsg(const Symbol &sym, uint64_t offset);
   std::string getObjMsg(uint64_t offset);
 
@@ -213,7 +206,7 @@ public:
   // block sections are enabled.  Basic block sections creates opportunities to
   // relax jump instructions at basic block boundaries after reordering the
   // basic blocks.
-  SmallVector<JumpInstrMod, 0> jumpInstrMods;
+  JumpInstrMod *jumpInstrMod = nullptr;
 
   // A function compiled with -fsplit-stack calling a function
   // compiled without -fsplit-stack needs its prologue adjusted. Find
@@ -250,7 +243,7 @@ protected:
 // be found by looking at the next one).
 struct SectionPiece {
   SectionPiece(size_t off, uint32_t hash, bool live)
-      : inputOff(off), live(live || !config->gcSections), hash(hash >> 1) {}
+      : inputOff(off), live(live), hash(hash >> 1) {}
 
   uint32_t inputOff;
   uint32_t live : 1;
@@ -278,7 +271,7 @@ public:
 
   // Splittable sections are handled as a sequence of data
   // rather than a single large blob of data.
-  std::vector<SectionPiece> pieces;
+  SmallVector<SectionPiece, 0> pieces;
 
   // Returns I'th piece's data. This function is very hot when
   // string merging is enabled, so we want to inline.
@@ -331,7 +324,7 @@ public:
 
   // Splittable sections are handled as a sequence of data
   // rather than a single large blob of data.
-  std::vector<EhSectionPiece> pieces;
+  SmallVector<EhSectionPiece, 0> pieces;
 
   SyntheticSection *getParent() const;
 };
@@ -367,6 +360,10 @@ public:
   template <class ELFT, class RelTy>
   void relocateNonAlloc(uint8_t *buf, llvm::ArrayRef<RelTy> rels);
 
+  // Points to the canonical section. If ICF folds two sections, repl pointer of
+  // one section points to the other.
+  InputSection *repl = this;
+
   // Used by ICF.
   uint32_t eqClass[2] = {0, 0};
 
@@ -382,11 +379,7 @@ private:
   template <class ELFT> void copyShtGroup(uint8_t *buf);
 };
 
-#ifdef _WIN32
-static_assert(sizeof(InputSection) <= 184, "InputSection is too big");
-#else
-static_assert(sizeof(InputSection) <= 176, "InputSection is too big");
-#endif
+static_assert(sizeof(InputSection) <= 160, "InputSection is too big");
 
 inline bool isDebugSection(const InputSectionBase &sec) {
   return (sec.flags & llvm::ELF::SHF_ALLOC) == 0 &&
@@ -394,7 +387,7 @@ inline bool isDebugSection(const InputSectionBase &sec) {
 }
 
 // The list of all input sections.
-extern std::vector<InputSectionBase *> inputSections;
+extern SmallVector<InputSectionBase *, 0> inputSections;
 
 // The set of TOC entries (.toc + addend) for which we should not apply
 // toc-indirect to toc-relative relaxation. const Symbol * refers to the

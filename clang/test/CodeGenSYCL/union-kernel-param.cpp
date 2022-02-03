@@ -28,7 +28,7 @@ int main() {
 }
 
 // CHECK kernel_A parameters
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A(%union.MyUnion* byval(%union.MyUnion) align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]])
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A(%union.MyUnion* noundef byval(%union.MyUnion) align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]])
 
 // Check lambda object alloca
 // CHECK: [[LOCAL_OBJECT:%0]] = alloca %class.anon, align 4

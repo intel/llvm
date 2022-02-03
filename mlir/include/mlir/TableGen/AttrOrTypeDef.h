@@ -196,7 +196,7 @@ public:
   Optional<StringRef> getExtraDecls() const;
 
   // Get the code location (for error printing).
-  ArrayRef<llvm::SMLoc> getLoc() const;
+  ArrayRef<SMLoc> getLoc() const;
 
   // Returns true if the default get/getChecked methods should be skipped during
   // generation.
@@ -260,7 +260,7 @@ public:
   using AttrOrTypeDef::AttrOrTypeDef;
 };
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TABLEGEN_ATTRORTYPEDEF_H

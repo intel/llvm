@@ -54,17 +54,18 @@
 
 #include "mlir/Dialect/Bufferization/IR/AllocationOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/Bufferization/Transforms/BufferUtils.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Transforms/BufferUtils.h"
 #include "llvm/ADT/SetOperations.h"
 
 using namespace mlir;
+using namespace mlir::bufferization;
 
 /// Walks over all immediate return-like terminators in the given region.
 static LogicalResult
 walkReturnOperations(Region *region,
-                     std::function<LogicalResult(Operation *)> func) {
+                     llvm::function_ref<LogicalResult(Operation *)> func) {
   for (Block &block : *region) {
     Operation *terminator = block.getTerminator();
     // Skip non region-return-like terminators.
@@ -349,7 +350,7 @@ private:
     Region *argRegion = block->getParent();
     Operation *parentOp = argRegion->getParentOp();
     RegionBranchOpInterface regionInterface;
-    if (!argRegion || &argRegion->front() != block ||
+    if (&argRegion->front() != block ||
         !(regionInterface = dyn_cast<RegionBranchOpInterface>(parentOp)))
       return success();
 
@@ -638,9 +639,12 @@ struct BufferDeallocationPass : BufferDeallocationBase<BufferDeallocationPass> {
     registry.addOpInterface<memref::AllocOp, DefaultAllocationInterface>();
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
+    FuncOp func = getOperation();
+    if (func.isExternal())
+      return;
+
     // Ensure that there are supported loops only.
-    FuncOp func = getFunction();
     Backedges backedges(func);
     if (backedges.size()) {
       func.emitError("Only structured control-flow loops are supported.");
@@ -665,7 +669,7 @@ struct BufferDeallocationPass : BufferDeallocationBase<BufferDeallocationPass> {
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // BufferDeallocationPass construction

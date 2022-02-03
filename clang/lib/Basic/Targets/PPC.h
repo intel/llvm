@@ -351,7 +351,7 @@ public:
   const char *getFloat128Mangling() const override { return "u9__ieee128"; }
   const char *getIbm128Mangling() const override { return "g"; }
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 
   bool isSPRegName(StringRef RegName) const override {
     return RegName.equals("r1") || RegName.equals("x1");
@@ -414,7 +414,7 @@ public:
     LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
     IntMaxType = SignedLong;
     Int64Type = SignedLong;
-    std::string DataLayout = "";
+    std::string DataLayout;
 
     if (Triple.isOSAIX()) {
       // TODO: Set appropriate ABI for AIX platform.

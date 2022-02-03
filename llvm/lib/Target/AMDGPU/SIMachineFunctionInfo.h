@@ -465,6 +465,7 @@ public:
   struct VGPRSpillToAGPR {
     SmallVector<MCPhysReg, 32> Lanes;
     bool FullyAllocated = false;
+    bool IsDead = false;
   };
 
   // Map WWM VGPR to a stack slot that is used to save/restore it in the
@@ -501,7 +502,6 @@ public: // FIXME
   Register SGPRForBPSaveRestoreCopy;
   Optional<int> BasePointerSaveIndex;
 
-  Register VGPRReservedForSGPRSpill;
   bool isCalleeSavedReg(const MCPhysReg *CSRegs, MCPhysReg Reg);
 
 public:
@@ -527,7 +527,6 @@ public:
   void setSGPRSpillVGPRs(Register NewVGPR, Optional<int> newFI, int Index) {
     SpillVGPRs[Index].VGPR = NewVGPR;
     SpillVGPRs[Index].FI = newFI;
-    VGPRReservedForSGPRSpill = NewVGPR;
   }
 
   bool removeVGPRForSGPRSpill(Register ReservedVGPR, MachineFunction &MF);
@@ -546,10 +545,15 @@ public:
                                          : I->second.Lanes[Lane];
   }
 
+  void setVGPRToAGPRSpillDead(int FrameIndex) {
+    auto I = VGPRToAGPRSpills.find(FrameIndex);
+    if (I != VGPRToAGPRSpills.end())
+      I->second.IsDead = true;
+  }
+
   bool haveFreeLanesForSGPRSpill(const MachineFunction &MF,
                                  unsigned NumLane) const;
   bool allocateSGPRSpillToVGPR(MachineFunction &MF, int FI);
-  bool reserveVGPRforSGPRSpills(MachineFunction &MF);
   bool allocateVGPRSpillToAGPR(MachineFunction &MF, int FI, bool isAGPRtoVGPR);
   void removeDeadFrameIndices(MachineFrameInfo &MFI);
 

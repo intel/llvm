@@ -316,13 +316,11 @@ class DwarfDebug : public DebugHandlerBase {
   /// can refer to them in spite of insertions into this list.
   DebugLocStream DebugLocs;
 
-  using SubprogramSetVector =
-      SetVector<const DISubprogram *, SmallVector<const DISubprogram *, 16>,
-                SmallPtrSet<const DISubprogram *, 16>>;
-
   /// This is a collection of subprogram MDNodes that are processed to
   /// create DIEs.
-  SubprogramSetVector ProcessedSPNodes;
+  SetVector<const DISubprogram *, SmallVector<const DISubprogram *, 16>,
+            SmallPtrSet<const DISubprogram *, 16>>
+      ProcessedSPNodes;
 
   /// If nonnull, stores the current machine function we're processing.
   const MachineFunction *CurFn = nullptr;
@@ -435,6 +433,7 @@ private:
   DenseMap<const DIStringType *, unsigned> StringTypeLocMap;
 
   AddressPool AddrPool;
+  bool SeenLocalType = false;
 
   /// Accelerator tables.
   AccelTable<DWARF5AccelTableData> AccelDebugNames;
@@ -600,6 +599,10 @@ private:
   void finishUnitAttributes(const DICompileUnit *DIUnit,
                             DwarfCompileUnit &NewCU);
 
+  /// Construct imported_module or imported_declaration DIE.
+  void constructAndAddImportedEntityDIE(DwarfCompileUnit &TheCU,
+                                        const DIImportedEntity *N);
+
   /// Register a source line with debug info. Returns the unique
   /// label that was emitted and which provides correspondence to the
   /// source line list.
@@ -669,6 +672,7 @@ public:
     DwarfDebug *DD;
     decltype(DwarfDebug::TypeUnitsUnderConstruction) TypeUnitsUnderConstruction;
     bool AddrPoolUsed;
+    bool SeenLocalType;
     friend class DwarfDebug;
     NonTypeUnitContext(DwarfDebug *DD);
   public:
@@ -677,6 +681,7 @@ public:
   };
 
   NonTypeUnitContext enterNonTypeUnitContext();
+  void seenLocalType() { SeenLocalType = true; }
 
   /// Add a label so that arange data can be generated for it.
   void addArangeLabel(SymbolCU SCU) { ArangeLabels.push_back(SCU); }

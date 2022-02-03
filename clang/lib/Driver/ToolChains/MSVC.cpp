@@ -47,7 +47,14 @@
 // Make sure this comes before MSVCSetupApi.h
 #include <comdef.h>
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-virtual-dtor"
+#endif
 #include "MSVCSetupApi.h"
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 #include "llvm/Support/COM.h"
 _COM_SMARTPTR_TYPEDEF(ISetupConfiguration, __uuidof(ISetupConfiguration));
 _COM_SMARTPTR_TYPEDEF(ISetupConfiguration2, __uuidof(ISetupConfiguration2));
@@ -576,6 +583,11 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.hasArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     CmdArgs.push_back("-debug");
+
+  // If we specify /hotpatch, let the linker add padding in front of each
+  // function, like MSVC does.
+  if (Args.hasArg(options::OPT_fms_hotpatch, options::OPT__SLASH_hotpatch))
+    CmdArgs.push_back("-functionpadmin");
 
   // Pass on /Brepro if it was passed to the compiler.
   // Note that /Brepro maps to -mno-incremental-linker-compatible.
@@ -1275,14 +1287,6 @@ bool MSVCToolChain::getUniversalCRTLibraryPath(const ArgList &Args,
   return true;
 }
 
-static VersionTuple getMSVCVersionFromTriple(const llvm::Triple &Triple) {
-  unsigned Major, Minor, Micro;
-  Triple.getEnvironmentVersion(Major, Minor, Micro);
-  if (Major || Minor || Micro)
-    return VersionTuple(Major, Minor, Micro);
-  return VersionTuple();
-}
-
 static VersionTuple getMSVCVersionFromExe(const std::string &BinDir) {
   VersionTuple Version;
 #ifdef _WIN32
@@ -1422,6 +1426,15 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
         AddSystemIncludeWithSubfolder(DriverArgs, CC1Args, WindowsSDKDir,
                                       "Include", windowsSDKIncludeVersion,
                                       "winrt");
+        if (major >= 10) {
+          llvm::VersionTuple Tuple;
+          if (!Tuple.tryParse(windowsSDKIncludeVersion) &&
+              Tuple.getSubminor().getValueOr(0) >= 17134) {
+            AddSystemIncludeWithSubfolder(DriverArgs, CC1Args, WindowsSDKDir,
+                                          "Include", windowsSDKIncludeVersion,
+                                          "cppwinrt");
+          }
+        }
       } else {
         AddSystemIncludeWithSubfolder(DriverArgs, CC1Args, WindowsSDKDir,
                                       "Include");
@@ -1455,7 +1468,7 @@ VersionTuple MSVCToolChain::computeMSVCVersion(const Driver *D,
   bool IsWindowsMSVC = getTriple().isWindowsMSVCEnvironment();
   VersionTuple MSVT = ToolChain::computeMSVCVersion(D, Args);
   if (MSVT.empty())
-    MSVT = getMSVCVersionFromTriple(getTriple());
+    MSVT = getTriple().getEnvironmentVersion();
   if (MSVT.empty() && IsWindowsMSVC)
     MSVT = getMSVCVersionFromExe(getSubDirectoryPath(SubDirectoryType::Bin));
   if (MSVT.empty() &&

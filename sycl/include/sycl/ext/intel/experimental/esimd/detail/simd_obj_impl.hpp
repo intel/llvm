@@ -10,10 +10,12 @@
 
 #pragma once
 
+#include <sycl/ext/intel/experimental/esimd/detail/elem_type_traits.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/test_proxy.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/type_format.hpp>
 #include <sycl/ext/intel/experimental/esimd/simd_view.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -23,13 +25,19 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
-/// Flags for use with simd load/store operations.
-/// \ingroup sycl_esimd
+/// @addtogroup sycl_esimd_core
+/// @{
+
+/// @defgroup sycl_esimd_core_align Alignment control
+/// Alignment type tags and related APIs for use with ESIMD memory access
+/// operations.
+
+/// @addtogroup sycl_esimd_core_align
 /// @{
 /// element_aligned_tag type. Flag of this type should be used in load and store
 /// operations when memory address is aligned by simd object's element type.
 struct element_aligned_tag {
-  template <typename VT, typename ET = typename detail::element_type<VT>::type>
+  template <typename VT, typename ET = detail::element_type_t<VT>>
   static constexpr unsigned alignment = alignof(ET);
 };
 
@@ -56,7 +64,6 @@ inline constexpr element_aligned_tag element_aligned = {};
 inline constexpr vector_aligned_tag vector_aligned = {};
 
 template <unsigned N> inline constexpr overaligned_tag<N> overaligned = {};
-/// @}
 
 /// Checks if type is a simd load/store flag.
 template <typename T> struct is_simd_flag_type : std::false_type {};
@@ -68,52 +75,91 @@ template <> struct is_simd_flag_type<vector_aligned_tag> : std::true_type {};
 template <unsigned N>
 struct is_simd_flag_type<overaligned_tag<N>> : std::true_type {};
 
+/// Checks if given type is a simd load/store flag.
+/// @tparam T the type to check
 template <typename T>
 static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 
+/// @} alignment tags
+
+/// @cond ESIMD_DETAIL
+
 namespace detail {
 
-/// The simd_obj_impl vector class.
-///
+// Functions to support efficient simd constructors - avoiding internal loop
+// over elements.
+template <class T, int N, size_t... Is>
+constexpr vector_type_t<T, N> make_vector_impl(const T (&&Arr)[N],
+                                               std::index_sequence<Is...>) {
+  return vector_type_t<T, N>{Arr[Is]...};
+}
+
+template <class T, int N>
+constexpr vector_type_t<T, N> make_vector(const T (&&Arr)[N]) {
+  return make_vector_impl<T, N>(std::move(Arr), std::make_index_sequence<N>{});
+}
+
+template <class T, int N, size_t... Is>
+constexpr vector_type_t<T, N> make_vector_impl(T Base, T Stride,
+                                               std::index_sequence<Is...>) {
+  return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+}
+
+template <class T, int N>
+constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
+  return make_vector_impl<T, N>(Base, Stride, std::make_index_sequence<N>{});
+}
+
+/// @endcond ESIMD_DETAIL
+
 /// This is a base class for all ESIMD simd classes with real storage (simd,
 /// simd_mask_impl). It wraps a clang vector as the storage for the elements.
 /// Additionally this class supports region operations that map to Intel GPU
 /// regions. The type of a region select or bit_cast_view operation is of
-/// simd_view type, which models read-update-write semantics.
+/// simd_view type, which models a "window" into this object's storage and can
+/// used to read and modify it.
 ///
-/// For the is_simd_obj_impl_derivative helper to work correctly, all derived
-/// classes must be templated by element type and number of elements. If fewer
-/// template arguments are needed, template aliases can be used
-/// (simd_mask_type).
-///
-/// \tparam Ty the element type
+/// \tparam RawTy raw (storage) element type
 /// \tparam N number of elements
 /// \tparam Derived - a class derived from this one; this class and its
 ///    derivatives must follow the 'curiously recurring template' pattern.
+///    Note that for some element types, the element type in the \c Derived
+///    type and this type may differ - for example, half type.
 /// \tparam SFINAE - defaults to 'void' in the forward declarion within
 ///    types.hpp, used to disable invalid specializations.
 ///
-/// \ingroup sycl_esimd
-template <typename Ty, int N, class Derived, class SFINAE> class simd_obj_impl {
+// For the is_simd_obj_impl_derivative helper to work correctly, all derived
+// classes must be templated by element type and number of elements. If fewer
+// template arguments are needed, template aliases can be used
+// (simd_mask_type).
+//
+template <typename RawTy, int N, class Derived, class SFINAE>
+class simd_obj_impl {
   template <typename, typename> friend class simd_view;
   template <typename, int> friend class simd;
   template <typename, int> friend class simd_mask_impl;
 
+  using element_type = get_vector_element_type<Derived>;
+  using Ty = element_type;
+
 public:
-  /// The underlying builtin data type.
-  using vector_type = vector_type_t<Ty, N>;
+  /// The underlying raw storage vector data type.
+  using raw_vector_type = vector_type_t<RawTy, N>;
 
-  /// The element type of this simd_obj_impl object.
-  using element_type = Ty;
+  /// The element type of the raw storage vector.
+  using raw_element_type = RawTy;
 
-  /// The number of elements in this simd_obj_impl object.
+  /// The number of elements in this object.
   static constexpr int length = N;
 
 protected:
-  template <int N1, class = std::enable_if_t<N1 == N>>
-  void init_from_array(const Ty(&&Arr)[N1]) noexcept {
-    for (auto I = 0; I < N; ++I) {
-      M_data[I] = Arr[I];
+  void init_from_array(const Ty (&&Arr)[N]) noexcept {
+    if constexpr (is_wrapper_elem_type_v<Ty>) {
+      for (auto I = 0; I < N; ++I) {
+        M_data[I] = bitcast_to_raw_type(Arr[I]);
+      }
+    } else {
+      M_data = make_vector(std::move(Arr));
     }
   }
 
@@ -124,67 +170,51 @@ private:
   }
 
 public:
-  /// @{
-  /// Constructors.
   simd_obj_impl() = default;
+
+  /// Copy constructor.
   simd_obj_impl(const simd_obj_impl &other) {
     __esimd_dbg_print(simd_obj_impl(const simd_obj_impl &other));
     set(other.data());
   }
 
   /// Implicit conversion constructor from another \c simd_obj_impl object.
-  template <typename SrcTy>
-  simd_obj_impl(
-      const simd_obj_impl<SrcTy, N, convert_simd_elem_type_t<Derived, SrcTy>,
-                          SFINAE> &other) {
+  template <class Ty1, typename Derived1>
+  simd_obj_impl(const simd_obj_impl<Ty1, N, Derived1, SFINAE> &other) {
     __esimd_dbg_print(simd_obj_impl(const simd_obj_impl... > &other));
-    if constexpr (std::is_same_v<SrcTy, Ty>)
-      set(other.data());
-    else
-      set(__builtin_convertvector(other.data(), vector_type));
+    set(convert_vector<Ty, element_type_t<Derived1>, N>(other.data()));
   }
 
   /// Implicit conversion constructor from a raw vector object.
-  simd_obj_impl(const vector_type &Val) {
-    __esimd_dbg_print(simd_obj_impl(const vector_type &Val));
+  simd_obj_impl(const raw_vector_type &Val) {
+    __esimd_dbg_print(simd_obj_impl(const raw_vector_type &Val));
     set(Val);
-  }
-
-  /// This constructor is deprecated for two reasons:
-  /// 1) it adds confusion between
-  ///   simd s1(1,2); //calls next constructor
-  ///   simd s2{1,2}; //calls this constructor (uniform initialization syntax)
-  /// 2) no compile-time control over the size of the initializer; e.g. the
-  ///    following will compile:
-  ///   simd<int, 2> x = {1, 2, 3, 4};
-  __SYCL_DEPRECATED("use constructor from array, e.g: simd<int,3> x({1,2,3});")
-  simd_obj_impl(std::initializer_list<Ty> Ilist) noexcept {
-    __esimd_dbg_print(simd_obj_impl(std::initializer_list<Ty> Ilist));
-    int i = 0;
-    for (auto It = Ilist.begin(); It != Ilist.end() && i < N; ++It) {
-      M_data[i++] = *It;
-    }
   }
 
   /// Initialize a simd_obj_impl object with an initial value and step.
   simd_obj_impl(Ty Val, Ty Step) noexcept {
     __esimd_dbg_print(simd_obj_impl(Ty Val, Ty Step));
-#pragma unroll
-    for (int i = 0; i < N; ++i) {
-      M_data[i] = Val;
-      Val += Step;
+    if constexpr (is_wrapper_elem_type_v<Ty> || !std::is_integral_v<Ty>) {
+      for (int i = 0; i < N; ++i) {
+        M_data[i] = bitcast_to_raw_type(Val);
+        Val = binary_op<BinOp::add, Ty>(Val, Step);
+      }
+    } else {
+      M_data = make_vector<Ty, N>(Val, Step);
     }
   }
 
   /// Broadcast constructor
-  simd_obj_impl(Ty Val) noexcept {
-    __esimd_dbg_print(simd_obj_impl(Ty Val));
-    M_data = Val;
+  template <class T1,
+            class = std::enable_if_t<detail::is_valid_simd_elem_type_v<T1>>>
+  simd_obj_impl(T1 Val) noexcept {
+    __esimd_dbg_print(simd_obj_impl(T1 Val));
+    M_data = bitcast_to_raw_type(detail::convert_scalar<Ty>(Val));
   }
 
   /// Construct from an array. To allow e.g. simd_mask_type<N> m({1,0,0,1,...}).
   template <int N1, class = std::enable_if_t<N1 == N>>
-  simd_obj_impl(const Ty(&&Arr)[N1]) noexcept {
+  simd_obj_impl(const Ty (&&Arr)[N1]) noexcept {
     __esimd_dbg_print(simd_obj_impl(const Ty(&&Arr)[N1]));
     init_from_array(std::move(Arr));
   }
@@ -209,12 +239,11 @@ public:
     copy_from(acc, offset, Flags{});
   }
 
-  /// @}
-
   // Load the object's value from array.
-  template <int N1> std::enable_if_t<N1 == N> copy_from(const Ty(&&Arr)[N1]) {
-    __esimd_dbg_print(copy_from(const Ty(&&Arr)[N1]));
-    vector_type Tmp;
+  template <int N1>
+  std::enable_if_t<N1 == N> copy_from(const RawTy (&&Arr)[N1]) {
+    __esimd_dbg_print(copy_from(const RawTy(&&Arr)[N1]));
+    raw_vector_type Tmp;
     for (auto I = 0; I < N; ++I) {
       Tmp[I] = Arr[I];
     }
@@ -222,8 +251,8 @@ public:
   }
 
   // Store the object's value to array.
-  template <int N1> std::enable_if_t<N1 == N> copy_to(Ty(&&Arr)[N1]) const {
-    __esimd_dbg_print(copy_to(Ty(&&Arr)[N1]));
+  template <int N1> std::enable_if_t<N1 == N> copy_to(RawTy (&&Arr)[N1]) const {
+    __esimd_dbg_print(copy_to(RawTy(&&Arr)[N1]));
     for (auto I = 0; I < N; ++I) {
       Arr[I] = data()[I];
     }
@@ -231,30 +260,31 @@ public:
 
   /// @{
   /// Conversion operators.
-  explicit operator const vector_type &() const & {
-    __esimd_dbg_print(explicit operator const vector_type &() const &);
+  explicit operator const raw_vector_type &() const & {
+    __esimd_dbg_print(explicit operator const raw_vector_type &() const &);
     return M_data;
   }
-  explicit operator vector_type &() & {
-    __esimd_dbg_print(explicit operator vector_type &() &);
+  explicit operator raw_vector_type &() & {
+    __esimd_dbg_print(explicit operator raw_vector_type &() &);
     return M_data;
   }
 
-  /// Explicit conversion for simd_obj_impl<T, 1> into T.
+  /// Type conversion into a scalar:
+  /// simd_obj_impl<RawTy, 1, simd<Ty,1>> to Ty.
   template <typename T = simd_obj_impl,
             typename = sycl::detail::enable_if_t<T::length == 1>>
   operator Ty() const {
-    __esimd_dbg_print(explicit operator Ty());
-    return data()[0];
+    __esimd_dbg_print(operator Ty());
+    return bitcast_to_wrapper_type<Ty>(data()[0]);
   }
   /// @}
 
-  vector_type data() const {
-    __esimd_dbg_print(vector_type data());
+  raw_vector_type data() const {
+    __esimd_dbg_print(raw_vector_type data());
 #ifndef __SYCL_DEVICE_ONLY__
     return M_data;
 #else
-    return __esimd_vload<Ty, N>(&M_data);
+    return __esimd_vload<RawTy, N>(&M_data);
 #endif
   }
 
@@ -269,8 +299,8 @@ public:
 
   /// Whole region update with predicates.
   void merge(const Derived &Val, const simd_mask_type<N> &Mask) {
-    set(__esimd_wrregion<Ty, N, N, 0 /*VS*/, N, 1, N>(data(), Val.data(), 0,
-                                                      Mask.data()));
+    set(__esimd_wrregion<RawTy, N, N, 0 /*VS*/, N, 1, N>(data(), Val.data(), 0,
+                                                         Mask.data()));
   }
 
   void merge(const Derived &Val1, Derived Val2, const simd_mask_type<N> &Mask) {
@@ -280,30 +310,17 @@ public:
 
   /// View this simd_obj_impl object in a different element type.
   template <typename EltTy> auto bit_cast_view() &[[clang::lifetimebound]] {
-    using TopRegionTy = compute_format_type_t<simd_obj_impl, EltTy>;
+    using TopRegionTy = compute_format_type_t<Derived, EltTy>;
     using RetTy = simd_view<Derived, TopRegionTy>;
     return RetTy{cast_this_to_derived(), TopRegionTy{0}};
-  }
-
-  template <typename EltTy>
-  __SYCL_DEPRECATED("use simd_obj_impl::bit_cast_view.")
-  auto format() & {
-    return bit_cast_view<EltTy>();
   }
 
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width>
   auto bit_cast_view() &[[clang::lifetimebound]] {
-    using TopRegionTy =
-        compute_format_type_2d_t<simd_obj_impl, EltTy, Height, Width>;
+    using TopRegionTy = compute_format_type_2d_t<Derived, EltTy, Height, Width>;
     using RetTy = simd_view<Derived, TopRegionTy>;
     return RetTy{cast_this_to_derived(), TopRegionTy{0, 0}};
-  }
-
-  template <typename EltTy, int Height, int Width>
-  __SYCL_DEPRECATED("use simd_obj_impl::bit_cast_view.")
-  auto format() & {
-    return bit_cast_view<EltTy, Height, Width>();
   }
 
   /// 1D region select, apply a region on top of this LValue object.
@@ -332,26 +349,16 @@ public:
     static_assert(Size > 1 || Stride == 1,
                   "Stride must be 1 in single-element region");
     Derived &&Val = std::move(cast_this_to_derived());
-    return __esimd_rdregion<Ty, N, Size, /*VS*/ 0, Size, Stride>(Val.data(),
-                                                                 Offset);
+    return __esimd_rdregion<RawTy, N, Size, /*VS*/ 0, Size, Stride>(Val.data(),
+                                                                    Offset);
   }
 
   /// Read single element, return value only (not reference).
-  Ty operator[](int i) const { return data()[i]; }
-
-  /// Read single element, return value only (not reference).
-  __SYCL_DEPRECATED("use operator[] form.")
-  Ty operator()(int i) const { return data()[i]; }
+  Ty operator[](int i) const { return bitcast_to_wrapper_type<Ty>(data()[i]); }
 
   /// Return writable view of a single element.
   simd_view<Derived, region1d_scalar_t<Ty>> operator[](int i)
       [[clang::lifetimebound]] {
-    return select<1, 1>(i);
-  }
-
-  /// Return writable view of a single element.
-  __SYCL_DEPRECATED("use operator[] form.")
-  simd_view<Derived, region1d_scalar_t<Ty>> operator()(int i) {
     return select<1, 1>(i);
   }
 
@@ -360,14 +367,14 @@ public:
   template <int Size>
   resize_a_simd_type_t<Derived, Size>
   iselect(const simd<uint16_t, Size> &Indices) {
-    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
-    return __esimd_rdindirect<Ty, N, Size>(data(), Offsets);
+    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(RawTy);
+    return __esimd_rdindirect<RawTy, N, Size>(data(), Offsets);
   }
   // TODO ESIMD_EXPERIMENTAL
   /// update single element
   void iupdate(ushort Index, Ty V) {
     auto Val = data();
-    Val[Index] = V;
+    Val[Index] = bitcast_to_raw_type(V);
     set(Val);
   }
 
@@ -377,9 +384,9 @@ public:
   void iupdate(const simd<uint16_t, Size> &Indices,
                const resize_a_simd_type_t<Derived, Size> &Val,
                const simd_mask_type<Size> &Mask) {
-    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
-    set(__esimd_wrindirect<Ty, N, Size>(data(), Val.data(), Offsets,
-                                        Mask.data()));
+    vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(RawTy);
+    set(__esimd_wrindirect<RawTy, N, Size>(data(), Val.data(), Offsets,
+                                           Mask.data()));
   }
 
   /// \name Replicate
@@ -390,17 +397,7 @@ public:
   /// \tparam Rep is number of times region has to be replicated.
   /// \return replicated simd_obj_impl instance.
   template <int Rep> resize_a_simd_type_t<Derived, Rep * N> replicate() const {
-    return replicate<Rep, N>(0);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam W is width of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int W>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_w<Rep, W>(Offset);
+    return replicate_w<Rep, N>(0);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -410,17 +407,6 @@ public:
   template <int Rep, int W>
   resize_a_simd_type_t<Derived, Rep * W> replicate_w(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, 0, W, 1>(Offset);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam VS vertical stride of src region to replicate.
-  /// \tparam W is width of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int VS, int W>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_vs_w<Rep, VS, W>(Offset);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -440,26 +426,14 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W, int HS>
-  __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w_hs")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
-    return replicate_vs_w_hs<Rep, VS, W, HS>(Offset);
-  }
-
-  /// \tparam Rep is number of times region has to be replicated.
-  /// \tparam VS vertical stride of src region to replicate.
-  /// \tparam W is width of src region to replicate.
-  /// \tparam HS horizontal stride of src region to replicate.
-  /// \param Offset is offset in number of elements in src region.
-  /// \return replicated simd_obj_impl instance.
-  template <int Rep, int VS, int W, int HS>
   resize_a_simd_type_t<Derived, Rep * W>
   replicate_vs_w_hs(uint16_t Offset) const {
-    return __esimd_rdregion<Ty, N, Rep * W, VS, W, HS, N>(data(),
-                                                          Offset * sizeof(Ty));
+    return __esimd_rdregion<RawTy, N, Rep * W, VS, W, HS, N>(
+        data(), Offset * sizeof(RawTy));
   }
   ///@}
 
-  /// Any operation.
+  /// 'any' operation.
   ///
   /// \return 1 if any element is set, 0 otherwise.
   template <typename T1 = Ty,
@@ -468,7 +442,7 @@ public:
     return __esimd_any<Ty, N>(data());
   }
 
-  /// All operation.
+  /// 'all' operation.
   ///
   /// \return 1 if all elements are set, 0 otherwise.
   template <typename T1 = Ty,
@@ -479,19 +453,18 @@ public:
 
   /// Write a simd_obj_impl-vector into a basic region of a simd_obj_impl
   /// object.
-  template <typename RTy>
-  ESIMD_INLINE void writeRegion(
-      RTy Region,
-      const vector_type_t<typename RTy::element_type, RTy::length> &Val) {
-    using ElemTy = typename RTy::element_type;
-    if constexpr (N * sizeof(Ty) == RTy::length * sizeof(ElemTy))
+  template <typename RTy, class ElemTy = __raw_t<typename RTy::element_type>>
+  ESIMD_INLINE void writeRegion(RTy Region,
+                                const vector_type_t<ElemTy, RTy::length> &Val) {
+
+    if constexpr (N * sizeof(RawTy) == RTy::length * sizeof(ElemTy))
       // update the entire vector
-      set(bitcast<Ty, ElemTy, RTy::length>(Val));
+      set(bitcast<RawTy, ElemTy, RTy::length>(Val));
     else {
       static_assert(!RTy::Is_2D);
       // If element type differs, do bitcast conversion first.
-      auto Base = bitcast<ElemTy, Ty, N>(data());
-      constexpr int BN = (N * sizeof(Ty)) / sizeof(ElemTy);
+      auto Base = bitcast<ElemTy, RawTy, N>(data());
+      constexpr int BN = (N * sizeof(RawTy)) / sizeof(ElemTy);
       // Access the region information.
       constexpr int M = RTy::Size_x;
       constexpr int Stride = RTy::Stride_x;
@@ -501,27 +474,26 @@ public:
       auto Merged = __esimd_wrregion<ElemTy, BN, M,
                                      /*VS*/ 0, M, Stride>(Base, Val, Offset);
       // Convert back to the original element type, if needed.
-      set(bitcast<Ty, ElemTy, BN>(Merged));
+      set(bitcast<RawTy, ElemTy, BN>(Merged));
     }
   }
 
   /// Write a simd_obj_impl-vector into a nested region of a simd_obj_impl
   /// object.
-  template <typename TR, typename UR>
-  ESIMD_INLINE void
-  writeRegion(std::pair<TR, UR> Region,
-              const vector_type_t<typename TR::element_type, TR::length> &Val) {
+  template <typename TR, typename UR,
+            class ElemTy = __raw_t<typename TR::element_type>>
+  ESIMD_INLINE void writeRegion(std::pair<TR, UR> Region,
+                                const vector_type_t<ElemTy, TR::length> &Val) {
     // parent-region type
     using PaTy = typename shape_type<UR>::type;
-    using ElemTy = typename TR::element_type;
-    using BT = typename PaTy::element_type;
+    using BT = __raw_t<typename PaTy::element_type>;
     constexpr int BN = PaTy::length;
 
     if constexpr (PaTy::Size_in_bytes == TR::Size_in_bytes) {
       writeRegion(Region.second, bitcast<BT, ElemTy, TR::length>(Val));
     } else {
       // Recursively read the base
-      auto Base = readRegion<Ty, N>(data(), Region.second);
+      auto Base = readRegion<RawTy, N>(data(), Region.second);
       // If element type differs, do bitcast conversion first.
       auto Base1 = bitcast<ElemTy, BT, BN>(Base);
       constexpr int BN1 = PaTy::Size_in_bytes / sizeof(ElemTy);
@@ -574,10 +546,11 @@ public:
   /// global address space, otherwise behavior is undefined.
   /// @param flags for the copy operation. If the template parameter Flags is
   /// is element_aligned_tag, \p addr must be aligned by alignof(T). If Flags is
-  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's vector_type
-  /// alignment. If Flags is overaligned_tag<N>, \p addr must be aligned by N.
-  /// Program not meeting alignment requirements results in undefined behavior.
-  template <typename Flags = element_aligned_tag,
+  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's
+  /// raw_vector_type alignment. If Flags is overaligned_tag<N>, \p addr must be
+  /// aligned by N. Program not meeting alignment requirements results in
+  /// undefined behavior.
+  template <typename Flags = element_aligned_tag, int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE void copy_from(const Ty *addr, Flags = {}) SYCL_ESIMD_FUNCTION;
 
@@ -589,10 +562,12 @@ public:
   /// @param offset offset to copy from (in bytes).
   /// @param flags for the copy operation. If the template parameter Flags is
   /// is element_aligned_tag, offset must be aligned by alignof(T). If Flags is
-  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's vector_type
-  /// alignment. If Flags is overaligned_tag<N>, offset must be aligned by N.
-  /// Program not meeting alignment requirements results in undefined behavior.
+  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's
+  /// raw_vector_type alignment. If Flags is overaligned_tag<N>, offset must be
+  /// aligned by N. Program not meeting alignment requirements results in
+  /// undefined behavior.
   template <typename AccessorT, typename Flags = element_aligned_tag,
+            int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                                 sycl::access::target::global_buffer, void>
@@ -603,10 +578,11 @@ public:
   /// global address space, otherwise behavior is undefined.
   /// @param flags for the copy operation. If the template parameter Flags is
   /// is element_aligned_tag, \p addr must be aligned by alignof(T). If Flags is
-  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's vector_type
-  /// alignment. If Flags is overaligned_tag<N>, \p addr must be aligned by N.
-  /// Program not meeting alignment requirements results in undefined behavior.
-  template <typename Flags = element_aligned_tag,
+  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's
+  /// raw_vector_type alignment. If Flags is overaligned_tag<N>, \p addr must be
+  /// aligned by N. Program not meeting alignment requirements results in
+  /// undefined behavior.
+  template <typename Flags = element_aligned_tag, int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE void copy_to(Ty *addr, Flags = {}) const SYCL_ESIMD_FUNCTION;
 
@@ -617,10 +593,12 @@ public:
   /// @param offset offset to copy from.
   /// @param flags for the copy operation. If the template parameter Flags is
   /// is element_aligned_tag, offset must be aligned by alignof(T). If Flags is
-  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's vector_type
-  /// alignment. If Flags is overaligned_tag<N>, offset must be aligned by N.
-  /// Program not meeting alignment requirements results in undefined behavior.
+  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's
+  /// raw_vector_type alignment. If Flags is overaligned_tag<N>, offset must be
+  /// aligned by N. Program not meeting alignment requirements results in
+  /// undefined behavior.
   template <typename AccessorT, typename Flags = element_aligned_tag,
+            int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                                 sycl::access::target::global_buffer, void>
@@ -628,21 +606,22 @@ public:
 
   /// @} // Memory operations
 
+  // Unary operations.
+
   /// Bitwise inversion, available in all subclasses.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
   Derived operator~() const {
-    return Derived(~data());
+    return Derived{
+        detail::vector_unary_op<detail::UnaryOp::bit_not, T1, N>(data())};
   }
 
   /// Unary logical negation operator, available in all subclasses.
-  /// Similarly to C++, where !x returns bool, !simd returns as simd_mask, where
+  /// Similarly to C++, where !x returns bool, !simd returns a simd_mask, where
   /// each element is a result of comparision with zero.
+  /// No need to implement via detail::vector_unary_op
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
   simd_mask_type<N> operator!() const {
-    using MaskVecT = typename simd_mask_type<N>::vector_type;
-    auto R = data() == vector_type(0);
-    return simd_mask_type<N>{__builtin_convertvector(R, MaskVecT) &
-                             MaskVecT(1)};
+    return *this == 0;
   }
 
 #define __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(BINOP, OPASSIGN, COND)              \
@@ -654,7 +633,9 @@ public:
   Derived &operator OPASSIGN(                                                  \
       const __SEIEED::simd_obj_impl<T1, N, SimdT> &RHS) {                      \
     auto Res = *this BINOP RHS;                                                \
-    set(__SEIEED::convert<vector_type>(Res.data()));                           \
+    using ResT = decltype(Res);                                                \
+    set(__SEIEED::convert_vector<element_type, typename ResT::element_type,    \
+                                 length>(Res.data()));                         \
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
@@ -668,7 +649,9 @@ public:
   Derived &operator OPASSIGN(                                                  \
       const __SEIEE::simd_view<SimdT1, RegionT1> &RHS) {                       \
     auto Res = *this BINOP RHS.read();                                         \
-    set(__SEIEED::convert<vector_type>(Res.data()));                           \
+    using ResT = decltype(Res);                                                \
+    set(__SEIEED::convert_vector<element_type, typename ResT::element_type,    \
+                                 length>(Res.data()));                         \
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
@@ -679,7 +662,7 @@ public:
       using RHSVecT = __SEIEED::construct_a_simd_type_t<Derived, T1, N>;       \
       return *this OPASSIGN RHSVecT(RHS);                                      \
     } else {                                                                   \
-      return *this OPASSIGN Derived((Ty)RHS);                                  \
+      return *this OPASSIGN Derived((RawTy)RHS);                               \
     }                                                                          \
   }
 
@@ -716,16 +699,22 @@ public:
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(/, /=, __ESIMD_ARITH_OP_FILTER)
 #undef __ESIMD_ARITH_OP_FILTER
 
+  // Getter for the test proxy member, if enabled
+  __ESIMD_DECLARE_TEST_PROXY_ACCESS
+
 private:
   // The underlying data for this vector.
-  vector_type M_data;
+  raw_vector_type M_data;
 
 protected:
-  void set(const vector_type &Val) {
+  // The test proxy if enabled
+  __ESIMD_DECLARE_TEST_PROXY
+
+  void set(const raw_vector_type &Val) {
 #ifndef __SYCL_DEVICE_ONLY__
     M_data = Val;
 #else
-    __esimd_vstore<Ty, N>(&M_data, Val);
+    __esimd_vstore<RawTy, N>(&M_data, Val);
 #endif
   }
 };
@@ -733,147 +722,269 @@ protected:
 // ----------- Outlined implementations of simd_obj_impl class APIs.
 
 template <typename T, int N, class T1, class SFINAE>
-template <typename Flags, typename>
-void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *Addr,
-                                                Flags) SYCL_ESIMD_FUNCTION {
+template <typename Flags, int ChunkSize, typename>
+void simd_obj_impl<T, N, T1, SFINAE>::copy_from(
+    const simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
+    Flags) SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;
   constexpr unsigned Align = Flags::template alignment<T1>;
 
-  simd<T, N> Tmp;
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
   if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(Size / OperandSize::OWORD)) {
-    Tmp = block_load<T, N, Flags>(Addr, Flags{});
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, Addr, this](unsigned Block) {
+        select<BlockN, 1>(Block * BlockN) =
+            block_load<UT, BlockN, Flags>(Addr + (Block * BlockN), Flags{});
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      select<RemN, 1>(NumBlocks * BlockN) =
+          block_load<UT, RemN, Flags>(Addr + (NumBlocks * BlockN), Flags{});
+    }
   } else if constexpr (sizeof(T) == 8) {
-    constexpr unsigned AlignUH =
-        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
-    simd<int32_t, N> LH(reinterpret_cast<const int32_t *>(Addr), Flags{});
-    simd<int32_t, N> UH(reinterpret_cast<const int32_t *>(Addr) + N,
-                        overaligned<AlignUH>);
-    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0) = LH;
-    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N) = UH;
-  } else if constexpr (N == 1) {
-    Tmp = *Addr;
-  } else if constexpr (N == 8 || N == 16 || N == 32) {
-    simd<uint32_t, N> Offsets(0u, sizeof(T));
-    Tmp = gather<T, N>(Addr, Offsets);
+    simd<int32_t, N * 2> BC(reinterpret_cast<const int32_t *>(Addr), Flags{});
+    bit_cast_view<int32_t>() = BC;
   } else {
-    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
-    simd_mask_type<N1> Pred(0);
-    Pred.template select<N, 1>() = 1;
-    simd<uint32_t, N1> Offsets(0u, sizeof(T));
-    simd<T, N1> Vals = gather<T, N1>(Addr, Offsets, Pred);
-    Tmp = Vals.template select<N, 1>();
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll([Addr, &Offsets, this](unsigned Block) {
+        select<ChunkSize, 1>(Block * ChunkSize) =
+            gather<UT, ChunkSize>(Addr + (Block * ChunkSize), Offsets);
+      });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1) {
+        select<1, 1>(NumChunks * ChunkSize) = Addr[NumChunks * ChunkSize];
+      } else if constexpr (RemN == 8 || RemN == 16) {
+        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        select<RemN, 1>(NumChunks * ChunkSize) =
+            gather<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets);
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        simd<UT, N1> Vals =
+            gather<UT, N1>(Addr + (NumChunks * ChunkSize), Offsets, Pred);
+        select<RemN, 1>(NumChunks * ChunkSize) =
+            Vals.template select<RemN, 1>();
+      }
+    }
   }
-  *this = Tmp.data();
 }
 
 template <typename T, int N, class T1, class SFINAE>
-template <typename AccessorT, typename Flags, typename>
+template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                               sycl::access::target::global_buffer, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
                                            Flags) SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
+  static_assert(sizeof(UT) == sizeof(T));
   constexpr unsigned Size = sizeof(T) * N;
   constexpr unsigned Align = Flags::template alignment<T1>;
 
-  simd<T, N> Tmp;
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
   if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(Size / OperandSize::OWORD)) {
-    Tmp = block_load<T, N, AccessorT, Flags>(acc, offset, Flags{});
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, this](unsigned Block) {
+        select<BlockN, 1>(Block * BlockN) =
+            block_load<UT, BlockN, AccessorT, Flags>(
+                acc, offset + (Block * BlockSize), Flags{});
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      select<RemN, 1>(NumBlocks * BlockN) =
+          block_load<UT, RemN, AccessorT, Flags>(
+              acc, offset + (NumBlocks * BlockSize), Flags{});
+    }
   } else if constexpr (sizeof(T) == 8) {
-    constexpr unsigned AlignUH =
-        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
-    simd<int32_t, N> LH(acc, offset, Flags{});
-    simd<int32_t, N> UH(acc, offset + N * 4, overaligned<AlignUH>);
-    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0) = LH;
-    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N) = UH;
-  } else if constexpr (N == 1 || N == 8 || N == 16 || N == 32) {
-    simd<uint32_t, N> Offsets(0u, sizeof(T));
-    Tmp = gather<T, N, AccessorT>(acc, Offsets, offset);
+    simd<int32_t, N * 2> BC(acc, offset, Flags{});
+    bit_cast_view<int32_t>() = BC;
   } else {
-    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
-    simd_mask_type<N1> Pred(0);
-    Pred.template select<N, 1>() = 1;
-    simd<uint32_t, N1> Offsets(0u, sizeof(T));
-    simd<T, N1> Vals = gather<T, N1>(acc, Offsets, offset, Pred);
-    Tmp = Vals.template select<N, 1>();
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll(
+          [acc, offset, &Offsets, this](unsigned Block) {
+            select<ChunkSize, 1>(Block * ChunkSize) =
+                gather<UT, ChunkSize, AccessorT>(
+                    acc, Offsets, offset + (Block * ChunkSize * sizeof(T)));
+          });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
+        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        select<RemN, 1>(NumChunks * ChunkSize) = gather<UT, RemN, AccessorT>(
+            acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)));
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        simd<UT, N1> Vals = gather<UT, N1>(
+            acc, Offsets, offset + (NumChunks * ChunkSize * sizeof(T)), Pred);
+        select<RemN, 1>(NumChunks * ChunkSize) =
+            Vals.template select<RemN, 1>();
+      }
+    }
   }
-  *this = Tmp.data();
 }
 
 template <typename T, int N, class T1, class SFINAE>
-template <typename Flags, typename>
-void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr,
-                                              Flags) const SYCL_ESIMD_FUNCTION {
+template <typename Flags, int ChunkSize, typename>
+void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
+    simd_obj_impl<T, N, T1, SFINAE>::element_type *Addr,
+    Flags) const SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;
   constexpr unsigned Align = Flags::template alignment<T1>;
 
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
+  simd<UT, N> Tmp{data()};
   if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(Size / OperandSize::OWORD)) {
-    block_store<T, N>(addr, cast_this_to_derived());
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, Addr, &Tmp](unsigned Block) {
+        block_store<UT, BlockN>(Addr + (Block * BlockN),
+                                Tmp.template select<BlockN, 1>(Block * BlockN));
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      block_store<UT, RemN>(Addr + (NumBlocks * BlockN),
+                            Tmp.template select<RemN, 1>(NumBlocks * BlockN));
+    }
   } else if constexpr (sizeof(T) == 8) {
-    constexpr unsigned AlignUH =
-        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
-    simd<T, N> Tmp = data();
-    simd<int32_t, N> LH =
-        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0);
-    simd<int32_t, N> UH =
-        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N);
-    LH.copy_to(reinterpret_cast<int32_t *>(addr), Flags{});
-    UH.copy_to(reinterpret_cast<int32_t *>(addr) + N, overaligned<AlignUH>);
-  } else if constexpr (N == 1) {
-    *addr = data()[0];
-  } else if constexpr (N == 8 || N == 16 || N == 32) {
-    simd<uint32_t, N> offsets(0u, sizeof(T));
-    scatter<T, N>(addr, offsets, cast_this_to_derived().data());
+    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
+    BC.copy_to(reinterpret_cast<int32_t *>(Addr), Flags{});
   } else {
-    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
-    simd_mask_type<N1> pred(0);
-    pred.template select<N, 1>() = 1;
-    simd<T, N1> vals(0);
-    vals.template select<N, 1>() = cast_this_to_derived().data();
-    simd<uint32_t, N1> offsets(0u, sizeof(T));
-    scatter<T, N1>(addr, offsets, vals, pred);
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll([Addr, &Offsets, &Tmp](unsigned Block) {
+        scatter<UT, ChunkSize>(
+            Addr + (Block * ChunkSize), Offsets,
+            Tmp.template select<ChunkSize, 1>(Block * ChunkSize));
+      });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1) {
+        Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
+      } else if constexpr (RemN == 8 || RemN == 16) {
+        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        scatter<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets,
+                          Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<UT, N1> Vals;
+        Vals.template select<RemN, 1>() =
+            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
+        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        scatter<UT, N1>(Addr + (NumChunks * ChunkSize), Offsets, Vals, Pred);
+      }
+    }
   }
 }
 
 template <typename T, int N, class T1, class SFINAE>
-template <typename AccessorT, typename Flags, typename>
+template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                               sycl::access::target::global_buffer, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
                                          Flags) const SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;
   constexpr unsigned Align = Flags::template alignment<T1>;
 
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
+  simd<UT, N> Tmp{data()};
+
   if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(Size / OperandSize::OWORD)) {
-    block_store<T, N, AccessorT>(acc, offset, cast_this_to_derived());
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, &Tmp](unsigned Block) {
+        block_store<UT, BlockN, AccessorT>(
+            acc, offset + (Block * BlockSize),
+            Tmp.template select<BlockN, 1>(Block * BlockN));
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      block_store<UT, RemN, AccessorT>(
+          acc, offset + (NumBlocks * BlockSize),
+          Tmp.template select<RemN, 1>(NumBlocks * BlockN));
+    }
   } else if constexpr (sizeof(T) == 8) {
-    constexpr unsigned AlignUH =
-        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
-    simd<T, N> Tmp = data();
-    simd<int32_t, N> LH =
-        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0);
-    simd<int32_t, N> UH =
-        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N);
-    LH.copy_to(acc, offset, Flags{});
-    UH.copy_to(acc, offset + N * 4, overaligned<AlignUH>);
-  } else if constexpr (N == 1 || N == 8 || N == 16 || N == 32) {
-    simd<uint32_t, N> offsets(0u, sizeof(T));
-    scatter<T, N, AccessorT>(acc, offsets, cast_this_to_derived().data(),
-                             offset);
+    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
+    BC.copy_to(acc, offset, Flags{});
   } else {
-    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
-    simd_mask_type<N1> pred(0);
-    pred.template select<N, 1>() = 1;
-    simd<T, N1> vals(0);
-    vals.template select<N, 1>() = cast_this_to_derived().data();
-    simd<uint32_t, N1> offsets(0u, sizeof(T));
-    scatter<T, N1, AccessorT>(acc, offsets, vals, offset, pred);
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<uint32_t, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll([acc, offset, &Offsets,
+                                    &Tmp](unsigned Block) {
+        scatter<UT, ChunkSize, AccessorT>(
+            acc, Offsets, Tmp.template select<ChunkSize, 1>(Block * ChunkSize),
+            offset + (Block * ChunkSize * sizeof(T)));
+      });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
+        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+        scatter<UT, RemN, AccessorT>(
+            acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
+            offset + (NumChunks * ChunkSize * sizeof(T)));
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<UT, N1> Vals;
+        Vals.template select<RemN, 1>() =
+            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
+        simd<uint32_t, N1> Offsets(0u, sizeof(T));
+        scatter<UT, N1, AccessorT>(acc, Offsets, Vals,
+                                   offset + (NumChunks * ChunkSize * sizeof(T)),
+                                   Pred);
+      }
+    }
   }
 }
 } // namespace detail
+
+/// @} sycl_esimd_core
 
 } // namespace esimd
 } // namespace experimental

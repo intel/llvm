@@ -227,7 +227,7 @@ struct ConvertTosaOp<tosa::ArithmeticRightShiftOp>
     return success();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 namespace {
 /// Pass that enables broadcast by making all input arrays have the same
@@ -235,8 +235,8 @@ namespace {
 struct TosaMakeBroadcastable
     : public TosaMakeBroadcastableBase<TosaMakeBroadcastable> {
 public:
-  void runOnFunction() override {
-    auto func = getFunction();
+  void runOnOperation() override {
+    auto func = getOperation();
     RewritePatternSet patterns(func.getContext());
     MLIRContext *ctx = func.getContext();
     // Add the generated patterns to the list.
@@ -262,7 +262,7 @@ public:
     (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   }
 };
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<Pass> mlir::tosa::createTosaMakeBroadcastablePass() {
   return std::make_unique<TosaMakeBroadcastable>();

@@ -438,7 +438,7 @@ static T extractMaskValue(T KeyPath) {
     }(EXTRACTOR(KEYPATH));                                                     \
   }
 
-static const StringRef GetInputKindName(InputKind IK);
+static StringRef GetInputKindName(InputKind IK);
 
 static bool FixupInvocation(CompilerInvocation &Invocation,
                             DiagnosticsEngine &Diags, const ArgList &Args,
@@ -778,9 +778,7 @@ static void parseAnalyzerConfigs(AnalyzerOptions &AnOpts,
 static void getAllNoBuiltinFuncValues(ArgList &Args,
                                       std::vector<std::string> &Funcs) {
   std::vector<std::string> Values = Args.getAllArgValues(OPT_fno_builtin_);
-  auto BuiltinEnd = llvm::partition(Values, [](const std::string FuncName) {
-    return Builtin::Context::isBuiltinFunc(FuncName);
-  });
+  auto BuiltinEnd = llvm::partition(Values, Builtin::Context::isBuiltinFunc);
   Funcs.insert(Funcs.end(), Values.begin(), BuiltinEnd);
 }
 
@@ -1293,7 +1291,7 @@ static std::string serializeXRayInstrumentationBundle(const XRayInstrSet &S) {
   std::string Buffer;
   llvm::raw_string_ostream OS(Buffer);
   llvm::interleave(BundleParts, OS, [&OS](StringRef Part) { OS << Part; }, ",");
-  return OS.str();
+  return Buffer;
 }
 
 // Set the profile kind using fprofile-instrument-use-path.
@@ -1829,6 +1827,9 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Name;
   }
 
+  if (Opts.PrepareForLTO && Args.hasArg(OPT_mibt_seal))
+    Opts.IBTSeal = 1;
+
   for (auto *A :
        Args.filtered(OPT_mlink_bitcode_file, OPT_mlink_builtin_bitcode)) {
     CodeGenOptions::BitcodeFileToLink F;
@@ -1900,6 +1901,13 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
     const Option &O = A->getOption();
     Opts.EnableAIXExtendedAltivecABI = O.matches(OPT_mabi_EQ_vec_extabi);
+  }
+
+  if (Arg *A = Args.getLastArg(OPT_fsycl_instrument_device_code)) {
+    if (!T.isSPIR())
+      Diags.Report(diag::err_drv_unsupported_opt_for_target)
+          << A->getSpelling() << T.str();
+    Opts.SPIRITTAnnotations = true;
   }
 
   bool NeedLocTracking = false;
@@ -2420,6 +2428,7 @@ static const auto &getFrontendActionTable() {
       {frontend::EmitCodeGenOnly, OPT_emit_codegen_only},
       {frontend::EmitCodeGenOnly, OPT_emit_codegen_only},
       {frontend::EmitObj, OPT_emit_obj},
+      {frontend::ExtractAPI, OPT_extract_api},
 
       {frontend::FixIt, OPT_fixit_EQ},
       {frontend::FixIt, OPT_fixit},
@@ -3306,7 +3315,7 @@ static bool IsInputCompatibleWithStandard(InputKind IK,
 }
 
 /// Get language name for given input kind.
-static const StringRef GetInputKindName(InputKind IK) {
+static StringRef GetInputKindName(InputKind IK) {
   switch (IK.getLanguage()) {
   case Language::C:
     return "C";
@@ -4199,6 +4208,13 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
         {std::string(Split.first), std::string(Split.second)});
   }
 
+  // Error if -mvscale-min is unbounded.
+  if (Arg *A = Args.getLastArg(options::OPT_mvscale_min_EQ)) {
+    unsigned VScaleMin;
+    if (StringRef(A->getValue()).getAsInteger(10, VScaleMin) || VScaleMin == 0)
+      Diags.Report(diag::err_cc1_unbounded_vscale_min);
+  }
+
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 
@@ -4215,6 +4231,7 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   case frontend::EmitLLVMOnly:
   case frontend::EmitCodeGenOnly:
   case frontend::EmitObj:
+  case frontend::ExtractAPI:
   case frontend::FixIt:
   case frontend::GenerateModule:
   case frontend::GenerateModuleInterface:
@@ -4613,7 +4630,7 @@ bool CompilerInvocation::CreateFromArgsImpl(
 
   // Store the command-line for using in the CodeView backend.
   Res.getCodeGenOpts().Argv0 = Argv0;
-  Res.getCodeGenOpts().CommandLineArgs = CommandLineArgs;
+  append_range(Res.getCodeGenOpts().CommandLineArgs, CommandLineArgs);
 
   FixupInvocation(Res, Diags, Args, DashX);
 

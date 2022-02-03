@@ -408,6 +408,16 @@ bool TargetTransformInfo::isLegalMaskedScatter(Type *DataType,
   return TTIImpl->isLegalMaskedScatter(DataType, Alignment);
 }
 
+bool TargetTransformInfo::forceScalarizeMaskedGather(VectorType *DataType,
+                                                     Align Alignment) const {
+  return TTIImpl->forceScalarizeMaskedGather(DataType, Alignment);
+}
+
+bool TargetTransformInfo::forceScalarizeMaskedScatter(VectorType *DataType,
+                                                      Align Alignment) const {
+  return TTIImpl->forceScalarizeMaskedScatter(DataType, Alignment);
+}
+
 bool TargetTransformInfo::isLegalMaskedCompressStore(Type *DataType) const {
   return TTIImpl->isLegalMaskedCompressStore(DataType);
 }
@@ -982,10 +992,10 @@ bool TargetTransformInfo::areInlineCompatible(const Function *Caller,
   return TTIImpl->areInlineCompatible(Caller, Callee);
 }
 
-bool TargetTransformInfo::areFunctionArgsABICompatible(
+bool TargetTransformInfo::areTypesABICompatible(
     const Function *Caller, const Function *Callee,
-    SmallPtrSetImpl<Argument *> &Args) const {
-  return TTIImpl->areFunctionArgsABICompatible(Caller, Callee, Args);
+    const ArrayRef<Type *> &Types) const {
+  return TTIImpl->areTypesABICompatible(Caller, Callee, Types);
 }
 
 bool TargetTransformInfo::isIndexedLoadLegal(MemIndexedMode Mode,
@@ -1072,8 +1082,13 @@ bool TargetTransformInfo::supportsScalableVectors() const {
   return TTIImpl->supportsScalableVectors();
 }
 
-bool TargetTransformInfo::hasActiveVectorLength() const {
-  return TTIImpl->hasActiveVectorLength();
+bool TargetTransformInfo::enableScalableVectorization() const {
+  return TTIImpl->enableScalableVectorization();
+}
+
+bool TargetTransformInfo::hasActiveVectorLength(unsigned Opcode, Type *DataType,
+                                                Align Alignment) const {
+  return TTIImpl->hasActiveVectorLength(Opcode, DataType, Alignment);
 }
 
 InstructionCost

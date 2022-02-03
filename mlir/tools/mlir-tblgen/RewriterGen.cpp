@@ -50,7 +50,7 @@ struct format_provider<mlir::tblgen::Pattern::IdentifierLine> {
     os << v.first << ":" << v.second;
   }
 };
-} // end namespace llvm
+} // namespace llvm
 
 //===----------------------------------------------------------------------===//
 // PatternEmitter
@@ -229,7 +229,7 @@ private:
   // Pattern instantiation location followed by the location of multiclass
   // prototypes used. This is intended to be used as a whole to
   // PrintFatalError() on errors.
-  ArrayRef<llvm::SMLoc> loc;
+  ArrayRef<SMLoc> loc;
 
   // Op's TableGen Record to wrapper object.
   RecordOperatorMap *opMap;
@@ -328,7 +328,7 @@ private:
   StaticVerifierFunctionEmitter staticVerifierEmitter;
 };
 
-} // end anonymous namespace
+} // namespace
 
 PatternEmitter::PatternEmitter(Record *pat, RecordOperatorMap *mapper,
                                raw_ostream &os, StaticMatcherHelper &helper)

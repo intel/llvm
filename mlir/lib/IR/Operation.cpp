@@ -349,28 +349,28 @@ void Operation::updateOrderIfNecessary() {
 
 auto llvm::ilist_detail::SpecificNodeAccess<
     typename llvm::ilist_detail::compute_node_options<
-        ::mlir::Operation>::type>::getNodePtr(pointer N) -> node_type * {
-  return NodeAccess::getNodePtr<OptionsT>(N);
+        ::mlir::Operation>::type>::getNodePtr(pointer n) -> node_type * {
+  return NodeAccess::getNodePtr<OptionsT>(n);
 }
 
 auto llvm::ilist_detail::SpecificNodeAccess<
     typename llvm::ilist_detail::compute_node_options<
-        ::mlir::Operation>::type>::getNodePtr(const_pointer N)
+        ::mlir::Operation>::type>::getNodePtr(const_pointer n)
     -> const node_type * {
-  return NodeAccess::getNodePtr<OptionsT>(N);
+  return NodeAccess::getNodePtr<OptionsT>(n);
 }
 
 auto llvm::ilist_detail::SpecificNodeAccess<
     typename llvm::ilist_detail::compute_node_options<
-        ::mlir::Operation>::type>::getValuePtr(node_type *N) -> pointer {
-  return NodeAccess::getValuePtr<OptionsT>(N);
+        ::mlir::Operation>::type>::getValuePtr(node_type *n) -> pointer {
+  return NodeAccess::getValuePtr<OptionsT>(n);
 }
 
 auto llvm::ilist_detail::SpecificNodeAccess<
     typename llvm::ilist_detail::compute_node_options<
-        ::mlir::Operation>::type>::getValuePtr(const node_type *N)
+        ::mlir::Operation>::type>::getValuePtr(const node_type *n)
     -> const_pointer {
-  return NodeAccess::getValuePtr<OptionsT>(N);
+  return NodeAccess::getValuePtr<OptionsT>(n);
 }
 
 void llvm::ilist_traits<::mlir::Operation>::deleteNode(Operation *op) {
@@ -378,9 +378,9 @@ void llvm::ilist_traits<::mlir::Operation>::deleteNode(Operation *op) {
 }
 
 Block *llvm::ilist_traits<::mlir::Operation>::getContainingBlock() {
-  size_t Offset(size_t(&((Block *)nullptr->*Block::getSublistAccess(nullptr))));
-  iplist<Operation> *Anchor(static_cast<iplist<Operation> *>(this));
-  return reinterpret_cast<Block *>(reinterpret_cast<char *>(Anchor) - Offset);
+  size_t offset(size_t(&((Block *)nullptr->*Block::getSublistAccess(nullptr))));
+  iplist<Operation> *anchor(static_cast<iplist<Operation> *>(this));
+  return reinterpret_cast<Block *>(reinterpret_cast<char *>(anchor) - offset);
 }
 
 /// This is a trait method invoked when an operation is added to a block.  We
@@ -580,14 +580,27 @@ Operation *Operation::clone() {
 // OpState trait class.
 //===----------------------------------------------------------------------===//
 
-// The fallback for the parser is to reject the custom assembly form.
+// The fallback for the parser is to try for a dialect operation parser.
+// Otherwise, reject the custom assembly form.
 ParseResult OpState::parse(OpAsmParser &parser, OperationState &result) {
+  if (auto parseFn = result.name.getDialect()->getParseOperationHook(
+          result.name.getStringRef()))
+    return (*parseFn)(parser, result);
   return parser.emitError(parser.getNameLoc(), "has no custom assembly form");
 }
 
-// The fallback for the printer is to print in the generic assembly form.
-void OpState::print(Operation *op, OpAsmPrinter &p) { p.printGenericOp(op); }
-// The fallback for the printer is to print in the generic assembly form.
+// The fallback for the printer is to try for a dialect operation printer.
+// Otherwise, it prints the generic form.
+void OpState::print(Operation *op, OpAsmPrinter &p, StringRef defaultDialect) {
+  if (auto printFn = op->getDialect()->getOperationPrinter(op)) {
+    printOpName(op, p, defaultDialect);
+    printFn(op, p);
+  } else {
+    p.printGenericOp(op);
+  }
+}
+
+/// Print an operation name, eliding the dialect prefix if necessary.
 void OpState::printOpName(Operation *op, OpAsmPrinter &p,
                           StringRef defaultDialect) {
   StringRef name = op->getName().getStringRef();
@@ -982,7 +995,7 @@ LogicalResult OpTrait::impl::verifyValueSizeAttr(Operation *op,
 
   size_t totalCount = std::accumulate(
       sizeAttr.begin(), sizeAttr.end(), 0,
-      [](unsigned all, APInt one) { return all + one.getZExtValue(); });
+      [](unsigned all, const APInt &one) { return all + one.getZExtValue(); });
 
   if (totalCount != expectedCount)
     return op->emitOpError()
@@ -1011,8 +1024,7 @@ LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
       if (op->getNumRegions() > 1)
         return op->emitOpError("region #")
                << region.getRegionNumber() << " should have no arguments";
-      else
-        return op->emitOpError("region should have no arguments");
+      return op->emitOpError("region should have no arguments");
     }
   }
   return success();
@@ -1132,7 +1144,7 @@ ParseResult impl::parseOneResultSameOperandTypeOp(OpAsmParser &parser,
   Type type;
   // If the operand list is in-between parentheses, then we have a generic form.
   // (see the fallback in `printOneResultOp`).
-  llvm::SMLoc loc = parser.getCurrentLocation();
+  SMLoc loc = parser.getCurrentLocation();
   if (!parser.parseOptionalLParen()) {
     if (parser.parseOperandList(ops) || parser.parseRParen() ||
         parser.parseOptionalAttrDict(result.attributes) ||

@@ -24,6 +24,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
@@ -170,7 +171,7 @@ static constexpr const CombiningKind combiningKindsList[] = {
 };
 
 void CombiningKindAttr::print(AsmPrinter &printer) const {
-  printer << "kind<";
+  printer << "<";
   auto kinds = llvm::make_filter_range(combiningKindsList, [&](auto kind) {
     return bitEnumContains(this->getKind(), kind);
   });
@@ -215,10 +216,12 @@ Attribute VectorDialect::parseAttribute(DialectAsmParser &parser,
 
 void VectorDialect::printAttribute(Attribute attr,
                                    DialectAsmPrinter &os) const {
-  if (auto ck = attr.dyn_cast<CombiningKindAttr>())
+  if (auto ck = attr.dyn_cast<CombiningKindAttr>()) {
+    os << "kind";
     ck.print(os);
-  else
-    llvm_unreachable("Unknown attribute type");
+    return;
+  }
+  llvm_unreachable("Unknown attribute type");
 }
 
 //===----------------------------------------------------------------------===//
@@ -267,7 +270,7 @@ void vector::MultiDimReductionOp::build(OpBuilder &builder,
   result.addTypes(targetType);
 
   SmallVector<int64_t> reductionDims;
-  for (auto en : llvm::enumerate(reductionMask))
+  for (const auto &en : llvm::enumerate(reductionMask))
     if (en.value())
       reductionDims.push_back(en.index());
   result.addAttribute(getReductionDimsAttrName(),
@@ -337,13 +340,13 @@ static ParseResult parseReductionOp(OpAsmParser &parser,
       parser.parseComma() || parser.parseOperandList(operandsInfo) ||
       parser.parseColonType(redType) ||
       parser.parseKeywordType("into", resType) ||
-      (operandsInfo.size() > 0 &&
+      (!operandsInfo.empty() &&
        parser.resolveOperand(operandsInfo[0], redType, result.operands)) ||
       (operandsInfo.size() > 1 &&
        parser.resolveOperand(operandsInfo[1], resType, result.operands)) ||
       parser.addTypeToList(resType, result.types))
     return failure();
-  if (operandsInfo.size() < 1 || operandsInfo.size() > 2)
+  if (operandsInfo.empty() || operandsInfo.size() > 2)
     return parser.emitError(parser.getNameLoc(),
                             "unsupported number of operands");
   return success();
@@ -356,41 +359,42 @@ static void print(OpAsmPrinter &p, ReductionOp op) {
   p << " : " << op.vector().getType() << " into " << op.dest().getType();
 }
 
-Value mlir::vector::getVectorReductionOp(AtomicRMWKind op, OpBuilder &builder,
-                                         Location loc, Value vector) {
+Value mlir::vector::getVectorReductionOp(arith::AtomicRMWKind op,
+                                         OpBuilder &builder, Location loc,
+                                         Value vector) {
   Type scalarType = vector.getType().cast<ShapedType>().getElementType();
   switch (op) {
-  case AtomicRMWKind::addf:
-  case AtomicRMWKind::addi:
+  case arith::AtomicRMWKind::addf:
+  case arith::AtomicRMWKind::addi:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("add"),
                                                vector, ValueRange{});
-  case AtomicRMWKind::mulf:
-  case AtomicRMWKind::muli:
+  case arith::AtomicRMWKind::mulf:
+  case arith::AtomicRMWKind::muli:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("mul"),
                                                vector, ValueRange{});
-  case AtomicRMWKind::minf:
+  case arith::AtomicRMWKind::minf:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("minf"),
                                                vector, ValueRange{});
-  case AtomicRMWKind::mins:
+  case arith::AtomicRMWKind::mins:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("minsi"),
                                                vector, ValueRange{});
-  case AtomicRMWKind::minu:
+  case arith::AtomicRMWKind::minu:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("minui"),
                                                vector, ValueRange{});
-  case AtomicRMWKind::maxf:
+  case arith::AtomicRMWKind::maxf:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("maxf"),
                                                vector, ValueRange{});
-  case AtomicRMWKind::maxs:
+  case arith::AtomicRMWKind::maxs:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("maxsi"),
                                                vector, ValueRange{});
-  case AtomicRMWKind::maxu:
+  case arith::AtomicRMWKind::maxu:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("maxui"),
                                                vector, ValueRange{});
@@ -542,7 +546,7 @@ static LogicalResult verifyOutputShape(
   }
 
   // Verify 'expectedResultDims'.
-  if (expectedResultDims.size() == 0) {
+  if (expectedResultDims.empty()) {
     // No batch or free dimension implies a scalar result.
     if (resType.isa<VectorType>() || accType.isa<VectorType>())
       return op.emitOpError("invalid accumulator/result vector shape");
@@ -611,7 +615,7 @@ static LogicalResult verify(ContractionOp op) {
   // that the number of map outputs equals the rank of its associated
   // vector operand.
   unsigned numIterators = op.iterator_types().getValue().size();
-  for (auto it : llvm::enumerate(op.indexing_maps())) {
+  for (const auto &it : llvm::enumerate(op.indexing_maps())) {
     auto index = it.index();
     auto map = it.value().cast<AffineMapAttr>().getValue();
     if (map.getNumSymbols() != 0)
@@ -691,7 +695,7 @@ static std::vector<std::pair<int64_t, int64_t>>
 getDimMap(ArrayRef<AffineMap> indexingMaps, ArrayAttr iteratorTypes,
           StringRef targetIteratorTypeName, MLIRContext *context) {
   std::vector<std::pair<int64_t, int64_t>> dimMap;
-  for (auto it : llvm::enumerate(iteratorTypes)) {
+  for (const auto &it : llvm::enumerate(iteratorTypes)) {
     auto iteratorTypeName = it.value().cast<StringAttr>().getValue();
     if (iteratorTypeName != targetIteratorTypeName)
       continue;
@@ -700,7 +704,7 @@ getDimMap(ArrayRef<AffineMap> indexingMaps, ArrayAttr iteratorTypes,
     int64_t lhsDim = getResultIndex(indexingMaps[0], targetExpr);
     int64_t rhsDim = getResultIndex(indexingMaps[1], targetExpr);
     if (lhsDim >= 0 && rhsDim >= 0)
-      dimMap.push_back({lhsDim, rhsDim});
+      dimMap.emplace_back(lhsDim, rhsDim);
   }
   return dimMap;
 }
@@ -711,7 +715,7 @@ void ContractionOp::getIterationBounds(
   auto resVectorType = getResultType().dyn_cast<VectorType>();
   SmallVector<AffineMap, 4> indexingMaps(getIndexingMaps());
   SmallVector<int64_t, 2> iterationShape;
-  for (auto it : llvm::enumerate(iterator_types())) {
+  for (const auto &it : llvm::enumerate(iterator_types())) {
     // Search lhs/rhs map results for 'targetExpr'.
     auto targetExpr = getAffineDimExpr(it.index(), getContext());
     auto iteratorTypeName = it.value().cast<StringAttr>().getValue();
@@ -734,7 +738,7 @@ void ContractionOp::getIterationIndexMap(
     std::vector<DenseMap<int64_t, int64_t>> &iterationIndexMap) {
   unsigned numMaps = indexing_maps().getValue().size();
   iterationIndexMap.resize(numMaps);
-  for (auto it : llvm::enumerate(indexing_maps())) {
+  for (const auto &it : llvm::enumerate(indexing_maps())) {
     auto index = it.index();
     auto map = it.value().cast<AffineMapAttr>().getValue();
     for (unsigned i = 0, e = map.getNumResults(); i < e; ++i) {
@@ -896,7 +900,7 @@ static void print(OpAsmPrinter &p, vector::ExtractOp op) {
 }
 
 static ParseResult parseExtractOp(OpAsmParser &parser, OperationState &result) {
-  llvm::SMLoc attributeLoc, typeLoc;
+  SMLoc attributeLoc, typeLoc;
   NamedAttrList attrs;
   OpAsmParser::OperandType vector;
   Type type;
@@ -929,7 +933,7 @@ static LogicalResult verify(vector::ExtractOp op) {
   if (positionAttr.size() > static_cast<unsigned>(op.getVectorType().getRank()))
     return op.emitOpError(
         "expected position attribute of rank smaller than vector rank");
-  for (auto en : llvm::enumerate(positionAttr)) {
+  for (const auto &en : llvm::enumerate(positionAttr)) {
     auto attr = en.value().dyn_cast<IntegerAttr>();
     if (!attr || attr.getInt() < 0 ||
         attr.getInt() >= op.getVectorType().getDimSize(en.index()))
@@ -942,7 +946,7 @@ static LogicalResult verify(vector::ExtractOp op) {
 }
 
 template <typename IntType>
-static SmallVector<IntType, 4> extractVector(ArrayAttr arrayAttr) {
+static SmallVector<IntType> extractVector(ArrayAttr arrayAttr) {
   return llvm::to_vector<4>(llvm::map_range(
       arrayAttr.getAsRange<IntegerAttr>(),
       [](IntegerAttr attr) { return static_cast<IntType>(attr.getInt()); }));
@@ -956,12 +960,12 @@ static LogicalResult foldExtractOpFromExtractChain(ExtractOp extractOp) {
 
   SmallVector<int64_t, 4> globalPosition;
   ExtractOp currentOp = extractOp;
-  auto extractedPos = extractVector<int64_t>(currentOp.position());
-  globalPosition.append(extractedPos.rbegin(), extractedPos.rend());
+  auto extrPos = extractVector<int64_t>(currentOp.position());
+  globalPosition.append(extrPos.rbegin(), extrPos.rend());
   while (ExtractOp nextOp = currentOp.vector().getDefiningOp<ExtractOp>()) {
     currentOp = nextOp;
-    auto extractedPos = extractVector<int64_t>(currentOp.position());
-    globalPosition.append(extractedPos.rbegin(), extractedPos.rend());
+    auto extrPos = extractVector<int64_t>(currentOp.position());
+    globalPosition.append(extrPos.rbegin(), extrPos.rend());
   }
   extractOp.setOperand(currentOp.vector());
   // OpBuilder is only used as a helper to build an I64ArrayAttr.
@@ -972,144 +976,219 @@ static LogicalResult foldExtractOpFromExtractChain(ExtractOp extractOp) {
   return success();
 }
 
-/// Fold the result of an ExtractOp in place when it comes from a TransposeOp.
-static LogicalResult foldExtractOpFromTranspose(ExtractOp extractOp) {
-  auto transposeOp = extractOp.vector().getDefiningOp<vector::TransposeOp>();
-  if (!transposeOp)
+namespace {
+/// Fold an ExtractOp that is fed by a chain of InsertOps and TransposeOps.
+/// Walk back a chain of InsertOp/TransposeOp until we hit a match.
+/// Compose TransposeOp permutations as we walk back.
+/// This helper class keeps an updated extraction position `extractPosition`
+/// with extra trailing sentinels.
+/// The sentinels encode the internal transposition status of the result vector.
+/// As we iterate, extractPosition is permuted and updated.
+class ExtractFromInsertTransposeChainState {
+public:
+  ExtractFromInsertTransposeChainState(ExtractOp e);
+
+  /// Iterate over producing insert and transpose ops until we find a fold.
+  Value fold();
+
+private:
+  /// Return true if the vector at position `a` is contained within the vector
+  /// at position `b`. Under insert/extract semantics, this is the same as `a`
+  /// is a prefix of `b`.
+  template <typename ContainerA, typename ContainerB>
+  bool isContainedWithin(const ContainerA &a, const ContainerB &b) {
+    return a.size() <= b.size() &&
+           std::equal(a.begin(), a.begin() + a.size(), b.begin());
+  }
+
+  /// Return true if the vector at position `a` intersects the vector at
+  /// position `b`. Under insert/extract semantics, this is the same as equality
+  /// of all entries of `a` that are >=0 with the corresponding entries of b.
+  /// Comparison is on the common prefix (i.e. zip).
+  template <typename ContainerA, typename ContainerB>
+  bool intersectsWhereNonNegative(const ContainerA &a, const ContainerB &b) {
+    for (auto it : llvm::zip(a, b)) {
+      if (std::get<0>(it) < 0 || std::get<0>(it) < 0)
+        continue;
+      if (std::get<0>(it) != std::get<1>(it))
+        return false;
+    }
+    return true;
+  }
+
+  /// Folding is only possible in the absence of an internal permutation in the
+  /// result vector.
+  bool canFold() {
+    return (sentinels ==
+            makeArrayRef(extractPosition).drop_front(extractedRank));
+  }
+
+  // Helper to get the next defining op of interest.
+  void updateStateForNextIteration(Value v) {
+    nextInsertOp = v.getDefiningOp<vector::InsertOp>();
+    nextTransposeOp = v.getDefiningOp<vector::TransposeOp>();
+  };
+
+  // Case 1. If we hit a transpose, just compose the map and iterate.
+  // Invariant: insert + transpose do not change rank, we can always compose.
+  LogicalResult handleTransposeOp();
+
+  // Case 2: the insert position matches extractPosition exactly, early return.
+  LogicalResult handleInsertOpWithMatchingPos(Value &res);
+
+  /// Case 3: if the insert position is a prefix of extractPosition, extract a
+  /// portion of the source of the insert.
+  /// Example:
+  /// ```
+  /// %ins = vector.insert %source, %vest[1]: vector<3x4> into vector<2x3x4x5>
+  /// // extractPosition == [1, 2, 3]
+  /// %ext = vector.extract %ins[1, 0]: vector<3x4x5>
+  /// // can fold to vector.extract %source[0, 3]
+  /// %ext = vector.extract %source[3]: vector<5x6>
+  /// ```
+  /// To traverse through %source, we need to set the leading dims to 0 and
+  /// drop the extra leading dims.
+  /// This method updates the internal state.
+  LogicalResult handleInsertOpWithPrefixPos(Value &res);
+
+  /// Try to fold in place to extract(source, extractPosition) and return the
+  /// folded result. Return null if folding is not possible (e.g. due to an
+  /// internal tranposition in the result).
+  Value tryToFoldExtractOpInPlace(Value source);
+
+  ExtractOp extractOp;
+  int64_t vectorRank;
+  int64_t extractedRank;
+
+  InsertOp nextInsertOp;
+  TransposeOp nextTransposeOp;
+
+  /// Sentinel values that encode the internal permutation status of the result.
+  /// They are set to (-1, ... , -k) at the beginning and appended to
+  /// `extractPosition`.
+  /// In the end, the tail of `extractPosition` must be exactly `sentinels` to
+  /// ensure that there is no internal transposition.
+  /// Internal transposition cannot be accounted for with a folding pattern.
+  // TODO: We could relax the internal transposition with an extra transposition
+  // operation in a future canonicalizer.
+  SmallVector<int64_t> sentinels;
+  SmallVector<int64_t> extractPosition;
+};
+} // namespace
+
+ExtractFromInsertTransposeChainState::ExtractFromInsertTransposeChainState(
+    ExtractOp e)
+    : extractOp(e), vectorRank(extractOp.getVectorType().getRank()),
+      extractedRank(extractOp.position().size()) {
+  assert(vectorRank >= extractedRank && "extracted pos overflow");
+  sentinels.reserve(vectorRank - extractedRank);
+  for (int64_t i = 0, e = vectorRank - extractedRank; i < e; ++i)
+    sentinels.push_back(-(i + 1));
+  extractPosition = extractVector<int64_t>(extractOp.position());
+  llvm::append_range(extractPosition, sentinels);
+}
+
+// Case 1. If we hit a transpose, just compose the map and iterate.
+// Invariant: insert + transpose do not change rank, we can always compose.
+LogicalResult ExtractFromInsertTransposeChainState::handleTransposeOp() {
+  if (!nextTransposeOp)
     return failure();
-
-  auto permutation = extractVector<unsigned>(transposeOp.transp());
-  auto extractedPos = extractVector<int64_t>(extractOp.position());
-
-  // If transposition permutation is larger than the ExtractOp, all minor
-  // dimensions must be an identity for folding to occur. If not, individual
-  // elements within the extracted value are transposed and this is not just a
-  // simple folding.
-  unsigned minorRank = permutation.size() - extractedPos.size();
-  MLIRContext *ctx = extractOp.getContext();
-  AffineMap permutationMap = AffineMap::getPermutationMap(permutation, ctx);
-  AffineMap minorMap = permutationMap.getMinorSubMap(minorRank);
-  if (minorMap && !minorMap.isMinorIdentity())
-    return failure();
-
-  //   %1 = transpose %0[x, y, z] : vector<axbxcxf32>
-  //   %2 = extract %1[u, v] : vector<..xf32>
-  // may turn into:
-  //   %2 = extract %0[w, x] : vector<..xf32>
-  // iff z == 2 and [w, x] = [x, y]^-1 o [u, v] here o denotes composition and
-  // -1 denotes the inverse.
-  permutationMap = permutationMap.getMajorSubMap(extractedPos.size());
-  // The major submap has fewer results but the same number of dims. To compose
-  // cleanly, we need to drop dims to form a "square matrix". This is possible
-  // because:
-  //   (a) this is a permutation map and
-  //   (b) the minor map has already been checked to be identity.
-  // Therefore, the major map cannot contain dims of position greater or equal
-  // than the number of results.
-  assert(llvm::all_of(permutationMap.getResults(),
-                      [&](AffineExpr e) {
-                        auto dim = e.dyn_cast<AffineDimExpr>();
-                        return dim && dim.getPosition() <
-                                          permutationMap.getNumResults();
-                      }) &&
-         "Unexpected map results depend on higher rank positions");
-  // Project on the first domain dimensions to allow composition.
-  permutationMap = AffineMap::get(permutationMap.getNumResults(), 0,
-                                  permutationMap.getResults(), ctx);
-
-  extractOp.setOperand(transposeOp.vector());
-  // Compose the inverse permutation map with the extractedPos.
-  auto newExtractedPos =
-      inversePermutation(permutationMap).compose(extractedPos);
-  // OpBuilder is only used as a helper to build an I64ArrayAttr.
-  OpBuilder b(extractOp.getContext());
-  extractOp->setAttr(ExtractOp::getPositionAttrName(),
-                     b.getI64ArrayAttr(newExtractedPos));
-
+  auto permutation = extractVector<unsigned>(nextTransposeOp.transp());
+  AffineMap m = inversePermutation(
+      AffineMap::getPermutationMap(permutation, extractOp.getContext()));
+  extractPosition = applyPermutationMap(m, makeArrayRef(extractPosition));
   return success();
 }
 
-/// Fold an ExtractOp that is fed by a chain of InsertOps and TransposeOps. The
-/// result is always the input to some InsertOp.
-static Value foldExtractOpFromInsertChainAndTranspose(ExtractOp extractOp) {
-  MLIRContext *context = extractOp.getContext();
-  AffineMap permutationMap;
-  auto extractedPos = extractVector<unsigned>(extractOp.position());
-  // Walk back a chain of InsertOp/TransposeOp until we hit a match.
-  // Compose TransposeOp permutations as we walk back.
-  auto insertOp = extractOp.vector().getDefiningOp<vector::InsertOp>();
-  auto transposeOp = extractOp.vector().getDefiningOp<vector::TransposeOp>();
-  while (insertOp || transposeOp) {
-    if (transposeOp) {
-      // If it is transposed, compose the map and iterate.
-      auto permutation = extractVector<unsigned>(transposeOp.transp());
-      AffineMap newMap = AffineMap::getPermutationMap(permutation, context);
-      if (!permutationMap)
-        permutationMap = newMap;
-      else if (newMap.getNumInputs() != permutationMap.getNumResults())
-        return Value();
-      else
-        permutationMap = newMap.compose(permutationMap);
-      // Compute insert/transpose for the next iteration.
-      Value transposed = transposeOp.vector();
-      insertOp = transposed.getDefiningOp<vector::InsertOp>();
-      transposeOp = transposed.getDefiningOp<vector::TransposeOp>();
+// Case 2: the insert position matches extractPosition exactly, early return.
+LogicalResult
+ExtractFromInsertTransposeChainState::handleInsertOpWithMatchingPos(
+    Value &res) {
+  auto insertedPos = extractVector<int64_t>(nextInsertOp.position());
+  if (makeArrayRef(insertedPos) !=
+      llvm::makeArrayRef(extractPosition).take_front(extractedRank))
+    return failure();
+  // Case 2.a. early-exit fold.
+  res = nextInsertOp.source();
+  // Case 2.b. if internal transposition is present, canFold will be false.
+  return success();
+}
+
+/// Case 3: if inserted position is a prefix of extractPosition,
+/// extract a portion of the source of the insertion.
+/// This method updates the internal state.
+LogicalResult
+ExtractFromInsertTransposeChainState::handleInsertOpWithPrefixPos(Value &res) {
+  auto insertedPos = extractVector<int64_t>(nextInsertOp.position());
+  if (!isContainedWithin(insertedPos, extractPosition))
+    return failure();
+  // Set leading dims to zero.
+  std::fill_n(extractPosition.begin(), insertedPos.size(), 0);
+  // Drop extra leading dims.
+  extractPosition.erase(extractPosition.begin(),
+                        extractPosition.begin() + insertedPos.size());
+  extractedRank = extractPosition.size() - sentinels.size();
+  // Case 3.a. early-exit fold (break and delegate to post-while path).
+  res = nextInsertOp.source();
+  // Case 3.b. if internal transposition is present, canFold will be false.
+  return success();
+}
+
+/// Try to fold in place to extract(source, extractPosition) and return the
+/// folded result. Return null if folding is not possible (e.g. due to an
+/// internal tranposition in the result).
+Value ExtractFromInsertTransposeChainState::tryToFoldExtractOpInPlace(
+    Value source) {
+  // If we can't fold (either internal transposition, or nothing to fold), bail.
+  bool nothingToFold = (source == extractOp.vector());
+  if (nothingToFold || !canFold())
+    return Value();
+  // Otherwise, fold by updating the op inplace and return its result.
+  OpBuilder b(extractOp.getContext());
+  extractOp->setAttr(
+      extractOp.positionAttrName(),
+      b.getI64ArrayAttr(
+          makeArrayRef(extractPosition).take_front(extractedRank)));
+  extractOp.vectorMutable().assign(source);
+  return extractOp.getResult();
+}
+
+/// Iterate over producing insert and transpose ops until we find a fold.
+Value ExtractFromInsertTransposeChainState::fold() {
+  Value valueToExtractFrom = extractOp.vector();
+  updateStateForNextIteration(valueToExtractFrom);
+  while (nextInsertOp || nextTransposeOp) {
+    // Case 1. If we hit a transpose, just compose the map and iterate.
+    // Invariant: insert + transpose do not change rank, we can always compose.
+    if (succeeded(handleTransposeOp())) {
+      valueToExtractFrom = nextTransposeOp.vector();
+      updateStateForNextIteration(valueToExtractFrom);
       continue;
     }
 
-    assert(insertOp);
-    Value insertionDest = insertOp.dest();
-    // If it is inserted into, either the position matches and we have a
-    // successful folding; or we iterate until we run out of
-    // InsertOp/TransposeOp. This is because `vector.insert %scalar, %vector`
-    // produces a new vector with 1 modified value/slice in exactly the static
-    // position we need to match.
-    auto insertedPos = extractVector<unsigned>(insertOp.position());
-    // Trivial permutations are solved with position equality checks.
-    if (!permutationMap || permutationMap.isIdentity()) {
-      if (extractedPos == insertedPos)
-        return insertOp.source();
-      // Fallthrough: if the position does not match, just skip to the next
-      // producing `vector.insert` / `vector.transpose`.
-      // Compute insert/transpose for the next iteration.
-      insertOp = insertionDest.getDefiningOp<vector::InsertOp>();
-      transposeOp = insertionDest.getDefiningOp<vector::TransposeOp>();
-      continue;
-    }
+    Value result;
+    // Case 2: the position match exactly.
+    if (succeeded(handleInsertOpWithMatchingPos(result)))
+      return result;
 
-    // More advanced permutations require application of the permutation.
-    // However, the rank of `insertedPos` may be different from that of the
-    // `permutationMap`. To support such case, we need to:
-    //   1. apply on the `insertedPos.size()` major dimensions
-    //   2. check the other dimensions of the permutation form a minor identity.
-    assert(permutationMap.isPermutation() && "expected a permutation");
-    if (insertedPos.size() == extractedPos.size()) {
-      bool fold = true;
-      for (unsigned idx = 0, sz = extractedPos.size(); idx < sz; ++idx) {
-        auto pos = permutationMap.getDimPosition(idx);
-        if (pos >= sz || insertedPos[pos] != extractedPos[idx]) {
-          fold = false;
-          break;
-        }
-      }
-      if (fold) {
-        assert(permutationMap.getNumResults() >= insertedPos.size() &&
-               "expected map of rank larger than insert indexing");
-        unsigned minorRank =
-            permutationMap.getNumResults() - insertedPos.size();
-        AffineMap minorMap = permutationMap.getMinorSubMap(minorRank);
-        if (!minorMap || minorMap.isMinorIdentity())
-          return insertOp.source();
-      }
-    }
+    // Case 3: if the inserted position is a prefix of extractPosition, we can
+    // just extract a portion of the source of the insert.
+    if (succeeded(handleInsertOpWithPrefixPos(result)))
+      return tryToFoldExtractOpInPlace(result);
 
-    // If we haven't found a match, just continue to the next producing
-    // `vector.insert` / `vector.transpose`.
-    // Compute insert/transpose for the next iteration.
-    insertOp = insertionDest.getDefiningOp<vector::InsertOp>();
-    transposeOp = insertionDest.getDefiningOp<vector::TransposeOp>();
+    // Case 4: extractPositionRef intersects insertedPosRef on non-sentinel
+    // values. This is a more difficult case and we bail.
+    auto insertedPos = extractVector<int64_t>(nextInsertOp.position());
+    if (isContainedWithin(extractPosition, insertedPos) ||
+        intersectsWhereNonNegative(extractPosition, insertedPos))
+      return Value();
+
+    // Case 5: No intersection, we forward the extract to insertOp.dest().
+    valueToExtractFrom = nextInsertOp.dest();
+    updateStateForNextIteration(valueToExtractFrom);
   }
-  return Value();
+  // If after all this we can fold, go for it.
+  return tryToFoldExtractOpInPlace(valueToExtractFrom);
 }
 
 /// Fold extractOp with scalar result coming from BroadcastOp or SplatOp.
@@ -1123,11 +1202,11 @@ static Value foldExtractFromBroadcast(ExtractOp extractOp) {
   auto getRank = [](Type type) {
     return type.isa<VectorType>() ? type.cast<VectorType>().getRank() : 0;
   };
-  unsigned broadcasrSrcRank = getRank(source.getType());
+  unsigned broadcastSrcRank = getRank(source.getType());
   unsigned extractResultRank = getRank(extractOp.getType());
-  if (extractResultRank < broadcasrSrcRank) {
+  if (extractResultRank < broadcastSrcRank) {
     auto extractPos = extractVector<int64_t>(extractOp.position());
-    unsigned rankDiff = broadcasrSrcRank - extractResultRank;
+    unsigned rankDiff = broadcastSrcRank - extractResultRank;
     extractPos.erase(
         extractPos.begin(),
         std::next(extractPos.begin(), extractPos.size() - rankDiff));
@@ -1200,18 +1279,123 @@ static Value foldExtractFromShapeCast(ExtractOp extractOp) {
   return extractOp.getResult();
 }
 
+/// Fold an ExtractOp from ExtractStridedSliceOp.
+static Value foldExtractFromExtractStrided(ExtractOp extractOp) {
+  auto extractStridedSliceOp =
+      extractOp.vector().getDefiningOp<vector::ExtractStridedSliceOp>();
+  if (!extractStridedSliceOp)
+    return Value();
+  // Return if 'extractStridedSliceOp' has non-unit strides.
+  if (extractStridedSliceOp.hasNonUnitStrides())
+    return Value();
+
+  // Trim offsets for dimensions fully extracted.
+  auto sliceOffsets = extractVector<int64_t>(extractStridedSliceOp.offsets());
+  while (!sliceOffsets.empty()) {
+    size_t lastOffset = sliceOffsets.size() - 1;
+    if (sliceOffsets.back() != 0 ||
+        extractStridedSliceOp.getType().getDimSize(lastOffset) !=
+            extractStridedSliceOp.getVectorType().getDimSize(lastOffset))
+      break;
+    sliceOffsets.pop_back();
+  }
+  unsigned destinationRank = 0;
+  if (auto vecType = extractOp.getType().dyn_cast<VectorType>())
+    destinationRank = vecType.getRank();
+  // The dimensions of the result need to be untouched by the
+  // extractStridedSlice op.
+  if (destinationRank >
+      extractStridedSliceOp.getVectorType().getRank() - sliceOffsets.size())
+    return Value();
+  auto extractedPos = extractVector<int64_t>(extractOp.position());
+  assert(extractedPos.size() >= sliceOffsets.size());
+  for (size_t i = 0, e = sliceOffsets.size(); i < e; i++)
+    extractedPos[i] = extractedPos[i] + sliceOffsets[i];
+  extractOp.vectorMutable().assign(extractStridedSliceOp.vector());
+  // OpBuilder is only used as a helper to build an I64ArrayAttr.
+  OpBuilder b(extractOp.getContext());
+  extractOp->setAttr(ExtractOp::getPositionAttrName(),
+                     b.getI64ArrayAttr(extractedPos));
+  return extractOp.getResult();
+}
+
+/// Fold extract_op fed from a chain of insertStridedSlice ops.
+static Value foldExtractStridedOpFromInsertChain(ExtractOp op) {
+  int64_t destinationRank = op.getType().isa<VectorType>()
+                                ? op.getType().cast<VectorType>().getRank()
+                                : 0;
+  auto insertOp = op.vector().getDefiningOp<InsertStridedSliceOp>();
+  while (insertOp) {
+    int64_t insertRankDiff = insertOp.getDestVectorType().getRank() -
+                             insertOp.getSourceVectorType().getRank();
+    if (destinationRank > insertOp.getSourceVectorType().getRank())
+      return Value();
+    auto insertOffsets = extractVector<int64_t>(insertOp.offsets());
+    auto extractOffsets = extractVector<int64_t>(op.position());
+
+    if (llvm::any_of(insertOp.strides(), [](Attribute attr) {
+          return attr.cast<IntegerAttr>().getInt() != 1;
+        }))
+      return Value();
+    bool disjoint = false;
+    SmallVector<int64_t, 4> offsetDiffs;
+    for (unsigned dim = 0, e = extractOffsets.size(); dim < e; ++dim) {
+      int64_t start = insertOffsets[dim];
+      int64_t size =
+          (dim < insertRankDiff)
+              ? 1
+              : insertOp.getSourceVectorType().getDimSize(dim - insertRankDiff);
+      int64_t end = start + size;
+      int64_t offset = extractOffsets[dim];
+      // Check if the start of the extract offset is in the interval inserted.
+      if (start <= offset && offset < end) {
+        if (dim >= insertRankDiff)
+          offsetDiffs.push_back(offset - start);
+        continue;
+      }
+      disjoint = true;
+      break;
+    }
+    // The extract element chunk overlap with the vector inserted.
+    if (!disjoint) {
+      // If any of the inner dimensions are only partially inserted we have a
+      // partial overlap.
+      int64_t srcRankDiff =
+          insertOp.getSourceVectorType().getRank() - destinationRank;
+      for (int64_t i = 0; i < destinationRank; i++) {
+        if (insertOp.getSourceVectorType().getDimSize(i + srcRankDiff) !=
+            insertOp.getDestVectorType().getDimSize(i + srcRankDiff +
+                                                    insertRankDiff))
+          return Value();
+      }
+      op.vectorMutable().assign(insertOp.source());
+      // OpBuilder is only used as a helper to build an I64ArrayAttr.
+      OpBuilder b(op.getContext());
+      op->setAttr(ExtractOp::getPositionAttrName(),
+                  b.getI64ArrayAttr(offsetDiffs));
+      return op.getResult();
+    }
+    // If the chunk extracted is disjoint from the chunk inserted, keep
+    // looking in the insert chain.
+    insertOp = insertOp.dest().getDefiningOp<InsertStridedSliceOp>();
+  }
+  return Value();
+}
+
 OpFoldResult ExtractOp::fold(ArrayRef<Attribute>) {
   if (position().empty())
     return vector();
   if (succeeded(foldExtractOpFromExtractChain(*this)))
     return getResult();
-  if (succeeded(foldExtractOpFromTranspose(*this)))
-    return getResult();
-  if (auto val = foldExtractOpFromInsertChainAndTranspose(*this))
+  if (auto res = ExtractFromInsertTransposeChainState(*this).fold())
+    return res;
+  if (auto res = foldExtractFromBroadcast(*this))
+    return res;
+  if (auto res = foldExtractFromShapeCast(*this))
+    return res;
+  if (auto val = foldExtractFromExtractStrided(*this))
     return val;
-  if (auto val = foldExtractFromBroadcast(*this))
-    return val;
-  if (auto val = foldExtractFromShapeCast(*this))
+  if (auto val = foldExtractStridedOpFromInsertChain(*this))
     return val;
   return OpFoldResult();
 }
@@ -1234,12 +1418,12 @@ public:
     auto getRank = [](Type type) {
       return type.isa<VectorType>() ? type.cast<VectorType>().getRank() : 0;
     };
-    unsigned broadcasrSrcRank = getRank(source.getType());
+    unsigned broadcastSrcRank = getRank(source.getType());
     unsigned extractResultRank = getRank(extractOp.getType());
     // We only consider the case where the rank of the source is smaller than
     // the rank of the extract dst. The other cases are handled in the folding
     // patterns.
-    if (extractResultRank <= broadcasrSrcRank)
+    if (extractResultRank <= broadcastSrcRank)
       return failure();
     rewriter.replaceOpWithNewOp<vector::BroadcastOp>(
         extractOp, extractOp.getType(), source);
@@ -1507,7 +1691,7 @@ static LogicalResult verify(ShuffleOp op) {
     return op.emitOpError("mask length mismatch");
   // Verify all indices.
   int64_t indexSize = v1Type.getDimSize(0) + v2Type.getDimSize(0);
-  for (auto en : llvm::enumerate(maskAttr)) {
+  for (const auto &en : llvm::enumerate(maskAttr)) {
     auto attr = en.value().dyn_cast<IntegerAttr>();
     if (!attr || attr.getInt() < 0 || attr.getInt() >= indexSize)
       return op.emitOpError("mask index #")
@@ -1617,7 +1801,7 @@ static LogicalResult verify(InsertOp op) {
       (positionAttr.size() != static_cast<unsigned>(destVectorType.getRank())))
     return op.emitOpError(
         "expected position attribute rank to match the dest vector rank");
-  for (auto en : llvm::enumerate(positionAttr)) {
+  for (const auto &en : llvm::enumerate(positionAttr)) {
     auto attr = en.value().dyn_cast<IntegerAttr>();
     if (!attr || attr.getInt() < 0 ||
         attr.getInt() >= destVectorType.getDimSize(en.index()))
@@ -2179,9 +2363,7 @@ public:
     if (!constantMaskOp)
       return failure();
     // Return if 'extractStridedSliceOp' has non-unit strides.
-    if (llvm::any_of(extractStridedSliceOp.strides(), [](Attribute attr) {
-          return attr.cast<IntegerAttr>().getInt() != 1;
-        }))
+    if (extractStridedSliceOp.hasNonUnitStrides())
       return failure();
     // Gather constant mask dimension sizes.
     SmallVector<int64_t, 4> maskDimSizes;
@@ -2300,7 +2482,7 @@ public:
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 void ExtractStridedSliceOp::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
@@ -2513,7 +2695,7 @@ static void print(OpAsmPrinter &p, TransferReadOp op) {
 static ParseResult parseTransferReadOp(OpAsmParser &parser,
                                        OperationState &result) {
   auto &builder = parser.getBuilder();
-  llvm::SMLoc typesLoc;
+  SMLoc typesLoc;
   OpAsmParser::OperandType sourceInfo;
   SmallVector<OpAsmParser::OperandType, 8> indexInfo;
   OpAsmParser::OperandType paddingInfo;
@@ -2781,8 +2963,35 @@ public:
     if (!extractOp.hasUnitStride())
       return failure();
 
+    // Bail on illegal rank-reduction: we need to check that the rank-reduced
+    // dims are exactly the leading dims. I.e. the following is illegal:
+    // ```
+    //    %0 = tensor.extract_slice %t[0,0,0][2,1,4][1,1,1] :
+    //      tensor<2x1x4xf32> to tensor<2x4xf32>
+    //    %1 = vector.transfer_read %0[0,0], %cst :
+    //      tensor<2x4xf32>, vector<2x4xf32>
+    // ```
+    //
+    // Cannot fold into:
+    // ```
+    //    %0 = vector.transfer_read %t[0,0,0], %cst :
+    //      tensor<2x1x4xf32>, vector<2x4xf32>
+    // ```
+    // For this, check the trailing `vectorRank` dims of the extract_slice
+    // result tensor match the trailing dims of the inferred result tensor.
     int64_t rankReduced =
         extractOp.getSourceType().getRank() - extractOp.getType().getRank();
+    int64_t vectorRank = xferOp.getVectorType().getRank();
+    RankedTensorType inferredDestTensorType =
+        tensor::ExtractSliceOp::inferResultType(
+            extractOp.getSourceType(), extractOp.getMixedOffsets(),
+            extractOp.getMixedSizes(), extractOp.getMixedStrides());
+    auto actualDestTensorShape = extractOp.getType().getShape();
+    if (rankReduced > 0 &&
+        actualDestTensorShape.take_back(vectorRank) !=
+            inferredDestTensorType.getShape().take_back(vectorRank))
+      return failure();
+
     SmallVector<Value> newIndices;
     // In case this is a rank-reducing ExtractSliceOp, copy rank-reduced
     // indices first.
@@ -2791,7 +3000,7 @@ public:
       newIndices.push_back(getValueOrCreateConstantIndexOp(
           rewriter, extractOp.getLoc(), offset));
     }
-    for (auto it : llvm::enumerate(xferOp.indices())) {
+    for (const auto &it : llvm::enumerate(xferOp.indices())) {
       OpFoldResult offset =
           extractOp.getMixedOffsets()[it.index() + rankReduced];
       newIndices.push_back(rewriter.create<arith::AddIOp>(
@@ -2866,7 +3075,7 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
 static ParseResult parseTransferWriteOp(OpAsmParser &parser,
                                         OperationState &result) {
   auto &builder = parser.getBuilder();
-  llvm::SMLoc typesLoc;
+  SMLoc typesLoc;
   OpAsmParser::OperandType vectorInfo, sourceInfo;
   SmallVector<OpAsmParser::OperandType, 8> indexInfo;
   SmallVector<Type, 2> types;
@@ -3166,12 +3375,41 @@ public:
     if (xferOp.mask())
       return failure();
     // Fold only if the TransferWriteOp completely overwrites the `source` with
-    // a vector. I.e., the result of the TransferWriteOp is a new tensor who's
+    // a vector. I.e., the result of the TransferWriteOp is a new tensor whose
     // content is the data of the vector.
     if (!llvm::equal(xferOp.getVectorType().getShape(),
                      xferOp.getShapedType().getShape()))
       return failure();
     if (!xferOp.permutation_map().isIdentity())
+      return failure();
+
+    // Bail on illegal rank-reduction: we need to check that the rank-reduced
+    // dims are exactly the leading dims. I.e. the following is illegal:
+    // ```
+    //    %0 = vector.transfer_write %v, %t[0,0], %cst :
+    //      vector<2x4xf32>, tensor<2x4xf32>
+    //    %1 = tensor.insert_slice %0 into %tt[0,0,0][2,1,4][1,1,1] :
+    //      tensor<2x4xf32> into tensor<2x1x4xf32>
+    // ```
+    //
+    // Cannot fold into:
+    // ```
+    //    %0 = vector.transfer_write %v, %t[0,0,0], %cst :
+    //      vector<2x4xf32>, tensor<2x1x4xf32>
+    // ```
+    // For this, check the trailing `vectorRank` dims of the insert_slice result
+    // tensor match the trailing dims of the inferred result tensor.
+    int64_t rankReduced =
+        insertOp.getType().getRank() - insertOp.getSourceType().getRank();
+    int64_t vectorRank = xferOp.getVectorType().getRank();
+    RankedTensorType inferredSourceTensorType =
+        tensor::ExtractSliceOp::inferResultType(
+            insertOp.getType(), insertOp.getMixedOffsets(),
+            insertOp.getMixedSizes(), insertOp.getMixedStrides());
+    auto actualSourceTensorShape = insertOp.getSourceType().getShape();
+    if (rankReduced > 0 &&
+        actualSourceTensorShape.take_back(vectorRank) !=
+            inferredSourceTensorType.getShape().take_back(vectorRank))
       return failure();
 
     SmallVector<Value> indices = getValueOrCreateConstantIndexOp(
@@ -3853,7 +4091,7 @@ static LogicalResult verify(vector::TransposeOp op) {
   if (rank != size)
     return op.emitOpError("transposition length mismatch: ") << size;
   SmallVector<bool, 8> seen(rank, false);
-  for (auto ta : llvm::enumerate(transpAttr)) {
+  for (const auto &ta : llvm::enumerate(transpAttr)) {
     int64_t i = ta.value().cast<IntegerAttr>().getInt();
     if (i < 0 || i >= rank)
       return op.emitOpError("transposition index out of range: ") << i;
@@ -3908,7 +4146,7 @@ public:
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 void vector::TransposeOp::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
@@ -3924,8 +4162,19 @@ void vector::TransposeOp::getTransp(SmallVectorImpl<int64_t> &results) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(ConstantMaskOp &op) {
-  // Verify that array attr size matches the rank of the vector result.
   auto resultType = op.getResult().getType().cast<VectorType>();
+  // Check the corner case of 0-D vectors first.
+  if (resultType.getRank() == 0) {
+    if (op.mask_dim_sizes().size() != 1)
+      return op->emitError("array attr must have length 1 for 0-D vectors");
+    auto dim = op.mask_dim_sizes()[0].cast<IntegerAttr>().getInt();
+    if (dim != 0 && dim != 1)
+      return op->emitError(
+          "mask dim size must be either 0 or 1 for 0-D vectors");
+    return success();
+  }
+
+  // Verify that array attr size matches the rank of the vector result.
   if (static_cast<int64_t>(op.mask_dim_sizes().size()) != resultType.getRank())
     return op.emitOpError(
         "must specify array attr of size equal vector result rank");
@@ -3933,7 +4182,7 @@ static LogicalResult verify(ConstantMaskOp &op) {
   // result dimension size.
   auto resultShape = resultType.getShape();
   SmallVector<int64_t, 4> maskDimSizes;
-  for (auto it : llvm::enumerate(op.mask_dim_sizes())) {
+  for (const auto &it : llvm::enumerate(op.mask_dim_sizes())) {
     int64_t attrValue = it.value().cast<IntegerAttr>().getInt();
     if (attrValue < 0 || attrValue > resultShape[it.index()])
       return op.emitOpError(
@@ -3955,11 +4204,17 @@ static LogicalResult verify(ConstantMaskOp &op) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(CreateMaskOp op) {
+  auto vectorType = op.getResult().getType().cast<VectorType>();
   // Verify that an operand was specified for each result vector each dimension.
-  if (op.getNumOperands() !=
-      op.getResult().getType().cast<VectorType>().getRank())
+  if (vectorType.getRank() == 0) {
+    if (op->getNumOperands() != 1)
+      return op.emitOpError(
+          "must specify exactly one operand for 0-D create_mask");
+  } else if (op.getNumOperands() !=
+             op.getResult().getType().cast<VectorType>().getRank()) {
     return op.emitOpError(
         "must specify an operand for each result vector dimension");
+  }
   return success();
 }
 
@@ -3980,9 +4235,18 @@ public:
       return failure();
     // Gather constant mask dimension sizes.
     SmallVector<int64_t, 4> maskDimSizes;
-    for (auto operand : createMaskOp.operands()) {
-      auto *defOp = operand.getDefiningOp();
-      maskDimSizes.push_back(cast<arith::ConstantIndexOp>(defOp).value());
+    for (auto it : llvm::zip(createMaskOp.operands(),
+                             createMaskOp.getType().getShape())) {
+      auto *defOp = std::get<0>(it).getDefiningOp();
+      int64_t maxDimSize = std::get<1>(it);
+      int64_t dimSize = cast<arith::ConstantIndexOp>(defOp).value();
+      dimSize = std::min(dimSize, maxDimSize);
+      // If one of dim sizes is zero, set all dims to zero.
+      if (dimSize <= 0) {
+        maskDimSizes.assign(createMaskOp.getType().getRank(), 0);
+        break;
+      }
+      maskDimSizes.push_back(dimSize);
     }
     // Replace 'createMaskOp' with ConstantMaskOp.
     rewriter.replaceOpWithNewOp<ConstantMaskOp>(
@@ -3992,7 +4256,7 @@ public:
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 void CreateMaskOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                MLIRContext *context) {

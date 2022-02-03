@@ -156,6 +156,11 @@ public:
   ///   intel_sub_group_avc_mce_get_default_inter_base_multi_reference_penalty
   void visitCallSPIRVAvcINTELInstructionBuiltin(CallInst *CI, Op OC);
 
+  ///  Transform __spirv_GenericPtrMemSemantics to:
+  ///  %0 = call spirv_func i32 @_Z9get_fence
+  ///  %1 = shl i31 %0, 8
+  void visitCallSPIRVGenericPtrMemSemantics(CallInst *CI);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
@@ -213,6 +218,12 @@ public:
   /// Transform __spirv_EnqueueKernel to __enqueue_kernel
   virtual void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) = 0;
 
+  /// Transform __spirv_Any and __spirv_All to OpenCL builtin.
+  void visitCallSPIRVAnyAll(CallInst *CI, Op OC);
+
+  /// Transform relational builtin, e.g. __spirv_IsNan, to OpenCL builtin.
+  void visitCallSPIRVRelational(CallInst *CI, Op OC);
+
   /// Conduct generic mutations for all atomic builtins
   virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
 
@@ -240,6 +251,9 @@ public:
   /// Transform SPV-IR image opaque type into OpenCL representation,
   /// example: spirv.Image._void_1_0_0_0_0_0_1 => opencl.image2d_wo_t
   std::string getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes);
+  /// Transform SPV-IR pipe opaque type into OpenCL representation,
+  /// example: spirv.Pipe._0 => opencl.pipe_ro_t
+  std::string getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
   void translateOpaqueTypes();
 

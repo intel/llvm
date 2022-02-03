@@ -9,9 +9,9 @@
 #include "PassDetail.h"
 #include "flang/Optimizer/Builder/BoxValue.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
+#include "flang/Optimizer/Builder/Factory.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Support/FIRContext.h"
-#include "flang/Optimizer/Transforms/Factory.h"
 #include "flang/Optimizer/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -333,7 +333,7 @@ ArrayCopyAnalysis::arrayAccesses(ArrayLoadOp load) {
       accesses.push_back(owner);
       appendToQueue(update.getResult(1));
     } else if (auto br = mlir::dyn_cast<mlir::BranchOp>(owner)) {
-      branchOp(br.getDest(), br.destOperands());
+      branchOp(br.getDest(), br.getDestOperands());
     } else if (auto br = mlir::dyn_cast<mlir::CondBranchOp>(owner)) {
       branchOp(br.getTrueDest(), br.getTrueOperands());
       branchOp(br.getFalseDest(), br.getFalseOperands());
@@ -770,8 +770,8 @@ namespace {
 class ArrayValueCopyConverter
     : public ArrayValueCopyBase<ArrayValueCopyConverter> {
 public:
-  void runOnFunction() override {
-    auto func = getFunction();
+  void runOnOperation() override {
+    auto func = getOperation();
     LLVM_DEBUG(llvm::dbgs() << "\n\narray-value-copy pass on function '"
                             << func.getName() << "'\n");
     auto *context = &getContext();
@@ -784,7 +784,7 @@ public:
     // array accesses are rewritten we can go on phase 2.
     // Phase 2 gets rid of the useless copy-in/copyout operations. The copy-in
     // /copy-out refers the Fortran copy-in/copy-out semantics on statements.
-    mlir::OwningRewritePatternList patterns1(context);
+    mlir::RewritePatternSet patterns1(context);
     patterns1.insert<ArrayFetchConversion>(context, useMap);
     patterns1.insert<ArrayUpdateConversion>(context, analysis, useMap);
     patterns1.insert<ArrayModifyConversion>(context, analysis, useMap);
@@ -801,7 +801,7 @@ public:
       signalPassFailure();
     }
 
-    mlir::OwningRewritePatternList patterns2(context);
+    mlir::RewritePatternSet patterns2(context);
     patterns2.insert<ArrayLoadConversion>(context);
     patterns2.insert<ArrayMergeStoreConversion>(context);
     target.addIllegalOp<ArrayLoadOp, ArrayMergeStoreOp>();

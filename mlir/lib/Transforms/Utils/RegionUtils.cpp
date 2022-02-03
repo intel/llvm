@@ -417,7 +417,7 @@ struct BlockEquivalenceData {
   /// produced within the block before this operation.
   DenseMap<Operation *, unsigned> opOrderIndex;
 };
-} // end anonymous namespace
+} // namespace
 
 BlockEquivalenceData::BlockEquivalenceData(Block *block)
     : block(block), hash(0) {
@@ -477,7 +477,7 @@ private:
   /// replaced by arguments when the cluster gets merged.
   std::set<std::pair<int, int>> operandsToMerge;
 };
-} // end anonymous namespace
+} // namespace
 
 LogicalResult BlockMergeCluster::addToCluster(BlockEquivalenceData &blockData) {
   if (leaderData.hash != blockData.hash)
@@ -589,7 +589,7 @@ LogicalResult BlockMergeCluster::merge(RewriterBase &rewriter) {
         1 + blocksToMerge.size(),
         SmallVector<Value, 8>(operandsToMerge.size()));
     unsigned curOpIndex = 0;
-    for (auto it : llvm::enumerate(operandsToMerge)) {
+    for (const auto &it : llvm::enumerate(operandsToMerge)) {
       unsigned nextOpOffset = it.value().first - curOpIndex;
       curOpIndex = it.value().first;
 
@@ -601,8 +601,11 @@ LogicalResult BlockMergeCluster::merge(RewriterBase &rewriter) {
         newArguments[i][it.index()] = operand.get();
 
         // Update the operand and insert an argument if this is the leader.
-        if (i == 0)
-          operand.set(leaderBlock->addArgument(operand.get().getType()));
+        if (i == 0) {
+          Value operandVal = operand.get();
+          operand.set(leaderBlock->addArgument(operandVal.getType(),
+                                               operandVal.getLoc()));
+        }
       }
     }
     // Update the predecessors for each of the blocks.

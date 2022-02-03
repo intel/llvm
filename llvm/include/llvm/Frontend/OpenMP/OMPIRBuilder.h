@@ -41,10 +41,7 @@ public:
   /// Finalize the underlying module, e.g., by outlining regions.
   /// \param Fn                    The function to be finalized. If not used,
   ///                              all functions are finalized.
-  /// \param AllowExtractorSinking Flag to include sinking instructions,
-  ///                              emitted by CodeExtractor, in the
-  ///                              outlined region. Default is false.
-  void finalize(Function *Fn = nullptr, bool AllowExtractorSinking = false);
+  void finalize(Function *Fn = nullptr);
 
   /// Add attributes known for \p FnID to \p Fn.
   void addAttributes(omp::RuntimeFunction FnID, Function &Fn);
@@ -517,6 +514,12 @@ public:
   void unrollLoopPartial(DebugLoc DL, CanonicalLoopInfo *Loop, int32_t Factor,
                          CanonicalLoopInfo **UnrolledCLI);
 
+  /// Add metadata to simd-ize a loop.
+  ///
+  /// \param DL   Debug location for instructions added by unrolling.
+  /// \param Loop The loop to simd-ize.
+  void applySimd(DebugLoc DL, CanonicalLoopInfo *Loop);
+
   /// Generator for '#omp flush'
   ///
   /// \param Loc The location where the flush directive was encountered
@@ -539,23 +542,26 @@ public:
       function_ref<InsertPointTy(InsertPointTy, Value *, Value *, Value *&)>;
 
   /// Functions used to generate atomic reductions. Such functions take two
-  /// Values representing pointers to LHS and RHS of the reduction. They are
-  /// expected to atomically update the LHS to the reduced value.
+  /// Values representing pointers to LHS and RHS of the reduction, as well as
+  /// the element type of these pointers. They are expected to atomically
+  /// update the LHS to the reduced value.
   using AtomicReductionGenTy =
-      function_ref<InsertPointTy(InsertPointTy, Value *, Value *)>;
+      function_ref<InsertPointTy(InsertPointTy, Type *, Value *, Value *)>;
 
   /// Information about an OpenMP reduction.
   struct ReductionInfo {
-    ReductionInfo(Value *Variable, Value *PrivateVariable,
+    ReductionInfo(Type *ElementType, Value *Variable, Value *PrivateVariable,
                   ReductionGenTy ReductionGen,
                   AtomicReductionGenTy AtomicReductionGen)
-        : Variable(Variable), PrivateVariable(PrivateVariable),
-          ReductionGen(ReductionGen), AtomicReductionGen(AtomicReductionGen) {}
-
-    /// Returns the type of the element being reduced.
-    Type *getElementType() const {
-      return Variable->getType()->getPointerElementType();
+        : ElementType(ElementType), Variable(Variable),
+          PrivateVariable(PrivateVariable), ReductionGen(ReductionGen),
+          AtomicReductionGen(AtomicReductionGen) {
+      assert(cast<PointerType>(Variable->getType())
+          ->isOpaqueOrPointeeTypeMatches(ElementType) && "Invalid elem type");
     }
+
+    /// Reduction element type, must match pointee type of variable.
+    Type *ElementType;
 
     /// Reduction variable of pointer type.
     Value *Variable;
@@ -660,30 +666,34 @@ public:
   Function *getOrCreateRuntimeFunctionPtr(omp::RuntimeFunction FnID);
 
   /// Return the (LLVM-IR) string describing the source location \p LocStr.
-  Constant *getOrCreateSrcLocStr(StringRef LocStr);
+  Constant *getOrCreateSrcLocStr(StringRef LocStr, uint32_t &SrcLocStrSize);
 
   /// Return the (LLVM-IR) string describing the default source location.
-  Constant *getOrCreateDefaultSrcLocStr();
+  Constant *getOrCreateDefaultSrcLocStr(uint32_t &SrcLocStrSize);
 
   /// Return the (LLVM-IR) string describing the source location identified by
   /// the arguments.
   Constant *getOrCreateSrcLocStr(StringRef FunctionName, StringRef FileName,
-                                 unsigned Line, unsigned Column);
+                                 unsigned Line, unsigned Column,
+                                 uint32_t &SrcLocStrSize);
 
   /// Return the (LLVM-IR) string describing the DebugLoc \p DL. Use \p F as
   /// fallback if \p DL does not specify the function name.
-  Constant *getOrCreateSrcLocStr(DebugLoc DL, Function *F = nullptr);
+  Constant *getOrCreateSrcLocStr(DebugLoc DL, uint32_t &SrcLocStrSize,
+                                 Function *F = nullptr);
 
   /// Return the (LLVM-IR) string describing the source location \p Loc.
-  Constant *getOrCreateSrcLocStr(const LocationDescription &Loc);
+  Constant *getOrCreateSrcLocStr(const LocationDescription &Loc,
+                                 uint32_t &SrcLocStrSize);
 
   /// Return an ident_t* encoding the source location \p SrcLocStr and \p Flags.
   /// TODO: Create a enum class for the Reserve2Flags
-  Value *getOrCreateIdent(Constant *SrcLocStr,
-                          omp::IdentFlag Flags = omp::IdentFlag(0),
-                          unsigned Reserve2Flags = 0);
+  Constant *getOrCreateIdent(Constant *SrcLocStr, uint32_t SrcLocStrSize,
+                             omp::IdentFlag Flags = omp::IdentFlag(0),
+                             unsigned Reserve2Flags = 0);
 
-  /// Create a global flag \p Namein the module with initial value \p Value.
+  /// Create a hidden global flag \p Name in the module with initial value \p
+  /// Value.
   GlobalValue *createGlobalFlag(unsigned Value, StringRef Name);
 
   /// Generate control flow and cleanup for cancellation.
@@ -751,7 +761,7 @@ public:
   StringMap<Constant *> SrcLocStrMap;
 
   /// Map to remember existing ident_t*.
-  DenseMap<std::pair<Constant *, uint64_t>, Value *> IdentMap;
+  DenseMap<std::pair<Constant *, uint64_t>, Constant *> IdentMap;
 
   /// Helper that contains information about regions we need to outline
   /// during finalization.
@@ -759,6 +769,7 @@ public:
     using PostOutlineCBTy = std::function<void(Function &)>;
     PostOutlineCBTy PostOutlineCB;
     BasicBlock *EntryBB, *ExitBB;
+    SmallVector<Value *, 2> ExcludeArgsFromAggregate;
 
     /// Collect all blocks in between EntryBB and ExitBB in both the given
     /// vector and set.
@@ -1166,9 +1177,9 @@ private:
   /// \param UpdateOp 	Code generator for complex expressions that cannot be
   ///                   expressed through atomicrmw instruction.
   /// \param VolatileX	     true if \a X volatile?
-  /// \param IsXLHSInRHSPart true if \a X is Left H.S. in Right H.S. part of
-  ///                        the update expression, false otherwise.
-  ///                        (e.g. true for X = X BinOp Expr)
+  /// \param IsXBinopExpr true if \a X is Left H.S. in Right H.S. part of the
+  ///                     update expression, false otherwise.
+  ///                     (e.g. true for X = X BinOp Expr)
   ///
   /// \returns A pair of the old value of X before the update, and the value
   ///          used for the update.
@@ -1177,7 +1188,7 @@ private:
                                                AtomicRMWInst::BinOp RMWOp,
                                                AtomicUpdateCallbackTy &UpdateOp,
                                                bool VolatileX,
-                                               bool IsXLHSInRHSPart);
+                                               bool IsXBinopExpr);
 
   /// Emit the binary op. described by \p RMWOp, using \p Src1 and \p Src2 .
   ///
@@ -1235,9 +1246,9 @@ public:
   ///                 atomic will be generated.
   /// \param UpdateOp 	Code generator for complex expressions that cannot be
   ///                   expressed through atomicrmw instruction.
-  /// \param IsXLHSInRHSPart true if \a X is Left H.S. in Right H.S. part of
-  ///                        the update expression, false otherwise.
-  ///	                       (e.g. true for X = X BinOp Expr)
+  /// \param IsXBinopExpr true if \a X is Left H.S. in Right H.S. part of the
+  ///                     update expression, false otherwise.
+  ///	                    (e.g. true for X = X BinOp Expr)
   ///
   /// \return Insertion point after generated atomic update IR.
   InsertPointTy createAtomicUpdate(const LocationDescription &Loc,
@@ -1245,7 +1256,7 @@ public:
                                    Value *Expr, AtomicOrdering AO,
                                    AtomicRMWInst::BinOp RMWOp,
                                    AtomicUpdateCallbackTy &UpdateOp,
-                                   bool IsXLHSInRHSPart);
+                                   bool IsXBinopExpr);
 
   /// Emit atomic update for constructs: --- Only Scalar data types
   /// V = X; X = X BinOp Expr ,
@@ -1269,9 +1280,9 @@ public:
   ///                   expressed through atomicrmw instruction.
   /// \param UpdateExpr true if X is an in place update of the form
   ///                   X = X BinOp Expr or X = Expr BinOp X
-  /// \param IsXLHSInRHSPart true if X is Left H.S. in Right H.S. part of the
-  ///                        update expression, false otherwise.
-  ///                        (e.g. true for X = X BinOp Expr)
+  /// \param IsXBinopExpr true if X is Left H.S. in Right H.S. part of the
+  ///                     update expression, false otherwise.
+  ///                     (e.g. true for X = X BinOp Expr)
   /// \param IsPostfixUpdate true if original value of 'x' must be stored in
   ///                        'v', not an updated one.
   ///
@@ -1281,7 +1292,7 @@ public:
                       AtomicOpValue &X, AtomicOpValue &V, Value *Expr,
                       AtomicOrdering AO, AtomicRMWInst::BinOp RMWOp,
                       AtomicUpdateCallbackTy &UpdateOp, bool UpdateExpr,
-                      bool IsPostfixUpdate, bool IsXLHSInRHSPart);
+                      bool IsPostfixUpdate, bool IsXBinopExpr);
 
   /// Create the control flow structure of a canonical OpenMP loop.
   ///
@@ -1408,13 +1419,10 @@ class CanonicalLoopInfo {
   friend class OpenMPIRBuilder;
 
 private:
-  BasicBlock *Preheader = nullptr;
   BasicBlock *Header = nullptr;
   BasicBlock *Cond = nullptr;
-  BasicBlock *Body = nullptr;
   BasicBlock *Latch = nullptr;
   BasicBlock *Exit = nullptr;
-  BasicBlock *After = nullptr;
 
   /// Add the control blocks of this loop to \p BBs.
   ///
@@ -1436,10 +1444,7 @@ public:
   /// Code that must be execute before any loop iteration can be emitted here,
   /// such as computing the loop trip count and begin lifetime markers. Code in
   /// the preheader is not considered part of the canonical loop.
-  BasicBlock *getPreheader() const {
-    assert(isValid() && "Requires a valid canonical loop");
-    return Preheader;
-  }
+  BasicBlock *getPreheader() const;
 
   /// The header is the entry for each iteration. In the canonical control flow,
   /// it only contains the PHINode for the induction variable.
@@ -1460,7 +1465,7 @@ public:
   /// eventually branch to the \p Latch block.
   BasicBlock *getBody() const {
     assert(isValid() && "Requires a valid canonical loop");
-    return Body;
+    return cast<BranchInst>(Cond->getTerminator())->getSuccessor(0);
   }
 
   /// Reaching the latch indicates the end of the loop body code. In the
@@ -1484,7 +1489,7 @@ public:
   /// statements/cancellations).
   BasicBlock *getAfter() const {
     assert(isValid() && "Requires a valid canonical loop");
-    return After;
+    return Exit->getSingleSuccessor();
   }
 
   /// Returns the llvm::Value containing the number of loop iterations. It must
@@ -1515,18 +1520,21 @@ public:
   /// Return the insertion point for user code before the loop.
   OpenMPIRBuilder::InsertPointTy getPreheaderIP() const {
     assert(isValid() && "Requires a valid canonical loop");
+    BasicBlock *Preheader = getPreheader();
     return {Preheader, std::prev(Preheader->end())};
   };
 
   /// Return the insertion point for user code in the body.
   OpenMPIRBuilder::InsertPointTy getBodyIP() const {
     assert(isValid() && "Requires a valid canonical loop");
+    BasicBlock *Body = getBody();
     return {Body, Body->begin()};
   };
 
   /// Return the insertion point for user code after the loop.
   OpenMPIRBuilder::InsertPointTy getAfterIP() const {
     assert(isValid() && "Requires a valid canonical loop");
+    BasicBlock *After = getAfter();
     return {After, After->begin()};
   };
 

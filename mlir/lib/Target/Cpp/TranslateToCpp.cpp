@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -415,19 +417,19 @@ static LogicalResult printOperation(CppEmitter &emitter, scf::ForOp forOp) {
   os << " ";
   os << emitter.getOrCreateName(forOp.getInductionVar());
   os << " = ";
-  os << emitter.getOrCreateName(forOp.lowerBound());
+  os << emitter.getOrCreateName(forOp.getLowerBound());
   os << "; ";
   os << emitter.getOrCreateName(forOp.getInductionVar());
   os << " < ";
-  os << emitter.getOrCreateName(forOp.upperBound());
+  os << emitter.getOrCreateName(forOp.getUpperBound());
   os << "; ";
   os << emitter.getOrCreateName(forOp.getInductionVar());
   os << " += ";
-  os << emitter.getOrCreateName(forOp.step());
+  os << emitter.getOrCreateName(forOp.getStep());
   os << ") {\n";
   os.indent();
 
-  Region &forRegion = forOp.region();
+  Region &forRegion = forOp.getRegion();
   auto regionOps = forRegion.getOps();
 
   // We skip the trailing yield op because this updates the result variables
@@ -479,7 +481,7 @@ static LogicalResult printOperation(CppEmitter &emitter, scf::IfOp ifOp) {
   os << ") {\n";
   os.indent();
 
-  Region &thenRegion = ifOp.thenRegion();
+  Region &thenRegion = ifOp.getThenRegion();
   for (Operation &op : thenRegion.getOps()) {
     // Note: This prints a superfluous semicolon if the terminating yield op has
     // zero results.
@@ -489,7 +491,7 @@ static LogicalResult printOperation(CppEmitter &emitter, scf::IfOp ifOp) {
 
   os.unindent() << "}";
 
-  Region &elseRegion = ifOp.elseRegion();
+  Region &elseRegion = ifOp.getElseRegion();
   if (!elseRegion.empty()) {
     os << " else {\n";
     os.indent();
@@ -629,8 +631,8 @@ static LogicalResult printOperation(CppEmitter &emitter, FuncOp functionOp) {
   }
 
   for (Block &block : blocks) {
-    // Only print a label if there is more than one block.
-    if (blocks.size() > 1) {
+    // Only print a label if the block has predecessors.
+    if (!block.hasNoPredecessors()) {
       if (failed(emitter.emitLabel(block)))
         return failure();
     }
@@ -689,7 +691,7 @@ bool CppEmitter::hasBlockLabel(Block &block) {
 }
 
 LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
-  auto printInt = [&](APInt val, bool isUnsigned) {
+  auto printInt = [&](const APInt &val, bool isUnsigned) {
     if (val.getBitWidth() == 1) {
       if (val.getBoolValue())
         os << "true";
@@ -702,7 +704,7 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
     }
   };
 
-  auto printFloat = [&](APFloat val) {
+  auto printFloat = [&](const APFloat &val) {
     if (val.isFinite()) {
       SmallString<128> strValue;
       // Use default values of toString except don't truncate zeros.
@@ -734,7 +736,7 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
   }
   if (auto dense = attr.dyn_cast<DenseFPElementsAttr>()) {
     os << '{';
-    interleaveComma(dense, os, [&](APFloat val) { printFloat(val); });
+    interleaveComma(dense, os, [&](const APFloat &val) { printFloat(val); });
     os << '}';
     return success();
   }
@@ -756,7 +758,7 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
                          .getElementType()
                          .dyn_cast<IntegerType>()) {
       os << '{';
-      interleaveComma(dense, os, [&](APInt val) {
+      interleaveComma(dense, os, [&](const APInt &val) {
         printInt(val, shouldMapToUnsigned(iType.getSignedness()));
       });
       os << '}';
@@ -767,7 +769,8 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
                          .getElementType()
                          .dyn_cast<IndexType>()) {
       os << '{';
-      interleaveComma(dense, os, [&](APInt val) { printInt(val, false); });
+      interleaveComma(dense, os,
+                      [&](const APInt &val) { printInt(val, false); });
       os << '}';
       return success();
     }

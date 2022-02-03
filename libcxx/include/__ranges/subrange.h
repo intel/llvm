@@ -40,12 +40,14 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 namespace ranges {
   template<class _From, class _To>
+  concept __uses_nonqualification_pointer_conversion =
+    is_pointer_v<_From> && is_pointer_v<_To> &&
+    !convertible_to<remove_pointer_t<_From>(*)[], remove_pointer_t<_To>(*)[]>;
+
+  template<class _From, class _To>
   concept __convertible_to_non_slicing =
     convertible_to<_From, _To> &&
-    // If they're both pointers, they must have the same element type.
-    !(is_pointer_v<decay_t<_From>> &&
-      is_pointer_v<decay_t<_To>> &&
-      __different_from<remove_pointer_t<decay_t<_From>>, remove_pointer_t<decay_t<_To>>>);
+    !__uses_nonqualification_pointer_conversion<decay_t<_From>, decay_t<_To>>;
 
   template<class _Tp>
   concept __pair_like =
@@ -91,14 +93,14 @@ namespace ranges {
     _LIBCPP_HIDE_FROM_ABI
     constexpr subrange(__convertible_to_non_slicing<_Iter> auto __iter, _Sent __sent)
       requires _MustProvideSizeAtConstruction
-      : __begin_(_VSTD::move(__iter)), __end_(std::move(__sent))
+      : __begin_(_VSTD::move(__iter)), __end_(_VSTD::move(__sent))
     { }
 
     _LIBCPP_HIDE_FROM_ABI
     constexpr subrange(__convertible_to_non_slicing<_Iter> auto __iter, _Sent __sent,
                        make_unsigned_t<iter_difference_t<_Iter>> __n)
       requires (_Kind == subrange_kind::sized)
-      : __begin_(_VSTD::move(__iter)), __end_(std::move(__sent)), __size_(__n)
+      : __begin_(_VSTD::move(__iter)), __end_(_VSTD::move(__sent)), __size_(__n)
     {
       if constexpr (sized_sentinel_for<_Sent, _Iter>)
         _LIBCPP_ASSERT((__end_ - __begin_) == static_cast<iter_difference_t<_Iter>>(__n),

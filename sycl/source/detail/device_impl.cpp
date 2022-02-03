@@ -262,7 +262,7 @@ bool device_impl::has(aspect Aspect) const {
            (get_device_info<
                 pi_usm_capabilities,
                 info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
-            PI_USM_ATOMIC_ACCESS);
+            PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
@@ -271,7 +271,7 @@ bool device_impl::has(aspect Aspect) const {
                 pi_usm_capabilities,
                 info::device::usm_shared_allocations>::get(MDevice,
                                                            getPlugin()) &
-            PI_USM_ATOMIC_ACCESS);
+            PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
@@ -301,6 +301,11 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_gpu_eu_count_per_subslice:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+               sizeof(pi_device_type), &device_type,
+               &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_gpu_hw_threads_per_eu:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_device_info_uuid: {
@@ -340,6 +345,13 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
 
 bool device_impl::isAssertFailSupported() const {
   return MIsAssertFailSupported;
+}
+
+std::string device_impl::getDeviceName() const {
+  std::call_once(MDeviceNameFlag,
+                 [this]() { MDeviceName = get_info<info::device::name>(); });
+
+  return MDeviceName;
 }
 
 } // namespace detail

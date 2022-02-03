@@ -21,7 +21,7 @@
 
 namespace llvm {
 class SourceMgr;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 namespace tblgen {
@@ -59,6 +59,7 @@ public:
     kw_functional_type,
     kw_operands,
     kw_params,
+    kw_qualified,
     kw_ref,
     kw_regions,
     kw_results,
@@ -82,7 +83,7 @@ public:
   Kind getKind() const { return kind; }
 
   /// Return a location for this token.
-  llvm::SMLoc getLoc() const;
+  SMLoc getLoc() const;
 
   /// Return if this token is a keyword.
   bool isKeyword() const {
@@ -105,16 +106,16 @@ private:
 /// This class implements a simple lexer for operation assembly format strings.
 class FormatLexer {
 public:
-  FormatLexer(llvm::SourceMgr &mgr, llvm::SMLoc loc);
+  FormatLexer(llvm::SourceMgr &mgr, SMLoc loc);
 
   /// Lex the next token and return it.
   FormatToken lexToken();
 
   /// Emit an error to the lexer with the given location and message.
-  FormatToken emitError(llvm::SMLoc loc, const Twine &msg);
+  FormatToken emitError(SMLoc loc, const Twine &msg);
   FormatToken emitError(const char *loc, const Twine &msg);
 
-  FormatToken emitErrorAndNote(llvm::SMLoc loc, const Twine &msg,
+  FormatToken emitErrorAndNote(SMLoc loc, const Twine &msg,
                                const Twine &note);
 
 private:
@@ -134,7 +135,7 @@ private:
   /// The source manager containing the format string.
   llvm::SourceMgr &mgr;
   /// Location of the format string.
-  llvm::SMLoc loc;
+  SMLoc loc;
   /// Buffer containing the format string.
   StringRef curBuffer;
   /// Current pointer in the buffer.
@@ -158,7 +159,7 @@ bool isValidLiteral(StringRef value,
 /// Whether a failure in parsing the assembly format should be a fatal error.
 extern llvm::cl::opt<bool> formatErrorIsFatal;
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TOOLS_MLIRTBLGEN_FORMATGEN_H_

@@ -8,13 +8,16 @@
 #pragma once
 
 #include <atomic>
+#include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <sstream>
 #include <thread>
 
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
+#include "xpti_trace_framework.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <string>
@@ -288,10 +291,183 @@ public:
 private:
   std::atomic_flag MLock = ATOMIC_FLAG_INIT;
 };
+
+/// RAII-like helper to call a function upon exit from the scope.
+///
+/// This can be used to ensure that a specific XPTI API is called even if an
+/// exception is thrown on code path. For convenience the function will only be
+/// invoked if instrumentation is enabled.
+struct finally {
+  std::function<void()> MFunc;
+
+  ~finally() {
+    if (xptiTraceEnabled())
+      MFunc();
+  }
+};
+
 } // namespace utils
 
+template <typename T>
+inline result_t addMetadata(trace_event_data_t *Event, const std::string &Key,
+                            const T &Data) {
+  static_assert(std::is_trivially_copyable_v<T>,
+                "T must be trivially copyable");
+  static_assert(!std::is_same_v<T, const char *>);
+
+  const uint8_t Type = [] {
+    if (std::is_same_v<bool, T>) {
+      return static_cast<uint8_t>(metadata_type_t::boolean);
+    }
+    if (std::numeric_limits<T>::is_integer &&
+        std::numeric_limits<T>::is_signed) {
+      return static_cast<uint8_t>(metadata_type_t::signed_integer);
+    }
+    if (std::numeric_limits<T>::is_integer &&
+        !std::numeric_limits<T>::is_signed) {
+      return static_cast<uint8_t>(metadata_type_t::unsigned_integer);
+    }
+    if (std::numeric_limits<T>::is_specialized &&
+        !std::numeric_limits<T>::is_integer) {
+      return static_cast<uint8_t>(metadata_type_t::floating);
+    }
+
+    return static_cast<uint8_t>(metadata_type_t::binary);
+  }();
+
+  object_id_t Value = xptiRegisterObject(reinterpret_cast<const char *>(&Data),
+                                         sizeof(Data), Type);
+  return xptiAddMetadata(Event, Key.c_str(), Value);
+}
+
+template <>
+inline result_t addMetadata<std::string>(trace_event_data_t *Event,
+                                         const std::string &Key,
+                                         const std::string &Data) {
+  const uint8_t Type = static_cast<uint8_t>(metadata_type_t::string);
+  object_id_t Value = xptiRegisterObject(Data.c_str(), Data.size(), Type);
+  return xptiAddMetadata(Event, Key.c_str(), Value);
+}
+
+template <>
+inline result_t addMetadata<const char *>(trace_event_data_t *Event,
+                                          const std::string &Key,
+                                          const char *const &Data) {
+  const uint8_t Type = static_cast<uint8_t>(metadata_type_t::string);
+  object_id_t Value = xptiRegisterObject(Data, strlen(Data), Type);
+  return xptiAddMetadata(Event, Key.c_str(), Value);
+}
+
+template <typename T>
+inline std::pair<std::string_view, T>
+getMetadata(const metadata_t::value_type &MD) {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "T must be trivially copyable");
+
+  object_data_t RawData = xptiLookupObject(MD.second);
+  assert(RawData.size == sizeof(T));
+
+  T Value = *reinterpret_cast<const T *>(RawData.data);
+
+  const char *Key = xptiLookupString(MD.first);
+
+  return std::make_pair(std::string_view(Key), Value);
+}
+
+template <>
+inline std::pair<std::string_view, std::string>
+getMetadata(const metadata_t::value_type &MD) {
+  object_data_t RawData = xptiLookupObject(MD.second);
+
+  std::string Value(RawData.data, RawData.size);
+
+  const char *Key = xptiLookupString(MD.first);
+
+  return std::make_pair(std::string_view(Key), Value);
+}
+
+template <>
+inline std::pair<std::string_view, std::string_view>
+getMetadata(const metadata_t::value_type &MD) {
+  object_data_t RawData = xptiLookupObject(MD.second);
+
+  std::string_view Value(RawData.data, RawData.size);
+
+  const char *Key = xptiLookupString(MD.first);
+
+  return std::make_pair(std::string_view(Key), Value);
+}
+
+inline std::string readMetadata(const metadata_t::value_type &MD) {
+  object_data_t RawData = xptiLookupObject(MD.second);
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::binary)) {
+    return std::string("Binary data, size: ") + std::to_string(RawData.size);
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::boolean)) {
+    bool Value = *reinterpret_cast<const bool *>(RawData.data);
+    return Value ? "true" : "false";
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::signed_integer)) {
+    if (RawData.size == 1) {
+      auto I = *reinterpret_cast<const int8_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 2) {
+      auto I = *reinterpret_cast<const int16_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 4) {
+      auto I = *reinterpret_cast<const int32_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 8) {
+      auto I = *reinterpret_cast<const int64_t *>(RawData.data);
+      return std::to_string(I);
+    }
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::unsigned_integer)) {
+    if (RawData.size == 1) {
+      auto I = *reinterpret_cast<const uint8_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 2) {
+      auto I = *reinterpret_cast<const uint16_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 4) {
+      auto I = *reinterpret_cast<const uint32_t *>(RawData.data);
+      return std::to_string(I);
+    }
+    if (RawData.size == 8) {
+      auto I = *reinterpret_cast<const uint64_t *>(RawData.data);
+      return std::to_string(I);
+    }
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::floating)) {
+    if (RawData.size == 4) {
+      auto F = *reinterpret_cast<const float *>(RawData.data);
+      return std::to_string(F);
+    }
+    if (RawData.size == 8) {
+      auto F = *reinterpret_cast<const double *>(RawData.data);
+      return std::to_string(F);
+    }
+  }
+
+  if (RawData.type == static_cast<uint8_t>(metadata_type_t::string)) {
+    return std::string(RawData.data, RawData.size);
+  }
+
+  return std::string("Unknown metadata type, size ") +
+         std::to_string(RawData.size);
+}
+
 namespace framework {
-static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
 constexpr uint16_t graph_create =
     (uint16_t)xpti::trace_point_type_t::graph_create;
@@ -412,7 +588,7 @@ public:
     if (p) {
       // We expect the payload input has been populated with the information
       // available at that time
-      uint64_t uid = g_tls_uid;
+      uint64_t uid = xptiGetUniversalId();
       if (uid != xpti::invalid_uid) {
         // We already have a parent SW layer that has a tracepoint defined
         m_payload = xptiQueryPayloadByUID(uid);
@@ -420,7 +596,7 @@ public:
         m_top = true;
         uid = xptiRegisterPayload(p);
         if (uid != xpti::invalid_uid) {
-          g_tls_uid = uid;
+          xptiSetUniversalId(uid);
           m_payload = xptiQueryPayloadByUID(uid);
         }
       }
@@ -428,7 +604,7 @@ public:
   }
   ~tracepoint_t() {
     if (m_top) {
-      g_tls_uid = xpti::invalid_uid;
+      xptiSetUniversalId(xpti::invalid_uid);
     }
   }
 

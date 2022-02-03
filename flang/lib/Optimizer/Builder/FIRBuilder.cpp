@@ -162,7 +162,7 @@ mlir::Value fir::FirOpBuilder::allocateLocal(
   llvm::SmallVector<mlir::NamedAttribute> attrs;
   if (asTarget)
     attrs.emplace_back(
-        mlir::Identifier::get(fir::getTargetAttrName(), getContext()),
+        mlir::StringAttr::get(getContext(), fir::getTargetAttrName()),
         getUnitAttr());
   // Create the local variable.
   if (name.empty()) {
@@ -298,9 +298,9 @@ fir::StringLitOp fir::FirOpBuilder::createStringLitOp(mlir::Location loc,
                                                       llvm::StringRef data) {
   auto type = fir::CharacterType::get(getContext(), 1, data.size());
   auto strAttr = mlir::StringAttr::get(getContext(), data);
-  auto valTag = mlir::Identifier::get(fir::StringLitOp::value(), getContext());
+  auto valTag = mlir::StringAttr::get(getContext(), fir::StringLitOp::value());
   mlir::NamedAttribute dataAttr(valTag, strAttr);
-  auto sizeTag = mlir::Identifier::get(fir::StringLitOp::size(), getContext());
+  auto sizeTag = mlir::StringAttr::get(getContext(), fir::StringLitOp::size());
   mlir::NamedAttribute sizeAttr(sizeTag, getI64IntegerAttr(data.size()));
   llvm::SmallVector<mlir::NamedAttribute> attrs{dataAttr, sizeAttr};
   return create<fir::StringLitOp>(loc, llvm::ArrayRef<mlir::Type>{type},
@@ -593,4 +593,14 @@ fir::factory::createExtents(fir::FirOpBuilder &builder, mlir::Location loc,
             ? builder.create<fir::UndefOp>(loc, idxTy).getResult()
             : builder.createIntegerConstant(loc, idxTy, ext));
   return extents;
+}
+
+mlir::TupleType
+fir::factory::getRaggedArrayHeaderType(fir::FirOpBuilder &builder) {
+  mlir::IntegerType i64Ty = builder.getIntegerType(64);
+  auto arrTy = fir::SequenceType::get(builder.getIntegerType(8), 1);
+  auto buffTy = fir::HeapType::get(arrTy);
+  auto extTy = fir::SequenceType::get(i64Ty, 1);
+  auto shTy = fir::HeapType::get(extTy);
+  return mlir::TupleType::get(builder.getContext(), {i64Ty, buffTy, shTy});
 }

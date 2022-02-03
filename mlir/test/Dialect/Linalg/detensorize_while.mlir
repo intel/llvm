@@ -1,5 +1,5 @@
-// RUN: mlir-opt %s -linalg-detensorize=aggressive-mode | FileCheck %s -check-prefix=DET-ALL
-// RUN: mlir-opt %s -linalg-detensorize | FileCheck %s -check-prefix=DET-CF
+// RUN: mlir-opt %s -pass-pipeline="builtin.func(linalg-detensorize{aggressive-mode})" | FileCheck %s -check-prefix=DET-ALL
+// RUN: mlir-opt %s -pass-pipeline="builtin.func(linalg-detensorize)" | FileCheck %s -check-prefix=DET-CF
 
 #map0 = affine_map<() -> ()>
 
@@ -16,7 +16,7 @@ func @main(%farg0: tensor<i32>, %farg1: tensor<i32>) -> tensor<i32> attributes {
   %2 = linalg.generic #attrs
     ins(%0, %farg1 : tensor<i32>, tensor<i32>)
     outs(%1 : tensor<i1>) {
-    ^bb0(%arg0: i32, %arg1: i32, %arg2: i1):  // no predecessors
+    ^bb0(%arg0: i32, %arg1: i32, %arg2: i1):  
       %8 = arith.cmpi slt, %arg0, %arg1 : i32
       linalg.yield %8 : i1
   } -> tensor<i1>
@@ -28,7 +28,7 @@ func @main(%farg0: tensor<i32>, %farg1: tensor<i32>) -> tensor<i32> attributes {
   %6 = linalg.generic #attrs
     ins(%4, %4 : tensor<i32>, tensor<i32>)
     outs(%5 : tensor<i32>) {
-    ^bb0(%arg0: i32, %arg1: i32, %arg2: i32):  // no predecessors
+    ^bb0(%arg0: i32, %arg1: i32, %arg2: i32):  
       %8 = arith.addi %arg0, %arg1 : i32
       linalg.yield %8 : i32
   } -> tensor<i32>
@@ -52,7 +52,6 @@ func @main(%farg0: tensor<i32>, %farg1: tensor<i32>) -> tensor<i32> attributes {
 // DET-ALL:         br ^[[bb1]](%{{.*}} : i32)
 // DET-ALL:       ^[[bb3]](%{{.*}}: i32)
 // DET-ALL:         tensor.from_elements {{.*}}
-// DET-ALL:         linalg.tensor_collapse_shape {{.*}}
 // DET-ALL:         return %{{.*}} : tensor<i32>
 
 // Test detensoring only ops involed in control-flow.
@@ -68,6 +67,5 @@ func @main(%farg0: tensor<i32>, %farg1: tensor<i32>) -> tensor<i32> attributes {
 // DET-CF:         arith.addi {{.*}}
 // DET-CF:         br ^[[bb1]](%{{.*}} : i32)
 // DET-CF:       ^[[bb3]](%{{.*}}: i32)
-// DET-CF:         tensor.from_elements %{{.*}} : tensor<1xi32>
-// DET-CF:         linalg.tensor_collapse_shape %{{.*}} [] : tensor<1xi32> into tensor<i32>
+// DET-CF:         tensor.from_elements %{{.*}} : tensor<i32>
 // DET-CF:         return %{{.*}} : tensor<i32>

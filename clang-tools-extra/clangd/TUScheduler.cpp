@@ -856,7 +856,6 @@ void ASTWorker::update(ParseInputs Inputs, WantDiagnostics WantDiags,
       // LatestPreamble is only populated by ASTWorker thread.
       return LatestPreamble || !PreambleRequests.empty() || Done;
     });
-    return;
   };
   startTask(TaskName, std::move(Task), UpdateType{WantDiags, ContentChanged},
             TUScheduler::NoInvalidation);
@@ -977,11 +976,9 @@ void PreambleThread::build(Request Req) {
 
   LatestBuild = clang::clangd::buildPreamble(
       FileName, *Req.CI, Inputs, StoreInMemory,
-      [this, Version(Inputs.Version)](ASTContext &Ctx,
-                                      std::shared_ptr<clang::Preprocessor> PP,
+      [this, Version(Inputs.Version)](ASTContext &Ctx, Preprocessor &PP,
                                       const CanonicalIncludes &CanonIncludes) {
-        Callbacks.onPreambleAST(FileName, Version, Ctx, std::move(PP),
-                                CanonIncludes);
+        Callbacks.onPreambleAST(FileName, Version, Ctx, PP, CanonIncludes);
       });
   if (LatestBuild && isReliable(LatestBuild->CompileCommand))
     HeaderIncluders.update(FileName, LatestBuild->Includes.allHeaders());
@@ -1717,7 +1714,7 @@ DebouncePolicy::compute(llvm::ArrayRef<clock::duration> History) const {
   // nth_element needs a mutable array, take the chance to bound the data size.
   History = History.take_back(15);
   llvm::SmallVector<clock::duration, 15> Recent(History.begin(), History.end());
-  auto Median = Recent.begin() + Recent.size() / 2;
+  auto *Median = Recent.begin() + Recent.size() / 2;
   std::nth_element(Recent.begin(), Median, Recent.end());
 
   clock::duration Target =
