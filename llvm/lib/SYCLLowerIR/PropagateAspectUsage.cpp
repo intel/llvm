@@ -332,6 +332,9 @@ void CheckUsedAndDeclaredAspects(const FunctionToAspectsMapTy &Map) {
 void PropagateAspectsThroughCG(Function *F, CallGraphTy &CG,
                                FunctionToAspectsMapTy &AspectsMap,
                                SmallPtrSet<Function *, 16> &Visited) {
+  if (CG.count(F) == 0)
+    return;
+
   AspectsSetTy LocalAspects;
   for (Function *Callee : CG[F]) {
     if (!Visited.contains(Callee)) {

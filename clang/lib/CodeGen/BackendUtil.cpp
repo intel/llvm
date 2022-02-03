@@ -1397,6 +1397,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
     bool IsLTO = CodeGenOpts.PrepareForLTO;
 
+    PB.registerPipelineStartEPCallback(
+        [&](ModulePassManager &MPM, OptimizationLevel) {
+          if (LangOpts.SYCLIsDevice)
+            MPM.addPass(PropagateAspectUsagePass());
+        });
+
     if (LangOpts.ObjCAutoRefCount) {
       PB.registerPipelineStartEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level) {
