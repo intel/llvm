@@ -10,7 +10,6 @@ DPC++ extensions status:
 | [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
 | [SPV_INTEL_inline_assembly](SPIRV/SPV_INTEL_inline_assembly.asciidoc)                                                       | Supported(OpenCL: GPU)                    | |
 | [Sub-groups for NDRange Parallelism](SubGroupNDRange/SubGroupNDRange.md)                                                    | Deprecated(OpenCL: CPU, GPU)              | |
-| [DiscardQueueEvents](DiscardQueueEvents/SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS.asciidoc) | Proposal | |
 
 Legend:
 

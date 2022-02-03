@@ -597,10 +597,8 @@ DIE *DwarfUnit::createTypeDIE(const DIScope *Context, DIE &ContextDIE,
       // Skip updating the accelerator tables since this is not the full type.
       if (MDString *TypeId = CTy->getRawIdentifier())
         DD->addDwarfTypeUnitType(getCU(), TypeId->getString(), TyDIE, CTy);
-      else {
-        auto X = DD->enterNonTypeUnitContext();
+      else
         finishNonUnitTypeDIE(TyDIE, CTy);
-      }
       return &TyDIE;
     }
     constructTypeDIE(TyDIE, CTy);
@@ -742,6 +740,16 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIStringType *STy) {
   } else {
     uint64_t Size = STy->getSizeInBits() >> 3;
     addUInt(Buffer, dwarf::DW_AT_byte_size, None, Size);
+  }
+
+  if (DIExpression *Expr = STy->getStringLocationExp()) {
+    DIELoc *Loc = new (DIEValueAllocator) DIELoc;
+    DIEDwarfExpression DwarfExpr(*Asm, getCU(), *Loc);
+    // This is to describe the memory location of the
+    // string, so lock it down as such.
+    DwarfExpr.setMemoryLocationKind();
+    DwarfExpr.addExpression(Expr);
+    addBlock(Buffer, dwarf::DW_AT_data_location, DwarfExpr.finalize());
   }
 
   if (STy->getEncoding()) {
@@ -1842,5 +1850,25 @@ void DwarfTypeUnit::finishNonUnitTypeDIE(DIE& D, const DICompositeType *CTy) {
   StringRef Name = CTy->getName();
   if (!Name.empty())
     addString(D, dwarf::DW_AT_name, Name);
+  if (Name.startswith("_STN") || !Name.contains('<'))
+    addTemplateParams(D, CTy->getTemplateParams());
+  // If the type is in an anonymous namespace, we can't reference it from a TU
+  // (since the type would be CU local and the TU doesn't specify which TU has
+  // the appropriate type definition) - so flag this emission as such and skip
+  // the rest of the emission now since we're going to throw out all this work
+  // and put the outer/referencing type in the CU instead.
+  // FIXME: Probably good to generalize this to a DICompositeType flag populated
+  // by the frontend, then we could use that to have types that can have
+  // decl+def merged by LTO but where the definition still doesn't go in a type
+  // unit because the type has only one definition.
+  for (DIScope *S = CTy->getScope(); S; S = S->getScope()) {
+    if (auto *NS = dyn_cast<DINamespace>(S)) {
+      if (NS->getName().empty()) {
+        DD->seenLocalType();
+        break;
+      }
+    }
+  }
+  auto X = DD->enterNonTypeUnitContext();
   getCU().createTypeDIE(CTy);
 }

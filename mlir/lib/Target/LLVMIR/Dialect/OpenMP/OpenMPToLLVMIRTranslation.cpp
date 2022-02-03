@@ -198,6 +198,7 @@ static llvm::omp::ProcBindKind getProcBindKind(omp::ClauseProcBindKind kind) {
   case omp::ClauseProcBindKind::spread:
     return llvm::omp::ProcBindKind::OMP_PROC_BIND_spread;
   }
+  llvm_unreachable("Unknown ClauseProcBindKind kind");
 }
 
 /// Converts the OpenMP parallel operation to LLVM IR.
@@ -249,6 +250,19 @@ convertOmpParallel(omp::ParallelOp opInst, llvm::IRBuilderBase &builder,
   // TODO: Is the Parallel construct cancellable?
   bool isCancellable = false;
 
+  // Ensure that the BasicBlock for the the parallel region is sparate from the
+  // function entry which we may need to insert allocas.
+  if (builder.GetInsertBlock() ==
+      &builder.GetInsertBlock()->getParent()->getEntryBlock()) {
+    assert(builder.GetInsertPoint() == builder.GetInsertBlock()->end() &&
+           "Assuming end of basic block");
+    llvm::BasicBlock *entryBB =
+        llvm::BasicBlock::Create(builder.getContext(), "parallel.entry",
+                                 builder.GetInsertBlock()->getParent(),
+                                 builder.GetInsertBlock()->getNextNode());
+    builder.CreateBr(entryBB);
+    builder.SetInsertPoint(entryBB);
+  }
   llvm::OpenMPIRBuilder::LocationDescription ompLoc(
       builder.saveIP(), builder.getCurrentDebugLocation());
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createParallel(
@@ -878,7 +892,7 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   return success();
 }
 
-// Convert an Atomic Ordering attribute to llvm::AtomicOrdering.
+/// Convert an Atomic Ordering attribute to llvm::AtomicOrdering.
 llvm::AtomicOrdering
 convertAtomicOrdering(Optional<omp::ClauseMemoryOrderKind> ao) {
   if (!ao)
@@ -896,9 +910,10 @@ convertAtomicOrdering(Optional<omp::ClauseMemoryOrderKind> ao) {
   case omp::ClauseMemoryOrderKind::relaxed:
     return llvm::AtomicOrdering::Monotonic;
   }
+  llvm_unreachable("Unknown ClauseMemoryOrderKind kind");
 }
 
-// Convert omp.atomic.read operation to LLVM IR.
+/// Convert omp.atomic.read operation to LLVM IR.
 static LogicalResult
 convertOmpAtomicRead(Operation &opInst, llvm::IRBuilderBase &builder,
                      LLVM::ModuleTranslation &moduleTranslation) {
