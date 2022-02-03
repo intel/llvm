@@ -699,6 +699,8 @@ bool processSpecConstants(Module &M) {
 }
 
 bool processCompileTimeProperties(Module &M) {
+  // TODO: the early exit can be removed as soon as we have compile-time
+  // properties not attached to device globals.
   if (DeviceGlobals.getNumOccurrences() == 0)
     return false;
 
