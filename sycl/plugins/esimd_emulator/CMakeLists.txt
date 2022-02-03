@@ -67,12 +67,15 @@ else ()
       # Replacing CM_EMU's log print-out macro controlled by 'GFX_EMU_WITH_FLAGS_'
       # with blank space from $CM_EMU_SRC/common/emu_log.h
       set (replacing_pattern s/{\ ?GFX_EMU_WITH_FLAGS_.*//g)
+      # Argument for online patching to prevent 'cmrt_dump.txt' generation
+      # after kernel execution
+      set (removed_range 35d)
       ExternalProject_Add(cm-emu
         GIT_REPOSITORY    https://github.com/intel/cm-cpu-emulation.git
         GIT_TAG           c19234cea13bdfc32b5ed9
         BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
         INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
-        PATCH_COMMAND     perl -pi.back -e ${replacing_pattern} ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/common/emu_log.h
+        PATCH_COMMAND     perl -pi.back -e ${replacing_pattern} ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/common/emu_log.h && sed --in-place ${removed_range} ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/common/emu_log.h
         CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
                           -D__SYCL_EXPLICIT_SIMD_PLUGIN__=true
                           -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
