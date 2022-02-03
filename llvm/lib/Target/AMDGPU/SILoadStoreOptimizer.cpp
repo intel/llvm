@@ -910,12 +910,6 @@ bool SILoadStoreOptimizer::checkAndPrepareMerge(
   }
   const unsigned InstSubclass = getInstSubclass(Opc, *TII);
 
-  // Do not merge VMEM buffer instructions with "swizzled" bit set.
-  int Swizzled =
-      AMDGPU::getNamedOperandIdx(CI.I->getOpcode(), AMDGPU::OpName::swz);
-  if (Swizzled != -1 && CI.I->getOperand(Swizzled).getImm())
-    return false;
-
   DenseSet<Register> RegDefsToMove;
   DenseSet<Register> PhysRegUsesToMove;
   addDefsUsesToList(*CI.I, RegDefsToMove, PhysRegUsesToMove);
@@ -970,15 +964,6 @@ bool SILoadStoreOptimizer::checkAndPrepareMerge(
                             InstsToMove);
       continue;
     }
-
-    // Don't merge volatiles.
-    if (MBBI->hasOrderedMemoryRef())
-      return false;
-
-    int Swizzled =
-        AMDGPU::getNamedOperandIdx(MBBI->getOpcode(), AMDGPU::OpName::swz);
-    if (Swizzled != -1 && MBBI->getOperand(Swizzled).getImm())
-      return false;
 
     // Handle a case like
     //   DS_WRITE_B32 addr, v, idx0
@@ -1542,49 +1527,36 @@ unsigned SILoadStoreOptimizer::getNewOpcode(const CombineInfo &CI,
 std::pair<unsigned, unsigned>
 SILoadStoreOptimizer::getSubRegIdxs(const CombineInfo &CI,
                                     const CombineInfo &Paired) {
-
-  assert(CI.Width != 0 && Paired.Width != 0 && "Width cannot be zero");
-
   bool ReverseOrder;
   if (CI.InstClass == MIMG) {
     assert(
         (countPopulation(CI.DMask | Paired.DMask) == CI.Width + Paired.Width) &&
         "No overlaps");
     ReverseOrder = CI.DMask > Paired.DMask;
-  } else
+  } else {
     ReverseOrder = CI.Offset > Paired.Offset;
+  }
 
   unsigned Idx0;
   unsigned Idx1;
 
-  if (CI.Width + Paired.Width > 4) {
-    assert(CI.Width == 4 && Paired.Width == 4);
+  static const unsigned Idxs[5][4] = {
+      {AMDGPU::sub0, AMDGPU::sub0_sub1, AMDGPU::sub0_sub1_sub2, AMDGPU::sub0_sub1_sub2_sub3},
+      {AMDGPU::sub1, AMDGPU::sub1_sub2, AMDGPU::sub1_sub2_sub3, AMDGPU::sub1_sub2_sub3_sub4},
+      {AMDGPU::sub2, AMDGPU::sub2_sub3, AMDGPU::sub2_sub3_sub4, AMDGPU::sub2_sub3_sub4_sub5},
+      {AMDGPU::sub3, AMDGPU::sub3_sub4, AMDGPU::sub3_sub4_sub5, AMDGPU::sub3_sub4_sub5_sub6},
+      {AMDGPU::sub4, AMDGPU::sub4_sub5, AMDGPU::sub4_sub5_sub6, AMDGPU::sub4_sub5_sub6_sub7},
+  };
 
-    if (ReverseOrder) {
-      Idx1 = AMDGPU::sub0_sub1_sub2_sub3;
-      Idx0 = AMDGPU::sub4_sub5_sub6_sub7;
-    } else {
-      Idx0 = AMDGPU::sub0_sub1_sub2_sub3;
-      Idx1 = AMDGPU::sub4_sub5_sub6_sub7;
-    }
+  assert(CI.Width >= 1 && CI.Width <= 4);
+  assert(Paired.Width >= 1 && Paired.Width <= 4);
+
+  if (ReverseOrder) {
+    Idx1 = Idxs[0][Paired.Width - 1];
+    Idx0 = Idxs[Paired.Width][CI.Width - 1];
   } else {
-    static const unsigned Idxs[4][4] = {
-        {AMDGPU::sub0, AMDGPU::sub0_sub1, AMDGPU::sub0_sub1_sub2, AMDGPU::sub0_sub1_sub2_sub3},
-        {AMDGPU::sub1, AMDGPU::sub1_sub2, AMDGPU::sub1_sub2_sub3, 0},
-        {AMDGPU::sub2, AMDGPU::sub2_sub3, 0, 0},
-        {AMDGPU::sub3, 0, 0, 0},
-    };
-
-    assert(CI.Width >= 1 && CI.Width <= 3);
-    assert(Paired.Width >= 1 && Paired.Width <= 3);
-
-    if (ReverseOrder) {
-      Idx1 = Idxs[0][Paired.Width - 1];
-      Idx0 = Idxs[Paired.Width][CI.Width - 1];
-    } else {
-      Idx0 = Idxs[0][CI.Width - 1];
-      Idx1 = Idxs[CI.Width][Paired.Width - 1];
-    }
+    Idx0 = Idxs[0][CI.Width - 1];
+    Idx1 = Idxs[CI.Width][Paired.Width - 1];
   }
 
   return std::make_pair(Idx0, Idx1);
@@ -2029,6 +2001,12 @@ SILoadStoreOptimizer::collectMergeableInsts(
 
     const InstClassEnum InstClass = getInstClass(MI.getOpcode(), *TII);
     if (InstClass == UNKNOWN)
+      continue;
+
+    // Do not merge VMEM buffer instructions with "swizzled" bit set.
+    int Swizzled =
+        AMDGPU::getNamedOperandIdx(MI.getOpcode(), AMDGPU::OpName::swz);
+    if (Swizzled != -1 && MI.getOperand(Swizzled).getImm())
       continue;
 
     CombineInfo CI;

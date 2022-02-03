@@ -27,6 +27,7 @@
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
@@ -457,7 +458,7 @@ llvm::Expected<SourceLocation> sourceLocationInMainFile(const SourceManager &SM,
                                                         Position P) {
   llvm::StringRef Code = SM.getBufferOrFake(SM.getMainFileID()).getBuffer();
   auto Offset =
-      positionToOffset(Code, P, /*AllowColumnBeyondLineLength=*/false);
+      positionToOffset(Code, P, /*AllowColumnsBeyondLineLength=*/false);
   if (!Offset)
     return Offset.takeError();
   return SM.getLocForStartOfFile(SM.getMainFileID()).getLocWithOffset(*Offset);
@@ -663,7 +664,7 @@ void parseNamespaceEvents(llvm::StringRef Code, const LangOptions &LangOpts,
   // Stack of enclosing namespaces, e.g. {"clang", "clangd"}
   std::vector<std::string> Enclosing; // Contains e.g. "clang", "clangd"
   // Stack counts open braces. true if the brace opened a namespace.
-  std::vector<bool> BraceStack;
+  llvm::BitVector BraceStack;
 
   enum {
     Default,

@@ -218,6 +218,12 @@ public:
   /// Transform __spirv_EnqueueKernel to __enqueue_kernel
   virtual void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) = 0;
 
+  /// Transform __spirv_Any and __spirv_All to OpenCL builtin.
+  void visitCallSPIRVAnyAll(CallInst *CI, Op OC);
+
+  /// Transform relational builtin, e.g. __spirv_IsNan, to OpenCL builtin.
+  void visitCallSPIRVRelational(CallInst *CI, Op OC);
+
   /// Conduct generic mutations for all atomic builtins
   virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
 

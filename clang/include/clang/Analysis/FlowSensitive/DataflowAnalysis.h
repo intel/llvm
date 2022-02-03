@@ -39,9 +39,13 @@ namespace dataflow {
 ///  must provide the following public members:
 ///   * `LatticeT initialElement()` - returns a lattice element that models the
 ///     initial state of a basic block;
-///   * `LatticeT transfer(const Stmt *, const LatticeT &, Environment &)` -
-///     applies the analysis transfer function for a given statement and lattice
-///     element.
+///   * `void transfer(const Stmt *, LatticeT &, Environment &)` - applies the
+///     analysis transfer function for a given statement and lattice element.
+///
+///  `Derived` can optionally override the following members:
+///   * `bool merge(QualType, const Value &, const Value &, Value &,
+///     Environment &)` -  joins distinct values. This could be a strict
+///     lattice join or a more general widening operation.
 ///
 ///  `LatticeT` is a bounded join-semilattice that is used by `Derived` and must
 ///  provide the following public members:
@@ -58,6 +62,8 @@ public:
   using Lattice = LatticeT;
 
   explicit DataflowAnalysis(ASTContext &Context) : Context(Context) {}
+  explicit DataflowAnalysis(ASTContext &Context, bool ApplyBuiltinTransfer)
+      : TypeErasedDataflowAnalysis(ApplyBuiltinTransfer), Context(Context) {}
 
   ASTContext &getASTContext() final { return Context; }
 
@@ -79,11 +85,10 @@ public:
     return L1 == L2;
   }
 
-  TypeErasedLattice transferTypeErased(const Stmt *Stmt,
-                                       const TypeErasedLattice &E,
-                                       Environment &Env) final {
-    const Lattice &L = llvm::any_cast<const Lattice &>(E.Value);
-    return {static_cast<Derived *>(this)->transfer(Stmt, L, Env)};
+  void transferTypeErased(const Stmt *Stmt, TypeErasedLattice &E,
+                          Environment &Env) final {
+    Lattice &L = llvm::any_cast<Lattice &>(E.Value);
+    static_cast<Derived *>(this)->transfer(Stmt, L, Env);
   }
 
 private:

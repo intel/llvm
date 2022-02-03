@@ -71,9 +71,45 @@ auto get_native(const SyclObjectT &Obj)
   if (Obj.get_backend() != BackendName) {
     throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
   }
-
   return Obj.template get_native<BackendName>();
 }
+
+// define SYCL2020_CONFORMANT_APIS to correspond SYCL 2020 spec and return
+// vector<cl_event> from get_native instead of just cl_event
+#ifdef SYCL2020_CONFORMANT_APIS
+template <>
+inline backend_return_t<backend::opencl, event>
+get_native<backend::opencl, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::opencl) {
+    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+  }
+  backend_return_t<backend::opencl, event> ReturnValue;
+  for (auto const &element : Obj.getNativeVector()) {
+    ReturnValue.push_back(
+        reinterpret_cast<
+            typename detail::interop<backend::opencl, event>::value_type>(
+            element));
+  }
+  return ReturnValue;
+}
+#else
+// Specialization for cl_event with deprecation message
+template <>
+__SYCL_DEPRECATED(
+    "get_native<backend::opencl, event>, which return type is "
+    "cl_event is deprecated. According to SYCL 2020 spec, please define "
+    "SYCL2020_CONFORMANT_APIS and use vector<cl_event> instead.")
+inline backend_return_t<backend::opencl, event> get_native<
+    backend::opencl, event>(const event &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::opencl) {
+    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+  }
+  return reinterpret_cast<
+      typename detail::interop<backend::opencl, event>::type>(Obj.getNative());
+}
+#endif
 
 // Native handle of an accessor should be accessed through interop_handler
 template <backend BackendName, typename DataT, int Dimensions,

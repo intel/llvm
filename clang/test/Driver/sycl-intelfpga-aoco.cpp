@@ -82,7 +82,7 @@
 // CHK-FPGA-AOCO-PHASES-EMU: 12: linker, {0, 10}, host_dep_image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-EMU: 13: clang-offload-deps, {12}, ir, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-EMU: 14: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-EMU: 15: clang-offload-unbundler, {14}, archive
+// CHK-FPGA-AOCO-PHASES-EMU: 15: clang-offload-unbundler, {14}, tempfilelist
 // CHK-FPGA-AOCO-PHASES-EMU: 16: spirv-to-ir-wrapper, {15}, tempfilelist, (device-sycl)
 // CHK-FPGA-AOCO-PHASES-EMU: 17: linker, {6, 13, 16}, ir, (device-sycl)
 // CHK-FPGA-AOCO-PHASES-EMU: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
@@ -100,7 +100,7 @@
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO-EMU,CHK-FPGA-AOCO-EMU-LIN %s
 // RUN:  %clang_cl -fsycl -fno-sycl-device-lib=all -fintelfpga %t_aoco_cl.a -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO-EMU,CHK-FPGA-AOCO-EMU-WIN %s
-// CHK-FPGA-AOCO-EMU: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-spir64_fpga-unknown-unknown" "-inputs=[[INPUTLIB:.+\.a]]" "-outputs=[[OUTLIB:.+\.a]]" "-unbundle"
+// CHK-FPGA-AOCO-EMU: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-spir64_fpga-unknown-unknown" "-inputs=[[INPUTLIB:.+\.a]]" "-outputs=[[OUTLIB:.+\.txt]]" "-unbundle"
 // CHK-FPGA-AOCO-EMU: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[DEVICELIST:.+\.txt]]" "--out-replace=[[DEVICELIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" "[[DEVICELIST]]"
 // CHK-FPGA-AOCO-EMU: llvm-link{{.*}} "@[[DEVICELIST]]" "-o" "[[LINKEDBC:.+\.bc]]"
 // CHK-FPGA-AOCO-EMU: sycl-post-link{{.*}} "-split-esimd"{{.*}} "-O2" "-spec-const=default" "-o" "[[SPLTABLE:.+\.table]]" "[[LINKEDBC]]"

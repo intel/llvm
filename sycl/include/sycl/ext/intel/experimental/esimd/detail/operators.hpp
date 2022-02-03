@@ -18,50 +18,93 @@
 #include <sycl/ext/intel/experimental/esimd/simd.hpp>
 #include <sycl/ext/intel/experimental/esimd/simd_view.hpp>
 
-// Table of contents:
-//
-// simd_obj_impl/simd/simd_mask global operators
-//   bitwise logic and arithmetic operators
-//     simd_obj_impl BINOP simd_obj_impl
-//     simd_obj_impl BINOP SCALAR
-//     SCALAR BINOP simd_obj_impl
-//   comparison operators
-//     simd_obj_impl CMPOP simd_obj_impl
-//     simd_obj_impl CMPOP SCALAR
-//     SCALAR CMPOP simd_obj_impl
-// simd_view global operators
-//   bitwise logic and arithmetic operators
-//     simd_view BINOP simd_view
-//     simd* BINOP simd_view<simd*...>
-//     simd_view<simd*...> BINOP simd*
-//     SCALAR BINOP simd_view
-//     simd_view BINOP SCALAR
-//   comparison operators
-//     simd_view CMPOP simd_view
-//     simd_view CMPOP simd_obj_impl
-//     simd_obj_impl CMPOP simd_view
-//     simd_view CMPOP SCALAR
-//     SCALAR CMPOP simd_view
-//
-// Some operations are enabled only for particular element and simd object type
-// (simd or simd_mask):
-// - bitwise logic operations - for integral element types (both simd and
-//   simd_mask)
-// - bit shift operations and and '%' - for the simd type (not for simd_mask)
-//   with integral element types.
-// - arithmetic binary operations - for the simd type (not for simd_mask)
-// In all cases, when an operation has a simd_view and a simd_obj_impl's
-// subclass objects as operands, it is enabled only when:
-// - simd_view's base type matches the simd object operand. I.e. only
-//   { simd_view<simd, ...>, simd } and { simd_view<simd_mask,...>, simd_mask }
-//   pairs are enabled (with any order of operand types).
-// - simd_view's value length matches the length of the simd object operand
+// Put operators into the ESIMD detail namespace to make argument-dependent
+// lookup find these operators instead of those defined in e.g. sycl namespace
+// (which would stop further lookup, leaving just non-viable sycl::operator <
+// etc. on the table).
 
-// Put operators into the ESIMD namespace to make argument-dependent lookup find
-// these operators instead of those defined in e.g. sycl namespace (which would
-// stop further lookup, leaving just non-viable sycl::operator < etc. on the
-// table).
-namespace __SEIEED {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+namespace detail {
+// clang-format off
+/// @addtogroup sycl_esimd_core
+/// @{
+
+/// @defgroup sycl_esimd_core_binops C++ binary operators overloads for ESIMD.
+/// Standard C++ binary operators overloads applicable to \c simd_obj_impl
+/// derivatives - \c simd , \c simd_mask , \c simd_view and their combinations.
+/// The following overloads are defined:
+///
+/// - \c simd_obj_impl global operators:
+///     + bitwise logic and arithmetic operators
+///          * \c simd_obj_impl BINOP \c simd_obj_impl
+///          * \c simd_obj_impl BINOP SCALAR
+///          * SCALAR BINOP \c simd_obj_impl
+///     + comparison operators
+///          * \c simd_obj_impl CMPOP \c simd_obj_impl
+///          * \c simd_obj_impl CMPOP SCALAR
+///          * SCALAR CMPOP \c simd_obj_impl
+/// - \c simd_view global operators
+///     + bitwise logic and arithmetic operators
+///          * \c simd_view BINOP \c simd_view
+///          * \c simd* BINOP \c simd_view<simd*...>
+///          * \c simd_view<simd*...> BINOP \c simd*
+///          * SCALAR BINOP \c simd_view
+///          * \c simd_view BINOP SCALAR
+/// - comparison operators
+///     * \c simd_view CMPOP \c simd_view
+///     * \c simd_view CMPOP \c simd_obj_impl
+///     * \c simd_obj_impl CMPOP \c simd_view
+///     * \c simd_view CMPOP SCALAR
+///     * SCALAR CMPOP \c simd_view
+///
+/// Some operations are enabled only for particular element type and/or simd
+/// object type (simd or simd_mask):
+/// - bitwise logic operations - for integral element types (both simd and
+///   simd_mask)
+/// - bit shift operations and and '%' - for the simd type (not for simd_mask)
+///   with integral element types
+/// - arithmetic binary operations - for the simd type (not for simd_mask)
+/// In all cases, when an operation has a simd_view and a simd_obj_impl's
+/// subclass objects as operands, it is enabled only when:
+/// - simd_view's base type matches the simd object operand. I.e. only
+///   { simd_view<simd, ...>, simd } and { simd_view<simd_mask,...>, simd_mask }
+///   pairs are enabled (with any order of operand types).
+/// - simd_view's value length matches the length of the simd object operand
+///
+/// The tables below provides more details about supported overloads.
+///
+/// Binary operators:
+/// |              |simd/simd_view (integer)|simd/simd_view (floating point)|simd_mask|
+/// |--------------|:----------------------:|:-----------------------------:|:-------:|
+/// | <tt>+   </tt>|      +                 |          +                    |         |
+/// | <tt>-   </tt>|      +                 |          +                    |         |
+/// | <tt>*   </tt>|      +                 |          +                    |         |
+/// | <tt>/   </tt>|      +                 |          +                    |         |
+/// | <tt>%   </tt>|      +                 |                               |         |
+/// | <tt>\<\<</tt>|      +                 |                               |         |
+/// | <tt>\>\></tt>|      +                 |                               |         |
+/// | <tt>^   </tt>|      +                 |                               |    +    |
+/// | <tt>\|  </tt>|      +                 |                               |    +    |
+/// | <tt>\&  </tt>|      +                 |                               |    +    |
+/// | <tt>\|\|</tt>|                        |                               |    +    |
+/// | <tt>\&\&</tt>|                        |                               |    +    |
+///
+/// Comparison operators
+/// |              |simd/simd_view (integer)|simd/simd_view (floating point)|simd_mask|
+/// |--------------|:----------------------:|:-----------------------------:|:-------:|
+/// | <tt>== </tt> |      +                 |         +                     |    +    |
+/// | <tt>!= </tt> |      +                 |         +                     |    +    |
+/// | <tt>\< </tt> |      +                 |         +                     |         |
+/// | <tt>\> </tt> |      +                 |         +                     |         |
+/// | <tt>\<=</tt> |      +                 |         +                     |         |
+/// | <tt>\>=</tt> |      +                 |         +                     |         |
+/// @}
+// clang-format on
 
 ////////////////////////////////////////////////////////////////////////////////
 // simd_obj_impl global operators
@@ -124,6 +167,7 @@ namespace __SEIEED {
     }                                                                          \
   }
 
+// TODO add doxygen for individual overloads.
 #define __ESIMD_BITWISE_OP_FILTER                                              \
   std::is_integral_v<T1> &&std::is_integral_v<T2>
 __ESIMD_DEF_SIMD_OBJ_IMPL_BIN_OP(^, BinOp::bit_xor, __ESIMD_BITWISE_OP_FILTER)
@@ -237,9 +281,7 @@ __ESIMD_DEF_SIMD_OBJ_IMPL_CMP_OP(||, BinOp::log_or,
                                  __SEIEED::is_simd_mask_type_v<SimdTx>)
 
 #undef __ESIMD_DEF_SIMD_OBJ_IMPL_CMP_OP
-} // namespace __SEIEED
 
-namespace __SEIEED {
 ////////////////////////////////////////////////////////////////////////////////
 // simd_view global operators
 ////////////////////////////////////////////////////////////////////////////////
@@ -434,4 +476,10 @@ __ESIMD_DEF_SIMD_VIEW_CMP_OP(>=, __SEIEED::is_simd_type_v<SimdT1>)
 
 #undef __ESIMD_DEF_SIMD_VIEW_CMP_OP
 
-} // namespace __SEIEED
+} // namespace detail
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

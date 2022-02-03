@@ -43,6 +43,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -378,6 +379,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUResourceUsageAnalysisPass(*PR);
   initializeGCNNSAReassignPass(*PR);
   initializeGCNPreRAOptimizationsPass(*PR);
+
+  // SYCL-specific passes, needed here to be available to `opt`.
+  initializeLocalAccessorToSharedMemoryPass(*PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -1034,6 +1038,10 @@ void AMDGPUPassConfig::addIRPasses() {
   // but EarlyCSE can do neither of them.
   if (isPassEnabled(EnableScalarIRPasses))
     addEarlyCSEOrGVNPass();
+
+  if (TM.getTargetTriple().getArch() == Triple::amdgcn &&
+      TM.getTargetTriple().getOS() == Triple::OSType::AMDHSA)
+    addPass(createLocalAccessorToSharedMemoryPass());
 }
 
 void AMDGPUPassConfig::addCodeGenPrepare() {

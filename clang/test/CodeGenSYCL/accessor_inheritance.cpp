@@ -24,17 +24,17 @@ int main() {
 // CHECK: %[[RANGE_TYPE:"struct.*cl::sycl::range"]]
 // CHECK: %[[ID_TYPE:"struct.*cl::sycl::id"]]
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE6kernel
-// CHECK-SAME: i32 [[ARG_A:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i32 [[ARG_B:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i8 addrspace(1)* readonly [[ACC1_DATA:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE2:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %[[ID_TYPE]]* byval(%[[ID_TYPE]]) align 4 [[ACC1_ID:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i8 addrspace(1)* readonly [[ACC2_DATA:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE1:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE2:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: %[[ID_TYPE]]* byval(%[[ID_TYPE]]) align 4 [[ACC2_ID:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i32 [[ARG_C:%[a-zA-Z0-9_]+]])
+// CHECK-SAME: i32 noundef [[ARG_A:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i32 noundef [[ARG_B:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i8 addrspace(1)* noundef readonly [[ACC1_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE2:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %[[ID_TYPE]]* noundef byval(%[[ID_TYPE]]) align 4 [[ACC1_ID:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i8 addrspace(1)* noundef readonly [[ACC2_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %[[RANGE_TYPE]]* noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE2:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: %[[ID_TYPE]]* noundef byval(%[[ID_TYPE]]) align 4 [[ACC2_ID:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i32 noundef [[ARG_C:%[a-zA-Z0-9_]+]])
 
 // Allocas and addrspacecasts for kernel parameters
 // CHECK: [[ARG_A]].addr = alloca i32
@@ -89,9 +89,9 @@ int main() {
 // CHECK: [[BITCAST3:%[a-zA-Z0-9_]+]] = bitcast %struct{{.*}}Captured addrspace(4)* [[GEP2]] to %struct{{.*}}Base addrspace(4)*
 // CHECK: [[ACC1_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, %struct{{.*}}Base addrspace(4)* [[BITCAST3]], i32 0, i32 2
 // CHECK: [[ACC1_DATA_LOAD:%[a-zA-Z0-9_]+]] = load i8 addrspace(1)*, i8 addrspace(1)* addrspace(4)* [[ACC1_DATA]].addr.ascast
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACC1_FIELD]], i8 addrspace(1)* [[ACC1_DATA_LOAD]]
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACC1_FIELD]], i8 addrspace(1)* noundef [[ACC1_DATA_LOAD]]
 //
 // CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* [[KERNEL_OBJ]], i32 0, i32 0
 // CHECK: [[ACC2_DATA_LOAD:%[a-zA-Z0-9_]+]] = load i8 addrspace(1)*, i8 addrspace(1)* addrspace(4)* [[ACC2_DATA]].addr.ascast
 // CHECK: [[BITCAST4:%[a-zA-Z0-9_]+]] = bitcast %struct{{.*}}Captured addrspace(4)* [[GEP3]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[BITCAST4]], i8 addrspace(1)* [[ACC2_DATA_LOAD]]
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[BITCAST4]], i8 addrspace(1)* noundef [[ACC2_DATA_LOAD]]
