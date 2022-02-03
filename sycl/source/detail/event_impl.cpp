@@ -221,24 +221,18 @@ void event_impl::wait(
 
 void event_impl::wait_and_throw(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) {
-  Scheduler &Sched = Scheduler::getInstance();
-
+  Command *Cmd = static_cast<Command *>(Self->getCommand());
   QueueImplPtr submittedQueue = nullptr;
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    Command *Cmd = static_cast<Command *>(Self->getCommand());
-    if (Cmd)
-      submittedQueue = Cmd->getSubmittedQueue();
-  }
+  if (Cmd)
+    submittedQueue = Cmd->getSubmittedQueue();
+
   wait(Self);
 
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    for (auto &EventImpl : getWaitList()) {
-      Command *Cmd = (Command *)EventImpl->getCommand();
-      if (Cmd)
-        Cmd->getSubmittedQueue()->throw_asynchronous();
-    }
+  for (auto &EventImpl :
+       detail::Scheduler::getInstance().getWaitList(std::move(Self))) {
+    Command *Cmd = (Command *)EventImpl->getCommand();
+    if (Cmd)
+      Cmd->getSubmittedQueue()->throw_asynchronous();
   }
   if (submittedQueue)
     submittedQueue->throw_asynchronous();
@@ -345,24 +339,6 @@ pi_native_handle event_impl::getNative() const {
   return Handle;
 }
 
-std::vector<EventImplPtr> event_impl::getWaitList() {
-  if (MState == HES_Discarded)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_wait_list() cannot be used for a discarded event.");
-
-  std::lock_guard<std::mutex> Lock(MMutex);
-
-  std::vector<EventImplPtr> Result;
-  Result.reserve(MPreparedDepsEvents.size() + MPreparedHostDepsEvents.size());
-  Result.insert(Result.end(), MPreparedDepsEvents.begin(),
-                MPreparedDepsEvents.end());
-  Result.insert(Result.end(), MPreparedHostDepsEvents.begin(),
-                MPreparedHostDepsEvents.end());
-
-  return Result;
-}
-
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
   if (MIsFlushed)
     return;
@@ -387,12 +363,6 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     getPlugin().call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
   }
   MIsFlushed = true;
-}
-
-void event_impl::cleanupDependencyEvents() {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  MPreparedDepsEvents.clear();
-  MPreparedHostDepsEvents.clear();
 }
 
 } // namespace detail
