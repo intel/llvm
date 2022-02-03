@@ -2266,7 +2266,7 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
   if (ICE.isInvalid())
     return QualType();
 
-  size_t NumBits = Bits.getZExtValue();
+  int64_t NumBits = Bits.getSExtValue();
   if (!IsUnsigned && NumBits < 2) {
     Diag(Loc, diag::err_bit_int_bad_size) << 0;
     return QualType();
@@ -2277,10 +2277,9 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
     return QualType();
   }
 
-  const TargetInfo &TI = getASTContext().getTargetInfo();
-  if (NumBits > TI.getMaxBitIntWidth()) {
+  if (NumBits > llvm::IntegerType::MAX_INT_BITS) {
     Diag(Loc, diag::err_bit_int_max_size)
-        << IsUnsigned << TI.getMaxBitIntWidth();
+        << IsUnsigned << llvm::IntegerType::MAX_INT_BITS;
     return QualType();
   }
 
