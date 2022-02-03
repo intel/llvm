@@ -11,7 +11,7 @@ target triple = "spir64-unknown-unknown"
 %class.anon.0 = type { i8 }
 
 @_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #0
-; CHECK-NOT: @_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 !spirv.Decorations
+; CHECK-NOT: !spirv.Decorations
 
 define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #1 align 2 {
 entry:
