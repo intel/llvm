@@ -39,17 +39,13 @@ runs:
       repository: ${{ inputs.repository }}
       ref: ${{ inputs.ref }}
       path: ${{ inputs.path }}
-      fetch-depth: ${{ inputs.fetch-depth }}
+      fetch-depth: 0
   - name: Merge sycl HEAD into current branch
     shell: bash
     env:
       GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
       DEFAULT_BRANCH: ${{ inputs.default_branch }}
-      REF: ${{ inputs.ref }}
     run: |
       cd ${{ inputs.path }}
       git fetch origin $DEFAULT_BRANCH
-      while [ -z $( git merge-base $DEFAULT_BRANCH $REF ) ]; do
-        git fetch -q --deepen=10 origin $DEFAULT_BRANCH $REF;
-      done
       git merge --no-edit --commit $DEFAULT_BRANCH
