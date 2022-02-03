@@ -55,7 +55,7 @@ const StringMap<Decor> SpirvDecorMap = {
 ///
 /// @returns a pointer to the metadata node created for the required decoration
 /// and its value.
-MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t Decor,
+MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
                                 uint32_t Value) {
   auto *Ty = Type::getInt32Ty(Ctx);
   SmallVector<Metadata *, 2> MD;
