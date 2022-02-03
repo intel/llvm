@@ -21,6 +21,7 @@ template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
 public:
   using value_type = _dataT;
   static constexpr int32_t min_capacity = _min_capacity;
+  static_assert(_min_capacity >= 0, "A pipe's capacity cannot be negative");
 
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
@@ -117,6 +118,7 @@ class kernel_readable_io_pipe {
 public:
   using value_type = _dataT;
   static constexpr int32_t min_capacity = _min_capacity;
+  static_assert(_min_capacity >= 0, "A pipe's capacity cannot be negative");
   
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
@@ -166,6 +168,7 @@ class kernel_writeable_io_pipe {
 public:
   using value_type = _dataT;
   static constexpr int32_t min_capacity = _min_capacity;
+  static_assert(_min_capacity >= 0, "A pipe's capacity cannot be negative");
   
   // Non-blocking pipes
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
