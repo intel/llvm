@@ -1151,7 +1151,7 @@ static void RenderDebugInfoCompressionArgs(const ArgList &Args,
     StringRef Value = A->getValue();
     if (Value == "none") {
       CmdArgs.push_back("--compress-debug-sections=none");
-    } else if (Value == "zlib" || Value == "zlib-gnu") {
+    } else if (Value == "zlib") {
       if (llvm::zlib::isAvailable()) {
         CmdArgs.push_back(
             Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
@@ -1738,7 +1738,7 @@ void RenderARMABI(const Driver &D, const llvm::Triple &Triple,
 }
 }
 
-static void CollectARMPACBTIOptions(const Driver &D, const ArgList &Args,
+static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
                                     ArgStringList &CmdArgs, bool isAArch64) {
   const Arg *A = isAArch64
                      ? Args.getLastArg(options::OPT_msign_return_address_EQ,
@@ -1746,6 +1746,12 @@ static void CollectARMPACBTIOptions(const Driver &D, const ArgList &Args,
                      : Args.getLastArg(options::OPT_mbranch_protection_EQ);
   if (!A)
     return;
+
+  const Driver &D = TC.getDriver();
+  const llvm::Triple &Triple = TC.getEffectiveTriple();
+  if (!(isAArch64 || (Triple.isArmT32() && Triple.isArmMClass())))
+    D.Diag(diag::warn_target_unsupported_branch_protection_option)
+        << Triple.getArchName();
 
   StringRef Scope, Key;
   bool IndirectBranches;
@@ -1824,8 +1830,7 @@ void Clang::AddARMTargetArgs(const llvm::Triple &Triple, const ArgList &Args,
   AddAAPCSVolatileBitfieldArgs(Args, CmdArgs);
 
   // Enable/disable return address signing and indirect branch targets.
-  CollectARMPACBTIOptions(getToolChain().getDriver(), Args, CmdArgs,
-                          false /*isAArch64*/);
+  CollectARMPACBTIOptions(getToolChain(), Args, CmdArgs, false /*isAArch64*/);
 }
 
 void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
@@ -1952,8 +1957,7 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
   }
 
   // Enable/disable return address signing and indirect branch targets.
-  CollectARMPACBTIOptions(getToolChain().getDriver(), Args, CmdArgs,
-                          true /*isAArch64*/);
+  CollectARMPACBTIOptions(getToolChain(), Args, CmdArgs, true /*isAArch64*/);
 
   // Handle -msve_vector_bits=<bits>
   if (Arg *A = Args.getLastArg(options::OPT_msve_vector_bits_EQ)) {

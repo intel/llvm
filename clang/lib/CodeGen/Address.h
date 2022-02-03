@@ -22,7 +22,6 @@
 namespace clang {
 namespace CodeGen {
 
-namespace {
 // We try to save some space by using 6 bits over two PointerIntPairs to store
 // the alignment. However, some arches don't support 3 bits in a PointerIntPair
 // so we fallback to storing the alignment separately.
@@ -67,10 +66,9 @@ public:
   llvm::Type *getElementType() const { return ElementType.getPointer(); }
   CharUnits getAlignment() const {
     unsigned AlignLog = (Pointer.getInt() << 3) | ElementType.getInt();
-    return CharUnits::fromQuantity(1UL << AlignLog);
+    return CharUnits::fromQuantity(CharUnits::QuantityType(1) << AlignLog);
   }
 };
-} // namespace
 
 /// An aligned address.
 class Address {
