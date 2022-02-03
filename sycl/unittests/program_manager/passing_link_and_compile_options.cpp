@@ -84,12 +84,16 @@ static pi_result redefinedProgramCompile(pi_program, pi_uint32,
   return PI_SUCCESS;
 }
 
-Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
-Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
-
 TEST(Link_Compile_Options, linkOptionsTest_empty) {
-    expected_link_options.clear();
-    expected_compile_options.clear();
+    sycl::platform Plt{sycl::default_selector()};
+    sycl::unittest::PiMock Mock{Plt};
+
+    Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
+    Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+
+
+    current_link_options.clear();
+    current_compile_options.clear();
     std::string expected_compile_options = "";
     std::string expected_link_options = "";
     static sycl::unittest::PiImage DevImage = generateEAMTestKernelImage(expected_compile_options, expected_link_options);
@@ -99,8 +103,14 @@ TEST(Link_Compile_Options, linkOptionsTest_empty) {
 }
 
 TEST(Link_Compile_Options, linkOptionsTest_one_param) {
-    expected_link_options.clear();
-    expected_compile_options.clear();
+    sycl::platform Plt{sycl::default_selector()};
+    sycl::unittest::PiMock Mock{Plt};
+
+    Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
+    Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+
+    current_link_options.clear();
+    current_compile_options.clear();
     std::string expected_compile_options = "";
     std::string expected_link_options = "-foo";
     static sycl::unittest::PiImage DevImage = generateEAMTestKernelImage(expected_compile_options, expected_link_options);
@@ -110,8 +120,14 @@ TEST(Link_Compile_Options, linkOptionsTest_one_param) {
 }
 
 TEST(Link_Compile_Options, compileOptionsTest_empty) {
-    expected_link_options.clear();
-    expected_compile_options.clear();
+    sycl::platform Plt{sycl::default_selector()};
+    sycl::unittest::PiMock Mock{Plt};
+
+    Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
+    Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+
+    current_link_options.clear();
+    current_compile_options.clear();
     std::string expected_compile_options = "";
     std::string expected_link_options = "";
     static sycl::unittest::PiImage DevImage = generateEAMTestKernelImage(expected_compile_options, expected_link_options);
@@ -120,8 +136,14 @@ TEST(Link_Compile_Options, compileOptionsTest_empty) {
 }
 
 TEST(Link_Compile_Options, compileOptionsTest_one_param) {
-    expected_link_options.clear();
-    expected_compile_options.clear();
+    sycl::platform Plt{sycl::default_selector()};
+    sycl::unittest::PiMock Mock{Plt};
+
+    Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
+    Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+    
+    current_link_options.clear();
+    current_compile_options.clear();
     std::string expected_compile_options = "-foo";
     std::string expected_link_options = "";
     static sycl::unittest::PiImage DevImage = generateEAMTestKernelImage(expected_compile_options, expected_link_options);
