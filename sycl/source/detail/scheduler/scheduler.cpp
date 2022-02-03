@@ -162,9 +162,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       WriteLockT Lock(MGraphLock, std::defer_lock);
       MGraphBuilder.cleanupFailedCommand(NewCmd, StreamsToDeallocate,
                                          ToCleanUp);
-      cleanupCommands(ToCleanUp);
     }
     deallocateStreams(StreamsToDeallocate);
+    cleanupCommands(ToCleanUp);
     std::rethrow_exception(std::current_exception());
   }
   cleanupCommands(ToCleanUp);
