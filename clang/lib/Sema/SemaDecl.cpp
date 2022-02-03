@@ -9253,7 +9253,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       }
       if ((Parent->isClass() || Parent->isStruct()) &&
           Parent->hasAttr<SYCLSpecialClassAttr>() &&
-          NewFD->getKind() == Decl::Kind::CXXMethod &&
+          NewFD->getKind() == Decl::Kind::CXXMethod && NewFD->getIdentifier() &&
           NewFD->getName() == "__init" && D.isFunctionDefinition()) {
         if (auto *Def = Parent->getDefinition())
           Def->setInitMethod(true);
@@ -16832,7 +16832,7 @@ void Sema::ActOnTagFinishDefinition(Scope *S, Decl *TagD,
 
   if (auto *RD = dyn_cast<CXXRecordDecl>(Tag)) {
     FieldCollector->FinishClass();
-    if (RD->hasAttr<SYCLSpecialClassAttr>()) {
+    if (RD->hasAttr<SYCLSpecialClassAttr>() && getLangOpts().SYCLIsDevice) {
       auto *Def = RD->getDefinition();
       assert(Def && "The record is expected to have a completed definition");
       unsigned NumInitMethods = 0;

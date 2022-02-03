@@ -150,16 +150,6 @@ struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
   static inline constexpr bool is_floating_point = std::is_floating_point_v<T>;
 };
 
-#ifdef __SYCL_DEVICE_ONLY__
-template <> struct element_type_traits<_Float16, void> {
-  using RawT = _Float16;
-  using EnclosingCppT = _Float16;
-  __SYCL_DEPRECATED("use sycl::half as element type")
-  static inline constexpr bool use_native_cpp_ops = true;
-  static inline constexpr bool is_floating_point = true;
-};
-#endif
-
 // --- Type conversions
 
 // Low-level conversion functions to and from a wrapper element type.

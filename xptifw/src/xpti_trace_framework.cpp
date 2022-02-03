@@ -45,6 +45,8 @@ static_assert(
     std::is_trivially_destructible<xpti::utils::PlatformHelper>::value,
     "PlatformHelper is not trivial");
 
+static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
+
 namespace xpti {
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
 xpti::utils::PlatformHelper g_helper;
@@ -829,6 +831,10 @@ public:
 
   inline uint64_t makeUniqueID() { return MTracepoints.makeUniqueID(); }
 
+  uint64_t getUniversalID() const noexcept { return g_tls_uid; }
+
+  void setUniversalID(uint64_t uid) noexcept { g_tls_uid = uid; }
+
   xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
                              const char *Value) {
     return MTracepoints.addMetadata(Event, Key, Value);
@@ -1061,6 +1067,14 @@ XPTI_EXPORT_API void xptiFrameworkFinalize() {
   if (xpti::GFrameworkReferenceCounter == 0) {
     xpti::Framework::release();
   }
+}
+
+XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
+  return xpti::Framework::instance().getUniversalID();
+}
+
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
+  xpti::Framework::instance().setUniversalID(uid);
 }
 
 XPTI_EXPORT_API uint16_t

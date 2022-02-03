@@ -586,7 +586,15 @@ Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
     ConnectionCmd =
         processDepEvent(NewDep.MDepCommand->getEvent(), NewDep, ToCleanUp);
   }
-  MDeps.push_back(NewDep);
+  // ConnectionCmd insertion builds the following dependency structure:
+  // this -> emptyCmd (for ConnectionCmd) -> ConnectionCmd -> NewDep
+  // that means that this and NewDep are already dependent
+  if (!ConnectionCmd) {
+    MDeps.push_back(NewDep);
+    if (NewDep.MDepCommand)
+      NewDep.MDepCommand->addUser(this);
+  }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitEdgeEventForCommandDependence(
       NewDep.MDepCommand, (void *)NewDep.MDepRequirement->MSYCLMemObj,
@@ -1925,20 +1933,27 @@ static pi_result SetKernelParamsAndLaunch(
 // The function is used as argument to piEnqueueNativeKernel which requires
 // that the passed function takes one void* argument.
 void DispatchNativeKernel(void *Blob) {
-  // First value is a pointer to Corresponding CGExecKernel object.
-  CGExecKernel *HostTask = *(CGExecKernel **)Blob;
-  bool ShouldDeleteCG = static_cast<void **>(Blob)[1] != nullptr;
+  void **CastedBlob = (void **)Blob;
+
+  std::vector<Requirement *> *Reqs =
+      static_cast<std::vector<Requirement *> *>(CastedBlob[0]);
+
+  std::unique_ptr<HostKernelBase> *HostKernel =
+      static_cast<std::unique_ptr<HostKernelBase> *>(CastedBlob[1]);
+
+  NDRDescT *NDRDesc = static_cast<NDRDescT *>(CastedBlob[2]);
 
   // Other value are pointer to the buffers.
-  void **NextArg = static_cast<void **>(Blob) + 2;
-  for (detail::Requirement *Req : HostTask->MRequirements)
+  void **NextArg = CastedBlob + 3;
+  for (detail::Requirement *Req : *Reqs)
     Req->MData = *(NextArg++);
-  HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 
-  // The command group will (if not already was) be released in scheduler.
-  // Hence we're free to deallocate it here.
-  if (ShouldDeleteCG)
-    delete HostTask;
+  (*HostKernel)->call(*NDRDesc, nullptr);
+
+  // The ownership of these objects have been passed to us, need to cleanup
+  delete Reqs;
+  delete HostKernel;
+  delete NDRDesc;
 }
 
 cl_int enqueueImpKernel(
@@ -2118,15 +2133,26 @@ cl_int ExecCGCommand::enqueueImp() {
 
     // piEnqueueNativeKernel takes arguments blob which is passes to user
     // function.
-    // Reserve extra space for the pointer to CGExecKernel to restore context.
-    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 2);
-    ArgsBlob[0] = (void *)HostTask;
-    {
-      std::intptr_t ShouldDeleteCG =
-          static_cast<std::intptr_t>(MDeps.size() == 0 && MUsers.size() == 0);
-      ArgsBlob[1] = reinterpret_cast<void *>(ShouldDeleteCG);
-    }
-    void **NextArg = ArgsBlob.data() + 2;
+    // Need the following items to restore context in the host task.
+    // Make a copy on heap to "dettach" from the command group as it can be
+    // released before the host task completes.
+    std::vector<void *> ArgsBlob(HostTask->MArgs.size() + 3);
+
+    std::vector<Requirement *> *CopyReqs =
+        new std::vector<Requirement *>(HostTask->MRequirements);
+
+    // Not actually a copy, but move. Should be OK as it's not expected that
+    // MHostKernel will be used elsewhere.
+    std::unique_ptr<HostKernelBase> *CopyHostKernel =
+        new std::unique_ptr<HostKernelBase>(std::move(HostTask->MHostKernel));
+
+    NDRDescT *CopyNDRDesc = new NDRDescT(HostTask->MNDRDesc);
+
+    ArgsBlob[0] = (void *)CopyReqs;
+    ArgsBlob[1] = (void *)CopyHostKernel;
+    ArgsBlob[2] = (void *)CopyNDRDesc;
+
+    void **NextArg = ArgsBlob.data() + 3;
 
     if (MQueue->is_host()) {
       for (ArgDesc &Arg : HostTask->MArgs) {

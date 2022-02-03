@@ -2979,6 +2979,41 @@ static bool optionMatches(const std::string &Option,
 static SmallVector<const char *, 16>
 getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   SmallVector<const char *, 16> LibArgs;
+  SmallVector<std::string, 8> LibPaths;
+  // Add search directories from LIBRARY_PATH env variable
+  llvm::Optional<std::string> LibPath =
+      llvm::sys::Process::GetEnv("LIBRARY_PATH");
+  if (LibPath) {
+    SmallVector<StringRef, 8> SplitPaths;
+    const char EnvPathSeparatorStr[] = {llvm::sys::EnvPathSeparator, '\0'};
+    llvm::SplitString(*LibPath, SplitPaths, EnvPathSeparatorStr);
+    for (StringRef Path : SplitPaths)
+      LibPaths.emplace_back(Path.trim());
+  }
+  // Add directories from user-specified -L options
+  for (std::string LibDirs : Args.getAllArgValues(options::OPT_L))
+    LibPaths.emplace_back(LibDirs);
+
+  // Do processing for any -l<arg> options passed and see if any static
+  // libraries representing the name exists.  If so, convert the name and
+  // use that inline with the rest of the libraries.
+  // TODO: The static archive processing for SYCL is done in a different
+  // manner than the OpenMP processing.  We should try and refactor this
+  // to use the OpenMP flow (adding -l<name> to the llvm-link step)
+  auto resolveStaticLib = [&](StringRef LibName) -> bool {
+    if (!LibName.startswith("-l"))
+      return false;
+    for (auto LPath : LibPaths) {
+      SmallString<128> FullName(LPath);
+      llvm::sys::path::append(FullName,
+                              Twine("lib" + LibName.substr(2) + ".a").str());
+      if (llvm::sys::fs::exists(FullName)) {
+        LibArgs.push_back(Args.MakeArgString(FullName));
+        return true;
+      }
+    }
+    return false;
+  };
   for (const auto *A : Args) {
     std::string FileName = A->getAsString(Args);
     if (A->getOption().getKind() == Option::InputClass) {
@@ -3016,6 +3051,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
             LibArgs.push_back(Args.MakeArgString(V));
             return;
           }
+          resolveStaticLib(V);
         };
         if (Value[0] == '@') {
           // Found a response file, we want to expand contents to try and
@@ -3055,6 +3091,8 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
       LibArgs.push_back("--no-whole-archive");
       continue;
     }
+    if (A->getOption().matches(options::OPT_l))
+      resolveStaticLib(A->getAsString(Args));
   }
   return LibArgs;
 }

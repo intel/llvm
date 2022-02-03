@@ -164,12 +164,6 @@ public:
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
 
-  template <typename EltTy>
-  __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
-  auto format() {
-    return bit_cast_view<EltTy>();
-  }
-
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width> auto bit_cast_view() {
     using TopRegionTy =
@@ -178,12 +172,6 @@ public:
     using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(0, 0);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
-  }
-
-  template <typename EltTy, int Height, int Width>
-  __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
-  auto format() {
-    return bit_cast_view<EltTy, Height, Width>();
   }
 
   /// 1D region select, apply a region on top of this object.
@@ -391,27 +379,10 @@ public:
     return v[i];
   }
 
-  /// Read a single element from a 1D region, by value only.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
-  __SYCL_DEPRECATED("use operator[] form.")
-  element_type operator()(int i) const {
-    const auto v = read();
-    return v[i];
-  }
-
   /// Return a writeable view of a single element.
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   auto operator[](int i) {
-    return select<1, 1>(i);
-  }
-
-  /// Return a writeable view of a single element.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
-  __SYCL_DEPRECATED("use operator[] form.")
-  auto operator()(int i) {
     return select<1, 1>(i);
   }
 
@@ -421,7 +392,7 @@ public:
 
   /// \tparam Rep is number of times region has to be replicated.
   template <int Rep> get_simd_t<element_type, Rep> replicate() {
-    return read().replicate<Rep>(0);
+    return read().template replicate<Rep>();
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -429,8 +400,8 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return replicate<Rep, 0, W>(0, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_w(uint16_t OffsetX) {
+    return replicate_vs_w<Rep, 0, W>(0, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -439,9 +410,9 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
-    return replicate<Rep, 0, W>(OffsetY, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_w(uint16_t OffsetY,
+                                                uint16_t OffsetX) {
+    return replicate_vs_w<Rep, 0, W>(OffsetY, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -450,8 +421,8 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return replicate<Rep, VS, W, 1>(0, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_vs_w(uint16_t OffsetX) {
+    return replicate_vs_w_hs<Rep, VS, W, 1>(0, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -461,9 +432,9 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
-    return replicate<Rep, VS, W, 1>(OffsetY, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_vs_w(uint16_t OffsetY,
+                                                   uint16_t OffsetX) {
+    return replicate_vs_w_hs<Rep, VS, W, 1>(OffsetY, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -473,8 +444,8 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return read().template replicate<Rep, VS, W, HS>(OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_vs_w_hs(uint16_t OffsetX) {
+    return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -485,11 +456,11 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate_vs_w_hs(uint16_t OffsetY,
+                                                      uint16_t OffsetX) {
     constexpr int RowSize = is2D() ? getSizeX() : 0;
-    return read().template replicate<Rep, VS, W, HS>(OffsetY * RowSize +
-                                                     OffsetX);
+    return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetY * RowSize +
+                                                             OffsetX);
   }
   /// @}
 

@@ -40,7 +40,7 @@ One use for compile-time properties is with types that are used exclusively
 for declaring global variables.  One such example is the
 [SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL][2] extension:
 
-[2]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc>
+[2]: <extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc>
 
 ```
 namespace sycl::ext::oneapi {
@@ -148,7 +148,7 @@ kernel arguments.  For example, the [SYCL\_ONEAPI\_accessor\_properties][6]
 extension could be redesigned to use compile-time properties.  Such a redesign
 might look like:
 
-[6]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/accessor_properties/SYCL_ONEAPI_accessor_properties.asciidoc>
+[6]: <extensions/supported/SYCL_EXT_ONEAPI_ACCESSOR_PROPERTIES.asciidoc>
 
 ```
 namespace sycl {
@@ -270,11 +270,11 @@ the property value to a string if it is not already a string.
 ## Properties on kernel functions
 
 Compile-time properties can also be used to decorate kernel functions as with
-the [SYCL\_EXT\_ONEAPI\_KERNEL\_PROPERTIES][8] extension.  There are two ways
-the application can specify these properties.  The first is by passing a
+the [SYCL\_EXT\_ONEAPI\_PROPERTIES][8] extension.  There are two ways the
+application can specify these properties.  The first is by passing a
 `property_list` parameter to the function that submits the kernel:
 
-[8]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/KernelProperties/KernelProperties.asciidoc>
+[8]: <extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc>
 
 ```
 namespace sycl {
