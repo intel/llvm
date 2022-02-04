@@ -129,6 +129,8 @@ using is_plus_if_complex =
 // ---- identity_for_ga_op
 //   the group algorithms support std::complex, limited to sycl::plus operation
 //   get the correct identity for group algorithm operation.
+// TODO: identiy_for_ga_op should be replaced with known_identity once the other
+// callers of known_identity support complex numbers.
 template <typename T, class BinaryOperation>
 constexpr detail::enable_if_t<
     (is_complex<T>::value && is_plus<T, BinaryOperation>::value), T>
