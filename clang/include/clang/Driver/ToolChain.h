@@ -159,6 +159,7 @@ private:
   mutable std::unique_ptr<Tool> AppendFooter;
   mutable std::unique_ptr<Tool> FileTableTform;
   mutable std::unique_ptr<Tool> SpirvToIrWrapper;
+  mutable std::unique_ptr<Tool> LinkerWrapper;
 
   Tool *getClang() const;
   Tool *getFlang() const;
@@ -177,6 +178,7 @@ private:
   Tool *getAppendFooter() const;
   Tool *getTableTform() const;
   Tool *getSpirvToIrWrapper() const;
+  Tool *getLinkerWrapper() const;
 
   mutable bool SanitizerArgsChecked = false;
   mutable std::unique_ptr<XRayArgs> XRayArguments;
