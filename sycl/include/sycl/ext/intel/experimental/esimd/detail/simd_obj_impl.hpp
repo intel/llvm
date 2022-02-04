@@ -153,13 +153,21 @@ public:
   static constexpr int length = N;
 
 protected:
+  template <bool UseSet = true>
   void init_from_array(const Ty (&&Arr)[N]) noexcept {
+    raw_vector_type tmp;
+
     if constexpr (is_wrapper_elem_type_v<Ty>) {
       for (auto I = 0; I < N; ++I) {
-        M_data[I] = bitcast_to_raw_type(Arr[I]);
+        tmp[I] = bitcast_to_raw_type(Arr[I]);
       }
     } else {
-      M_data = make_vector(std::move(Arr));
+      tmp = make_vector(std::move(Arr));
+    }
+    if constexpr (UseSet) {
+      set(std::move(tmp));
+    } else {
+      M_data = std::move(tmp);
     }
   }
 
@@ -216,7 +224,13 @@ public:
   template <int N1, class = std::enable_if_t<N1 == N>>
   simd_obj_impl(const Ty (&&Arr)[N1]) noexcept {
     __esimd_dbg_print(simd_obj_impl(const Ty(&&Arr)[N1]));
-    init_from_array(std::move(Arr));
+    init_from_array<false /*init M_data w/o using set(...)*/>(std::move(Arr));
+    // It is OK not to mark a write to M_data with __esimd_vstore (via 'set')
+    // here because:
+    // - __esimd_vstore/vload are need only to mark ESIMD_PRIVATE variable
+    //   access for the VC BE to generate proper code for them.
+    // - initializers are not allowed for ESIMD_PRIVATE vars, so only the
+    //   default ctor can be used for them
   }
 
   /// Load constructor.
@@ -239,34 +253,15 @@ public:
     copy_from(acc, offset, Flags{});
   }
 
-  // Load the object's value from array.
-  template <int N1>
-  std::enable_if_t<N1 == N> copy_from(const RawTy (&&Arr)[N1]) {
-    __esimd_dbg_print(copy_from(const RawTy(&&Arr)[N1]));
-    raw_vector_type Tmp;
-    for (auto I = 0; I < N; ++I) {
-      Tmp[I] = Arr[I];
-    }
-    set(Tmp);
+  // Load the object's value from an rvalue array.
+  template <int N1> std::enable_if_t<N1 == N> copy_from(const Ty (&&Arr)[N1]) {
+    __esimd_dbg_print(copy_from(const Ty(&&Arr)[N1]));
+    init_from_array(std::move(Arr));
   }
 
-  // Store the object's value to array.
-  template <int N1> std::enable_if_t<N1 == N> copy_to(RawTy (&&Arr)[N1]) const {
-    __esimd_dbg_print(copy_to(RawTy(&&Arr)[N1]));
-    for (auto I = 0; I < N; ++I) {
-      Arr[I] = data()[I];
-    }
-  }
-
-  /// @{
-  /// Conversion operators.
-  explicit operator const raw_vector_type &() const & {
-    __esimd_dbg_print(explicit operator const raw_vector_type &() const &);
-    return M_data;
-  }
-  explicit operator raw_vector_type &() & {
-    __esimd_dbg_print(explicit operator raw_vector_type &() &);
-    return M_data;
+  explicit operator raw_vector_type() const {
+    __esimd_dbg_print(explicit operator raw_vector_type());
+    return data();
   }
 
   /// Type conversion into a scalar:
@@ -277,7 +272,6 @@ public:
     __esimd_dbg_print(operator Ty());
     return bitcast_to_wrapper_type<Ty>(data()[0]);
   }
-  /// @}
 
   raw_vector_type data() const {
     __esimd_dbg_print(raw_vector_type data());
