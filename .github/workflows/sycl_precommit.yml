@@ -2,10 +2,6 @@ name: SYCL
 
 on:
   pull_request:
-    types:
-    - opened
-    - synchronized
-    - ready_for_review
     branches:
     - sycl
 

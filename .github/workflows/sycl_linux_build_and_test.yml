@@ -19,10 +19,6 @@ on:
         type: string
         required: false
         default: "ubuntu-latest"
-      build_github_cache:
-        type: boolean
-        required: false
-        default: false
       build_cache_root:
         type: string
         required: true
@@ -49,18 +45,10 @@ on:
         type: string
         required: false
         default: ""
-      gen9_runs_on:
-        type: string
-        required: false
-        default: "gen9"
       amdgpu_image:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      amdgpu_runs_on:
-        type: string
-        required: false
-        default: "amdgpu"
 
 jobs:
   build:
@@ -226,121 +214,3 @@ jobs:
         check_sycl_all: ${{ matrix.check_sycl_all }}
         results_name_suffix: hip_amdgpu_${{ inputs.build_artifact_suffix }}
         cmake_args: matrix.cmake_args
-
-  llvm_test_suite_l0_gen9:
-    name: L0 GEN9 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'l0_gen9') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001 --device=/dev/dri
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    # TODO should this action be packed into container as well?
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'level_zero:gpu,host'
-        results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
-
-  llvm_test_suite_ocl_gen9:
-    name: OCL GEN9 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_gen9') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001 --device=/dev/dri
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:gpu,host'
-        results_name_suffix: ocl_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
-
-  llvm_test_suite_ocl_x64:
-    name: OCL x64 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_x64') }}
-    runs-on: x64
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:cpu,host'
-        results_name_suffix: ocl_x64_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-
-  llvm_test_suite_hip_amdgpu:
-    name: HIP AMD GPU Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'hip_amdgpu') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).amdgpu_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).amdgpu_image }}
-      options: --device=/dev/dri --device=/dev/kfd
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # TODO remove this step one LLVM Test Suite action is settled and packed
-    # into container.
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'hip:gpu,host'
-        results_name_suffix: hip_amdgpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"'
