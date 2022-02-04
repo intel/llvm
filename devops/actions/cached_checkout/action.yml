@@ -48,4 +48,4 @@ runs:
     run: |
       cd ${{ inputs.path }}
       git fetch origin $DEFAULT_BRANCH
-      git merge --no-edit --commit origin/$DEFAULT_BRANCH
+      git merge --no-ff --no-commit origin/$DEFAULT_BRANCH
