@@ -96,7 +96,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                                  ModuleAnalysisManager &MAM) {
   LLVMContext &Ctx = M.getContext();
   unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
-  bool AnyCompileTimePropertiesMet = false;
+  bool CompileTimePropertiesMet = false;
 
   // Let's process all the globals
   for (auto &GV : M.globals()) {
@@ -138,13 +138,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     // Add the generated metadata to the variable
     if (!MDOps.empty()) {
       GV.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
-      AnyCompileTimePropertiesMet = true;
+      CompileTimePropertiesMet = true;
     }
   }
 
   // The pass just adds some metadata to the module, it should not ruin
   // any analysis, but we need return PreservedAnalyses::none() to inform
   // the caller that at least one compile-time property was met.
-  return AnyCompileTimePropertiesMet ? PreservedAnalyses::none()
+  return CompileTimePropertiesMet ? PreservedAnalyses::none()
                                      : PreservedAnalyses::all();
 }
