@@ -66,7 +66,6 @@ inline pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
                                       pi_program *) {
   assert(_linkOpts != nullptr);
   current_link_options = std::string(_linkOpts);
-  std::cout << "Passed link options --> '" << _linkOpts << "'" << std::endl;
   return PI_SUCCESS;
 }
 
@@ -77,8 +76,6 @@ inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
                                          void (*)(pi_program, void *), void *) {
   assert(_compileOpts != nullptr);
   current_compile_options = std::string(_compileOpts);
-  std::cout << "Passed compile options --> '" << _compileOpts << "'"
-            << std::endl;
   return PI_SUCCESS;
 }
 
