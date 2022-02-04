@@ -4939,7 +4939,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
       CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
     }
-    CommandListInfo->EventlessKernelsInUse.emplace_back(Kernel);
+    CommandListInfo.EventlessKernelsInUse.emplace_back(Kernel);
   }
 
   // Use piKernelRetain to increment the reference count and indicate
