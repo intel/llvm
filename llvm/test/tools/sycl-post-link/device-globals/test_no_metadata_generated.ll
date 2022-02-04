@@ -1,4 +1,4 @@
-; RUN: sycl-post-link --ir-output-only --device-globals %s -S -o - | FileCheck %s
+; RUN: sycl-post-link --ir-output-only --device-globals %s -S -o - | FileCheck %s --implicit-check-not "!spirv.Decorations"
 
 ; This test is intended to check that sycl-post-link doesn't add metadata nodes
 ; for a non device global variable.
@@ -11,7 +11,6 @@ target triple = "spir64-unknown-unknown"
 %class.anon.0 = type { i8 }
 
 @_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #0
-; CHECK-NOT: !spirv.Decorations
 
 define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #1 align 2 {
 entry:
