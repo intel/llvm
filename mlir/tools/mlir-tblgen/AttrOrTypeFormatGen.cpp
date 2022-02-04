@@ -14,6 +14,7 @@
 #include "mlir/TableGen/Format.h"
 #include "mlir/TableGen/GenInfo.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
@@ -89,7 +90,15 @@ public:
   /// Get the parameter in the element.
   const AttrOrTypeParameter &getParam() const { return param; }
 
+  /// Indicate if this variable is printed "qualified" (that is it is
+  /// prefixed with the `#dialect.mnemonic`).
+  bool shouldBeQualified() { return shouldBeQualifiedFlag; }
+  void setShouldBeQualified(bool qualified = true) {
+    shouldBeQualifiedFlag = qualified;
+  }
+
 private:
+  bool shouldBeQualifiedFlag = false;
   AttrOrTypeParameter param;
 };
 
@@ -152,46 +161,29 @@ public:
   using Base::Base;
 };
 
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // Format Strings
 //===----------------------------------------------------------------------===//
-
-/// Format for defining an attribute parser.
-///
-/// $0: The attribute C++ class name.
-static const char *const attrParserDefn = R"(
-::mlir::Attribute $0::parse(::mlir::AsmParser &$_parser,
-                             ::mlir::Type $_type) {
-)";
-
-/// Format for defining a type parser.
-///
-/// $0: The type C++ class name.
-static const char *const typeParserDefn = R"(
-::mlir::Type $0::parse(::mlir::AsmParser &$_parser) {
-)";
 
 /// Default parser for attribute or type parameters.
 static const char *const defaultParameterParser =
     "::mlir::FieldParser<$0>::parse($_parser)";
 
 /// Default printer for attribute or type parameters.
-static const char *const defaultParameterPrinter = "$_printer << $_self";
+static const char *const defaultParameterPrinter =
+    "$_printer.printStrippedAttrOrType($_self)";
+
+/// Qualified printer for attribute or type parameters: it does not elide
+/// dialect and mnemonic.
+static const char *const qualifiedParameterPrinter = "$_printer << $_self";
 
 /// Print an error when failing to parse an element.
 ///
 /// $0: The parameter C++ class name.
 static const char *const parseErrorStr =
     "$_parser.emitError($_parser.getCurrentLocation(), ";
-
-/// Format for defining an attribute or type printer.
-///
-/// $0: The attribute or type C++ class name.
-static const char *const attrOrTypePrinterDefn = R"(
-void $0::print(::mlir::AsmPrinter &$_printer) const {
-)";
 
 /// Loop declaration for struct parser.
 ///
@@ -212,12 +204,12 @@ static const char *const structParseLoopStart = R"(
 /// {0}: Code template for printing an error.
 /// {1}: Number of elements in the struct.
 static const char *const structParseLoopEnd = R"({{
-      {0}"duplicate or unknown struct parameter name: ") << _paramKey;
-      return {{};
-    }
-    if ((_index != {1} - 1) && parser.parseComma())
-      return {{};
+    {0}"duplicate or unknown struct parameter name: ") << _paramKey;
+    return {{};
   }
+  if ((_index != {1} - 1) && parser.parseComma())
+    return {{};
+}
 )";
 
 /// Code format to parse a variable. Separate by lines because variable parsers
@@ -228,26 +220,14 @@ static const char *const structParseLoopEnd = R"({{
 /// {2}: Code template for printing an error.
 /// {3}: Name of the attribute or type.
 /// {4}: C++ class of the parameter.
-static const char *const variableParser[] = {
-    "  // Parse variable '{0}'",
-    "  _result_{0} = {1};",
-    "  if (failed(_result_{0})) {{",
-    "    {2}\"failed to parse {3} parameter '{0}' which is to be a `{4}`\");",
-    "    return {{};",
-    "  }",
-};
-
-//===----------------------------------------------------------------------===//
-// Utility Functions
-//===----------------------------------------------------------------------===//
-
-/// Get a list of an attribute's or type's parameters. These can be wrapper
-/// objects around `AttrOrTypeParameter` or string inits.
-static auto getParameters(const AttrOrTypeDef &def) {
-  SmallVector<AttrOrTypeParameter> params;
-  def.getParameters(params);
-  return params;
+static const char *const variableParser = R"(
+// Parse variable '{0}'
+_result_{0} = {1};
+if (failed(_result_{0})) {{
+  {2}"failed to parse {3} parameter '{0}' which is to be a `{4}`");
+  return {{};
 }
+)";
 
 //===----------------------------------------------------------------------===//
 // AttrOrTypeFormat
@@ -261,35 +241,34 @@ public:
       : def(def), elements(std::move(elements)) {}
 
   /// Generate the attribute or type parser.
-  void genParser(raw_ostream &os);
+  void genParser(MethodBody &os);
   /// Generate the attribute or type printer.
-  void genPrinter(raw_ostream &os);
+  void genPrinter(MethodBody &os);
 
 private:
   /// Generate the parser code for a specific format element.
-  void genElementParser(Element *el, FmtContext &ctx, raw_ostream &os);
+  void genElementParser(Element *el, FmtContext &ctx, MethodBody &os);
   /// Generate the parser code for a literal.
-  void genLiteralParser(StringRef value, FmtContext &ctx, raw_ostream &os,
-                        unsigned indent = 0);
+  void genLiteralParser(StringRef value, FmtContext &ctx, MethodBody &os);
   /// Generate the parser code for a variable.
   void genVariableParser(const AttrOrTypeParameter &param, FmtContext &ctx,
-                         raw_ostream &os, unsigned indent = 0);
+                         MethodBody &os);
   /// Generate the parser code for a `params` directive.
-  void genParamsParser(ParamsDirective *el, FmtContext &ctx, raw_ostream &os);
+  void genParamsParser(ParamsDirective *el, FmtContext &ctx, MethodBody &os);
   /// Generate the parser code for a `struct` directive.
-  void genStructParser(StructDirective *el, FmtContext &ctx, raw_ostream &os);
+  void genStructParser(StructDirective *el, FmtContext &ctx, MethodBody &os);
 
   /// Generate the printer code for a specific format element.
-  void genElementPrinter(Element *el, FmtContext &ctx, raw_ostream &os);
+  void genElementPrinter(Element *el, FmtContext &ctx, MethodBody &os);
   /// Generate the printer code for a literal.
-  void genLiteralPrinter(StringRef value, FmtContext &ctx, raw_ostream &os);
+  void genLiteralPrinter(StringRef value, FmtContext &ctx, MethodBody &os);
   /// Generate the printer code for a variable.
   void genVariablePrinter(const AttrOrTypeParameter &param, FmtContext &ctx,
-                          raw_ostream &os);
+                          MethodBody &os, bool printQualified = false);
   /// Generate the printer code for a `params` directive.
-  void genParamsPrinter(ParamsDirective *el, FmtContext &ctx, raw_ostream &os);
+  void genParamsPrinter(ParamsDirective *el, FmtContext &ctx, MethodBody &os);
   /// Generate the printer code for a `struct` directive.
-  void genStructPrinter(StructDirective *el, FmtContext &ctx, raw_ostream &os);
+  void genStructPrinter(StructDirective *el, FmtContext &ctx, MethodBody &os);
 
   /// The ODS definition of the attribute or type whose format is being used to
   /// generate a parser and printer.
@@ -299,32 +278,27 @@ private:
   std::vector<std::unique_ptr<Element>> elements;
 
   /// Flags for printing spaces.
-  bool shouldEmitSpace;
-  bool lastWasPunctuation;
+  bool shouldEmitSpace = false;
+  bool lastWasPunctuation = false;
 };
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // ParserGen
 //===----------------------------------------------------------------------===//
 
-void AttrOrTypeFormat::genParser(raw_ostream &os) {
+void AttrOrTypeFormat::genParser(MethodBody &os) {
   FmtContext ctx;
   ctx.addSubst("_parser", "parser");
-
-  /// Generate the definition.
-  if (isa<AttrDef>(def)) {
-    ctx.addSubst("_type", "attrType");
-    os << tgfmt(attrParserDefn, &ctx, def.getCppClassName());
-  } else {
-    os << tgfmt(typeParserDefn, &ctx, def.getCppClassName());
-  }
+  if (isa<AttrDef>(def))
+    ctx.addSubst("_type", "type");
+  os.indent();
 
   /// Declare variables to store all of the parameters. Allocated parameters
   /// such as `ArrayRef` and `StringRef` must provide a `storageType`. Store
   /// FailureOr<T> to defer type construction for parameters that are parsed in
   /// a loop (parsers return FailureOr anyways).
-  SmallVector<AttrOrTypeParameter> params = getParameters(def);
+  ArrayRef<AttrOrTypeParameter> params = def.getParameters();
   for (const AttrOrTypeParameter &param : params) {
     os << formatv("  ::mlir::FailureOr<{0}> _result_{1};\n",
                   param.getCppStorageType(), param.getName());
@@ -332,8 +306,8 @@ void AttrOrTypeFormat::genParser(raw_ostream &os) {
 
   /// Store the initial location of the parser.
   ctx.addSubst("_loc", "loc");
-  os << tgfmt("  ::llvm::SMLoc $_loc = $_parser.getCurrentLocation();\n"
-              "  (void) $_loc;\n",
+  os << tgfmt("::llvm::SMLoc $_loc = $_parser.getCurrentLocation();\n"
+              "(void) $_loc;\n",
               &ctx);
 
   /// Generate call to each parameter parser.
@@ -343,19 +317,19 @@ void AttrOrTypeFormat::genParser(raw_ostream &os) {
   /// Generate call to the attribute or type builder. Use the checked getter
   /// if one was generated.
   if (def.genVerifyDecl()) {
-    os << tgfmt("  return $_parser.getChecked<$0>($_loc, $_parser.getContext()",
+    os << tgfmt("return $_parser.getChecked<$0>($_loc, $_parser.getContext()",
                 &ctx, def.getCppClassName());
   } else {
-    os << tgfmt("  return $0::get($_parser.getContext()", &ctx,
+    os << tgfmt("return $0::get($_parser.getContext()", &ctx,
                 def.getCppClassName());
   }
   for (const AttrOrTypeParameter &param : params)
     os << formatv(",\n    _result_{0}.getValue()", param.getName());
-  os << ");\n}\n\n";
+  os << ");";
 }
 
 void AttrOrTypeFormat::genElementParser(Element *el, FmtContext &ctx,
-                                        raw_ostream &os) {
+                                        MethodBody &os) {
   if (auto *literal = dyn_cast<LiteralElement>(el))
     return genLiteralParser(literal->getSpelling(), ctx, os);
   if (auto *var = dyn_cast<VariableElement>(el))
@@ -369,9 +343,9 @@ void AttrOrTypeFormat::genElementParser(Element *el, FmtContext &ctx,
 }
 
 void AttrOrTypeFormat::genLiteralParser(StringRef value, FmtContext &ctx,
-                                        raw_ostream &os, unsigned indent) {
-  os.indent(indent) << "  // Parse literal '" << value << "'\n";
-  os.indent(indent) << tgfmt("  if ($_parser.parse", &ctx);
+                                        MethodBody &os) {
+  os << "// Parse literal '" << value << "'\n";
+  os << tgfmt("if ($_parser.parse", &ctx);
   if (value.front() == '_' || isalpha(value.front())) {
     os << "Keyword(\"" << value << "\")";
   } else {
@@ -395,28 +369,23 @@ void AttrOrTypeFormat::genLiteralParser(StringRef value, FmtContext &ctx,
   }
   os << ")\n";
   // Parser will emit an error
-  os.indent(indent) << "    return {};\n";
+  os << "  return {};\n";
 }
 
 void AttrOrTypeFormat::genVariableParser(const AttrOrTypeParameter &param,
-                                         FmtContext &ctx, raw_ostream &os,
-                                         unsigned indent) {
+                                         FmtContext &ctx, MethodBody &os) {
   /// Check for a custom parser. Use the default attribute parser otherwise.
   auto customParser = param.getParser();
   auto parser =
       customParser ? *customParser : StringRef(defaultParameterParser);
-  for (const char *line : variableParser) {
-    os.indent(indent) << formatv(line, param.getName(),
-                                 tgfmt(parser, &ctx, param.getCppStorageType()),
-                                 tgfmt(parseErrorStr, &ctx), def.getName(),
-                                 param.getCppType())
-                      << "\n";
-  }
+  os << formatv(variableParser, param.getName(),
+                tgfmt(parser, &ctx, param.getCppStorageType()),
+                tgfmt(parseErrorStr, &ctx), def.getName(), param.getCppType());
 }
 
 void AttrOrTypeFormat::genParamsParser(ParamsDirective *el, FmtContext &ctx,
-                                       raw_ostream &os) {
-  os << "  // Parse parameter list\n";
+                                       MethodBody &os) {
+  os << "// Parse parameter list\n";
   llvm::interleave(
       el->getParams(),
       [&](auto param) { this->genVariableParser(param, ctx, os); },
@@ -424,28 +393,30 @@ void AttrOrTypeFormat::genParamsParser(ParamsDirective *el, FmtContext &ctx,
 }
 
 void AttrOrTypeFormat::genStructParser(StructDirective *el, FmtContext &ctx,
-                                       raw_ostream &os) {
-  os << "  // Parse parameter struct\n";
+                                       MethodBody &os) {
+  os << "// Parse parameter struct\n";
 
   /// Declare a "seen" variable for each key.
   for (const AttrOrTypeParameter &param : el->getParams())
-    os << formatv("  bool _seen_{0} = false;\n", param.getName());
+    os << formatv("bool _seen_{0} = false;\n", param.getName());
 
   /// Generate the parsing loop.
-  os << tgfmt(structParseLoopStart, &ctx, el->getNumParams());
-  genLiteralParser("=", ctx, os, 2);
-  os << "    ";
+  os.getStream().printReindented(
+      tgfmt(structParseLoopStart, &ctx, el->getNumParams()).str());
+  os.indent();
+  genLiteralParser("=", ctx, os);
   for (const AttrOrTypeParameter &param : el->getParams()) {
     os << formatv("if (!_seen_{0} && _paramKey == \"{0}\") {\n"
-                  "      _seen_{0} = true;\n",
+                  "  _seen_{0} = true;\n",
                   param.getName());
-    genVariableParser(param, ctx, os, 4);
-    os << "    } else ";
+    genVariableParser(param, ctx, os.indent());
+    os.unindent() << "} else ";
   }
+  os.unindent();
 
   /// Duplicate or unknown parameter.
-  os << formatv(structParseLoopEnd, tgfmt(parseErrorStr, &ctx),
-                el->getNumParams());
+  os.getStream().printReindented(strfmt(
+      structParseLoopEnd, tgfmt(parseErrorStr, &ctx), el->getNumParams()));
 
   /// Because the loop loops N times and each non-failing iteration sets 1 of
   /// N flags, successfully exiting the loop means that all parameters have been
@@ -457,24 +428,19 @@ void AttrOrTypeFormat::genStructParser(StructDirective *el, FmtContext &ctx,
 // PrinterGen
 //===----------------------------------------------------------------------===//
 
-void AttrOrTypeFormat::genPrinter(raw_ostream &os) {
+void AttrOrTypeFormat::genPrinter(MethodBody &os) {
   FmtContext ctx;
   ctx.addSubst("_printer", "printer");
-
-  /// Generate the definition.
-  os << tgfmt(attrOrTypePrinterDefn, &ctx, def.getCppClassName());
 
   /// Generate printers.
   shouldEmitSpace = true;
   lastWasPunctuation = false;
   for (auto &el : elements)
     genElementPrinter(el.get(), ctx, os);
-
-  os << "}\n\n";
 }
 
 void AttrOrTypeFormat::genElementPrinter(Element *el, FmtContext &ctx,
-                                         raw_ostream &os) {
+                                         MethodBody &os) {
   if (auto *literal = dyn_cast<LiteralElement>(el))
     return genLiteralPrinter(literal->getSpelling(), ctx, os);
   if (auto *params = dyn_cast<ParamsDirective>(el))
@@ -482,13 +448,14 @@ void AttrOrTypeFormat::genElementPrinter(Element *el, FmtContext &ctx,
   if (auto *strct = dyn_cast<StructDirective>(el))
     return genStructPrinter(strct, ctx, os);
   if (auto *var = dyn_cast<VariableElement>(el))
-    return genVariablePrinter(var->getParam(), ctx, os);
+    return genVariablePrinter(var->getParam(), ctx, os,
+                              var->shouldBeQualified());
 
   llvm_unreachable("unknown format element");
 }
 
 void AttrOrTypeFormat::genLiteralPrinter(StringRef value, FmtContext &ctx,
-                                         raw_ostream &os) {
+                                         MethodBody &os) {
   /// Don't insert a space before certain punctuation.
   bool needSpace =
       shouldEmitSpace && shouldEmitSpaceBefore(value, lastWasPunctuation);
@@ -502,7 +469,8 @@ void AttrOrTypeFormat::genLiteralPrinter(StringRef value, FmtContext &ctx,
 }
 
 void AttrOrTypeFormat::genVariablePrinter(const AttrOrTypeParameter &param,
-                                          FmtContext &ctx, raw_ostream &os) {
+                                          FmtContext &ctx, MethodBody &os,
+                                          bool printQualified) {
   /// Insert a space before the next parameter, if necessary.
   if (shouldEmitSpace || !lastWasPunctuation)
     os << tgfmt("  $_printer << ' ';\n", &ctx);
@@ -511,14 +479,16 @@ void AttrOrTypeFormat::genVariablePrinter(const AttrOrTypeParameter &param,
 
   ctx.withSelf(getParameterAccessorName(param.getName()) + "()");
   os << "  ";
-  if (auto printer = param.getPrinter())
+  if (printQualified)
+    os << tgfmt(qualifiedParameterPrinter, &ctx) << ";\n";
+  else if (auto printer = param.getPrinter())
     os << tgfmt(*printer, &ctx) << ";\n";
   else
     os << tgfmt(defaultParameterPrinter, &ctx) << ";\n";
 }
 
 void AttrOrTypeFormat::genParamsPrinter(ParamsDirective *el, FmtContext &ctx,
-                                        raw_ostream &os) {
+                                        MethodBody &os) {
   llvm::interleave(
       el->getParams(),
       [&](auto param) { this->genVariablePrinter(param, ctx, os); },
@@ -526,13 +496,12 @@ void AttrOrTypeFormat::genParamsPrinter(ParamsDirective *el, FmtContext &ctx,
 }
 
 void AttrOrTypeFormat::genStructPrinter(StructDirective *el, FmtContext &ctx,
-                                        raw_ostream &os) {
+                                        MethodBody &os) {
   llvm::interleave(
       el->getParams(),
       [&](auto param) {
         this->genLiteralPrinter(param.getName(), ctx, os);
         this->genLiteralPrinter("=", ctx, os);
-        os << tgfmt("  $_printer << ' ';\n", &ctx);
         this->genVariablePrinter(param, ctx, os);
       },
       [&]() { this->genLiteralPrinter(",", ctx, os); });
@@ -594,6 +563,9 @@ private:
   FailureOr<std::unique_ptr<Element>> parseDirective(ParserContext ctx);
   /// Parse a `params` directive.
   FailureOr<std::unique_ptr<Element>> parseParamsDirective();
+  /// Parse a `qualified` directive.
+  FailureOr<std::unique_ptr<Element>>
+  parseQualifiedDirective(ParserContext ctx);
   /// Parse a `struct` directive.
   FailureOr<std::unique_ptr<Element>> parseStructDirective();
 
@@ -605,9 +577,9 @@ private:
   const AttrOrTypeDef &def;
 
   /// Seen attribute or type parameters.
-  llvm::BitVector seenParams;
+  BitVector seenParams;
 };
-} // end anonymous namespace
+} // namespace
 
 FailureOr<AttrOrTypeFormat> FormatParser::parse() {
   std::vector<std::unique_ptr<Element>> elements;
@@ -624,8 +596,7 @@ FailureOr<AttrOrTypeFormat> FormatParser::parse() {
   }
 
   /// Check that all parameters have been seen.
-  SmallVector<AttrOrTypeParameter> params = getParameters(def);
-  for (auto it : llvm::enumerate(params)) {
+  for (auto &it : llvm::enumerate(def.getParameters())) {
     if (!seenParams.test(it.index())) {
       return emitError("format is missing reference to parameter: " +
                        it.value().getName());
@@ -656,8 +627,11 @@ FormatParser::parseLiteral(ParserContext ctx) {
 
   /// Get the literal spelling without the surrounding "`".
   auto value = curToken.getSpelling().drop_front().drop_back();
-  if (!isValidLiteral(value))
-    return emitError("literal '" + value + "' is not valid");
+  if (!isValidLiteral(value, [&](Twine diag) {
+        (void)emitError("expected valid literal but got '" + value +
+                        "': " + diag);
+      }))
+    return failure();
 
   consumeToken();
   return {std::make_unique<LiteralElement>(value)};
@@ -669,7 +643,7 @@ FormatParser::parseVariable(ParserContext ctx) {
   auto name = curToken.getSpelling().drop_front();
 
   /// Lookup the parameter.
-  SmallVector<AttrOrTypeParameter> params = getParameters(def);
+  ArrayRef<AttrOrTypeParameter> params = def.getParameters();
   auto *it = llvm::find_if(
       params, [&](auto &param) { return param.getName() == name; });
 
@@ -689,6 +663,8 @@ FailureOr<std::unique_ptr<Element>>
 FormatParser::parseDirective(ParserContext ctx) {
 
   switch (curToken.getKind()) {
+  case FormatToken::kw_qualified:
+    return parseQualifiedDirective(ctx);
   case FormatToken::kw_params:
     return parseParamsDirective();
   case FormatToken::kw_struct:
@@ -702,13 +678,30 @@ FormatParser::parseDirective(ParserContext ctx) {
   }
 }
 
+FailureOr<std::unique_ptr<Element>>
+FormatParser::parseQualifiedDirective(ParserContext ctx) {
+  consumeToken();
+  if (failed(parseToken(FormatToken::l_paren,
+                        "expected '(' before argument list")))
+    return failure();
+  FailureOr<std::unique_ptr<Element>> var = parseElement(ctx);
+  if (failed(var))
+    return var;
+  if (!isa<VariableElement>(*var))
+    return emitError("`qualified` argument list expected a variable");
+  cast<VariableElement>(var->get())->setShouldBeQualified();
+  if (failed(
+          parseToken(FormatToken::r_paren, "expected ')' after argument list")))
+    return failure();
+  return var;
+}
+
 FailureOr<std::unique_ptr<Element>> FormatParser::parseParamsDirective() {
   consumeToken();
   /// Collect all of the attribute's or type's parameters.
-  SmallVector<AttrOrTypeParameter> params = getParameters(def);
   SmallVector<std::unique_ptr<Element>> vars;
   /// Ensure that none of the parameters have already been captured.
-  for (auto it : llvm::enumerate(params)) {
+  for (const auto &it : llvm::enumerate(def.getParameters())) {
     if (seenParams.test(it.index())) {
       return emitError("`params` captures duplicate parameter: " +
                        it.value().getName());
@@ -759,15 +752,16 @@ FailureOr<std::unique_ptr<Element>> FormatParser::parseStructDirective() {
 //===----------------------------------------------------------------------===//
 
 void mlir::tblgen::generateAttrOrTypeFormat(const AttrOrTypeDef &def,
-                                            raw_ostream &os) {
+                                            MethodBody &parser,
+                                            MethodBody &printer) {
   llvm::SourceMgr mgr;
   mgr.AddNewSourceBuffer(
       llvm::MemoryBuffer::getMemBuffer(*def.getAssemblyFormat()),
-      llvm::SMLoc());
+      SMLoc());
 
   /// Parse the custom assembly format>
-  FormatParser parser(mgr, def);
-  FailureOr<AttrOrTypeFormat> format = parser.parse();
+  FormatParser fmtParser(mgr, def);
+  FailureOr<AttrOrTypeFormat> format = fmtParser.parse();
   if (failed(format)) {
     if (formatErrorIsFatal)
       PrintFatalError(def.getLoc(), "failed to parse assembly format");
@@ -775,6 +769,6 @@ void mlir::tblgen::generateAttrOrTypeFormat(const AttrOrTypeDef &def,
   }
 
   /// Generate the parser and printer.
-  format->genParser(os);
-  format->genPrinter(os);
+  format->genParser(parser);
+  format->genPrinter(printer);
 }

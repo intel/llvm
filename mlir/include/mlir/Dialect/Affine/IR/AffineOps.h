@@ -56,7 +56,7 @@ bool isTopLevelValue(Value value);
 //
 //   %num_elements = arith.constant 256
 //   %idx = arith.constant 0 : index
-//   %tag = alloc() : memref<1xi32, 4>
+//   %tag = memref.alloc() : memref<1xi32, 4>
 //   affine.dma_start %src[%i + 3, %j], %dst[%k + 7, %l], %tag[%idx],
 //     %num_elements :
 //       memref<40x128xf32, 0>, memref<2x1024xf32, 1>, memref<1xi32, 2>
@@ -363,6 +363,10 @@ AffineApplyOp makeComposedAffineApply(OpBuilder &b, Location loc, AffineMap map,
 AffineApplyOp makeComposedAffineApply(OpBuilder &b, Location loc, AffineExpr e,
                                       ValueRange values);
 
+/// Returns the values obtained by applying `map` to the list of values.
+SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
+                                       AffineMap map, ValueRange values);
+
 /// Given an affine map `map` and its input `operands`, this method composes
 /// into `map`, maps of AffineApplyOps whose results are the values in
 /// `operands`, iteratively until no more of `operands` are the result of an
@@ -436,9 +440,9 @@ public:
   using operand_iterator = AffineForOp::operand_iterator;
   using operand_range = AffineForOp::operand_range;
 
-  operand_iterator operand_begin() { return op.operand_begin() + opStart; }
-  operand_iterator operand_end() { return op.operand_begin() + opEnd; }
-  operand_range getOperands() { return {operand_begin(), operand_end()}; }
+  operand_iterator operandBegin() { return op.operand_begin() + opStart; }
+  operand_iterator operandEnd() { return op.operand_begin() + opEnd; }
+  operand_range getOperands() { return {operandBegin(), operandEnd()}; }
 
 private:
   // 'affine.for' operation that contains this bound.
@@ -455,6 +459,6 @@ private:
   friend class AffineForOp;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif

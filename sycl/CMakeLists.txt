@@ -14,7 +14,7 @@ include(AddSYCLExecutable)
 include(SYCLUtils)
 
 set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 4)
+set(SYCL_MINOR_VERSION 5)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
@@ -49,6 +49,7 @@ if(MSVC)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
   # never throw C++ exceptions.
   set(LLVM_REQUIRES_EH ON)
+  set(LLVM_REQUIRES_RTTI ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 
   # Add PDB debug information
@@ -228,6 +229,7 @@ add_custom_target(sycl-compiler
           llvm-spirv
           llvm-link
           llvm-objcopy
+          spirv-to-ir-wrapper
           sycl-post-link
           opencl-aot
 )
@@ -291,6 +293,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llvm-spirv
      llvm-link
      llvm-objcopy
+     spirv-to-ir-wrapper
      sycl-post-link
      sycl-ls
      clang-resource-headers
@@ -333,17 +336,13 @@ if(SYCL_BUILD_PI_HIP)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
 endif()
 
-if (SYCL_BUILD_PI_ESIMD_EMULATOR)
+if(SYCL_BUILD_PI_ESIMD_EMULATOR)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
   if (MSVC)
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
   else()
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
   endif()
-else()
-  # TODO/FIXME : Removing empty header file (cm_rt.h) generation when
-  # the ESIMD_EMULATOR support is enabled by default
-  file (TOUCH ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL/cm_rt.h)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

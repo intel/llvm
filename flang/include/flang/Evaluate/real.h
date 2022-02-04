@@ -88,6 +88,9 @@ public:
   constexpr bool IsSubnormal() const {
     return Exponent() == 0 && !GetSignificand().IsZero();
   }
+  constexpr bool IsNormal() const {
+    return !(IsInfinite() || IsNotANumber() || IsSubnormal());
+  }
 
   constexpr Real ABS() const { // non-arithmetic, no flags returned
     return {word_.IBCLR(bits - 1)};
@@ -125,8 +128,10 @@ public:
   template <typename INT> constexpr INT EXPONENT() const {
     if (Exponent() == maxExponent) {
       return INT::HUGE();
+    } else if (IsZero()) {
+      return {0};
     } else {
-      return {UnbiasedExponent()};
+      return {UnbiasedExponent() + 1};
     }
   }
 
@@ -152,6 +157,26 @@ public:
   static constexpr int RANGE{Details::decimalRange};
   static constexpr int MAXEXPONENT{maxExponent - exponentBias};
   static constexpr int MINEXPONENT{2 - exponentBias};
+
+  // SCALE(); also known as IEEE_SCALB and (in IEEE-754 '08) ScaleB.
+  template <typename INT>
+  ValueWithRealFlags<Real> SCALE(
+      const INT &by, Rounding rounding = defaultRounding) const {
+    auto expo{exponentBias + by.ToInt64()};
+    if (IsZero()) {
+      expo = exponentBias; // ignore by, don't overflow
+    } else if (by > INT{maxExponent}) {
+      expo = maxExponent;
+    } else if (by < INT{-exponentBias}) {
+      expo = -1;
+    }
+    Real twoPow;
+    RealFlags flags{
+        twoPow.Normalize(false, static_cast<int>(expo), Fraction::MASKL(1))};
+    ValueWithRealFlags<Real> result{Multiply(twoPow, rounding)};
+    result.flags |= flags;
+    return result;
+  }
 
   constexpr Real FlushSubnormalToZero() const {
     if (IsSubnormal()) {
@@ -308,6 +333,8 @@ public:
 
   // Extracts unbiased exponent value.
   // Corrects the exponent value of a subnormal number.
+  // Note that the result is one less than the EXPONENT intrinsic;
+  // UnbiasedExponent(1.0) is 0, not 1.
   constexpr int UnbiasedExponent() const {
     int exponent{Exponent() - exponentBias};
     if (IsSubnormal()) {

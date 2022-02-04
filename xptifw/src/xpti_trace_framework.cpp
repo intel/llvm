@@ -7,6 +7,8 @@
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_string_table.hpp"
 
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <cstdio>
@@ -42,6 +44,8 @@ static_assert(std::is_trivially_destructible<xpti::utils::SpinLock>::value,
 static_assert(
     std::is_trivially_destructible<xpti::utils::PlatformHelper>::value,
     "PlatformHelper is not trivial");
+
+static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 
 namespace xpti {
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
@@ -438,6 +442,7 @@ public:
       // Add source file information ot string table
       source_id =
           MStringTableRef.add(Payload->source_file, &Payload->source_file);
+      line_no = Payload->line_no;
     }
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::StackTraceAvailable))) {
@@ -446,7 +451,7 @@ public:
           MStringTableRef.add(Payload->stack_trace, &Payload->stack_trace);
     }
     // Pack the 1st 64-bit value with string ID from source file name and line
-    // number; pack the 2nd 54-bit value with stack backtrace string ID and the
+    // number; pack the 2nd 64-bit value with stack backtrace string ID and the
     // kernel name string ID
     Payload->uid.p1 = XPTI_PACK32_RET64(source_id, line_no);
     Payload->uid.p2 = XPTI_PACK32_RET64(stack_id, name_id);
@@ -454,7 +459,7 @@ public:
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)))
       Payload->uid.p3 = (uint64_t)Payload->code_ptr_va;
-    // Generate the had from the information available and this will be our
+    // Generate the hash from the information available and this will be our
     // unique ID for the trace point.
     HashValue = Payload->uid.hash();
     Payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
@@ -826,6 +831,10 @@ public:
 
   inline uint64_t makeUniqueID() { return MTracepoints.makeUniqueID(); }
 
+  uint64_t getUniversalID() const noexcept { return g_tls_uid; }
+
+  void setUniversalID(uint64_t uid) noexcept { g_tls_uid = uid; }
+
   xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
                              const char *Value) {
     return MTracepoints.addMetadata(Event, Key, Value);
@@ -939,13 +948,25 @@ public:
       // have 'nullptr' for both the Parent and Object only if UserData is
       // provided and the trace_point_type is function_begin/function_end.
       // This allows us to trace function calls without too much effort.
+      std::array<trace_point_type_t, 13> AllowedTypes = {
+          trace_point_type_t::function_begin,
+          trace_point_type_t::function_end,
+          trace_point_type_t::function_with_args_begin,
+          trace_point_type_t::function_with_args_end,
+          trace_point_type_t::mem_alloc_begin,
+          trace_point_type_t::mem_alloc_end,
+          trace_point_type_t::mem_release_begin,
+          trace_point_type_t::mem_release_end,
+          trace_point_type_t::offload_alloc_construct,
+          trace_point_type_t::offload_alloc_associate,
+          trace_point_type_t::offload_alloc_release,
+          trace_point_type_t::offload_alloc_destruct,
+          trace_point_type_t::offload_alloc_accessor};
+      const auto Predicate = [TraceType](trace_point_type_t RHS) {
+        return TraceType == static_cast<uint16_t>(RHS);
+      };
       if (!(UserData &&
-            (TraceType == (uint16_t)trace_point_type_t::function_begin ||
-             TraceType == (uint16_t)trace_point_type_t::function_end ||
-             TraceType ==
-                 (uint16_t)trace_point_type_t::function_with_args_begin ||
-             TraceType ==
-                 (uint16_t)trace_point_type_t::function_with_args_end))) {
+            std::any_of(AllowedTypes.begin(), AllowedTypes.end(), Predicate))) {
         return xpti::result_t::XPTI_RESULT_INVALIDARG;
       }
     }
@@ -1046,6 +1067,14 @@ XPTI_EXPORT_API void xptiFrameworkFinalize() {
   if (xpti::GFrameworkReferenceCounter == 0) {
     xpti::Framework::release();
   }
+}
+
+XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
+  return xpti::Framework::instance().getUniversalID();
+}
+
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
+  xpti::Framework::instance().setUniversalID(uid);
 }
 
 XPTI_EXPORT_API uint16_t

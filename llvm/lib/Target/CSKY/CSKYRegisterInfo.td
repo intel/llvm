@@ -168,6 +168,11 @@ def mGPR : RegisterClass<"CSKY", [i32], 32,
   let Size = 32;
 }
 
+// Register class for SP only.
+def GPRSP : RegisterClass<"CSKY", [i32], 32, (add R14)> {
+  let Size = 32;
+}
+
 def GPRPair : RegisterClass<"CSKY", [untyped], 32, (add GPRTuple)> {
   let Size = 64;
 }
@@ -188,6 +193,8 @@ def FPR64 : RegisterClass<"CSKY", [f64], 64,
                          (add (sequence "F%u_64", 0, 31))>;
 def sFPR64 : RegisterClass<"CSKY", [f64], 64,
                          (add (sequence "F%u_64", 0, 15))>;
+
+def sFPR64_V : RegisterClass<"CSKY", [v2f32], 32, (add sFPR64)>;
 
 def FPR128 : RegisterClass<"CSKY",
              [v16i8, v8i16, v4i32, v2i64, v4f32, v2f64, v8f16], 128,

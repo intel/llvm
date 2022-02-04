@@ -84,14 +84,16 @@ static bool transferReadSupportsMMAMatrixType(vector::TransferReadOp readOp) {
                                           readOp.getContext());
   // TODO: Support transpose once it is added to GPU dialect ops.
   // For now we only support (d0, d1) -> (d0, d1) and (d0, d1) -> (0, d1).
-  if (!map.isMinorIdentity() && map != broadcastInnerDim)
-    return false;
-  return true;
+  return !(!map.isMinorIdentity() && map != broadcastInnerDim);
 }
 
 // Return true if the transfer op can be converted to a MMA matrix store.
 static bool
 transferWriteSupportsMMAMatrixType(vector::TransferWriteOp writeOp) {
+  // TODO: support 0-d corner case.
+  if (writeOp.getTransferRank() == 0)
+    return false;
+
   if (writeOp.mask() || writeOp.hasOutOfBoundsDim() ||
       writeOp.getVectorType().getRank() != 2)
     return false;
@@ -295,6 +297,11 @@ struct CombineTransferReadOpTranspose final
     auto transferReadOp = op.vector().getDefiningOp<vector::TransferReadOp>();
     if (!transferReadOp)
       return failure();
+
+    // TODO: support 0-d corner case.
+    if (transferReadOp.getTransferRank() == 0)
+      return failure();
+
     if (transferReadOp.mask() || transferReadOp.hasOutOfBoundsDim())
       return failure();
     SmallVector<int64_t, 2> perm;
@@ -307,8 +314,8 @@ struct CombineTransferReadOpTranspose final
     AffineMap newMap = permutationMap.compose(transferReadOp.permutation_map());
     rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
         op, op.getType(), transferReadOp.source(), transferReadOp.indices(),
-        newMap, transferReadOp.padding(), transferReadOp.mask(),
-        transferReadOp.in_boundsAttr());
+        AffineMapAttr::get(newMap), transferReadOp.padding(),
+        transferReadOp.mask(), transferReadOp.in_boundsAttr());
     return success();
   }
 };
@@ -335,6 +342,7 @@ static const char *inferFragType(OpTy op) {
 
 static void convertTransferReadOp(vector::TransferReadOp op,
                                   llvm::DenseMap<Value, Value> &valueMapping) {
+  assert(op.getTransferRank() > 0 && "unexpected 0-d transfer");
   assert(transferReadSupportsMMAMatrixType(op));
   Optional<int64_t> stride =
       getMemrefConstantHorizontalStride(op.getShapedType());
@@ -421,14 +429,14 @@ static scf::ForOp replaceForOpWithNewSignature(OpBuilder &b, scf::ForOp loop,
   auto operands = llvm::to_vector<4>(loop.getIterOperands());
   operands.append(newIterOperands.begin(), newIterOperands.end());
   scf::ForOp newLoop =
-      b.create<scf::ForOp>(loop.getLoc(), loop.lowerBound(), loop.upperBound(),
-                           loop.step(), operands);
+      b.create<scf::ForOp>(loop.getLoc(), loop.getLowerBound(),
+                           loop.getUpperBound(), loop.getStep(), operands);
   newLoop.getBody()->erase();
   newLoop.getLoopBody().getBlocks().splice(
       newLoop.getLoopBody().getBlocks().begin(),
       loop.getLoopBody().getBlocks());
-  for (auto operand : newIterOperands)
-    newLoop.getBody()->addArgument(operand.getType());
+  for (Value operand : newIterOperands)
+    newLoop.getBody()->addArgument(operand.getType(), operand.getLoc());
 
   for (auto it : llvm::zip(loop.getResults(), newLoop.getResults().take_front(
                                                   loop.getNumResults())))
@@ -441,7 +449,7 @@ static void convertForOp(scf::ForOp op,
                          llvm::DenseMap<Value, Value> &valueMapping) {
   SmallVector<Value> newOperands;
   SmallVector<std::pair<size_t, size_t>> argMapping;
-  for (auto operand : llvm::enumerate(op.getIterOperands())) {
+  for (const auto &operand : llvm::enumerate(op.getIterOperands())) {
     auto it = valueMapping.find(operand.value());
     if (it == valueMapping.end())
       continue;
@@ -466,7 +474,7 @@ static void convertYieldOp(scf::YieldOp op,
   OpBuilder b(op);
   auto loop = cast<scf::ForOp>(op->getParentOp());
   auto yieldOperands = llvm::to_vector<4>(op.getOperands());
-  for (auto operand : llvm::enumerate(op.getOperands())) {
+  for (const auto &operand : llvm::enumerate(op.getOperands())) {
     auto it = valueMapping.find(operand.value());
     if (it == valueMapping.end())
       continue;
@@ -527,12 +535,12 @@ namespace {
 
 struct ConvertVectorToGPUPass
     : public ConvertVectorToGPUBase<ConvertVectorToGPUPass> {
-  void runOnFunction() override {
-    RewritePatternSet patterns(getFunction().getContext());
+  void runOnOperation() override {
+    RewritePatternSet patterns(getOperation().getContext());
     populatePrepareVectorToMMAPatterns(patterns);
-    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
 
-    convertVectorToMMAOps(getFunction());
+    convertVectorToMMAOps(getOperation());
   }
 };
 

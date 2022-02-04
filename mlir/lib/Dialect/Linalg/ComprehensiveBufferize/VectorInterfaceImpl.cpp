@@ -7,103 +7,107 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/VectorInterfaceImpl.h"
-#include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h"
+#include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Operation.h"
+
+using namespace mlir::bufferization;
 
 namespace mlir {
 namespace linalg {
 namespace comprehensive_bufferize {
 namespace vector_ext {
 
+/// Bufferization of vector.transfer_read. Replaced with a new
+/// vector.transfer_read that operates on a memref.
 struct TransferReadOpInterface
     : public BufferizableOpInterface::ExternalModel<TransferReadOpInterface,
                                                     vector::TransferReadOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              const BufferizationState &state) const {
     assert(opOperand.get().getType().isa<RankedTensorType>() &&
            "only tensor types expected");
     return true;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               const BufferizationState &state) const {
     assert(opOperand.get().getType().isa<RankedTensorType>() &&
            "only tensor types expected");
     return false;
   }
 
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               const BufferizationState &state) const {
     return OpResult();
   }
 
-  LogicalResult bufferize(Operation *op, OpBuilder &b,
-                          BufferizationState &state) const {
-    auto transferReadOp = cast<vector::TransferReadOp>(op);
-
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(op);
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
+    auto readOp = cast<vector::TransferReadOp>(op);
+    assert(readOp.getShapedType().isa<TensorType>() &&
+           "only tensor types expected");
 
     // TransferReadOp always reads from the bufferized op.source().
-    assert(transferReadOp.getShapedType().isa<TensorType>() &&
-           "only tensor types expected");
-    Value v = state.lookupBuffer(transferReadOp.source());
-    transferReadOp.sourceMutable().assign(v);
+    Value buffer =
+        *state.getBuffer(rewriter, readOp->getOpOperand(0) /*source*/);
+    replaceOpWithNewBufferizedOp<vector::TransferReadOp>(
+        rewriter, readOp, readOp.getVectorType(), buffer, readOp.indices(),
+        readOp.permutation_map(), readOp.padding(), readOp.mask(),
+        readOp.in_boundsAttr());
     return success();
   }
 };
 
+/// Bufferization of vector.transfer_write. Replace with a new
+/// vector.transfer_write that operates on a memref.
 struct TransferWriteOpInterface
     : public BufferizableOpInterface::ExternalModel<TransferWriteOpInterface,
                                                     vector::TransferWriteOp> {
-  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              const BufferizationState &state) const {
     assert(opOperand.get().getType().isa<TensorType>() &&
            "only tensor types expected");
     return true;
   }
 
-  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand) const {
+  bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
+                               const BufferizationState &state) const {
     assert(opOperand.get().getType().isa<TensorType>() &&
            "only tensor types expected");
     return true;
   }
 
-  SmallVector<OpOperand *> getAliasingOpOperand(Operation *op,
-                                                OpResult opResult) const {
-    return {&op->getOpOperand(1)};
-  }
-
-  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
+  OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand,
+                               const BufferizationState &state) const {
     assert(opOperand.get().getType().isa<TensorType>() &&
            "only tensor types expected");
     return op->getOpResult(0);
   }
 
-  BufferRelation bufferRelation(Operation *op, OpOperand &opOperand) const {
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationState &state) const {
     return BufferRelation::Equivalent;
   }
 
-  LogicalResult bufferize(Operation *op, OpBuilder &b,
-                          BufferizationState &state) const {
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationState &state) const {
     auto writeOp = cast<vector::TransferWriteOp>(op);
-
-    // Take a guard before anything else.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPoint(op);
+    assert(writeOp.getShapedType().isa<TensorType>() &&
+           "only tensor types expected");
 
     // Create a new transfer_write on buffer that doesn't have a return value.
     // Leave the previous transfer_write to dead code as it still has uses at
     // this point.
-    assert(writeOp.getShapedType().isa<TensorType>() &&
-           "only tensor types expected");
-    Value resultBuffer = getResultBuffer(b, op->getResult(0), state);
-    if (!resultBuffer)
+    FailureOr<Value> resultBuffer =
+        state.getBuffer(rewriter, op->getOpOperand(1) /*source*/);
+    if (failed(resultBuffer))
       return failure();
-    b.create<vector::TransferWriteOp>(
-        writeOp.getLoc(), writeOp.vector(), resultBuffer, writeOp.indices(),
-        writeOp.permutation_map(),
-        writeOp.in_bounds() ? *writeOp.in_bounds() : ArrayAttr());
-    state.mapBuffer(op->getResult(0), resultBuffer);
+    rewriter.create<vector::TransferWriteOp>(
+        writeOp.getLoc(), writeOp.vector(), *resultBuffer, writeOp.indices(),
+        writeOp.permutation_mapAttr(), writeOp.in_boundsAttr());
+    replaceOpWithBufferizedValues(rewriter, op, *resultBuffer);
 
     return success();
   }

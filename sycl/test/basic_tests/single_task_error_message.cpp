@@ -10,8 +10,8 @@ int main() {
     {
       myQueue
           .single_task([&](sycl::handler &cgh) {
-            // expected-error-re@CL/sycl/queue.hpp:691 {{static_assert failed due to requirement '{{.*}}' "sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead"}}
-            // expected-error-re@CL/sycl/detail/cg_types.hpp:191 {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
+            // expected-error-re@CL/sycl/queue.hpp:* {{static_assert failed due to requirement '{{.*}}' "sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead"}}
+            // expected-error-re@CL/sycl/detail/cg_types.hpp:* {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
           })
           .wait();
     }
@@ -26,8 +26,8 @@ int main() {
       myQueue
           .single_task(e,
                        [&](sycl::handler &cgh) {
-                         // expected-error-re@CL/sycl/queue.hpp:714 {{static_assert failed due to requirement '{{.*}}' "sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead"}}
-                         // expected-error-re@CL/sycl/detail/cg_types.hpp:191 {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
+                         // expected-error-re@CL/sycl/queue.hpp:* {{static_assert failed due to requirement '{{.*}}' "sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead"}}
+                         // expected-error-re@CL/sycl/detail/cg_types.hpp:* {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
                        })
           .wait();
     }
@@ -42,8 +42,8 @@ int main() {
       myQueue
           .single_task(vector_event,
                        [&](sycl::handler &cgh) {
-                         // expected-error-re@CL/sycl/queue.hpp:739 {{static_assert failed due to requirement '{{.*}}' "sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead"}}
-                         // expected-error-re@CL/sycl/detail/cg_types.hpp:191 {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
+                         // expected-error-re@CL/sycl/queue.hpp:* {{static_assert failed due to requirement '{{.*}}' "sycl::queue.single_task() requires a kernel instead of command group.{{.*}} Use queue.submit() instead"}}
+                         // expected-error-re@CL/sycl/detail/cg_types.hpp:* {{no matching function for call to object of type '(lambda at {{.*}}single_task_error_message.cpp:{{.*}})'}}
                        })
           .wait();
     }

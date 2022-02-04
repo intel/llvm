@@ -21,7 +21,7 @@
 //   COMMON_INTERCEPTOR_FD_RELEASE
 //   COMMON_INTERCEPTOR_FD_ACCESS
 //   COMMON_INTERCEPTOR_SET_THREAD_NAME
-//   COMMON_INTERCEPTOR_ON_DLOPEN
+//   COMMON_INTERCEPTOR_DLOPEN
 //   COMMON_INTERCEPTOR_ON_EXIT
 //   COMMON_INTERCEPTOR_MUTEX_PRE_LOCK
 //   COMMON_INTERCEPTOR_MUTEX_POST_LOCK
@@ -206,9 +206,9 @@ extern const short *_tolower_tab_;
     COMMON_INTERCEPTOR_READ_RANGE((ctx), (s),                       \
       common_flags()->strict_string_checks ? (internal_strlen(s)) + 1 : (n) )
 
-#ifndef COMMON_INTERCEPTOR_ON_DLOPEN
-#define COMMON_INTERCEPTOR_ON_DLOPEN(filename, flag) \
-  CheckNoDeepBind(filename, flag);
+#ifndef COMMON_INTERCEPTOR_DLOPEN
+#define COMMON_INTERCEPTOR_DLOPEN(filename, flag) \
+  ({ CheckNoDeepBind(filename, flag); REAL(dlopen)(filename, flag); })
 #endif
 
 #ifndef COMMON_INTERCEPTOR_GET_TLS_RANGE
@@ -6380,8 +6380,7 @@ INTERCEPTOR(void*, dlopen, const char *filename, int flag) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER_NOIGNORE(ctx, dlopen, filename, flag);
   if (filename) COMMON_INTERCEPTOR_READ_STRING(ctx, filename, 0);
-  COMMON_INTERCEPTOR_ON_DLOPEN(filename, flag);
-  void *res = REAL(dlopen)(filename, flag);
+  void *res = COMMON_INTERCEPTOR_DLOPEN(filename, flag);
   Symbolizer::GetOrInit()->InvalidateModuleList();
   COMMON_INTERCEPTOR_LIBRARY_LOADED(filename, res);
   return res;
@@ -7858,12 +7857,12 @@ INTERCEPTOR(void, setbuf, __sanitizer_FILE *stream, char *buf) {
       unpoison_file(stream);
 }
 
-INTERCEPTOR(void, setbuffer, __sanitizer_FILE *stream, char *buf, int mode) {
+INTERCEPTOR(void, setbuffer, __sanitizer_FILE *stream, char *buf, SIZE_T size) {
   void *ctx;
-  COMMON_INTERCEPTOR_ENTER(ctx, setbuffer, stream, buf, mode);
-  REAL(setbuffer)(stream, buf, mode);
+  COMMON_INTERCEPTOR_ENTER(ctx, setbuffer, stream, buf, size);
+  REAL(setbuffer)(stream, buf, size);
   if (buf) {
-    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, buf, __sanitizer_bufsiz);
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, buf, size);
   }
   if (stream)
     unpoison_file(stream);

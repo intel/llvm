@@ -12,8 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/BinaryFormat/AMDGPUMetadataVerifier.h"
+
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/AMDGPUMetadata.h"
+#include "llvm/BinaryFormat/MsgPackDocument.h"
+
+#include <map>
+#include <utility>
 
 namespace llvm {
 namespace AMDGPU {
@@ -57,11 +63,7 @@ bool MetadataVerifier::verifyArray(
   auto &Array = Node.getArray();
   if (Size && Array.size() != *Size)
     return false;
-  for (auto &Item : Array)
-    if (!verifyNode(Item))
-      return false;
-
-  return true;
+  return llvm::all_of(Array, verifyNode);
 }
 
 bool MetadataVerifier::verifyEntry(

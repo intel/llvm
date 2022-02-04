@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_MATCHERS_H
-#define MLIR_MATCHERS_H
+#ifndef MLIR_IR_MATCHERS_H
+#define MLIR_IR_MATCHERS_H
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
@@ -166,7 +166,7 @@ typename std::enable_if_t<
                       Operation *>::value,
     bool>
 matchOperandOrValueAtIndex(Operation *op, unsigned idx, MatcherClass &matcher) {
-  if (auto defOp = op->getOperand(idx).getDefiningOp())
+  if (auto *defOp = op->getOperand(idx).getDefiningOp())
     return matcher.match(defOp);
   return false;
 }
@@ -225,7 +225,7 @@ struct RecursivePatternMatcher {
   std::tuple<OperandMatchers...> operandMatchers;
 };
 
-} // end namespace detail
+} // namespace detail
 
 /// Matches a constant foldable operation.
 inline detail::constant_op_matcher m_Constant() {
@@ -294,6 +294,6 @@ inline auto m_Any(Value *val) { return detail::AnyCapturedValueMatcher(val); }
 inline auto m_Val(Value v) { return detail::PatternMatcherValue(v); }
 } // namespace matchers
 
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_MATCHERS_H
+#endif // MLIR_IR_MATCHERS_H

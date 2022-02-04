@@ -94,7 +94,7 @@ struct StdInlinerInterface : public DialectInlinerInterface {
       valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 };
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // StandardOpsDialect
@@ -129,205 +129,6 @@ LogicalResult AssertOp::canonicalize(AssertOp op, PatternRewriter &rewriter) {
     return success();
   }
   return failure();
-}
-
-//===----------------------------------------------------------------------===//
-// AtomicRMWOp
-//===----------------------------------------------------------------------===//
-
-static LogicalResult verify(AtomicRMWOp op) {
-  if (op.getMemRefType().getRank() != op.getNumOperands() - 2)
-    return op.emitOpError(
-        "expects the number of subscripts to be equal to memref rank");
-  switch (op.getKind()) {
-  case AtomicRMWKind::addf:
-  case AtomicRMWKind::maxf:
-  case AtomicRMWKind::minf:
-  case AtomicRMWKind::mulf:
-    if (!op.getValue().getType().isa<FloatType>())
-      return op.emitOpError()
-             << "with kind '" << stringifyAtomicRMWKind(op.getKind())
-             << "' expects a floating-point type";
-    break;
-  case AtomicRMWKind::addi:
-  case AtomicRMWKind::maxs:
-  case AtomicRMWKind::maxu:
-  case AtomicRMWKind::mins:
-  case AtomicRMWKind::minu:
-  case AtomicRMWKind::muli:
-    if (!op.getValue().getType().isa<IntegerType>())
-      return op.emitOpError()
-             << "with kind '" << stringifyAtomicRMWKind(op.getKind())
-             << "' expects an integer type";
-    break;
-  default:
-    break;
-  }
-  return success();
-}
-
-/// Returns the identity value attribute associated with an AtomicRMWKind op.
-Attribute mlir::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
-                                     OpBuilder &builder, Location loc) {
-  switch (kind) {
-  case AtomicRMWKind::maxf:
-    return builder.getFloatAttr(
-        resultType,
-        APFloat::getInf(resultType.cast<FloatType>().getFloatSemantics(),
-                        /*Negative=*/true));
-  case AtomicRMWKind::addf:
-  case AtomicRMWKind::addi:
-  case AtomicRMWKind::maxu:
-    return builder.getZeroAttr(resultType);
-  case AtomicRMWKind::maxs:
-    return builder.getIntegerAttr(
-        resultType,
-        APInt::getSignedMinValue(resultType.cast<IntegerType>().getWidth()));
-  case AtomicRMWKind::minf:
-    return builder.getFloatAttr(
-        resultType,
-        APFloat::getInf(resultType.cast<FloatType>().getFloatSemantics(),
-                        /*Negative=*/false));
-  case AtomicRMWKind::mins:
-    return builder.getIntegerAttr(
-        resultType,
-        APInt::getSignedMaxValue(resultType.cast<IntegerType>().getWidth()));
-  case AtomicRMWKind::minu:
-    return builder.getIntegerAttr(
-        resultType,
-        APInt::getMaxValue(resultType.cast<IntegerType>().getWidth()));
-  case AtomicRMWKind::muli:
-    return builder.getIntegerAttr(resultType, 1);
-  case AtomicRMWKind::mulf:
-    return builder.getFloatAttr(resultType, 1);
-  // TODO: Add remaining reduction operations.
-  default:
-    (void)emitOptionalError(loc, "Reduction operation type not supported");
-    break;
-  }
-  return nullptr;
-}
-
-/// Returns the identity value associated with an AtomicRMWKind op.
-Value mlir::getIdentityValue(AtomicRMWKind op, Type resultType,
-                             OpBuilder &builder, Location loc) {
-  Attribute attr = getIdentityValueAttr(op, resultType, builder, loc);
-  return builder.create<arith::ConstantOp>(loc, attr);
-}
-
-/// Return the value obtained by applying the reduction operation kind
-/// associated with a binary AtomicRMWKind op to `lhs` and `rhs`.
-Value mlir::getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
-                           Value lhs, Value rhs) {
-  switch (op) {
-  case AtomicRMWKind::addf:
-    return builder.create<arith::AddFOp>(loc, lhs, rhs);
-  case AtomicRMWKind::addi:
-    return builder.create<arith::AddIOp>(loc, lhs, rhs);
-  case AtomicRMWKind::mulf:
-    return builder.create<arith::MulFOp>(loc, lhs, rhs);
-  case AtomicRMWKind::muli:
-    return builder.create<arith::MulIOp>(loc, lhs, rhs);
-  case AtomicRMWKind::maxf:
-    return builder.create<arith::MaxFOp>(loc, lhs, rhs);
-  case AtomicRMWKind::minf:
-    return builder.create<arith::MinFOp>(loc, lhs, rhs);
-  case AtomicRMWKind::maxs:
-    return builder.create<arith::MaxSIOp>(loc, lhs, rhs);
-  case AtomicRMWKind::mins:
-    return builder.create<arith::MinSIOp>(loc, lhs, rhs);
-  case AtomicRMWKind::maxu:
-    return builder.create<arith::MaxUIOp>(loc, lhs, rhs);
-  case AtomicRMWKind::minu:
-    return builder.create<arith::MinUIOp>(loc, lhs, rhs);
-  // TODO: Add remaining reduction operations.
-  default:
-    (void)emitOptionalError(loc, "Reduction operation type not supported");
-    break;
-  }
-  return nullptr;
-}
-
-//===----------------------------------------------------------------------===//
-// GenericAtomicRMWOp
-//===----------------------------------------------------------------------===//
-
-void GenericAtomicRMWOp::build(OpBuilder &builder, OperationState &result,
-                               Value memref, ValueRange ivs) {
-  result.addOperands(memref);
-  result.addOperands(ivs);
-
-  if (auto memrefType = memref.getType().dyn_cast<MemRefType>()) {
-    Type elementType = memrefType.getElementType();
-    result.addTypes(elementType);
-
-    Region *bodyRegion = result.addRegion();
-    bodyRegion->push_back(new Block());
-    bodyRegion->addArgument(elementType);
-  }
-}
-
-static LogicalResult verify(GenericAtomicRMWOp op) {
-  auto &body = op.getRegion();
-  if (body.getNumArguments() != 1)
-    return op.emitOpError("expected single number of entry block arguments");
-
-  if (op.getResult().getType() != body.getArgument(0).getType())
-    return op.emitOpError(
-        "expected block argument of the same type result type");
-
-  bool hasSideEffects =
-      body.walk([&](Operation *nestedOp) {
-            if (MemoryEffectOpInterface::hasNoEffect(nestedOp))
-              return WalkResult::advance();
-            nestedOp->emitError("body of 'generic_atomic_rmw' should contain "
-                                "only operations with no side effects");
-            return WalkResult::interrupt();
-          })
-          .wasInterrupted();
-  return hasSideEffects ? failure() : success();
-}
-
-static ParseResult parseGenericAtomicRMWOp(OpAsmParser &parser,
-                                           OperationState &result) {
-  OpAsmParser::OperandType memref;
-  Type memrefType;
-  SmallVector<OpAsmParser::OperandType, 4> ivs;
-
-  Type indexType = parser.getBuilder().getIndexType();
-  if (parser.parseOperand(memref) ||
-      parser.parseOperandList(ivs, OpAsmParser::Delimiter::Square) ||
-      parser.parseColonType(memrefType) ||
-      parser.resolveOperand(memref, memrefType, result.operands) ||
-      parser.resolveOperands(ivs, indexType, result.operands))
-    return failure();
-
-  Region *body = result.addRegion();
-  if (parser.parseRegion(*body, llvm::None, llvm::None) ||
-      parser.parseOptionalAttrDict(result.attributes))
-    return failure();
-  result.types.push_back(memrefType.cast<MemRefType>().getElementType());
-  return success();
-}
-
-static void print(OpAsmPrinter &p, GenericAtomicRMWOp op) {
-  p << ' ' << op.getMemref() << "[" << op.getIndices()
-    << "] : " << op.getMemref().getType();
-  p.printRegion(op.getRegion());
-  p.printOptionalAttrDict(op->getAttrs());
-}
-
-//===----------------------------------------------------------------------===//
-// AtomicYieldOp
-//===----------------------------------------------------------------------===//
-
-static LogicalResult verify(AtomicYieldOp op) {
-  Type parentType = op->getParentOp()->getResultTypes().front();
-  Type resultType = op.getResult().getType();
-  if (parentType != resultType)
-    return op.emitOpError() << "types mismatch between yield op: " << resultType
-                            << " and its parent: " << parentType;
-  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -515,7 +316,8 @@ static Type getI1SameShape(Type type) {
   if (type.isa<UnrankedTensorType>())
     return UnrankedTensorType::get(i1Type);
   if (auto vectorType = type.dyn_cast<VectorType>())
-    return VectorType::get(vectorType.getShape(), i1Type);
+    return VectorType::get(vectorType.getShape(), i1Type,
+                           vectorType.getNumScalableDims());
   return i1Type;
 }
 
@@ -539,7 +341,8 @@ struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
                                             condbr.getTrueOperands());
       return success();
-    } else if (matchPattern(condbr.getCondition(), m_Zero())) {
+    }
+    if (matchPattern(condbr.getCondition(), m_Zero())) {
       // False branch taken.
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getFalseDest(),
                                             condbr.getFalseOperands());
@@ -749,7 +552,7 @@ struct CondBranchTruthPropagation : public OpRewritePattern<CondBranchOp> {
     return success(replaced);
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void CondBranchOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                MLIRContext *context) {
@@ -784,8 +587,8 @@ static void print(OpAsmPrinter &p, ConstantOp &op) {
     p << ' ';
   p << op.getValue();
 
-  // If the value is a symbol reference or Array, print a trailing type.
-  if (op.getValue().isa<SymbolRefAttr, ArrayAttr>())
+  // If the value is a symbol reference, print a trailing type.
+  if (op.getValue().isa<SymbolRefAttr>())
     p << " : " << op.getType();
 }
 
@@ -796,10 +599,9 @@ static ParseResult parseConstantOp(OpAsmParser &parser,
       parser.parseAttribute(valueAttr, "value", result.attributes))
     return failure();
 
-  // If the attribute is a symbol reference or array, then we expect a trailing
-  // type.
+  // If the attribute is a symbol reference, then we expect a trailing type.
   Type type;
-  if (!valueAttr.isa<SymbolRefAttr, ArrayAttr>())
+  if (!valueAttr.isa<SymbolRefAttr>())
     type = valueAttr.getType();
   else if (parser.parseColonType(type))
     return failure();
@@ -819,24 +621,6 @@ static LogicalResult verify(ConstantOp &op) {
   if (!value.getType().isa<NoneType>() && type != value.getType())
     return op.emitOpError() << "requires attribute's type (" << value.getType()
                             << ") to match op's return type (" << type << ")";
-
-  if (auto complexTy = type.dyn_cast<ComplexType>()) {
-    auto arrayAttr = value.dyn_cast<ArrayAttr>();
-    if (!complexTy || arrayAttr.size() != 2)
-      return op.emitOpError(
-          "requires 'value' to be a complex constant, represented as array of "
-          "two values");
-    auto complexEltTy = complexTy.getElementType();
-    if (complexEltTy != arrayAttr[0].getType() ||
-        complexEltTy != arrayAttr[1].getType()) {
-      return op.emitOpError()
-             << "requires attribute's element types (" << arrayAttr[0].getType()
-             << ", " << arrayAttr[1].getType()
-             << ") to match the element type of the op's return type ("
-             << complexEltTy << ")";
-    }
-    return success();
-  }
 
   if (type.isa<FunctionType>()) {
     auto fnAttr = value.dyn_cast<FlatSymbolRefAttr>();
@@ -884,33 +668,8 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
   // SymbolRefAttr can only be used with a function type.
   if (value.isa<SymbolRefAttr>())
     return type.isa<FunctionType>();
-  // The attribute must have the same type as 'type'.
-  if (!value.getType().isa<NoneType>() && value.getType() != type)
-    return false;
-  // Finally, check that the attribute kind is handled.
-  if (auto arrAttr = value.dyn_cast<ArrayAttr>()) {
-    auto complexTy = type.dyn_cast<ComplexType>();
-    if (!complexTy)
-      return false;
-    auto complexEltTy = complexTy.getElementType();
-    return arrAttr.size() == 2 && arrAttr[0].getType() == complexEltTy &&
-           arrAttr[1].getType() == complexEltTy;
-  }
-  return value.isa<UnitAttr>();
-}
-
-//===----------------------------------------------------------------------===//
-// RankOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult RankOp::fold(ArrayRef<Attribute> operands) {
-  // Constant fold rank when the rank of the operand is known.
-  auto type = getOperand().getType();
-  if (auto shapedType = type.dyn_cast<ShapedType>())
-    if (shapedType.hasRank())
-      return IntegerAttr::get(IndexType::get(getContext()),
-                              shapedType.getRank());
-  return IntegerAttr();
+  // Otherwise, this must be a UnitAttr.
+  return value.isa<UnitAttr>() && type.isa<NoneType>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -942,36 +701,72 @@ static LogicalResult verify(ReturnOp op) {
 // SelectOp
 //===----------------------------------------------------------------------===//
 
-// Transforms a select to a not, where relevant.
+// Transforms a select of a boolean to arithmetic operations
 //
-//  select %arg, %false, %true
+//  select %arg, %x, %y : i1
 //
 //  becomes
 //
-//  xor %arg, %true
-struct SelectToNot : public OpRewritePattern<SelectOp> {
+//  and(%arg, %x) or and(!%arg, %y)
+struct SelectI1Simplify : public OpRewritePattern<SelectOp> {
   using OpRewritePattern<SelectOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(SelectOp op,
                                 PatternRewriter &rewriter) const override {
-    if (!matchPattern(op.getTrueValue(), m_Zero()))
-      return failure();
-
-    if (!matchPattern(op.getFalseValue(), m_One()))
-      return failure();
-
     if (!op.getType().isInteger(1))
       return failure();
 
-    rewriter.replaceOpWithNewOp<arith::XOrIOp>(op, op.getCondition(),
-                                               op.getFalseValue());
+    Value falseConstant =
+        rewriter.create<arith::ConstantIntOp>(op.getLoc(), true, 1);
+    Value notCondition = rewriter.create<arith::XOrIOp>(
+        op.getLoc(), op.getCondition(), falseConstant);
+
+    Value trueVal = rewriter.create<arith::AndIOp>(
+        op.getLoc(), op.getCondition(), op.getTrueValue());
+    Value falseVal = rewriter.create<arith::AndIOp>(op.getLoc(), notCondition,
+                                                    op.getFalseValue());
+    rewriter.replaceOpWithNewOp<arith::OrIOp>(op, trueVal, falseVal);
     return success();
   }
 };
 
-void SelectOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+//  select %arg, %c1, %c0 => extui %arg
+struct SelectToExtUI : public OpRewritePattern<SelectOp> {
+  using OpRewritePattern<SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    // Cannot extui i1 to i1, or i1 to f32
+    if (!op.getType().isa<IntegerType>() || op.getType().isInteger(1))
+      return failure();
+
+    // select %x, c1, %c0 => extui %arg
+    if (matchPattern(op.getTrueValue(), m_One()))
+      if (matchPattern(op.getFalseValue(), m_Zero())) {
+        rewriter.replaceOpWithNewOp<arith::ExtUIOp>(op, op.getType(),
+                                                    op.getCondition());
+        return success();
+      }
+
+    // select %x, c0, %c1 => extui (xor %arg, true)
+    if (matchPattern(op.getTrueValue(), m_Zero()))
+      if (matchPattern(op.getFalseValue(), m_One())) {
+        rewriter.replaceOpWithNewOp<arith::ExtUIOp>(
+            op, op.getType(),
+            rewriter.create<arith::XOrIOp>(
+                op.getLoc(), op.getCondition(),
+                rewriter.create<arith::ConstantIntOp>(
+                    op.getLoc(), 1, op.getCondition().getType())));
+        return success();
+      }
+
+    return failure();
+  }
+};
+
+void SelectOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                            MLIRContext *context) {
-  results.insert<SelectToNot>(context);
+  results.insert<SelectI1Simplify, SelectToExtUI>(context);
 }
 
 OpFoldResult SelectOp::fold(ArrayRef<Attribute> operands) {
@@ -989,6 +784,12 @@ OpFoldResult SelectOp::fold(ArrayRef<Attribute> operands) {
   // select false, %0, %1 => %1
   if (matchPattern(condition, m_Zero()))
     return falseVal;
+
+  // select %x, true, false => %x
+  if (getType().isInteger(1))
+    if (matchPattern(getTrueValue(), m_One()))
+      if (matchPattern(getFalseValue(), m_Zero()))
+        return condition;
 
   if (auto cmp = dyn_cast_or_null<arith::CmpIOp>(condition.getDefiningOp())) {
     auto pred = cmp.getPredicate();
@@ -1175,7 +976,7 @@ static void printSwitchOpCases(
     OpAsmPrinter &p, SwitchOp op, Type flagType, Block *defaultDestination,
     OperandRange defaultOperands, TypeRange defaultOperandTypes,
     DenseIntElementsAttr caseValues, SuccessorRange caseDestinations,
-    OperandRangeRange caseOperands, TypeRangeRange caseOperandTypes) {
+    OperandRangeRange caseOperands, const TypeRangeRange &caseOperandTypes) {
   p << "  default: ";
   p.printSuccessorAndUseList(defaultDestination, defaultOperands);
 
@@ -1301,7 +1102,7 @@ dropSwitchCasesThatMatchDefault(SwitchOp op, PatternRewriter &rewriter) {
 /// ]
 /// -> br ^bb2
 static void foldSwitch(SwitchOp op, PatternRewriter &rewriter,
-                       APInt caseValue) {
+                       const APInt &caseValue) {
   auto caseValues = op.getCaseValues();
   for (const auto &it : llvm::enumerate(caseValues->getValues<APInt>())) {
     if (it.value() == caseValue) {

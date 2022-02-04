@@ -18,20 +18,20 @@ using namespace mlir::tblgen;
 // FormatToken
 //===----------------------------------------------------------------------===//
 
-llvm::SMLoc FormatToken::getLoc() const {
-  return llvm::SMLoc::getFromPointer(spelling.data());
+SMLoc FormatToken::getLoc() const {
+  return SMLoc::getFromPointer(spelling.data());
 }
 
 //===----------------------------------------------------------------------===//
 // FormatLexer
 //===----------------------------------------------------------------------===//
 
-FormatLexer::FormatLexer(llvm::SourceMgr &mgr, llvm::SMLoc loc)
+FormatLexer::FormatLexer(llvm::SourceMgr &mgr, SMLoc loc)
     : mgr(mgr), loc(loc),
       curBuffer(mgr.getMemoryBuffer(mgr.getMainFileID())->getBuffer()),
       curPtr(curBuffer.begin()) {}
 
-FormatToken FormatLexer::emitError(llvm::SMLoc loc, const Twine &msg) {
+FormatToken FormatLexer::emitError(SMLoc loc, const Twine &msg) {
   mgr.PrintMessage(loc, llvm::SourceMgr::DK_Error, msg);
   llvm::SrcMgr.PrintMessage(this->loc, llvm::SourceMgr::DK_Note,
                             "in custom assembly format for this operation");
@@ -39,10 +39,10 @@ FormatToken FormatLexer::emitError(llvm::SMLoc loc, const Twine &msg) {
 }
 
 FormatToken FormatLexer::emitError(const char *loc, const Twine &msg) {
-  return emitError(llvm::SMLoc::getFromPointer(loc), msg);
+  return emitError(SMLoc::getFromPointer(loc), msg);
 }
 
-FormatToken FormatLexer::emitErrorAndNote(llvm::SMLoc loc, const Twine &msg,
+FormatToken FormatLexer::emitErrorAndNote(SMLoc loc, const Twine &msg,
                                           const Twine &note) {
   mgr.PrintMessage(loc, llvm::SourceMgr::DK_Error, msg);
   llvm::SrcMgr.PrintMessage(this->loc, llvm::SourceMgr::DK_Note,
@@ -172,6 +172,7 @@ FormatToken FormatLexer::lexIdentifier(const char *tokStart) {
           .Case("struct", FormatToken::kw_struct)
           .Case("successors", FormatToken::kw_successors)
           .Case("type", FormatToken::kw_type)
+          .Case("qualified", FormatToken::kw_qualified)
           .Default(FormatToken::identifier);
   return FormatToken(kind, str);
 }
@@ -189,30 +190,50 @@ bool mlir::tblgen::shouldEmitSpaceBefore(StringRef value,
   return !StringRef("<>(){}[],").contains(value.front());
 }
 
-bool mlir::tblgen::canFormatStringAsKeyword(StringRef value) {
-  if (!isalpha(value.front()) && value.front() != '_')
+bool mlir::tblgen::canFormatStringAsKeyword(
+    StringRef value, function_ref<void(Twine)> emitError) {
+  if (!isalpha(value.front()) && value.front() != '_') {
+    if (emitError)
+      emitError("valid keyword starts with a letter or '_'");
     return false;
-  return llvm::all_of(value.drop_front(), [](char c) {
-    return isalnum(c) || c == '_' || c == '$' || c == '.';
-  });
+  }
+  if (!llvm::all_of(value.drop_front(), [](char c) {
+        return isalnum(c) || c == '_' || c == '$' || c == '.';
+      })) {
+    if (emitError)
+      emitError(
+          "keywords should contain only alphanum, '_', '$', or '.' characters");
+    return false;
+  }
+  return true;
 }
 
-bool mlir::tblgen::isValidLiteral(StringRef value) {
-  if (value.empty())
+bool mlir::tblgen::isValidLiteral(StringRef value,
+                                  function_ref<void(Twine)> emitError) {
+  if (value.empty()) {
+    if (emitError)
+      emitError("literal can't be empty");
     return false;
+  }
   char front = value.front();
 
   // If there is only one character, this must either be punctuation or a
   // single character bare identifier.
-  if (value.size() == 1)
-    return isalpha(front) || StringRef("_:,=<>()[]{}?+*").contains(front);
-
+  if (value.size() == 1) {
+    StringRef bare = "_:,=<>()[]{}?+*";
+    if (isalpha(front) || bare.contains(front))
+      return true;
+    if (emitError)
+      emitError("single character literal must be a letter or one of '" + bare +
+                "'");
+    return false;
+  }
   // Check the punctuation that are larger than a single character.
   if (value == "->")
     return true;
 
   // Otherwise, this must be an identifier.
-  return canFormatStringAsKeyword(value);
+  return canFormatStringAsKeyword(value, emitError);
 }
 
 //===----------------------------------------------------------------------===//

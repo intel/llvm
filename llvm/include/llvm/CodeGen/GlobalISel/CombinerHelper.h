@@ -323,6 +323,11 @@ public:
   void applyCombineUnmergeConstant(MachineInstr &MI,
                                    SmallVectorImpl<APInt> &Csts);
 
+  /// Transform G_UNMERGE G_IMPLICIT_DEF -> G_IMPLICIT_DEF, G_IMPLICIT_DEF, ...
+  bool
+  matchCombineUnmergeUndef(MachineInstr &MI,
+                           std::function<void(MachineIRBuilder &)> &MatchInfo);
+
   /// Transform X, Y<dead> = G_UNMERGE Z -> X = G_TRUNC Z.
   bool matchCombineUnmergeWithDeadLanesToTrunc(MachineInstr &MI);
   void applyCombineUnmergeWithDeadLanesToTrunc(MachineInstr &MI);
@@ -353,8 +358,8 @@ public:
                                   std::pair<Register, bool> &PtrRegAndCommute);
 
   // Transform G_PTR_ADD (G_PTRTOINT C1), C2 -> C1 + C2
-  bool matchCombineConstPtrAddToI2P(MachineInstr &MI, int64_t &NewCst);
-  void applyCombineConstPtrAddToI2P(MachineInstr &MI, int64_t &NewCst);
+  bool matchCombineConstPtrAddToI2P(MachineInstr &MI, APInt &NewCst);
+  void applyCombineConstPtrAddToI2P(MachineInstr &MI, APInt &NewCst);
 
   /// Transform anyext(trunc(x)) to x.
   bool matchCombineAnyExtTrunc(MachineInstr &MI, Register &Reg);
@@ -648,6 +653,54 @@ public:
   ///           (fmad fneg(x), fneg(y), z) -> (fmad x, y, z)
   ///           (fma fneg(x), fneg(y), z) -> (fma x, y, z)
   bool matchRedundantNegOperands(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  bool canCombineFMadOrFMA(MachineInstr &MI, bool &AllowFusionGlobally,
+                           bool &HasFMAD, bool &Aggressive,
+                           bool CanReassociate = false);
+
+  /// Transform (fadd (fmul x, y), z) -> (fma x, y, z)
+  ///           (fadd (fmul x, y), z) -> (fmad x, y, z)
+  bool matchCombineFAddFMulToFMadOrFMA(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Transform (fadd (fpext (fmul x, y)), z) -> (fma (fpext x), (fpext y), z)
+  ///           (fadd (fpext (fmul x, y)), z) -> (fmad (fpext x), (fpext y), z)
+  bool matchCombineFAddFpExtFMulToFMadOrFMA(MachineInstr &MI,
+                                            BuildFnTy &MatchInfo);
+
+  /// Transform (fadd (fma x, y, (fmul u, v)), z) -> (fma x, y, (fma u, v, z))
+  ///          (fadd (fmad x, y, (fmul u, v)), z) -> (fmad x, y, (fmad u, v, z))
+  bool matchCombineFAddFMAFMulToFMadOrFMA(MachineInstr &MI,
+                                          BuildFnTy &MatchInfo);
+
+  // Transform (fadd (fma x, y, (fpext (fmul u, v))), z)
+  //            -> (fma x, y, (fma (fpext u), (fpext v), z))
+  //           (fadd (fmad x, y, (fpext (fmul u, v))), z)
+  //            -> (fmad x, y, (fmad (fpext u), (fpext v), z))
+  bool matchCombineFAddFpExtFMulToFMadOrFMAAggressive(MachineInstr &MI,
+                                                      BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fmul x, y), z) -> (fma x, y, -z)
+  ///           (fsub (fmul x, y), z) -> (fmad x, y, -z)
+  bool matchCombineFSubFMulToFMadOrFMA(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fneg (fmul, x, y)), z) -> (fma (fneg x), y, (fneg z))
+  ///           (fsub (fneg (fmul, x, y)), z) -> (fmad (fneg x), y, (fneg z))
+  bool matchCombineFSubFNegFMulToFMadOrFMA(MachineInstr &MI,
+                                           BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fpext (fmul x, y)), z)
+  ///           -> (fma (fpext x), (fpext y), (fneg z))
+  ///           (fsub (fpext (fmul x, y)), z)
+  ///           -> (fmad (fpext x), (fpext y), (fneg z))
+  bool matchCombineFSubFpExtFMulToFMadOrFMA(MachineInstr &MI,
+                                            BuildFnTy &MatchInfo);
+
+  /// Transform (fsub (fpext (fneg (fmul x, y))), z)
+  ///           -> (fneg (fma (fpext x), (fpext y), z))
+  ///           (fsub (fpext (fneg (fmul x, y))), z)
+  ///           -> (fneg (fmad (fpext x), (fpext y), z))
+  bool matchCombineFSubFpExtFNegFMulToFMadOrFMA(MachineInstr &MI,
+                                                BuildFnTy &MatchInfo);
 
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that

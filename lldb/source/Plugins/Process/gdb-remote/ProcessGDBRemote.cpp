@@ -23,13 +23,6 @@
 #include <ctime>
 #include <sys/types.h>
 
-#include <algorithm>
-#include <csignal>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <sstream>
-
 #include "lldb/Breakpoint/Watchpoint.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
@@ -70,8 +63,16 @@
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timer.h"
+#include <algorithm>
+#include <csignal>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <sstream>
+#include <thread>
 
 #include "GDBRemoteRegisterContext.h"
+#include "GDBRemoteRegisterFallback.h"
 #include "Plugins/Platform/MacOSX/PlatformRemoteiOS.h"
 #include "Plugins/Process/Utility/GDBRemoteSignals.h"
 #include "Plugins/Process/Utility/InferiorCallPOSIX.h"
@@ -253,9 +254,8 @@ ProcessGDBRemote::ProcessGDBRemote(lldb::TargetSP target_sp,
       m_addr_to_mmap_size(), m_thread_create_bp_sp(),
       m_waiting_for_attach(false), m_destroy_tried_resuming(false),
       m_command_sp(), m_breakpoint_pc_offset(0),
-      m_initial_tid(LLDB_INVALID_THREAD_ID), m_replay_mode(false),
-      m_allow_flash_writes(false), m_erased_flash_ranges(),
-      m_vfork_in_progress(false) {
+      m_initial_tid(LLDB_INVALID_THREAD_ID), m_allow_flash_writes(false),
+      m_erased_flash_ranges(), m_vfork_in_progress(false) {
   m_async_broadcaster.SetEventName(eBroadcastBitAsyncThreadShouldExit,
                                    "async thread should exit");
   m_async_broadcaster.SetEventName(eBroadcastBitAsyncContinue,
@@ -395,6 +395,7 @@ void ProcessGDBRemote::BuildDynamicRegisterInfo(bool force) {
   //     2 - If the target definition doesn't have any of the info from the
   //     target.xml (registers) then proceed to read the target.xml.
   //     3 - Fall back on the qRegisterInfo packets.
+  //     4 - Use hardcoded defaults if available.
 
   FileSpec target_definition_fspec =
       GetGlobalPluginProperties().GetTargetDefinitionFile();
@@ -508,6 +509,9 @@ void ProcessGDBRemote::BuildDynamicRegisterInfo(bool force) {
     }
   }
 
+  if (registers.empty())
+    registers = GetFallbackRegisters(arch_to_use);
+
   AddRemoteRegisters(registers, arch_to_use);
 }
 
@@ -525,19 +529,16 @@ Status ProcessGDBRemote::WillAttachToProcessWithName(const char *process_name,
 }
 
 Status ProcessGDBRemote::DoConnectRemote(llvm::StringRef remote_url) {
-  Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
+  Log *log = GetLog(GDBRLog::Process);
+
   Status error(WillLaunchOrAttach());
-
   if (error.Fail())
     return error;
 
-  if (repro::Reproducer::Instance().IsReplaying())
-    error = ConnectToReplayServer();
-  else
-    error = ConnectToDebugserver(remote_url);
-
+  error = ConnectToDebugserver(remote_url);
   if (error.Fail())
     return error;
+
   StartAsyncThread();
 
   lldb::pid_t pid = m_gdb_comm.GetCurrentProcessID();
@@ -560,6 +561,93 @@ Status ProcessGDBRemote::DoConnectRemote(llvm::StringRef remote_url) {
         } else {
           if (m_gdb_comm.GetHostArchitecture().IsValid()) {
             target.SetArchitecture(m_gdb_comm.GetHostArchitecture());
+          }
+        }
+      }
+
+      // The remote stub may know about the "main binary" in
+      // the context of a firmware debug session, and can
+      // give us a UUID and an address/slide of where the
+      // binary is loaded in memory.
+      UUID standalone_uuid;
+      addr_t standalone_value;
+      bool standalone_value_is_offset;
+      if (m_gdb_comm.GetProcessStandaloneBinary(
+              standalone_uuid, standalone_value, standalone_value_is_offset)) {
+        ModuleSP module_sp;
+
+        if (standalone_uuid.IsValid()) {
+          ModuleSpec module_spec;
+          module_spec.GetUUID() = standalone_uuid;
+
+          // Look up UUID in global module cache before attempting
+          // a more expensive search.
+          Status error = ModuleList::GetSharedModule(module_spec, module_sp,
+                                                     nullptr, nullptr, nullptr);
+
+          if (!module_sp) {
+            // Force a an external lookup, if that tool is available.
+            if (!module_spec.GetSymbolFileSpec())
+              Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+
+            if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
+              module_sp = std::make_shared<Module>(module_spec);
+            }
+          }
+
+          // If we couldn't find the binary anywhere else, as a last resort,
+          // read it out of memory.
+          if (!module_sp.get() && standalone_value != LLDB_INVALID_ADDRESS &&
+              !standalone_value_is_offset) {
+            char namebuf[80];
+            snprintf(namebuf, sizeof(namebuf), "mem-image-0x%" PRIx64,
+                     standalone_value);
+            module_sp =
+                ReadModuleFromMemory(FileSpec(namebuf), standalone_value);
+          }
+
+          Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+          if (module_sp.get()) {
+            target.GetImages().AppendIfNeeded(module_sp, false);
+
+            bool changed = false;
+            if (module_sp->GetObjectFile()) {
+              if (standalone_value != LLDB_INVALID_ADDRESS) {
+                if (log)
+                  log->Printf("Loading binary UUID %s at %s 0x%" PRIx64,
+                              standalone_uuid.GetAsString().c_str(),
+                              standalone_value_is_offset ? "offset" : "address",
+                              standalone_value);
+                module_sp->SetLoadAddress(target, standalone_value,
+                                          standalone_value_is_offset, changed);
+              } else {
+                // No address/offset/slide, load the binary at file address,
+                // offset 0.
+                if (log)
+                  log->Printf("Loading binary UUID %s at file address",
+                              standalone_uuid.GetAsString().c_str());
+                const bool value_is_slide = true;
+                module_sp->SetLoadAddress(target, 0, value_is_slide, changed);
+              }
+            } else {
+              // In-memory image, load at its true address, offset 0.
+              if (log)
+                log->Printf("Loading binary UUID %s from memory",
+                            standalone_uuid.GetAsString().c_str());
+              const bool value_is_slide = true;
+              module_sp->SetLoadAddress(target, 0, value_is_slide, changed);
+            }
+
+            ModuleList added_module;
+            added_module.Append(module_sp, false);
+            target.ModulesDidLoad(added_module);
+          } else {
+            if (log)
+              log->Printf("Unable to find binary with UUID %s and load it at "
+                          "%s 0x%" PRIx64,
+                          standalone_uuid.GetAsString().c_str(),
+                          standalone_value_is_offset ? "offset" : "address",
+                          standalone_value);
           }
         }
       }
@@ -3231,24 +3319,6 @@ Status ProcessGDBRemote::DoSignal(int signo) {
   return error;
 }
 
-Status ProcessGDBRemote::ConnectToReplayServer() {
-  Status status = m_gdb_replay_server.Connect(m_gdb_comm);
-  if (status.Fail())
-    return status;
-
-  // Enable replay mode.
-  m_replay_mode = true;
-
-  // Start server thread.
-  m_gdb_replay_server.StartAsyncThread();
-
-  // Start client thread.
-  StartAsyncThread();
-
-  // Do the usual setup.
-  return ConnectToDebugserver("");
-}
-
 Status
 ProcessGDBRemote::EstablishConnectionIfNeeded(const ProcessInfo &process_info) {
   // Make sure we aren't already connected?
@@ -3258,9 +3328,6 @@ ProcessGDBRemote::EstablishConnectionIfNeeded(const ProcessInfo &process_info) {
   PlatformSP platform_sp(GetTarget().GetPlatform());
   if (platform_sp && !platform_sp->IsHost())
     return Status("Lost debug server connection");
-
-  if (repro::Reproducer::Instance().IsReplaying())
-    return ConnectToReplayServer();
 
   auto error = LaunchAndConnectToDebugserver(process_info);
   if (error.Fail()) {
@@ -3540,7 +3607,7 @@ thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
   // So it is safer to simply ignore any remaining packets by
   // explicitly checking for eStateExited before reentering the
   // fetch loop.
-  
+
   bool done = false;
   while (!done && process->GetPrivateState() != eStateExited) {
     LLDB_LOGF(log,
@@ -4288,9 +4355,9 @@ bool ProcessGDBRemote::GetGDBServerRegisterInfoXMLAndProcess(
         } else if (name == "osabi") {
           node.GetElementText(target_info.osabi);
         } else if (name == "xi:include" || name == "include") {
-          llvm::StringRef href = node.GetAttributeValue("href");
+          std::string href = node.GetAttributeValue("href");
           if (!href.empty())
-            target_info.includes.push_back(href.str());
+            target_info.includes.push_back(href);
         } else if (name == "feature") {
           feature_nodes.push_back(node);
         } else if (name == "groups") {
@@ -4329,9 +4396,9 @@ bool ProcessGDBRemote::GetGDBServerRegisterInfoXMLAndProcess(
                                         const XMLNode &node) -> bool {
           llvm::StringRef name = node.GetName();
           if (name == "xi:include" || name == "include") {
-            llvm::StringRef href = node.GetAttributeValue("href");
+            std::string href = node.GetAttributeValue("href");
             if (!href.empty())
-              target_info.includes.push_back(href.str());
+              target_info.includes.push_back(href);
             }
             return true;
           });
@@ -4467,7 +4534,7 @@ llvm::Expected<LoadedModuleInfoList> ProcessGDBRemote::GetLoadedModuleList() {
           "Error finding library-list-svr4 xml element");
 
     // main link map structure
-    llvm::StringRef main_lm = root_element.GetAttributeValue("main-lm");
+    std::string main_lm = root_element.GetAttributeValue("main-lm");
     // FIXME: we're silently ignoring invalid data here
     if (!main_lm.empty())
       llvm::to_integer(main_lm, list.m_link_map);
@@ -4555,15 +4622,15 @@ llvm::Expected<LoadedModuleInfoList> ProcessGDBRemote::GetLoadedModuleList() {
         "library", [log, &list](const XMLNode &library) -> bool {
           LoadedModuleInfoList::LoadedModuleInfo module;
 
-          llvm::StringRef name = library.GetAttributeValue("name");
-          module.set_name(name.str());
+          std::string name = library.GetAttributeValue("name");
+          module.set_name(name);
 
           // The base address of a given library will be the address of its
           // first section. Most remotes send only one section for Windows
           // targets for example.
           const XMLNode &section =
               library.FindFirstChildElementWithName("section");
-          llvm::StringRef address = section.GetAttributeValue("address");
+          std::string address = section.GetAttributeValue("address");
           uint64_t address_value = LLDB_INVALID_ADDRESS;
           llvm::to_integer(address, address_value);
           module.set_base(address_value);

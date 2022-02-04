@@ -494,7 +494,7 @@ public:
     return StackIdxesToPos.find(Idx)->second;
   }
 
-  unsigned getNumLocs(void) const { return LocIdxToIDNum.size(); }
+  unsigned getNumLocs() const { return LocIdxToIDNum.size(); }
 
   /// Reset all locations to contain a PHI value at the designated block. Used
   /// sometimes for actual PHI values, othertimes to indicate the block entry
@@ -516,7 +516,7 @@ public:
   }
 
   /// Wipe any un-necessary location records after traversing a block.
-  void reset(void) {
+  void reset() {
     // We could reset all the location values too; however either loadFromArray
     // or setMPhis should be called before this object is re-used. Just
     // clear Masks, they're definitely not needed.
@@ -525,7 +525,7 @@ public:
 
   /// Clear all data. Destroys the LocID <=> LocIdx map, which makes most of
   /// the information in this pass uninterpretable.
-  void clear(void) {
+  void clear() {
     reset();
     LocIDToLocIdx.clear();
     LocIdxToLocID.clear();
@@ -655,6 +655,14 @@ public:
                               const DbgValueProperties &Properties);
 };
 
+/// Types for recording sets of variable fragments that overlap. For a given
+/// local variable, we record all other fragments of that variable that could
+/// overlap it, to reduce search time.
+using FragmentOfVar =
+    std::pair<const DILocalVariable *, DIExpression::FragmentInfo>;
+using OverlapMap =
+    DenseMap<FragmentOfVar, SmallVector<DIExpression::FragmentInfo, 1>>;
+
 /// Collection of DBG_VALUEs observed when traversing a block. Records each
 /// variable and the value the DBG_VALUE refers to. Requires the machine value
 /// location dataflow algorithm to have run already, so that values can be
@@ -672,9 +680,12 @@ public:
   MapVector<DebugVariable, DbgValue> Vars;
   DenseMap<DebugVariable, const DILocation *> Scopes;
   MachineBasicBlock *MBB = nullptr;
+  const OverlapMap &OverlappingFragments;
+  DbgValueProperties EmptyProperties;
 
 public:
-  VLocTracker() {}
+  VLocTracker(const OverlapMap &O, const DIExpression *EmptyExpr)
+      : OverlappingFragments(O), EmptyProperties(EmptyExpr, false) {}
 
   void defVar(const MachineInstr &MI, const DbgValueProperties &Properties,
               Optional<ValueIDNum> ID) {
@@ -689,6 +700,8 @@ public:
     if (!Result.second)
       Result.first->second = Rec;
     Scopes[Var] = MI.getDebugLoc().get();
+
+    considerOverlaps(Var, MI.getDebugLoc().get());
   }
 
   void defVar(const MachineInstr &MI, const MachineOperand &MO) {
@@ -704,16 +717,37 @@ public:
     if (!Result.second)
       Result.first->second = Rec;
     Scopes[Var] = MI.getDebugLoc().get();
+
+    considerOverlaps(Var, MI.getDebugLoc().get());
+  }
+
+  void considerOverlaps(const DebugVariable &Var, const DILocation *Loc) {
+    auto Overlaps = OverlappingFragments.find(
+        {Var.getVariable(), Var.getFragmentOrDefault()});
+    if (Overlaps == OverlappingFragments.end())
+      return;
+
+    // Otherwise: terminate any overlapped variable locations.
+    for (auto FragmentInfo : Overlaps->second) {
+      // The "empty" fragment is stored as DebugVariable::DefaultFragment, so
+      // that it overlaps with everything, however its cannonical representation
+      // in a DebugVariable is as "None".
+      Optional<DIExpression::FragmentInfo> OptFragmentInfo = FragmentInfo;
+      if (DebugVariable::isDefaultFragment(FragmentInfo))
+        OptFragmentInfo = None;
+
+      DebugVariable Overlapped(Var.getVariable(), OptFragmentInfo,
+                               Var.getInlinedAt());
+      DbgValue Rec = DbgValue(EmptyProperties, DbgValue::Undef);
+
+      // Attempt insertion; overwrite if it's already mapped.
+      auto Result = Vars.insert(std::make_pair(Overlapped, Rec));
+      if (!Result.second)
+        Result.first->second = Rec;
+      Scopes[Overlapped] = Loc;
+    }
   }
 };
-
-/// Types for recording sets of variable fragments that overlap. For a given
-/// local variable, we record all other fragments of that variable that could
-/// overlap it, to reduce search time.
-using FragmentOfVar =
-    std::pair<const DILocalVariable *, DIExpression::FragmentInfo>;
-using OverlapMap =
-    DenseMap<FragmentOfVar, SmallVector<DIExpression::FragmentInfo, 1>>;
 
 // XXX XXX docs
 class InstrRefBasedLDV : public LDVImpl {
@@ -972,7 +1006,6 @@ private:
   /// \returns true if any live-ins change value, either from value propagation
   ///          or PHI elimination.
   bool vlocJoin(MachineBasicBlock &MBB, LiveIdxT &VLOCOutLocs,
-                SmallPtrSet<const MachineBasicBlock *, 8> &InScopeBlocks,
                 SmallPtrSet<const MachineBasicBlock *, 8> &BlocksToExplore,
                 DbgValue &LiveIn);
 
@@ -1049,7 +1082,9 @@ template <> struct DenseMapInfo<ValueIDNum> {
     return ValueIDNum::TombstoneValue;
   }
 
-  static unsigned getHashValue(const ValueIDNum &Val) { return Val.asU64(); }
+  static unsigned getHashValue(const ValueIDNum &Val) {
+    return hash_value(Val.asU64());
+  }
 
   static bool isEqual(const ValueIDNum &A, const ValueIDNum &B) {
     return A == B;

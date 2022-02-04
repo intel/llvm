@@ -62,7 +62,7 @@ private:
   LogicalResult verifyDominanceOfContainedRegions(Operation &op,
                                                   DominanceInfo &domInfo);
 };
-} // end anonymous namespace
+} // namespace
 
 LogicalResult OperationVerifier::verifyOpAndDominance(Operation &op) {
   SmallVector<Operation *> opsWithIsolatedRegions;
@@ -316,7 +316,7 @@ OperationVerifier::verifyDominanceOfContainedRegions(Operation &op,
       for (Operation &op : block) {
         if (isReachable) {
           // Check that operands properly dominate this use.
-          for (auto operand : llvm::enumerate(op.getOperands())) {
+          for (const auto &operand : llvm::enumerate(op.getOperands())) {
             if (domInfo.properlyDominates(operand.value(), &op))
               continue;
 

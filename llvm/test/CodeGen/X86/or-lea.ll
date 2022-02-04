@@ -137,20 +137,19 @@ define i64 @or_shift1_and1_64(i64 %x, i64 %y) {
 define i32 @or_and_and_rhs_neg_i32(i32 %x, i32 %y, i32 %z) {
 ; NOBMI-LABEL: or_and_and_rhs_neg_i32:
 ; NOBMI:       # %bb.0: # %entry
-; NOBMI-NEXT:    # kill: def $esi killed $esi def $rsi
+; NOBMI-NEXT:    # kill: def $edx killed $edx def $rdx
+; NOBMI-NEXT:    xorl %edi, %edx
 ; NOBMI-NEXT:    andl %esi, %edx
-; NOBMI-NEXT:    notl %esi
-; NOBMI-NEXT:    andl %edi, %esi
-; NOBMI-NEXT:    orl %edx, %esi
-; NOBMI-NEXT:    leal 1(%rsi), %eax
+; NOBMI-NEXT:    xorl %edi, %edx
+; NOBMI-NEXT:    leal 1(%rdx), %eax
 ; NOBMI-NEXT:    retq
 ;
 ; BMI-LABEL: or_and_and_rhs_neg_i32:
 ; BMI:       # %bb.0: # %entry
+; BMI-NEXT:    # kill: def $edx killed $edx def $rdx
 ; BMI-NEXT:    andl %esi, %edx
 ; BMI-NEXT:    andnl %edi, %esi, %eax
-; BMI-NEXT:    orl %edx, %eax
-; BMI-NEXT:    incl %eax
+; BMI-NEXT:    leal 1(%rdx,%rax), %eax
 ; BMI-NEXT:    retq
 entry:
   %and1 = and i32 %z, %y
@@ -164,20 +163,19 @@ entry:
 define i32 @or_and_and_lhs_neg_i32(i32 %x, i32 %y, i32 %z) {
 ; NOBMI-LABEL: or_and_and_lhs_neg_i32:
 ; NOBMI:       # %bb.0: # %entry
-; NOBMI-NEXT:    # kill: def $esi killed $esi def $rsi
+; NOBMI-NEXT:    # kill: def $edx killed $edx def $rdx
+; NOBMI-NEXT:    xorl %edi, %edx
 ; NOBMI-NEXT:    andl %esi, %edx
-; NOBMI-NEXT:    notl %esi
-; NOBMI-NEXT:    andl %edi, %esi
-; NOBMI-NEXT:    orl %edx, %esi
-; NOBMI-NEXT:    leal 1(%rsi), %eax
+; NOBMI-NEXT:    xorl %edi, %edx
+; NOBMI-NEXT:    leal 1(%rdx), %eax
 ; NOBMI-NEXT:    retq
 ;
 ; BMI-LABEL: or_and_and_lhs_neg_i32:
 ; BMI:       # %bb.0: # %entry
+; BMI-NEXT:    # kill: def $edx killed $edx def $rdx
 ; BMI-NEXT:    andl %esi, %edx
 ; BMI-NEXT:    andnl %edi, %esi, %eax
-; BMI-NEXT:    orl %edx, %eax
-; BMI-NEXT:    incl %eax
+; BMI-NEXT:    leal 1(%rdx,%rax), %eax
 ; BMI-NEXT:    retq
 entry:
   %and1 = and i32 %z, %y
@@ -191,20 +189,19 @@ entry:
 define i32 @or_and_rhs_neg_and_i32(i32 %x, i32 %y, i32 %z) {
 ; NOBMI-LABEL: or_and_rhs_neg_and_i32:
 ; NOBMI:       # %bb.0: # %entry
-; NOBMI-NEXT:    # kill: def $esi killed $esi def $rsi
+; NOBMI-NEXT:    # kill: def $edi killed $edi def $rdi
+; NOBMI-NEXT:    xorl %edx, %edi
 ; NOBMI-NEXT:    andl %esi, %edi
-; NOBMI-NEXT:    notl %esi
-; NOBMI-NEXT:    andl %edx, %esi
-; NOBMI-NEXT:    orl %edi, %esi
-; NOBMI-NEXT:    leal 1(%rsi), %eax
+; NOBMI-NEXT:    xorl %edx, %edi
+; NOBMI-NEXT:    leal 1(%rdi), %eax
 ; NOBMI-NEXT:    retq
 ;
 ; BMI-LABEL: or_and_rhs_neg_and_i32:
 ; BMI:       # %bb.0: # %entry
+; BMI-NEXT:    # kill: def $edi killed $edi def $rdi
 ; BMI-NEXT:    andnl %edx, %esi, %eax
 ; BMI-NEXT:    andl %esi, %edi
-; BMI-NEXT:    orl %edi, %eax
-; BMI-NEXT:    incl %eax
+; BMI-NEXT:    leal 1(%rax,%rdi), %eax
 ; BMI-NEXT:    retq
 entry:
   %xor = xor i32 %y, -1
@@ -218,20 +215,19 @@ entry:
 define i32 @or_and_lhs_neg_and_i32(i32 %x, i32 %y, i32 %z) {
 ; NOBMI-LABEL: or_and_lhs_neg_and_i32:
 ; NOBMI:       # %bb.0: # %entry
-; NOBMI-NEXT:    # kill: def $esi killed $esi def $rsi
+; NOBMI-NEXT:    # kill: def $edi killed $edi def $rdi
+; NOBMI-NEXT:    xorl %edx, %edi
 ; NOBMI-NEXT:    andl %esi, %edi
-; NOBMI-NEXT:    notl %esi
-; NOBMI-NEXT:    andl %edx, %esi
-; NOBMI-NEXT:    orl %edi, %esi
-; NOBMI-NEXT:    leal 1(%rsi), %eax
+; NOBMI-NEXT:    xorl %edx, %edi
+; NOBMI-NEXT:    leal 1(%rdi), %eax
 ; NOBMI-NEXT:    retq
 ;
 ; BMI-LABEL: or_and_lhs_neg_and_i32:
 ; BMI:       # %bb.0: # %entry
+; BMI-NEXT:    # kill: def $edi killed $edi def $rdi
 ; BMI-NEXT:    andnl %edx, %esi, %eax
 ; BMI-NEXT:    andl %esi, %edi
-; BMI-NEXT:    orl %edi, %eax
-; BMI-NEXT:    incl %eax
+; BMI-NEXT:    leal 1(%rax,%rdi), %eax
 ; BMI-NEXT:    retq
 entry:
   %xor = xor i32 %y, -1
@@ -245,19 +241,17 @@ entry:
 define i64 @or_and_and_rhs_neg_i64(i64 %x, i64 %y, i64 %z) {
 ; NOBMI-LABEL: or_and_and_rhs_neg_i64:
 ; NOBMI:       # %bb.0: # %entry
+; NOBMI-NEXT:    xorq %rdi, %rdx
 ; NOBMI-NEXT:    andq %rsi, %rdx
-; NOBMI-NEXT:    notq %rsi
-; NOBMI-NEXT:    andq %rdi, %rsi
-; NOBMI-NEXT:    orq %rdx, %rsi
-; NOBMI-NEXT:    leaq 1(%rsi), %rax
+; NOBMI-NEXT:    xorq %rdi, %rdx
+; NOBMI-NEXT:    leaq 1(%rdx), %rax
 ; NOBMI-NEXT:    retq
 ;
 ; BMI-LABEL: or_and_and_rhs_neg_i64:
 ; BMI:       # %bb.0: # %entry
 ; BMI-NEXT:    andq %rsi, %rdx
 ; BMI-NEXT:    andnq %rdi, %rsi, %rax
-; BMI-NEXT:    orq %rdx, %rax
-; BMI-NEXT:    incq %rax
+; BMI-NEXT:    leaq 1(%rdx,%rax), %rax
 ; BMI-NEXT:    retq
 entry:
   %and1 = and i64 %z, %y
@@ -271,19 +265,17 @@ entry:
 define i64 @or_and_and_lhs_neg_i64(i64 %x, i64 %y, i64 %z) {
 ; NOBMI-LABEL: or_and_and_lhs_neg_i64:
 ; NOBMI:       # %bb.0: # %entry
+; NOBMI-NEXT:    xorq %rdi, %rdx
 ; NOBMI-NEXT:    andq %rsi, %rdx
-; NOBMI-NEXT:    notq %rsi
-; NOBMI-NEXT:    andq %rdi, %rsi
-; NOBMI-NEXT:    orq %rdx, %rsi
-; NOBMI-NEXT:    leaq 1(%rsi), %rax
+; NOBMI-NEXT:    xorq %rdi, %rdx
+; NOBMI-NEXT:    leaq 1(%rdx), %rax
 ; NOBMI-NEXT:    retq
 ;
 ; BMI-LABEL: or_and_and_lhs_neg_i64:
 ; BMI:       # %bb.0: # %entry
 ; BMI-NEXT:    andq %rsi, %rdx
 ; BMI-NEXT:    andnq %rdi, %rsi, %rax
-; BMI-NEXT:    orq %rdx, %rax
-; BMI-NEXT:    incq %rax
+; BMI-NEXT:    leaq 1(%rdx,%rax), %rax
 ; BMI-NEXT:    retq
 entry:
   %and1 = and i64 %z, %y
@@ -297,19 +289,17 @@ entry:
 define i64 @or_and_rhs_neg_and_i64(i64 %x, i64 %y, i64 %z) {
 ; NOBMI-LABEL: or_and_rhs_neg_and_i64:
 ; NOBMI:       # %bb.0: # %entry
+; NOBMI-NEXT:    xorq %rdx, %rdi
 ; NOBMI-NEXT:    andq %rsi, %rdi
-; NOBMI-NEXT:    notq %rsi
-; NOBMI-NEXT:    andq %rdx, %rsi
-; NOBMI-NEXT:    orq %rdi, %rsi
-; NOBMI-NEXT:    leaq 1(%rsi), %rax
+; NOBMI-NEXT:    xorq %rdx, %rdi
+; NOBMI-NEXT:    leaq 1(%rdi), %rax
 ; NOBMI-NEXT:    retq
 ;
 ; BMI-LABEL: or_and_rhs_neg_and_i64:
 ; BMI:       # %bb.0: # %entry
 ; BMI-NEXT:    andnq %rdx, %rsi, %rax
 ; BMI-NEXT:    andq %rsi, %rdi
-; BMI-NEXT:    orq %rdi, %rax
-; BMI-NEXT:    incq %rax
+; BMI-NEXT:    leaq 1(%rax,%rdi), %rax
 ; BMI-NEXT:    retq
 entry:
   %xor = xor i64 %y, -1
@@ -323,19 +313,17 @@ entry:
 define i64 @or_and_lhs_neg_and_i64(i64 %x, i64 %y, i64 %z) {
 ; NOBMI-LABEL: or_and_lhs_neg_and_i64:
 ; NOBMI:       # %bb.0: # %entry
+; NOBMI-NEXT:    xorq %rdx, %rdi
 ; NOBMI-NEXT:    andq %rsi, %rdi
-; NOBMI-NEXT:    notq %rsi
-; NOBMI-NEXT:    andq %rdx, %rsi
-; NOBMI-NEXT:    orq %rdi, %rsi
-; NOBMI-NEXT:    leaq 1(%rsi), %rax
+; NOBMI-NEXT:    xorq %rdx, %rdi
+; NOBMI-NEXT:    leaq 1(%rdi), %rax
 ; NOBMI-NEXT:    retq
 ;
 ; BMI-LABEL: or_and_lhs_neg_and_i64:
 ; BMI:       # %bb.0: # %entry
 ; BMI-NEXT:    andnq %rdx, %rsi, %rax
 ; BMI-NEXT:    andq %rsi, %rdi
-; BMI-NEXT:    orq %rdi, %rax
-; BMI-NEXT:    incq %rax
+; BMI-NEXT:    leaq 1(%rax,%rdi), %rax
 ; BMI-NEXT:    retq
 entry:
   %xor = xor i64 %y, -1

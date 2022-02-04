@@ -387,16 +387,16 @@ def simm7s16 : Operand<i32> {
   let PrintMethod = "printImmScale<16>";
 }
 
-def am_sve_fi : ComplexPattern<i64, 2, "SelectAddrModeFrameIndexSVE", []>;
+def am_sve_fi : ComplexPattern<iPTR, 2, "SelectAddrModeFrameIndexSVE", []>;
 
-def am_indexed7s8   : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S8", []>;
-def am_indexed7s16  : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S16", []>;
-def am_indexed7s32  : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S32", []>;
-def am_indexed7s64  : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S64", []>;
-def am_indexed7s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S128", []>;
+def am_indexed7s8   : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed7S8", []>;
+def am_indexed7s16  : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed7S16", []>;
+def am_indexed7s32  : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed7S32", []>;
+def am_indexed7s64  : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed7S64", []>;
+def am_indexed7s128 : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed7S128", []>;
 
-def am_indexedu6s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexedU6S128", []>;
-def am_indexeds9s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexedS9S128", []>;
+def am_indexedu6s128 : ComplexPattern<iPTR, 2, "SelectAddrModeIndexedU6S128", []>;
+def am_indexeds9s128 : ComplexPattern<iPTR, 2, "SelectAddrModeIndexedS9S128", []>;
 
 def UImmS1XForm : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(N->getZExtValue(), SDLoc(N), MVT::i64);
@@ -1816,10 +1816,10 @@ def am_brcond : Operand<OtherVT> {
   let OperandType = "OPERAND_PCREL";
 }
 
-class BranchCond : I<(outs), (ins ccode:$cond, am_brcond:$target),
-                     "b", ".$cond\t$target", "",
-                     [(AArch64brcond bb:$target, imm:$cond, NZCV)]>,
-                   Sched<[WriteBr]> {
+class BranchCond<bit bit4, string mnemonic>
+   : I<(outs), (ins ccode:$cond, am_brcond:$target),
+       mnemonic, ".$cond\t$target", "",
+       [(AArch64brcond bb:$target, imm:$cond, NZCV)]>, Sched<[WriteBr]> {
   let isBranch = 1;
   let isTerminator = 1;
   let Uses = [NZCV];
@@ -1828,7 +1828,7 @@ class BranchCond : I<(outs), (ins ccode:$cond, am_brcond:$target),
   bits<19> target;
   let Inst{31-24} = 0b01010100;
   let Inst{23-5} = target;
-  let Inst{4} = 0;
+  let Inst{4} = bit4;
   let Inst{3-0} = cond;
 }
 
@@ -3177,18 +3177,18 @@ def maski16_or_more : Operand<i32>,
 
 // (unsigned immediate)
 // Indexed for 8-bit registers. offset is in range [0,4095].
-def am_indexed8 : ComplexPattern<i64, 2, "SelectAddrModeIndexed8", []>;
-def am_indexed16 : ComplexPattern<i64, 2, "SelectAddrModeIndexed16", []>;
-def am_indexed32 : ComplexPattern<i64, 2, "SelectAddrModeIndexed32", []>;
-def am_indexed64 : ComplexPattern<i64, 2, "SelectAddrModeIndexed64", []>;
-def am_indexed128 : ComplexPattern<i64, 2, "SelectAddrModeIndexed128", []>;
+def am_indexed8 : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed8", []>;
+def am_indexed16 : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed16", []>;
+def am_indexed32 : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed32", []>;
+def am_indexed64 : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed64", []>;
+def am_indexed128 : ComplexPattern<iPTR, 2, "SelectAddrModeIndexed128", []>;
 
 // (unsigned immediate)
 // Indexed for 8-bit registers. offset is in range [0,63].
-def am_indexed8_6b : ComplexPattern<i64, 2, "SelectAddrModeIndexedUImm<1,63>", []>;
-def am_indexed16_6b : ComplexPattern<i64, 2, "SelectAddrModeIndexedUImm<2,63>", []>;
-def am_indexed32_6b : ComplexPattern<i64, 2, "SelectAddrModeIndexedUImm<4,63>", []>;
-def am_indexed64_6b : ComplexPattern<i64, 2, "SelectAddrModeIndexedUImm<8,63>", []>;
+def am_indexed8_6b : ComplexPattern<iPTR, 2, "SelectAddrModeIndexedUImm<1,63>", []>;
+def am_indexed16_6b : ComplexPattern<iPTR, 2, "SelectAddrModeIndexedUImm<2,63>", []>;
+def am_indexed32_6b : ComplexPattern<iPTR, 2, "SelectAddrModeIndexedUImm<4,63>", []>;
+def am_indexed64_6b : ComplexPattern<iPTR, 2, "SelectAddrModeIndexedUImm<8,63>", []>;
 
 def gi_am_indexed8 :
     GIComplexOperandMatcher<s64, "selectAddrModeIndexed<8>">,
@@ -3358,11 +3358,11 @@ class PrefetchLiteral<bits<2> opc, bit V, string asm, list<dag> pat>
 // Load/store register offset
 //---
 
-def ro_Xindexed8 : ComplexPattern<i64, 4, "SelectAddrModeXRO<8>", []>;
-def ro_Xindexed16 : ComplexPattern<i64, 4, "SelectAddrModeXRO<16>", []>;
-def ro_Xindexed32 : ComplexPattern<i64, 4, "SelectAddrModeXRO<32>", []>;
-def ro_Xindexed64 : ComplexPattern<i64, 4, "SelectAddrModeXRO<64>", []>;
-def ro_Xindexed128 : ComplexPattern<i64, 4, "SelectAddrModeXRO<128>", []>;
+def ro_Xindexed8 : ComplexPattern<iPTR, 4, "SelectAddrModeXRO<8>", []>;
+def ro_Xindexed16 : ComplexPattern<iPTR, 4, "SelectAddrModeXRO<16>", []>;
+def ro_Xindexed32 : ComplexPattern<iPTR, 4, "SelectAddrModeXRO<32>", []>;
+def ro_Xindexed64 : ComplexPattern<iPTR, 4, "SelectAddrModeXRO<64>", []>;
+def ro_Xindexed128 : ComplexPattern<iPTR, 4, "SelectAddrModeXRO<128>", []>;
 
 def gi_ro_Xindexed8 :
     GIComplexOperandMatcher<s64, "selectAddrModeXRO<8>">,
@@ -3380,11 +3380,11 @@ def gi_ro_Xindexed128 :
     GIComplexOperandMatcher<s64, "selectAddrModeXRO<128>">,
     GIComplexPatternEquiv<ro_Xindexed128>;
 
-def ro_Windexed8 : ComplexPattern<i64, 4, "SelectAddrModeWRO<8>", []>;
-def ro_Windexed16 : ComplexPattern<i64, 4, "SelectAddrModeWRO<16>", []>;
-def ro_Windexed32 : ComplexPattern<i64, 4, "SelectAddrModeWRO<32>", []>;
-def ro_Windexed64 : ComplexPattern<i64, 4, "SelectAddrModeWRO<64>", []>;
-def ro_Windexed128 : ComplexPattern<i64, 4, "SelectAddrModeWRO<128>", []>;
+def ro_Windexed8 : ComplexPattern<iPTR, 4, "SelectAddrModeWRO<8>", []>;
+def ro_Windexed16 : ComplexPattern<iPTR, 4, "SelectAddrModeWRO<16>", []>;
+def ro_Windexed32 : ComplexPattern<iPTR, 4, "SelectAddrModeWRO<32>", []>;
+def ro_Windexed64 : ComplexPattern<iPTR, 4, "SelectAddrModeWRO<64>", []>;
+def ro_Windexed128 : ComplexPattern<iPTR, 4, "SelectAddrModeWRO<128>", []>;
 
 def gi_ro_Windexed8 :
     GIComplexOperandMatcher<s64, "selectAddrModeWRO<8>">,
@@ -3880,11 +3880,11 @@ multiclass PrefetchRO<bits<2> sz, bit V, bits<2> opc, string asm> {
 // Load/store unscaled immediate
 //---
 
-def am_unscaled8 :  ComplexPattern<i64, 2, "SelectAddrModeUnscaled8", []>;
-def am_unscaled16 : ComplexPattern<i64, 2, "SelectAddrModeUnscaled16", []>;
-def am_unscaled32 : ComplexPattern<i64, 2, "SelectAddrModeUnscaled32", []>;
-def am_unscaled64 : ComplexPattern<i64, 2, "SelectAddrModeUnscaled64", []>;
-def am_unscaled128 :ComplexPattern<i64, 2, "SelectAddrModeUnscaled128", []>;
+def am_unscaled8 :  ComplexPattern<iPTR, 2, "SelectAddrModeUnscaled8", []>;
+def am_unscaled16 : ComplexPattern<iPTR, 2, "SelectAddrModeUnscaled16", []>;
+def am_unscaled32 : ComplexPattern<iPTR, 2, "SelectAddrModeUnscaled32", []>;
+def am_unscaled64 : ComplexPattern<iPTR, 2, "SelectAddrModeUnscaled64", []>;
+def am_unscaled128 :ComplexPattern<iPTR, 2, "SelectAddrModeUnscaled128", []>;
 
 def gi_am_unscaled8 :
     GIComplexOperandMatcher<s64, "selectAddrModeUnscaled8">,
@@ -7700,10 +7700,10 @@ multiclass SIMDTableLookupTied<bit op, string asm> {
 
 
 //----------------------------------------------------------------------------
-// AdvSIMD scalar CPY
+// AdvSIMD scalar DUP
 //----------------------------------------------------------------------------
 let mayLoad = 0, mayStore = 0, hasSideEffects = 0 in
-class BaseSIMDScalarCPY<RegisterClass regtype, RegisterOperand vectype,
+class BaseSIMDScalarDUP<RegisterClass regtype, RegisterOperand vectype,
                         string asm, string kind, Operand idxtype>
   : I<(outs regtype:$dst), (ins vectype:$src, idxtype:$idx), asm,
        "{\t$dst, $src" # kind # "$idx" #
@@ -7717,30 +7717,30 @@ class BaseSIMDScalarCPY<RegisterClass regtype, RegisterOperand vectype,
   let Inst{4-0}   = dst;
 }
 
-class SIMDScalarCPYAlias<string asm, string size, Instruction inst,
+class SIMDScalarDUPAlias<string asm, string size, Instruction inst,
       RegisterClass regtype, RegisterOperand vectype, Operand idxtype>
     : InstAlias<asm # "{\t$dst, $src" # size # "$index"
                     # "|\t$dst, $src$index}",
                 (inst regtype:$dst, vectype:$src, idxtype:$index), 0>;
 
 
-multiclass SIMDScalarCPY<string asm> {
-  def i8  : BaseSIMDScalarCPY<FPR8,  V128, asm, ".b", VectorIndexB> {
+multiclass SIMDScalarDUP<string asm> {
+  def i8  : BaseSIMDScalarDUP<FPR8,  V128, asm, ".b", VectorIndexB> {
     bits<4> idx;
     let Inst{20-17} = idx;
     let Inst{16} = 1;
   }
-  def i16 : BaseSIMDScalarCPY<FPR16, V128, asm, ".h", VectorIndexH> {
+  def i16 : BaseSIMDScalarDUP<FPR16, V128, asm, ".h", VectorIndexH> {
     bits<3> idx;
     let Inst{20-18} = idx;
     let Inst{17-16} = 0b10;
   }
-  def i32 : BaseSIMDScalarCPY<FPR32, V128, asm, ".s", VectorIndexS> {
+  def i32 : BaseSIMDScalarDUP<FPR32, V128, asm, ".s", VectorIndexS> {
     bits<2> idx;
     let Inst{20-19} = idx;
     let Inst{18-16} = 0b100;
   }
-  def i64 : BaseSIMDScalarCPY<FPR64, V128, asm, ".d", VectorIndexD> {
+  def i64 : BaseSIMDScalarDUP<FPR64, V128, asm, ".d", VectorIndexD> {
     bits<1> idx;
     let Inst{20} = idx;
     let Inst{19-16} = 0b1000;
@@ -7751,16 +7751,16 @@ multiclass SIMDScalarCPY<string asm> {
             (!cast<Instruction>(NAME # i64) V128:$src, VectorIndexD:$idx)>;
 
   // 'DUP' mnemonic aliases.
-  def : SIMDScalarCPYAlias<"dup", ".b",
+  def : SIMDScalarDUPAlias<"dup", ".b",
                            !cast<Instruction>(NAME#"i8"),
                            FPR8, V128, VectorIndexB>;
-  def : SIMDScalarCPYAlias<"dup", ".h",
+  def : SIMDScalarDUPAlias<"dup", ".h",
                            !cast<Instruction>(NAME#"i16"),
                            FPR16, V128, VectorIndexH>;
-  def : SIMDScalarCPYAlias<"dup", ".s",
+  def : SIMDScalarDUPAlias<"dup", ".s",
                            !cast<Instruction>(NAME#"i32"),
                            FPR32, V128, VectorIndexS>;
-  def : SIMDScalarCPYAlias<"dup", ".d",
+  def : SIMDScalarDUPAlias<"dup", ".d",
                            !cast<Instruction>(NAME#"i64"),
                            FPR64, V128, VectorIndexD>;
 }
@@ -11428,6 +11428,123 @@ class Store64BV<bits<3> opc, string asm_inst, list<dag> pat = []>
                        (ins GPR64x8:$Rt, GPR64sp:$Rn), (outs GPR64:$Rs), pat> {
   bits<5> Rs;
   let Inst{20-16} = Rs;
+}
+
+class MOPSMemoryCopyMoveBase<bit isMove, bits<2> opcode, bits<2> op1,
+                             bits<2> op2, string asm>
+  : I<(outs GPR64common:$Rd_wb, GPR64common:$Rs_wb, GPR64:$Rn_wb),
+      (ins GPR64common:$Rd, GPR64common:$Rs, GPR64:$Rn),
+      asm, "\t[$Rd]!, [$Rs]!, $Rn!",
+      "$Rd = $Rd_wb,$Rs = $Rs_wb,$Rn = $Rn_wb", []>,
+    Sched<[]> {
+  bits<5> Rd;
+  bits<5> Rs;
+  bits<5> Rn;
+  let Inst{31-27} = 0b00011;
+  let Inst{26} = isMove;
+  let Inst{25-24} = 0b01;
+  let Inst{23-22} = opcode;
+  let Inst{21} = 0b0;
+  let Inst{20-16} = Rs;
+  let Inst{15-14} = op2;
+  let Inst{13-12} = op1;
+  let Inst{11-10} = 0b01;
+  let Inst{9-5} = Rn;
+  let Inst{4-0} = Rd;
+
+  let DecoderMethod = "DecodeCPYMemOpInstruction";
+  let mayLoad = 1;
+  let mayStore = 1;
+}
+
+class MOPSMemoryCopy<bits<2> opcode, bits<2> op1, bits<2> op2, string asm>
+  : MOPSMemoryCopyMoveBase<0, opcode, op1, op2, asm>;
+
+class MOPSMemoryMove<bits<2> opcode, bits<2> op1, bits<2> op2, string asm>
+  : MOPSMemoryCopyMoveBase<1, opcode, op1, op2, asm>;
+
+class MOPSMemorySetBase<bit isTagging, bits<2> opcode, bit op1, bit op2,
+                        string asm>
+  : I<(outs GPR64common:$Rd_wb, GPR64:$Rn_wb),
+      (ins GPR64common:$Rd, GPR64:$Rn, GPR64:$Rm),
+      asm, "\t[$Rd]!, $Rn!, $Rm",
+      "$Rd = $Rd_wb,$Rn = $Rn_wb", []>,
+    Sched<[]> {
+  bits<5> Rd;
+  bits<5> Rn;
+  bits<5> Rm;
+  let Inst{31-27} = 0b00011;
+  let Inst{26} = isTagging;
+  let Inst{25-21} = 0b01110;
+  let Inst{20-16} = Rm;
+  let Inst{15-14} = opcode;
+  let Inst{13} = op2;
+  let Inst{12} = op1;
+  let Inst{11-10} = 0b01;
+  let Inst{9-5} = Rn;
+  let Inst{4-0} = Rd;
+
+  let DecoderMethod = "DecodeSETMemOpInstruction";
+  let mayLoad = 0;
+  let mayStore = 1;
+}
+
+class MOPSMemorySet<bits<2> opcode, bit op1, bit op2, string asm>
+  : MOPSMemorySetBase<0, opcode, op1, op2, asm>;
+
+class MOPSMemorySetTagging<bits<2> opcode, bit op1, bit op2, string asm>
+  : MOPSMemorySetBase<1, opcode, op1, op2, asm>;
+
+multiclass MOPSMemoryCopyInsns<bits<2> opcode, string asm> {
+  def ""   : MOPSMemoryCopy<opcode, 0b00, 0b00, asm>;
+  def WN   : MOPSMemoryCopy<opcode, 0b00, 0b01, asm # "wn">;
+  def RN   : MOPSMemoryCopy<opcode, 0b00, 0b10, asm # "rn">;
+  def N    : MOPSMemoryCopy<opcode, 0b00, 0b11, asm # "n">;
+  def WT   : MOPSMemoryCopy<opcode, 0b01, 0b00, asm # "wt">;
+  def WTWN : MOPSMemoryCopy<opcode, 0b01, 0b01, asm # "wtwn">;
+  def WTRN : MOPSMemoryCopy<opcode, 0b01, 0b10, asm # "wtrn">;
+  def WTN  : MOPSMemoryCopy<opcode, 0b01, 0b11, asm # "wtn">;
+  def RT   : MOPSMemoryCopy<opcode, 0b10, 0b00, asm # "rt">;
+  def RTWN : MOPSMemoryCopy<opcode, 0b10, 0b01, asm # "rtwn">;
+  def RTRN : MOPSMemoryCopy<opcode, 0b10, 0b10, asm # "rtrn">;
+  def RTN  : MOPSMemoryCopy<opcode, 0b10, 0b11, asm # "rtn">;
+  def T    : MOPSMemoryCopy<opcode, 0b11, 0b00, asm # "t">;
+  def TWN  : MOPSMemoryCopy<opcode, 0b11, 0b01, asm # "twn">;
+  def TRN  : MOPSMemoryCopy<opcode, 0b11, 0b10, asm # "trn">;
+  def TN   : MOPSMemoryCopy<opcode, 0b11, 0b11, asm # "tn">;
+}
+
+multiclass MOPSMemoryMoveInsns<bits<2> opcode, string asm> {
+  def ""   : MOPSMemoryMove<opcode, 0b00, 0b00, asm>;
+  def WN   : MOPSMemoryMove<opcode, 0b00, 0b01, asm # "wn">;
+  def RN   : MOPSMemoryMove<opcode, 0b00, 0b10, asm # "rn">;
+  def N    : MOPSMemoryMove<opcode, 0b00, 0b11, asm # "n">;
+  def WT   : MOPSMemoryMove<opcode, 0b01, 0b00, asm # "wt">;
+  def WTWN : MOPSMemoryMove<opcode, 0b01, 0b01, asm # "wtwn">;
+  def WTRN : MOPSMemoryMove<opcode, 0b01, 0b10, asm # "wtrn">;
+  def WTN  : MOPSMemoryMove<opcode, 0b01, 0b11, asm # "wtn">;
+  def RT   : MOPSMemoryMove<opcode, 0b10, 0b00, asm # "rt">;
+  def RTWN : MOPSMemoryMove<opcode, 0b10, 0b01, asm # "rtwn">;
+  def RTRN : MOPSMemoryMove<opcode, 0b10, 0b10, asm # "rtrn">;
+  def RTN  : MOPSMemoryMove<opcode, 0b10, 0b11, asm # "rtn">;
+  def T    : MOPSMemoryMove<opcode, 0b11, 0b00, asm # "t">;
+  def TWN  : MOPSMemoryMove<opcode, 0b11, 0b01, asm # "twn">;
+  def TRN  : MOPSMemoryMove<opcode, 0b11, 0b10, asm # "trn">;
+  def TN   : MOPSMemoryMove<opcode, 0b11, 0b11, asm # "tn">;
+}
+
+multiclass MOPSMemorySetInsns<bits<2> opcode, string asm> {
+  def "" : MOPSMemorySet<opcode, 0, 0, asm>;
+  def T  : MOPSMemorySet<opcode, 1, 0, asm # "t">;
+  def N  : MOPSMemorySet<opcode, 0, 1, asm # "n">;
+  def TN : MOPSMemorySet<opcode, 1, 1, asm # "tn">;
+}
+
+multiclass MOPSMemorySetTaggingInsns<bits<2> opcode, string asm> {
+  def "" : MOPSMemorySetTagging<opcode, 0, 0, asm>;
+  def T  : MOPSMemorySetTagging<opcode, 1, 0, asm # "t">;
+  def N  : MOPSMemorySetTagging<opcode, 0, 1, asm # "n">;
+  def TN : MOPSMemorySetTagging<opcode, 1, 1, asm # "tn">;
 }
 
 //----------------------------------------------------------------------------

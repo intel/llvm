@@ -49,7 +49,18 @@ def OpAsmOpInterface : OpInterface<"OpAsmOpInterface"> {
       }],
       "void", "getAsmResultNames",
       (ins "::mlir::OpAsmSetValueNameFn":$setNameFn),
-      "", ";"
+      "", "return;"
+    >,
+    InterfaceMethod<[{
+        Get a special name to use when printing the block arguments for a region
+        immediately nested under this operation.
+      }],
+      "void", "getAsmBlockArgumentNames",
+      (ins
+        "::mlir::Region&":$region,
+        "::mlir::OpAsmSetValueNameFn":$setNameFn
+      ),
+      "", "return;"
     >,
     StaticInterfaceMethod<[{
       Return the default dialect used when printing/parsing operations in
@@ -59,7 +70,7 @@ def OpAsmOpInterface : OpInterface<"OpAsmOpInterface"> {
       returned `spv`. The default implementation returns an empty string which
       is ignored.
       }],
-      "StringRef", "getDefaultDialect", (ins), "", "return \"\";"
+      "::llvm::StringRef", "getDefaultDialect", (ins), "", "return \"\";"
     >,
   ];
 }

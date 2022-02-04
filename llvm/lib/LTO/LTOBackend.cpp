@@ -37,7 +37,6 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
-#include "llvm/Support/SmallVectorMemoryBuffer.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -230,8 +229,7 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
     PGOOpt = PGOOptions("", "", "", PGOOptions::NoAction,
                         PGOOptions::NoCSAction, true);
   }
-  if (TM)
-    TM->setPGOOption(PGOOpt);
+  TM->setPGOOption(PGOOpt);
 
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
@@ -413,7 +411,11 @@ static void codegen(const Config &Conf, TargetMachine *TM,
   if (Error Err = StreamOrErr.takeError())
     report_fatal_error(std::move(Err));
   std::unique_ptr<CachedFileStream> &Stream = *StreamOrErr;
+  TM->Options.ObjectFilenameForDebug = Stream->ObjectPathName;
+
   legacy::PassManager CodeGenPasses;
+  TargetLibraryInfoImpl TLII(Triple(Mod.getTargetTriple()));
+  CodeGenPasses.add(new TargetLibraryInfoWrapperPass(TLII));
   CodeGenPasses.add(
       createImmutableModuleSummaryIndexWrapperPass(&CombinedIndex));
   if (Conf.PreCodeGenPassesHook)

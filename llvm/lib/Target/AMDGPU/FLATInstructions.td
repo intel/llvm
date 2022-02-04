@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-def FlatOffset : ComplexPattern<i64, 2, "SelectFlatOffset", [], [SDNPWantRoot], -10>;
-def GlobalOffset : ComplexPattern<i64, 2, "SelectGlobalOffset", [], [SDNPWantRoot], -10>;
-def ScratchOffset : ComplexPattern<i32, 2, "SelectScratchOffset", [], [SDNPWantRoot], -10>;
+def FlatOffset : ComplexPattern<iPTR, 2, "SelectFlatOffset", [], [SDNPWantRoot], -10>;
+def GlobalOffset : ComplexPattern<iPTR, 2, "SelectGlobalOffset", [], [SDNPWantRoot], -10>;
+def ScratchOffset : ComplexPattern<iPTR, 2, "SelectScratchOffset", [], [SDNPWantRoot], -10>;
 
-def GlobalSAddr : ComplexPattern<i64, 3, "SelectGlobalSAddr", [], [SDNPWantRoot], -10>;
-def ScratchSAddr : ComplexPattern<i32, 2, "SelectScratchSAddr", [], [SDNPWantRoot], -10>;
+def GlobalSAddr : ComplexPattern<iPTR, 3, "SelectGlobalSAddr", [], [SDNPWantRoot], -10>;
+def ScratchSAddr : ComplexPattern<iPTR, 2, "SelectScratchSAddr", [], [SDNPWantRoot], -10>;
 
 //===----------------------------------------------------------------------===//
 // FLAT classes
@@ -915,7 +915,7 @@ class FlatSignedAtomicPatNoRtn <FLAT_Pseudo inst, SDPatternOperator node, ValueT
 class FlatSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt,
                            ValueType data_vt = vt> : GCNPat <
   (vt (node (GlobalOffset i64:$vaddr, i16:$offset), data_vt:$data)),
-  (inst $vaddr, $data, $offset)
+  (inst VReg_64:$vaddr, getVregSrcForVT<data_vt>.ret:$data, $offset)
 >;
 
 class ScratchLoadSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <

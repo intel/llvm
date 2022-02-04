@@ -484,10 +484,8 @@ PlatformDarwinKernel::GetKernelsAndKextsInDirectoryHelper(
   ConstString file_spec_extension = file_spec.GetFileNameExtension();
 
   Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
-  Log *log_verbose(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM | LLDB_LOG_OPTION_VERBOSE));
 
-  LLDB_LOGF(log_verbose, "PlatformDarwinKernel examining '%s'",
-            file_spec.GetPath().c_str());
+  LLDB_LOGV(log, "PlatformDarwinKernel examining '{0}'", file_spec);
 
   PlatformDarwinKernel *thisp = (PlatformDarwinKernel *)baton;
 
@@ -567,9 +565,8 @@ PlatformDarwinKernel::GetKernelsAndKextsInDirectoryHelper(
   if (recurse && file_spec_extension != g_dsym_suffix &&
       file_spec_extension != g_kext_suffix &&
       file_spec_extension != g_bundle_suffix) {
-    LLDB_LOGF(log_verbose,
-              "PlatformDarwinKernel descending into directory '%s'",
-              file_spec.GetPath().c_str());
+    LLDB_LOGV(log, "PlatformDarwinKernel descending into directory '{0}'",
+              file_spec);
     return FileSystem::eEnumerateDirectoryResultEnter;
   } else {
     return FileSystem::eEnumerateDirectoryResultNext;
@@ -911,13 +908,14 @@ Status PlatformDarwinKernel::ExamineKextForMatchingUUID(
   return {};
 }
 
-bool PlatformDarwinKernel::GetSupportedArchitectureAtIndex(uint32_t idx,
-                                                           ArchSpec &arch) {
+std::vector<ArchSpec> PlatformDarwinKernel::GetSupportedArchitectures() {
+  std::vector<ArchSpec> result;
 #if defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
-  return ARMGetSupportedArchitectureAtIndex(idx, arch);
+  ARMGetSupportedArchitectures(result);
 #else
-  return x86GetSupportedArchitectureAtIndex(idx, arch);
+  x86GetSupportedArchitectures(result);
 #endif
+  return result;
 }
 
 void PlatformDarwinKernel::CalculateTrapHandlerSymbolNames() {

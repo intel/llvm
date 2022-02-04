@@ -36,7 +36,6 @@ posix_defines = [
     "HAVE_STRERROR_R=1",
     "HAVE_SYSEXITS_H=1",
     "HAVE_UNISTD_H=1",
-    "LLVM_WINDOWS_PREFER_FORWARD_SLASH=0",
 ]
 
 linux_defines = posix_defines + [
@@ -44,7 +43,6 @@ linux_defines = posix_defines + [
     "HAVE_LINK_H=1",
     "HAVE_LSEEK64=1",
     "HAVE_MALLINFO=1",
-    "HAVE_POSIX_FALLOCATE=1",
     "HAVE_SBRK=1",
     "HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC=1",
 ]
@@ -71,7 +69,6 @@ win32_defines = [
     # LLVM features
     r'LTDL_SHLIB_EXT=\".dll\"',
     r'LLVM_PLUGIN_EXT=\".dll\"',
-    "LLVM_WINDOWS_PREFER_FORWARD_SLASH=1",
 ]
 
 # TODO: We should switch to platforms-based config settings to make this easier

@@ -251,30 +251,29 @@ public:
   template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    event Event;
-
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
                                           event &E) {
         if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert) {
+            KernelUsesAssert && !device_has(aspect::accelerator)) {
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
           // performed by program manager class
+          // Fallback assert isn't supported for FPGA
           submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
                               CodeLoc);
         }
       };
 
-      Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      return discard_or_return(Event);
     } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
     {
-      Event = submit_impl(CGF, CodeLoc);
+      auto Event = submit_impl(CGF, CodeLoc);
+      return discard_or_return(Event);
     }
-
-    return Event;
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -292,14 +291,12 @@ public:
   event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    event Event;
-
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
       auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
                              bool IsKernel, bool KernelUsesAssert, event &E) {
         if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert) {
+            KernelUsesAssert && !device_has(aspect::accelerator)) {
           // Only secondary queues on devices need to be added to the assert
           // capture.
           // TODO: Handle case where primary queue is host but the secondary
@@ -309,19 +306,20 @@ public:
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
           // performed by program manager class
+          // Fallback assert isn't supported for FPGA
           submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
         }
       };
 
-      Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
-                                          PostProcess);
+      auto Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                               PostProcess);
+      return discard_or_return(Event);
     } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
     {
-      Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      return discard_or_return(Event);
     }
-
-    return Event;
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -1086,6 +1084,10 @@ private:
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+
+  /// Checks if the event needs to be discarded and if so, discards it and
+  /// returns a discarded event. Otherwise, it returns input event.
+  event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command
   // Arguments:

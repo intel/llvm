@@ -84,6 +84,8 @@ class VEAsmParser : public MCTargetAsmParser {
   StringRef splitMnemonic(StringRef Name, SMLoc NameLoc,
                           OperandVector *Operands);
 
+  bool parseLiteralValues(unsigned Size, SMLoc L);
+
 public:
   VEAsmParser(const MCSubtargetInfo &sti, MCAsmParser &parser,
               const MCInstrInfo &MII, const MCTargetOptions &Options)
@@ -208,7 +210,7 @@ private:
   };
 
 public:
-  VEOperand(KindTy K) : MCParsedAsmOperand(), Kind(K) {}
+  VEOperand(KindTy K) : Kind(K) {}
 
   bool isToken() const override { return Kind == k_Token; }
   bool isReg() const override { return Kind == k_Register; }
@@ -994,8 +996,41 @@ bool VEAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
 }
 
 bool VEAsmParser::ParseDirective(AsmToken DirectiveID) {
+  std::string IDVal = DirectiveID.getIdentifier().lower();
+
+  // Defines VE specific directives.  Reference is "Vector Engine Assembly
+  // Language Reference Manual":
+  // https://www.hpc.nec/documents/sdk/pdfs/VectorEngine-as-manual-v1.3.pdf
+
+  // The .word is 4 bytes long on VE.
+  if (IDVal == ".word")
+    return parseLiteralValues(4, DirectiveID.getLoc());
+
+  // The .long is 8 bytes long on VE.
+  if (IDVal == ".long")
+    return parseLiteralValues(8, DirectiveID.getLoc());
+
+  // The .llong is 8 bytes long on VE.
+  if (IDVal == ".llong")
+    return parseLiteralValues(8, DirectiveID.getLoc());
+
   // Let the MC layer to handle other directives.
   return true;
+}
+
+/// parseLiteralValues
+///  ::= .word expression [, expression]*
+///  ::= .long expression [, expression]*
+///  ::= .llong expression [, expression]*
+bool VEAsmParser::parseLiteralValues(unsigned Size, SMLoc L) {
+  auto parseOne = [&]() -> bool {
+    const MCExpr *Value;
+    if (getParser().parseExpression(Value))
+      return true;
+    getParser().getStreamer().emitValue(Value, Size, L);
+    return false;
+  };
+  return (parseMany(parseOne));
 }
 
 /// Extract \code @lo32/@hi32/etc \endcode modifier from expression.

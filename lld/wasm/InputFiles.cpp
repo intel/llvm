@@ -12,8 +12,7 @@
 #include "InputElement.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
-#include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Memory.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Reproduce.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/Wasm.h"
@@ -197,6 +196,9 @@ uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
     return getTagSymbol(reloc.Index)->getTagIndex();
   case R_WASM_FUNCTION_OFFSET_I32:
   case R_WASM_FUNCTION_OFFSET_I64: {
+    if (isa<UndefinedFunction>(sym)) {
+      return tombstone ? tombstone : reloc.Addend;
+    }
     auto *f = cast<DefinedFunction>(sym);
     return f->function->getOffset(f->function->getFunctionCodeOffset() +
                                   reloc.Addend);
@@ -718,7 +720,7 @@ static uint8_t mapVisibility(GlobalValue::VisibilityTypes gvVisibility) {
 static Symbol *createBitcodeSymbol(const std::vector<bool> &keptComdats,
                                    const lto::InputFile::Symbol &objSym,
                                    BitcodeFile &f) {
-  StringRef name = saver.save(objSym.getName());
+  StringRef name = saver().save(objSym.getName());
 
   uint32_t flags = objSym.isWeak() ? WASM_SYMBOL_BINDING_WEAK : 0;
   flags |= mapVisibility(objSym.getVisibility());
@@ -753,9 +755,9 @@ BitcodeFile::BitcodeFile(MemoryBufferRef m, StringRef archiveName,
   // symbols later in the link stage). So we append file offset to make
   // filename unique.
   StringRef name = archiveName.empty()
-                       ? saver.save(path)
-                       : saver.save(archiveName + "(" + path::filename(path) +
-                                    " at " + utostr(offsetInArchive) + ")");
+                       ? saver().save(path)
+                       : saver().save(archiveName + "(" + path::filename(path) +
+                                      " at " + utostr(offsetInArchive) + ")");
   MemoryBufferRef mbref(mb.getBuffer(), name);
 
   obj = check(lto::InputFile::create(mbref));

@@ -51,7 +51,9 @@ static void CollectThreadLeaks(ThreadContextBase *tctx_base, void *arg) {
 }
 #endif
 
-#if !SANITIZER_GO
+// Disabled on Mac because lldb test TestTsanBasic fails:
+// https://reviews.llvm.org/D112603#3163158
+#if !SANITIZER_GO && !SANITIZER_MAC
 static void ReportIgnoresEnabled(ThreadContext *tctx, IgnoreSet *set) {
   if (tctx->tid == kMainTid) {
     Printf("ThreadSanitizer: main thread finished with ignores enabled\n");

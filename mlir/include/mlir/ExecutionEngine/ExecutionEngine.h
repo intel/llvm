@@ -37,9 +37,9 @@ class ModuleOp;
 /// A simple object cache following Lang's LLJITWithObjectCache example.
 class SimpleObjectCache : public llvm::ObjectCache {
 public:
-  void notifyObjectCompiled(const llvm::Module *M,
-                            llvm::MemoryBufferRef ObjBuffer) override;
-  std::unique_ptr<llvm::MemoryBuffer> getObject(const llvm::Module *M) override;
+  void notifyObjectCompiled(const llvm::Module *m,
+                            llvm::MemoryBufferRef objBuffer) override;
+  std::unique_ptr<llvm::MemoryBuffer> getObject(const llvm::Module *m) override;
 
   /// Dump cached object to output file `filename`.
   void dumpToObjectFile(StringRef filename);
@@ -197,6 +197,6 @@ private:
   llvm::JITEventListener *perfListener;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_EXECUTIONENGINE_EXECUTIONENGINE_H_

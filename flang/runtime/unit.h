@@ -35,6 +35,8 @@ class ExternalFileUnit : public ConnectionState,
                          public FileFrame<ExternalFileUnit> {
 public:
   explicit ExternalFileUnit(int unitNumber) : unitNumber_{unitNumber} {}
+  ~ExternalFileUnit() {}
+
   int unitNumber() const { return unitNumber_; }
   bool swapEndianness() const { return swapEndianness_; }
   bool createdForInternalChildIo() const { return createdForInternalChildIo_; }
@@ -181,7 +183,7 @@ private:
       ChildListIoStatementState<Direction::Output>,
       ChildListIoStatementState<Direction::Input>,
       ChildUnformattedIoStatementState<Direction::Output>,
-      ChildUnformattedIoStatementState<Direction::Input>>
+      ChildUnformattedIoStatementState<Direction::Input>, InquireUnitState>
       u_;
   std::optional<IoStatementState> io_;
 };

@@ -12,9 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/LoopAnalysis.h"
-#include "mlir/Analysis/NestedMatcher.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/NestedMatcher.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
@@ -388,9 +388,9 @@ using namespace vector;
 /// produces this standard innermost-loop vectorized code:
 /// ```mlir
 /// func @vector_add_2d(%arg0 : index, %arg1 : index) -> f32 {
-///   %0 = alloc(%arg0, %arg1) : memref<?x?xf32>
-///   %1 = alloc(%arg0, %arg1) : memref<?x?xf32>
-///   %2 = alloc(%arg0, %arg1) : memref<?x?xf32>
+///   %0 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
+///   %1 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
+///   %2 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
 ///   %cst = arith.constant 1.0 : f32
 ///   %cst_0 = arith.constant 2.0 : f32
 ///   affine.for %i0 = 0 to %arg0 {
@@ -442,9 +442,9 @@ using namespace vector;
 /// produces this more interesting mixed outer-innermost-loop vectorized code:
 /// ```mlir
 /// func @vector_add_2d(%arg0 : index, %arg1 : index) -> f32 {
-///   %0 = alloc(%arg0, %arg1) : memref<?x?xf32>
-///   %1 = alloc(%arg0, %arg1) : memref<?x?xf32>
-///   %2 = alloc(%arg0, %arg1) : memref<?x?xf32>
+///   %0 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
+///   %1 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
+///   %2 = memref.alloc(%arg0, %arg1) : memref<?x?xf32>
 ///   %cst = arith.constant 1.0 : f32
 ///   %cst_0 = arith.constant 2.0 : f32
 ///   affine.for %i0 = 0 to %arg0 step 32 {
@@ -608,10 +608,10 @@ namespace {
 struct Vectorize : public AffineVectorizeBase<Vectorize> {
   Vectorize() = default;
   Vectorize(ArrayRef<int64_t> virtualVectorSize);
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
-} // end anonymous namespace
+} // namespace
 
 Vectorize::Vectorize(ArrayRef<int64_t> virtualVectorSize) {
   vectorSizes = virtualVectorSize;
@@ -755,7 +755,7 @@ struct VectorizationState {
   DenseMap<Operation *, Value> vecLoopToMask;
 
   // The strategy drives which loop to vectorize by which amount.
-  const VectorizationStrategy *strategy;
+  const VectorizationStrategy *strategy = nullptr;
 
 private:
   /// Internal implementation to map input scalar values to new vector or scalar
@@ -764,7 +764,7 @@ private:
   void registerValueScalarReplacementImpl(Value replaced, Value replacement);
 };
 
-} // end namespace
+} // namespace
 
 /// Registers the vector replacement of a scalar operation and its result
 /// values. Both operations must have the same number of results.
@@ -971,7 +971,7 @@ static arith::ConstantOp vectorizeConstant(arith::ConstantOp constOp,
 /// Creates a constant vector filled with the neutral elements of the given
 /// reduction. The scalar type of vector elements will be taken from
 /// `oldOperand`.
-static arith::ConstantOp createInitialVector(AtomicRMWKind reductionKind,
+static arith::ConstantOp createInitialVector(arith::AtomicRMWKind reductionKind,
                                              Value oldOperand,
                                              VectorizationState &state) {
   Type scalarTy = oldOperand.getType();
@@ -1245,8 +1245,8 @@ static Operation *vectorizeAffineStore(AffineStoreOp storeOp,
 
 /// Returns true if `value` is a constant equal to the neutral element of the
 /// given vectorizable reduction.
-static bool isNeutralElementConst(AtomicRMWKind reductionKind, Value value,
-                                  VectorizationState &state) {
+static bool isNeutralElementConst(arith::AtomicRMWKind reductionKind,
+                                  Value value, VectorizationState &state) {
   Type scalarTy = value.getType();
   if (!VectorType::isValidElementType(scalarTy))
     return false;
@@ -1324,7 +1324,6 @@ static Operation *vectorizeAffineForOp(AffineForOp forOp,
       /*bodyBuilder=*/[](OpBuilder &, Location, Value, ValueRange) {
         // Make sure we don't create a default terminator in the loop body as
         // the proper terminator will be added during vectorization.
-        return;
       });
 
   // Register loop-related replacements:
@@ -1361,7 +1360,8 @@ static Operation *vectorizeAffineForOp(AffineForOp forOp,
       Value origInit = forOp.getOperand(forOp.getNumControlOperands() + i);
       Value finalRes = reducedRes;
       if (!isNeutralElementConst(reductions[i].kind, origInit, state))
-        finalRes = getReductionOp(reductions[i].kind, state.builder,
+        finalRes =
+            arith::getReductionOp(reductions[i].kind, state.builder,
                                   reducedRes.getLoc(), reducedRes, origInit);
       state.registerLoopResultScalarReplacement(forOp.getResult(i), finalRes);
     }
@@ -1406,9 +1406,9 @@ static Operation *widenOp(Operation *op, VectorizationState &state) {
   // name that works both in scalar mode and vector mode.
   // TODO: Is it worth considering an Operation.clone operation which
   // changes the type so we can promote an Operation with less boilerplate?
-  OperationState vecOpState(op->getLoc(), op->getName().getStringRef(),
-                            vectorOperands, vectorTypes, op->getAttrs(),
-                            /*successors=*/{}, /*regions=*/{});
+  OperationState vecOpState(op->getLoc(), op->getName(), vectorOperands,
+                            vectorTypes, op->getAttrs(), /*successors=*/{},
+                            /*regions=*/{});
   Operation *vecOp = state.builder.createOperation(vecOpState);
   state.registerOpVectorReplacement(op, vecOp);
   return vecOp;
@@ -1494,7 +1494,7 @@ getMatchedAffineLoopsRec(NestedMatch match, unsigned currentLevel,
   // Add a new empty level to the output if it doesn't exist already.
   assert(currentLevel <= loops.size() && "Unexpected currentLevel");
   if (currentLevel == loops.size())
-    loops.push_back(SmallVector<AffineForOp, 2>());
+    loops.emplace_back();
 
   // Add current match and recursively visit its children.
   loops[currentLevel].push_back(cast<AffineForOp>(match.getMatchedOperation()));
@@ -1631,7 +1631,7 @@ static void computeIntersectionBuckets(
     // it.
     if (!intersects) {
       bucketRoots.push_back(matchRoot);
-      intersectionBuckets.push_back(SmallVector<NestedMatch, 8>());
+      intersectionBuckets.emplace_back();
       intersectionBuckets.back().push_back(match);
     }
   }
@@ -1709,8 +1709,8 @@ std::unique_ptr<OperationPass<FuncOp>> createSuperVectorizePass() {
 
 /// Applies vectorization to the current function by searching over a bunch of
 /// predetermined patterns.
-void Vectorize::runOnFunction() {
-  FuncOp f = getFunction();
+void Vectorize::runOnOperation() {
+  FuncOp f = getOperation();
   if (!fastestVaryingPattern.empty() &&
       fastestVaryingPattern.size() != vectorSizes.size()) {
     f.emitRemark("Fastest varying pattern specified with different size than "

@@ -99,15 +99,12 @@ class CXXMethodDecl;
 class CXXRecordDecl;
 class DiagnosticsEngine;
 class ParentMapContext;
-class DynTypedNode;
 class DynTypedNodeList;
 class Expr;
 enum class FloatModeKind;
 class GlobalDecl;
-class ItaniumMangleContext;
 class MangleContext;
 class MangleNumberingContext;
-class MaterializeTemporaryExpr;
 class MemberSpecializationInfo;
 class Module;
 struct MSGuidDeclParts;
@@ -126,7 +123,6 @@ class ObjCTypeParamDecl;
 class OMPTraitInfo;
 struct ParsedTargetAttr;
 class Preprocessor;
-class Stmt;
 class StoredDeclsMap;
 class TargetAttr;
 class TargetInfo;
@@ -248,6 +244,7 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::ContextualFoldingSet<TemplateSpecializationType, ASTContext&>
     TemplateSpecializationTypes;
   mutable llvm::FoldingSet<ParenType> ParenTypes;
+  mutable llvm::FoldingSet<UsingType> UsingTypes;
   mutable llvm::FoldingSet<ElaboratedType> ElaboratedTypes;
   mutable llvm::FoldingSet<DependentNameType> DependentNameTypes;
   mutable llvm::ContextualFoldingSet<DependentTemplateSpecializationType,
@@ -264,8 +261,8 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::FoldingSet<AtomicType> AtomicTypes;
   llvm::FoldingSet<AttributedType> AttributedTypes;
   mutable llvm::FoldingSet<PipeType> PipeTypes;
-  mutable llvm::FoldingSet<ExtIntType> ExtIntTypes;
-  mutable llvm::FoldingSet<DependentExtIntType> DependentExtIntTypes;
+  mutable llvm::FoldingSet<BitIntType> BitIntTypes;
+  mutable llvm::FoldingSet<DependentBitIntType> DependentBitIntTypes;
 
   mutable llvm::FoldingSet<QualifiedTemplateName> QualifiedTemplateNames;
   mutable llvm::FoldingSet<DependentTemplateName> DependentTemplateNames;
@@ -1355,13 +1352,13 @@ public:
   /// Return a write_only pipe type for the specified type.
   QualType getWritePipeType(QualType T) const;
 
-  /// Return an extended integer type with the specified signedness and bit
+  /// Return a bit-precise integer type with the specified signedness and bit
   /// count.
-  QualType getExtIntType(bool Unsigned, unsigned NumBits) const;
+  QualType getBitIntType(bool Unsigned, unsigned NumBits) const;
 
-  /// Return a dependent extended integer type with the specified signedness and
-  /// bit count.
-  QualType getDependentExtIntType(bool Unsigned, Expr *BitsExpr) const;
+  /// Return a dependent bit-precise integer type with the specified signedness
+  /// and bit count.
+  QualType getDependentBitIntType(bool Unsigned, Expr *BitsExpr) const;
 
   /// Gets the struct used to keep track of the extended descriptor for
   /// pointer to blocks.
@@ -1560,6 +1557,9 @@ public:
     return getTypeDeclTypeSlow(Decl);
   }
 
+  QualType getUsingType(const UsingShadowDecl *Found,
+                        QualType Underlying) const;
+
   /// Return the unique reference to the type for the specified
   /// typedef-name decl.
   QualType getTypedefType(const TypedefNameDecl *Decl,
@@ -1568,6 +1568,9 @@ public:
   QualType getRecordType(const RecordDecl *Decl) const;
 
   QualType getEnumType(const EnumDecl *Decl) const;
+
+  QualType
+  getUnresolvedUsingType(const UnresolvedUsingTypenameDecl *Decl) const;
 
   QualType getInjectedClassNameType(CXXRecordDecl *Decl, QualType TST) const;
 
@@ -2624,6 +2627,18 @@ public:
   /// template.
   bool hasSameTemplateName(TemplateName X, TemplateName Y);
 
+  /// Determine whether the two declarations refer to the same entity.
+  bool isSameEntity(NamedDecl *X, NamedDecl *Y);
+
+  /// Determine whether two template parameter lists are similar enough
+  /// that they may be used in declarations of the same template.
+  bool isSameTemplateParameterList(TemplateParameterList *X,
+                                   TemplateParameterList *Y);
+
+  /// Determine whether two template parameters are similar enough
+  /// that they may be used in declarations of the same template.
+  bool isSameTemplateParameter(NamedDecl *X, NamedDecl *Y);
+
   /// Retrieve the "canonical" template argument.
   ///
   /// The canonical template argument is the simplest template argument
@@ -2728,13 +2743,9 @@ public:
   QualType getFloatingTypeOfSizeWithinDomain(QualType typeSize,
                                              QualType typeDomain) const;
 
-  unsigned getTargetAddressSpace(QualType T) const {
-    return getTargetAddressSpace(T.getQualifiers());
-  }
+  unsigned getTargetAddressSpace(QualType T) const;
 
-  unsigned getTargetAddressSpace(Qualifiers Q) const {
-    return getTargetAddressSpace(Q.getAddressSpace());
-  }
+  unsigned getTargetAddressSpace(Qualifiers Q) const;
 
   unsigned getTargetAddressSpace(LangAS AS) const;
 

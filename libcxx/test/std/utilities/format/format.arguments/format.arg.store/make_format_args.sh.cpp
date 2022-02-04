@@ -9,6 +9,8 @@
 // UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 // UNSUPPORTED: libcpp-has-no-wide-characters
+// TODO FMT Evaluate gcc-11 status
+// UNSUPPORTED: gcc-11
 
 // Validate it works regardless of the signedness of `char`.
 // RUN: %{cxx} %{flags} %{compile_flags} -fsigned-char -fsyntax-only %s
@@ -20,6 +22,7 @@
 // - otherwise, if T is char and char_type is wchar_t, initializes value with static_cast<wchar_t>(v);
 
 #include <format>
+#include <string>
 
 void test() {
   std::make_format_args<std::basic_format_context<

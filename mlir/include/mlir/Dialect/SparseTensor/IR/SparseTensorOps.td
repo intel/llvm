@@ -122,9 +122,9 @@ def SparseTensor_ToPointersOp : SparseTensor_Op<"pointers", [NoSideEffect]>,
   let description = [{
     Returns the pointers array of the sparse storage format at the
     given dimension for the given sparse tensor. This is similar to the
-    `memref.buffer_cast` operation in the sense that it provides a bridge
+    `bufferization.to_memref` operation in the sense that it provides a bridge
     between a tensor world view and a bufferized world view. Unlike the
-    `memref.buffer_cast` operation, however, this sparse operation actually
+    `bufferization.to_memref` operation, however, this sparse operation actually
     lowers into a call into a support library to obtain access to the
     pointers array.
 
@@ -146,9 +146,9 @@ def SparseTensor_ToIndicesOp : SparseTensor_Op<"indices", [NoSideEffect]>,
   let description = [{
     Returns the indices array of the sparse storage format at the
     given dimension for the given sparse tensor. This is similar to the
-    `memref.buffer_cast` operation in the sense that it provides a bridge
+    `bufferization.to_memref` operation in the sense that it provides a bridge
     between a tensor world view and a bufferized world view. Unlike the
-    `memref.buffer_cast` operation, however, this sparse operation actually
+    `bufferization.to_memref` operation, however, this sparse operation actually
     lowers into a call into a support library to obtain access to the
     indices array.
 
@@ -170,9 +170,9 @@ def SparseTensor_ToValuesOp : SparseTensor_Op<"values", [NoSideEffect]>,
   let description = [{
     Returns the values array of the sparse storage format for the given
     sparse tensor, independent of the actual dimension. This is similar to
-    the `memref.buffer_cast` operation in the sense that it provides a bridge
+    the `bufferization.to_memref` operation in the sense that it provides a bridge
     between a tensor world view and a bufferized world view. Unlike the
-    `memref.buffer_cast` operation, however, this sparse operation actually
+    `bufferization.to_memref` operation, however, this sparse operation actually
     lowers into a call into a support library to obtain access to the
     values array.
 
@@ -196,13 +196,13 @@ def SparseTensor_ToValuesOp : SparseTensor_Op<"values", [NoSideEffect]>,
 def SparseTensor_LexInsertOp : SparseTensor_Op<"lex_insert", []>,
     Arguments<(ins AnyTensor:$tensor,
                StridedMemRefRankOf<[Index], [1]>:$indices,
-	       AnyType:$value)> {
-  string summary = "Inserts a value into given sparse tensor in lexicograph index order";
+               AnyType:$value)> {
+  string summary = "Inserts a value into given sparse tensor in lexicographical index order";
   string description = [{
     Inserts the given value at given indices into the underlying sparse
     storage format of the given tensor with the given indices. This
     operation can only be applied when a tensor materializes unintialized
-    with an `init` operation, the insertions occur in strict lexicographic
+    with an `init` operation, the insertions occur in strict lexicographical
     index order, and the final tensor is constructed with a `tensor`
     operation that has the `hasInserts` attribute set.
 
@@ -219,6 +219,81 @@ def SparseTensor_LexInsertOp : SparseTensor_Op<"lex_insert", []>,
                        " type($tensor) `,` type($indices) `,` type($value)";
 }
 
+def SparseTensor_ExpandOp : SparseTensor_Op<"expand", []>,
+    Arguments<(ins AnyTensor:$tensor)>,
+    Results<(outs AnyStridedMemRefOfRank<1>:$values,
+                  StridedMemRefRankOf<[I1],[1]>:$filled,
+                  StridedMemRefRankOf<[Index],[1]>:$added,
+                  Index:$count)> {
+  string summary = "Expands an access pattern for insertion";
+  string description = [{
+    Performs an access pattern expansion for the innermost dimensions of the
+    given tensor. This operation is useful to implement kernels in which a
+    sparse tensor appears as output. This technique is known under several
+    different names and using several alternative implementations,
+    for example, phase counter [Gustavson72], expanded or switch array
+    [Pissanetzky84], in phase scan [Duff90], access pattern expansion [Bik96],
+    and workspaces [Kjolstad19].
+
+    The values and filled array have sizes that suffice for a *dense* innermost
+    dimension (e.g. a full row for matrices). The added array and count are used
+    to store new indices when a false value is encountered in the filled array.
+    All arrays should be allocated before the loop (possibly even shared between
+    loops in a future optimization) so that their *dense* initialization can be
+    amortized over many iterations. Setting and resetting the dense arrays in
+    the loop nest itself is kept *sparse* by only iterating over set elements
+    through an indirection using the added array, so that the operations are
+    kept proportional to the number of nonzeros.
+
+    Note that this operation is "impure" in the sense that its behavior
+    is solely defined by side-effects and not SSA values. The semantics
+    may be refined over time as our sparse abstractions evolve.
+
+    Example:
+
+    ```mlir
+    %values, %filled, %added, %count = sparse_tensor.expand %0
+      : tensor<4x4xf64, #CSR> to memref<?xf64>, memref<?xi1>, memref<?xindex>, index
+    ```
+  }];
+  let assemblyFormat = "$tensor attr-dict `:` type($tensor) `to` type($values)"
+                       " `,` type($filled) `,` type($added) `,` type($count)";
+}
+
+def SparseTensor_CompressOp : SparseTensor_Op<"compress", []>,
+    Arguments<(ins AnyTensor:$tensor,
+                   StridedMemRefRankOf<[Index],[1]>:$indices,
+                   AnyStridedMemRefOfRank<1>:$values,
+                   StridedMemRefRankOf<[I1],[1]>:$filled,
+                   StridedMemRefRankOf<[Index],[1]>:$added,
+                   Index:$count)> {
+  string summary = "Compressed an access pattern for insertion";
+  string description = [{
+    Finishes a single access pattern expansion by moving inserted elements
+    into the sparse storage scheme. The values and filled array are reset
+    in a *sparse* fashion by only iterating over set elements through an
+    indirection using the added array, so that the operations are kept
+    proportional to the number of nonzeros. See the 'expand' operation
+    for more details.
+
+    Note that this operation is "impure" in the sense that its behavior
+    is solely defined by side-effects and not SSA values. The semantics
+    may be refined over time as our sparse abstractions evolve.
+
+    Example:
+
+    ```mlir
+    sparse_tensor.compress %0, %1, %values, %filled, %added, %2
+        : tensor<4x4xf64, #CSR>, memref<?xindex>, memref<?xf64>,
+	  memref<?xi1>, memref<?xindex>, index
+    ```
+  }];
+  let assemblyFormat = "$tensor `,` $indices `,` $values `,` $filled `,`"
+                        " $added `,` $count attr-dict `:` type($tensor) `,`"
+			" type($indices) `,` type($values) `,` type($filled) `,`"
+			" type($added) `,` type($count)";
+}
+
 def SparseTensor_LoadOp : SparseTensor_Op<"load", [SameOperandsAndResultType]>,
     Arguments<(ins AnyTensor:$tensor, UnitAttr:$hasInserts)>,
     Results<(outs AnyTensor:$result)> {
@@ -226,11 +301,12 @@ def SparseTensor_LoadOp : SparseTensor_Op<"load", [SameOperandsAndResultType]>,
     "Rematerializes tensor from underlying sparse storage format";
   let description = [{
     Rematerializes a tensor from the underlying sparse storage format of the
-    given tensor. This is similar to the `memref.load` operation in the sense
-    that it provides a bridge between a bufferized world view and a tensor
-    world view. Unlike the `memref.load` operation, however, this sparse
-    operation is used only temporarily to maintain a correctly typed
-    intermediate representation during progressive bufferization.
+    given tensor. This is similar to the `bufferization.to_tensor` operation
+    in the sense that it provides a bridge between a bufferized world view
+    and a tensor world view. Unlike the `bufferization.to_tensor` operation,
+    however, this sparse operation is used only temporarily to maintain a
+    correctly typed intermediate representation during progressive
+    bufferization.
 
     The `hasInserts` attribute denote whether insertions to the underlying
     sparse storage format may have occurred, in which case the underlying
@@ -273,6 +349,26 @@ def SparseTensor_ReleaseOp : SparseTensor_Op<"release", []>,
     ```
   }];
   let assemblyFormat = "$tensor attr-dict `:` type($tensor)";
+}
+
+def SparseTensor_OutOp : SparseTensor_Op<"out", []>,
+    Arguments<(ins AnyType:$tensor, AnyType:$dest)> {
+  string summary = "Outputs a sparse tensor to the given destination";
+  string description = [{
+    Outputs the contents of a sparse tensor to the destination defined by an
+    opaque pointer provided by `dest`. For targets that have access to a file
+    system, for example, this pointer may specify a filename (or file) for output.
+    The form of the operation is kept deliberately very general to allow for
+    alternative implementations in the future, such as sending the contents to
+    a buffer defined by a pointer.
+
+    Example:
+
+    ```mlir
+    sparse_tensor.out %t, %dest : tensor<1024x1024xf64, #CSR>, !Dest
+    ```
+  }];
+  let assemblyFormat = "$tensor `,` $dest attr-dict `:` type($tensor) `,` type($dest)";
 }
 
 #endif // SPARSETENSOR_OPS

@@ -61,11 +61,18 @@ fir::GlobalOp createGlobalOp(mlir::Location loc, mlir::ModuleOp module,
 
 /// Attribute to mark Fortran entities with the CONTIGUOUS attribute.
 constexpr llvm::StringRef getContiguousAttrName() { return "fir.contiguous"; }
+
 /// Attribute to mark Fortran entities with the OPTIONAL attribute.
 constexpr llvm::StringRef getOptionalAttrName() { return "fir.optional"; }
 
 /// Attribute to mark Fortran entities with the TARGET attribute.
 static constexpr llvm::StringRef getTargetAttrName() { return "fir.target"; }
+
+/// Attribute to mark that a function argument is a character dummy procedure.
+/// Character dummy procedure have special ABI constraints.
+static constexpr llvm::StringRef getCharacterProcedureDummyAttrName() {
+  return "fir.char_proc";
+}
 
 /// Tell if \p value is:
 ///   - a function argument that has attribute \p attributeName

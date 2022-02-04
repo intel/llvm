@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fsycl-device-only %s -o - | FileCheck %s
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fno-sycl-early-optimizations -fsycl-device-only %s -o - | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fsycl-device-only -Xclang -disable-noundef-analysis %s -o - | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fno-sycl-early-optimizations -fsycl-device-only -Xclang -disable-noundef-analysis %s -o - | FileCheck %s
 
 #include "CL/__spirv/spirv_ops.hpp"
 
@@ -16,6 +16,7 @@ constexpr int32_t RndMode = 2;
 constexpr int32_t RndAcc = 1;
 constexpr bool FromSign = false;
 constexpr bool ToSign = true;
+constexpr bool SignOfB = false;
 
 template <int EA, int MA, int Eout, int Mout>
 void ap_float_cast() {
@@ -390,8 +391,8 @@ void ap_float_pown() {
   sycl::detail::ap_int<WB> B;
   sycl::detail::ap_int<1 + Eout + Mout> pown_res =
       __spirv_ArbitraryFloatPowNINTEL<1 + EA + MA, WB, 1 + Eout + Mout>(
-          A, MA, B, Mout, Subnorm, RndMode, RndAcc);
-  // CHECK: call spir_func signext i15 @_Z{{[0-9]+}}__spirv_ArbitraryFloatPowNINTEL{{.*}}(i12 signext {{[%a-z0-9.]+}}, i32 7, i10 signext {{[%a-z0-9.]+}}, i32 9, i32 0, i32 2, i32 1)
+          A, MA, B, SignOfB, Mout, Subnorm, RndMode, RndAcc);
+  // CHECK: call spir_func signext i15 @_Z{{[0-9]+}}__spirv_ArbitraryFloatPowNINTEL{{.*}}(i12 signext {{[%a-z0-9.]+}}, i32 7, i10 signext {{[%a-z0-9.]+}}, i1 zeroext false, i32 9, i32 0, i32 2, i32 1)
 }
 
 template <typename name, typename Func>

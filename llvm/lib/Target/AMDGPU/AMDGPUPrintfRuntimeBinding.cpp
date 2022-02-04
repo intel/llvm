@@ -280,10 +280,10 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
       }
       LLVM_DEBUG(dbgs() << "Printf format string in source = " << Str.str()
                         << '\n');
-      for (size_t I = 0; I < Str.size(); ++I) {
+      for (char C : Str) {
         // Rest of the C escape sequences (e.g. \') are handled correctly
         // by the MDParser
-        switch (Str[I]) {
+        switch (C) {
         case '\a':
           Sizes << "\\a";
           break;
@@ -308,7 +308,7 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
           Sizes << "\\72";
           break;
         default:
-          Sizes << Str[I];
+          Sizes << C;
           break;
         }
       }
@@ -463,7 +463,7 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
             WhatToStore.push_back(Arg);
           }
         } else if (isa<FixedVectorType>(ArgType)) {
-          Type *IType = NULL;
+          Type *IType = nullptr;
           uint32_t EleCount = cast<FixedVectorType>(ArgType)->getNumElements();
           uint32_t EleSize = ArgType->getScalarSizeInBits();
           uint32_t TotalSize = EleCount * EleSize;

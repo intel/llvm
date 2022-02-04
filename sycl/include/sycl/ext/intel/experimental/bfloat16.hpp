@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <CL/sycl/half_type.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -43,8 +44,11 @@ public:
 #endif
   }
 
-  // Direct initialization
-  bfloat16(const storage_t &a) : value(a) {}
+  static bfloat16 from_bits(const storage_t &a) {
+    bfloat16 res;
+    res.value = a;
+    return res;
+  }
 
   // Implicit conversion from float to bfloat16
   bfloat16(const float &a) { value = from_float(a); }
@@ -56,9 +60,10 @@ public:
 
   // Implicit conversion from bfloat16 to float
   operator float() const { return to_float(value); }
+  operator sycl::half() const { return to_float(value); }
 
   // Get raw bits representation of bfloat16
-  operator storage_t() const { return value; }
+  storage_t raw() const { return value; }
 
   // Logical operators (!,||,&&) are covered if we can cast to bool
   explicit operator bool() { return to_float(value) != 0.0f; }

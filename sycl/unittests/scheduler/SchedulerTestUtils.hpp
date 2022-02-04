@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl.hpp>
 #include <CL/sycl/detail/cl.h>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 
@@ -38,9 +38,9 @@ public:
                   cl::sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(Req)} {
     using namespace testing;
-    ON_CALL(*this, enqueue(_, _))
+    ON_CALL(*this, enqueue)
         .WillByDefault(Invoke(this, &MockCommand::enqueueOrigin));
-    EXPECT_CALL(*this, enqueue(_, _)).Times(AnyNumber());
+    EXPECT_CALL(*this, enqueue).Times(AnyNumber());
   }
 
   MockCommand(cl::sycl::detail::QueueImplPtr Queue,
@@ -48,9 +48,9 @@ public:
                   cl::sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {
     using namespace testing;
-    ON_CALL(*this, enqueue(_, _))
+    ON_CALL(*this, enqueue)
         .WillByDefault(Invoke(this, &MockCommand::enqueueOrigin));
-    EXPECT_CALL(*this, enqueue(_, _)).Times(AnyNumber());
+    EXPECT_CALL(*this, enqueue).Times(AnyNumber());
   }
 
   void printDot(std::ostream &) const override {}
@@ -62,11 +62,14 @@ public:
 
   cl_int enqueueImp() override { return MRetVal; }
 
-  MOCK_METHOD2(enqueue, bool(cl::sycl::detail::EnqueueResultT &,
-                             cl::sycl::detail::BlockingT));
+  MOCK_METHOD3(enqueue, bool(cl::sycl::detail::EnqueueResultT &,
+                             cl::sycl::detail::BlockingT,
+                             std::vector<cl::sycl::detail::Command *> &));
   bool enqueueOrigin(cl::sycl::detail::EnqueueResultT &EnqueueResult,
-                     cl::sycl::detail::BlockingT Blocking) {
-    return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking);
+                     cl::sycl::detail::BlockingT Blocking,
+                     std::vector<cl::sycl::detail::Command *> &ToCleanUp) {
+    return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking,
+                                              ToCleanUp);
   }
 
   cl_int MRetVal = CL_SUCCESS;
@@ -77,6 +80,8 @@ public:
       pi_event &Event) {
     Command::waitForEvents(Queue, RawEvents, Event);
   }
+
+  std::shared_ptr<cl::sycl::detail::event_impl> getEvent() { return MEvent; }
 
 protected:
   cl::sycl::detail::Requirement MRequirement;
@@ -97,11 +102,19 @@ protected:
 
 class MockScheduler : public cl::sycl::detail::Scheduler {
 public:
+  using cl::sycl::detail::Scheduler::addCG;
+  using cl::sycl::detail::Scheduler::addCopyBack;
+  using cl::sycl::detail::Scheduler::cleanupCommands;
+
   cl::sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(const cl::sycl::detail::QueueImplPtr &Queue,
                           cl::sycl::detail::Requirement *Req,
                           std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
+  }
+
+  void decrementLeafCountersForRecord(cl::sycl::detail::MemObjRecord *Rec) {
+    MGraphBuilder.decrementLeafCountersForRecord(Rec);
   }
 
   void removeRecordForMemObj(cl::sycl::detail::SYCLMemObjI *MemObj) {
@@ -121,10 +134,19 @@ public:
     return MGraphBuilder.addNodeToLeaves(Rec, Cmd, Mode, ToEnqueue);
   }
 
+  void updateLeaves(const std::set<cl::sycl::detail::Command *> &Cmds,
+                    cl::sycl::detail::MemObjRecord *Record,
+                    cl::sycl::access::mode AccessMode,
+                    std::vector<cl::sycl::detail::Command *> &ToCleanUp) {
+    return MGraphBuilder.updateLeaves(Cmds, Record, AccessMode, ToCleanUp);
+  }
+
   static bool enqueueCommand(cl::sycl::detail::Command *Cmd,
                              cl::sycl::detail::EnqueueResultT &EnqueueResult,
                              cl::sycl::detail::BlockingT Blocking) {
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
+    std::vector<cl::sycl::detail::Command *> ToCleanUp;
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp,
+                                          Blocking);
   }
 
   cl::sycl::detail::AllocaCommandBase *
@@ -143,6 +165,29 @@ public:
                    const cl::sycl::detail::QueueImplPtr &Queue,
                    std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertMemoryMove(Record, Req, Queue, ToEnqueue);
+  }
+
+  cl::sycl::detail::Command *
+  addCopyBack(cl::sycl::detail::Requirement *Req,
+              std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.addCopyBack(Req, ToEnqueue);
+  }
+
+  cl::sycl::detail::UpdateHostRequirementCommand *
+  insertUpdateHostReqCmd(cl::sycl::detail::MemObjRecord *Record,
+                         cl::sycl::detail::Requirement *Req,
+                         const cl::sycl::detail::QueueImplPtr &Queue,
+                         std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, Queue, ToEnqueue);
+  }
+
+  cl::sycl::detail::EmptyCommand *
+  addEmptyCmd(cl::sycl::detail::Command *Cmd,
+              const std::vector<cl::sycl::detail::Requirement *> &Reqs,
+              const cl::sycl::detail::QueueImplPtr &Queue,
+              cl::sycl::detail::Command::BlockReason Reason,
+              std::vector<cl::sycl::detail::Command *> &ToEnqueue) {
+    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Queue, Reason, ToEnqueue);
   }
 
   cl::sycl::detail::Command *

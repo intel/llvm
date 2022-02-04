@@ -177,6 +177,7 @@ public:
   virtual void setGeneratorVer(unsigned short) = 0;
   virtual void resolveUnknownStructFields() = 0;
   virtual void setSPIRVVersion(SPIRVWord) = 0;
+  virtual void insertEntryNoId(SPIRVEntry *Entry) = 0;
 
   void setMinSPIRVVersion(SPIRVWord Ver) {
     setSPIRVVersion(std::max(Ver, getSPIRVVersion()));
