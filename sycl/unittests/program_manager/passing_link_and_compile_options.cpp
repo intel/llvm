@@ -1,3 +1,11 @@
+//==---- passing_link_and_compile_options.cpp --- Pass link and compile options
+// for online linker and compiler ---------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
@@ -81,6 +89,20 @@ inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
 
 TEST(Link_Compile_Options, compile_link_Options_Test_empty) {
   sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cerr << "Test is not supported on host, skipping\n";
+    return; // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
@@ -114,6 +136,20 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty) {
 
 TEST(Link_Compile_Options, one_link_option_Test) {
   sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cerr << "Test is not supported on host, skipping\n";
+    return; // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
@@ -147,6 +183,20 @@ TEST(Link_Compile_Options, one_link_option_Test) {
 
 TEST(Link_Compile_Options, one_compile_option_Test) {
   sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cerr << "Test is not supported on host, skipping\n";
+    return; // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
@@ -180,6 +230,20 @@ TEST(Link_Compile_Options, one_compile_option_Test) {
 
 TEST(Link_Compile_Options, one_link_and_compile_option_Test) {
   sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cerr << "Test is not supported on host, skipping\n";
+    return; // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
