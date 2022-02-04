@@ -1,5 +1,5 @@
-//==---- passing_link_and_compile_options.cpp --- Pass link and compile options
-// for online linker and compiler ---------==//
+//==---- passing_link_and_compile_options.cpp --- Test for passing link and
+// compile options for online linker and compiler ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
