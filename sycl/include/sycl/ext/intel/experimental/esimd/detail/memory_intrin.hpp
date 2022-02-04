@@ -100,7 +100,7 @@ __ESIMD_INTRIN
 #else
 {
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
-  __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)> V;
+  __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)> V = 0;
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
   if (sizeof(Ty) == 2)
     ElemsPerAddr = ElemsPerAddr / 2;
@@ -304,7 +304,7 @@ __esimd_svm_gather4_scaled(__SEIEED::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
+  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V = 0;
   unsigned int Next = 0;
   uint64_t Offset = 0;
 
@@ -573,7 +573,7 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  __SEIEED::vector_type_t<Ty, N> retv;
+  __SEIEED::vector_type_t<Ty, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
   if (surf_ind == __SEIEE::detail::SLM_BTI) {
@@ -646,7 +646,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 {
   static_assert(Scale == 0);
 
-  __SEIEED::vector_type_t<Ty, N> retv;
+  __SEIEED::vector_type_t<Ty, N> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -743,7 +743,7 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv;
+  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv = 0;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
   char *ReadBase;
