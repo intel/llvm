@@ -173,5 +173,12 @@ int main(void) {
   passed &= test<float, 32, 3>(q);
   passed &= test<float, 32, 8>(q);
 
+  passed &= test<int, 8, 1>(q);
+  passed &= test<int, 8, 3>(q);
+  passed &= test<int, 8, 8>(q);
+  passed &= test<float, 8, 1>(q);
+  passed &= test<float, 8, 2>(q);
+  passed &= test<float, 8, 4>(q);
+
   return passed ? 0 : 1;
 }
