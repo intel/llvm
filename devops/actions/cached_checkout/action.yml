@@ -48,4 +48,7 @@ runs:
     run: |
       cd ${{ inputs.path }}
       git fetch origin $DEFAULT_BRANCH
+      # Set fake identity to fulfil git requirements
+      git config --local user.email "actions@github.com"
+      git config --local user.name "GitHub Actions"
       git merge --no-ff --no-commit origin/$DEFAULT_BRANCH
