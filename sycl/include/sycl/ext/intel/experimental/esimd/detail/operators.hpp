@@ -31,10 +31,10 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 // clang-format off
-/// @ingroup sycl_esimd_core
+/// @addtogroup sycl_esimd_core
 /// @{
+
 /// @defgroup sycl_esimd_core_binops C++ binary operators overloads for ESIMD.
-///
 /// Standard C++ binary operators overloads applicable to \c simd_obj_impl
 /// derivatives - \c simd , \c simd_mask , \c simd_view and their combinations.
 /// The following overloads are defined:

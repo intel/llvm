@@ -818,7 +818,7 @@ which contains all the symbols required.
   project and may cause compilation issues on some platforms
 * `sycl::sqrt` is not correctly rounded by default as the SYCL specification
   allows lower precision, when porting from CUDA it may be helpful to use
-  `-Xclang -fcuda-prec-sqrt` to use the correctly rounded square root, this is
+  `-fsycl-fp32-prec-sqrt` to use the correctly rounded square root, this is
   significantly slower but matches the default precision used by `nvcc`, and
   this `clang++` flag is equivalent to the `nvcc` `-prec-sqrt` flag, except that
   it defaults to `false`.

@@ -761,6 +761,12 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
                         (ZeDevice, &Count, Properties.data()));
       };
 
+  ZeDeviceMemoryAccessProperties.Compute =
+      [ZeDevice](ze_device_memory_access_properties_t &Properties) {
+        ZE_CALL_NOCHECK(zeDeviceGetMemoryAccessProperties,
+                        (ZeDevice, &Properties));
+      };
+
   ZeDeviceCacheProperties.Compute =
       [ZeDevice](ze_device_cache_properties_t &Properties) {
         // TODO: Since v1.0 there can be multiple cache properties.
@@ -2672,14 +2678,33 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
   case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
   case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
-    pi_uint64 Supported = 0;
-    // TODO[1.0]: how to query for USM support now?
-    if (true) {
-      // TODO: Use ze_memory_access_capabilities_t
-      Supported = PI_USM_ACCESS | PI_USM_ATOMIC_ACCESS |
-                  PI_USM_CONCURRENT_ACCESS | PI_USM_CONCURRENT_ATOMIC_ACCESS;
+    auto MapCaps = [](const ze_memory_access_cap_flags_t &ZeCapabilities) {
+      pi_uint64 Capabilities = 0;
+      if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_RW)
+        Capabilities |= PI_USM_ACCESS;
+      if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_ATOMIC)
+        Capabilities |= PI_USM_ATOMIC_ACCESS;
+      if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_CONCURRENT)
+        Capabilities |= PI_USM_CONCURRENT_ACCESS;
+      if (ZeCapabilities & ZE_MEMORY_ACCESS_CAP_FLAG_CONCURRENT_ATOMIC)
+        Capabilities |= PI_USM_CONCURRENT_ATOMIC_ACCESS;
+      return Capabilities;
+    };
+    auto &Props = Device->ZeDeviceMemoryAccessProperties;
+    switch (ParamName) {
+    case PI_DEVICE_INFO_USM_HOST_SUPPORT:
+      return ReturnValue(MapCaps(Props->hostAllocCapabilities));
+    case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
+      return ReturnValue(MapCaps(Props->deviceAllocCapabilities));
+    case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
+      return ReturnValue(MapCaps(Props->sharedSingleDeviceAllocCapabilities));
+    case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
+      return ReturnValue(MapCaps(Props->sharedCrossDeviceAllocCapabilities));
+    case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
+      return ReturnValue(MapCaps(Props->sharedSystemAllocCapabilities));
+    default:
+      die("piDeviceGetInfo: enexpected ParamName.");
     }
-    return ReturnValue(Supported);
   }
 
     // intel extensions for GPU information
@@ -7294,6 +7319,11 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
+  /**
+   * @brief Please note that the following code should be run before the
+   * subsequent getAvailableCommandList() call so that there is no
+   * dead-lock from waiting unsubmitted events in an open batch.
+   */
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
                                                           EventWaitList, Queue))
@@ -7314,10 +7344,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
-
-  if (auto Res = (*Event)->WaitList.createAndRetainPiZeEventList(
-          NumEventsInWaitList, EventWaitList, Queue))
-    return Res;
+  (*Event)->WaitList = TmpWaitList;
 
   const auto &WaitList = (*Event)->WaitList;
   const auto &ZeCommandList = CommandList->first;

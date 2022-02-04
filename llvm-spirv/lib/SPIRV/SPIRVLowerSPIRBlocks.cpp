@@ -361,7 +361,7 @@ private:
       Type *T = G.getInitializer()->getType();
       if (!T->isPointerTy())
         continue;
-      T = cast<PointerType>(T)->getElementType();
+      T = cast<PointerType>(T)->getPointerElementType();
       if (!T->isStructTy())
         continue;
       StringRef STName = cast<StructType>(T)->getName();
@@ -584,7 +584,7 @@ private:
 
   bool isOCLClkEventPtrType(Type *T) {
     if (auto PT = dyn_cast<PointerType>(T))
-      return isPointerToOpaqueStructType(PT->getElementType(),
+      return isPointerToOpaqueStructType(PT->getPointerElementType(),
                                          SPIR_TYPE_NAME_CLK_EVENT_T);
     return false;
   }

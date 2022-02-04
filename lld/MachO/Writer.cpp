@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "Writer.h"
-#include "CallGraphSort.h"
 #include "ConcatOutputSection.h"
 #include "Config.h"
 #include "InputFiles.h"
@@ -15,6 +14,7 @@
 #include "MapFile.h"
 #include "OutputSection.h"
 #include "OutputSegment.h"
+#include "SectionPriorities.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
@@ -22,8 +22,7 @@
 #include "UnwindInfoSection.h"
 
 #include "lld/Common/Arrays.h"
-#include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Memory.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/LEB128.h"
@@ -611,7 +610,7 @@ static bool needsBinding(const Symbol *sym) {
 }
 
 static void prepareSymbolRelocation(Symbol *sym, const InputSection *isec,
-                                    const Reloc &r) {
+                                    const lld::macho::Reloc &r) {
   assert(sym->isLive());
   const RelocAttrs &relocAttrs = target->getRelocAttrs(r.type);
 
@@ -644,7 +643,7 @@ void Writer::scanRelocations() {
       continue;
 
     for (auto it = isec->relocs.begin(); it != isec->relocs.end(); ++it) {
-      Reloc &r = *it;
+      lld::macho::Reloc &r = *it;
       if (target->hasAttr(r.type, RelocAttrBits::SUBTRAHEND)) {
         // Skip over the following UNSIGNED relocation -- it's just there as the
         // minuend, and doesn't have the usual UNSIGNED semantics. We don't want
@@ -848,54 +847,6 @@ template <class LP> void Writer::createLoadCommands() {
       config->headerPad, (config->headerPadMaxInstallNames
                               ? LCDylib::getInstanceCount() * MACOS_MAXPATHLEN
                               : 0));
-}
-
-static size_t getSymbolPriority(const SymbolPriorityEntry &entry,
-                                const InputFile *f) {
-  // We don't use toString(InputFile *) here because it returns the full path
-  // for object files, and we only want the basename.
-  StringRef filename;
-  if (f->archiveName.empty())
-    filename = path::filename(f->getName());
-  else
-    filename = saver.save(path::filename(f->archiveName) + "(" +
-                          path::filename(f->getName()) + ")");
-  return std::max(entry.objectFiles.lookup(filename), entry.anyObjectFile);
-}
-
-// Each section gets assigned the priority of the highest-priority symbol it
-// contains.
-static DenseMap<const InputSection *, size_t> buildInputSectionPriorities() {
-  if (config->callGraphProfileSort)
-    return computeCallGraphProfileOrder();
-  DenseMap<const InputSection *, size_t> sectionPriorities;
-
-  if (config->priorities.empty())
-    return sectionPriorities;
-
-  auto addSym = [&](Defined &sym) {
-    if (sym.isAbsolute())
-      return;
-
-    auto it = config->priorities.find(sym.getName());
-    if (it == config->priorities.end())
-      return;
-
-    SymbolPriorityEntry &entry = it->second;
-    size_t &priority = sectionPriorities[sym.isec];
-    priority =
-        std::max(priority, getSymbolPriority(entry, sym.isec->getFile()));
-  };
-
-  // TODO: Make sure this handles weak symbols correctly.
-  for (const InputFile *file : inputFiles) {
-    if (isa<ObjFile>(file))
-      for (Symbol *sym : file->symbols)
-        if (auto *d = dyn_cast_or_null<Defined>(sym))
-          addSym(*d);
-  }
-
-  return sectionPriorities;
 }
 
 // Sorting only can happen once all outputs have been collected. Here we sort
@@ -1216,7 +1167,7 @@ void macho::createSyntheticSections() {
 
   // This section contains space for just a single word, and will be used by
   // dyld to cache an address to the image loader it uses.
-  uint8_t *arr = bAlloc.Allocate<uint8_t>(target->wordSize);
+  uint8_t *arr = bAlloc().Allocate<uint8_t>(target->wordSize);
   memset(arr, 0, target->wordSize);
   in.imageLoaderCache = make<ConcatInputSection>(
       segment_names::data, section_names::data, /*file=*/nullptr,
