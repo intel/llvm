@@ -146,5 +146,5 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   // any analysis, but we need return PreservedAnalyses::none() to inform
   // the caller that at least one compile-time property was met.
   return CompileTimePropertiesMet ? PreservedAnalyses::none()
-                                     : PreservedAnalyses::all();
+                                  : PreservedAnalyses::all();
 }
