@@ -30,9 +30,7 @@ constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 2; // Read/Write
 
 enum class DecorValueTy {
-  // the value is an unsigned number (uint32_t)
   uint32,
-  // the value is a boolean value (bool)
   boolean,
 };
 
