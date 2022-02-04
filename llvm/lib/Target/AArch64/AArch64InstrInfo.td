@@ -7546,6 +7546,9 @@ def : Pat<(i64 (bitconvert (f64 FPR64:$Xn))),
 def : Pat<(i64 (bitconvert (v1f64 V64:$Vn))),
           (COPY_TO_REGCLASS V64:$Vn, GPR64)>;
 
+def : Pat<(f16 (bitconvert (bf16 FPR16:$src))), (f16 FPR16:$src)>;
+def : Pat<(bf16 (bitconvert (f16 FPR16:$src))), (bf16 FPR16:$src)>;
+
 let Predicates = [IsLE] in {
 def : Pat<(v1i64 (bitconvert (v2i32 FPR64:$src))), (v1i64 FPR64:$src)>;
 def : Pat<(v1i64 (bitconvert (v4i16 FPR64:$src))), (v1i64 FPR64:$src)>;
@@ -8330,23 +8333,54 @@ let Predicates = [HasLS64] in {
 }
 
 let Predicates = [HasMOPS] in {
-  defm CPYFP : MOPSMemoryCopyInsns<0b00, "cpyfp">;
-  defm CPYFM : MOPSMemoryCopyInsns<0b01, "cpyfm">;
-  defm CPYFE : MOPSMemoryCopyInsns<0b10, "cpyfe">;
+  let Defs = [NZCV] in {
+    defm CPYFP : MOPSMemoryCopyInsns<0b00, "cpyfp">;
 
-  defm CPYP : MOPSMemoryMoveInsns<0b00, "cpyp">;
-  defm CPYM : MOPSMemoryMoveInsns<0b01, "cpym">;
-  defm CPYE : MOPSMemoryMoveInsns<0b10, "cpye">;
+    defm CPYP : MOPSMemoryMoveInsns<0b00, "cpyp">;
 
-  defm SETP : MOPSMemorySetInsns<0b00, "setp">;
-  defm SETM : MOPSMemorySetInsns<0b01, "setm">;
-  defm SETE : MOPSMemorySetInsns<0b10, "sete">;
+    defm SETP : MOPSMemorySetInsns<0b00, "setp">;
+  }
+  let Uses = [NZCV] in {
+    defm CPYFM : MOPSMemoryCopyInsns<0b01, "cpyfm">;
+    defm CPYFE : MOPSMemoryCopyInsns<0b10, "cpyfe">;
+
+    defm CPYM : MOPSMemoryMoveInsns<0b01, "cpym">;
+    defm CPYE : MOPSMemoryMoveInsns<0b10, "cpye">;
+
+    defm SETM : MOPSMemorySetInsns<0b01, "setm">;
+    defm SETE : MOPSMemorySetInsns<0b10, "sete">;
+  }
 }
 let Predicates = [HasMOPS, HasMTE] in {
-  defm SETGP     : MOPSMemorySetTaggingInsns<0b00, "setgp">;
-  defm SETGM     : MOPSMemorySetTaggingInsns<0b01, "setgm">;
-  // Can't use SETGE because it's a reserved name in TargetSelectionDAG.td
-  defm MOPSSETGE : MOPSMemorySetTaggingInsns<0b10, "setge">;
+  let Defs = [NZCV] in {
+    defm SETGP     : MOPSMemorySetTaggingInsns<0b00, "setgp">;
+  }
+  let Uses = [NZCV] in {
+    defm SETGM     : MOPSMemorySetTaggingInsns<0b01, "setgm">;
+    // Can't use SETGE because it's a reserved name in TargetSelectionDAG.td
+    defm MOPSSETGE : MOPSMemorySetTaggingInsns<0b10, "setge">;
+  }
+}
+
+let Predicates = [HasMOPS], Defs = [NZCV], Size = 12, mayStore = 1 in {
+  let mayLoad = 1 in {
+    def MOPSMemoryCopyPseudo : Pseudo<(outs GPR64common:$Rd_wb, GPR64common:$Rs_wb, GPR64:$Rn_wb),
+                                      (ins GPR64common:$Rd, GPR64common:$Rs, GPR64:$Rn),
+                                      [], "$Rd = $Rd_wb,$Rs = $Rs_wb,$Rn = $Rn_wb">, Sched<[]>;
+    def MOPSMemoryMovePseudo : Pseudo<(outs GPR64common:$Rd_wb, GPR64common:$Rs_wb, GPR64:$Rn_wb),
+                                      (ins GPR64common:$Rd, GPR64common:$Rs, GPR64:$Rn),
+                                      [], "$Rd = $Rd_wb,$Rs = $Rs_wb,$Rn = $Rn_wb">, Sched<[]>;
+  }
+  let mayLoad = 0 in {
+    def MOPSMemorySetPseudo  : Pseudo<(outs GPR64common:$Rd_wb, GPR64:$Rn_wb),
+                                      (ins GPR64common:$Rd, GPR64:$Rn, GPR64:$Rm),
+                                      [], "$Rd = $Rd_wb,$Rn = $Rn_wb">, Sched<[]>;
+  }
+}
+let Predicates = [HasMOPS, HasMTE], Defs = [NZCV], Size = 12, mayLoad = 0, mayStore = 1 in {
+  def MOPSMemorySetTaggingPseudo : Pseudo<(outs GPR64common:$Rd_wb, GPR64:$Rn_wb),
+                                          (ins GPR64common:$Rd, GPR64:$Rn, GPR64:$Rm),
+                                          [], "$Rd = $Rd_wb,$Rn = $Rn_wb">, Sched<[]>;
 }
 
 let Defs = [X16, X17], mayStore = 1, isCodeGenOnly = 1 in

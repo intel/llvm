@@ -1240,6 +1240,7 @@ td_library(
     includes = ["include"],
     deps = [
         ":ControlFlowInterfacesTdFiles",
+        ":InferTypeOpInterfaceTdFiles",
         ":OpBaseTdFiles",
         ":SideEffectInterfacesTdFiles",
     ],
@@ -1782,6 +1783,7 @@ cc_library(
         "lib/Dialect/SCF/Transforms/*.h",
     ]),
     hdrs = [
+        "include/mlir/Dialect/SCF/BufferizableOpInterfaceImpl.h",
         "include/mlir/Dialect/SCF/Passes.h",
         "include/mlir/Dialect/SCF/Transforms.h",
     ],
@@ -1983,6 +1985,7 @@ cc_library(
     hdrs = ["include/mlir/Dialect/SparseTensor/Pipelines/Passes.h"],
     includes = ["include"],
     deps = [
+        ":ArithmeticTransforms",
         ":BufferizationTransforms",
         ":ConversionPasses",
         ":LinalgTransforms",
@@ -2138,6 +2141,7 @@ cc_library(
         ":ControlFlowInterfaces",
         ":Dialect",
         ":IR",
+        ":InferTypeOpInterface",
         ":SideEffectInterfaces",
         ":StandardOps",
         ":Support",
@@ -2262,6 +2266,7 @@ cc_library(
         ":Support",
         ":Transforms",
         ":VectorOps",
+        ":VectorUtils",
         "//llvm:Support",
     ],
 )
@@ -2434,6 +2439,7 @@ cc_library(
             "include/mlir/Dialect/SCF/*.h",
         ],
         exclude = [
+            "include/mlir/Dialect/SCF/BufferizableOpInterfaceImpl.h",
             "include/mlir/Dialect/SCF/Transforms.h",
         ],
     ),
@@ -2788,26 +2794,20 @@ cc_library(
     name = "VectorOps",
     srcs = glob(
         [
-            "lib/Dialect/Vector/*.cpp",
-            "lib/Dialect/Vector/*.h",
+            "lib/Dialect/Vector/IR/*.cpp",
         ],
     ),
     hdrs = glob([
-        "include/mlir/Dialect/Vector/*.h",
+        "include/mlir/Dialect/Vector/IR/*.h",
     ]),
     includes = ["include"],
     deps = [
         ":Affine",
         ":AffineAnalysis",
-        ":AffineUtils",
-        ":Analysis",
         ":ArithmeticDialect",
-        ":DataLayoutInterfaces",
         ":DialectUtils",
         ":IR",
-        ":LinalgOps",
         ":MemRefDialect",
-        ":SCFDialect",
         ":SideEffectInterfaces",
         ":StandardOps",
         ":Support",
@@ -2815,6 +2815,65 @@ cc_library(
         ":VectorInterfaces",
         ":VectorOpsIncGen",
         ":ViewLikeInterface",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "VectorTransforms",
+    srcs = glob(
+        [
+            "lib/Dialect/Vector/Transforms/*.cpp",
+        ],
+    ),
+    hdrs = glob([
+        "include/mlir/Dialect/Vector/Transforms/*.h",
+    ]),
+    includes = ["include"],
+    deps = [
+        ":Affine",
+        ":AffineAnalysis",
+        ":Analysis",
+        ":ArithmeticDialect",
+        ":BufferizationDialect",
+        ":DialectUtils",
+        ":IR",
+        ":LinalgOps",
+        ":MemRefDialect",
+        ":SCFDialect",
+        ":StandardOps",
+        ":Support",
+        ":TensorDialect",
+        ":VectorInterfaces",
+        ":VectorOps",
+        ":VectorUtils",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "VectorUtils",
+    srcs = glob(
+        [
+            "lib/Dialect/Vector/Utils/*.cpp",
+        ],
+    ),
+    hdrs = glob([
+        "include/mlir/Dialect/Vector/Utils/*.h",
+    ]),
+    includes = ["include"],
+    deps = [
+        ":Affine",
+        ":AffineAnalysis",
+        ":ArithmeticDialect",
+        ":DialectUtils",
+        ":IR",
+        ":MemRefDialect",
+        ":StandardOps",
+        ":Support",
+        ":TensorDialect",
+        ":VectorInterfaces",
+        ":VectorOps",
         "//llvm:Support",
     ],
 )
@@ -6655,61 +6714,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "SCFBufferizableOpInterfaceImpl",
-    srcs = [
-        "lib/Dialect/Linalg/ComprehensiveBufferize/SCFInterfaceImpl.cpp",
-    ],
-    hdrs = [
-        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/SCFInterfaceImpl.h",
-    ],
-    includes = ["include"],
-    deps = [
-        ":BufferizationDialect",
-        ":BufferizationTransforms",
-        ":IR",
-        ":SCFDialect",
-        ":Support",
-        "//llvm:Support",
-    ],
-)
-
-cc_library(
-    name = "StdBufferizableOpInterfaceImpl",
-    srcs = [
-        "lib/Dialect/Linalg/ComprehensiveBufferize/StdInterfaceImpl.cpp",
-    ],
-    hdrs = [
-        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/StdInterfaceImpl.h",
-    ],
-    includes = ["include"],
-    deps = [
-        ":BufferizationDialect",
-        ":IR",
-        ":StandardOps",
-        ":Support",
-        "//llvm:Support",
-    ],
-)
-
-cc_library(
-    name = "VectorBufferizableOpInterfaceImpl",
-    srcs = [
-        "lib/Dialect/Linalg/ComprehensiveBufferize/VectorInterfaceImpl.cpp",
-    ],
-    hdrs = [
-        "include/mlir/Dialect/Linalg/ComprehensiveBufferize/VectorInterfaceImpl.h",
-    ],
-    includes = ["include"],
-    deps = [
-        ":BufferizationDialect",
-        ":IR",
-        ":Support",
-        ":VectorOps",
-        "//llvm:Support",
-    ],
-)
-
 td_library(
     name = "LinalgDocTdFiles",
     srcs = ["include/mlir/Dialect/Linalg/IR/LinalgDoc.td"],
@@ -6927,21 +6931,20 @@ cc_library(
         ":MemRefDialect",
         ":ModuleBufferization",
         ":Pass",
-        ":SCFBufferizableOpInterfaceImpl",
         ":SCFDialect",
         ":SCFTransforms",
         ":SCFUtils",
         ":StandardOps",
         ":StandardOpsTransforms",
-        ":StdBufferizableOpInterfaceImpl",
         ":Support",
         ":TensorDialect",
         ":TensorTransforms",
         ":TensorUtils",
         ":TransformUtils",
-        ":VectorBufferizableOpInterfaceImpl",
         ":VectorOps",
         ":VectorToSCF",
+        ":VectorTransforms",
+        ":VectorUtils",
         ":X86VectorTransforms",
         "//llvm:Support",
     ],
@@ -6984,7 +6987,7 @@ cc_library(
 
 td_library(
     name = "VectorOpsTdFiles",
-    srcs = ["include/mlir/Dialect/Vector/VectorOps.td"],
+    srcs = ["include/mlir/Dialect/Vector/IR/VectorOps.td"],
     includes = ["include"],
     deps = [
         ":OpBaseTdFiles",
@@ -7000,33 +7003,33 @@ gentbl_cc_library(
     tbl_outs = [
         (
             ["-gen-op-decls"],
-            "include/mlir/Dialect/Vector/VectorOps.h.inc",
+            "include/mlir/Dialect/Vector/IR/VectorOps.h.inc",
         ),
         (
             ["-gen-op-defs"],
-            "include/mlir/Dialect/Vector/VectorOps.cpp.inc",
+            "include/mlir/Dialect/Vector/IR/VectorOps.cpp.inc",
         ),
         (
             [
                 "-gen-dialect-decls",
                 "-dialect=vector",
             ],
-            "include/mlir/Dialect/Vector/VectorOpsDialect.h.inc",
+            "include/mlir/Dialect/Vector/IR/VectorOpsDialect.h.inc",
         ),
         (
             [
                 "-gen-dialect-defs",
                 "-dialect=vector",
             ],
-            "include/mlir/Dialect/Vector/VectorOpsDialect.cpp.inc",
+            "include/mlir/Dialect/Vector/IR/VectorOpsDialect.cpp.inc",
         ),
         (
             ["-gen-enum-decls"],
-            "include/mlir/Dialect/Vector/VectorOpsEnums.h.inc",
+            "include/mlir/Dialect/Vector/IR/VectorOpsEnums.h.inc",
         ),
         (
             ["-gen-enum-defs"],
-            "include/mlir/Dialect/Vector/VectorOpsEnums.cpp.inc",
+            "include/mlir/Dialect/Vector/IR/VectorOpsEnums.cpp.inc",
         ),
         (
             ["-gen-op-doc"],
@@ -7034,7 +7037,7 @@ gentbl_cc_library(
         ),
     ],
     tblgen = ":mlir-tblgen",
-    td_file = "include/mlir/Dialect/Vector/VectorOps.td",
+    td_file = "include/mlir/Dialect/Vector/IR/VectorOps.td",
     deps = [":VectorOpsTdFiles"],
 )
 
@@ -7067,6 +7070,7 @@ cc_library(
         ":ToLLVMIRTranslation",
         ":Transforms",
         ":VectorOps",
+        ":VectorTransforms",
         ":X86Vector",
         ":X86VectorTransforms",
         "//llvm:Core",
@@ -7101,6 +7105,7 @@ cc_library(
         ":Support",
         ":Transforms",
         ":VectorOps",
+        ":VectorUtils",
         "//llvm:Core",
         "//llvm:Support",
     ],
@@ -7131,6 +7136,7 @@ cc_library(
         ":Support",
         ":Transforms",
         ":VectorOps",
+        ":VectorTransforms",
         "//llvm:Core",
         "//llvm:Support",
     ],
@@ -7715,6 +7721,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":ArithmeticDialect",
+        ":DialectUtils",
         ":IR",
         ":MathDialect",
         ":Pass",
@@ -7723,6 +7730,7 @@ cc_library(
         ":Support",
         ":Transforms",
         ":VectorOps",
+        ":VectorUtils",
         ":X86Vector",
         "//llvm:Support",
     ],
@@ -7741,6 +7749,7 @@ cc_library(
     deps = [
         ":ArithmeticDialect",
         ":ConversionPassIncGen",
+        ":DialectUtils",
         ":IR",
         ":LLVMDialect",
         ":MathDialect",
@@ -7749,6 +7758,7 @@ cc_library(
         ":Support",
         ":Transforms",
         ":VectorOps",
+        ":VectorUtils",
         "//llvm:Core",
         "//llvm:Support",
     ],

@@ -2527,27 +2527,6 @@ void InnerLoopVectorizer::widenIntOrFpInduction(
     return ScalarIV;
   };
 
-  // Create the vector values from the scalar IV, in the absence of creating a
-  // vector IV.
-  auto CreateSplatIV = [&](Value *ScalarIV, Value *Step) {
-    Value *Broadcasted = getBroadcastInstrs(ScalarIV);
-    for (unsigned Part = 0; Part < UF; ++Part) {
-      Value *StartIdx;
-      if (Step->getType()->isFloatingPointTy())
-        StartIdx =
-            getRuntimeVFAsFloat(Builder, Step->getType(), State.VF * Part);
-      else
-        StartIdx = getRuntimeVF(Builder, Step->getType(), State.VF * Part);
-
-      Value *EntryPart =
-          getStepVector(Broadcasted, StartIdx, Step, ID.getInductionOpcode(),
-                        State.VF, State.Builder);
-      State.set(Def, EntryPart, Part);
-      if (Trunc)
-        addMetadata(EntryPart, Trunc);
-    }
-  };
-
   // Fast-math-flags propagate from the original induction instruction.
   IRBuilder<>::FastMathFlagGuard FMFG(Builder);
   if (ID.getInductionBinOp() && isa<FPMathOperator>(ID.getInductionBinOp()))
@@ -2583,33 +2562,18 @@ void InnerLoopVectorizer::widenIntOrFpInduction(
     return;
   }
 
-  // If only a vector induction is needed, create it and return.
-  if (!Def->needsScalarIV()) {
+  // Create a new independent vector induction variable, if one is needed.
+  if (Def->needsVectorIV())
     createVectorIntOrFpInductionPHI(ID, Step, Start, EntryVal, Def, State);
-    return;
-  }
 
-  // Try to create a new independent vector induction variable. If we can't
-  // create the phi node, we will splat the scalar induction variable in each
-  // loop iteration.
-  if (Def->needsVectorIV()) {
-    createVectorIntOrFpInductionPHI(ID, Step, Start, EntryVal, Def, State);
-    Value *ScalarIV = CreateScalarIV(Step);
+  if (Def->needsScalarIV()) {
     // Create scalar steps that can be used by instructions we will later
     // scalarize. Note that the addition of the scalar steps will not increase
     // the number of instructions in the loop in the common case prior to
     // InstCombine. We will be trading one vector extract for each scalar step.
+    Value *ScalarIV = CreateScalarIV(Step);
     buildScalarSteps(ScalarIV, Step, EntryVal, ID, Def, State);
-    return;
   }
-
-  // All IV users are scalar instructions, so only emit a scalar IV, not a
-  // vectorised IV. Except when we tail-fold, then the splat IV feeds the
-  // predicate used by the masked loads/stores.
-  Value *ScalarIV = CreateScalarIV(Step);
-  if (!Cost->isScalarEpilogueAllowed())
-    CreateSplatIV(ScalarIV, Step);
-  buildScalarSteps(ScalarIV, Step, EntryVal, ID, Def, State);
 }
 
 void InnerLoopVectorizer::buildScalarSteps(Value *ScalarIV, Value *Step,
@@ -2638,17 +2602,15 @@ void InnerLoopVectorizer::buildScalarSteps(Value *ScalarIV, Value *Step,
   }
 
   // Determine the number of scalars we need to generate for each unroll
-  // iteration. If EntryVal is uniform, we only need to generate the first
-  // lane. Otherwise, we generate all VF values.
-  bool IsUniform =
-      Cost->isUniformAfterVectorization(cast<Instruction>(EntryVal), State.VF);
-  unsigned Lanes = IsUniform ? 1 : State.VF.getKnownMinValue();
+  // iteration.
+  bool FirstLaneOnly = vputils::onlyFirstLaneUsed(Def);
+  unsigned Lanes = FirstLaneOnly ? 1 : State.VF.getKnownMinValue();
   // Compute the scalar steps and save the results in State.
   Type *IntStepTy = IntegerType::get(ScalarIVTy->getContext(),
                                      ScalarIVTy->getScalarSizeInBits());
   Type *VecIVTy = nullptr;
   Value *UnitStepVec = nullptr, *SplatStep = nullptr, *SplatIV = nullptr;
-  if (!IsUniform && State.VF.isScalable()) {
+  if (!FirstLaneOnly && State.VF.isScalable()) {
     VecIVTy = VectorType::get(ScalarIVTy, State.VF);
     UnitStepVec =
         Builder.CreateStepVector(VectorType::get(IntStepTy, State.VF));
@@ -2659,7 +2621,7 @@ void InnerLoopVectorizer::buildScalarSteps(Value *ScalarIV, Value *Step,
   for (unsigned Part = 0; Part < State.UF; ++Part) {
     Value *StartIdx0 = createStepForVF(Builder, IntStepTy, State.VF, Part);
 
-    if (!IsUniform && State.VF.isScalable()) {
+    if (!FirstLaneOnly && State.VF.isScalable()) {
       auto *SplatStartIdx = Builder.CreateVectorSplat(State.VF, StartIdx0);
       auto *InitVec = Builder.CreateAdd(SplatStartIdx, UnitStepVec);
       if (ScalarIVTy->isFloatingPointTy())
