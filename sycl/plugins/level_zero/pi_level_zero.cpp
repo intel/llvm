@@ -3324,7 +3324,6 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
                      ? std::unique_lock<std::mutex>()
                      : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
 
-
     // execute any command list that may still be open.
     if (auto Res = Queue->executeAllOpenCommandLists())
       return Res;
@@ -3342,8 +3341,8 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
 
   // Lock automatically releases when this goes out of scope.
   auto Lock = ((Queue == LockedQueue)
-                    ? std::unique_lock<std::mutex>()
-                    : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+                   ? std::unique_lock<std::mutex>()
+                   : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
   // Prevent unneeded already finished events to show up in the wait list.
   Queue->LastCommandEvent = nullptr;
   Queue->LastEventInPrevCmdList = nullptr;
@@ -3351,9 +3350,7 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
   return PI_SUCCESS;
 }
 
-pi_result piQueueFinish(pi_queue Queue) {
-  QueueFinish(Queue, nullptr);
-}
+pi_result piQueueFinish(pi_queue Queue) { return QueueFinish(Queue, nullptr); }
 
 // Flushing cross-queue dependencies is covered by createAndRetainPiZeEventList,
 // so this can be left as a no-op.
