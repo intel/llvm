@@ -1621,13 +1621,11 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
-
   const char* compileOptions = Img.getCompileOptions();
-
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
       PIDevices.data(),
-      /*options=*/compileOptions, // make it done
+      compileOptions,
       /*num_input_headers=*/0, /*input_headers=*/nullptr,
       /*header_include_names=*/nullptr,
       /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
@@ -1666,13 +1664,13 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   }
   std::string linkOptionsStr;
   for (auto str : linkOptions) {
-    if (str && (linkOptionsStr.find(str) == std::string::npos)) {
-      linkOptionsStr += static_cast<std::string>(str) + " ";
+    if (str != nullptr) {
+      linkOptionsStr += std::string(str) + " ";
     }
   }
+  linkOptionsStr.pop_back();
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-
   const detail::plugin &Plugin = ContextImpl->getPlugin();
 
   RT::PiProgram LinkedProg = nullptr;
