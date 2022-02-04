@@ -298,7 +298,6 @@ void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
     return UserPtr;
 
   void *NewMem = MemObj->allocateHostMem();
-
   // Need to initialize new memory if user provides pointer to read only
   // memory.
   if (UserPtr && HostPtrReadOnly == true)

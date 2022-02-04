@@ -1,11 +1,20 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -flegacy-pass-manager %s -o %t-lgcy.out
+// RUN: %RUN_ON_HOST %t-lgcy.out
+
+// RUN: %clangxx -fsycl -fno-legacy-pass-manager %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
-// Check that the code compiles with -O0 and -g
-// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -O0
-// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -O0 -g
+// Check that the code compiles with -O0 and -g on both legacy and new Pass
+// Managers
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -fno-legacy-pass-manager -O0
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -flegacy-pass-manager -O0
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -fno-legacy-pass-manager -O0 -g
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -flegacy-pass-manager -O0 -g
+
 // Check that the code compiles with device code instrumentation enabled
-// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl \
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -fno-legacy-pass-manager \
+// RUN: -fsycl-instrument-device-code
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -flegacy-pass-manager \
 // RUN: -fsycl-instrument-device-code
 
 #include <CL/sycl.hpp>

@@ -245,6 +245,7 @@ enum NodeType : unsigned {
   // Widening instructions
   VWMUL_VL,
   VWMULU_VL,
+  VWADDU_VL,
 
   // Vector compare producing a mask. Fourth operand is input mask. Fifth
   // operand is VL.
@@ -252,6 +253,10 @@ enum NodeType : unsigned {
 
   // Vector select with an additional VL operand. This operation is unmasked.
   VSELECT_VL,
+  // Vector select with operand #2 (the value when the condition is false) tied
+  // to the destination and an additional VL operand. This operation is
+  // unmasked.
+  VP_MERGE_VL,
 
   // Mask binary operators.
   VMAND_VL,

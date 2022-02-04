@@ -20,8 +20,8 @@
 #include "SyntheticSections.h"
 #include "Target.h"
 #include "lld/Common/Arrays.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Filesystem.h"
-#include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -1750,16 +1750,15 @@ template <class ELFT> void Writer<ELFT>::optimizeBasicBlockJumps() {
     if (!(osec->flags & SHF_EXECINSTR))
       continue;
     SmallVector<InputSection *, 0> sections = getInputSections(*osec);
-    std::vector<unsigned> result(sections.size());
+    size_t numDeleted = 0;
     // Delete all fall through jump instructions.  Also, check if two
     // consecutive jump instructions can be flipped so that a fall
     // through jmp instruction can be deleted.
     for (size_t i = 0, e = sections.size(); i != e; ++i) {
       InputSection *next = i + 1 < sections.size() ? sections[i + 1] : nullptr;
       InputSection &sec = *sections[i];
-      result[i] = target->deleteFallThruJmpInsn(sec, sec.file, next) ? 1 : 0;
+      numDeleted += target->deleteFallThruJmpInsn(sec, sec.file, next);
     }
-    size_t numDeleted = std::count(result.begin(), result.end(), 1);
     if (numDeleted > 0) {
       script->assignAddresses();
       LLVM_DEBUG(llvm::dbgs()
@@ -1891,9 +1890,11 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
       finalizeSynthetic(part.ehFrame.get());
   }
 
-  if (config->hasDynSymTab)
-    for (Symbol *sym : symtab->symbols())
+  if (config->hasDynSymTab) {
+    parallelForEach(symtab->symbols(), [](Symbol *sym) {
       sym->isPreemptible = computeIsPreemptible(*sym);
+    });
+  }
 
   // Change values of linker-script-defined symbols from placeholders (assigned
   // by declareSymbols) to actual definitions.
@@ -2216,9 +2217,9 @@ void Writer<ELFT>::addStartStopSymbols(OutputSection *sec) {
   StringRef s = sec->name;
   if (!isValidCIdentifier(s))
     return;
-  addOptionalRegular(saver.save("__start_" + s), sec, 0,
+  addOptionalRegular(saver().save("__start_" + s), sec, 0,
                      config->zStartStopVisibility);
-  addOptionalRegular(saver.save("__stop_" + s), sec, -1,
+  addOptionalRegular(saver().save("__stop_" + s), sec, -1,
                      config->zStartStopVisibility);
 }
 
@@ -2902,15 +2903,16 @@ computeHash(llvm::MutableArrayRef<uint8_t> hashBuf,
             llvm::ArrayRef<uint8_t> data,
             std::function<void(uint8_t *dest, ArrayRef<uint8_t> arr)> hashFn) {
   std::vector<ArrayRef<uint8_t>> chunks = split(data, 1024 * 1024);
-  std::vector<uint8_t> hashes(chunks.size() * hashBuf.size());
+  const size_t hashesSize = chunks.size() * hashBuf.size();
+  std::unique_ptr<uint8_t[]> hashes(new uint8_t[hashesSize]);
 
   // Compute hash values.
   parallelForEachN(0, chunks.size(), [&](size_t i) {
-    hashFn(hashes.data() + i * hashBuf.size(), chunks[i]);
+    hashFn(hashes.get() + i * hashBuf.size(), chunks[i]);
   });
 
   // Write to the final output buffer.
-  hashFn(hashBuf.data(), hashes);
+  hashFn(hashBuf.data(), makeArrayRef(hashes.get(), hashesSize));
 }
 
 template <class ELFT> void Writer<ELFT>::writeBuildId() {
@@ -2925,34 +2927,35 @@ template <class ELFT> void Writer<ELFT>::writeBuildId() {
 
   // Compute a hash of all sections of the output file.
   size_t hashSize = mainPart->buildId->hashSize;
-  std::vector<uint8_t> buildId(hashSize);
-  llvm::ArrayRef<uint8_t> buf{Out::bufferStart, size_t(fileSize)};
+  std::unique_ptr<uint8_t[]> buildId(new uint8_t[hashSize]);
+  MutableArrayRef<uint8_t> output(buildId.get(), hashSize);
+  llvm::ArrayRef<uint8_t> input{Out::bufferStart, size_t(fileSize)};
 
   switch (config->buildId) {
   case BuildIdKind::Fast:
-    computeHash(buildId, buf, [](uint8_t *dest, ArrayRef<uint8_t> arr) {
+    computeHash(output, input, [](uint8_t *dest, ArrayRef<uint8_t> arr) {
       write64le(dest, xxHash64(arr));
     });
     break;
   case BuildIdKind::Md5:
-    computeHash(buildId, buf, [&](uint8_t *dest, ArrayRef<uint8_t> arr) {
+    computeHash(output, input, [&](uint8_t *dest, ArrayRef<uint8_t> arr) {
       memcpy(dest, MD5::hash(arr).data(), hashSize);
     });
     break;
   case BuildIdKind::Sha1:
-    computeHash(buildId, buf, [&](uint8_t *dest, ArrayRef<uint8_t> arr) {
+    computeHash(output, input, [&](uint8_t *dest, ArrayRef<uint8_t> arr) {
       memcpy(dest, SHA1::hash(arr).data(), hashSize);
     });
     break;
   case BuildIdKind::Uuid:
-    if (auto ec = llvm::getRandomBytes(buildId.data(), hashSize))
+    if (auto ec = llvm::getRandomBytes(buildId.get(), hashSize))
       error("entropy source failure: " + ec.message());
     break;
   default:
     llvm_unreachable("unknown BuildIdKind");
   }
   for (Partition &part : partitions)
-    part.buildId->writeBuildId(buildId);
+    part.buildId->writeBuildId(output);
 }
 
 template void elf::createSyntheticSections<ELF32LE>();

@@ -4560,6 +4560,8 @@ public:
                             bool ConsiderLinkage, bool AllowInlineNamespace);
 
   bool CheckRedeclarationModuleOwnership(NamedDecl *New, NamedDecl *Old);
+  bool CheckRedeclarationExported(NamedDecl *New, NamedDecl *Old);
+  bool CheckRedeclarationInModule(NamedDecl *New, NamedDecl *Old);
 
   void DiagnoseAmbiguousLookup(LookupResult &Result);
   //@}

@@ -139,6 +139,10 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
 }
@@ -384,6 +388,8 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
   ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
       ZeDeviceMemoryProperties;
+  ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
+      ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
@@ -418,6 +424,13 @@ struct pi_command_list_info_t {
   std::list<pi_event *> PiEventLists{};
   std::list<ze_event_handle_t *> ZeEventLists{};
   std::list<pi_uint32> Lengths{};
+
+  // Since event is not necessarily created for tracking during
+  // piEnqueueKernelLaunch, it is optional. But we have to do piKernelRetain on
+  // enqueued kernel and currently save the kernel in the list, so to have the
+  // ability to do a piKernelRelease on this kernel in resetCommandList we need
+  // to save the kernel in this variable for cases when event is not created.
+  std::list<pi_kernel> EventlessKernelsInUse;
 
   // Keeps events created by commands submitted into this command-list.
   // TODO: use this for explicit wait/cleanup of events at command-list
@@ -727,14 +740,6 @@ struct _pi_queue : _pi_object {
   // not executed for this special event.
   pi_event LastEventInPrevCmdList = nullptr;
 
-  // Since event is not necessarily created for tracking during
-  // piEnqueueKernelLaunch, it is optional. But we have to do piKernelRetain on
-  // enqueued kernel and currently save the kernel in the list, so to have the
-  // ability to do a piKernelRelease on this kernel in
-  // piQueueFinish/piQueueRelease, we need to save the kernel in this variable
-  // for cases when event is not created.
-  std::list<pi_kernel> EventlessKernelsInUse;
-
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;
 
@@ -856,6 +861,9 @@ struct _pi_mem : _pi_object {
   // Flag to indicate that this memory is allocated in host memory
   bool OnHost;
 
+  // Flag to indicate that the host ptr has been imported into USM
+  bool HostPtrImported;
+
   // Supplementary data to keep track of the mappings of this memory
   // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
   struct Mapping {
@@ -883,8 +891,10 @@ struct _pi_mem : _pi_object {
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false,
+          bool ImportedHostPtr = false)
+      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost},
+        HostPtrImported{ImportedHostPtr}, Mappings{} {}
 
 private:
   // The key is the host pointer representing an active mapping.
@@ -901,9 +911,9 @@ struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
   _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
              _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
-             bool MemOnHost = false)
-      : _pi_mem(Ctx, HostPtr, MemOnHost), ZeMem{Mem}, SubBuffer{Parent, Origin,
-                                                                Size} {}
+             bool MemOnHost = false, bool ImportedHostPtr = false)
+      : _pi_mem(Ctx, HostPtr, MemOnHost, ImportedHostPtr), ZeMem{Mem},
+        SubBuffer{Parent, Origin, Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 

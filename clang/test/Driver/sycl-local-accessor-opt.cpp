@@ -3,8 +3,11 @@
 // REQUIRES: clang-driver
 
 // RUN:   %clang -fsycl -### %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-NO-OPT %s
-// CHECK-NO-OPT-NOT: "-sycl-enable-local-accessor"
+// RUN:   | FileCheck -check-prefix=OPT-CHECK %s
+
+// RUN:   %clang -fsycl -S -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=OPT-CHECK %s
+// OPT-CHECK-NOT: "-sycl-enable-local-accessor"
 
 // RUN:   %clang -fsycl -fsycl-targets=nvptx64-nvidia-cuda -### %s 2>&1 \
 // RUN:   | FileCheck %s

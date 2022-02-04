@@ -266,7 +266,7 @@ non-FPGA users may want to use the `device_global` property
 [`device_image_scope`][5], which requires even non-FPGA users to have precise
 control over the way kernels are bundled into device images.
 
-[5]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc#properties-for-device-global-variables>
+[5]: <extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc#properties-for-device-global-variables>
 
 The new definition of `-fsycl-device-code-split` is as follows:
 
@@ -344,21 +344,17 @@ To illustrate, the type `sycl::half` is an optional feature whose associated
 aspect is `aspect::fp16`.  We therefore decorate the declaration like this:
 
 ```
-using half [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] =
-  cl::sycl::detail::half_impl::half;
-```
+namespace sycl::detail::half_impl {
 
-If an optional feature is expressed as a class type, it can be similarly
-decorated (here illustrating a hypothetical AMX type):
-
-```
-class [[__sycl_detail__::__uses_aspects__(aspect::ext_intel_amx)]] amx_type {
-  /* ... */
+class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
+/* ... */
 };
+
+} // namespace sycl::detail::half_impl;
 ```
 
 This attribute is also used to decorate function declarations that correspond
-to optional features.  Again, illustrating a hypothetical AMX extension:
+to optional features.  Illustrating a hypothetical AMX extension:
 
 ```
 [[__sycl_detail__::__uses_aspects__(aspect::ext_intel_amx)]]
@@ -382,10 +378,11 @@ might be decorated with
 `[[sycl_detail::uses_aspects(aspect::fp64, aspect::atomic64)]]`).
 
 Unfortunately, the fundamental type `double` is also an optional kernel
-feature.  Since there is no type alias for `double`, there is no convenient
-place to add an attribute.  Instead, the FE device compiler must behave as
-though there was an implicit `[[sycl_detail::uses_aspects(aspect::fp64)]]`
-attribute for any device code that uses the `double` type.
+feature.  Since there is no type definition for `double` in the headers, there
+is no convenient place to add an attribute.  Instead, the FE device compiler
+must behave as though there was an implicit
+`[[sycl_detail::uses_aspects(aspect::fp64)]]` attribute for any device code
+that uses the `double` type.
 
 
 ### New LLVM IR metadata
