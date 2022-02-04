@@ -216,7 +216,7 @@ int main(int, char **) {
                     esimd_test::createExceptionHandler());
 
   bool passed = true;
-  const auto types = get_tested_types<tested_types::all>();
+  const auto types = get_tested_types<tested_types::core>();
   const auto dims = get_all_dimensions();
 
   const auto contexts = unnamed_type_pack<initializer, var_decl, rval_in_expr,
