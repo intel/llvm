@@ -18,8 +18,8 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @addtogroup sycl_esimd_misc
 /// @{
-/// @ingroup sycl_esimd_misc
 
 /// "Merges" elements of the input vectors according to the merge mask.
 /// @param a the first vector
