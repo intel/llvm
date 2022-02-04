@@ -14,6 +14,8 @@
 
 #include <cstdint> // for uint* types
 
+/// @cond ESIMD_DETAIL
+
 #ifdef __SYCL_DEVICE_ONLY__
 #define SYCL_ESIMD_KERNEL __attribute__((sycl_explicit_simd))
 #define SYCL_ESIMD_FUNCTION __attribute__((sycl_explicit_simd))
@@ -63,6 +65,8 @@
 #define __ESIMD_DEPRECATED(new_api)                                            \
   __SYCL_DEPRECATED("use " __ESIMD_NS_QUOTED "::" __ESIMD_QUOTE(new_api))
 
+/// @endcond ESIMD_DETAIL
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
@@ -70,8 +74,8 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @addtogroup sycl_esimd_core
 /// @{
-/// @ingroup sycl_esimd_core
 
 using uchar = unsigned char;
 using ushort = unsigned short;

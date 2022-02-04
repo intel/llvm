@@ -1,6 +1,13 @@
 
 # FPGA lsu
 
+**IMPORTANT:** This is a proposed update to an existing extension.  The APIs
+described in this document are not yet implemented and cannot be used in
+application code.  See [here][1] for the existing extension, which is
+implemented.
+
+[1]: <../supported/SYCL_EXT_INTEL_FPGA_LSU.md>
+
 The Intel FPGA `lsu` class is implemented in `sycl/ext/intel/fpga_lsu.hpp` which
 is included in `sycl/ext/intel/fpga_extensions.hpp`.
 
