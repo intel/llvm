@@ -4939,9 +4939,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       CommandListInfo.ZeEventLists.emplace_back(TmpWaitList.ZeEventList);
       CommandListInfo.Lengths.emplace_back(TmpWaitList.Length);
     }
-    // Save the kernel in the queue, so that when piQueueFinish/piQueueRelease
-    // is called the code can do a piKernelRelease on this kernel.
-    Queue->EventlessKernelsInUse.emplace_back(Kernel);
+    CommandListInfo->EventlessKernelsInUse.emplace_back(Kernel);
   }
 
   // Use piKernelRetain to increment the reference count and indicate
@@ -4949,7 +4947,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // code in Event.cleanup() will do a piReleaseKernel to update
   // the reference count on the kernel, using the kernel saved
   // in CommandData. If no event is created then the code in
-  // piQueueFinish/piQueueRelease will do a piReleaseKernel.
+  // resetCommandList will do a piReleaseKernel.
   PI_CALL(piKernelRetain(Kernel));
 
   const auto &ZeCommandList = CommandList->first;
@@ -5884,9 +5882,6 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  // As a workaround, we use only the compute engine to guarantee that barriers
-  // work as expected in case when device has a copy engine to handle the
-  // current operation and no event is created.
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
   // We want to batch these commands to avoid extra submissions (costly)
@@ -6164,9 +6159,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
             PI_INVALID_VALUE);
 
   pi_command_list_ptr_t CommandList{};
-  // As a workaround, we use only the compute engine to guarantee that barriers
-  // work as expected in case when device has a copy engine to handle the
-  // current operation and no event is created.
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
