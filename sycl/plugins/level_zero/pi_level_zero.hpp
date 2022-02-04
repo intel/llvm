@@ -894,8 +894,7 @@ protected:
   _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false,
           bool ImportedHostPtr = false)
       : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost},
-        HostPtrImported{ImportedHostPtr}, Mappings {}
-  {}
+        HostPtrImported{ImportedHostPtr}, Mappings {} {}
 
 private:
   // The key is the host pointer representing an active mapping.
