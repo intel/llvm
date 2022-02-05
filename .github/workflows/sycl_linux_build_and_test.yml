@@ -191,6 +191,9 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-size
+        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-cov
+        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
+        cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
         # TODO this should be resolved in CMakeLists.txt
         cmake --build $GITHUB_WORKSPACE/build --target install-lld || echo "skipped"
 
