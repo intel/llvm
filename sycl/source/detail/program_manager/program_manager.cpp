@@ -1619,9 +1619,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // TODO: Handle zero sized Device list.
 
-  const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
-  const RTDeviceBinaryImage &Img = *ImgPtr;
-  const char *compileOptions = Img.getCompileOptions();
+  const char *compileOptions =
+      InputImpl->get_bin_image_ref()->getCompileOptions();
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
       PIDevices.data(), compileOptions,
@@ -1657,9 +1656,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   for (auto &DeviceImage : DeviceImages) {
     const std::shared_ptr<device_image_impl> &InputImpl =
         getSyclObjImpl(DeviceImage);
-    const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
-    const RTDeviceBinaryImage &Img = *ImgPtr;
-    linkOptions.push_back(Img.getLinkOptions());
+    linkOptions.push_back(InputImpl->get_bin_image_ref()->getLinkOptions());
   }
   std::string linkOptionsStr;
   for (auto str : linkOptions) {
