@@ -64,6 +64,10 @@ on:
         type: string
         required: false
         default: "amdgpu"
+      cts_config:
+        type: string
+        requred: false
+        default: ""
 
 jobs:
   configure:
@@ -92,6 +96,7 @@ jobs:
               \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
               \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
               \"lts_config\":\"ocl_x64;hip_amdgpu\",
+              \"cts_config\":\"ocl_x64\",
               \"gen9_runs_on\":\"gen9\",
               \"amdgpu_runs_on\":\"amdgpu\"
             }"
@@ -326,3 +331,49 @@ jobs:
         check_sycl_all: 'hip:gpu,host'
         results_name_suffix: hip_amdgpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         cmake_args: '-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"'
+
+  build_cts:
+    name: Build SYCL CTS
+    need: [build, configure]
+    runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
+    container:
+      image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
+      options: -u 1001:1001
+    steps:
+    - run: cp -r /actions .
+    - name: Register cleanup after job is finished
+      uses: ./actions/cleanup
+    - name: Download compiler toolchain
+      uses: actions/download-artifact@v2
+      with:
+        name: sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+    - name: Extract SYCL toolchain
+      shell: bash
+      run: |
+        mkdir toolchain
+        tar -xf sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }} -C toolchain
+        rm -f sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+    - uses: ./actions/cached_checkout
+      with:
+        path: llvm
+        cache_path: "/__w/repo_cache/"
+    - uses: actions/checkout@v2
+      with:
+        repository: 'KhronosGroup/SYCL-CTS'
+        ref: 'SYCL-2020'
+        path: cts
+    - name: Configure CTS
+      run: |
+        mkdir cts/build
+        cd cts/build
+        cmake -DSYCL_IMPLEMENTATION=DPCPP \
+        -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="../../llvm/devops/pre_commit.exclude_filter" \
+        -DSYCL_CTS_MEASURE_BUILD_TIMES=ON -GNinja \
+        -DDPCPP_INSTALL_DIR=../../toolchain \
+        ..
+        ninja
+    - name: Pack built CTS
+      uses: actions/upload-artifact@v1
+      with:
+        name: sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        path: cts/build/
