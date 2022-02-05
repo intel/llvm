@@ -89,7 +89,7 @@ jobs:
               \"build_github_cache\":\"false\",
               \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
-              \"build_cache_size\":\"2G\",
+              \"build_cache_size\":\"8G\",
               \"build_configure_extra_args\":\"--hip --hip-amd-arch=gfx906 --cuda\",
               \"build_artifact_suffix\":\"default\",
               \"build_upload_artifact\":\"false\",
@@ -351,8 +351,8 @@ jobs:
       shell: bash
       run: |
         mkdir toolchain
-        tar -xf sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}.tar.xz -C toolchain
-        rm -f sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        tar -xf llvm_sycl.tar.xz -C toolchain
+        rm -f llvm_sycl.tar.xz
     - uses: ./actions/cached_checkout
       with:
         path: llvm
