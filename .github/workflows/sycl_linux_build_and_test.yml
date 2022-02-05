@@ -369,6 +369,7 @@ jobs:
         cmake -DSYCL_IMPLEMENTATION=DPCPP \
         -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="../../llvm/devops/pre_commit.exclude_filter" \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON -GNinja \
+        -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
         -DDPCPP_INSTALL_DIR=../../toolchain \
         ..
         ninja
