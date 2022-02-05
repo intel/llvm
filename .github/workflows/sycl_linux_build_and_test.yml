@@ -66,7 +66,7 @@ on:
         default: "amdgpu"
       cts_config:
         type: string
-        requred: false
+        required: false
         default: ""
 
 jobs:
@@ -334,7 +334,7 @@ jobs:
 
   build_cts:
     name: Build SYCL CTS
-    need: [build, configure]
+    needs: [build, configure]
     runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
