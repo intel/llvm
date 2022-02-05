@@ -346,7 +346,7 @@ jobs:
     - name: Download compiler toolchain
       uses: actions/download-artifact@v2
       with:
-        name: sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
     - name: Extract SYCL toolchain
       shell: bash
       run: |
