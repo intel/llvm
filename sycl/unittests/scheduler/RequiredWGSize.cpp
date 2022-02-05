@@ -11,8 +11,7 @@
 #include <CL/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -165,25 +164,26 @@ static void reset() {
   RequiredLocalSize = {0, 0, 0};
 }
 
-static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
+static void setupDefaultMockAPIs() {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
-  Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
-  Mock.redefine<PiApiKind::piProgramRetain>(redefinedProgramRetain);
-  Mock.redefine<PiApiKind::piProgramRelease>(redefinedProgramRelease);
-  Mock.redefine<PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfo);
-  Mock.redefine<PiApiKind::piextProgramSetSpecializationConstant>(
+  using namespace sycl::unittest;
+  redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
+  redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
+  redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
+  redefine<PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
+  redefine<PiApiKind::piProgramRetain>(redefinedProgramRetain);
+  redefine<PiApiKind::piProgramRelease>(redefinedProgramRelease);
+  redefine<PiApiKind::piKernelCreate>(redefinedKernelCreate);
+  redefine<PiApiKind::piKernelRetain>(redefinedKernelRetain);
+  redefine<PiApiKind::piKernelRelease>(redefinedKernelRelease);
+  redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfo);
+  redefine<PiApiKind::piextProgramSetSpecializationConstant>(
       redefinedProgramSetSpecializationConstant);
-  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
-  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
+  redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
+  redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
+  redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
 }
 
 static void performChecks() {
@@ -203,8 +203,7 @@ static void performChecks() {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  setupDefaultMockAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -226,12 +225,12 @@ static void performChecks() {
   EXPECT_EQ(IncomingLocalSize[2], RequiredLocalSize[2]);
 }
 
-TEST(RequiredWGSize, NoRequiredSize) {
+SYCL_TEST(RequiredWGSize, NoRequiredSize) {
   reset();
   performChecks();
 }
 
-TEST(RequiredWGSize, HasRequiredSize) {
+SYCL_TEST(RequiredWGSize, HasRequiredSize) {
   reset();
   RequiredLocalSize = {1, 2, 3};
   performChecks();

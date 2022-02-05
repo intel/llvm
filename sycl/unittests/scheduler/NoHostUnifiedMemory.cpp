@@ -9,7 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <iostream>
 #include <memory>
@@ -79,16 +79,17 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   }
 
   queue Q;
-  unittest::PiMock Mock{Q};
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
+  unittest::redefine<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfo);
+  unittest::redefine<detail::PiApiKind::piMemBufferCreate>(
+      redefinedMemBufferCreate);
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
       redefinedEnqueueMemBufferReadRect);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
       redefinedEnqueueMemBufferWriteRect);
-  Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
-  Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
-  Mock.redefine<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfo);
+  unittest::redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
+  unittest::redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
+  unittest::redefine<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfo);
   cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   device HostDevice;

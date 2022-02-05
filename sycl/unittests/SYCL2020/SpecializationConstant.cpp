@@ -11,9 +11,8 @@
 #include <CL/sycl.hpp>
 #include <detail/device_image_impl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -73,7 +72,47 @@ static sycl::unittest::PiImage generateImageWithSpecConsts() {
 static sycl::unittest::PiImage Img = generateImageWithSpecConsts();
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
-TEST(SpecializationConstant, DefaultValuesAreSet) {
+static void *ContextDevice = nullptr;
+
+static pi_result redefinedContextCreate(
+    const pi_context_properties *properties, pi_uint32 num_devices,
+    const pi_device *devices,
+    void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
+                       void *user_data),
+    void *user_data, pi_context *ret_context) {
+  ContextDevice = devices[0];
+  *ret_context = reinterpret_cast<pi_context>(new size_t{0});
+
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedContextGetInfo(pi_context context,
+                                         pi_context_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret) {
+  if (param_name == PI_CONTEXT_INFO_NUM_DEVICES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(size_t);
+    }
+    if (param_value) {
+      *static_cast<size_t *>(param_value) = 1;
+    }
+  } else if (param_name == PI_CONTEXT_INFO_DEVICES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(pi_device);
+    }
+    if (param_value) {
+      *static_cast<void **>(param_value) = ContextDevice;
+    }
+  } else {
+    std::cerr << "Unsupported context info " << std::hex << param_name << "\n";
+    std::terminate();
+  }
+  return PI_SUCCESS;
+}
+
+SYCL_TEST(SpecializationConstant, DefaultValuesAreSet) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -89,9 +128,6 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -118,7 +154,7 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
   EXPECT_EQ(SpecConstVal2, 8);
 }
 
-TEST(SpecializationConstant, DefaultValuesAreOverriden) {
+SYCL_TEST(SpecializationConstant, DefaultValuesAreOverriden) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -134,9 +170,6 @@ TEST(SpecializationConstant, DefaultValuesAreOverriden) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -170,7 +203,7 @@ TEST(SpecializationConstant, DefaultValuesAreOverriden) {
   EXPECT_EQ(SpecConstVal2, 8);
 }
 
-TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
+SYCL_TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -187,8 +220,10 @@ TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -231,7 +266,7 @@ TEST(SpecializationConstant, SetSpecConstAfterUseKernelBundle) {
   }
 }
 
-TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
+SYCL_TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -248,8 +283,10 @@ TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
@@ -291,7 +328,7 @@ TEST(SpecializationConstant, GetSpecConstAfterUseKernelBundle) {
   }
 }
 
-TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
+SYCL_TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -308,8 +345,10 @@ TEST(SpecializationConstant, UseKernelBundleAfterSetSpecConst) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};

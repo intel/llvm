@@ -9,16 +9,18 @@
 #include <CL/sycl/usm.hpp>
 #include <detail/event_impl.hpp>
 
-#include <helpers/PiMock.hpp>
-
 #include <gtest/gtest.h>
+#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 namespace {
 using namespace sycl;
 
-struct {
+struct TestContextImpl {
   std::vector<event> Deps;
-} TestContext;
+};
+
+std::unique_ptr<TestContextImpl> TestContext;
 
 // Dummy event values for bookkeeping
 pi_event WAIT = reinterpret_cast<pi_event>(1);
@@ -31,9 +33,9 @@ template <typename T> auto getVal(T obj) {
 
 pi_result redefinedEnqueueEventsWait(pi_queue, pi_uint32 NumDeps,
                                      const pi_event *Deps, pi_event *Event) {
-  EXPECT_EQ(NumDeps, TestContext.Deps.size());
+  EXPECT_EQ(NumDeps, TestContext->Deps.size());
   for (size_t i = 0; i < NumDeps; ++i) {
-    EXPECT_EQ(Deps[i], getVal(TestContext.Deps[i]));
+    EXPECT_EQ(Deps[i], getVal(TestContext->Deps[i]));
   }
   *Event = WAIT;
   return PI_SUCCESS;
@@ -53,8 +55,6 @@ pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
   return PI_SUCCESS;
 }
 
-pi_result redefinedEventRelease(pi_event) { return PI_SUCCESS; }
-
 bool preparePiMock(platform &Plt) {
   if (Plt.is_host()) {
     std::cout << "Not run on host - no PI events created in that case"
@@ -62,22 +62,21 @@ bool preparePiMock(platform &Plt) {
     return false;
   }
 
-  unittest::PiMock Mock{Plt};
-  Mock.redefine<detail::PiApiKind::piEnqueueEventsWait>(
-      redefinedEnqueueEventsWait);
-  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemcpy>(
-      redefinedUSMEnqueueMemcpy);
-  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
-      redefinedUSMEnqueueMemset);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
+  using namespace sycl::unittest;
+
+  redefine<detail::PiApiKind::piEnqueueEventsWait>(redefinedEnqueueEventsWait);
+  redefine<detail::PiApiKind::piextUSMEnqueueMemcpy>(redefinedUSMEnqueueMemcpy);
+  redefine<detail::PiApiKind::piextUSMEnqueueMemset>(redefinedUSMEnqueueMemset);
   return true;
 }
 
 // Check that zero-length USM memset/memcpy use piEnqueueEventsWait.
-TEST(USM, NoOpPreservesDependencyChain) {
+SYCL_TEST(USM, NoOpPreservesDependencyChain) {
   platform Plt{default_selector()};
   if (!preparePiMock(Plt))
-    return;
+    GTEST_SKIP();
+
+  TestContext.reset(new TestContextImpl{});
 
   context Ctx{Plt.get_devices()[0]};
   queue Q{Ctx, default_selector()};
@@ -88,20 +87,22 @@ TEST(USM, NoOpPreservesDependencyChain) {
   event E1 = Q.memset(Src, 1, 1);
   ASSERT_EQ(getVal(E1), MEMSET);
 
-  TestContext.Deps = {E1};
-  event E2 = Q.memset(Dst, 2, 0, TestContext.Deps);
+  TestContext->Deps = {E1};
+  event E2 = Q.memset(Dst, 2, 0, TestContext->Deps);
   ASSERT_EQ(getVal(E2), WAIT);
 
-  TestContext.Deps = {E1, E2};
-  event E3 = Q.memcpy(Dst, Src, 1, TestContext.Deps);
+  TestContext->Deps = {E1, E2};
+  event E3 = Q.memcpy(Dst, Src, 1, TestContext->Deps);
   ASSERT_EQ(getVal(E3), MEMCPY);
 
-  TestContext.Deps = {E1, E2, E3};
-  event E4 = Q.memcpy(Dst, Src, 0, TestContext.Deps);
+  TestContext->Deps = {E1, E2, E3};
+  event E4 = Q.memcpy(Dst, Src, 0, TestContext->Deps);
   ASSERT_EQ(getVal(E4), WAIT);
 
   free(Src, Q);
   free(Dst, Q);
+
+  TestContext = nullptr;
 }
 
 } // namespace

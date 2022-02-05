@@ -9,7 +9,7 @@
 #include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 using namespace sycl;
 
@@ -45,12 +45,12 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
   return PI_SUCCESS;
 }
 
-class DeviceInfoTest : public ::testing::Test {
-public:
-  DeviceInfoTest() : Plt{default_selector()} {}
-
+class DeviceInfoTest : public unittest::SYCLUnitTest<DeviceInfoTest> {
 protected:
   void SetUp() override {
+    unittest::SYCLUnitTest<DeviceInfoTest>::SetUp();
+    Plt = sycl::platform(default_selector());
+
     if (Plt.is_host()) {
       std::clog << "This test is only supported on non-host platforms.\n";
       std::clog << "Current platform is "
@@ -58,14 +58,12 @@ protected:
       return;
     }
 
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    unittest::redefine<detail::PiApiKind::piDeviceGetInfo>(
+        redefinedDeviceGetInfo);
   }
 
 protected:
   platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 TEST_F(DeviceInfoTest, GetDeviceUUID) {

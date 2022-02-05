@@ -11,7 +11,7 @@
 #include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <iostream>
 #include <memory>
@@ -83,7 +83,7 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
-TEST(KernelReleaseTest, GetKernelRelease) {
+SYCL_TEST(KernelReleaseTest, GetKernelRelease) {
   platform Plt{default_selector()};
   if (Plt.is_host()) {
     std::cout << "The program/kernel methods are mostly no-op on the host "
@@ -92,15 +92,16 @@ TEST(KernelReleaseTest, GetKernelRelease) {
     return;
   }
 
-  unittest::PiMock Mock{Plt};
-  Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
+  unittest::redefine<detail::PiApiKind::piclProgramCreateWithSource>(
       redefinedProgramCreateWithSource);
-  Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+  unittest::redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  unittest::redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
+  unittest::redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
+  unittest::redefine<detail::PiApiKind::piKernelRelease>(
+      redefinedKernelRelease);
+  unittest::redefine<detail::PiApiKind::piKernelGetInfo>(
+      redefinedKernelGetInfo);
+  unittest::redefine<detail::PiApiKind::piKernelSetExecInfo>(
       redefinedKernelSetExecInfo);
 
   context Ctx{Plt.get_devices()[0]};

@@ -10,9 +10,9 @@
 
 #include <CL/sycl/queue.hpp>
 
-#include <gtest/gtest.h>
+#include <helpers/sycl_test.hpp>
 
-class SchedulerTest : public ::testing::Test {
+class SchedulerTest : public sycl::unittest::SYCLUnitTest<SchedulerTest> {
 protected:
   cl::sycl::async_handler MAsyncHandler =
       [](cl::sycl::exception_list ExceptionList) {

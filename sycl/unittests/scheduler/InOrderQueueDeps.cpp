@@ -84,18 +84,19 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
     return;
   }
 
-  unittest::PiMock Mock{Plt};
-  Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
+  unittest::redefine<detail::PiApiKind::piMemBufferCreate>(
+      redefinedMemBufferCreate);
+  unittest::redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
       redefinedEnqueueMemBufferReadRect);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
       redefinedEnqueueMemBufferWriteRect);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
       redefinedEnqueueMemBufferMap);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemUnmap>(redefinedEnqueueMemUnmap);
-  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
+  unittest::redefine<detail::PiApiKind::piEnqueueMemUnmap>(
+      redefinedEnqueueMemUnmap);
+  unittest::redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+  unittest::redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
 
   context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, Selector, property::queue::in_order()};

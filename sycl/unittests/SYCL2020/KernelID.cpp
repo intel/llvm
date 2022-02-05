@@ -8,9 +8,8 @@
 
 #include <CL/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -103,6 +102,46 @@ static sycl::unittest::PiImage Imgs[2] = {
          "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1"})};
 static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
+static void *ContextDevice = nullptr;
+
+static pi_result redefinedContextCreate(
+    const pi_context_properties *properties, pi_uint32 num_devices,
+    const pi_device *devices,
+    void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
+                       void *user_data),
+    void *user_data, pi_context *ret_context) {
+  ContextDevice = devices[0];
+  *ret_context = reinterpret_cast<pi_context>(new size_t{0});
+
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedContextGetInfo(pi_context context,
+                                         pi_context_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret) {
+  if (param_name == PI_CONTEXT_INFO_NUM_DEVICES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(size_t);
+    }
+    if (param_value) {
+      *static_cast<size_t *>(param_value) = 1;
+    }
+  } else if (param_name == PI_CONTEXT_INFO_DEVICES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(pi_device);
+    }
+    if (param_value) {
+      *static_cast<void **>(param_value) = ContextDevice;
+    }
+  } else {
+    std::cerr << "Unsupported context info " << std::hex << param_name << "\n";
+    std::terminate();
+  }
+  return PI_SUCCESS;
+}
+
 TEST(KernelID, AllProgramKernelIds) {
   std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
 
@@ -136,7 +175,7 @@ TEST(KernelID, NoServiceKernelIds) {
   EXPECT_TRUE(NoFoundServiceKernelID);
 }
 
-TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
+SYCL_TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
@@ -153,8 +192,10 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -179,7 +220,7 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
   }
 }
 
-TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
+SYCL_TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
@@ -196,8 +237,10 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -218,7 +261,7 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
   }
 }
 
-TEST(KernelID, KernelIDHasKernel) {
+SYCL_TEST(KernelID, KernelIDHasKernel) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
@@ -235,8 +278,10 @@ TEST(KernelID, KernelIDHasKernel) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -315,20 +360,22 @@ TEST(KernelID, KernelIDHasKernel) {
   EXPECT_TRUE(InputBundle7.has_kernel(TestKernel3ID));
 }
 
-TEST(KernelID, InvalidKernelName) {
+SYCL_TEST(KernelID, InvalidKernelName) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
     return; // test is not supported on host.
   }
 
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
+
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
 
   try {
     sycl::get_kernel_id<class NotAKernel>();

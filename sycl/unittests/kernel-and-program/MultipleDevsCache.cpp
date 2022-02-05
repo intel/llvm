@@ -11,10 +11,9 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -105,35 +104,33 @@ static pi_result redefinedKernelRelease(pi_kernel kernel) {
   return PI_SUCCESS;
 }
 
-class MultipleDeviceCacheTest : public ::testing::Test {
-public:
-  MultipleDeviceCacheTest() : Plt{default_selector()} {}
-
+class MultipleDeviceCacheTest
+    : public unittest::SYCLUnitTest<MultipleDeviceCacheTest> {
 protected:
   void SetUp() override {
+    unittest::SYCLUnitTest<MultipleDeviceCacheTest>::SetUp();
+    Plt = sycl::platform(default_selector());
+
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       return;
     }
 
-    Mock = std::make_unique<unittest::PiMock>(Plt);
+    using namespace sycl::unittest;
 
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
-    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-    Mock->redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-    Mock->redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
-    Mock->redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
-    Mock->redefine<detail::PiApiKind::piContextRelease>(
-        redefinedContextRelease);
-    Mock->redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-    Mock->redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
-    Mock->redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
-    Mock->redefine<detail::PiApiKind::piProgramCreate>(redefinedProgramCreate);
-    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
+    redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+    redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
+    redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
+    redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
+    redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+    redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
+    redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
+    redefine<detail::PiApiKind::piProgramCreate>(redefinedProgramCreate);
+    redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   }
 
 protected:
-  std::unique_ptr<unittest::PiMock> Mock;
   platform Plt;
 };
 

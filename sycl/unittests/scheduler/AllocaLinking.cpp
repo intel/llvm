@@ -9,7 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <iostream>
 
@@ -56,10 +56,11 @@ TEST_F(SchedulerTest, AllocaLinking) {
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
   queue Q;
-  unittest::PiMock Mock{Q};
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
+  unittest::redefine<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfo);
+  unittest::redefine<detail::PiApiKind::piMemBufferCreate>(
+      redefinedMemBufferCreate);
+  unittest::redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
   cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;

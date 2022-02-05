@@ -35,16 +35,14 @@ pi_result redefinedTearDown(void *PluginParameter) {
 }
 #endif
 
-TEST(Windows, DllMainCall) {
+SYCL_TEST(Windows, DllMainCall) {
 #ifdef _WIN32
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
-    printf("Test is not supported on host, skipping\n");
-    return;
+    GTEST_SKIP() << "Test is not supported on host, skipping";
   }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
+
+  redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
 
   // Teardown calls are only expected on sycl.dll library unload, not when
   // process gets terminated.
@@ -61,5 +59,7 @@ TEST(Windows, DllMainCall) {
   DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)0x01);
 
   EXPECT_EQ(TearDownCalls.load(), TearDownCallsDone);
+#else
+  GTEST_SKIP() << "Windows-specific test";
 #endif
 }

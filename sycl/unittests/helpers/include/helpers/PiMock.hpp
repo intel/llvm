@@ -50,10 +50,20 @@ template <typename R, typename... Args> struct DispatchHelper<R(Args...)> {
   using type = std::function<R(Args...)>;
 };
 
+template <detail::PiApiKind Kind> struct PiFuncType;
+
+#define _PI_API(api)                                                           \
+  template <> struct PiFuncType<detail::PiApiKind::api> {                      \
+    using type = typename DispatchHelper<decltype(api)>::type;                 \
+  };
+#include <CL/sycl/detail/pi.def>
+
+#undef _PI_API
+
 struct PiDispatch {
 #define _PI_API(api)                                                           \
   typename DispatchHelper<decltype(api)>::type mock_##api = [](auto...) {      \
-    std::cerr << "Unexpected PI call\n";                                       \
+    std::cerr << "Unexpected PI call: " << #api << "\n";                       \
     std::terminate();                                                          \
     return PI_SUCCESS;                                                         \
   };
@@ -63,7 +73,7 @@ struct PiDispatch {
 #undef _PI_API
 };
 
-extern std::unordered_map<backend, PiDispatch> GDispatchTables;
+extern std::unordered_map<backend, PiDispatch> *GDispatchTables;
 
 void hijackPlugins();
 
@@ -71,12 +81,11 @@ void hijackPlugins();
 ///
 /// \param F is any callable (function or lambda), that will be used instead of
 /// default PI call handler.
-template <detail::PiApiKind PiKind, backend Backend, typename Ret,
-          typename... Args>
-void redefineOne(const std::function<Ret(Args...)> &F) {
+template <detail::PiApiKind PiKind, backend Backend>
+void redefineOne(const typename PiFuncType<PiKind>::type &F) {
 #define _PI_API(api)                                                           \
   if constexpr (PiKind == detail::PiApiKind::api) {                            \
-    GDispatchTables[Backend].mock_##api = F;                                   \
+    (*GDispatchTables)[Backend].mock_##api = F;                                \
   }
 #include <CL/sycl/detail/pi.def>
 
@@ -93,8 +102,8 @@ void redefineOne(Ret (*FP)(Args...)) {
 ///
 /// \param F is any callable (function or lambda), that will be used instead of
 /// default PI call handler.
-template <detail::PiApiKind PiKind, typename Ret, typename... Args>
-void redefine(const std::function<Ret(Args...)> &F) {
+template <detail::PiApiKind PiKind>
+void redefine(const typename PiFuncType<PiKind>::type &F) {
   redefineOne<PiKind, backend::opencl>(F);
   redefineOne<PiKind, backend::ext_oneapi_level_zero>(F);
   redefineOne<PiKind, backend::ext_oneapi_cuda>(F);

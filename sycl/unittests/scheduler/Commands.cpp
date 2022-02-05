@@ -8,7 +8,7 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <iostream>
 
@@ -59,9 +59,9 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   }
 
   platform Plt{Selector};
-  unittest::PiMock Mock{Plt};
 
-  Mock.redefine<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
+  unittest::setupDefaultMockAPIs();
+  unittest::redefine<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
       redefinePiEnqueueEventsWaitWithBarrier);
 
   queue Queue{Plt.get_devices()[0]};
@@ -70,9 +70,9 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();
 
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinePiEventGetInfo);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(redefinePiEventRetain);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(redefinePiEventRelease);
+  unittest::redefine<detail::PiApiKind::piEventGetInfo>(redefinePiEventGetInfo);
+  unittest::redefine<detail::PiApiKind::piEventRetain>(redefinePiEventRetain);
+  unittest::redefine<detail::PiApiKind::piEventRelease>(redefinePiEventRelease);
 
   auto EmptyEvent = std::make_shared<detail::event_impl>();
   auto Event = std::make_shared<detail::event_impl>(

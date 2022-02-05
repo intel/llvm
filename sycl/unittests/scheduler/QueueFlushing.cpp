@@ -9,8 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 using namespace sycl;
 
@@ -133,18 +132,18 @@ TEST_F(SchedulerTest, QueueFlushing) {
     return;
   }
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
+  unittest::setupDefaultMockAPIs();
+  unittest::redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
+  unittest::redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
       redefinedEnqueueMemBufferReadRect);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
       redefinedEnqueueMemBufferWriteRect);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
       redefinedEnqueueMemBufferMap);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemUnmap>(redefinedEnqueueMemUnmap);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
+  unittest::redefine<detail::PiApiKind::piEnqueueMemUnmap>(
+      redefinedEnqueueMemUnmap);
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
       redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};

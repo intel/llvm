@@ -72,12 +72,12 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   }
 
   platform Plt{Selector};
-  unittest::PiMock Mock{Plt};
 
-  Mock.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
+  unittest::setupDefaultMockAPIs();
+  unittest::redefine<detail::PiApiKind::piEventsWait>(waitFunc);
+  unittest::redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
+  unittest::redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
+  unittest::redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
 
   context Ctx1{Plt.get_devices()[0]};
   queue Q1{Ctx1, Selector};

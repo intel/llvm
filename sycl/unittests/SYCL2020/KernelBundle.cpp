@@ -9,9 +9,8 @@
 #include <CL/sycl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -79,7 +78,47 @@ static sycl::unittest::PiImage Imgs[2] = {
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
 static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
-TEST(KernelBundle, GetKernelBundleFromKernel) {
+static void *ContextDevice = nullptr;
+
+static pi_result redefinedContextCreate(
+    const pi_context_properties *properties, pi_uint32 num_devices,
+    const pi_device *devices,
+    void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
+                       void *user_data),
+    void *user_data, pi_context *ret_context) {
+  ContextDevice = devices[0];
+  *ret_context = reinterpret_cast<pi_context>(new size_t{0});
+
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedContextGetInfo(pi_context context,
+                                         pi_context_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret) {
+  if (param_name == PI_CONTEXT_INFO_NUM_DEVICES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(size_t);
+    }
+    if (param_value) {
+      *static_cast<size_t *>(param_value) = 1;
+    }
+  } else if (param_name == PI_CONTEXT_INFO_DEVICES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(pi_device);
+    }
+    if (param_value) {
+      *static_cast<void **>(param_value) = ContextDevice;
+    }
+  } else {
+    std::cerr << "Unsupported context info " << std::hex << param_name << "\n";
+    std::terminate();
+  }
+  return PI_SUCCESS;
+}
+
+SYCL_TEST(KernelBundle, GetKernelBundleFromKernel) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
@@ -96,8 +135,10 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -117,7 +158,7 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
   EXPECT_EQ(KernelBundle, RetKernelBundle);
 }
 
-TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
+SYCL_TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -134,8 +175,10 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -162,7 +205,7 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
       << "Expect executable device image in bundle";
 }
 
-TEST(KernelBundle, EmptyKernelBundle) {
+SYCL_TEST(KernelBundle, EmptyKernelBundle) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -179,8 +222,10 @@ TEST(KernelBundle, EmptyKernelBundle) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
@@ -194,7 +239,7 @@ TEST(KernelBundle, EmptyKernelBundle) {
             0u);
 }
 
-TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
+SYCL_TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -211,8 +256,10 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
@@ -252,7 +299,7 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
   }
 }
 
-TEST(KernelBundle, HasKernelBundle) {
+SYCL_TEST(KernelBundle, HasKernelBundle) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
@@ -269,8 +316,10 @@ TEST(KernelBundle, HasKernelBundle) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -315,7 +364,7 @@ TEST(KernelBundle, HasKernelBundle) {
   EXPECT_TRUE(HasKernelBundle);
 }
 
-TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
+SYCL_TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -332,8 +381,10 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
@@ -373,7 +424,8 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
   }
 }
 
-TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
+SYCL_TEST(KernelBundle,
+          UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -390,8 +442,10 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   const sycl::context PrimaryCtx{Dev};
@@ -436,7 +490,8 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
   }
 }
 
-TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
+SYCL_TEST(KernelBundle,
+          UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -453,8 +508,10 @@ TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   const sycl::context PrimaryCtx{Dev};
@@ -499,7 +556,8 @@ TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
   }
 }
 
-TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
+SYCL_TEST(KernelBundle,
+          UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -516,8 +574,10 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   const sycl::context PrimaryCtx{Dev};
@@ -565,7 +625,7 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
   }
 }
 
-TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
+SYCL_TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -582,8 +642,10 @@ TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextGetInfo>(
+      redefinedContextGetInfo);
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};

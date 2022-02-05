@@ -20,7 +20,10 @@ namespace unittest {
 
 template <typename T> class SYCLUnitTest : public ::testing::Test {
 protected:
-  void SetUp() override { setupDefaultMockAPIs(); }
+  void SetUp() override {
+    hijackPlugins();
+    setupDefaultMockAPIs();
+  }
   void TearDown() override { resetMockAPIs(); }
 };
 

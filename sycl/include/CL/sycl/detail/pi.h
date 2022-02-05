@@ -187,6 +187,7 @@ typedef enum {
 } _pi_device_local_mem_type;
 
 typedef enum {
+
   PI_DEVICE_INFO_TYPE = CL_DEVICE_TYPE,
   PI_DEVICE_INFO_VENDOR_ID = CL_DEVICE_VENDOR_ID,
   PI_DEVICE_INFO_MAX_COMPUTE_UNITS = CL_DEVICE_MAX_COMPUTE_UNITS,

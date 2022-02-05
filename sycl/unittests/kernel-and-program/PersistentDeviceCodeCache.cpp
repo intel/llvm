@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <cstdio>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 #include <llvm/Support/FileSystem.h>
 #include <vector>
 
@@ -67,7 +67,8 @@ static pi_result redefinedProgramGetInfo(pi_program program,
   return PI_SUCCESS;
 }
 
-class PersistenDeviceCodeCache : public ::testing::Test {
+class PersistenDeviceCodeCache
+    : public unittest::SYCLUnitTest<PersistenDeviceCodeCache> {
 public:
 #ifdef _WIN32
   int setenv(const char *name, const char *value, int overwrite) {
@@ -81,25 +82,28 @@ public:
     return _putenv_s(name, value);
   }
 #endif
-  virtual void SetUp() {
-    EXPECT_NE(getenv("SYCL_CACHE_DIR"), nullptr)
-        << "Please set SYCL_CACHE_DIR environment variable pointing to cache "
-           "location.";
-  }
-
-  PersistenDeviceCodeCache() : Plt{default_selector()} {
+  void SetUp() override {
+    unittest::SYCLUnitTest<PersistenDeviceCodeCache>::SetUp();
+    for (const auto &Cur : platform::get_platforms())
+      if (Cur.get_backend() == backend::opencl) {
+        Plt = Cur;
+        break;
+      }
 
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       std::clog << "This test is only supported on OpenCL devices\n";
       std::clog << "Current platform is "
                 << Plt.get_info<info::platform::name>();
-      return;
+      GTEST_SKIP();
     }
 
-    Mock = std::make_unique<unittest::PiMock>(Plt);
     Dev = Plt.get_devices()[0];
-    Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
+    unittest::redefine<detail::PiApiKind::piProgramGetInfo>(
         redefinedProgramGetInfo);
+
+    ASSERT_NE(getenv("SYCL_CACHE_DIR"), nullptr)
+        << "Please set SYCL_CACHE_DIR environment variable pointing to cache "
+           "location.";
   }
 
   /* Helper function for concurent cache item read/write from diffrent number
@@ -171,7 +175,6 @@ protected:
   pi_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
   RT::PiProgram NativeProg;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 /* Checks that key values with \0 symbols are processed correctly

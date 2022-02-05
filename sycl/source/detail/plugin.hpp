@@ -204,7 +204,12 @@ public:
   backend getBackend(void) const { return MBackend; }
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
-  int unload() { return RT::unloadPlugin(MLibraryHandle); }
+  int unload() {
+    if (MLibraryHandle)
+      return RT::unloadPlugin(MLibraryHandle);
+
+    return 0;
+  }
 
   // return the index of PiPlatforms.
   // If not found, add it and return its index.

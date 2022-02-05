@@ -13,8 +13,7 @@
 #include <CL/sycl/backend/opencl.hpp>
 #include <detail/context_impl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -71,7 +70,7 @@ static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
   return PI_SUCCESS;
 }
 
-TEST(GetNative, GetNativeHandle) {
+SYCL_TEST(GetNative, GetNativeHandle) {
   platform Plt{default_selector()};
   if (Plt.get_backend() != backend::opencl) {
     std::cout << "Test is created for opencl only" << std::endl;
@@ -84,17 +83,14 @@ TEST(GetNative, GetNativeHandle) {
   }
   TestCounter = 0;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
-  Mock.redefine<detail::PiApiKind::piContextRetain>(redefinedContextRetain);
-  Mock.redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
-  Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
-  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
-      redefinedUSMEnqueueMemset);
+  using namespace sycl::unittest;
+  redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
+  redefine<detail::PiApiKind::piContextRetain>(redefinedContextRetain);
+  redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
+  redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+  redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
+  redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
+  redefine<detail::PiApiKind::piextUSMEnqueueMemset>(redefinedUSMEnqueueMemset);
 
   default_selector Selector;
   context Context(Plt);

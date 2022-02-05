@@ -9,9 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -46,9 +44,22 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
     return;
   }
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+  unittest::setupDefaultMockAPIs();
+  unittest::redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+  unittest::redefine<detail::PiApiKind::piEventGetInfo>(
+      [](pi_event event, pi_event_info param_name, size_t param_value_size,
+         void *param_value, size_t *param_value_size_ret) {
+        if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+          if (param_value_size_ret) {
+            *param_value_size_ret = sizeof(int);
+          }
+          if (param_value) {
+            *static_cast<int *>(param_value) = PI_EVENT_QUEUED;
+          }
+        }
+
+        return PI_SUCCESS;
+      });
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, Selector, property::queue::in_order()};

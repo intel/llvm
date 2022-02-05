@@ -13,9 +13,8 @@
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
 #include <CL/sycl.hpp>
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -118,12 +117,18 @@ static pi_result redefinedKernelCreate(pi_program program,
 
 static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
 
-class KernelAndProgramCacheTest : public ::testing::Test {
-public:
-  KernelAndProgramCacheTest() : Plt{default_selector()} {}
-
+class KernelAndProgramCacheTest
+    : public unittest::SYCLUnitTest<KernelAndProgramCacheTest> {
 protected:
   void SetUp() override {
+    unittest::SYCLUnitTest<KernelAndProgramCacheTest>::SetUp();
+
+    for (const auto &Cur : platform::get_platforms())
+      if (Cur.get_backend() == backend::opencl) {
+        Plt = Cur;
+        break;
+      }
+
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       std::clog << "This test is only supported on OpenCL devices\n";
       std::clog << "Current platform is "
@@ -131,19 +136,18 @@ protected:
       return;
     }
 
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
+    unittest::redefine<detail::PiApiKind::piclProgramCreateWithSource>(
         redefinedProgramCreateWithSource);
-    Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-    Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    unittest::redefine<detail::PiApiKind::piKernelGetInfo>(
+        redefinedKernelGetInfo);
+    unittest::redefine<detail::PiApiKind::piKernelCreate>(
+        redefinedKernelCreate);
+    unittest::redefine<detail::PiApiKind::piKernelRelease>(
+        redefinedKernelRelease);
   }
 
 protected:
   platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 // Check that programs built from source are not cached.
@@ -152,7 +156,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeBuild) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
 
   Prg.build_with_source("");
@@ -168,7 +172,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeBuildWithOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
 
   Prg.build_with_source("", "-g");
@@ -184,7 +188,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeCompileAndLink) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
 
   Prg.compile_with_source("");
@@ -202,7 +206,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeCompileAndLinkWithOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
 
   Prg.compile_with_source("");
@@ -219,7 +223,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildPositive) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg1{Ctx};
   program Prg2{Ctx};
 
@@ -237,7 +241,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildPositiveBuildOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg1{Ctx};
   program Prg2{Ctx};
   program Prg3{Ctx};
@@ -266,7 +270,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeCompileOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
 
   Prg.compile_with_kernel_type<TestKernel>("-g");
@@ -283,7 +287,7 @@ TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeLinkOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
 
   Prg.compile_with_kernel_type<TestKernel>();
@@ -300,7 +304,7 @@ TEST_F(KernelAndProgramCacheTest, KernelPositive) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -320,7 +324,7 @@ TEST_F(KernelAndProgramCacheTest, KernelPositiveBuildOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -341,7 +345,7 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeCompileOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -362,7 +366,7 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeLinkOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -384,7 +388,7 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeLinkedProgs) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -408,7 +412,7 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeSource) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -443,7 +447,7 @@ TEST_F(KernelAndProgramFastCacheTest, KernelPositive) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -463,7 +467,7 @@ TEST_F(KernelAndProgramFastCacheTest, KernelPositiveBuildOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -484,7 +488,7 @@ TEST_F(KernelAndProgramFastCacheTest, KernelNegativeCompileOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -505,7 +509,7 @@ TEST_F(KernelAndProgramFastCacheTest, KernelNegativeLinkOpts) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -527,7 +531,7 @@ TEST_F(KernelAndProgramFastCacheTest, KernelNegativeLinkedProgs) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
@@ -551,7 +555,7 @@ TEST_F(KernelAndProgramFastCacheTest, KernelNegativeSource) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
 
   globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});

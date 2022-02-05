@@ -9,9 +9,8 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -209,13 +208,27 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
   unittest::ScopedEnvVar HostUnifiedMemoryVar{
       HostUnifiedMemoryName, "1",
       detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
+  unittest::setupDefaultMockAPIs();
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
       redefinedEnqueueMemBufferMap);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemUnmap>(redefinedEnqueueMemUnmap);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
+  unittest::redefine<detail::PiApiKind::piEnqueueMemUnmap>(
+      redefinedEnqueueMemUnmap);
+  unittest::redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
       redefinedEnqueueMemBufferFill);
+  unittest::redefine<detail::PiApiKind::piEventGetInfo>(
+      [](pi_event event, pi_event_info param_name, size_t param_value_size,
+         void *param_value, size_t *param_value_size_ret) {
+        if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+          if (param_value_size_ret) {
+            *param_value_size_ret = sizeof(int);
+          }
+          if (param_value) {
+            *static_cast<int *>(param_value) = PI_EVENT_QUEUED;
+          }
+        }
+
+        return PI_SUCCESS;
+      });
 
   context Ctx{Plt};
   queue Queue{Ctx, Selector};

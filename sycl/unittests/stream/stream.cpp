@@ -8,9 +8,7 @@
 
 #include <CL/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -29,7 +27,7 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
   return PI_SUCCESS;
 }
 
-TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
+SYCL_TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cout << "Not run on host - no PI buffers created in that case"
@@ -47,9 +45,7 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+  sycl::unittest::redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
       redefinedMemBufferCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];

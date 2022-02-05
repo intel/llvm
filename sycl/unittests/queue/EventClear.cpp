@@ -8,8 +8,8 @@
 
 #include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
-#include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 using namespace cl::sycl;
 
@@ -25,9 +25,9 @@ std::unique_ptr<TestCtx> TestContext;
 
 const int ExpectedEventThreshold = 128;
 
-pi_result redefinedQueueCreate(pi_context context, pi_device device,
-                               pi_queue_properties properties,
-                               pi_queue *queue) {
+static pi_result redefinedQueueCreate(pi_context context, pi_device device,
+                                      pi_queue_properties properties,
+                                      pi_queue *queue) {
   // Use in-order queues to force storing events for calling wait on them,
   // rather than calling piQueueFinish.
   if (properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
@@ -36,27 +36,26 @@ pi_result redefinedQueueCreate(pi_context context, pi_device device,
   return PI_SUCCESS;
 }
 
-pi_result redefinedQueueRelease(pi_queue Queue) { return PI_SUCCESS; }
-
-pi_result redefinedUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
-                                    size_t count,
-                                    pi_uint32 num_events_in_waitlist,
-                                    const pi_event *events_waitlist,
-                                    pi_event *event) {
+static pi_result redefinedUSMEnqueueMemset(pi_queue queue, void *ptr,
+                                           pi_int32 value, size_t count,
+                                           pi_uint32 num_events_in_waitlist,
+                                           const pi_event *events_waitlist,
+                                           pi_event *event) {
   // Provide a dummy non-nullptr value
   *event = reinterpret_cast<pi_event>(1);
   return PI_SUCCESS;
 }
 
-pi_result redefinedEventsWait(pi_uint32 num_events,
-                              const pi_event *event_list) {
+static pi_result redefinedEventsWait(pi_uint32 num_events,
+                                     const pi_event *event_list) {
   ++TestContext->NEventsWaitedFor;
   return PI_SUCCESS;
 }
 
-pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
+static pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
+                                       size_t param_value_size,
+                                       void *param_value,
+                                       size_t *param_value_size_ret) {
   EXPECT_EQ(param_name, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
       << "Unexpected event info requested";
   // Report first half of events as complete.
@@ -72,12 +71,12 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
   return PI_SUCCESS;
 }
 
-pi_result redefinedEventRetain(pi_event event) {
+static pi_result redefinedEventRetain(pi_event event) {
   ++TestContext->EventReferenceCount;
   return PI_SUCCESS;
 }
 
-pi_result redefinedEventRelease(pi_event event) {
+static pi_result redefinedEventRelease(pi_event event) {
   --TestContext->EventReferenceCount;
   return PI_SUCCESS;
 }
@@ -89,24 +88,23 @@ bool preparePiMock(platform &Plt) {
     return false;
   }
 
-  unittest::PiMock Mock{Plt};
-  Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-  Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
-  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
-      redefinedUSMEnqueueMemset);
-  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
+  using namespace sycl::unittest;
+
+  redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+  redefine<detail::PiApiKind::piextUSMEnqueueMemset>(redefinedUSMEnqueueMemset);
+  redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+  redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
+  redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
+  redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
   return true;
 }
 
 // Check that the USM events are cleared from the queue upon call to wait(),
 // so that they are not waited for multiple times.
-TEST(QueueEventClear, ClearOnQueueWait) {
+SYCL_TEST(QueueEventClear, ClearOnQueueWait) {
   platform Plt{default_selector()};
   if (!preparePiMock(Plt))
-    return;
+    GTEST_SKIP();
 
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
@@ -124,10 +122,10 @@ TEST(QueueEventClear, ClearOnQueueWait) {
 
 // Check that shared events are cleaned up from the queue once their number
 // exceeds a threshold.
-TEST(QueueEventClear, CleanupOnThreshold) {
+SYCL_TEST(QueueEventClear, CleanupOnThreshold) {
   platform Plt{default_selector()};
   if (!preparePiMock(Plt))
-    return;
+    GTEST_SKIP();
 
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));

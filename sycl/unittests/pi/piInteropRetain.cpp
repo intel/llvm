@@ -12,7 +12,7 @@
 
 #include <detail/queue_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 namespace {
 using namespace cl::sycl;
@@ -20,6 +20,19 @@ using namespace cl::sycl;
 static int QueueRetainCalled = 0;
 pi_result redefinedQueueRetain(pi_queue Queue) {
   ++QueueRetainCalled;
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedQueueGetNativeHandle(pi_queue q,
+                                               pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(q);
+  return PI_SUCCESS;
+}
+
+static pi_result
+redefinedQueueCreateWithNativeHandle(pi_native_handle nativeHandle, pi_context,
+                                     pi_queue *queue, bool) {
+  *queue = reinterpret_cast<pi_queue>(nativeHandle);
   return PI_SUCCESS;
 }
 
@@ -37,17 +50,27 @@ bool preparePiMock(platform &Plt) {
   return true;
 }
 
-TEST(PiInteropTest, CheckRetain) {
-  platform Plt{default_selector()};
+SYCL_TEST(PiInteropTest, CheckRetain) {
+  platform Plt;
+  // TODO replace with a selector
+  for (const auto &Cand : platform::get_platforms()) {
+    if (Cand.get_backend() == backend::opencl) {
+      Plt = Cand;
+      break;
+    }
+  }
+
   if (!preparePiMock(Plt))
     return;
   context Ctx{Plt.get_devices()[0]};
 
-  unittest::PiMock Mock{Plt};
-
   // The queue construction should not call to piQueueRetain. Instead
   // piQueueCreate should return the "retained" queue.
-  Mock.redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
+  unittest::redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
+  unittest::redefine<detail::PiApiKind::piextQueueGetNativeHandle>(
+      redefinedQueueGetNativeHandle);
+  unittest::redefine<detail::PiApiKind::piextQueueCreateWithNativeHandle>(
+      redefinedQueueCreateWithNativeHandle);
   queue Q{Ctx, default_selector()};
   EXPECT_TRUE(QueueRetainCalled == 0);
 
