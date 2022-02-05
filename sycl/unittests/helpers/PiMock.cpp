@@ -62,14 +62,23 @@ void hijackPlugins() {
 // Default API redefinitions
 //----------------------------------------------------------------------------//
 
-static pi_result redefinedPlatformsGet(pi_uint32 num_entries,
+size_t *GPlatforms[5] = {new size_t{0}, new size_t{1}, new size_t{2},
+                         new size_t{3}, new size_t{4}};
+
+size_t *GDevices[5][3]{{new size_t{1}, new size_t{1}, new size_t{1}},
+                       {new size_t{1}, new size_t{1}, new size_t{1}},
+                       {new size_t{1}, new size_t{1}, new size_t{1}},
+                       {new size_t{1}, new size_t{1}, new size_t{1}},
+                       {new size_t{1}, new size_t{1}, new size_t{1}}};
+
+static pi_result redefinedPlatformsGet(size_t idx, pi_uint32 num_entries,
                                        pi_platform *platforms,
                                        pi_uint32 *num_platforms) {
   if (num_platforms) {
     *num_platforms = 1;
   }
   if (platforms) {
-    *platforms = reinterpret_cast<pi_platform>(new size_t{1});
+    *platforms = reinterpret_cast<pi_platform>(GPlatforms[idx]);
   }
 
   return PI_SUCCESS;
@@ -114,8 +123,9 @@ static pi_result redefinedDevicesGet(pi_platform platform,
   }
 
   if (devices) {
-    for (size_t I = 1; I <= 3; I++) {
-      devices[I - 1] = reinterpret_cast<pi_device>(new size_t{I});
+    size_t Idx = *reinterpret_cast<size_t *>(platform);
+    for (size_t I = 0; I < 3; I++) {
+      devices[I] = reinterpret_cast<pi_device>(GDevices[Idx][I]);
     }
   }
 
@@ -458,7 +468,31 @@ void setupDefaultMockAPIs() {
   using namespace sycl::detail;
   using namespace sycl::unittest;
 
-  redefine<PiApiKind::piPlatformsGet>(redefinedPlatformsGet);
+  redefineOne<PiApiKind::piPlatformsGet, backend::opencl>(
+      [](pi_uint32 num_entries, pi_platform *platforms,
+         pi_uint32 *num_platforms) {
+        return redefinedPlatformsGet(0, num_entries, platforms, num_platforms);
+      });
+  redefineOne<PiApiKind::piPlatformsGet, backend::ext_oneapi_level_zero>(
+      [](pi_uint32 num_entries, pi_platform *platforms,
+         pi_uint32 *num_platforms) {
+        return redefinedPlatformsGet(1, num_entries, platforms, num_platforms);
+      });
+  redefineOne<PiApiKind::piPlatformsGet, backend::ext_oneapi_cuda>(
+      [](pi_uint32 num_entries, pi_platform *platforms,
+         pi_uint32 *num_platforms) {
+        return redefinedPlatformsGet(2, num_entries, platforms, num_platforms);
+      });
+  redefineOne<PiApiKind::piPlatformsGet, backend::ext_oneapi_hip>(
+      [](pi_uint32 num_entries, pi_platform *platforms,
+         pi_uint32 *num_platforms) {
+        return redefinedPlatformsGet(3, num_entries, platforms, num_platforms);
+      });
+  redefineOne<PiApiKind::piPlatformsGet, backend::ext_intel_esimd_emulator>(
+      [](pi_uint32 num_entries, pi_platform *platforms,
+         pi_uint32 *num_platforms) {
+        return redefinedPlatformsGet(4, num_entries, platforms, num_platforms);
+      });
   redefine<PiApiKind::piPlatformGetInfo>(redefinedPlatformGetInfo);
   redefine<PiApiKind::piDevicesGet>(redefinedDevicesGet);
   redefine<PiApiKind::piextDeviceGetNativeHandle>(

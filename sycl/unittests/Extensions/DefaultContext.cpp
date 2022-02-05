@@ -9,9 +9,8 @@
 #include <CL/sycl.hpp>
 
 #include <detail/config.hpp>
-#include <helpers/CommonRedefinitions.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -19,7 +18,7 @@
 inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
-TEST(DefaultContextTest, DefaultContextTest) {
+SYCL_TEST(DefaultContextTest, DefaultContextTest) {
   using namespace sycl::detail;
   using namespace sycl::unittest;
   ScopedEnvVar var(EnableDefaultContextsName, "1",
@@ -30,12 +29,8 @@ TEST(DefaultContextTest, DefaultContextTest) {
     std::cout << "Host platform does not support PI mock.\n";
     return;
   }
-  sycl::unittest::PiMock Mock1{Plt1};
-  setupDefaultMockAPIs(Mock1);
 
   sycl::platform Plt2{sycl::default_selector()};
-  sycl::unittest::PiMock Mock2{Plt2};
-  setupDefaultMockAPIs(Mock2);
 
   const sycl::device Dev1 = Plt1.get_devices()[0];
   const sycl::device Dev2 = Plt2.get_devices()[0];
@@ -49,7 +44,7 @@ TEST(DefaultContextTest, DefaultContextTest) {
             Dev2.get_platform().ext_oneapi_get_default_context());
 }
 
-TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
+SYCL_TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
   using namespace sycl::detail;
   using namespace sycl::unittest;
   ScopedEnvVar var(EnableDefaultContextsName, "0",
@@ -60,8 +55,6 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
     std::cout << "Host platform does not support PI mock.\n";
     return;
   }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
 
   bool catchException = false;
   try {
