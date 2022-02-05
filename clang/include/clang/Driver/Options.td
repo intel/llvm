@@ -1102,8 +1102,12 @@ def emit_interface_stubs : Flag<["-"], "emit-interface-stubs">, Flags<[CC1Option
 def emit_merged_ifs : Flag<["-"], "emit-merged-ifs">,
   Flags<[CC1Option]>, Group<Action_Group>,
   HelpText<"Generate Interface Stub Files, emit merged text not binary.">;
+def end_no_unused_arguments : Flag<["--"], "end-no-unused-arguments">, Flags<[CoreOption]>,
+  HelpText<"Start emitting warnings for unused driver arguments">;
 def interface_stub_version_EQ : JoinedOrSeparate<["-"], "interface-stub-version=">, Flags<[CC1Option]>;
 def exported__symbols__list : Separate<["-"], "exported_symbols_list">;
+def extract_api : Flag<["-"], "extract-api">, Flags<[CC1Option]>, Group<Action_Group>,
+  HelpText<"Extract API information">;
 def e : JoinedOrSeparate<["-"], "e">, Flags<[LinkerInput]>, Group<Link_Group>;
 def fmax_tokens_EQ : Joined<["-"], "fmax-tokens=">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Max total number of preprocessed tokens for -Wmax-tokens.">,
@@ -1693,7 +1697,13 @@ def sanitize_address_destructor_EQ
       NormalizedValuesScope<"llvm::AsanDtorKind">,
       NormalizedValues<["None", "Global"]>,
       MarshallingInfoEnum<CodeGenOpts<"SanitizeAddressDtor">, "Global">;
-// Note: This flag was introduced when it was necessary to distinguish between
+defm sanitize_memory_param_retval
+    : BoolFOption<"sanitize-memory-param-retval",
+        CodeGenOpts<"SanitizeMemoryParamRetval">,
+        DefaultFalse,
+        PosFlag<SetTrue, [CC1Option], "Enable">, NegFlag<SetFalse, [], "Disable">,
+        BothFlags<[], " detection of uninitialized parameters and return values">>;
+//// Note: This flag was introduced when it was necessary to distinguish between
 //       ABI for correct codegen.  This is no longer needed, but the flag is
 //       not removed since targeting either ABI will behave the same.
 //       This way we cause no disturbance to existing scripts & code, and if we
@@ -1945,6 +1955,8 @@ def fcf_protection_EQ : Joined<["-"], "fcf-protection=">, Flags<[CoreOption, CC1
 def fcf_protection : Flag<["-"], "fcf-protection">, Group<f_Group>, Flags<[CoreOption, CC1Option]>,
   Alias<fcf_protection_EQ>, AliasArgs<["full"]>,
   HelpText<"Enable cf-protection in 'full' mode">;
+def mibt_seal : Flag<["-"], "mibt-seal">, Group<m_Group>, Flags<[CoreOption, CC1Option]>,
+  HelpText<"Optimize fcf-protection=branch/full (requires LTO).">;
 
 defm xray_instrument : BoolFOption<"xray-instrument",
   LangOpts<"XRayInstrument">, DefaultFalse,
@@ -2518,6 +2530,9 @@ defm pascal_strings : BoolFOption<"pascal-strings",
 def fpatchable_function_entry_EQ : Joined<["-"], "fpatchable-function-entry=">, Group<f_Group>, Flags<[CC1Option]>,
   MetaVarName<"<N,M>">, HelpText<"Generate M NOPs before function entry and N-M NOPs after function entry">,
   MarshallingInfoInt<CodeGenOpts<"PatchableFunctionEntryCount">>;
+def fms_hotpatch : Flag<["-"], "fms-hotpatch">, Group<f_Group>, Flags<[CC1Option, CoreOption]>,
+  HelpText<"Ensure that all functions can be hotpatched at runtime">,
+  MarshallingInfoFlag<CodeGenOpts<"HotPatch">>;
 def fpcc_struct_return : Flag<["-"], "fpcc-struct-return">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Override the default ABI to return all structs on the stack">;
 def fpch_preprocess : Flag<["-"], "fpch-preprocess">, Group<f_Group>;
@@ -4022,6 +4037,8 @@ def shared : Flag<["-", "--"], "shared">, Group<Link_Group>;
 def single__module : Flag<["-"], "single_module">;
 def specs_EQ : Joined<["-", "--"], "specs=">, Group<Link_Group>;
 def specs : Separate<["-", "--"], "specs">, Flags<[Unsupported]>;
+def start_no_unused_arguments : Flag<["--"], "start-no-unused-arguments">, Flags<[CoreOption]>,
+  HelpText<"Don't emit warnings about unused arguments for the following arguments">;
 def static_libgcc : Flag<["-"], "static-libgcc">;
 def static_libstdcxx : Flag<["-"], "static-libstdc++">;
 def static : Flag<["-", "--"], "static">, Group<Link_Group>, Flags<[NoArgumentUnused]>;
@@ -4733,6 +4750,9 @@ def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<s
   Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
   "device libraries from device binary linkage. Valid arguments "
   "are libc, libm-fp32, libm-fp64, all">;
+def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group>, Flags<[CC1Option]>,
+  HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
+  MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
 
 //===----------------------------------------------------------------------===//
 // FLangOption + CoreOption + NoXarchOption
@@ -5089,8 +5109,8 @@ def record_command_line : Separate<["-"], "record-command-line">,
   HelpText<"The string to embed in the .LLVM.command.line section.">,
   MarshallingInfoString<CodeGenOpts<"RecordCommandLine">>;
 def compress_debug_sections_EQ : Joined<["-", "--"], "compress-debug-sections=">,
-    HelpText<"DWARF debug sections compression type">, Values<"none,zlib,zlib-gnu">,
-    NormalizedValuesScope<"llvm::DebugCompressionType">, NormalizedValues<["None", "Z", "GNU"]>,
+    HelpText<"DWARF debug sections compression type">, Values<"none,zlib">,
+    NormalizedValuesScope<"llvm::DebugCompressionType">, NormalizedValues<["None", "Z"]>,
     MarshallingInfoEnum<CodeGenOpts<"CompressDebugSections">, "None">;
 def compress_debug_sections : Flag<["-", "--"], "compress-debug-sections">,
   Alias<compress_debug_sections_EQ>, AliasArgs<["zlib"]>;
@@ -5521,9 +5541,9 @@ defm clear_ast_before_backend : BoolOption<"",
   PosFlag<SetTrue, [], "Clear">,
   NegFlag<SetFalse, [], "Don't clear">,
   BothFlags<[], " the Clang AST before running backend code generation">>;
-def enable_noundef_analysis : Flag<["-"], "enable-noundef-analysis">, Group<f_Group>,
-  HelpText<"Enable analyzing function argument and return types for mandatory definedness">,
-  MarshallingInfoFlag<CodeGenOpts<"EnableNoundefAttrs">>;
+def disable_noundef_analysis : Flag<["-"], "disable-noundef-analysis">, Group<f_Group>,
+  HelpText<"Disable analyzing function argument and return types for mandatory definedness">,
+  MarshallingInfoFlag<CodeGenOpts<"DisableNoundefAttrs">>;
 def discard_value_names : Flag<["-"], "discard-value-names">,
   HelpText<"Discard value names in LLVM IR">,
   MarshallingInfoFlag<CodeGenOpts<"DiscardValueNames">>;
@@ -6292,6 +6312,8 @@ def _SLASH_Gw_ : CLFlag<"Gw-">,
 def _SLASH_help : CLFlag<"help">, Alias<help>,
   HelpText<"Display available options">;
 def _SLASH_HELP : CLFlag<"HELP">, Alias<help>;
+def _SLASH_hotpatch : CLFlag<"hotpatch">, Alias<fms_hotpatch>,
+  HelpText<"Create hotpatchable image">;
 def _SLASH_I : CLJoinedOrSeparate<"I">,
   HelpText<"Add directory to include search path">, MetaVarName<"<dir>">,
   Alias<I>;
@@ -6648,7 +6670,6 @@ def _SLASH_headerUnit : CLJoinedOrSeparate<"headerUnit">;
 def _SLASH_headerUnitAngle : CLJoinedOrSeparate<"headerUnit:angle">;
 def _SLASH_headerUnitQuote : CLJoinedOrSeparate<"headerUnit:quote">;
 def _SLASH_homeparams : CLFlag<"homeparams">;
-def _SLASH_hotpatch : CLFlag<"hotpatch">;
 def _SLASH_kernel : CLFlag<"kernel">;
 def _SLASH_LN : CLFlag<"LN">;
 def _SLASH_MP : CLJoined<"MP">;

@@ -89,5 +89,11 @@ event::event(std::shared_ptr<detail::event_impl> event_impl)
 backend event::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle event::getNative() const { return impl->getNative(); }
+
+std::vector<pi_native_handle> event::getNativeVector() const {
+  std::vector<pi_native_handle> ReturnVector = {impl->getNative()};
+  return ReturnVector;
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

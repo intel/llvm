@@ -110,6 +110,10 @@ bool ToolChain::useRelaxRelocations() const {
   return ENABLE_X86_RELAX_RELOCATIONS;
 }
 
+bool ToolChain::defaultToIEEELongDouble() const {
+  return PPC_LINUX_DEFAULT_IEEELONGDOUBLE && getTriple().isOSLinux();
+}
+
 SanitizerArgs
 ToolChain::getSanitizerArgs(const llvm::opt::ArgList &JobArgs) const {
   SanitizerArgs SanArgs(*this, JobArgs, !SanitizerArgsChecked);
@@ -1115,7 +1119,9 @@ void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-ToolChain::getHIPDeviceLibs(const ArgList &DriverArgs) const {
+ToolChain::getHIPDeviceLibs(
+    const ArgList &DriverArgs,
+    const Action::OffloadKind DeviceOffloadingKind) const {
   return {};
 }
 

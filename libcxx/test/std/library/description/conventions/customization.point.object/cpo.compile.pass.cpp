@@ -13,13 +13,16 @@
 // [range.adaptor.object] "A range adaptor object is a customization point object..."
 
 #include <compare>
+#include <concepts>
 #include <iterator>
 #include <ranges>
+#include <type_traits>
 #include <utility>
 
 // Test for basic properties of C++20 16.3.3.3.6 [customization.point.object].
 template <class CPO, class... Args>
 constexpr bool test(CPO& o, Args&&...) {
+  static_assert(std::is_const_v<CPO>);
   static_assert(std::is_class_v<CPO>);
   static_assert(std::is_trivial_v<CPO>);
 
@@ -61,7 +64,7 @@ static_assert(test(std::weak_order, 1, 2));
 static_assert(test(std::ranges::begin, a));
 static_assert(test(std::ranges::end, a));
 static_assert(test(std::ranges::cbegin, a));
-//static_assert(test(std::ranges::cdata, a));
+static_assert(test(std::ranges::cdata, a));
 static_assert(test(std::ranges::cend, a));
 //static_assert(test(std::ranges::crbegin, a));
 //static_assert(test(std::ranges::crend, a));

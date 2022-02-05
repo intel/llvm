@@ -9,6 +9,8 @@
 // the SIMD classes objects.
 //===----------------------------------------------------------------------===//
 
+/// @cond ESIMD_DETAIL
+
 #pragma once
 
 #include <CL/sycl/detail/accessor_impl.hpp>
@@ -924,3 +926,5 @@ __ESIMD_INTRIN void __esimd_raw_send2_noresult(
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
+
+/// @endcond ESIMD_DETAIL

@@ -51,12 +51,13 @@ using namespace llvm;
 
 enum AllocType : uint8_t {
   OpNewLike          = 1<<0, // allocates; never returns null
-  MallocLike         = 1<<1 | OpNewLike, // allocates; may return null
+  MallocLike         = 1<<1, // allocates; may return null
   AlignedAllocLike   = 1<<2, // allocates with alignment; may return null
   CallocLike         = 1<<3, // allocates + bzero
   ReallocLike        = 1<<4, // reallocates
   StrDupLike         = 1<<5,
-  MallocOrCallocLike = MallocLike | CallocLike | AlignedAllocLike,
+  MallocOrOpNewLike  = MallocLike | OpNewLike,
+  MallocOrCallocLike = MallocLike | OpNewLike | CallocLike | AlignedAllocLike,
   AllocLike          = MallocOrCallocLike | StrDupLike,
   AnyAlloc           = AllocLike | ReallocLike
 };
@@ -66,53 +67,51 @@ struct AllocFnsTy {
   unsigned NumParams;
   // First and Second size parameters (or -1 if unused)
   int FstParam, SndParam;
+  // Alignment parameter for aligned_alloc and aligned new
+  int AlignParam;
 };
 
 // FIXME: certain users need more information. E.g., SimplifyLibCalls needs to
 // know which functions are nounwind, noalias, nocapture parameters, etc.
 static const std::pair<LibFunc, AllocFnsTy> AllocationFnData[] = {
-  {LibFunc_malloc,              {MallocLike,  1, 0,  -1}},
-  {LibFunc_vec_malloc,          {MallocLike,  1, 0,  -1}},
-  {LibFunc_valloc,              {MallocLike,  1, 0,  -1}},
-  {LibFunc_Znwj,                {OpNewLike,   1, 0,  -1}}, // new(unsigned int)
-  {LibFunc_ZnwjRKSt9nothrow_t,  {MallocLike,  2, 0,  -1}}, // new(unsigned int, nothrow)
-  {LibFunc_ZnwjSt11align_val_t, {OpNewLike,   2, 0,  -1}}, // new(unsigned int, align_val_t)
-  {LibFunc_ZnwjSt11align_val_tRKSt9nothrow_t, // new(unsigned int, align_val_t, nothrow)
-                                {MallocLike,  3, 0,  -1}},
-  {LibFunc_Znwm,                {OpNewLike,   1, 0,  -1}}, // new(unsigned long)
-  {LibFunc_ZnwmRKSt9nothrow_t,  {MallocLike,  2, 0,  -1}}, // new(unsigned long, nothrow)
-  {LibFunc_ZnwmSt11align_val_t, {OpNewLike,   2, 0,  -1}}, // new(unsigned long, align_val_t)
-  {LibFunc_ZnwmSt11align_val_tRKSt9nothrow_t, // new(unsigned long, align_val_t, nothrow)
-                                {MallocLike,  3, 0,  -1}},
-  {LibFunc_Znaj,                {OpNewLike,   1, 0,  -1}}, // new[](unsigned int)
-  {LibFunc_ZnajRKSt9nothrow_t,  {MallocLike,  2, 0,  -1}}, // new[](unsigned int, nothrow)
-  {LibFunc_ZnajSt11align_val_t, {OpNewLike,   2, 0,  -1}}, // new[](unsigned int, align_val_t)
-  {LibFunc_ZnajSt11align_val_tRKSt9nothrow_t, // new[](unsigned int, align_val_t, nothrow)
-                                {MallocLike,  3, 0,  -1}},
-  {LibFunc_Znam,                {OpNewLike,   1, 0,  -1}}, // new[](unsigned long)
-  {LibFunc_ZnamRKSt9nothrow_t,  {MallocLike,  2, 0,  -1}}, // new[](unsigned long, nothrow)
-  {LibFunc_ZnamSt11align_val_t, {OpNewLike,   2, 0,  -1}}, // new[](unsigned long, align_val_t)
-  {LibFunc_ZnamSt11align_val_tRKSt9nothrow_t, // new[](unsigned long, align_val_t, nothrow)
-                                 {MallocLike,  3, 0,  -1}},
-  {LibFunc_msvc_new_int,         {OpNewLike,   1, 0,  -1}}, // new(unsigned int)
-  {LibFunc_msvc_new_int_nothrow, {MallocLike,  2, 0,  -1}}, // new(unsigned int, nothrow)
-  {LibFunc_msvc_new_longlong,         {OpNewLike,   1, 0,  -1}}, // new(unsigned long long)
-  {LibFunc_msvc_new_longlong_nothrow, {MallocLike,  2, 0,  -1}}, // new(unsigned long long, nothrow)
-  {LibFunc_msvc_new_array_int,         {OpNewLike,   1, 0,  -1}}, // new[](unsigned int)
-  {LibFunc_msvc_new_array_int_nothrow, {MallocLike,  2, 0,  -1}}, // new[](unsigned int, nothrow)
-  {LibFunc_msvc_new_array_longlong,         {OpNewLike,   1, 0,  -1}}, // new[](unsigned long long)
-  {LibFunc_msvc_new_array_longlong_nothrow, {MallocLike,  2, 0,  -1}}, // new[](unsigned long long, nothrow)
-  {LibFunc_aligned_alloc,       {AlignedAllocLike, 2, 1,  -1}},
-  {LibFunc_memalign,            {AlignedAllocLike, 2, 1,  -1}},
-  {LibFunc_calloc,              {CallocLike,  2, 0,   1}},
-  {LibFunc_vec_calloc,          {CallocLike,  2, 0,   1}},
-  {LibFunc_realloc,             {ReallocLike, 2, 1,  -1}},
-  {LibFunc_vec_realloc,         {ReallocLike, 2, 1,  -1}},
-  {LibFunc_reallocf,            {ReallocLike, 2, 1,  -1}},
-  {LibFunc_strdup,              {StrDupLike,  1, -1, -1}},
-  {LibFunc_strndup,             {StrDupLike,  2, 1,  -1}},
-  {LibFunc___kmpc_alloc_shared, {MallocLike,  1, 0,  -1}},
-  // TODO: Handle "int posix_memalign(void **, size_t, size_t)"
+    {LibFunc_malloc,                            {MallocLike,       1,  0, -1, -1}},
+    {LibFunc_vec_malloc,                        {MallocLike,       1,  0, -1, -1}},
+    {LibFunc_valloc,                            {MallocLike,       1,  0, -1, -1}},
+    {LibFunc_Znwj,                              {OpNewLike,        1,  0, -1, -1}}, // new(unsigned int)
+    {LibFunc_ZnwjRKSt9nothrow_t,                {MallocLike,       2,  0, -1, -1}}, // new(unsigned int, nothrow)
+    {LibFunc_ZnwjSt11align_val_t,               {OpNewLike,        2,  0, -1,  1}}, // new(unsigned int, align_val_t)
+    {LibFunc_ZnwjSt11align_val_tRKSt9nothrow_t, {MallocLike,       3,  0, -1,  1}}, // new(unsigned int, align_val_t, nothrow)
+    {LibFunc_Znwm,                              {OpNewLike,        1,  0, -1, -1}}, // new(unsigned long)
+    {LibFunc_ZnwmRKSt9nothrow_t,                {MallocLike,       2,  0, -1, -1}}, // new(unsigned long, nothrow)
+    {LibFunc_ZnwmSt11align_val_t,               {OpNewLike,        2,  0, -1,  1}}, // new(unsigned long, align_val_t)
+    {LibFunc_ZnwmSt11align_val_tRKSt9nothrow_t, {MallocLike,       3,  0, -1,  1}}, // new(unsigned long, align_val_t, nothrow)
+    {LibFunc_Znaj,                              {OpNewLike,        1,  0, -1, -1}}, // new[](unsigned int)
+    {LibFunc_ZnajRKSt9nothrow_t,                {MallocLike,       2,  0, -1, -1}}, // new[](unsigned int, nothrow)
+    {LibFunc_ZnajSt11align_val_t,               {OpNewLike,        2,  0, -1,  1}}, // new[](unsigned int, align_val_t)
+    {LibFunc_ZnajSt11align_val_tRKSt9nothrow_t, {MallocLike,       3,  0, -1,  1}}, // new[](unsigned int, align_val_t, nothrow)
+    {LibFunc_Znam,                              {OpNewLike,        1,  0, -1, -1}}, // new[](unsigned long)
+    {LibFunc_ZnamRKSt9nothrow_t,                {MallocLike,       2,  0, -1, -1}}, // new[](unsigned long, nothrow)
+    {LibFunc_ZnamSt11align_val_t,               {OpNewLike,        2,  0, -1,  1}}, // new[](unsigned long, align_val_t)
+    {LibFunc_ZnamSt11align_val_tRKSt9nothrow_t, {MallocLike,       3,  0, -1,  1}}, // new[](unsigned long, align_val_t, nothrow)
+    {LibFunc_msvc_new_int,                      {OpNewLike,        1,  0, -1, -1}}, // new(unsigned int)
+    {LibFunc_msvc_new_int_nothrow,              {MallocLike,       2,  0, -1, -1}}, // new(unsigned int, nothrow)
+    {LibFunc_msvc_new_longlong,                 {OpNewLike,        1,  0, -1, -1}}, // new(unsigned long long)
+    {LibFunc_msvc_new_longlong_nothrow,         {MallocLike,       2,  0, -1, -1}}, // new(unsigned long long, nothrow)
+    {LibFunc_msvc_new_array_int,                {OpNewLike,        1,  0, -1, -1}}, // new[](unsigned int)
+    {LibFunc_msvc_new_array_int_nothrow,        {MallocLike,       2,  0, -1, -1}}, // new[](unsigned int, nothrow)
+    {LibFunc_msvc_new_array_longlong,           {OpNewLike,        1,  0, -1, -1}}, // new[](unsigned long long)
+    {LibFunc_msvc_new_array_longlong_nothrow,   {MallocLike,       2,  0, -1, -1}}, // new[](unsigned long long, nothrow)
+    {LibFunc_aligned_alloc,                     {AlignedAllocLike, 2,  1, -1,  0}},
+    {LibFunc_memalign,                          {AlignedAllocLike, 2,  1, -1,  0}},
+    {LibFunc_calloc,                            {CallocLike,       2,  0,  1, -1}},
+    {LibFunc_vec_calloc,                        {CallocLike,       2,  0,  1, -1}},
+    {LibFunc_realloc,                           {ReallocLike,      2,  1, -1, -1}},
+    {LibFunc_vec_realloc,                       {ReallocLike,      2,  1, -1, -1}},
+    {LibFunc_reallocf,                          {ReallocLike,      2,  1, -1, -1}},
+    {LibFunc_strdup,                            {StrDupLike,       1, -1, -1, -1}},
+    {LibFunc_strndup,                           {StrDupLike,       2,  1, -1, -1}},
+    {LibFunc___kmpc_alloc_shared,               {MallocLike,       1,  0, -1, -1}},
+    // TODO: Handle "int posix_memalign(void **, size_t, size_t)"
 };
 
 static const Function *getCalledFunction(const Value *V,
@@ -219,12 +218,9 @@ static Optional<AllocFnsTy> getAllocationSize(const Value *V,
   Result.NumParams = Callee->getNumOperands();
   Result.FstParam = Args.first;
   Result.SndParam = Args.second.getValueOr(-1);
+  // Allocsize has no way to specify an alignment argument
+  Result.AlignParam = -1;
   return Result;
-}
-
-static bool hasNoAliasAttr(const Value *V) {
-  const auto *CB = dyn_cast<CallBase>(V);
-  return CB && CB->hasRetAttr(Attribute::NoAlias);
 }
 
 /// Tests if a value is a call or invoke to a library function that
@@ -238,41 +234,22 @@ bool llvm::isAllocationFn(
   return getAllocationData(V, AnyAlloc, GetTLI).hasValue();
 }
 
-/// Tests if a value is a call or invoke to a function that returns a
-/// NoAlias pointer (including malloc/calloc/realloc/strdup-like functions).
-bool llvm::isNoAliasFn(const Value *V, const TargetLibraryInfo *TLI) {
-  // it's safe to consider realloc as noalias since accessing the original
-  // pointer is undefined behavior
-  return isAllocationFn(V, TLI) ||
-         hasNoAliasAttr(V);
-}
-
 /// Tests if a value is a call or invoke to a library function that
 /// allocates uninitialized memory (such as malloc).
-bool llvm::isMallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, MallocLike, TLI).hasValue();
-}
-bool llvm::isMallocLikeFn(
-    const Value *V, function_ref<const TargetLibraryInfo &(Function &)> GetTLI) {
-  return getAllocationData(V, MallocLike, GetTLI)
-      .hasValue();
+static bool isMallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
+  return getAllocationData(V, MallocOrOpNewLike, TLI).hasValue();
 }
 
 /// Tests if a value is a call or invoke to a library function that
 /// allocates uninitialized memory with alignment (such as aligned_alloc).
-bool llvm::isAlignedAllocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
+static bool isAlignedAllocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
   return getAllocationData(V, AlignedAllocLike, TLI)
-      .hasValue();
-}
-bool llvm::isAlignedAllocLikeFn(
-    const Value *V, function_ref<const TargetLibraryInfo &(Function &)> GetTLI) {
-  return getAllocationData(V, AlignedAllocLike, GetTLI)
       .hasValue();
 }
 
 /// Tests if a value is a call or invoke to a library function that
 /// allocates zero-filled memory (such as calloc).
-bool llvm::isCallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
+static bool isCallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
   return getAllocationData(V, CallocLike, TLI).hasValue();
 }
 
@@ -300,16 +277,106 @@ bool llvm::isReallocLikeFn(const Function *F, const TargetLibraryInfo *TLI) {
   return getAllocationDataForFunction(F, ReallocLike, TLI).hasValue();
 }
 
-/// Tests if a value is a call or invoke to a library function that
-/// allocates memory and throws if an allocation failed (e.g., new).
-bool llvm::isOpNewLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, OpNewLike, TLI).hasValue();
+bool llvm::isAllocRemovable(const CallBase *CB, const TargetLibraryInfo *TLI) {
+  assert(isAllocationFn(CB, TLI));
+
+  // Note: Removability is highly dependent on the source language.  For
+  // example, recent C++ requires direct calls to the global allocation
+  // [basic.stc.dynamic.allocation] to be observable unless part of a new
+  // expression [expr.new paragraph 13].
+
+  // Historically we've treated the C family allocation routines as removable
+  return isAllocLikeFn(CB, TLI);
 }
 
-/// Tests if a value is a call or invoke to a library function that
-/// allocates memory (strdup, strndup).
-bool llvm::isStrdupLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, StrDupLike, TLI).hasValue();
+Value *llvm::getAllocAlignment(const CallBase *V,
+                               const TargetLibraryInfo *TLI) {
+  assert(isAllocationFn(V, TLI));
+
+  const Optional<AllocFnsTy> FnData = getAllocationData(V, AnyAlloc, TLI);
+  if (!FnData.hasValue() || FnData->AlignParam < 0) {
+    return nullptr;
+  }
+  return V->getOperand(FnData->AlignParam);
+}
+
+/// When we're compiling N-bit code, and the user uses parameters that are
+/// greater than N bits (e.g. uint64_t on a 32-bit build), we can run into
+/// trouble with APInt size issues. This function handles resizing + overflow
+/// checks for us. Check and zext or trunc \p I depending on IntTyBits and
+/// I's value.
+static bool CheckedZextOrTrunc(APInt &I, unsigned IntTyBits) {
+  // More bits than we can handle. Checking the bit width isn't necessary, but
+  // it's faster than checking active bits, and should give `false` in the
+  // vast majority of cases.
+  if (I.getBitWidth() > IntTyBits && I.getActiveBits() > IntTyBits)
+    return false;
+  if (I.getBitWidth() != IntTyBits)
+    I = I.zextOrTrunc(IntTyBits);
+  return true;
+}
+
+Optional<APInt>
+llvm::getAllocSize(const CallBase *CB,
+                   const TargetLibraryInfo *TLI,
+                   std::function<const Value*(const Value*)> Mapper) {
+  // Note: This handles both explicitly listed allocation functions and
+  // allocsize.  The code structure could stand to be cleaned up a bit.
+  Optional<AllocFnsTy> FnData = getAllocationSize(CB, TLI);
+  if (!FnData)
+    return None;
+
+  // Get the index type for this address space, results and intermediate
+  // computations are performed at that width.
+  auto &DL = CB->getModule()->getDataLayout();
+  const unsigned IntTyBits = DL.getIndexTypeSizeInBits(CB->getType());
+
+  // Handle strdup-like functions separately.
+  if (FnData->AllocTy == StrDupLike) {
+    APInt Size(IntTyBits, GetStringLength(Mapper(CB->getArgOperand(0))));
+    if (!Size)
+      return None;
+
+    // Strndup limits strlen.
+    if (FnData->FstParam > 0) {
+      const ConstantInt *Arg =
+        dyn_cast<ConstantInt>(Mapper(CB->getArgOperand(FnData->FstParam)));
+      if (!Arg)
+        return None;
+
+      APInt MaxSize = Arg->getValue().zextOrSelf(IntTyBits);
+      if (Size.ugt(MaxSize))
+        Size = MaxSize + 1;
+    }
+    return Size;
+  }
+
+  const ConstantInt *Arg =
+    dyn_cast<ConstantInt>(Mapper(CB->getArgOperand(FnData->FstParam)));
+  if (!Arg)
+    return None;
+
+  APInt Size = Arg->getValue();
+  if (!CheckedZextOrTrunc(Size, IntTyBits))
+    return None;
+
+  // Size is determined by just 1 parameter.
+  if (FnData->SndParam < 0)
+    return Size;
+
+  Arg = dyn_cast<ConstantInt>(Mapper(CB->getArgOperand(FnData->SndParam)));
+  if (!Arg)
+    return None;
+
+  APInt NumElems = Arg->getValue();
+  if (!CheckedZextOrTrunc(NumElems, IntTyBits))
+    return None;
+
+  bool Overflow;
+  Size = Size.umul_ov(NumElems, Overflow);
+  if (Overflow)
+    return None;
+  return Size;
 }
 
 Constant *llvm::getInitialValueOfAllocation(const CallBase *Alloc,
@@ -542,20 +609,8 @@ SizeOffsetType ObjectSizeOffsetVisitor::compute(Value *V) {
   return unknown();
 }
 
-/// When we're compiling N-bit code, and the user uses parameters that are
-/// greater than N bits (e.g. uint64_t on a 32-bit build), we can run into
-/// trouble with APInt size issues. This function handles resizing + overflow
-/// checks for us. Check and zext or trunc \p I depending on IntTyBits and
-/// I's value.
 bool ObjectSizeOffsetVisitor::CheckedZextOrTrunc(APInt &I) {
-  // More bits than we can handle. Checking the bit width isn't necessary, but
-  // it's faster than checking active bits, and should give `false` in the
-  // vast majority of cases.
-  if (I.getBitWidth() > IntTyBits && I.getActiveBits() > IntTyBits)
-    return false;
-  if (I.getBitWidth() != IntTyBits)
-    I = I.zextOrTrunc(IntTyBits);
-  return true;
+  return ::CheckedZextOrTrunc(I, IntTyBits);
 }
 
 SizeOffsetType ObjectSizeOffsetVisitor::visitAllocaInst(AllocaInst &I) {
@@ -596,53 +651,10 @@ SizeOffsetType ObjectSizeOffsetVisitor::visitArgument(Argument &A) {
 }
 
 SizeOffsetType ObjectSizeOffsetVisitor::visitCallBase(CallBase &CB) {
-  Optional<AllocFnsTy> FnData = getAllocationSize(&CB, TLI);
-  if (!FnData)
-    return unknown();
-
-  // Handle strdup-like functions separately.
-  if (FnData->AllocTy == StrDupLike) {
-    APInt Size(IntTyBits, GetStringLength(CB.getArgOperand(0)));
-    if (!Size)
-      return unknown();
-
-    // Strndup limits strlen.
-    if (FnData->FstParam > 0) {
-      ConstantInt *Arg =
-          dyn_cast<ConstantInt>(CB.getArgOperand(FnData->FstParam));
-      if (!Arg)
-        return unknown();
-
-      APInt MaxSize = Arg->getValue().zextOrSelf(IntTyBits);
-      if (Size.ugt(MaxSize))
-        Size = MaxSize + 1;
-    }
-    return std::make_pair(Size, Zero);
-  }
-
-  ConstantInt *Arg = dyn_cast<ConstantInt>(CB.getArgOperand(FnData->FstParam));
-  if (!Arg)
-    return unknown();
-
-  APInt Size = Arg->getValue();
-  if (!CheckedZextOrTrunc(Size))
-    return unknown();
-
-  // Size is determined by just 1 parameter.
-  if (FnData->SndParam < 0)
-    return std::make_pair(Size, Zero);
-
-  Arg = dyn_cast<ConstantInt>(CB.getArgOperand(FnData->SndParam));
-  if (!Arg)
-    return unknown();
-
-  APInt NumElems = Arg->getValue();
-  if (!CheckedZextOrTrunc(NumElems))
-    return unknown();
-
-  bool Overflow;
-  Size = Size.umul_ov(NumElems, Overflow);
-  return Overflow ? unknown() : std::make_pair(Size, Zero);
+  auto Mapper = [](const Value *V) { return V; };
+  if (Optional<APInt> Size = getAllocSize(&CB, TLI, Mapper))
+    return std::make_pair(*Size, Zero);
+  return unknown();
 }
 
 SizeOffsetType

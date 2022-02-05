@@ -22,10 +22,12 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
+/// @addtogroup sycl_esimd_core
+/// @{
+
 /// The simd_view base class.
 /// It is an internal class implementing basic functionality of simd_view.
 ///
-/// \ingroup sycl_esimd
 template <typename BaseTy,
           typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
@@ -64,18 +66,16 @@ private:
   Derived &cast_this_to_derived() { return reinterpret_cast<Derived &>(*this); }
 
 protected:
-  /// @{
-  /// Constructors.
   simd_view_impl(BaseTy &Base, RegionTy Region)
-      : M_base(Base), M_region(Region) {}
-  simd_view_impl(BaseTy &&Base, RegionTy Region)
       : M_base(Base), M_region(Region) {}
 
   simd_view_impl(BaseTy &Base) : M_base(Base), M_region(RegionTy(0)) {}
-  /// @}
+
 public:
-  // Default copy and move constructors.
+  /// Default copy constructor.
   simd_view_impl(const simd_view_impl &Other) = default;
+
+  /// Default move constructor.
   simd_view_impl(simd_view_impl &&Other) = default;
 
   /// Implicit conversion to simd type.
@@ -94,23 +94,30 @@ public:
     return read();
   }
 
-  /// @{
-  /// Region accessors.
+  /// Tells whether this view is 1-dimensional.
   static constexpr bool is1D() { return !ShapeTy::Is_2D; }
+  /// Tells whether this view is 2-dimensional.
   static constexpr bool is2D() { return ShapeTy::Is_2D; }
+  /// Get number of elements in the view along X dimension.
   static constexpr int getSizeX() { return ShapeTy::Size_x; }
+  /// Get element stride of the view along X dimension.
   static constexpr int getStrideX() { return ShapeTy::Stride_x; }
+  /// Get number of elements in the view along Y dimension.
   static constexpr int getSizeY() { return ShapeTy::Size_y; }
+  /// Get element stride of the view along Y dimension.
   static constexpr int getStrideY() { return ShapeTy::Stride_y; }
 
+  /// Get the offset of the first element of the view within the parent object
+  /// along X dimension.
   constexpr uint16_t getOffsetX() const {
     return getTopRegion(M_region).M_offset_x;
   }
 
+  /// Get the offset of the first element of the view within the parent object
+  /// along Y dimension.
   constexpr uint16_t getOffsetY() const {
     return getTopRegion(M_region).M_offset_y;
   }
-  /// @}
 
   /// Read the object.
   value_type read() const {
@@ -127,7 +134,6 @@ public:
     return cast_this_to_derived();
   }
 
-  /// @{
   /// Whole region update with predicates.
   void merge(const value_type &Val, const simd_mask_type<length> &Mask) {
     merge(Val, read(), Mask);
@@ -138,7 +144,6 @@ public:
     Val2.merge(Val1, Mask);
     write(Val2.read());
   }
-  /// @}
 
   /// View this object in a different element type.
   template <typename EltTy> auto bit_cast_view() {
@@ -149,12 +154,6 @@ public:
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
 
-  template <typename EltTy>
-  __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
-  auto format() {
-    return bit_cast_view<EltTy>();
-  }
-
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width> auto bit_cast_view() {
     using TopRegionTy =
@@ -163,12 +162,6 @@ public:
     using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(0, 0);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
-  }
-
-  template <typename EltTy, int Height, int Width>
-  __SYCL_DEPRECATED("use simd_view::bit_cast_view.")
-  auto format() {
-    return bit_cast_view<EltTy, Height, Width>();
   }
 
   /// 1D region select, apply a region on top of this object.
@@ -295,7 +288,6 @@ public:
                                   MaskVecT(1)};
   }
 
-  /// @{
   /// Assignment operators.
   simd_view_impl &operator=(const simd_view_impl &Other) {
     return write(Other.read());
@@ -328,8 +320,6 @@ public:
   Derived &operator=(T1 RHS) {
     return write(value_type(convert_scalar<element_type>(RHS)));
   }
-
-  /// @}
 
   // Operator ++, --
   Derived &operator++() {
@@ -379,15 +369,6 @@ public:
     return v[i];
   }
 
-  /// Read a single element from a 1D region, by value only.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
-  __SYCL_DEPRECATED("use operator[] form.")
-  element_type operator()(int i) const {
-    const auto v = read();
-    return v[i];
-  }
-
   /// Return a writeable view of a single element.
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is1D()>>
@@ -395,22 +376,11 @@ public:
     return select<1, 1>(i);
   }
 
-  /// Return a writeable view of a single element.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
-  __SYCL_DEPRECATED("use operator[] form.")
-  auto operator()(int i) {
-    return select<1, 1>(i);
-  }
-
-  /// \name Replicate
-  /// Replicate simd instance given a simd_view_impl
-  /// @{
-  ///
-
+  /// Replicate. Create a new simd object from a subset of elements
+  /// referred to by this \c simd_view_impl object.
   /// \tparam Rep is number of times region has to be replicated.
   template <int Rep> get_simd_t<element_type, Rep> replicate() {
-    return read().replicate<Rep>(0);
+    return read().template replicate<Rep>();
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -418,8 +388,8 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return replicate<Rep, 0, W>(0, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_w(uint16_t OffsetX) {
+    return replicate_vs_w<Rep, 0, W>(0, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -428,9 +398,9 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
-    return replicate<Rep, 0, W>(OffsetY, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_w(uint16_t OffsetY,
+                                                uint16_t OffsetX) {
+    return replicate_vs_w<Rep, 0, W>(OffsetY, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -439,8 +409,8 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return replicate<Rep, VS, W, 1>(0, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_vs_w(uint16_t OffsetX) {
+    return replicate_vs_w_hs<Rep, VS, W, 1>(0, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -450,9 +420,9 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
-    return replicate<Rep, VS, W, 1>(OffsetY, OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_vs_w(uint16_t OffsetY,
+                                                   uint16_t OffsetX) {
+    return replicate_vs_w_hs<Rep, VS, W, 1>(OffsetY, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -462,8 +432,8 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return read().template replicate<Rep, VS, W, HS>(OffsetX);
+  get_simd_t<element_type, Rep * W> replicate_vs_w_hs(uint16_t OffsetX) {
+    return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -474,13 +444,12 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
-  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                              uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate_vs_w_hs(uint16_t OffsetY,
+                                                      uint16_t OffsetX) {
     constexpr int RowSize = is2D() ? getSizeX() : 0;
-    return read().template replicate<Rep, VS, W, HS>(OffsetY * RowSize +
-                                                     OffsetX);
+    return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetY * RowSize +
+                                                             OffsetX);
   }
-  /// @}
 
   /// 'any' operation.
   ///
@@ -518,6 +487,8 @@ protected:
   //
   RegionTy M_region;
 };
+
+/// @} sycl_esimd_core
 
 } // namespace detail
 } // namespace esimd

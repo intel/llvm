@@ -41,10 +41,7 @@ public:
   /// Finalize the underlying module, e.g., by outlining regions.
   /// \param Fn                    The function to be finalized. If not used,
   ///                              all functions are finalized.
-  /// \param AllowExtractorSinking Flag to include sinking instructions,
-  ///                              emitted by CodeExtractor, in the
-  ///                              outlined region. Default is false.
-  void finalize(Function *Fn = nullptr, bool AllowExtractorSinking = false);
+  void finalize(Function *Fn = nullptr);
 
   /// Add attributes known for \p FnID to \p Fn.
   void addAttributes(omp::RuntimeFunction FnID, Function &Fn);
@@ -517,6 +514,12 @@ public:
   void unrollLoopPartial(DebugLoc DL, CanonicalLoopInfo *Loop, int32_t Factor,
                          CanonicalLoopInfo **UnrolledCLI);
 
+  /// Add metadata to simd-ize a loop.
+  ///
+  /// \param DL   Debug location for instructions added by unrolling.
+  /// \param Loop The loop to simd-ize.
+  void applySimd(DebugLoc DL, CanonicalLoopInfo *Loop);
+
   /// Generator for '#omp flush'
   ///
   /// \param Loc The location where the flush directive was encountered
@@ -689,7 +692,8 @@ public:
                              omp::IdentFlag Flags = omp::IdentFlag(0),
                              unsigned Reserve2Flags = 0);
 
-  /// Create a global flag \p Namein the module with initial value \p Value.
+  /// Create a hidden global flag \p Name in the module with initial value \p
+  /// Value.
   GlobalValue *createGlobalFlag(unsigned Value, StringRef Name);
 
   /// Generate control flow and cleanup for cancellation.
@@ -765,6 +769,7 @@ public:
     using PostOutlineCBTy = std::function<void(Function &)>;
     PostOutlineCBTy PostOutlineCB;
     BasicBlock *EntryBB, *ExitBB;
+    SmallVector<Value *, 2> ExcludeArgsFromAggregate;
 
     /// Collect all blocks in between EntryBB and ExitBB in both the given
     /// vector and set.

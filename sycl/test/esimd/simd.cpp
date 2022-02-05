@@ -11,7 +11,7 @@ template <class T> bool test_simd_ctors() SYCL_ESIMD_FUNCTION {
   simd<T, 16> v0 = 1;
   simd<T, 16> v1(v0);
   simd<T, 16> v2(simd<T, 16>(0, 1));
-  const simd<T, 16> v3{0, 2, 4, 6, 1, 3, 5, 7};
+  const simd<T, 16> v3({0, 2, 4, 6, 1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7});
   return v0[0] + v1[1] + v2[2] + v3[3] == 1 + 1 + 2 + 6;
 }
 
@@ -70,7 +70,7 @@ template bool test_1d_select<sycl::half>() SYCL_ESIMD_FUNCTION;
 
 template <class T1, class T2, class T3>
 bool test_simd_format() SYCL_ESIMD_FUNCTION {
-  simd<T1, 16> v{0, 1, 2, 3, 4, 5, 6, 7};
+  simd<T1, 16> v({0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7});
   auto ref1 = v.template bit_cast_view<T2>();
   auto ref2 = v.template bit_cast_view<T3>();
   auto ref3 = v.template bit_cast_view<T2, 8, 4>();

@@ -1826,33 +1826,34 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
              "Attribute 'preallocated' does not support unsized types!", V);
     }
     if (!PTy->isOpaque()) {
-      if (!isa<PointerType>(PTy->getElementType()))
+      if (!isa<PointerType>(PTy->getNonOpaquePointerElementType()))
         Assert(!Attrs.hasAttribute(Attribute::SwiftError),
                "Attribute 'swifterror' only applies to parameters "
                "with pointer to pointer type!",
                V);
       if (Attrs.hasAttribute(Attribute::ByRef)) {
-        Assert(Attrs.getByRefType() == PTy->getElementType(),
+        Assert(Attrs.getByRefType() == PTy->getNonOpaquePointerElementType(),
                "Attribute 'byref' type does not match parameter!", V);
       }
 
       if (Attrs.hasAttribute(Attribute::ByVal) && Attrs.getByValType()) {
-        Assert(Attrs.getByValType() == PTy->getElementType(),
+        Assert(Attrs.getByValType() == PTy->getNonOpaquePointerElementType(),
                "Attribute 'byval' type does not match parameter!", V);
       }
 
       if (Attrs.hasAttribute(Attribute::Preallocated)) {
-        Assert(Attrs.getPreallocatedType() == PTy->getElementType(),
+        Assert(Attrs.getPreallocatedType() ==
+                   PTy->getNonOpaquePointerElementType(),
                "Attribute 'preallocated' type does not match parameter!", V);
       }
 
       if (Attrs.hasAttribute(Attribute::InAlloca)) {
-        Assert(Attrs.getInAllocaType() == PTy->getElementType(),
+        Assert(Attrs.getInAllocaType() == PTy->getNonOpaquePointerElementType(),
                "Attribute 'inalloca' type does not match parameter!", V);
       }
 
       if (Attrs.hasAttribute(Attribute::ElementType)) {
-        Assert(Attrs.getElementType() == PTy->getElementType(),
+        Assert(Attrs.getElementType() == PTy->getNonOpaquePointerElementType(),
                "Attribute 'elementtype' type does not match parameter!", V);
       }
     }
@@ -2195,9 +2196,10 @@ void Verifier::verifyStatepoint(const CallBase &Call) {
 
   const Value *Target = Call.getArgOperand(2);
   auto *PT = dyn_cast<PointerType>(Target->getType());
-  Assert(PT && PT->getElementType()->isFunctionTy(),
+  Assert(PT && PT->getPointerElementType()->isFunctionTy(),
          "gc.statepoint callee must be of function pointer type", Call, Target);
-  FunctionType *TargetFuncType = cast<FunctionType>(PT->getElementType());
+  FunctionType *TargetFuncType =
+      cast<FunctionType>(PT->getPointerElementType());
 
   const int NumCallArgs = cast<ConstantInt>(Call.getArgOperand(3))->getZExtValue();
   Assert(NumCallArgs >= 0,
@@ -3381,13 +3383,13 @@ static bool isTypeCongruent(Type *L, Type *R) {
   return PL->getAddressSpace() == PR->getAddressSpace();
 }
 
-static AttrBuilder getParameterABIAttributes(unsigned I, AttributeList Attrs) {
+static AttrBuilder getParameterABIAttributes(LLVMContext& C, unsigned I, AttributeList Attrs) {
   static const Attribute::AttrKind ABIAttrs[] = {
       Attribute::StructRet,  Attribute::ByVal,          Attribute::InAlloca,
       Attribute::InReg,      Attribute::StackAlignment, Attribute::SwiftSelf,
       Attribute::SwiftAsync, Attribute::SwiftError,     Attribute::Preallocated,
       Attribute::ByRef};
-  AttrBuilder Copy;
+  AttrBuilder Copy(C);
   for (auto AK : ABIAttrs) {
     Attribute Attr = Attrs.getParamAttrs(I).getAttribute(AK);
     if (Attr.isValid())
@@ -3450,12 +3452,12 @@ void Verifier::verifyMustTailCall(CallInst &CI) {
     // - Only sret, byval, swiftself, and swiftasync ABI-impacting attributes
     //   are allowed in swifttailcc call
     for (unsigned I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
-      AttrBuilder ABIAttrs = getParameterABIAttributes(I, CallerAttrs);
+      AttrBuilder ABIAttrs = getParameterABIAttributes(F->getContext(), I, CallerAttrs);
       SmallString<32> Context{CCName, StringRef(" musttail caller")};
       verifyTailCCMustTailAttrs(ABIAttrs, Context);
     }
     for (unsigned I = 0, E = CalleeTy->getNumParams(); I != E; ++I) {
-      AttrBuilder ABIAttrs = getParameterABIAttributes(I, CalleeAttrs);
+      AttrBuilder ABIAttrs = getParameterABIAttributes(F->getContext(), I, CalleeAttrs);
       SmallString<32> Context{CCName, StringRef(" musttail callee")};
       verifyTailCCMustTailAttrs(ABIAttrs, Context);
     }
@@ -3482,8 +3484,8 @@ void Verifier::verifyMustTailCall(CallInst &CI) {
   // - All ABI-impacting function attributes, such as sret, byval, inreg,
   //   returned, preallocated, and inalloca, must match.
   for (unsigned I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
-    AttrBuilder CallerABIAttrs = getParameterABIAttributes(I, CallerAttrs);
-    AttrBuilder CalleeABIAttrs = getParameterABIAttributes(I, CalleeAttrs);
+    AttrBuilder CallerABIAttrs = getParameterABIAttributes(F->getContext(), I, CallerAttrs);
+    AttrBuilder CalleeABIAttrs = getParameterABIAttributes(F->getContext(), I, CalleeAttrs);
     Assert(CallerABIAttrs == CalleeABIAttrs,
            "cannot guarantee tail call due to mismatched ABI impacting "
            "function attributes",
@@ -3999,6 +4001,11 @@ void Verifier::visitEHPadPredecessors(Instruction &I) {
              "A single unwind edge may only enter one EH pad", TI);
       Assert(Seen.insert(FromPad).second,
              "EH pad jumps through a cycle of pads", FromPad);
+
+      // This will be diagnosed on the corresponding instruction already. We
+      // need the extra check here to make sure getParentPad() works.
+      Assert(isa<FuncletPadInst>(FromPad) || isa<CatchSwitchInst>(FromPad),
+             "Parent pad must be catchpad/cleanuppad/catchswitch", TI);
     }
   }
 }
@@ -5000,7 +5007,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     // Assert that result type matches wrapped callee.
     const Value *Target = StatepointCall->getArgOperand(2);
     auto *PT = cast<PointerType>(Target->getType());
-    auto *TargetFuncType = cast<FunctionType>(PT->getElementType());
+    auto *TargetFuncType = cast<FunctionType>(PT->getPointerElementType());
     Assert(Call.getType() == TargetFuncType->getReturnType(),
            "gc.result result type does not match wrapped callee", Call);
     break;
@@ -5307,7 +5314,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
       PointerType *Op0PtrTy =
           cast<PointerType>(Call.getArgOperand(0)->getType());
       if (!Op0PtrTy->isOpaque())
-        Op0ElemTy = Op0PtrTy->getElementType();
+        Op0ElemTy = Op0PtrTy->getNonOpaquePointerElementType();
       break;
     }
     case Intrinsic::matrix_column_major_store: {
@@ -5321,7 +5328,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
       PointerType *Op1PtrTy =
           cast<PointerType>(Call.getArgOperand(1)->getType());
       if (!Op1PtrTy->isOpaque())
-        Op1ElemTy = Op1PtrTy->getElementType();
+        Op1ElemTy = Op1PtrTy->getNonOpaquePointerElementType();
       break;
     }
     default:
@@ -5350,6 +5357,24 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
       Assert(Stride->getZExtValue() >= NumRows->getZExtValue(),
              "Stride must be greater or equal than the number of rows!", IF);
 
+    break;
+  }
+  case Intrinsic::experimental_vector_splice: {
+    VectorType *VecTy = cast<VectorType>(Call.getType());
+    int64_t Idx = cast<ConstantInt>(Call.getArgOperand(2))->getSExtValue();
+    int64_t KnownMinNumElements = VecTy->getElementCount().getKnownMinValue();
+    if (Call.getParent() && Call.getParent()->getParent()) {
+      AttributeList Attrs = Call.getParent()->getParent()->getAttributes();
+      if (Attrs.hasFnAttr(Attribute::VScaleRange))
+        KnownMinNumElements *= Attrs.getFnAttrs().getVScaleRangeMin();
+    }
+    Assert((Idx < 0 && std::abs(Idx) <= KnownMinNumElements) ||
+               (Idx >= 0 && Idx < KnownMinNumElements),
+           "The splice index exceeds the range [-VL, VL-1] where VL is the "
+           "known minimum number of elements in the vector. For scalable "
+           "vectors the minimum number of elements is determined from "
+           "vscale_range.",
+           &Call);
     break;
   }
   case Intrinsic::experimental_stepvector: {

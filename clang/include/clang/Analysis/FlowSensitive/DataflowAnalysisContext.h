@@ -16,11 +16,13 @@
 #define LLVM_CLANG_ANALYSIS_FLOWSENSITIVE_DATAFLOWANALYSISCONTEXT_H
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 #include "clang/Analysis/FlowSensitive/StorageLocation.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/DenseMap.h"
 #include <cassert>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -31,15 +33,21 @@ namespace dataflow {
 /// is used during dataflow analysis.
 class DataflowAnalysisContext {
 public:
+  DataflowAnalysisContext()
+      : TrueVal(&takeOwnership(std::make_unique<BoolValue>())),
+        FalseVal(&takeOwnership(std::make_unique<BoolValue>())) {}
+
   /// Takes ownership of `Loc` and returns a reference to it.
   ///
   /// Requirements:
   ///
   ///  `Loc` must not be null.
-  StorageLocation &takeOwnership(std::unique_ptr<StorageLocation> Loc) {
+  template <typename T>
+  typename std::enable_if<std::is_base_of<StorageLocation, T>::value, T &>::type
+  takeOwnership(std::unique_ptr<T> Loc) {
     assert(Loc != nullptr);
     Locs.push_back(std::move(Loc));
-    return *Locs.back().get();
+    return *cast<T>(Locs.back().get());
   }
 
   /// Takes ownership of `Val` and returns a reference to it.
@@ -47,10 +55,12 @@ public:
   /// Requirements:
   ///
   ///  `Val` must not be null.
-  Value &takeOwnership(std::unique_ptr<Value> Val) {
+  template <typename T>
+  typename std::enable_if<std::is_base_of<Value, T>::value, T &>::type
+  takeOwnership(std::unique_ptr<T> Val) {
     assert(Val != nullptr);
     Vals.push_back(std::move(Val));
-    return *Vals.back().get();
+    return *cast<T>(Vals.back().get());
   }
 
   /// Assigns `Loc` as the storage location of `D`.
@@ -70,6 +80,45 @@ public:
     return It == DeclToLoc.end() ? nullptr : It->second;
   }
 
+  /// Assigns `Loc` as the storage location of `E`.
+  ///
+  /// Requirements:
+  ///
+  ///  `E` must not be assigned a storage location.
+  void setStorageLocation(const Expr &E, StorageLocation &Loc) {
+    assert(ExprToLoc.find(&E) == ExprToLoc.end());
+    ExprToLoc[&E] = &Loc;
+  }
+
+  /// Returns the storage location assigned to `E` or null if `E` has no
+  /// assigned storage location.
+  StorageLocation *getStorageLocation(const Expr &E) const {
+    auto It = ExprToLoc.find(&E);
+    return It == ExprToLoc.end() ? nullptr : It->second;
+  }
+
+  /// Assigns `Loc` as the storage location of the `this` pointee.
+  ///
+  /// Requirements:
+  ///
+  ///  The `this` pointee must not be assigned a storage location.
+  void setThisPointeeStorageLocation(StorageLocation &Loc) {
+    assert(ThisPointeeLoc == nullptr);
+    ThisPointeeLoc = &Loc;
+  }
+
+  /// Returns the storage location assigned to the `this` pointee or null if the
+  /// `this` pointee has no assigned storage location.
+  StorageLocation *getThisPointeeStorageLocation() const {
+    return ThisPointeeLoc;
+  }
+
+  /// Returns a symbolic boolean value that models a boolean literal equal to
+  /// `Value`.
+  BoolValue &getBoolLiteralValue(bool Value) const {
+    return Value ? *TrueVal : *FalseVal;
+  }
+
 private:
   // Storage for the state of a program.
   std::vector<std::unique_ptr<StorageLocation>> Locs;
@@ -81,11 +130,13 @@ private:
   // basic blocks are evaluated multiple times. The storage locations that are
   // in scope for a particular basic block are stored in `Environment`.
   llvm::DenseMap<const ValueDecl *, StorageLocation *> DeclToLoc;
-  // FIXME: Add `Expr` to `StorageLocation` map.
+  llvm::DenseMap<const Expr *, StorageLocation *> ExprToLoc;
 
-  // FIXME: Add `StorageLocation` for `this`.
+  StorageLocation *ThisPointeeLoc = nullptr;
 
   // FIXME: Add support for boolean expressions.
+  BoolValue *TrueVal;
+  BoolValue *FalseVal;
 };
 
 } // namespace dataflow

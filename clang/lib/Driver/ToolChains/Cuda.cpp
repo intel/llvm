@@ -427,9 +427,6 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("--return-at-end");
   } else if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
     // Map the -O we received to -O{0,1,2,3}.
-    //
-    // TODO: Perhaps we should map host -O2 to ptxas -O3. -O3 is ptxas's
-    // default, so it may correspond more closely to the spirit of clang -O2.
 
     // -O3 seems like the least-bad option when -Osomething is specified to
     // clang but it isn't handled below.
@@ -451,9 +448,9 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(Args.MakeArgString(llvm::Twine("-O") + OOpt));
   } else {
-    // If no -O was passed, pass -O0 to ptxas -- no opt flag should correspond
-    // to no optimizations, but ptxas's default is -O3.
-    CmdArgs.push_back("-O0");
+    // If no -O was passed, pass -O3 to ptxas -- this makes ptxas's
+    // optimization level the same as the ptxjitcompiler.
+    CmdArgs.push_back("-O3");
   }
   if (DIKind == DebugDirectivesOnly)
     CmdArgs.push_back("-lineinfo");
@@ -713,6 +710,10 @@ void CudaToolChain::addClangTargetOptions(
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
                                                   CC1Args);
+
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
+      CC1Args.push_back("-fcuda-prec-sqrt");
+    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,

@@ -46,7 +46,6 @@ class GlobalValue;
 class DataLayout;
 class FunctionType;
 class LLVMContext;
-class OpenMPIRBuilder;
 class IndexedInstrProfReader;
 }
 
@@ -55,17 +54,13 @@ class ASTContext;
 class AtomicType;
 class FunctionDecl;
 class IdentifierInfo;
-class ObjCMethodDecl;
 class ObjCImplementationDecl;
-class ObjCCategoryImplDecl;
-class ObjCProtocolDecl;
 class ObjCEncodeExpr;
 class BlockExpr;
 class CharUnits;
 class Decl;
 class Expr;
 class Stmt;
-class InitListExpr;
 class StringLiteral;
 class NamedDecl;
 class ValueDecl;
@@ -78,13 +73,10 @@ class AnnotateAttr;
 class CXXDestructorDecl;
 class Module;
 class CoverageSourceInfo;
-class TargetAttr;
 class InitSegAttr;
-struct ParsedTargetAttr;
 
 namespace CodeGen {
 
-class CallArgList;
 class CodeGenFunction;
 class CodeGenTBAA;
 class CGCXXABI;
@@ -94,8 +86,6 @@ class CGOpenCLRuntime;
 class CGOpenMPRuntime;
 class CGCUDARuntime;
 class CGSYCLRuntime;
-class BlockFieldFlags;
-class FunctionArgList;
 class CoverageMappingModuleGen;
 class TargetCodeGenInfo;
 
@@ -347,7 +337,7 @@ private:
   /// for emission and therefore should only be output if they are actually
   /// used. If a decl is in this, then it is known to have not been referenced
   /// yet.
-  std::map<StringRef, GlobalDecl> DeferredDecls;
+  llvm::DenseMap<StringRef, GlobalDecl> DeferredDecls;
 
   /// This contains all the aliases that are deferred for emission until
   /// they or what they alias are actually used.  Note that the StringRef
@@ -1502,7 +1492,8 @@ private:
   llvm::Constant *GetOrCreateMultiVersionResolver(GlobalDecl GD,
                                                   llvm::Type *DeclTy,
                                                   const FunctionDecl *FD);
-  void UpdateMultiVersionNames(GlobalDecl GD, const FunctionDecl *FD);
+  void UpdateMultiVersionNames(GlobalDecl GD, const FunctionDecl *FD,
+                               StringRef &CurName);
 
   llvm::Constant *
   GetOrCreateLLVMGlobal(StringRef MangledName, llvm::Type *Ty, LangAS AddrSpace,

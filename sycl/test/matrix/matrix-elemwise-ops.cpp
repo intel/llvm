@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -O2 %s -o %t.out
-// XFAIL: *
+
 #include <CL/sycl.hpp>
 #if (SYCL_EXT_ONEAPI_MATRIX == 2)
 #include <iostream>
