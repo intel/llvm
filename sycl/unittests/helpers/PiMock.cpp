@@ -86,7 +86,7 @@ static pi_result redefinedPlatformGetInfo(pi_platform platform,
       *param_value_size_ret = PN.size() + 1;
     }
     if (param_value) {
-      strncpy(static_cast<char *>(param_value), PN.data(), PN.size());
+      strncpy(static_cast<char *>(param_value), PN.data(), PN.size() + 1);
     }
   } else if (param_name == PI_PLATFORM_INFO_VERSION) {
     std::string PV = "OpenCL 2.0";
@@ -94,7 +94,7 @@ static pi_result redefinedPlatformGetInfo(pi_platform platform,
       *param_value_size_ret = PV.size() + 1;
     }
     if (param_value) {
-      strncpy(static_cast<char *>(param_value), PV.data(), PV.size());
+      strncpy(static_cast<char *>(param_value), PV.data(), PV.size() + 1);
     }
   } else {
     std::cerr << "Unknown platform parameter " << std::hex << param_name
@@ -165,7 +165,7 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
       *param_value_size_ret = DN.size() + 1;
     }
     if (param_value) {
-      strncpy(static_cast<char *>(param_value), DN.data(), DN.size());
+      strncpy(static_cast<char *>(param_value), DN.data(), DN.size() + 1);
     }
   } else if (param_name == PI_DEVICE_INFO_VERSION) {
     std::string DV = "Mock Device 1.0";
@@ -173,7 +173,7 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
       *param_value_size_ret = DV.size() + 1;
     }
     if (param_value) {
-      strncpy(static_cast<char *>(param_value), DV.data(), DV.size());
+      strncpy(static_cast<char *>(param_value), DV.data(), DV.size() + 1);
     }
   } else if (param_name == PI_DEVICE_INFO_DRIVER_VERSION) {
     std::string DV = "0.0";
@@ -181,7 +181,7 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
       *param_value_size_ret = DV.size() + 1;
     }
     if (param_value) {
-      strncpy(static_cast<char *>(param_value), DV.data(), DV.size());
+      strncpy(static_cast<char *>(param_value), DV.data(), DV.size() + 1);
     }
   } else if (param_name == PI_DEVICE_INFO_PARENT_DEVICE) {
     if (param_value_size_ret) {
@@ -197,7 +197,7 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
     }
     if (param_value) {
       strncpy(static_cast<char *>(param_value), Extensions.data(),
-              Extensions.size());
+              Extensions.size() + 1);
     }
   } else if (param_name == PI_DEVICE_INFO_HOST_UNIFIED_MEMORY) {
     if (param_value_size_ret) {
@@ -226,10 +226,6 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
   }
   return PI_SUCCESS;
 }
-
-static pi_result redefinedDeviceRetain(pi_device) { return PI_SUCCESS; }
-
-static pi_result redefinedDeviceRelease(pi_device) { return PI_SUCCESS; }
 
 static pi_result redefinedContextCreate(
     const pi_context_properties *properties, pi_uint32 num_devices,
@@ -470,13 +466,14 @@ void setupDefaultMockAPIs() {
   redefine<PiApiKind::piextDeviceCreateWithNativeHandle>(
       redefinedDeviceCreateWithNativeHandle);
   redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  redefine<PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+  redefine<PiApiKind::piDeviceRetain>(NOP);
   redefine<PiApiKind::piDeviceRelease>(NOP);
   redefine<PiApiKind::piContextCreate>(redefinedContextCreate);
   redefine<PiApiKind::piContextGetInfo>(redefinedContextGetInfo);
   redefine<PiApiKind::piContextRelease>(redefinedContextRelease);
   redefine<PiApiKind::piContextRetain>(redefinedContextRetain);
   redefine<PiApiKind::piQueueCreate>(redefinedQueueCreate);
+  redefine<PiApiKind::piQueueGetInfo>(redefinedQueueGetInfo);
   redefine<PiApiKind::piQueueRelease>(redefinedQueueRelease);
   redefine<PiApiKind::piQueueRetain>(redefinedQueueRetain);
   redefine<PiApiKind::piQueueFinish>(redefinedQueueFinish);
