@@ -338,8 +338,8 @@ jobs:
     runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
-      options: -u 1001:1001
     steps:
+    - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
       uses: ./actions/cleanup
