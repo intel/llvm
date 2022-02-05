@@ -362,6 +362,7 @@ jobs:
         repository: 'KhronosGroup/SYCL-CTS'
         ref: 'SYCL-2020'
         path: cts
+        submodules: true
     - name: Configure CTS
       run: |
         mkdir cts/build
