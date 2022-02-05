@@ -1667,7 +1667,7 @@ Release notes for the commit range ba404be..67d3d9e
   - [ExtendedAtomics documentation](doc/extensions/ExtendedAtomics/README.md)
     has been updated [1084685]
   - Published [sycl_bitcast extension](doc/extensions/Bitcast/SYCL_INTEL_bitcast.asciidoc)
-  - Published a [proposal](doc/extensions/StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)
+  - Published a [proposal](doc/extensions/proposed/SYCL_EXT_ONEAPI_LOCAL_STATIC_MEM_USED.asciidoc)
     which adds ability to query max local size which is used by a specific
     kernel and a specific device.
   - Published [device_specific_kernel_queries](doc/extensions/DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc)
