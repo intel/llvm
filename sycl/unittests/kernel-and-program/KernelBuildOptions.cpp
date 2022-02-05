@@ -13,7 +13,7 @@
 
 #include <CL/sycl.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -169,26 +169,27 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   return PI_SUCCESS;
 }
 
-static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
+static void setupDefaultMockAPIs() {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piclProgramCreateWithSource>(
+  using namespace sycl::unittest;
+  redefine<PiApiKind::piclProgramCreateWithSource>(
       redefinedProgramCreateWithSource);
-  Mock.redefine<PiApiKind::piProgramCreateWithBinary>(
+  redefine<PiApiKind::piProgramCreateWithBinary>(
       redefinedProgramCreateWithBinary);
-  Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
-  Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
-  Mock.redefine<PiApiKind::piProgramRetain>(redefinedProgramRetain);
-  Mock.redefine<PiApiKind::piProgramRelease>(redefinedProgramRelease);
-  Mock.redefine<PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfo);
-  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
+  redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
+  redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
+  redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
+  redefine<PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
+  redefine<PiApiKind::piProgramRetain>(redefinedProgramRetain);
+  redefine<PiApiKind::piProgramRelease>(redefinedProgramRelease);
+  redefine<PiApiKind::piKernelCreate>(redefinedKernelCreate);
+  redefine<PiApiKind::piKernelRetain>(redefinedKernelRetain);
+  redefine<PiApiKind::piKernelRelease>(redefinedKernelRelease);
+  redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfo);
+  redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
+  redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
 }
 
 static sycl::unittest::PiImage generateDefaultImage() {
@@ -214,7 +215,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 sycl::unittest::PiImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
-TEST(KernelBuildOptions, KernelBundleBasic) {
+SYCL_TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -231,8 +232,7 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  setupDefaultMockAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -254,7 +254,7 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
   // EXPECT_EQ(BuildOpts, "-link-img -vc-codegen");
 }
 
-TEST(KernelBuildOptions, Program) {
+SYCL_TEST(KernelBuildOptions, Program) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -271,8 +271,7 @@ TEST(KernelBuildOptions, Program) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  setupDefaultMockAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
 

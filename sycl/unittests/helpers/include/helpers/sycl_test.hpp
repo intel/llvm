@@ -33,5 +33,5 @@ protected:
 
 #define SYCL_TEST(suite, name)                                                 \
   class suite;                                                                 \
-  using Fixture_##suite = sycl::unittest::SYCLUnitTest<suite>;                 \
-  TEST_F(Fixture_##suite, name)
+  using SYCL_##suite = sycl::unittest::SYCLUnitTest<suite>;                    \
+  TEST_F(SYCL_##suite, name)
