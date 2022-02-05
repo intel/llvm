@@ -22,6 +22,7 @@ jobs:
           -t Debug -o ./exp --cmake-opt="-DSYCL_ENABLE_COVERAGE=ON" --no-werror
         cd exp
         ninja check-sycl-unittests
+        cd ..
         python3 ./llvm/llvm/utils/prepare-code-coverage-artifact.py \
           --unified-report llvm-profdata llvm-cov ./exp/tools/sycl/profiles \
           ./exp/report ./exp/lib/libsycl.so
@@ -40,6 +41,7 @@ jobs:
           -t Debug -o ./ref --cmake-opt="-DSYCL_ENABLE_COVERAGE=ON" --no-werror
         cd exp
         ninja check-sycl-unittests
+        cd ..
         python3 ./llvm/llvm/utils/prepare-code-coverage-artifact.py \
           --unified-report llvm-profdata llvm-cov ./exp/tools/sycl/profiles \
           ./ref/report ./ref/lib/libsycl.so
