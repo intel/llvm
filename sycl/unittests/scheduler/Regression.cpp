@@ -9,8 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 using namespace sycl;
 
@@ -63,9 +62,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
     return;
   }
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<detail::PiApiKind::piEnqueueNativeKernel>(
+  sycl::unittest::redefine<detail::PiApiKind::piEnqueueNativeKernel>(
       redefinedEnqueueNativeKernel);
 
   auto Kernel = []() { std::cout << "Blablabla"; };

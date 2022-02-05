@@ -13,10 +13,9 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -75,13 +74,14 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
   return PI_SUCCESS;
 }
 
-static void setupCommonTestAPIs(sycl::unittest::PiMock &Mock) {
+static void setupCommonTestAPIs() {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piProgramGetBuildInfo>(redefinedProgramGetBuildInfo);
-  Mock.redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+  using namespace sycl::unittest;
+  redefine<PiApiKind::piProgramGetBuildInfo>(redefinedProgramGetBuildInfo);
+  redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
 }
 
-TEST(BuildLog, OutputNothingOnLevel1) {
+SYCL_TEST(BuildLog, OutputNothingOnLevel1) {
   using namespace sycl::detail;
   using namespace sycl::unittest;
   ScopedEnvVar var(WarningLevelEnvVar, "1",
@@ -94,9 +94,7 @@ TEST(BuildLog, OutputNothingOnLevel1) {
     GTEST_SKIP_("Test is not supported on this platform");
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  setupCommonTestAPIs(Mock);
+  setupCommonTestAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
 
@@ -115,7 +113,7 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   EXPECT_EQ(LogRequested, false);
 }
 
-TEST(BuildLog, OutputLogOnLevel2) {
+SYCL_TEST(BuildLog, OutputLogOnLevel2) {
   using namespace sycl::detail;
   using namespace sycl::unittest;
   ScopedEnvVar var(WarningLevelEnvVar, "2",
@@ -128,9 +126,7 @@ TEST(BuildLog, OutputLogOnLevel2) {
     GTEST_SKIP_("Test is not supported on this platform");
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  setupCommonTestAPIs(Mock);
+  setupCommonTestAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
 
