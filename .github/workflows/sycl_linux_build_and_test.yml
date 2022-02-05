@@ -365,9 +365,12 @@ jobs:
         submodules: true
     - name: Configure CTS
       run: |
+        export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
+        export PATH=$PWD/toolchain/bin/:$PATH
         mkdir cts/build
         cd cts/build
         cmake -DSYCL_IMPLEMENTATION=DPCPP \
+        -DCMAKE_CXX_COMPILER=clang++ \
         -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="../../llvm/devops/pre_commit.exclude_filter" \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON -GNinja \
         -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
