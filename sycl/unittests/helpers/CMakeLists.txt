@@ -1,4 +1,4 @@
-add_library(sycl_unittest_helpers STATIC
+add_library(sycl_unittest_helpers STATIC EXCLUDE_FROM_ALL
   PiMock.cpp
 )
 
@@ -11,3 +11,6 @@ target_include_directories(sycl_unittest_helpers PRIVATE
   ${sycl_inc_dir}
   )
 
+target_link_libraries(sycl_unittest_helpers
+  PRIVATE OpenCL-Headers
+)
