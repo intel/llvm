@@ -12,8 +12,8 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
     steps:
     - uses: actions/checkout@v2
-      path: llvm
       with:
+        path: llvm
         fetch-depth: 2
     - name: Experimental build
       run: |
