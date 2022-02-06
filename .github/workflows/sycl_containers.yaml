@@ -71,7 +71,6 @@ jobs:
           fetch-depth: 2
       - name: Get dependencies configuration
         id: deps
-        if: ${{ steps.deps_changed.outputs.flag }}
         run: |
           DEPS=`cat devops/dependencies.json`
           DEPS="${DEPS//'%'/'%25'}"
