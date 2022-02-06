@@ -398,7 +398,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: [build]
     if: |
-      always() && contains(fromJSON(needs.configure.outputs.params).cts_config, matrix.config) &&
+      always() &&
       (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: matrix.runner
     container:
