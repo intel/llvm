@@ -54,7 +54,7 @@ bool isSameDir(const char* LHS, const char* RHS) {
 class OsUtilsTest : public ::testing::Test {
 };
 
-TEST_F(OsUtilsTest, DISABLED_getCurrentDSODir) {
+TEST_F(OsUtilsTest, getCurrentDSODir) {
   std::string DSODir = cl::sycl::detail::OSUtil::getCurrentDSODir();
   ASSERT_TRUE(isSameDir(DSODir.c_str(), SYCL_LIB_DIR)) <<
       "expected: " << SYCL_LIB_DIR << ", got: " << DSODir;
