@@ -339,6 +339,7 @@ jobs:
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
     steps:
+    # TODO these must be in the container
     - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
@@ -363,7 +364,7 @@ jobs:
         ref: 'SYCL-2020'
         path: cts
         submodules: true
-    - name: Configure CTS
+    - name: Build SYCL-CTS
       run: |
         export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
         export PATH=$PWD/toolchain/bin/:$PATH
@@ -373,12 +374,63 @@ jobs:
         -DCMAKE_CXX_COMPILER=clang++ \
         -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="../../llvm/devops/pre_commit.exclude_filter" \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON -GNinja \
-        -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
         -DDPCPP_INSTALL_DIR=../../toolchain \
         ..
         ninja
     - name: Pack built CTS
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
       with:
         name: sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        path: cts/build/
+        path: |
+          cts/build/bin/test_all
+          cts/build/build_times.log
+
+  run_cts:
+    strategy:
+      matrix:
+        include:
+        - config: ocl_x64
+          name: OCL x64 SYCL CTS
+          image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
+          container_opts: -u 1001
+          runner: x64
+          device_filter: 'opencl:cpu'
+    name: ${{ matrix.name }}
+    needs: [build]
+    if: |
+      always() && contains(fromJSON(needs.configure.outputs.params).cts_config, matrix.config) &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: matrix.runner
+    container:
+      image: matrix.image
+      options: matrix.container_opts
+    steps:
+    - name: Get CTS
+      uses: actions/download-artifact@v2
+      with:
+        name: sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        path: cts
+    - name: Get compiler toolchain
+      uses: actions/download-artifact@v2
+      with:
+        name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+    - name: Extract SYCL toolchain
+      shell: bash
+      run: |
+        mkdir toolchain
+        tar -xf llvm_sycl.tar.xz -C toolchain
+        rm -f llvm_sycl.tar.xz
+    - name: Run SYCL-CTS
+      env:
+        SYCL_DEVICE_FILTER: ${{ matrix.device_filter }}
+      run: |
+        export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
+        export PATH=$PWD/toolchain/bin/:$PATH
+        ./cts/test_all --reporter console::console_${{ matrix.config }}.txt --reporter compact::- --reporter JUnit::junit_${{ matrix.config }}.xml
+    - name: Upload test results
+      uses: actions/upload-artifact@v2
+      with:
+        name: sycl_cts_results_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        path: |
+          console_${{ matrix.config }}.txt
+          junit_${{ matrix.config }}.xml
