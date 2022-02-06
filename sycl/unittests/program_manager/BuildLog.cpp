@@ -112,6 +112,8 @@ SYCL_TEST(BuildLog, OutputNothingOnLevel1) {
       break;
     }
   }
+  if (Plt.is_host())
+    GTEST_SKIP() << "Unsupported on host\n";
 
   setupCommonTestAPIs();
 
@@ -145,6 +147,8 @@ SYCL_TEST(BuildLog, OutputLogOnLevel2) {
       break;
     }
   }
+  if (Plt.is_host())
+    GTEST_SKIP() << "Unsupported on host\n";
 
   setupCommonTestAPIs();
 
