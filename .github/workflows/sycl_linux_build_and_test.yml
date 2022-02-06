@@ -424,8 +424,10 @@ jobs:
       run: |
         export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
         export PATH=$PWD/toolchain/bin/:$PATH
-        ./cts/test_all --reporter console::console_${{ matrix.config }}.txt --reporter compact::- --reporter JUnit::junit_${{ matrix.config }}.xml
+        chmod +x ./cts/bin/test_all
+        ./cts/bin/test_all --reporter console::console_${{ matrix.config }}.txt --reporter compact::- --reporter JUnit::junit_${{ matrix.config }}.xml
     - name: Upload test results
+      if: always()
       uses: actions/upload-artifact@v2
       with:
         name: sycl_cts_results_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
