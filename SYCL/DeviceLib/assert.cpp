@@ -1,5 +1,5 @@
 // REQUIRES: cpu,linux
-// RUN: %clangxx -DSYCL_ENABLE_FALLBACK_ASSERT -fsycl %s -o %t.out
+// RUN: %clangxx -DSYCL_FALLBACK_ASSERT=1 -fsycl %s -o %t.out
 // (see the other RUN lines below; it is a bit complicated)
 //
 // assert() call in device code guarantees nothing: on some devices it behaves
