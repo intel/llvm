@@ -396,10 +396,7 @@ jobs:
           runner: x64
           device_filter: 'opencl:cpu'
     name: ${{ matrix.name }}
-    needs: [build]
-    if: |
-      always() &&
-      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [build_cts]
     runs-on: matrix.runner
     container:
       image: matrix.image
