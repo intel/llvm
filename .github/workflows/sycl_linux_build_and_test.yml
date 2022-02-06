@@ -387,6 +387,7 @@ jobs:
 
   run_cts:
     strategy:
+      fail-fast: false
       matrix:
         include:
         - config: ocl_x64
@@ -396,11 +397,11 @@ jobs:
           runner: x64
           device_filter: 'opencl:cpu'
     name: ${{ matrix.name }}
-    needs: [build_cts]
-    runs-on: matrix.runner
+    needs: [build_cts, configure]
+    runs-on: ${{ matrix.runner }}
     container:
-      image: matrix.image
-      options: matrix.container_opts
+      image: ${{ matrix.image }}
+      options: ${{ matrix.container_opts }}
     steps:
     - name: Get CTS
       uses: actions/download-artifact@v2
