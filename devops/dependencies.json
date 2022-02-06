@@ -1,0 +1,71 @@
+{
+  "linux": {
+    "compute_runtime": {
+      "github_tag": "21.46.21636",
+      "version": "21.46.21636",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/21.46.21636",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
+    },
+    "igc": {
+      "github_tag": "igc-1.0.8744",
+      "version": "1.0.8744",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.8744",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
+    },
+    "cm": {
+      "github_tag": "cmclang-1.0.97",
+      "version": "1.0.97",
+      "url": "https://github.com/intel/cm-compiler/releases/tag/cmclang-1.0.97",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
+    },
+    "tbb": {
+      "github_tag": "v2021.5.0",
+      "version": "2021.5.0",
+      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.5.0/oneapi-tbb-2021.5.0-lin.tgz",
+      "root": "{DEPS_ROOT}/tbb/lin"
+    },
+    "oclcpu": {
+      "github_tag": "2021-WW50",
+      "version": "2021.13.11.0.23",
+      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/oclcpuexp-2021.13.11.0.23_rel.tar.gz",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
+    },
+    "fpgaemu": {
+      "github_tag": "2021-WW50",
+      "version": "2021.13.11.0.23",
+      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/fpgaemu-2021.13.11.0.23_rel.tar.gz",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
+    },
+    "fpga": {
+      "root": "{ARCHIVE_ROOT}/comp/oclfpga/linux"
+    }
+  },
+  "windows": {
+    "compute_runtime": {
+      "version": "101.1191",
+      "url": "https://downloadmirror.intel.com/691496/igfx_win_101.1191.zip",
+      "root": ""
+    },
+    "tbb": {
+      "github_tag": "v2021.5.0",
+      "version": "2021.5.0",
+      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.5.0/oneapi-tbb-2021.5.0-win.zip",
+      "root": "{DEPS_ROOT}/tbb/win"
+    },
+    "oclcpu": {
+      "github_tag": "2021-WW50",
+      "version": "2021.13.11.0.23",
+      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/win-oclcpuexp-2021.13.11.0.23_rel.zip",
+      "root": "{DEPS_ROOT}/opencl/runtime/win/oclcpu"
+    },
+    "fpgaemu": {
+      "github_tag": "2021-WW50",
+      "version": "2021.13.11.0.23",
+      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/win-fpgaemu-2021.13.11.0.23_rel.zip",
+      "root": "{DEPS_ROOT}/opencl/runtime/win/oclfpgaemu"
+    },
+    "fpga": {
+      "root": "{ARCHIVE_ROOT}/comp/oclfpga/win"
+    }
+  }
+}
