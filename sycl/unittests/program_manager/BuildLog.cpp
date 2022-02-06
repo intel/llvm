@@ -33,15 +33,32 @@ static pi_result redefinedProgramGetBuildInfo(
     pi_program program, pi_device device, cl_program_build_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
 
-  if (param_value_size_ret) {
-    *param_value_size_ret = 1;
-  }
-  if (param_value) {
-    *static_cast<char *>(param_value) = '1';
-  }
-
   if (param_name == PI_PROGRAM_BUILD_INFO_LOG) {
     LogRequested = true;
+    std::string Log = "Some log";
+    if (param_value_size_ret) {
+      *param_value_size_ret = Log.size() + 1;
+    }
+    if (param_value) {
+      strncpy(static_cast<char *>(param_value), Log.data(), Log.size() + 1);
+    }
+  }
+
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramGetInfo(pi_program program,
+                                         pi_program_info param_name,
+                                         size_t param_value_size,
+                                         void *param_value,
+                                         size_t *param_value_size_ret) {
+  if (param_name == PI_PROGRAM_INFO_DEVICES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(size_t);
+    }
+    if (param_value) {
+      *static_cast<size_t *>(param_value) = 1;
+    }
   }
 
   return PI_SUCCESS;
@@ -78,6 +95,7 @@ static void setupCommonTestAPIs() {
   using namespace sycl::detail;
   using namespace sycl::unittest;
   redefine<PiApiKind::piProgramGetBuildInfo>(redefinedProgramGetBuildInfo);
+  redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
   redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
 }
 
@@ -87,11 +105,12 @@ SYCL_TEST(BuildLog, OutputNothingOnLevel1) {
   ScopedEnvVar var(WarningLevelEnvVar, "1",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    GTEST_SKIP_("Test is not supported on this platform");
+  sycl::platform Plt;
+  for (auto &Cur : sycl::platform::get_platforms()) {
+    if (Cur.get_backend() == sycl::backend::opencl) {
+      Plt = Cur;
+      break;
+    }
   }
 
   setupCommonTestAPIs();
@@ -119,11 +138,12 @@ SYCL_TEST(BuildLog, OutputLogOnLevel2) {
   ScopedEnvVar var(WarningLevelEnvVar, "2",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    GTEST_SKIP_("Test is not supported on this platform");
+  sycl::platform Plt;
+  for (auto &Cur : sycl::platform::get_platforms()) {
+    if (Cur.get_backend() == sycl::backend::opencl) {
+      Plt = Cur;
+      break;
+    }
   }
 
   setupCommonTestAPIs();

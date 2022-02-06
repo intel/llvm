@@ -235,10 +235,9 @@ SYCL_TEST(KernelBuildOptions, KernelBundleBasic) {
   setupDefaultMockAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::context Ctx{Dev};
 
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
@@ -274,10 +273,10 @@ SYCL_TEST(KernelBuildOptions, Program) {
   setupDefaultMockAPIs();
 
   const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::context Ctx{Dev};
 
-  sycl::queue Queue{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  const sycl::context Ctx = Queue.get_context();
   sycl::program Prg1(Ctx);
   sycl::program Prg2(Ctx);
 

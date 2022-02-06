@@ -71,6 +71,24 @@ SYCL_TEST(PiInteropTest, CheckRetain) {
       redefinedQueueGetNativeHandle);
   unittest::redefine<detail::PiApiKind::piextQueueCreateWithNativeHandle>(
       redefinedQueueCreateWithNativeHandle);
+  unittest::redefine<detail::PiApiKind::piQueueGetInfo>(
+      [&](pi_queue command_queue, pi_queue_info param_name,
+          size_t param_value_size, void *param_value,
+          size_t *param_value_size_ret) {
+        if (param_name == PI_QUEUE_INFO_DEVICE) {
+          if (param_value_size_ret) {
+            *param_value_size_ret = sizeof(pi_device);
+          }
+          if (param_value) {
+            device Dev = Plt.get_devices()[0];
+            *static_cast<pi_device *>(param_value) =
+                reinterpret_cast<pi_device>(
+                    detail::getSyclObjImpl(Dev)->getNative());
+          }
+        }
+
+        return PI_SUCCESS;
+      });
   queue Q{Ctx, default_selector()};
   EXPECT_TRUE(QueueRetainCalled == 0);
 

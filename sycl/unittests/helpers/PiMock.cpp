@@ -98,7 +98,7 @@ static pi_result redefinedPlatformGetInfo(pi_platform platform,
       strncpy(static_cast<char *>(param_value), PN.data(), PN.size() + 1);
     }
   } else if (param_name == PI_PLATFORM_INFO_VERSION) {
-    std::string PV = "OpenCL 2.0";
+    std::string PV = "OpenCL 2.1";
     if (param_value_size_ret) {
       *param_value_size_ret = PV.size() + 1;
     }
@@ -261,10 +261,38 @@ static pi_result redefinedContextRetain(pi_context) { return PI_SUCCESS; }
 
 static pi_result redefinedContextRelease(pi_context) { return PI_SUCCESS; }
 
+static pi_result redefinedContextGetNativeHandle(pi_context Ctx,
+                                                 pi_native_handle *Handle) {
+  *Handle = reinterpret_cast<pi_native_handle>(Ctx);
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedContextCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_uint32 numDevices,
+    const pi_device *devices, bool pluginOwnsNativeHandle,
+    pi_context *context) {
+  *context = reinterpret_cast<pi_context>(nativeHandle);
+  return PI_SUCCESS;
+}
+
 static pi_result redefinedQueueCreate(pi_context context, pi_device device,
                                       pi_queue_properties properties,
                                       pi_queue *queue) {
   *queue = reinterpret_cast<pi_queue>(new size_t{1});
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedQueueGetNativeHandle(pi_queue queue,
+                                               pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(queue);
+  return PI_SUCCESS;
+}
+
+static pi_result
+redefinedQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                     pi_context context, pi_queue *queue,
+                                     bool pluginOwnsNativeHandle) {
+  *queue = reinterpret_cast<pi_queue>(nativeHandle);
   return PI_SUCCESS;
 }
 
@@ -331,6 +359,20 @@ inline pi_result redefinedProgramCreateCommon(pi_context, const void *, size_t,
   return PI_SUCCESS;
 }
 
+static pi_result
+redefinedProgramGetNativeHandle(pi_program program,
+                                pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(program);
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context,
+    bool pluginOwnsNativeHandle, pi_program *program) {
+  *program = reinterpret_cast<pi_program>(nativeHandle);
+  return PI_SUCCESS;
+}
+
 inline pi_result
 redefinedProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
                                  const size_t *, const unsigned char **, size_t,
@@ -340,16 +382,18 @@ redefinedProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedProgramBuildCommon(
+static pi_result redefinedProgramBuildCommon(
     pi_program prog, pi_uint32, const pi_device *, const char *,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
+  using namespace std::literals::chrono_literals;
+  std::this_thread::sleep_for(100ns);
   if (pfn_notify) {
     pfn_notify(prog, user_data);
   }
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedProgramCompileCommon(
+static pi_result redefinedProgramCompileCommon(
     pi_program, pi_uint32, const pi_device *, const char *, pi_uint32,
     const pi_program *, const char **, void (*)(pi_program, void *), void *) {
   return PI_SUCCESS;
@@ -387,26 +431,24 @@ inline pi_result redefinedProgramGetInfoCommon(pi_program program,
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedProgramRetainCommon(pi_program program) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedProgramReleaseCommon(pi_program program) {
-  return PI_SUCCESS;
-}
-
-inline pi_result redefinedKernelCreateCommon(pi_program program,
+static pi_result redefinedKernelCreateCommon(pi_program program,
                                              const char *kernel_name,
                                              pi_kernel *ret_kernel) {
   *ret_kernel = reinterpret_cast<pi_kernel>(1);
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedKernelRetainCommon(pi_kernel kernel) {
+static pi_result redefinedKernelCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, pi_program program,
+    bool pluginOwnsNativeHandle, pi_kernel *kernel) {
+  *kernel = reinterpret_cast<pi_kernel>(nativeHandle);
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedKernelReleaseCommon(pi_kernel kernel) {
+static pi_result
+redefinedKernelGetNativeHandle(pi_kernel kernel,
+                               pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(kernel);
   return PI_SUCCESS;
 }
 
@@ -424,7 +466,7 @@ inline pi_result redefinedKernelSetExecInfoCommon(
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedEventGetInfoCommon(pi_event event,
+static pi_result redefinedEventGetInfoCommon(pi_event event,
                                              pi_event_info param_name,
                                              size_t param_value_size,
                                              void *param_value,
@@ -433,6 +475,20 @@ inline pi_result redefinedEventGetInfoCommon(pi_event event,
     auto *status = reinterpret_cast<pi_event_status *>(param_value);
     *status = PI_EVENT_SUBMITTED;
   }
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedEventGetNativeHandle(pi_event event,
+                                               pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(event);
+  return PI_SUCCESS;
+}
+
+static pi_result
+redefinedEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                     pi_context context, bool ownNativeHandle,
+                                     pi_event *event) {
+  *event = reinterpret_cast<pi_event>(nativeHandle);
   return PI_SUCCESS;
 }
 
@@ -506,12 +562,19 @@ void setupDefaultMockAPIs() {
   redefine<PiApiKind::piContextGetInfo>(redefinedContextGetInfo);
   redefine<PiApiKind::piContextRelease>(redefinedContextRelease);
   redefine<PiApiKind::piContextRetain>(redefinedContextRetain);
+  redefine<PiApiKind::piextContextGetNativeHandle>(
+      redefinedContextGetNativeHandle);
+  redefine<PiApiKind::piextContextCreateWithNativeHandle>(
+      redefinedContextCreateWithNativeHandle);
   redefine<PiApiKind::piQueueCreate>(redefinedQueueCreate);
   redefine<PiApiKind::piQueueGetInfo>(redefinedQueueGetInfo);
   redefine<PiApiKind::piQueueRelease>(redefinedQueueRelease);
   redefine<PiApiKind::piQueueRetain>(redefinedQueueRetain);
   redefine<PiApiKind::piQueueFinish>(redefinedQueueFinish);
   redefine<PiApiKind::piQueueFlush>(redefinedQueueFlush);
+  redefine<PiApiKind::piextQueueGetNativeHandle>(redefinedQueueGetNativeHandle);
+  redefine<PiApiKind::piextQueueCreateWithNativeHandle>(
+      redefinedQueueCreateWithNativeHandle);
   redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
   redefine<PiApiKind::piMemRetain>(redefinedMemRetain);
@@ -521,6 +584,10 @@ void setupDefaultMockAPIs() {
   redefine<PiApiKind::piextUSMFree>(redefinedUSMFree);
   redefine<PiApiKind::piEventRelease>(NOP);
   redefine<PiApiKind::piEventsWait>(NOP);
+  redefine<PiApiKind::piEventGetInfo>(redefinedEventGetInfoCommon);
+  redefine<PiApiKind::piextEventGetNativeHandle>(redefinedEventGetNativeHandle);
+  redefine<PiApiKind::piextEventCreateWithNativeHandle>(
+      redefinedEventCreateWithNativeHandle);
   redefine<PiApiKind::piProgramCreate>(redefinedProgramCreateCommon);
   redefine<PiApiKind::piProgramCreateWithBinary>(
       redefinedProgramCreateWithBinary);
@@ -528,12 +595,20 @@ void setupDefaultMockAPIs() {
   redefine<PiApiKind::piProgramLink>(redefinedProgramLinkCommon);
   redefine<PiApiKind::piProgramBuild>(redefinedProgramBuildCommon);
   redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfoCommon);
-  redefine<PiApiKind::piProgramRetain>(redefinedProgramRetainCommon);
-  redefine<PiApiKind::piProgramRelease>(redefinedProgramReleaseCommon);
+  redefine<PiApiKind::piProgramRetain>(NOP);
+  redefine<PiApiKind::piProgramRelease>(NOP);
+  redefine<PiApiKind::piextProgramGetNativeHandle>(
+      redefinedProgramGetNativeHandle);
+  redefine<PiApiKind::piextProgramCreateWithNativeHandle>(
+      redefinedProgramCreateWithNativeHandle);
   redefine<PiApiKind::piKernelCreate>(redefinedKernelCreateCommon);
-  redefine<PiApiKind::piKernelRetain>(redefinedKernelRetainCommon);
-  redefine<PiApiKind::piKernelRelease>(redefinedKernelReleaseCommon);
+  redefine<PiApiKind::piKernelRetain>(NOP);
+  redefine<PiApiKind::piKernelRelease>(NOP);
   redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfoCommon);
+  redefine<PiApiKind::piextKernelCreateWithNativeHandle>(
+      redefinedKernelCreateWithNativeHandle);
+  redefine<PiApiKind::piextKernelGetNativeHandle>(
+      redefinedKernelGetNativeHandle);
   redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfoCommon);
   redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfoCommon);
   redefine<PiApiKind::piEnqueueKernelLaunch>(
@@ -552,6 +627,10 @@ void resetMockAPIs() {
   redefine<detail::PiApiKind::piEventRelease>(NOP);
   redefine<detail::PiApiKind::piDeviceRelease>(NOP);
   redefine<detail::PiApiKind::piContextRelease>(NOP);
+  redefine<detail::PiApiKind::piKernelRetain>(NOP);
+  redefine<detail::PiApiKind::piKernelRelease>(NOP);
+  redefine<detail::PiApiKind::piProgramRetain>(NOP);
+  redefine<detail::PiApiKind::piProgramRelease>(NOP);
   redefine<detail::PiApiKind::piTearDown>(NOP);
 }
 } // namespace unittest

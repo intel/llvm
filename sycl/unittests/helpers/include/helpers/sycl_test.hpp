@@ -11,6 +11,8 @@
 #include "helpers/PiMock.hpp"
 
 #include <CL/sycl/detail/common.hpp>
+#include <detail/context_impl.hpp>
+#include <detail/global_handler.hpp>
 
 #include <gtest/gtest.h>
 
@@ -21,6 +23,10 @@ namespace unittest {
 template <typename T> class SYCLUnitTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    for (auto &Ctx :
+         detail::GlobalHandler::instance().getPlatformToDefaultContextCache()) {
+      Ctx.second->getKernelProgramCache().reset();
+    }
     hijackPlugins();
     setupDefaultMockAPIs();
   }

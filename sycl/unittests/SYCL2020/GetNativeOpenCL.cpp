@@ -51,6 +51,15 @@ static pi_result redefinedEventRetain(pi_event c) {
   return PI_SUCCESS;
 }
 
+static pi_result redefinedProgramCreateWithSource(pi_context context,
+                                                  pi_uint32 count,
+                                                  const char **strings,
+                                                  const size_t *lengths,
+                                                  pi_program *ret_program) {
+  *ret_program = reinterpret_cast<pi_program>(new size_t{1});
+  return PI_SUCCESS;
+}
+
 pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
                                 size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret) {
@@ -71,7 +80,13 @@ static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
 }
 
 SYCL_TEST(GetNative, GetNativeHandle) {
-  platform Plt{default_selector()};
+  platform Plt;
+  for (auto &Cur : platform::get_platforms()) {
+    if (Cur.get_backend() == backend::opencl) {
+      Plt = Cur;
+      break;
+    }
+  }
   if (Plt.get_backend() != backend::opencl) {
     std::cout << "Test is created for opencl only" << std::endl;
     return;
@@ -91,9 +106,11 @@ SYCL_TEST(GetNative, GetNativeHandle) {
   redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
   redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
   redefine<detail::PiApiKind::piextUSMEnqueueMemset>(redefinedUSMEnqueueMemset);
+  redefine<detail::PiApiKind::piclProgramCreateWithSource>(
+      redefinedProgramCreateWithSource);
 
   default_selector Selector;
-  context Context(Plt);
+  context Context(Plt.get_devices()[0]);
   queue Queue(Context, Selector);
 
   program Program{Context};

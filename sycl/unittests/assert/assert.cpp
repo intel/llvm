@@ -23,9 +23,8 @@
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/sycl_test.hpp>
 
 #include <gtest/gtest.h>
 
@@ -185,6 +184,23 @@ static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedEnqueueMemBufferRead(
+    pi_queue queue, pi_mem buffer, pi_bool blocking_read, size_t offset,
+    size_t size, void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  *event = reinterpret_cast<pi_event>(new size_t{1});
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramCreateWithSource(pi_context context,
+                                                  pi_uint32 count,
+                                                  const char **strings,
+                                                  const size_t *lengths,
+                                                  pi_program *ret_program) {
+  *ret_program = reinterpret_cast<pi_program>(new size_t{1});
+  return PI_SUCCESS;
+}
+
 static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
                                               const size_t *, const size_t *,
                                               const size_t *LocalSize,
@@ -259,19 +275,20 @@ static pi_result redefinedExtKernelSetArgMemObj(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
-static void setupMock(sycl::unittest::PiMock &Mock) {
+static void setupMock() {
   using namespace sycl::detail;
-  setupDefaultMockAPIs(Mock);
+  using namespace sycl::unittest;
 
-  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
-  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
-  Mock.redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
-  Mock.redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
-  Mock.redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
-  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<PiApiKind::piextKernelSetArgMemObj>(
-      redefinedExtKernelSetArgMemObj);
+  redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
+  redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
+  redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
+  redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
+  redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
+  redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
+  redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
+  redefine<PiApiKind::piextKernelSetArgMemObj>(redefinedExtKernelSetArgMemObj);
+  redefine<PiApiKind::piclProgramCreateWithSource>(
+      redefinedProgramCreateWithSource);
 }
 
 namespace TestInteropKernel {
@@ -394,32 +411,33 @@ static pi_result redefinedProgramGetBuildInfo(
 
 } // namespace TestInteropKernel
 
-static void setupMockForInterop(sycl::unittest::PiMock &Mock,
-                                const sycl::context &Ctx,
+static void setupMockForInterop(const sycl::context &Ctx,
                                 const sycl::device &Dev) {
   using namespace sycl::detail;
-  setupDefaultMockAPIs(Mock);
+  using namespace sycl::unittest;
 
   TestInteropKernel::KernelLaunchCounter = ::KernelLaunchCounterBase;
   TestInteropKernel::Device = &Dev;
   TestInteropKernel::Context = &Ctx;
 
-  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
-  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(
+  redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
+  redefine<PiApiKind::piEnqueueKernelLaunch>(
       TestInteropKernel::redefinedEnqueueKernelLaunch);
-  Mock.redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
-  Mock.redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
-  Mock.redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
-  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<PiApiKind::piextKernelSetArgMemObj>(
-      redefinedExtKernelSetArgMemObj);
-  Mock.redefine<PiApiKind::piKernelGetInfo>(
+  redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
+  redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
+  redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
+  redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
+  redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
+  redefine<PiApiKind::piextKernelSetArgMemObj>(redefinedExtKernelSetArgMemObj);
+  redefine<PiApiKind::piKernelGetInfo>(
       TestInteropKernel::redefinedKernelGetInfo);
-  Mock.redefine<PiApiKind::piProgramGetInfo>(
+  redefine<PiApiKind::piProgramGetInfo>(
       TestInteropKernel::redefinedProgramGetInfo);
-  Mock.redefine<PiApiKind::piProgramGetBuildInfo>(
+  redefine<PiApiKind::piProgramGetBuildInfo>(
       TestInteropKernel::redefinedProgramGetBuildInfo);
+  redefine<PiApiKind::piclProgramCreateWithSource>(
+      redefinedProgramCreateWithSource);
+  redefine<PiApiKind::piEnqueueMemBufferRead>(redefinedEnqueueMemBufferRead);
 }
 
 #ifndef _WIN32
@@ -432,14 +450,11 @@ void ChildProcess(int StdErrFD) {
 
   sycl::platform Plt{sycl::default_selector()};
 
-  sycl::unittest::PiMock Mock{Plt};
-
-  setupMock(Mock);
+  setupMock();
 
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  const sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
@@ -505,7 +520,7 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 }
 #endif // _WIN32
 
-TEST(Assert, TestPositive) {
+SYCL_TEST(Assert, TestPositive) {
   // Preliminary checks
   {
     sycl::platform Plt{sycl::default_selector()};
@@ -549,7 +564,7 @@ TEST(Assert, TestPositive) {
 #endif // _WIN32
 }
 
-TEST(Assert, TestAssertServiceKernelHidden) {
+SYCL_TEST(Assert, TestAssertServiceKernelHidden) {
   const char *AssertServiceKernelName = sycl::detail::KernelInfo<
       sycl::detail::__sycl_service_kernel__::AssertInfoCopier>::getName();
 
@@ -563,7 +578,7 @@ TEST(Assert, TestAssertServiceKernelHidden) {
   EXPECT_TRUE(NoFoundServiceKernelID);
 }
 
-TEST(Assert, TestInteropKernelNegative) {
+SYCL_TEST(Assert, TestInteropKernelNegative) {
   sycl::platform Plt{sycl::default_selector()};
 
   if (Plt.is_host()) {
@@ -581,14 +596,11 @@ TEST(Assert, TestInteropKernelNegative) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
+  const sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  const sycl::context Ctx = Queue.get_context();
-
-  setupMockForInterop(Mock, Ctx, Dev);
+  setupMockForInterop(Ctx, Dev);
 
   cl_kernel CLKernel = (cl_kernel)(0x01);
   // TODO use make_kernel. This requires a fix in backend.cpp to get plugin
@@ -601,7 +613,7 @@ TEST(Assert, TestInteropKernelNegative) {
             KernelLaunchCounterBase + 1);
 }
 
-TEST(Assert, TestInteropKernelFromProgramNegative) {
+SYCL_TEST(Assert, TestInteropKernelFromProgramNegative) {
   sycl::platform Plt{sycl::default_selector()};
 
   if (Plt.is_host()) {
@@ -619,14 +631,11 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
+  const sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  const sycl::context Ctx = Queue.get_context();
-
-  setupMockForInterop(Mock, Ctx, Dev);
+  setupMockForInterop(Ctx, Dev);
 
   sycl::kernel_bundle Bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx);
@@ -641,7 +650,7 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
             KernelLaunchCounterBase + 1);
 }
 
-TEST(Assert, TestKernelFromSourceNegative) {
+SYCL_TEST(Assert, DISABLED_TestKernelFromSourceNegative) {
   sycl::platform Plt{sycl::default_selector()};
 
   if (Plt.is_host()) {
@@ -659,8 +668,6 @@ TEST(Assert, TestKernelFromSourceNegative) {
     return;
   }
 
-  sycl::unittest::PiMock Mock{Plt};
-
   constexpr size_t Size = 16;
   std::array<int, Size> Data;
 
@@ -671,13 +678,12 @@ TEST(Assert, TestKernelFromSourceNegative) {
   sycl::buffer<int, 1> Buf{Data};
 
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
+  const sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  sycl::context Ctx = Queue.get_context();
+  setupMockForInterop(Ctx, Dev);
 
-  setupMockForInterop(Mock, Ctx, Dev);
-
-  sycl::program P{Queue.get_context()};
+  sycl::program P{Ctx};
   P.build_with_source(R"CLC(
           kernel void add(global int* data) {
               int index = get_global_id(0);
