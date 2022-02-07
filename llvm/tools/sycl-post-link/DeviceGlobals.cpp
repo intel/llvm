@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "DeviceGlobals.h"
+#include "CompileTimePropertiesPass.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -24,30 +25,6 @@ constexpr StringRef SYCL_DEVICE_GLOBAL_SIZE_ATTR = "sycl-device-global-size";
 constexpr StringRef SYCL_UNIQUE_ID_ATTR = "sycl-unique-id";
 constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "device_image_scope";
 
-/// Converts the string into a boolean value. If the string is equal to "false"
-/// we consider its value as /c false, /true otherwise.
-///
-/// @param Value [in] "boolean as string" value.
-///
-/// @returns \c false if the value of \c Value equals to "false", \c true
-/// otherwise.
-bool toBool(StringRef Value) { return !Value.equals("false"); }
-
-/// Checks whether the device global variable has the \c device_image_scope
-/// property. The variable has the property if the \c sycl-device-image-scope
-/// attribute is defined for the variable and the attribute value is not
-/// represented as \c false.
-///
-/// @param GV [in] Device Global variable.
-///
-/// @returns \c true if variable \c GV has the \c device_image_scope property,
-/// \c false otherwise.
-bool hasDeviceImageScope(const GlobalVariable &GV) {
-  return GV.hasAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR) &&
-         toBool(
-             GV.getAttribute(SYCL_DEVICE_IMAGE_SCOPE_ATTR).getValueAsString());
-}
-
 /// Returns the size (in bytes) of the underlying type \c T of the device
 /// global variable.
 ///
@@ -57,62 +34,65 @@ bool hasDeviceImageScope(const GlobalVariable &GV) {
 /// @param GV [in] Device Global variable.
 ///
 /// @returns the size (int bytes) of the underlying type \c T of the
-/// device global variable represented in the LLVM IR by \c GV.
+/// device global variable represented in the LLVM IR by  @GV.
 uint32_t getUnderlyingTypeSize(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR) &&
          "The device global variable must have the 'sycl-device-global-size' "
-         "attribute");
-  uint32_t value;
-  bool error = GV.getAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR)
-                   .getValueAsString()
-                   .getAsInteger(10, value);
-  assert(!error &&
-         "The 'sycl-device-global-size' attribute must contain a number"
-         " representing the size of the underlying type T of the device"
-         " global variable");
-  (void)error;
-  return value;
+         "attribute that must contain a number representing the size of the "
+         "underlying type T of the device global variable");
+  return getAttributeAsInteger<uint32_t>(GV, SYCL_DEVICE_GLOBAL_SIZE_ATTR);
+}
+
+} // anonymous namespace
+
+namespace llvm {
+
+/// Return \c true if the variable @GV is a device global variable.
+///
+/// The function checks whether the variable has the LLVM IR attribute \c
+/// sycl-device-global-size.
+/// @param GV [in] A variable to test.
+///
+/// @return \c true if the variable is a device global variable, \c false
+/// otherwise.
+bool isDeviceGlobalVariable(const GlobalVariable &GV) {
+  return GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR);
 }
 
 /// Returns the unique id for the device global variable.
 ///
 /// The function gets this value from the LLVM IR attribute \c
-/// sycl-unique-id. If the attribute is not found for the variable
-/// an error should occur even in the release build.
+/// sycl-unique-id.
 ///
 /// @param GV [in] Device Global variable.
 ///
 /// @returns the unique id of the device global variable represented
 /// in the LLVM IR by \c GV.
-StringRef getUniqueId(const GlobalVariable &GV) {
+StringRef getGlobalVariableUniqueId(const GlobalVariable &GV) {
   assert(GV.hasAttribute(SYCL_UNIQUE_ID_ATTR) &&
          "a 'sycl-unique-id' string must be associated with every device "
          "global variable");
   return GV.getAttribute(SYCL_UNIQUE_ID_ATTR).getValueAsString();
 }
 
-} // namespace
-
-DeviceGlobalPropertyMapTy
-DeviceGlobalsPass::collectDeviceGlobalProperties(const Module &M) {
+DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M) {
   DeviceGlobalPropertyMapTy DGM;
-  auto DevGlobalFilter = [](auto &GV) {
-    return GV.hasAttribute(SYCL_DEVICE_GLOBAL_SIZE_ATTR);
-  };
-
-  auto DevGlobalNum = count_if(M.globals(), DevGlobalFilter);
+  auto DevGlobalNum = count_if(M.globals(), isDeviceGlobalVariable);
   if (DevGlobalNum == 0)
     return DGM;
 
   DGM.reserve(DevGlobalNum);
 
   for (auto &GV : M.globals()) {
-    if (!DevGlobalFilter(GV))
+    if (!isDeviceGlobalVariable(GV))
       continue;
 
-    DGM[getUniqueId(GV)] = {
-        {{getUnderlyingTypeSize(GV), hasDeviceImageScope(GV)}}};
+    DGM[getGlobalVariableUniqueId(GV)] = {
+        {{getUnderlyingTypeSize(GV),
+          hasProperty(GV, SYCL_DEVICE_IMAGE_SCOPE_ATTR)}}};
   }
 
   return DGM;
 }
+
+} // namespace llvm
