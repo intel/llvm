@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <string_view>
@@ -28,7 +27,7 @@ public:
 
 class JSONWriter : public Writer {
 public:
-  explicit JSONWriter(std::filesystem::path OutPath) : MOutFile(OutPath) {}
+  explicit JSONWriter(const std::string &OutPath) : MOutFile(OutPath) {}
 
   void init() final {
     std::lock_guard _{MWriteMutex};
@@ -50,7 +49,8 @@ public:
     MOutFile << "\"ph\": \"B\", ";
     MOutFile << "\"pid\": \"" << PID << "\", ";
     MOutFile << "\"tid\": \"" << TID << "\", ";
-    MOutFile << "\"ts\": \"" << TimeStamp << "\"},\n";
+    MOutFile << "\"ts\": \"" << TimeStamp << "\"},";
+    MOutFile << std::endl;
   }
 
   void writeEnd(std::string_view Name, std::string_view Category,
@@ -66,7 +66,8 @@ public:
     MOutFile << "\"ph\": \"E\", ";
     MOutFile << "\"pid\": \"" << PID << "\", ";
     MOutFile << "\"tid\": \"" << TID << "\", ";
-    MOutFile << "\"ts\": \"" << TimeStamp << "\"},\n";
+    MOutFile << "\"ts\": \"" << TimeStamp << "\"},";
+    MOutFile << std::endl;
   }
 
   void finalize() final {

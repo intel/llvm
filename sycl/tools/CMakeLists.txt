@@ -4,7 +4,7 @@ if (SYCL_ENABLE_XPTI_TRACING)
   if (UNIX)
     add_subdirectory(sycl-prof)
     add_subdirectory(sycl-trace)
-    # add_subdirectory(sycl-sanitize)
+    add_subdirectory(sycl-sanitize)
   endif()
 endif()
 

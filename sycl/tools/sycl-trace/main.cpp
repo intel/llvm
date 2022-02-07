@@ -1,3 +1,11 @@
+//==------------ main.cpp - SYCL Tracing Tool ------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "launch.hpp"
 #include "llvm/Support/CommandLine.h"
 
@@ -38,7 +46,7 @@ int main(int argc, char **argv, char *env[]) {
 
   Args.push_back(TargetExecutable.c_str());
 
-  for (auto Arg : Argv) {
+  for (auto &Arg : Argv) {
     Args.push_back(Arg.c_str());
   }
 
