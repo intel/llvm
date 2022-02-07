@@ -12,6 +12,7 @@
 
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
@@ -873,11 +874,13 @@ void TargetInstrInfo::reassociateOps(
   MachineInstrBuilder MIB1 =
       BuildMI(*MF, Prev.getDebugLoc(), TII->get(Opcode), NewVR)
           .addReg(RegX, getKillRegState(KillX))
-          .addReg(RegY, getKillRegState(KillY));
+          .addReg(RegY, getKillRegState(KillY))
+          .setMIFlags(Prev.getFlags());
   MachineInstrBuilder MIB2 =
       BuildMI(*MF, Root.getDebugLoc(), TII->get(Opcode), RegC)
           .addReg(RegA, getKillRegState(KillA))
-          .addReg(NewVR, getKillRegState(true));
+          .addReg(NewVR, getKillRegState(true))
+          .setMIFlags(Root.getFlags());
 
   setSpecialOperandAttr(Root, Prev, *MIB1, *MIB2);
 

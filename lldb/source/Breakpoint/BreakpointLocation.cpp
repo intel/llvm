@@ -22,6 +22,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
@@ -233,7 +234,7 @@ const char *BreakpointLocation::GetConditionText(size_t *hash) const {
 
 bool BreakpointLocation::ConditionSaysStop(ExecutionContext &exe_ctx,
                                            Status &error) {
-  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS);
+  Log *log = GetLog(LLDBLog::Breakpoints);
 
   std::lock_guard<std::mutex> guard(m_condition_mutex);
 
@@ -393,7 +394,7 @@ bool BreakpointLocation::ValidForThisThread(Thread &thread) {
 
 bool BreakpointLocation::ShouldStop(StoppointCallbackContext *context) {
   bool should_stop = true;
-  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS);
+  Log *log = GetLog(LLDBLog::Breakpoints);
 
   // Do this first, if a location is disabled, it shouldn't increment its hit
   // count.
@@ -450,7 +451,7 @@ bool BreakpointLocation::ResolveBreakpointSite() {
       process->CreateBreakpointSite(shared_from_this(), m_owner.IsHardware());
 
   if (new_id == LLDB_INVALID_BREAK_ID) {
-    Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS);
+    Log *log = GetLog(LLDBLog::Breakpoints);
     if (log)
       log->Warning("Failed to add breakpoint site at 0x%" PRIx64,
                    m_address.GetOpcodeLoadAddress(&m_owner.GetTarget()));

@@ -1871,9 +1871,11 @@ bool RISCVDAGToDAGISel::hasAllNBitUsers(SDNode *Node, unsigned Bits) const {
 // allows us to choose betwen VSETIVLI or VSETVLI later.
 bool RISCVDAGToDAGISel::selectVLOp(SDValue N, SDValue &VL) {
   auto *C = dyn_cast<ConstantSDNode>(N);
-  if (C && (isUInt<5>(C->getZExtValue()) ||
-            C->getSExtValue() == RISCV::VLMaxSentinel))
+  if (C && isUInt<5>(C->getZExtValue()))
     VL = CurDAG->getTargetConstant(C->getZExtValue(), SDLoc(N),
+                                   N->getValueType(0));
+  else if (C && C->isAllOnesValue() && C->getOpcode() != ISD::TargetConstant)
+    VL = CurDAG->getTargetConstant(RISCV::VLMaxSentinel, SDLoc(N),
                                    N->getValueType(0));
   else
     VL = N;
@@ -1883,7 +1885,6 @@ bool RISCVDAGToDAGISel::selectVLOp(SDValue N, SDValue &VL) {
 
 bool RISCVDAGToDAGISel::selectVSplat(SDValue N, SDValue &SplatVal) {
   if (N.getOpcode() != ISD::SPLAT_VECTOR &&
-      N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64 &&
       N.getOpcode() != RISCVISD::VMV_V_X_VL)
     return false;
   SplatVal = N.getOperand(0);
@@ -1897,18 +1898,17 @@ static bool selectVSplatSimmHelper(SDValue N, SDValue &SplatVal,
                                    const RISCVSubtarget &Subtarget,
                                    ValidateFn ValidateImm) {
   if ((N.getOpcode() != ISD::SPLAT_VECTOR &&
-       N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64 &&
        N.getOpcode() != RISCVISD::VMV_V_X_VL) ||
       !isa<ConstantSDNode>(N.getOperand(0)))
     return false;
 
   int64_t SplatImm = cast<ConstantSDNode>(N.getOperand(0))->getSExtValue();
 
-  // ISD::SPLAT_VECTOR, RISCVISD::SPLAT_VECTOR_I64 and RISCVISD::VMV_V_X_VL
-  // share semantics when the operand type is wider than the resulting vector
-  // element type: an implicit truncation first takes place. Therefore, perform
-  // a manual truncation/sign-extension in order to ignore any truncated bits
-  // and catch any zero-extended immediate.
+  // ISD::SPLAT_VECTOR, RISCVISD::VMV_V_X_VL share semantics when the operand
+  // type is wider than the resulting vector element type: an implicit
+  // truncation first takes place. Therefore, perform a manual
+  // truncation/sign-extension in order to ignore any truncated bits and catch
+  // any zero-extended immediate.
   // For example, we wish to match (i8 -1) -> (XLenVT 255) as a simm5 by first
   // sign-extending to (XLenVT -1).
   MVT XLenVT = Subtarget.getXLenVT();
@@ -1946,7 +1946,6 @@ bool RISCVDAGToDAGISel::selectVSplatSimm5Plus1NonZero(SDValue N,
 
 bool RISCVDAGToDAGISel::selectVSplatUimm5(SDValue N, SDValue &SplatVal) {
   if ((N.getOpcode() != ISD::SPLAT_VECTOR &&
-       N.getOpcode() != RISCVISD::SPLAT_VECTOR_I64 &&
        N.getOpcode() != RISCVISD::VMV_V_X_VL) ||
       !isa<ConstantSDNode>(N.getOperand(0)))
     return false;

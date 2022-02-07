@@ -3547,8 +3547,8 @@ defm amdgpu_ieee : BoolOption<"m", "amdgpu-ieee",
   NegFlag<SetFalse, [CC1Option]>>, Group<m_Group>;
 
 def mcode_object_version_EQ : Joined<["-"], "mcode-object-version=">, Group<m_Group>,
-  HelpText<"Specify code object ABI version. Defaults to 3. (AMDGPU only)">,
-  MetaVarName<"<version>">, Values<"2,3,4">;
+  HelpText<"Specify code object ABI version. Defaults to 4. (AMDGPU only)">,
+  MetaVarName<"<version>">, Values<"2,3,4,5">;
 
 defm code_object_v3_legacy : SimpleMFlag<"code-object-v3",
   "Legacy option to specify code object ABI V3",
@@ -4912,6 +4912,13 @@ def target_abi : Separate<["-"], "target-abi">,
   MarshallingInfoString<TargetOpts<"ABI">>;
 def target_sdk_version_EQ : Joined<["-"], "target-sdk-version=">,
   HelpText<"The version of target SDK used for compilation">;
+def darwin_target_variant_triple : Separate<["-"], "darwin-target-variant-triple">,
+  HelpText<"Specify the darwin target variant triple">,
+  MarshallingInfoString<TargetOpts<"DarwinTargetVariantTriple">>,
+  Normalizer<"normalizeTriple">;
+def darwin_target_variant_sdk_version_EQ : Joined<["-"],
+  "darwin-target-variant-sdk-version=">,
+  HelpText<"The version of darwin target variant SDK used for compilation">;
 
 }
 

@@ -15,8 +15,9 @@
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Symbol/SymbolContext.h"
-#include "lldb/Target/Target.h"
 #include "lldb/Target/Language.h"
+#include "lldb/Target/Target.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
@@ -33,7 +34,7 @@ BreakpointResolverName::BreakpointResolverName(const BreakpointSP &bkpt,
   if (m_match_type == Breakpoint::Regexp) {
     m_regex = RegularExpression(name_cstr);
     if (!m_regex.IsValid()) {
-      Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
+      Log *log = GetLog(LLDBLog::Breakpoints);
 
       if (log)
         log->Warning("function name regexp: \"%s\" did not compile.",
@@ -252,7 +253,7 @@ void BreakpointResolverName::AddNameLookup(ConstString name,
 Searcher::CallbackReturn
 BreakpointResolverName::SearchCallback(SearchFilter &filter,
                                        SymbolContext &context, Address *addr) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Breakpoints);
 
   if (m_class_name) {
     if (log)

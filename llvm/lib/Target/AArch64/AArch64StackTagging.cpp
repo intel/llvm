@@ -42,6 +42,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -52,8 +53,8 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/MemoryTaggingSupport.h"
 #include <cassert>
 #include <iterator>
 #include <utility>
@@ -77,6 +78,12 @@ static cl::opt<unsigned> ClScanLimit("stack-tagging-merge-init-scan-limit",
 static cl::opt<unsigned>
     ClMergeInitSizeLimit("stack-tagging-merge-init-size-limit", cl::init(272),
                          cl::Hidden);
+
+static cl::opt<size_t> ClMaxLifetimes(
+    "stack-tagging-max-lifetimes-for-alloca", cl::Hidden, cl::init(3),
+    cl::ReallyHidden,
+    cl::desc("How many lifetime ends to handle for a single alloca."),
+    cl::Optional);
 
 static const Align kTagGranuleSize = Align(16);
 
@@ -536,40 +543,45 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
   SmallVector<Instruction *, 8> RetVec;
   SmallVector<Instruction *, 4> UnrecognizedLifetimes;
 
-  for (auto &BB : *F) {
-    for (Instruction &I : BB) {
-      if (auto *AI = dyn_cast<AllocaInst>(&I)) {
-        Allocas[AI].AI = AI;
-        Allocas[AI].OldAI = AI;
-        continue;
+  bool CallsReturnTwice = false;
+  for (Instruction &I : instructions(F)) {
+    if (CallInst *CI = dyn_cast<CallInst>(&I)) {
+      if (CI->canReturnTwice()) {
+        CallsReturnTwice = true;
       }
-
-      if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I)) {
-        for (Value *V : DVI->location_ops())
-          if (auto *AI = dyn_cast_or_null<AllocaInst>(V))
-            if (Allocas[AI].DbgVariableIntrinsics.empty() ||
-                Allocas[AI].DbgVariableIntrinsics.back() != DVI)
-              Allocas[AI].DbgVariableIntrinsics.push_back(DVI);
-        continue;
-      }
-
-      auto *II = dyn_cast<IntrinsicInst>(&I);
-      if (II && (II->getIntrinsicID() == Intrinsic::lifetime_start ||
-                 II->getIntrinsicID() == Intrinsic::lifetime_end)) {
-        AllocaInst *AI = findAllocaForValue(II->getArgOperand(1));
-        if (!AI) {
-          UnrecognizedLifetimes.push_back(&I);
-          continue;
-        }
-        if (II->getIntrinsicID() == Intrinsic::lifetime_start)
-          Allocas[AI].LifetimeStart.push_back(II);
-        else
-          Allocas[AI].LifetimeEnd.push_back(II);
-      }
-
-      if (isa<ReturnInst, ResumeInst, CleanupReturnInst>(&I))
-        RetVec.push_back(&I);
     }
+    if (auto *AI = dyn_cast<AllocaInst>(&I)) {
+      Allocas[AI].AI = AI;
+      Allocas[AI].OldAI = AI;
+      continue;
+    }
+
+    if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I)) {
+      for (Value *V : DVI->location_ops())
+        if (auto *AI = dyn_cast_or_null<AllocaInst>(V))
+          if (Allocas[AI].DbgVariableIntrinsics.empty() ||
+              Allocas[AI].DbgVariableIntrinsics.back() != DVI)
+            Allocas[AI].DbgVariableIntrinsics.push_back(DVI);
+      continue;
+    }
+
+    auto *II = dyn_cast<IntrinsicInst>(&I);
+    if (II && (II->getIntrinsicID() == Intrinsic::lifetime_start ||
+                II->getIntrinsicID() == Intrinsic::lifetime_end)) {
+      AllocaInst *AI = findAllocaForValue(II->getArgOperand(1));
+      if (!AI) {
+        UnrecognizedLifetimes.push_back(&I);
+        continue;
+      }
+      if (II->getIntrinsicID() == Intrinsic::lifetime_start)
+        Allocas[AI].LifetimeStart.push_back(II);
+      else
+        Allocas[AI].LifetimeEnd.push_back(II);
+    }
+
+    Instruction *ExitUntag = getUntagLocationIfFunctionExit(I);
+    if (ExitUntag)
+      RetVec.push_back(ExitUntag);
   }
 
   if (Allocas.empty())
@@ -639,10 +651,17 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
     Info.AI->replaceAllUsesWith(TagPCall);
     TagPCall->setOperand(0, Info.AI);
 
-    if (UnrecognizedLifetimes.empty() && Info.LifetimeStart.size() == 1 &&
-        Info.LifetimeEnd.size() == 1) {
+    bool StandardLifetime =
+        UnrecognizedLifetimes.empty() &&
+        isStandardLifetime(Info.LifetimeStart, Info.LifetimeEnd, DT,
+                           ClMaxLifetimes);
+    // Calls to functions that may return twice (e.g. setjmp) confuse the
+    // postdominator analysis, and will leave us to keep memory tagged after
+    // function return. Work around this by always untagging at every return
+    // statement if return_twice functions are called.
+    if (UnrecognizedLifetimes.empty() && StandardLifetime &&
+        !CallsReturnTwice) {
       IntrinsicInst *Start = Info.LifetimeStart[0];
-      IntrinsicInst *End = Info.LifetimeEnd[0];
       uint64_t Size =
           cast<ConstantInt>(Start->getArgOperand(0))->getZExtValue();
       Size = alignTo(Size, kTagGranuleSize);
@@ -651,8 +670,10 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
       auto TagEnd = [&](Instruction *Node) { untagAlloca(AI, Node, Size); };
       if (!DT || !PDT ||
           !forAllReachableExits(*DT, *PDT, Start, Info.LifetimeEnd, RetVec,
-                                TagEnd))
-        End->eraseFromParent();
+                                TagEnd)) {
+        for (auto *End : Info.LifetimeEnd)
+          End->eraseFromParent();
+      }
     } else {
       uint64_t Size = Info.AI->getAllocationSizeInBits(*DL).getValue() / 8;
       Value *Ptr = IRB.CreatePointerCast(TagPCall, IRB.getInt8PtrTy());

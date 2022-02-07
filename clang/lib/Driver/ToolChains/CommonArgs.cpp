@@ -846,6 +846,8 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
         SharedRuntimes.push_back("hwasan_aliases");
       else
         SharedRuntimes.push_back("hwasan");
+      if (!Args.hasArg(options::OPT_shared))
+        HelperStaticRuntimes.push_back("hwasan-preinit");
     }
   }
 
@@ -1916,7 +1918,7 @@ getAMDGPUCodeObjectArgument(const Driver &D, const llvm::opt::ArgList &Args) {
 void tools::checkAMDGPUCodeObjectVersion(const Driver &D,
                                          const llvm::opt::ArgList &Args) {
   const unsigned MinCodeObjVer = 2;
-  const unsigned MaxCodeObjVer = 4;
+  const unsigned MaxCodeObjVer = 5;
 
   // Emit warnings for legacy options even if they are overridden.
   if (Args.hasArg(options::OPT_mno_code_object_v3_legacy))

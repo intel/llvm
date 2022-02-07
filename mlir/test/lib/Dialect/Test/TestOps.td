@@ -666,26 +666,15 @@ def DefaultDialectOp : TEST_Op<"default_dialect", [OpAsmOpInterface]> {
 // This operation requires its return type to have the trait 'TestTypeTrait'.
 def ResultTypeWithTraitOp : TEST_Op<"result_type_with_trait", []> {
   let results = (outs AnyType);
-
-  let verifier = [{
-    if((*this)->getResultTypes()[0].hasTrait<TypeTrait::TestTypeTrait>())
-      return success();
-    return this->emitError("result type should have trait 'TestTypeTrait'");
-  }];
+  let hasVerifier = 1;
 }
 
 // This operation requires its "attr" attribute to have the
 // trait 'TestAttrTrait'.
 def AttrWithTraitOp : TEST_Op<"attr_with_trait", []> {
   let arguments = (ins AnyAttr:$attr);
-
-  let verifier = [{
-    if (this->getAttr().hasTrait<AttributeTrait::TestAttrTrait>())
-      return success();
-    return this->emitError("'attr' attribute should have trait 'TestAttrTrait'");
-  }];
+  let hasVerifier = 1;
 }
-
 
 //===----------------------------------------------------------------------===//
 // Test Locations
@@ -699,6 +688,16 @@ def TestLocationSrcOp : TEST_Op<"loc_src"> {
 def TestLocationDstOp : TEST_Op<"loc_dst", [SameOperandsAndResultType]> {
   let arguments = (ins I32:$input);
   let results = (outs I32:$output);
+}
+
+def TestLocationSrcNoResOp : TEST_Op<"loc_src_no_res"> {
+  let arguments = (ins I32:$input);
+  let results = (outs);
+}
+
+def TestLocationDstNoResOp : TEST_Op<"loc_dst_no_res"> {
+  let arguments = (ins I32:$input);
+  let results = (outs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1385,6 +1384,11 @@ def : Pat<(TestLocationSrcOp:$res1
               (TestLocationDstOp $input, (location $res1)),
               (location "named")),
             (location "fused", $res2, $res3))>;
+
+// Test that we can use the location of an op without results
+def : Pat<(TestLocationSrcNoResOp:$loc
+            (TestLocationSrcOp (TestLocationSrcOp $input))),
+          (TestLocationDstNoResOp $input, (location $loc))>;
 
 //===----------------------------------------------------------------------===//
 // Test Patterns (Type Builders)

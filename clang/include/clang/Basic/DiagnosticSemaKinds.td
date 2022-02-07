@@ -1684,9 +1684,6 @@ def warn_weak_vtable : Warning<
   "%0 has no out-of-line virtual method definitions; its vtable will be "
   "emitted in every translation unit">,
   InGroup<DiagGroup<"weak-vtables">>, DefaultIgnore;
-def warn_weak_template_vtable : Warning<
-  "this warning is no longer in use and will be removed in the next release">,
-  InGroup<DiagGroup<"weak-template-vtables">>, DefaultIgnore;
 
 def ext_using_undefined_std : ExtWarn<
   "using directive refers to implicitly-defined namespace 'std'">;
@@ -10751,6 +10748,8 @@ def err_omp_directive_before_requires : Error <
   "'%0' region encountered before requires directive with '%1' clause">;
 def note_omp_requires_encountered_directive : Note <
   "'%0' previously encountered here">;
+def err_omp_device_ancestor_without_requires_reverse_offload : Error <
+  "Device clause with ancestor device-modifier used without specifying 'requires reverse_offload'">;
 def err_omp_invalid_scope : Error <
   "'#pragma omp %0' directive must appear only in file scope">;
 def note_omp_invalid_length_on_this_ptr_mapping : Note <

@@ -390,7 +390,8 @@ static InstClassEnum getInstClass(unsigned Opc, const SIInstrInfo &TII) {
 }
 
 /// Determines instruction subclass from opcode. Only instructions
-/// of the same subclass can be merged together.
+/// of the same subclass can be merged together. The merged instruction may have
+/// a different subclass but must have the same class.
 static unsigned getInstSubclass(unsigned Opc, const SIInstrInfo &TII) {
   switch (Opc) {
   default:
@@ -893,22 +894,23 @@ SILoadStoreOptimizer::getDataRegClass(const MachineInstr &MI) const {
 bool SILoadStoreOptimizer::checkAndPrepareMerge(
     CombineInfo &CI, CombineInfo &Paired,
     SmallVectorImpl<MachineInstr *> &InstsToMove) {
+  // If another instruction has already been merged into CI, it may now be a
+  // type that we can't do any further merging into.
+  if (CI.InstClass == UNKNOWN || Paired.InstClass == UNKNOWN)
+    return false;
+  assert(CI.InstClass == Paired.InstClass);
 
   // Check both offsets (or masks for MIMG) can be combined and fit in the
   // reduced range.
-  if (CI.InstClass == MIMG && !dmasksCanBeCombined(CI, *TII, Paired))
-    return false;
-
-  if (CI.InstClass != MIMG &&
-      (!widthsFit(*STM, CI, Paired) || !offsetsCanBeCombined(CI, *STM, Paired)))
-    return false;
+  if (CI.InstClass == MIMG) {
+    if (!dmasksCanBeCombined(CI, *TII, Paired))
+      return false;
+  } else {
+    if (!widthsFit(*STM, CI, Paired) || !offsetsCanBeCombined(CI, *STM, Paired))
+      return false;
+  }
 
   const unsigned Opc = CI.I->getOpcode();
-  const InstClassEnum InstClass = getInstClass(Opc, *TII);
-
-  if (InstClass == UNKNOWN) {
-    return false;
-  }
   const unsigned InstSubclass = getInstSubclass(Opc, *TII);
 
   DenseSet<Register> RegDefsToMove;
@@ -930,7 +932,7 @@ bool SILoadStoreOptimizer::checkAndPrepareMerge(
       return false;
     }
 
-    if ((getInstClass(MBBI->getOpcode(), *TII) != InstClass) ||
+    if ((getInstClass(MBBI->getOpcode(), *TII) != CI.InstClass) ||
         (getInstSubclass(MBBI->getOpcode(), *TII) != InstSubclass)) {
       // This is not a matching instruction, but we can keep looking as
       // long as one of these conditions are met:
@@ -977,7 +979,7 @@ bool SILoadStoreOptimizer::checkAndPrepareMerge(
         // correct for the new instruction.  This should return true, because
         // this function should only be called on CombineInfo objects that
         // have already been confirmed to be mergeable.
-        if (CI.InstClass != MIMG)
+        if (CI.InstClass == DS_READ || CI.InstClass == DS_WRITE)
           offsetsCanBeCombined(CI, *STM, Paired, true);
         return true;
       }
@@ -2108,65 +2110,43 @@ SILoadStoreOptimizer::optimizeInstsWithSameBaseAddr(
 
     LLVM_DEBUG(dbgs() << "Merging: " << *CI.I << "   with: " << *Paired.I);
 
+    MachineBasicBlock::iterator NewMI;
     switch (CI.InstClass) {
     default:
       llvm_unreachable("unknown InstClass");
       break;
-    case DS_READ: {
-      MachineBasicBlock::iterator NewMI =
-          mergeRead2Pair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *this);
+    case DS_READ:
+      NewMI = mergeRead2Pair(CI, Paired, InstsToMove);
+      break;
+    case DS_WRITE:
+      NewMI = mergeWrite2Pair(CI, Paired, InstsToMove);
+      break;
+    case S_BUFFER_LOAD_IMM:
+      NewMI = mergeSBufferLoadImmPair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 8;
+      break;
+    case BUFFER_LOAD:
+      NewMI = mergeBufferLoadPair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
+      break;
+    case BUFFER_STORE:
+      NewMI = mergeBufferStorePair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
+      break;
+    case MIMG:
+      NewMI = mergeImagePair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
+      break;
+    case TBUFFER_LOAD:
+      NewMI = mergeTBufferLoadPair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
+      break;
+    case TBUFFER_STORE:
+      NewMI = mergeTBufferStorePair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
       break;
     }
-    case DS_WRITE: {
-      MachineBasicBlock::iterator NewMI =
-          mergeWrite2Pair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *this);
-      break;
-    }
-    case S_BUFFER_LOAD_IMM: {
-      MachineBasicBlock::iterator NewMI =
-          mergeSBufferLoadImmPair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *this);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 8;
-      break;
-    }
-    case BUFFER_LOAD: {
-      MachineBasicBlock::iterator NewMI =
-          mergeBufferLoadPair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *this);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    case BUFFER_STORE: {
-      MachineBasicBlock::iterator NewMI =
-          mergeBufferStorePair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *this);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    case MIMG: {
-      MachineBasicBlock::iterator NewMI =
-          mergeImagePair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *this);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    case TBUFFER_LOAD: {
-      MachineBasicBlock::iterator NewMI =
-          mergeTBufferLoadPair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *this);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    case TBUFFER_STORE: {
-      MachineBasicBlock::iterator NewMI =
-          mergeTBufferStorePair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *this);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    }
+    CI.setMI(NewMI, *this);
     CI.Order = Paired.Order;
     if (I == Second)
       I = Next;
