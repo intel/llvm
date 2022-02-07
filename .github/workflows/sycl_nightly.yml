@@ -18,7 +18,7 @@ jobs:
       build_github_cache: true
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      lts_config: "ocl_gen9;hip_amdgpu"
+      lts_config: "ocl_gen9;ocl_x64;hip_amdgpu"
   ubuntu2004_docker_build_push:
     if: github.repository == 'intel/llvm'
     runs-on: ubuntu-latest
