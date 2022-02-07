@@ -1,4 +1,4 @@
-// REQUIRES: TEMPORARY_DISABLED
+// REQUIRES: cuda
 
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_72 -DSYCL_EXT_ONEAPI_MATRIX=3 -S -Xclang -emit-llvm %s -o -| FileCheck %s
 
@@ -41,9 +41,9 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride);
-          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.u8.p0i32(i32* %call.ascast.i.i52.i, i32 16) #{{.*}}
+          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.row.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
-          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.u8.p0i32(i32* %call.ascast.i.i.i, i32 16) #{{.*}}
+          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.row.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.mma.row.row.u8(i32 %11, i32 %12, i32 %15, i32 %16, i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 %6, i32 %7, i32 %8) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
@@ -68,9 +68,9 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride);
-          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.col.stride.u8.p0i32(i32* %call.ascast.i.i52.i, i32 16) #{{.*}}
+          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.a.col.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
-          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.col.stride.u8.p0i32(i32* %call.ascast.i.i.i, i32 16) #{{.*}}
+          // CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m16n16k16.load.b.col.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k16.mma.col.col.u8(i32 %11, i32 %12, i32 %15, i32 %16, i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 %6, i32 %7, i32 %8) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
@@ -95,9 +95,9 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride);
-          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.row.stride.u8.p0i32(i32* %call.ascast.i.i49.i, i32 16) #{{.*}}
+          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.row.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
-          // CHECK: tail call i32 @llvm.nvvm.wmma.m32n8k16.load.b.row.stride.u8.p0i32(i32* %call.ascast.i.i.i, i32 16) #{{.*}}
+          // CHECK: tail call i32 @llvm.nvvm.wmma.m32n8k16.load.b.row.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.mma.row.row.u8(i32 %11, i32 %12, i32 %13, i32 %14, i32 %16, i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 %6, i32 %7, i32 %8) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
@@ -122,9 +122,9 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride);
-          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.col.stride.u8.p0i32(i32* %call.ascast.i.i49.i, i32 16) #{{.*}}
+          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.load.a.col.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
-          // CHECK: tail call i32 @llvm.nvvm.wmma.m32n8k16.load.b.col.stride.u8.p0i32(i32* %call.ascast.i.i.i, i32 16) #{{.*}}
+          // CHECK: tail call i32 @llvm.nvvm.wmma.m32n8k16.load.b.col.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m32n8k16.mma.col.col.u8(i32 %11, i32 %12, i32 %13, i32 %14, i32 %16, i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 %6, i32 %7, i32 %8) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
@@ -149,9 +149,9 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride);
-          // CHECK: tail call i32 @llvm.nvvm.wmma.m8n32k16.load.a.row.stride.u8.p0i32(i32* %call.ascast.i.i49.i, i32 16) #{{.*}}
+          // CHECK: tail call i32 @llvm.nvvm.wmma.m8n32k16.load.a.row.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
-          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.row.stride.u8.p0i32(i32* %call.ascast.i.i.i, i32 16) #{{.*}}
+          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.row.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.mma.row.row.u8(i32 %10, i32 %13, i32 %14, i32 %15, i32 %16, i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 %6, i32 %7, i32 %8) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
@@ -176,9 +176,9 @@ int main() {
 
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.c.col.stride.s32.p1i32(i32 addrspace(1)* %_arg_, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride);
-          // CHECK: tail call i32 @llvm.nvvm.wmma.m8n32k16.load.a.col.stride.u8.p0i32(i32* %call.ascast.i.i49.i, i32 16) #{{.*}}
+          // CHECK: tail call i32 @llvm.nvvm.wmma.m8n32k16.load.a.col.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_a, accA.get_pointer(), stride);
-          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.col.stride.u8.p0i32(i32* %call.ascast.i.i.i, i32 16) #{{.*}}
+          // CHECK: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.load.b.col.stride.u8.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16) #{{.*}}
           joint_matrix_load(sg, sub_b, accB.get_pointer(), stride);
           // CHECK: tail call { i32, i32, i32, i32, i32, i32, i32, i32 } @llvm.nvvm.wmma.m8n32k16.mma.col.col.u8(i32 %10, i32 %13, i32 %14, i32 %15, i32 %16, i32 %1, i32 %2, i32 %3, i32 %4, i32 %5, i32 %6, i32 %7, i32 %8) #{{.*}}
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
