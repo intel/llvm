@@ -1,0 +1,227 @@
+= SYCL_EXT_ONEAPI_MYEXTENSION
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation
+SPDX-License-Identifier: CC-BY-4.0
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+_If your extension depends on other SYCL extensions, add a paragraph and
+bulleted list like this:_
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../supported/SYCL_EXT_ONEAPI_MYOTHEREXTENSION.asciidoc[
+  SYCL_EXT_ONEAPI_MYOTHEREXTENSION]
+
+
+== Status
+
+_Choose one of the following according to the status of your extension.
+For a "proposed" extension:_
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+_Use this if the extension becomes "supported":_
+
+This extension is implemented and fully supported by {dpcpp}.
+
+_Use this if the extension is a proposed new version of an existing extension:_
+
+This is a proposed update to an existing extension.  Interfaces defined in this
+specification may not be implemented yet or may be in a preliminary state.  The
+specification itself may also change in incompatible ways before it is
+finalized.  *Shipping software products should not rely on APIs defined in this
+specification.*  See
+link:../supported/SYCL_EXT_ONEAPI_MYEXTENSION.asciidoc[here] for the existing
+extension, which is implemented.
+
+_Use this if the extension becomes "experimental":_
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+_Use this if the extension becomes "deprecated":_
+
+This extension has been deprecated.  Although it is still supported in {dpcpp},
+we expect that the interfaces defined in this specification will be removed in
+an upcoming {dpcpp} release.  *Shipping software products should stop using
+APIs defined in this specification and use an alternative instead.*
+
+_Use this if the extension becomes "removed":_
+
+This extension is no longer implemented in {dpcpp}.  This specification is
+being archived only for historical purposes.  *The APIs defined in this
+specification no longer exist and cannot be used.*
+
+_This is an example of a note which can be added if your extension is
+implemented only for certain backends.  A note like this is appropriate if the
+extension is implemented only on certain devices or backends._
+
+[NOTE]
+====
+This extension is currently implemented in {dpcpp} only for GPU devices and
+only when using the Level Zero backend.  Attempting to use this extension in
+kernels that run on other devices or backends may result in undefined behavior.
+Be aware that the compiler is not able to issue a diagnostic to warn you if
+this happens.
+====
+
+
+== Overview
+
+_Provide a brief overview of the extension here and explain the motivation if
+appropriate.  This is also a good place to show an example usage, but there is
+no need to exhaustively show all aspects of your extension.  Those details
+should be explained in the sections that follow.  This section is just an
+overview to introduce your readers to your extension._
+
+_Note that text should be wrapped at 80 columns as shown in this template.
+Extensions use AsciiDoc markup language (like this template).  If you need help
+with AsciiDoc syntax, see
+https://docs.asciidoctor.org/asciidoc/latest[the manual]._
+
+_GitHub understands most AsciiDoc syntax, so files with the `.asciidoc`
+extension are rendered nicely into HTML.  Occasionally, you will find an
+AsciiDoc feature that GitHub does not understand, though, so you should check
+that GitHub renders your extension document nicely before merging it.  If you
+find a feature that GitHub does not understand, *do not use it*.  We expect
+users to read these specifications directly in the GitHub UI, so make sure that
+your specification is nicely formatted when viewed this way._
+
+
+== Specification
+
+=== Feature test macro
+
+_All extensions should provide a feature-test macro, so that applications
+can use `#ifdef` to protect code that uses your extension.  Use this text
+for all extensions:_
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_MYEXTENSION` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+_And follow the text with a table like this *unless the extension is
+"experimental"*.  Note that your table may have more than one row if it
+has multiple versions._
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+_If your extension is "experimental", use this table instead:_
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== More sections at your discretion
+
+_Your extension specification will certainly have more sections which describe
+the APIs of your extension.  Define these sections as you see fit._
+
+_As a general rule, do not describe *how* you will change the core SYCL
+specification.  For example, there is no need to say something like "Add the
+following paragraph to section 4.6.7 of the core SYCL specification ..."
+Instead, just describe the semantics and APIs of the extension itself.  We will
+figure out later how to change the core SYCL specification if the extension is
+adopted._
+
+_There may be times when an extension adds a new member function to an existing
+SYCL class or a new enumerator to an existing SYCL enumeration.  In cases like
+these, say something like:_
+
+> This extension adds the following new member function to the SYCL `queue`
+> class:
+>
+> ```
+> class queue {
+>   void ext_oneapi_myfunction();
+> };
+> ```
+
+_Avoid unnecessary duplication of core SYCL APIs.  For example, there is no
+need to list the existing member functions in `queue` if your extension adds a
+new member function.  Duplication like this can be troublesome if something in
+the core SYCL specification changes later._
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+_This section is not normally needed, but occasionally a "proposed" extension
+will contains some notes about the intended implementation.  If so, add this
+section, and include the text in the first paragraph above indicating that the
+section is non-normative.  Follow that paragraph with whatever implementation
+notes you think are necessary.  Usually, this section will be removed by the
+time the extension is implemented, and a more detailed {dpcpp} design document
+will be written instead._
+
+
+== Issues
+
+_Sometimes there will be unresolved issues in a "proposed" extension.  If this
+is the case, add an "Issues" section towards the end of the document, and list
+each issue._

@@ -1,24 +1,22 @@
-# Extensions
+# SYCL Extensions in DPC++
 
-The directory contains documents that describe DPC++ extensions to SYCL
-specification.
+DPC++ is an implementation of the [SYCL language][1].  In addition to the core
+SYCL features, DPC++ also implements certain extensions, and this directory
+contains the specifications for those extensions.  These extensions are
+organized into subdirectories according to their state.
 
-DPC++ extensions status:
+[1]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html>
 
-|  Extension  |    Status   |   Comment   |
-|-------------|:------------|:------------|
-| [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
-| [SPV_INTEL_inline_assembly](SPIRV/SPV_INTEL_inline_assembly.asciidoc)                                                       | Supported(OpenCL: GPU)                    | |
+| Directory        | Description                                                   |
+|------------------|---------------------------------------------------------------|
+|[supported][2]    | Extensions which are fully supported                          |
+|[experimental][3] | Extensions which are implemented but may change in the future |
+|[deprecated][4]   | Extensions which are supported but will be removed soon       |
+|[proposed][5]     | Extensions which proposed but not yet implemented             |
+|[removed][6]      | Extensions which used to be supported but are now removed     |
 
-Legend:
-
-|  Keyword    |   Meaning   |
-|-------------|:------------|
-|  Proposal                        | A document describing an extension is published, but the extension is not supported yet |
-|  Supported                       | An extension is supported |
-|  Partially supported             | An extension is partially supported, see comments column for more info |
-|  Deprecated                      | An extension is deprecated and can be removed in future versions |
-|  (API: DeviceType1, DeviceType2) | An extension is supported when specific combination of API and device types are used. If device type or API are not mentioned then an extension is supported on any device type or API. API can be OpenCL, CUDA, HOST. DeviceType can be CPU, GPU, ACCELERATOR |
-
-
-See [User Manual](../UsersManual.md) to find information how to enable extensions.
+[2]: <supported>
+[3]: <experimental>
+[4]: <deprecated>
+[5]: <proposed>
+[6]: <removed>
