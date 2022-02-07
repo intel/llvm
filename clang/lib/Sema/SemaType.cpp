@@ -8282,8 +8282,10 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       if (attr.isStandardAttributeSyntax() && TAL == TAL_DeclChunk &&
           (!state.isProcessingLambdaExpr() ||
            !attr.supportsNonconformingLambdaSyntax())) {
-        state.getSema().Diag(attr.getLoc(), diag::warn_unknown_attribute_ignored)
-            << attr << attr.getRange();;
+	state.getSema().Diag(attr.getLoc(),
+                             diag::warn_unknown_attribute_ignored)
+            << attr << attr.getRange();
+	;
       }
       break;
     case ParsedAttr::AT_OpenCLPrivateAddressSpace:
