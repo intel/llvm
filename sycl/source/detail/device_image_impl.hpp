@@ -32,6 +32,12 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+template <class T> struct LessByHash {
+  bool operator()(const T &LHS, const T &RHS) const {
+    return getSyclObjImpl(LHS) < getSyclObjImpl(RHS);
+  }
+};
+
 // The class is impl counterpart for sycl::device_image
 // It can represent a program in different states, kernel_id's it has and state
 // of specialization constants for it
@@ -51,7 +57,7 @@ public:
 
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
-                    std::vector<kernel_id> KernelIDs, RT::PiProgram Program)
+                    std::shared_ptr<std::vector<kernel_id>> KernelIDs, RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)) {
@@ -60,7 +66,7 @@ public:
 
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
-                    std::vector<kernel_id> KernelIDs, RT::PiProgram Program,
+                    std::shared_ptr<std::vector<kernel_id>> KernelIDs, RT::PiProgram Program,
                     const SpecConstMapT &SpecConstMap,
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
@@ -69,8 +75,8 @@ public:
         MSpecConstSymMap(SpecConstMap) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
-    return std::binary_search(MKernelIDs.begin(), MKernelIDs.end(),
-                              KernelIDCand, LessByNameComp{});
+    return std::binary_search(MKernelIDs->begin(), MKernelIDs->end(),
+                              KernelIDCand, LessByHash<kernel_id>{});
   }
 
   bool has_kernel(const kernel_id &KernelIDCand,
@@ -83,7 +89,7 @@ public:
   }
 
   const std::vector<kernel_id> &get_kernel_ids() const noexcept {
-    return MKernelIDs;
+    return *MKernelIDs;
   }
 
   bool has_specialization_constants() const noexcept {
@@ -176,7 +182,7 @@ public:
 
   const context &get_context() const noexcept { return MContext; }
 
-  std::vector<kernel_id> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
+  std::shared_ptr<std::vector<kernel_id>> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
 
   std::vector<unsigned char> &get_spec_const_blob_ref() noexcept {
     return MSpecConstsBlob;
@@ -312,7 +318,7 @@ private:
   RT::PiProgram MProgram = nullptr;
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
-  std::vector<kernel_id> MKernelIDs;
+  std::shared_ptr<std::vector<kernel_id>> MKernelIDs;
 
   // A mutex for sycnhronizing access to spec constants blob. Mutable because
   // needs to be locked in the const method for getting spec constant value.
