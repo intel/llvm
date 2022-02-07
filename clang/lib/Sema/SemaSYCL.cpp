@@ -4721,6 +4721,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
+    PresumedLoc PLoc = S.Context.getSourceManager().getPresumedLoc(
+        S.Context.getSourceManager()
+            .getExpansionRange(K.KernelLocation)
+            .getEnd());
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
@@ -4744,6 +4748,44 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFileName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \""
+      << std::string(PLoc.getFilename())
+             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFunctionName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \"";
+    SYCLKernelNameTypePrinter Printer(O, Policy);
+    Printer.Visit(K.NameType);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getLineNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getLine() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getColumnNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getColumn() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
     O << "};\n";
     CurStart += N;
   }

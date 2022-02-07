@@ -17,7 +17,11 @@
 :language: {basebackend@docbook:c++:cpp}
 
 == Introduction
-IMPORTANT: This specification is a draft.
+IMPORTANT: This is a proposed update to an existing extension.  The APIs
+described in this document are not yet implemented and cannot be used in
+application code.  See
+link:../supported/SYCL_EXT_INTEL_DATAFLOW_PIPES.asciidoc[here] for the existing
+extension, which is implemented.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 

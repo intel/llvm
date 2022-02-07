@@ -22,7 +22,7 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
-/// @ingroup sycl_esimd_core
+/// @addtogroup sycl_esimd_core
 /// @{
 
 /// The simd_view base class.
@@ -78,9 +78,6 @@ public:
   /// Default move constructor.
   simd_view_impl(simd_view_impl &&Other) = default;
 
-  /// @name Implicit conversions.
-  /// @{
-
   /// Implicit conversion to simd type.
   template <typename ToTy, class T = BaseTy,
             class = std::enable_if_t<is_simd_type_v<T>>>
@@ -96,10 +93,6 @@ public:
   inline operator simd_mask_type<length>() const {
     return read();
   }
-  /// @}
-
-  /// @name Region accessors.
-  /// @{
 
   /// Tells whether this view is 1-dimensional.
   static constexpr bool is1D() { return !ShapeTy::Is_2D; }
@@ -125,7 +118,6 @@ public:
   constexpr uint16_t getOffsetY() const {
     return getTopRegion(M_region).M_offset_y;
   }
-  /// @}
 
   /// Read the object.
   value_type read() const {
@@ -384,10 +376,8 @@ public:
     return select<1, 1>(i);
   }
 
-  /// @name Replicate. Create a new simd object from a subset of elements
+  /// Replicate. Create a new simd object from a subset of elements
   /// referred to by this \c simd_view_impl object.
-  /// @{
-
   /// \tparam Rep is number of times region has to be replicated.
   template <int Rep> get_simd_t<element_type, Rep> replicate() {
     return read().template replicate<Rep>();
@@ -460,7 +450,6 @@ public:
     return read().template replicate_vs_w_hs<Rep, VS, W, HS>(OffsetY * RowSize +
                                                              OffsetX);
   }
-  /// @}
 
   /// 'any' operation.
   ///
