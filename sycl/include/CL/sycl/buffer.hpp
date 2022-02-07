@@ -235,9 +235,10 @@ public:
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
+    size_t r[3] = {Range[0], 0, 0};
     impl->constructorNotification(CodeLoc, (void *)impl.get(), &*first,
                                   (const void *)typeid(T).name(), dimensions,
-                                  sizeof(T), {Range[0], 0, 0});
+                                  sizeof(T), r);
   }
 
   template <class InputIterator, int N = dimensions,
