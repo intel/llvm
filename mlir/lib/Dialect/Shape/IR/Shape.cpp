@@ -21,6 +21,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
@@ -460,6 +461,132 @@ LogicalResult shape::AddOp::verify() { return verifySizeOrIndexOp(*this); }
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+// Merge multiple `shape.assuming_all` operations together.
+//
+//   %0 = shape.assuming_all %w0, %w1
+//   %1 = shape.assuming_all %w2, %0
+//
+// to:
+//
+//   %0 = shape.assuming_all %w0, %w2, %w2
+struct MergeAssumingAllOps : public OpRewritePattern<AssumingAllOp> {
+  using OpRewritePattern<AssumingAllOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AssumingAllOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value> operands;
+
+    for (Value operand : op.getInputs()) {
+      if (auto assume_all = operand.getDefiningOp<AssumingAllOp>())
+        operands.append(assume_all.operand_begin(), assume_all->operand_end());
+      else
+        operands.push_back(operand);
+    }
+
+    // We didn't find any other `assuming_all` ops to merge with.
+    if (operands.size() == op.getNumOperands())
+      return failure();
+
+    // Replace with a new `assuming_all` operation with merged constraints.
+    rewriter.replaceOpWithNewOp<AssumingAllOp>(op, operands);
+    return success();
+  }
+};
+
+// Eliminate `cstr_broadcastable` operands from `assuming_all` operation that
+// are subsumed by others.
+//
+//   %0 = shape.cstr_broadcastable %shape0, %shape1
+//   %1 = shape.cstr_broadcastable %shape0, %shape1, %shape2
+//
+//   %2 = shape.cstr_broadcastable %shape3, %shape4
+//   %3 = shape.cstr_broadcastable %shape3, %shape4, %shape5
+//
+//   %4 = shape.assuming_all %0, %1, %2, %3
+//
+// to:
+//
+//   %0 = shape.cstr_broadcastable %shape0, %shape1, %shape2
+//   %1 = shape.cstr_broadcastable %shape3, %shape4, %shape5
+//   %2 = shape.assuming_all %0, %1
+//
+// In this example if shapes [0, 1, 2] are broadcastable, then it means that
+// shapes [0, 1] are broadcastable too, and can be removed from the list of
+// constraints. If shapes [0, 1, 2] are not broadcastable, then it doesn't
+// matter if shapes [0, 1] are broadcastable (same for shapes [3, 4, 5]).
+struct AssumingAllOfCstrBroadcastable : public OpRewritePattern<AssumingAllOp> {
+  using OpRewritePattern<AssumingAllOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AssumingAllOp op,
+                                PatternRewriter &rewriter) const override {
+    // Collect all `CstrBroadcastableOp` operands first.
+    SetVector<CstrBroadcastableOp> operands;
+    for (Value operand : op.getInputs()) {
+      // TODO: Apply this optimization if some of the witnesses are not
+      // produced by the `cstr_broadcastable`.
+      auto broadcastable = operand.getDefiningOp<CstrBroadcastableOp>();
+      if (!broadcastable)
+        return failure();
+
+      operands.insert(broadcastable);
+    }
+
+    // Skip trivial `assuming_all` operations.
+    if (operands.size() <= 1)
+      return failure();
+
+    // Collect shapes checked by `cstr_broadcastable` operands.
+    SmallVector<std::pair<CstrBroadcastableOp, DenseSet<Value>>> shapes;
+    for (auto cstr : operands) {
+      DenseSet<Value> shapes_set(cstr->operand_begin(), cstr->operand_end());
+      shapes.emplace_back(cstr, std::move(shapes_set));
+    }
+
+    // Sort by the number of shape operands (larger to smaller).
+    llvm::sort(shapes, [](auto a, auto b) {
+      return a.first.getNumOperands() > b.first.getNumOperands();
+    });
+
+    // We start from the `cst_broadcastable` operations with largest number of
+    // shape operands, and remove redundant `cst_broadcastable` operations. We
+    // do this until we find a set of `cst_broadcastable` operations with
+    // non-overlapping constraints.
+    SmallVector<CstrBroadcastableOp> marked_for_erase;
+
+    for (unsigned i = 0; i < shapes.size(); ++i) {
+      auto isSubset = [&](auto pair) {
+        return llvm::set_is_subset(pair.second, shapes[i].second);
+      };
+
+      // Keep redundant `cstr_broadcastable` operations to be erased.
+      auto *it = std::remove_if(shapes.begin() + i + 1, shapes.end(), isSubset);
+      for (auto *it0 = it; it0 < shapes.end(); ++it0)
+        marked_for_erase.push_back(it0->first);
+      shapes.erase(it, shapes.end());
+    }
+
+    // We didn't find any operands that could be removed.
+    if (marked_for_erase.empty())
+      return failure();
+
+    // Collect non-overlapping `cst_broadcastable` constraints.
+    SmallVector<Value> unique_constraints;
+    for (auto &shape : shapes)
+      unique_constraints.push_back(shape.first.getResult());
+
+    // Replace with a new `assuming_all` operation ...
+    rewriter.replaceOpWithNewOp<AssumingAllOp>(op, unique_constraints);
+
+    // ... and maybe erase `cstr_broadcastable` ops without uses.
+    for (auto &op : marked_for_erase)
+      if (op->use_empty())
+        rewriter.eraseOp(op);
+
+    return success();
+  }
+};
+
 struct AssumingAllToCstrEqCanonicalization
     : public OpRewritePattern<AssumingAllOp> {
   using OpRewritePattern<AssumingAllOp>::OpRewritePattern;
@@ -490,16 +617,12 @@ struct RemoveDuplicateOperandsPattern : public OpRewritePattern<OpTy> {
   LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
     // Find unique operands.
-    SmallVector<Value, 2> unique;
-    for (Value v : op.getOperands()) {
-      if (!llvm::is_contained(unique, v))
-        unique.push_back(v);
-    }
+    SetVector<Value> unique(op.operand_begin(), op.operand_end());
 
     // Reduce op to equivalent with unique operands.
     if (unique.size() < op.getNumOperands()) {
-      rewriter.replaceOpWithNewOp<OpTy>(op, op->getResultTypes(), unique,
-                                        op->getAttrs());
+      rewriter.replaceOpWithNewOp<OpTy>(op, op->getResultTypes(),
+                                        unique.takeVector(), op->getAttrs());
       return success();
     }
 
@@ -510,8 +633,10 @@ struct RemoveDuplicateOperandsPattern : public OpRewritePattern<OpTy> {
 
 void AssumingAllOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                 MLIRContext *context) {
-  patterns.add<AssumingAllOneOp, AssumingAllToCstrEqCanonicalization,
-               RemoveDuplicateOperandsPattern<AssumingAllOp>>(context);
+  patterns
+      .add<MergeAssumingAllOps, AssumingAllOneOp,
+           AssumingAllOfCstrBroadcastable, AssumingAllToCstrEqCanonicalization,
+           RemoveDuplicateOperandsPattern<AssumingAllOp>>(context);
 }
 
 OpFoldResult AssumingAllOp::fold(ArrayRef<Attribute> operands) {
@@ -919,7 +1044,7 @@ OpFoldResult CstrBroadcastableOp::fold(ArrayRef<Attribute> operands) {
 }
 
 LogicalResult CstrBroadcastableOp::verify() {
-  // Ensure that AssumingAllOp contains at least one operand
+  // Ensure that CstrBroadcastableOp contains at least two operands
   if (getNumOperands() < 2)
     return emitOpError("required at least 2 input shapes");
   return success();

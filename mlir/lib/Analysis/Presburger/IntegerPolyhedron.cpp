@@ -74,7 +74,7 @@ bool IntegerPolyhedron::isSubsetOf(const IntegerPolyhedron &other) const {
 
 Optional<SmallVector<Fraction, 8>>
 IntegerPolyhedron::getRationalLexMin() const {
-  assert(numSymbols == 0 && "Symbols are not supported!");
+  assert(getNumSymbolIds() == 0 && "Symbols are not supported!");
   Optional<SmallVector<Fraction, 8>> maybeLexMin =
       LexSimplex(*this).getRationalLexMin();
 
@@ -172,32 +172,21 @@ void IntegerPolyhedron::removeIdRange(unsigned idStart, unsigned idLimit) {
     return;
 
   // We are going to be removing one or more identifiers from the range.
-  assert(idStart < numIds && "invalid idStart position");
+  assert(idStart < getNumIds() && "invalid idStart position");
 
-  // TODO: Make 'removeIdRange' a lambda called from here.
   // Remove eliminated identifiers from the constraints..
   equalities.removeColumns(idStart, idLimit - idStart);
   inequalities.removeColumns(idStart, idLimit - idStart);
 
   // Update members numDims, numSymbols and numIds.
-  unsigned numDimsEliminated = 0;
-  unsigned numLocalsEliminated = 0;
-  unsigned numColsEliminated = idLimit - idStart;
-  if (idStart < numDims) {
-    numDimsEliminated = std::min(numDims, idLimit) - idStart;
-  }
-  // Check how many local id's were removed. Note that our identifier order is
-  // [dims, symbols, locals]. Local id start at position numDims + numSymbols.
-  if (idLimit > numDims + numSymbols) {
-    numLocalsEliminated = std::min(
-        idLimit - std::max(idStart, numDims + numSymbols), getNumLocalIds());
-  }
+  unsigned numDimsEliminated =
+      getIdKindOverlap(IdKind::Dimension, idStart, idLimit);
   unsigned numSymbolsEliminated =
-      numColsEliminated - numDimsEliminated - numLocalsEliminated;
+      getIdKindOverlap(IdKind::Symbol, idStart, idLimit);
 
   numDims -= numDimsEliminated;
   numSymbols -= numSymbolsEliminated;
-  numIds = numIds - numColsEliminated;
+  numIds -= (idLimit - idStart);
 }
 
 void IntegerPolyhedron::removeEquality(unsigned pos) {
@@ -243,6 +232,10 @@ unsigned IntegerPolyhedron::getIdKindOffset(IdKind kind) const {
   llvm_unreachable("IdKind expected to be Dimension, Symbol or Local!");
 }
 
+unsigned IntegerPolyhedron::getIdKindEnd(IdKind kind) const {
+  return getIdKindOffset(kind) + getNumIdKind(kind);
+}
+
 unsigned IntegerPolyhedron::getNumIdKind(IdKind kind) const {
   if (kind == IdKind::Dimension)
     return getNumDimIds();
@@ -251,6 +244,21 @@ unsigned IntegerPolyhedron::getNumIdKind(IdKind kind) const {
   if (kind == IdKind::Local)
     return getNumLocalIds();
   llvm_unreachable("IdKind expected to be Dimension, Symbol or Local!");
+}
+
+unsigned IntegerPolyhedron::getIdKindOverlap(IdKind kind, unsigned idStart,
+                                             unsigned idLimit) const {
+  unsigned idRangeStart = getIdKindOffset(kind);
+  unsigned idRangeEnd = getIdKindEnd(kind);
+
+  // Compute number of elements in intersection of the ranges [idStart, idLimit)
+  // and [idRangeStart, idRangeEnd).
+  unsigned overlapStart = std::max(idStart, idRangeStart);
+  unsigned overlapEnd = std::min(idLimit, idRangeEnd);
+
+  if (overlapStart > overlapEnd)
+    return 0;
+  return overlapEnd - overlapStart;
 }
 
 void IntegerPolyhedron::clearConstraints() {
@@ -319,7 +327,8 @@ bool IntegerPolyhedron::hasConsistentState() const {
     return false;
 
   // Catches errors where numDims, numSymbols, numIds aren't consistent.
-  if (numDims > numIds || numSymbols > numIds || numDims + numSymbols > numIds)
+  if (getNumDimIds() > getNumIds() || getNumSymbolIds() > getNumIds() ||
+      getNumDimAndSymbolIds() > getNumIds())
     return false;
 
   return true;
@@ -829,24 +838,23 @@ bool IntegerPolyhedron::containsPoint(ArrayRef<int64_t> point) const {
   return true;
 }
 
-void IntegerPolyhedron::getLocalReprs(
-    SmallVectorImpl<MaybeLocalRepr> &repr) const {
-  SmallVector<SmallVector<int64_t, 8>> dividends(getNumLocalIds());
+void IntegerPolyhedron::getLocalReprs(std::vector<MaybeLocalRepr> &repr) const {
+  std::vector<SmallVector<int64_t, 8>> dividends(getNumLocalIds());
   SmallVector<unsigned, 4> denominators(getNumLocalIds());
   getLocalReprs(dividends, denominators, repr);
 }
 
 void IntegerPolyhedron::getLocalReprs(
-    SmallVectorImpl<SmallVector<int64_t, 8>> &dividends,
-    SmallVectorImpl<unsigned> &denominators) const {
-  SmallVector<MaybeLocalRepr> repr(getNumLocalIds());
+    std::vector<SmallVector<int64_t, 8>> &dividends,
+    SmallVector<unsigned, 4> &denominators) const {
+  std::vector<MaybeLocalRepr> repr(getNumLocalIds());
   getLocalReprs(dividends, denominators, repr);
 }
 
 void IntegerPolyhedron::getLocalReprs(
-    SmallVectorImpl<SmallVector<int64_t, 8>> &dividends,
-    SmallVectorImpl<unsigned> &denominators,
-    SmallVectorImpl<MaybeLocalRepr> &repr) const {
+    std::vector<SmallVector<int64_t, 8>> &dividends,
+    SmallVector<unsigned, 4> &denominators,
+    std::vector<MaybeLocalRepr> &repr) const {
 
   repr.resize(getNumLocalIds());
   dividends.resize(getNumLocalIds());
@@ -864,9 +872,9 @@ void IntegerPolyhedron::getLocalReprs(
     changed = false;
     for (unsigned i = 0, e = getNumLocalIds(); i < e; ++i) {
       if (!foundRepr[i + divOffset]) {
-        auto res = computeSingleVarRepr(*this, foundRepr, divOffset + i,
-                                        dividends[i], denominators[i]);
-        if (res.kind == ReprKind::None)
+        MaybeLocalRepr res = computeSingleVarRepr(
+            *this, foundRepr, divOffset + i, dividends[i], denominators[i]);
+        if (!res)
           continue;
         foundRepr[i + divOffset] = true;
         repr[i] = res;
@@ -878,7 +886,7 @@ void IntegerPolyhedron::getLocalReprs(
   // Set 0 denominator for identifiers for which no division representation
   // could be found.
   for (unsigned i = 0, e = repr.size(); i < e; ++i)
-    if (repr[i].kind == ReprKind::None)
+    if (!repr[i])
       denominators[i] = 0;
 }
 
@@ -912,7 +920,7 @@ void IntegerPolyhedron::gcdTightenInequalities() {
 unsigned IntegerPolyhedron::gaussianEliminateIds(unsigned posStart,
                                                  unsigned posLimit) {
   // Return if identifier positions to eliminate are out of range.
-  assert(posLimit <= numIds);
+  assert(posLimit <= getNumIds());
   assert(hasConsistentState());
 
   if (posStart >= posLimit)
@@ -1104,7 +1112,7 @@ void IntegerPolyhedron::mergeLocalIds(IntegerPolyhedron &other) {
   polyB.insertLocalId(0, initLocals);
 
   // Get division representations from each poly.
-  SmallVector<SmallVector<int64_t, 8>> divsA, divsB;
+  std::vector<SmallVector<int64_t, 8>> divsA, divsB;
   SmallVector<unsigned, 4> denomsA, denomsB;
   polyA.getLocalReprs(divsA, denomsA);
   polyB.getLocalReprs(divsB, denomsB);
@@ -1254,7 +1262,7 @@ void IntegerPolyhedron::addLocalFloorDiv(ArrayRef<int64_t> dividend,
 }
 
 void IntegerPolyhedron::setDimSymbolSeparation(unsigned newSymbolCount) {
-  assert(newSymbolCount <= numDims + numSymbols &&
+  assert(newSymbolCount <= getNumDimAndSymbolIds() &&
          "invalid separation position");
   numDims = numDims + numSymbols - newSymbolCount;
   numSymbols = newSymbolCount;
@@ -1925,7 +1933,7 @@ static void getCommonConstraints(const IntegerPolyhedron &a,
 // lower bounds and the max of the upper bounds along each of the dimensions.
 LogicalResult
 IntegerPolyhedron::unionBoundingBox(const IntegerPolyhedron &otherCst) {
-  assert(otherCst.getNumDimIds() == numDims && "dims mismatch");
+  assert(otherCst.getNumDimIds() == getNumDimIds() && "dims mismatch");
   assert(otherCst.getNumLocalIds() == 0 && "local ids not supported here");
   assert(getNumLocalIds() == 0 && "local ids not supported yet here");
 

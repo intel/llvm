@@ -218,6 +218,7 @@ set(files
   __functional/weak_result_type.h
   __functional_base
   __hash_table
+  __ios/fpos.h
   __iterator/access.h
   __iterator/advance.h
   __iterator/back_insert_iterator.h
@@ -351,6 +352,7 @@ set(files
   __ranges/take_view.h
   __ranges/transform_view.h
   __ranges/view_interface.h
+  __ranges/views.h
   __split_buffer
   __std_stream
   __string

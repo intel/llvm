@@ -285,14 +285,12 @@ public:
   /// and the denominators in `denominators`. If no explicit representation
   /// could be found for the `i^th` local identifier, `denominators[i]` is set
   /// to 0.
-  void
-  getLocalReprs(SmallVectorImpl<SmallVector<int64_t, 8>> &dividends,
-                SmallVectorImpl<unsigned> &denominators,
-                SmallVectorImpl<presburger_utils::MaybeLocalRepr> &repr) const;
-  void
-  getLocalReprs(SmallVectorImpl<presburger_utils::MaybeLocalRepr> &repr) const;
-  void getLocalReprs(SmallVectorImpl<SmallVector<int64_t, 8>> &dividends,
-                     SmallVectorImpl<unsigned> &denominators) const;
+  void getLocalReprs(std::vector<SmallVector<int64_t, 8>> &dividends,
+                     SmallVector<unsigned, 4> &denominators,
+                     std::vector<presburger_utils::MaybeLocalRepr> &repr) const;
+  void getLocalReprs(std::vector<presburger_utils::MaybeLocalRepr> &repr) const;
+  void getLocalReprs(std::vector<SmallVector<int64_t, 8>> &dividends,
+                     SmallVector<unsigned, 4> &denominators) const;
 
   /// The type of bound: equal, lower bound or upper bound.
   enum BoundType { EQ, LB, UB };
@@ -500,8 +498,16 @@ protected:
   /// Return the index at which the specified kind of id starts.
   unsigned getIdKindOffset(IdKind kind) const;
 
+  /// Return the index at which the specified kind of id ends.
+  unsigned getIdKindEnd(IdKind kind) const;
+
   /// Get the number of ids of the specified kind.
   unsigned getNumIdKind(IdKind kind) const;
+
+  /// Get the number of elements of the specified kind in the range
+  /// [idStart, idLimit).
+  unsigned getIdKindOverlap(IdKind kind, unsigned idStart,
+                            unsigned idLimit) const;
 
   /// Removes identifiers in the column range [idStart, idLimit), and copies any
   /// remaining valid data into place, updates member variables, and resizes

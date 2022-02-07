@@ -293,6 +293,23 @@ public:
 
 } // end anonymous namespace
 
+/// Return true if all the PHI nodes in the basic block \p BB
+/// receive compatible (identical) incoming values when coming from
+/// all of the predecessor blocks that are specified in \p IncomingBlocks.
+static bool IncomingValuesAreCompatible(BasicBlock *BB,
+                                        ArrayRef<BasicBlock *> IncomingBlocks) {
+  assert(IncomingBlocks.size() == 2 &&
+         "Only for a pair of incoming blocks at the time!");
+
+  // FIXME: it is okay if one of the incoming values is an `undef` value,
+  //        iff the other incoming value is guaranteed to be a non-poison value.
+  // FIXME: it is okay if one of the incoming values is a `poison` value.
+  return all_of(BB->phis(), [IncomingBlocks](PHINode &PN) {
+    return PN.getIncomingValueForBlock(IncomingBlocks[0]) ==
+           PN.getIncomingValueForBlock(IncomingBlocks[1]);
+  });
+}
+
 /// Return true if it is safe to merge these two
 /// terminator instructions together.
 static bool
@@ -309,17 +326,17 @@ SafeToMergeTerminators(Instruction *SI1, Instruction *SI2,
 
   SmallPtrSet<BasicBlock *, 16> SI1Succs(succ_begin(SI1BB), succ_end(SI1BB));
   bool Fail = false;
-  for (BasicBlock *Succ : successors(SI2BB))
-    if (SI1Succs.count(Succ))
-      for (BasicBlock::iterator BBI = Succ->begin(); isa<PHINode>(BBI); ++BBI) {
-        PHINode *PN = cast<PHINode>(BBI);
-        if (PN->getIncomingValueForBlock(SI1BB) !=
-            PN->getIncomingValueForBlock(SI2BB)) {
-          if (FailBlocks)
-            FailBlocks->insert(Succ);
-          Fail = true;
-        }
-      }
+  for (BasicBlock *Succ : successors(SI2BB)) {
+    if (!SI1Succs.count(Succ))
+      continue;
+    if (IncomingValuesAreCompatible(Succ, {SI1BB, SI2BB}))
+      continue;
+    Fail = true;
+    if (FailBlocks)
+      FailBlocks->insert(Succ);
+    else
+      break;
+  }
 
   return !Fail;
 }
@@ -2290,13 +2307,12 @@ bool CompatibleSets::shouldBelongToSameSet(ArrayRef<InvokeInst *> Invokes) {
   }
 #endif
 
-  // The successor blocks must not have any PHI nodes.
+  // In the unwind destination, the incoming values for these two `invoke`s
+  // must be compatible .
   // We know we don't have the normal destination, so we don't check it.
-  // FIXME: instead check that the incoming values are compatible?
-  auto HasPHIsInUnwindDest = [](InvokeInst *II) {
-    return !empty(II->getUnwindDest()->phis());
-  };
-  if (any_of(Invokes, HasPHIsInUnwindDest))
+  if (!IncomingValuesAreCompatible(
+          Invokes.front()->getUnwindDest(),
+          {Invokes[0]->getParent(), Invokes[1]->getParent()}))
     return false;
 
   // Ignoring arguments, these `invoke`s must be identical,
@@ -2400,6 +2416,13 @@ static void MergeCompatibleInvokesImpl(ArrayRef<InvokeInst *> Invokes,
     U.set(PN);
   }
 
+  // We've ensured that each PHI node in the `landingpad` has compatible
+  // (identical) incoming values when coming from each of the `invoke`s
+  // in the current merge set, so update the PHI nodes accordingly.
+  AddPredecessorToBlock(/*Succ=*/MergedInvoke->getUnwindDest(),
+                        /*NewPred=*/MergedInvoke->getParent(),
+                        /*ExistPred=*/Invokes.front()->getParent());
+
   // And finally, replace the original `invoke`s with an unconditional branch
   // to the block with the merged `invoke`. Also, give that merged `invoke`
   // the merged debugloc of all the original `invoke`s.
@@ -2414,7 +2437,8 @@ static void MergeCompatibleInvokesImpl(ArrayRef<InvokeInst *> Invokes,
 
     // And replace the old `invoke` with an unconditionally branch
     // to the block with the merged `invoke`.
-    II->getNormalDest()->removePredecessor(II->getParent());
+    for (BasicBlock *OrigSuccBB : successors(II->getParent()))
+      OrigSuccBB->removePredecessor(II->getParent());
     BranchInst::Create(MergedInvoke->getParent(), II->getParent());
     // Since the normal destination was unreachable, there are no live uses.
     II->replaceAllUsesWith(UndefValue::get(II->getType()));

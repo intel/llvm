@@ -2368,6 +2368,19 @@ bool CombinerHelper::matchEqualDefs(const MachineOperand &MOP1,
   if (I1->mayLoadOrStore() && !I1->isDereferenceableInvariantLoad(nullptr))
     return false;
 
+  // If both instructions are loads or stores, they are equal only if both
+  // are dereferenceable invariant loads with the same number of bits.
+  if (I1->mayLoadOrStore() && I2->mayLoadOrStore()) {
+    GLoadStore *LS1 = dyn_cast<GLoadStore>(I1);
+    GLoadStore *LS2 = dyn_cast<GLoadStore>(I2);
+    if (!LS1 || !LS2)
+      return false;
+
+    if (!I2->isDereferenceableInvariantLoad(nullptr) ||
+        (LS1->getMemSizeInBits() != LS2->getMemSizeInBits()))
+      return false;
+  }
+
   // Check for physical registers on the instructions first to avoid cases
   // like this:
   //
@@ -4605,8 +4618,8 @@ bool CombinerHelper::matchMulOBy2(MachineInstr &MI, BuildFnTy &MatchInfo) {
 
 bool CombinerHelper::matchMulOBy0(MachineInstr &MI, BuildFnTy &MatchInfo) {
   // (G_*MULO x, 0) -> 0 + no carry out
-  unsigned Opc = MI.getOpcode();
-  assert(Opc == TargetOpcode::G_UMULO || Opc == TargetOpcode::G_SMULO);
+  assert(MI.getOpcode() == TargetOpcode::G_UMULO ||
+         MI.getOpcode() == TargetOpcode::G_SMULO);
   if (!mi_match(MI.getOperand(3).getReg(), MRI, m_SpecificICstOrSplat(0)))
     return false;
   Register Dst = MI.getOperand(0).getReg();
@@ -4623,8 +4636,8 @@ bool CombinerHelper::matchMulOBy0(MachineInstr &MI, BuildFnTy &MatchInfo) {
 
 bool CombinerHelper::matchAddOBy0(MachineInstr &MI, BuildFnTy &MatchInfo) {
   // (G_*ADDO x, 0) -> x + no carry out
-  unsigned Opc = MI.getOpcode();
-  assert(Opc == TargetOpcode::G_UADDO || Opc == TargetOpcode::G_SADDO);
+  assert(MI.getOpcode() == TargetOpcode::G_UADDO ||
+         MI.getOpcode() == TargetOpcode::G_SADDO);
   if (!mi_match(MI.getOperand(3).getReg(), MRI, m_SpecificICstOrSplat(0)))
     return false;
   Register Carry = MI.getOperand(1).getReg();

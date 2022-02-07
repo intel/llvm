@@ -3231,14 +3231,14 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_matrix_transpose: {
     auto *MatrixTy = E->getArg(0)->getType()->castAs<ConstantMatrixType>();
     Value *MatValue = EmitScalarExpr(E->getArg(0));
-    MatrixBuilder<CGBuilderTy> MB(Builder);
+    MatrixBuilder MB(Builder);
     Value *Result = MB.CreateMatrixTranspose(MatValue, MatrixTy->getNumRows(),
                                              MatrixTy->getNumColumns());
     return RValue::get(Result);
   }
 
   case Builtin::BI__builtin_matrix_column_major_load: {
-    MatrixBuilder<CGBuilderTy> MB(Builder);
+    MatrixBuilder MB(Builder);
     // Emit everything that isn't dependent on the first parameter type
     Value *Stride = EmitScalarExpr(E->getArg(3));
     const auto *ResultTy = E->getType()->getAs<ConstantMatrixType>();
@@ -3250,14 +3250,15 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     EmitNonNullArgCheck(RValue::get(Src.getPointer()), E->getArg(0)->getType(),
                         E->getArg(0)->getExprLoc(), FD, 0);
     Value *Result = MB.CreateColumnMajorLoad(
-        Src.getPointer(), Align(Src.getAlignment().getQuantity()), Stride,
-        IsVolatile, ResultTy->getNumRows(), ResultTy->getNumColumns(),
+        Src.getElementType(), Src.getPointer(),
+        Align(Src.getAlignment().getQuantity()), Stride, IsVolatile,
+        ResultTy->getNumRows(), ResultTy->getNumColumns(),
         "matrix");
     return RValue::get(Result);
   }
 
   case Builtin::BI__builtin_matrix_column_major_store: {
-    MatrixBuilder<CGBuilderTy> MB(Builder);
+    MatrixBuilder MB(Builder);
     Value *Matrix = EmitScalarExpr(E->getArg(0));
     Address Dst = EmitPointerWithAlignment(E->getArg(1));
     Value *Stride = EmitScalarExpr(E->getArg(2));
