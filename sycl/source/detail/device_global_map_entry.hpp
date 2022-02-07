@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include <detail/device_impl.hpp>
-
 #include <cstdint>
 #include <unordered_map>
 
