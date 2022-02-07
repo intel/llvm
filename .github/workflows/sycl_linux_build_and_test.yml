@@ -157,7 +157,7 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
