@@ -109,7 +109,8 @@ void *__devicelib_memset(void *dest, int c, size_t n) {
   if (dest == NULL || n == 0)
     return dest;
 
-  unsigned long long memset_dest_addr = reinterpret_cast<unsigned long long>(dest);
+  unsigned long long memset_dest_addr =
+      reinterpret_cast<unsigned long long>(dest);
   size_t dest_uint32_mod = memset_dest_addr % alignof(uint32_t);
   if (dest_uint32_mod == 0)
     return __devicelib_memset_uint32_aligned(
