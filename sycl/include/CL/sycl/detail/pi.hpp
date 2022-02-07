@@ -413,6 +413,14 @@ template <class To, class From> inline To cast(From value) {
   return (To)(value);
 }
 
+#ifdef SYCL2020_CONFORMANT_APIS
+// Cast for std::vector<cl_event>, according to the spec, make_event
+// should create one cl_event from a vector of cl_event
+template <class To> inline To cast(std::vector<cl_event> value) {
+  return (To)(value[0]);
+}
+#endif
+
 // These conversions should use PI interop API.
 template <> inline pi::PiProgram cast(cl_program) {
   RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");

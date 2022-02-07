@@ -18,6 +18,8 @@ int main() {
     });
     std::vector<cl_event> interopEventVec =
         sycl::get_native<sycl::backend::opencl>(event);
+    auto outEvent = sycl::make_event<sycl::backend::opencl>(
+        interopEventVec, Queue.get_context());
   }
 #endif
 }
