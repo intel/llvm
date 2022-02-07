@@ -58,7 +58,7 @@ Roland Schulz, Intel
 This extension is written against the SYCL 2020 specification, Revision 4 and
 the following extensions:
 
-- https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/PropertyList/SYCL_EXT_ONEAPI_properties.asciidoc[SYCL_EXT_ONEAPI_PROPERTIES]
+- link:SYCL_EXT_ONEAPI_PROPERTIES.asciidoc[SYCL_EXT_ONEAPI_PROPERTIES]
 
 == Feature Test Macro
 

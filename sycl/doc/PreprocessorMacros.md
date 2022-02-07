@@ -38,16 +38,19 @@ This file describes macros that have effect on SYCL compiler and run-time.
 
   Disables a message which warns about unsupported C++ version.
 
-- **SYCL_DISABLE_FALLBACK_ASSERT**
+- **SYCL_FALLBACK_ASSERT**
 
-  Defining this macro eliminates some overhead that is associated with
-  submitting kernels that call `assert()`. When this macro is defined, the logic
-  for detecting assertion failures in kernels is disabled, so a failed assert
-  will not cause a message to be printed and will not cause the program to
-  abort. However, this macro only affects kernels that are submitted to devices
-  that do **not** have native support for `assert()` because devices with native
-  support do not impose any extra overhead. One can check to see if a device has
-  native support for `assert()` via `aspect::ext_oneapi_native_assert`.
+  Defining as non-zero enables the fallback assert feature even on devices
+  without native support. Be aware that this will add some overhead that is
+  associated with submitting kernels that call `assert()`. When this macro is
+  defined as 0 or is not defined, the logic for detecting assertion failures in kernels is
+  disabled, so a failed assert will not cause a message to be printed and will
+  not cause the program to abort. Some devices have native support for
+  assertions. The logic for detecting assertion failures is always enabled on
+  these devices regardless of whether this macro is defined because that logic
+  does not add any extra overhead. One can check to see if a device has native
+  support for `assert()` via `aspect::ext_oneapi_native_assert`.
+  This macro is undefined by default.
 
 - **SYCL2020_CONFORMANT_APIS**
   This macro is used to comply with the SYCL 2020 specification, as some of the current 
