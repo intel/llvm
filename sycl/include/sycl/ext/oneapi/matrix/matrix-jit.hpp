@@ -212,7 +212,11 @@ joint_matrix_fill(Group sg,
   // functions
   (void)sg;
 #ifdef __SYCL_DEVICE_ONLY__
-  res.spvm = __spirv_CompositeConstruct<T, NumRows, NumCols>(static_cast<T>(v));
+  res.spvm =
+      __spirv_CompositeConstruct<T, NumRows, NumCols,
+                                 spv_matrix_layout_traits<Layout>::value>(
+          static_cast<T>(v));
+
 #else
   (void)res;
   (void)v;
