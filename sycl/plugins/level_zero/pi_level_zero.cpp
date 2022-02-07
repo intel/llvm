@@ -882,11 +882,10 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   }
 
   auto &EventlessKernelsInUse = CommandList->second.EventlessKernelsInUse;
-  if (!EventlessKernelsInUse.empty()) {
-    for (auto &Kernel : EventlessKernelsInUse) {
-      PI_CALL(piKernelRelease(Kernel));
-    }
-    EventlessKernelsInUse.clear();
+  while (!EventlessKernelsInUse.empty()) {
+    pi_kernel &Kernel = EventlessKernelsInUse.front();
+    EventlessKernelsInUse.pop_front();
+    PI_CALL(piKernelRelease(Kernel));
   }
 
   // Finally release/cleanup all the events in this command list.
@@ -1319,7 +1318,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
       CommandBatch.OpenCommandList = CommandList;
 
-      if (this->NumEventlessCmdsInLastCmdList != 0) {
+      if (this->EventlessMode) {
         this->LastCommandEvent = nullptr;
 
         // Add barrier into command list to ensure in-order semantic inside one
@@ -1335,7 +1334,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     CommandBatch.OpenCommandList = CommandListMap.end();
   }
 
-  if (this->NumEventlessCmdsInLastCmdList != 0) {
+  if (this->EventlessMode) {
     this->LastCommandEvent = pi_event();
     this->LastEventInPrevCmdList = this->LastCommandEvent;
 
@@ -4960,8 +4959,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   zePrint("calling zeCommandListAppendLaunchKernel() with"
           "  ZeEvent %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
-  if (Event)
-    printZeEventList((*Event)->WaitList);
+  printZeEventList(TmpWaitList);
 
   if (IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
@@ -5921,8 +5919,7 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   zePrint("calling zeCommandListAppendMemoryCopy() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<std::uintptr_t>(ZeEvent));
-  if (Event)
-    printZeEventList((*Event)->WaitList);
+  printZeEventList(TmpWaitList);
 
   if (auto Res =
           Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch))
@@ -6197,8 +6194,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   zePrint("calling zeCommandListAppendMemoryFill() with\n"
           "  ZeEvent %#lx\n",
           pi_cast<pi_uint64>(ZeEvent));
-  if (Event)
-    printZeEventList((*Event)->WaitList);
+  printZeEventList(TmpWaitList);
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
