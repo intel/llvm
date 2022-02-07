@@ -57,6 +57,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "file-table-tform";
   case AppendFooterJobClass:
     return "append-footer";
+  case LinkerWrapperJobClass:
+    return "clang-linker-wrapper";
   case StaticLibJobClass:
     return "static-lib-linker";
   case ForEachWrappingClass:
@@ -544,6 +546,12 @@ void AppendFooterJobAction::anchor() {}
 
 AppendFooterJobAction::AppendFooterJobAction(Action *Input, types::ID Type)
     : JobAction(AppendFooterJobClass, Input, Type) {}
+
+void LinkerWrapperJobAction::anchor() {}
+
+LinkerWrapperJobAction::LinkerWrapperJobAction(ActionList &Inputs,
+                                               types::ID Type)
+    : JobAction(LinkerWrapperJobClass, Inputs, Type) {}
 
 void StaticLibJobAction::anchor() {}
 

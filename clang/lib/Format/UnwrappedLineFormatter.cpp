@@ -100,10 +100,27 @@ private:
     if (Style.Language == FormatStyle::LK_Java || Style.isJavaScript() ||
         Style.isCSharp())
       return 0;
-    if (RootToken.isAccessSpecifier(false) ||
-        RootToken.isObjCAccessSpecifier() ||
-        (RootToken.isOneOf(Keywords.kw_signals, Keywords.kw_qsignals) &&
-         RootToken.Next && RootToken.Next->is(tok::colon))) {
+
+    auto IsAccessModifier = [this, &RootToken]() {
+      if (RootToken.isAccessSpecifier(Style.isCpp()))
+        return true;
+      else if (RootToken.isObjCAccessSpecifier())
+        return true;
+      // Handle Qt signals.
+      else if ((RootToken.isOneOf(Keywords.kw_signals, Keywords.kw_qsignals) &&
+                RootToken.Next && RootToken.Next->is(tok::colon)))
+        return true;
+      else if (RootToken.Next &&
+               RootToken.Next->isOneOf(Keywords.kw_slots, Keywords.kw_qslots) &&
+               RootToken.Next->Next && RootToken.Next->Next->is(tok::colon))
+        return true;
+      // Handle malformed access specifier e.g. 'private' without trailing ':'.
+      else if (!RootToken.Next && RootToken.isAccessSpecifier(false))
+        return true;
+      return false;
+    };
+
+    if (IsAccessModifier()) {
       // The AccessModifierOffset may be overridden by IndentAccessModifiers,
       // in which case we take a negative value of the IndentWidth to simulate
       // the upper indent level.
@@ -276,6 +293,9 @@ private:
               FormatStyle::SFS_InlineOnly) {
             // Just checking TheLine->Level != 0 is not enough, because it
             // provokes treating functions inside indented namespaces as short.
+            if (Style.isJavaScript() && (*I)->Last->is(TT_FunctionLBrace))
+              return true;
+
             if ((*I)->Level != 0) {
               if (I == B)
                 return false;
@@ -288,23 +308,10 @@ private:
                   break;
 
               // Check if the found line starts a record.
-              auto *RecordTok = (*J)->First;
-              while (RecordTok) {
-                // TODO: Refactor to isRecord(RecordTok).
-                if (RecordTok->isOneOf(tok::kw_class, tok::kw_struct))
-                  return true;
-                if (Style.isCpp() && RecordTok->is(tok::kw_union))
-                  return true;
-                if (Style.isCSharp() && RecordTok->is(Keywords.kw_interface))
-                  return true;
-                if (Style.Language == FormatStyle::LK_Java &&
-                    RecordTok->is(tok::kw_enum))
-                  return true;
-                if (Style.isJavaScript() && RecordTok->is(Keywords.kw_function))
-                  return true;
-
-                RecordTok = RecordTok->Next;
-              }
+              for (const FormatToken *RecordTok = (*J)->Last; RecordTok;
+                   RecordTok = RecordTok->Previous)
+                if (RecordTok->is(tok::l_brace))
+                  return RecordTok->is(TT_RecordLBrace);
 
               return false;
             }
