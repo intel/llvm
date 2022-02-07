@@ -91,12 +91,12 @@ int main() {
         []() [[intel::max_work_group_size(8, 8, -8)]] {}); // expected-error{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel5>(
-	[]() [[intel::max_work_group_size(-8, 8, -8)]] {}); // expected-error 2{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::max_work_group_size(-8, 8, -8)]] {}); // expected-error 2{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
 
     [[intel::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}
 
     h.single_task<class test_kernel6>(
-	[]() [[intel::max_work_group_size(0, 1, 3)]] {}); // expected-error{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::max_work_group_size(0, 1, 3)]] {}); // expected-error{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel7>(
         []() [[intel::max_work_group_size(1.2f, 1, 3)]]{}); // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
