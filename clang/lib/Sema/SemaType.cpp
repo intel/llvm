@@ -8275,6 +8275,17 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       // it it breaks large amounts of Linux software.
       attr.setUsedAsTypeAttr();
       break;
+    case ParsedAttr::AT_SYCLIntelKernelArgsRestrict:
+      // The [[intel::kernel_args_restrict]] attribute has an effect when
+      // applied to a function, and no effect otherwise. Ignore the
+      // attribute with a warning for all other cases.
+      if (attr.isStandardAttributeSyntax() && TAL == TAL_DeclChunk &&
+          (!state.isProcessingLambdaExpr() ||
+           !attr.supportsNonconformingLambdaSyntax())) {
+        state.getSema().Diag(attr.getLoc(), diag::warn_unknown_attribute_ignored)
+            << attr << attr.getRange();;
+      }
+      break;
     case ParsedAttr::AT_OpenCLPrivateAddressSpace:
     case ParsedAttr::AT_OpenCLGlobalAddressSpace:
     case ParsedAttr::AT_OpenCLGlobalDeviceAddressSpace:
