@@ -28,7 +28,7 @@ namespace detail {
 /// Base class for "simd view" types.
 /// It is an internal class implementing basic functionality inherited by all
 /// simd_view specializations. Objects of this type and its subclasses provide a
-/// a "view" into objects of types inheriting from simd_obj_impl - @ref simd or
+/// "view" into objects of types inheriting from simd_obj_impl - @ref simd or
 /// @ref simd_mask. Such "viewed into" object are called view "targets". The
 /// element type of the view and the target object may differ. The view can also
 /// span a subset of target's elements (region) - e.g. in a strided manner.
@@ -108,7 +108,7 @@ public:
 
   /// Implicit conversion to a simd object with potentially different element
   /// type. Reads the viewed region from the target, converts elements to the
-  /// requested type and returns as a simd object. Available only then the type
+  /// requested type and returns as a simd object. Available only when the type
   /// of the view target is simd.
   /// @tparam ToTy The element type of the result.
   template <typename ToTy, class T = BaseTy,
@@ -121,7 +121,7 @@ public:
   }
 
   /// Implicit conversion to a simd_mask object. Reads the viewed region from
-  /// the target and returns it as a simd object. Available only then the type
+  /// the target and returns it as a simd object. Available only when the type
   /// of the view target is simd_mask.
   template <class T = BaseTy, class = std::enable_if_t<is_simd_mask_type_v<T>>>
   inline operator simd_mask_type<length>() const {
