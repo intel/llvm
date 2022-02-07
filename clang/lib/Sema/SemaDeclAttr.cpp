@@ -3472,7 +3472,6 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
           (XDimExpr->getResultAsAPSInt() != 1 ||
            YDimExpr->getResultAsAPSInt() != 1 ||
            ZDimExpr->getResultAsAPSInt() != 1));
-
 }
 
 void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
