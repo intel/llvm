@@ -104,12 +104,19 @@ end-to-end or SYCL-CTS tests.
 
     **DPC++ headers and runtime tests**:
 
-    - [check-sycl](sycl/test) target contains 2 types of tests: LIT tests and
-    unit tests. LIT tests make compile-time checks of DPC++ headers, e.g. device
-    code IR verification, static_assert tests. Unit tests check DPC++ runtime
-    behavior and do not perform any device code compilation, instead relying on
-    redefining plugin API with [PiMock](sycl/unittests/helpers/PiMock.hpp) when
-    necessary.
+    - PRs changing the way PI APIs are called: provide a unit test for new behavior,
+      see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#Plugin-interface-mock)
+    - PRs changing graph structure or nodes scheduling: provide a unit test for new
+      behavior, see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#SYCL-host-runtime-testing)
+    - If PR adds a SYCL API, that is required by the specification to throw
+      exceptions: provide a unit test for error path: see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#Plugin-interface-mock)
+    - PRs using "magic" builtins in device code: provide a LIT test for LLVM IR,
+      generated with new code, see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#sycl-device-headers)
+    - PRs adding new data types as part of ABI: provide a LIT test for new data type
+      layout, see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md)
+    - For PRs that require end-to-end tests: such tests **must not** expose runtime
+      internals, see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#end-to-end-tests)
+    - See [existing in-tree tests](sycl/test) for more examples
 
 * DPC++ end-to-end (E2E) tests which are extension to
 [LLVM\* test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL).
