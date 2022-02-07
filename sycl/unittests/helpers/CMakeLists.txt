@@ -1,4 +1,4 @@
-add_library(sycl_unittest_helpers STATIC EXCLUDE_FROM_ALL
+add_library(sycl_unittest_helpers OBJECT EXCLUDE_FROM_ALL
   PiMock.cpp
 )
 

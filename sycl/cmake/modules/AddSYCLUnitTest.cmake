@@ -21,6 +21,7 @@ macro(add_sycl_unittest test_dirname link_variant)
     add_unittest(SYCLUnitTests ${test_dirname} ${ARGN})
   else()
     add_unittest(SYCLUnitTests ${test_dirname}
+                $<TARGET_OBJECTS:sycl_unittest_helpers>
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
     target_compile_definitions(${test_dirname}
                                PRIVATE __SYCL_BUILD_SYCL_DLL)
