@@ -28,6 +28,11 @@
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+
+#ifdef EXPENSIVE_CHECKS
+#include "llvm/IR/StructuralHash.h"
+#endif
+
 using namespace llvm;
 
 // See PassManagers.h for Pass Manager infrastructure overview.
@@ -1762,4 +1767,4 @@ void FunctionPass::assignPassManager(PMStack &PMS,
   PM->add(this);
 }
 
-legacy::PassManagerBase::~PassManagerBase() {}
+legacy::PassManagerBase::~PassManagerBase() = default;

@@ -3504,9 +3504,6 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
       GenerateArg(Args, OPT_fopenmp_version_EQ, Twine(Opts.OpenMP), SA);
   }
 
-  if (Opts.OpenMPTargetNewRuntime)
-    GenerateArg(Args, OPT_fopenmp_target_new_runtime, SA);
-
   if (Opts.OpenMPThreadSubscription)
     GenerateArg(Args, OPT_fopenmp_assume_threads_oversubscription, SA);
 
@@ -3960,9 +3957,6 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Opts.OpenMP && Args.hasArg(options::OPT_fopenmp_enable_irbuilder);
   bool IsTargetSpecified =
       Opts.OpenMPIsDevice || Args.hasArg(options::OPT_fopenmp_targets_EQ);
-  Opts.OpenMPTargetNewRuntime =
-      Opts.OpenMPIsDevice &&
-      Args.hasArg(options::OPT_fopenmp_target_new_runtime);
 
   Opts.ConvergentFunctions = Opts.ConvergentFunctions || Opts.OpenMPIsDevice;
 
@@ -4010,17 +4004,13 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   // Set either by a specific value or to a default if not specified.
   if (Opts.OpenMPIsDevice && (Args.hasArg(OPT_fopenmp_target_debug) ||
                               Args.hasArg(OPT_fopenmp_target_debug_EQ))) {
-    if (Opts.OpenMPTargetNewRuntime) {
-      Opts.OpenMPTargetDebug = getLastArgIntValue(
-          Args, OPT_fopenmp_target_debug_EQ, Opts.OpenMPTargetDebug, Diags);
-      if (!Opts.OpenMPTargetDebug && Args.hasArg(OPT_fopenmp_target_debug))
-        Opts.OpenMPTargetDebug = 1;
-    } else {
-      Diags.Report(diag::err_drv_debug_no_new_runtime);
-    }
+    Opts.OpenMPTargetDebug = getLastArgIntValue(
+        Args, OPT_fopenmp_target_debug_EQ, Opts.OpenMPTargetDebug, Diags);
+    if (!Opts.OpenMPTargetDebug && Args.hasArg(OPT_fopenmp_target_debug))
+      Opts.OpenMPTargetDebug = 1;
   }
 
-  if (Opts.OpenMPIsDevice && Opts.OpenMPTargetNewRuntime) {
+  if (Opts.OpenMPIsDevice) {
     if (Args.hasArg(OPT_fopenmp_assume_teams_oversubscription))
       Opts.OpenMPTeamSubscription = true;
     if (Args.hasArg(OPT_fopenmp_assume_threads_oversubscription))
@@ -4487,6 +4477,9 @@ static void GenerateTargetArgs(const TargetOptions &Opts,
   if (!Opts.SDKVersion.empty())
     GenerateArg(Args, OPT_target_sdk_version_EQ, Opts.SDKVersion.getAsString(),
                 SA);
+  if (!Opts.DarwinTargetVariantSDKVersion.empty())
+    GenerateArg(Args, OPT_darwin_target_variant_sdk_version_EQ,
+                Opts.DarwinTargetVariantSDKVersion.getAsString(), SA);
 }
 
 static bool ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
@@ -4513,6 +4506,15 @@ static bool ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
           << A->getAsString(Args) << A->getValue();
     else
       Opts.SDKVersion = Version;
+  }
+  if (Arg *A =
+          Args.getLastArg(options::OPT_darwin_target_variant_sdk_version_EQ)) {
+    llvm::VersionTuple Version;
+    if (Version.tryParse(A->getValue()))
+      Diags.Report(diag::err_drv_invalid_value)
+          << A->getAsString(Args) << A->getValue();
+    else
+      Opts.DarwinTargetVariantSDKVersion = Version;
   }
 
   return Diags.getNumErrors() == NumErrorsBefore;

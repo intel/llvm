@@ -29,12 +29,10 @@ class Vector_Op<string mnemonic, list<Trait> traits = []> :
     Op<Vector_Dialect, mnemonic, traits> {
   // For every vector op, there needs to be a:
   //   * void print(OpAsmPrinter &p, ${C++ class of Op} op)
-  //   * LogicalResult verify(${C++ class of Op} op)
   //   * ParseResult parse${C++ class of Op}(OpAsmParser &parser,
   //                                         OperationState &result)
   // functions.
   let printer = [{ return ::print(p, *this); }];
-  let verifier = [{ return ::verify(*this); }];
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
@@ -255,6 +253,7 @@ def Vector_ContractionOp :
   }];
 
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_ReductionOp :
@@ -290,6 +289,7 @@ def Vector_ReductionOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let hasVerifier = 1;
 }
 
 def Vector_MultiDimReductionOp :
@@ -373,6 +373,7 @@ def Vector_MultiDimReductionOp :
   let assemblyFormat =
     "$kind `,` $source attr-dict $reduction_dims `:` type($source) `to` type($dest)";
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_BroadcastOp :
@@ -420,6 +421,7 @@ def Vector_BroadcastOp :
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($vector)";
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_ShuffleOp :
@@ -463,6 +465,7 @@ def Vector_ShuffleOp :
   let builders = [
     OpBuilder<(ins "Value":$v1, "Value":$v2, "ArrayRef<int64_t>")>
   ];
+  let hasFolder = 1;
   let extraClassDeclaration = [{
     static StringRef getMaskAttrName() { return "mask"; }
     VectorType getV1VectorType() {
@@ -475,6 +478,7 @@ def Vector_ShuffleOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let hasVerifier = 1;
 }
 
 def Vector_ExtractElementOp :
@@ -521,6 +525,7 @@ def Vector_ExtractElementOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let hasVerifier = 1;
 }
 
 def Vector_ExtractOp :
@@ -555,6 +560,7 @@ def Vector_ExtractOp :
   }];
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_ExtractMapOp :
@@ -623,6 +629,7 @@ def Vector_ExtractMapOp :
   }];
 
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_FMAOp :
@@ -648,8 +655,6 @@ def Vector_FMAOp :
     %3 = vector.fma %0, %1, %2: vector<8x16xf32>
     ```
   }];
-  // Fully specified by traits.
-  let verifier = ?;
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` type($lhs)";
   let builders = [
     OpBuilder<(ins "Value":$lhs, "Value":$rhs, "Value":$acc),
@@ -706,7 +711,7 @@ def Vector_InsertElementOp :
       return dest().getType().cast<VectorType>();
     }
   }];
-
+  let hasVerifier = 1;
 }
 
 def Vector_InsertOp :
@@ -749,6 +754,7 @@ def Vector_InsertOp :
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_InsertMapOp :
@@ -816,6 +822,7 @@ def Vector_InsertMapOp :
     $vector `,` $dest `[` $ids `]` attr-dict
       `:` type($vector) `into` type($result)
   }];
+  let hasVerifier = 1;
 }
 
 def Vector_InsertStridedSliceOp :
@@ -873,6 +880,7 @@ def Vector_InsertStridedSliceOp :
   }];
 
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_OuterProductOp :
@@ -960,6 +968,7 @@ def Vector_OuterProductOp :
       return CombiningKind::ADD;
     }
   }];
+  let hasVerifier = 1;
 }
 
 // TODO: Add transformation which decomposes ReshapeOp into an optimized
@@ -1081,6 +1090,7 @@ def Vector_ReshapeOp :
     $vector `,` `[` $input_shape `]` `,` `[` $output_shape `]` `,`
     $fixed_vector_sizes attr-dict `:` type($vector) `to` type($result)
   }];
+  let hasVerifier = 1;
 }
 
 def Vector_ExtractStridedSliceOp :
@@ -1133,6 +1143,7 @@ def Vector_ExtractStridedSliceOp :
   }];
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
   let assemblyFormat = "$vector attr-dict `:` type($vector) `to` type(results)";
 }
 
@@ -1340,6 +1351,7 @@ def Vector_TransferReadOp :
   ];
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_TransferWriteOp :
@@ -1477,6 +1489,7 @@ def Vector_TransferWriteOp :
   ];
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_LoadOp : Vector_Op<"load"> {
@@ -1552,6 +1565,7 @@ def Vector_LoadOp : Vector_Op<"load"> {
   }];
 
   let hasFolder = 1;
+  let hasVerifier = 1;
 
   let assemblyFormat =
       "$base `[` $indices `]` attr-dict `:` type($base) `,` type($result)";
@@ -1628,6 +1642,7 @@ def Vector_StoreOp : Vector_Op<"store"> {
   }];
 
   let hasFolder = 1;
+  let hasVerifier = 1;
 
   let assemblyFormat = "$valueToStore `,` $base `[` $indices `]` attr-dict "
                        "`:` type($base) `,` type($valueToStore)";
@@ -1687,6 +1702,7 @@ def Vector_MaskedLoadOp :
     "type($base) `,` type($mask) `,` type($pass_thru) `into` type($result)";
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_MaskedStoreOp :
@@ -1740,6 +1756,7 @@ def Vector_MaskedStoreOp :
       "attr-dict `:` type($base) `,` type($mask) `,` type($valueToStore)";
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_GatherOp :
@@ -1805,6 +1822,7 @@ def Vector_GatherOp :
     "type($index_vec)  `,` type($mask) `,` type($pass_thru) "
     "`into` type($result)";
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_ScatterOp :
@@ -1867,6 +1885,7 @@ def Vector_ScatterOp :
       "$mask `,` $valueToStore attr-dict `:` type($base) `,` "
       "type($index_vec)  `,` type($mask) `,` type($valueToStore)";
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_ExpandLoadOp :
@@ -1925,6 +1944,7 @@ def Vector_ExpandLoadOp :
   let assemblyFormat = "$base `[` $indices `]` `,` $mask `,` $pass_thru attr-dict `:` "
     "type($base) `,` type($mask) `,` type($pass_thru) `into` type($result)";
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_CompressStoreOp :
@@ -1980,6 +2000,7 @@ def Vector_CompressStoreOp :
       "$base `[` $indices `]` `,` $mask `,` $valueToStore attr-dict `:` "
       "type($base) `,` type($mask) `,` type($valueToStore)";
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_ShapeCastOp :
@@ -2031,6 +2052,7 @@ def Vector_ShapeCastOp :
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_BitCastOp :
@@ -2070,6 +2092,7 @@ def Vector_BitCastOp :
   }];
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_TypeCastOp :
@@ -2116,6 +2139,7 @@ def Vector_TypeCastOp :
   let assemblyFormat = [{
     $memref attr-dict `:` type($memref) `to` type($result)
   }];
+  let hasVerifier = 1;
 }
 
 def Vector_ConstantMaskOp :
@@ -2157,6 +2181,7 @@ def Vector_ConstantMaskOp :
     static StringRef getMaskDimSizesAttrName() { return "mask_dim_sizes"; }
   }];
   let assemblyFormat = "$mask_dim_sizes attr-dict `:` type(results)";
+  let hasVerifier = 1;
 }
 
 def Vector_CreateMaskOp :
@@ -2194,6 +2219,7 @@ def Vector_CreateMaskOp :
   }];
 
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
   let assemblyFormat = "$operands attr-dict `:` type(results)";
 }
 
@@ -2245,6 +2271,7 @@ def Vector_TransposeOp :
   }];
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_PrintOp :
@@ -2272,7 +2299,6 @@ def Vector_PrintOp :
     newline).
     ```
   }];
-  let verifier = ?;
   let extraClassDeclaration = [{
     Type getPrintType() {
       return source().getType();
@@ -2348,7 +2374,6 @@ def Vector_MatmulOp : Vector_Op<"matrix_multiply", [NoSideEffect,
        lhs.getType().cast<VectorType>().getElementType()));
    }]>,
   ];
-  let verifier = ?;
   let assemblyFormat = "$lhs `,` $rhs attr-dict "
     "`:` `(` type($lhs) `,` type($rhs) `)` `->` type($res)";
 }
@@ -2393,8 +2418,42 @@ def Vector_FlatTransposeOp : Vector_Op<"flat_transpose", [NoSideEffect,
        : (vector<16xf32>) -> vector<16xf32>
     ```
   }];
-  let verifier = ?;
   let assemblyFormat = "$matrix attr-dict `:` type($matrix) `->` type($res)";
+}
+
+//===----------------------------------------------------------------------===//
+// SplatOp
+//===----------------------------------------------------------------------===//
+
+def Vector_SplatOp : Vector_Op<"splat", [
+    NoSideEffect,
+    TypesMatchWith<"operand type matches element type of result",
+                   "aggregate", "input",
+                   "$_self.cast<VectorType>().getElementType()">
+  ]> {
+  let summary = "vector splat or broadcast operation";
+  let description = [{
+    Broadcast the operand to all elements of the result vector. The operand is
+    required to be of integer/index/float type.
+
+    Example:
+
+    ```mlir
+    %s = arith.constant 10.1 : f32
+    %t = vector.splat %s : vector<8x16xi32>
+    ```
+  }];
+
+  let arguments = (ins AnyTypeOf<[AnySignlessInteger, Index, AnyFloat],
+                                 "integer/index/float type">:$input);
+  let results = (outs AnyVectorOfAnyRank:$aggregate);
+
+  let builders = [
+    OpBuilder<(ins "Value":$element, "Type":$aggregateType),
+    [{ build($_builder, $_state, aggregateType, element); }]>];
+  let assemblyFormat = "$input attr-dict `:` type($aggregate)";
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2426,7 +2485,6 @@ def VectorScaleOp : Vector_Op<"vscale",
   }];
   let results = (outs Index:$res);
   let assemblyFormat = "attr-dict";
-  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2485,6 +2543,7 @@ def Vector_ScanOp :
   let assemblyFormat =
     "$kind `,` $source `,` $initial_value attr-dict `:` "
     "type($source) `,` type($initial_value) ";
+  let hasVerifier = 1;
 }
 
 #endif // VECTOR_OPS

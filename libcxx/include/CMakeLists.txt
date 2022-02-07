@@ -28,6 +28,7 @@ set(files
   __algorithm/half_positive.h
   __algorithm/in_in_out_result.h
   __algorithm/in_in_result.h
+  __algorithm/in_out_out_result.h
   __algorithm/in_out_result.h
   __algorithm/includes.h
   __algorithm/inplace_merge.h
@@ -217,6 +218,7 @@ set(files
   __functional/weak_result_type.h
   __functional_base
   __hash_table
+  __ios/fpos.h
   __iterator/access.h
   __iterator/advance.h
   __iterator/back_insert_iterator.h
@@ -350,6 +352,7 @@ set(files
   __ranges/take_view.h
   __ranges/transform_view.h
   __ranges/view_interface.h
+  __ranges/views.h
   __split_buffer
   __std_stream
   __string

@@ -916,7 +916,7 @@ struct AA::PointerInfo::State : public AbstractState {
     return R;
   }
 
-  State() {}
+  State() = default;
   State(const State &SIS) : AccessBins(SIS.AccessBins) {}
   State(State &&SIS) : AccessBins(std::move(SIS.AccessBins)) {}
 
@@ -3661,7 +3661,7 @@ struct AAIsDeadCallSiteArgument : public AAIsDeadValueImpl {
 
 struct AAIsDeadCallSiteReturned : public AAIsDeadFloating {
   AAIsDeadCallSiteReturned(const IRPosition &IRP, Attributor &A)
-      : AAIsDeadFloating(IRP, A), IsAssumedSideEffectFree(true) {}
+      : AAIsDeadFloating(IRP, A) {}
 
   /// See AAIsDead::isAssumedDead().
   bool isAssumedDead() const override {
@@ -3707,7 +3707,7 @@ struct AAIsDeadCallSiteReturned : public AAIsDeadFloating {
   }
 
 private:
-  bool IsAssumedSideEffectFree;
+  bool IsAssumedSideEffectFree = true;
 };
 
 struct AAIsDeadReturned : public AAIsDeadValueImpl {
@@ -6316,7 +6316,7 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
 
           if (ValidUsesOnly &&
               AI.LibraryFunctionId == LibFunc___kmpc_alloc_shared)
-            A.emitRemark<OptimizationRemarkMissed>(AI.CB, "OMP113", Remark);
+            A.emitRemark<OptimizationRemarkMissed>(CB, "OMP113", Remark);
 
           LLVM_DEBUG(dbgs() << "[H2S] Bad user: " << *UserI << "\n");
           ValidUsesOnly = false;

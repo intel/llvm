@@ -42,8 +42,27 @@ void Fortran::lower::genStopStatement(
   mlir::FuncOp callee;
   mlir::FunctionType calleeType;
   // First operand is stop code (zero if absent)
-  if (std::get<std::optional<Fortran::parser::StopCode>>(stmt.t)) {
-    TODO(loc, "STOP first operand not lowered yet");
+  if (const auto &code =
+          std::get<std::optional<Fortran::parser::StopCode>>(stmt.t)) {
+    auto expr = converter.genExprValue(*Fortran::semantics::GetExpr(*code));
+    LLVM_DEBUG(llvm::dbgs() << "stop expression: "; expr.dump();
+               llvm::dbgs() << '\n');
+    expr.match(
+        [&](const fir::CharBoxValue &x) {
+          TODO(loc, "STOP CharBoxValue first operand not lowered yet");
+        },
+        [&](fir::UnboxedValue x) {
+          callee = fir::runtime::getRuntimeFunc<mkRTKey(StopStatement)>(
+              loc, builder);
+          calleeType = callee.getType();
+          mlir::Value cast =
+              builder.createConvert(loc, calleeType.getInput(0), x);
+          operands.push_back(cast);
+        },
+        [&](auto) {
+          mlir::emitError(loc, "unhandled expression in STOP");
+          std::exit(1);
+        });
   } else {
     callee = fir::runtime::getRuntimeFunc<mkRTKey(StopStatement)>(loc, builder);
     calleeType = callee.getType();
@@ -58,8 +77,13 @@ void Fortran::lower::genStopStatement(
       loc, calleeType.getInput(operands.size()), isError));
 
   // Third operand indicates QUIET (default to false).
-  if (std::get<std::optional<Fortran::parser::ScalarLogicalExpr>>(stmt.t)) {
-    TODO(loc, "STOP third operand not lowered yet");
+  if (const auto &quiet =
+          std::get<std::optional<Fortran::parser::ScalarLogicalExpr>>(stmt.t)) {
+    const SomeExpr *expr = Fortran::semantics::GetExpr(*quiet);
+    assert(expr && "failed getting typed expression");
+    mlir::Value q = fir::getBase(converter.genExprValue(*expr));
+    operands.push_back(
+        builder.createConvert(loc, calleeType.getInput(operands.size()), q));
   } else {
     operands.push_back(builder.createIntegerConstant(
         loc, calleeType.getInput(operands.size()), 0));
@@ -67,4 +91,14 @@ void Fortran::lower::genStopStatement(
 
   builder.create<fir::CallOp>(loc, callee, operands);
   genUnreachable(builder, loc);
+}
+
+void Fortran::lower::genPauseStatement(
+    Fortran::lower::AbstractConverter &converter,
+    const Fortran::parser::PauseStmt &) {
+  fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+  mlir::Location loc = converter.getCurrentLocation();
+  mlir::FuncOp callee =
+      fir::runtime::getRuntimeFunc<mkRTKey(PauseStatement)>(loc, builder);
+  builder.create<fir::CallOp>(loc, callee, llvm::None);
 }
