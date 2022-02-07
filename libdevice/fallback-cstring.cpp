@@ -47,8 +47,8 @@ void *__devicelib_memcpy(void *dest, const void *src, size_t n) {
   if (dest == NULL || src == NULL || n == 0)
     return dest;
 
-  unsigned long long dest_addr = reinterpret_cast<unsigned long long>(dest);
-  unsigned long long src_addr = reinterpret_cast<unsigned long long>(src);
+  uintptr_t dest_addr = reinterpret_cast<uintptr_t>(dest);
+  uintptr_t src_addr = reinterpret_cast<uintptr_t>(src);
   size_t dest_uint32_mod = dest_addr % alignof(uint32_t);
   size_t src_uint32_mod = src_addr % alignof(uint32_t);
 
@@ -109,8 +109,7 @@ void *__devicelib_memset(void *dest, int c, size_t n) {
   if (dest == NULL || n == 0)
     return dest;
 
-  unsigned long long memset_dest_addr =
-      reinterpret_cast<unsigned long long>(dest);
+  uintptr_t memset_dest_addr = reinterpret_cast<uintptr_t>(dest);
   size_t dest_uint32_mod = memset_dest_addr % alignof(uint32_t);
   if (dest_uint32_mod == 0)
     return __devicelib_memset_uint32_aligned(
@@ -179,10 +178,8 @@ int __devicelib_memcmp(const void *s1, const void *s2, size_t n) {
   if (s1 == s2 || n == 0)
     return 0;
 
-  size_t s1_uint32_mod =
-      reinterpret_cast<unsigned long long>(s1) % alignof(uint32_t);
-  size_t s2_uint32_mod =
-      reinterpret_cast<unsigned long long>(s2) % alignof(uint32_t);
+  size_t s1_uint32_mod = reinterpret_cast<uintptr_t>(s1) % alignof(uint32_t);
+  size_t s2_uint32_mod = reinterpret_cast<uintptr_t>(s2) % alignof(uint32_t);
 
   if (s1_uint32_mod != s2_uint32_mod)
     return __devicelib_memcmp_uint8_aligned(s1, s2, n);
