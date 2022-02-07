@@ -1,5 +1,7 @@
 # Discourse Migration Guide 
 
+## Current Status of Migration: Final checks of migration are complete. Discourse should be online shortly.
+
 This document is intended to help LLVM users to migrate from the mailing lists to
 Discourse. Discourse has two basic ways for interaction: Via the [web
 UI](https://llvm.discourse.group/) and via emails.
