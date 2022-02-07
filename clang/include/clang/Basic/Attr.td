@@ -1432,6 +1432,29 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
+def SYCLDetailDeviceGlobal: InheritableAttr {
+  let Spellings = [GNU<"device_global">,
+                   CXX11<"__sycl_detail__", "device_global">];
+  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [Undocumented];
+}
+
+def SYCLDetailGlobalVariableAllowed : InheritableAttr {
+  let Spellings = [GNU<"global_variable_allowed">,
+                   CXX11<"__sycl_detail__", "global_variable_allowed">];
+  let Subjects = SubjectList<[CXXRecord, GlobalStorageNonLocalVar], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [Undocumented];
+}
+
+def SYCLUniqueID : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "sycl-unique-id">];
+  let Subjects = SubjectList<[GlobalVar]>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [Undocumented];
+}
+
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
   let Spellings = [CXX11<"intel", "no_global_work_offset">];
   let Args = [ExprArgument<"Value", /*optional*/1>];

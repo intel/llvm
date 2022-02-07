@@ -7099,6 +7099,17 @@ def warn_format_nonliteral : Warning<
   "format string is not a string literal">,
   InGroup<FormatNonLiteral>, DefaultIgnore;
 
+def err_non_static_member_use_not_allowed : Error<
+  "use of non-static member variable %0 is not allowed">;
+def err_not_publicly_accessible: Error<
+  "member variable %0 not publicly accessible">;
+def err_array_of_device_global_not_allowed : Error<
+  "array of device_global %0 is not allowed">;
+def err_shadow_variable_within_same_namespace: Error<
+  "shadow variable %0 not allowed withing the same enclosing namespace scope">;
+def err_namespace_name_shadows_namespace_containing_device_global : Error<
+  "not allowed: namespace name shadows %0 namespace which contains device_global">;
+
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;
 def err_ref_non_value : Error<"%0 does not refer to a value">;

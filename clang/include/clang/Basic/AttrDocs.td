@@ -3083,6 +3083,47 @@ function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
+def SYCLDetailDeviceGlobalAttrDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "__sycl_detail__::device_global";
+  let Content = [{
+This attribute is part of support for SYCL device_global feature.
+[[__sycl_detail__::device_global]] attribute is used for checking restrictions on variable declarations using the device_global type, rather than the class name. We do not intend to support this as a general attribute that customer code can use, so we have this attribute in sycl_detail namespace.
+
+.. code-block:: c++
+
+  template<typename T>
+  struct [[__sycl_detail__::device_global]] device_global {}
+
+  device_global<int> Foo;
+  }];
+}
+
+def SYCLDetailGlobalVariableAllowedAttrDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "__sycl_detail__::global_variable_allowed";
+  let Content = [{
+This attribute is part of support for SYCL device_global feature.
+[[__sycl_detail__::global_variable_allowed]] attribute is used to avoid diagnosing an error when variables of type device_global are referenced in device codei. We do not intend to support this as a general attribute that customer code can use, therefore it is wrapped in sycl_detail namespace.
+
+.. code-block:: c++
+  
+  template<typename T>
+  struct [[__sycl_detail__::device_global]] device_global {}
+  
+  device_global<int> Foo;
+  }];
+}
+
+def SYCLUniqueIDAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "sycl-unique-id";
+  let Content = [{
+This attribute is part of support for SYCL device_global feature.
+sycl-unique-id is an LLVM IR attribute added to the definition of each device_global variable, which provides a unique string identifier for each device global variable. This attribute uses __builtin_sycl_unique_stable_id to generate the unique string. This cannont be used in customer code.
+  }];
+}
+
 def SYCLFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";

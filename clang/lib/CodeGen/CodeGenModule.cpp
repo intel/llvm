@@ -31,6 +31,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -2216,6 +2217,8 @@ void CodeGenModule::setNonAliasAttributes(GlobalDecl GD,
         GV->addAttribute("rodata-section", SA->getName());
       if (auto *SA = D->getAttr<PragmaClangRelroSectionAttr>())
         GV->addAttribute("relro-section", SA->getName());
+//      if (auto *SA = D->getAttr<SYCLDetailDeviceGlobalAttr>())
+//        GV->addAttribute("sycl-unique-id","pink");
     }
 
     if (auto *F = dyn_cast<llvm::Function>(GO)) {
@@ -2837,6 +2840,16 @@ void CodeGenModule::AddGlobalAnnotations(const ValueDecl *D,
   // Get the struct elements for these annotations.
   for (const auto *I : D->specific_attrs<AnnotateAttr>())
     Annotations.push_back(EmitAnnotateAttr(GV, I, D->getLocation()));
+}
+
+void CodeGenModule::addSYCLUniqueID(llvm::GlobalVariable *GV,
+                                              const RecordDecl *RD) {
+  const auto *A = RD->getAttr<SYCLDetailDeviceGlobalAttr>();
+  assert(A && "no device_global attribute");
+  const VarDecl *VD = dyn_cast<VarDecl>(RD->getParent());
+  auto builtinString = SYCLUniqueStableIdExpr::ComputeName(Context, VD);
+  GV->addAttribute("sycl-unique-id", builtinString);
+  //GV->addAttribute("sycl-unique-id", "pink");
 }
 
 bool CodeGenModule::isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
@@ -4926,6 +4939,12 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   // Emit Intel FPGA attribute annotation for a file-scope static variable.
   if (getLangOpts().SYCLIsDevice)
     addGlobalIntelFPGAAnnotation(D, GV);
+
+  if (getLangOpts().SYCLIsDevice) {
+    const RecordDecl *RD = D->getType()->getAsRecordDecl();
+    if (RD && RD->hasAttr<SYCLDetailDeviceGlobalAttr>())
+      addSYCLUniqueID(GV, RD);
+  }
 
   if (D->getType().isRestrictQualified()) {
     llvm::LLVMContext &Context = getLLVMContext();

@@ -4056,6 +4056,32 @@ Sema::MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A) {
   return ::new (Context) SYCLIntelLoopFuseAttr(Context, A, A.getValue());
 }
 
+static void handleSYCLDetailDeviceGlobalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  //if (D->isATemplateDecl()) {
+  if (const auto *DeclAttr = D->getAttr<SYCLDetailDeviceGlobalAttr>()) {
+    auto *RD = dyn_cast<CXXRecordDecl>(D);
+    if (isa<FieldDecl>(RD) && !S.isUnevaluatedContext())
+      S.Diag(AL.getLoc(), diag::err_invalid_non_static_member_use) << AL;
+  }
+
+  D->addAttr(::new (S.Context) SYCLDetailDeviceGlobalAttr(S.Context, AL));
+}
+
+static void handleSYCLDetailGlobalVariableAllowedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+// Avoid diagnosing any erors here, simply accept the 
+  if (const auto *DeclAttr = D->getAttr<SYCLDetailGlobalVariableAllowedAttr>()) {
+    if (auto VD = dyn_cast<VarDecl>(D)) {
+        // avoid diagnosing error
+    }
+  }
+
+  D->addAttr(::new (S.Context) SYCLDetailGlobalVariableAllowedAttr(S.Context, AL));
+}
+
+/*static void handleSYCLUniqueIDAttr(Decl *D, const AttributeCommonInfo &CI,
+                          Expr *E) {
+}*/
+
 static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   // If no attribute argument is specified, set to default value '1'.
   Expr *E = A.isArgExpr(0)
@@ -10388,6 +10414,15 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
     handleSYCLIntelMaxGlobalWorkDimAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLDetailDeviceGlobal:
+    handleSYCLDetailDeviceGlobalAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLDetailGlobalVariableAllowed:
+    handleSYCLDetailGlobalVariableAllowedAttr(S, D, AL);
+    break;
+//  case ParsedAttr::AT_SYCLUniqueID:
+//    handleSYCLUniqueIDAttr(S, D, AL);
+//    break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     handleSYCLIntelNoGlobalWorkOffsetAttr(S, D, AL);
     break;
