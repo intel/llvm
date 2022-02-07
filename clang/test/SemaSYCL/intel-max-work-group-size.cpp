@@ -50,9 +50,9 @@ template <int X, int Y, int Z>
 
 void instantiate() {
   f6<1>(); // OK
-  // expected-warning@#f6 {{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
+  // expected-error@#f6 {{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
   f6<-1>(); // expected-note {{in instantiation}}
-  // expected-error@#f6 {{'max_work_group_size' attribute must be greater than 0}}
+  // expected-error@#f6 {{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
   f6<0>();       // expected-note {{in instantiation}}
   f7<1, 1, 1>(); // OK, args are the same on the redecl.
   // expected-warning@#f7 {{attribute 'max_work_group_size' is already applied with different arguments}}

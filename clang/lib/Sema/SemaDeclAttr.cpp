@@ -3451,27 +3451,28 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 // Handles max_work_group_size attribute.
-// If the declaration has a SYCLIntelMaxWorkGroupSizeAttr,
-// check to see if the attribute holds equal values (1, 1, 1).
-// Returns true if the attribute values are not equal to one.
-static bool InvalidWorkGroupSizeAttrs(const Expr *E, const Expr *E1,
-                                      const Expr *E2, const Expr *E3) {
+// If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on a
+// declaration along with [[intel::max_global_work_dim()]] attribute,
+// check to see if all arguments of [[intel::max_work_group_size(X, Y, Z)]]
+// attribute hold value 1 in case the argument of
+// [[intel::max_global_work_dim()]] attribute equals to 0.
+static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
+                                      const Expr *YDim, const Expr *ZDim) {
   // If any of the operand is still value dependent, we can't test anything.
-  const auto *CE = dyn_cast<ConstantExpr>(E);
-  const auto *CE1 = dyn_cast<ConstantExpr>(E1);
-  const auto *CE2 = dyn_cast<ConstantExpr>(E2);
-  const auto *CE3 = dyn_cast<ConstantExpr>(E3);
+  const auto *MGValueExpr = dyn_cast<ConstantExpr>(MGValue);
+  const auto *XDimExpr = dyn_cast<ConstantExpr>(XDim);
+  const auto *YDimExpr = dyn_cast<ConstantExpr>(YDim);
+  const auto *ZDimExpr = dyn_cast<ConstantExpr>(ZDim);
 
-  if (!CE || !CE1 || !CE2 || !CE3)
+  if (!MGValueExpr || !XDimExpr || !YDimExpr || !ZDimExpr)
     return false;
 
   // Otherwise, check if the attribute values are equal to one.
-  if (CE->getResultAsAPSInt() == 0 &&
-      (CE1->getResultAsAPSInt() != 1 || CE2->getResultAsAPSInt() != 1 ||
-       CE3->getResultAsAPSInt() != 1)) {
-    return true;
-  }
-  return false;
+  return (MGValueExpr->getResultAsAPSInt() == 0 &&
+          (XDimExpr->getResultAsAPSInt() != 1 ||
+           YDimExpr->getResultAsAPSInt() != 1 ||
+           ZDimExpr->getResultAsAPSInt() != 1));
+
 }
 
 void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
@@ -3489,17 +3490,10 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
         return nullptr;
       E = Res.get();
 
-      if (ArgVal.isNegative()) {
-        Diag(E->getExprLoc(),
-             diag::warn_attribute_requires_non_negative_integer_argument)
-            << E->getType() << Context.UnsignedLongLongTy
-            << E->getSourceRange();
-        return E;
-      }
-
-      if (ArgVal == 0) {
-        Diag(E->getExprLoc(), diag::err_attribute_argument_is_zero)
-            << CI << E->getSourceRange();
+      // This attribute requires a strictly positive value.
+      if (ArgVal <= 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << CI << /*positive*/ 0;
         return nullptr;
       }
     }

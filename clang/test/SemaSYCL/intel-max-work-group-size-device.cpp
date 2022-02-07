@@ -86,43 +86,17 @@ int main() {
     h.single_task<class test_kernel3>(
         []() { func_do_not_ignore(); });
 
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int -8
-    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // expected-warning@+2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
-    h.single_task<class test_kernel4>(
-        []() [[intel::max_work_group_size(8, 8, -8)]]{});
-
-    // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
-    // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int -8
-    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 8
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int -8
-    // CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-    // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
-    // expected-warning@+2 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
-    h.single_task<class test_kernel5>(
-        []() [[intel::max_work_group_size(-8, 8, -8)]]{});
 #ifdef TRIGGER_ERROR
+    h.single_task<class test_kernel4>(
+        []() [[intel::max_work_group_size(8, 8, -8)]]{}); // expected-error{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
+
+    h.single_task<class test_kernel5>(
+        []() [[intel::max_work_group_size(-8, 8, -8)]]{}); // expected-error 2{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
+
     [[intel::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}
 
     h.single_task<class test_kernel6>(
-        []() [[intel::max_work_group_size(0, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute must be greater than 0}}
+        []() [[intel::max_work_group_size(0, 1, 3)]]{}); // expected-error{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel7>(
         []() [[intel::max_work_group_size(1.2f, 1, 3)]]{}); // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
