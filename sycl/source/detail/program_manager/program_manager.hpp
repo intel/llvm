@@ -16,8 +16,8 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/spec_constant_impl.hpp>
 #include <detail/device_global_map_entry.hpp>
+#include <detail/spec_constant_impl.hpp>
 
 #include <cstdint>
 #include <map>

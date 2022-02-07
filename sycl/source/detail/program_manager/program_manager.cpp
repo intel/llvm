@@ -1139,7 +1139,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           auto Entry = m_DeviceGlobals.find(DeviceGlobal->Name);
           assert(Entry != m_DeviceGlobals.end() &&
                  "Device global has not been registered.");
-                 
+
           pi::ByteArray DeviceGlobalInfo =
               pi::DeviceBinaryProperty(DeviceGlobal).asByteArray();
           assert(DeviceGlobalInfo.size() > 13 && "Unexpected property size");
