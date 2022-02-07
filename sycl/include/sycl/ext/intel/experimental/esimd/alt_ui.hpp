@@ -18,13 +18,15 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @addtogroup sycl_esimd_misc
+/// @{
+
 /// "Merges" elements of the input vectors according to the merge mask.
 /// @param a the first vector
 /// @param b the second vector
 /// @param m the merge mask
 /// @return a vector, where each element equals to corresponding element from
 ///    \c a (if corresponding mask element is zero) or \c b (otherwise)
-/// \ingroup sycl_esimd
 template <class T, int N>
 __ESIMD_API simd<T, N> merge(simd<T, N> a, simd<T, N> b, simd_mask<N> m) {
   a.merge(b, m);
@@ -52,6 +54,8 @@ __ESIMD_API auto merge(simd_view<BaseT1, RegionT1> v1,
                        simd_mask<shape_type<RegionT1>::length> m) {
   return merge(v1.read(), v2.read(), m);
 }
+
+/// @} sycl_esimd_misc
 
 } // namespace esimd
 } // namespace experimental

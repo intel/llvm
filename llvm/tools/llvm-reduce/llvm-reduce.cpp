@@ -29,6 +29,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Target/TargetMachine.h"
 #include <system_error>
 #include <vector>
@@ -87,6 +88,12 @@ static cl::opt<InputLanguages>
 static cl::opt<std::string> TargetTriple("mtriple",
                                          cl::desc("Set the target triple"),
                                          cl::cat(Options));
+
+static cl::opt<int>
+    MaxPassIterations("max-pass-iterations",
+                      cl::desc("Maximum number of times to run the full set "
+                               "of delta passes (default=1)"),
+                      cl::init(1), cl::cat(Options));
 
 static codegen::RegisterCodeGenFlags CGF;
 
@@ -161,7 +168,7 @@ int main(int Argc, char **Argv) {
   TestRunner Tester(TestFilename, TestArguments, std::move(OriginalProgram));
 
   // Try to reduce code
-  runDeltaPasses(Tester);
+  runDeltaPasses(Tester, MaxPassIterations);
 
   // Print reduced file to STDOUT
   if (OutputFilename == "-")

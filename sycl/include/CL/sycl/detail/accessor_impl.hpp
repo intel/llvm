@@ -209,7 +209,7 @@ using Requirement = AccessorImplHost;
 
 void __SYCL_EXPORT addHostAccessorAndWait(Requirement *Req);
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::mode deduceAccessMode() {

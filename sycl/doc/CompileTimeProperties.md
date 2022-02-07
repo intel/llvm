@@ -1,12 +1,12 @@
 # Implementation design for compile time constant properties
 
 This document describes the implementation design for the DPC++ extension
-[SYCL\_EXT\_ONEAPI\_PROPERTY\_LIST][1], which adds a general mechanism for
+[SYCL\_EXT\_ONEAPI\_PROPERTIES][1], which adds a general mechanism for
 specifying properties which are known at compile time.  This extension is not
 itself a feature, but rather a building block that can be incorporated into
 other features.
 
-[1]: <extensions/PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc>
+[1]: <extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc>
 
 There are a number of situations where we plan to use compile-time constant
 properties, but this design document does not attempt to address them all.
@@ -40,7 +40,7 @@ One use for compile-time properties is with types that are used exclusively
 for declaring global variables.  One such example is the
 [SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL][2] extension:
 
-[2]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc>
+[2]: <extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc>
 
 ```
 namespace sycl::ext::oneapi {
@@ -148,7 +148,7 @@ kernel arguments.  For example, the [SYCL\_ONEAPI\_accessor\_properties][6]
 extension could be redesigned to use compile-time properties.  Such a redesign
 might look like:
 
-[6]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/accessor_properties/SYCL_ONEAPI_accessor_properties.asciidoc>
+[6]: <extensions/supported/SYCL_EXT_ONEAPI_ACCESSOR_PROPERTIES.asciidoc>
 
 ```
 namespace sycl {
@@ -174,10 +174,10 @@ using sycl::ext::oneapi;
 accessor acc(buf, cgh, property_list{no_alias_v, foo_v<32>});
 ```
 
-The implementation in the header file is similar to the previous case.  The
-C++ attribute `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
-decorates one of the member variables of the class, and the parameters to this
-attribute represent the properties.  As before, the initial parameters are the
+In the headers the C++ attribute
+`[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]` is used to decorate
+parameters of the `__init` member function in the corresponding
+`sycl_special_class` decorated class. As before, the initial parameters are the
 names of the properties and the subsequent parameters are the property values.
 
 ```
@@ -205,13 +205,18 @@ class __attribute__((sycl_special_class)) accessor<dataT,
                                                    accessTarget,
                                                    isPlaceholder,
                                                    property_list<Props...>> {
-  dataT *ptr
+  dataT *ptr;
+
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-    Props::meta_name..., Props::meta_value...
-    )]]
+  void __init(
+      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+        Props::meta_name..., Props::meta_value...
+        )]]
+      dataT *_ptr) {
+    ptr = _ptr;
+  }
 #endif
-  ;
+
 };
 
 } // namespace sycl
@@ -224,37 +229,37 @@ namespace sycl {
 
 template </* ... */>
 class __attribute__((sycl_special_class)) accessor</* ... */> {
-  dataT *ptr
+  dataT *ptr;
+
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-    "sycl-no-alias",  // Name of first property
-    "sycl-foo",       // Name of second property
-    nullptr,          // First property has no parameter
-    32                // Value of second property
-    )]]
+  void __init(
+      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+        "sycl-no-alias",  // Name of first property
+        "sycl-foo",       // Name of second property
+        nullptr,          // First property has no parameter
+        32                // Value of second property
+        )]]
+      dataT *_ptr) {
+    ptr = _ptr;
+  }
 #endif
-  ;
 };
 
 } // namespace sycl
 ```
 
-As the name implies, this C++ attribute is only used to decorate a member
-variable of a class type that is as SYCL "special class" (i.e. a class that is
-decorated with `__attribute__((sycl_special_class))`).  The device compiler
-front-end ignores the attribute when it is used in any other syntactic
-position.
-
-The device compiler front-end uses this attribute only when the class type
-containing the decorated member variable is the type of a kernel argument,
-and it silently ignores the attribute when the class is used in any other way.
+As the name implies, this C++ attribute is only used to decorate parameters of
+the `__init` member function of a class type that is as SYCL "special class"
+(i.e. a class that is decorated with `__attribute__((sycl_special_class))`).
+The device compiler front-end ignores the attribute when it is used in any
+other syntactic position.
 
 When the front-end creates a kernel argument from a SYCL "special class", it
-passes each member variable of the class as a separate kernel argument.  If the
-member variable is decorated with
+copies all parameters of the `__init` member function to the corresponding
+kernel function.  If a copied parameter is decorated with
 `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`, the front-end adds
-one LLVM IR attribute to the kernel function's parameter for each property in
-the list.  For example, this can be done by calling
+one LLVM IR attribute to the resulting kernel function parameter for each
+property in the list.  For example, this can be done by calling
 [`Function::addParamAttrs(unsigned ArgNo, const AttrBuilder &)`][7].  As
 before, the IR attributes are added as strings, so the front-end must convert
 the property value to a string if it is not already a string.
@@ -265,11 +270,11 @@ the property value to a string if it is not already a string.
 ## Properties on kernel functions
 
 Compile-time properties can also be used to decorate kernel functions as with
-the [SYCL\_EXT\_ONEAPI\_KERNEL\_PROPERTIES][8] extension.  There are two ways
-the application can specify these properties.  The first is by passing a
+the [SYCL\_EXT\_ONEAPI\_PROPERTIES][8] extension.  There are two ways the
+application can specify these properties.  The first is by passing a
 `property_list` parameter to the function that submits the kernel:
 
-[8]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/KernelProperties/KernelProperties.asciidoc>
+[8]: <extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc>
 
 ```
 namespace sycl {
@@ -337,12 +342,12 @@ class KernelSingleTaskWrapper<KernelType, property_list<Props...>> {
   KernelSingleTaskWrapper(KernelType k) : k(k) {}
 
 #ifdef __SYCL_DEVICE_ONLY__
-  __attribute__((sycl_kernel))
+  [[clang::sycl_kernel]]
   [[__sycl_detail__::add_ir_attributes_function(
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
-  void operator()() {k();}
+  void operator()() const {k();}
 };
 ```
 
@@ -361,7 +366,7 @@ string if it is not already a string.
 `handler::kernel_single_task()` with wrapper classes like
 `KernelSingleTaskWrapper`.  We believe this will not cause problems for the
 device compiler front-end because it recognizes kernel functions via the
-`__attribute__((sycl_kernel))` attribute, not by the name
+`[[clang::sycl_kernel]]` attribute, not by the name
 `handler::kernel_single_task()`.
 
 
@@ -658,13 +663,6 @@ class __attribute__((sycl_special_class)) accessor<dataT,
                                                    property_list<Props...>> {
     T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
-    [[__sycl_detail__::add_ir_attributes_kernel_parameter(
-
-      // The properties in this list are "kernel parameter attributes".
-      {"sycl-no-alias", "sycl-foo"},
-
-      Props::meta_name..., Props::meta_value...
-      )]]
     [[__sycl_detail__::add_ir_annotations_member(
 
       // The properties in this list are "member annotations".
@@ -674,6 +672,20 @@ class __attribute__((sycl_special_class)) accessor<dataT,
       )]]
 #endif
     ;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(
+      [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+
+        // The properties in this list are "kernel parameter attributes".
+        {"sycl-no-alias", "sycl-foo"},
+
+        Props::meta_name..., Props::meta_value...
+        )]]
+      dataT *_ptr) {
+    ptr = _ptr;
+  }
+#endif
   }
 ```
 

@@ -63,6 +63,22 @@ readMemoryOrderBitfield(pi_memory_order_capabilities bits) {
   return result;
 }
 
+inline std::vector<memory_scope>
+readMemoryScopeBitfield(pi_memory_scope_capabilities bits) {
+  std::vector<memory_scope> result;
+  if (bits & PI_MEMORY_SCOPE_WORK_ITEM)
+    result.push_back(memory_scope::work_item);
+  if (bits & PI_MEMORY_SCOPE_SUB_GROUP)
+    result.push_back(memory_scope::sub_group);
+  if (bits & PI_MEMORY_SCOPE_WORK_GROUP)
+    result.push_back(memory_scope::work_group);
+  if (bits & PI_MEMORY_SCOPE_DEVICE)
+    result.push_back(memory_scope::device);
+  if (bits & PI_MEMORY_SCOPE_SYSTEM)
+    result.push_back(memory_scope::system);
+  return result;
+}
+
 #ifndef __SYCL_DEVICE_ONLY__
 static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
   switch (order) {
