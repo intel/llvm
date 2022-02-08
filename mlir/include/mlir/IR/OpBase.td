@@ -1655,6 +1655,7 @@ class ArrayAttrBase<Pred condition, string summary> : Attr<condition, summary> {
   let returnType = [{ ::mlir::ArrayAttr }];
   let valueType = NoneType;
   let convertFromStorage = "$_self";
+  let constBuilderCall = "$_builder.getArrayAttr($0)";
 }
 
 def ArrayAttr : ArrayAttrBase<CPred<"$_self.isa<::mlir::ArrayAttr>()">,
@@ -1672,7 +1673,6 @@ class TypedArrayAttrBase<Attr element, string summary>: ArrayAttrBase<
                                SubstLeaves<"$_self", "attr", element.predicate>,
                             "; })">]>,
     summary> {
-  let constBuilderCall = "$_builder.getArrayAttr($0)";
 
   Attr elementAttr = element;
 }
@@ -2442,14 +2442,24 @@ class Op<Dialect dialect, string mnemonic, list<Trait> props = []> {
   // provided.
   bit skipDefaultBuilders = 0;
 
-  // Custom parser.
+  // Custom parser and printer.
+  // NOTE: These fields are deprecated in favor of `assemblyFormat` or
+  // `hasCustomAssemblyFormat`, and are slated for deletion.
   code parser = ?;
-
-  // Custom printer.
   code printer = ?;
 
   // Custom assembly format.
+  /// This field corresponds to a declarative description of the assembly format
+  /// for this operation. If populated, the `hasCustomAssemblyFormat` field is
+  /// ignored.
   string assemblyFormat = ?;
+  /// This field indicates that the operation has a custom assembly format
+  /// implemented in C++. When set to `1` a `parse` and `print` method are generated
+  /// on the operation class. The operation should implement these methods to
+  /// support the custom format of the operation. The methods have the form:
+  ///   * ParseResult parse(OpAsmParser &parser, OperationState &result)
+  ///   * void print(OpAsmPrinter &p)
+  bit hasCustomAssemblyFormat = 0;
 
   // A bit indicating if the operation has additional invariants that need to
   // verified (aside from those verified by other ODS constructs). If set to `1`,

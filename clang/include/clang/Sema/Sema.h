@@ -2457,6 +2457,8 @@ private:
   };
   /// The modules we're currently parsing.
   llvm::SmallVector<ModuleScope, 16> ModuleScopes;
+  /// The global module fragment of the current translation unit.
+  clang::Module *GlobalModuleFragment = nullptr;
 
   /// Namespace definitions that we will export when they finish.
   llvm::SmallPtrSet<const NamespaceDecl*, 8> DeferredExportedNamespaces;
@@ -4180,8 +4182,8 @@ public:
                                                 FunctionDecl *DefaultedFn);
 
   ExprResult CreateOverloadedArraySubscriptExpr(SourceLocation LLoc,
-                                                SourceLocation RLoc,
-                                                Expr *Base,Expr *Idx);
+                                                SourceLocation RLoc, Expr *Base,
+                                                MultiExprArg Args);
 
   ExprResult BuildCallToMemberFunction(Scope *S, Expr *MemExpr,
                                        SourceLocation LParenLoc,
@@ -4604,8 +4606,10 @@ public:
   /// such as checking whether a parameter was properly specified, or the
   /// correct number of arguments were passed, etc. Returns true if the
   /// attribute has been diagnosed.
-  bool checkCommonAttributeFeatures(const Decl *D, const ParsedAttr &A);
-  bool checkCommonAttributeFeatures(const Stmt *S, const ParsedAttr &A);
+  bool checkCommonAttributeFeatures(const Decl *D, const ParsedAttr &A,
+                                    bool SkipArgCountCheck = false);
+  bool checkCommonAttributeFeatures(const Stmt *S, const ParsedAttr &A,
+                                    bool SkipArgCountCheck = false);
 
   /// Determine if type T is a valid subject for a nonnull and similar
   /// attributes. By default, we look through references (the behavior used by
@@ -4618,6 +4622,9 @@ public:
                             const FunctionDecl *FD = nullptr);
   bool CheckAttrTarget(const ParsedAttr &CurrAttr);
   bool CheckAttrNoArgs(const ParsedAttr &CurrAttr);
+  bool checkStringLiteralArgumentAttr(const AttributeCommonInfo &CI,
+                                      const Expr *E, StringRef &Str,
+                                      SourceLocation *ArgLocation = nullptr);
   bool checkStringLiteralArgumentAttr(const ParsedAttr &Attr, unsigned ArgNum,
                                       StringRef &Str,
                                       SourceLocation *ArgLocation = nullptr);
@@ -5632,7 +5639,8 @@ public:
                                  tok::TokenKind Kind, Expr *Input);
 
   ExprResult ActOnArraySubscriptExpr(Scope *S, Expr *Base, SourceLocation LLoc,
-                                     Expr *Idx, SourceLocation RLoc);
+                                     MultiExprArg ArgExprs,
+                                     SourceLocation RLoc);
   ExprResult CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
                                              Expr *Idx, SourceLocation RLoc);
 
@@ -7680,9 +7688,15 @@ public:
   CheckStructuredBindingMemberAccess(SourceLocation UseLoc,
                                      CXXRecordDecl *DecomposedClass,
                                      DeclAccessPair Field);
+  AccessResult CheckMemberOperatorAccess(SourceLocation Loc, Expr *ObjectExpr,
+                                         const SourceRange &,
+                                         DeclAccessPair FoundDecl);
   AccessResult CheckMemberOperatorAccess(SourceLocation Loc,
                                          Expr *ObjectExpr,
                                          Expr *ArgExpr,
+                                         DeclAccessPair FoundDecl);
+  AccessResult CheckMemberOperatorAccess(SourceLocation Loc, Expr *ObjectExpr,
+                                         ArrayRef<Expr *> ArgExprs,
                                          DeclAccessPair FoundDecl);
   AccessResult CheckAddressOfMemberAccess(Expr *OvlExpr,
                                           DeclAccessPair FoundDecl);
