@@ -5,4 +5,4 @@
 // Verify that DICompileUnit points to a correct file and that a checksum is
 // created.
 //
-// CHECKSUM: !DIFile(filename: "{{.*}}debug-info-file-with-footer-checksum.cpp", directory: "{{.*}}", checksumkind: CSK_MD5, checksum: "4ddfae016bd245f6c31d2173ec10fb90")
+// CHECKSUM: !DIFile(filename: "{{.*}}debug-info-file-with-footer-checksum.cpp", directory: "{{.*}}", checksumkind: CSK_MD5, checksum: "b098f79abbebca5ecb403b38913d85ab")
