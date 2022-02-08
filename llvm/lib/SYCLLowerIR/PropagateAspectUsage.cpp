@@ -16,10 +16,13 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -237,28 +240,62 @@ void emitWarning(LLVMContext &C, const StringRef Msg) {
   C.diagnose(MissedAspectDiagnosticInfo(Msg));
 }
 
-std::string join(const AspectsSetTy &C, char sep) {
-  std::string S;
-  bool FirstOccurence = true;
-  for (int Aspect : C) {
-    if (!FirstOccurence) {
-      S += sep;
-      S += ' ';
-    }
+///
+struct AspectWithFunctionLinkTy {
+  int Aspect;
+  const Function *F = nullptr;
+  const DebugLoc *DL = nullptr;
 
-    FirstOccurence = false;
-    S += std::to_string(Aspect);
+  bool operator<(const AspectWithFunctionLinkTy &Rhs) const {
+    return Aspect < Rhs.Aspect;
   }
 
-  return S;
+  bool operator==(const AspectWithFunctionLinkTy &Rhs) const {
+    return Aspect == Rhs.Aspect;
+  }
+};
+
+using AspectWithFunctionLinkSetTy = SmallSet<AspectWithFunctionLinkTy, 4>;
+using FunctionToAspectsMapTy =
+    DenseMap<Function *, AspectWithFunctionLinkSetTy>;
+using CallGraphTy =
+    DenseMap<Function *, DenseMap<Function *, const DebugLoc *>>;
+
+void traverseAspectUsageChain(const Function *F,
+                              const FunctionToAspectsMapTy &Map, int Aspect,
+                              std::string &Msg) {
+  while (F) {
+    auto It = Map.find(F);
+    if (It == Map.end())
+      break;
+
+    auto &AspectsSet = It->second;
+    auto AspectIt =
+        std::find_if(AspectsSet.begin(), AspectsSet.end(),
+                     [Aspect](const auto &AspectWithFunctionLink) {
+                       return Aspect == AspectWithFunctionLink.Aspect;
+                     });
+    assert(AspectIt != AspectsSet.end() &&
+           "AspectIt is supposed to be determined");
+    const DebugLoc *DL = (*AspectIt).DL;
+    Msg += formatv("  {0}()", F->getName());
+    if (DL && *DL) {
+      Msg +=
+          formatv(" {0}:{1}:{2}", cast<DIScope>(DL->getScope())->getFilename(),
+                  DL->getLine(), DL->getCol());
+    }
+
+    Msg += "\n";
+    F = (*AspectIt).F;
+  }
 }
 
 /// Checks that all declared function's aspects correspond to the
 /// aspects set @Aspects. If there is a inconsistency then corresponding
 /// warning is emitted.
-template <class Container>
-void checkDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
-                                     const Container &UsedAspects) {
+void checkDeclaredAspectsForFunction(Function *F,
+                                     const FunctionToAspectsMapTy &Map,
+                                     bool isFullDebug) {
   MDNode *MDN = F->getMetadata("intel_declared_aspects");
   if (!MDN)
     return;
@@ -272,53 +309,55 @@ void checkDeclaredAspectsForFunction(LLVMContext &C, const Function *F,
         cast<const ConstantInt>(CAM->getValue())->getSExtValue());
   }
 
+  const AspectWithFunctionLinkSetTy &UsedAspects = Map.find(F)->second;
   AspectsSetTy MissedAspects;
-  for (int Aspect : UsedAspects) {
-    if (DeclaredAspects.count(Aspect) == 0)
-      MissedAspects.insert(Aspect);
+  for (AspectWithFunctionLinkTy A : UsedAspects) {
+    if (DeclaredAspects.count(A.Aspect) == 0)
+      MissedAspects.insert(A.Aspect);
   }
 
-  if (!MissedAspects.empty()) {
-    std::string AspectsStr = join(MissedAspects, ',');
+  LLVMContext &C = F->getContext();
+  for (int Aspect : MissedAspects) {
     // TODO: demangle function name and aspect's IDs?
     std::string Msg = formatv(
-        "for function \"{0}\" there is the list of missed aspects: [{1}]",
-        F->getName(), AspectsStr);
+        "function '{0}' uses aspect '{1}' not listed in 'sycl::requires()'\n"
+        "use is from this call chain:\n",
+        F->getName(), Aspect);
+
+    traverseAspectUsageChain(F, Map, Aspect, Msg);
+    if (!isFullDebug)
+      Msg += "compile with '-g' to get source location\n";
 
     emitWarning(C, Msg);
   }
 }
 
-using FunctionToAspectsMapTy = DenseMap<Function *, SmallSet<int, 4>>;
-using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
-
 void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
   for (auto &It : Map) {
     Function *F = It.first;
-    AspectsSetTy &Aspects = It.second;
+    AspectWithFunctionLinkSetTy &Aspects = It.second;
     if (Aspects.empty())
       continue;
 
     LLVMContext &C = F->getContext();
+    SmallVector<AspectWithFunctionLinkTy, 16> AspectsVector(Aspects.begin(),
+                                                            Aspects.end());
+    std::sort(AspectsVector.begin(), AspectsVector.end());
     SmallVector<Metadata *, 16> AspectsMetadata;
-    for (int Aspect : Aspects)
+    for (AspectWithFunctionLinkTy A : AspectsVector)
       AspectsMetadata.push_back(ConstantAsMetadata::get(
-          ConstantInt::getSigned(Type::getInt32Ty(C), Aspect)));
+          ConstantInt::getSigned(Type::getInt32Ty(C), A.Aspect)));
 
     MDNode *MDN = MDNode::get(C, AspectsMetadata);
     F->setMetadata("intel_used_aspects", MDN);
   }
 }
 
-void checkUsedAndDeclaredAspects(const FunctionToAspectsMapTy &Map) {
-  for (const auto &It : Map) {
-    const Function *F = It.first;
-    auto &Aspects = It.second;
-    if (Aspects.empty())
-      continue;
-
-    LLVMContext &C = F->getContext();
-    checkDeclaredAspectsForFunction(C, F, Aspects);
+void checkUsedAndDeclaredAspects(FunctionToAspectsMapTy &Map,
+                                 bool isFullDebug) {
+  for (auto &It : Map) {
+    Function *F = It.first;
+    checkDeclaredAspectsForFunction(F, Map, isFullDebug);
   }
 }
 
@@ -332,18 +371,71 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
   if (CG.count(F) == 0)
     return;
 
-  AspectsSetTy LocalAspects;
-  for (Function *Callee : CG[F]) {
+  AspectWithFunctionLinkSetTy LocalAspects;
+  for (auto Edge : CG[F]) {
+    Function *Callee = Edge.first;
     if (!Visited.contains(Callee)) {
       Visited.insert(Callee);
       propagateAspectsThroughCG(Callee, CG, AspectsMap, Visited);
     }
 
     auto &CalleeAspects = AspectsMap[Callee];
-    LocalAspects.insert(CalleeAspects.begin(), CalleeAspects.end());
+    for (auto It : CalleeAspects) {
+      LocalAspects.insert(
+          AspectWithFunctionLinkTy{It.Aspect, Callee, Edge.second});
+    }
   }
 
   AspectsMap[F].insert(LocalAspects.begin(), LocalAspects.end());
+}
+
+/// Processes function's instructions. It analyzes aspect usages with debug
+/// information and builds a call graph.
+void processFunctionInstructions(Function &F,
+                                 FunctionToAspectsMapTy &FunctionToAspects,
+                                 TypeToAspectsMapTy &TypesWithAspects,
+                                 CallGraphTy &CG) {
+  auto &AspectsWithFunctionLinkSet = FunctionToAspects[&F];
+  for (Instruction &I : instructions(F)) {
+    AspectsSetTy Aspects = getAspectsUsedByInstruction(I, TypesWithAspects);
+    for (int Aspect : Aspects) {
+      FunctionToAspects[&F].insert(
+          AspectWithFunctionLinkTy{Aspect, nullptr, &I.getDebugLoc()});
+    }
+
+    if (auto *DBI = dyn_cast<DbgVariableIntrinsic>(&I)) {
+      // Handle a group of llvm.dbg.{addr,declare,value} intrinsics.
+      // Example:
+      // %tmp = alloca %Struct
+      // call void @llvm.dbg.declare(metadata %Struct* %tmp, metadata !1,
+      // metadata !DIExpression), !dbg !2
+      //
+      // Here we extract the first intrinsic argument, then extract
+      // %Struct type, then analyze known aspects of %Struct and update
+      // corresponding aspect's records with debug information !dbg !2.
+      Type *T = DBI->getVariableLocationOp(0)->getType();
+      Aspects = getAspectsFromType(T, TypesWithAspects);
+      for (int Aspect : Aspects) {
+        AspectWithFunctionLinkTy AspectWithFunctionLink{Aspect};
+        auto It =
+            std::find(AspectsWithFunctionLinkSet.begin(),
+                      AspectsWithFunctionLinkSet.end(), AspectWithFunctionLink);
+        if (It == AspectsWithFunctionLinkSet.end())
+          continue;
+
+        AspectWithFunctionLink = *It;
+        AspectsWithFunctionLinkSet.erase(AspectWithFunctionLink);
+        AspectWithFunctionLink.DL = &I.getDebugLoc();
+        AspectsWithFunctionLinkSet.insert(AspectWithFunctionLink);
+      }
+
+      continue;
+    }
+
+    if (CallInst *CI = dyn_cast<CallInst>(&I))
+      if (!CI->isIndirectCall())
+        CG[&F].try_emplace(CI->getCalledFunction(), &CI->getDebugLoc());
+  }
 }
 
 /// Returns a map of functions with corresponding used aspects.
@@ -360,13 +452,7 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
     if (CC == CallingConv::SPIR_KERNEL)
       Kernels.push_back(&F);
 
-    for (Instruction &I : instructions(F)) {
-      AspectsSetTy Aspects = getAspectsUsedByInstruction(I, TypesWithAspects);
-      FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
-      if (CallInst *CI = dyn_cast<CallInst>(&I))
-        if (!CI->isIndirectCall())
-          CG[&F].insert(CI->getCalledFunction());
-    }
+    processFunctionInstructions(F, FunctionToAspects, TypesWithAspects, CG);
   }
 
   SmallPtrSet<Function *, 16> Visited;
@@ -374,6 +460,17 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
     propagateAspectsThroughCG(F, CG, FunctionToAspects, Visited);
 
   return FunctionToAspects;
+}
+
+/// Checks whether module @M contains !DICompileUnit node
+/// with emissionKind equal to FullDebug
+bool checkModuleHasFullDebugMode(Module &M) {
+  for (DICompileUnit *CU : M.debug_compile_units()) {
+    if (CU->getEmissionKind() == DICompileUnit::DebugEmissionKind::FullDebug)
+      return true;
+  }
+
+  return false;
 }
 
 } // anonymous namespace
@@ -387,7 +484,8 @@ PreservedAnalyses PropagateAspectUsagePass::run(Module &M,
       buildFunctionsToAspectsMap(M, TypesWithAspects);
 
   createUsedAspectsMetadataForFunctions(FunctionToAspects);
-  checkUsedAndDeclaredAspects(FunctionToAspects);
+  checkUsedAndDeclaredAspects(FunctionToAspects,
+                              checkModuleHasFullDebugMode(M));
 
   return PreservedAnalyses::all();
 }
