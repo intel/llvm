@@ -1669,7 +1669,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     cl::sycl::detail::pi::assertion(
         hipGetDeviceProperties(&props, device->get()) == hipSuccess);
 #if defined(__HIP_PLATFORM_NVIDIA__)
-    s << "Compute Capability " << major << "." << minor;
+    s << "Compute Capability " << props.major << "." << props.minor;
 #elif defined(__HIP_PLATFORM_AMD__)
     s << props.gcnArchName;
 #else
