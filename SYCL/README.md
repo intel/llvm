@@ -149,6 +149,7 @@ unavailable.
  * **aoc**, **ocloc**, **opencl-aot** - Specific AOT tool availability;
  * **level_zero_dev_kit** - Level_Zero headers and libraries availability;
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
+ * **gpu-intel-pvc** - Intel GPU PVC availability;
  * **dump_ir**: - compiler can / cannot dump IR;
 
 ## llvm-lit parameters
@@ -171,6 +172,9 @@ configure specific single test execution in the command line:
    device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
    SYCL_DEVICE_FILTER to get proper configuration (see
    [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
+ * **gpu-intel-pvc** - tells LIT infra that Intel GPU PVC is present in the
+   system. It is developer / CI infra responsibility to make sure that the
+   device is available in the system.
  * **extra_environment** - comma-separated list of variables with values to be
    added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
    in cmake.
