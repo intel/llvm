@@ -373,11 +373,11 @@ public:
 
   /// Merges given two objects with a mask and writes resulting data into this
   /// object.
-  /// @param Val1 The first object, provides elements for lanes with zero
+  /// @param Val1 The first object, provides elements for lanes with non-zero
   ///   corresponding predicates.
-  /// @param Val2 The second object, provides elements for lanes with non-zero
+  /// @param Val2 The second object, provides elements for lanes with zero
   ///   corresponding predicates.
-  /// @param Mask The mask.
+  /// @param Mask The merge mask.
   void merge(const Derived &Val1, Derived Val2, const simd_mask_type<N> &Mask) {
     Val2.merge(Val1, Mask);
     set(Val2.data());
