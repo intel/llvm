@@ -407,7 +407,7 @@ void processFunctionInstructions(Function &F,
       // Example:
       // %tmp = alloca %Struct
       // call void @llvm.dbg.declare(metadata %Struct* %tmp, metadata !1,
-      // metadata !DIExpression), !dbg !2
+      //                             metadata !DIExpression), !dbg !2
       //
       // Here we extract the first intrinsic argument, then extract
       // %Struct type, then analyze known aspects of %Struct and update
@@ -431,9 +431,10 @@ void processFunctionInstructions(Function &F,
       continue;
     }
 
-    if (auto *CI = dyn_cast<CallInst>(&I))
-      if (!CI->isIndirectCall())
+    if (auto *CI = dyn_cast<CallInst>(&I)) {
+      if (!CI->isIndirectCall() && CI->getCalledFunction())
         CG[&F].try_emplace(CI->getCalledFunction(), &CI->getDebugLoc());
+    }
   }
 }
 
