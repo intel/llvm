@@ -1562,11 +1562,7 @@ ESIMD_NODEBUG
 
   Result.merge(T(0.0), TooBig);
   Result.merge(T(ESIMD_HDR_CONST_PI) - Result, Neg);
-
-  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return Result;
-  else
-    return esimd::saturate<T>(Result);
+  return Result;
 }
 
 template <typename T>
@@ -1588,11 +1584,7 @@ ESIMD_NODEBUG
       T(ESIMD_HDR_CONST_PI / 2.0) - esimd::acos(esimd::abs(src0));
 
   Result.merge(-Result, Neg);
-
-  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return Result;
-  else
-    return esimd::saturate<T>(Result);
+  return Result;
 }
 
 template <typename T>
