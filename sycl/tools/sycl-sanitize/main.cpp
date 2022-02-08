@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "launch.hpp"
 #include "llvm/Support/CommandLine.h"
 
+#include <iostream>
 #include <string>
 
 using namespace llvm;

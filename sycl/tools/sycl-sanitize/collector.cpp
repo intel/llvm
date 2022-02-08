@@ -181,8 +181,8 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
 }
 
 XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
-                                  xpti::trace_event_data_t *Parent,
-                                  xpti::trace_event_data_t *Event,
+                                  xpti::trace_event_data_t *,
+                                  xpti::trace_event_data_t *,
                                   uint64_t /*Instance*/, const void *UserData) {
   auto *Payload = xptiQueryPayloadByUID(xptiGetUniversalId());
 
