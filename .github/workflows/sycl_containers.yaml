@@ -89,11 +89,11 @@ jobs:
             ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest-${{ github.sha }}
             ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest
           build-args: |
-            compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux.compute_runtime.tag}}
-            igc_tag=${{fromJson(steps.deps.outputs.deps).linux.igc.tag}}
-            tbb_tag=${{fromJson(steps.deps.outputs.deps).linux.tbb.tag}}
-            fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux.fpgaemu.tag}}
-            cpu_tag=${{fromJson(steps.deps.outputs.deps).linux.oclcpu.tag}}
+            compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux.compute_runtime.github_tag}}
+            igc_tag=${{fromJson(steps.deps.outputs.deps).linux.igc.github_tag}}
+            tbb_tag=${{fromJson(steps.deps.outputs.deps).linux.tbb.github_tag}}
+            fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux.fpgaemu.github_tag}}
+            cpu_tag=${{fromJson(steps.deps.outputs.deps).linux.oclcpu.github_tag}}
 
   # This job produces a Docker container with the latest versions of Intel
   # drivers, that can be found on GitHub.
