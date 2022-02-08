@@ -365,6 +365,80 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
     EntryPointsGroups[GLOBAL_SCOPE_NAME] = {};
 }
 
+// For device global variables with the 'device_image_scope' property,
+// the function checks that there are no usages of a single device global
+// variable from kernels grouped to different modules.
+void checkImageScopedDeviceGlobals(const Module &M,
+                                   const EntryPointGroupMap &GMap) {
+  // Early exit if there is only one group
+  if (GMap.size() < 2)
+    return;
+
+  // Reverse the EntryPointGroupMap to get a map of entry point -> module's name
+  unsigned EntryPointNumber = 0;
+  for (const auto &Group : GMap) {
+    EntryPointNumber += static_cast<unsigned>(Group.second.size());
+  }
+  DenseMap<const Function *, const StringRef *> EntryPointModules(
+      EntryPointNumber);
+  for (const auto &Group : GMap) {
+    auto *ModuleName = &Group.first;
+    for (const auto *F : Group.second) {
+      EntryPointModules.insert({F, ModuleName});
+    }
+  }
+
+  // Processing device global variables with the "device_image_scope" property
+  for (auto &GV : M.globals()) {
+    if (!isDeviceGlobalVariable(GV) || !hasDeviceImageScopeProperty(GV))
+      continue;
+
+    const StringRef *VarEntryPointModule = nullptr;
+    auto CheckEntryPointModule = [&VarEntryPointModule, &EntryPointModules,
+                                  &GV](const auto *F) {
+      auto EntryPointModulesIt = EntryPointModules.find(F);
+      assert(EntryPointModulesIt != EntryPointModules.end()
+             && "There is no group for an entry point");
+      if (VarEntryPointModule == nullptr) {
+        VarEntryPointModule = EntryPointModulesIt->second;
+        return;
+      }
+      if (EntryPointModulesIt->second != VarEntryPointModule) {
+        error("device_global variable '" + Twine(GV.getName()) +
+              "' with property \"device_image_scope\" is contained in more "
+              "than one device image.");
+      }
+    };
+
+    SmallVector<const User *, 32> Workqueue;
+    SmallPtrSet<const User *, 32> Visited;
+    for (auto *U : GV.users())
+      Workqueue.push_back(U);
+
+    while (!Workqueue.empty()) {
+      const User *U = Workqueue.back();
+      Workqueue.pop_back();
+      if (!Visited.insert(U).second)
+        continue;
+      if (auto *I = dyn_cast<const Instruction>(U)) {
+        auto *F = I->getFunction();
+        if (!Visited.contains(F))
+          Workqueue.push_back(F);
+      } else {
+        if (auto *F = dyn_cast<const Function>(U)) {
+          if (isEntryPoint(*F)) {
+            CheckEntryPointModule(F);
+          }
+        }
+        for (auto *UU : U->users()) {
+          if (!Visited.contains(UU))
+            Workqueue.push_back(UU);
+        }
+      }
+    }
+  }
+}
+
 // This function traverses over reversed call graph by BFS algorithm.
 // It means that an edge links some function @func with functions
 // which contain call of function @func. It starts from
@@ -415,7 +489,7 @@ TraverseCGToFindSPIRKernels(const Function *StartingFunction) {
 }
 
 std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
-  auto DevicelibAssertFailFunction = M.getFunction("__devicelib_assert_fail");
+  auto *DevicelibAssertFailFunction = M.getFunction("__devicelib_assert_fail");
   if (!DevicelibAssertFailFunction)
     return {};
 
@@ -478,18 +552,25 @@ extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
     const Function *F = &*Workqueue.back();
     Workqueue.pop_back();
     for (const auto &I : instructions(F)) {
-      if (const CallBase *CB = dyn_cast<CallBase>(&I))
-        if (const Function *CF = CB->getCalledFunction())
+      if (const CallBase *CB = dyn_cast<CallBase>(&I)) {
+        if (const Function *CF = CB->getCalledFunction()) {
           if (!CF->isDeclaration() && !GVs.count(CF)) {
             GVs.insert(CF);
             Workqueue.push_back(CF);
           }
+        }
+      }
     }
   }
 
   // It's not easy to trace global variable's uses inside needed functions
   // because global variable can be used inside a combination of operators, so
   // mark all global variables as needed and remove dead ones after cloning.
+  // Notice. For device global variables with the 'device_image_scope' property,
+  // removing dead ones is a must, the 'checkImageScopedDeviceGlobals' function
+  // checks that there are no usages of a single device global variable with the
+  // 'device_image_scope' property from multiple modules and the splitter must
+  // not add such usages after the check.
   for (const auto &G : M.globals()) {
     GVs.insert(&G);
   }
@@ -731,6 +812,8 @@ public:
                  EntryPointsGroupScope Scope)
       : InputModule(std::move(M)), IsSplit(Split) {
     groupEntryPoints(*InputModule, GMap, Scope);
+    if (DeviceGlobals)
+      checkImageScopedDeviceGlobals(*InputModule, GMap);
     assert(!GMap.empty() && "Entry points group map is empty!");
     GMapIt = GMap.cbegin();
   }
@@ -745,9 +828,9 @@ public:
     ++GMapIt;
 
     std::unique_ptr<Module> SplitModule{nullptr};
-    if (IsSplit && !SplitModuleEntryPoints.empty())
+    if (IsSplit && !SplitModuleEntryPoints.empty()) {
       SplitModule = extractCallGraph(*InputModule, SplitModuleEntryPoints);
-    else {
+    } else {
       assert(GMap.size() == 1 && "Too many entry points groups in map!");
       SplitModule = std::move(InputModule);
     }
