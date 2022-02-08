@@ -26,9 +26,9 @@ __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
                                   const device &dev, const context &ctxt,
                                   usm::alloc kind,
                                   const property_list &propList,
-                                  const detail::code_location CodeLoc );
+                                  const detail::code_location CodeLoc);
 __SYCL_EXPORT void free(void *ptr, const context &ctxt,
-                        const detail::code_location CodeLoc );
+                        const detail::code_location CodeLoc);
 
 template <typename T, usm::alloc AllocKind, size_t Alignment = alignof(T)>
 class usm_allocator {
@@ -77,12 +77,12 @@ public:
   /// Allocates memory.
   ///
   /// \param NumberOfElements is a count of elements to allocate memory for.
-  T *allocate(size_t NumberOfElements, const detail::code_location CodeLoc  =
+  T *allocate(size_t NumberOfElements, const detail::code_location CodeLoc =
                                            detail::code_location::current()) {
 
     auto Result = reinterpret_cast<T *>(
         aligned_alloc(getAlignment(), NumberOfElements * sizeof(value_type),
-                      MDevice, MContext, AllocKind, MPropList, CodeLoc ));
+                      MDevice, MContext, AllocKind, MPropList, CodeLoc));
     if (!Result) {
       throw memory_allocation_error();
     }
@@ -95,9 +95,9 @@ public:
   /// \param Size is a number of elements previously passed to allocate.
   void deallocate(
       T *Ptr, size_t,
-      const detail::code_location CodeLoc  = detail::code_location::current()) {
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     if (Ptr) {
-      free(Ptr, MContext, CodeLoc );
+      free(Ptr, MContext, CodeLoc);
     }
   }
 
