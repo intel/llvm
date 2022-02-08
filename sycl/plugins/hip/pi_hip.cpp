@@ -1664,7 +1664,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "PI 0.0");
+                   "PI " _PI_H_VERSION_STRING);
   }
   case PI_DEVICE_INFO_OPENCL_C_VERSION: {
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
