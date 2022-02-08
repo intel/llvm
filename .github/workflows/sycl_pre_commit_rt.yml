@@ -23,6 +23,7 @@ jobs:
         mkdir exp
         CC=clang CXX=clang++ python3 llvm/buildbot/configure.py \
           -t Debug -o ./exp --cmake-opt="-DSYCL_ENABLE_COVERAGE=ON" --no-werror
+        export LD_LIBRARY_PATH=$PWD/exp/lib:$LD_LIBRARY_PATH
         cd exp
         ninja check-sycl-unittests
         cd ..
@@ -43,6 +44,7 @@ jobs:
         CC=clang CXX=clang++ python3 llvm/buildbot/configure.py \
           -t Debug -o ./ref --cmake-opt="-DSYCL_ENABLE_COVERAGE=ON" --no-werror
         cd exp
+        export LD_LIBRARY_PATH=$PWD/ref/lib:$LD_LIBRARY_PATH
         ninja check-sycl-unittests
         cd ..
         python3 ./llvm/llvm/utils/prepare-code-coverage-artifact.py \
