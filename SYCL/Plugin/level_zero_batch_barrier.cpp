@@ -21,10 +21,6 @@ void submit_kernel(queue &q) {
 int main(int argc, char *argv[]) {
   queue q;
 
-  submit_kernel(q); // this one will immediatelly execute since q is empty
-                    // CHECK: ---> piEnqueueKernelLaunch
-                    // CHECK: ZE ---> zeCommandQueueExecuteCommandLists
-
   submit_kernel(q); // starts a batch
                     // CHECK: ---> piEnqueueKernelLaunch
                     // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
