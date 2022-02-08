@@ -1,4 +1,4 @@
-# SYCL Runtime and Device Headers Testing BKMs
+# SYCL Runtime and Device Headers Testing Guidelines
 
 ## SYCL Host Runtime Testing
 
@@ -38,7 +38,7 @@ of a low-level runtime.
 
 > If a pull request adds new API, that may throw an exception, it must also
 > contain a unit test with exception path covered. In case exception depends
-> on low-level runtime call resul, use PI Mock to simulate faulty call.
+> on low-level runtime call result, use PI Mock to simulate faulty call.
 
 ### Device Image Mock
 
@@ -48,7 +48,7 @@ binary device code, including kernel names and some metadata passed from the
 compiler frontend.
 
 `helpers/PIImage.hpp` header provides routines to insert a fake device image
-into Program Manager, and emulate precense of particular kernels.
+into Program Manager, and emulate presence of particular kernels.
 
 In the default compiler flow, Clang generates a so-called integration header,
 which contains information about available kernels. When compiling unit tests,
