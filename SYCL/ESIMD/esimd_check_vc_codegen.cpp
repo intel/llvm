@@ -1,4 +1,4 @@
-//==---------------- vadd_2d_acc.cpp  - DPC++ ESIMD on-device test ---------==//
+//==-------- esimd_check_vc_codegen.cpp - DPC++ ESIMD on-device test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,15 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-
 // UNSUPPORTED: cuda || hip
-// TODO: esimd_emulator fails due to unimplemented __esimd_oword_ld_unaligned
-// XFAIL: esimd_emulator
-
-// The test checks that 2D workitem addressing works correctly with SIMD
-// kernels.
+// esimd_emulator does not support online-compiler that invokes 'piProgramBuild'
+// UNSUPPORTED: esimd_emulator
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 
 #include "esimd_test_utils.hpp"
 
@@ -33,7 +29,7 @@ int main(void) {
   float *C = new float[Size];
 
   for (unsigned i = 0; i < Size; ++i) {
-    A[i] = B[i] = i + 1;
+    A[i] = B[i] = i;
     C[i] = 0.0f;
   }
 
@@ -43,17 +39,14 @@ int main(void) {
     buffer<float, 1> bufc(C, range<1>(Size));
 
     // We need that many workgroups
-    cl::sycl::range<2> GlobalRange{Size / (16 * VL), 16};
+    range<1> GlobalRange{Size / VL};
 
     // We need that many threads in each group
-    cl::sycl::range<2> LocalRange{4, 4};
-
-    cl::sycl::nd_range<2> Range(GlobalRange, LocalRange);
+    range<1> LocalRange{1};
 
     queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
     auto dev = q.get_device();
-    auto ctxt = q.get_context();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
     auto e = q.submit([&](handler &cgh) {
@@ -61,12 +54,8 @@ int main(void) {
       auto PB = bufb.get_access<access::mode::read>(cgh);
       auto PC = bufc.get_access<access::mode::write>(cgh);
       cgh.parallel_for<class Test>(
-          Range, [=](nd_item<2> ndi) SYCL_ESIMD_KERNEL {
+          GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::experimental::esimd;
-            int gid = ndi.get_group_linear_id();
-            int lid = ndi.get_local_linear_id();
-
-            int i = gid * 16 + lid;
             unsigned int offset = i * VL * sizeof(float);
             simd<float, VL> va;
             va.copy_from(PA, offset);
@@ -77,8 +66,12 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (sycl::exception e) {
-    std::cerr << "SYCL exception caught: " << e.what() << "\n";
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+
+    delete[] A;
+    delete[] B;
+    delete[] C;
     return 1;
   }
 
@@ -105,3 +98,7 @@ int main(void) {
   std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
   return err_cnt > 0 ? 1 : 0;
 }
+
+// CHECK: ---> piProgramBuild(
+// CHECK: <const char *>: {{.*}}-vc-codegen
+// CHECK: ) ---> pi_result : PI_SUCCESS

@@ -9,6 +9,8 @@
 // RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda || hip
+// TODO online_compiler check fails for esimd_emulator
+// XFAIL: esimd_emulator
 
 #include <cstdint>
 

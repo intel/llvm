@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
+// TODO: esimd_emulator fails due to unimplemented 'single_task()' method
+// XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //

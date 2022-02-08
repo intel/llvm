@@ -9,6 +9,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda || hip
+// TODO: esimd_emulator fails due to unimplemented __esimd_scatter4_scaled
+// XFAIL: esimd_emulator
 
 #include "esimd_test_utils.hpp"
 

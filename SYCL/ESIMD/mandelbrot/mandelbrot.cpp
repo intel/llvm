@@ -8,6 +8,8 @@
 
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
+// TODO: esimd_emulator fails due to outdated __esimd_media_st
+// XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %T/output.ppm %S/golden_hw.ppm
 

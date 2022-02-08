@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
+// TODO: esimd_emulator fails due to unimplemented __esimd_oword_ld_unaligned
+// XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #include "esimd_test_utils.hpp"
 
@@ -96,7 +98,3 @@ int main(void) {
   std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
   return err_cnt > 0 ? 1 : 0;
 }
-
-// CHECK: ---> piProgramBuild(
-// CHECK: <const char *>: {{.*}}-vc-codegen
-// CHECK: ) ---> pi_result : PI_SUCCESS
