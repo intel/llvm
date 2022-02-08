@@ -1450,6 +1450,17 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     cl::sycl::detail::pi::assertion(
         hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH, device->get()) ==
         hipSuccess);
+
+    // On AMD GPUs hipDeviceGetName returns an empty string, so return the arch
+    // name instead, this is also what AMD OpenCL devices return.
+    if (strlen(name) == 0) {
+      hipDeviceProp_t props;
+      cl::sycl::detail::pi::assertion(
+          hipGetDeviceProperties(&props, device->get()) == hipSuccess);
+
+      return getInfoArray(strlen(props.gcnArchName) + 1, param_value_size,
+                          param_value, param_value_size_ret, props.gcnArchName);
+    }
     return getInfoArray(strlen(name) + 1, param_value_size, param_value,
                         param_value_size_ret, name);
   }
