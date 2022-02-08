@@ -113,6 +113,16 @@ template <int N>
 template <int N>
 [[intel::max_global_work_dim(0)]] void func12();
 
+template <int N>
+[[intel::max_global_work_dim(0)]] void func13();
+template <int N>
+[[intel::max_work_group_size(N, N, N)]] void func13(); // expected-error {{all 'max_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+
+template <int N>
+[[intel::max_global_work_dim(0)]] void func14();
+template <int N>
+[[intel::max_work_group_size(N, N, N)]] void func14();
+
 int check() {
   func3<3>();  // OK
   func3<-1>(); // expected-note {{in instantiation of function template specialization 'func3<-1>' requested here}}
@@ -125,13 +135,13 @@ int check() {
   func10<1>(); // OK
   func11<1>(); // OK
   func12<1>(); // OK
+  func13<6>(); // expected-note {{in instantiation of function template specialization 'func13<6>' requested here}}
+  func14<1>(); // OK
   return 0;
 }
 
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
-[[intel::max_global_work_dim(2)]]
-[[intel::max_global_work_dim(2)]] void func13() {}
-
+[[intel::max_global_work_dim(2)]] [[intel::max_global_work_dim(2)]] void func15() {}
 // CHECK: FunctionDecl {{.*}} {{.*}} func3 'void ()'
 // CHECK: TemplateArgument integral 3
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}
@@ -141,7 +151,7 @@ int check() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
 
-// CHECK: FunctionDecl {{.*}} {{.*}} func13 'void ()'
+// CHECK: FunctionDecl {{.*}} {{.*}} func15 'void ()'
 // CHECK: SYCLIntelMaxGlobalWorkDimAttr {{.*}}
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 2

@@ -290,16 +290,9 @@ void CommandMangler::adjust(std::vector<std::string> &Cmd,
     TransferCmd.CommandLine = std::move(Cmd);
     TransferCmd = transferCompileCommand(std::move(TransferCmd), File);
     Cmd = std::move(TransferCmd.CommandLine);
-
-    // Restore the canonical "driver --opts -- filename" form we expect.
-    // FIXME: This is ugly and coupled. Make transferCompileCommand ensure it?
-    assert(!Cmd.empty() && Cmd.back() == File);
-    Cmd.pop_back();
-    if (!Cmd.empty() && Cmd.back() == "--")
-      Cmd.pop_back();
-    assert(!llvm::is_contained(Cmd, "--"));
-    Cmd.push_back("--");
-    Cmd.push_back(File.str());
+    assert(Cmd.size() >= 2 && Cmd.back() == File &&
+           Cmd[Cmd.size() - 2] == "--" &&
+           "TransferCommand should produce a command ending in -- filename");
   }
 
   for (auto &Edit : Config::current().CompileFlags.Edits)
@@ -470,12 +463,25 @@ llvm::ArrayRef<ArgStripper::Rule> ArgStripper::rulesFor(llvm::StringRef Arg) {
 #define PREFIX(NAME, VALUE) static const char *const NAME[] = VALUE;
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELP, METAVAR, VALUES)                                          \
-  if (DriverID::OPT_##ALIAS != DriverID::OPT_INVALID && ALIASARGS == nullptr)  \
-    AddAlias(DriverID::OPT_##ID, DriverID::OPT_##ALIAS);                       \
   Prefixes[DriverID::OPT_##ID] = PREFIX;
 #include "clang/Driver/Options.inc"
 #undef OPTION
 #undef PREFIX
+
+    struct {
+      DriverID ID;
+      DriverID AliasID;
+      void *AliasArgs;
+    } AliasTable[] = {
+#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
+               HELP, METAVAR, VALUES)                                          \
+  {DriverID::OPT_##ID, DriverID::OPT_##ALIAS, (void *)ALIASARGS},
+#include "clang/Driver/Options.inc"
+#undef OPTION
+    };
+    for (auto &E : AliasTable)
+      if (E.AliasID != DriverID::OPT_INVALID && E.AliasArgs == nullptr)
+        AddAlias(E.ID, E.AliasID);
 
     auto Result = std::make_unique<TableTy>();
     // Iterate over distinct options (represented by the canonical alias).

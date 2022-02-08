@@ -257,6 +257,14 @@ and not recommended to use in production environment.
     options (e.g. -c, -E, -S) may interfere with the expected output set during
     the host compilation.  Doing so is considered undefined behavior.
 
+**`-fsycl-fp32-prec-sqrt`**
+
+    Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
+    Without this flag, the default precision requirement for `sycl::sqrt` is 3
+    ULP.
+
+    NOTE: This flag is currently only supported with the CUDA and HIP targets.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.

@@ -16,6 +16,7 @@
 #include <detail/platform_impl.hpp>
 
 #include <memory>
+#include <mutex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -226,6 +227,8 @@ public:
   bool isAssertFailSupported() const;
 
   bool isRootDevice() const { return MRootDevice == nullptr; }
+  
+  std::string getDeviceName() const;
 
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
@@ -236,6 +239,8 @@ private:
   bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;
+  mutable std::string MDeviceName;
+  mutable std::once_flag MDeviceNameFlag;
 }; // class device_impl
 
 } // namespace detail

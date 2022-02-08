@@ -106,8 +106,8 @@ private:
     auto HeaderContent = G.allocateString(
         StringRef(reinterpret_cast<const char *>(&Hdr), sizeof(Hdr)));
 
-    return G.createContentBlock(HeaderSection, HeaderContent,
-                                orc::ExecutorAddr(), 8, 0);
+    return G.createContentBlock(HeaderSection, HeaderContent, ExecutorAddr(), 8,
+                                0);
   }
 
   static MaterializationUnit::Interface
@@ -202,6 +202,8 @@ Error MachOPlatform::setupJITDylib(JITDylib &JD) {
   return JD.define(std::make_unique<MachOHeaderMaterializationUnit>(
       *this, MachOHeaderStartSymbol));
 }
+
+Error MachOPlatform::teardownJITDylib(JITDylib &JD) { return Error::success(); }
 
 Error MachOPlatform::notifyAdding(ResourceTracker &RT,
                                   const MaterializationUnit &MU) {
@@ -380,9 +382,14 @@ void MachOPlatform::getInitializersLookupPhase(
     SendInitializerSequenceFn SendResult, JITDylib &JD) {
 
   auto DFSLinkOrder = JD.getDFSLinkOrder();
+  if (!DFSLinkOrder) {
+    SendResult(DFSLinkOrder.takeError());
+    return;
+  }
+
   DenseMap<JITDylib *, SymbolLookupSet> NewInitSymbols;
   ES.runSessionLocked([&]() {
-    for (auto &InitJD : DFSLinkOrder) {
+    for (auto &InitJD : *DFSLinkOrder) {
       auto RISItr = RegisteredInitSymbols.find(InitJD.get());
       if (RISItr != RegisteredInitSymbols.end()) {
         NewInitSymbols[InitJD.get()] = std::move(RISItr->second);
@@ -395,7 +402,7 @@ void MachOPlatform::getInitializersLookupPhase(
   // phase.
   if (NewInitSymbols.empty()) {
     getInitializersBuildSequencePhase(std::move(SendResult), JD,
-                                      std::move(DFSLinkOrder));
+                                      std::move(*DFSLinkOrder));
     return;
   }
 
@@ -880,10 +887,13 @@ Error MachOPlatform::MachOPlatformPlugin::registerEHAndTLVSections(
   if (auto *EHFrameSection = G.findSectionByName(EHFrameSectionName)) {
     jitlink::SectionRange R(*EHFrameSection);
     if (!R.empty())
-      G.allocActions().push_back({{MP.orc_rt_macho_register_ehframe_section,
-                                   R.getStart(), R.getSize()},
-                                  {MP.orc_rt_macho_deregister_ehframe_section,
-                                   R.getStart(), R.getSize()}});
+      G.allocActions().push_back(
+          {cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   MP.orc_rt_macho_register_ehframe_section, R.getRange())),
+           cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   MP.orc_rt_macho_deregister_ehframe_section, R.getRange()))});
   }
 
   // Get a pointer to the thread data section if there is one. It will be used
@@ -913,10 +923,13 @@ Error MachOPlatform::MachOPlatformPlugin::registerEHAndTLVSections(
                                        inconvertibleErrorCode());
 
       G.allocActions().push_back(
-          {{MP.orc_rt_macho_register_thread_data_section, R.getStart(),
-            R.getSize()},
-           {MP.orc_rt_macho_deregister_thread_data_section, R.getStart(),
-            R.getSize()}});
+          {cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   MP.orc_rt_macho_register_thread_data_section, R.getRange())),
+           cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   MP.orc_rt_macho_deregister_thread_data_section,
+                   R.getRange()))});
     }
   }
   return Error::success();
@@ -963,8 +976,10 @@ Error MachOPlatform::MachOPlatformPlugin::registerEHSectionsPhase1(
   // Otherwise, add allocation actions to the graph to register eh-frames for
   // this object.
   G.allocActions().push_back(
-      {{orc_rt_macho_register_ehframe_section, R.getStart(), R.getSize()},
-       {orc_rt_macho_deregister_ehframe_section, R.getStart(), R.getSize()}});
+      {cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+           orc_rt_macho_register_ehframe_section, R.getRange())),
+       cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+           orc_rt_macho_deregister_ehframe_section, R.getRange()))});
 
   return Error::success();
 }

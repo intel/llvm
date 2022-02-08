@@ -266,8 +266,7 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   // OpenCL/SYCL variables in local address space and CUDA shared
   // variables cannot have an initializer.
   llvm::Constant *Init = nullptr;
-  if (Ty.getAddressSpace() == LangAS::opencl_local ||
-      Ty.getAddressSpace() == LangAS::sycl_local ||
+  if (AS == LangAS::opencl_local || AS == LangAS::sycl_local ||
       D.hasAttr<CUDASharedAttr>() || D.hasAttr<LoaderUninitializedAttr>())
     Init = llvm::UndefValue::get(LTy);
   else
@@ -2300,16 +2299,17 @@ void CodeGenFunction::emitArrayDestroy(llvm::Value *begin,
 
   // Shift the address back by one element.
   llvm::Value *negativeOne = llvm::ConstantInt::get(SizeTy, -1, true);
+  llvm::Type *llvmElementType = ConvertTypeForMem(elementType);
   llvm::Value *element = Builder.CreateInBoundsGEP(
-      elementPast->getType()->getPointerElementType(), elementPast, negativeOne,
-      "arraydestroy.element");
+      llvmElementType, elementPast, negativeOne, "arraydestroy.element");
 
   if (useEHCleanup)
     pushRegularPartialArrayCleanup(begin, element, elementType, elementAlign,
                                    destroyer);
 
   // Perform the actual destruction there.
-  destroyer(*this, Address(element, elementAlign), elementType);
+  destroyer(*this, Address(element, llvmElementType, elementAlign),
+            elementType);
 
   if (useEHCleanup)
     PopCleanupBlock();

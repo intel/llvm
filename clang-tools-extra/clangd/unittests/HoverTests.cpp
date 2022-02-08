@@ -2695,7 +2695,7 @@ TEST(Hover, DocsFromMostSpecial) {
 
   TestTU TU = TestTU::withCode(T.code());
   auto AST = TU.build();
-  for (auto Comment : {"doc1", "doc2", "doc3"}) {
+  for (const auto *Comment : {"doc1", "doc2", "doc3"}) {
     for (const auto &P : T.points(Comment)) {
       auto H = getHover(AST, P, format::getLLVMStyle(), nullptr);
       ASSERT_TRUE(H);
@@ -3172,6 +3172,20 @@ TEST(Hover, DisableShowAKA) {
   EXPECT_EQ(H->Type, HoverInfo::PrintedType("m_int"));
 }
 
+TEST(Hover, HideBigInitializers) {
+  Annotations T(R"cpp(
+  #define A(x) x, x, x, x
+  #define B(x) A(A(A(A(x))))
+  int a^rr[] = {B(0)};
+  )cpp");
+
+  TestTU TU = TestTU::withCode(T.code());
+  auto AST = TU.build();
+  auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
+
+  ASSERT_TRUE(H);
+  EXPECT_EQ(H->Definition, "int arr[]");
+}
 } // namespace
 } // namespace clangd
 } // namespace clang

@@ -59,6 +59,7 @@ DenseMap<const Symbol *, std::pair<const InputFile *, const InputFile *>>
     elf::backwardReferences;
 SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>, 0>
     elf::whyExtract;
+SmallVector<SymbolAux, 0> elf::symAux;
 
 static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
   switch (sym.kind()) {
@@ -153,7 +154,7 @@ uint64_t Symbol::getGotVA() const {
 }
 
 uint64_t Symbol::getGotOffset() const {
-  return gotIndex * target->gotEntrySize;
+  return getGotIdx() * target->gotEntrySize;
 }
 
 uint64_t Symbol::getGotPltVA() const {
@@ -164,15 +165,15 @@ uint64_t Symbol::getGotPltVA() const {
 
 uint64_t Symbol::getGotPltOffset() const {
   if (isInIplt)
-    return pltIndex * target->gotEntrySize;
-  return (pltIndex + target->gotPltHeaderEntriesNum) * target->gotEntrySize;
+    return getPltIdx() * target->gotEntrySize;
+  return (getPltIdx() + target->gotPltHeaderEntriesNum) * target->gotEntrySize;
 }
 
 uint64_t Symbol::getPltVA() const {
   uint64_t outVA = isInIplt
-                       ? in.iplt->getVA() + pltIndex * target->ipltEntrySize
+                       ? in.iplt->getVA() + getPltIdx() * target->ipltEntrySize
                        : in.plt->getVA() + in.plt->headerSize +
-                             pltIndex * target->pltEntrySize;
+                             getPltIdx() * target->pltEntrySize;
 
   // While linking microMIPS code PLT code are always microMIPS
   // code. Set the less-significant bit to track that fact.
@@ -267,19 +268,15 @@ MemoryBufferRef LazyArchive::getMemberBuffer() {
 }
 
 uint8_t Symbol::computeBinding() const {
-  if (config->relocatable)
-    return binding;
   if ((visibility != STV_DEFAULT && visibility != STV_PROTECTED) ||
-      (versionId == VER_NDX_LOCAL && !isLazy()))
+      versionId == VER_NDX_LOCAL)
     return STB_LOCAL;
-  if (!config->gnuUnique && binding == STB_GNU_UNIQUE)
+  if (binding == STB_GNU_UNIQUE && !config->gnuUnique)
     return STB_GLOBAL;
   return binding;
 }
 
 bool Symbol::includeInDynsym() const {
-  if (!config->hasDynSymTab)
-    return false;
   if (computeBinding() == STB_LOCAL)
     return false;
   if (!isDefined() && !isCommon())
@@ -287,7 +284,7 @@ bool Symbol::includeInDynsym() const {
     // expects undefined weak symbols not to exist in .dynsym, e.g.
     // __pthread_mutex_lock reference in _dl_add_to_namespace_list,
     // __pthread_initialize_minimal reference in csu/libc-start.c.
-    return !(config->noDynamicLinker && isUndefWeak());
+    return !(isUndefWeak() && config->noDynamicLinker);
 
   return exportDynamic || inDynamicList;
 }

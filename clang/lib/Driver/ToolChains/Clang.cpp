@@ -35,6 +35,7 @@
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
+#include "clang/Driver/Types.h"
 #include "clang/Driver/XRayArgs.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h"
@@ -357,7 +358,8 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64_be:
-    aarch64::getAArch64TargetFeatures(D, Triple, Args, Features, ForAS);
+    aarch64::getAArch64TargetFeatures(D, Triple, Args, CmdArgs, Features,
+                                      ForAS);
     break;
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
@@ -1149,7 +1151,7 @@ static void RenderDebugInfoCompressionArgs(const ArgList &Args,
     StringRef Value = A->getValue();
     if (Value == "none") {
       CmdArgs.push_back("--compress-debug-sections=none");
-    } else if (Value == "zlib" || Value == "zlib-gnu") {
+    } else if (Value == "zlib") {
       if (llvm::zlib::isAvailable()) {
         CmdArgs.push_back(
             Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
@@ -2171,7 +2173,7 @@ void Clang::AddPPCTargetArgs(const ArgList &Args,
     }
   }
 
-  bool IEEELongDouble = false;
+  bool IEEELongDouble = getToolChain().defaultToIEEELongDouble();
   for (const Arg *A : Args.filtered(options::OPT_mabi_EQ)) {
     StringRef V = A->getValue();
     if (V == "ieeelongdouble")
@@ -3013,6 +3015,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       AssociativeMath = true;
       ReciprocalMath = true;
       SignedZeros = false;
+      ApproxFunc = true;
       TrappingMath = false;
       FPExceptionBehavior = "";
       break;
@@ -3020,6 +3023,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       AssociativeMath = false;
       ReciprocalMath = false;
       SignedZeros = true;
+      ApproxFunc = false;
       TrappingMath = true;
       FPExceptionBehavior = "strict";
 
@@ -3039,6 +3043,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       MathErrno = false;
       AssociativeMath = true;
       ReciprocalMath = true;
+      ApproxFunc = true;
       SignedZeros = false;
       TrappingMath = false;
       RoundingFPMath = false;
@@ -3054,6 +3059,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       MathErrno = TC.IsMathErrnoDefault();
       AssociativeMath = false;
       ReciprocalMath = false;
+      ApproxFunc = false;
       SignedZeros = true;
       // -fno_fast_math restores default denormal and fpcontract handling
       DenormalFPMath = DefaultDenormalFPMath;
@@ -3072,7 +3078,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       // If -ffp-model=strict has been specified on command line but
       // subsequent options conflict then emit warning diagnostic.
       if (HonorINFs && HonorNaNs && !AssociativeMath && !ReciprocalMath &&
-          SignedZeros && TrappingMath && RoundingFPMath &&
+          SignedZeros && TrappingMath && RoundingFPMath && !ApproxFunc &&
           DenormalFPMath == llvm::DenormalMode::getIEEE() &&
           DenormalFP32Math == llvm::DenormalMode::getIEEE() &&
           FPContract.equals("off"))
@@ -3105,7 +3111,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back("-fmath-errno");
 
   if (!MathErrno && AssociativeMath && ReciprocalMath && !SignedZeros &&
-      !TrappingMath)
+      ApproxFunc && !TrappingMath)
     CmdArgs.push_back("-menable-unsafe-fp-math");
 
   if (!SignedZeros)
@@ -3156,7 +3162,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   // -ffast-math enables the __FAST_MATH__ preprocessor macro, but check for the
   // individual features enabled by -ffast-math instead of the option itself as
   // that's consistent with gcc's behaviour.
-  if (!HonorINFs && !HonorNaNs && !MathErrno && AssociativeMath &&
+  if (!HonorINFs && !HonorNaNs && !MathErrno && AssociativeMath && ApproxFunc &&
       ReciprocalMath && !SignedZeros && !TrappingMath && !RoundingFPMath) {
     CmdArgs.push_back("-ffast-math");
     if (FPModel.equals("fast")) {
@@ -5064,6 +5070,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (JA.getType() == types::TY_RewrittenLegacyObjC) {
       CmdArgs.push_back("-rewrite-objc");
       rewriteKind = RK_Fragile;
+    } else if (JA.getType() == types::TY_API_INFO) {
+      CmdArgs.push_back("-extract-api");
     } else {
       assert(JA.getType() == types::TY_PP_Asm && "Unexpected output type!");
     }
@@ -5785,11 +5793,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // as errors, but until then, we can live with a warning being emitted by the
   // compiler. This way, Clang can be used to compile code with scalable vectors
   // and identify possible issues.
-  if (isa<BackendJobAction>(JA)) {
+  if (isa<AssembleJobAction>(JA) || isa<CompileJobAction>(JA) ||
+      isa<BackendJobAction>(JA)) {
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-treat-scalable-fixed-error-as-warning");
   }
 
+  // Enable local accessor to shared memory pass for SYCL.
+  if (isa<BackendJobAction>(JA) && IsSYCLOffloadDevice &&
+      (Triple.isNVPTX() || Triple.isAMDGCN())) {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-sycl-enable-local-accessor");
+  }
   // These two are potentially updated by AddClangCLArgs.
   codegenoptions::DebugInfoKind DebugInfoKind = codegenoptions::NoDebugInfo;
   bool EmitCodeView = false;
@@ -5950,7 +5965,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // NVPTX/AMDGCN doesn't support PGO or coverage. There's no runtime support
   // for sampling, overhead of call arc collection is way too high and there's
   // no way to collect the output.
-  if (!Triple.isNVPTX() && !Triple.isAMDGCN())
+  // Disable for SPIR-V compilations as well.
+  if (!Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isSPIR())
     addPGOAndCoverageFlags(TC, C, D, Output, Args, SanitizeArgs, CmdArgs);
 
   Args.AddLastArg(CmdArgs, options::OPT_fclang_abi_compat_EQ);
@@ -6307,6 +6323,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-ftype-visibility");
       CmdArgs.push_back("default");
     }
+  } else if (IsOpenMPDevice) {
+    // When compiling for the OpenMP device we want protected visibility by
+    // default. This prevents the device from accidenally preempting code on the
+    // host, makes the system more robust, and improves performance.
+    CmdArgs.push_back("-fvisibility");
+    CmdArgs.push_back("protected");
   }
 
   if (!RawTriple.isPS4())
@@ -6487,6 +6509,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  Args.AddLastArg(CmdArgs, options::OPT_fms_hotpatch);
+
   if (TC.SupportsProfiling()) {
     Args.AddLastArg(CmdArgs, options::OPT_pg);
 
@@ -6643,6 +6667,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-fcf-protection=") + A->getValue()));
   }
+
+  if (IsUsingLTO)
+    Args.AddLastArg(CmdArgs, options::OPT_mibt_seal);
 
   // Forward -f options with positive and negative forms; we translate these by
   // hand.  Do not propagate PGO options to the GPU-side compilations as the
@@ -7161,6 +7188,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_dM);
   Args.AddLastArg(CmdArgs, options::OPT_dD);
+  Args.AddLastArg(CmdArgs, options::OPT_dI);
 
   Args.AddLastArg(CmdArgs, options::OPT_fmax_tokens_EQ);
 
@@ -9032,28 +9060,27 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     std::string INTELExtArg =
         ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
         ",+SPV_INTEL_device_side_avc_motion_estimation"
-        ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_fpga_memory_attributes"
-        ",+SPV_INTEL_fpga_memory_accesses"
-        ",+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg"
-        ",+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers"
-        ",+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes"
-        ",+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers"
+        ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
+        ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
+        ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
+        ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
+        ",+SPV_INTEL_arbitrary_precision_integers"
         ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
-        ",+SPV_INTEL_fast_composite,+SPV_INTEL_fpga_buffer_location"
+        ",+SPV_INTEL_fast_composite"
         ",+SPV_INTEL_arbitrary_precision_fixed_point"
         ",+SPV_INTEL_arbitrary_precision_floating_point"
-        ",+SPV_INTEL_arbitrary_precision_floating_point"
         ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
-        ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
         ",+SPV_INTEL_long_constant_composite"
-        ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-        ",+SPV_INTEL_fpga_dsp_control"
         ",+SPV_INTEL_arithmetic_fence";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
     if (!C.getDriver().isFPGAEmulationMode())
       // Enable several extensions on FPGA H/W exclusively
-      ExtArg += ",+SPV_INTEL_usm_storage_classes"
-                ",+SPV_INTEL_runtime_aligned";
+      ExtArg += ",+SPV_INTEL_usm_storage_classes,+SPV_INTEL_runtime_aligned"
+                ",+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse"
+                ",+SPV_INTEL_fpga_buffer_location"
+                ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
+                ",+SPV_INTEL_fpga_dsp_control,+SPV_INTEL_fpga_memory_accesses"
+                ",+SPV_INTEL_fpga_memory_attributes";
     else
       // Don't enable several freshly added extensions on FPGA H/W
       ExtArg += ",+SPV_INTEL_token_type"

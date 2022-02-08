@@ -9,9 +9,13 @@ on:
       - sycl
     paths:
       - 'devops/containers/**'
+      - 'devops/dependencies.json'
+      - '.github/workflows/sycl_containers.yaml'
   pull_request:
     paths:
       - 'devops/containers/**'
+      - 'devops/dependencies.json'
+      - '.github/workflows/sycl_containers.yaml'
 
 jobs:
   base_image_ubuntu2004:
@@ -52,11 +56,50 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/ubuntu2004_build:${{ github.sha }}
             ghcr.io/${{ github.repository }}/ubuntu2004_build:latest
+
   # This job produces a Docker container with the latest versions of Intel
   # drivers, that can be found on GitHub.
   drivers_image_ubuntu2004:
     if: github.repository == 'intel/llvm'
     name: Intel Drivers Ubuntu 20.04 Docker image
+    runs-on: ubuntu-latest
+    needs: base_image_ubuntu2004
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Get dependencies configuration
+        id: deps
+        run: |
+          DEPS=`cat devops/dependencies.json`
+          DEPS="${DEPS//'%'/'%25'}"
+          DEPS="${DEPS//$'\n'/'%0A'}"
+          DEPS="${DEPS//$'\r'/'%0D'}"
+          echo $DEPS
+          echo "::set-output name=deps::$DEPS"
+      - name: Build and Push Container
+        uses: ./devops/actions/build_container
+        with:
+          push: ${{ github.event_name != 'pull_request' }}
+          file: ubuntu2004_intel_drivers
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: |
+            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest
+          build-args: |
+            compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux.compute_runtime.github_tag}}
+            igc_tag=${{fromJson(steps.deps.outputs.deps).linux.igc.github_tag}}
+            tbb_tag=${{fromJson(steps.deps.outputs.deps).linux.tbb.github_tag}}
+            fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux.fpgaemu.github_tag}}
+            cpu_tag=${{fromJson(steps.deps.outputs.deps).linux.oclcpu.github_tag}}
+
+  # This job produces a Docker container with the latest versions of Intel
+  # drivers, that can be found on GitHub.
+  drivers_image_ubuntu2004_unstable:
+    if: github.repository == 'intel/llvm'
+    name: Intel Drivers (unstable) Ubuntu 20.04 Docker image
     runs-on: ubuntu-latest
     needs: base_image_ubuntu2004
     steps:
@@ -72,6 +115,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest
+            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:unstable-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:unstable
 

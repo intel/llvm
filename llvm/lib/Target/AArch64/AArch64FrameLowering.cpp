@@ -547,7 +547,7 @@ void AArch64FrameLowering::emitCalleeSavedFrameMoves(
     return;
 
   for (const auto &Info : CSI) {
-    unsigned Reg = Info.getReg();
+    Register Reg = Info.getReg();
 
     // Not all unwinders may know about SVE registers, so assume the lowest
     // common demoninator.
@@ -2285,7 +2285,7 @@ static void computeCalleeSaveRegisterPairs(
   // MachO's compact unwind format relies on all registers being stored in
   // pairs.
   assert((!produceCompactUnwindFrame(MF) ||
-          CC == CallingConv::PreserveMost ||
+          CC == CallingConv::PreserveMost || CC == CallingConv::CXX_FAST_TLS ||
           (Count & 1) == 0) &&
          "Odd number of callee-saved regs to spill!");
   int ByteOffset = AFI->getCalleeSavedStackSize();
@@ -2324,7 +2324,7 @@ static void computeCalleeSaveRegisterPairs(
 
     // Add the next reg to the pair if it is in the same register class.
     if (unsigned(i + RegInc) < Count) {
-      unsigned NextReg = CSI[i + RegInc].getReg();
+      Register NextReg = CSI[i + RegInc].getReg();
       bool IsFirst = i == FirstReg;
       switch (RPI.Type) {
       case RegPairInfo::GPR:
@@ -2380,7 +2380,7 @@ static void computeCalleeSaveRegisterPairs(
     // MachO's compact unwind format relies on all registers being stored in
     // adjacent register pairs.
     assert((!produceCompactUnwindFrame(MF) ||
-            CC == CallingConv::PreserveMost ||
+            CC == CallingConv::PreserveMost || CC == CallingConv::CXX_FAST_TLS ||
             (RPI.isPaired() &&
              ((RPI.Reg1 == AArch64::LR && RPI.Reg2 == AArch64::FP) ||
               RPI.Reg1 + 1 == RPI.Reg2))) &&
@@ -3128,7 +3128,7 @@ void AArch64FrameLowering::processFunctionBeforeFrameFinalized(
   DebugLoc DL;
   RS->enterBasicBlockEnd(MBB);
   RS->backward(std::prev(MBBI));
-  unsigned DstReg = RS->FindUnusedReg(&AArch64::GPR64commonRegClass);
+  Register DstReg = RS->FindUnusedReg(&AArch64::GPR64commonRegClass);
   assert(DstReg && "There must be a free register after frame setup");
   BuildMI(MBB, MBBI, DL, TII.get(AArch64::MOVi64imm), DstReg).addImm(-2);
   BuildMI(MBB, MBBI, DL, TII.get(AArch64::STURXi))

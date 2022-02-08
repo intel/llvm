@@ -103,7 +103,7 @@ void test() {
   // CHECK: %[[FIRST:[a-zA-Z0-9]+]] = bitcast %struct.Y addrspace(4)* %{{.*}} to i8 addrspace(4)*
   // CHECK: %[[OFFSET:[a-zA-Z0-9]+]].ptr = getelementptr inbounds i8, i8 addrspace(4)* %[[FIRST]], i64 8
   // CHECK: %[[SECOND:[a-zA-Z0-9]+]] = bitcast i8 addrspace(4)* %[[OFFSET]].ptr to %struct.HasX addrspace(4)*
-  // CHECK: call spir_func void @{{.*}}bar{{.*}}(%struct.HasX addrspace(4)* align 4 dereferenceable(4) %[[SECOND]])
+  // CHECK: call spir_func void @{{.*}}bar{{.*}}(%struct.HasX addrspace(4)* noundef align 4 dereferenceable(4) %[[SECOND]])
 }
 
 template <typename name, typename Func>

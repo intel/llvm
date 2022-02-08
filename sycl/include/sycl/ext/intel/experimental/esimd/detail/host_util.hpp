@@ -10,6 +10,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #ifndef __SYCL_DEVICE_ONLY__
 
 #include <assert.h>
@@ -458,3 +460,5 @@ template <> struct dwordtype<unsigned int> { static const bool value = true; };
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif // #ifndef __SYCL_DEVICE_ONLY__
+
+/// @endcond ESIMD_DETAIL

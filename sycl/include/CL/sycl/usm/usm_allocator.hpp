@@ -8,6 +8,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
@@ -24,8 +25,10 @@ namespace sycl {
 __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
                                   const device &dev, const context &ctxt,
                                   usm::alloc kind,
-                                  const property_list &propList);
-__SYCL_EXPORT void free(void *ptr, const context &ctxt);
+                                  const property_list &propList,
+                                  const detail::code_location CL);
+__SYCL_EXPORT void free(void *ptr, const context &ctxt,
+                        const detail::code_location CL);
 
 template <typename T, usm::alloc AllocKind, size_t Alignment = alignof(T)>
 class usm_allocator {
@@ -74,11 +77,12 @@ public:
   /// Allocates memory.
   ///
   /// \param NumberOfElements is a count of elements to allocate memory for.
-  T *allocate(size_t NumberOfElements) {
+  T *allocate(size_t NumberOfElements, const detail::code_location CL =
+                                           detail::code_location::current()) {
 
     auto Result = reinterpret_cast<T *>(
         aligned_alloc(getAlignment(), NumberOfElements * sizeof(value_type),
-                      MDevice, MContext, AllocKind, MPropList));
+                      MDevice, MContext, AllocKind, MPropList, CL));
     if (!Result) {
       throw memory_allocation_error();
     }
@@ -89,9 +93,11 @@ public:
   ///
   /// \param Ptr is a pointer to memory being deallocated.
   /// \param Size is a number of elements previously passed to allocate.
-  void deallocate(T *Ptr, size_t) {
+  void deallocate(
+      T *Ptr, size_t,
+      const detail::code_location CL = detail::code_location::current()) {
     if (Ptr) {
-      free(Ptr, MContext);
+      free(Ptr, MContext, CL);
     }
   }
 

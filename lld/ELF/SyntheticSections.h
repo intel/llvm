@@ -86,7 +86,7 @@ public:
     uint32_t fdeVARel;
   };
 
-  std::vector<FdeData> getFdeData() const;
+  SmallVector<FdeData, 0> getFdeData() const;
   ArrayRef<CieRecord *> getCieRecords() const { return cieRecords; }
   template <class ELFT>
   void iterateFDEWithLSDA(llvm::function_ref<void(InputSection &)> fn);
@@ -129,8 +129,11 @@ public:
   void writeTo(uint8_t *buf) override;
 
   void addEntry(Symbol &sym);
+  bool addTlsDescEntry(Symbol &sym);
   bool addDynTlsEntry(Symbol &sym);
   bool addTlsIndex();
+  uint32_t getTlsDescOffset(const Symbol &sym) const;
+  uint64_t getTlsDescAddr(const Symbol &sym) const;
   uint64_t getGlobalDynAddr(const Symbol &b) const;
   uint64_t getGlobalDynOffset(const Symbol &b) const;
 
@@ -418,7 +421,7 @@ private:
 
   uint64_t size = 0;
 
-  llvm::DenseMap<StringRef, unsigned> stringMap;
+  llvm::DenseMap<llvm::CachedHashStringRef, unsigned> stringMap;
   SmallVector<StringRef, 0> strings;
 };
 
@@ -1213,8 +1216,8 @@ struct Partition {
   std::unique_ptr<SymbolTableBaseSection> dynSymTab;
   std::unique_ptr<EhFrameHeader> ehFrameHdr;
   std::unique_ptr<EhFrameSection> ehFrame;
-  GnuHashTableSection *gnuHashTab;
-  HashTableSection *hashTab;
+  std::unique_ptr<GnuHashTableSection> gnuHashTab;
+  std::unique_ptr<HashTableSection> hashTab;
   std::unique_ptr<RelocationBaseSection> relaDyn;
   std::unique_ptr<RelrBaseSection> relrDyn;
   std::unique_ptr<VersionDefinitionSection> verDef;

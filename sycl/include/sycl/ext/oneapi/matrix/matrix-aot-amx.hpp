@@ -1,4 +1,4 @@
-//===-------------- matrix-amx.hpp - SYCL matrix --------------*- C++ -*---===//
+//===------------ matrix-aot-amx.hpp - SYCL matrix ------------*- C++ -*---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

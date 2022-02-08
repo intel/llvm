@@ -1955,9 +1955,19 @@ def FormatNestedCompoundAttr : TEST_Op<"format_cpmd_nested_attr"> {
   let assemblyFormat = "`nested` $nested attr-dict-with-keyword";
 }
 
+def FormatQualifiedCompoundAttr : TEST_Op<"format_qual_cpmd_nested_attr"> {
+  let arguments = (ins CompoundNestedOuter:$nested);
+  let assemblyFormat = "`nested` qualified($nested) attr-dict-with-keyword";
+}
+
 def FormatNestedType : TEST_Op<"format_cpmd_nested_type"> {
   let arguments = (ins CompoundNestedOuterType:$nested);
   let assemblyFormat = "$nested `nested` type($nested) attr-dict-with-keyword";
+}
+
+def FormatQualifiedNestedType : TEST_Op<"format_qual_cpmd_nested_type"> {
+  let arguments = (ins CompoundNestedOuterType:$nested);
+  let assemblyFormat = "$nested `nested` qualified(type($nested)) attr-dict-with-keyword";
 }
 
 //===----------------------------------------------------------------------===//
@@ -2332,14 +2342,15 @@ def RegionIfYieldOp : TEST_Op<"region_if_yield",
 }
 
 def RegionIfOp : TEST_Op<"region_if",
-      [DeclareOpInterfaceMethods<RegionBranchOpInterface>,
+      [DeclareOpInterfaceMethods<RegionBranchOpInterface,
+                                 ["getRegionInvocationBounds"]>,
        SingleBlockImplicitTerminator<"RegionIfYieldOp">,
        RecursiveSideEffects]> {
   let description =[{
     Represents an abstract if-then-else-join pattern. In this context, the then
     and else regions jump to the join region, which finally returns to its
     parent op.
-    }];
+  }];
 
   let printer = [{ return ::print(p, *this); }];
   let parser = [{ return ::parseRegionIfOp(parser, result); }];
@@ -2360,6 +2371,14 @@ def RegionIfOp : TEST_Op<"region_if",
     }
     ::mlir::OperandRange getSuccessorEntryOperands(unsigned index);
   }];
+}
+
+def AnyCondOp : TEST_Op<"any_cond",
+      [DeclareOpInterfaceMethods<RegionBranchOpInterface,
+                                 ["getRegionInvocationBounds"]>,
+       RecursiveSideEffects]> {
+  let results = (outs Variadic<AnyType>:$results);
+  let regions = (region AnyRegion:$region);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2569,5 +2588,25 @@ def TestDefaultStrAttrHasValueOp : TEST_Op<"has_str_value"> {
 
 def : Pat<(TestDefaultStrAttrNoValueOp $value),
           (TestDefaultStrAttrHasValueOp ConstantStrAttr<StrAttr, "foo">)>;
+
+//===----------------------------------------------------------------------===//
+// Test Ops with effects
+//===----------------------------------------------------------------------===//
+
+def TestResource : Resource<"TestResource">;
+
+def TestEffectsOpA : TEST_Op<"op_with_effects_a"> {
+    let arguments = (ins
+        Arg<Variadic<AnyMemRef>, "", [MemRead]>,
+        Arg<FlatSymbolRefAttr, "", [MemRead]>:$first,
+        Arg<SymbolRefAttr, "", [MemWrite]>:$second,
+        Arg<OptionalAttr<SymbolRefAttr>, "", [MemRead]>:$optional_symbol
+        );
+
+    let results = (outs Res<AnyMemRef, "", [MemAlloc<TestResource>]>);
+}
+
+def TestEffectsOpB : TEST_Op<"op_with_effects_b",
+    [MemoryEffects<[MemWrite<TestResource>]>]>;
 
 #endif // TEST_OPS

@@ -13,6 +13,8 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
+#include "CompileTimePropertiesPass.h"
+#include "DeviceGlobals.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
@@ -39,6 +41,8 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
+#include "llvm/Transforms/IPO/StripDeadPrototypes.h"
+#include "llvm/Transforms/IPO/StripSymbols.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -188,12 +192,18 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
              "device code split"),
     cl::cat(PostLinkCat), cl::init(false)};
 
+cl::opt<bool> DeviceGlobals{
+    "device-globals",
+    cl::desc("Lower and generate information about device global variables"),
+    cl::cat(PostLinkCat)};
+
 struct GlobalBinImageProps {
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
   bool EmitExportedSymbols;
   bool IsEsimdKernel;
+  bool EmitDeviceGlobalPropSet;
 };
 
 void error(const Twine &Msg) {
@@ -490,13 +500,14 @@ extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
   std::unique_ptr<Module> MClone = CloneModule(
       M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
 
-  // TODO: Use the new PassManager instead?
-  legacy::PassManager Passes;
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  ModulePassManager MPM;
   // Do cleanup.
-  Passes.add(createGlobalDCEPass());           // Delete unreachable globals.
-  Passes.add(createStripDeadDebugInfoPass());  // Remove dead debug info.
-  Passes.add(createStripDeadPrototypesPass()); // Remove dead func decls.
-  Passes.run(*MClone.get());
+  MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
+  MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
+  MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
+  MPM.run(*MClone.get(), MAM);
 
   return MClone;
 }
@@ -620,6 +631,13 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
   }
 
+  if (ImgPSInfo.EmitDeviceGlobalPropSet) {
+    // Extract device global maps per module
+    auto DevGlobalPropertyMap = collectDeviceGlobalProperties(M);
+    if (!DevGlobalPropertyMap.empty())
+      PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
+  }
+
   std::error_code EC;
   raw_fd_ostream SCOut(PropSetFile, EC);
   checkError(EC, "error opening file '" + PropSetFile + "'");
@@ -675,8 +693,25 @@ bool processSpecConstants(Module &M) {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
 
-  // perform the spec constant intrinsics transformation on resulting module
+  // Perform the spec constant intrinsics transformation on resulting module
   PreservedAnalyses Res = RunSpecConst.run(M, MAM);
+  return !Res.areAllPreserved();
+}
+
+bool processCompileTimeProperties(Module &M) {
+  // TODO: the early exit can be removed as soon as we have compile-time
+  // properties not attached to device globals.
+  if (DeviceGlobals.getNumOccurrences() == 0)
+    return false;
+
+  ModulePassManager RunCompileTimeProperties;
+  ModuleAnalysisManager MAM;
+  // Register required analysis
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  RunCompileTimeProperties.addPass(CompileTimePropertiesPass());
+
+  // Enrich the module with compile-time properties metadata
+  PreservedAnalyses Res = RunCompileTimeProperties.run(M, MAM);
   return !Res.areAllPreserved();
 }
 
@@ -760,6 +795,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     std::tie(ResM, SplitModuleEntryPoints) = MSplit.nextSplit();
 
     bool SpecConstsMet = processSpecConstants(*ResM);
+    bool CompileTimePropertiesMet = processCompileTimeProperties(*ResM);
 
     if (IROutputOnly) {
       // the result is the transformed input LLVM IR file rather than a file
@@ -775,6 +811,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       std::string ResModuleFile{};
       bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
                                  !IsLLVMUsedRemoved && !SpecConstsMet &&
+                                 !CompileTimePropertiesMet &&
                                  (MSplit.totalSplits() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
@@ -788,9 +825,12 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     }
 
     {
-      GlobalBinImageProps ImgPSInfo = {SpecConstsMet, EmitKernelParamInfo,
-                                       EmitProgramMetadata, EmitExportedSymbols,
-                                       IsEsimd};
+      GlobalBinImageProps ImgPSInfo = {SpecConstsMet,
+                                       EmitKernelParamInfo,
+                                       EmitProgramMetadata,
+                                       EmitExportedSymbols,
+                                       IsEsimd,
+                                       DeviceGlobals};
       std::string PropSetFile = makeResultFileName(".prop", I, FileSuffix);
       saveModuleProperties(*ResM, SplitModuleEntryPoints, ImgPSInfo,
                            PropSetFile);
@@ -923,9 +963,10 @@ int main(int argc, char **argv) {
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
+  bool DoDeviceGlobals = DeviceGlobals.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms) {
+      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoDeviceGlobals) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
