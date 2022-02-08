@@ -5,7 +5,7 @@ on:
     branches:
     - sycl
     paths:
-    '.github/workflows/sycl_pre_commit_rt.yml'
+    - '.github/workflows/sycl_pre_commit_rt.yml'
   pull_request_target:
     branches:
     - sycl
