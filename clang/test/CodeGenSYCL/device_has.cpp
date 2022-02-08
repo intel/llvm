@@ -46,7 +46,7 @@ void foo() {
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
     // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !intel_declared_aspects ![[ASPECTS4:[0-9]+]]
-    h.single_task<class kernel_name_2>([]() [[sycl::device_has(cl::sycl::aspect::gpu)]]{});
+    h.single_task<class kernel_name_2>([]() [[sycl::device_has(cl::sycl::aspect::gpu)]] {});
   });
 }
 
