@@ -57,9 +57,13 @@ void func5() {}
 // CHECK-NOT: SYCLDeviceHasAttr
 [[sycl::device_has(cl::sycl::aspect::gpu)]] void func6() {}
 
+// CHECK: CXXRecordDecl {{.*}} KernelFunctor
 class KernelFunctor {
 public:
-  void operator()() const {
+  // CHECK: CXXMethodDecl {{.*}} used operator() 'void () const'
+  // CHECK: SYCLDeviceHasAtt
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+  [[sycl::device_has(cl::sycl::aspect::cpu)]] void operator()() const {
     func1();
     func2();
     func3();
@@ -71,7 +75,18 @@ public:
 
 void foo() {
   q.submit([&](handler &h) {
+    // Attribute applied on operator of kernel functor should be applied on kernel function.
+    // CHECK: FunctionDecl {{.*}}kernel_name_1
+    // CHECK: SYCLDeviceHasAttr
+    // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+    // Attributes applied to functions called from the kernel should not be propagated to kernel.
+    // CHECK-NOT: SYCLDeviceHasAttr
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
+
+    // CHECK: FunctionDecl {{.*}}kernel_name_2
+    // CHECK: SYCLDeviceHasAttr
+    // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
+    h.single_task<class kernel_name_2>([]() [[sycl::device_has(cl::sycl::aspect::gpu)]]{});
   });
 }

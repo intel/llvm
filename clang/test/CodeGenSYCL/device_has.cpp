@@ -6,7 +6,9 @@
 using namespace cl::sycl;
 queue q;
 
-// CHECK: define dso_local spir_func void @{{.*}}func1{{.*}} !intel_declared_aspects ![[ASPECTS1:[0-9]+]] {
+// CHECK: define dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !intel_declared_aspects ![[ASPECTS1:[0-9]+]]
+
+// CHECK: define dso_local spir_func void @{{.*}}func1{{.*}} !intel_declared_aspects ![[ASPECTS1]] {
 [[sycl::device_has(cl::sycl::aspect::cpu)]] void func1() {}
 
 // CHECK: define dso_local spir_func void @{{.*}}func2{{.*}} !intel_declared_aspects ![[ASPECTS2:[0-9]+]] {
@@ -29,7 +31,7 @@ constexpr cl::sycl::aspect getAspect() { return cl::sycl::aspect::cpu; }
 
 class KernelFunctor {
 public:
-  void operator()() const {
+  [[sycl::device_has(cl::sycl::aspect::cpu)]] void operator()() const {
     func1();
     func2();
     func3();
@@ -43,10 +45,13 @@ void foo() {
   q.submit([&](handler &h) {
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
+    // CHECK: define dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !intel_declared_aspects ![[ASPECTS4:[0-9]+]]
+    h.single_task<class kernel_name_2>([]() [[sycl::device_has(cl::sycl::aspect::gpu)]]{});
   });
 }
 
-// CHECK: [[EMPTYASPECTS]] = !{}
 // CHECK: [[ASPECTS1]] = !{i32 1}
+// CHECK: [[EMPTYASPECTS]] = !{}
 // CHECK: [[ASPECTS2]] = !{i32 5, i32 2}
 // CHECK: [[ASPECTS3]] = !{i32 0}
+// CHECK: [[ASPECTS4]] = !{i32 2}
