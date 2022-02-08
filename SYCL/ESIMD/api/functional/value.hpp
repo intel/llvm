@@ -59,6 +59,26 @@ sycl::half half_from_bytes(unsigned char hi, unsigned char lo) {
   return esimd_test::bit_cast<sycl::half>(out);
 }
 
+// Constructs std::vector from provided vectors.
+template <typename DataT, int NumElems>
+std::vector<DataT>
+construct_ref_data(std::vector<DataT> &&essential_values,
+                   const std::vector<DataT> &extra_values = {}) {
+  std::vector<DataT> ref_data(std::move(essential_values));
+
+  ref_data.reserve((NumElems > 1) ? NumElems : essential_values.size());
+
+  if constexpr (NumElems != 1) {
+    ref_data.insert(ref_data.end(), extra_values.begin(), extra_values.end());
+
+    for (size_t i = ref_data.size(); i < NumElems; ++i) {
+      ref_data.push_back(i + 0.75);
+    }
+  }
+
+  return ref_data;
+}
+
 } // namespace details
 
 // Utility class to retrieve specific values for tests depending on the data
@@ -86,7 +106,10 @@ template <typename DataT> struct value {
   }
 
   static DataT denorm_min() {
+    assert(type_traits::is_sycl_floating_point_v<DataT> &&
+           "Only floating point type can be passed into this function.");
     if constexpr (std::is_same_v<DataT, sycl::half>) {
+      // Represents 5.96046e-08 sycl::half value.
       return details::half_from_bytes(0b00000000u, 0b00000001u);
     } else {
       return std::numeric_limits<DataT>::denorm_min();
@@ -144,46 +167,22 @@ template <typename DataT, int NumElems> std::vector<DataT> generate_ref_data() {
   static const DataT min_plus_one = min + 1;
   static const DataT max_minus_one = max - 1;
 
-  std::vector<DataT> ref_data{};
+  std::vector<DataT> ref_data;
 
   if constexpr (type_traits::is_sycl_floating_point_v<DataT>) {
     static const DataT nan = value<DataT>::nan();
     static const DataT inf = value<DataT>::inf();
 
-    ref_data.reserve((NumElems > 1) ? NumElems : 6);
-
     // We are using the `double` literals to avoid precision loss for case of
     // the `double` DataT on unexact values like 0.1
-    ref_data.insert(ref_data.end(), {-inf, nan, min, max, -0.0, 0.1});
-    if constexpr (NumElems != 1) {
-      ref_data.insert(ref_data.end(), {-0.1, +0.0});
-      for (size_t i = ref_data.size(); i < NumElems; ++i) {
-        // Store values with exact representation of the fraction part for
-        // every floating point type
-        ref_data.push_back(i + 0.25);
-      }
-    }
+    ref_data = details::construct_ref_data<DataT, NumElems>(
+        {-inf, nan, min, max, -0.0, 0.1}, {-0.1, +0.0});
   } else if constexpr (std::is_signed_v<DataT>) {
-    ref_data.reserve((NumElems > 1) ? NumElems : 5);
-
-    ref_data.insert(ref_data.end(), {min, min_half, max, max_half, 0});
-    if constexpr (NumElems != 1) {
-      ref_data.insert(ref_data.end(), {min_plus_one, max_minus_one, -1});
-      for (size_t i = ref_data.size(); i < NumElems; ++i) {
-        ref_data.push_back(i);
-      }
-    }
+    ref_data = details::construct_ref_data<DataT, NumElems>(
+        {min, min_half, max, max_half, 0}, {min_plus_one, max_minus_one, -1});
   } else {
-    // Unsigned integral type
-    ref_data.reserve((NumElems > 1) ? NumElems : 3);
-
-    ref_data.insert(ref_data.end(), {max, max_half, 0});
-    if constexpr (NumElems != 1) {
-      ref_data.insert(ref_data.end(), {max_minus_one});
-      for (size_t i = ref_data.size(); i < NumElems; ++i) {
-        ref_data.push_back(i);
-      }
-    }
+    ref_data = details::construct_ref_data<DataT, NumElems>({max, max_half, 0},
+                                                            {max_minus_one});
   }
   return ref_data;
 }
