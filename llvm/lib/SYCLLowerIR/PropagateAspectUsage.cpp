@@ -368,21 +368,20 @@ void checkUsedAndDeclaredAspects(FunctionToAspectsMapTy &Map,
 void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
                                FunctionToAspectsMapTy &AspectsMap,
                                SmallPtrSet<Function *, 16> &Visited) {
-  if (CG.count(F) == 0)
+  auto It = CG.find(F);
+  if (It == CG.end())
     return;
 
   AspectWithFunctionLinkSetTy LocalAspects;
-  for (auto Edge : CG[F]) {
+  for (auto Edge : It->second) {
     Function *Callee = Edge.first;
-    if (!Visited.contains(Callee)) {
-      Visited.insert(Callee);
+    if (Visited.insert(Callee).second)
       propagateAspectsThroughCG(Callee, CG, AspectsMap, Visited);
-    }
 
     auto &CalleeAspects = AspectsMap[Callee];
-    for (auto It : CalleeAspects) {
+    for (auto AspectIt : CalleeAspects) {
       LocalAspects.insert(
-          AspectWithFunctionLinkTy{It.Aspect, Callee, Edge.second});
+          AspectWithFunctionLinkTy{AspectIt.Aspect, Callee, Edge.second});
     }
   }
 
@@ -432,7 +431,7 @@ void processFunctionInstructions(Function &F,
       continue;
     }
 
-    if (CallInst *CI = dyn_cast<CallInst>(&I))
+    if (auto *CI = dyn_cast<CallInst>(&I))
       if (!CI->isIndirectCall())
         CG[&F].try_emplace(CI->getCalledFunction(), &CI->getDebugLoc());
   }
