@@ -23,6 +23,6 @@
 //
 // CHECK: !DICompileUnit({{.*}} file: ![[#FILE:]]
 // CHECK: ![[#FILE]] = !DIFile(filename: "{{.*}}clang{{.+}}test{{.+}}CodeGenSYCL{{.+}}Inputs{{.+}}debug-info-checksum.cpp"
-// CHECK-SAME: checksumkind: CSK_MD5, checksum: "274c811973f21cd7dfab4f41781b38c0"
+// CHECK-SAME: checksumkind: CSK_MD5, checksum: "f1fb5d68350b47d90a53968ac8c40529"
 
 #include "Inputs/debug-info-checksum.cpp
