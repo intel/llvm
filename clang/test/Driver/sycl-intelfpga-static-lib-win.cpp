@@ -18,7 +18,7 @@
 // CHECK_PHASES: 2: linker, {0}, host_dep_image, (host-sycl)
 // CHECK_PHASES: 3: clang-offload-deps, {2}, ir, (host-sycl)
 // CHECK_PHASES: 4: input, "[[INPUT]]", archive
-// CHECK_PHASES: 5: clang-offload-unbundler, {4}, archive
+// CHECK_PHASES: 5: clang-offload-unbundler, {4}, tempfilelist
 // CHECK_PHASES: 6: spirv-to-ir-wrapper, {5}, tempfilelist, (device-sycl)
 // CHECK_PHASES: 7: linker, {3, 6}, ir, (device-sycl)
 // CHECK_PHASES: 8: sycl-post-link, {7}, tempfiletable, (device-sycl)

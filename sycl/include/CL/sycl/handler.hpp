@@ -917,11 +917,14 @@ private:
   }
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = typename std::conditional<
-        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
-        typename std::conditional<
-            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
-            LambdaArgType>::type>::type;
+    using type = typename std::conditional_t<
+        detail::is_same_v<id<Dims>, LambdaArgType>, LambdaArgType,
+        typename std::conditional_t<
+            detail::is_convertible_v<nd_item<Dims>, LambdaArgType>,
+            nd_item<Dims>,
+            typename std::conditional_t<
+                detail::is_convertible_v<item<Dims>, LambdaArgType>, item<Dims>,
+                LambdaArgType>>>;
   };
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1062,7 +1065,7 @@ private:
   }
 
 #ifdef SYCL_LANGUAGE_VERSION
-#define __SYCL_KERNEL_ATTR__ __attribute__((sycl_kernel))
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
 #else
 #define __SYCL_KERNEL_ATTR__
 #endif
@@ -1298,7 +1301,7 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
   template <auto &SpecName>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {

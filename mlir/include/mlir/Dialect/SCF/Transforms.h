@@ -27,7 +27,6 @@ class Region;
 class RewriterBase;
 class TypeConverter;
 class RewritePatternSet;
-using OwningRewritePatternList = RewritePatternSet;
 class Operation;
 class Value;
 class ValueRange;
@@ -37,7 +36,6 @@ namespace scf {
 class IfOp;
 class ForOp;
 class ParallelOp;
-class ForOp;
 
 /// Fuses all adjacent scf.parallel operations with identical bounds and step
 /// into one scf.parallel operations. Uses a naive aliasing and dependency

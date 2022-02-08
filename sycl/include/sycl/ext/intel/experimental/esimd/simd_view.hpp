@@ -20,11 +20,13 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @ingroup sycl_esimd_core
+/// @{
+
 /// This class represents a reference to a sub-region of a base simd object.
 /// The referenced sub-region of the base object can be read from and written to
 /// via an instance of this class.
 ///
-/// \ingroup sycl_esimd
 template <typename BaseTy,
           typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
@@ -118,7 +120,6 @@ public:
 /// instead of a mask, to allow:
 ///   bool b = v[0] > v[1] && v[2] < 42;
 ///
-/// \ingroup sycl_esimd
 template <typename BaseTy, class ViewedElemT>
 class simd_view<BaseTy, region1d_scalar_t<ViewedElemT>>
     : public detail::simd_view_impl<BaseTy, region1d_scalar_t<ViewedElemT>> {
@@ -213,6 +214,8 @@ public:
 };
 
 #undef __ESIMD_DEF_SCALAR_SIMD_VIEW_RELOP
+
+/// @} sycl_esimd_core
 
 } // namespace esimd
 } // namespace experimental

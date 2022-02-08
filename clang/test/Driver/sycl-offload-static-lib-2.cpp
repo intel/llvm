@@ -27,12 +27,31 @@
 // RUN:   | FileCheck %s -check-prefixes=STATIC_LIB,STATIC_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
 // STATIC_LIB: clang-offload-bundler{{.*}} "-type=o" "-targets={{.*}},[[BUNDLE_TRIPLE]]" "-inputs=[[INPUTO:.+\.o]]" "-outputs=[[HOSTOBJ:.+\.o]],{{.+\.o}}"
 // STATIC_LIB: clang-offload-deps{{.*}} "-targets=[[BUNDLE_TRIPLE]]"
-// STATIC_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs={{.*}}" "-outputs=[[OUTFILE:.+\.a]]"
+// STATIC_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs={{.*}}" "-outputs=[[OUTFILE:.+\.txt]]"
 // STATIC_LIB_NVPTX: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" "-inputs={{.*}}" "-outputs=[[OUTFILE:.+\.a]]"
 // STATIC_LIB_DEF: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTFILE]]" "--in-replace=[[OUTFILE]]" "--out-file-list=[[IROUTFILE:.+\.txt]]" "--out-replace=[[IROUTFILE]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTFILE]]" "-o" "[[IROUTFILE]]"
 // STATIC_LIB_DEF: llvm-link{{.*}} "@[[IROUTFILE]]"
 // STATIC_LIB_NVPTX: llvm-link{{.*}} "[[OUTFILE]]"
 // STATIC_LIB: ld{{.*}} "{{.*}}_lib.{{(a|lo)}}" "[[HOSTOBJ]]"
+
+// Test using -l<name> style for passing libraries.
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L%S/Inputs/SYCL -llin64 -### %t_obj.o 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB,STATIC_L_LIB_DEF -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -L%S/Inputs/SYCL -llin64 -### %t_obj.o 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB,STATIC_L_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
+// STATIC_L_LIB: clang-offload-bundler{{.*}} "-type=o" "-targets={{.*}},[[BUNDLE_TRIPLE]]" "-inputs=[[INPUTO:.+\.o]]" "-outputs=[[HOSTOBJ:.+\.o]],{{.+\.o}}"
+// STATIC_L_LIB: clang-offload-deps{{.*}} "-targets=[[BUNDLE_TRIPLE]]"
+// STATIC_L_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs={{.*}}liblin64.a" "-outputs=[[OUTFILE:.+\.txt]]"
+// STATIC_L_LIB_NVPTX: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" "-inputs={{.*}}liblin64.a" "-outputs=[[OUTFILE:.+\.a]]"
+// STATIC_L_LIB_DEF: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTFILE]]" "--in-replace=[[OUTFILE]]" "--out-file-list=[[IROUTFILE:.+\.txt]]" "--out-replace=[[IROUTFILE]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTFILE]]" "-o" "[[IROUTFILE]]"
+// STATIC_L_LIB_DEF: llvm-link{{.*}} "@[[IROUTFILE]]"
+// STATIC_L_LIB_NVPTX: llvm-link{{.*}} "[[OUTFILE]]"
+// STATIC_L_LIB: ld{{.*}} "-llin64" "[[HOSTOBJ]]"
+
+// non-fat libraries should not trigger the unbundling step.
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -lc -lm -ldl -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=NO_STATIC_UNBUNDLE
+// NO_STATIC_UNBUNDLE-NOT: clang-offload-bundler{{.*}} "-type=aoo" {{.*}} "-inputs={{.*}}lib{{.*}}.a"
 
 /// ###########################################################################
 
@@ -49,7 +68,7 @@
 // STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" "-targets={{.*}},[[BUNDLE_TRIPLE]]" "-inputs={{.+}}-2.o"
 // STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=o" "-targets={{.*}},[[BUNDLE_TRIPLE]]" "-inputs={{.+}}-3.o"
 // STATIC_LIB_MULTI_O: clang-offload-deps{{.*}} "-targets=[[BUNDLE_TRIPLE]]"
-// STATIC_LIB_MULTI_O_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" {{.*}} "-outputs=[[OUTFILE:.+\.a]]"
+// STATIC_LIB_MULTI_O_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" {{.*}} "-outputs=[[OUTFILE:.+\.txt]]"
 // STATIC_LIB_MULTI_O_NVPTX: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" {{.*}} "-outputs=[[OUTFILE:.+\.a]]"
 // STATIC_LIB_MULTI_O_DEF: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTFILE]]" "--in-replace=[[OUTFILE]]" "--out-file-list=[[IROUTFILE:.+\.txt]]" "--out-replace=[[IROUTFILE]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTFILE]]" "-o" "[[IROUTFILE]]"
 // STATIC_LIB_MULTI_O_DEF: llvm-link{{.*}} "@[[IROUTFILE]]"
@@ -78,7 +97,7 @@
 // STATIC_LIB_SRC: 12: linker, {0, 10}, host_dep_image, (host-sycl)
 // STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
 // STATIC_LIB_SRC: 14: input, "[[INPUTA]]", archive
-// STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, archive
+// STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, tempfilelist
 // STATIC_LIB_SRC: 16: spirv-to-ir-wrapper, {15}, tempfilelist, (device-sycl)
 // STATIC_LIB_SRC: 17: linker, {6, 13, 16}, ir, (device-sycl)
 // STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
@@ -125,7 +144,7 @@
 // STATIC_LIB_SRC2: clang{{.*}} "-emit-obj" {{.*}} "-o" "[[HOSTOBJ:.+\.o]]"
 // STATIC_LIB_SRC2: ld{{(.exe)?}}" {{.*}} "-o" "[[HOSTEXE:.+\.out]]"
 // STATIC_LIB_SRC2: clang-offload-deps{{.*}} "-targets=[[DEPS_TRIPLE]]" "-outputs=[[OUTDEPS:.+\.bc]]" "[[HOSTEXE]]"
-// STATIC_LIB_SRC2_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
+// STATIC_LIB_SRC2_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" {{.*}} "-outputs=[[OUTLIB:.+\.txt]]"
 // STATIC_LIB_SRC2_NVPTX: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" {{.*}} "-outputs=[[OUTLIB:.+\.a]]"
 // STATIC_LIB_SRC2_DEF: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTLIB]]" "--in-replace=[[OUTLIB]]" "--out-file-list=[[OUTLIBLIST:.+\.txt]]" "--out-replace=[[OUTLIBLIST]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTLIB]]" "-o" [[OUTLIBLIST]]"
 // STATIC_LIB_SRC2: llvm-link{{.*}} "[[OUTDEPS]]" "-o" "[[OUTTEMP:.+\.bc]]"
@@ -144,6 +163,15 @@
 // STATIC_LIB_SRC3: llvm-link{{.*}} "{{.*}}"
 // STATIC_LIB_SRC3: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lstdc++" "-z" "relro"
 
+/// Test device linking behaviors with spir64 and nvptx targets
+// RUN: touch %t_lib.a
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 %t_lib.a -### %s 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=STATIC_LIB_MIX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
+// STATIC_LIB_MIX: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-nvptx64-nvidia-cuda-sm_50,sycl-spir64-unknown-unknown" {{.*}} "-outputs=[[NVPTXLIST:.+\.txt]],[[SYCLLIST:.+\.txt]]"
+// STATIC_LIB_MIX: llvm-link{{.*}} "@[[NVPTXLIST]]"
+// STATIC_LIB_MIX: spirv-to-ir-wrapper{{.*}} "[[SYCLLIST]]" "-o" "[[SYCLLINKLIST:.+\.txt]]"
+// STATIC_LIB_MIX: llvm-link{{.*}} "@[[SYCLLINKLIST]]"
+
 /// ###########################################################################
 
 /// test behaviors of -Wl,--whole-archive staticlib.a -Wl,--no-whole-archive
@@ -161,9 +189,9 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -L/dummy/dir %t_obj.o -Wl,@%/t_arg.arg -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=WHOLE_STATIC_LIB,WHOLE_STATIC_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
 // WHOLE_STATIC_LIB: clang-offload-bundler{{.*}} "-type=o" "-targets={{.*}},[[BUNDLE_TRIPLE]]"
-// WHOLE_STATIC_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs=[[INPUTA:.+\.a]]" "-outputs=[[OUTPUTA:.+\.a]]"
+// WHOLE_STATIC_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs=[[INPUTA:.+\.a]]" "-outputs=[[OUTPUTA:.+\.txt]]"
 // WHOLE_STATIC_LIB_DEF: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTPUTA]]" "--in-replace=[[OUTPUTA]]" "--out-file-list=[[OUTLISTA:.+\.txt]]" "--out-replace=[[OUTLISTA]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTPUTA]]" "-o" "[[OUTLISTA]]"
-// WHOLE_STATIC_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs=[[INPUTB:.+\.a]]" "-outputs=[[OUTPUTB:.+\.a]]"
+// WHOLE_STATIC_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs=[[INPUTB:.+\.a]]" "-outputs=[[OUTPUTB:.+\.txt]]"
 // WHOLE_STATIC_LIB_DEF: llvm-foreach{{.*}} "--out-ext=txt" "--in-file-list=[[OUTPUTB]]" "--in-replace=[[OUTPUTB]]" "--out-file-list=[[OUTLISTB:.+\.txt]]" "--out-replace=[[OUTLISTB]]" "--" {{.*}}spirv-to-ir-wrapper{{.*}} "[[OUTPUTB]]" "-o" "[[OUTLISTB]]"
 // WHOLE_STATIC_LIB_DEF: llvm-link{{.*}} "@[[OUTLISTA]]" "@[[OUTLISTB]]"
 // WHOLE_STATIC_LIB_NVPTX: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" "-inputs=[[INPUTA:.+\.a]]" "-outputs=[[OUTPUTA:.+\.a]]"
@@ -192,7 +220,7 @@
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-CUDA -DTARGET=nvptx64 -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-CUDA -DTARGET=nvptx64 -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
-// STATIC_LIB_NOSRC-SPIR: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs={{.*}}_lib.{{(a|lo)}}" "-outputs=[[DEVICELIB:.+\.a]]" "-unbundle"
+// STATIC_LIB_NOSRC-SPIR: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-inputs={{.*}}_lib.{{(a|lo)}}" "-outputs=[[DEVICELIB:.+\.txt]]" "-unbundle"
 // STATIC_LIB_NOSRC-SPIR: llvm-foreach{{.*}}spirv-to-ir-wrapper{{.*}} "[[DEVICELIB]]" "-o" "[[DEVICELIST:.+\.txt]]"
 // STATIC_LIB_NOSRC-SPIR: llvm-link{{.*}} "@[[DEVICELIST]]" "-o" "[[BCFILE:.+\.bc]]"
 // STATIC_LIB_NOSRC-CUDA: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" "-inputs={{.*}}_lib.{{(a|lo)}}" "-outputs=[[DEVICELIB:.+\.a]]" "-unbundle"

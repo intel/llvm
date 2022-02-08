@@ -439,8 +439,12 @@ void OffloadUnbundlingJobAction::anchor() {}
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input)
     : JobAction(OffloadUnbundlingJobClass, Input, Input->getType()) {}
 
+OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(Action *Input,
+                                                       types::ID Type)
+    : JobAction(OffloadUnbundlingJobClass, Input, Type) {}
+
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(ActionList &Inputs,
-                                                       types:: ID Type)
+                                                       types::ID Type)
     : JobAction(OffloadUnbundlingJobClass, Inputs, Type) {}
 
 void OffloadWrapperJobAction::anchor() {}

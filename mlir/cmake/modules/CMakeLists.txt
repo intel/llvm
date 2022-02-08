@@ -1,3 +1,4 @@
+include(ExtendPath)
 include(LLVMDistributionSupport)
 include(FindPrefixFromConfig)
 
@@ -27,6 +28,9 @@ set(MLIR_CONFIG_INCLUDE_DIRS
   "${MLIR_SOURCE_DIR}/include"
   "${MLIR_BINARY_DIR}/include"
   )
+# Refer to the best host mlir-tbgen, which might be a host-optimized version
+set(MLIR_CONFIG_TABLEGEN_EXE "${MLIR_TABLEGEN_EXE}")
+
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/MLIRConfig.cmake.in
   ${mlir_cmake_builddir}/MLIRConfig.cmake
@@ -49,9 +53,14 @@ find_prefix_from_config(MLIR_CONFIG_CODE MLIR_INSTALL_PREFIX "${MLIR_INSTALL_PAC
 set(MLIR_CONFIG_CMAKE_DIR "\${MLIR_INSTALL_PREFIX}/${MLIR_INSTALL_PACKAGE_DIR}")
 set(MLIR_CONFIG_LLVM_CMAKE_DIR "\${MLIR_INSTALL_PREFIX}/${LLVM_INSTALL_PACKAGE_DIR}")
 get_config_exports_includes(MLIR MLIR_CONFIG_INCLUDE_EXPORTS)
+extend_path(base_includedir "\${MLIR_INSTALL_PREFIX}" "${CMAKE_INSTALL_INCLUDEDIR}")
 set(MLIR_CONFIG_INCLUDE_DIRS
-  "\${MLIR_INSTALL_PREFIX}/include"
+  "${base_includedir}"
   )
+# Ensure that we are using the installed mlir-tblgen. This might not be MLIR_TABLEGEN_EXE
+# if we're building with a host-optimized mlir-tblgen (with LLVM_OPTIMIZED_TABLEGEN).
+set(MLIR_CONFIG_TABLEGEN_EXE mlir-tblgen)
+
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/MLIRConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/MLIRConfig.cmake

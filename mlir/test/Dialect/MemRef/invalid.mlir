@@ -208,6 +208,44 @@ func @memref_reinterpret_cast_offset_mismatch(%in: memref<?xf32>) {
 
 // -----
 
+func @memref_reinterpret_cast_no_map_but_offset(%in: memref<?xf32>) {
+  // expected-error @+1 {{expected result type with offset = 0 instead of 2}}
+  %out = memref.reinterpret_cast %in to offset: [2], sizes: [10], strides: [1]
+         : memref<?xf32> to memref<10xf32>
+  return
+}
+
+// -----
+
+func @memref_reinterpret_cast_no_map_but_stride(%in: memref<?xf32>) {
+  // expected-error @+1 {{expected result type with stride = 10 instead of 1 in dim = 0}}
+  %out = memref.reinterpret_cast %in to offset: [0], sizes: [10], strides: [10]
+         : memref<?xf32> to memref<10xf32>
+  return
+}
+
+// -----
+
+func @memref_reinterpret_cast_no_map_but_strides(%in: memref<?x?xf32>) {
+  // expected-error @+1 {{expected result type with stride = 42 instead of 10 in dim = 0}}
+  %out = memref.reinterpret_cast %in to
+           offset: [0], sizes: [9, 10], strides: [42, 1]
+         : memref<?x?xf32> to memref<9x10xf32>
+  return
+}
+
+// -----
+
+func @memref_reinterpret_cast_non_strided_layout(%in: memref<?x?xf32>) {
+  // expected-error @+1 {{expected result type to have strided layout but found 'memref<9x10xf32, affine_map<(d0, d1) -> (d0)>>}}
+  %out = memref.reinterpret_cast %in to
+           offset: [0], sizes: [9, 10], strides: [42, 1]
+         : memref<?x?xf32> to memref<9x10xf32, affine_map<(d0, d1) -> (d0)>>
+  return
+}
+
+// -----
+
 func @memref_reshape_element_type_mismatch(
        %buf: memref<*xf32>, %shape: memref<1xi32>) {
   // expected-error @+1 {{element types of source and destination memref types should be the same}}
@@ -776,7 +814,7 @@ func @assume_alignment(%0: memref<4x4xf16>) {
 
 // -----
 
-"alloca_without_scoped_alloc_parent"() ( {
+"alloca_without_scoped_alloc_parent"() ({
   memref.alloca() : memref<1xf32>
   // expected-error@-1 {{requires an ancestor op with AutomaticAllocationScope trait}}
   return
@@ -870,5 +908,65 @@ func @atomic_rmw_expects_float(%I: memref<16x10xi32>, %i : index, %val : i32) {
 func @atomic_rmw_expects_int(%I: memref<16x10xf32>, %i : index, %val : f32) {
   // expected-error@+1 {{expects an integer type}}
   %x = memref.atomic_rmw addi %val, %I[%i, %i] : (f32, memref<16x10xf32>) -> f32
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_wrong_arg_num(%I: memref<10xf32>, %i : index) {
+  // expected-error@+1 {{expected single number of entry block arguments}}
+  %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%arg0 : f32, %arg1 : f32):
+      %c1 = arith.constant 1.0 : f32
+      memref.atomic_yield %c1 : f32
+  }
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_wrong_arg_type(%I: memref<10xf32>, %i : index) {
+  // expected-error@+1 {{expected block argument of the same type result type}}
+  %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : i32):
+      %c1 = arith.constant 1.0 : f32
+      memref.atomic_yield %c1 : f32
+  }
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_result_type_mismatch(%I: memref<10xf32>, %i : index) {
+ // expected-error@+1 {{failed to verify that result type matches element type of memref}}
+ %0 = "memref.generic_atomic_rmw"(%I, %i) ({
+    ^bb0(%old_value: f32):
+      %c1 = arith.constant 1.0 : f32
+      memref.atomic_yield %c1 : f32
+    }) : (memref<10xf32>, index) -> i32
+  return
+}
+
+// -----
+
+func @generic_atomic_rmw_has_side_effects(%I: memref<10xf32>, %i : index) {
+  // expected-error@+4 {{should contain only operations with no side effects}}
+  %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : f32):
+      %c1 = arith.constant 1.0 : f32
+      %buf = memref.alloc() : memref<2048xf32>
+      memref.atomic_yield %c1 : f32
+  }
+}
+
+// -----
+
+func @atomic_yield_type_mismatch(%I: memref<10xf32>, %i : index) {
+  // expected-error@+4 {{op types mismatch between yield op: 'i32' and its parent: 'f32'}}
+  %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+    ^bb0(%old_value : f32):
+      %c1 = arith.constant 1 : i32
+      memref.atomic_yield %c1 : i32
+  }
   return
 }

@@ -13,6 +13,9 @@ inputs:
     default: 1
   cache_path:
     description: 'Path to cache location for all repos'
+  default_branch:
+    description: 'Name of the default branch'
+    default: 'sycl'
 
 runs:
   using: 'composite'
@@ -36,4 +39,16 @@ runs:
       repository: ${{ inputs.repository }}
       ref: ${{ inputs.ref }}
       path: ${{ inputs.path }}
-      fetch-depth: ${{ inputs.fetch-depth }}
+      fetch-depth: 0
+  - name: Merge sycl HEAD into current branch
+    shell: bash
+    env:
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
+      DEFAULT_BRANCH: ${{ inputs.default_branch }}
+    run: |
+      cd ${{ inputs.path }}
+      git fetch origin $DEFAULT_BRANCH
+      # Set fake identity to fulfil git requirements
+      git config --local user.email "actions@github.com"
+      git config --local user.name "GitHub Actions"
+      git merge --no-ff --no-commit origin/$DEFAULT_BRANCH
