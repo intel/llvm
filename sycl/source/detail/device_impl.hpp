@@ -227,7 +227,7 @@ public:
   bool isAssertFailSupported() const;
 
   bool isRootDevice() const { return MRootDevice == nullptr; }
-  
+
   std::string getDeviceName() const;
 
 private:
