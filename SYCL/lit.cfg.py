@@ -97,6 +97,9 @@ config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 if lit_config.params.get('gpu-intel-dg1', False):
     config.available_features.add('gpu-intel-dg1')
 
+if lit_config.params.get('gpu-intel-pvc', False):
+    config.available_features.add('gpu-intel-pvc')
+
 if lit_config.params.get('matrix', False):
     config.available_features.add('matrix')
 
