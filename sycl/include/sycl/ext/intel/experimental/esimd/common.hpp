@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/defines.hpp>
 
 #include <cstdint> // for uint* types
+#include <type_traits>
 
 /// @cond ESIMD_DETAIL
 
