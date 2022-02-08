@@ -2576,7 +2576,7 @@ static TryCastResult TryAddressSpaceCast(Sema &Self, ExprResult &SrcExpr,
     if (SrcQ.isAddressSpaceSupersetOf(DestQ) &&
         !DestQ.isAddressSpaceSupersetOf(SrcQ) && OpRange.isValid()) {
       Self.SYCLDiagIfDeviceCode(OpRange.getBegin(),
-                                diag::warn_sycl_nonsecure_as_cast)
+                                diag::warn_sycl_potentially_invalid_as_cast)
           << SrcType << DestType << OpRange;
     }
   }

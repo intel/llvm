@@ -11611,7 +11611,7 @@ def warn_sycl_implicit_decl
               "declaration for a kernel type name; your program may not "
               "be portable">,
       InGroup<SyclStrict>, ShowInSystemHeader, DefaultIgnore;
-def warn_sycl_nonsecure_as_cast : Warning<
+def warn_sycl_potentially_invalid_as_cast : Warning<
   "explicit cast from %0 to %1 potentially leads to an invalid address space"
   " cast in the resulting code">, InGroup<SyclStrict>,
   ShowInSystemHeader;
