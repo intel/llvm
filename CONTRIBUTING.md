@@ -105,17 +105,18 @@ end-to-end or SYCL-CTS tests.
     **DPC++ headers and runtime tests**:
 
     - PRs changing the way PI APIs are called: provide a unit test for new behavior,
-      see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#Plugin-interface-mock)
+      see [Guidelines](sycl/doc/dev/RuntimeTestingGuidelines.md#Plugin-interface-mock)
     - PRs changing graph structure or nodes scheduling: provide a unit test for new
-      behavior, see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#SYCL-host-runtime-testing)
+      behavior, see [Guidelines](sycl/doc/dev/RuntimeTestingGuidelines.md#SYCL-host-runtime-testing)
     - If PR adds a SYCL API, that is required by the specification to throw
-      exceptions: provide a unit test for error path: see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#Plugin-interface-mock)
+      exceptions: provide a unit test for error path:
+      see [Guidelines](sycl/doc/dev/RuntimeTestingGuidelines.md#Plugin-interface-mock)
     - PRs using "magic" builtins in device code: provide a LIT test for LLVM IR,
-      generated with new code, see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#sycl-device-headers)
+      generated with new code, see [Guidelines](sycl/doc/dev/RuntimeTestingGuidelines.md#sycl-device-headers)
     - PRs adding new data types as part of ABI: provide a LIT test for new data type
-      layout, see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md)
+      layout, see [Guidelines](sycl/doc/dev/RuntimeTestingGuidelines.md)
     - For PRs that require end-to-end tests: such tests **must not** expose runtime
-      internals, see [BKMs](sycl/doc/dev/RuntimeTestingBKMs.md#end-to-end-tests)
+      internals, see [Guidelines](sycl/doc/dev/RuntimeTestingGuidelines.md#end-to-end-tests)
     - See [existing in-tree tests](sycl/test) for more examples
 
 * DPC++ end-to-end (E2E) tests which are extension to
