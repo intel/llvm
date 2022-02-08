@@ -477,7 +477,7 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return std::fabs(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx))) <
+    return std::fabs(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx))) >=
            std::numeric_limits<float>::epsilon();
 #else
     throw runtime_error("joint matrix is not supported on host device.",
