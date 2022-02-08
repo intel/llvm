@@ -549,14 +549,13 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   // FIXME: on CPU we can't re-use results unless "Dev" is a root device already
   // due to Intel OpenCL CPU bug(?). This solution is tested only on Intel GPU
   // implementation.
-  DeviceImplPtr KeyDev = Dev;
-  if (KeyDev->is_gpu())
-    while (!KeyDev->isRootDevice()) {
-      auto ParentDev = detail::getSyclObjImpl(
-          KeyDev->get_info<info::device::parent_device>());
-      KeyDev = ParentDev;
+  if (Dev->is_gpu())
+    while (!Dev->isRootDevice()) {
+      auto ParentDev =
+          detail::getSyclObjImpl(Dev->get_info<info::device::parent_device>());
+      Dev = ParentDev;
     }
-  const RT::PiDevice PiDevice = KeyDev->getHandleRef();
+  const RT::PiDevice PiDevice = Dev->getHandleRef();
 
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
@@ -593,17 +592,7 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
-
-  auto Dev = DeviceImpl;
-  bool IsGPUDevice = Dev->is_gpu();
-  while (!Dev->isRootDevice()) {
-    auto ParentDev =
-        detail::getSyclObjImpl(Dev->get_info<info::device::parent_device>());
-    if (!ContextImpl->hasDevice(ParentDev) && !IsGPUDevice)
-      break;
-    Dev = ParentDev;
-  }
-  const RT::PiDevice PiDevice = Dev->getHandleRef();
+  const RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
   auto key = std::make_tuple(std::move(SpecConsts), M, PiDevice,
                              CompileOpts + LinkOpts, KernelName);
