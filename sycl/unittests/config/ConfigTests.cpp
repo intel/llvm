@@ -10,7 +10,7 @@
 #include <gtest/gtest.h>
 #include <regex>
 
-TEST(ConfigTests, CheckConfigProcessing) {
+TEST(ConfigTests, DISABLED_CheckConfigProcessing) {
 #ifdef _WIN32
   _putenv_s("SYCL_CONFIG_FILE_NAME", "conf.txt");
 #else
