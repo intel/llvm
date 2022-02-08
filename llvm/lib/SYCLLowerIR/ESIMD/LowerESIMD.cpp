@@ -78,6 +78,42 @@ ModulePass *llvm::createSYCLLowerESIMDPass() {
 }
 
 namespace {
+enum class lsc_subopcode : uint8_t {
+  load = 0x00,
+  load_strided = 0x01,
+  load_quad = 0x02,
+  load_block2d = 0x03,
+  store = 0x04,
+  store_strided = 0x05,
+  store_quad = 0x06,
+  store_block2d = 0x07,
+  //
+  atomic_iinc = 0x08,
+  atomic_idec = 0x09,
+  atomic_load = 0x0a,
+  atomic_store = 0x0b,
+  atomic_iadd = 0x0c,
+  atomic_isub = 0x0d,
+  atomic_smin = 0x0e,
+  atomic_smax = 0x0f,
+  atomic_umin = 0x10,
+  atomic_umax = 0x11,
+  atomic_icas = 0x12,
+  atomic_fadd = 0x13,
+  atomic_fsub = 0x14,
+  atomic_fmin = 0x15,
+  atomic_fmax = 0x16,
+  atomic_fcas = 0x17,
+  atomic_and = 0x18,
+  atomic_or = 0x19,
+  atomic_xor = 0x1a,
+  //
+  load_status = 0x1b,
+  store_uncompressed = 0x1c,
+  ccs_update = 0x1d,
+  read_state_info = 0x1e,
+  fence = 0x1f,
+};
 // The regexp for ESIMD intrinsics:
 // /^_Z(\d+)__esimd_\w+/
 static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
@@ -224,6 +260,10 @@ private:
 
   static constexpr ESIMDIntrinDesc::ArgRule c8(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT8, {{N, {}}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule c8(lsc_subopcode OpCode) {
+    return c8(static_cast<uint8_t>(OpCode));
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c16(int16_t N) {
@@ -445,6 +485,87 @@ public:
         {"raw_send2_noresult",
          {"raw.send2.noresult",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7)}}},
+        {"lsc_load_slm",
+         {"lsc.load.slm",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0)}}},
+        {"lsc_load_bti",
+         {"lsc.load.bti",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), aSI(2)}}},
+        {"lsc_load_stateless",
+         {"lsc.load.stateless",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0)}}},
+        {"lsc_prefetch_bti",
+         {"lsc.prefetch.bti",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), aSI(2)}}},
+        {"lsc_prefetch_stateless",
+         {"lsc.prefetch.stateless",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0)}}},
+        {"lsc_store_slm",
+         {"lsc.store.slm",
+          {ai1(0), c8(lsc_subopcode::store), t8(1), t8(2), t16(3), t32(4),
+           t8(5), t8(6), t8(7), c8(0), a(1), a(2), c32(0)}}},
+        {"lsc_store_bti",
+         {"lsc.store.bti",
+          {ai1(0), c8(lsc_subopcode::store), t8(1), t8(2), t16(3), t32(4),
+           t8(5), t8(6), t8(7), c8(0), a(1), a(2), aSI(3)}}},
+        {"lsc_store_stateless",
+         {"lsc.store.stateless",
+          {ai1(0), c8(lsc_subopcode::store), t8(1), t8(2), t16(3), t32(4),
+           t8(5), t8(6), t8(7), c8(0), a(1), a(2), c32(0)}}},
+        {"lsc_load2d_stateless",
+         {"lsc.load2d.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t8(4), t8(5), t16(6), t16(7), t8(8),
+           a(1), a(2), a(3), a(4), a(5), a(6)}}},
+        {"lsc_prefetch2d_stateless",
+         {"lsc.prefetch2d.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t8(4), t8(5), t16(6), t16(7), t8(8),
+           a(1), a(2), a(3), a(4), a(5), a(6)}}},
+        {"lsc_store2d_stateless",
+         {"lsc.store2d.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t8(4), t8(5), t16(6), t16(7), t8(8),
+           a(1), a(2), a(3), a(4), a(5), a(6), a(7)}}},
+        {"lsc_xatomic_slm_0",
+         {"lsc.xatomic.slm",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), u(-1), u(-1), c32(0), u(-1)}}},
+        {"lsc_xatomic_slm_1",
+         {"lsc.xatomic.slm",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), u(-1), c32(0), u(-1)}}},
+        {"lsc_xatomic_slm_2",
+         {"lsc.xatomic.slm",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), a(3), c32(0), u(-1)}}},
+        {"lsc_xatomic_bti_0",
+         {"lsc.xatomic.bti",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), u(-1), u(-1), aSI(2), u(-1)}}},
+        {"lsc_xatomic_bti_1",
+         {"lsc.xatomic.bti",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), u(-1), aSI(3), u(-1)}}},
+        {"lsc_xatomic_bti_2",
+         {"lsc.xatomic.bti",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), a(3), aSI(4), u(-1)}}},
+        {"lsc_xatomic_stateless_0",
+         {"lsc.xatomic.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), u(-1), u(-1), c32(0), u(-1)}}},
+        {"lsc_xatomic_stateless_1",
+         {"lsc.xatomic.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), u(-1), c32(0), u(-1)}}},
+        {"lsc_xatomic_stateless_2",
+         {"lsc.xatomic.stateless",
+          {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
+           c8(0), a(1), a(2), a(3), c32(0), u(-1)}}},
+        {"lsc_fence", {"lsc.fence", {ai1(0), t8(0), t8(1), t8(2)}}},
         {"sat", {"sat", {a(0)}}},
         {"fptoui_sat", {"fptoui.sat", {a(0)}}},
         {"fptosi_sat", {"fptosi.sat", {a(0)}}},
@@ -713,6 +834,12 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
       break;
     case 0x12:
       Suff = ".fcmpwr";
+      break;
+    case 0x13:
+      Suff = ".fadd";
+      break;
+    case 0x14:
+      Suff = ".fsub";
       break;
     case 0xff:
       Suff = ".predec";
