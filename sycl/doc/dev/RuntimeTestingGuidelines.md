@@ -9,7 +9,7 @@ runtime and simulate different behavior of low-level runtimes.
 
 ### Plugin Interface Mock
 
-PI Mock layer provides capabilities to override plugins' behavior. There're two
+PI Mock layer provides capabilities to override plugins' behavior. There are two
 ways to enable PI Mock in your unit test:
 
 1. Include `helpers/sycl_test.hpp` header and use `SYCL_TEST` macro instead of
