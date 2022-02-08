@@ -48,7 +48,7 @@ jobs:
         ninja check-sycl-unittests
         cd ..
         python3 ./llvm/llvm/utils/prepare-code-coverage-artifact.py \
-          --unified-report llvm-profdata llvm-cov ./exp/tools/sycl/profiles \
+          --unified-report llvm-profdata llvm-cov ./ref/tools/sycl/profiles \
           ./ref/report ./ref/lib/libsycl.so
         llvm-cov export --format=lcov \
           --instr-profile=./ref/tools/sycl/profiles/Coverage.profdata \
