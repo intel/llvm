@@ -1,4 +1,4 @@
-//===-- common.hpp - Define common code for simd ctors tests --------------===//
+//===-- common.hpp - Define common code for simd operators tests ----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// This file provides common things for simd ctors tests.
+/// This file provides common things for simd operators tests.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -15,9 +15,9 @@
 
 #include "../common.hpp"
 
-namespace esimd_test::api::functional::ctors {
+namespace esimd_test::api::functional::operators {
 
-template <typename DataT, int NumElems, typename ContextT>
+template <typename DataT, int NumElems>
 class TestDescription : public ITestDescription {
 public:
   TestDescription(size_t index, DataT retrieved_val, DataT expected_val,
@@ -31,7 +31,6 @@ public:
     std::string log_msg("Failed for simd<");
 
     log_msg += m_data_type + ", " + std::to_string(NumElems) + ">";
-    log_msg += ", with context: " + ContextT::get_description();
     log_msg += ", retrieved: " + std::to_string(m_retrieved_val);
     log_msg += ", expected: " + std::to_string(m_expected_val);
     log_msg += ", at index: " + std::to_string(m_index);
@@ -46,4 +45,4 @@ private:
   const size_t m_index;
 };
 
-} // namespace esimd_test::api::functional::ctors
+} // namespace esimd_test::api::functional::operators

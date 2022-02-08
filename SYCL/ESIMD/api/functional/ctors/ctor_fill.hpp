@@ -98,7 +98,7 @@ enum class init_val {
   ulp_half
 };
 
-// Dummy kernel for submitting some code into device side.
+// Class used as a kernel ID.
 template <typename DataT, int NumElems, typename T, init_val BaseVal,
           init_val StepVal>
 struct kernel_for_fill;
@@ -173,16 +173,16 @@ template <init_val Val> std::string init_val_to_string() {
 template <typename DataT, int NumElems, typename ContextT, init_val BaseVal,
           init_val Step>
 class FillCtorTestDescription
-    : public TestDescription<DataT, NumElems, ContextT> {
+    : public ctors::TestDescription<DataT, NumElems, ContextT> {
 public:
   FillCtorTestDescription(size_t index, DataT retrieved_val, DataT expected_val,
                           const std::string &data_type)
-      : TestDescription<DataT, NumElems, ContextT>(index, retrieved_val,
-                                                   expected_val, data_type) {}
+      : ctors::TestDescription<DataT, NumElems, ContextT>(
+            index, retrieved_val, expected_val, data_type) {}
 
   std::string to_string() const override {
     std::string log_msg(
-        TestDescription<DataT, NumElems, ContextT>::to_string());
+        ctors::TestDescription<DataT, NumElems, ContextT>::to_string());
 
     log_msg += ", with base value: " + init_val_to_string<BaseVal>();
     log_msg += ", with step value: " + init_val_to_string<Step>();

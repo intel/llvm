@@ -131,7 +131,7 @@ private:
       const DataT *const ref = shared_ref_data.data();
       DataT *const out = result.data();
 
-      cgh.single_task<ctors::Kernel<DataT, NumElems, TestCaseT>>(
+      cgh.single_task<Kernel<DataT, NumElems, TestCaseT>>(
           [=]() SYCL_ESIMD_KERNEL {
             DataT ref_on_dev[NumElems];
             for (size_t i = 0; i < NumElems; ++i) {

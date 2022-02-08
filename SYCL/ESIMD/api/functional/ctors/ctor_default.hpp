@@ -87,7 +87,7 @@ template <typename DataT, typename DimT, typename TestCaseT> struct run_test {
 
     queue.submit([&](sycl::handler &cgh) {
       DataT *const out = result.data();
-      cgh.single_task<ctors::Kernel<DataT, NumElems, TestCaseT>>(
+      cgh.single_task<Kernel<DataT, NumElems, TestCaseT>>(
           [=]() SYCL_ESIMD_KERNEL {
             TestCaseT::template call_simd_ctor<DataT, NumElems>(out);
           });
