@@ -57,18 +57,18 @@ free(void *ptr, const queue &q,
 ///
 // Restricted USM
 ///
-__SYCL_EXPORT void *
-malloc_host(size_t size, const context &ctxt,
-            const detail::code_location codeLoc = detail::code_location::current());
-__SYCL_EXPORT void *
-malloc_host(size_t size, const context &ctxt, const property_list &propList,
-            const detail::code_location codeLoc = detail::code_location::current());
-__SYCL_EXPORT void *
-malloc_host(size_t size, const queue &q,
-            const detail::code_location codeLoc = detail::code_location::current());
-__SYCL_EXPORT void *
-malloc_host(size_t size, const queue &q, const property_list &propList,
-            const detail::code_location codeLoc = detail::code_location::current());
+__SYCL_EXPORT void *malloc_host(
+    size_t size, const context &ctxt,
+    const detail::code_location codeLoc = detail::code_location::current());
+__SYCL_EXPORT void *malloc_host(
+    size_t size, const context &ctxt, const property_list &propList,
+    const detail::code_location codeLoc = detail::code_location::current());
+__SYCL_EXPORT void *malloc_host(
+    size_t size, const queue &q,
+    const detail::code_location codeLoc = detail::code_location::current());
+__SYCL_EXPORT void *malloc_host(
+    size_t size, const queue &q, const property_list &propList,
+    const detail::code_location codeLoc = detail::code_location::current());
 
 __SYCL_EXPORT void *malloc_shared(
     size_t size, const device &dev, const context &ctxt,
@@ -164,7 +164,8 @@ template <typename T>
 T *malloc_device(
     size_t Count, const queue &Q, const property_list &PropList = {},
     const detail::code_location codeLoc = detail::code_location::current()) {
-  return malloc_device<T>(Count, Q.get_device(), Q.get_context(), PropList, codeLoc);
+  return malloc_device<T>(Count, Q.get_device(), Q.get_context(), PropList,
+                          codeLoc);
 }
 
 template <typename T>
@@ -189,7 +190,8 @@ template <typename T>
 T *malloc_host(
     size_t Count, const context &Ctxt, const property_list &PropList = {},
     const detail::code_location codeLoc = detail::code_location::current()) {
-  return static_cast<T *>(malloc_host(Count * sizeof(T), Ctxt, PropList, codeLoc));
+  return static_cast<T *>(
+      malloc_host(Count * sizeof(T), Ctxt, PropList, codeLoc));
 }
 
 template <typename T>
@@ -212,7 +214,8 @@ template <typename T>
 T *malloc_shared(
     size_t Count, const queue &Q, const property_list &PropList = {},
     const detail::code_location codeLoc = detail::code_location::current()) {
-  return malloc_shared<T>(Count, Q.get_device(), Q.get_context(), PropList, codeLoc);
+  return malloc_shared<T>(Count, Q.get_device(), Q.get_context(), PropList,
+                          codeLoc);
 }
 
 template <typename T>
@@ -220,8 +223,8 @@ T *aligned_alloc_host(
     size_t Alignment, size_t Count, const context &Ctxt,
     const property_list &PropList = {},
     const detail::code_location codeLoc = detail::code_location::current()) {
-  return static_cast<T *>(
-      aligned_alloc_host(Alignment, Count * sizeof(T), Ctxt, PropList, codeLoc));
+  return static_cast<T *>(aligned_alloc_host(Alignment, Count * sizeof(T), Ctxt,
+                                             PropList, codeLoc));
 }
 
 template <typename T>
@@ -229,7 +232,8 @@ T *aligned_alloc_host(
     size_t Alignment, size_t Count, const queue &Q,
     const property_list &PropList = {},
     const detail::code_location codeLoc = detail::code_location::current()) {
-  return aligned_alloc_host<T>(Alignment, Count, Q.get_context(), PropList, codeLoc);
+  return aligned_alloc_host<T>(Alignment, Count, Q.get_context(), PropList,
+                               codeLoc);
 }
 
 template <typename T>
@@ -251,18 +255,21 @@ T *aligned_alloc_shared(
 }
 
 template <typename T>
-T *malloc(size_t Count, const device &Dev, const context &Ctxt, usm::alloc Kind,
-          const property_list &PropList = {},
-          const detail::code_location codeLoc = detail::code_location::current()) {
+T *malloc(
+    size_t Count, const device &Dev, const context &Ctxt, usm::alloc Kind,
+    const property_list &PropList = {},
+    const detail::code_location codeLoc = detail::code_location::current()) {
   return static_cast<T *>(
       malloc(Count * sizeof(T), Dev, Ctxt, Kind, PropList, codeLoc));
 }
 
 template <typename T>
-T *malloc(size_t Count, const queue &Q, usm::alloc Kind,
-          const property_list &PropList = {},
-          const detail::code_location codeLoc = detail::code_location::current()) {
-  return malloc<T>(Count, Q.get_device(), Q.get_context(), Kind, PropList, codeLoc);
+T *malloc(
+    size_t Count, const queue &Q, usm::alloc Kind,
+    const property_list &PropList = {},
+    const detail::code_location codeLoc = detail::code_location::current()) {
+  return malloc<T>(Count, Q.get_device(), Q.get_context(), Kind, PropList,
+                   codeLoc);
 }
 
 template <typename T>
