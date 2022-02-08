@@ -800,7 +800,7 @@ Release notes for commit range 5d7e0925..5eebd1e4bfce
 ### SYCL Compiler
  - Allow for multiple build options for opencl-aot [5e5703f58449]
 ### SYCL Library
- - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/MemChannel/SYCL_INTEL_mem_channel_property.asciidoc)
+ - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/supported/SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY.asciidoc)
    extension [2f1f3167b7c6]
  - Add `marray` class as defined by SYCL 2020 provisional [5eebd1e4bfce]
  - Implement dynamic batch size adjusting when using Level-Zero plugin
@@ -1186,7 +1186,7 @@ Release notes for commit range 5976ff0..1fc0e4f
 
 ### Documentation
   - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/extensions/SPIRV/SPV_INTEL_usm_storage_classes.asciidoc)
-    and [SYCL_INTEL_usm_address_spaces](doc/extensions/USMAddressSpaces/usm_address_spaces.asciidoc) [781fbfc]
+    and [SYCL_INTEL_usm_address_spaces](doc/extensions/supported/SYCL_EXT_INTEL_USM_ADDRESS_SPACES.asciidoc) [781fbfc]
   - Fixed SPIR-V format name spelling [6e9bf3b]
   - Added extension [LocalMemory](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc) draft specification [4b5308a]
   - Added extension [free functions queries](doc/extensions/experimental/SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES.asciidoc) draft specification [8953bfd]
@@ -1667,7 +1667,7 @@ Release notes for the commit range ba404be..67d3d9e
   - [ExtendedAtomics documentation](doc/extensions/ExtendedAtomics/README.md)
     has been updated [1084685]
   - Published [sycl_bitcast extension](doc/extensions/Bitcast/SYCL_INTEL_bitcast.asciidoc)
-  - Published a [proposal](doc/extensions/StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)
+  - Published a [proposal](doc/extensions/proposed/SYCL_EXT_ONEAPI_LOCAL_STATIC_MEM_USED.asciidoc)
     which adds ability to query max local size which is used by a specific
     kernel and a specific device.
   - Published [device_specific_kernel_queries](doc/extensions/DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc)
