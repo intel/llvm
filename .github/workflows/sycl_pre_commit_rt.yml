@@ -5,12 +5,18 @@ on:
     branches:
     - sycl
     paths:
+    '.github/workflows/sycl_pre_commit_rt.yml'
+  pull_request_target:
+    branches:
+    - sycl
+    paths:
     - 'sycl/**'
     - '!sycl/doc/**'
 
 jobs:
   runtime_coverage:
     runs-on: ubuntu-latest
+    if: github.repository == 'intel/llvm'
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
     steps:
@@ -59,6 +65,7 @@ jobs:
         name: sycl_rt_coverage
         path: exp/report/
     - name: Report difference
+      if: ${{ github.event_name == 'pull_request_target' }}
       uses: Nef10/lcov-reporter-action@badb09a7ebbd0906681002d671bcd16c819a911d
       with:
         lcov-file: exp.lcov
