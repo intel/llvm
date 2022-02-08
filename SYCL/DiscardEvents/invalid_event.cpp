@@ -1,4 +1,6 @@
 // FIXME: Fails on HIP and OpenCL accelerator
+// See https://github.com/intel/llvm-test-suite/issues/810
+// REQUIRES: TEMPORARILY_DISABLED
 // UNSUPPORTED: hip, (opencl && accelerator)
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
