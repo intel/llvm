@@ -276,183 +276,78 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  friend T operator+(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-                     const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) + rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
+#if __SYCL_DEVICE_ONLY__
+#define OP(opassign, op)                                                       \
+  template <typename T2> wi_element &operator opassign(const T2 &rhs) {        \
+    M.spvm = __spirv_VectorInsertDynamic(                                      \
+        M.spvm,                                                                \
+        static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx)               \
+                           op static_cast<T>(rhs)),                            \
+        idx);                                                                  \
+    return *this;                                                              \
   }
+#else // __SYCL_DEVICE_ONLY__
+#define OP(opassign, op)                                                       \
+  template <typename T2> wi_element &operator opassign(const T2 &rhs) {        \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
+  }
+#endif // __SYCL_DEVICE_ONLY__
+  OP(+=, +)
+  OP(-=, -)
+  OP(*=, *)
+  OP(/=, /)
+#undef OP
 
-  wi_element &operator+=(const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx) + rhs),
-        idx);
-    return *this;
-#else
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
+#if __SYCL_DEVICE_ONLY__
+#define OP(type, op)                                                           \
+  template <typename T2>                                                       \
+  friend type operator op(                                                     \
+      const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,               \
+      const T2 &rhs) {                                                         \
+    return type{static_cast<T>(__spirv_VectorExtractDynamic(                   \
+        lhs.M.spvm, lhs.idx)) op static_cast<T>(rhs)};                         \
+  }                                                                            \
+  template <typename T2>                                                       \
+  friend type operator op(                                                     \
+      const T2 &lhs,                                                           \
+      const wi_element<T, NumRows, NumCols, Layout, Group> &rhs) {             \
+    return type{static_cast<T>(__spirv_VectorExtractDynamic(                   \
+        rhs.M.spvm, rhs.idx)) op static_cast<T>(lhs)};                         \
   }
-
-  friend T operator-(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-                     const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) - rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
+#else // __SYCL_DEVICE_ONLY__
+#define OP(type, op)                                                           \
+  template <typename T2>                                                       \
+  friend type operator op(                                                     \
+      const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,               \
+      const T2 &rhs) {                                                         \
+    (void)lhs;                                                                 \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
+  }                                                                            \
+  template <typename T2>                                                       \
+  friend type operator op(                                                     \
+      const T2 &lhs,                                                           \
+      const wi_element<T, NumRows, NumCols, Layout, Group> &rhs) {             \
+    (void)lhs;                                                                 \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
   }
-
-  wi_element &operator-=(const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx) - rhs),
-        idx);
-    return *this;
-#else
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend T operator*(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-                     const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) * rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  wi_element &operator*=(const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx) * rhs),
-        idx);
-    return *this;
-#else
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend T operator/(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-                     const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) / rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  wi_element &operator/=(const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm, static_cast<T>(__spirv_VectorExtractDynamic(M.spvm, idx) / rhs),
-        idx);
-    return *this;
-#else
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator<(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-            const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) < rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator<=(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-             const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) <= rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator>(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-            const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) > rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator>=(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-             const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) >= rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator==(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-             const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) == rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator!=(const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,
-             const T &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) != rhs;
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
+  OP(T, +)
+  OP(T, -)
+  OP(T, *)
+  OP(T, /)
+  OP(bool, ==)
+  OP(bool, !=)
+  OP(bool, <)
+  OP(bool, >)
+  OP(bool, <=)
+  OP(bool, >=)
+#undef OP
 };
 
 // Note that similarly to the other matrix functions, uint16_t is used here to
@@ -530,211 +425,99 @@ public:
     return (uint16_t)*res;
   }
 
-  friend uint16_t
-  operator+(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-            const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return make_bf16(
-        make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) +
-        make_fp32(rhs));
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
+#if __SYCL_DEVICE_ONLY__
+#define OP(opassign, op)                                                       \
+  wi_element &operator opassign(const uint16_t &rhs) {                         \
+    M.spvm = __spirv_VectorInsertDynamic(                                      \
+        M.spvm,                                                                \
+        make_bf16(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx)          \
+                                op make_fp32(rhs))),                           \
+        idx);                                                                  \
+    return *this;                                                              \
   }
+#else // __SYCL_DEVICE_ONLY__
+#define OP(opassign, op)                                                       \
+  wi_element &operator opassign(const uint16_t &rhs) {                         \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
+  }
+#endif // __SYCL_DEVICE_ONLY__
+  OP(+=, +)
+  OP(-=, -)
+  OP(*=, *)
+  OP(/=, /)
+#undef OP
 
-  wi_element &operator+=(const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm,
-        make_bf16(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx)) +
-                  make_fp32(rhs)),
-        idx);
-    return *this;
-#else
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
+#if __SYCL_DEVICE_ONLY__
+#define OP(type, op)                                                           \
+  friend type operator op(                                                     \
+      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,        \
+      const uint16_t &rhs) {                                                   \
+    return make_bf16(make_fp32(                                                \
+        __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) op make_fp32(rhs)); \
+  }                                                                            \
+  friend type operator op(                                                     \
+      const uint16_t &lhs,                                                     \
+      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &rhs) {      \
+    return make_bf16(make_fp32(                                                \
+        __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx)) op make_fp32(lhs)); \
   }
-
-  friend uint16_t
-  operator-(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-            const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return make_bf16(
-        make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) -
-        make_fp32(rhs));
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
+  OP(uint16_t, +)
+  OP(uint16_t, -)
+  OP(uint16_t, *)
+  OP(uint16_t, /)
+#undef OP
+#define OP(type, op)                                                           \
+  friend type operator op(                                                     \
+      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,        \
+      const uint16_t &rhs) {                                                   \
+    return type{make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx))   \
+                    op make_fp32(rhs)};                                        \
+  }                                                                            \
+  friend type operator op(                                                     \
+      const uint16_t &lhs,                                                     \
+      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &rhs) {      \
+    return type{make_fp32(__spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx))   \
+                    op make_fp32(lhs)};                                        \
   }
-
-  wi_element &operator-=(const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm,
-        make_bf16(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx)) -
-                  make_fp32(rhs)),
-        idx);
-    return *this;
-#else
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
+  OP(bool, ==)
+  OP(bool, !=)
+  OP(bool, <)
+  OP(bool, >)
+  OP(bool, <=)
+  OP(bool, >=)
+#undef OP
+#else // __SYCL_DEVICE_ONLY__
+#define OP(type, op)                                                           \
+  friend type operator op(                                                     \
+      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,        \
+      const uint16_t &rhs) {                                                   \
+    (void)lhs;                                                                 \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
+  }                                                                            \
+  friend type operator op(                                                     \
+      const uint16_t &lhs,                                                     \
+      const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &rhs) {      \
+    (void)lhs;                                                                 \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
   }
-
-  friend uint16_t
-  operator*(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-            const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return make_bf16(
-        make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) *
-        make_fp32(rhs));
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
+  OP(uint16_t, +)
+  OP(uint16_t, -)
+  OP(uint16_t, *)
+  OP(uint16_t, /)
+  OP(bool, ==)
+  OP(bool, !=)
+  OP(bool, <)
+  OP(bool, >)
+  OP(bool, <=)
+  OP(bool, >=)
+#undef OP
 #endif // __SYCL_DEVICE_ONLY__
-  }
-
-  wi_element &operator*=(const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm,
-        make_bf16(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx)) *
-                  make_fp32(rhs)),
-        idx);
-    return *this;
-#else
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend uint16_t
-  operator/(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-            const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return make_bf16(
-        make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) /
-        make_fp32(rhs));
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  wi_element &operator/=(const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(
-        M.spvm,
-        make_bf16(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx)) /
-                  make_fp32(rhs)),
-        idx);
-    return *this;
-#else
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator<(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-            const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) <
-           make_fp32(rhs);
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator<=(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-             const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) <=
-           make_fp32(rhs);
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator>(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-            const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) >
-           make_fp32(rhs);
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator>=(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-             const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) >=
-           make_fp32(rhs);
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator==(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-             const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return std::fabs(
-               make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) -
-               make_fp32(rhs)) < std::numeric_limits<float>::epsilon();
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  friend bool
-  operator!=(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
-             const uint16_t &rhs) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return std::fabs(
-               make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) -
-               make_fp32(rhs)) >= std::numeric_limits<float>::epsilon();
-#else
-    (void)lhs;
-    (void)rhs;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
 };
 
 template <typename T, size_t NumRows, size_t NumCols, matrix_layout Layout,
