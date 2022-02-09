@@ -117,10 +117,10 @@ void boo() {
   [[intel::nofusion(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'loop_count_avg' attribute takes one argument}}
-  [[intel::loop_count_avg(3, 6)]]  for (int i = 0; i != 10; ++i)
+  [[intel::loop_count_avg(3, 6)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'loop_count' attribute takes one argument}}
-  [[intel::loop_count(6, 9)]]  for (int i = 0; i != 10; ++i)
+  [[intel::loop_count(6, 9)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -383,8 +383,7 @@ void loop_attrs_compatibility() {
   [[intel::loop_count_max(8)]]
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  [[intel::loop_count(8)]]
-  for (int i = 0; i != 10; ++i)
+  [[intel::loop_count(8)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -520,9 +519,8 @@ void loop_count_control_dependent() {
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  //expected-error@+1{{'loop_count' attribute requires a non-negative integral compile time constant expression}}
-  [[intel::loop_count(C)]]
-  for (int i = 0; i != 10; ++i)
+  // expected-error@+1{{'loop_count' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count(C)]] for (int i = 0; i != 10; ++i)
        a[i] = 0;
 
   [[intel::loop_count_avg(A)]]
@@ -541,7 +539,7 @@ void loop_count_control_dependent() {
       a[i] = 0;
 
   [[intel::loop_count(A)]]
-  //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count'}}
+  // expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count'}}
   [[intel::loop_count(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }

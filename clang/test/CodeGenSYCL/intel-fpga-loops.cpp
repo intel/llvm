@@ -137,18 +137,17 @@ void loop_count_control() {
   // CHECK-NEXT: ![[MD_loop_count_max]] = !{!"llvm.loop.intel.loopcount_max", i32 4}
   [[intel::loop_count_max(4)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // CHECK: ![[MD_LCA_2]] = distinct !{![[MD_LCA_2]], ![[MP:[0-9]+]], ![[MD_loop_count_min:[0-9]+]], ![[MD_loop_count_max_1:[0-9]+]], ![[MD_loop_count_avg_1:[0-9]+]], ![[MD_loop_count_1:[0-9]+]]}
+  // CHECK: ![[MD_LCA_2]] = distinct !{![[MD_LCA_2]], ![[MP:[0-9]+]], ![[MD_loop_count_min:[0-9]+]], ![[MD_loop_count_max_1:[0-9]+]], ![[MD_loop_count_avg_1:[0-9]+]], ![[MD_loop_count:[0-9]+]]}
   // CHECK: ![[MD_loop_count_min]] = !{!"llvm.loop.intel.loopcount_min", i32 4}
   // CHECK: ![[MD_loop_count_max_1]] = !{!"llvm.loop.intel.loopcount_max", i32 40}
   // CHECK: ![[MD_loop_count_avg_1]] = !{!"llvm.loop.intel.loopcount_avg", i32 21}
-  // CHECK: ![[MD_loop_count_1]] = !{!"llvm.loop.intel.loopcount", i32 30}
+  // CHECK-NEXT: ![[MD_loop_count]] = !{!"llvm.loop.intel.loopcount", i32 30}
   [[intel::loop_count_min(4)]] [[intel::loop_count_max(40)]] [[intel::loop_count_avg(21)]] [[intel::loop_count(30)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-
-  // CHECK: ![[MD_LCA_3]] = distinct !{![[MD_LCA_3]], ![[MP:[0-9]+]], ![[MD_loop_count:[0-9]+]]}
-  // CHECK-NEXT: ![[MD_loop_count]] = !{!"llvm.loop.intel.loopcount", i32 12}
+  // CHECK: ![[MD_LCA_3]] = distinct !{![[MD_LCA_3]], ![[MP:[0-9]+]], ![[MD_loop_count_1:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_loop_count_1]] = !{!"llvm.loop.intel.loopcount", i32 12}
   [[intel::loop_count(A)]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
+      a[i] = 0;
 }
 
 template <typename name, typename Func>
