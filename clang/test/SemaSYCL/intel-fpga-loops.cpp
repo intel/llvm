@@ -521,7 +521,7 @@ void loop_count_control_dependent() {
 
   // expected-error@+1{{'loop_count' attribute requires a non-negative integral compile time constant expression}}
   [[intel::loop_count(C)]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
+      a[i] = 0;
 
   [[intel::loop_count_avg(A)]]
   //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_avg'}}
