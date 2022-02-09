@@ -706,6 +706,34 @@ of type `device_global` in which case it can be odr-used inside a device functio
 global variable that isn't `const` or `constexpr` unless the variable is of type `device_global`.
 
 
+=== Referencing a device global defined in another translation unit
+
+If the implementation defines the `SYCL_EXTERNAL` macro, device code in one
+translation unit may reference a device global variable that is defined in a
+different translation unit so long as the variable is defined using
+`SYCL_EXTERNAL`.  For example:
+
+```c++
+// In one translation unit
+#include <sycl/sycl.hpp>
+using namespace sycl::ext::oneapi;
+
+SYCL_EXTERNAL device_global<int> Foo;  // definition
+
+// In another translation unit
+#include <sycl/sycl.hpp>
+using namespace sycl::ext::oneapi;
+using namespace sycl;
+
+extern device_global<int> Foo;  // declaration
+
+void bar(queue q) {
+  q.single_task([=] {
+    Foo = 42;
+  });
+}
+```
+
 === Add new copy and memcpy members to the queue class
 
 Add the following functions to the `sycl::queue` interface described in Section 4.6.5.1 of
