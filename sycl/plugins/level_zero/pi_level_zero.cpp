@@ -1335,13 +1335,11 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   }
 
   if (this->EventlessMode) {
-    this->LastCommandEvent = pi_event();
-    this->LastEventInPrevCmdList = this->LastCommandEvent;
-
     pi_result Res = createEventAndAssociateQueue(
         this, &LastEventInPrevCmdList, PI_COMMAND_TYPE_USER, CommandList, true);
     if (Res != PI_SUCCESS)
       return Res;
+    this->LastCommandEvent = LastEventInPrevCmdList;
 
     // Add barrier with the event into command list to ensure in-order semantic
     // between command lists
