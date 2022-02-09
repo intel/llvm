@@ -39,7 +39,6 @@ template <> struct KernelInfo<EAMTestKernel1> {
   static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
-
 template <> struct KernelInfo<EAMTestKernel2> {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs2; }
   static const kernel_param_desc_t &getParamDesc(int) {
@@ -62,8 +61,9 @@ generateEAMTestKernel1Image(std::string _cmplOptions, std::string _lnkOptions) {
   using namespace sycl::unittest;
 
   std::vector<unsigned char> KernelEAM1{0b00000101};
-  PiProperty EAMKernelPOI = makeKernelParamOptInfo(
-      sycl::detail::KernelInfo<T>::getName(), EAMTestKernelNumArgs1, KernelEAM1);
+  PiProperty EAMKernelPOI =
+      makeKernelParamOptInfo(sycl::detail::KernelInfo<T>::getName(),
+                             EAMTestKernelNumArgs1, KernelEAM1);
   PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   PiPropertySet PropSet;
@@ -90,8 +90,9 @@ generateEAMTestKernel2Image(std::string _cmplOptions, std::string _lnkOptions) {
   using namespace sycl::unittest;
 
   std::vector<unsigned char> KernelEAM2{0b00000101};
-  PiProperty EAMKernelPOI = makeKernelParamOptInfo(
-      sycl::detail::KernelInfo<T>::getName(), EAMTestKernelNumArgs2, KernelEAM2);
+  PiProperty EAMKernelPOI =
+      makeKernelParamOptInfo(sycl::detail::KernelInfo<T>::getName(),
+                             EAMTestKernelNumArgs2, KernelEAM2);
   PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   PiPropertySet PropSet;
@@ -132,10 +133,10 @@ inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedProgramBuild(pi_program prog, pi_uint32, const pi_device *,
-                                      const char * options, void (*pfn_notify)(pi_program program, void *user_data),
-                                      void *user_data) {
-      return PI_SUCCESS;
+inline pi_result redefinedProgramBuild(
+    pi_program prog, pi_uint32, const pi_device *, const char *options,
+    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
+  return PI_SUCCESS;
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
@@ -164,16 +165,14 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   // Check devices' compile & link options separately
   current_link_options.clear();
   current_compile_options.clear();
-  std::string expected_compile_options1 = "",
-              expected_compile_options2 = "";
-  std::string expected_link_options1 = "",
-              expected_link_options2 = "";
+  std::string expected_compile_options1 = "", expected_compile_options2 = "";
+  std::string expected_link_options1 = "", expected_link_options2 = "";
   static sycl::unittest::PiImage DevImage1 =
       generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options1,
-                                                expected_link_options1);
+                                                  expected_link_options1);
   static sycl::unittest::PiImage DevImage2 =
       generateEAMTestKernel1Image<EAMTestKernel2>(expected_compile_options2,
-                                                expected_link_options2);
+                                                  expected_link_options2);
   static sycl::unittest::PiImageArray<1> DevImageArray_1{&DevImage1};
   static sycl::unittest::PiImageArray<1> DevImageArray_2{&DevImage2};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
@@ -199,10 +198,11 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   // Check devices' compile & link options together
   current_link_options.clear();
   current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1, &DevImage2};
+  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1,
+                                                            &DevImage2};
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_1, KernelID_2});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(
+          Ctx, {Dev}, {KernelID_1, KernelID_2});
   auto BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
   EXPECT_EQ("", current_link_options);
@@ -237,15 +237,16 @@ TEST(Link_Compile_Options, compile_link_Options_Test_only_compile_options) {
   current_compile_options.clear();
   std::string expected_compile_options1 = "-cl-single-precision-constant",
               expected_compile_options1_1 = "",
-              expected_compile_options2 = "-cl-fp32-correctly-rounded-divide-sqrt",
+              expected_compile_options2 =
+                  "-cl-fp32-correctly-rounded-divide-sqrt",
               expected_compile_options2_1 = "";
   std::string expected_link_options = "";
   static sycl::unittest::PiImage DevImage1 =
       generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options1,
-                                                expected_link_options);
+                                                  expected_link_options);
   static sycl::unittest::PiImage DevImage2 =
       generateEAMTestKernel1Image<EAMTestKernel2>(expected_compile_options2,
-                                                expected_link_options);
+                                                  expected_link_options);
   static sycl::unittest::PiImageArray<1> DevImageArray_1{&DevImage1};
   static sycl::unittest::PiImageArray<1> DevImageArray_2{&DevImage2};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
@@ -271,30 +272,37 @@ TEST(Link_Compile_Options, compile_link_Options_Test_only_compile_options) {
   // Check devices' compile & link options together
   current_link_options.clear();
   current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1, &DevImage2};
+  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1,
+                                                            &DevImage2};
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_1, KernelID_2});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(
+          Ctx, {Dev}, {KernelID_1, KernelID_2});
   auto BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
   EXPECT_EQ("", current_link_options);
-  EXPECT_EQ(expected_compile_options1 + " " + expected_compile_options2, current_compile_options);
+  EXPECT_EQ(expected_compile_options1 + " " + expected_compile_options2,
+            current_compile_options);
   // empty str + not empty str
-  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options1_1, expected_link_options);
+  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(
+      expected_compile_options1_1, expected_link_options);
   current_link_options.clear();
   current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray1[] = {&DevImage1, &DevImage2};
+  static sycl::unittest::PiImageArray<2> DevImageArray1[] = {&DevImage1,
+                                                             &DevImage2};
 
   BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
   EXPECT_EQ("", current_link_options);
   EXPECT_EQ(expected_compile_options2, current_compile_options);
   // not empty str + empty
-  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options1, expected_link_options);
-  DevImage2 = generateEAMTestKernel1Image<EAMTestKernel2>(expected_compile_options2_1, expected_link_options);
+  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(
+      expected_compile_options1, expected_link_options);
+  DevImage2 = generateEAMTestKernel1Image<EAMTestKernel2>(
+      expected_compile_options2_1, expected_link_options);
   current_link_options.clear();
   current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray2[] = {&DevImage1, &DevImage2};
+  static sycl::unittest::PiImageArray<2> DevImageArray2[] = {&DevImage1,
+                                                             &DevImage2};
 
   BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
@@ -335,10 +343,10 @@ TEST(Link_Compile_Options, compile_link_Options_Test_only_link_options) {
               expected_link_options2_1 = "";
   static sycl::unittest::PiImage DevImage1 =
       generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options,
-                                                expected_link_options1);
+                                                  expected_link_options1);
   static sycl::unittest::PiImage DevImage2 =
       generateEAMTestKernel1Image<EAMTestKernel2>(expected_compile_options,
-                                                expected_link_options2);
+                                                  expected_link_options2);
   static sycl::unittest::PiImageArray<1> DevImageArray_1{&DevImage1};
   static sycl::unittest::PiImageArray<1> DevImageArray_2{&DevImage2};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
@@ -364,37 +372,43 @@ TEST(Link_Compile_Options, compile_link_Options_Test_only_link_options) {
   // Check devices' compile & link options together
   current_link_options.clear();
   current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1, &DevImage2};
+  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1,
+                                                            &DevImage2};
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_1, KernelID_2});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(
+          Ctx, {Dev}, {KernelID_1, KernelID_2});
   auto BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
-  EXPECT_EQ(expected_link_options1 + " " + expected_link_options2, current_link_options);
+  EXPECT_EQ(expected_link_options1 + " " + expected_link_options2,
+            current_link_options);
   EXPECT_EQ("", current_compile_options);
   // empty str + not empty str
-  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options, expected_link_options1_1);
+  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(
+      expected_compile_options, expected_link_options1_1);
   current_link_options.clear();
   current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray1[] = {&DevImage1, &DevImage2};
+  static sycl::unittest::PiImageArray<2> DevImageArray1[] = {&DevImage1,
+                                                             &DevImage2};
 
   BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
   EXPECT_EQ(expected_link_options2, current_link_options);
   EXPECT_EQ("", current_compile_options);
   // not empty str + empty
-  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options, expected_link_options1);
-  DevImage2 = generateEAMTestKernel1Image<EAMTestKernel2>(expected_compile_options, expected_link_options2_1);
+  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(
+      expected_compile_options, expected_link_options1);
+  DevImage2 = generateEAMTestKernel1Image<EAMTestKernel2>(
+      expected_compile_options, expected_link_options2_1);
   current_link_options.clear();
   current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray2[] = {&DevImage1, &DevImage2};
+  static sycl::unittest::PiImageArray<2> DevImageArray2[] = {&DevImage1,
+                                                             &DevImage2};
 
   BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
   EXPECT_EQ(expected_link_options1, current_link_options);
   EXPECT_EQ("", current_compile_options);
 }
-
 
 TEST(Link_Compile_Options, link_compile_options_all_options) {
   sycl::platform Plt{sycl::default_selector()};
@@ -423,16 +437,18 @@ TEST(Link_Compile_Options, link_compile_options_all_options) {
   current_link_options.clear();
   current_compile_options.clear();
   std::string expected_compile_options1 = "-cl-single-precision-constant",
-              expected_compile_options2 = "-cl-fp32-correctly-rounded-divide-sqrt";
+              expected_compile_options2 =
+                  "-cl-fp32-correctly-rounded-divide-sqrt";
   std::string expected_link_options1 = "-cl-finite-math-only",
               expected_link_options2 = "-cl-no-signed-zeros";
   static sycl::unittest::PiImage DevImage1 =
       generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options1,
-                                                expected_link_options1);
+                                                  expected_link_options1);
   static sycl::unittest::PiImage DevImage2 =
       generateEAMTestKernel2Image<EAMTestKernel2>(expected_compile_options2,
-                                                expected_link_options2);
-  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1, &DevImage2};
+                                                  expected_link_options2);
+  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1,
+                                                            &DevImage2};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   auto KernelID_2 = sycl::get_kernel_id<EAMTestKernel2>();
   sycl::queue Queue{Dev};
@@ -459,13 +475,15 @@ TEST(Link_Compile_Options, link_compile_options_all_options) {
   // 2 device images check
   current_link_options.clear();
   current_compile_options.clear();
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev}, {KernelID_1, KernelID_2});
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID_1, KernelID_2});
 
   auto BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
-  EXPECT_EQ(expected_link_options1 + " " + expected_link_options2, current_link_options);
-  EXPECT_EQ(expected_compile_options1 + " " + expected_compile_options2, current_compile_options);
-
+  EXPECT_EQ(expected_link_options1 + " " + expected_link_options2,
+            current_link_options);
+  EXPECT_EQ(expected_compile_options1 + " " + expected_compile_options2,
+            current_compile_options);
 }
 
 TEST(Link_Compile_Options, sycl_build_test) {
@@ -496,8 +514,8 @@ TEST(Link_Compile_Options, sycl_build_test) {
   std::string expected_compile_options = "-cl-single-precision-constant";
   std::string expected_link_options = "-cl-finite-math-only";
   static sycl::unittest::PiImage DevImage =
-    generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options,
-                                                expected_link_options);
+      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options,
+                                                  expected_link_options);
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   sycl::queue Queue{Dev};
 
