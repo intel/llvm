@@ -26,8 +26,18 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+/// @addtogroup sycl_esimd_memory
 /// @{
-/// @ingroup sycl_esimd_memory
+
+/// @defgroup sycl_esimd_memory_atomics Atomic memory access.
+/// Memory access functions which perform per-lane atomic update using given
+/// operation. "Per-lane" means that the atomicity guarantees of a vector atomic
+/// operation are the same as of N independent scalar atomic operations per
+/// lane (N is number of lanes).
+
+/// @defgroup sycl_esimd_memory_slm Shared local memory access functions.
+
+/// @} sycl_esimd_memory
 
 /// @cond ESIMD_DETAIL
 
@@ -46,11 +56,13 @@ static inline constexpr SurfaceIndex INVALID_BTI =
 
 /// @endcond ESIMD_DETAIL
 
+/// @addtogroup sycl_esimd_memory
+/// @{
+
 /// Get surface index corresponding to a SYCL accessor.
 ///
-/// \param acc a SYCL buffer or image accessor.
-/// \return the index of the corresponding surface (aka "binding table index").
-///
+/// @param acc a SYCL buffer or image accessor.
+/// @return the index of the corresponding surface (aka "binding table index").
 ///
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
@@ -114,60 +126,94 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
 // accordingly.
 // {/quote}
 //
-/// Flat-address gather.
+
+/// Loads ("gathers") elements from different memory locations and returns a
+/// vector of them. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector. Access to
+/// any element's memory location can be disabled via the input vector of
+/// predicates (mask).
+/// @tparam Tx Element type, must be of size 4 or less.
+/// @tparam N Number of elements to read; can be \c 8, \c 16 or \c 32.
+/// @param p The base address.
+/// @param offsets the vector of 32-bit offsets in bytes. For each lane \c i,
+///   ((byte*)p + offsets[i]) must be element size aligned.
+/// @param mask The access mask, defaults to all 1s.
+/// @return A vector of elements read. Elements in masked out lanes are
+///   undefined.
 ///
-template <typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<n == 8 || n == 16 || n == 32, simd<Tx, n>>
-gather(const Tx *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
-  simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
-  simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
+template <typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<N == 8 || N == 16 || N == 32, simd<Tx, N>>
+gather(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
+  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
+  simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
 
   if constexpr (sizeof(T) == 1) {
-    auto Ret = __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<1>(), pred.data());
-    return __esimd_rdregion<T, n * 4, n, /*VS*/ 0, n, 4>(Ret, 0);
+    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<4>()>(
+        addrs.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
+    return __esimd_rdregion<T, N * 4, N, /*VS*/ 0, N, 4>(Ret, 0);
   } else if constexpr (sizeof(T) == 2) {
-    auto Ret = __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
-    return __esimd_rdregion<T, n * 2, n, /*VS*/ 0, n, 2>(Ret, 0);
+    auto Ret = __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), detail::ElemsPerAddrEncoding<2>(), mask.data());
+    return __esimd_rdregion<T, N * 2, N, /*VS*/ 0, N, 2>(Ret, 0);
   } else
-    return __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<1>()>(
-        addrs.data(), detail::ElemsPerAddrEncoding<1>(), pred.data());
+    return __esimd_svm_gather<T, N, detail::ElemsPerAddrEncoding<1>()>(
+        addrs.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
 }
 
-/// Flat-address scatter.
+/// Writes ("scatters") elements of the input vector to different memory
+/// locations. Each memory location is base address plus an offset - a
+/// value of the corresponding element in the input offset vector. Access to
+/// any element's memory location can be disabled via the input mask.
+/// @tparam Tx Element type, must be of size 4 or less.
+/// @tparam N Number of elements to write; can be \c 8, \c 16 or \c 32.
+/// @param p The base address.
+/// @param offsets A vector of 32-bit offsets in bytes. For each lane \c i,
+///   ((byte*)p + offsets[i]) must be element size aligned.
+/// @param vals The vector to scatter.
+/// @param mask The access mask, defaults to all 1s.
 ///
-template <typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<n == 8 || n == 16 || n == 32>
-scatter(Tx *p, simd<uint32_t, n> offsets, simd<Tx, n> vals,
-        simd_mask<n> pred = 1) {
-  simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
-  simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
+template <typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<N == 8 || N == 16 || N == 32>
+scatter(Tx *p, simd<uint32_t, N> offsets, simd<Tx, N> vals,
+        simd_mask<N> mask = 1) {
+  simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
+  simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
   if constexpr (sizeof(T) == 1) {
-    simd<T, n * 4> D;
-    D = __esimd_wrregion<T, n * 4, n, /*VS*/ 0, n, 4>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<1>(), pred.data());
+    simd<T, N * 4> D;
+    D = __esimd_wrregion<T, N * 4, N, /*VS*/ 0, N, 4>(D.data(), vals.data(), 0);
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<4>()>(
+        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<1>(), mask.data());
   } else if constexpr (sizeof(T) == 2) {
-    simd<T, n * 2> D;
-    D = __esimd_wrregion<T, n * 2, n, /*VS*/ 0, n, 2>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<2>()>(
-        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
+    simd<T, N * 2> D;
+    D = __esimd_wrregion<T, N * 2, N, /*VS*/ 0, N, 2>(D.data(), vals.data(), 0);
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), mask.data());
   } else
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<1>()>(
+    __esimd_svm_scatter<T, N, detail::ElemsPerAddrEncoding<1>()>(
         addrs.data(), vals.data(), detail::ElemsPerAddrEncoding<1>(),
-        pred.data());
+        mask.data());
 }
 
-/// Flat-address block-load.
+/// Loads a contiguous block of memory from given memory address and returns
+/// the loaded data as a vector. Actual code generated depends on the
+/// alignment parameter.
+/// @tparam Tx Element type.
+/// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must be
+///    1, 2, 4 or 8 owords long.
+/// @tparam Flags The alignment specifier type tag. Auto-deduced from the
+///    \c Flags parameter. If it is less than \c 16, then slower unaligned
+///    access is generated, othewise the access is aligned.
+/// @param addr The address to load from.
+/// @param Flags Specifies the alignment.
+/// @return A vector of loaded elements.
 ///
-template <typename Tx, int n, typename Flags = vector_aligned_tag,
+template <typename Tx, int N, typename Flags = vector_aligned_tag,
           class T = detail::__raw_t<Tx>,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-__ESIMD_API simd<Tx, n> block_load(const Tx *addr, Flags = {}) {
-  constexpr unsigned Sz = sizeof(T) * n;
+__ESIMD_API simd<Tx, N> block_load(const Tx *addr, Flags = {}) {
+  constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
   static_assert(Sz % detail::OperandSize::OWORD == 0,
@@ -178,23 +224,36 @@ __ESIMD_API simd<Tx, n> block_load(const Tx *addr, Flags = {}) {
                 "block size must be at most 8 owords");
 
   uintptr_t Addr = reinterpret_cast<uintptr_t>(addr);
-  if constexpr (Flags::template alignment<simd<T, n>> >=
+  if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
-    return __esimd_svm_block_ld<T, n>(Addr);
+    return __esimd_svm_block_ld<T, N>(Addr);
   } else {
-    return __esimd_svm_block_ld_unaligned<T, n>(Addr);
+    return __esimd_svm_block_ld_unaligned<T, N>(Addr);
   }
 }
 
-/// Accessor-based block-load.
+/// Loads a contiguous block of memory from given accessor and offset and
+/// returns the loaded data as a vector. Actual code generated depends on the
+/// alignment parameter.
+/// @tparam Tx Element type.
+/// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must be
+///    1, 2, 4 or 8 owords long.
+/// @tparam AccessorTy Accessor type (auto-deduced).
+/// @tparam Flags The alignment specifier type tag. Auto-deduced from the
+///    \c Flags parameter. If it is less than \c 16, then slower unaligned
+///    access is generated, othewise the access is aligned.
+/// @param acc The accessor.
+/// @param offset The offset to load from in bytes.
+/// @param Flags Specifies the alignment.
+/// @return A vector of loaded elements.
 ///
-template <typename Tx, int n, typename AccessorTy,
+template <typename Tx, int N, typename AccessorTy,
           typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API simd<Tx, n> block_load(AccessorTy acc, uint32_t offset,
+__ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
                                    Flags = {}) {
-  constexpr unsigned Sz = sizeof(T) * n;
+  constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
   static_assert(Sz % detail::OperandSize::OWORD == 0,
@@ -209,27 +268,33 @@ __ESIMD_API simd<Tx, n> block_load(AccessorTy acc, uint32_t offset,
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
 #endif // __SYCL_DEVICE_ONLY__
 
-  if constexpr (Flags::template alignment<simd<T, n>> >=
+  if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
 #if defined(__SYCL_DEVICE_ONLY__)
-    return __esimd_oword_ld<T, n>(surf_ind, offset >> 4);
+    return __esimd_oword_ld<T, N>(surf_ind, offset >> 4);
 #else
-    return __esimd_oword_ld<T, n>(acc, offset >> 4);
+    return __esimd_oword_ld<T, N>(acc, offset >> 4);
 #endif // __SYCL_DEVICE_ONLY__
   } else {
 #if defined(__SYCL_DEVICE_ONLY__)
-    return __esimd_oword_ld_unaligned<T, n>(surf_ind, offset);
+    return __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
 #else
-    return __esimd_oword_ld_unaligned<T, n>(acc, offset);
+    return __esimd_oword_ld_unaligned<T, N>(acc, offset);
 #endif // __SYCL_DEVICE_ONLY__
   }
 }
 
-/// Flat-address block-store.
+/// Stores elements of a vector to a contiguous block of memory at given
+/// address. The address must be at least \c 16 bytes-aligned.
+/// @tparam Tx Element type.
+/// @tparam N Number of elements to store, <code>N * sizeof(Tx)</code> must be
+///    1, 2, 4 or 8 owords long.
+/// @param p The memory address to store at.
+/// @param vals The vector to store.
 ///
-template <typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API void block_store(Tx *p, simd<Tx, n> vals) {
-  constexpr unsigned Sz = sizeof(T) * n;
+template <typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API void block_store(Tx *p, simd<Tx, N> vals) {
+  constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
   static_assert(Sz % detail::OperandSize::OWORD == 0,
@@ -240,16 +305,25 @@ __ESIMD_API void block_store(Tx *p, simd<Tx, n> vals) {
                 "block size must be at most 8 owords");
 
   uintptr_t Addr = reinterpret_cast<uintptr_t>(p);
-  __esimd_svm_block_st<T, n>(Addr, vals.data());
+  __esimd_svm_block_st<T, N>(Addr, vals.data());
 }
 
-/// Accessor-based block-store.
+/// Stores elements of a vector to a contiguous block of memory represented by
+/// an accessor and an offset within this accessor.
+/// @tparam Tx Element type.
+/// @tparam N Number of elements to store, <code>N * sizeof(Tx)</code> must be
+///    1, 2, 4 or 8 owords long.
+/// @tparam AccessorTy Accessor type (auto-deduced).
+/// @param acc The accessor to store to.
+/// @param offset The offset to store at. It is in bytes and must be a multiple
+///   of \c 16.
+/// @param vals The vector to store.
 ///
-template <typename Tx, int n, typename AccessorTy,
+template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
-                             simd<Tx, n> vals) {
-  constexpr unsigned Sz = sizeof(T) * n;
+                             simd<Tx, N> vals) {
+  constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
   static_assert(Sz % detail::OperandSize::OWORD == 0,
@@ -262,11 +336,13 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-  __esimd_oword_st<T, n>(surf_ind, offset >> 4, vals.data());
+  __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
 #else
-  __esimd_oword_st<T, n>(acc, offset >> 4, vals.data());
+  __esimd_oword_st<T, N>(acc, offset >> 4, vals.data());
 #endif // __SYCL_DEVICE_ONLY__
 }
+
+/// @} sycl_esimd_memory
 
 /// @cond ESIMD_DETAIL
 
@@ -278,7 +354,7 @@ ESIMD_INLINE
                                    (N == 1 || N == 8 || N == 16 || N == 32) &&
                                    !std::is_pointer<AccessorTy>::value>
     scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-                 uint32_t glob_offset, simd_mask<N> pred) {
+                 uint32_t glob_offset, simd_mask<N> mask) {
 
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
@@ -295,10 +371,10 @@ ESIMD_INLINE
                                              int32_t, uint32_t>;
     const simd<PromoT, N> promo_vals = convert<PromoT>(std::move(vals_int));
     __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
-        pred.data(), si, glob_offset, offsets.data(), promo_vals.data());
+        mask.data(), si, glob_offset, offsets.data(), promo_vals.data());
   } else {
     __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
-        pred.data(), si, glob_offset, offsets.data(), vals.data());
+        mask.data(), si, glob_offset, offsets.data(), vals.data());
   }
 }
 
@@ -308,7 +384,7 @@ ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
         !std::is_pointer<AccessorTy>::value,
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
-            simd_mask<N> pred) {
+            simd_mask<N> mask) {
 
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
@@ -327,7 +403,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
     const simd<PromoT, N> promo_vals =
         __esimd_gather_masked_scaled2<PromoT, N, decltype(si), TypeSizeLog2,
                                       scale>(si, glob_offset, offsets.data(),
-                                             pred.data());
+                                             mask.data());
     auto Res = convert<Tint>(promo_vals);
 
     if constexpr (!std::is_same_v<Tint, T>) {
@@ -338,7 +414,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
   } else {
     return __esimd_gather_masked_scaled2<T, N, decltype(si), TypeSizeLog2,
                                          scale>(si, glob_offset, offsets.data(),
-                                                pred.data());
+                                                mask.data());
   }
 }
 
@@ -346,19 +422,25 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 
 /// @endcond ESIMD_DETAIL
 
-/// Accessor-based gather.
+/// @addtogroup sycl_esimd_memory
+/// @{
+
+/// @anchor accessor_gather Accessor-based gather.
 ///
 /// Collects elements located at given offsets in an accessor and returns them
 /// as a single \ref simd object. An element can be 1, 2 or 4-byte value.
 ///
-/// \tparam T is element type; can only be a 1,2,4-byte integer or \c float.
-/// \tparam N is the number of elements.
-/// \tparam AccessorTy is \ref sycl::accessor type.
-/// \param acc is the accessor to gather from.
-/// \param offsets is per-element offsets.
-/// \param glob_offset is offset added to each individual element's offset to
-/// compute actual memory access offset for that element.
-///
+/// @tparam T Element type; can only be a 1,2,4-byte integer, \c sycl::half or
+///   \c float.
+/// @tparam N The number of vector elements. Can be \c 1, \c 8, \c 16 or \c 32.
+/// @tparam AccessorTy The accessor type.
+/// @param acc The accessor to gather from.
+/// @param offsets Per-element offsets in bytes.
+/// @param glob_offset Offset in bytes added to each individual element's offset
+///   to compute actual memory access offset for that element.
+/// @param mask Memory access mask. Elements with zero corresponding mask's
+///   predicate are not accessed, their values in the resulting vector are
+///   undefined.
 ///
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
@@ -366,26 +448,28 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<T, N>>
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
-       simd_mask<N> pred = 1) {
+       simd_mask<N> mask = 1) {
 
-  return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, pred);
+  return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, mask);
 }
 
+/// @anchor accessor_scatter
 /// Accessor-based scatter.
 ///
 /// Writes elements of a \ref simd object into an accessor at given offsets.
 /// An element can be 1, 2 or 4-byte value.
 ///
-/// \tparam T is element type; can only be a 1,2,4-byte integer or \c float.
-/// \tparam N is the number of elements.
-/// \tparam AccessorTy is \ref sycl::accessor type.
-/// \param acc is the accessor to scatter to.
-/// \param offsets is per-element offsets.
-/// \param vals is values to write.
-/// \param glob_offset is offset added to each individual element's offset to
-/// compute actual memory access offset for that element.
-/// \param pred is per-element predicates; elements with zero corresponding
-/// predicates are not written.
+/// @tparam T Element type; can only be a 1,2,4-byte integer, \c sycl::half or
+///   \c float.
+/// @tparam N The number of vector elements. Can be \c 1, \c 8, \c 16 or \c 32.
+/// @tparam AccessorTy The accessor type.
+/// @param acc The accessor to scatter to.
+/// @param offsets Per-element offsets in bytes.
+/// @param vals Values to write.
+/// @param glob_offset Offset in bytes added to each individual element's offset
+///   to compute actual memory access offset for that element.
+/// @param mask Memory access mask. Elements with zero corresponding mask's
+///   predicate are not accessed.
 ///
 ///
 template <typename T, int N, typename AccessorTy>
@@ -393,16 +477,17 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              (N == 1 || N == 8 || N == 16 || N == 32) &&
                              !std::is_pointer<AccessorTy>::value>
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
-        uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
+        uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
 
-  detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, pred);
+  detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
 }
 
 /// Load a scalar value from an accessor.
-/// @tparam T type of the value
-/// @tparam AccessorTy type of the accessor
-/// @param offset offset in bytes
-/// @return the loaded value
+/// @tparam T Type of the value.
+/// @tparam AccessorTy Type of the accessor.
+/// @param acc Accessor to load from.
+/// @param offset Offset in bytes.
+/// @return The loaded value.
 ///
 template <typename T, typename AccessorTy>
 __ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
@@ -412,56 +497,90 @@ __ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
 }
 
 /// Store a scalar value into an accessor.
+/// @tparam T Type of the value.
+/// @tparam AccessorTy Type of the accessor.
+/// @param acc Accessor to store to.
+/// @param offset Offset in bytes.
+/// @param val The stored value.
 ///
 template <typename T, typename AccessorTy>
 __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
   scatter<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset), simd<T, 1>(val));
 }
 
-/// Gathering read for the given starting pointer \p p and \p offsets.
-/// Up to 4 data elements may be accessed at each address depending on the
-/// enabled channel \p Mask.
-/// \tparam T element type of the returned vector. Must be 4-byte.
-/// \tparam N size of the \p offsets vector. Must be 16 or 32.
-/// \tparam Mask represents a pixel's channel mask.
-/// @param p the USM pointer.
-/// @param offsets byte-offsets within the \p buffer to be gathered.
-/// @param pred predication control used for masking lanes.
+/// @anchor usm_gather_rgba
+/// Gather and transpose pixels from given memory locations defined by the base
+/// pointer \c p and \c offsets. Up to 4 32-bit data elements may be accessed at
+/// each address depending on the channel mask \c Mask template parameter. Each
+/// pixel's address must be 4 byte aligned. As an example, let's assume we want
+/// to read \c n pixels at address \c addr, skipping \c G and \c B channels.
+/// Each channel is a 32-bit float and the pixel data at given address in memory
+/// is:
+/// @code{.cpp}
+/// R1 G1 B1 A1 R2 G2 B2 A2 ... Rn Gn Bn An
+/// @endcode
+/// Then this can be achieved by using
+/// @code{.cpp}
+/// simd<uint32_t, n> byte_offsets(0, 4*4 /* byte size of a single pixel */);
+/// auto x = gather_rgba<float, n, rgba_channel_mask::AR>(addr, byte_offsets);
+/// @endcode
+/// Returned \c x will contain \c 2*n \c float elements:
+/// @code{.cpp}
+/// R1 R2 ... Rn A1 A2 ... An
+/// @endcode
+///
+/// @tparam Tx Element type of the returned vector. Must be 4 bytes in size.
+/// @tparam N Number of pixels to access (matches the size of the \c offsets
+///   vector). Must be 8, 16 or 32.
+/// @tparam Mask A pixel's channel mask.
+/// @param p The USM base pointer representing memory address of the access.
+/// @param offsets Byte offsets of the pixels relative to the base pointer.
+/// @param mask Memory access mask. Pixels with zero corresponding mask's
+///   predicate are not accessed. Their values in the resulting vector are
+///   undefined.
+/// @return Read data - up to N*4 values of type \c Tx.
 ///
 template <typename Tx, int N, rgba_channel_mask Mask,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
                              simd<Tx, N * get_num_channels_enabled(Mask)>>
-gather_rgba(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
+gather_rgba(const Tx *p, simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  return __esimd_svm_gather4_scaled<T, N, Mask>(addrs.data(), pred.data());
+  return __esimd_svm_gather4_scaled<T, N, Mask>(addrs.data(), mask.data());
 }
 
-/// Scatter write for the given starting pointer \p p and \p offsets.
-/// Up to 4 data elements may be written at each address depending on the
-/// enabled channel \p Mask.
-/// \tparam T element type of the input vector. Must be 4-byte.
-/// \tparam N size of the \p offsets vector. Must be 16 or 32.
-/// \tparam Mask represents a pixel's channel mask.
-/// @param p the USM pointer.
+/// @anchor usm_scatter_rgba
+/// Transpose and scatter pixels to given memory locations defined by the base
+/// pointer \c p and \c offsets. Up to 4 32-bit data elements may be accessed at
+/// each address depending on the channel mask \c Mask template parameter. Each
+/// pixel's address must be 4 byte aligned. This is basically an inverse
+/// operation for gather_rgba.
+///
+/// @tparam Tx Element type of the returned vector. Must be 4 bytes in size.
+/// @tparam N Number of pixels to access (matches the size of the \c offsets
+///   vector). Must be 8, 16 or 32.
+/// @tparam Mask A pixel's channel mask.
+/// @param p The USM base pointer representing memory address of the access.
 /// @param vals values to be written.
-/// @param offsets byte-offsets within the \p buffer to be written.
-/// @param pred predication control used for masking lanes.
+/// @param offsets Byte offsets of the pixels relative to the base pointer.
+/// @param mask Memory access mask. Pixels with zero corresponding mask's
+///   predicate are not accessed. Their values in the resulting vector are
+///   undefined.
 ///
 template <typename Tx, int N, rgba_channel_mask Mask,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4)>
+__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
 scatter_rgba(Tx *p, simd<uint32_t, N> offsets,
              simd<Tx, N * get_num_channels_enabled(Mask)> vals,
-             simd_mask<N> pred = 1) {
+             simd_mask<N> mask = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
   __esimd_svm_scatter4_scaled<T, N, Mask>(addrs.data(), vals.data(),
-                                          pred.data());
+                                          mask.data());
 }
 
 /// @} sycl_esimd_memory
@@ -558,54 +677,100 @@ constexpr bool check_atomic() {
 
 /// @endcond ESIMD_DETAIL
 
-/// @defgroup sycl_esimd_memory_atomics Atomic memory access.
-/// @ingroup sycl_esimd_memory
-/// Memory access functions which perform per-element atomic update using givin
-/// operation.
-
+/// @addtogroup sycl_esimd_memory_atomics
 /// @{
-/// @ingroup sycl_esimd_memory_atomics
 
-/// USM address atomic update, version with no source operands: \c inc and \c
-/// dec.
-template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 0>(), simd<Tx, n>>
-atomic_update(Tx *p, simd<unsigned, n> offset, simd_mask<n> pred) {
-  simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
-  simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
+/// @anchor usm_atomic_update0
+/// Atomically updates \c N memory locations represented by a USM pointer and
+/// a vector of offsets relative to the pointer, and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has no arguments in addition to the value at the memory location.
+///
+/// @tparam Op The atomic operation - can be \c atomic_op::inc or
+///   atomic_op::dec.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param p The USM pointer.
+/// @param offset The vector of 32-bit offsets in bytes.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, N, 0>(), simd<Tx, N>>
+atomic_update(Tx *p, simd<unsigned, N> offset, simd_mask<N> mask) {
+  simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+  simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
-  return __esimd_svm_atomic0<Op, T, n>(vAddr.data(), pred.data());
+  return __esimd_svm_atomic0<Op, T, N>(vAddr.data(), mask.data());
 }
 
-/// USM address atomic update, version with one source operand: e.g. \c add, \c
-/// sub.
-template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 1>(), simd<Tx, n>>
-atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
-              simd_mask<n> pred) {
-  simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
-  simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
+/// @anchor usm_atomic_update1
+/// Atomically updates \c N memory locations represented by a USM pointer and
+/// a vector of offsets relative to the pointer, and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 1 additional argument.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+/// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
+/// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
+/// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
+/// \c atomic_op::fmax, \c atomic_op::fmin.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param p The USM pointer.
+/// @param offset The vector of 32-bit offsets in bytes.
+/// @param src0 The additional argument.
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, N, 1>(), simd<Tx, N>>
+atomic_update(Tx *p, simd<unsigned, N> offset, simd<Tx, N> src0,
+              simd_mask<N> mask) {
+  simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+  simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
-  return __esimd_svm_atomic1<Op, T, n>(vAddr.data(), src0.data(), pred.data());
+  return __esimd_svm_atomic1<Op, T, N>(vAddr.data(), src0.data(), mask.data());
 }
 
-/// USM address atomic update, version with two source operands: e.g. \c
-/// cmpxchg.
-template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, n, 2>(), simd<Tx, n>>
-atomic_update(Tx *p, simd<unsigned, n> offset, simd<Tx, n> src0,
-              simd<Tx, n> src1, simd_mask<n> pred) {
-  simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
-  simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
+/// @anchor usm_atomic_update2
+/// Atomically updates \c N memory locations represented by a USM pointer and
+/// a vector of offsets relative to the pointer, and returns a vector of old
+/// values found at the memory locations before update. The update operation
+/// has 2 additional arguments.
+///
+/// @tparam Op The atomic operation - can be one of the following:
+///   \c atomic_op::cmpxchg, \c atomic_op::fcmpwr.
+/// @tparam Tx The vector element type.
+/// @tparam N The number of memory locations to update.
+/// @param p The USM pointer.
+/// @param offset The vector of 32-bit offsets in bytes.
+/// @param src0 The first additional argument (expected value).
+/// @param src1 The second additional argument (new value).
+/// @param mask Operation mask, only locations with non-zero in the
+///   corresponding mask element are updated.
+/// @return A vector of the old values at the memory locations before the
+///   update.
+///
+template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, Tx, N, 2>(), simd<Tx, N>>
+atomic_update(Tx *p, simd<unsigned, N> offset, simd<Tx, N> src0,
+              simd<Tx, N> src1, simd_mask<N> mask) {
+  simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+  simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
-  return __esimd_svm_atomic2<Op, T, n>(vAddr.data(), src0.data(), src1.data(),
-                                       pred.data());
+  return __esimd_svm_atomic2<Op, T, N>(vAddr.data(), src0.data(), src1.data(),
+                                       mask.data());
 }
 
 /// @} sycl_esimd_memory_atomics
 
+/// @addtogroup sycl_esimd_memory
 /// @{
-/// @ingroup sycl_esimd_memory
 
 /// Represetns a bit mask to control behavior of esimd::fence.
 /// Enum elements define semantics of the bits in the mask.
@@ -629,7 +794,7 @@ enum fence_mask : uint8_t {
 };
 
 /// esimd::fence sets the memory read/write order.
-/// \tparam cntl is a bitmask composed from \c fence_mask bits.
+/// @tparam cntl A bitmask composed from \c fence_mask bits.
 ///
 __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 
@@ -649,15 +814,14 @@ __ESIMD_API void barrier() {
 /// Generic work-group split barrier
 __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 
-/// @} sycl_esimd_memory_atomics
+/// @} sycl_esimd_memory
 
-/// @defgroup sycl_esimd_memory_slm Shared local memory access functions.
-/// @ingroup sycl_esimd_memory
-
+/// @addtogroup sycl_esimd_memory_slm
 /// @{
-/// @ingroup sycl_esimd_memory_slm
 
 /// Declare per-work-group slm size.
+/// @param size the requested size of the shared local memory for current work
+/// group. Must be compile-time constant.
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO slm_init should call __esimd_slm_init (TBD) and declared as __ESIMD_API
 // on both host and device. Currently __ESIMD_API on device leads to:
@@ -675,15 +839,17 @@ void slm_init(uint32_t size)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// SLM gather.
+/// Gather operation over the Shared Local Memory.
+/// This API has almost the same interface as the @ref accessor_gather
+/// "accessor-based gather", except that it does not have the accessor and the
+/// global offset parameters.
 ///
-/// Only allow simd-16 and simd-32.
-template <typename T, int n>
+template <typename T, int N>
 __ESIMD_API
-    std::enable_if_t<(n == 1 || n == 8 || n == 16 || n == 32), simd<T, n>>
-    slm_gather(simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
+    std::enable_if_t<(N == 1 || N == 8 || N == 16 || N == 32), simd<T, N>>
+    slm_gather(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
   detail::LocalAccessorMarker acc;
-  return detail::gather_impl<T, n>(acc, offsets, 0, pred);
+  return detail::gather_impl<T, N>(acc, offsets, 0, mask);
 }
 
 /// Load a scalar value from the Shared Local Memory.
@@ -696,13 +862,17 @@ template <typename T> __ESIMD_API T slm_scalar_load(uint32_t offset) {
   return Res[0];
 }
 
-/// SLM scatter.
-template <typename T, int n>
-__ESIMD_API std::enable_if_t<(n == 1 || n == 8 || n == 16 || n == 32) &&
+/// Scatter operation over the Shared Local Memory.
+/// This API has almost the same interface as the @ref accessor_scatter
+/// "accessor-based scatter", except that it does not have the accessor and the
+/// global offset parameters.
+///
+template <typename T, int N>
+__ESIMD_API std::enable_if_t<(N == 1 || N == 8 || N == 16 || N == 32) &&
                              (sizeof(T) <= 4)>
-slm_scatter(simd<uint32_t, n> offsets, simd<T, n> vals, simd_mask<n> pred = 1) {
+slm_scatter(simd<uint32_t, N> offsets, simd<T, N> vals, simd_mask<N> mask = 1) {
   detail::LocalAccessorMarker acc;
-  detail::scatter_impl<T, n>(acc, vals, offsets, 0, pred);
+  detail::scatter_impl<T, N>(acc, vals, offsets, 0, mask);
 }
 
 /// Store a scalar value into the Shared Local Memory.
@@ -715,51 +885,59 @@ __ESIMD_API void slm_scalar_store(uint32_t offset, T val) {
   slm_scatter<T, 1>(simd<uint32_t, 1>(offset), simd<T, 1>(val), 1);
 }
 
-/// Gathering read from the SLM given specified \p offsets.
-/// Up to 4 data elements may be accessed at each address depending on the
-/// enabled channel \p Mask.
-/// \tparam T element type of the returned vector. Must be 4-byte.
-/// \tparam N size of the \p offsets vector. Must be 8, 16 or 32.
-/// \tparam Mask represents a pixel's channel mask.
-/// @param offsets byte-offsets within the SLM.
-/// @param pred predication control used for masking lanes.
+/// Gather data from the Shared Local Memory at specified \c offsets and return
+/// it as simd vector. See @ref usm_gather_rgba for information about the
+/// operation semantics and parameter restrictions/interdependencies.
+/// @tparam T The element type of the returned vector.
+/// @tparam N The number of elements to access.
+/// @tparam Mask Pixel's channel mask.
+/// @param offsets Byte offsets within the SLM of each element.
+/// @param mask Operation mask. All-1 by default.
+/// @return Gathered data as an \c N - element vector.
 ///
 template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
                              simd<T, N * get_num_channels_enabled(Mask)>>
-slm_gather_rgba(simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
+slm_gather_rgba(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
 
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   return __esimd_gather4_scaled<T, N, decltype(si), Mask>(
-      pred.data(), si, 0 /*global_offset*/, offsets.data());
+      mask.data(), si, 0 /*global_offset*/, offsets.data());
 }
 
-/// Scatter write to the SLM given specified \p offsets.
-/// Up to 4 data elements may be written at each address depending on the
-/// enabled channel \p Mask.
-/// \tparam T element type of the input vector. Must be 4-byte.
-/// \tparam N size of the \p offsets vector. Must be 8, 16 or 32.
-/// \tparam Mask represents a pixel's channel mask.
-/// @param offsets byte-offsets within the SLM.
+/// Gather data from the Shared Local Memory at specified \c offsets and return
+/// it as simd vector. See @ref usm_gather_rgba for information about the
+/// operation semantics and parameter restrictions/interdependencies.
+/// @tparam T The element type of the returned vector.
+/// @tparam N The number of elements to access.
+/// @tparam Mask Pixel's channel mask.
+/// @param offsets Byte offsets within the SLM of each element.
 /// @param vals values to be written.
-/// @param pred predication control used for masking lanes.
+/// @param mask Operation mask. All-1 by default.
 ///
 template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
 slm_scatter_rgba(simd<uint32_t, N> offsets,
                  simd<T, N * get_num_channels_enabled(Mask)> vals,
-                 simd_mask<N> pred = 1) {
+                 simd_mask<N> mask = 1) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   constexpr int16_t Scale = 0;
   constexpr int global_offset = 0;
   __esimd_scatter4_scaled<T, N, decltype(si), Mask, Scale>(
-      pred.data(), si, global_offset, offsets.data(), vals.data());
+      mask.data(), si, global_offset, offsets.data(), vals.data());
 }
 
-/// SLM block-load.
-template <typename T, int n>
-__ESIMD_API simd<T, n> slm_block_load(uint32_t offset) {
-  constexpr unsigned Sz = sizeof(T) * n;
+/// Loads a contiguous block of memory from the SLM at given offset and
+/// returns the loaded data as a vector.
+/// @tparam T Element type.
+/// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must be
+///    1, 2, 4 or 8 owords long.
+/// @param offset The offset to load from in bytes. Must be oword-aligned.
+/// @return A vector of loaded elements.
+///
+template <typename T, int N>
+__ESIMD_API simd<T, N> slm_block_load(uint32_t offset) {
+  constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
   static_assert(Sz % detail::OperandSize::OWORD == 0,
@@ -770,13 +948,20 @@ __ESIMD_API simd<T, n> slm_block_load(uint32_t offset) {
                 "block size must be at most 16 owords");
 
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  return __esimd_oword_ld<detail::__raw_t<T>, n>(si, offset >> 4);
+  return __esimd_oword_ld<detail::__raw_t<T>, N>(si, offset >> 4);
 }
 
-/// SLM block-store.
-template <typename T, int n>
-__ESIMD_API void slm_block_store(uint32_t offset, simd<T, n> vals) {
-  constexpr unsigned Sz = sizeof(T) * n;
+/// Stores elements of a vector to a contiguous block of SLM at given
+/// offset.
+/// @tparam T Element type.
+/// @tparam N Number of elements to store, <code>N * sizeof(Tx)</code> must be
+///    1, 2, 4 or 8 owords long.
+/// @param offset The offset in bytes to store at. Must be oword-aligned.
+/// @param vals The vector to store.
+///
+template <typename T, int N>
+__ESIMD_API void slm_block_store(uint32_t offset, simd<T, N> vals) {
+  constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
   static_assert(Sz % detail::OperandSize::OWORD == 0,
@@ -787,58 +972,64 @@ __ESIMD_API void slm_block_store(uint32_t offset, simd<T, n> vals) {
                 "block size must be at most 8 owords");
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   // offset in genx.oword.st is in owords
-  __esimd_oword_st<detail::__raw_t<T>, n>(si, offset >> 4, vals.data());
+  __esimd_oword_st<detail::__raw_t<T>, N>(si, offset >> 4, vals.data());
 }
 
-/// SLM atomic update operation, no source operands: \c inc and \c dec.
-template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<Tx, n>>
-slm_atomic_update(simd<uint32_t, n> offsets, simd_mask<n> pred) {
+/// Atomic update operation performed on SLM. No source operands version.
+/// See description of template and function parameters in @ref
+/// usm_atomic_update0 "atomic update" operation docs.
+template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, N, 0>(), simd<Tx, N>>
+slm_atomic_update(simd<uint32_t, N> offsets, simd_mask<N> mask) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  return __esimd_dword_atomic0<Op, T, n>(pred.data(), si, offsets.data());
+  return __esimd_dword_atomic0<Op, T, N>(mask.data(), si, offsets.data());
 }
 
-/// SLM atomic update operation, one source operand: e.g. \c add, \c sub.
-template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<Tx, n>>
-slm_atomic_update(simd<uint32_t, n> offsets, simd<Tx, n> src0,
-                  simd_mask<n> pred) {
+/// Atomic update operation performed on SLM. One source operands version.
+/// See description of template and function parameters in @ref
+/// usm_atomic_update1 "atomic update" operation docs.
+template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, N, 1>(), simd<Tx, N>>
+slm_atomic_update(simd<uint32_t, N> offsets, simd<Tx, N> src0,
+                  simd_mask<N> mask) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  return __esimd_dword_atomic1<Op, T, n>(pred.data(), si, offsets.data(),
+  return __esimd_dword_atomic1<Op, T, N>(mask.data(), si, offsets.data(),
                                          src0.data());
 }
 
-/// SLM atomic, two source operands.
-template <atomic_op Op, typename Tx, int n, class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<Tx, n>>
-slm_atomic_update(simd<uint32_t, n> offsets, simd<Tx, n> src0, simd<Tx, n> src1,
-                  simd_mask<n> pred) {
+/// Atomic update operation performed on SLM. Two source operands version.
+/// See description of template and function parameters in @ref
+/// usm_atomic_update2 "atomic update" operation docs.
+template <atomic_op Op, typename Tx, int N, class T = detail::__raw_t<Tx>>
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, N, 2>(), simd<Tx, N>>
+slm_atomic_update(simd<uint32_t, N> offsets, simd<Tx, N> src0, simd<Tx, N> src1,
+                  simd_mask<N> mask) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  return __esimd_dword_atomic2<Op, T, n>(pred.data(), si, offsets.data(),
+  return __esimd_dword_atomic2<Op, T, N>(mask.data(), si, offsets.data(),
                                          src0.data(), src1.data());
 }
 
 /// @} sycl_esimd_memory_slm
 
+/// @addtogroup sycl_esimd_memory
 /// @{
-/// @ingroup sycl_esimd_memory
 
 /// Media block load.
 ///
-/// \tparam T is the element data type.
-/// \tparam m is the height of the 2D block.
-/// \tparam n is the width of the 2D block.
-/// \tparam AccessorTy is type of the SYCL accessor.
-/// \tparam plane is planar surface index.
-/// \param acc is the SYCL accessor.
-/// \param x is X-coordinate of the left upper rectangle corner in BYTES.
-/// \param y is Y-coordinate of the left upper rectangle corner in ROWS.
-/// \return the linearized 2D block data read from surface.
+/// @tparam T is the element data type.
+/// @tparam m is the height of the 2D block.
+/// @tparam N is the width of the 2D block.
+/// @tparam AccessorTy is type of the SYCL accessor.
+/// @tparam plane is planar surface index.
+/// @param acc is the SYCL accessor.
+/// @param x is X-coordinate of the left upper rectangle corner in BYTES.
+/// @param y is Y-coordinate of the left upper rectangle corner in ROWS.
+/// @return the linearized 2D block data read from surface.
 ///
-template <typename T, int m, int n, typename AccessorTy, unsigned plane = 0>
-__ESIMD_API simd<T, m * n> media_block_load(AccessorTy acc, unsigned x,
+template <typename T, int m, int N, typename AccessorTy, unsigned plane = 0>
+__ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
                                             unsigned y) {
-  constexpr unsigned Width = n * sizeof(T);
+  constexpr unsigned Width = N * sizeof(T);
   static_assert(Width * m <= 256u,
                 "data does not fit into a single dataport transaction");
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
@@ -849,7 +1040,7 @@ __ESIMD_API simd<T, m * n> media_block_load(AccessorTy acc, unsigned x,
   using SurfIndTy = decltype(si);
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : detail::getNextPowerOf2<Width>();
-  constexpr int BlockWidth = sizeof(T) * n;
+  constexpr int BlockWidth = sizeof(T) * N;
   constexpr int Mod = 0;
 
   if constexpr (Width < RoundedWidth) {
@@ -857,29 +1048,29 @@ __ESIMD_API simd<T, m * n> media_block_load(AccessorTy acc, unsigned x,
     simd<T, m *n1> temp =
         __esimd_media_ld<T, m, n1, Mod, SurfIndTy, (int)plane, BlockWidth>(
             si, x, y);
-    return temp.template select<m, 1, n, 1>(0, 0);
+    return temp.template select<m, 1, N, 1>(0, 0);
   } else {
-    return __esimd_media_ld<T, m, n, Mod, SurfIndTy, (int)plane, BlockWidth>(
+    return __esimd_media_ld<T, m, N, Mod, SurfIndTy, (int)plane, BlockWidth>(
         si, x, y);
   }
 }
 
 /// Media block store.
 ///
-/// \tparam T is the element data type.
-/// \tparam m is the height of the 2D block.
-/// \tparam n is the width of the 2D block.
-/// \tparam is AccessorTy type of the SYCL accessor.
-/// \tparam plane is planar surface index.
-/// \param acc is the SYCL accessor.
-/// \param x is X-coordinate of the left upper rectangle corner in BYTES.
-/// \param y is Y-coordinate of the left upper rectangle corner in ROWS.
-/// \param vals is the linearized 2D block data to be written to surface.
+/// @tparam T is the element data type.
+/// @tparam m is the height of the 2D block.
+/// @tparam N is the width of the 2D block.
+/// @tparam is AccessorTy type of the SYCL accessor.
+/// @tparam plane is planar surface index.
+/// @param acc is the SYCL accessor.
+/// @param x is X-coordinate of the left upper rectangle corner in BYTES.
+/// @param y is Y-coordinate of the left upper rectangle corner in ROWS.
+/// @param vals is the linearized 2D block data to be written to surface.
 ///
-template <typename T, int m, int n, typename AccessorTy, unsigned plane = 0>
+template <typename T, int m, int N, typename AccessorTy, unsigned plane = 0>
 __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
-                                   simd<T, m * n> vals) {
-  constexpr unsigned Width = n * sizeof(T);
+                                   simd<T, m * N> vals) {
+  constexpr unsigned Width = N * sizeof(T);
   static_assert(Width * m <= 256u,
                 "data does not fit into a single dataport transaction");
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
@@ -890,57 +1081,51 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : detail::getNextPowerOf2<Width>();
   constexpr unsigned int n1 = RoundedWidth / sizeof(T);
-  constexpr int BlockWidth = sizeof(T) * n;
+  constexpr int BlockWidth = sizeof(T) * N;
   constexpr int Mod = 0;
 
   if constexpr (Width < RoundedWidth) {
     simd<T, m * n1> temp;
     auto temp_ref = temp.template bit_cast_view<T, m, n1>();
-    auto vals_ref = vals.template bit_cast_view<T, m, n>();
-    temp_ref.template select<m, 1, n, 1>() = vals_ref;
+    auto vals_ref = vals.template bit_cast_view<T, m, N>();
+    temp_ref.template select<m, 1, N, 1>() = vals_ref;
     __esimd_media_st<T, m, n1, Mod, SurfIndTy, plane, BlockWidth>(si, x, y,
                                                                   temp.data());
   } else {
-    __esimd_media_st<T, m, n, Mod, SurfIndTy, plane, BlockWidth>(si, x, y,
+    __esimd_media_st<T, m, N, Mod, SurfIndTy, plane, BlockWidth>(si, x, y,
                                                                  vals.data());
   }
 }
 
-/// @} sycl_esimd_memory_atomics
+/// @} sycl_esimd_memory
 
-/// @defgroup sycl_esimd_memory_raw_send Raw send APIs
-/// @ingroup sycl_esimd_memory
-/// Implements the send messages on Intel(R) processor
-/// graphics, as defined in the documentation at
-/// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
-
+/// @addtogroup sycl_esimd_raw_send
 /// @{
-/// @ingroup sycl_esimd_memory_raw_send
 
-/// Raw sends load.
+/// Raw sends load.  "s" suffix designates "split" variant - i.e. two sources.
 ///
-/// \param msgDst is the old value of the destination operand.
-/// \param msgSrc0 is the first source operand of send message.
-/// \param msgSrc1 is the second source operand of send message.
-/// \param exDesc is the extended message descriptor.
-/// \param msgDesc is the message descriptor.
-/// \param execSize is the execution size, which must be a compile time
+/// @param msgDst is the old value of the destination operand.
+/// @param msgSrc0 is the first source operand of send message.
+/// @param msgSrc1 is the second source operand of send message.
+/// @param exDesc is the extended message descriptor.
+/// @param msgDesc is the message descriptor.
+/// @param execSize is the execution size, which must be a compile time
 /// constant.
-/// \param sfid is the shared function ID, which must be a compile time
+/// @param sfid is the shared function ID, which must be a compile time
 /// constant.
-/// \param numSrc0 is the number of GRFs for source-0, which must be a compile
+/// @param numSrc0 is the number of GRFs for source-0, which must be a compile
 /// time constant.
-/// \param numSrc1 is the number of GRFs for source-1, which must be a compile
+/// @param numSrc1 is the number of GRFs for source-1, which must be a compile
 /// constant.
-/// \param numDst is the number of GRFs for destination, which must be a compile
+/// @param numDst is the number of GRFs for destination, which must be a compile
 /// time constant.
-/// \param isEOT is the flag that indicates whether this is an EOT message,
+/// @param isEOT is the flag that indicates whether this is an EOT message,
 /// which must be a compile time constant (optional - default to 0).
-/// \param isSendc is the flag that indicates whether sendc should be used,
+/// @param isSendc is the flag that indicates whether sendc should be used,
 /// which must be a compile time constant (optional - default to 0).
-/// \param mask is the predicate to specify enabled channels (optional - default
+/// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
-/// \return the vector value read from memory.
+/// @return the vector value read from memory.
 template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
           int N = 16>
 __ESIMD_API simd<T1, n1>
@@ -963,25 +1148,25 @@ raw_sends_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0, simd<T3, n3> msgSrc1,
 
 /// Raw send load.
 ///
-/// \param msgDst is the old value of the destination operand.
-/// \param msgSrc0 is the first source operand of send message.
-/// \param exDesc is the extended message descriptor.
-/// \param msgDesc is the message descriptor.
-/// \param execSize is the execution size, which must be a compile time
+/// @param msgDst is the old value of the destination operand.
+/// @param msgSrc0 is the first source operand of send message.
+/// @param exDesc is the extended message descriptor.
+/// @param msgDesc is the message descriptor.
+/// @param execSize is the execution size, which must be a compile time
 /// constant.
-/// \param sfid is the shared function ID, which must be a compile time
+/// @param sfid is the shared function ID, which must be a compile time
 /// constant.
-/// \param numSrc0 is the number of GRFs for source-0, which must be a compile
+/// @param numSrc0 is the number of GRFs for source-0, which must be a compile
 /// time constant.
-/// \param numDst is the number of GRFs for destination, which must be a compile
+/// @param numDst is the number of GRFs for destination, which must be a compile
 /// time constant.
-/// \param isEOT is the flag that indicates whether this is an EOT message,
+/// @param isEOT is the flag that indicates whether this is an EOT message,
 /// which must be a compile time constant (optional - default to 0).
-/// \param isSendc is the flag that indicates whether sendc should be used,
+/// @param isSendc is the flag that indicates whether sendc should be used,
 /// which must be a compile time constant (optional - default to 0).
-/// \param mask is the predicate to specify enabled channels (optional - default
+/// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
-/// \return the vector value read from memory.
+/// @return the vector value read from memory.
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 __ESIMD_API simd<T1, n1>
 raw_send_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0, uint32_t exDesc,
@@ -999,25 +1184,25 @@ raw_send_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0, uint32_t exDesc,
       msgSrc0.data(), msgDst.data());
 }
 
-/// Raw sends store.
+/// Raw sends store. "s" suffix designates "split" variant - i.e. two sources.
 ///
-/// \param msgSrc0 is the first source operand of send message.
-/// \param msgSrc1 is the second source operand of send message.
-/// \param exDesc is the extended message descriptor.
-/// \param msgDesc is the message descriptor.
-/// \param execSize is the execution size, which must be a compile time
+/// @param msgSrc0 is the first source operand of send message.
+/// @param msgSrc1 is the second source operand of send message.
+/// @param exDesc is the extended message descriptor.
+/// @param msgDesc is the message descriptor.
+/// @param execSize is the execution size, which must be a compile time
 /// constant.
-/// \param sfid is the shared function ID, which must be a compile time
+/// @param sfid is the shared function ID, which must be a compile time
 /// constant.
-/// \param numSrc0 is the number of GRFs for source-0, which must be a compile
+/// @param numSrc0 is the number of GRFs for source-0, which must be a compile
 /// time constant.
-/// \param numSrc1 is the number of GRFs for source-1, which must be a compile
+/// @param numSrc1 is the number of GRFs for source-1, which must be a compile
 /// time constant.
-/// \param isEOT is the flag that indicates whether this is an EOT message,
+/// @param isEOT is the flag that indicates whether this is an EOT message,
 /// which must be a compile time constant (optional - default to 0).
-/// \param isSendc is the flag that indicates whether sendc should be used,
+/// @param isSendc is the flag that indicates whether sendc should be used,
 /// which must be a compile time constant (optional - default to 0).
-/// \param mask is the predicate to specify enabled channels (optional - default
+/// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 template <typename T1, int n1, typename T2, int n2, int N = 16>
 __ESIMD_API void
@@ -1036,22 +1221,23 @@ raw_sends_store(simd<T1, n1> msgSrc0, simd<T2, n2> msgSrc1, uint32_t exDesc,
       msgSrc0.data(), msgSrc1.data());
 }
 
-/// Raw send store.
+/// Raw send store. Generates a \c send or \c sendc instruction for the message
+/// gateway.
 ///
-/// \param msgSrc0 is the first source operand of send message.
-/// \param exDesc is the extended message descriptor.
-/// \param msgDesc is the message descriptor.
-/// \param execSize is the execution size, which must be a compile time
+/// @param msgSrc0 is the first source operand of send message.
+/// @param exDesc is the extended message descriptor.
+/// @param msgDesc is the message descriptor.
+/// @param execSize is the execution size, which must be a compile time
 /// constant.
-/// \param sfid is the shared function ID, which must be a compile time
+/// @param sfid is the shared function ID, which must be a compile time
 /// constant.
-/// \param numSrc0 is the number of GRFs for source-0, which must be a compile
+/// @param numSrc0 is the number of GRFs for source-0, which must be a compile
 /// time constant.
-/// \param isEOT is the flag that indicates whether this is an EOT message,
+/// @param isEOT is the flag that indicates whether this is an EOT message,
 /// which must be a compile time constant (optional - default to 0).
-/// \param isSendc is the flag that indicates whether sendc should be used,
+/// @param isSendc is the flag that indicates whether sendc should be used,
 /// which must be a compile time constant (optional - default to 0).
-/// \param mask is the predicate to specify enabled channels (optional - default
+/// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 template <typename T1, int n1, int N = 16>
 __ESIMD_API void
@@ -1066,7 +1252,7 @@ raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                                         numSrc0, sfid, exDesc, msgDesc,
                                         msgSrc0.data());
 }
-/// @} sycl_esimd_memory_raw_send
+/// @} sycl_esimd_raw_send
 
 #undef __ESIMD_GET_SURF_HANDLE
 

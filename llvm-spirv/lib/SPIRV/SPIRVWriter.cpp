@@ -106,6 +106,15 @@ static void foreachKernelArgMD(
   }
 }
 
+static void foreachKernelArgMD(
+    MDNode *MD, SPIRVFunction *BF,
+    std::function<void(Metadata *MDOp, SPIRVFunctionParameter *BA)> Func) {
+  for (unsigned I = 0, E = MD->getNumOperands(); I != E; ++I) {
+    SPIRVFunctionParameter *BA = BF->getArgument(I);
+    Func(MD->getOperand(I), BA);
+  }
+}
+
 static SPIRVMemoryModelKind getMemoryModel(Module &M) {
   auto *MemoryModelMD = M.getNamedMetadata(kSPIRVMD::MemoryModel);
   if (MemoryModelMD && (MemoryModelMD->getNumOperands() > 0)) {
@@ -2053,6 +2062,138 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
   }
 }
 
+#define ONE_STRING_DECORATION_CASE(NAME, NAMESPACE)                            \
+  case NAMESPACE::Decoration##NAME: {                                          \
+    assert(NumOperands == 2 && #NAME " requires exactly 1 extra operand");     \
+    auto *StrDecoEO = dyn_cast<MDString>(DecoMD->getOperand(1));               \
+    assert(StrDecoEO &&#NAME " requires extra operand to be a string");        \
+    Target->addDecorate(                                                       \
+        new SPIRVDecorate##NAME##Attr(Target, StrDecoEO->getString().str()));  \
+    break;                                                                     \
+  }
+
+#define ONE_INT_DECORATION_CASE(NAME, NAMESPACE, TYPE)                         \
+  case NAMESPACE::Decoration##NAME: {                                          \
+    assert(NumOperands == 2 && #NAME " requires exactly 1 extra operand");     \
+    auto *IntDecoEO =                                                          \
+        mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));              \
+    assert(IntDecoEO &&#NAME " requires extra operand to be an integer");      \
+    Target->addDecorate(new SPIRVDecorate##NAME(                               \
+        Target, static_cast<TYPE>(IntDecoEO->getZExtValue())));                \
+    break;                                                                     \
+  }
+
+#define TWO_INT_DECORATION_CASE(NAME, NAMESPACE, TYPE1, TYPE2)                 \
+  case NAMESPACE::Decoration##NAME: {                                          \
+    assert(NumOperands == 3 && #NAME " requires exactly 2 extra operand");     \
+    auto *IntDecoEO1 =                                                         \
+        mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));              \
+    assert(IntDecoEO1 &&#NAME                                                  \
+           " requires first extra operand to be an integer");                  \
+    auto *IntDecoEO2 =                                                         \
+        mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));              \
+    assert(IntDecoEO2 &&#NAME                                                  \
+           " requires second extra operand to be an integer");                 \
+    Target->addDecorate(new SPIRVDecorate##NAME(                               \
+        Target, static_cast<TYPE1>(IntDecoEO1->getZExtValue()),                \
+        static_cast<TYPE2>(IntDecoEO2->getZExtValue())));                      \
+    break;                                                                     \
+  }
+
+static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
+  auto *ArgDecoMD = dyn_cast<MDNode>(MD);
+  assert(ArgDecoMD && "Decoration list must be a metadata node");
+  for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
+    auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
+    assert(DecoMD && "Decoration does not name metadata");
+    assert(DecoMD->getNumOperands() > 0 &&
+           "Decoration metadata must have at least one operand");
+    auto *DecoKindConst =
+        mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(0));
+    assert(DecoKindConst && "First operand of decoration must be the kind");
+    auto DecoKind = static_cast<Decoration>(DecoKindConst->getZExtValue());
+
+    const size_t NumOperands = DecoMD->getNumOperands();
+    switch (static_cast<size_t>(DecoKind)) {
+      ONE_STRING_DECORATION_CASE(MemoryINTEL, spv)
+      ONE_STRING_DECORATION_CASE(UserSemantic, spv)
+      ONE_INT_DECORATION_CASE(AliasScopeINTEL, spv::internal, SPIRVId)
+      ONE_INT_DECORATION_CASE(NoAliasINTEL, spv::internal, SPIRVId)
+      ONE_INT_DECORATION_CASE(InitiationIntervalINTEL, spv::internal, SPIRVWord)
+      ONE_INT_DECORATION_CASE(MaxConcurrencyINTEL, spv::internal, SPIRVWord)
+      ONE_INT_DECORATION_CASE(PipelineEnableINTEL, spv::internal, SPIRVWord)
+      TWO_INT_DECORATION_CASE(FunctionRoundingModeINTEL, spv, SPIRVWord,
+                              FPRoundingMode);
+      TWO_INT_DECORATION_CASE(FunctionDenormModeINTEL, spv, SPIRVWord,
+                              FPDenormMode);
+      TWO_INT_DECORATION_CASE(FunctionFloatingPointModeINTEL, spv, SPIRVWord,
+                              FPOperationMode);
+      TWO_INT_DECORATION_CASE(FuseLoopsInFunctionINTEL, spv, SPIRVWord,
+                              SPIRVWord);
+      TWO_INT_DECORATION_CASE(MathOpDSPModeINTEL, spv::internal, SPIRVWord,
+                              SPIRVWord);
+    case DecorationStallEnableINTEL: {
+      Target->addDecorate(new SPIRVDecorateStallEnableINTEL(Target));
+      break;
+    }
+    case DecorationMergeINTEL: {
+      assert(NumOperands == 3 && "MergeINTEL requires exactly 3 extra operand");
+      auto *Name = dyn_cast<MDString>(DecoMD->getOperand(1));
+      assert(Name && "MergeINTEL requires first extra operand to be a string");
+      auto *Direction = dyn_cast<MDString>(DecoMD->getOperand(2));
+      assert(Direction &&
+             "MergeINTEL requires second extra operand to be a string");
+      Target->addDecorate(new SPIRVDecorateMergeINTELAttr(
+          Target, Name->getString().str(), Direction->getString().str()));
+      break;
+    }
+    case DecorationLinkageAttributes: {
+      assert(NumOperands == 3 &&
+             "LinkageAttributes requires exactly 3 extra operand");
+      auto *Name = dyn_cast<MDString>(DecoMD->getOperand(1));
+      assert(Name &&
+             "LinkageAttributes requires first extra operand to be a string");
+      auto *Type = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
+      assert(Type &&
+             "LinkageAttributes requires second extra operand to be an int");
+      auto TypeKind = static_cast<SPIRVLinkageTypeKind>(Type->getZExtValue());
+      Target->addDecorate(new SPIRVDecorateLinkageAttr(
+          Target, Name->getString().str(), TypeKind));
+      break;
+    }
+    default: {
+      if (NumOperands == 1) {
+        Target->addDecorate(new SPIRVDecorate(DecoKind, Target));
+        break;
+      }
+
+      auto *DecoValEO1 =
+          mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      assert(DecoValEO1 &&
+             "First extra operand in default decoration case must be integer.");
+      if (NumOperands == 2) {
+        Target->addDecorate(
+            new SPIRVDecorate(DecoKind, Target, DecoValEO1->getZExtValue()));
+        break;
+      }
+
+      auto *DecoValEO2 =
+          mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
+      assert(DecoValEO2 &&
+             "First extra operand in default decoration case must be integer.");
+      assert(NumOperands == 3 && "At most 2 extra operands expected.");
+      Target->addDecorate(new SPIRVDecorate(DecoKind, Target,
+                                            DecoValEO1->getZExtValue(),
+                                            DecoValEO2->getZExtValue()));
+    }
+    }
+  }
+}
+
+#undef ONE_STRING_DECORATION_CASE
+#undef ONE_INT_DECORATION_CASE
+#undef TWO_INT_DECORATION_CASE
+
 bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
   if (!transAlign(V, BV))
     return false;
@@ -2117,6 +2258,10 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
     if (OC == OpFunctionPointerCallINTEL)
       addFuncPointerCallArgumentAttributes(CI, BV);
   }
+
+  if (auto *GV = dyn_cast<GlobalVariable>(V))
+    if (auto *GVDecoMD = GV->getMetadata(SPIRV_MD_DECORATIONS))
+      transMetadataDecorations(GVDecoMD, BV);
 
   return true;
 }
@@ -4123,6 +4268,8 @@ bool LLVMToSPIRVBase::transOCLMetadata() {
             BM->setName(BA, Str);
           });
     }
+    if (auto *KernArgDecoMD = F.getMetadata(SPIRV_MD_PARAMETER_DECORATIONS))
+      foreachKernelArgMD(KernArgDecoMD, BF, transMetadataDecorations);
   }
   return true;
 }
@@ -4187,6 +4334,14 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addAsyncGroupCopy(BArgs[0], BArgs[1], BArgs[2], BArgs[3],
                                  BArgs[4], BArgs[5], BB);
   } break;
+  case OpVectorExtractDynamic: {
+    auto BArgs = transValue(getArguments(CI), BB);
+    return BM->addVectorExtractDynamicInst(BArgs[0], BArgs[1], BB);
+  } break;
+  case OpVectorInsertDynamic: {
+    auto BArgs = transValue(getArguments(CI), BB);
+    return BM->addVectorInsertDynamicInst(BArgs[0], BArgs[1], BArgs[2], BB);
+  } break;
   case OpSampledImage: {
     // Clang can generate SPIRV-friendly call for OpSampledImage instruction,
     // i.e. __spirv_SampledImage... But it can't generate correct return type
@@ -4235,7 +4390,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
       OpItr++;
     }
 
@@ -4326,7 +4481,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
       OpItr++;
     }
 
@@ -4403,7 +4558,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
       OpItr++;
     }
 

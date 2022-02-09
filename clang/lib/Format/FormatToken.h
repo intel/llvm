@@ -51,6 +51,7 @@ namespace format {
   TYPE(FunctionAnnotationRParen)                                               \
   TYPE(FunctionDeclarationName)                                                \
   TYPE(FunctionLBrace)                                                         \
+  TYPE(FunctionLikeOrFreestandingMacro)                                        \
   TYPE(FunctionTypeLParen)                                                     \
   TYPE(IfMacro)                                                                \
   TYPE(ImplicitStringLiteral)                                                  \
@@ -635,6 +636,12 @@ public:
   /// newlines.
   SourceLocation getStartOfNonWhitespace() const {
     return WhitespaceRange.getEnd();
+  }
+
+  /// Returns \c true if the range of whitespace immediately preceding the \c
+  /// Token is not empty.
+  bool hasWhitespaceBefore() const {
+    return WhitespaceRange.getBegin() != WhitespaceRange.getEnd();
   }
 
   prec::Level getPrecedence() const {

@@ -710,6 +710,10 @@ void CudaToolChain::addClangTargetOptions(
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
                                                   CC1Args);
+
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
+      CC1Args.push_back("-fcuda-prec-sqrt");
+    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,

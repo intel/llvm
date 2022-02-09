@@ -35,6 +35,7 @@
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
+#include "clang/Driver/Types.h"
 #include "clang/Driver/XRayArgs.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h"
@@ -357,7 +358,8 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64_be:
-    aarch64::getAArch64TargetFeatures(D, Triple, Args, Features, ForAS);
+    aarch64::getAArch64TargetFeatures(D, Triple, Args, CmdArgs, Features,
+                                      ForAS);
     break;
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
@@ -1149,7 +1151,7 @@ static void RenderDebugInfoCompressionArgs(const ArgList &Args,
     StringRef Value = A->getValue();
     if (Value == "none") {
       CmdArgs.push_back("--compress-debug-sections=none");
-    } else if (Value == "zlib" || Value == "zlib-gnu") {
+    } else if (Value == "zlib") {
       if (llvm::zlib::isAvailable()) {
         CmdArgs.push_back(
             Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
@@ -2171,7 +2173,7 @@ void Clang::AddPPCTargetArgs(const ArgList &Args,
     }
   }
 
-  bool IEEELongDouble = false;
+  bool IEEELongDouble = getToolChain().defaultToIEEELongDouble();
   for (const Arg *A : Args.filtered(options::OPT_mabi_EQ)) {
     StringRef V = A->getValue();
     if (V == "ieeelongdouble")
@@ -5068,6 +5070,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (JA.getType() == types::TY_RewrittenLegacyObjC) {
       CmdArgs.push_back("-rewrite-objc");
       rewriteKind = RK_Fragile;
+    } else if (JA.getType() == types::TY_API_INFO) {
+      CmdArgs.push_back("-extract-api");
     } else {
       assert(JA.getType() == types::TY_PP_Asm && "Unexpected output type!");
     }
@@ -5789,7 +5793,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // as errors, but until then, we can live with a warning being emitted by the
   // compiler. This way, Clang can be used to compile code with scalable vectors
   // and identify possible issues.
-  if (isa<BackendJobAction>(JA)) {
+  if (isa<AssembleJobAction>(JA) || isa<CompileJobAction>(JA) ||
+      isa<BackendJobAction>(JA)) {
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-treat-scalable-fixed-error-as-warning");
   }
@@ -6318,6 +6323,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-ftype-visibility");
       CmdArgs.push_back("default");
     }
+  } else if (IsOpenMPDevice) {
+    // When compiling for the OpenMP device we want protected visibility by
+    // default. This prevents the device from accidenally preempting code on the
+    // host, makes the system more robust, and improves performance.
+    CmdArgs.push_back("-fvisibility");
+    CmdArgs.push_back("protected");
   }
 
   if (!RawTriple.isPS4())
@@ -6498,6 +6509,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  Args.AddLastArg(CmdArgs, options::OPT_fms_hotpatch);
+
   if (TC.SupportsProfiling()) {
     Args.AddLastArg(CmdArgs, options::OPT_pg);
 
@@ -6654,6 +6667,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-fcf-protection=") + A->getValue()));
   }
+
+  if (IsUsingLTO)
+    Args.AddLastArg(CmdArgs, options::OPT_mibt_seal);
 
   // Forward -f options with positive and negative forms; we translate these by
   // hand.  Do not propagate PGO options to the GPU-side compilations as the

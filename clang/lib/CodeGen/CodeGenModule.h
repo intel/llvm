@@ -337,7 +337,7 @@ private:
   /// for emission and therefore should only be output if they are actually
   /// used. If a decl is in this, then it is known to have not been referenced
   /// yet.
-  std::map<StringRef, GlobalDecl> DeferredDecls;
+  llvm::DenseMap<StringRef, GlobalDecl> DeferredDecls;
 
   /// This contains all the aliases that are deferred for emission until
   /// they or what they alias are actually used.  Note that the StringRef

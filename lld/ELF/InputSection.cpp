@@ -18,8 +18,7 @@
 #include "SyntheticSections.h"
 #include "Target.h"
 #include "Thunks.h"
-#include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Memory.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/Endian.h"
@@ -143,7 +142,7 @@ void InputSectionBase::uncompress() const {
   {
     static std::mutex mu;
     std::lock_guard<std::mutex> lock(mu);
-    uncompressedBuf = bAlloc.Allocate<char>(size);
+    uncompressedBuf = bAlloc().Allocate<char>(size);
   }
 
   if (Error e = zlib::uncompress(toStringRef(rawData), uncompressedBuf, size))
@@ -237,7 +236,7 @@ template <typename ELFT> void InputSectionBase::parseCompressedHeader() {
 
     // Restore the original section name.
     // (e.g. ".zdebug_info" -> ".debug_info")
-    name = saver.save("." + name.substr(2));
+    name = saver().save("." + name.substr(2));
     return;
   }
 
@@ -1262,9 +1261,8 @@ template <class ELFT> void InputSection::writeTo(uint8_t *buf) {
 
   // Copy section contents from source object file to output file
   // and then apply relocations.
-  memcpy(buf, data().data(), data().size());
-  uint8_t *bufEnd = buf + data().size();
-  relocate<ELFT>(buf, bufEnd);
+  memcpy(buf, rawData.data(), rawData.size());
+  relocate<ELFT>(buf, buf + rawData.size());
 }
 
 void InputSection::replace(InputSection *other) {

@@ -24,7 +24,7 @@ Release notes for commit range 4fc5ebe..bd68232
    [88cfe16]
  - Added [SYCL_INTEL_bf16_conversion extension document](doc/extensions/experimental/SYCL_EXT_INTEL_BF16_CONVERSION.asciidoc)
    [9f8cc3af]
- - Align [SYCL_EXT_ONEAPI_GROUP_MASK extension](doc/extensions/GroupMask/GroupMask.asciidoc)
+ - Align [SYCL_EXT_ONEAPI_GROUP_MASK extension](doc/extensions/supported/SYCL_EXT_ONEAPI_SUB_GROUP_MASK.asciidoc)
    with SYCL 2020 specification [a06bd1fb]
  - Added [documentation](doc/SYCLInstrumentationUsingXPTI.md) of XPTI related
    tracing in SYCL [1308fe7b]
@@ -264,7 +264,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Implemented generation of compiler report for kernel arguments [201f902]
  - Implemented SYCL 2020 `[[reqd_sub_group_size]]` attribute [347e41c]
  - Implemented support for `[[intel::named_sub_group_size(primary)]]` attribute
-   from [sub-group extension](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc#attributes)
+   from [sub-group extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc#attributes)
    [347e41c]
  - Implemented SYCL 2020 interoperability API [e6733e4]
  - Added [group sorting algorithm](doc/extensions/experimental/SYCL_EXT_ONEAPI_GROUP_SORT.asciidoc)
@@ -591,7 +591,7 @@ Release notes for commit range 2ffafb95f887..6a49170027fb
  - Improved design document for program cache [ed4b4c4]
  - Updated compiler options [description](doc/UsersManual.md) [e56e576]
  - Updated
-   [SYCL_INTEL_sub_group]doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc
+   [SYCL_INTEL_sub_group](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc)
    extension document to use `automatic` instead of `auto` [c4d08f5]
 
 ## Bug fixes
@@ -800,7 +800,7 @@ Release notes for commit range 5d7e0925..5eebd1e4bfce
 ### SYCL Compiler
  - Allow for multiple build options for opencl-aot [5e5703f58449]
 ### SYCL Library
- - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/MemChannel/SYCL_INTEL_mem_channel_property.asciidoc)
+ - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/supported/SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY.asciidoc)
    extension [2f1f3167b7c6]
  - Add `marray` class as defined by SYCL 2020 provisional [5eebd1e4bfce]
  - Implement dynamic batch size adjusting when using Level-Zero plugin
@@ -1186,7 +1186,7 @@ Release notes for commit range 5976ff0..1fc0e4f
 
 ### Documentation
   - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/extensions/SPIRV/SPV_INTEL_usm_storage_classes.asciidoc)
-    and [SYCL_INTEL_usm_address_spaces](doc/extensions/USMAddressSpaces/usm_address_spaces.asciidoc) [781fbfc]
+    and [SYCL_INTEL_usm_address_spaces](doc/extensions/supported/SYCL_EXT_INTEL_USM_ADDRESS_SPACES.asciidoc) [781fbfc]
   - Fixed SPIR-V format name spelling [6e9bf3b]
   - Added extension [LocalMemory](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc) draft specification [4b5308a]
   - Added extension [free functions queries](doc/extensions/experimental/SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES.asciidoc) draft specification [8953bfd]
@@ -1358,7 +1358,7 @@ Release notes for the commit range 75b3dc2..5976ff0
   - Added [Use Pinned Host Memory Property extension](doc/extensions/supported/SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY.asciidoc) specification [e5ea144]
   - Updated the [SYCL_INTEL_extended_atomics extension](doc/extensions/supported/SYCL_EXT_ONEAPI_EXTENDED_ATOMICS.asciidoc)
     to describe `sycl::intel::atomic_accessor` [4968e7c]
-  - The [SYCL_INTEL_sub_group extension](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc)
+  - The [SYCL_INTEL_sub_group extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc)
     document has been updated [067536e]
   - Added [FPGA lsu extension](sycl/doc/extensions/supported/SYCL_EXT_INTEL_FPGA_LSU.md)
     document [2c2b5f2]
@@ -1485,7 +1485,7 @@ Release notes for the commit range ba404be..24726df
 
 ### SYCL Library
   - Updated the implementation to align with changes in
-    [SubGroup extension](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc) [9d4c284]
+    [SubGroup extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc) [9d4c284]
   - `sycl::ordered_queue` class has been removed [875347a]
   - Added support of rounding modes for floating and integer types in
     `sycl::vec::convert` [096d0a0]
@@ -1517,7 +1517,7 @@ Release notes for the commit range ba404be..24726df
   - OpenCL CPU runtime installation instructions in
     [GetStartedGuide](doc/GetStartedGuide.md) and the installation script have
     been improved [9aa5029]
-  - The [SYCL_INTEL_sub_group extension document](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc)
+  - The [SYCL_INTEL_sub_group extension document](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc)
     has been updated [010f112]
   - Render user API classes on a dedicated page [98b6ee4]
 
@@ -1599,7 +1599,7 @@ Release notes for the commit range ba404be..24726df
 Release notes for the commit range ba404be..67d3d9e
 
 ## New features
-  - Implemented [reduction extension](doc/extensions/Reduction/Reduction.md)
+  - Implemented [reduction extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS.md)
     for `sycl::handler::parallel_for` accepting a `sycl::nd_range` object
     [bb73d926] [04a360a] [05625f1]
   - XPTI instrumentation has been added to the runtime to capture semantic and
@@ -1667,7 +1667,7 @@ Release notes for the commit range ba404be..67d3d9e
   - [ExtendedAtomics documentation](doc/extensions/ExtendedAtomics/README.md)
     has been updated [1084685]
   - Published [sycl_bitcast extension](doc/extensions/Bitcast/SYCL_INTEL_bitcast.asciidoc)
-  - Published a [proposal](doc/extensions/StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)
+  - Published a [proposal](doc/extensions/proposed/SYCL_EXT_ONEAPI_LOCAL_STATIC_MEM_USED.asciidoc)
     which adds ability to query max local size which is used by a specific
     kernel and a specific device.
   - Published [device_specific_kernel_queries](doc/extensions/DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc)
@@ -1678,7 +1678,7 @@ Release notes for the commit range ba404be..67d3d9e
   - [Contribution guidelines](../CONTRIBUTING.md) were simplified, now sign-off
     line is not required [7886fd8]
   - Added missing constructors and member functions in
-    [reduction extension proposal](doc/extensions/Reduction/Reduction.md)
+    [reduction extension proposal](doc/extensions/deprecated/SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS.md)
     [f695479]
   - Published [parallel_for simplification extension](doc/extensions/ParallelForSimpification/SYCL_INTEL_parallel_for_simplification.asciidoc) [856a777]
   - Added memory scope to [ExtendedAtomics extension](doc/extensions/supported/SYCL_EXT_ONEAPI_EXTENDED_ATOMICS.asciidoc) [f8e11e0]
@@ -1752,7 +1752,7 @@ Release notes for the commit range e8f1f29..ba404be
 ## New features
   - Initial CUDA backend support [7a9a425]
   - [SYCL][FPGA] Implement IO pipes interface [c900248]
-  - Added the implementation of [GroupAlgorithms extension](doc/extensions/GroupAlgorithms/SYCL_INTEL_group_algorithms.asciidoc)
+  - Added the implementation of [GroupAlgorithms extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_GROUP_ALGORITHMS.asciidoc)
     [8bfa107]
   - Added a partial implementation of [sub group algorithms extension](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
     [017af4e]
@@ -1825,12 +1825,12 @@ Release notes for the commit range e8f1f29..ba404be
     [ce53521]
   - Deprecated SubGroupNDRange extension [d9b178f]
   - Added extension for base sub-group class:
-    [SubGroup](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc) [d9b178f]
+    [SubGroup](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc) [d9b178f]
   - Added extension for functions operating on sub-groups:
     [SubGroupAlgorithms](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
     [d9b178f]
   - Added extension introducing group masks and ballot functionality:
-    [GroupMask](doc/extensions/GroupMask/SYCL_INTEL_group_mask.asciidoc)
+    [GroupMask](doc/extensions/supported/SYCL_EXT_ONEAPI_SUB_GROUP_MASK.asciidoc)
     [d9b178f]
   - The project has been renamed to "oneAPI DPC++ Compiler", all documentation
     has been fixed accordingly [7a2e75e]

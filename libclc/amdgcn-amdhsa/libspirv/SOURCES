@@ -31,9 +31,11 @@ math/fmin.cl
 math/fmod.cl
 math/frexp.cl
 math/hypot.cl
+math/ilogb.cl
 math/ldexp.cl
 math/lgamma.cl
 math/log.cl
+math/log2.cl
 math/log10.cl
 math/log1p.cl
 math/logb.cl
@@ -41,6 +43,7 @@ math/mangle_common.h
 math/modf.cl
 math/nextafter.cl
 math/pow.cl
+math/remainder.cl
 math/round.cl
 math/rsqrt.cl
 math/sin.cl

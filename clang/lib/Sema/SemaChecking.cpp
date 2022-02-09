@@ -499,7 +499,8 @@ public:
              1 /* null byte always written by sprintf */) {}
 
   bool HandlePrintfSpecifier(const analyze_printf::PrintfSpecifier &FS,
-                             const char *, unsigned SpecifierLen) override {
+                             const char *, unsigned SpecifierLen,
+                             const TargetInfo &) override {
 
     const size_t FieldWidth = computeFieldWidth(FS);
     const size_t Precision = computePrecision(FS);
@@ -4000,23 +4001,39 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
 
   // Check if each required feature is included
   for (StringRef F : ReqFeatures) {
-    if (TI.hasFeature(F))
-      continue;
+    SmallVector<StringRef> ReqOpFeatures;
+    F.split(ReqOpFeatures, '|');
+    bool HasFeature = false;
+    for (StringRef OF : ReqOpFeatures) {
+      if (TI.hasFeature(OF)) {
+        HasFeature = true;
+        continue;
+      }
+    }
 
-    // If the feature is 64bit, alter the string so it will print better in
-    // the diagnostic.
-    if (F == "64bit")
-      F = "RV64";
+    if (!HasFeature) {
+      std::string FeatureStrs = "";
+      for (StringRef OF : ReqOpFeatures) {
+        // If the feature is 64bit, alter the string so it will print better in
+        // the diagnostic.
+        if (OF == "64bit")
+          OF = "RV64";
 
-    // Convert features like "zbr" and "experimental-zbr" to "Zbr".
-    F.consume_front("experimental-");
-    std::string FeatureStr = F.str();
-    FeatureStr[0] = std::toupper(FeatureStr[0]);
-
-    // Error message
-    FeatureMissing = true;
-    Diag(TheCall->getBeginLoc(), diag::err_riscv_builtin_requires_extension)
-        << TheCall->getSourceRange() << StringRef(FeatureStr);
+        // Convert features like "zbr" and "experimental-zbr" to "Zbr".
+        OF.consume_front("experimental-");
+        std::string FeatureStr = OF.str();
+        FeatureStr[0] = std::toupper(FeatureStr[0]);
+        // Combine strings.
+        FeatureStrs += FeatureStrs == "" ? "" : ", ";
+        FeatureStrs += "'";
+        FeatureStrs += FeatureStr;
+        FeatureStrs += "'";
+      }
+      // Error message
+      FeatureMissing = true;
+      Diag(TheCall->getBeginLoc(), diag::err_riscv_builtin_requires_extension)
+          << TheCall->getSourceRange() << StringRef(FeatureStrs);
+    }
   }
 
   if (FeatureMissing)
@@ -9048,8 +9065,8 @@ public:
   void handleInvalidMaskType(StringRef MaskType) override;
 
   bool HandlePrintfSpecifier(const analyze_printf::PrintfSpecifier &FS,
-                             const char *startSpecifier,
-                             unsigned specifierLen) override;
+                             const char *startSpecifier, unsigned specifierLen,
+                             const TargetInfo &Target) override;
   bool checkFormatExpr(const analyze_printf::PrintfSpecifier &FS,
                        const char *StartSpecifier,
                        unsigned SpecifierLen,
@@ -9308,11 +9325,9 @@ bool CheckPrintfHandler::checkForCStrMembers(
   return false;
 }
 
-bool
-CheckPrintfHandler::HandlePrintfSpecifier(const analyze_printf::PrintfSpecifier
-                                            &FS,
-                                          const char *startSpecifier,
-                                          unsigned specifierLen) {
+bool CheckPrintfHandler::HandlePrintfSpecifier(
+    const analyze_printf::PrintfSpecifier &FS, const char *startSpecifier,
+    unsigned specifierLen, const TargetInfo &Target) {
   using namespace analyze_format_string;
   using namespace analyze_printf;
 
@@ -9442,6 +9457,15 @@ CheckPrintfHandler::HandlePrintfSpecifier(const analyze_printf::PrintfSpecifier
                            /*IsStringLocation*/ false,
                            getSpecifierRange(startSpecifier, specifierLen));
     }
+  }
+
+  const llvm::Triple &Triple = Target.getTriple();
+  if (CS.getKind() == ConversionSpecifier::nArg &&
+      (Triple.isAndroid() || Triple.isOSFuchsia())) {
+    EmitFormatDiagnostic(S.PDiag(diag::warn_printf_narg_not_supported),
+                         getLocationOfByte(CS.getStart()),
+                         /*IsStringLocation*/ false,
+                         getSpecifierRange(startSpecifier, specifierLen));
   }
 
   // Check for invalid use of field width

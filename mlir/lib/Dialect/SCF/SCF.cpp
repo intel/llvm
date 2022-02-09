@@ -9,14 +9,13 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/InliningUtils.h"
+
 using namespace mlir;
 using namespace mlir::scf;
 
@@ -2190,7 +2189,7 @@ static ParseResult parseWhileOp(OpAsmParser &parser, OperationState &result) {
     return failure();
 
   FunctionType functionType;
-  llvm::SMLoc typeLoc = parser.getCurrentLocation();
+  SMLoc typeLoc = parser.getCurrentLocation();
   if (failed(parser.parseColonType(functionType)))
     return failure();
 
@@ -2538,7 +2537,7 @@ struct WhileUnusedArg : public OpRewritePattern<WhileOp> {
 };
 } // namespace
 
-void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+void WhileOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                           MLIRContext *context) {
   results.insert<WhileConditionTruth, WhileUnusedResult, WhileCmpCond,
                  WhileUnusedArg>(context);

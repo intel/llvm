@@ -22,9 +22,8 @@
 #include "Symbols.h"
 #include "Target.h"
 #include "Writer.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/DWARF.h"
-#include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
 #include "lld/Common/Version.h"
 #include "llvm/ADT/SetOperations.h"
@@ -73,7 +72,7 @@ static ArrayRef<uint8_t> getVersion() {
   // This is only for testing.
   StringRef s = getenv("LLD_VERSION");
   if (s.empty())
-    s = saver.save(Twine("Linker: ") + getLLDVersion());
+    s = saver().save(Twine("Linker: ") + getLLDVersion());
 
   // +1 to include the terminating '\0'.
   return {(const uint8_t *)s.data(), s.size() + 1};
@@ -255,7 +254,7 @@ MipsReginfoSection<ELFT> *MipsReginfoSection<ELFT>::create() {
 
 InputSection *elf::createInterpSection() {
   // StringSaver guarantees that the returned string ends with '\0'.
-  StringRef s = saver.save(config->dynamicLinker);
+  StringRef s = saver().save(config->dynamicLinker);
   ArrayRef<uint8_t> contents = {(const uint8_t *)s.data(), s.size() + 1};
 
   return make<InputSection>(nullptr, SHF_ALLOC, SHT_PROGBITS, 1, contents,
@@ -2025,42 +2024,30 @@ template <class ELFT> bool RelrSection<ELFT>::updateAllocSize() {
   const size_t nBits = wordsize * 8 - 1;
 
   // Get offsets for all relative relocations and sort them.
-  std::vector<uint64_t> offsets;
-  for (const RelativeReloc &rel : relocs)
-    offsets.push_back(rel.getOffset());
-  llvm::sort(offsets);
+  std::unique_ptr<uint64_t[]> offsets(new uint64_t[relocs.size()]);
+  for (auto it : llvm::enumerate(relocs))
+    offsets[it.index()] = it.value().getOffset();
+  std::sort(offsets.get(), offsets.get() + relocs.size());
 
   // For each leading relocation, find following ones that can be folded
   // as a bitmap and fold them.
-  for (size_t i = 0, e = offsets.size(); i < e;) {
+  for (size_t i = 0, e = relocs.size(); i != e;) {
     // Add a leading relocation.
     relrRelocs.push_back(Elf_Relr(offsets[i]));
     uint64_t base = offsets[i] + wordsize;
     ++i;
 
     // Find foldable relocations to construct bitmaps.
-    while (i < e) {
+    for (;;) {
       uint64_t bitmap = 0;
-
-      while (i < e) {
-        uint64_t delta = offsets[i] - base;
-
-        // If it is too far, it cannot be folded.
-        if (delta >= nBits * wordsize)
+      for (; i != e; ++i) {
+        uint64_t d = offsets[i] - base;
+        if (d >= nBits * wordsize || d % wordsize)
           break;
-
-        // If it is not a multiple of wordsize away, it cannot be folded.
-        if (delta % wordsize)
-          break;
-
-        // Fold it.
-        bitmap |= 1ULL << (delta / wordsize);
-        ++i;
+        bitmap |= uint64_t(1) << (d / wordsize);
       }
-
       if (!bitmap)
         break;
-
       relrRelocs.push_back(Elf_Relr((bitmap << 1) | 1));
       base += nBits * wordsize;
     }
@@ -2819,7 +2806,7 @@ createSymbols(ArrayRef<std::vector<GdbIndexSection::NameAttrEntry>> nameAttrs,
 
   // For each chunk, compute the number of compilation units preceding it.
   uint32_t cuIdx = 0;
-  std::vector<uint32_t> cuIdxs(chunks.size());
+  std::unique_ptr<uint32_t[]> cuIdxs(new uint32_t[chunks.size()]);
   for (uint32_t i = 0, e = chunks.size(); i != e; ++i) {
     cuIdxs[i] = cuIdx;
     cuIdx += chunks[i].compilationUnits.size();
@@ -2835,11 +2822,13 @@ createSymbols(ArrayRef<std::vector<GdbIndexSection::NameAttrEntry>> nameAttrs,
                        numShards));
 
   // A sharded map to uniquify symbols by name.
-  std::vector<DenseMap<CachedHashStringRef, size_t>> map(numShards);
+  auto map =
+      std::make_unique<DenseMap<CachedHashStringRef, size_t>[]>(numShards);
   size_t shift = 32 - countTrailingZeros(numShards);
 
   // Instantiate GdbSymbols while uniqufying them by name.
-  std::vector<std::vector<GdbSymbol>> symbols(numShards);
+  auto symbols = std::make_unique<std::vector<GdbSymbol>[]>(numShards);
+
   parallelForEachN(0, concurrency, [&](size_t threadId) {
     uint32_t i = 0;
     for (ArrayRef<NameAttrEntry> entries : nameAttrs) {
@@ -2863,14 +2852,15 @@ createSymbols(ArrayRef<std::vector<GdbIndexSection::NameAttrEntry>> nameAttrs,
   });
 
   size_t numSymbols = 0;
-  for (ArrayRef<GdbSymbol> v : symbols)
+  for (ArrayRef<GdbSymbol> v : makeArrayRef(symbols.get(), numShards))
     numSymbols += v.size();
 
   // The return type is a flattened vector, so we'll copy each vector
   // contents to Ret.
   std::vector<GdbSymbol> ret;
   ret.reserve(numSymbols);
-  for (std::vector<GdbSymbol> &vec : symbols)
+  for (std::vector<GdbSymbol> &vec :
+       makeMutableArrayRef(symbols.get(), numShards))
     for (GdbSymbol &sym : vec)
       ret.push_back(std::move(sym));
 

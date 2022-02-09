@@ -1184,7 +1184,7 @@ void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   auto &ZeCommandListBatchConfig =
       IsCopy ? ZeCommandListBatchCopyConfig : ZeCommandListBatchComputeConfig;
-  pi_uint32 QueueBatchSize = CommandBatch.QueueBatchSize;
+  pi_uint32 &QueueBatchSize = CommandBatch.QueueBatchSize;
   // QueueBatchSize of 0 means never allow batching.
   if (QueueBatchSize == 0 || !ZeCommandListBatchConfig.dynamic())
     return;
@@ -1205,14 +1205,13 @@ void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
   }
-  CommandBatch.QueueBatchSize = QueueBatchSize;
 }
 
 void _pi_queue::adjustBatchSizeForPartialBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   auto &ZeCommandListBatchConfig =
       IsCopy ? ZeCommandListBatchCopyConfig : ZeCommandListBatchComputeConfig;
-  pi_uint32 QueueBatchSize = CommandBatch.QueueBatchSize;
+  pi_uint32 &QueueBatchSize = CommandBatch.QueueBatchSize;
   // QueueBatchSize of 0 means never allow batching.
   if (QueueBatchSize == 0 || !ZeCommandListBatchConfig.dynamic())
     return;
@@ -1811,7 +1810,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1) { // Means print all PI traces
+  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
     PrintPiTrace = true;
   }
 
@@ -7319,6 +7318,11 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
+  /**
+   * @brief Please note that the following code should be run before the
+   * subsequent getAvailableCommandList() call so that there is no
+   * dead-lock from waiting unsubmitted events in an open batch.
+   */
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
                                                           EventWaitList, Queue))
@@ -7339,10 +7343,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
-
-  if (auto Res = (*Event)->WaitList.createAndRetainPiZeEventList(
-          NumEventsInWaitList, EventWaitList, Queue))
-    return Res;
+  (*Event)->WaitList = TmpWaitList;
 
   const auto &WaitList = (*Event)->WaitList;
   const auto &ZeCommandList = CommandList->first;

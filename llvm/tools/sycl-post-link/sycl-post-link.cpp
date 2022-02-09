@@ -13,6 +13,7 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
+#include "CompileTimePropertiesPass.h"
 #include "DeviceGlobals.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLKernelParamOptInfo.h"
@@ -632,8 +633,7 @@ void saveModuleProperties(Module &M, const EntryPointGroup &ModuleEntryPoints,
 
   if (ImgPSInfo.EmitDeviceGlobalPropSet) {
     // Extract device global maps per module
-    auto DevGlobalPropertyMap =
-        DeviceGlobalsPass::collectDeviceGlobalProperties(M);
+    auto DevGlobalPropertyMap = collectDeviceGlobalProperties(M);
     if (!DevGlobalPropertyMap.empty())
       PropSet.add(PropSetRegTy::SYCL_DEVICE_GLOBALS, DevGlobalPropertyMap);
   }
@@ -693,8 +693,25 @@ bool processSpecConstants(Module &M) {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
 
-  // perform the spec constant intrinsics transformation on resulting module
+  // Perform the spec constant intrinsics transformation on resulting module
   PreservedAnalyses Res = RunSpecConst.run(M, MAM);
+  return !Res.areAllPreserved();
+}
+
+bool processCompileTimeProperties(Module &M) {
+  // TODO: the early exit can be removed as soon as we have compile-time
+  // properties not attached to device globals.
+  if (DeviceGlobals.getNumOccurrences() == 0)
+    return false;
+
+  ModulePassManager RunCompileTimeProperties;
+  ModuleAnalysisManager MAM;
+  // Register required analysis
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  RunCompileTimeProperties.addPass(CompileTimePropertiesPass());
+
+  // Enrich the module with compile-time properties metadata
+  PreservedAnalyses Res = RunCompileTimeProperties.run(M, MAM);
   return !Res.areAllPreserved();
 }
 
@@ -778,6 +795,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     std::tie(ResM, SplitModuleEntryPoints) = MSplit.nextSplit();
 
     bool SpecConstsMet = processSpecConstants(*ResM);
+    bool CompileTimePropertiesMet = processCompileTimeProperties(*ResM);
 
     if (IROutputOnly) {
       // the result is the transformed input LLVM IR file rather than a file
@@ -793,6 +811,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       std::string ResModuleFile{};
       bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
                                  !IsLLVMUsedRemoved && !SpecConstsMet &&
+                                 !CompileTimePropertiesMet &&
                                  (MSplit.totalSplits() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
@@ -978,11 +997,6 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoExportedSyms) {
     errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
-           << " -" << IROutputOnly.ArgStr << "\n";
-    return 1;
-  }
-  if (IROutputOnly && DoDeviceGlobals) {
-    errs() << "error: -" << DeviceGlobals.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
