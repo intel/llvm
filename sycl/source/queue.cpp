@@ -19,7 +19,11 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
+  
+event::event()
+    : impl(std::make_shared<detail::event_impl>(
+          detail::getSyclObjImpl(queue()))) {}
+  
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
 
