@@ -1665,19 +1665,18 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
-  std::vector<const char *> linkOptions;
-  for (auto &DeviceImage : DeviceImages) {
+  std::string LinkOptionsStr;
+  for (const device_image_plain &DeviceImage : DeviceImages) {
     const std::shared_ptr<device_image_impl> &InputImpl =
         getSyclObjImpl(DeviceImage);
-    linkOptions.push_back(InputImpl->get_bin_image_ref()->getLinkOptions());
-  }
-  std::string linkOptionsStr;
-  for (auto str : linkOptions) {
-    if (str != nullptr) {
-      linkOptionsStr += std::string(str) + " ";
+    const char *DeviceLinkOptions = InputImpl->get_bin_image_ref()->getLinkOptions();
+    if (DeviceLinkOptions != nullptr) {
+      std::string TemporaryStr(DeviceLinkOptions);
+      std::optional<std::string> CompileOpts;
+      applyOptionsFromImage(*CompileOpts, TemporaryStr, *(InputImpl->get_bin_image_ref()));
+      LinkOptionsStr += TemporaryStr;
     }
   }
-  linkOptionsStr.pop_back();
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
   const detail::plugin &Plugin = ContextImpl->getPlugin();
@@ -1685,7 +1684,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
       ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
-      /*options=*/linkOptionsStr.c_str(), PIPrograms.size(), PIPrograms.data(),
+      /*options=*/LinkOptionsStr.c_str(), PIPrograms.size(), PIPrograms.data(),
       /*pfn_notify=*/nullptr,
       /*user_data=*/nullptr, &LinkedProg);
 
