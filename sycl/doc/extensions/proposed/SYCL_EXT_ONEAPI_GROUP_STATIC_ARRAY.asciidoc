@@ -116,11 +116,11 @@ versions.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation>
-  void exclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, const sycl::ext::oneapi::experimental::properties &properties = {}); // (1)
+  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation, typename... Properties>
+  void exclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, sycl::ext::oneapi::experimental::properties<Properties...> properties = {}); // (1)
 
-  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename BinaryOperation>
-  void exclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, T init, BinaryOperation binary_op, const sycl::ext::oneapi::experimental::properties &properties = {}); // (2)
+  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename BinaryOperation, typename... Properties>
+  void exclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, T init, BinaryOperation binary_op, sycl::ext::oneapi::experimental::properties<Properties...> properties = {}); // (2)
 
 }
 ----
@@ -161,11 +161,11 @@ Default layout is one that is specified by the `close` property.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation>
-  void inclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, const sycl::ext::oneapi::experimental::properties &properties = {}); // (1)
+  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation, typename... Properties>
+  void inclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, sycl::ext::oneapi::experimental::properties properties = {}); // (1)
 
-  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename BinaryOperation>
-  void inclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, BinaryOperation binary_op, T init, const sycl::ext::oneapi::experimental::properties &properties = {}); // (2)
+  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename BinaryOperation, typename... Properties>
+  void inclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, BinaryOperation binary_op, T init, sycl::ext::oneapi::experimental::properties properties = {}); // (2)
 
 }
 ----
@@ -215,23 +215,23 @@ but keys and values are reordered both.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-  template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem>
-  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, const sycl::ext::oneapi::experimental::properties &properties = {}); // (1)
+  template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem, typename... Properties>
+  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {}); // (1)
 
-  template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem>
-  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, const sycl::ext::oneapi::experimental::properties &properties = {}); // (2)
+  template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem, typename... Properties>
+  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {}); // (2)
 
-  template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem, typename Compare>
-  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, Compare comp, const sycl::ext::oneapi::experimental::properties &properties = {}); // (3)
+  template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem, typename Compare, typename... Properties>
+  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, Compare comp, sycl::ext::oneapi::experimental::properties properties = {}); // (3)
 
-  template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem, typename Compare>
-  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Compare comp, const sycl::ext::oneapi::experimental::properties &properties = {}); // (4)
+  template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem, typename Compare, typename... Properties>
+  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Compare comp, sycl::ext::oneapi::experimental::properties properties = {}); // (4)
 
-  template<typename Group, typename T, std::size_t ItemsPerWorkItem, typename Sorter>
-  void sort_over_group(Group g, sycl::span<T, ItemsPerWorkItem> values, Sorter sorter, const sycl::ext::oneapi::experimental::properties &properties = {}); // (5)
+  template<typename Group, typename T, std::size_t ItemsPerWorkItem, typename Sorter, typename... Properties>
+  void sort_over_group(Group g, sycl::span<T, ItemsPerWorkItem> values, Sorter sorter, sycl::ext::oneapi::experimental::properties properties = {}); // (5)
 
-  template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem, typename Sorter>
-  void sort_over_group(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Sorter sorter, const sycl::ext::oneapi::experimental::properties &properties = {}); // (6)
+  template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem, typename Sorter, typename... Properties>
+  void sort_over_group(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Sorter sorter, sycl::ext::oneapi::experimental::properties properties = {}); // (6)
 
 }
 ----
@@ -302,11 +302,11 @@ Sorters are described into the SYCL Sorting Extension.
 
 [source,c++]
 ----
-template<typename Group, typename T, std::size_t ItemsPerWorkItem>
-void operator()(Group g, sycl::span<T, ItemsPerWorkItem> values, const sycl::ext::oneapi::experimental::properties &properties = {});
+template<typename Group, typename T, std::size_t ItemsPerWorkItem, typename... Properties>
+void operator()(Group g, sycl::span<T, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});
 
-template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem>
-void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, const sycl::ext::oneapi::experimental::properties &properties = {});
+template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem, typename... Properties>
+void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});
 
 ----
 
@@ -314,8 +314,8 @@ Table 2. Changes for `operator()` of Sorters.
 |===
 |`operator()`|Description
 
-|`template<typename Group, typename T, std::size_t ItemsPerWorkItem>
-void operator()(Group g, sycl::span<T, ItemsPerWorkItem> values, const sycl::ext::oneapi::experimental::properties &properties = {});`
+|`template<typename Group, typename T, std::size_t ItemsPerWorkItem, typename... Properties>
+void operator()(Group g, sycl::span<T, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});`
 |Implements a sorting algorithm that is called by `sort_over_group` and that accepts
 the `sycl::span` value as an input parameter.
 Result of sorting is placed into `values` with the layout specified by `properties`.
@@ -323,8 +323,8 @@ Default layout is one that is specified by the `close` property.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
 `ItemsPerWorkItem` does not equal to `sycl::dynamic_extent`.
 
-|`template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem>
-void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, const sycl::ext::oneapi::experimental::properties &properties = {});`
+|`template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem, typename... Properties>
+void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});`
 |Implements a sorting algorithm that is called by `sort_over_group` and that
 accepts two `sycl::span` values as input parameters.
 Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
@@ -342,11 +342,11 @@ Two `operator()` methods are added.
 
 [source,c++]
 ----
-template<typename Group, typename T, std::size_t ItemsPerWorkItem>
-void operator()(Group g, sycl::span<T, ItemsPerWorkItem> values, const sycl::ext::oneapi::experimental::properties &properties = {});
+template<typename Group, typename T, std::size_t ItemsPerWorkItem, typename... Properties>
+void operator()(Group g, sycl::span<T, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});
 
-template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem>
-void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, const sycl::ext::oneapi::experimental::properties &properties = {});
+template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem, typename... Properties>
+void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});
 
 ----
 
@@ -576,6 +576,8 @@ e.g. instead of changing `default_sorter` and `radix_sorter` to have new sorters
 4.Will it be better to add interfaces for other group algorithms?
 
 5.Should our interfaces have `sycl::span` or `std::span`?
+
+6.What is a better name for properties? e.g. `plain`/`packed`/`blocked` and `strode`/`striped`.
 
 == Revision History
 
