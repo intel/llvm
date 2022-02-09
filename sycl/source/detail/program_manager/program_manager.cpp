@@ -1104,16 +1104,22 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
             continue;
 
           // ... and create a unique kernel ID for the entry
-          std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-              std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-          sycl::kernel_id KernelID =
-              detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+          auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+          if(It == m_KernelName2KernelIDs.end()) {
+            std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+                std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+            sycl::kernel_id KernelID =
+                detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+
+            It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name,
+                                                     KernelID);
+          }
 
           m_KernelName2KernelIDs.insert(
-              std::make_pair(EntriesIt->name, KernelID));
+              std::make_pair(EntriesIt->name, It->second));
 
-          m_KernelIDs2BinImage.insert(std::make_pair(KernelID, Img.get()));
-          m_BinImg2KernelIDs[Img.get()]->push_back(KernelID);
+          m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
+          m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
 
         }
 
