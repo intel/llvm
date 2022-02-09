@@ -575,7 +575,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr>(A);
+                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr>(A);
     });
   }
 }
@@ -3967,6 +3967,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
+  case attr::Kind::SYCLDeviceHas:
     SYCLKernel->addAttr(A);
     break;
   case attr::Kind::IntelNamedSubGroupSize:
