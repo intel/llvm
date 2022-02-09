@@ -132,6 +132,8 @@ Attribute Changes in Clang
   attributes, but will now issue an error due to the expansion of the
   predefined ``__clang__`` macro.
 
+- Added support for parameter pack expansion in `clang::annotate`.
+
 Windows Support
 ---------------
 
@@ -302,6 +304,12 @@ Internal API Changes
 - A new sugar ``Type`` AST node represents types accessed via a C++ using
   declaration. Given code ``using std::error_code; error_code x;``, ``x`` has
   a ``UsingType`` which desugars to the previous ``RecordType``.
+
+- Added a new attribute flag `AcceptsExprPack` that when set allows expression
+  pack expansions in the parsed arguments of the corresponding attribute.
+  Additionally it introduces delaying of attribute arguments, adding common
+  handling for creating attributes that cannot be fully initialized prior to
+  template instantiation.
 
 Build System Changes
 --------------------
