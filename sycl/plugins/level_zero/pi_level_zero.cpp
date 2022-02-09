@@ -1319,14 +1319,11 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       CommandBatch.OpenCommandList = CommandList;
 
       if (this->EventlessMode) {
-        this->LastCommandEvent = nullptr;
-
         // Add barrier into command list to ensure in-order semantic inside one
         // command list
         ZE_CALL(zeCommandListAppendBarrier,
                 (CommandList->first, nullptr, 0, nullptr));
       }
-
       return PI_SUCCESS;
     }
 
@@ -6282,9 +6279,10 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
         // Lock automatically releases when this goes out of scope.
         std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
         TmpLastCommandEvent = Queue->LastCommandEvent;
-        if (TmpLastCommandEvent == nullptr &&
-            Queue->NumEventlessCmdsInLastCmdList != 0) {
+        if (Queue->NumEventlessCmdsInLastCmdList != 0) {
           PI_CALL(QueueFinish(Queue, Queue));
+        } else {
+          TmpLastCommandEvent = Queue->LastCommandEvent;
         }
       }
 
@@ -6403,9 +6401,10 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
         // Lock automatically releases when this goes out of scope.
         std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
         TmpLastCommandEvent = Queue->LastCommandEvent;
-        if (TmpLastCommandEvent == nullptr &&
-            Queue->NumEventlessCmdsInLastCmdList != 0) {
+        if (Queue->NumEventlessCmdsInLastCmdList != 0) {
           PI_CALL(QueueFinish(Queue, Queue));
+        } else {
+          TmpLastCommandEvent = Queue->LastCommandEvent;
         }
       }
 
