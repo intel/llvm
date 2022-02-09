@@ -34,4 +34,4 @@ jobs:
       build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      lts_config: "hip_amdgpu;ocl_x64"
+      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9"
