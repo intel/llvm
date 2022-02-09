@@ -1669,11 +1669,13 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   for (const device_image_plain &DeviceImage : DeviceImages) {
     const std::shared_ptr<device_image_impl> &InputImpl =
         getSyclObjImpl(DeviceImage);
-    const char *DeviceLinkOptions = InputImpl->get_bin_image_ref()->getLinkOptions();
+    const char *DeviceLinkOptions =
+        InputImpl->get_bin_image_ref()->getLinkOptions();
     if (DeviceLinkOptions != nullptr) {
       std::string TemporaryStr(DeviceLinkOptions);
       std::optional<std::string> CompileOpts;
-      applyOptionsFromImage(*CompileOpts, TemporaryStr, *(InputImpl->get_bin_image_ref()));
+      applyOptionsFromImage(*CompileOpts, TemporaryStr,
+                            *(InputImpl->get_bin_image_ref()));
       LinkOptionsStr += TemporaryStr;
     }
   }
