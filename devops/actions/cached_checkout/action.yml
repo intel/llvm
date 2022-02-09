@@ -16,6 +16,9 @@ inputs:
   default_branch:
     description: 'Name of the default branch'
     default: 'sycl'
+  merge_default_branch:
+    description: 'Whether to merge default branch into ref or not'
+    default: true
 
 runs:
   using: 'composite'
@@ -42,6 +45,7 @@ runs:
       fetch-depth: 0
   - name: Merge sycl HEAD into current branch
     shell: bash
+    if: ${{ inputs.merge_default_branch }}
     env:
       GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
       DEFAULT_BRANCH: ${{ inputs.default_branch }}

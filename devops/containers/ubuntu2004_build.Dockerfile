@@ -27,6 +27,7 @@ RUN usermod -aG video sycl
 
 COPY actions/cached_checkout /actions/cached_checkout
 COPY actions/cleanup /actions/cleanup
+COPY actions/llvm_test_suite /actions/llvm_test_suite
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
 ENTRYPOINT ["/docker_entrypoint.sh"]

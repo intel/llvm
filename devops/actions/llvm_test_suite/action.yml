@@ -28,6 +28,10 @@ inputs:
   cmake_args:
     description: 'Extra arguments to cmake command'
     required: false
+  merge_intel_branch:
+    description: 'Whether to merge intel branch to test_ref or not'
+    required: false
+    default: false
 
 post-if: false
 runs:
@@ -42,6 +46,7 @@ runs:
       repository: 'intel/llvm-test-suite'
       ref: ${{ inputs.test_ref }}
       default_branch: 'intel'
+      merge_default_branch: ${{ inputs.merge_intel_branch }}
       cache_path: "/__w/repo_cache/"
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
@@ -83,12 +88,11 @@ runs:
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       fi
+      echo $LD_LIBRARY_PATH
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"
       echo "::group::SYCL_PI_TRACE=-1 sycl-ls"
-      echo $LD_LIBRARY_PATH
-      ldd $PWD/toolchain/lib/libpi_hip.so
       SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
       cd build
