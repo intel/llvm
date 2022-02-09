@@ -17,8 +17,9 @@ void TestQueueOperations(sycl::queue Q) {
   sycl::range<1> Range(BUFFER_SIZE);
   auto Dev = Q.get_device();
   auto Ctx = Q.get_context();
-  const int MemAdvice =
-      ((Dev.get_backend() == sycl::backend::ext_oneapi_cuda) ? 1 : 0);
+  const int MemAdvice = ((Dev.get_backend() == sycl::backend::ext_oneapi_cuda)
+                             ? PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY
+                             : PI_MEM_ADVICE_UNKNOWN);
   int *x = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
   assert(x != nullptr);
   int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
@@ -70,8 +71,9 @@ void TestQueueOperationsViaSubmit(sycl::queue Q) {
   sycl::range<1> Range(BUFFER_SIZE);
   auto Dev = Q.get_device();
   auto Ctx = Q.get_context();
-  const int MemAdvice =
-      ((Dev.get_backend() == sycl::backend::ext_oneapi_cuda) ? 1 : 0);
+  const int MemAdvice = ((Dev.get_backend() == sycl::backend::ext_oneapi_cuda)
+                             ? PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY
+                             : PI_MEM_ADVICE_UNKNOWN);
   int *x = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
   assert(x != nullptr);
   int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);

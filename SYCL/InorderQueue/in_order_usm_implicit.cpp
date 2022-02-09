@@ -26,8 +26,7 @@ int main() {
   {
     queue Queue{property::queue::in_order()};
 
-    // optimize for read only
-    const int mem_advice = 1;
+    const int mem_advice = PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY;
 
     const int dataSize = 32;
     const size_t numBytes = static_cast<size_t>(dataSize) * sizeof(int);
