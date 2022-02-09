@@ -558,7 +558,8 @@ private:
 
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MLastEventMtx
-  event MLastEvent;
+  event MLastEvent =
+      createSyclObjFromImpl<event>(std::make_shared<detail::event_impl>());
   std::mutex MLastEventMtx;
 
   const bool MIsInorder;
