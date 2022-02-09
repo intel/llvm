@@ -4778,9 +4778,32 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       event_ptr->start();
     }
 
-    result = PI_CHECK_ERROR(
-        cuMemAdvise((CUdeviceptr)ptr, length, (CUmem_advise)advice,
-                    queue->get_context()->get_device()->get()));
+    switch (advice) {
+    case PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY:
+    case PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY:
+    case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION:
+    case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION:
+    case PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY:
+    case PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY:
+      result = PI_CHECK_ERROR(cuMemAdvise(
+          (CUdeviceptr)ptr, length,
+          (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1),
+          queue->get_context()->get_device()->get()));
+      break;
+    case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST:
+    case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST:
+    case PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST:
+    case PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST:
+      result = PI_CHECK_ERROR(cuMemAdvise(
+          (CUdeviceptr)ptr, length,
+          (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1 -
+                         (PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST -
+                          PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION)),
+          CU_DEVICE_CPU));
+      break;
+    default:
+      cl::sycl::detail::pi::die("Unknown advice");
+    }
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();
