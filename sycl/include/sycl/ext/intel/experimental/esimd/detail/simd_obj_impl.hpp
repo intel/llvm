@@ -373,35 +373,38 @@ public:
 
   /// Merges given two objects with a mask and writes resulting data into this
   /// object.
-  /// @param Val1 The first object, provides elements for lanes with zero
+  /// @param Val1 The first object, provides elements for lanes with non-zero
   ///   corresponding predicates.
-  /// @param Val2 The second object, provides elements for lanes with non-zero
+  /// @param Val2 The second object, provides elements for lanes with zero
   ///   corresponding predicates.
-  /// @param Mask The mask.
+  /// @param Mask The merge mask.
   void merge(const Derived &Val1, Derived Val2, const simd_mask_type<N> &Mask) {
     Val2.merge(Val1, Mask);
     set(Val2.data());
   }
 
-  /// View this \c simd_obj_impl object in a different element type and
-  /// potentially a different number of elements, if the new element type size
-  /// is different.
-  /// @tparam EltTy The new element type.
-  /// @return A simd_view object providing the alternative view of entire
-  ///   \c this object.
+  /// Create a 1-dimensional view of this object.
+  /// @tparam EltTy The element type of the new view.
+  /// @return A new \c simd_view object which spans this entire object, but
+  ///   potentially with a different element type and different number of
+  ///   elements, if the sizes of this object's element type and the new one
+  ///   don't match.
   template <typename EltTy> auto bit_cast_view() &[[clang::lifetimebound]] {
     using TopRegionTy = compute_format_type_t<Derived, EltTy>;
     using RetTy = simd_view<Derived, TopRegionTy>;
     return RetTy{cast_this_to_derived(), TopRegionTy{0}};
   }
 
-  /// Create a 2-dimensional view (\c simd_view object) of this object.
+  /// Create a 2-dimensional view of this object.
   /// <code>sizeof(EltTy)*Height*Width</code> must be equal to the byte size of
   /// this object.
-  /// @tparam ElTy Element type of the view. Can mismatch current type.
+  /// @tparam ElTy Element type of the view.
   /// @tparam Height Height of the view in rows.
   /// @tparam Width Width of the view in elements.
-  /// @return The 2D view.
+  /// @return A new 2D \c simd_view object which spans this entire object, but
+  ///   potentially with a different element type and different number of
+  ///   elements, if the sizes of this object's element type and the new one
+  ///   don't match.
   template <typename EltTy, int Height, int Width>
   auto bit_cast_view() &[[clang::lifetimebound]] {
     using TopRegionTy = compute_format_type_2d_t<Derived, EltTy, Height, Width>;
@@ -536,7 +539,7 @@ public:
   ///
   /// *Example 1*. Source object has 32 elements, \c Rep is 2, \c VS is 17, \c W
   /// is 3 and \c HS is 4. Selected elements are depicted with their index
-  /// (mathing their values) /// instead of a dot:
+  /// (matching their values) instead of a dot:
   /// @code
   /// simd<int, 32> Source(0/*Base*/, 1/*Step*/);
   /// simd<int, 6> Result = Source.replicate_vs_w_hs<2,17,3,4>(1);
@@ -760,7 +763,10 @@ public:
 
 #define __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(BINOP, OPASSIGN, COND)              \
                                                                                \
-  /*  OPASSIGN simd_obj_impl */                                                \
+  /** \c OPASSIGN @ref simd version.                                        */ \
+  /** @tparam T1 Element type of the argument object (auto-deduced).        */ \
+  /** @tparam SimdT The argument object type(auto-deduced).                 */ \
+  /** @param RHS The argument object.                                       */ \
   template <class T1, class SimdT,                                             \
             class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
                                       is_simd_type_v<SimdT>)&&COND>>           \
@@ -773,7 +779,11 @@ public:
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
-  /*  OPASSIGN simd_view */                                                    \
+  /** \c OPASSIGN @ref simd_view version.                                   */ \
+  /** @tparam SimdT1 The type of the object "viewed" by the argument        */ \
+  /**         (auto-deduced).                                               */ \
+  /** @tparam RegionT1 Region type of the argument object (auto-deduced).   */ \
+  /** @param RHS The argument object.                                       */ \
   template <class SimdT1, class RegionT1,                                      \
             class T1 = typename RegionT1::element_type,                        \
             class = std::enable_if_t<                                          \
@@ -789,7 +799,9 @@ public:
     return cast_this_to_derived();                                             \
   }                                                                            \
                                                                                \
-  /*  OPASSIGN SCALAR */                                                       \
+  /** \c OPASSIGN  scalar version.                                          */ \
+  /** @tparam T1 The type of the scalar argument (auto-deduced).            */ \
+  /** @param RHS The argument.                                              */ \
   template <class T1, class = std::enable_if_t<COND>>                          \
   Derived &operator OPASSIGN(T1 RHS) {                                         \
     if constexpr (is_simd_type_v<Derived>) {                                   \
@@ -804,10 +816,17 @@ public:
 // must be integral
 #define __ESIMD_BITWISE_OP_FILTER                                              \
   std::is_integral_v<element_type> &&std::is_integral_v<T1>
-
+  /// Bitwise-\c xor compound assignment. Available only when elements of both
+  /// this object and the argument are integral.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(^, ^=, __ESIMD_BITWISE_OP_FILTER)
+  /// Bitwise-\c or compound assignment. Available only when elements of both
+  /// this object and the argument are integral.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(|, |=, __ESIMD_BITWISE_OP_FILTER)
+  /// Bitwise-\c and compound assignment. Available only when elements of both
+  /// this object and the argument are integral.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(&, &=, __ESIMD_BITWISE_OP_FILTER)
+  /// Modulo operation compound assignment. Available only when elements of both
+  /// this object and the argument are integral.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(%, %=, __ESIMD_BITWISE_OP_FILTER)
 #undef __ESIMD_BITWISE_OP_FILTER
 
@@ -817,7 +836,12 @@ public:
   std::is_integral_v<element_type> &&std::is_integral_v<T1>                    \
       &&__SEIEED::is_simd_type_v<Derived>
 
+  /// Shift left compound assignment. Available only when elements of both
+  /// this object and the source are integral. Not available for \c simd_mask.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(<<, <<=, __ESIMD_SHIFT_OP_FILTER)
+  /// Logical shift right compound assignment. Available only when elements of
+  /// both this object and the source are integral. Not available for
+  /// \c simd_mask.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(>>, >>=, __ESIMD_SHIFT_OP_FILTER)
 #undef __ESIMD_SHIFT_OP_FILTER
 
@@ -827,11 +851,16 @@ public:
 #define __ESIMD_ARITH_OP_FILTER                                                \
   __SEIEED::is_simd_type_v<Derived> &&__SEIEED::is_vectorizable_v<T1>
 
+  /// Addition operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(+, +=, __ESIMD_ARITH_OP_FILTER)
+  /// Subtraction operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(-, -=, __ESIMD_ARITH_OP_FILTER)
+  /// Multiplication operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(*, *=, __ESIMD_ARITH_OP_FILTER)
+  /// Division operation compound assignment.
   __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(/, /=, __ESIMD_ARITH_OP_FILTER)
 #undef __ESIMD_ARITH_OP_FILTER
+#undef __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN
 
   // Getter for the test proxy member, if enabled
   __ESIMD_DECLARE_TEST_PROXY_ACCESS
@@ -852,6 +881,8 @@ protected:
 #endif
   }
 };
+
+/// @cond EXCLUDE
 
 // ----------- Outlined implementations of simd_obj_impl class APIs.
 
@@ -1116,6 +1147,9 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
     }
   }
 }
+
+/// @endcond EXCLUDE
+
 } // namespace detail
 
 /// @} sycl_esimd_core
