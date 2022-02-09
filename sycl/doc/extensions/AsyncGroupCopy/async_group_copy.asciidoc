@@ -43,11 +43,10 @@ SYCL specification refer to that revision.
 
 ## Introduction
 
-This document proposes `async_group_copy`, which will generalize
+This document proposes the `async_group_copy` group collective function, which will generalize
 `async_work_group_copy` to work with sub-groups as well as work-groups.
-A `wait_for` function will also be also be added to block until the memory
-copy is complete and to ensure memory consistency for the group, this will use
-the same groups as `async_group_copy`.
+A `wait_for` group collective function is also introduced as a corresponding generalization for `sycl::group::wait_for`.  The purpose of `wait_for` is to block further execution of work-items that are part of the group until the memory
+copy is complete.
 
 ## Feature test macro
 
@@ -66,10 +65,9 @@ to determine which of the extension’s APIs the implementation supports.
 |===
 
 
-## New `async_group_copy` function.
-`async_group_copy` will work very similarly to `async_work_group_copy`, but
-with the ability to utilize individual sub-groups. The group will be provided
-as a template parameter, in the same fashion as `group_barrier`.
+## New `async_group_copy` group collective function.
+`async_group_copy` extends the functionality of `sycl::group::async_work_group_copy` to sub-groups. The group/sub-group will be provided
+as a template parameter, in the same fashion as other group collectives such as `group_barrier`.
 `async_group_copy` is intended as a potential optimization, and may add more
 overhead than a simple synchronous implementation in some cases.
 
@@ -100,7 +98,8 @@ following properties:
   arguments, otherwise the behaviour is undefined.
 * All work-items of the group are required to call the function in convergent
   control flow, otherwise the behaviour is undefined.
-* The type of `dataT` must be trivially copyable as defined by the C++ core language or a specialization of `sycl::vec`.
+* If the work-items of the group have diverged then the group should be re-converged prior to calls to `group_async_copy` via a call to the `sycl::barrier` group collective.
+* The type of `dataT` must either be trivially copyable, as defined by the C++ core language, or a specialization of `sycl::vec`.
 * The copy is only guaranteed to be complete after `wait_for` has been called on the
   returned `async_copy_event` and has completed.
 * `src_stride` and `dst_stride` must be non-zero `size_t` values.
@@ -147,10 +146,10 @@ async_copy_event<Group> async_group_copy(Group group, sycl::global_ptr<dataT> sr
 } // namespace sycl::ext::oneapi::experimental
 ```
 
-## New `wait_for` function
+## New `wait_for` group collective function
 `wait_for` will work very similarly to `nd_item::wait_for` or `group::wait_for`,
 but with the ability to utilize individual sub-groups. The group will be linked
-to the `async_copy_event` so `wait_for` and `async_group_copy` use the same group.
+to the `async_copy_event` argument of `wait_for`, so invocations of `wait_for` and `async_group_copy` must use the same group when the `async_copy_event` used as an argument in `wait_for` was returned by the `async_group_copy` invocation.
 
 `wait_for` will block until all the asychronous copies represented by the
 `async_copy_event` arguments are complete. Copies performed with `async_group_copy`
