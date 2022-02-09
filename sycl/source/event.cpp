@@ -22,8 +22,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-event::event() : impl(std::make_shared<detail::event_impl>()) {}
-
 event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
           detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {}
