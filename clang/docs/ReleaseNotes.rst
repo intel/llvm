@@ -78,6 +78,23 @@ New Pragmas in Clang
 Attribute Changes in Clang
 --------------------------
 
+- Attributes loaded as clang plugins which are sensitive to LangOpts must
+  now override ``acceptsLangOpts`` instead of ``diagLangOpts``.
+  Returning false will produce a generic "attribute ignored" diagnostic, as
+  with clang's built-in attributes.
+  If plugins want to provide richer diagnostics, they can do so when the
+  attribute is handled instead, e.g. in ``handleDeclAttribute``.
+  (This was changed in order to better support attributes in code completion).
+
+- __has_cpp_attribute, __has_c_attribute, __has_attribute, and __has_declspec
+  will now macro expand their argument. This causes a change in behavior for
+  code using ``__has_cpp_attribute(__clang__::attr)`` (and same for
+  ``__has_c_attribute``) where it would previously expand to ``0`` for all
+  attributes, but will now issue an error due to the expansion of the
+  predefined ``__clang__`` macro.
+
+- Added support for parameter pack expansion in `clang::annotate`.
+
 Windows Support
 ---------------
 
@@ -144,6 +161,16 @@ Floating Point Support in Clang
 
 Internal API Changes
 --------------------
+
+- A new sugar ``Type`` AST node represents types accessed via a C++ using
+  declaration. Given code ``using std::error_code; error_code x;``, ``x`` has
+  a ``UsingType`` which desugars to the previous ``RecordType``.
+
+- Added a new attribute flag `AcceptsExprPack` that when set allows expression
+  pack expansions in the parsed arguments of the corresponding attribute.
+  Additionally it introduces delaying of attribute arguments, adding common
+  handling for creating attributes that cannot be fully initialized prior to
+  template instantiation.
 
 Build System Changes
 --------------------
