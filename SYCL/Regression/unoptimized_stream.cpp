@@ -6,8 +6,6 @@
 // UNSUPPORTED: cuda
 // Disable test due to flaky failure on CUDA(issue #387)
 
-// UNSUPPORTED: ze_debug-1,ze_debug4
-
 // NOTE: The libclc target used by the CUDA backend used to generate atomic load
 //       variants that were unsupported by NVPTX. Even if they were not used
 //       directly, sycl::stream and other operations would keep the invalid
@@ -21,5 +19,6 @@ int main() {
     sycl::stream os(1024, 256, cgh);
     cgh.single_task([=]() { os << "test"; });
   });
+  q.wait();
   return 0;
 }
