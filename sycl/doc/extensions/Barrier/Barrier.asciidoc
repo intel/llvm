@@ -70,9 +70,9 @@ This extension introduces asynchronous barrier for CUDA devices. This extends `g
 
 Implementing this requires some space in local memory, where the state of the barrier is kept (this is true even for the CUDA compute capability 8 that support this functionality in hardware).
 
-This extension introduces `barrier` class. It must be used only in local memory. Once a `barrier` is initialized it can be reused for multiple cycles of arrivals and waits.
+This extension introduces a `barrier`` class, encapsulating the state of an asynchronous barrier. It must be used only in local memory, and reserves space in local memory even on hardware with native support (e.g. devices with CUDA Compute Capability 8.0). Once a barrier is initialized, it can be reused for multiple cycles of arrivals and waits.
 
-This extension can only be used on devices that support Independent Thread Scheduling (i.e. devices with CUDA Compute Capability 7.0 or higher).
+This extension can only be used on devices that support Independent Thread Scheduling (i.e. devices with CUDA Compute Capability 7.0 or higher) when using CUDA backend. On other backend the interface of `barrier` is not defined or declared. Attempting to call any functions defined in this extension with CUDA backend and a device with lower compute capability will cause kernel launch to fail.
 
 === Cycle of arrivals and waits
 
@@ -92,11 +92,15 @@ After a predetermined number of arrivals, the barrier moves into the next cycle.
 
 `arrival_token arrive_and_drop()` : Reduces expected arrival count for future cycles by one, executes arrival operation and returns a token that is needed for the `wait` call corresponding to this arrival.
 
-`arrival_token arrive_no_complete(int32_t count)` : Executes arrival operation that counts as `count` arrivals and returns a token that is needed for the `wait` call corresponding to this arrival. If this is the last arrival that causes the cycle to complete, behavior is undefined.
+`arrival_token arrive_no_complete(int32_t count)` : Executes arrival operation that counts as `count` arrivals and returns a token that is needed for the `wait` call corresponding to this arrival. If this is the last arrival that causes the cycle to complete, behavior is undefined. That means `count` must be strictly lower than the remaining number of arrivals required to complete this cycle.
 
-`arrival_token arrive_and_drop_no_complete(int32_t count)` : Reduces expected arrival count for future cycles by one, executes arrival operation that counts as `count` arrivals and returns a token that is needed for the wait call corresponding to this arrival. This must not be the last arrival thet causes the cycle to complete - it would be undefined behavior.
+This can be used to signal many arrivals by one function call. However, it should not be used on its own, as it can not be the last arrival in a cycle. So it should either be followed with a call to `arrive` or by a barrier operation, such as (such as `group_barrier()`) after which a different work-item is guaranteed to call `arrive` within the same cycle. 
 
-`void arrive_copy_async()` : Schedules arrive operation to be triggered asynchronously when all previous asynchronous memory copies initiated by the calling work item complete. Before the arrive operation is triggered, the pending count on the barrier is increased by 1, so after the arrival there is no change to the pending count.
+`arrival_token arrive_and_drop_no_complete(int32_t count)` : Reduces expected arrival count for future cycles by `count`, executes arrival operation that counts as `count` arrivals and returns a token that is needed for the wait call corresponding to this arrival. This must not be the last arrival thet causes the cycle to complete - it would be undefined behavior. That means `count` must be strictly lower than the remaining number of arrivals required to complete this cycle.
+
+This can be used to signal many arrivals by one function call. However, it should not be used on its own, as it can not be the last arrival in a cycle. So it should either be followed with a call to `arrive` or by a barrier operation, such as (such as `group_barrier()`) after which a different work-item is guaranteed to call `arrive` within the same cycle. 
+
+`void arrive_copy_async()` : Schedules arrive operation to be triggered asynchronously when all previous asynchronous memory copies initiated by the calling work item complete. Before the arrive operation is triggered, the pending count on the barrier is increased by 1, so after the arrival there is no change to the pending count. Pending count with the increase by this call must not exceed the value returned by `max`. If it does, it causes undefined behavior.
 
 `void arrive_copy_async_no_inc()` : Schedules arrive operation to be triggered asynchronously when all previous asynchronous memory copies initiated by the calling work item complete.
 
@@ -104,9 +108,9 @@ After a predetermined number of arrivals, the barrier moves into the next cycle.
 
 `bool test_wait(arrival_token arrival)` : Checks whether all the arrivals have already happened for the current cycle, returning `true` if they did and `false` if `wait(arrival)` would block.
 
-`void arrive_and_wait()` : Equivalent to calling `this->wait(this->arrive())`.
+`void arrive_and_wait()` : Equivalent to calling `wait(arrive())`.
 
-`static constexpr uint64_t max()` : Returns the maximum value of the expected and pending counts supported by the implementation. Exceeding this in the internal state of the barrier is undefined behavior.
+`static constexpr uint64_t max()` : Returns the maximum value of the expected and pending counts supported by the implementation.
 
 ==== Sample Header
 
