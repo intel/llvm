@@ -2059,7 +2059,7 @@ def SYCLIntelFPGALoopCount : StmtAttr {
   let Spellings = [CXX11<"intel", "loop_count_min">,
                    CXX11<"intel", "loop_count_max">,
                    CXX11<"intel", "loop_count_avg">,
-                    CXX11<"intel", "loop_count">];
+                   CXX11<"intel", "loop_count">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Accessors = [Accessor<"isMin", [CXX11<"intel", "loop_count_min">]>,
