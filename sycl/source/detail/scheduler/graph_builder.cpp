@@ -1312,8 +1312,10 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
       addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
 
       // Replace failed command as a user.
-      if (Dep.MDepCommand->MUsers.erase(Cmd) && Dep.MDepCommand != EmptyCmd)
+      if (Dep.MDepCommand->MUsers.erase(Cmd) && Dep.MDepCommand != EmptyCmd) {
         Dep.MDepCommand->MUsers.insert(EmptyCmd);
+        EmptyCmd->MDeps.push_back(Dep);
+      }
     }
 
     Cmd->MMarks.MToBeDeleted = true;
