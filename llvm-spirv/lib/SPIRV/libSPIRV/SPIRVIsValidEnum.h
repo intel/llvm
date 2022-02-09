@@ -274,8 +274,7 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInWarpIDNV:
   case BuiltInSMIDNV:
   case internal::BuiltInSubDeviceIDINTEL:
-  case internal::BuiltInHWThreadIDINTEL:
-  case internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL:
+  case internal::BuiltInGlobalHWThreadIDINTEL:
     return true;
   default:
     return false;

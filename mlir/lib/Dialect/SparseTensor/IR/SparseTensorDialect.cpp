@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -61,8 +60,8 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
                          "expected an array for dimension level types");
         return {};
       }
-      for (unsigned i = 0, e = arrayAttr.size(); i < e; i++) {
-        auto strAttr = arrayAttr[i].dyn_cast<StringAttr>();
+      for (auto i : arrayAttr) {
+        auto strAttr = i.dyn_cast<StringAttr>();
         if (!strAttr) {
           parser.emitError(parser.getNameLoc(),
                            "expected a string value in dimension level types");
@@ -194,8 +193,9 @@ mlir::sparse_tensor::getSparseTensorEncoding(Type type) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult isInBounds(Value dim, Value tensor) {
-  if (auto constantOp = dim.getDefiningOp<arith::ConstantOp>()) {
-    unsigned d = constantOp.getValue().cast<IntegerAttr>().getInt();
+  IntegerAttr constantAttr;
+  if (matchPattern(dim, m_Constant(&constantAttr))) {
+    unsigned d = constantAttr.getInt();
     if (d >= tensor.getType().cast<RankedTensorType>().getRank())
       return failure();
   }
@@ -227,11 +227,12 @@ static LogicalResult verify(InitOp op) {
   for (unsigned i = 0; i < rank; i++) {
     if (shape[i] == ShapedType::kDynamicSize)
       continue;
-    auto constantOp = op.sizes()[i].getDefiningOp<arith::ConstantOp>();
-    if (!constantOp ||
-        constantOp.getValue().cast<IntegerAttr>().getInt() != shape[i])
+    IntegerAttr constantAttr;
+    if (!matchPattern(op.sizes()[i], m_Constant(&constantAttr)) ||
+        constantAttr.getInt() != shape[i]) {
       return op.emitError("unexpected mismatch with static dimension size ")
              << shape[i];
+    }
   }
   return success();
 }
@@ -305,6 +306,18 @@ static LogicalResult verify(LexInsertOp op) {
   return success();
 }
 
+static LogicalResult verify(ExpandOp op) {
+  if (!getSparseTensorEncoding(op.tensor().getType()))
+    return op.emitError("expected a sparse tensor for expansion");
+  return success();
+}
+
+static LogicalResult verify(CompressOp op) {
+  if (!getSparseTensorEncoding(op.tensor().getType()))
+    return op.emitError("expected a sparse tensor for compression");
+  return success();
+}
+
 static LogicalResult verify(LoadOp op) {
   if (!getSparseTensorEncoding(op.tensor().getType()))
     return op.emitError("expected a sparse tensor to materialize");
@@ -314,6 +327,12 @@ static LogicalResult verify(LoadOp op) {
 static LogicalResult verify(ReleaseOp op) {
   if (!getSparseTensorEncoding(op.tensor().getType()))
     return op.emitError("expected a sparse tensor to release");
+  return success();
+}
+
+static LogicalResult verify(OutOp op) {
+  if (!getSparseTensorEncoding(op.tensor().getType()))
+    return op.emitError("expected a sparse tensor for output");
   return success();
 }
 
@@ -334,22 +353,3 @@ void SparseTensorDialect::initialize() {
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SparseTensor/IR/SparseTensorOps.cpp.inc"
-
-Attribute SparseTensorDialect::parseAttribute(DialectAsmParser &parser,
-                                              Type type) const {
-  StringRef attrTag;
-  if (failed(parser.parseKeyword(&attrTag)))
-    return Attribute();
-  Attribute attr;
-  auto parseResult = generatedAttributeParser(parser, attrTag, type, attr);
-  if (parseResult.hasValue())
-    return attr;
-  parser.emitError(parser.getNameLoc(), "unknown sparse tensor attribute");
-  return Attribute();
-}
-
-void SparseTensorDialect::printAttribute(Attribute attr,
-                                         DialectAsmPrinter &printer) const {
-  if (succeeded(generatedAttributePrinter(attr, printer)))
-    return;
-}

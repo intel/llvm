@@ -1,7 +1,6 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Wno-unused-command-line-argument %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
+// RUN: %clangxx -fsycl -fsyntax-only -Wno-unused-command-line-argument %s
 
 // This test checks compilation of ESIMD slm_gather_rgba/slm_scatter_rgba APIs.
-// Those which are deprecated must produce deprecation messages.
 
 #include <sycl/ext/intel/experimental/esimd.hpp>
 
@@ -14,22 +13,9 @@ void caller() SYCL_ESIMD_FUNCTION {
 
   slm_init(1024);
 
-  // CHECK: slm_gather_scatter_rgba.cpp:19{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
-  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp:{{.*}}note:
-  auto v0 = slm_gather_rgba<int, 32, ESIMD_ABGR_ENABLE>(offsets);
-  v0 = slm_gather_rgba<int, 32, rgba_channel_mask::ABGR>(offsets);
+  auto v0 = slm_gather_rgba<int, 32, rgba_channel_mask::ABGR>(offsets);
 
   v0 = v0 + v1;
 
-  // CHECK: slm_gather_scatter_rgba.cpp:26{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
-  // CHECK: sycl/ext/intel/experimental/esimd/common.hpp:{{.*}}note:
-  slm_scatter_rgba<int, 32, ESIMD_ABGR_ENABLE>(offsets, v0);
   slm_scatter_rgba<int, 32, rgba_channel_mask::ABGR>(offsets, v0);
 }
-
-// A "border" between host and device compilations
-// CHECK-LABEL: 2 warnings generated
-// CHECK: slm_gather_scatter_rgba.cpp:19{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
-// CHECK: sycl/ext/intel/experimental/esimd/common.hpp:{{.*}}note:
-// CHECK: slm_gather_scatter_rgba.cpp:26{{.*}}warning: 'ESIMD_ABGR_ENABLE' is deprecated
-// CHECK: sycl/ext/intel/experimental/esimd/common.hpp:{{.*}}note:

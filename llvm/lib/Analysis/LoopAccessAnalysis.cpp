@@ -519,8 +519,7 @@ public:
   AccessAnalysis(Loop *TheLoop, AAResults *AA, LoopInfo *LI,
                  MemoryDepChecker::DepCandidates &DA,
                  PredicatedScalarEvolution &PSE)
-      : TheLoop(TheLoop), AST(*AA), LI(LI), DepCands(DA),
-        IsRTCheckAnalysisNeeded(false), PSE(PSE) {}
+      : TheLoop(TheLoop), AST(*AA), LI(LI), DepCands(DA), PSE(PSE) {}
 
   /// Register a load  and whether it is only read from.
   void addLoad(MemoryLocation &Loc, bool IsReadOnly) {
@@ -620,7 +619,7 @@ private:
   /// memcheck analysis without dependency checking
   /// (i.e. FoundNonConstantDistanceDependence), isDependencyCheckNeeded is
   /// cleared while this remains set if we have potentially dependent accesses.
-  bool IsRTCheckAnalysisNeeded;
+  bool IsRTCheckAnalysisNeeded = false;
 
   /// The SCEV predicate containing all the SCEV-related assumptions.
   PredicatedScalarEvolution &PSE;
@@ -1055,7 +1054,6 @@ int64_t llvm::getPtrStride(PredicatedScalarEvolution &PSE, Type *AccessTy,
                            bool ShouldCheckWrap) {
   Type *Ty = Ptr->getType();
   assert(Ty->isPointerTy() && "Unexpected non-ptr");
-  assert(!AccessTy->isAggregateType() && "Bad stride - Not a pointer to a scalar type");
 
   if (isa<ScalableVectorType>(AccessTy)) {
     LLVM_DEBUG(dbgs() << "LAA: Bad stride - Scalable object: " << *AccessTy
@@ -1568,11 +1566,12 @@ MemoryDepChecker::isDependent(const MemAccessInfo &A, unsigned AIdx,
 
   auto &DL = InnermostLoop->getHeader()->getModule()->getDataLayout();
   uint64_t TypeByteSize = DL.getTypeAllocSize(ATy);
+  bool HasSameSize =
+      DL.getTypeStoreSizeInBits(ATy) == DL.getTypeStoreSizeInBits(BTy);
   uint64_t Stride = std::abs(StrideAPtr);
   const SCEVConstant *C = dyn_cast<SCEVConstant>(Dist);
   if (!C) {
-    if (!isa<SCEVCouldNotCompute>(Dist) &&
-        TypeByteSize == DL.getTypeAllocSize(BTy) &&
+    if (!isa<SCEVCouldNotCompute>(Dist) && HasSameSize &&
         isSafeDependenceDistance(DL, *(PSE.getSE()),
                                  *(PSE.getBackedgeTakenCount()), *Dist, Stride,
                                  TypeByteSize))
@@ -1587,7 +1586,7 @@ MemoryDepChecker::isDependent(const MemAccessInfo &A, unsigned AIdx,
   int64_t Distance = Val.getSExtValue();
 
   // Attempt to prove strided accesses independent.
-  if (std::abs(Distance) > 0 && Stride > 1 && ATy == BTy &&
+  if (std::abs(Distance) > 0 && Stride > 1 && HasSameSize &&
       areStridedAccessesIndependent(std::abs(Distance), Stride, TypeByteSize)) {
     LLVM_DEBUG(dbgs() << "LAA: Strided accesses are independent\n");
     return Dependence::NoDep;
@@ -1598,7 +1597,7 @@ MemoryDepChecker::isDependent(const MemAccessInfo &A, unsigned AIdx,
     bool IsTrueDataDependence = (AIsWrite && !BIsWrite);
     if (IsTrueDataDependence && EnableForwardingConflictDetection &&
         (couldPreventStoreLoadForward(Val.abs().getZExtValue(), TypeByteSize) ||
-         ATy != BTy)) {
+         !HasSameSize)) {
       LLVM_DEBUG(dbgs() << "LAA: Forward but may prevent st->ld forwarding\n");
       return Dependence::ForwardButPreventsForwarding;
     }
@@ -1608,21 +1607,19 @@ MemoryDepChecker::isDependent(const MemAccessInfo &A, unsigned AIdx,
   }
 
   // Write to the same location with the same size.
-  // Could be improved to assert type sizes are the same (i32 == float, etc).
   if (Val == 0) {
-    if (ATy == BTy)
+    if (HasSameSize)
       return Dependence::Forward;
     LLVM_DEBUG(
-        dbgs() << "LAA: Zero dependence difference but different types\n");
+        dbgs() << "LAA: Zero dependence difference but different type sizes\n");
     return Dependence::Unknown;
   }
 
   assert(Val.isStrictlyPositive() && "Expect a positive value");
 
-  if (ATy != BTy) {
-    LLVM_DEBUG(
-        dbgs()
-        << "LAA: ReadWrite-Write positive dependency with different types\n");
+  if (!HasSameSize) {
+    LLVM_DEBUG(dbgs() << "LAA: ReadWrite-Write positive dependency with "
+                         "different type sizes\n");
     return Dependence::Unknown;
   }
 
@@ -2246,10 +2243,7 @@ LoopAccessInfo::LoopAccessInfo(Loop *L, ScalarEvolution *SE,
                                DominatorTree *DT, LoopInfo *LI)
     : PSE(std::make_unique<PredicatedScalarEvolution>(*SE, *L)),
       PtrRtChecking(std::make_unique<RuntimePointerChecking>(SE)),
-      DepChecker(std::make_unique<MemoryDepChecker>(*PSE, L)), TheLoop(L),
-      NumLoads(0), NumStores(0), MaxSafeDepDistBytes(-1), CanVecMem(false),
-      HasConvergentOp(false),
-      HasDependenceInvolvingLoopInvariantAddress(false) {
+      DepChecker(std::make_unique<MemoryDepChecker>(*PSE, L)), TheLoop(L) {
   if (canAnalyzeLoop())
     analyzeLoop(AA, LI, TLI, DT);
 }

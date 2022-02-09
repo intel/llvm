@@ -89,7 +89,6 @@ static void dumpLocationList(raw_ostream &OS, const DWARFFormValue &FormValue,
   U->getLocationTable().dumpLocationList(&Offset, OS, U->getBaseAddress(), MRI,
                                          Ctx.getDWARFObj(), U, DumpOpts,
                                          Indent);
-  return;
 }
 
 static void dumpLocationExpr(raw_ostream &OS, const DWARFFormValue &FormValue,
@@ -105,7 +104,6 @@ static void dumpLocationExpr(raw_ostream &OS, const DWARFFormValue &FormValue,
                      Ctx.isLittleEndian(), 0);
   DWARFExpression(Data, U->getAddressByteSize(), U->getFormParams().Format)
       .print(OS, DumpOpts, MRI, U);
-  return;
 }
 
 static DWARFDie resolveReferencedType(DWARFDie D,
@@ -217,15 +215,16 @@ struct DWARFTypePrinter {
       OS << "void";
       return DWARFDie();
     }
-    DWARFDie Inner = resolveReferencedType(D);
+    DWARFDie InnerDIE;
+    auto Inner = [&] { return InnerDIE = resolveReferencedType(D); };
     const dwarf::Tag T = D.getTag();
     switch (T) {
     case DW_TAG_pointer_type: {
-      appendPointerLikeTypeBefore(D, Inner, "*");
+      appendPointerLikeTypeBefore(D, Inner(), "*");
       break;
     }
     case DW_TAG_subroutine_type: {
-      appendQualifiedNameBefore(Inner);
+      appendQualifiedNameBefore(Inner());
       if (Word) {
         OS << ' ';
       }
@@ -233,18 +232,18 @@ struct DWARFTypePrinter {
       break;
     }
     case DW_TAG_array_type: {
-      appendQualifiedNameBefore(Inner);
+      appendQualifiedNameBefore(Inner());
       break;
     }
     case DW_TAG_reference_type:
-      appendPointerLikeTypeBefore(D, Inner, "&");
+      appendPointerLikeTypeBefore(D, Inner(), "&");
       break;
     case DW_TAG_rvalue_reference_type:
-      appendPointerLikeTypeBefore(D, Inner, "&&");
+      appendPointerLikeTypeBefore(D, Inner(), "&&");
       break;
     case DW_TAG_ptr_to_member_type: {
-      appendQualifiedNameBefore(Inner);
-      if (needsParens(Inner))
+      appendQualifiedNameBefore(Inner());
+      if (needsParens(InnerDIE))
         OS << '(';
       else if (Word)
         OS << ' ';
@@ -286,7 +285,7 @@ struct DWARFTypePrinter {
       const char *NamePtr = dwarf::toString(D.find(DW_AT_name), nullptr);
       if (!NamePtr) {
         appendTypeTagName(D.getTag());
-        return Inner;
+        return DWARFDie();
       }
       Word = true;
       StringRef Name = NamePtr;
@@ -319,7 +318,7 @@ struct DWARFTypePrinter {
       break;
     }
     }
-    return Inner;
+    return InnerDIE;
   }
 
   void appendUnqualifiedNameAfter(DWARFDie D, DWARFDie Inner,
@@ -612,7 +611,8 @@ struct DWARFTypePrinter {
     bool First = true;
     bool RealFirst = true;
     for (DWARFDie P : D) {
-      if (P.getTag() != DW_TAG_formal_parameter)
+      if (P.getTag() != DW_TAG_formal_parameter &&
+          P.getTag() != DW_TAG_unspecified_parameters)
         return;
       DWARFDie T = resolveReferencedType(P);
       if (SkipFirstParamIfArtificial && RealFirst && P.find(DW_AT_artificial)) {
@@ -624,7 +624,10 @@ struct DWARFTypePrinter {
         OS << ", ";
       }
       First = false;
-      appendQualifiedName(T);
+      if (P.getTag() == DW_TAG_unspecified_parameters)
+        OS << "...";
+      else
+        appendQualifiedName(T);
     }
     EndedWithTemplate = false;
     OS << ')';
@@ -769,7 +772,7 @@ static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
     DWARFDie D = resolveReferencedType(Die, FormValue);
     if (D && !D.isNULL()) {
       OS << Space << "\"";
-      DWARFTypePrinter(OS).appendQualifiedName(D);
+      dumpTypeQualifiedName(D, OS);
       OS << '"';
     }
   } else if (Attr == DW_AT_APPLE_property_attribute) {
@@ -803,7 +806,9 @@ void DWARFDie::getFullName(raw_string_ostream &OS,
   const char *NamePtr = getShortName();
   if (!NamePtr)
     return;
-  DWARFTypePrinter(OS).appendUnqualifiedName(*this, OriginalFullName);
+  if (getTag() == DW_TAG_GNU_template_parameter_pack)
+    return;
+  dumpTypeUnqualifiedName(*this, OS, OriginalFullName);
 }
 
 bool DWARFDie::isSubprogramDIE() const { return getTag() == DW_TAG_subprogram; }
@@ -1265,3 +1270,16 @@ bool DWARFAttribute::mayHaveLocationExpr(dwarf::Attribute Attr) {
     return false;
   }
 }
+
+namespace llvm {
+
+void dumpTypeQualifiedName(const DWARFDie &DIE, raw_ostream &OS) {
+  DWARFTypePrinter(OS).appendQualifiedName(DIE);
+}
+
+void dumpTypeUnqualifiedName(const DWARFDie &DIE, raw_ostream &OS,
+                             std::string *OriginalFullName) {
+  DWARFTypePrinter(OS).appendUnqualifiedName(DIE, OriginalFullName);
+}
+
+} // namespace llvm

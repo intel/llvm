@@ -22,6 +22,7 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/PartialDiagnostic.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/DeclSpec.h"
@@ -1441,12 +1442,11 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     }
     break;
   }
-  case DeclSpec::TST_extint: {
-    if (!S.Context.getTargetInfo().hasExtIntType())
-      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
-        << "_ExtInt";
+  case DeclSpec::TST_bitint: {
+    if (!S.Context.getTargetInfo().hasBitIntType())
+      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "_BitInt";
     Result =
-        S.BuildExtIntType(DS.getTypeSpecSign() == TypeSpecifierSign::Unsigned,
+        S.BuildBitIntType(DS.getTypeSpecSign() == TypeSpecifierSign::Unsigned,
                           DS.getRepAsExpr(), DS.getBeginLoc());
     if (Result.isNull()) {
       Result = Context.IntTy;
@@ -1502,8 +1502,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   }
   case DeclSpec::TST_int128:
     if (!S.Context.getTargetInfo().hasInt128Type() &&
-        !S.getLangOpts().SYCLIsDevice &&
-        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
+        !(S.getLangOpts().SYCLIsDevice || S.getLangOpts().CUDAIsDevice ||
+          (S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice)))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
         << "__int128";
     if (DS.getTypeSpecSign() == TypeSpecifierSign::Unsigned)
@@ -2246,7 +2246,7 @@ QualType Sema::BuildWritePipeType(QualType T, SourceLocation Loc) {
   return Context.getWritePipeType(T);
 }
 
-/// Build a extended int type.
+/// Build a bit-precise integer type.
 ///
 /// \param IsUnsigned Boolean representing the signedness of the type.
 ///
@@ -2254,10 +2254,10 @@ QualType Sema::BuildWritePipeType(QualType T, SourceLocation Loc) {
 /// that.
 ///
 /// \param Loc Location of the keyword.
-QualType Sema::BuildExtIntType(bool IsUnsigned, Expr *BitWidth,
+QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
                                SourceLocation Loc) {
   if (BitWidth->isInstantiationDependent())
-    return Context.getDependentExtIntType(IsUnsigned, BitWidth);
+    return Context.getDependentBitIntType(IsUnsigned, BitWidth);
 
   llvm::APSInt Bits(32);
   ExprResult ICE =
@@ -2268,22 +2268,22 @@ QualType Sema::BuildExtIntType(bool IsUnsigned, Expr *BitWidth,
 
   int64_t NumBits = Bits.getSExtValue();
   if (!IsUnsigned && NumBits < 2) {
-    Diag(Loc, diag::err_ext_int_bad_size) << 0;
+    Diag(Loc, diag::err_bit_int_bad_size) << 0;
     return QualType();
   }
 
   if (IsUnsigned && NumBits < 1) {
-    Diag(Loc, diag::err_ext_int_bad_size) << 1;
+    Diag(Loc, diag::err_bit_int_bad_size) << 1;
     return QualType();
   }
 
   if (NumBits > llvm::IntegerType::MAX_INT_BITS) {
-    Diag(Loc, diag::err_ext_int_max_size) << IsUnsigned
-                                          << llvm::IntegerType::MAX_INT_BITS;
+    Diag(Loc, diag::err_bit_int_max_size)
+        << IsUnsigned << llvm::IntegerType::MAX_INT_BITS;
     return QualType();
   }
 
-  return Context.getExtIntType(IsUnsigned, NumBits);
+  return Context.getBitIntType(IsUnsigned, NumBits);
 }
 
 /// Check whether the specified array bound can be evaluated using the relevant
@@ -2525,7 +2525,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
         Diag(ArraySize->getBeginLoc(),
              isSFINAEContext() ? diag::err_typecheck_zero_array_size
                                : diag::ext_typecheck_zero_array_size)
-            << ArraySize->getSourceRange();
+            << 0 << ArraySize->getSourceRange();
       }
 
       // Is the array too large?
@@ -3950,6 +3950,20 @@ static CallingConv getCCForDeclaratorChunk(
       if (AL.getKind() == ParsedAttr::AT_OpenCLKernel) {
         CC = CC_OpenCLKernel;
         break;
+      }
+    }
+  } else if (S.getLangOpts().CUDA) {
+    // If we're compiling CUDA/HIP code and targeting SPIR-V we need to make
+    // sure the kernels will be marked with the right calling convention so that
+    // they will be visible by the APIs that ingest SPIR-V.
+    llvm::Triple Triple = S.Context.getTargetInfo().getTriple();
+    if (Triple.getArch() == llvm::Triple::spirv32 ||
+        Triple.getArch() == llvm::Triple::spirv64) {
+      for (const ParsedAttr &AL : D.getDeclSpec().getAttributes()) {
+        if (AL.getKind() == ParsedAttr::AT_CUDAGlobal) {
+          CC = CC_OpenCLKernel;
+          break;
+        }
       }
     }
   }
@@ -5982,6 +5996,11 @@ namespace {
       Sema::GetTypeFromParser(DS.getRepAsType(), &TInfo);
       TL.setUnderlyingTInfo(TInfo);
     }
+    void VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
+      assert(DS.getTypeSpecType() == DeclSpec::TST_decltype);
+      TL.setDecltypeLoc(DS.getTypeSpecTypeLoc());
+      TL.setRParenLoc(DS.getTypeofParensRange().getEnd());
+    }
     void VisitUnaryTransformTypeLoc(UnaryTransformTypeLoc TL) {
       // FIXME: This holds only because we only have one unary transform.
       assert(DS.getTypeSpecType() == DeclSpec::TST_underlyingType);
@@ -6045,6 +6064,8 @@ namespace {
              DS.getTypeSpecType() == TST_auto_type ||
              DS.getTypeSpecType() == TST_unspecified);
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
+      if (DS.getTypeSpecType() == TST_decltype_auto)
+        TL.setRParenLoc(DS.getTypeofParensRange().getEnd());
       if (!DS.isConstrainedAuto())
         return;
       TemplateIdAnnotation *TemplateId = DS.getRepAsTemplateId();
@@ -6099,11 +6120,11 @@ namespace {
       TL.getValueLoc().initializeFullCopy(TInfo->getTypeLoc());
     }
 
-    void VisitExtIntTypeLoc(ExtIntTypeLoc TL) {
+    void VisitExtIntTypeLoc(BitIntTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
     }
 
-    void VisitDependentExtIntTypeLoc(DependentExtIntTypeLoc TL) {
+    void VisitDependentExtIntTypeLoc(DependentBitIntTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
     }
 
@@ -6233,7 +6254,7 @@ namespace {
       assert(Chunk.Kind == DeclaratorChunk::Pipe);
       TL.setKWLoc(Chunk.Loc);
     }
-    void VisitExtIntTypeLoc(ExtIntTypeLoc TL) {
+    void VisitBitIntTypeLoc(BitIntTypeLoc TL) {
       TL.setNameLoc(Chunk.Loc);
     }
     void VisitMacroQualifiedTypeLoc(MacroQualifiedTypeLoc TL) {
@@ -6550,7 +6571,6 @@ static void HandleBTFTypeTagAttribute(QualType &Type, const ParsedAttr &Attr,
   StringRef BTFTypeTag = StrLiteral->getString();
   Type = State.getAttributedType(
       ::new (Ctx) BTFTypeTagAttr(Ctx, Attr, BTFTypeTag), Type, Type);
-  return;
 }
 
 /// HandleAddressSpaceTypeAttribute - Process an address_space attribute on the
@@ -9168,9 +9188,8 @@ QualType Sema::BuildAtomicType(QualType T, SourceLocation Loc) {
     else if (!T.isTriviallyCopyableType(Context))
       // Some other non-trivially-copyable type (probably a C++ class)
       DisallowedKind = 7;
-    else if (T->isExtIntType()) {
-        DisallowedKind = 8;
-    }
+    else if (T->isBitIntType())
+      DisallowedKind = 8;
 
     if (DisallowedKind != -1) {
       Diag(Loc, diag::err_atomic_specifier_bad_type) << DisallowedKind << T;

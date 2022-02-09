@@ -65,33 +65,34 @@ using IsLogicalOR =
 
 // Identity = 0
 template <typename T, class BinaryOperation>
-using IsZeroIdentityOp = bool_constant<
-    (is_sgeninteger<T>::value &&
-     (IsPlus<T, BinaryOperation>::value || IsBitOR<T, BinaryOperation>::value ||
-      IsBitXOR<T, BinaryOperation>::value)) ||
-    (is_sgenfloat<T>::value && IsPlus<T, BinaryOperation>::value)>;
+using IsZeroIdentityOp =
+    bool_constant<(is_geninteger<T>::value &&
+                   (IsPlus<T, BinaryOperation>::value ||
+                    IsBitOR<T, BinaryOperation>::value ||
+                    IsBitXOR<T, BinaryOperation>::value)) ||
+                  (is_genfloat<T>::value && IsPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
 using IsOneIdentityOp =
-    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
+    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
                   IsMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
-using IsOnesIdentityOp = bool_constant<is_sgeninteger<T>::value &&
+using IsOnesIdentityOp = bool_constant<is_geninteger<T>::value &&
                                        IsBitAND<T, BinaryOperation>::value>;
 
 // Identity = <max possible value>
 template <typename T, class BinaryOperation>
 using IsMinimumIdentityOp =
-    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
+    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
                   IsMinimum<T, BinaryOperation>::value>;
 
 // Identity = <min possible value>
 template <typename T, class BinaryOperation>
 using IsMaximumIdentityOp =
-    bool_constant<(is_sgeninteger<T>::value || is_sgenfloat<T>::value) &&
+    bool_constant<(is_geninteger<T>::value || is_genfloat<T>::value) &&
                   IsMaximum<T, BinaryOperation>::value>;
 
 // Identity = false
@@ -125,7 +126,36 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<
     BinaryOperation, AccumulatorT,
     std::enable_if_t<IsZeroIdentityOp<AccumulatorT, BinaryOperation>::value>> {
-  static constexpr AccumulatorT value = 0;
+  static constexpr AccumulatorT value = static_cast<AccumulatorT>(0);
+};
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, vec<std::byte, NumElements>,
+    std::enable_if_t<IsZeroIdentityOp<vec<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr vec<std::byte, NumElements> value =
+      vec<std::byte, NumElements>(std::byte(0));
+};
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsZeroIdentityOp<marray<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(0));
+};
+#endif
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, vec<sycl::half, NumElements>,
+    std::enable_if_t<IsZeroIdentityOp<vec<sycl::half, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr vec<sycl::half, NumElements> value =
+      vec<sycl::half, NumElements>(sycl::half());
 };
 
 template <typename BinaryOperation>
@@ -145,8 +175,28 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<
     BinaryOperation, AccumulatorT,
     std::enable_if_t<IsOneIdentityOp<AccumulatorT, BinaryOperation>::value>> {
-  static constexpr AccumulatorT value = 1;
+  static constexpr AccumulatorT value = static_cast<AccumulatorT>(1);
 };
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, vec<std::byte, NumElements>,
+    std::enable_if_t<
+        IsOneIdentityOp<vec<std::byte, NumElements>, BinaryOperation>::value>> {
+  static constexpr vec<std::byte, NumElements> value =
+      vec<std::byte, NumElements>(std::byte(1));
+};
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsOneIdentityOp<marray<std::byte, NumElements>,
+                                     BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(1));
+};
+#endif
 
 template <typename BinaryOperation>
 struct known_identity_impl<
@@ -165,47 +215,162 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<
     BinaryOperation, AccumulatorT,
     std::enable_if_t<IsOnesIdentityOp<AccumulatorT, BinaryOperation>::value>> {
-  static constexpr AccumulatorT value = ~static_cast<AccumulatorT>(0);
+  static constexpr AccumulatorT value = static_cast<AccumulatorT>(-1LL);
 };
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, vec<std::byte, NumElements>,
+    std::enable_if_t<IsOnesIdentityOp<vec<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr vec<std::byte, NumElements> value =
+      vec<std::byte, NumElements>(std::byte(-1LL));
+};
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsOnesIdentityOp<marray<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(-1LL));
+};
+#endif
 
 /// Returns maximal possible value as identity for MIN operations.
 template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMinimumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
-  static constexpr AccumulatorT value =
+  static constexpr AccumulatorT value = static_cast<AccumulatorT>(
       std::numeric_limits<AccumulatorT>::has_infinity
           ? std::numeric_limits<AccumulatorT>::infinity()
-          : (std::numeric_limits<AccumulatorT>::max)();
+          : (std::numeric_limits<AccumulatorT>::max)());
 };
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, vec<std::byte, NumElements>,
+    std::enable_if_t<IsMinimumIdentityOp<vec<std::byte, NumElements>,
+                                         BinaryOperation>::value>> {
+  static constexpr vec<std::byte, NumElements> value =
+      static_cast<vec<std::byte, NumElements>>(
+          std::numeric_limits<vec<std::byte, NumElements>>::has_infinity
+              ? std::numeric_limits<vec<std::byte, NumElements>>::infinity()
+              : (std::numeric_limits<vec<std::byte, NumElements>>::max)());
+};
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsMinimumIdentityOp<marray<std::byte, NumElements>,
+                                         BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      static_cast<marray<std::byte, NumElements>>(
+          std::numeric_limits<marray<std::byte, NumElements>>::has_infinity
+              ? std::numeric_limits<marray<std::byte, NumElements>>::infinity()
+              : (std::numeric_limits<marray<std::byte, NumElements>>::max)());
+};
+#endif
 
 /// Returns minimal possible value as identity for MAX operations.
 template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMaximumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
-  static constexpr AccumulatorT value =
+  static constexpr AccumulatorT value = static_cast<AccumulatorT>(
       std::numeric_limits<AccumulatorT>::has_infinity
           ? static_cast<AccumulatorT>(
                 -std::numeric_limits<AccumulatorT>::infinity())
-          : std::numeric_limits<AccumulatorT>::lowest();
+          : std::numeric_limits<AccumulatorT>::lowest());
 };
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, vec<std::byte, NumElements>,
+    std::enable_if_t<IsMaximumIdentityOp<vec<std::byte, NumElements>,
+                                         BinaryOperation>::value>> {
+  static constexpr vec<std::byte, NumElements> value = static_cast<
+      vec<std::byte, NumElements>>(
+      std::numeric_limits<vec<std::byte, NumElements>>::has_infinity
+          ? static_cast<vec<std::byte, NumElements>>(
+                -std::numeric_limits<vec<std::byte, NumElements>>::infinity())
+          : std::numeric_limits<vec<std::byte, NumElements>>::lowest());
+};
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsMaximumIdentityOp<marray<std::byte, NumElements>,
+                                         BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      static_cast<marray<std::byte, NumElements>>(
+          std::numeric_limits<marray<std::byte, NumElements>>::has_infinity
+              ? static_cast<marray<std::byte, NumElements>>(
+                    -std::numeric_limits<
+                        marray<std::byte, NumElements>>::infinity())
+              : std::numeric_limits<marray<std::byte, NumElements>>::lowest());
+};
+#endif
 
 /// Returns false as identity for LOGICAL OR operations.
 template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<
     BinaryOperation, AccumulatorT,
     std::enable_if_t<IsFalseIdentityOp<AccumulatorT, BinaryOperation>::value>> {
-  static constexpr AccumulatorT value = false;
+  static constexpr AccumulatorT value = static_cast<AccumulatorT>(false);
 };
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, vec<std::byte, NumElements>,
+    std::enable_if_t<IsFalseIdentityOp<vec<std::byte, NumElements>,
+                                       BinaryOperation>::value>> {
+  static constexpr vec<std::byte, NumElements> value =
+      vec<std::byte, NumElements>(std::byte(false));
+};
+
+template <typename BinaryOperation, size_t NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsFalseIdentityOp<marray<std::byte, NumElements>,
+                                       BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(false));
+};
+#endif
 
 /// Returns true as identity for LOGICAL AND operations.
 template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<
     BinaryOperation, AccumulatorT,
     std::enable_if_t<IsTrueIdentityOp<AccumulatorT, BinaryOperation>::value>> {
-  static constexpr AccumulatorT value = true;
+  static constexpr AccumulatorT value = static_cast<AccumulatorT>(true);
 };
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, vec<std::byte, NumElements>,
+    std::enable_if_t<IsTrueIdentityOp<vec<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr vec<std::byte, NumElements> value =
+      vec<std::byte, NumElements>(std::byte(true));
+};
+
+template <typename BinaryOperation, int NumElements>
+struct known_identity_impl<
+    BinaryOperation, marray<std::byte, NumElements>,
+    std::enable_if_t<IsTrueIdentityOp<marray<std::byte, NumElements>,
+                                      BinaryOperation>::value>> {
+  static constexpr marray<std::byte, NumElements> value =
+      marray<std::byte, NumElements>(std::byte(true));
+};
+#endif
 
 } // namespace detail
 

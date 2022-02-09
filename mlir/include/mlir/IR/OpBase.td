@@ -213,7 +213,16 @@ def IsVectorTypePred : And<[CPred<"$_self.isa<::mlir::VectorType>()">,
                             CPred<"$_self.cast<::mlir::VectorType>().getRank() > 0">]>;
 
 // Temporary vector type clone that allows gradual transition to 0-D vectors.
+// TODO: Remove this when all ops support 0-D vectors.
 def IsVectorOfAnyRankTypePred : CPred<"$_self.isa<::mlir::VectorType>()">;
+
+// Whether a type is a fixed-length VectorType.
+def IsFixedVectorTypePred : CPred<[{$_self.isa<::mlir::VectorType>() &&
+                                  !$_self.cast<VectorType>().isScalable()}]>;
+
+// Whether a type is a scalable VectorType.
+def IsScalableVectorTypePred : CPred<[{$_self.isa<::mlir::VectorType>() &&
+                                   $_self.cast<VectorType>().isScalable()}]>;
 
 // Whether a type is a TensorType.
 def IsTensorTypePred : CPred<"$_self.isa<::mlir::TensorType>()">;
@@ -305,11 +314,11 @@ class Dialect {
 
   // If this dialect should use default generated attribute parser boilerplate:
   // it'll dispatch the parsing to every individual attributes directly.
-  bit useDefaultAttributePrinterParser = 0;
+  bit useDefaultAttributePrinterParser = 1;
 
   // If this dialect should use default generated type parser boilerplate:
   // it'll dispatch the parsing to every individual types directly.
-  bit useDefaultTypePrinterParser = 0;
+  bit useDefaultTypePrinterParser = 1;
 
   // If this dialect overrides the hook for canonicalization patterns.
   bit hasCanonicalizer = 0;
@@ -603,10 +612,20 @@ class HasAnyRankOfPred<list<int> ranks> : And<[
 class VectorOf<list<Type> allowedTypes> :
   ShapedContainerType<allowedTypes, IsVectorTypePred, "vector",
                       "::mlir::VectorType">;
+
 // Temporary vector type clone that allows gradual transition to 0-D vectors.
+// TODO: Remove this when all ops support 0-D vectors.
 class VectorOfAnyRankOf<list<Type> allowedTypes> :
   ShapedContainerType<allowedTypes, IsVectorOfAnyRankTypePred, "vector",
                       "::mlir::VectorType">;
+
+class FixedVectorOf<list<Type> allowedTypes> :
+  ShapedContainerType<allowedTypes, IsFixedVectorTypePred,
+          "fixed-length vector", "::mlir::VectorType">;
+
+class ScalableVectorOf<list<Type> allowedTypes> :
+  ShapedContainerType<allowedTypes, IsScalableVectorTypePred,
+          "scalable vector", "::mlir::VectorType">;
 
 // Whether the number of elements of a vector is from the given
 // `allowedRanks` list
@@ -640,10 +659,42 @@ class IsVectorOfLengthPred<list<int> allowedLengths> :
                            == }]
                          # allowedlength>)>]>;
 
+// Whether the number of elements of a fixed-length vector is from the given
+// `allowedLengths` list
+class IsFixedVectorOfLengthPred<list<int> allowedLengths> :
+  And<[IsFixedVectorTypePred,
+       Or<!foreach(allowedlength, allowedLengths,
+                   CPred<[{$_self.cast<::mlir::VectorType>().getNumElements()
+                           == }]
+                         # allowedlength>)>]>;
+
+// Whether the number of elements of a scalable vector is from the given
+// `allowedLengths` list
+class IsScalableVectorOfLengthPred<list<int> allowedLengths> :
+  And<[IsScalableVectorTypePred,
+       Or<!foreach(allowedlength, allowedLengths,
+                   CPred<[{$_self.cast<::mlir::VectorType>().getNumElements()
+                           == }]
+                         # allowedlength>)>]>;
+
 // Any vector where the number of elements is from the given
 // `allowedLengths` list
 class VectorOfLength<list<int> allowedLengths> : Type<
   IsVectorOfLengthPred<allowedLengths>,
+  " of length " # !interleave(allowedLengths, "/"),
+  "::mlir::VectorType">;
+
+// Any fixed-length vector where the number of elements is from the given
+// `allowedLengths` list
+class FixedVectorOfLength<list<int> allowedLengths> : Type<
+  IsFixedVectorOfLengthPred<allowedLengths>,
+  " of length " # !interleave(allowedLengths, "/"),
+  "::mlir::VectorType">;
+
+// Any scalable vector where the number of elements is from the given
+// `allowedLengths` list
+class ScalableVectorOfLength<list<int> allowedLengths> : Type<
+  IsScalableVectorOfLengthPred<allowedLengths>,
   " of length " # !interleave(allowedLengths, "/"),
   "::mlir::VectorType">;
 
@@ -657,9 +708,33 @@ class VectorOfLengthAndType<list<int> allowedLengths,
   VectorOf<allowedTypes>.summary # VectorOfLength<allowedLengths>.summary,
   "::mlir::VectorType">;
 
+// Any fixed-length vector where the number of elements is from the given
+// `allowedLengths` list and the type is from the given `allowedTypes` list
+class FixedVectorOfLengthAndType<list<int> allowedLengths,
+                                    list<Type> allowedTypes> : Type<
+  And<[FixedVectorOf<allowedTypes>.predicate,
+       FixedVectorOfLength<allowedLengths>.predicate]>,
+  FixedVectorOf<allowedTypes>.summary #
+  FixedVectorOfLength<allowedLengths>.summary,
+  "::mlir::VectorType">;
+
+// Any scalable vector where the number of elements is from the given
+// `allowedLengths` list and the type is from the given `allowedTypes` list
+class ScalableVectorOfLengthAndType<list<int> allowedLengths,
+                                    list<Type> allowedTypes> : Type<
+  And<[ScalableVectorOf<allowedTypes>.predicate,
+       ScalableVectorOfLength<allowedLengths>.predicate]>,
+  ScalableVectorOf<allowedTypes>.summary #
+  ScalableVectorOfLength<allowedLengths>.summary,
+  "::mlir::VectorType">;
+
 def AnyVector : VectorOf<[AnyType]>;
 // Temporary vector type clone that allows gradual transition to 0-D vectors.
 def AnyVectorOfAnyRank : VectorOfAnyRankOf<[AnyType]>;
+
+def AnyFixedVector : FixedVectorOf<[AnyType]>;
+
+def AnyScalableVector : ScalableVectorOf<[AnyType]>;
 
 // Shaped types.
 
@@ -835,11 +910,27 @@ def BoolLike : TypeConstraint<Or<[I1.predicate, VectorOf<[I1]>.predicate,
                                   TensorOf<[I1]>.predicate]>,
     "bool-like">;
 
+// Temporary constraint to allow gradual transition to supporting 0-D vectors.
+// TODO: Remove this when all ops support 0-D vectors.
+def BoolLikeOfAnyRank : TypeConstraint<Or<[
+        I1.predicate,
+        VectorOfAnyRankOf<[I1]>.predicate,
+        TensorOf<[I1]>.predicate]>,
+    "bool-like">;
+
 // Type constraint for signless-integer-like types: signless integers, indices,
 // vectors of signless integers or indices, tensors of signless integers.
 def SignlessIntegerLike : TypeConstraint<Or<[
         AnySignlessIntegerOrIndex.predicate,
         VectorOf<[AnySignlessIntegerOrIndex]>.predicate,
+        TensorOf<[AnySignlessIntegerOrIndex]>.predicate]>,
+    "signless-integer-like">;
+
+// Temporary constraint to allow gradual transition to supporting 0-D vectors.
+// TODO: Remove this when all ops support 0-D vectors.
+def SignlessIntegerLikeOfAnyRank : TypeConstraint<Or<[
+        AnySignlessIntegerOrIndex.predicate,
+        VectorOfAnyRankOf<[AnySignlessIntegerOrIndex]>.predicate,
         TensorOf<[AnySignlessIntegerOrIndex]>.predicate]>,
     "signless-integer-like">;
 
@@ -1232,12 +1323,30 @@ class I64EnumAttrCase<string sym, int val, string str = sym>
 // A bit enum case stored with 32-bit IntegerAttr. `val` here is *not* the
 // ordinal number of the bit that is set. It is the 32-bit integer with only
 // one bit set.
-class BitEnumAttrCase<string sym, int val, string str = sym> :
-    EnumAttrCaseInfo<sym, val, str>,
-    SignlessIntegerAttrBase<I32, "case " # str> {
-  let predicate = CPred<
-    "$_self.cast<::mlir::IntegerAttr>().getValue().getZExtValue() & "
-    # val # "u">;
+class BitEnumAttrCase<string sym, int val, string str = sym>
+    : EnumAttrCaseInfo<sym, val, str>,
+      SignlessIntegerAttrBase<I32, "case " #str>;
+
+// The special bit enum case for no bits set (i.e. value = 0).
+class BitEnumAttrCaseNone<string sym, string str = sym>
+    : BitEnumAttrCase<sym, 0, str>;
+
+// The bit enum case for a single bit, specified by the bit position.
+// The pos argument refers to the index of the bit, and is currently
+// limited to be in the range [0, 31].
+class BitEnumAttrCaseBit<string sym, int pos, string str = sym>
+    : BitEnumAttrCase<sym, !shl(1, pos), str> {
+  assert !and(!ge(pos, 0), !le(pos, 31)),
+      "bit position must be between 0 and 31";
+}
+
+// A bit enum case for a group/list of previously declared single bits,
+// providing a convenient alias for that group.
+class BitEnumAttrCaseGroup<string sym, list<BitEnumAttrCaseBit> cases,
+                           string str = sym>
+    : BitEnumAttrCase<
+          sym, !foldl(0, cases, value, bitcase, !or(value, bitcase.value)),
+          str> {
 }
 
 // Additional information for an enum attribute.
@@ -1361,7 +1470,7 @@ class I64EnumAttr<string name, string summary, list<I64EnumAttrCase> cases> :
 // A bit enum stored with 32-bit IntegerAttr.
 //
 // Op attributes of this kind are stored as IntegerAttr. Extra verification will
-// be generated on the integer to make sure only allowed bit are set. Besides,
+// be generated on the integer to make sure only allowed bits are set. Besides,
 // helper methods are generated to parse a string separated with a specified
 // delimiter to a symbol and vice versa.
 class BitEnumAttrBase<list<BitEnumAttrCase> cases, string summary> :
@@ -1378,6 +1487,9 @@ class BitEnumAttrBase<list<BitEnumAttrCase> cases, string summary> :
 class BitEnumAttr<string name, string summary, list<BitEnumAttrCase> cases> :
     EnumAttrInfo<name, cases, BitEnumAttrBase<cases, summary>> {
   let underlyingType = "uint32_t";
+
+  // Determine "valid" bits from enum cases for error checking
+  int validBits = !foldl(0, cases, value, bitcase, !or(value, bitcase.value));
 
   // We need to return a string because we may concatenate symbols for multiple
   // bits together.
@@ -1597,6 +1709,8 @@ def StrArrayAttr : TypedArrayAttrBase<StrAttr, "string array attribute"> {
 def TypeArrayAttr : TypedArrayAttrBase<TypeAttr, "type array attribute"> {
   let constBuilderCall = "$_builder.getTypeArrayAttr($0)";
 }
+def IndexListArrayAttr :
+  TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
 
 // Attribute information for an Attribute field within a StructAttr.
 class StructFieldAttr<string thisName, Attr thisType> {
@@ -1951,8 +2065,6 @@ def Idempotent  : NativeOpTrait<"IsIdempotent">;
 def Involution  : NativeOpTrait<"IsInvolution">;
 // Op behaves like a constant.
 def ConstantLike : NativeOpTrait<"ConstantLike">;
-// Op behaves like a function.
-def FunctionLike : NativeOpTrait<"FunctionLike">;
 // Op is isolated from above.
 def IsolatedFromAbove : NativeOpTrait<"IsIsolatedFromAbove">;
 // Op results are float or vectors/tensors thereof.
@@ -2133,6 +2245,10 @@ class Interface<string name> {
   // An optional code block containing extra declarations to place in the
   // interface declaration.
   code extraClassDeclaration = "";
+
+  // An optional code block containing extra declarations to place in both
+  // the interface and trait declaration.
+  code extraSharedClassDeclaration = "";
 }
 
 // AttrInterface represents an interface registered to an attribute.
@@ -2352,6 +2468,11 @@ class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {
   // Additional code that will be added to the public part of the generated
   // C++ code of the op declaration.
   code extraClassDeclaration = ?;
+
+  // Additional code that will be added to the generated source file. The
+  // generated code is placed inside the op's C++ namespace. `$cppClass` is
+  // replaced by the op's C++ class name.
+  code extraClassDefinition = ?;
 }
 
 // Base class for ops with static/dynamic offset, sizes and strides
@@ -2372,13 +2493,14 @@ class BaseOpWithOffsetSizesAndStrides<Dialect dialect, string mnemonic,
 
   code extraBaseClassDeclaration = [{
     /// Returns the dynamic sizes for this subview operation if specified.
-    operand_range getDynamicSizes() { return sizes(); }
+    ::mlir::Operation::operand_range getDynamicSizes() { return sizes(); }
 
     /// Return the list of Range (i.e. offset, size, stride). Each
     /// Range entry contains either the dynamic value or a ConstantIndexOp
     /// constructed with `b` at location `loc`.
-    SmallVector<Range, 8> getOrCreateRanges(OpBuilder &b, Location loc) {
-      return mlir::getOrCreateRanges(*this, b, loc);
+    ::mlir::SmallVector<::mlir::Range, 8> getOrCreateRanges(
+        ::mlir::OpBuilder &b, ::mlir::Location loc) {
+      return ::mlir::getOrCreateRanges(*this, b, loc);
     }
   }];
 }
@@ -2984,6 +3106,9 @@ class TypeDef<Dialect dialect, string name, list<Trait> traits = [],
               string baseCppClass = "::mlir::Type">
     : DialectType<dialect, CPred<"">, /*descr*/"", name # "Type">,
       AttrOrTypeDef<"Type", name, traits, baseCppClass> {
+  // Make it possible to use such type as parameters for other types.
+  string cppType = dialect.cppNamespace # "::" # cppClassName;
+
   // A constant builder provided when the type has no parameters.
   let builderCall = !if(!empty(parameters),
                            "$_builder.getType<" # dialect.cppNamespace #

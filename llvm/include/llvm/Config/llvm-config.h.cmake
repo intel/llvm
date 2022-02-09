@@ -91,9 +91,6 @@
 /* Define if LLVM was built with a dependency to the libtensorflow dynamic library */
 #cmakedefine LLVM_HAVE_TF_API
 
-/* Define if LLVM was built with a dependency to the tensorflow compiler */
-#cmakedefine LLVM_HAVE_TF_AOT
-
 /* Define to 1 if you have the <sysexits.h> header file. */
 #cmakedefine HAVE_SYSEXITS_H ${HAVE_SYSEXITS_H}
 
@@ -102,5 +99,11 @@
 
 /* Define if the xar_open() function is supported on this platform. */
 #cmakedefine LLVM_HAVE_LIBXAR ${LLVM_HAVE_LIBXAR}
+
+/* Define if building libLLVM shared library */
+#cmakedefine LLVM_BUILD_LLVM_DYLIB
+
+/* Define if building LLVM with BUILD_SHARED_LIBS */
+#cmakedefine LLVM_BUILD_SHARED_LIBS
 
 #endif

@@ -11,7 +11,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -43,7 +43,7 @@ allocateBuffersForResults(Location loc, LinalgOp linalgOp, ValueRange outputs,
 
   // Allocate a buffer for every tensor result.
   assert(linalgOp.getNumOutputs() == linalgOp->getNumResults());
-  for (auto en : llvm::enumerate(linalgOp->getResultTypes())) {
+  for (const auto &en : llvm::enumerate(linalgOp->getResultTypes())) {
     size_t resultIndex = en.index();
     Type resultType = en.value();
 
@@ -124,7 +124,7 @@ class BufferizeTensorReshapeOp : public OpConversionPattern<TensorReshapeOp> {
 public:
   using OpConversionPattern<TensorReshapeOp>::OpConversionPattern;
   using ReshapeOp = typename std::conditional_t<
-      std::is_same<TensorReshapeOp, TensorExpandShapeOp>::value,
+      std::is_same<TensorReshapeOp, tensor::ExpandShapeOp>::value,
       memref::ExpandShapeOp, memref::CollapseShapeOp>;
 
   LogicalResult
@@ -281,8 +281,8 @@ public:
       return failure();
     rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
         readOp, readOp.getType(), adaptor.source(), adaptor.indices(),
-        adaptor.permutation_map(), adaptor.padding(), adaptor.mask(),
-        adaptor.in_bounds());
+        adaptor.permutation_mapAttr(), adaptor.padding(), adaptor.mask(),
+        adaptor.in_boundsAttr());
     return success();
   }
 };
@@ -299,8 +299,8 @@ public:
       return failure();
     rewriter.create<vector::TransferWriteOp>(
         writeOp.getLoc(), adaptor.vector(), adaptor.source(), adaptor.indices(),
-        adaptor.permutation_map(),
-        adaptor.in_bounds() ? adaptor.in_bounds() : ArrayAttr());
+        adaptor.permutation_mapAttr(),
+        adaptor.in_bounds() ? adaptor.in_boundsAttr() : ArrayAttr());
     rewriter.replaceOp(writeOp, adaptor.source());
     return success();
   }
@@ -320,8 +320,9 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
     target.addLegalDialect<arith::ArithmeticDialect, AffineDialect,
                            memref::MemRefDialect, StandardOpsDialect,
                            tensor::TensorDialect>();
-    target.addIllegalOp<InitTensorOp, tensor::ExtractSliceOp,
-                        tensor::InsertSliceOp, PadTensorOp>();
+    target.addIllegalOp<InitTensorOp, tensor::PadOp, tensor::CollapseShapeOp,
+                        tensor::ExpandShapeOp, tensor::ExtractSliceOp,
+                        tensor::InsertSliceOp>();
 
     // Mark all Linalg operations illegal as long as they work on tensors.
     auto isLegalOperation = [&](Operation *op) {
@@ -339,7 +340,7 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
       signalPassFailure();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<OperationPass<FuncOp>> mlir::createLinalgBufferizePass() {
   return std::make_unique<LinalgBufferizePass>();
@@ -354,13 +355,13 @@ void mlir::linalg::populateLinalgBufferizePatterns(
       BufferizeAnyLinalgOp,
       BufferizeFillOp,
       BufferizeInitTensorOp,
-      BufferizeTensorReshapeOp<TensorExpandShapeOp>,
-      BufferizeTensorReshapeOp<TensorCollapseShapeOp>,
+      BufferizeTensorReshapeOp<tensor::ExpandShapeOp>,
+      BufferizeTensorReshapeOp<tensor::CollapseShapeOp>,
       ExtractSliceOpConverter,
       InsertSliceOpConverter,
       VectorTransferReadOpConverter,
       VectorTransferWriteOpConverter
     >(typeConverter, patterns.getContext());
   // clang-format on
-  patterns.add<GeneralizePadTensorOpPattern>(patterns.getContext());
+  patterns.add<GeneralizePadOpPattern>(patterns.getContext());
 }

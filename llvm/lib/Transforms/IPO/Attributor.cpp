@@ -22,6 +22,7 @@
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -202,9 +203,12 @@ bool AA::isDynamicallyUnique(Attributor &A, const AbstractAttribute &QueryingAA,
   return NoRecurseAA.isAssumedNoRecurse();
 }
 
-Constant *AA::getInitialValueForObj(Value &Obj, Type &Ty) {
+Constant *AA::getInitialValueForObj(Value &Obj, Type &Ty,
+                                    const TargetLibraryInfo *TLI) {
   if (isa<AllocaInst>(Obj))
     return UndefValue::get(&Ty);
+  if (isAllocationFn(&Obj, TLI))
+    return getInitialValueOfAllocation(&cast<CallBase>(Obj), TLI, &Ty);
   auto *GV = dyn_cast<GlobalVariable>(&Obj);
   if (!GV || !GV->hasLocalLinkage())
     return nullptr;
@@ -316,7 +320,8 @@ bool AA::getPotentialCopiesOfStoredValue(
           dbgs() << "Underlying object is a valid nullptr, giving up.\n";);
       return false;
     }
-    if (!isa<AllocaInst>(Obj) && !isa<GlobalVariable>(Obj)) {
+    if (!isa<AllocaInst>(Obj) && !isa<GlobalVariable>(Obj) &&
+        !isNoAliasCall(Obj)) {
       LLVM_DEBUG(dbgs() << "Underlying object is not supported yet: " << *Obj
                         << "\n";);
       return false;
@@ -741,6 +746,7 @@ void IRPosition::verify() {
     assert((CBContext == nullptr) &&
            "'call site argument' position must not have CallBaseContext!");
     Use *U = getAsUsePtr();
+    (void)U; // Silence unused variable warning.
     assert(U && "Expected use for a 'call site argument' position!");
     assert(isa<CallBase>(U->getUser()) &&
            "Expected call base user for a 'call site argument' position!");
@@ -999,10 +1005,11 @@ bool Attributor::isAssumedDead(const BasicBlock &BB,
   return false;
 }
 
-bool Attributor::checkForAllUses(function_ref<bool(const Use &, bool &)> Pred,
-                                 const AbstractAttribute &QueryingAA,
-                                 const Value &V, bool CheckBBLivenessOnly,
-                                 DepClassTy LivenessDepClass) {
+bool Attributor::checkForAllUses(
+    function_ref<bool(const Use &, bool &)> Pred,
+    const AbstractAttribute &QueryingAA, const Value &V,
+    bool CheckBBLivenessOnly, DepClassTy LivenessDepClass,
+    function_ref<bool(const Use &OldU, const Use &NewU)> EquivalentUseCB) {
 
   // Check the trivial case first as it catches void values.
   if (V.use_empty())
@@ -1053,8 +1060,15 @@ bool Attributor::checkForAllUses(function_ref<bool(const Use &, bool &)> Pred,
                             << PotentialCopies.size()
                             << " potential copies instead!\n");
           for (Value *PotentialCopy : PotentialCopies)
-            for (const Use &U : PotentialCopy->uses())
-              Worklist.push_back(&U);
+            for (const Use &CopyUse : PotentialCopy->uses()) {
+              if (EquivalentUseCB && !EquivalentUseCB(*U, CopyUse)) {
+                LLVM_DEBUG(dbgs() << "[Attributor] Potential copy was "
+                                     "rejected by the equivalence call back: "
+                                  << *CopyUse << "!\n");
+                return false;
+              }
+              Worklist.push_back(&CopyUse);
+            }
           continue;
         }
       }
@@ -2139,12 +2153,10 @@ bool Attributor::shouldSeedAttribute(AbstractAttribute &AA) {
   bool Result = true;
 #ifndef NDEBUG
   if (SeedAllowList.size() != 0)
-    Result =
-        std::count(SeedAllowList.begin(), SeedAllowList.end(), AA.getName());
+    Result = llvm::is_contained(SeedAllowList, AA.getName());
   Function *Fn = AA.getAnchorScope();
   if (FunctionSeedAllowList.size() != 0 && Fn)
-    Result &= std::count(FunctionSeedAllowList.begin(),
-                         FunctionSeedAllowList.end(), Fn->getName());
+    Result &= llvm::is_contained(FunctionSeedAllowList, Fn->getName());
 #endif
   return Result;
 }

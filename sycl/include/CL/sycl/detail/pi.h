@@ -40,11 +40,12 @@
 // changes the API version from 3.5 to 4.6.
 // 5.7 Added new context and ownership arguments to
 //   piextEventCreateWithNativeHandle
-// 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle.
+// 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle. Added
+// piQueueFlush function.
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 5
-#define _PI_H_VERSION_MINOR 7
+#define _PI_H_VERSION_MAJOR 6
+#define _PI_H_VERSION_MINOR 8
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -113,6 +114,7 @@ typedef enum {
   PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = CL_INVALID_IMAGE_FORMAT_DESCRIPTOR,
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
+  PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
   PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
       -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
             ///< method determines the function exists but its address cannot be
@@ -302,11 +304,12 @@ typedef enum {
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
+  PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
+  PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003
-
 } _pi_device_info;
 
 typedef enum {
@@ -327,7 +330,8 @@ typedef enum {
   PI_CONTEXT_INFO_PROPERTIES = CL_CONTEXT_PROPERTIES,
   PI_CONTEXT_INFO_REFERENCE_COUNT = CL_CONTEXT_REFERENCE_COUNT,
   // Atomics capabilities extensions
-  PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010
+  PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010,
+  PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x10011
 } _pi_context_info;
 
 typedef enum {
@@ -533,6 +537,13 @@ constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQUIRE = 0x02;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELEASE = 0x04;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQ_REL = 0x08;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_SEQ_CST = 0x10;
+
+using pi_memory_scope_capabilities = pi_bitfield;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_WORK_ITEM = 0x01;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_SUB_GROUP = 0x02;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_WORK_GROUP = 0x04;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_DEVICE = 0x08;
+constexpr pi_memory_scope_capabilities PI_MEMORY_SCOPE_SYSTEM = 0x10;
 
 typedef enum {
   PI_PROFILING_INFO_COMMAND_QUEUED = CL_PROFILING_COMMAND_QUEUED,
@@ -1082,6 +1093,8 @@ __SYCL_EXPORT pi_result piQueueRetain(pi_queue command_queue);
 __SYCL_EXPORT pi_result piQueueRelease(pi_queue command_queue);
 
 __SYCL_EXPORT pi_result piQueueFinish(pi_queue command_queue);
+
+__SYCL_EXPORT pi_result piQueueFlush(pi_queue command_queue);
 
 /// Gets the native handle of a PI queue object.
 ///

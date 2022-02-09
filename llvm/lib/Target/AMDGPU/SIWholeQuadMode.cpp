@@ -495,11 +495,10 @@ char SIWholeQuadMode::scanInstructions(MachineFunction &MF,
   // instruction as needing e.g. WQM before visiting it and realizing it needs
   // WQM disabled.
   ReversePostOrderTraversal<MachineFunction *> RPOT(&MF);
-  for (auto BI = RPOT.begin(), BE = RPOT.end(); BI != BE; ++BI) {
-    MachineBasicBlock &MBB = **BI;
-    BlockInfo &BBI = Blocks[&MBB];
+  for (MachineBasicBlock *MBB : RPOT) {
+    BlockInfo &BBI = Blocks[MBB];
 
-    for (MachineInstr &MI : MBB) {
+    for (MachineInstr &MI : *MBB) {
       InstrInfo &III = Instructions[&MI];
       unsigned Opcode = MI.getOpcode();
       char Flags = 0;
@@ -561,7 +560,7 @@ char SIWholeQuadMode::scanInstructions(MachineFunction &MF,
         BBI.Needs |= StateExact;
         if (!(BBI.InNeeds & StateExact)) {
           BBI.InNeeds |= StateExact;
-          Worklist.push_back(&MBB);
+          Worklist.push_back(MBB);
         }
         GlobalFlags |= StateExact;
         III.Disabled = StateWQM | StateStrict;
@@ -862,21 +861,22 @@ MachineInstr *SIWholeQuadMode::lowerKillF32(MachineBasicBlock &MBB,
   MachineInstr *VcmpMI;
   const MachineOperand &Op0 = MI.getOperand(0);
   const MachineOperand &Op1 = MI.getOperand(1);
+
+  // VCC represents lanes killed.
+  Register VCC = ST->isWave32() ? AMDGPU::VCC_LO : AMDGPU::VCC;
+
   if (TRI->isVGPR(*MRI, Op0.getReg())) {
     Opcode = AMDGPU::getVOPe32(Opcode);
     VcmpMI = BuildMI(MBB, &MI, DL, TII->get(Opcode)).add(Op1).add(Op0);
   } else {
     VcmpMI = BuildMI(MBB, &MI, DL, TII->get(Opcode))
-                 .addReg(AMDGPU::VCC, RegState::Define)
+                 .addReg(VCC, RegState::Define)
                  .addImm(0) // src0 modifiers
                  .add(Op1)
                  .addImm(0) // src1 modifiers
                  .add(Op0)
                  .addImm(0); // omod
   }
-
-  // VCC represents lanes killed.
-  Register VCC = ST->isWave32() ? AMDGPU::VCC_LO : AMDGPU::VCC;
 
   MachineInstr *MaskUpdateMI =
       BuildMI(MBB, MI, DL, TII->get(AndN2Opc), LiveMaskReg)

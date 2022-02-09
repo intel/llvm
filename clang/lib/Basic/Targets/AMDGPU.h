@@ -328,6 +328,8 @@ public:
     case OCLTK_Queue:
     case OCLTK_ReserveID:
       return LangAS::opencl_global;
+    case OCLTK_Event:
+      return LangAS::opencl_private;
 
     default:
       return TargetInfo::getOpenCLTypeAddrSpace(TK);
@@ -426,7 +428,7 @@ public:
 
   void setAuxTarget(const TargetInfo *Aux) override;
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 
   // Record offload arch features since they are needed for defining the
   // pre-defined macros.

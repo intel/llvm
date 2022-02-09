@@ -55,6 +55,7 @@ if(LLVM_LIBC_ENABLE_LINTING)
   if("clang-tools-extra" IN_LIST LLVM_ENABLE_PROJECTS
              AND "clang" IN_LIST LLVM_ENABLE_PROJECTS)
     add_custom_target(lint-libc)
+    file(COPY ${LIBC_SOURCE_DIR}/.clang-tidy DESTINATION ${LIBC_BUILD_DIR})
   else()
     message(FATAL_ERROR "
       'clang' and 'clang-tools-extra' are required in LLVM_ENABLE_PROJECTS to
@@ -88,7 +89,7 @@ if(EXISTS "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTUR
 elseif(EXISTS "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/entrypoints.txt")
   set(entrypoint_file "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/entrypoints.txt")
 else()
-  message(FATAL_ERROR "entrypoints.txt file for the target platform not found.")
+  message(FATAL_ERROR "entrypoints.txt file for the target platform '${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}' not found.")
 endif()
 include(${entrypoint_file})
 

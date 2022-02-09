@@ -800,22 +800,21 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
         // Round NTZ down to the next byte.  If we have 11 trailing zeros, then
         // we need all the bits down to bit 8.  Likewise, round NLZ.  If we
         // have 14 leading zeros, round to 8.
-        NLZ &= ~7;
-        NTZ &= ~7;
+        NLZ = alignDown(NLZ, 8);
+        NTZ = alignDown(NTZ, 8);
         // If we need exactly one byte, we can do this transformation.
-        if (BitWidth-NLZ-NTZ == 8) {
-          unsigned ResultBit = NTZ;
-          unsigned InputBit = BitWidth-NTZ-8;
-
+        if (BitWidth - NLZ - NTZ == 8) {
           // Replace this with either a left or right shift to get the byte into
           // the right place.
           Instruction *NewVal;
-          if (InputBit > ResultBit)
-            NewVal = BinaryOperator::CreateLShr(II->getArgOperand(0),
-                    ConstantInt::get(I->getType(), InputBit-ResultBit));
+          if (NLZ > NTZ)
+            NewVal = BinaryOperator::CreateLShr(
+                II->getArgOperand(0),
+                ConstantInt::get(I->getType(), NLZ - NTZ));
           else
-            NewVal = BinaryOperator::CreateShl(II->getArgOperand(0),
-                    ConstantInt::get(I->getType(), ResultBit-InputBit));
+            NewVal = BinaryOperator::CreateShl(
+                II->getArgOperand(0),
+                ConstantInt::get(I->getType(), NTZ - NLZ));
           NewVal->takeName(I);
           return InsertNewInstWith(NewVal, *I);
         }
@@ -1594,12 +1593,6 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
   if (match(I, m_BinOp(BO)) && !BO->isIntDivRem() && !BO->isShift()) {
     simplifyAndSetOp(I, 0, DemandedElts, UndefElts);
     simplifyAndSetOp(I, 1, DemandedElts, UndefElts2);
-
-    // Any change to an instruction with potential poison must clear those flags
-    // because we can not guarantee those constraints now. Other analysis may
-    // determine that it is safe to re-apply the flags.
-    if (MadeChange)
-      BO->dropPoisonGeneratingFlags();
 
     // Output elements are undefined if both are undefined. Consider things
     // like undef & 0. The result is known zero, not undef.

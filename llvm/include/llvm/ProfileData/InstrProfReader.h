@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProf.h"
+#include "llvm/ProfileData/InstrProfCorrelator.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/LineIterator.h"
@@ -96,6 +97,9 @@ public:
 
   virtual bool instrEntryBBEnabled() const = 0;
 
+  /// Return true if we must provide debug info to create PGO profiles.
+  virtual bool useDebugInfoCorrelate() const { return false; }
+
   /// Return the PGO symtab. There are three different readers:
   /// Raw, Text, and Indexed profile readers. The first two types
   /// of readers are used only by llvm-profdata tool, while the indexed
@@ -150,10 +154,12 @@ public:
 
   /// Factory method to create an appropriately typed reader for the given
   /// instrprof file.
-  static Expected<std::unique_ptr<InstrProfReader>> create(const Twine &Path);
+  static Expected<std::unique_ptr<InstrProfReader>>
+  create(const Twine &Path, const InstrProfCorrelator *Correlator = nullptr);
 
   static Expected<std::unique_ptr<InstrProfReader>>
-  create(std::unique_ptr<MemoryBuffer> Buffer);
+  create(std::unique_ptr<MemoryBuffer> Buffer,
+         const InstrProfCorrelator *Correlator = nullptr);
 };
 
 /// Reader for the simple text based instrprof format.
@@ -215,6 +221,9 @@ class RawInstrProfReader : public InstrProfReader {
 private:
   /// The profile data file contents.
   std::unique_ptr<MemoryBuffer> DataBuffer;
+  /// If available, this hold the ProfileData array used to correlate raw
+  /// instrumentation data to their functions.
+  const InstrProfCorrelatorImpl<IntPtrT> *Correlator;
   bool ShouldSwapBytes;
   // The value of the version field of the raw profile data header. The lower 56
   // bits specifies the format version and the most significant 8 bits specify
@@ -224,9 +233,10 @@ private:
   uint64_t NamesDelta;
   const RawInstrProf::ProfileData<IntPtrT> *Data;
   const RawInstrProf::ProfileData<IntPtrT> *DataEnd;
-  const uint64_t *CountersStart;
+  const char *CountersStart;
+  const char *CountersEnd;
   const char *NamesStart;
-  uint64_t NamesSize;
+  const char *NamesEnd;
   // After value profile is all read, this pointer points to
   // the header of next profile data (if exists)
   const uint8_t *ValueDataStart;
@@ -237,8 +247,11 @@ private:
   const uint8_t *BinaryIdsStart;
 
 public:
-  RawInstrProfReader(std::unique_ptr<MemoryBuffer> DataBuffer)
-      : DataBuffer(std::move(DataBuffer)) {}
+  RawInstrProfReader(std::unique_ptr<MemoryBuffer> DataBuffer,
+                     const InstrProfCorrelator *Correlator)
+      : DataBuffer(std::move(DataBuffer)),
+        Correlator(dyn_cast_or_null<const InstrProfCorrelatorImpl<IntPtrT>>(
+            Correlator)) {}
   RawInstrProfReader(const RawInstrProfReader &) = delete;
   RawInstrProfReader &operator=(const RawInstrProfReader &) = delete;
 
@@ -257,6 +270,10 @@ public:
 
   bool instrEntryBBEnabled() const override {
     return (Version & VARIANT_MASK_INSTR_ENTRY) != 0;
+  }
+
+  bool useDebugInfoCorrelate() const override {
+    return (Version & VARIANT_MASK_DBG_CORRELATE) != 0;
   }
 
   InstrProfSymtab &getSymtab() override {
@@ -294,6 +311,15 @@ private:
   bool atEnd() const { return Data == DataEnd; }
 
   void advanceData() {
+    // `CountersDelta` is a constant zero when using debug info correlation.
+    if (!Correlator) {
+      // The initial CountersDelta is the in-memory address difference between
+      // the data and counts sections:
+      // start(__llvm_prf_cnts) - start(__llvm_prf_data)
+      // As we advance to the next record, we maintain the correct CountersDelta
+      // with respect to the next record.
+      CountersDelta -= sizeof(*Data);
+    }
     Data++;
     ValueDataStart += CurValueDataSize;
   }
@@ -303,20 +329,11 @@ private:
       return (const char *)ValueDataStart;
   }
 
-  /// Get the offset of \p CounterPtr from the start of the counters section of
-  /// the profile. The offset has units of "number of counters", i.e. increasing
-  /// the offset by 1 corresponds to an increase in the *byte offset* by 8.
-  ptrdiff_t getCounterOffset(IntPtrT CounterPtr) const {
-    return (swap(CounterPtr) - CountersDelta) / sizeof(uint64_t);
-  }
-
-  const uint64_t *getCounter(ptrdiff_t Offset) const {
-    return CountersStart + Offset;
-  }
-
   StringRef getName(uint64_t NameRef) const {
     return Symtab->getFuncName(swap(NameRef));
   }
+
+  int getCounterTypeSize() const { return sizeof(uint64_t); }
 };
 
 using RawInstrProfReader32 = RawInstrProfReader<uint32_t>;

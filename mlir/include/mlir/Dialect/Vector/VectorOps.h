@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_VECTOR_VECTOROPS_H
 #define MLIR_DIALECT_VECTOR_VECTOROPS_H
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
@@ -31,7 +32,6 @@
 namespace mlir {
 class MLIRContext;
 class RewritePatternSet;
-using OwningRewritePatternList = RewritePatternSet;
 
 namespace vector {
 class VectorDialect;
@@ -66,6 +66,21 @@ void populateShapeCastFoldingPatterns(RewritePatternSet &patterns);
 /// With them, there are more chances that we can cancel out extract-insert
 /// pairs or forward write-read pairs.
 void populateCastAwayVectorLeadingOneDimPatterns(RewritePatternSet &patterns);
+
+/// Collect a set of one dimension removal patterns.
+///
+/// These patterns insert rank-reducing memref.subview ops to remove one
+/// dimensions. With them, there are more chances that we can avoid
+/// potentially exensive vector.shape_cast operations.
+void populateVectorTransferDropUnitDimsPatterns(RewritePatternSet &patterns);
+
+/// Collect a set of patterns to flatten n-D vector transfers on contiguous
+/// memref.
+///
+/// These patterns insert memref.collapse_shape + vector.shape_cast patterns
+/// to transform multiple small n-D transfers into a larger 1-D transfer where
+/// the memref contiguity properties allow it.
+void populateFlattenVectorTransferPatterns(RewritePatternSet &patterns);
 
 /// Collect a set of patterns that bubble up/down bitcast ops.
 ///
@@ -130,8 +145,8 @@ ArrayAttr getVectorSubscriptAttr(Builder &b, ArrayRef<int64_t> values);
 
 /// Returns the value obtained by reducing the vector into a scalar using the
 /// operation kind associated with a binary AtomicRMWKind op.
-Value getVectorReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
-                           Value vector);
+Value getVectorReductionOp(arith::AtomicRMWKind op, OpBuilder &builder,
+                           Location loc, Value vector);
 
 /// Return true if the last dimension of the MemRefType has unit stride. Also
 /// return true for memrefs with no strides.
@@ -144,8 +159,8 @@ namespace impl {
 AffineMap getTransferMinorIdentityMap(ShapedType shapedType,
                                       VectorType vectorType);
 } // namespace impl
-} // end namespace vector
-} // end namespace mlir
+} // namespace vector
+} // namespace mlir
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Vector/VectorOps.h.inc"

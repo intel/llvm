@@ -33,7 +33,6 @@
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
-#include "mlir/Transforms/Utils.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -54,10 +53,10 @@ static void filterFuncAttributes(ArrayRef<NamedAttribute> attrs,
                                  SmallVectorImpl<NamedAttribute> &result) {
   for (const auto &attr : attrs) {
     if (attr.getName() == SymbolTable::getSymbolAttrName() ||
-        attr.getName() == function_like_impl::getTypeAttrName() ||
+        attr.getName() == FunctionOpInterface::getTypeAttrName() ||
         attr.getName() == "std.varargs" ||
         (filterArgAttrs &&
-         attr.getName() == function_like_impl::getArgDictAttrName()))
+         attr.getName() == FunctionOpInterface::getArgDictAttrName()))
       continue;
     result.push_back(attr);
   }
@@ -251,10 +250,10 @@ protected:
           newArgAttrs[mapping->inputNo + j] = argAttrDicts[i];
       }
       attributes.push_back(
-          rewriter.getNamedAttr(function_like_impl::getArgDictAttrName(),
+          rewriter.getNamedAttr(FunctionOpInterface::getArgDictAttrName(),
                                 rewriter.getArrayAttr(newArgAttrs)));
     }
-    for (auto pair : llvm::enumerate(attributes)) {
+    for (const auto &pair : llvm::enumerate(attributes)) {
       if (pair.value().getName() == "llvm.linkage") {
         attributes.erase(attributes.begin() + pair.index());
         break;
@@ -566,43 +565,6 @@ struct UnrealizedConversionCastOpLowering
   }
 };
 
-struct RankOpLowering : public ConvertOpToLLVMPattern<RankOp> {
-  using ConvertOpToLLVMPattern<RankOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(RankOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Type operandType = op.getMemrefOrTensor().getType();
-    if (auto unrankedMemRefType = operandType.dyn_cast<UnrankedMemRefType>()) {
-      UnrankedMemRefDescriptor desc(adaptor.getMemrefOrTensor());
-      rewriter.replaceOp(op, {desc.rank(rewriter, loc)});
-      return success();
-    }
-    if (auto rankedMemRefType = operandType.dyn_cast<MemRefType>()) {
-      rewriter.replaceOp(
-          op, {createIndexConstant(rewriter, loc, rankedMemRefType.getRank())});
-      return success();
-    }
-    return failure();
-  }
-};
-
-// Common base for load and store operations on MemRefs.  Restricts the match
-// to supported MemRef types. Provides functionality to emit code accessing a
-// specific element of the underlying data buffer.
-template <typename Derived>
-struct LoadStoreOpLowering : public ConvertOpToLLVMPattern<Derived> {
-  using ConvertOpToLLVMPattern<Derived>::ConvertOpToLLVMPattern;
-  using ConvertOpToLLVMPattern<Derived>::isConvertibleAndHasIdentityMaps;
-  using Base = LoadStoreOpLowering<Derived>;
-
-  LogicalResult match(Derived op) const override {
-    MemRefType type = op.getMemRefType();
-    return isConvertibleAndHasIdentityMaps(type) ? success() : failure();
-  }
-};
-
 // Base class for LLVM IR lowering terminator operations with successors.
 template <typename SourceOp, typename TargetOp>
 struct OneToOneLLVMTerminatorLowering
@@ -796,176 +758,6 @@ struct SplatNdOpLowering : public ConvertOpToLLVMPattern<SplatOp> {
 
 } // namespace
 
-/// Try to match the kind of a std.atomic_rmw to determine whether to use a
-/// lowering to llvm.atomicrmw or fallback to llvm.cmpxchg.
-static Optional<LLVM::AtomicBinOp> matchSimpleAtomicOp(AtomicRMWOp atomicOp) {
-  switch (atomicOp.getKind()) {
-  case AtomicRMWKind::addf:
-    return LLVM::AtomicBinOp::fadd;
-  case AtomicRMWKind::addi:
-    return LLVM::AtomicBinOp::add;
-  case AtomicRMWKind::assign:
-    return LLVM::AtomicBinOp::xchg;
-  case AtomicRMWKind::maxs:
-    return LLVM::AtomicBinOp::max;
-  case AtomicRMWKind::maxu:
-    return LLVM::AtomicBinOp::umax;
-  case AtomicRMWKind::mins:
-    return LLVM::AtomicBinOp::min;
-  case AtomicRMWKind::minu:
-    return LLVM::AtomicBinOp::umin;
-  default:
-    return llvm::None;
-  }
-  llvm_unreachable("Invalid AtomicRMWKind");
-}
-
-namespace {
-
-struct AtomicRMWOpLowering : public LoadStoreOpLowering<AtomicRMWOp> {
-  using Base::Base;
-
-  LogicalResult
-  matchAndRewrite(AtomicRMWOp atomicOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (failed(match(atomicOp)))
-      return failure();
-    auto maybeKind = matchSimpleAtomicOp(atomicOp);
-    if (!maybeKind)
-      return failure();
-    auto resultType = adaptor.getValue().getType();
-    auto memRefType = atomicOp.getMemRefType();
-    auto dataPtr =
-        getStridedElementPtr(atomicOp.getLoc(), memRefType, adaptor.getMemref(),
-                             adaptor.getIndices(), rewriter);
-    rewriter.replaceOpWithNewOp<LLVM::AtomicRMWOp>(
-        atomicOp, resultType, *maybeKind, dataPtr, adaptor.getValue(),
-        LLVM::AtomicOrdering::acq_rel);
-    return success();
-  }
-};
-
-/// Wrap a llvm.cmpxchg operation in a while loop so that the operation can be
-/// retried until it succeeds in atomically storing a new value into memory.
-///
-///      +---------------------------------+
-///      |   <code before the AtomicRMWOp> |
-///      |   <compute initial %loaded>     |
-///      |   br loop(%loaded)              |
-///      +---------------------------------+
-///             |
-///  -------|   |
-///  |      v   v
-///  |   +--------------------------------+
-///  |   | loop(%loaded):                 |
-///  |   |   <body contents>              |
-///  |   |   %pair = cmpxchg              |
-///  |   |   %ok = %pair[0]               |
-///  |   |   %new = %pair[1]              |
-///  |   |   cond_br %ok, end, loop(%new) |
-///  |   +--------------------------------+
-///  |          |        |
-///  |-----------        |
-///                      v
-///      +--------------------------------+
-///      | end:                           |
-///      |   <code after the AtomicRMWOp> |
-///      +--------------------------------+
-///
-struct GenericAtomicRMWOpLowering
-    : public LoadStoreOpLowering<GenericAtomicRMWOp> {
-  using Base::Base;
-
-  LogicalResult
-  matchAndRewrite(GenericAtomicRMWOp atomicOp, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-
-    auto loc = atomicOp.getLoc();
-    Type valueType = typeConverter->convertType(atomicOp.getResult().getType());
-
-    // Split the block into initial, loop, and ending parts.
-    auto *initBlock = rewriter.getInsertionBlock();
-    auto *loopBlock =
-        rewriter.createBlock(initBlock->getParent(),
-                             std::next(Region::iterator(initBlock)), valueType);
-    auto *endBlock = rewriter.createBlock(
-        loopBlock->getParent(), std::next(Region::iterator(loopBlock)));
-
-    // Operations range to be moved to `endBlock`.
-    auto opsToMoveStart = atomicOp->getIterator();
-    auto opsToMoveEnd = initBlock->back().getIterator();
-
-    // Compute the loaded value and branch to the loop block.
-    rewriter.setInsertionPointToEnd(initBlock);
-    auto memRefType = atomicOp.getMemref().getType().cast<MemRefType>();
-    auto dataPtr = getStridedElementPtr(loc, memRefType, adaptor.getMemref(),
-                                        adaptor.getIndices(), rewriter);
-    Value init = rewriter.create<LLVM::LoadOp>(loc, dataPtr);
-    rewriter.create<LLVM::BrOp>(loc, init, loopBlock);
-
-    // Prepare the body of the loop block.
-    rewriter.setInsertionPointToStart(loopBlock);
-
-    // Clone the GenericAtomicRMWOp region and extract the result.
-    auto loopArgument = loopBlock->getArgument(0);
-    BlockAndValueMapping mapping;
-    mapping.map(atomicOp.getCurrentValue(), loopArgument);
-    Block &entryBlock = atomicOp.body().front();
-    for (auto &nestedOp : entryBlock.without_terminator()) {
-      Operation *clone = rewriter.clone(nestedOp, mapping);
-      mapping.map(nestedOp.getResults(), clone->getResults());
-    }
-    Value result = mapping.lookup(entryBlock.getTerminator()->getOperand(0));
-
-    // Prepare the epilog of the loop block.
-    // Append the cmpxchg op to the end of the loop block.
-    auto successOrdering = LLVM::AtomicOrdering::acq_rel;
-    auto failureOrdering = LLVM::AtomicOrdering::monotonic;
-    auto boolType = IntegerType::get(rewriter.getContext(), 1);
-    auto pairType = LLVM::LLVMStructType::getLiteral(rewriter.getContext(),
-                                                     {valueType, boolType});
-    auto cmpxchg = rewriter.create<LLVM::AtomicCmpXchgOp>(
-        loc, pairType, dataPtr, loopArgument, result, successOrdering,
-        failureOrdering);
-    // Extract the %new_loaded and %ok values from the pair.
-    Value newLoaded = rewriter.create<LLVM::ExtractValueOp>(
-        loc, valueType, cmpxchg, rewriter.getI64ArrayAttr({0}));
-    Value ok = rewriter.create<LLVM::ExtractValueOp>(
-        loc, boolType, cmpxchg, rewriter.getI64ArrayAttr({1}));
-
-    // Conditionally branch to the end or back to the loop depending on %ok.
-    rewriter.create<LLVM::CondBrOp>(loc, ok, endBlock, ArrayRef<Value>(),
-                                    loopBlock, newLoaded);
-
-    rewriter.setInsertionPointToEnd(endBlock);
-    moveOpsRange(atomicOp.getResult(), newLoaded, std::next(opsToMoveStart),
-                 std::next(opsToMoveEnd), rewriter);
-
-    // The 'result' of the atomic_rmw op is the newly loaded value.
-    rewriter.replaceOp(atomicOp, {newLoaded});
-
-    return success();
-  }
-
-private:
-  // Clones a segment of ops [start, end) and erases the original.
-  void moveOpsRange(ValueRange oldResult, ValueRange newResult,
-                    Block::iterator start, Block::iterator end,
-                    ConversionPatternRewriter &rewriter) const {
-    BlockAndValueMapping mapping;
-    mapping.map(oldResult, newResult);
-    SmallVector<Operation *, 2> opsToErase;
-    for (auto it = start; it != end; ++it) {
-      rewriter.clone(*it, mapping);
-      opsToErase.push_back(&*it);
-    }
-    for (auto *it : opsToErase)
-      rewriter.eraseOp(it);
-  }
-};
-
-} // namespace
-
 void mlir::populateStdToLLVMFuncOpConversionPattern(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   if (converter.getOptions().useBarePtrCallConv)
@@ -980,14 +772,11 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
   // clang-format off
   patterns.add<
       AssertOpLowering,
-      AtomicRMWOpLowering,
       BranchOpLowering,
       CallIndirectOpLowering,
       CallOpLowering,
       CondBranchOpLowering,
       ConstantOpLowering,
-      GenericAtomicRMWOpLowering,
-      RankOpLowering,
       ReturnOpLowering,
       SelectOpLowering,
       SplatOpLowering,
@@ -1052,7 +841,7 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
                StringAttr::get(m.getContext(), this->dataLayout));
   }
 };
-} // end namespace
+} // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>> mlir::createLowerToLLVMPass() {
   return std::make_unique<LLVMLoweringPass>();

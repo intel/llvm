@@ -59,6 +59,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strtold
+  SRCS
+    strtold.cpp
+  HDRS
+    strtold.h
+  DEPENDS
+    libc.src.__support.str_to_float
+)
+
+add_entrypoint_object(
   strtol
   SRCS
     strtol.cpp
@@ -238,14 +248,14 @@ add_entrypoint_object(
     .${LIBC_TARGET_OS}._Exit
 )
 
-add_entrypoint_object(
-  abort
-  SRCS
-    abort.cpp
-  HDRS
-    abort.h
-  DEPENDS
-    libc.include.stdlib
-    libc.src.signal.raise
-    ._Exit
-)
+# add_entrypoint_object(
+#   abort
+#   SRCS
+#     abort.cpp
+#   HDRS
+#     abort.h
+#   DEPENDS
+#     libc.include.stdlib
+#     libc.src.signal.raise
+#     ._Exit
+# )

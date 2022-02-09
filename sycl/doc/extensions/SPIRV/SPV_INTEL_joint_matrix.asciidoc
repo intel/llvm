@@ -52,8 +52,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | {docdate}
-| Revision           | A
+| Last Modified Date | 2021-12-28
+| Revision           | 3
 |========================================
 
 == Dependencies
@@ -124,6 +124,14 @@ OpJointMatrixUUMADINTEL
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.5
+
+=== 2.2 Terms
+Add new terms to section 2.2.2 Types:
+
+_Joint Matrix_: A two-dimensional ordered collection of scalars, whose storage
+is spread across multiple invocations.
+
+Add _Joint Matrix_ to the definition of _Composite_.
 
 === Matrix layout
 
@@ -463,6 +471,13 @@ result of a constant instruction with scalar 'integer type'. +
 'Scope'
 |=====
 
+=== 3.42.12. Composite Instructions
+
+Modify OpCompositeConstruct to make an exception for joint matrix types:
+"If the 'Result Type' is <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> and
+there is only one 'Constituent', it will be used to initialize all elements of
+the matrix."
+
 === Issues
 
 None
@@ -476,5 +491,6 @@ Revision History
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-02-16|Alexey Sotkin|Initial revision
-|1|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
+|2|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
+|3|2021-12-28|Dmitry Sidorov|Add Joint Matrix to Composite definition
 |========================================

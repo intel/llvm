@@ -179,20 +179,24 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   switch (paramName) {
     // TODO: Check regularly to see if support in enabled in OpenCL.
     // Intel GPU EU device-specific information extensions.
+    // Some of the queries are enabled by cl_intel_device_attribute_query
+    // extension, but it's not yet in the Registry.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if device UUID extension is enabled in OpenCL.
     // For details about Intel UUID extension, see
-    // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+    // sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md
   case PI_DEVICE_INFO_UUID:
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_INVALID_VALUE;
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
@@ -1424,6 +1428,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piQueueCreate, piQueueCreate)
   _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
   _PI_CL(piQueueFinish, clFinish)
+  _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
   _PI_CL(piQueueRelease, clReleaseCommandQueue)
   _PI_CL(piextQueueGetNativeHandle, piextQueueGetNativeHandle)

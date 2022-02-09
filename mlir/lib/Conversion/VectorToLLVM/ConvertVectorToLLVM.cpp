@@ -26,13 +26,21 @@ using namespace mlir::vector;
 // Helper to reduce vector type by one rank at front.
 static VectorType reducedVectorTypeFront(VectorType tp) {
   assert((tp.getRank() > 1) && "unlowerable vector type");
-  return VectorType::get(tp.getShape().drop_front(), tp.getElementType());
+  unsigned numScalableDims = tp.getNumScalableDims();
+  if (tp.getShape().size() == numScalableDims)
+    --numScalableDims;
+  return VectorType::get(tp.getShape().drop_front(), tp.getElementType(),
+                         numScalableDims);
 }
 
 // Helper to reduce vector type by *all* but one rank at back.
 static VectorType reducedVectorTypeBack(VectorType tp) {
   assert((tp.getRank() > 1) && "unlowerable vector type");
-  return VectorType::get(tp.getShape().take_back(), tp.getElementType());
+  unsigned numScalableDims = tp.getNumScalableDims();
+  if (numScalableDims > 0)
+    --numScalableDims;
+  return VectorType::get(tp.getShape().take_back(), tp.getElementType(),
+                         numScalableDims);
 }
 
 // Helper that picks the proper sequence for inserting.
@@ -111,6 +119,10 @@ static Value castDataPtr(ConversionPatternRewriter &rewriter, Location loc,
 }
 
 namespace {
+
+/// Trivial Vector to LLVM conversions
+using VectorScaleOpConversion =
+    OneToOneConvertToLLVMPattern<vector::VectorScaleOp, LLVM::vscale>;
 
 /// Conversion pattern for a vector.bitcast.
 class VectorBitCastOpConversion
@@ -485,7 +497,7 @@ public:
       eltType = llvmType.cast<VectorType>().getElementType();
     Value insert = rewriter.create<LLVM::UndefOp>(loc, llvmType);
     int64_t insPos = 0;
-    for (auto en : llvm::enumerate(maskArrayAttr)) {
+    for (const auto &en : llvm::enumerate(maskArrayAttr)) {
       int64_t extPos = en.value().cast<IntegerAttr>().getInt();
       Value value = adaptor.v1();
       if (extPos >= v1Dim) {
@@ -871,7 +883,8 @@ public:
     desc.setOffset(rewriter, loc, zero);
 
     // Fill size and stride descriptors in memref.
-    for (auto indexedSize : llvm::enumerate(targetMemRefType.getShape())) {
+    for (const auto &indexedSize :
+         llvm::enumerate(targetMemRefType.getShape())) {
       int64_t index = indexedSize.index();
       auto sizeAttr =
           rewriter.getIntegerAttr(rewriter.getIndexType(), indexedSize.value());
@@ -1064,7 +1077,7 @@ void mlir::populateVectorToLLVMConversionPatterns(
            VectorExtractElementOpConversion, VectorExtractOpConversion,
            VectorFMAOp1DConversion, VectorInsertElementOpConversion,
            VectorInsertOpConversion, VectorPrintOpConversion,
-           VectorTypeCastOpConversion,
+           VectorTypeCastOpConversion, VectorScaleOpConversion,
            VectorLoadStoreConversion<vector::LoadOp, vector::LoadOpAdaptor>,
            VectorLoadStoreConversion<vector::MaskedLoadOp,
                                      vector::MaskedLoadOpAdaptor>,

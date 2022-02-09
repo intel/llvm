@@ -37,7 +37,8 @@ using namespace llvm::object;
 using namespace lld;
 using namespace lld::elf;
 
-using SymbolMapTy = DenseMap<const SectionBase *, SmallVector<Defined *, 4>>;
+using SymbolMapTy = DenseMap<const SectionBase *,
+                             SmallVector<std::pair<Defined *, uint64_t>, 0>>;
 
 static constexpr char indent8[] = "        ";          // 8 spaces
 static constexpr char indent16[] = "                "; // 16 spaces
@@ -54,11 +55,11 @@ static void writeHeader(raw_ostream &os, uint64_t vma, uint64_t lma,
 // Returns a list of all symbols that we want to print out.
 static std::vector<Defined *> getSymbols() {
   std::vector<Defined *> v;
-  for (InputFile *file : objectFiles)
+  for (ELFFileBase *file : objectFiles)
     for (Symbol *b : file->getSymbols())
       if (auto *dr = dyn_cast<Defined>(b))
         if (!dr->isSection() && dr->section && dr->section->isLive() &&
-            (dr->file == file || dr->needsPltAddr || dr->section->bss))
+            (dr->file == file || dr->needsCopy || dr->section->bss))
           v.push_back(dr);
   return v;
 }
@@ -67,15 +68,21 @@ static std::vector<Defined *> getSymbols() {
 static SymbolMapTy getSectionSyms(ArrayRef<Defined *> syms) {
   SymbolMapTy ret;
   for (Defined *dr : syms)
-    ret[dr->section].push_back(dr);
+    ret[dr->section].emplace_back(dr, dr->getVA());
 
   // Sort symbols by address. We want to print out symbols in the
   // order in the output file rather than the order they appeared
   // in the input files.
-  for (auto &it : ret)
-    llvm::stable_sort(it.second, [](Defined *a, Defined *b) {
-      return a->getVA() < b->getVA();
+  SmallPtrSet<Defined *, 4> set;
+  for (auto &it : ret) {
+    // Deduplicate symbols which need a canonical PLT entry/copy relocation.
+    set.clear();
+    llvm::erase_if(it.second, [&](std::pair<Defined *, uint64_t> a) {
+      return !set.insert(a.first).second;
     });
+
+    llvm::stable_sort(it.second, llvm::less_second());
+  }
   return ret;
 }
 
@@ -84,9 +91,9 @@ static SymbolMapTy getSectionSyms(ArrayRef<Defined *> syms) {
 // we do that in batch using parallel-for.
 static DenseMap<Symbol *, std::string>
 getSymbolStrings(ArrayRef<Defined *> syms) {
-  std::vector<std::string> str(syms.size());
+  auto strs = std::make_unique<std::string[]>(syms.size());
   parallelForEachN(0, syms.size(), [&](size_t i) {
-    raw_string_ostream os(str[i]);
+    raw_string_ostream os(strs[i]);
     OutputSection *osec = syms[i]->getOutputSection();
     uint64_t vma = syms[i]->getVA();
     uint64_t lma = osec ? osec->getLMA() + vma - osec->getVA(0) : 0;
@@ -96,7 +103,7 @@ getSymbolStrings(ArrayRef<Defined *> syms) {
 
   DenseMap<Symbol *, std::string> ret;
   for (size_t i = 0, e = syms.size(); i < e; ++i)
-    ret[syms[i]] = std::move(str[i]);
+    ret[syms[i]] = std::move(strs[i]);
   return ret;
 }
 
@@ -177,7 +184,7 @@ static void writeMapFile(raw_fd_ostream &os) {
           writeHeader(os, isec->getVA(), osec->getLMA() + isec->outSecOff,
                       isec->getSize(), isec->alignment);
           os << indent8 << toString(isec) << '\n';
-          for (Symbol *sym : sectionSyms[isec])
+          for (Symbol *sym : llvm::make_first_range(sectionSyms[isec]))
             os << symStr[sym] << '\n';
         }
         continue;
@@ -236,7 +243,7 @@ void elf::writeWhyExtract() {
 static void writeCref(raw_fd_ostream &os) {
   // Collect symbols and files.
   MapVector<Symbol *, SetVector<InputFile *>> map;
-  for (InputFile *file : objectFiles) {
+  for (ELFFileBase *file : objectFiles) {
     for (Symbol *sym : file->getSymbols()) {
       if (isa<SharedSymbol>(sym))
         map[sym].insert(file);

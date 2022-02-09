@@ -10,9 +10,14 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #ifndef __SYCL_DEVICE_ONLY__
 
+#include <assert.h>
 #include <limits>
+
+#include <sycl/ext/intel/experimental/esimd/detail/elem_type_traits.hpp>
 
 #define SIMDCF_ELEMENT_SKIP(i)
 
@@ -46,7 +51,12 @@ static long long abs(long long a) {
   }
 }
 
-template <typename RT> struct satur {
+template <typename RT, class SFINAE = void> struct satur;
+
+template <typename RT>
+struct satur<RT, std::enable_if_t<std::is_integral_v<RT>>> {
+  static_assert(!__SEIEED::is_wrapper_elem_type_v<RT>);
+
   template <typename T> static RT saturate(const T val, const int flags) {
     if ((flags & sat_is_on) == 0) {
       return (RT)val;
@@ -72,35 +82,29 @@ template <typename RT> struct satur {
   }
 };
 
-template <> struct satur<float> {
-  template <typename T> static float saturate(const T val, const int flags) {
-    if ((flags & sat_is_on) == 0) {
-      return (float)val;
-    }
+// Host implemenation of saturation for FP types, including non-standarad
+// wrapper types such as sycl::half. Template parameters are defined in terms
+// of user-level types (sycl::half), function parameter and return types -
+// in terms of raw bit representation type(_Float16 for half on device).
+template <class Tdst>
+struct satur<Tdst,
+             std::enable_if_t<__SEIEED::is_generic_floating_point_v<Tdst>>> {
+  template <typename Tsrc>
+  static __SEIEED::__raw_t<Tdst> saturate(const __SEIEED::__raw_t<Tsrc> raw_src,
+                                          const int flags) {
+    Tsrc src = __SEIEED::bitcast_to_wrapper_type<Tsrc>(raw_src);
 
-    if (val < 0.) {
-      return 0;
-    } else if (val > 1.) {
-      return 1.;
-    } else {
-      return (float)val;
+    // perform comparison on user type!
+    if ((flags & sat_is_on) == 0 || (src >= 0 && src <= 1)) {
+      // convert_scalar accepts/returns user types - need to bitcast
+      Tdst dst = __SEIEED::convert_scalar<Tdst, Tsrc>(src);
+      return __SEIEED::bitcast_to_raw_type<Tdst>(dst);
     }
-  }
-};
-
-template <> struct satur<double> {
-  template <typename T> static double saturate(const T val, const int flags) {
-    if ((flags & sat_is_on) == 0) {
-      return (double)val;
+    if (src < 0) {
+      return __SEIEED::bitcast_to_raw_type<Tdst>(Tdst{0});
     }
-
-    if (val < 0.) {
-      return 0;
-    } else if (val > 1.) {
-      return 1.;
-    } else {
-      return (double)val;
-    }
+    assert(src > 1);
+    return __SEIEED::bitcast_to_raw_type<Tdst>(Tdst{1});
   }
 };
 
@@ -115,6 +119,10 @@ template <> struct SetSatur<float, true> {
 template <> struct SetSatur<double, true> {
   static unsigned int set() { return sat_is_on; }
 };
+
+// TODO replace restype_ex with detail::computation_type_t and represent half
+// as sycl::half rather than 'using half = sycl::detail::half_impl::half;'
+// above
 
 // used for intermediate type in dp4a emulation
 template <typename T1, typename T2> struct restype_ex {
@@ -430,36 +438,6 @@ template <> struct fptype<float> { static const bool value = true; };
 template <typename T> struct dftype { static const bool value = false; };
 template <> struct dftype<double> { static const bool value = true; };
 
-template <typename T> struct esimdtype;
-template <> struct esimdtype<char> { static const bool value = true; };
-
-template <> struct esimdtype<signed char> { static const bool value = true; };
-
-template <> struct esimdtype<unsigned char> { static const bool value = true; };
-
-template <> struct esimdtype<short> { static const bool value = true; };
-
-template <> struct esimdtype<unsigned short> {
-  static const bool value = true;
-};
-template <> struct esimdtype<int> { static const bool value = true; };
-
-template <> struct esimdtype<unsigned int> { static const bool value = true; };
-
-template <> struct esimdtype<unsigned long> { static const bool value = true; };
-
-template <> struct esimdtype<half> { static const bool value = true; };
-
-template <> struct esimdtype<float> { static const bool value = true; };
-
-template <> struct esimdtype<double> { static const bool value = true; };
-
-template <> struct esimdtype<long long> { static const bool value = true; };
-
-template <> struct esimdtype<unsigned long long> {
-  static const bool value = true;
-};
-
 template <typename T> struct bytetype;
 template <> struct bytetype<char> { static const bool value = true; };
 template <> struct bytetype<unsigned char> { static const bool value = true; };
@@ -482,3 +460,5 @@ template <> struct dwordtype<unsigned int> { static const bool value = true; };
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif // #ifndef __SYCL_DEVICE_ONLY__
+
+/// @endcond ESIMD_DETAIL

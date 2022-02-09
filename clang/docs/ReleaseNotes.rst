@@ -53,11 +53,24 @@ Improvements to Clang's diagnostics
 
 - -Wbitwise-instead-of-logical (part of -Wbool-operation) warns about use of bitwise operators with boolean operands which have side effects.
 
+- Added diagnostic groups to control diagnostics for attribute extensions by
+  adding groups ``-Wc++N-attribute-extensions`` (where ``N`` is the standard
+  release being diagnosed against). These new groups are automatically implied
+  when passing ``-Wc++N-extensions``. Resolves PR33518.
+
+- Support ``-Wdeclaration-after-statement`` with C99 and later standards, and
+  not just C89, matching GCC's behaviour. A notable usecase is supporting style
+  guides that forbid mixing declarations and code, but want to move to newer C
+  standards.
+
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
 - Maximum _ExtInt size was decreased from 16,777,215 bits to 8,388,608 bits.
   Motivation for this was discussed in PR51829.
+- Configuration file syntax extended with ``<CFGDIR>`` token. This expands to
+  the base path of the current config file. See :ref:`configuration-files` for
+  details.
 
 New Compiler Flags
 ------------------
@@ -128,6 +141,16 @@ Windows Support
   or pass ``/permissive`` to disable C++ operator names altogether. See
   `PR42427 <https://llvm.org/pr42427>` for more info.
 
+- Add support for MSVC-compatible ``/hotpatch`` flag in clang-cl, and equivalent
+  -cc1 flag ``-fms-hotpatch``. Along with the linker flag ``/functionpadmin``
+  this creates executable images suitable for runtime code patching. This flag
+  is only required for x86/x64 targets; ARM/ARM64 simply needs the linker
+  ``/functionpadmin``.
+
+  With this addition, clang-cl can be used in live code patching scenarios,
+  along with tools such as Live++ or Recode. Microsoft Edit and Continue isn't
+  currently supported.
+
 C Language Changes in Clang
 ---------------------------
 
@@ -140,6 +163,31 @@ C Language Changes in Clang
 - Support for ``__attribute__((error("")))`` and
   ``__attribute__((warning("")))`` function attributes have been added.
 - The maximum allowed alignment has been increased from 2^29 to 2^32.
+- Clang now supports the ``_BitInt(N)`` family of bit-precise integer types
+  from C23. This type was previously exposed as ``_ExtInt(N)``, which is now a
+  deprecated alias for ``_BitInt(N)`` (so diagnostics will mention ``_BitInt``
+  even if source uses ``_ExtInt``). ``_BitInt(N)`` and ``_ExtInt(N)`` are the
+  same types in all respects beyond spelling and the deprecation warning.
+  ``_BitInt(N)`` is supported as an extension in older C modes and in all C++
+  modes. Note: the ABI for ``_BitInt(N)`` is still in the process of being
+  stabilized, so this type should not yet be used in interfaces that require
+  ABI stability.
+- When using ``asm goto`` with outputs whose constraint modifier is ``"+"``, we
+  now change the numbering of the labels to occur after hidden tied inputs for
+  better compatibility with GCC.  For better portability between different
+  compilers and versions, symbolic references rather than numbered references
+  should be preferred. See
+  `this thread <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=103640>` for more
+  info.
+
+- Implemented `WG14 N2412 <http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2412.pdf>`_,
+  which adds ``*_WIDTH`` macros to limits.h and stdint.h to report the bit
+  width of various integer datatypes.
+
+- The ``ATOMIC_VAR_INIT`` macro from ``<stdatomic.h>`` is now diagnosed as
+  deprecated in C17 and later. The diagnostic can be disabled by defining the
+  ``_CLANG_DISABLE_CRT_DEPRECATION_WARNINGS`` macro prior to including the
+  header.
 
 C++ Language Changes in Clang
 -----------------------------
@@ -148,7 +196,15 @@ C++ Language Changes in Clang
 
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
-...
+
+- The ``ATOMIC_VAR_INIT`` and ``ATOMIC_FLAG_INIT`` macros from the C standard
+  library ``<stdatomic.h>`` header are now diagnosed as deprecated in C++20 and
+  later. Note, the behavior is specific to the inclusion of ``<stdatomic.h>``
+  in C++ code; the STL ``<atomic>`` header also controls the behavior of these
+  macros and is not affected by these changes. The ``<stdatomic.h>`` diagnostic
+  can be disabled by defining the ``_CLANG_DISABLE_CRT_DEPRECATION_WARNINGS``
+  macro prior to including the header.
+
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -173,6 +229,13 @@ OpenCL C Language Changes in Clang
 ABI Changes in Clang
 --------------------
 
+- The ``_ExtInt(N)`` extension has been standardized in C23 as ``_BitInt(N)``.
+  The mangling of this type in C++ has accordingly changed: under the Microsoft
+  ABI it is now mangled using the ``_BitInt`` spelling, and under the Itanium ABI
+  it is now mangled using a dedicated production. Note: the ABI for ``_BitInt(N)``
+  is still in the process of being stabilized, so this type should not yet be
+  used in interfaces that require ABI stability.
+
 OpenMP Support in Clang
 -----------------------
 
@@ -189,6 +252,14 @@ X86 Support in Clang
 
 - Support for ``AVX512-FP16`` instructions has been added.
 
+DWARF Support in Clang
+----------------------
+
+- The default DWARF version has increased from DWARFv4 to DWARFv5.  You can opt
+  back in to the old behavior with ``-gdwarf-4`` or ``-fdebug-default-version=4``.
+  Some platforms (Darwin, Android, and SCE for instance) already opt out of this
+  version bump as is suitable for the platform
+
 Arm and AArch64 Support in Clang
 --------------------------------
 
@@ -204,6 +275,9 @@ Arm and AArch64 Support in Clang
   architecture features, but will enable certain optimizations specific to
   Cortex-A57 CPUs and enable the use of a more accurate scheduling model.
 
+- The --aarch64-none-elf target now uses the BareMetal driver rather than the
+  GNU driver. Programs that depend on clang invoking GCC as the linker driver
+  should use GCC as the linker in the build system.
 
 Floating Point Support in Clang
 -------------------------------
@@ -215,19 +289,27 @@ Floating Point Support in Clang
   rather than -ffp-contract=fast, and the documentation of these features has
   been clarified. Previously, the documentation claimed that -ffp-model=precise
   was the default, but this was incorrect because the precise model implied
-  -ffp-contract=fast, wheras the (now corrected) default behavior is
+  -ffp-contract=fast, whereas the (now corrected) default behavior is
   -ffp-contract=on.
   -ffp-model=precise is now exactly the default mode of the compiler.
+- -fstrict-float-cast-overflow no longer has target specific behavior. Clang
+  will saturate towards the smallest and largest representable integer values.
+  NaNs will be converted to zero.
 
 Internal API Changes
 --------------------
 
-- ...
+- A new sugar ``Type`` AST node represents types accessed via a C++ using
+  declaration. Given code ``using std::error_code; error_code x;``, ``x`` has
+  a ``UsingType`` which desugars to the previous ``RecordType``.
 
 Build System Changes
 --------------------
 
-- ...
+- Linux distros can specify ``-DCLANG_DEFAULT_PIE_ON_LINUX=On`` to use ``-fPIE`` and
+  ``-pie`` by default. This matches GCC installations on many Linux distros
+  (configured with ``--enable-default-pie``).
+  (`D113372 <https://reviews.llvm.org/D113372>`_)
 
 AST Matchers
 ------------
@@ -244,6 +326,16 @@ AST Matchers
 - The ``hasAnyCapture`` matcher now only accepts an inner matcher of type
   ``Matcher<LambdaCapture>``. The matcher originally accepted an inner matcher
   of type ``Matcher<CXXThisExpr>`` or ``Matcher<VarDecl>``.
+- The ``usingType`` matcher is now available and needed to refer to types that
+  are referred to via using C++ using declarations.
+  The associated ``UsingShadowDecl`` can be matched using ``throughUsingDecl``
+  and the underlying ``Type`` with ``hasUnderlyingType``.
+  ``hasDeclaration`` continues to see through the alias and apply to the
+  underlying type.
+- Added the ``isConsteval`` matcher to match ``consteval`` function
+  declarations as well as `if consteval` and `if ! consteval` statements.
+- Added the ``isConstinit`` matcher to match ``constinit`` variable
+  declarations.
 
 clang-format
 ------------
@@ -251,7 +343,11 @@ clang-format
 - Option ``AllowShortEnumsOnASingleLine: false`` has been improved, it now
   correctly places the opening brace according to ``BraceWrapping.AfterEnum``.
 
-- Option ``QualifierAligment`` has been added in order to auto-arrange the
+- Option ``AlignAfterOpenBracket: BlockIndent`` has been added. If set, it will
+  always break after an open bracket, if the parameters don't fit on a single
+  line. Closing brackets will be placed on a new line.
+
+- Option ``QualifierAlignment`` has been added in order to auto-arrange the
   positioning of specifiers/qualifiers
   `const` `volatile` `static` `inline` `constexpr` `restrict`
   in variable and parameter declarations to be either ``Right`` aligned
@@ -261,11 +357,25 @@ clang-format
   `const` `volatile` `static` `inline` `constexpr` `restrict`
   to be controlled relative to the `type`.
 
+- Option ``RemoveBracesLLVM`` has been added to remove optional braces of
+  control statements for the LLVM style.
+
+- Option ``SeparateDefinitionBlocks`` has been added to insert or remove empty
+  lines between definition blocks including functions, classes, structs, enums,
+  and namespaces.
+
 - Add a ``Custom`` style to ``SpaceBeforeParens``, to better configure the
   space before parentheses. The custom options can be set using
   ``SpaceBeforeParensOptions``.
 
+- The command line argument `-style=<string>` has been extended so that a specific
+  format file at location <format_file_path> can be selected. This is supported
+  via the syntax: `-style=file:<format_file_path>`.
+
 - Improved C++20 Modules and Coroutines support.
+
+- Option ``AfterOverloadedOperator`` has been added in ``SpaceBeforeParensOptions``
+  to allow space between overloaded operator and opening parentheses.
 
 libclang
 --------

@@ -128,17 +128,28 @@ StringRef Operator::getExtraClassDeclaration() const {
   return def.getValueAsString(attr);
 }
 
+StringRef Operator::getExtraClassDefinition() const {
+  constexpr auto attr = "extraClassDefinition";
+  if (def.isValueUnset(attr))
+    return {};
+  return def.getValueAsString(attr);
+}
+
 const llvm::Record &Operator::getDef() const { return def; }
 
 bool Operator::skipDefaultBuilders() const {
   return def.getValueAsBit("skipDefaultBuilders");
 }
 
-auto Operator::result_begin() -> value_iterator { return results.begin(); }
+auto Operator::result_begin() const -> const_value_iterator {
+  return results.begin();
+}
 
-auto Operator::result_end() -> value_iterator { return results.end(); }
+auto Operator::result_end() const -> const_value_iterator {
+  return results.end();
+}
 
-auto Operator::getResults() -> value_range {
+auto Operator::getResults() const -> const_value_range {
   return {result_begin(), result_end()};
 }
 
@@ -279,9 +290,13 @@ auto Operator::getAttributes() const
   return {attribute_begin(), attribute_end()};
 }
 
-auto Operator::operand_begin() -> value_iterator { return operands.begin(); }
-auto Operator::operand_end() -> value_iterator { return operands.end(); }
-auto Operator::getOperands() -> value_range {
+auto Operator::operand_begin() const -> const_value_iterator {
+  return operands.begin();
+}
+auto Operator::operand_end() const -> const_value_iterator {
+  return operands.end();
+}
+auto Operator::getOperands() const -> const_value_range {
   return {operand_begin(), operand_end()};
 }
 
@@ -346,10 +361,9 @@ void Operator::populateTypeInferenceInfo(
       if (getArg(*mi).is<NamedAttribute *>()) {
         // TODO: Handle attributes.
         continue;
-      } else {
-        resultTypeMapping[i].emplace_back(*mi);
-        found = true;
       }
+      resultTypeMapping[i].emplace_back(*mi);
+      found = true;
     }
     return found;
   };
@@ -598,7 +612,7 @@ auto Operator::getSameTypeAsResult(int index) const -> ArrayRef<ArgOrType> {
   return resultTypeMapping[index];
 }
 
-ArrayRef<llvm::SMLoc> Operator::getLoc() const { return def.getLoc(); }
+ArrayRef<SMLoc> Operator::getLoc() const { return def.getLoc(); }
 
 bool Operator::hasDescription() const {
   return def.getValue("description") != nullptr;

@@ -4555,7 +4555,8 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
       // to be changed from r2 > r1 to r1 < r2, from r2 < r1 to r1 > r2, etc.
       // We swap the condition code and synthesize the new opcode.
       ReplacementCC = getSwappedCondition(OldCC);
-      if (ReplacementCC == X86::COND_INVALID) return false;
+      if (ReplacementCC == X86::COND_INVALID)
+        return false;
       ShouldUpdateCC = true;
     } else if (ImmDelta != 0) {
       unsigned BitWidth = TRI->getRegSizeInBits(*MRI->getRegClass(SrcReg));
@@ -4623,7 +4624,7 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
 
   // If we have to update users but EFLAGS is live-out abort, since we cannot
   // easily find all of the users.
-  if (ShouldUpdateCC && FlagsMayLiveOut) {
+  if ((MI != nullptr || ShouldUpdateCC) && FlagsMayLiveOut) {
     for (MachineBasicBlock *Successor : CmpMBB.successors())
       if (Successor->isLiveIn(X86::EFLAGS))
         return false;
@@ -4944,7 +4945,7 @@ bool X86InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case X86::SETB_C64r:
     return Expand2AddrUndef(MIB, get(X86::SBB64rr));
   case X86::MMX_SET0:
-    return Expand2AddrUndef(MIB, get(X86::MMX_PXORirr));
+    return Expand2AddrUndef(MIB, get(X86::MMX_PXORrr));
   case X86::V_SET0:
   case X86::FsFLD0SS:
   case X86::FsFLD0SD:
@@ -5217,12 +5218,12 @@ static bool hasUndefRegUpdate(unsigned Opcode, unsigned OpNum,
                               bool ForLoadFold = false) {
   // Set the OpNum parameter to the first source operand.
   switch (Opcode) {
-  case X86::MMX_PUNPCKHBWirr:
-  case X86::MMX_PUNPCKHWDirr:
-  case X86::MMX_PUNPCKHDQirr:
-  case X86::MMX_PUNPCKLBWirr:
-  case X86::MMX_PUNPCKLWDirr:
-  case X86::MMX_PUNPCKLDQirr:
+  case X86::MMX_PUNPCKHBWrr:
+  case X86::MMX_PUNPCKHWDrr:
+  case X86::MMX_PUNPCKHDQrr:
+  case X86::MMX_PUNPCKLBWrr:
+  case X86::MMX_PUNPCKLWDrr:
+  case X86::MMX_PUNPCKLDQrr:
   case X86::MOVHLPSrr:
   case X86::PACKSSWBrr:
   case X86::PACKUSWBrr:

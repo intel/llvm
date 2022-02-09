@@ -67,6 +67,12 @@ add_header_library(
     SingleInputSingleOutputDiff.h
 )
 
+add_header_library(
+  binary_op_single_output_diff
+  HDRS
+    BinaryOpSingleOutputDiff.h
+)
+
 add_diff_binary(
   sinf_diff
   SRCS
@@ -228,6 +234,61 @@ add_diff_binary(
 )
 
 add_diff_binary(
+  log10f_perf
+  SRCS
+    log10f_perf.cpp
+  DEPENDS
+    .single_input_single_output_diff
+    libc.src.math.log10f
+  COMPILE_OPTIONS
+    -fno-builtin
+)
+
+add_diff_binary(
+  log2f_diff
+  SRCS
+    log2f_diff.cpp
+  DEPENDS
+    .single_input_single_output_diff
+    libc.src.math.log2f
+  COMPILE_OPTIONS
+    -fno-builtin
+)
+
+add_diff_binary(
+  log2f_perf
+  SRCS
+    log2f_perf.cpp
+  DEPENDS
+    .single_input_single_output_diff
+    libc.src.math.log2f
+  COMPILE_OPTIONS
+    -fno-builtin
+)
+
+add_diff_binary(
+  logf_diff
+  SRCS
+    logf_diff.cpp
+  DEPENDS
+    .single_input_single_output_diff
+    libc.src.math.logf
+  COMPILE_OPTIONS
+    -fno-builtin
+)
+
+add_diff_binary(
+  logf_perf
+  SRCS
+    logf_perf.cpp
+  DEPENDS
+    .single_input_single_output_diff
+    libc.src.math.logf
+  COMPILE_OPTIONS
+    -fno-builtin
+)
+
+add_diff_binary(
   logbf_diff
   SRCS
     logbf_diff.cpp
@@ -345,4 +406,28 @@ add_diff_binary(
     libc.src.math.truncf
   COMPILE_OPTIONS
     -fno-builtin
+)
+
+add_diff_binary(
+  hypotf_perf
+  SRCS
+    hypotf_perf.cpp
+  DEPENDS
+    .binary_op_single_output_diff
+    libc.src.math.hypotf
+  COMPILE_OPTIONS
+    -fno-builtin
+    -Wno-c++17-extensions
+)
+
+add_diff_binary(
+  hypot_perf
+  SRCS
+    hypot_perf.cpp
+  DEPENDS
+    .binary_op_single_output_diff
+    libc.src.math.hypot
+  COMPILE_OPTIONS
+    -fno-builtin
+    -Wno-c++17-extensions
 )

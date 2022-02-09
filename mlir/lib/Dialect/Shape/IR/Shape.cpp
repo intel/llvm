@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/Dialect/Shape/IR/Shape.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/CommonFolders.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Builders.h"
@@ -31,7 +32,7 @@ using namespace mlir::shape;
 
 namespace {
 #include "ShapeCanonicalization.inc"
-}
+} // namespace
 
 RankedTensorType shape::getExtentTensorType(MLIRContext *ctx, int64_t rank) {
   return RankedTensorType::get({rank}, IndexType::get(ctx));
@@ -50,16 +51,17 @@ LogicalResult shape::getShapeVec(Value input,
       return failure();
     shapeValues = llvm::to_vector<6>(type.getShape());
     return success();
-  } else if (auto inputOp = input.getDefiningOp<ConstShapeOp>()) {
+  }
+  if (auto inputOp = input.getDefiningOp<ConstShapeOp>()) {
     shapeValues = llvm::to_vector<6>(inputOp.getShape().getValues<int64_t>());
     return success();
-  } else if (auto inputOp = input.getDefiningOp<arith::ConstantOp>()) {
+  }
+  if (auto inputOp = input.getDefiningOp<arith::ConstantOp>()) {
     shapeValues = llvm::to_vector<6>(
         inputOp.getValue().cast<DenseIntElementsAttr>().getValues<int64_t>());
     return success();
-  } else {
-    return failure();
   }
+  return failure();
 }
 
 static bool isErrorPropagationPossible(TypeRange operandTypes) {
@@ -284,9 +286,9 @@ static void print(OpAsmPrinter &p, AssumingOp op) {
   bool yieldsResults = !op.getResults().empty();
 
   p << " " << op.getWitness();
-  if (yieldsResults) {
+  if (yieldsResults)
     p << " -> (" << op.getResultTypes() << ")";
-  }
+  p << ' ';
   p.printRegion(op.getDoRegion(),
                 /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/yieldsResults);
@@ -443,8 +445,8 @@ OpFoldResult mlir::shape::AddOp::fold(ArrayRef<Attribute> operands) {
   if (matchPattern(getRhs(), m_Zero()))
     return getLhs();
 
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a + b; });
+  return constFoldBinaryOp<IntegerAttr>(
+      operands, [](APInt a, const APInt &b) { return std::move(a) + b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1111,6 +1113,7 @@ void print(OpAsmPrinter &p, FunctionLibraryOp op) {
   p.printSymbolName(op.getName());
   p.printOptionalAttrDictWithKeyword(
       op->getAttrs(), {SymbolTable::getSymbolAttrName(), "mapping"});
+  p << ' ';
   p.printRegion(op.getOperation()->getRegion(0), /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/false);
   p << " mapping ";
@@ -1621,18 +1624,18 @@ void ReduceOp::build(OpBuilder &builder, OperationState &result, Value shape,
   Region *bodyRegion = result.addRegion();
   bodyRegion->push_back(new Block);
   Block &bodyBlock = bodyRegion->front();
-  bodyBlock.addArgument(builder.getIndexType());
+  bodyBlock.addArgument(builder.getIndexType(), result.location);
 
   Type elementType;
   if (auto tensorType = shape.getType().dyn_cast<TensorType>())
     elementType = tensorType.getElementType();
   else
     elementType = SizeType::get(builder.getContext());
-  bodyBlock.addArgument(elementType);
+  bodyBlock.addArgument(elementType, shape.getLoc());
 
-  for (Type initValType : initVals.getTypes()) {
-    bodyBlock.addArgument(initValType);
-    result.addTypes(initValType);
+  for (Value initVal : initVals) {
+    bodyBlock.addArgument(initVal.getType(), initVal.getLoc());
+    result.addTypes(initVal.getType());
   }
 }
 
@@ -1666,7 +1669,7 @@ static LogicalResult verify(ReduceOp op) {
           "ReduceOp operates on an extent tensor");
   }
 
-  for (auto type : llvm::enumerate(op.getInitVals()))
+  for (const auto &type : llvm::enumerate(op.getInitVals()))
     if (block.getArgument(type.index() + 2).getType() != type.value().getType())
       return op.emitOpError()
              << "type mismatch between argument " << type.index() + 2
@@ -1708,6 +1711,7 @@ static void print(OpAsmPrinter &p, ReduceOp op) {
   p << '(' << op.getShape() << ", " << op.getInitVals()
     << ") : " << op.getShape().getType();
   p.printOptionalArrowTypeList(op.getResultTypes());
+  p << ' ';
   p.printRegion(op.getRegion());
   p.printOptionalAttrDict(op->getAttrs());
 }

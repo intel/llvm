@@ -47,9 +47,6 @@ class DiagnosticsEngine;
 class LangOptions;
 class CodeGenOptions;
 class MacroBuilder;
-class QualType;
-class SourceLocation;
-class SourceManager;
 
 namespace Builtin { struct Info; }
 
@@ -215,6 +212,7 @@ protected:
   unsigned char RegParmMax, SSERegParmMax;
   TargetCXXABI TheCXXABI;
   const LangASMap *AddrSpaceMap;
+  unsigned ProgramAddrSpace;
 
   mutable StringRef PlatformName;
   mutable VersionTuple PlatformMinVersion;
@@ -582,9 +580,13 @@ public:
     return (getPointerWidth(0) >= 64) || getTargetOpts().ForceEnableInt128;
   } // FIXME
 
-  /// Determine whether the _ExtInt type is supported on this target. This
+  /// Determine whether the _BitInt type is supported on this target. This
   /// limitation is put into place for ABI reasons.
-  virtual bool hasExtIntType() const {
+  /// FIXME: _BitInt is a required type in C23, so there's not much utility in
+  /// asking whether the target supported it or not; I think this should be
+  /// removed once backends have been alerted to the type and have had the
+  /// chance to do implementation work if needed.
+  virtual bool hasBitIntType() const {
     return false;
   }
 
@@ -765,6 +767,9 @@ public:
   unsigned getIntMaxTWidth() const {
     return getTypeWidth(IntMaxType);
   }
+
+  /// Return the address space for functions for the given target.
+  unsigned getProgramAddressSpace() const { return ProgramAddrSpace; }
 
   // Return the size of unwind_word for this target.
   virtual unsigned getUnwindWordWidth() const { return getPointerWidth(0); }

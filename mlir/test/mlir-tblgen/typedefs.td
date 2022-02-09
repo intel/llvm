@@ -9,7 +9,7 @@ include "mlir/IR/OpBase.td"
 // DECL: namespace mlir {
 // DECL: class AsmParser;
 // DECL: class AsmPrinter;
-// DECL: } // end namespace mlir
+// DECL: } // namespace mlir
 
 // DEF: #ifdef GET_TYPEDEF_LIST
 // DEF: #undef GET_TYPEDEF_LIST
@@ -34,7 +34,6 @@ include "mlir/IR/OpBase.td"
 
 def Test_Dialect: Dialect {
 // DECL-NOT: TestDialect
-// DEF-NOT: TestDialect
     let name = "TestDialect";
     let cppNamespace = "::test";
 }

@@ -86,8 +86,10 @@ template <typename Group> bool GroupAny(bool pred) {
 }
 
 // Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
+// FIXME: Do not special-case for half once all backends support all data types.
 template <typename T>
-using is_native_broadcast = bool_constant<detail::is_arithmetic<T>::value>;
+using is_native_broadcast = bool_constant<detail::is_arithmetic<T>::value &&
+                                          !std::is_same<T, half>::value>;
 
 template <typename T, typename IdT = size_t>
 using EnableIfNativeBroadcast = detail::enable_if_t<
@@ -121,6 +123,13 @@ template <typename T, typename IdT = size_t>
 using EnableIfGenericBroadcast = detail::enable_if_t<
     is_generic_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
+// FIXME: Disable widening once all backends support all data types.
+template <typename T>
+using WidenOpenCLTypeTo32_t = conditional_t<
+    std::is_same<T, cl_char>() || std::is_same<T, cl_short>(), cl_int,
+    conditional_t<std::is_same<T, cl_uchar>() || std::is_same<T, cl_ushort>(),
+                  cl_uint, T>>;
+
 // Broadcast with scalar local index
 // Work-group supports any integral type
 // Sub-group currently supports only uint32_t
@@ -133,21 +142,17 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
   using GroupIdT = typename GroupId<Group>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
+  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
   using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  OCLT OCLX = detail::convertDataToType<T, OCLT>(x);
+  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
   OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
   return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
 }
 template <typename Group, typename T, typename IdT>
 EnableIfBitcastBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
-  using GroupIdT = typename GroupId<Group>::type;
-  GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
   auto BroadcastX = bit_cast<BroadcastT>(x);
-  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
-  BroadcastT Result =
-      __spirv_GroupBroadcast(group_scope<Group>::value, BroadcastX, OCLId);
+  BroadcastT Result = GroupBroadcast<Group>(BroadcastX, local_id);
   return bit_cast<T>(Result);
 }
 template <typename Group, typename T, typename IdT>
@@ -173,31 +178,21 @@ EnableIfNativeBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
   }
   using IdT = vec<size_t, Dimensions>;
   using OCLT = detail::ConvertToOpenCLType_t<T>;
+  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
   using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
   IdT VecId;
   for (int i = 0; i < Dimensions; ++i) {
     VecId[i] = local_id[Dimensions - i - 1];
   }
-  OCLT OCLX = detail::convertDataToType<T, OCLT>(x);
+  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
   OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
   return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
 }
 template <typename Group, typename T, int Dimensions>
 EnableIfBitcastBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
-  if (Dimensions == 1) {
-    return GroupBroadcast<Group>(x, local_id[0]);
-  }
-  using IdT = vec<size_t, Dimensions>;
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
-  IdT VecId;
-  for (int i = 0; i < Dimensions; ++i) {
-    VecId[i] = local_id[Dimensions - i - 1];
-  }
   auto BroadcastX = bit_cast<BroadcastT>(x);
-  OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
-  BroadcastT Result =
-      __spirv_GroupBroadcast(group_scope<Group>::value, BroadcastX, OCLId);
+  BroadcastT Result = GroupBroadcast<Group>(BroadcastX, local_id);
   return bit_cast<T>(Result);
 }
 template <typename Group, typename T, int Dimensions>
@@ -520,24 +515,22 @@ EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 #ifndef __NVPTX__
   using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleDownINTEL(
-      OCLT(x), OCLT(x), static_cast<uint32_t>(local_id.get(0)));
+  return __spirv_SubgroupShuffleDownINTEL(OCLT(x), OCLT(x), delta);
 #else
-  return __nvvm_shfl_sync_down_i32(membermask(), x, local_id.get(0), 0x1f);
+  return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
 #endif
 }
 
 template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 #ifndef __NVPTX__
   using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x),
-                                        static_cast<uint32_t>(local_id.get(0)));
+  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x), delta);
 #else
-  return __nvvm_shfl_sync_up_i32(membermask(), x, local_id.get(0), 0);
+  return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
 #endif
 }
 
@@ -561,19 +554,19 @@ EnableIfVectorShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfVectorShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+EnableIfVectorShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
-    result[s] = SubgroupShuffleDown(x[s], local_id);
+    result[s] = SubgroupShuffleDown(x[s], delta);
   }
   return result;
 }
 
 template <typename T>
-EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
-    result[s] = SubgroupShuffleUp(x[s], local_id);
+    result[s] = SubgroupShuffleUp(x[s], delta);
   }
   return result;
 }
@@ -631,29 +624,26 @@ EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
-  ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(
-      ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+  ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(ShuffleX, ShuffleX, delta);
 #else
   ShuffleT Result =
-      __nvvm_shfl_sync_down_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
+      __nvvm_shfl_sync_down_i32(membermask(), ShuffleX, delta, 0x1f);
 #endif
   return bit_cast<T>(Result);
 }
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
-  ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(
-      ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+  ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(ShuffleX, ShuffleX, delta);
 #else
-  ShuffleT Result =
-      __nvvm_shfl_sync_up_i32(membermask(), ShuffleX, local_id.get(0), 0);
+  ShuffleT Result = __nvvm_shfl_sync_up_i32(membermask(), ShuffleX, delta, 0);
 #endif
   return bit_cast<T>(Result);
 }
@@ -711,14 +701,14 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
     std::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleDown(ShuffleX, local_id);
+    ShuffleResult = SubgroupShuffleDown(ShuffleX, delta);
     std::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
@@ -726,14 +716,14 @@ EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
     std::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleUp(ShuffleX, local_id);
+    ShuffleResult = SubgroupShuffleUp(ShuffleX, delta);
     std::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);

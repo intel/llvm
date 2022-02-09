@@ -68,6 +68,8 @@ protected:
       Str << " declare float @llvm.vp.reduce." << ReductionOpcode
           << ".v8f32(float, <8 x float>, <8 x i1>, i32) ";
 
+    Str << " declare <8 x i32> @llvm.vp.merge.v8i32(<8 x i1>, <8 x i32>, <8 x "
+           "i32>, i32)";
     Str << " declare <8 x i32> @llvm.vp.select.v8i32(<8 x i1>, <8 x i32>, <8 x "
            "i32>, i32)";
     Str << " declare <8 x i32> @llvm.experimental.vp.splice.v8i32(<8 x "
@@ -272,7 +274,7 @@ TEST_F(VPIntrinsicTest, VPIntrinsicDeclarationForParams) {
 
     ASSERT_NE(F.getIntrinsicID(), Intrinsic::not_intrinsic);
     auto *NewDecl = VPIntrinsic::getDeclarationForParams(
-        OutM.get(), F.getIntrinsicID(), Values);
+        OutM.get(), F.getIntrinsicID(), FuncTy->getReturnType(), Values);
     ASSERT_TRUE(NewDecl);
 
     // Check that 'old decl' == 'new decl'.

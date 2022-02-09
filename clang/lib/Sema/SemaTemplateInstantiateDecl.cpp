@@ -643,6 +643,37 @@ static void instantiateIntelFPGABankBitsAttr(
   S.AddIntelFPGABankBitsAttr(New, *Attr, Args.data(), Args.size());
 }
 
+static void
+instantiateSYCLDeviceHasAttr(Sema &S,
+                             const MultiLevelTemplateArgumentList &TemplateArgs,
+                             const SYCLDeviceHasAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 8> Args;
+  for (auto I : Attr->aspects()) {
+    ExprResult Result = S.SubstExpr(I, TemplateArgs);
+    if (Result.isInvalid())
+      return;
+    Args.push_back(Result.getAs<Expr>());
+  }
+  S.AddSYCLDeviceHasAttr(New, *Attr, Args.data(), Args.size());
+}
+
+static void instantiateSYCLUsesAspectsAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLUsesAspectsAttr *Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  SmallVector<Expr *, 8> Args;
+  for (auto I : Attr->aspects()) {
+    ExprResult Result = S.SubstExpr(I, TemplateArgs);
+    if (Result.isInvalid())
+      return;
+    Args.push_back(Result.getAs<Expr>());
+  }
+  S.AddSYCLUsesAspectsAttr(New, *Attr, Args.data(), Args.size());
+}
+
 static void instantiateSYCLIntelPipeIOAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelPipeIOAttr *Attr, Decl *New) {
@@ -781,6 +812,25 @@ static void instantiateWorkGroupSizeHintAttr(
 
   S.AddWorkGroupSizeHintAttr(New, *A, XResult.get(), YResult.get(),
                              ZResult.get());
+}
+
+static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelMaxWorkGroupSizeAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
+  if (XResult.isInvalid())
+    return;
+  ExprResult YResult = S.SubstExpr(A->getYDim(), TemplateArgs);
+  if (YResult.isInvalid())
+    return;
+  ExprResult ZResult = S.SubstExpr(A->getZDim(), TemplateArgs);
+  if (ZResult.isInvalid())
+    return;
+
+  S.AddSYCLIntelMaxWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
+                                     ZResult.get());
 }
 
 // This doesn't take any template parameters, but we have a custom action that
@@ -1014,8 +1064,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *SYCLIntelMaxWorkGroupSize =
             dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateIntelSYCTripleLFunctionAttr<SYCLIntelMaxWorkGroupSizeAttr>(
-          *this, TemplateArgs, SYCLIntelMaxWorkGroupSize, New);
+      instantiateSYCLIntelMaxWorkGroupSizeAttr(*this, TemplateArgs,
+                                               SYCLIntelMaxWorkGroupSize, New);
       continue;
     }
     if (const auto *SYCLIntelMaxConcurrency =
@@ -1037,6 +1087,14 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {
       instantiateWorkGroupSizeHintAttr(*this, TemplateArgs, A, New);
+      continue;
+    }
+    if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(TmplAttr)) {
+      instantiateSYCLDeviceHasAttr(*this, TemplateArgs, A, New);
+      continue;
+    }
+    if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(TmplAttr)) {
+      instantiateSYCLUsesAspectsAttr(*this, TemplateArgs, A, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.
@@ -3956,7 +4014,7 @@ TemplateDeclInstantiator::VisitClassTemplateSpecializationDecl(
                                         InstTemplateArgs,
                                         false,
                                         Converted,
-                                        /*UpdateArgsWithConversion=*/true))
+                                        /*UpdateArgsWithConversions=*/true))
     return nullptr;
 
   // Figure out where to insert this class template explicit specialization
@@ -4078,7 +4136,7 @@ Decl *TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
   SmallVector<TemplateArgument, 4> Converted;
   if (SemaRef.CheckTemplateArgumentList(InstVarTemplate, D->getLocation(),
                                         VarTemplateArgsInfo, false, Converted,
-                                        /*UpdateArgsWithConversion=*/true))
+                                        /*UpdateArgsWithConversions=*/true))
     return nullptr;
 
   // Check whether we've already seen a declaration of this specialization.
@@ -5678,10 +5736,6 @@ void Sema::InstantiateVariableInitializer(
 
   if (getLangOpts().CUDA)
     checkAllowedCUDAInitializer(Var);
-
-  if (getLangOpts().SYCLIsDevice && !checkAllowedSYCLInitializer(Var))
-    SYCLDiagIfDeviceCode(Var->getLocation(), diag::err_sycl_restrict)
-        << Sema::KernelConstStaticVariable;
 }
 
 /// Instantiate the definition of the given variable from its

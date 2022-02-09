@@ -26,7 +26,9 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
@@ -40,6 +42,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/ProfileData/InstrProf.h"
+#include "llvm/ProfileData/InstrProfCorrelator.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -56,6 +59,13 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "instrprof"
+
+namespace llvm {
+cl::opt<bool>
+    DebugInfoCorrelate("debug-info-correlate", cl::ZeroOrMore,
+                       cl::desc("Use debug info to correlate profiles."),
+                       cl::init(false));
+} // namespace llvm
 
 namespace {
 
@@ -238,8 +248,7 @@ public:
   PGOCounterPromoter(
       DenseMap<Loop *, SmallVector<LoadStorePair, 8>> &LoopToCands,
       Loop &CurLoop, LoopInfo &LI, BlockFrequencyInfo *BFI)
-      : LoopToCandidates(LoopToCands), ExitBlocks(), InsertPts(), L(CurLoop),
-        LI(LI), BFI(BFI) {
+      : LoopToCandidates(LoopToCands), L(CurLoop), LI(LI), BFI(BFI) {
 
     // Skip collection of ExitBlocks and InsertPts for loops that will not be
     // able to have counters promoted.
@@ -436,24 +445,19 @@ llvm::createInstrProfilingLegacyPass(const InstrProfOptions &Options,
   return new InstrProfilingLegacyPass(Options, IsCS);
 }
 
-static InstrProfIncrementInst *castToIncrementInst(Instruction *Instr) {
-  InstrProfIncrementInst *Inc = dyn_cast<InstrProfIncrementInstStep>(Instr);
-  if (Inc)
-    return Inc;
-  return dyn_cast<InstrProfIncrementInst>(Instr);
-}
-
 bool InstrProfiling::lowerIntrinsics(Function *F) {
   bool MadeChange = false;
   PromotionCandidates.clear();
   for (BasicBlock &BB : *F) {
     for (Instruction &Instr : llvm::make_early_inc_range(BB)) {
-      InstrProfIncrementInst *Inc = castToIncrementInst(&Instr);
-      if (Inc) {
-        lowerIncrement(Inc);
+      if (auto *IPIS = dyn_cast<InstrProfIncrementInstStep>(&Instr)) {
+        lowerIncrement(IPIS);
         MadeChange = true;
-      } else if (auto *Ind = dyn_cast<InstrProfValueProfileInst>(&Instr)) {
-        lowerValueProfileInst(Ind);
+      } else if (auto *IPI = dyn_cast<InstrProfIncrementInst>(&Instr)) {
+        lowerIncrement(IPI);
+        MadeChange = true;
+      } else if (auto *IPVP = dyn_cast<InstrProfValueProfileInst>(&Instr)) {
+        lowerValueProfileInst(IPVP);
         MadeChange = true;
       }
     }
@@ -530,19 +534,14 @@ static bool needsRuntimeHookUnconditionally(const Triple &TT) {
 
 /// Check if the module contains uses of any profiling intrinsics.
 static bool containsProfilingIntrinsics(Module &M) {
-  if (auto *F = M.getFunction(
-          Intrinsic::getName(llvm::Intrinsic::instrprof_increment)))
-    if (!F->use_empty())
-      return true;
-  if (auto *F = M.getFunction(
-          Intrinsic::getName(llvm::Intrinsic::instrprof_increment_step)))
-    if (!F->use_empty())
-      return true;
-  if (auto *F = M.getFunction(
-          Intrinsic::getName(llvm::Intrinsic::instrprof_value_profile)))
-    if (!F->use_empty())
-      return true;
-  return false;
+  auto containsIntrinsic = [&](int ID) {
+    if (auto *F = M.getFunction(Intrinsic::getName(ID)))
+      return !F->use_empty();
+    return false;
+  };
+  return containsIntrinsic(llvm::Intrinsic::instrprof_increment) ||
+         containsIntrinsic(llvm::Intrinsic::instrprof_increment_step) ||
+         containsIntrinsic(llvm::Intrinsic::instrprof_value_profile);
 }
 
 bool InstrProfiling::run(
@@ -641,6 +640,12 @@ void InstrProfiling::computeNumValueSiteCounts(InstrProfValueProfileInst *Ind) {
 }
 
 void InstrProfiling::lowerValueProfileInst(InstrProfValueProfileInst *Ind) {
+  // TODO: Value profiling heavily depends on the data section which is omitted
+  // in lightweight mode. We need to move the value profile pointer to the
+  // Counter struct to get this working.
+  assert(
+      !DebugInfoCorrelate &&
+      "Value profiling is not yet supported with lightweight instrumentation");
   GlobalVariable *Name = Ind->getName();
   auto It = ProfileDataMap.find(Name);
   assert(It != ProfileDataMap.end() && It->second.DataVar &&
@@ -755,7 +760,7 @@ void InstrProfiling::lowerCoverageData(GlobalVariable *CoverageNamesVar) {
 }
 
 /// Get the name of a profiling variable for a particular function.
-static std::string getVarName(InstrProfIncrementInst *Inc, StringRef Prefix,
+static std::string getVarName(InstrProfInstBase *Inc, StringRef Prefix,
                               bool &Renamed) {
   StringRef NamePrefix = getInstrProfNameVarPrefix();
   StringRef Name = Inc->getName()->getName().substr(NamePrefix.size());
@@ -844,7 +849,7 @@ static bool needsRuntimeRegistrationOfSectionRange(const Triple &TT) {
 }
 
 GlobalVariable *
-InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
+InstrProfiling::getOrCreateRegionCounters(InstrProfInstBase *Inc) {
   GlobalVariable *NamePtr = Inc->getName();
   auto &PD = ProfileDataMap[NamePtr];
   if (PD.RegionCounters)
@@ -854,6 +859,12 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
   Function *Fn = Inc->getParent()->getParent();
   GlobalValue::LinkageTypes Linkage = NamePtr->getLinkage();
   GlobalValue::VisibilityTypes Visibility = NamePtr->getVisibility();
+
+  // Use internal rather than private linkage so the counter variable shows up
+  // in the symbol table when using debug info for correlation.
+  if (DebugInfoCorrelate && TT.isOSBinFormatMachO() &&
+      Linkage == GlobalValue::PrivateLinkage)
+    Linkage = GlobalValue::InternalLinkage;
 
   // Due to the limitation of binder as of 2021/09/28, the duplicate weak
   // symbols in the same csect won't be discarded. When there are duplicate weak
@@ -916,6 +927,42 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
   MaybeSetComdat(CounterPtr);
   CounterPtr->setLinkage(Linkage);
   PD.RegionCounters = CounterPtr;
+  if (DebugInfoCorrelate) {
+    if (auto *SP = Fn->getSubprogram()) {
+      DIBuilder DB(*M, true, SP->getUnit());
+      Metadata *FunctionNameAnnotation[] = {
+          MDString::get(Ctx, InstrProfCorrelator::FunctionNameAttributeName),
+          MDString::get(Ctx, getPGOFuncNameVarInitializer(NamePtr)),
+      };
+      Metadata *CFGHashAnnotation[] = {
+          MDString::get(Ctx, InstrProfCorrelator::CFGHashAttributeName),
+          ConstantAsMetadata::get(Inc->getHash()),
+      };
+      Metadata *NumCountersAnnotation[] = {
+          MDString::get(Ctx, InstrProfCorrelator::NumCountersAttributeName),
+          ConstantAsMetadata::get(Inc->getNumCounters()),
+      };
+      auto Annotations = DB.getOrCreateArray({
+          MDNode::get(Ctx, FunctionNameAnnotation),
+          MDNode::get(Ctx, CFGHashAnnotation),
+          MDNode::get(Ctx, NumCountersAnnotation),
+      });
+      auto *DICounter = DB.createGlobalVariableExpression(
+          SP, CounterPtr->getName(), /*LinkageName=*/StringRef(), SP->getFile(),
+          /*LineNo=*/0, DB.createUnspecifiedType("Profile Data Type"),
+          CounterPtr->hasLocalLinkage(), /*IsDefined=*/true, /*Expr=*/nullptr,
+          /*Decl=*/nullptr, /*TemplateParams=*/nullptr, /*AlignInBits=*/0,
+          Annotations);
+      CounterPtr->addDebugInfo(DICounter);
+      DB.finalize();
+    } else {
+      std::string Msg = ("Missing debug info for function " + Fn->getName() +
+                         "; required for profile correlation.")
+                            .str();
+      Ctx.diagnose(
+          DiagnosticInfoPGOProfile(M->getName().data(), Msg, DS_Warning));
+    }
+  }
 
   auto *Int8PtrTy = Type::getInt8PtrTy(Ctx);
   // Allocate statically the array of pointers to value profile nodes for
@@ -937,6 +984,12 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
     MaybeSetComdat(ValuesVar);
     ValuesPtrExpr =
         ConstantExpr::getBitCast(ValuesVar, Type::getInt8PtrTy(Ctx));
+  }
+
+  if (DebugInfoCorrelate) {
+    // Mark the counter variable as used so that it isn't optimized out.
+    CompilerUsedVars.push_back(PD.RegionCounters);
+    return PD.RegionCounters;
   }
 
   // Create data variable.

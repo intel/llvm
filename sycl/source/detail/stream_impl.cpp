@@ -18,8 +18,14 @@ namespace detail {
 
 stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
                          handler &CGH)
-    : BufferSize_(BufferSize), MaxStatementSize_(MaxStatementSize) {
+    : stream_impl(BufferSize, MaxStatementSize, {}) {
   (void)CGH;
+}
+
+stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
+                         const property_list &PropList)
+    : BufferSize_(BufferSize), MaxStatementSize_(MaxStatementSize),
+      PropList_(PropList) {
   // We need to store stream buffers in the scheduler because they need to be
   // alive after submitting the kernel. They cannot be stored in the stream
   // object because it causes loop dependency between objects and results in

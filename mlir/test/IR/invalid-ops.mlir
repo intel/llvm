@@ -1,13 +1,5 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
 
-func @rank(f32) {
-^bb(%0: f32):
-  "std.rank"(%0): (f32)->index // expected-error {{'std.rank' op operand #0 must be any memref or tensor type}}
-
-  return
-}
-
-// -----
 func @affine_apply_no_map() {
 ^bb0:
   %i = arith.constant 0 : index
@@ -133,97 +125,5 @@ func @invalid_splat(%v : vector<8xf32>) {
 func @invalid_splat(%v : f32) { // expected-note {{prior use here}}
   splat %v : vector<8xf64>
   // expected-error@-1 {{expects different type than prior uses}}
-  return
-}
-
-// -----
-
-func @atomic_rmw_idxs_rank_mismatch(%I: memref<16x10xf32>, %i : index, %val : f32) {
-  // expected-error@+1 {{expects the number of subscripts to be equal to memref rank}}
-  %x = atomic_rmw addf %val, %I[%i] : (f32, memref<16x10xf32>) -> f32
-  return
-}
-
-// -----
-
-func @atomic_rmw_expects_float(%I: memref<16x10xi32>, %i : index, %val : i32) {
-  // expected-error@+1 {{expects a floating-point type}}
-  %x = atomic_rmw addf %val, %I[%i, %i] : (i32, memref<16x10xi32>) -> i32
-  return
-}
-
-// -----
-
-func @atomic_rmw_expects_int(%I: memref<16x10xf32>, %i : index, %val : f32) {
-  // expected-error@+1 {{expects an integer type}}
-  %x = atomic_rmw addi %val, %I[%i, %i] : (f32, memref<16x10xf32>) -> f32
-  return
-}
-
-// -----
-
-func @generic_atomic_rmw_wrong_arg_num(%I: memref<10xf32>, %i : index) {
-  // expected-error@+1 {{expected single number of entry block arguments}}
-  %x = generic_atomic_rmw %I[%i] : memref<10xf32> {
-    ^bb0(%arg0 : f32, %arg1 : f32):
-      %c1 = arith.constant 1.0 : f32
-      atomic_yield %c1 : f32
-  }
-  return
-}
-
-// -----
-
-func @generic_atomic_rmw_wrong_arg_type(%I: memref<10xf32>, %i : index) {
-  // expected-error@+1 {{expected block argument of the same type result type}}
-  %x = generic_atomic_rmw %I[%i] : memref<10xf32> {
-    ^bb0(%old_value : i32):
-      %c1 = arith.constant 1.0 : f32
-      atomic_yield %c1 : f32
-  }
-  return
-}
-
-// -----
-
-func @generic_atomic_rmw_result_type_mismatch(%I: memref<10xf32>, %i : index) {
- // expected-error@+1 {{failed to verify that result type matches element type of memref}}
- %0 = "std.generic_atomic_rmw"(%I, %i) ( {
-    ^bb0(%old_value: f32):
-      %c1 = arith.constant 1.0 : f32
-      atomic_yield %c1 : f32
-    }) : (memref<10xf32>, index) -> i32
-  return
-}
-
-// -----
-
-func @generic_atomic_rmw_has_side_effects(%I: memref<10xf32>, %i : index) {
-  // expected-error@+4 {{should contain only operations with no side effects}}
-  %x = generic_atomic_rmw %I[%i] : memref<10xf32> {
-    ^bb0(%old_value : f32):
-      %c1 = arith.constant 1.0 : f32
-      %buf = memref.alloc() : memref<2048xf32>
-      atomic_yield %c1 : f32
-  }
-}
-
-// -----
-
-func @atomic_yield_type_mismatch(%I: memref<10xf32>, %i : index) {
-  // expected-error@+4 {{op types mismatch between yield op: 'i32' and its parent: 'f32'}}
-  %x = generic_atomic_rmw %I[%i] : memref<10xf32> {
-    ^bb0(%old_value : f32):
-      %c1 = arith.constant 1 : i32
-      atomic_yield %c1 : i32
-  }
-  return
-}
-
-// -----
-
-func @no_zero_bit_integer_attrs() {
-  // expected-error @+1 {{integer constant out of range for attribute}}
-  %x = "some.op"(){value = 0 : i0} : () -> f32
   return
 }

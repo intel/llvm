@@ -215,7 +215,7 @@ ArrayAttr mlir::getReassociationIndicesAttribute(
     OpBuilder &b, ArrayRef<ReassociationIndices> reassociation) {
   SmallVector<Attribute, 4> reassociationAttr =
       llvm::to_vector<4>(llvm::map_range(
-          reassociation, [&](ReassociationIndices indices) -> Attribute {
+          reassociation, [&](const ReassociationIndices &indices) -> Attribute {
             return b.getI64ArrayAttr(indices).cast<Attribute>();
           }));
   return b.getArrayAttr(reassociationAttr);
@@ -253,7 +253,7 @@ bool mlir::isReassociationValid(ArrayRef<AffineMap> reassociation,
     return true;
   unsigned nDims = reassociation[0].getNumDims();
   unsigned nextExpectedDim = 0;
-  for (auto it : llvm::enumerate(reassociation)) {
+  for (const auto &it : llvm::enumerate(reassociation)) {
     auto m = it.value();
     if (m.getNumDims() != nDims || m.getNumSymbols() != 0) {
       if (invalidIndex)
@@ -275,4 +275,46 @@ bool mlir::isReassociationValid(ArrayRef<AffineMap> reassociation,
     return false;
   }
   return true;
+}
+
+LogicalResult mlir::reshapeLikeShapesAreCompatible(
+    function_ref<LogicalResult(const Twine &)> emitError,
+    ArrayRef<int64_t> collapsedShape, ArrayRef<int64_t> expandedShape,
+    ArrayRef<ReassociationIndices> reassociationMaps, bool isExpandingReshape) {
+  unsigned expandedDimStart = 0;
+  for (const auto &map : llvm::enumerate(reassociationMaps)) {
+    Optional<int64_t> dynamicShape;
+    int64_t linearizedStaticShape = 1;
+    for (const auto &dim : llvm::enumerate(
+             expandedShape.slice(expandedDimStart, map.value().size()))) {
+      if (ShapedType::isDynamic(dim.value())) {
+        if (isExpandingReshape && dynamicShape) {
+          return emitError("invalid to have a single dimension (" +
+                           Twine(map.index()) +
+                           ") expanded into multiple dynamic dims (" +
+                           Twine(expandedDimStart + dynamicShape.getValue()) +
+                           "," + Twine(expandedDimStart + dim.index()) + ")");
+        }
+        dynamicShape = dim.index();
+      } else {
+        linearizedStaticShape *= dim.value();
+      }
+    }
+    if (dynamicShape) {
+      if (!ShapedType::isDynamic(collapsedShape[map.index()])) {
+        return emitError(
+            "expected dimension " + Twine(map.index()) +
+            " of collapsed type to be dynamic since one or more of the "
+            "corresponding dimensions in the expanded type is dynamic");
+      }
+    } else {
+      if (collapsedShape[map.index()] != linearizedStaticShape) {
+        return emitError("expected dimension " + Twine(map.index()) +
+                         " of collapsed type to be static value of " +
+                         Twine(linearizedStaticShape));
+      }
+    }
+    expandedDimStart += map.value().size();
+  }
+  return success();
 }

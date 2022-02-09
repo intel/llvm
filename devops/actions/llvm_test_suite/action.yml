@@ -1,0 +1,109 @@
+name: 'Run llvm-test-suite testing'
+description: 'Run E2E SYCL tests from llvm-test-suite'
+inputs:
+  test_ref:
+    description: 'commit-ish identifier for test repo'
+    required: true
+    default: 'intel'
+  sycl_artifact:
+    description: 'Name of the artifact, that contains compiler toolchain'
+    required: true
+  sycl_archive:
+    description: 'Name of SYCL toolchain archive file'
+    required: false
+    default: 'llvm_sycl.tar.xz'
+  lit_artifact:
+    description: 'Name of the artifact, that contains LIT tool'
+    required: true
+  lit_archive:
+    description: 'Name of LIT archive file'
+    required: false
+    default: 'lit.tar.xz'
+  results_name_suffix:
+    description: 'Name suffix of the results artifact'
+    required: true
+  check_sycl_all:
+    description: 'List of SYCL backends with set of target devices per each to be tested iteratively'
+    required: true
+  cmake_args:
+    description: 'Extra arguments to cmake command'
+    required: false
+
+post-if: false
+runs:
+  using: "composite"
+  steps:
+  - run: cp -r /actions .
+    shell: bash
+  - name: Checkout LLVM Test Suite
+    uses: ./actions/cached_checkout
+    with:
+      path: llvm_test_suite
+      repository: 'intel/llvm-test-suite'
+      ref: ${{ inputs.test_ref }}
+      default_branch: 'intel'
+      cache_path: "/__w/repo_cache/"
+  - name: Download compiler toolchain
+    uses: actions/download-artifact@v2
+    with:
+      name: ${{ inputs.sycl_artifact }}
+  - name: Extract SYCL toolchain
+    shell: bash
+    run: |
+      mkdir toolchain
+      tar -xf ${{ inputs.sycl_archive }} -C toolchain
+      rm -f ${{ inputs.sycl_archive }}
+  - name: Download LIT
+    uses: actions/download-artifact@v2
+    with:
+      name: ${{ inputs.lit_artifact }}
+  - name: Extract LIT
+    shell: bash
+    run: |
+      mkdir lit
+      ls -la
+      tar -xf ${{ inputs.lit_archive }} -C lit
+      rm -f ${{ inputs.lit_archive }}
+  - name: Configure
+    shell: bash
+    run: |
+      echo "::group::CMake configuration"
+      mkdir build
+      export PATH=$PWD/toolchain/bin/:$PATH
+      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
+      echo "::endgroup::"
+  - name: Run testing
+    shell: bash
+    run: |
+      export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
+      export PATH=$PWD/toolchain/bin/:$PATH
+      # TODO make this part of container build
+      export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
+      export LIT_OPTS="-v --no-progress-bar --show-unsupported --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
+      if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
+        source /runtimes/oneapi-tbb/env/vars.sh;
+      fi
+      echo "::group::sycl-ls --verbose"
+      sycl-ls --verbose
+      echo "::endgroup::"
+      echo "::group::SYCL_PI_TRACE=-1 sycl-ls"
+      echo $LD_LIBRARY_PATH
+      ldd $PWD/toolchain/lib/libpi_hip.so
+      SYCL_PI_TRACE=-1 sycl-ls
+      echo "::endgroup::"
+      cd build
+      ninja check-sycl-all
+  - name: Upload test results
+    uses: actions/upload-artifact@v1
+    if: always()
+    with:
+      name: lit_results
+      path: build/results_${{ inputs.results_name_suffix }}.json
+  - name: Cleanup
+    shell: bash
+    if: always()
+    run: |
+      rm -rf toolchain
+      rm -rf lit
+      rm -rf build
+      rm -rf llvm_test_suite

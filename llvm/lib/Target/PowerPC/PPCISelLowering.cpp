@@ -2433,7 +2433,7 @@ unsigned PPC::getSplatIdxForPPCMnemonics(SDNode *N, unsigned EltSize,
 /// the constant being splatted.  The ByteSize field indicates the number of
 /// bytes of each element [124] -> [bhw].
 SDValue PPC::get_VSPLTI_elt(SDNode *N, unsigned ByteSize, SelectionDAG &DAG) {
-  SDValue OpVal(nullptr, 0);
+  SDValue OpVal;
 
   // If ByteSize of the splat is bigger than the element size of the
   // build_vector, then we have a case where we are checking for a splat where
@@ -3500,15 +3500,17 @@ SDValue PPCTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
     if (LHS.getValueType() == MVT::v2i64) {
       // Equality can be handled by casting to the legal type for Altivec
       // comparisons, everything else needs to be expanded.
-      if (CC == ISD::SETEQ || CC == ISD::SETNE) {
-        return DAG.getNode(
-            ISD::BITCAST, dl, MVT::v2i64,
-            DAG.getSetCC(dl, MVT::v4i32,
-                         DAG.getNode(ISD::BITCAST, dl, MVT::v4i32, LHS),
-                         DAG.getNode(ISD::BITCAST, dl, MVT::v4i32, RHS), CC));
-      }
-
-      return SDValue();
+      if (CC != ISD::SETEQ && CC != ISD::SETNE)
+        return SDValue();
+      SDValue SetCC32 = DAG.getSetCC(
+          dl, MVT::v4i32, DAG.getNode(ISD::BITCAST, dl, MVT::v4i32, LHS),
+          DAG.getNode(ISD::BITCAST, dl, MVT::v4i32, RHS), CC);
+      int ShuffV[] = {1, 0, 3, 2};
+      SDValue Shuff =
+          DAG.getVectorShuffle(MVT::v4i32, dl, SetCC32, SetCC32, ShuffV);
+      return DAG.getBitcast(MVT::v2i64,
+                            DAG.getNode(CC == ISD::SETEQ ? ISD::AND : ISD::OR,
+                                        dl, MVT::v4i32, Shuff, SetCC32));
     }
 
     // We handle most of these in the usual way.
@@ -4077,8 +4079,8 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
       // virtual ones.
       if (VA.getLocVT() == MVT::f64 && Subtarget.hasSPE()) {
         assert(i + 1 < e && "No second half of double precision argument");
-        unsigned RegLo = MF.addLiveIn(VA.getLocReg(), RC);
-        unsigned RegHi = MF.addLiveIn(ArgLocs[++i].getLocReg(), RC);
+        Register RegLo = MF.addLiveIn(VA.getLocReg(), RC);
+        Register RegHi = MF.addLiveIn(ArgLocs[++i].getLocReg(), RC);
         SDValue ArgValueLo = DAG.getCopyFromReg(Chain, dl, RegLo, MVT::i32);
         SDValue ArgValueHi = DAG.getCopyFromReg(Chain, dl, RegHi, MVT::i32);
         if (!Subtarget.isLittleEndian())
@@ -4086,7 +4088,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
         ArgValue = DAG.getNode(PPCISD::BUILD_SPE64, dl, MVT::f64, ArgValueLo,
                                ArgValueHi);
       } else {
-        unsigned Reg = MF.addLiveIn(VA.getLocReg(), RC);
+        Register Reg = MF.addLiveIn(VA.getLocReg(), RC);
         ArgValue = DAG.getCopyFromReg(Chain, dl, Reg,
                                       ValVT == MVT::i1 ? MVT::i32 : ValVT);
         if (ValVT == MVT::i1)
@@ -4178,7 +4180,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
     // dereferencing the result of va_next.
     for (unsigned GPRIndex = 0; GPRIndex != NumGPArgRegs; ++GPRIndex) {
       // Get an existing live-in vreg, or add a new one.
-      unsigned VReg = MF.getRegInfo().getLiveInVirtReg(GPArgRegs[GPRIndex]);
+      Register VReg = MF.getRegInfo().getLiveInVirtReg(GPArgRegs[GPRIndex]);
       if (!VReg)
         VReg = MF.addLiveIn(GPArgRegs[GPRIndex], &PPC::GPRCRegClass);
 
@@ -4197,7 +4199,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
     // on the stack.
     for (unsigned FPRIndex = 0; FPRIndex != NumFPArgRegs; ++FPRIndex) {
       // Get an existing live-in vreg, or add a new one.
-      unsigned VReg = MF.getRegInfo().getLiveInVirtReg(FPArgRegs[FPRIndex]);
+      Register VReg = MF.getRegInfo().getLiveInVirtReg(FPArgRegs[FPRIndex]);
       if (!VReg)
         VReg = MF.addLiveIn(FPArgRegs[FPRIndex], &PPC::F8RCRegClass);
 
@@ -4383,7 +4385,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
         InVals.push_back(Arg);
 
         if (GPR_idx != Num_GPR_Regs) {
-          unsigned VReg = MF.addLiveIn(GPR[GPR_idx++], &PPC::G8RCRegClass);
+          Register VReg = MF.addLiveIn(GPR[GPR_idx++], &PPC::G8RCRegClass);
           FuncInfo->addLiveInAttr(VReg, Flags);
           SDValue Val = DAG.getCopyFromReg(Chain, dl, VReg, PtrVT);
           EVT ObjType = EVT::getIntegerVT(*DAG.getContext(), ObjSize * 8);
@@ -4407,7 +4409,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
         if (GPR_idx == Num_GPR_Regs)
           break;
 
-        unsigned VReg = MF.addLiveIn(GPR[GPR_idx], &PPC::G8RCRegClass);
+        Register VReg = MF.addLiveIn(GPR[GPR_idx], &PPC::G8RCRegClass);
         FuncInfo->addLiveInAttr(VReg, Flags);
         SDValue Val = DAG.getCopyFromReg(Chain, dl, VReg, PtrVT);
         SDValue Addr = FIN;
@@ -4431,7 +4433,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
     case MVT::i64:
       if (Flags.isNest()) {
         // The 'nest' parameter, if any, is passed in R11.
-        unsigned VReg = MF.addLiveIn(PPC::X11, &PPC::G8RCRegClass);
+        Register VReg = MF.addLiveIn(PPC::X11, &PPC::G8RCRegClass);
         ArgVal = DAG.getCopyFromReg(Chain, dl, VReg, MVT::i64);
 
         if (ObjectVT == MVT::i32 || ObjectVT == MVT::i1)
@@ -4444,7 +4446,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
       // passed directly.  Clang may use those instead of "byval" aggregate
       // types to avoid forcing arguments to memory unnecessarily.
       if (GPR_idx != Num_GPR_Regs) {
-        unsigned VReg = MF.addLiveIn(GPR[GPR_idx++], &PPC::G8RCRegClass);
+        Register VReg = MF.addLiveIn(GPR[GPR_idx++], &PPC::G8RCRegClass);
         FuncInfo->addLiveInAttr(VReg, Flags);
         ArgVal = DAG.getCopyFromReg(Chain, dl, VReg, MVT::i64);
 
@@ -4490,7 +4492,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
         // This can only ever happen in the presence of f32 array types,
         // since otherwise we never run out of FPRs before running out
         // of GPRs.
-        unsigned VReg = MF.addLiveIn(GPR[GPR_idx++], &PPC::G8RCRegClass);
+        Register VReg = MF.addLiveIn(GPR[GPR_idx++], &PPC::G8RCRegClass);
         FuncInfo->addLiveInAttr(VReg, Flags);
         ArgVal = DAG.getCopyFromReg(Chain, dl, VReg, MVT::i64);
 
@@ -4531,7 +4533,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
       // passed directly.  The latter are used to implement ELFv2 homogenous
       // vector aggregates.
       if (VR_idx != Num_VR_Regs) {
-        unsigned VReg = MF.addLiveIn(VR[VR_idx], &PPC::VRRCRegClass);
+        Register VReg = MF.addLiveIn(VR[VR_idx], &PPC::VRRCRegClass);
         ArgVal = DAG.getCopyFromReg(Chain, dl, VReg, ObjectVT);
         ++VR_idx;
       } else {
@@ -4590,7 +4592,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
     // the result of va_next.
     for (GPR_idx = (ArgOffset - LinkageSize) / PtrByteSize;
          GPR_idx < Num_GPR_Regs; ++GPR_idx) {
-      unsigned VReg = MF.addLiveIn(GPR[GPR_idx], &PPC::G8RCRegClass);
+      Register VReg = MF.addLiveIn(GPR[GPR_idx], &PPC::G8RCRegClass);
       SDValue Val = DAG.getCopyFromReg(Chain, dl, VReg, PtrVT);
       SDValue Store =
           DAG.getStore(Val.getValue(1), dl, Val, FIN, MachinePointerInfo());
@@ -6206,20 +6208,13 @@ SDValue PPCTargetLowering::LowerCall_64SVR4(
         ArgOffset += PtrByteSize;
         continue;
       }
-      // Copy entire object into memory.  There are cases where gcc-generated
-      // code assumes it is there, even if it could be put entirely into
-      // registers.  (This is not what the doc says.)
-
-      // FIXME: The above statement is likely due to a misunderstanding of the
-      // documents.  All arguments must be copied into the parameter area BY
-      // THE CALLEE in the event that the callee takes the address of any
-      // formal argument.  That has not yet been implemented.  However, it is
-      // reasonable to use the stack area as a staging area for the register
-      // load.
-
-      // Skip this for small aggregates, as we will use the same slot for a
-      // right-justified copy, below.
-      if (Size >= 8)
+      // Copy the object to parameter save area if it can not be entirely passed 
+      // by registers.
+      // FIXME: we only need to copy the parts which need to be passed in
+      // parameter save area. For the parts passed by registers, we don't need
+      // to copy them to the stack although we need to allocate space for them
+      // in parameter save area.
+      if ((NumGPRs - GPR_idx) * PtrByteSize < Size)
         Chain = CallSeqStart = createMemcpyOutsideCallSeq(Arg, PtrOff,
                                                           CallSeqStart,
                                                           Flags, DAG, dl);
@@ -7065,7 +7060,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_AIX(
 
       auto HandleRegLoc = [&, RegClass, LocVT](const MCPhysReg PhysReg,
                                                unsigned Offset) {
-        const unsigned VReg = MF.addLiveIn(PhysReg, RegClass);
+        const Register VReg = MF.addLiveIn(PhysReg, RegClass);
         // Since the callers side has left justified the aggregate in the
         // register, we can simply store the entire register into the stack
         // slot.
@@ -7162,7 +7157,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_AIX(
              (CCInfo.getNextStackOffset() - LinkageSize) / PtrByteSize;
          GPRIndex < NumGPArgRegs; ++GPRIndex) {
 
-      const unsigned VReg =
+      const Register VReg =
           IsPPC64 ? MF.addLiveIn(GPR_64[GPRIndex], &PPC::G8RCRegClass)
                   : MF.addLiveIn(GPR_32[GPRIndex], &PPC::GPRCRegClass);
 
@@ -11184,13 +11179,17 @@ void PPCTargetLowering::ReplaceNodeResults(SDNode *N,
   case ISD::STRICT_FP_TO_SINT:
   case ISD::STRICT_FP_TO_UINT:
   case ISD::FP_TO_SINT:
-  case ISD::FP_TO_UINT:
+  case ISD::FP_TO_UINT: {
     // LowerFP_TO_INT() can only handle f32 and f64.
     if (N->getOperand(N->isStrictFPOpcode() ? 1 : 0).getValueType() ==
         MVT::ppcf128)
       return;
-    Results.push_back(LowerFP_TO_INT(SDValue(N, 0), DAG, dl));
+    SDValue LoweredValue = LowerFP_TO_INT(SDValue(N, 0), DAG, dl);
+    Results.push_back(LoweredValue);
+    if (N->isStrictFPOpcode())
+      Results.push_back(LoweredValue.getValue(1));
     return;
+  }
   case ISD::TRUNCATE: {
     if (!N->getValueType(0).isVector())
       return;
@@ -17896,7 +17895,7 @@ Value *PPCTargetLowering::emitMaskedAtomicRMWIntrinsic(
   assert(EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics() &&
          "Only support quadword now");
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
-  Type *ValTy = cast<PointerType>(AlignedAddr->getType())->getElementType();
+  Type *ValTy = AlignedAddr->getType()->getPointerElementType();
   assert(ValTy->getPrimitiveSizeInBits() == 128);
   Function *RMW = Intrinsic::getDeclaration(
       M, getIntrinsicForAtomicRMWBinOp128(AI->getOperation()));
@@ -17921,7 +17920,7 @@ Value *PPCTargetLowering::emitMaskedAtomicCmpXchgIntrinsic(
   assert(EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics() &&
          "Only support quadword now");
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
-  Type *ValTy = cast<PointerType>(AlignedAddr->getType())->getElementType();
+  Type *ValTy = AlignedAddr->getType()->getPointerElementType();
   assert(ValTy->getPrimitiveSizeInBits() == 128);
   Function *IntCmpXchg =
       Intrinsic::getDeclaration(M, Intrinsic::ppc_cmpxchg_i128);

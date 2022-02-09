@@ -99,26 +99,6 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
     }
     return AliasResult::NoAlias;
   }
-
-  void getAsmResultNames(Operation *op,
-                         OpAsmSetValueNameFn setNameFn) const final {
-    if (auto asmOp = dyn_cast<AsmDialectInterfaceOp>(op))
-      setNameFn(asmOp, "result");
-  }
-
-  void getAsmBlockArgumentNames(Block *block,
-                                OpAsmSetValueNameFn setNameFn) const final {
-    auto op = block->getParentOp();
-    auto arrayAttr = op->getAttrOfType<ArrayAttr>("arg_names");
-    if (!arrayAttr)
-      return;
-    auto args = block->getArguments();
-    auto e = std::min(arrayAttr.size(), args.size());
-    for (unsigned i = 0; i < e; ++i) {
-      if (auto strAttr = arrayAttr[i].dyn_cast<StringAttr>())
-        setNameFn(args[i], strAttr.getValue());
-    }
-  }
 };
 
 struct TestDialectFoldInterface : public DialectFoldInterface {
@@ -224,7 +204,7 @@ public:
   }
 };
 
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // TestDialect
@@ -278,6 +258,15 @@ Operation *TestDialect::materializeConstant(OpBuilder &builder, Attribute value,
   return builder.create<TestOpConstant>(loc, type, value);
 }
 
+::mlir::LogicalResult FormatInferType2Op::inferReturnTypes(
+    ::mlir::MLIRContext *context, ::llvm::Optional<::mlir::Location> location,
+    ::mlir::ValueRange operands, ::mlir::DictionaryAttr attributes,
+    ::mlir::RegionRange regions,
+    ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
+  inferredReturnTypes.assign({::mlir::IntegerType::get(context, 16)});
+  return ::mlir::success();
+}
+
 void *TestDialect::getRegisteredInterfaceForOp(TypeID typeID,
                                                OperationName opName) {
   if (opName.getIdentifier() == "test.unregistered_side_effect_op" &&
@@ -318,6 +307,11 @@ TestDialect::getParseOperationHook(StringRef opName) const {
       return parser.parseKeyword("custom_format");
     }};
   }
+  if (opName == "test.dialect_custom_format_fallback") {
+    return ParseOpHook{[](OpAsmParser &parser, OperationState &state) {
+      return parser.parseKeyword("custom_format_fallback");
+    }};
+  }
   return None;
 }
 
@@ -327,6 +321,11 @@ TestDialect::getOperationPrinter(Operation *op) const {
   if (opName == "test.dialect_custom_printer") {
     return [](Operation *op, OpAsmPrinter &printer) {
       printer.getStream() << " custom_format";
+    };
+  }
+  if (opName == "test.dialect_custom_format_fallback") {
+    return [](Operation *op, OpAsmPrinter &printer) {
+      printer.getStream() << " custom_format_fallback";
     };
   }
   return {};
@@ -374,7 +373,7 @@ struct FoldToCallOpPattern : public OpRewritePattern<FoldToCallOp> {
     return success();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void FoldToCallOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                MLIRContext *context) {
@@ -590,7 +589,7 @@ static ParseResult parseIsolatedRegionOp(OpAsmParser &parser,
 
   // Parse the body region, and reuse the operand info as the argument info.
   Region *body = result.addRegion();
-  return parser.parseRegion(*body, argInfo, argType,
+  return parser.parseRegion(*body, argInfo, argType, /*argLocations=*/{},
                             /*enableNameShadowing=*/true);
 }
 
@@ -598,6 +597,7 @@ static void print(OpAsmPrinter &p, IsolatedRegionOp op) {
   p << "test.isolated_region ";
   p.printOperand(op.getOperand());
   p.shadowRegionArgs(op.getRegion(), op.getOperand());
+  p << ' ';
   p.printRegion(op.getRegion(), /*printEntryBlockArgs=*/false);
 }
 
@@ -693,24 +693,24 @@ static ParseResult parseWrappingRegionOp(OpAsmParser &parser,
   Region &body = *result.addRegion();
   body.push_back(new Block);
   Block &block = body.back();
-  Operation *wrapped_op = parser.parseGenericOperation(&block, block.begin());
-  if (!wrapped_op)
+  Operation *wrappedOp = parser.parseGenericOperation(&block, block.begin());
+  if (!wrappedOp)
     return failure();
 
   // Create a return terminator in the inner region, pass as operand to the
   // terminator the returned values from the wrapped operation.
-  SmallVector<Value, 8> return_operands(wrapped_op->getResults());
+  SmallVector<Value, 8> returnOperands(wrappedOp->getResults());
   OpBuilder builder(parser.getContext());
   builder.setInsertionPointToEnd(&block);
-  builder.create<TestReturnOp>(wrapped_op->getLoc(), return_operands);
+  builder.create<TestReturnOp>(wrappedOp->getLoc(), returnOperands);
 
   // Get the results type for the wrapping op from the terminator operands.
-  Operation &return_op = body.back().back();
-  result.types.append(return_op.operand_type_begin(),
-                      return_op.operand_type_end());
+  Operation &returnOp = body.back().back();
+  result.types.append(returnOp.operand_type_begin(),
+                      returnOp.operand_type_end());
 
   // Use the location of the wrapped op for the "test.wrapping_region" op.
-  result.location = wrapped_op->getLoc();
+  result.location = wrappedOp->getLoc();
 
   return success();
 }
@@ -729,7 +729,7 @@ static void print(OpAsmPrinter &p, WrappingRegionOp op) {
 static ParseResult parsePrettyPrintedRegionOp(OpAsmParser &parser,
                                               OperationState &result) {
 
-  llvm::SMLoc loc = parser.getCurrentLocation();
+  SMLoc loc = parser.getCurrentLocation();
   Location currLocation = parser.getEncodedSourceLoc(loc);
 
   // Parse the operands.
@@ -838,6 +838,19 @@ static ParseResult parsePolyForOp(OpAsmParser &parser, OperationState &result) {
   return parser.parseRegion(*body, ivsInfo, argTypes);
 }
 
+void PolyForOp::getAsmBlockArgumentNames(Region &region,
+                                         OpAsmSetValueNameFn setNameFn) {
+  auto arrayAttr = getOperation()->getAttrOfType<ArrayAttr>("arg_names");
+  if (!arrayAttr)
+    return;
+  auto args = getRegion().front().getArguments();
+  auto e = std::min(arrayAttr.size(), args.size());
+  for (unsigned i = 0; i < e; ++i) {
+    if (auto strAttr = arrayAttr[i].dyn_cast<StringAttr>())
+      setNameFn(args[i], strAttr.getValue());
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // Test removing op with inner ops.
 //===----------------------------------------------------------------------===//
@@ -855,7 +868,7 @@ struct TestRemoveOpWithInnerOps
     return success();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void TestOpWithRegionPattern::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
@@ -935,14 +948,14 @@ LogicalResult OpWithResultShapeInterfaceOp::reifyReturnTypeShapes(
   Location loc = getLoc();
   shapes.reserve(operands.size());
   for (Value operand : llvm::reverse(operands)) {
-    auto currShape = llvm::to_vector<4>(llvm::map_range(
-        llvm::seq<int64_t>(
-            0, operand.getType().cast<RankedTensorType>().getRank()),
-        [&](int64_t dim) -> Value {
+    auto rank = operand.getType().cast<RankedTensorType>().getRank();
+    auto currShape = llvm::to_vector<4>(
+        llvm::map_range(llvm::seq<int64_t>(0, rank), [&](int64_t dim) -> Value {
           return builder.createOrFold<tensor::DimOp>(loc, operand, dim);
         }));
     shapes.push_back(builder.create<tensor::FromElementsOp>(
-        getLoc(), builder.getIndexType(), currShape));
+        getLoc(), RankedTensorType::get({rank}, builder.getIndexType()),
+        currShape));
   }
   return success();
 }
@@ -972,7 +985,7 @@ namespace {
 struct TestResource : public SideEffects::Resource::Base<TestResource> {
   StringRef getName() final { return "<Test>"; }
 };
-} // end anonymous namespace
+} // namespace
 
 static void testSideEffectOpGetEffect(
     Operation *op,
@@ -1114,15 +1127,15 @@ static void print(OpAsmPrinter &p, RegionIfOp op) {
   p.printOperands(op.getOperands());
   p << ": " << op.getOperandTypes();
   p.printArrowTypeList(op.getResultTypes());
-  p << " then";
+  p << " then ";
   p.printRegion(op.getThenRegion(),
                 /*printEntryBlockArgs=*/true,
                 /*printBlockTerminators=*/true);
-  p << " else";
+  p << " else ";
   p.printRegion(op.getElseRegion(),
                 /*printEntryBlockArgs=*/true,
                 /*printBlockTerminators=*/true);
-  p << " join";
+  p << " join ";
   p.printRegion(op.getJoinRegion(),
                 /*printEntryBlockArgs=*/true,
                 /*printBlockTerminators=*/true);
@@ -1174,6 +1187,34 @@ void RegionIfOp::getSuccessorRegions(
   // The then and else regions are the entry regions of this op.
   regions.push_back(RegionSuccessor(&getThenRegion(), getThenArgs()));
   regions.push_back(RegionSuccessor(&getElseRegion(), getElseArgs()));
+}
+
+void RegionIfOp::getRegionInvocationBounds(
+    ArrayRef<Attribute> operands,
+    SmallVectorImpl<InvocationBounds> &invocationBounds) {
+  // Each region is invoked at most once.
+  invocationBounds.assign(/*NumElts=*/3, /*Elt=*/{0, 1});
+}
+
+//===----------------------------------------------------------------------===//
+// AnyCondOp
+//===----------------------------------------------------------------------===//
+
+void AnyCondOp::getSuccessorRegions(Optional<unsigned> index,
+                                    ArrayRef<Attribute> operands,
+                                    SmallVectorImpl<RegionSuccessor> &regions) {
+  // The parent op branches into the only region, and the region branches back
+  // to the parent op.
+  if (index)
+    regions.emplace_back(&getRegion());
+  else
+    regions.emplace_back(getResults());
+}
+
+void AnyCondOp::getRegionInvocationBounds(
+    ArrayRef<Attribute> operands,
+    SmallVectorImpl<InvocationBounds> &invocationBounds) {
+  invocationBounds.emplace_back(1, 1);
 }
 
 //===----------------------------------------------------------------------===//

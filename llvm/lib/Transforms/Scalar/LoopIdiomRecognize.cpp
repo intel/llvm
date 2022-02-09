@@ -786,9 +786,9 @@ bool LoopIdiomRecognize::processLoopStores(SmallVectorImpl<StoreInst *> &SL,
     Type *IntIdxTy = DL->getIndexType(StorePtr->getType());
     const SCEV *StoreSizeSCEV = SE->getConstant(IntIdxTy, StoreSize);
     if (processLoopStridedStore(StorePtr, StoreSizeSCEV,
-                                MaybeAlign(HeadStore->getAlignment()),
-                                StoredVal, HeadStore, AdjacentStores, StoreEv,
-                                BECount, IsNegStride)) {
+                                MaybeAlign(HeadStore->getAlign()), StoredVal,
+                                HeadStore, AdjacentStores, StoreEv, BECount,
+                                IsNegStride)) {
       TransformedStores.insert(AdjacentStores.begin(), AdjacentStores.end());
       Changed = true;
     }
@@ -967,12 +967,22 @@ bool LoopIdiomRecognize::processLoopMemSet(MemSetInst *MSI,
                       << "\n");
 
     if (PositiveStrideSCEV != MemsetSizeSCEV) {
-      // TODO: folding can be done to the SCEVs
-      // The folding is to fold expressions that is covered by the loop guard
-      // at loop entry. After the folding, compare again and proceed
-      // optimization if equal.
-      LLVM_DEBUG(dbgs() << "  SCEV don't match, abort\n");
-      return false;
+      // If an expression is covered by the loop guard, compare again and
+      // proceed with optimization if equal.
+      const SCEV *FoldedPositiveStride =
+          SE->applyLoopGuards(PositiveStrideSCEV, CurLoop);
+      const SCEV *FoldedMemsetSize =
+          SE->applyLoopGuards(MemsetSizeSCEV, CurLoop);
+
+      LLVM_DEBUG(dbgs() << "  Try to fold SCEV based on loop guard\n"
+                        << "    FoldedMemsetSize: " << *FoldedMemsetSize << "\n"
+                        << "    FoldedPositiveStride: " << *FoldedPositiveStride
+                        << "\n");
+
+      if (FoldedPositiveStride != FoldedMemsetSize) {
+        LLVM_DEBUG(dbgs() << "  SCEV don't match, abort\n");
+        return false;
+      }
     }
   }
 
@@ -1107,7 +1117,7 @@ bool LoopIdiomRecognize::processLoopStridedStore(
   BasicBlock *Preheader = CurLoop->getLoopPreheader();
   IRBuilder<> Builder(Preheader->getTerminator());
   SCEVExpander Expander(*SE, *DL, "loop-idiom");
-  SCEVExpanderCleaner ExpCleaner(Expander, *DT);
+  SCEVExpanderCleaner ExpCleaner(Expander);
 
   Type *DestInt8PtrTy = Builder.getInt8PtrTy(DestAS);
   Type *IntIdxTy = DL->getIndexType(DestPtr->getType());
@@ -1318,7 +1328,7 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
   IRBuilder<> Builder(Preheader->getTerminator());
   SCEVExpander Expander(*SE, *DL, "loop-idiom");
 
-  SCEVExpanderCleaner ExpCleaner(Expander, *DT);
+  SCEVExpanderCleaner ExpCleaner(Expander);
 
   bool Changed = false;
   const SCEV *StrStart = StoreEv->getStart();

@@ -190,19 +190,15 @@ private:
   group<dimensions> Group;
 };
 
-namespace detail {
-template <int Dims> nd_item<Dims> store_nd_item(const nd_item<Dims> *nd_i) {
-  return get_or_store(nd_i);
-}
-} // namespace detail
-
 template <int Dims>
 __SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_nd_item() instead")
 nd_item<Dims> this_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
 #else
-  return detail::store_nd_item<Dims>(nullptr);
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host device");
 #endif
 }
 
@@ -211,9 +207,12 @@ namespace oneapi {
 namespace experimental {
 template <int Dims> nd_item<Dims> this_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+  return sycl::detail::Builder::getElement(
+      sycl::detail::declptr<nd_item<Dims>>());
 #else
-  return sycl::detail::store_nd_item<Dims>(nullptr);
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host device");
 #endif
 }
 } // namespace experimental

@@ -1,3 +1,4 @@
+
 # Set default PI HIP platform to AMD
 set(SYCL_BUILD_PI_HIP_PLATFORM "AMD" CACHE STRING "PI HIP platform, AMD or NVIDIA")
 

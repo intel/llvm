@@ -3486,6 +3486,31 @@ LSRInstance::CollectLoopInvariantFixupsAndFormulae() {
         // Don't bother if the instruction is in a BB which ends in an EHPad.
         if (UseBB->getTerminator()->isEHPad())
           continue;
+
+        // Ignore cases in which the currently-examined value could come from
+        // a basic block terminated with an EHPad. This checks all incoming
+        // blocks of the phi node since it is possible that the same incoming
+        // value comes from multiple basic blocks, only some of which may end
+        // in an EHPad. If any of them do, a subsequent rewrite attempt by this
+        // pass would try to insert instructions into an EHPad, hitting an
+        // assertion.
+        if (isa<PHINode>(UserInst)) {
+          const auto *PhiNode = cast<PHINode>(UserInst);
+          bool HasIncompatibleEHPTerminatedBlock = false;
+          llvm::Value *ExpectedValue = U;
+          for (unsigned int I = 0; I < PhiNode->getNumIncomingValues(); I++) {
+            if (PhiNode->getIncomingValue(I) == ExpectedValue) {
+              if (PhiNode->getIncomingBlock(I)->getTerminator()->isEHPad()) {
+                HasIncompatibleEHPTerminatedBlock = true;
+                break;
+              }
+            }
+          }
+          if (HasIncompatibleEHPTerminatedBlock) {
+            continue;
+          }
+        }
+
         // Don't bother rewriting PHIs in catchswitch blocks.
         if (isa<CatchSwitchInst>(UserInst->getParent()->getTerminator()))
           continue;
@@ -6011,7 +6036,7 @@ struct SCEVDbgValueBuilder {
     // See setFinalExpression: prepend our opcodes on the start of any old
     // expression opcodes.
     assert(!DI.hasArgList());
-    llvm::SmallVector<uint64_t, 6> FinalExpr(Expr.begin() + 2, Expr.end());
+    llvm::SmallVector<uint64_t, 6> FinalExpr(llvm::drop_begin(Expr, 2));
     auto *NewExpr =
         DIExpression::prependOpcodes(OldExpr, FinalExpr, /*StackValue*/ true);
     DI.setExpression(NewExpr);

@@ -83,9 +83,7 @@ protected:
 /// an Operation(in the case of an OpResult).
 class Value {
 public:
-  Value(detail::ValueImpl *impl = nullptr) : impl(impl) {}
-  Value(const Value &) = default;
-  Value &operator=(const Value &) = default;
+  constexpr Value(detail::ValueImpl *impl = nullptr) : impl(impl) {}
 
   template <typename U>
   bool isa() const {
@@ -294,7 +292,7 @@ private:
   /// Allow access to owner and constructor.
   friend BlockArgument;
 };
-} // end namespace detail
+} // namespace detail
 
 /// This class represents an argument of a Block.
 class BlockArgument : public Value {
@@ -419,7 +417,7 @@ inline unsigned OpResultImpl::getResultNumber() const {
   return cast<InlineOpResult>(this)->getResultNumber();
 }
 
-} // end namespace detail
+} // namespace detail
 
 /// This is a value defined by a result of an operation.
 class OpResult : public Value {
@@ -533,6 +531,6 @@ public:
   }
 };
 
-} // end namespace llvm
+} // namespace llvm
 
 #endif

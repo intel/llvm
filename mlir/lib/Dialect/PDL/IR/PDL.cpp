@@ -114,12 +114,15 @@ static LogicalResult verify(AttributeOp op) {
   Value attrType = op.type();
   Optional<Attribute> attrValue = op.value();
 
-  if (!attrValue && isa<RewriteOp>(op->getParentOp()))
-    return op.emitOpError("expected constant value when specified within a "
-                          "`pdl.rewrite`");
-  if (attrValue && attrType)
+  if (!attrValue) {
+    if (isa<RewriteOp>(op->getParentOp()))
+      return op.emitOpError("expected constant value when specified within a "
+                            "`pdl.rewrite`");
+    return verifyHasBindingUse(op);
+  }
+  if (attrType)
     return op.emitOpError("expected only one of [`type`, `value`] to be set");
-  return verifyHasBindingUse(op);
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -195,7 +198,7 @@ static LogicalResult verifyResultTypesAreInferrable(OperationOp op,
     return success();
 
   // Otherwise, make sure each of the types can be inferred.
-  for (auto it : llvm::enumerate(resultTypes)) {
+  for (const auto &it : llvm::enumerate(resultTypes)) {
     Operation *resultTypeOp = it.value().getDefiningOp();
     assert(resultTypeOp && "expected valid result type operation");
 
@@ -204,16 +207,17 @@ static LogicalResult verifyResultTypesAreInferrable(OperationOp op,
     if (isa<ApplyNativeRewriteOp>(resultTypeOp))
       continue;
 
-    // If the type operation was defined in the matcher and constrains the
-    // result of an input operation, it can be used.
-    auto constrainsInputOp = [rewriterBlock](Operation *user) {
-      return user->getBlock() != rewriterBlock && isa<OperationOp>(user);
+    // If the type operation was defined in the matcher and constrains an
+    // operand or the result of an input operation, it can be used.
+    auto constrainsInput = [rewriterBlock](Operation *user) {
+      return user->getBlock() != rewriterBlock &&
+             isa<OperandOp, OperandsOp, OperationOp>(user);
     };
     if (TypeOp typeOp = dyn_cast<TypeOp>(resultTypeOp)) {
-      if (typeOp.type() || llvm::any_of(typeOp->getUsers(), constrainsInputOp))
+      if (typeOp.type() || llvm::any_of(typeOp->getUsers(), constrainsInput))
         continue;
     } else if (TypesOp typeOp = dyn_cast<TypesOp>(resultTypeOp)) {
-      if (typeOp.types() || llvm::any_of(typeOp->getUsers(), constrainsInputOp))
+      if (typeOp.types() || llvm::any_of(typeOp->getUsers(), constrainsInput))
         continue;
     }
 
@@ -268,8 +272,8 @@ bool OperationOp::hasTypeInference() {
 static LogicalResult verify(PatternOp pattern) {
   Region &body = pattern.body();
   Operation *term = body.front().getTerminator();
-  auto rewrite_op = dyn_cast<RewriteOp>(term);
-  if (!rewrite_op) {
+  auto rewriteOp = dyn_cast<RewriteOp>(term);
+  if (!rewriteOp) {
     return pattern.emitOpError("expected body to terminate with `pdl.rewrite`")
         .attachNote(term->getLoc())
         .append("see terminator defined here");
@@ -351,6 +355,11 @@ RewriteOp PatternOp::getRewriter() {
   return cast<RewriteOp>(body().front().getTerminator());
 }
 
+/// The default dialect is `pdl`.
+StringRef PatternOp::getDefaultDialect() {
+  return PDLDialect::getDialectNamespace();
+}
+
 //===----------------------------------------------------------------------===//
 // pdl::ReplaceOp
 //===----------------------------------------------------------------------===//
@@ -427,17 +436,30 @@ static LogicalResult verify(RewriteOp op) {
   return success();
 }
 
+/// The default dialect is `pdl`.
+StringRef RewriteOp::getDefaultDialect() {
+  return PDLDialect::getDialectNamespace();
+}
+
 //===----------------------------------------------------------------------===//
 // pdl::TypeOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(TypeOp op) { return verifyHasBindingUse(op); }
+static LogicalResult verify(TypeOp op) {
+  if (!op.typeAttr())
+    return verifyHasBindingUse(op);
+  return success();
+}
 
 //===----------------------------------------------------------------------===//
 // pdl::TypesOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(TypesOp op) { return verifyHasBindingUse(op); }
+static LogicalResult verify(TypesOp op) {
+  if (!op.typesAttr())
+    return verifyHasBindingUse(op);
+  return success();
+}
 
 //===----------------------------------------------------------------------===//
 // TableGen'd op method definitions

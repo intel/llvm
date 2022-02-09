@@ -243,8 +243,7 @@ void AsynchronousSymbolQuery::detach() {
 
 AbsoluteSymbolsMaterializationUnit::AbsoluteSymbolsMaterializationUnit(
     SymbolMap Symbols)
-    : MaterializationUnit(extractFlags(Symbols), nullptr),
-      Symbols(std::move(Symbols)) {}
+    : MaterializationUnit(extractFlags(Symbols)), Symbols(std::move(Symbols)) {}
 
 StringRef AbsoluteSymbolsMaterializationUnit::getName() const {
   return "<Absolute Symbols>";
@@ -263,18 +262,18 @@ void AbsoluteSymbolsMaterializationUnit::discard(const JITDylib &JD,
   Symbols.erase(Name);
 }
 
-SymbolFlagsMap
+MaterializationUnit::Interface
 AbsoluteSymbolsMaterializationUnit::extractFlags(const SymbolMap &Symbols) {
   SymbolFlagsMap Flags;
   for (const auto &KV : Symbols)
     Flags[KV.first] = KV.second.getFlags();
-  return Flags;
+  return MaterializationUnit::Interface(std::move(Flags), nullptr);
 }
 
 ReExportsMaterializationUnit::ReExportsMaterializationUnit(
     JITDylib *SourceJD, JITDylibLookupFlags SourceJDLookupFlags,
     SymbolAliasMap Aliases)
-    : MaterializationUnit(extractFlags(Aliases), nullptr), SourceJD(SourceJD),
+    : MaterializationUnit(extractFlags(Aliases)), SourceJD(SourceJD),
       SourceJDLookupFlags(SourceJDLookupFlags), Aliases(std::move(Aliases)) {}
 
 StringRef ReExportsMaterializationUnit::getName() const {
@@ -456,13 +455,13 @@ void ReExportsMaterializationUnit::discard(const JITDylib &JD,
   Aliases.erase(Name);
 }
 
-SymbolFlagsMap
+MaterializationUnit::Interface
 ReExportsMaterializationUnit::extractFlags(const SymbolAliasMap &Aliases) {
   SymbolFlagsMap SymbolFlags;
   for (auto &KV : Aliases)
     SymbolFlags[KV.first] = KV.second.AliasFlags;
 
-  return SymbolFlags;
+  return MaterializationUnit::Interface(std::move(SymbolFlags), nullptr);
 }
 
 Expected<SymbolAliasMap> buildSimpleReexportsAliasMap(JITDylib &SourceJD,
@@ -1934,8 +1933,13 @@ Error ExecutionSession::removeJITDylib(JITDylib &JD) {
     JDs.erase(I);
   });
 
-  // Clear the JITDylib.
+  // Clear the JITDylib. Hold on to any error while we clean up the
+  // JITDylib members below.
   auto Err = JD.clear();
+
+  // Notify the platform of the teardown.
+  if (P)
+    Err = joinErrors(std::move(Err), P->teardownJITDylib(JD));
 
   // Set JD to closed state. Clear remaining data structures.
   runSessionLocked([&] {
@@ -1954,19 +1958,22 @@ Error ExecutionSession::removeJITDylib(JITDylib &JD) {
   return Err;
 }
 
-std::vector<JITDylibSP> JITDylib::getDFSLinkOrder(ArrayRef<JITDylibSP> JDs) {
+Expected<std::vector<JITDylibSP>>
+JITDylib::getDFSLinkOrder(ArrayRef<JITDylibSP> JDs) {
   if (JDs.empty())
-    return {};
+    return std::vector<JITDylibSP>();
 
   auto &ES = JDs.front()->getExecutionSession();
-  return ES.runSessionLocked([&]() {
+  return ES.runSessionLocked([&]() -> Expected<std::vector<JITDylibSP>> {
     DenseSet<JITDylib *> Visited;
     std::vector<JITDylibSP> Result;
 
     for (auto &JD : JDs) {
 
-      assert(JD->State == Open && "JD is defunct");
-
+      if (JD->State != Open)
+        return make_error<StringError>(
+            "Error building link order: " + JD->getName() + " is defunct",
+            inconvertibleErrorCode());
       if (Visited.count(JD.get()))
         continue;
 
@@ -1991,18 +1998,19 @@ std::vector<JITDylibSP> JITDylib::getDFSLinkOrder(ArrayRef<JITDylibSP> JDs) {
   });
 }
 
-std::vector<JITDylibSP>
+Expected<std::vector<JITDylibSP>>
 JITDylib::getReverseDFSLinkOrder(ArrayRef<JITDylibSP> JDs) {
-  auto Tmp = getDFSLinkOrder(JDs);
-  std::reverse(Tmp.begin(), Tmp.end());
-  return Tmp;
+  auto Result = getDFSLinkOrder(JDs);
+  if (Result)
+    std::reverse(Result->begin(), Result->end());
+  return Result;
 }
 
-std::vector<JITDylibSP> JITDylib::getDFSLinkOrder() {
+Expected<std::vector<JITDylibSP>> JITDylib::getDFSLinkOrder() {
   return getDFSLinkOrder({this});
 }
 
-std::vector<JITDylibSP> JITDylib::getReverseDFSLinkOrder() {
+Expected<std::vector<JITDylibSP>> JITDylib::getReverseDFSLinkOrder() {
   return getReverseDFSLinkOrder({this});
 }
 
@@ -2202,7 +2210,7 @@ void ExecutionSession::dump(raw_ostream &OS) {
 
 void ExecutionSession::dispatchOutstandingMUs() {
   LLVM_DEBUG(dbgs() << "Dispatching MaterializationUnits...\n");
-  while (1) {
+  while (true) {
     Optional<std::pair<std::unique_ptr<MaterializationUnit>,
                        std::unique_ptr<MaterializationResponsibility>>>
         JMU;
@@ -2492,10 +2500,19 @@ void ExecutionSession::OL_applyQueryPhase1(
       }
     }
 
-    // If we get here then we've moved on to the next JITDylib.
-    LLVM_DEBUG(dbgs() << "Phase 1 moving to next JITDylib.\n");
-    ++IPLS->CurSearchOrderIndex;
-    IPLS->NewJITDylib = true;
+    if (IPLS->DefGeneratorCandidates.empty() &&
+        IPLS->DefGeneratorNonCandidates.empty()) {
+      // Early out if there are no remaining symbols.
+      LLVM_DEBUG(dbgs() << "All symbols matched.\n");
+      IPLS->CurSearchOrderIndex = IPLS->SearchOrder.size();
+      break;
+    } else {
+      // If we get here then we've moved on to the next JITDylib with candidates
+      // remaining.
+      LLVM_DEBUG(dbgs() << "Phase 1 moving to next JITDylib.\n");
+      ++IPLS->CurSearchOrderIndex;
+      IPLS->NewJITDylib = true;
+    }
   }
 
   // Remove any weakly referenced candidates that could not be found/generated.

@@ -10,7 +10,7 @@ configure_file(
   @ONLY)
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  if (NOT EXISTS ${LLVM_EXTERNAL_XPTI_SOURCE_DIR})
+  if (NOT DEFINED LLVM_EXTERNAL_XPTI_SOURCE_DIR)
     message (FATAL_ERROR "Undefined LLVM_EXTERNAL_XPTI_SOURCE_DIR variable: Must be set when XPTI tracing is set to ON")
   endif()
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
@@ -24,10 +24,22 @@ function(add_sycl_rt_library LIB_NAME)
   set(LIB_OBJ_NAME ${LIB_NAME}_object)
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
-  add_library(${LIB_NAME} SHARED 
+  add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
-    
+
+  if (SYCL_ENABLE_COVERAGE)
+    target_compile_options(${LIB_OBJ_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+    target_compile_options(${LIB_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+    target_link_options(${LIB_NAME} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+  endif()
+
   if (ARG_COMPILE_OPTIONS)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
@@ -156,6 +168,7 @@ set(SYCL_SOURCES
     "detail/sycl_mem_obj_t.cpp"
     "detail/usm/usm_impl.cpp"
     "detail/util.cpp"
+    "detail/xpti_registry.cpp"
     "accessor.cpp"
     "context.cpp"
     "device.cpp"
@@ -208,13 +221,6 @@ if (SYCL_ENABLE_XPTI_TRACING)
   add_sycl_rt_library(sycl XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
 else()
   add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
-endif()
-
-# Enable new IN_LIST operator.
-cmake_policy(SET CMP0057 NEW)
-
-if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
-  add_dependencies(sycl libsycldevice)
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}

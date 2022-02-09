@@ -32,10 +32,16 @@ using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
 
 class event_impl {
 public:
+  enum HostEventState : int {
+    HES_NotComplete = 0,
+    HES_Complete,
+    HES_Discarded
+  };
+
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl();
+  event_impl(HostEventState State = HES_Complete);
   /// Constructs an event instance from a plug-in event handle.
   ///
   /// The SyclContext must match the plug-in context associated with the
@@ -44,7 +50,7 @@ public:
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
   event_impl(RT::PiEvent Event, const context &SyclContext);
-  event_impl(QueueImplPtr Queue);
+  event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
   ///
@@ -182,8 +188,23 @@ public:
   /// @return a vector of "immediate" dependencies for this event_impl.
   std::vector<EventImplPtr> getWaitList();
 
+  /// Performs a flush on the queue associated with this event if the user queue
+  /// is different and the task associated with this event hasn't been submitted
+  /// to the device yet.
+  void flushIfNeeded(const QueueImplPtr &UserQueue);
+
   /// Cleans dependencies of this event_impl
   void cleanupDependencyEvents();
+
+  /// Checks if this event is discarded by SYCL implementation.
+  ///
+  /// \return true if this event is discarded.
+  bool isDiscarded() const { return MState == HES_Discarded; }
+
+  void setNeedsCleanupAfterWait(bool NeedsCleanupAfterWait) {
+    MNeedsCleanupAfterWait = NeedsCleanupAfterWait;
+  }
+  bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -200,17 +221,26 @@ private:
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
+  std::weak_ptr<queue_impl> MQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
-  enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
+  /// Indicates that the task associated with this event has been submitted by
+  /// the queue to the device.
+  std::atomic<bool> MIsFlushed = false;
 
   // State of host event. Employed only for host events and event with no
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
+
+  // A temporary workaround for the current limitations of post enqueue graph
+  // cleanup. Indicates that the command associated with this event isn't
+  // handled by post enqueue cleanup yet and has to be deleted by cleanup after
+  // wait.
+  bool MNeedsCleanupAfterWait = false;
 
   std::mutex MMutex;
 };

@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Option/Option.h"
+#include "llvm/Support/ARMTargetParser.h"
 #include "llvm/Support/TargetParser.h"
 #include <string>
 #include <vector>
@@ -55,7 +56,7 @@ void setFloatABIInTriple(const Driver &D, const llvm::opt::ArgList &Args,
                          llvm::Triple &triple);
 bool isHardTPSupported(const llvm::Triple &Triple);
 ReadTPMode getReadTPMode(const Driver &D, const llvm::opt::ArgList &Args,
-                         const llvm::Triple &Triple);
+                         const llvm::Triple &Triple, bool ForAS);
 void setArchNameInTriple(const Driver &D, const llvm::opt::ArgList &Args,
                          types::ID InputType, llvm::Triple &Triple);
 

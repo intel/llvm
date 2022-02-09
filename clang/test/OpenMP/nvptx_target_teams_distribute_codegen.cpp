@@ -594,7 +594,7 @@ int bar(int n){
 //
 //
 // CHECK1-LABEL: define {{[^@]+}}@__omp_outlined__
-// CHECK1-SAME: (i32* noalias [[DOTGLOBAL_TID_:%.*]], i32* noalias [[DOTBOUND_TID_:%.*]]) #[[ATTR0]] {
+// CHECK1-SAME: (i32* noalias noundef [[DOTGLOBAL_TID_:%.*]], i32* noalias noundef [[DOTBOUND_TID_:%.*]]) #[[ATTR0]] {
 // CHECK1-NEXT:  entry:
 // CHECK1-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca i32*, align 8
 // CHECK1-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca i32*, align 8
@@ -607,7 +607,7 @@ int bar(int n){
 // CHECK1-NEXT:    [[CAPTURED_VARS_ADDRS:%.*]] = alloca [1 x i8*], align 8
 // CHECK1-NEXT:    store i32* [[DOTGLOBAL_TID_]], i32** [[DOTGLOBAL_TID__ADDR]], align 8
 // CHECK1-NEXT:    store i32* [[DOTBOUND_TID_]], i32** [[DOTBOUND_TID__ADDR]], align 8
-// CHECK1-NEXT:    [[I:%.*]] = call i8* @__kmpc_alloc_shared(i64 4)
+// CHECK1-NEXT:    [[I:%.*]] = call align 8 i8* @__kmpc_alloc_shared(i64 4)
 // CHECK1-NEXT:    [[I_ON_STACK:%.*]] = bitcast i8* [[I]] to i32*
 // CHECK1-NEXT:    store i32 0, i32* [[DOTOMP_LB]], align 4
 // CHECK1-NEXT:    store i32 9, i32* [[DOTOMP_UB]], align 4
@@ -662,7 +662,7 @@ int bar(int n){
 //
 //
 // CHECK1-LABEL: define {{[^@]+}}@__omp_outlined__1
-// CHECK1-SAME: (i32* noalias [[DOTGLOBAL_TID_:%.*]], i32* noalias [[DOTBOUND_TID_:%.*]], i32* nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR0]] {
+// CHECK1-SAME: (i32* noalias noundef [[DOTGLOBAL_TID_:%.*]], i32* noalias noundef [[DOTBOUND_TID_:%.*]], i32* noundef nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR0]] {
 // CHECK1-NEXT:  entry:
 // CHECK1-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca i32*, align 8
 // CHECK1-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca i32*, align 8
@@ -678,7 +678,7 @@ int bar(int n){
 //
 //
 // CHECK1-LABEL: define {{[^@]+}}@__omp_outlined__1_wrapper
-// CHECK1-SAME: (i16 zeroext [[TMP0:%.*]], i32 [[TMP1:%.*]]) #[[ATTR2:[0-9]+]] {
+// CHECK1-SAME: (i16 noundef zeroext [[TMP0:%.*]], i32 noundef [[TMP1:%.*]]) #[[ATTR2:[0-9]+]] {
 // CHECK1-NEXT:  entry:
 // CHECK1-NEXT:    [[DOTADDR:%.*]] = alloca i16, align 2
 // CHECK1-NEXT:    [[DOTADDR1:%.*]] = alloca i32, align 4
@@ -716,7 +716,7 @@ int bar(int n){
 //
 //
 // CHECK2-LABEL: define {{[^@]+}}@__omp_outlined__
-// CHECK2-SAME: (i32* noalias [[DOTGLOBAL_TID_:%.*]], i32* noalias [[DOTBOUND_TID_:%.*]]) #[[ATTR0]] {
+// CHECK2-SAME: (i32* noalias noundef [[DOTGLOBAL_TID_:%.*]], i32* noalias noundef [[DOTBOUND_TID_:%.*]]) #[[ATTR0]] {
 // CHECK2-NEXT:  entry:
 // CHECK2-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca i32*, align 4
 // CHECK2-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca i32*, align 4
@@ -729,7 +729,7 @@ int bar(int n){
 // CHECK2-NEXT:    [[CAPTURED_VARS_ADDRS:%.*]] = alloca [1 x i8*], align 4
 // CHECK2-NEXT:    store i32* [[DOTGLOBAL_TID_]], i32** [[DOTGLOBAL_TID__ADDR]], align 4
 // CHECK2-NEXT:    store i32* [[DOTBOUND_TID_]], i32** [[DOTBOUND_TID__ADDR]], align 4
-// CHECK2-NEXT:    [[I:%.*]] = call i8* @__kmpc_alloc_shared(i32 4)
+// CHECK2-NEXT:    [[I:%.*]] = call align 8 i8* @__kmpc_alloc_shared(i32 4)
 // CHECK2-NEXT:    [[I_ON_STACK:%.*]] = bitcast i8* [[I]] to i32*
 // CHECK2-NEXT:    store i32 0, i32* [[DOTOMP_LB]], align 4
 // CHECK2-NEXT:    store i32 9, i32* [[DOTOMP_UB]], align 4
@@ -784,7 +784,7 @@ int bar(int n){
 //
 //
 // CHECK2-LABEL: define {{[^@]+}}@__omp_outlined__1
-// CHECK2-SAME: (i32* noalias [[DOTGLOBAL_TID_:%.*]], i32* noalias [[DOTBOUND_TID_:%.*]], i32* nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR0]] {
+// CHECK2-SAME: (i32* noalias noundef [[DOTGLOBAL_TID_:%.*]], i32* noalias noundef [[DOTBOUND_TID_:%.*]], i32* noundef nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR0]] {
 // CHECK2-NEXT:  entry:
 // CHECK2-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca i32*, align 4
 // CHECK2-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca i32*, align 4
@@ -800,7 +800,7 @@ int bar(int n){
 //
 //
 // CHECK2-LABEL: define {{[^@]+}}@__omp_outlined__1_wrapper
-// CHECK2-SAME: (i16 zeroext [[TMP0:%.*]], i32 [[TMP1:%.*]]) #[[ATTR2:[0-9]+]] {
+// CHECK2-SAME: (i16 noundef zeroext [[TMP0:%.*]], i32 noundef [[TMP1:%.*]]) #[[ATTR2:[0-9]+]] {
 // CHECK2-NEXT:  entry:
 // CHECK2-NEXT:    [[DOTADDR:%.*]] = alloca i16, align 2
 // CHECK2-NEXT:    [[DOTADDR1:%.*]] = alloca i32, align 4
@@ -838,7 +838,7 @@ int bar(int n){
 //
 //
 // CHECK3-LABEL: define {{[^@]+}}@__omp_outlined__
-// CHECK3-SAME: (i32* noalias [[DOTGLOBAL_TID_:%.*]], i32* noalias [[DOTBOUND_TID_:%.*]]) #[[ATTR0]] {
+// CHECK3-SAME: (i32* noalias noundef [[DOTGLOBAL_TID_:%.*]], i32* noalias noundef [[DOTBOUND_TID_:%.*]]) #[[ATTR0]] {
 // CHECK3-NEXT:  entry:
 // CHECK3-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca i32*, align 4
 // CHECK3-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca i32*, align 4
@@ -851,7 +851,7 @@ int bar(int n){
 // CHECK3-NEXT:    [[CAPTURED_VARS_ADDRS:%.*]] = alloca [1 x i8*], align 4
 // CHECK3-NEXT:    store i32* [[DOTGLOBAL_TID_]], i32** [[DOTGLOBAL_TID__ADDR]], align 4
 // CHECK3-NEXT:    store i32* [[DOTBOUND_TID_]], i32** [[DOTBOUND_TID__ADDR]], align 4
-// CHECK3-NEXT:    [[I:%.*]] = call i8* @__kmpc_alloc_shared(i32 4)
+// CHECK3-NEXT:    [[I:%.*]] = call align 8 i8* @__kmpc_alloc_shared(i32 4)
 // CHECK3-NEXT:    [[I_ON_STACK:%.*]] = bitcast i8* [[I]] to i32*
 // CHECK3-NEXT:    store i32 0, i32* [[DOTOMP_LB]], align 4
 // CHECK3-NEXT:    store i32 9, i32* [[DOTOMP_UB]], align 4
@@ -906,7 +906,7 @@ int bar(int n){
 //
 //
 // CHECK3-LABEL: define {{[^@]+}}@__omp_outlined__1
-// CHECK3-SAME: (i32* noalias [[DOTGLOBAL_TID_:%.*]], i32* noalias [[DOTBOUND_TID_:%.*]], i32* nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR0]] {
+// CHECK3-SAME: (i32* noalias noundef [[DOTGLOBAL_TID_:%.*]], i32* noalias noundef [[DOTBOUND_TID_:%.*]], i32* noundef nonnull align 4 dereferenceable(4) [[I:%.*]]) #[[ATTR0]] {
 // CHECK3-NEXT:  entry:
 // CHECK3-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca i32*, align 4
 // CHECK3-NEXT:    [[DOTBOUND_TID__ADDR:%.*]] = alloca i32*, align 4
@@ -922,7 +922,7 @@ int bar(int n){
 //
 //
 // CHECK3-LABEL: define {{[^@]+}}@__omp_outlined__1_wrapper
-// CHECK3-SAME: (i16 zeroext [[TMP0:%.*]], i32 [[TMP1:%.*]]) #[[ATTR2:[0-9]+]] {
+// CHECK3-SAME: (i16 noundef zeroext [[TMP0:%.*]], i32 noundef [[TMP1:%.*]]) #[[ATTR2:[0-9]+]] {
 // CHECK3-NEXT:  entry:
 // CHECK3-NEXT:    [[DOTADDR:%.*]] = alloca i16, align 2
 // CHECK3-NEXT:    [[DOTADDR1:%.*]] = alloca i32, align 4

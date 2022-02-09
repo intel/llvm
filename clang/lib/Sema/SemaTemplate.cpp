@@ -2063,7 +2063,7 @@ DeclResult Sema::CheckClassTemplate(
   }
 
   if (PrevClassTemplate)
-    CheckRedeclarationModuleOwnership(NewTemplate, PrevClassTemplate);
+    CheckRedeclarationInModule(NewTemplate, PrevClassTemplate);
 
   if (Invalid) {
     NewTemplate->setInvalidDecl();
@@ -3672,7 +3672,7 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
   SmallVector<TemplateArgument, 4> Converted;
   if (CheckTemplateArgumentList(Template, TemplateLoc, TemplateArgs,
                                 false, Converted,
-                                /*UpdateArgsWithConversion=*/true))
+                                /*UpdateArgsWithConversions=*/true))
     return QualType();
 
   QualType CanonType;
@@ -4318,7 +4318,7 @@ DeclResult Sema::ActOnVarTemplateSpecialization(
   SmallVector<TemplateArgument, 4> Converted;
   if (CheckTemplateArgumentList(VarTemplate, TemplateNameLoc, TemplateArgs,
                                 false, Converted,
-                                /*UpdateArgsWithConversion=*/true))
+                                /*UpdateArgsWithConversions=*/true))
     return true;
 
   // Find the variable template (partial) specialization declaration that
@@ -4489,7 +4489,7 @@ Sema::CheckVarTemplateId(VarTemplateDecl *Template, SourceLocation TemplateLoc,
   if (CheckTemplateArgumentList(
           Template, TemplateNameLoc,
           const_cast<TemplateArgumentListInfo &>(TemplateArgs), false,
-          Converted, /*UpdateArgsWithConversion=*/true))
+          Converted, /*UpdateArgsWithConversions=*/true))
     return true;
 
   // Produce a placeholder value if the specialization is dependent.
@@ -4677,7 +4677,7 @@ Sema::CheckConceptTemplateId(const CXXScopeSpec &SS,
   if (CheckTemplateArgumentList(NamedConcept, ConceptNameInfo.getLoc(),
                            const_cast<TemplateArgumentListInfo&>(*TemplateArgs),
                                 /*PartialTemplateArgs=*/false, Converted,
-                                /*UpdateArgsWithConversion=*/false))
+                                /*UpdateArgsWithConversions=*/false))
     return ExprError();
 
   ConstraintSatisfaction Satisfaction;
@@ -6142,12 +6142,12 @@ bool UnnamedLocalNoLinkageFinder::VisitPipeType(const PipeType* T) {
   return false;
 }
 
-bool UnnamedLocalNoLinkageFinder::VisitExtIntType(const ExtIntType *T) {
+bool UnnamedLocalNoLinkageFinder::VisitBitIntType(const BitIntType *T) {
   return false;
 }
 
-bool UnnamedLocalNoLinkageFinder::VisitDependentExtIntType(
-    const DependentExtIntType *T) {
+bool UnnamedLocalNoLinkageFinder::VisitDependentBitIntType(
+    const DependentBitIntType *T) {
   return false;
 }
 
@@ -7089,7 +7089,7 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
       QualType IntegerType = ParamType;
       if (const EnumType *Enum = IntegerType->getAs<EnumType>())
         IntegerType = Enum->getDecl()->getIntegerType();
-      Value = Value.extOrTrunc(IntegerType->isExtIntType()
+      Value = Value.extOrTrunc(IntegerType->isBitIntType()
                                    ? Context.getIntWidth(IntegerType)
                                    : Context.getTypeSize(IntegerType));
 
@@ -7184,7 +7184,7 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
 
       // Coerce the template argument's value to the value it will have
       // based on the template parameter's type.
-      unsigned AllowedBits = IntegerType->isExtIntType()
+      unsigned AllowedBits = IntegerType->isBitIntType()
                                  ? Context.getIntWidth(IntegerType)
                                  : Context.getTypeSize(IntegerType);
       if (Value.getBitWidth() != AllowedBits)
@@ -8343,7 +8343,7 @@ DeclResult Sema::ActOnClassTemplateSpecialization(
   SmallVector<TemplateArgument, 4> Converted;
   if (CheckTemplateArgumentList(ClassTemplate, TemplateNameLoc,
                                 TemplateArgs, false, Converted,
-                                /*UpdateArgsWithConversion=*/true))
+                                /*UpdateArgsWithConversions=*/true))
     return true;
 
   // Find the class template (partial) specialization declaration that
@@ -9595,7 +9595,7 @@ DeclResult Sema::ActOnExplicitInstantiation(
   SmallVector<TemplateArgument, 4> Converted;
   if (CheckTemplateArgumentList(ClassTemplate, TemplateNameLoc,
                                 TemplateArgs, false, Converted,
-                                /*UpdateArgsWithConversion=*/true))
+                                /*UpdateArgsWithConversions=*/true))
     return true;
 
   // Find the class template specialization declaration that

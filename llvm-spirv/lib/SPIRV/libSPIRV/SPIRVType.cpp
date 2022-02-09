@@ -111,8 +111,12 @@ SPIRVWord SPIRVType::getVectorComponentCount() const {
 }
 
 SPIRVType *SPIRVType::getVectorComponentType() const {
-  assert(OpCode == OpTypeVector && "Not vector type");
-  return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == OpTypeVector)
+    return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == internal::OpTypeJointMatrixINTEL)
+    return static_cast<const SPIRVTypeJointMatrixINTEL *>(this)->getCompType();
+  assert(0 && "getVectorComponentType(): Not a vector or joint matrix type");
+  return nullptr;
 }
 
 SPIRVWord SPIRVType::getMatrixColumnCount() const {
@@ -151,7 +155,8 @@ bool SPIRVType::isTypeArray() const { return OpCode == OpTypeArray; }
 bool SPIRVType::isTypeBool() const { return OpCode == OpTypeBool; }
 
 bool SPIRVType::isTypeComposite() const {
-  return isTypeVector() || isTypeArray() || isTypeStruct();
+  return isTypeVector() || isTypeArray() || isTypeStruct() ||
+         isTypeJointMatrixINTEL();
 }
 
 bool SPIRVType::isTypeFloat(unsigned Bits) const {
@@ -192,6 +197,10 @@ bool SPIRVType::isTypeImage() const { return OpCode == OpTypeImage; }
 bool SPIRVType::isTypeStruct() const { return OpCode == OpTypeStruct; }
 
 bool SPIRVType::isTypeVector() const { return OpCode == OpTypeVector; }
+
+bool SPIRVType::isTypeJointMatrixINTEL() const {
+  return OpCode == internal::OpTypeJointMatrixINTEL;
+}
 
 bool SPIRVType::isTypeVectorBool() const {
   return isTypeVector() && getVectorComponentType()->isTypeBool();

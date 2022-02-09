@@ -39,17 +39,17 @@ class Vector_Op<string mnemonic, list<OpTrait> traits = []> :
 }
 
 // The "kind" of combining function for contractions and reductions.
-def COMBINING_KIND_ADD : BitEnumAttrCase<"ADD", 0x1, "add">;
-def COMBINING_KIND_MUL : BitEnumAttrCase<"MUL", 0x2, "mul">;
-def COMBINING_KIND_MINUI : BitEnumAttrCase<"MINUI", 0x4, "minui">;
-def COMBINING_KIND_MINSI : BitEnumAttrCase<"MINSI", 0x8, "minsi">;
-def COMBINING_KIND_MINF : BitEnumAttrCase<"MINF", 0x10, "minf">;
-def COMBINING_KIND_MAXUI : BitEnumAttrCase<"MAXUI", 0x20, "maxui">;
-def COMBINING_KIND_MAXSI : BitEnumAttrCase<"MAXSI", 0x40, "maxsi">;
-def COMBINING_KIND_MAXF : BitEnumAttrCase<"MAXF", 0x80, "maxf">;
-def COMBINING_KIND_AND : BitEnumAttrCase<"AND", 0x100, "and">;
-def COMBINING_KIND_OR  : BitEnumAttrCase<"OR", 0x200, "or">;
-def COMBINING_KIND_XOR : BitEnumAttrCase<"XOR", 0x400, "xor">;
+def COMBINING_KIND_ADD : BitEnumAttrCaseBit<"ADD", 0, "add">;
+def COMBINING_KIND_MUL : BitEnumAttrCaseBit<"MUL", 1, "mul">;
+def COMBINING_KIND_MINUI : BitEnumAttrCaseBit<"MINUI", 2, "minui">;
+def COMBINING_KIND_MINSI : BitEnumAttrCaseBit<"MINSI", 3, "minsi">;
+def COMBINING_KIND_MINF : BitEnumAttrCaseBit<"MINF", 4, "minf">;
+def COMBINING_KIND_MAXUI : BitEnumAttrCaseBit<"MAXUI", 5, "maxui">;
+def COMBINING_KIND_MAXSI : BitEnumAttrCaseBit<"MAXSI", 6, "maxsi">;
+def COMBINING_KIND_MAXF : BitEnumAttrCaseBit<"MAXF", 7, "maxf">;
+def COMBINING_KIND_AND : BitEnumAttrCaseBit<"AND", 8, "and">;
+def COMBINING_KIND_OR  : BitEnumAttrCaseBit<"OR", 9, "or">;
+def COMBINING_KIND_XOR : BitEnumAttrCaseBit<"XOR", 10, "xor">;
 
 def CombiningKind : BitEnumAttr<
     "CombiningKind",
@@ -865,6 +865,11 @@ def Vector_InsertStridedSliceOp :
     VectorType getDestVectorType() {
       return dest().getType().cast<VectorType>();
     }
+    bool hasNonUnitStrides() { 
+      return llvm::any_of(strides(), [](Attribute attr) {
+        return attr.cast<IntegerAttr>().getInt() != 1;
+      });
+    }
   }];
 
   let hasFolder = 1;
@@ -1120,6 +1125,11 @@ def Vector_ExtractStridedSliceOp :
     static StringRef getStridesAttrName() { return "strides"; }
     VectorType getVectorType(){ return vector().getType().cast<VectorType>(); }
     void getOffsets(SmallVectorImpl<int64_t> &results);
+    bool hasNonUnitStrides() { 
+      return llvm::any_of(strides(), [](Attribute attr) {
+        return attr.cast<IntegerAttr>().getInt() != 1;
+      });
+    }
   }];
   let hasCanonicalizer = 1;
   let hasFolder = 1;
@@ -2083,7 +2093,7 @@ def Vector_TypeCastOp :
     Example:
 
     ```mlir
-    %A  = alloc() : memref<5x4x3xf32>
+    %A  = memref.alloc() : memref<5x4x3xf32>
     %VA = vector.type_cast %A : memref<5x4x3xf32> to memref<vector<5x4x3xf32>>
     ```
   }];
@@ -2111,7 +2121,7 @@ def Vector_TypeCastOp :
 def Vector_ConstantMaskOp :
   Vector_Op<"constant_mask", [NoSideEffect]>,
     Arguments<(ins I64ArrayAttr:$mask_dim_sizes)>,
-    Results<(outs VectorOf<[I1]>)> {
+    Results<(outs VectorOfAnyRankOf<[I1]>)> {
   let summary = "creates a constant vector mask";
   let description = [{
     Creates and returns a vector mask where elements of the result vector
@@ -2121,7 +2131,9 @@ def Vector_ConstantMaskOp :
     specifies an exclusive upper bound [0, mask-dim-size-element-value)
     for a unique dimension in the vector result. The conjunction of the ranges
     define a hyper-rectangular region within which elements values are set to 1
-    (otherwise element values are set to 0).
+    (otherwise element values are set to 0). Each value of 'mask_dim_sizes' must
+    be non-negative and not greater than the size of the corresponding vector
+    dimension (as opposed to vector.create_mask which allows this).
 
     Example:
 
@@ -2149,7 +2161,8 @@ def Vector_ConstantMaskOp :
 
 def Vector_CreateMaskOp :
   Vector_Op<"create_mask", [NoSideEffect]>,
-    Arguments<(ins Variadic<Index>:$operands)>, Results<(outs VectorOf<[I1]>)> {
+    Arguments<(ins Variadic<Index>:$operands)>,
+    Results<(outs VectorOfAnyRankOf<[I1]>)> {
   let summary = "creates a vector mask";
   let description = [{
     Creates and returns a vector mask where elements of the result vector
@@ -2158,7 +2171,9 @@ def Vector_CreateMaskOp :
     each operand specifies a range [0, operand-value) for a unique dimension in
     the vector result. The conjunction of the operand ranges define a
     hyper-rectangular region within which elements values are set to 1
-    (otherwise element values are set to 0).
+    (otherwise element values are set to 0). If operand-value is negative, it is
+    treated as if it were zero, and if it is greater than the corresponding
+    dimension size, it is treated as if it were equal to the dimension size.
 
     Example:
 
@@ -2380,6 +2395,38 @@ def Vector_FlatTransposeOp : Vector_Op<"flat_transpose", [NoSideEffect,
   }];
   let verifier = ?;
   let assemblyFormat = "$matrix attr-dict `:` type($matrix) `->` type($res)";
+}
+
+//===----------------------------------------------------------------------===//
+// VectorScaleOp
+//===----------------------------------------------------------------------===//
+
+// TODO: In the future, we might want to have scalable vectors with different
+//       scales for different dimensions. E.g.: vector<[16]x[16]xf32>, in
+//       which case we might need to add an index to 'vscale' to select one
+//       of them. In order to support GPUs, we might also want to differentiate
+//       between a 'global' scale, a scale that's fixed throughout the
+//       execution, and a 'local' scale that is fixed but might vary with each
+//       call to the function. For that, it might be useful to have a
+//       'vector.scale.global' and a 'vector.scale.local' operation.
+def VectorScaleOp : Vector_Op<"vscale",
+                 [NoSideEffect]> {
+  let summary = "Load vector scale size";
+  let description = [{
+    The `vscale` op returns the scale of the scalable vectors, a positive
+    integer value that is constant at runtime but unknown at compile-time.
+    The scale of the vector indicates the multiplicity of the vectors and
+    vector operations. For example, a `vector<[4]xi32>` is equivalent to
+    `vscale` consecutive `vector<4xi32>`; and an operation on a
+    `vector<[4]xi32>` is equivalent to performing that operation `vscale`
+    times, once on each `<4xi32>` segment of the scalable vector. The `vscale`
+    op can be used to calculate the step in vector-length agnostic (VLA) loops.
+    Right now we only support one contiguous set of scalable dimensions, all of
+    them grouped and scaled with the value returned by 'vscale'.
+  }];
+  let results = (outs Index:$res);
+  let assemblyFormat = "attr-dict";
+  let verifier = ?;
 }
 
 #endif // VECTOR_OPS

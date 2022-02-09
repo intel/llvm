@@ -13,11 +13,11 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-
-    # Author: Aleksander Us <aleksander.us@intel.com>
-    # Date:   Mon Oct 18 18:03:24 2021 +0000
-    #     Wrap arg_size for call instructions
-    set(LLVMGenXIntrinsics_GIT_TAG 6a7e93d3d90638b6565d97cef96ffaf0f77d688c)
+    # commit d2f78f24314cd5aad1f633042cf5ae49b0ecdb24
+    # Author: Sergey Semenov <sergey.semenov@intel.com>
+    # Date:   Tue Jan 25 17:59:19 2022 +0000
+    # Fix an issue with GenXIntrinsicDescription.gen includes
+    set(LLVMGenXIntrinsics_GIT_TAG d2f78f24314cd5aad1f633042cf5ae49b0ecdb24)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -48,12 +48,15 @@ set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP ${LLVMGenXIntrinsics_BINARY_DIR})
 
 add_llvm_component_library(LLVMSYCLLowerIR
+  ESIMD/LowerESIMD.cpp
+  ESIMD/LowerESIMDVLoadVStore.cpp
+  ESIMD/LowerESIMDVecArg.cpp
+  ESIMD/ESIMDVerifier.cpp
   LowerWGScope.cpp
-  LowerESIMD.cpp
-  LowerESIMDVLoadVStore.cpp
-  LowerESIMDVecArg.cpp
   LowerWGLocalMemory.cpp
-  ESIMDVerifier.cpp
+  MutatePrintfAddrspace.cpp
+
+  LocalAccessorToSharedMemory.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -72,6 +75,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LLVMTransformUtils
   
   LINK_COMPONENTS
+  Analysis
   Core
   Support
   )

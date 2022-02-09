@@ -75,7 +75,7 @@ bool CaptureTracker::isDereferenceableOrNull(Value *O, const DataLayout &DL) {
 namespace {
   struct SimpleCaptureTracker : public CaptureTracker {
     explicit SimpleCaptureTracker(bool ReturnCaptures)
-      : ReturnCaptures(ReturnCaptures), Captured(false) {}
+        : ReturnCaptures(ReturnCaptures) {}
 
     void tooManyUses() override { Captured = true; }
 
@@ -89,7 +89,7 @@ namespace {
 
     bool ReturnCaptures;
 
-    bool Captured;
+    bool Captured = false;
   };
 
   /// Only find pointer captures which happen before the given instruction. Uses
@@ -101,7 +101,7 @@ namespace {
     CapturesBefore(bool ReturnCaptures, const Instruction *I,
                    const DominatorTree *DT, bool IncludeI, const LoopInfo *LI)
         : BeforeHere(I), DT(DT), ReturnCaptures(ReturnCaptures),
-          IncludeI(IncludeI), Captured(false), LI(LI) {}
+          IncludeI(IncludeI), LI(LI) {}
 
     void tooManyUses() override { Captured = true; }
 
@@ -139,7 +139,7 @@ namespace {
     bool ReturnCaptures;
     bool IncludeI;
 
-    bool Captured;
+    bool Captured = false;
 
     const LoopInfo *LI;
   };
@@ -155,7 +155,7 @@ namespace {
   struct EarliestCaptures : public CaptureTracker {
 
     EarliestCaptures(bool ReturnCaptures, Function &F, const DominatorTree &DT)
-        : DT(DT), ReturnCaptures(ReturnCaptures), Captured(false), F(F) {}
+        : DT(DT), ReturnCaptures(ReturnCaptures), F(F) {}
 
     void tooManyUses() override {
       Captured = true;
@@ -199,7 +199,7 @@ namespace {
 
     bool ReturnCaptures;
 
-    bool Captured;
+    bool Captured = false;
 
     Function &F;
   };
@@ -346,13 +346,16 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
           if (Tracker->captured(U))
             return;
 
-      // Not captured if only passed via 'nocapture' arguments.  Note that
-      // calling a function pointer does not in itself cause the pointer to
+      // Calling a function pointer does not in itself cause the pointer to
       // be captured.  This is a subtle point considering that (for example)
       // the callee might return its own address.  It is analogous to saying
       // that loading a value from a pointer does not cause the pointer to be
       // captured, even though the loaded value might be the pointer itself
       // (think of self-referential objects).
+      if (Call->isCallee(U))
+        break;
+
+      // Not captured if only passed via 'nocapture' arguments.
       if (Call->isDataOperand(U) &&
           !Call->doesNotCapture(Call->getDataOperandNo(U))) {
         // The parameter is not marked 'nocapture' - captured.

@@ -478,7 +478,8 @@ void RocmInstallationDetector::print(raw_ostream &OS) const {
 
 void RocmInstallationDetector::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                                  ArgStringList &CC1Args) const {
-  bool UsesRuntimeWrapper = VersionMajorMinor > llvm::VersionTuple(3, 5);
+  bool UsesRuntimeWrapper = VersionMajorMinor > llvm::VersionTuple(3, 5) &&
+                            !DriverArgs.hasArg(options::OPT_nohipwrapperinc);
 
   if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
     // HIP header includes standard library wrapper headers under clang
@@ -894,9 +895,9 @@ bool AMDGPUToolChain::shouldSkipArgument(const llvm::opt::Arg *A) const {
   return false;
 }
 
-llvm::SmallVector<std::string, 12>
-ROCMToolChain::getCommonDeviceLibNames(const llvm::opt::ArgList &DriverArgs,
-                                       const std::string &GPUArch) const {
+llvm::SmallVector<std::string, 12> ROCMToolChain::getCommonDeviceLibNames(
+    const llvm::opt::ArgList &DriverArgs, const std::string &GPUArch,
+    const Action::OffloadKind DeviceOffloadingKind) const {
   auto Kind = llvm::AMDGPU::parseArchAMDGCN(GPUArch);
   const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
 
@@ -919,9 +920,15 @@ ROCMToolChain::getCommonDeviceLibNames(const llvm::opt::ArgList &DriverArgs,
                          options::OPT_fno_unsafe_math_optimizations, false);
   bool FastRelaxedMath = DriverArgs.hasFlag(options::OPT_ffast_math,
                                             options::OPT_fno_fast_math, false);
-  bool CorrectSqrt = DriverArgs.hasFlag(
-      options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
-      options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt);
+  bool CorrectSqrt = false;
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    // When using SYCL, sqrt is only correctly rounded if the flag is specified
+    CorrectSqrt = DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt);
+  } else
+    CorrectSqrt = DriverArgs.hasFlag(
+        options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
+        options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt);
+
   bool Wave64 = isWave64(DriverArgs, Kind);
 
   return RocmInstallation.getCommonBitcodeLibs(

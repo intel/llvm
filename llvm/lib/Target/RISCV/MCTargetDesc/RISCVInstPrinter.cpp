@@ -85,7 +85,7 @@ void RISCVInstPrinter::printRegName(raw_ostream &O, unsigned RegNo) const {
 void RISCVInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
                                     const MCSubtargetInfo &STI, raw_ostream &O,
                                     const char *Modifier) {
-  assert((Modifier == 0 || Modifier[0] == 0) && "No modifiers supported");
+  assert((Modifier == nullptr || Modifier[0] == 0) && "No modifiers supported");
   const MCOperand &MO = MI->getOperand(OpNo);
 
   if (MO.isReg()) {
@@ -171,9 +171,9 @@ void RISCVInstPrinter::printVTypeI(const MCInst *MI, unsigned OpNo,
                                    const MCSubtargetInfo &STI, raw_ostream &O) {
   unsigned Imm = MI->getOperand(OpNo).getImm();
   // Print the raw immediate for reserved values: vlmul[2:0]=4, vsew[2:0]=0b1xx,
-  // or non-zero bits 8/9/10.
+  // or non-zero in bits 8 and above.
   if (RISCVVType::getVLMUL(Imm) == RISCVII::VLMUL::LMUL_RESERVED ||
-      RISCVVType::getSEW(Imm) > 64 || (Imm & 0x700) != 0) {
+      RISCVVType::getSEW(Imm) > 64 || (Imm >> 8) != 0) {
     O << Imm;
     return;
   }
