@@ -397,8 +397,8 @@ void checkImageScopedDeviceGlobals(const Module &M,
     auto CheckEntryPointModule = [&VarEntryPointModule, &EntryPointModules,
                                   &GV](const auto *F) {
       auto EntryPointModulesIt = EntryPointModules.find(F);
-      assert(EntryPointModulesIt != EntryPointModules.end()
-             && "There is no group for an entry point");
+      assert(EntryPointModulesIt != EntryPointModules.end() &&
+             "There is no group for an entry point");
       if (VarEntryPointModule == nullptr) {
         VarEntryPointModule = EntryPointModulesIt->second;
         return;
