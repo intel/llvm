@@ -10,10 +10,10 @@ jobs:
     steps:
     - uses: actions/stale@v4
       with:
-        stale-issue-message: 'This issue is stale because it has been open 180 days with no activity. Remove stale label or comment or this will be closed in 30 days.'
+        stale-issue-message: 'This issue is stale because it has been open 180 days with no activity. Remove stale label or comment or this will be automatically closed in 30 days.'
         close-issue-message: 'This issue was closed because it has been stalled for 30 days with no activity.'
         days-before-stale: 180
         days-before-close: 30
-        exempt-issue-labels: 'confirmed,hip,cuda,enhancement'
+        exempt-issue-labels: 'confirmed,hip,cuda,enhancement,help wanted,upstream'
         stale-issue-label: 'stale'
         exempt-all-issue-assignees: true
