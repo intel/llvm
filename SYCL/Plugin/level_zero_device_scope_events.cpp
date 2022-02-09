@@ -1,6 +1,4 @@
-// FIXME: Investigate OS-agnostic failures
-// REQUIRES: TEMPORARY_DISABLED
-// XREQUIRES: gpu, level_zero
+// REQUIRES: gpu, level_zero
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 SYCL_PI_TRACE=-1 ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 | FileCheck --check-prefixes=MODE1 %s
