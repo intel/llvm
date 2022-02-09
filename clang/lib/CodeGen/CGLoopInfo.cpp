@@ -1040,7 +1040,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
                             ? "llvm.loop.intel.loopcount_max"
                             : IntelFPGALoopCountAvg->isMin()
                                   ? "llvm.loop.intel.loopcount_min"
-                                  : "llvm.loop.intel.loopcount_avg";
+                                  : IntelFPGALoopCountAvg->isAvg()
+                                  ? "llvm.loop.intel.loopcount_avg"
+                                  : "llvm.loop.intel.loopcount";
       setSYCLIntelFPGAVariantCount(Var, ArgVal.getSExtValue());
     }
 

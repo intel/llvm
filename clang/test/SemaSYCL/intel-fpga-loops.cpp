@@ -23,7 +23,9 @@ void foo() {
   // expected-error@+1 {{'nofusion' attribute cannot be applied to a declaration}}
   [[intel::nofusion]] int k[10];
   // expected-error@+1{{'loop_count_avg' attribute cannot be applied to a declaration}}
-  [[intel::loop_count_avg(6)]] int p[10];
+  [[intel::loop_count_avg(6)]] int l[10];
+  // expected-error@+1{{'loop_count' attribute cannot be applied to a declaration}}
+  [[intel::loop_count(8)]] int m[10];
 }
 
 // Test for deprecated spelling of Intel FPGA loop attributes
@@ -117,6 +119,9 @@ void boo() {
   // expected-error@+1 {{'loop_count_avg' attribute takes one argument}}
   [[intel::loop_count_avg(3, 6)]]  for (int i = 0; i != 10; ++i)
       a[i] = 0;
+  // expected-error@+1 {{'loop_count' attribute takes one argument}}
+  [[intel::loop_count(6, 9)]]  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for incorrect argument value for Intel FPGA loop attributes
@@ -202,6 +207,14 @@ void goo() {
       a[i] = 0;
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
   [[intel::loop_count_avg("abc")]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
+  [[intel::loop_count("abc")]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intel::loop_count(0)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // expected-error@+1 {{'loop_count' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count(-1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -316,6 +329,11 @@ void zoo() {
   // expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_avg'}}
   [[intel::loop_count_avg(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::loop_count(2)]]
+  // expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count'}}
+  [[intel::loop_count(2)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -363,6 +381,9 @@ void loop_attrs_compatibility() {
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
   [[intel::loop_count_max(8)]]
+  for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  [[intel::loop_count(8)]]
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
@@ -499,6 +520,11 @@ void loop_count_control_dependent() {
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
+  //expected-error@+1{{'loop_count' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::loop_count(C)]]
+  for (int i = 0; i != 10; ++i)
+       a[i] = 0;
+
   [[intel::loop_count_avg(A)]]
   //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count_avg'}}
   [[intel::loop_count_avg(B)]] for (int i = 0; i != 10; ++i)
@@ -514,6 +540,10 @@ void loop_count_control_dependent() {
   [[intel::loop_count_max(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
+  [[intel::loop_count(A)]]
+  //expected-error@+1{{duplicate Intel FPGA loop attribute 'loop_count'}}
+  [[intel::loop_count(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
 }
 
 void check_max_concurrency_expression() {
@@ -647,6 +677,11 @@ void check_loop_attr_template_instantiation() {
   // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[intel::loop_count_min(Ty{})]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::loop_count(Ty{})]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
