@@ -49,8 +49,8 @@ Full runnable code sample can be found on the
 
 #### Compiling and running ESIMD code.
 
-Compiling and running code that uses the ESIMD extension is the same as compiler and
-running code that uses the standard SYCL:
+Code that uses the ESIMD extension can be compiled and run using the same commands
+as standard SYCL:
 
 To compile using the open-source Intel DPC++ compiler:
 > `$ clang++ -fsycl vadd_usm.cpp`
