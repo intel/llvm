@@ -1896,7 +1896,7 @@ __ESIMD_API void lsc_block_store(T *p, simd<T, NElts> vals) {
 }
 
 /// 2D flat-address block load.
-/// Supported platforms: DG2, PVC
+/// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
 ///
 /// Collects elements located at specified address and returns them
@@ -1961,7 +1961,7 @@ __ESIMD_API simd<T, N> lsc_load2d(const T *Ptr, unsigned SurfaceWidth,
 }
 
 /// 2D flat-address block prefetch.
-/// Supported platforms: DG2, PVC
+/// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
 ///
 /// Prefetches elements located at specified address.
@@ -2005,7 +2005,7 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
 }
 
 /// 2D flat-address block store.
-/// Supported platforms: DG2, PVC
+/// Supported platforms: PVC
 /// VISA instruction: lsc_store_block2d.ugm
 ///
 /// Stores elements at specified address.

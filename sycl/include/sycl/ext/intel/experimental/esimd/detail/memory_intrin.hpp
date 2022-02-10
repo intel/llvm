@@ -1200,7 +1200,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// 2D flat-address block load.
-/// Supported platforms: DG2, PVC
+/// Supported platforms: PVC
 ///
 /// Collects elements located at specified address and returns them
 /// as a single \ref simd object.
@@ -1247,7 +1247,7 @@ __esimd_lsc_load2d_stateless(__SEIEED::simd_mask_storage_t<N> Pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// 2D flat-address block prefetch.
-/// Supported platforms: DG2, PVC
+/// Supported platforms: PVC
 ///
 /// Prefetches elements located at specified address.
 ///
@@ -1286,7 +1286,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// 2D flat-address block store.
-/// Supported platforms: DG2, PVC
+/// Supported platforms: PVC
 ///
 /// Stores elements at specified address.
 ///
