@@ -420,33 +420,6 @@ OpOperandVector::operator SmallVector<Value>() {
   return result;
 }
 
-/// Fully compose map with operands and canonicalize the result.
-/// Return the `createOrFold`'ed AffineApply op.
-static Value createFoldedComposedAffineApply(OpBuilder &b, Location loc,
-                                             AffineMap map,
-                                             ValueRange operandsRef) {
-  SmallVector<Value, 4> operands(operandsRef.begin(), operandsRef.end());
-  fullyComposeAffineMapAndOperands(&map, &operands);
-  canonicalizeMapAndOperands(&map, &operands);
-  return b.createOrFold<AffineApplyOp>(loc, map, operands);
-}
-
-SmallVector<Value, 4> mlir::linalg::applyMapToValues(OpBuilder &b, Location loc,
-                                                     AffineMap map,
-                                                     ValueRange values) {
-  SmallVector<Value, 4> res;
-  res.reserve(map.getNumResults());
-  unsigned numDims = map.getNumDims(), numSym = map.getNumSymbols();
-  // For each `expr` in `map`, applies the `expr` to the values extracted from
-  // ranges. If the resulting application can be folded into a Value, the
-  // folding occurs eagerly.
-  for (auto expr : map.getResults()) {
-    AffineMap map = AffineMap::get(numDims, numSym, expr);
-    res.push_back(createFoldedComposedAffineApply(b, loc, map, values));
-  }
-  return res;
-}
-
 /// Helper function that creates a memref::DimOp or tensor::DimOp depending on
 /// the type of `source`.
 static Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source,
@@ -639,7 +612,7 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
              << indexingMap.getNumResults() << ")";
   }
 
-  SmallVector<AffineExpr> redDims;
+  SmallVector<unsigned> redDims;
   linalgOp.getReductionDims(redDims);
 
   // Simplifying assumption: either full tensor or full buffer mode.
@@ -665,9 +638,8 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
   // Output tensor indexing map may not depend on reduction indices.
   for (OpOperand *opOperand : linalgOp.getOutputOperands()) {
     AffineMap indexingMap = linalgOp.getTiedIndexingMap(opOperand);
-    for (auto expr : indexingMap.getResults()) {
-      for (auto dim : redDims) {
-        unsigned pos = dim.cast<AffineDimExpr>().getPosition();
+    for (AffineExpr expr : indexingMap.getResults()) {
+      for (unsigned pos : redDims) {
         if (expr.isFunctionOfDim(pos)) {
           std::string exprStr;
           {

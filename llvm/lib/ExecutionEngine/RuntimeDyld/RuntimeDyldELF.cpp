@@ -422,6 +422,8 @@ void RuntimeDyldELF::resolveAArch64Relocation(const SectionEntry &Section,
   default:
     report_fatal_error("Relocation type not implemented yet!");
     break;
+  case ELF::R_AARCH64_NONE:
+    break;
   case ELF::R_AARCH64_ABS16: {
     uint64_t Result = Value + Addend;
     assert(static_cast<int64_t>(Result) >= INT16_MIN && Result < UINT16_MAX);
@@ -1301,7 +1303,7 @@ RuntimeDyldELF::processRelocationRef(
         MemMgr.allowStubAllocation()) {
       resolveAArch64Branch(SectionID, Value, RelI, Stubs);
     } else if (RelType == ELF::R_AARCH64_ADR_GOT_PAGE) {
-      // Craete new GOT entry or find existing one. If GOT entry is
+      // Create new GOT entry or find existing one. If GOT entry is
       // to be created, then we also emit ABS64 relocation for it.
       uint64_t GOTOffset = findOrAllocGOTEntry(Value, ELF::R_AARCH64_ABS64);
       resolveGOTOffsetRelocation(SectionID, Offset, GOTOffset + Addend,

@@ -237,7 +237,14 @@ bool RISCVFrameLowering::hasBP(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *TRI = STI.getRegisterInfo();
 
-  return MFI.hasVarSizedObjects() && TRI->hasStackRealignment(MF);
+  // If we do not reserve stack space for outgoing arguments in prologue,
+  // we will adjust the stack pointer before call instruction. After the
+  // adjustment, we can not use SP to access the stack objects for the
+  // arguments. Instead, use BP to access these stack objects.
+  return (MFI.hasVarSizedObjects() ||
+          (!hasReservedCallFrame(MF) && (!MFI.isMaxCallFrameSizeComputed() ||
+                                         MFI.getMaxCallFrameSize() != 0))) &&
+         TRI->hasStackRealignment(MF);
 }
 
 // Determines the size of the frame and maximum call frame size.
@@ -934,11 +941,22 @@ void RISCVFrameLowering::processFunctionBeforeFrameFinalized(
 }
 
 static bool hasRVVFrameObject(const MachineFunction &MF) {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  for (int I = 0, E = MFI.getObjectIndexEnd(); I != E; ++I)
-    if (MFI.getStackID(I) == TargetStackID::ScalableVector)
-      return true;
-  return false;
+  // Originally, the function will scan all the stack objects to check whether
+  // if there is any scalable vector object on the stack or not. However, it
+  // causes errors in the register allocator. In issue 53016, it returns false
+  // before RA because there is no RVV stack objects. After RA, it returns true
+  // because there are spilling slots for RVV values during RA. It will not
+  // reserve BP during register allocation and generate BP access in the PEI
+  // pass due to the inconsistent behavior of the function.
+  //
+  // The function is changed to use hasVInstructions() as the return value. It
+  // is not precise, but it can make the register allocation correct.
+  //
+  // FIXME: Find a better way to make the decision or revisit the solution in
+  // D103622.
+  //
+  // Refer to https://github.com/llvm/llvm-project/issues/53016.
+  return MF.getSubtarget<RISCVSubtarget>().hasVInstructions();
 }
 
 // Not preserve stack space within prologue for outgoing variables when the

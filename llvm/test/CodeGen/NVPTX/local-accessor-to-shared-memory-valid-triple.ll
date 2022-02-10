@@ -1,7 +1,11 @@
 ; This test checks that the Local Accessor to Shared Memory pass runs with the
 ; `nvptx64-nvidia-cuda` triple.
-; RUN: llc -march=nvptx64 -mcpu=sm_20 < %s | FileCheck %s
-; CHECK: .param .u32 _ZTS14example_kernel_param_0
+; RUN: llc -march=nvptx64 -mcpu=sm_20 -sycl-enable-local-accessor < %s | FileCheck --check-prefix=CHECK-OPT %s
+; RUN: llc -march=nvptx64 -mcpu=sm_20 -sycl-enable-local-accessor=true < %s | FileCheck --check-prefix=CHECK-OPT %s
+; RUN: llc -march=nvptx64 -mcpu=sm_20 < %s | FileCheck --check-prefix=CHECK-NO-OPT %s
+; RUN: llc -march=nvptx64 -mcpu=sm_20 -sycl-enable-local-accessor=false < %s | FileCheck --check-prefix=CHECK-NO-OPT %s
+; CHECK-OPT: .param .u32 _ZTS14example_kernel_param_0
+; CHECK-NO-OPT-NOT: .param .u32 _ZTS14example_kernel_param_0
 
 ; ModuleID = 'local-accessor-to-shared-memory-valid-triple.ll'
 source_filename = "local-accessor-to-shared-memory-valid-triple.ll"

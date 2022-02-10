@@ -1,6 +1,5 @@
 // RUN: mlir-opt -promote-buffers-to-stack -split-input-file %s | FileCheck %s --check-prefix=CHECK --check-prefix DEFINDEX
-// RUN: mlir-opt -promote-buffers-to-stack="bitwidth-of-index-type=256 max-alloc-size-in-bytes=128" -split-input-file %s | FileCheck %s --check-prefix=CHECK --check-prefix BIGINDEX
-// RUN: mlir-opt -promote-buffers-to-stack="bitwidth-of-index-type=256 max-alloc-size-in-bytes=64" -split-input-file %s | FileCheck %s --check-prefix=CHECK --check-prefix LOWLIMIT
+// RUN: mlir-opt -promote-buffers-to-stack="max-alloc-size-in-bytes=64" -split-input-file %s | FileCheck %s --check-prefix=CHECK --check-prefix LOWLIMIT
 // RUN: mlir-opt -promote-buffers-to-stack="max-rank-of-allocated-memref=2" -split-input-file %s | FileCheck %s --check-prefix=CHECK --check-prefix RANK
 
 // This file checks the behavior of PromoteBuffersToStack pass for converting
@@ -77,25 +76,25 @@ func @condBranchDynamicType(
 // -----
 
 // CHECK-LABEL: func @dynamicRanked
-func @dynamicRanked(%tensor: tensor<*xf32>) {
-  %0 = rank %tensor : tensor<*xf32>
+func @dynamicRanked(%memref: memref<*xf32>) {
+  %0 = memref.rank %memref : memref<*xf32>
   %1 = memref.alloc(%0) : memref<?xindex>
   return
 }
 
-// CHECK-NEXT: %[[RANK:.*]] = rank
+// CHECK-NEXT: %[[RANK:.*]] = memref.rank %{{.*}} : memref<*xf32>
 // CHECK-NEXT: %[[ALLOCA:.*]] = memref.alloca(%[[RANK]])
 
 // -----
 
 // CHECK-LABEL: func @dynamicRanked2D
-func @dynamicRanked2D(%tensor: tensor<*xf32>) {
-  %0 = rank %tensor : tensor<*xf32>
+func @dynamicRanked2D(%memref: memref<*xf32>) {
+  %0 = memref.rank %memref : memref<*xf32>
   %1 = memref.alloc(%0, %0) : memref<?x?xindex>
   return
 }
 
-// CHECK-NEXT: %[[RANK:.*]] = rank
+// CHECK-NEXT: %[[RANK:.*]] = memref.rank %{{.*}} : memref<*xf32>
 //  RANK-NEXT: %[[ALLOC:.*]] = memref.alloca(%[[RANK]], %[[RANK]])
 // DEFINDEX-NEXT: %[[ALLOC:.*]] = memref.alloc(%[[RANK]], %[[RANK]])
 
@@ -595,7 +594,20 @@ func @indexElementType() {
   return
 }
 // DEFINDEX-NEXT: memref.alloca()
-// BIGINDEX-NEXT: memref.alloca()
+// LOWLIMIT-NEXT: memref.alloca()
+// RANK-NEXT: memref.alloca()
+// CHECK-NEXT: return
+
+// -----
+
+// CHECK-LABEL: func @bigIndexElementType
+module attributes { dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<index, 256>>} {
+  func @bigIndexElementType() {
+    %0 = memref.alloc() : memref<4xindex>
+    return
+  }
+}
+// DEFINDEX-NEXT: memref.alloca()
 // LOWLIMIT-NEXT: memref.alloc()
 // RANK-NEXT: memref.alloca()
 // CHECK-NEXT: return

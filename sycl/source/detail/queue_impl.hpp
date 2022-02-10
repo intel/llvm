@@ -24,6 +24,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -93,7 +94,20 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MAssertHappenedBuffer(range<1>{1}),
-        MIsInorder(has_property<property::queue::in_order>()) {
+        MIsInorder(has_property<property::queue::in_order>()),
+        MDiscardEvents(
+            has_property<ext::oneapi::property::queue::discard_events>()),
+        MHasDiscardEventsSupport(
+            MDiscardEvents &&
+            (MHostQueue ? true
+                        : (MIsInorder && getPlugin().getBackend() !=
+                                             backend::ext_oneapi_level_zero))) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -118,7 +132,20 @@ public:
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
-        MIsInorder(has_property<property::queue::in_order>()) {
+        MIsInorder(has_property<property::queue::in_order>()),
+        MDiscardEvents(
+            has_property<ext::oneapi::property::queue::discard_events>()),
+        MHasDiscardEventsSupport(
+            MDiscardEvents &&
+            (MHostQueue ? true
+                        : (MIsInorder && getPlugin().getBackend() !=
+                                             backend::ext_oneapi_level_zero))) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -129,9 +156,6 @@ public:
                                            sizeof(Device), &Device, nullptr);
     MDevice =
         DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
-
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
   }
 
   ~queue_impl() {
@@ -168,6 +192,9 @@ public:
 
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
+
+  /// \return true if this queue has discard_events support.
+  bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
 
   /// Queries SYCL queue for information.
   ///
@@ -400,16 +427,7 @@ public:
   }
 
   ThreadPool &getThreadPool() {
-    if (!MHostTaskThreadPool)
-      initHostTaskAndEventCallbackThreadPool();
-
-    return *MHostTaskThreadPool;
-  }
-
-  void stopThreadPool() {
-    if (MHostTaskThreadPool) {
-      MHostTaskThreadPool->finishAndWait();
-    }
+    return GlobalHandler::instance().getHostTaskThreadPool();
   }
 
   /// Gets the native handle of the SYCL queue.
@@ -422,9 +440,12 @@ public:
   }
 
 private:
-  void finalizeHandler(handler &Handler, bool NeedSeparateDependencyMgmt,
+  void finalizeHandler(handler &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
+      bool NeedSeparateDependencyMgmt =
+          (Type == CG::CGTYPE::CodeplayHostTask ||
+           Type == CG::CGTYPE::CodeplayInteropTask);
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MLastEventMtx};
@@ -463,10 +484,6 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    bool NeedSeparateDependencyMgmt =
-        MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
-                       Type == CG::CGTYPE::CodeplayInteropTask);
-
     event Event;
 
     if (PostProcess) {
@@ -479,11 +496,11 @@ private:
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MOSModuleHandle, Handler.MKernelName);
 
-      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
+      finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
+      finalizeHandler(Handler, Type, Event);
 
     addEvent(Event);
     return Event;
@@ -497,8 +514,6 @@ private:
   // Uses events generated by the Prolog and emits wait done event
   void instrumentationEpilog(void *TelementryEvent, std::string &Name,
                              int32_t StreamID, uint64_t IId);
-
-  void initHostTaskAndEventCallbackThreadPool();
 
   /// queue_impl.addEvent tracks events with weak pointers
   /// but some events have no other owners. addSharedEvent()
@@ -538,10 +553,6 @@ private:
   // Assume OOO support by default.
   bool MSupportOOO = true;
 
-  // Thread pool for host task and event callbacks execution.
-  // The thread pool is instantiated upon the very first call to getThreadPool()
-  std::unique_ptr<ThreadPool> MHostTaskThreadPool;
-
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
@@ -551,6 +562,18 @@ private:
   std::mutex MLastEventMtx;
 
   const bool MIsInorder;
+
+public:
+  // Queue constructed with the discard_events property
+  const bool MDiscardEvents;
+
+private:
+  // This flag says if we can discard events based on a queue "setup" which will
+  // be common for all operations submitted to the queue. This is a must
+  // condition for discarding, but even if it's true, in some cases, we won't be
+  // able to discard events, because the final decision is made right before the
+  // operation itself.
+  const bool MHasDiscardEventsSupport;
 };
 
 } // namespace detail

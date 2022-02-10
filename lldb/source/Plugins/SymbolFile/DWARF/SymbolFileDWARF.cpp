@@ -1097,7 +1097,8 @@ bool SymbolFileDWARF::ParseImportedModules(
       if (const char *include_path = module_die.GetAttributeValueAsString(
               DW_AT_LLVM_include_path, nullptr)) {
         FileSpec include_spec(include_path, dwarf_cu->GetPathStyle());
-        MakeAbsoluteAndRemap(include_spec, *dwarf_cu, m_objfile_sp->GetModule());
+        MakeAbsoluteAndRemap(include_spec, *dwarf_cu,
+                             m_objfile_sp->GetModule());
         module.search_path = ConstString(include_spec.GetPath());
       }
       if (const char *sysroot = dwarf_cu->DIE().GetAttributeValueAsString(
@@ -1924,7 +1925,7 @@ void SymbolFileDWARF::ResolveFunctionAndBlock(lldb::addr_t file_vm_addr,
       block_die = function_die.LookupDeepestBlock(file_vm_addr);
   }
 
-  if (!sc.function || ! lookup_block)
+  if (!sc.function || !lookup_block)
     return;
 
   Block &block = sc.function->GetBlock(true);
@@ -2067,6 +2068,13 @@ uint32_t SymbolFileDWARF::ResolveSymbolContext(
 }
 
 void SymbolFileDWARF::PreloadSymbols() {
+  // Get the symbol table for the symbol file prior to taking the module lock
+  // so that it is available without needing to take the module lock. The DWARF
+  // indexing might end up needing to relocate items when DWARF sections are
+  // loaded as they might end up getting the section contents which can call
+  // ObjectFileELF::RelocateSection() which in turn will ask for the symbol
+  // table and can cause deadlocks.
+  GetSymtab();
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   m_index->Preload();
 }
@@ -2132,7 +2140,8 @@ void SymbolFileDWARF::FindGlobalVariables(
 
   llvm::StringRef basename;
   llvm::StringRef context;
-  bool name_is_mangled = (bool)Mangled(name);
+  bool name_is_mangled = Mangled::GetManglingScheme(name.GetStringRef()) !=
+                         Mangled::eManglingSchemeNone;
 
   if (!CPlusPlusLanguage::ExtractContextAndIdentifier(name.GetCString(),
                                                       context, basename))
@@ -2312,7 +2321,8 @@ void SymbolFileDWARF::FindFunctions(ConstString name,
   if (log) {
     GetObjectFile()->GetModule()->LogMessage(
         log,
-        "SymbolFileDWARF::FindFunctions (name=\"%s\", name_type_mask=0x%x, sc_list)",
+        "SymbolFileDWARF::FindFunctions (name=\"%s\", name_type_mask=0x%x, "
+        "sc_list)",
         name.GetCString(), name_type_mask);
   }
 
@@ -2345,8 +2355,7 @@ void SymbolFileDWARF::FindFunctions(ConstString name,
         log,
         "SymbolFileDWARF::FindFunctions (name=\"%s\", "
         "name_type_mask=0x%x, include_inlines=%d, sc_list) => %u",
-        name.GetCString(), name_type_mask, include_inlines,
-        num_matches);
+        name.GetCString(), name_type_mask, include_inlines, num_matches);
   }
 }
 
@@ -4077,8 +4086,8 @@ LanguageType SymbolFileDWARF::GetLanguageFamily(DWARFUnit &unit) {
   return LanguageTypeFromDWARF(lang);
 }
 
-StatsDuration SymbolFileDWARF::GetDebugInfoIndexTime() {
+StatsDuration::Duration SymbolFileDWARF::GetDebugInfoIndexTime() {
   if (m_index)
     return m_index->GetIndexTime();
-  return StatsDuration(0.0);
+  return {};
 }

@@ -416,7 +416,10 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
       case CK_IntegralCast: {
         // Delegate to SValBuilder to process.
         SVal V = state->getSVal(Ex, LCtx);
-        V = svalBuilder.evalIntegralCast(state, V, T, ExTy);
+        if (AMgr.options.ShouldSupportSymbolicIntegerCasts)
+          V = svalBuilder.evalCast(V, T, ExTy);
+        else
+          V = svalBuilder.evalIntegralCast(state, V, T, ExTy);
         state = state->BindExpr(CastE, LCtx, V);
         Bldr.generateNode(CastE, Pred, state);
         continue;
@@ -439,14 +442,15 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
         if (CastE->isGLValue())
           resultType = getContext().getPointerType(resultType);
 
-        bool Failed = false;
+        bool Failed = true;
 
-        // Check if the value being cast evaluates to 0.
-        if (val.isZeroConstant())
-          Failed = true;
-        // Else, evaluate the cast.
-        else
-          val = getStoreManager().attemptDownCast(val, T, Failed);
+        // Check if the value being cast does not evaluates to 0.
+        if (!val.isZeroConstant())
+          if (Optional<SVal> V =
+                  StateMgr.getStoreManager().evalBaseToDerived(val, T)) {
+            val = *V;
+            Failed = false;
+          }
 
         if (Failed) {
           if (T->isReferenceType()) {
@@ -478,14 +482,13 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
         if (CastE->isGLValue())
           resultType = getContext().getPointerType(resultType);
 
-        bool Failed = false;
-
         if (!val.isConstant()) {
-          val = getStoreManager().attemptDownCast(val, T, Failed);
+          Optional<SVal> V = getStoreManager().evalBaseToDerived(val, T);
+          val = V ? *V : UnknownVal();
         }
 
         // Failed to cast or the result is unknown, fall back to conservative.
-        if (Failed || val.isUnknown()) {
+        if (val.isUnknown()) {
           val =
             svalBuilder.conjureSymbolVal(nullptr, CastE, LCtx, resultType,
                                          currBldrCtx->blockCount());

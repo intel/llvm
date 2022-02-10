@@ -77,7 +77,7 @@ void DIEDwarfExpression::enableTemporaryBuffer() {
 void DIEDwarfExpression::disableTemporaryBuffer() { IsBuffering = false; }
 
 unsigned DIEDwarfExpression::getTemporaryBufferSize() {
-  return TmpDIE.ComputeSize(&AP);
+  return TmpDIE.computeSize(AP.getDwarfFormParams());
 }
 
 void DIEDwarfExpression::commitTemporaryBuffer() { OutDIE.takeValues(TmpDIE); }
@@ -394,14 +394,14 @@ DIE &DwarfUnit::createAndAddDIE(dwarf::Tag Tag, DIE &Parent, const DINode *N) {
 }
 
 void DwarfUnit::addBlock(DIE &Die, dwarf::Attribute Attribute, DIELoc *Loc) {
-  Loc->ComputeSize(Asm);
+  Loc->computeSize(Asm->getDwarfFormParams());
   DIELocs.push_back(Loc); // Memoize so we can call the destructor later on.
   addAttribute(Die, Attribute, Loc->BestForm(DD->getDwarfVersion()), Loc);
 }
 
 void DwarfUnit::addBlock(DIE &Die, dwarf::Attribute Attribute, dwarf::Form Form,
                          DIEBlock *Block) {
-  Block->ComputeSize(Asm);
+  Block->computeSize(Asm->getDwarfFormParams());
   DIEBlocks.push_back(Block); // Memoize so we can call the destructor later on.
   addAttribute(Die, Attribute, Form, Block);
 }
@@ -536,6 +536,18 @@ void DwarfUnit::addThrownTypes(DIE &Die, DINodeArray ThrownTypes) {
   }
 }
 
+void DwarfUnit::addAccess(DIE &Die, DINode::DIFlags Flags) {
+  if ((Flags & DINode::FlagAccessibility) == DINode::FlagProtected)
+    addUInt(Die, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
+            dwarf::DW_ACCESS_protected);
+  else if ((Flags & DINode::FlagAccessibility) == DINode::FlagPrivate)
+    addUInt(Die, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
+            dwarf::DW_ACCESS_private);
+  else if ((Flags & DINode::FlagAccessibility) == DINode::FlagPublic)
+    addUInt(Die, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
+            dwarf::DW_ACCESS_public);
+}
+
 DIE *DwarfUnit::getOrCreateContextDIE(const DIScope *Context) {
   if (!Context || isa<DIFile>(Context))
     return &getUnitDie();
@@ -585,10 +597,8 @@ DIE *DwarfUnit::createTypeDIE(const DIScope *Context, DIE &ContextDIE,
       // Skip updating the accelerator tables since this is not the full type.
       if (MDString *TypeId = CTy->getRawIdentifier())
         DD->addDwarfTypeUnitType(getCU(), TypeId->getString(), TyDIE, CTy);
-      else {
-        auto X = DD->enterNonTypeUnitContext();
+      else
         finishNonUnitTypeDIE(TyDIE, CTy);
-      }
       return &TyDIE;
     }
     constructTypeDIE(TyDIE, CTy);
@@ -732,6 +742,16 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIStringType *STy) {
     addUInt(Buffer, dwarf::DW_AT_byte_size, None, Size);
   }
 
+  if (DIExpression *Expr = STy->getStringLocationExp()) {
+    DIELoc *Loc = new (DIEValueAllocator) DIELoc;
+    DIEDwarfExpression DwarfExpr(*Asm, getCU(), *Loc);
+    // This is to describe the memory location of the
+    // string, so lock it down as such.
+    DwarfExpr.setMemoryLocationKind();
+    DwarfExpr.addExpression(Expr);
+    addBlock(Buffer, dwarf::DW_AT_data_location, DwarfExpr.finalize());
+  }
+
   if (STy->getEncoding()) {
     // For eventual Unicode support.
     addUInt(Buffer, dwarf::DW_AT_encoding, dwarf::DW_FORM_data1,
@@ -842,13 +862,17 @@ void DwarfUnit::addAnnotation(DIE &Buffer, DINodeArray Annotations) {
   for (const Metadata *Annotation : Annotations->operands()) {
     const MDNode *MD = cast<MDNode>(Annotation);
     const MDString *Name = cast<MDString>(MD->getOperand(0));
-
-    // Currently, only MDString is supported with btf_decl_tag attribute.
-    const MDString *Value = cast<MDString>(MD->getOperand(1));
+    const auto &Value = MD->getOperand(1);
 
     DIE &AnnotationDie = createAndAddDIE(dwarf::DW_TAG_LLVM_annotation, Buffer);
     addString(AnnotationDie, dwarf::DW_AT_name, Name->getString());
-    addString(AnnotationDie, dwarf::DW_AT_const_value, Value->getString());
+    if (const auto *Data = dyn_cast<MDString>(Value))
+      addString(AnnotationDie, dwarf::DW_AT_const_value, Data->getString());
+    else if (const auto *Data = dyn_cast<ConstantAsMetadata>(Value))
+      addConstantValue(AnnotationDie, Data->getValue()->getUniqueInteger(),
+                       /*Unsigned=*/true);
+    else
+      assert(false && "Unsupported annotation value type");
   }
 }
 
@@ -1006,6 +1030,9 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DICompositeType *CTy) {
     // If we're a forward decl, say so.
     if (CTy->isForwardDecl())
       addFlag(Buffer, dwarf::DW_AT_declaration);
+
+    // Add accessibility info if available.
+    addAccess(Buffer, CTy->getFlags());
 
     // Add source line info if available.
     if (!CTy->isForwardDecl())
@@ -1170,7 +1197,7 @@ bool DwarfUnit::applySubprogramDefinitionAttributes(const DISubprogram *SP,
       DefinitionArgs = SP->getType()->getTypeArray();
 
       if (DeclArgs.size() && DefinitionArgs.size())
-        if (DefinitionArgs[0] != NULL && DeclArgs[0] != DefinitionArgs[0])
+        if (DefinitionArgs[0] != nullptr && DeclArgs[0] != DefinitionArgs[0])
           addType(SPDie, DefinitionArgs[0]);
 
       DeclDie = getDIE(SPDecl);
@@ -1308,15 +1335,7 @@ void DwarfUnit::applySubprogramAttributes(const DISubprogram *SP, DIE &SPDie,
   if (SP->isNoReturn())
     addFlag(SPDie, dwarf::DW_AT_noreturn);
 
-  if (SP->isProtected())
-    addUInt(SPDie, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_protected);
-  else if (SP->isPrivate())
-    addUInt(SPDie, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_private);
-  else if (SP->isPublic())
-    addUInt(SPDie, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_public);
+  addAccess(SPDie, SP->getFlags());
 
   if (SP->isExplicit())
     addFlag(SPDie, dwarf::DW_AT_explicit);
@@ -1666,16 +1685,8 @@ DIE &DwarfUnit::constructMemberDIE(DIE &Buffer, const DIDerivedType *DT) {
     }
   }
 
-  if (DT->isProtected())
-    addUInt(MemberDie, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_protected);
-  else if (DT->isPrivate())
-    addUInt(MemberDie, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_private);
-  // Otherwise C++ member and base classes are considered public.
-  else if (DT->isPublic())
-    addUInt(MemberDie, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_public);
+  addAccess(MemberDie, DT->getFlags());
+
   if (DT->isVirtual())
     addUInt(MemberDie, dwarf::DW_AT_virtuality, dwarf::DW_FORM_data1,
             dwarf::DW_VIRTUALITY_virtual);
@@ -1717,15 +1728,7 @@ DIE *DwarfUnit::getOrCreateStaticMemberDIE(const DIDerivedType *DT) {
 
   // FIXME: We could omit private if the parent is a class_type, and
   // public if the parent is something else.
-  if (DT->isProtected())
-    addUInt(StaticMemberDIE, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_protected);
-  else if (DT->isPrivate())
-    addUInt(StaticMemberDIE, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_private);
-  else if (DT->isPublic())
-    addUInt(StaticMemberDIE, dwarf::DW_AT_accessibility, dwarf::DW_FORM_data1,
-            dwarf::DW_ACCESS_public);
+  addAccess(StaticMemberDIE, DT->getFlags());
 
   if (const ConstantInt *CI = dyn_cast_or_null<ConstantInt>(DT->getConstant()))
     addConstantValue(StaticMemberDIE, CI, Ty);
@@ -1847,5 +1850,25 @@ void DwarfTypeUnit::finishNonUnitTypeDIE(DIE& D, const DICompositeType *CTy) {
   StringRef Name = CTy->getName();
   if (!Name.empty())
     addString(D, dwarf::DW_AT_name, Name);
+  if (Name.startswith("_STN") || !Name.contains('<'))
+    addTemplateParams(D, CTy->getTemplateParams());
+  // If the type is in an anonymous namespace, we can't reference it from a TU
+  // (since the type would be CU local and the TU doesn't specify which TU has
+  // the appropriate type definition) - so flag this emission as such and skip
+  // the rest of the emission now since we're going to throw out all this work
+  // and put the outer/referencing type in the CU instead.
+  // FIXME: Probably good to generalize this to a DICompositeType flag populated
+  // by the frontend, then we could use that to have types that can have
+  // decl+def merged by LTO but where the definition still doesn't go in a type
+  // unit because the type has only one definition.
+  for (DIScope *S = CTy->getScope(); S; S = S->getScope()) {
+    if (auto *NS = dyn_cast<DINamespace>(S)) {
+      if (NS->getName().empty()) {
+        DD->seenLocalType();
+        break;
+      }
+    }
+  }
+  auto X = DD->enterNonTypeUnitContext();
   getCU().createTypeDIE(CTy);
 }

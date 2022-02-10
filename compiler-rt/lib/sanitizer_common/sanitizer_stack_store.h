@@ -23,19 +23,36 @@ class StackStore {
   static constexpr uptr kBlockSizeBytes = kBlockSizeFrames * sizeof(uptr);
 
  public:
+  enum class Compression : u8 {
+    None = 0,
+    Delta,
+    LZW,
+  };
+
   constexpr StackStore() = default;
 
   using Id = u32;  // Enough for 2^32 * sizeof(uptr) bytes of traces.
   static_assert(u64(kBlockCount) * kBlockSizeFrames == 1ull << (sizeof(Id) * 8),
                 "");
 
-  Id Store(const StackTrace &trace);
-  StackTrace Load(Id id) const;
+  Id Store(const StackTrace &trace,
+           uptr *pack /* number of blocks completed by this call */);
+  StackTrace Load(Id id);
   uptr Allocated() const;
+
+  // Packs all blocks which don't expect any more writes. A block is going to be
+  // packed once. As soon trace from that block was requested, it will unpack
+  // and stay unpacked after that.
+  // Returns the number of released bytes.
+  uptr Pack(Compression type);
+
+  void LockAll();
+  void UnlockAll();
 
   void TestOnlyUnmap();
 
  private:
+  friend class StackStoreTest;
   static constexpr uptr GetBlockIdx(uptr frame_idx) {
     return frame_idx / kBlockSizeFrames;
   }
@@ -56,23 +73,46 @@ class StackStore {
     return id + 1;  // Avoid zero as id.
   }
 
-  uptr *Alloc(uptr count, uptr *idx);
+  uptr *Alloc(uptr count, uptr *idx, uptr *pack);
+
+  void *Map(uptr size, const char *mem_type);
+  void Unmap(void *addr, uptr size);
 
   // Total number of allocated frames.
   atomic_uintptr_t total_frames_ = {};
 
+  // Tracks total allocated memory in bytes.
+  atomic_uintptr_t allocated_ = {};
+
   // Each block will hold pointer to exactly kBlockSizeFrames.
   class BlockInfo {
     atomic_uintptr_t data_;
-    StaticSpinMutex mtx_;  // Protects alloc of new blocks.
+    // Counter to track store progress to know when we can Pack() the block.
+    atomic_uint32_t stored_;
+    // Protects alloc of new blocks.
+    mutable StaticSpinMutex mtx_;
 
-    uptr *Create();
+    enum class State : u8 {
+      Storing = 0,
+      Packed,
+      Unpacked,
+    };
+    State state SANITIZER_GUARDED_BY(mtx_);
+
+    uptr *Create(StackStore *store);
 
    public:
     uptr *Get() const;
-    uptr *GetOrCreate();
-    void TestOnlyUnmap();
+    uptr *GetOrCreate(StackStore *store);
+    uptr *GetOrUnpack(StackStore *store);
+    uptr Pack(Compression type, StackStore *store);
+    void TestOnlyUnmap(StackStore *store);
+    bool Stored(uptr n);
+    bool IsPacked() const;
+    void Lock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS { mtx_.Lock(); }
+    void Unlock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS { mtx_.Unlock(); }
   };
+
   BlockInfo blocks_[kBlockCount] = {};
 };
 

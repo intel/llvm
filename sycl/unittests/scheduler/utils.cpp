@@ -10,8 +10,10 @@
 
 void addEdge(cl::sycl::detail::Command *User, cl::sycl::detail::Command *Dep,
              cl::sycl::detail::AllocaCommandBase *Alloca) {
+  std::vector<cl::sycl::detail::Command *> ToCleanUp;
   (void)User->addDep(
-      cl::sycl::detail::DepDesc{Dep, User->getRequirement(), Alloca});
+      cl::sycl::detail::DepDesc{Dep, User->getRequirement(), Alloca},
+      ToCleanUp);
   Dep->addUser(User);
 }
 

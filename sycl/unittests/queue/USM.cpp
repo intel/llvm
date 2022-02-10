@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/usm.hpp>
 #include <detail/event_impl.hpp>
-#include <gtest/gtest.h>
+
 #include <helpers/PiMock.hpp>
+
+#include <gtest/gtest.h>
 
 namespace {
 using namespace sycl;

@@ -2,6 +2,15 @@ cmake_minimum_required(VERSION 3.14)
 
 include(FetchContent)
 
+# Suppress warnings related to dependencies
+if (MSVC)
+  add_definitions(
+    -wd4133 # Suppress ''function': incompatible types - from 'char [9]' to 'LPCWSTR''
+    -wd4152 # Suppress 'nonstandard extension, function/data pointer conversion in expression'
+    -wd4201 # Suppress 'nonstandard extension used: nameless struct/union'
+  )
+endif()
+
 # Repo URLs
 
 set(OCL_HEADERS_REPO

@@ -581,6 +581,7 @@ int main(int argc, char **argv) {
   initializeESIMDLowerVecArgLegacyPassPass(Registry);
   initializeESIMDVerifierPass(Registry);
   initializeSYCLLowerWGLocalMemoryLegacyPass(Registry);
+  initializeSYCLMutatePrintfAddrspaceLegacyPassPass(Registry);
 
 #ifdef BUILD_EXAMPLES
   initializeExampleIRTransforms(Registry);

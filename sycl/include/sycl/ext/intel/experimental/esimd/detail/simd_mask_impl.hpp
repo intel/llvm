@@ -21,11 +21,6 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
-#define __ESIMD_MASK_DEPRECATION_MSG                                           \
-  "Use of 'simd'/'simd_view<simd,...>' class to represent predicate or mask "  \
-  "is deprecated. Use "                                                        \
-  "'simd_mask'/'simd_view<simd_mask,...>' instead."
-
 template <typename T, int N>
 class simd_mask_impl
     : public detail::simd_obj_impl<
@@ -34,9 +29,10 @@ class simd_mask_impl
   using base_type = detail::simd_obj_impl<T, N, simd_mask_impl<T, N>>;
 
 public:
+  using raw_element_type = T;
   using element_type = T;
-  using vector_type = typename base_type::vector_type;
-  static_assert(std::is_same_v<vector_type, simd_mask_storage_t<N>> &&
+  using raw_vector_type = typename base_type::raw_vector_type;
+  static_assert(std::is_same_v<raw_vector_type, simd_mask_storage_t<N>> &&
                 "mask impl type mismatch");
 
   simd_mask_impl() = default;
@@ -48,37 +44,16 @@ public:
 
   /// Implicit conversion constructor from a raw vector object.
   // TODO this should be made inaccessible from user code.
-  simd_mask_impl(const vector_type &Val) : base_type(Val) {}
-
-  /// Initializer list constructor.
-  __SYCL_DEPRECATED("use constructor from array, e.g: simd_mask<3> x({0,1,1});")
-  simd_mask_impl(std::initializer_list<T> Ilist) : base_type(Ilist) {}
+  simd_mask_impl(const raw_vector_type &Val) : base_type(Val) {}
 
   /// Construct from an array. To allow e.g. simd_mask<N> m({1,0,0,1,...}).
   template <int N1, class = std::enable_if_t<N1 == N>>
-  simd_mask_impl(const element_type(&&Arr)[N1]) {
-    base_type::template init_from_array<N1>(std::move(Arr));
+  simd_mask_impl(const raw_element_type (&&Arr)[N1]) {
+    base_type::template init_from_array<false>(std::move(Arr));
   }
 
   /// Implicit conversion from simd.
-  __SYCL_DEPRECATED(__ESIMD_MASK_DEPRECATION_MSG)
   simd_mask_impl(const simd<T, N> &Val) : base_type(Val.data()) {}
-
-  /// Implicit conversion from simd_view<simd,...>.
-  template <
-      // viewed simd class parameters
-      int N1, class T1,
-      // view region
-      class RegionT2,
-      // view element type
-      class T2 = typename __SEIEE::shape_type<RegionT2>::element_type,
-      // view size in elements
-      int N2 = __SEIEE::shape_type<RegionT2>::length,
-      // enable only if view length and element type match this object
-      class = std::enable_if_t<N == N2 && std::is_same_v<T, T2>>>
-  __SYCL_DEPRECATED(__ESIMD_MASK_DEPRECATION_MSG)
-  simd_mask_impl(const simd_view<simd<T1, N1>, RegionT2> &Val)
-      : base_type(Val.read().data()) {}
 
 private:
   static inline constexpr bool mask_size_ok_for_mem_io() {

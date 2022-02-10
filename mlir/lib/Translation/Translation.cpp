@@ -94,7 +94,7 @@ TranslateToMLIRRegistration::TranslateToMLIRRegistration(
 
 TranslateFromMLIRRegistration::TranslateFromMLIRRegistration(
     StringRef name, const TranslateFromMLIRFunction &function,
-    std::function<void(DialectRegistry &)> dialectRegistration) {
+    const std::function<void(DialectRegistry &)> &dialectRegistration) {
   registerTranslation(name, [function, dialectRegistration](
                                 llvm::SourceMgr &sourceMgr, raw_ostream &output,
                                 MLIRContext *context) {
@@ -181,7 +181,7 @@ LogicalResult mlir::mlirTranslateMain(int argc, char **argv,
     MLIRContext context;
     context.printOpOnDiagnostic(!verifyDiagnostics);
     llvm::SourceMgr sourceMgr;
-    sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), llvm::SMLoc());
+    sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), SMLoc());
 
     if (!verifyDiagnostics) {
       SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);

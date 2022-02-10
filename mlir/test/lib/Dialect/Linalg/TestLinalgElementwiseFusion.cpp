@@ -46,7 +46,7 @@ static bool setFusedOpOperandLimit(const OpResult &producer,
 
 namespace {
 struct TestLinalgElementwiseFusion
-    : public PassWrapper<TestLinalgElementwiseFusion, FunctionPass> {
+    : public PassWrapper<TestLinalgElementwiseFusion, OperationPass<FuncOp>> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
                     tensor::TensorDialect>();
@@ -58,9 +58,9 @@ struct TestLinalgElementwiseFusion
     return "Test Linalg element wise operation fusion patterns";
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     MLIRContext *context = &this->getContext();
-    FuncOp funcOp = this->getFunction();
+    FuncOp funcOp = this->getOperation();
     RewritePatternSet fusionPatterns(context);
 
     linalg::populateElementwiseOpsFusionPatterns(
@@ -74,7 +74,8 @@ struct TestLinalgElementwiseFusion
 };
 
 struct TestLinalgControlFuseByExpansion
-    : public PassWrapper<TestLinalgControlFuseByExpansion, FunctionPass> {
+    : public PassWrapper<TestLinalgControlFuseByExpansion,
+                         OperationPass<FuncOp>> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry
         .insert<AffineDialect, linalg::LinalgDialect, tensor::TensorDialect>();
@@ -87,21 +88,21 @@ struct TestLinalgControlFuseByExpansion
            "expansion";
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     MLIRContext *context = &this->getContext();
-    FuncOp funcOp = this->getFunction();
+    FuncOp funcOp = this->getOperation();
     RewritePatternSet fusionPatterns(context);
 
     linalg::ControlElementwiseOpsFusionFn controlReshapeFusionFn =
         [](const OpResult &producer, OpOperand &consumer) {
           if (auto collapseOp =
-                  producer.getDefiningOp<linalg::TensorCollapseShapeOp>()) {
+                  producer.getDefiningOp<tensor::CollapseShapeOp>()) {
             if (!collapseOp.src().getDefiningOp<linalg::LinalgOp>()) {
               return false;
             }
           }
           if (auto expandOp =
-                  dyn_cast<linalg::TensorExpandShapeOp>(consumer.getOwner())) {
+                  dyn_cast<tensor::ExpandShapeOp>(consumer.getOwner())) {
             if (expandOp->hasOneUse()) {
               OpOperand &use = *expandOp->getUses().begin();
               auto linalgOp = dyn_cast<linalg::LinalgOp>(use.getOwner());
@@ -120,7 +121,7 @@ struct TestLinalgControlFuseByExpansion
 };
 
 struct TestPushExpandingReshape
-    : public PassWrapper<TestPushExpandingReshape, FunctionPass> {
+    : public PassWrapper<TestPushExpandingReshape, OperationPass<FuncOp>> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry
         .insert<AffineDialect, linalg::LinalgDialect, tensor::TensorDialect>();
@@ -130,9 +131,9 @@ struct TestPushExpandingReshape
     return "Test Linalg reshape push patterns";
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     MLIRContext *context = &this->getContext();
-    FuncOp funcOp = this->getFunction();
+    FuncOp funcOp = this->getOperation();
     RewritePatternSet patterns(context);
     linalg::populatePushReshapeOpsPatterns(patterns);
     (void)applyPatternsAndFoldGreedily(funcOp.getBody(), std::move(patterns));

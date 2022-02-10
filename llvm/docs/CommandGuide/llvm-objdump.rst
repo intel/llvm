@@ -226,7 +226,7 @@ OPTIONS
 
   When printing a PC-relative global symbol reference, print it as an offset from the leading symbol.
 
-  Only works with an X86 linked image.
+  Only works with PowerPC objects or X86 linked images.
 
   Example:
     A non-symbolized branch instruction with a local target and pc-relative memory access like
@@ -397,7 +397,7 @@ XCOFF ONLY OPTIONS AND COMMANDS
 BUGS
 ----
 
-To report bugs, please visit <https://bugs.llvm.org/>.
+To report bugs, please visit <https://github.com/llvm/llvm-project/labels/tools:llvm-objdump/>.
 
 SEE ALSO
 --------

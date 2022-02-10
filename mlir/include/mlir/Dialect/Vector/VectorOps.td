@@ -39,17 +39,17 @@ class Vector_Op<string mnemonic, list<OpTrait> traits = []> :
 }
 
 // The "kind" of combining function for contractions and reductions.
-def COMBINING_KIND_ADD : BitEnumAttrCase<"ADD", 0x1, "add">;
-def COMBINING_KIND_MUL : BitEnumAttrCase<"MUL", 0x2, "mul">;
-def COMBINING_KIND_MINUI : BitEnumAttrCase<"MINUI", 0x4, "minui">;
-def COMBINING_KIND_MINSI : BitEnumAttrCase<"MINSI", 0x8, "minsi">;
-def COMBINING_KIND_MINF : BitEnumAttrCase<"MINF", 0x10, "minf">;
-def COMBINING_KIND_MAXUI : BitEnumAttrCase<"MAXUI", 0x20, "maxui">;
-def COMBINING_KIND_MAXSI : BitEnumAttrCase<"MAXSI", 0x40, "maxsi">;
-def COMBINING_KIND_MAXF : BitEnumAttrCase<"MAXF", 0x80, "maxf">;
-def COMBINING_KIND_AND : BitEnumAttrCase<"AND", 0x100, "and">;
-def COMBINING_KIND_OR  : BitEnumAttrCase<"OR", 0x200, "or">;
-def COMBINING_KIND_XOR : BitEnumAttrCase<"XOR", 0x400, "xor">;
+def COMBINING_KIND_ADD : BitEnumAttrCaseBit<"ADD", 0, "add">;
+def COMBINING_KIND_MUL : BitEnumAttrCaseBit<"MUL", 1, "mul">;
+def COMBINING_KIND_MINUI : BitEnumAttrCaseBit<"MINUI", 2, "minui">;
+def COMBINING_KIND_MINSI : BitEnumAttrCaseBit<"MINSI", 3, "minsi">;
+def COMBINING_KIND_MINF : BitEnumAttrCaseBit<"MINF", 4, "minf">;
+def COMBINING_KIND_MAXUI : BitEnumAttrCaseBit<"MAXUI", 5, "maxui">;
+def COMBINING_KIND_MAXSI : BitEnumAttrCaseBit<"MAXSI", 6, "maxsi">;
+def COMBINING_KIND_MAXF : BitEnumAttrCaseBit<"MAXF", 7, "maxf">;
+def COMBINING_KIND_AND : BitEnumAttrCaseBit<"AND", 8, "and">;
+def COMBINING_KIND_OR  : BitEnumAttrCaseBit<"OR", 9, "or">;
+def COMBINING_KIND_XOR : BitEnumAttrCaseBit<"XOR", 10, "xor">;
 
 def CombiningKind : BitEnumAttr<
     "CombiningKind",
@@ -675,7 +675,7 @@ def Vector_InsertElementOp :
     position and inserts the source into the destination at the proper position.
 
     Note that this instruction resembles vector.insert, but is restricted to 0-D
-    and 1-D vectors and relaxed to dynamic indices. 
+    and 1-D vectors and relaxed to dynamic indices.
 
     It is meant to be closer to LLVM's version:
     https://llvm.org/docs/LangRef.html#insertelement-instruction
@@ -864,6 +864,11 @@ def Vector_InsertStridedSliceOp :
     }
     VectorType getDestVectorType() {
       return dest().getType().cast<VectorType>();
+    }
+    bool hasNonUnitStrides() { 
+      return llvm::any_of(strides(), [](Attribute attr) {
+        return attr.cast<IntegerAttr>().getInt() != 1;
+      });
     }
   }];
 
@@ -1120,6 +1125,11 @@ def Vector_ExtractStridedSliceOp :
     static StringRef getStridesAttrName() { return "strides"; }
     VectorType getVectorType(){ return vector().getType().cast<VectorType>(); }
     void getOffsets(SmallVectorImpl<int64_t> &results);
+    bool hasNonUnitStrides() { 
+      return llvm::any_of(strides(), [](Attribute attr) {
+        return attr.cast<IntegerAttr>().getInt() != 1;
+      });
+    }
   }];
   let hasCanonicalizer = 1;
   let hasFolder = 1;
@@ -1133,26 +1143,28 @@ def Vector_TransferReadOp :
       DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
       AttrSizedOperandSegments
     ]>,
-    Arguments<(ins AnyShaped:$source, Variadic<Index>:$indices,
-               AffineMapAttr:$permutation_map, AnyType:$padding,
-               Optional<VectorOf<[I1]>>:$mask,
-               OptionalAttr<BoolArrayAttr>:$in_bounds)>,
-    Results<(outs AnyVector:$vector)> {
+    Arguments<(ins AnyShaped:$source,
+                   Variadic<Index>:$indices,
+                   AffineMapAttr:$permutation_map,
+                   AnyType:$padding,
+                   Optional<VectorOf<[I1]>>:$mask,
+                   OptionalAttr<BoolArrayAttr>:$in_bounds)>,
+    Results<(outs AnyVectorOfAnyRank:$vector)> {
 
   let summary = "Reads a supervector from memory into an SSA vector value.";
 
   let description = [{
     The `vector.transfer_read` op performs a read from a slice within a
     [MemRef](../LangRef.md#memref-type) or a Ranked
-    [Tensor](../LangRef.md#tensor-type) supplied as its first operand into a
-    [vector](../LangRef.md#vector-type) of the same base elemental type.
+    [Tensor](../LangRef.md#tensor-type) supplied as its first operand
+    into a [vector](../LangRef.md#vector-type) of the same base elemental type.
 
     A memref/tensor operand with vector element type, must have its vector
     element type match a suffix (shape and element type) of the vector (e.g.
     memref<3x2x6x4x3xf32>, vector<1x1x4x3xf32>).
 
     The slice is further defined by a full-rank index within the MemRef/Tensor,
-    supplied as the operands `2 .. 1 + rank(memref/tensor)`.
+    supplied as the operands `[1 .. 1 + rank(memref/tensor))`.
 
     The permutation_map [attribute](../LangRef.md#attributes) is an
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
@@ -1301,39 +1313,31 @@ def Vector_TransferReadOp :
   }];
 
   let builders = [
-    // Builder that sets padding to zero.
-    OpBuilder<(ins "VectorType":$vector, "Value":$source,
-      "ValueRange":$indices, "AffineMap":$permutationMap,
-      CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    // Builder that sets permutation map to 'getMinorIdentityMap'.
-    OpBuilder<(ins "VectorType":$vector, "Value":$source,
-      "ValueRange":$indices, "Value":$padding,
-      CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    // Builder that sets permutation map (resp. padding) to
-    // 'getMinorIdentityMap' (resp. zero).
-    OpBuilder<(ins "VectorType":$vector, "Value":$source,
-      "ValueRange":$indices, CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    // Builder that does not set mask.
-    OpBuilder<(ins "Type":$vector, "Value":$source,
-      "ValueRange":$indices, "AffineMapAttr":$permutationMap, "Value":$padding,
-      "ArrayAttr":$inBounds)>,
-    // Builder that does not set mask.
-    OpBuilder<(ins "Type":$vector, "Value":$source,
-      "ValueRange":$indices, "AffineMap":$permutationMap, "Value":$padding,
-      "ArrayAttr":$inBounds)>
+    /// 1. Builder that sets padding to zero and an empty mask (variant with attrs).
+    OpBuilder<(ins "VectorType":$vectorType,
+                   "Value":$source,
+                   "ValueRange":$indices,
+                   "AffineMapAttr":$permutationMapAttr,
+                   "ArrayAttr":$inBoundsAttr)>,
+    /// 2. Builder that sets padding to zero and an empty mask (variant without attrs).
+    OpBuilder<(ins "VectorType":$vectorType,
+                   "Value":$source,
+                   "ValueRange":$indices,
+                   "AffineMap":$permutationMap,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
+    /// 3. Builder that sets permutation map to 'getMinorIdentityMap'.
+    OpBuilder<(ins "VectorType":$vectorType,
+                   "Value":$source,
+                   "ValueRange":$indices,
+                   "Value":$padding,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
+    /// 4. Builder that sets padding to zero and permutation map to
+    /// 'getMinorIdentityMap'.
+    OpBuilder<(ins "VectorType":$vectorType,
+                   "Value":$source,
+                   "ValueRange":$indices,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
   ];
-
-  let extraClassDeclaration = [{
-    /// Temporary convenience builders to account for the fact that we do not
-    /// have 0-d vectors atm. These create a constant `vector<1xt>` and
-    /// insert/extract into it.
-    // Builder that sets permutation map (resp. padding) to
-    // 'getMinorIdentityMap' (resp. zero).
-    static Value createScalarOp(OpBuilder &builder, Location loc, Value source,
-                                ValueRange indices,
-                                ArrayRef<bool> inBounds = ArrayRef<bool>{});
-  }];
-
   let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
@@ -1345,11 +1349,12 @@ def Vector_TransferWriteOp :
       DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
       AttrSizedOperandSegments
   ]>,
-    Arguments<(ins AnyVector:$vector, AnyShaped:$source,
-               Variadic<Index>:$indices,
-               AffineMapAttr:$permutation_map,
-               Optional<VectorOf<[I1]>>:$mask,
-               OptionalAttr<BoolArrayAttr>:$in_bounds)>,
+    Arguments<(ins AnyVectorOfAnyRank:$vector,
+                   AnyShaped:$source,
+                   Variadic<Index>:$indices,
+                   AffineMapAttr:$permutation_map,
+                   Optional<VectorOf<[I1]>>:$mask,
+                   OptionalAttr<BoolArrayAttr>:$in_bounds)>,
     Results<(outs Optional<AnyRankedTensor>:$result)> {
 
   let summary = "The vector.transfer_write op writes a supervector to memory.";
@@ -1367,7 +1372,7 @@ def Vector_TransferWriteOp :
     new tensor of the same type.
 
     The slice is further defined by a full-rank index within the MemRef/Tensor,
-    supplied as the operands `3 .. 2 + rank(memref/tensor)`.
+    supplied as the operands `[2 .. 2 + rank(memref/tensor))`.
 
     The permutation_map [attribute](../LangRef.md#attributes) is an
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
@@ -1444,32 +1449,32 @@ def Vector_TransferWriteOp :
   }];
 
   let builders = [
-    // Builder that sets an empty mask.
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMap":$permutationMap, CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    // Builder that sets permutation map to 'getMinorIdentityMap'.
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMapAttr":$permutationMap, "ArrayAttr":$inBounds)>,
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMap":$permutationMap, "Value":$mask, "ArrayAttr":$inBounds)>,
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMap":$permutationMap, "ArrayAttr":$inBounds)>,
+    /// 1. Builder with type inference.
+    OpBuilder<(ins "Value":$vector,
+                   "Value":$dest,
+                   "ValueRange":$indices,
+                   "AffineMapAttr":$permutationMapAttr,
+                   "Value":$mask,
+                   "ArrayAttr":$inBoundsAttr)>,
+    /// 2. Builder with type inference that sets an empty mask (variant with attrs).
+    OpBuilder<(ins "Value":$vector,
+                   "Value":$dest,
+                   "ValueRange":$indices,
+                   "AffineMapAttr":$permutationMapAttr,
+                   "ArrayAttr":$inBoundsAttr)>,
+    /// 3. Builder with type inference that sets an empty mask (variant without attrs).
+    OpBuilder<(ins "Value":$vector,
+                   "Value":$dest,
+                   "ValueRange":$indices,
+                   "AffineMap":$permutationMap,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
+    /// 4. Builder with type inference that sets an empty mask and sets permutation
+    /// map to 'getMinorIdentityMap'.
+    OpBuilder<(ins "Value":$vector,
+                   "Value":$dest,
+                   "ValueRange":$indices,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
   ];
-
-  let extraClassDeclaration = [{
-    /// Temporary convenience builders to account for the fact that we do not
-    /// have 0-d vectors atm. These create a constant `vector<1xt>` and
-    /// insert/extract into it.
-    // Builder that sets permutation map (resp. padding) to
-    // 'getMinorIdentityMap' (resp. zero).
-    static Operation *createScalarOp(
-      OpBuilder &builder, Location loc, Value value,
-      Value dest, ValueRange indices,
-      ArrayRef<bool> inBounds = ArrayRef<bool>{});
-  }];
-
   let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
@@ -2030,13 +2035,14 @@ def Vector_ShapeCastOp :
 
 def Vector_BitCastOp :
   Vector_Op<"bitcast", [NoSideEffect, AllRanksMatch<["source", "result"]>]>,
-    Arguments<(ins AnyVector:$source)>,
-    Results<(outs AnyVector:$result)>{
+    Arguments<(ins AnyVectorOfAnyRank:$source)>,
+    Results<(outs AnyVectorOfAnyRank:$result)>{
   let summary = "bitcast casts between vectors";
   let description = [{
     The bitcast operation casts between vectors of the same rank, the minor 1-D
     vector size is casted to a vector with a different element type but same
-    bitwidth.
+    bitwidth. In case of 0-D vectors, the bitwidth of element types must be
+    equal.
 
     Example:
 
@@ -2049,6 +2055,9 @@ def Vector_BitCastOp :
 
     // Example casting to an element type of the same size.
     %5 = vector.bitcast %4 : vector<5x1x4x3xf32> to vector<5x1x4x3xi32>
+
+    // Example casting of 0-D vectors.
+    %7 = vector.bitcast %6 : vector<f32> to vector<i32>
     ```
   }];
   let extraClassDeclaration = [{
@@ -2084,7 +2093,7 @@ def Vector_TypeCastOp :
     Example:
 
     ```mlir
-    %A  = alloc() : memref<5x4x3xf32>
+    %A  = memref.alloc() : memref<5x4x3xf32>
     %VA = vector.type_cast %A : memref<5x4x3xf32> to memref<vector<5x4x3xf32>>
     ```
   }];
@@ -2112,7 +2121,7 @@ def Vector_TypeCastOp :
 def Vector_ConstantMaskOp :
   Vector_Op<"constant_mask", [NoSideEffect]>,
     Arguments<(ins I64ArrayAttr:$mask_dim_sizes)>,
-    Results<(outs VectorOf<[I1]>)> {
+    Results<(outs VectorOfAnyRankOf<[I1]>)> {
   let summary = "creates a constant vector mask";
   let description = [{
     Creates and returns a vector mask where elements of the result vector
@@ -2122,7 +2131,9 @@ def Vector_ConstantMaskOp :
     specifies an exclusive upper bound [0, mask-dim-size-element-value)
     for a unique dimension in the vector result. The conjunction of the ranges
     define a hyper-rectangular region within which elements values are set to 1
-    (otherwise element values are set to 0).
+    (otherwise element values are set to 0). Each value of 'mask_dim_sizes' must
+    be non-negative and not greater than the size of the corresponding vector
+    dimension (as opposed to vector.create_mask which allows this).
 
     Example:
 
@@ -2150,7 +2161,8 @@ def Vector_ConstantMaskOp :
 
 def Vector_CreateMaskOp :
   Vector_Op<"create_mask", [NoSideEffect]>,
-    Arguments<(ins Variadic<Index>:$operands)>, Results<(outs VectorOf<[I1]>)> {
+    Arguments<(ins Variadic<Index>:$operands)>,
+    Results<(outs VectorOfAnyRankOf<[I1]>)> {
   let summary = "creates a vector mask";
   let description = [{
     Creates and returns a vector mask where elements of the result vector
@@ -2159,7 +2171,9 @@ def Vector_CreateMaskOp :
     each operand specifies a range [0, operand-value) for a unique dimension in
     the vector result. The conjunction of the operand ranges define a
     hyper-rectangular region within which elements values are set to 1
-    (otherwise element values are set to 0).
+    (otherwise element values are set to 0). If operand-value is negative, it is
+    treated as if it were zero, and if it is greater than the corresponding
+    dimension size, it is treated as if it were equal to the dimension size.
 
     Example:
 
@@ -2381,6 +2395,38 @@ def Vector_FlatTransposeOp : Vector_Op<"flat_transpose", [NoSideEffect,
   }];
   let verifier = ?;
   let assemblyFormat = "$matrix attr-dict `:` type($matrix) `->` type($res)";
+}
+
+//===----------------------------------------------------------------------===//
+// VectorScaleOp
+//===----------------------------------------------------------------------===//
+
+// TODO: In the future, we might want to have scalable vectors with different
+//       scales for different dimensions. E.g.: vector<[16]x[16]xf32>, in
+//       which case we might need to add an index to 'vscale' to select one
+//       of them. In order to support GPUs, we might also want to differentiate
+//       between a 'global' scale, a scale that's fixed throughout the
+//       execution, and a 'local' scale that is fixed but might vary with each
+//       call to the function. For that, it might be useful to have a
+//       'vector.scale.global' and a 'vector.scale.local' operation.
+def VectorScaleOp : Vector_Op<"vscale",
+                 [NoSideEffect]> {
+  let summary = "Load vector scale size";
+  let description = [{
+    The `vscale` op returns the scale of the scalable vectors, a positive
+    integer value that is constant at runtime but unknown at compile-time.
+    The scale of the vector indicates the multiplicity of the vectors and
+    vector operations. For example, a `vector<[4]xi32>` is equivalent to
+    `vscale` consecutive `vector<4xi32>`; and an operation on a
+    `vector<[4]xi32>` is equivalent to performing that operation `vscale`
+    times, once on each `<4xi32>` segment of the scalable vector. The `vscale`
+    op can be used to calculate the step in vector-length agnostic (VLA) loops.
+    Right now we only support one contiguous set of scalable dimensions, all of
+    them grouped and scaled with the value returned by 'vscale'.
+  }];
+  let results = (outs Index:$res);
+  let assemblyFormat = "attr-dict";
+  let verifier = ?;
 }
 
 #endif // VECTOR_OPS

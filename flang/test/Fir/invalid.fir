@@ -284,6 +284,15 @@ func @test_coordinate_of(%arr : !fir.ref<!fir.char<10>>) {
 
 // -----
 
+func @test_coordinate_of(%arr : !fir.ref<!fir.char<10, 1>>) {
+  %1 = arith.constant 10 : i32
+  // expected-error@+1 {{'fir.coordinate_of' op cannot apply coordinate_of to this type}}
+  %2 = fir.coordinate_of %arr, %1 : (!fir.ref<!fir.char<10, 1>>, i32) -> !fir.ref<f32>
+  return
+}
+
+// -----
+
 %0 = arith.constant 22 : i32
 // expected-error@+1 {{'fir.embox' op operand #0 must be any reference, but got 'i32'}}
 %1 = fir.embox %0 : (i32) -> !fir.box<i32>
@@ -598,6 +607,16 @@ func @test_misc_ops(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %m : index, %n : inde
   %c0 = arith.constant 0 : i32
   // expected-error@+1 {{'fir.array_update' op merged value does not have element type}}
   %av2 = fir.array_update %av1, %c0, %m, %n : (!fir.array<?x?xf32>, i32, index, index) -> !fir.array<?x?xf32>
+  return
+}
+
+// -----
+
+func @test_misc_ops(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %m : index, %n : index, %o : index, %p : index, %f: !fir.ref<i32>) {
+  %s = fir.shape_shift %m, %n, %o, %p : (index, index, index, index) -> !fir.shapeshift<2>
+  %av1 = fir.array_load %arr1(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shapeshift<2>) -> !fir.array<?x?xf32>
+  // expected-error@+1 {{'fir.array_update' op does not support reference type for merge}}
+  %av2 = fir.array_update %av1, %f, %m, %n : (!fir.array<?x?xf32>, !fir.ref<i32>, index, index) -> !fir.array<?x?xf32>
   return
 }
 

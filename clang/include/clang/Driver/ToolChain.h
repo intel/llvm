@@ -158,6 +158,7 @@ private:
   mutable std::unique_ptr<Tool> BackendCompiler;
   mutable std::unique_ptr<Tool> AppendFooter;
   mutable std::unique_ptr<Tool> FileTableTform;
+  mutable std::unique_ptr<Tool> SpirvToIrWrapper;
 
   Tool *getClang() const;
   Tool *getFlang() const;
@@ -175,6 +176,7 @@ private:
   Tool *getBackendCompiler() const;
   Tool *getAppendFooter() const;
   Tool *getTableTform() const;
+  Tool *getSpirvToIrWrapper() const;
 
   mutable bool SanitizerArgsChecked = false;
   mutable std::unique_ptr<XRayArgs> XRayArguments;
@@ -365,10 +367,7 @@ public:
   /// is LLD. If it's set, it can be assumed that the linker is LLD built
   /// at the same revision as clang, and clang can make assumptions about
   /// LLD's supported flags, error output, etc.
-  /// If LinkerIsLLDDarwinNew is non-nullptr, it's set if the linker is
-  /// the new version in lld/MachO.
-  std::string GetLinkerPath(bool *LinkerIsLLD = nullptr,
-                            bool *LinkerIsLLDDarwinNew = nullptr) const;
+  std::string GetLinkerPath(bool *LinkerIsLLD = nullptr) const;
 
   /// Returns the linker path for emitting a static library.
   std::string GetStaticLibToolPath() const;
@@ -404,6 +403,9 @@ public:
   /// Check if the toolchain should use the integrated assembler.
   virtual bool useIntegratedAs() const;
 
+  /// Check if the toolchain should use the integrated backend.
+  virtual bool useIntegratedBackend() const { return true; }
+
   /// Check if the toolchain should use AsmParser to parse inlineAsm when
   /// integrated assembler is not default.
   virtual bool parseInlineAsmUsingAsmParser() const { return false; }
@@ -425,6 +427,9 @@ public:
 
   /// Check whether to enable x86 relax relocations by default.
   virtual bool useRelaxRelocations() const;
+
+  /// Check whether use IEEE binary128 as long double format by default.
+  bool defaultToIEEELongDouble() const;
 
   /// GetDefaultStackProtectorLevel - Get the default stack protector level for
   /// this tool chain.
@@ -469,11 +474,11 @@ public:
                                     StringRef Component,
                                     FileType Type = ToolChain::FT_Static) const;
 
-  // Returns target specific runtime path if it exists.
-  virtual std::string getRuntimePath() const;
+  // Returns target specific runtime paths.
+  path_list getRuntimePaths() const;
 
-  // Returns target specific standard library path if it exists.
-  virtual std::string getStdlibPath() const;
+  // Returns target specific standard library paths.
+  path_list getStdlibPaths() const;
 
   // Returns <ResourceDir>/lib/<OSName>/<arch>.  This is used by runtimes (such
   // as OpenMP) to find arch-specific libraries.
@@ -527,7 +532,7 @@ public:
 
   // Return the DWARF version to emit, in the absence of arguments
   // to the contrary.
-  virtual unsigned GetDefaultDwarfVersion() const { return 4; }
+  virtual unsigned GetDefaultDwarfVersion() const { return 5; }
 
   // Some toolchains may have different restrictions on the DWARF version and
   // may need to adjust it. E.g. NVPTX may need to enforce DWARF2 even when host
@@ -703,7 +708,8 @@ public:
 
   /// Get paths of HIP device libraries.
   virtual llvm::SmallVector<BitCodeLibraryInfo, 12>
-  getHIPDeviceLibs(const llvm::opt::ArgList &Args) const;
+  getHIPDeviceLibs(const llvm::opt::ArgList &Args,
+                   const Action::OffloadKind DeviceOffloadingKind) const;
 
   /// Return sanitizers which are available in this toolchain.
   virtual SanitizerMask getSupportedSanitizers() const;

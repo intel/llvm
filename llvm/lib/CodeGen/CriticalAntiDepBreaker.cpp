@@ -40,8 +40,7 @@ using namespace llvm;
 
 CriticalAntiDepBreaker::CriticalAntiDepBreaker(MachineFunction &MFi,
                                                const RegisterClassInfo &RCI)
-    : AntiDepBreaker(), MF(MFi), MRI(MF.getRegInfo()),
-      TII(MF.getSubtarget().getInstrInfo()),
+    : MF(MFi), MRI(MF.getRegInfo()), TII(MF.getSubtarget().getInstrInfo()),
       TRI(MF.getSubtarget().getRegisterInfo()), RegClassInfo(RCI),
       Classes(TRI->getNumRegs(), nullptr), KillIndices(TRI->getNumRegs(), 0),
       DefIndices(TRI->getNumRegs(), 0), KeepRegs(TRI->getNumRegs(), false) {}
@@ -405,8 +404,7 @@ findSuitableFreeRegister(RegRefIter RegRefBegin,
                          const TargetRegisterClass *RC,
                          SmallVectorImpl<unsigned> &Forbid) {
   ArrayRef<MCPhysReg> Order = RegClassInfo.getOrder(RC);
-  for (unsigned i = 0; i != Order.size(); ++i) {
-    unsigned NewReg = Order[i];
+  for (unsigned NewReg : Order) {
     // Don't replace a register with itself.
     if (NewReg == AntiDepReg) continue;
     // Don't replace a register with one that was recently used to repair

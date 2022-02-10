@@ -88,16 +88,13 @@ const Scope *FindPureProcedureContaining(const Scope &start) {
   }
 }
 
-static bool MightHaveCompatibleDerivedtypes(
+// 7.5.2.4 "same derived type" test -- rely on IsTkCompatibleWith() and its
+// infrastructure to detect and handle comparisons on distinct (but "same")
+// sequence/bind(C) derived types
+static bool MightBeSameDerivedType(
     const std::optional<evaluate::DynamicType> &lhsType,
     const std::optional<evaluate::DynamicType> &rhsType) {
-  const DerivedTypeSpec *lhsDerived{evaluate::GetDerivedTypeSpec(lhsType)};
-  const DerivedTypeSpec *rhsDerived{evaluate::GetDerivedTypeSpec(rhsType)};
-  if (!lhsDerived || !rhsDerived) {
-    return false;
-  }
-  return *lhsDerived == *rhsDerived ||
-      lhsDerived->MightBeAssignmentCompatibleWith(*rhsDerived);
+  return lhsType && rhsType && rhsType->IsTkCompatibleWith(*lhsType);
 }
 
 Tristate IsDefinedAssignment(
@@ -113,7 +110,7 @@ Tristate IsDefinedAssignment(
   } else if (lhsCat != TypeCategory::Derived) {
     return ToTristate(lhsCat != rhsCat &&
         (!IsNumericTypeCategory(lhsCat) || !IsNumericTypeCategory(rhsCat)));
-  } else if (MightHaveCompatibleDerivedtypes(lhsType, rhsType)) {
+  } else if (MightBeSameDerivedType(lhsType, rhsType)) {
     return Tristate::Maybe; // TYPE(t) = TYPE(t) can be defined or intrinsic
   } else {
     return Tristate::Yes;
@@ -924,7 +921,7 @@ public:
 private:
   bool IsCoarrayObject(const parser::AllocateObject &allocateObject) {
     const parser::Name &name{GetLastName(allocateObject)};
-    return name.symbol && IsCoarray(*name.symbol);
+    return name.symbol && evaluate::IsCoarray(*name.symbol);
   }
 };
 
@@ -988,7 +985,7 @@ parser::CharBlock GetImageControlStmtLocation(
 bool HasCoarray(const parser::Expr &expression) {
   if (const auto *expr{GetExpr(expression)}) {
     for (const Symbol &symbol : evaluate::CollectSymbols(*expr)) {
-      if (IsCoarray(GetAssociationRoot(symbol))) {
+      if (evaluate::IsCoarray(symbol)) {
         return true;
       }
     }
@@ -1248,7 +1245,8 @@ template class ComponentIterator<ComponentKind::Scope>;
 UltimateComponentIterator::const_iterator FindCoarrayUltimateComponent(
     const DerivedTypeSpec &derived) {
   UltimateComponentIterator ultimates{derived};
-  return std::find_if(ultimates.begin(), ultimates.end(), IsCoarray);
+  return std::find_if(ultimates.begin(), ultimates.end(),
+      [](const Symbol &symbol) { return evaluate::IsCoarray(symbol); });
 }
 
 UltimateComponentIterator::const_iterator FindPointerUltimateComponent(
@@ -1288,7 +1286,7 @@ FindPolymorphicAllocatableNonCoarrayUltimateComponent(
     const DerivedTypeSpec &derived) {
   UltimateComponentIterator ultimates{derived};
   return std::find_if(ultimates.begin(), ultimates.end(), [](const Symbol &x) {
-    return IsPolymorphicAllocatable(x) && !IsCoarray(x);
+    return IsPolymorphicAllocatable(x) && !evaluate::IsCoarray(x);
   });
 }
 
@@ -1344,13 +1342,15 @@ const Symbol *FindImmediateComponent(const DerivedTypeSpec &type,
   return nullptr;
 }
 
-bool IsFunctionResultWithSameNameAsFunction(const Symbol &symbol) {
+const Symbol *IsFunctionResultWithSameNameAsFunction(const Symbol &symbol) {
   if (IsFunctionResult(symbol)) {
     if (const Symbol * function{symbol.owner().symbol()}) {
-      return symbol.name() == function->name();
+      if (symbol.name() == function->name()) {
+        return function;
+      }
     }
   }
-  return false;
+  return nullptr;
 }
 
 void LabelEnforce::Post(const parser::GotoStmt &gotoStmt) {

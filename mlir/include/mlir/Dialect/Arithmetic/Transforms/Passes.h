@@ -10,14 +10,9 @@
 #define MLIR_DIALECT_ARITHMETIC_TRANSFORMS_PASSES_H_
 
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/Bufferize.h"
 
 namespace mlir {
 namespace arith {
-
-/// Add patterns to bufferize Arithmetic ops.
-void populateArithmeticBufferizePatterns(BufferizeTypeConverter &typeConverter,
-                                         RewritePatternSet &patterns);
 
 /// Create a pass to bufferize Arithmetic ops.
 std::unique_ptr<Pass> createArithmeticBufferizePass();
@@ -36,7 +31,7 @@ std::unique_ptr<Pass> createArithmeticExpandOpsPass();
 #define GEN_PASS_REGISTRATION
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h.inc"
 
-} // end namespace arith
-} // end namespace mlir
+} // namespace arith
+} // namespace mlir
 
 #endif // MLIR_DIALECT_ARITHMETIC_TRANSFORMS_PASSES_H_

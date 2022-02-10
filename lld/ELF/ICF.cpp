@@ -461,8 +461,9 @@ template <class ELFT> void ICF<ELFT>::run() {
   // Compute isPreemptible early. We may add more symbols later, so this loop
   // cannot be merged with the later computeIsPreemptible() pass which is used
   // by scanRelocations().
-  for (Symbol *sym : symtab->symbols())
-    sym->isPreemptible = computeIsPreemptible(*sym);
+  if (config->hasDynSymTab)
+    for (Symbol *sym : symtab->symbols())
+      sym->isPreemptible = computeIsPreemptible(*sym);
 
   // Two text sections may have identical content and relocations but different
   // LSDA, e.g. the two functions may have catch blocks of different types. If a
@@ -548,6 +549,22 @@ template <class ELFT> void ICF<ELFT>::run() {
       for (InputSection *isec : sections[i]->dependentSections)
         isec->markDead();
     }
+  });
+
+  // Change Defined symbol's section field to the canonical one.
+  auto fold = [](Symbol *sym) {
+    if (auto *d = dyn_cast<Defined>(sym))
+      if (auto *sec = dyn_cast_or_null<InputSection>(d->section))
+        if (sec->repl != d->section) {
+          d->section = sec->repl;
+          d->folded = true;
+        }
+  };
+  for (Symbol *sym : symtab->symbols())
+    fold(sym);
+  parallelForEach(objectFiles, [&](ELFFileBase *file) {
+    for (Symbol *sym : file->getLocalSymbols())
+      fold(sym);
   });
 
   // InputSectionDescription::sections is populated by processSectionCommands().

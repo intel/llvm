@@ -127,9 +127,14 @@ unsigned DwarfCompileUnit::getOrCreateSourceID(const DIFile *File) {
   if (!File)
     return Asm->OutStreamer->emitDwarfFileDirective(0, "", "", None, None,
                                                     CUID);
-  return Asm->OutStreamer->emitDwarfFileDirective(
-      0, File->getDirectory(), File->getFilename(), DD->getMD5AsBytes(File),
-      File->getSource(), CUID);
+
+  if (LastFile != File) {
+    LastFile = File;
+    LastFileID = Asm->OutStreamer->emitDwarfFileDirective(
+        0, File->getDirectory(), File->getFilename(), DD->getMD5AsBytes(File),
+        File->getSource(), CUID);
+  }
+  return LastFileID;
 }
 
 DIE *DwarfCompileUnit::getOrCreateGlobalVariableDIE(
@@ -260,9 +265,20 @@ void DwarfCompileUnit::addLocationAttribute(
 
     if (Global) {
       const MCSymbol *Sym = Asm->getSymbol(Global);
-      unsigned PointerSize = Asm->getDataLayout().getPointerSize();
-      assert((PointerSize == 4 || PointerSize == 8) &&
-             "Add support for other sizes if necessary");
+      // 16-bit platforms like MSP430 and AVR take this path, so sink this
+      // assert to platforms that use it.
+      auto GetPointerSizedFormAndOp = [this]() {
+        unsigned PointerSize = Asm->getDataLayout().getPointerSize();
+        assert((PointerSize == 4 || PointerSize == 8) &&
+               "Add support for other sizes if necessary");
+        struct FormAndOp {
+          dwarf::Form Form;
+          dwarf::LocationAtom Op;
+        };
+        return PointerSize == 4
+                   ? FormAndOp{dwarf::DW_FORM_data4, dwarf::DW_OP_const4u}
+                   : FormAndOp{dwarf::DW_FORM_data8, dwarf::DW_OP_const8u};
+      };
       if (Global->isThreadLocal()) {
         if (Asm->TM.useEmulatedTLS()) {
           // TODO: add debug info for emulated thread local mode.
@@ -270,15 +286,12 @@ void DwarfCompileUnit::addLocationAttribute(
           // FIXME: Make this work with -gsplit-dwarf.
           // Based on GCC's support for TLS:
           if (!DD->useSplitDwarf()) {
+            auto FormAndOp = GetPointerSizedFormAndOp();
             // 1) Start with a constNu of the appropriate pointer size
-            addUInt(*Loc, dwarf::DW_FORM_data1,
-                    PointerSize == 4 ? dwarf::DW_OP_const4u
-                                     : dwarf::DW_OP_const8u);
+            addUInt(*Loc, dwarf::DW_FORM_data1, FormAndOp.Op);
             // 2) containing the (relocated) offset of the TLS variable
             //    within the module's TLS block.
-            addExpr(*Loc,
-                    PointerSize == 4 ? dwarf::DW_FORM_data4
-                                     : dwarf::DW_FORM_data8,
+            addExpr(*Loc, FormAndOp.Form,
                     Asm->getObjFileLowering().getDebugThreadLocalSymbol(Sym));
           } else {
             addUInt(*Loc, dwarf::DW_FORM_data1, dwarf::DW_OP_GNU_const_index);
@@ -292,13 +305,11 @@ void DwarfCompileUnit::addLocationAttribute(
         }
       } else if (Asm->TM.getRelocationModel() == Reloc::RWPI ||
                  Asm->TM.getRelocationModel() == Reloc::ROPI_RWPI) {
+        auto FormAndOp = GetPointerSizedFormAndOp();
         // Constant
-        addUInt(*Loc, dwarf::DW_FORM_data1,
-                PointerSize == 4 ? dwarf::DW_OP_const4u
-                                 : dwarf::DW_OP_const8u);
+        addUInt(*Loc, dwarf::DW_FORM_data1, FormAndOp.Op);
         // Relocation offset
-        addExpr(*Loc, PointerSize == 4 ? dwarf::DW_FORM_data4
-                                       : dwarf::DW_FORM_data8,
+        addExpr(*Loc, FormAndOp.Form,
                 Asm->getObjFileLowering().getIndirectSymViaRWPI(Sym));
         // Base register
         Register BaseReg = Asm->getObjFileLowering().getStaticBase();
@@ -779,7 +790,7 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
     const TargetRegisterInfo &TRI = *Asm->MF->getSubtarget().getRegisterInfo();
 
     auto AddEntry = [&](const DbgValueLocEntry &Entry,
-                                            DIExpressionCursor &Cursor) {
+                        DIExpressionCursor &Cursor) {
       if (Entry.isLocation()) {
         if (!DwarfExpr.addMachineRegExpression(TRI, Cursor,
                                                Entry.getLoc().getReg()))
@@ -788,11 +799,19 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
         // If there is an expression, emit raw unsigned bytes.
         DwarfExpr.addUnsignedConstant(Entry.getInt());
       } else if (Entry.isConstantFP()) {
+        // DwarfExpression does not support arguments wider than 64 bits
+        // (see PR52584).
+        // TODO: Consider chunking expressions containing overly wide
+        // arguments into separate pointer-sized fragment expressions.
         APInt RawBytes = Entry.getConstantFP()->getValueAPF().bitcastToAPInt();
-        DwarfExpr.addUnsignedConstant(RawBytes);
+        if (RawBytes.getBitWidth() > 64)
+          return false;
+        DwarfExpr.addUnsignedConstant(RawBytes.getZExtValue());
       } else if (Entry.isConstantInt()) {
         APInt RawBytes = Entry.getConstantInt()->getValue();
-        DwarfExpr.addUnsignedConstant(RawBytes);
+        if (RawBytes.getBitWidth() > 64)
+          return false;
+        DwarfExpr.addUnsignedConstant(RawBytes.getZExtValue());
       } else if (Entry.isTargetIndexLocation()) {
         TargetIndexLocation Loc = Entry.getTargetIndexLocation();
         // TODO TargetIndexLocation is a target-independent. Currently only the
@@ -805,11 +824,12 @@ DIE *DwarfCompileUnit::constructVariableDIEImpl(const DbgVariable &DV,
       return true;
     };
 
-    DwarfExpr.addExpression(
-        std::move(Cursor),
-        [&](unsigned Idx, DIExpressionCursor &Cursor) -> bool {
-          return AddEntry(DVal->getLocEntries()[Idx], Cursor);
-        });
+    if (!DwarfExpr.addExpression(
+            std::move(Cursor),
+            [&](unsigned Idx, DIExpressionCursor &Cursor) -> bool {
+              return AddEntry(DVal->getLocEntries()[Idx], Cursor);
+            }))
+      return VariableDie;
 
     // Now attach the location information to the DIE.
     addBlock(*VariableDie, dwarf::DW_AT_location, DwarfExpr.finalize());
@@ -1566,7 +1586,8 @@ void DwarfCompileUnit::createBaseTypeDIEs() {
               Twine(dwarf::AttributeEncodingString(Btr.Encoding) +
                     "_" + Twine(Btr.BitSize)).toStringRef(Str));
     addUInt(Die, dwarf::DW_AT_encoding, dwarf::DW_FORM_data1, Btr.Encoding);
-    addUInt(Die, dwarf::DW_AT_byte_size, None, Btr.BitSize / 8);
+    // Round up to smallest number of bytes that contains this number of bits.
+    addUInt(Die, dwarf::DW_AT_byte_size, None, divideCeil(Btr.BitSize, 8));
 
     Btr.Die = &Die;
   }

@@ -1807,10 +1807,27 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
     // Function-to-pointer conversion (C++ 4.3).
     SCS.First = ICK_Function_To_Pointer;
 
-    if (auto *DRE = dyn_cast<DeclRefExpr>(From->IgnoreParenCasts()))
-      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+    if (auto *DRE = dyn_cast<DeclRefExpr>(From->IgnoreParenCasts())) {
+      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
         if (!S.checkAddressOfFunctionIsAvailable(FD))
           return false;
+
+        // Some parts of clang are not designed for deferred diagnostics.
+        // One of the examples - initialization. When a new initialization is
+        // performed - it may end up here checking validity of a conversion.
+        // If false is returned from here, initialization sequence is marked as
+        // invalid, then checkAddressOfFunctionIsAvailable is called again
+        // to understand the reason of invaid initialization and in the end
+        // it is called with 'Complain' parameter to emit diagnostics.
+        // We cannot mark an initialization permanently invalid for SYCL device,
+        // because we may not know yet where the device code is.
+        // So, just call 'checkAddressOfFunctionIsAvailable' again but with
+        // 'Complain' parameter to issue a deferred diagnostic.
+        if (S.getLangOpts().SYCLIsDevice)
+          S.checkAddressOfFunctionIsAvailable(FD, /*Complain=*/true,
+                                              DRE->getExprLoc());
+      }
+    }
 
     // An lvalue of function type T can be converted to an rvalue of
     // type "pointer to T." The result is a pointer to the
@@ -2405,9 +2422,8 @@ bool Sema::IsPointerConversion(Expr *From, QualType FromType, QualType ToType,
   if (FromType->isObjCObjectPointerType() && ToPointeeType->isVoidType() &&
       !getLangOpts().ObjCAutoRefCount) {
     ConvertedType = BuildSimilarlyQualifiedPointerType(
-                                      FromType->getAs<ObjCObjectPointerType>(),
-                                                       ToPointeeType,
-                                                       ToType, Context);
+        FromType->castAs<ObjCObjectPointerType>(), ToPointeeType, ToType,
+        Context);
     return true;
   }
   const PointerType *FromTypePtr = FromType->getAs<PointerType>();
@@ -3718,8 +3734,7 @@ compareConversionFunctions(Sema &S, FunctionDecl *Function1,
     CallingConv Conv2CC = Conv2FuncRet->getCallConv();
 
     CXXMethodDecl *CallOp = Conv2->getParent()->getLambdaCallOperator();
-    const FunctionProtoType *CallOpProto =
-        CallOp->getType()->getAs<FunctionProtoType>();
+    const auto *CallOpProto = CallOp->getType()->castAs<FunctionProtoType>();
 
     CallingConv CallOpCC =
         CallOp->getType()->castAs<FunctionType>()->getCallConv();
@@ -9416,12 +9431,12 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
       AddOverloadCandidate(
           FD, FoundDecl, Args, CandidateSet, /*SuppressUserConversions=*/false,
           PartialOverloading, /*AllowExplicit=*/true,
-          /*AllowExplicitConversions=*/false, ADLCallKind::UsesADL);
+          /*AllowExplicitConversion=*/false, ADLCallKind::UsesADL);
       if (CandidateSet.getRewriteInfo().shouldAddReversed(Context, FD)) {
         AddOverloadCandidate(
             FD, FoundDecl, {Args[1], Args[0]}, CandidateSet,
             /*SuppressUserConversions=*/false, PartialOverloading,
-            /*AllowExplicit=*/true, /*AllowExplicitConversions=*/false,
+            /*AllowExplicit=*/true, /*AllowExplicitConversion=*/false,
             ADLCallKind::UsesADL, None, OverloadCandidateParamOrder::Reversed);
       }
     } else {
@@ -10243,6 +10258,15 @@ static bool checkAddressOfFunctionIsAvailable(Sema &S, const FunctionDecl *FD,
                                               bool Complain,
                                               bool InOverloadResolution,
                                               SourceLocation Loc) {
+  if (Complain && S.getLangOpts().SYCLIsDevice &&
+      S.getLangOpts().SYCLAllowFuncPtr) {
+    if (!FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>()) {
+      S.SYCLDiagIfDeviceCode(Loc,
+                             diag::err_sycl_taking_address_of_wrong_function,
+                             Sema::DeviceDiagnosticReason::Sycl);
+    }
+  }
+
   if (!isFunctionAlwaysEnabled(S.Context, FD)) {
     if (Complain) {
       if (InOverloadResolution)
@@ -14322,8 +14346,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
     FoundDecl = MemExpr->getFoundDecl();
     Qualifier = MemExpr->getQualifier();
     UnbridgedCasts.restore();
-  } else {
-    UnresolvedMemberExpr *UnresExpr = cast<UnresolvedMemberExpr>(NakedMemExpr);
+  } else if (auto *UnresExpr = dyn_cast<UnresolvedMemberExpr>(NakedMemExpr)) {
     Qualifier = UnresExpr->getQualifier();
 
     QualType ObjectType = UnresExpr->getBaseType();
@@ -14436,7 +14459,9 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
     }
 
     MemExpr = cast<MemberExpr>(MemExprE->IgnoreParens());
-  }
+  } else
+    // Unimaged NakedMemExpr type.
+    return ExprError();
 
   QualType ResultType = Method->getReturnType();
   ExprValueKind VK = Expr::getValueKindForType(ResultType);

@@ -702,6 +702,38 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
       NewFn = Intrinsic::getDeclaration(F->getParent(), IID, Tys);
       return true;
     }
+
+    if (Name == "arm.mve.vctp64" &&
+        cast<FixedVectorType>(F->getReturnType())->getNumElements() == 4) {
+      // A vctp64 returning a v4i1 is converted to return a v2i1. Rename the
+      // function and deal with it below in UpgradeIntrinsicCall.
+      rename(F);
+      return true;
+    }
+    // These too are changed to accept a v2i1 insteead of the old v4i1.
+    if (Name == "arm.mve.mull.int.predicated.v2i64.v4i32.v4i1" ||
+        Name == "arm.mve.vqdmull.predicated.v2i64.v4i32.v4i1" ||
+        Name == "arm.mve.vldr.gather.base.predicated.v2i64.v2i64.v4i1" ||
+        Name == "arm.mve.vldr.gather.base.wb.predicated.v2i64.v2i64.v4i1" ||
+        Name == "arm.mve.vldr.gather.offset.predicated.v2i64.p0i64.v2i64.v4i1" ||
+        Name == "arm.mve.vstr.scatter.base.predicated.v2i64.v2i64.v4i1" ||
+        Name == "arm.mve.vstr.scatter.base.wb.predicated.v2i64.v2i64.v4i1" ||
+        Name == "arm.mve.vstr.scatter.offset.predicated.p0i64.v2i64.v2i64.v4i1" ||
+        Name == "arm.cde.vcx1q.predicated.v2i64.v4i1" ||
+        Name == "arm.cde.vcx1qa.predicated.v2i64.v4i1" ||
+        Name == "arm.cde.vcx2q.predicated.v2i64.v4i1" ||
+        Name == "arm.cde.vcx2qa.predicated.v2i64.v4i1" ||
+        Name == "arm.cde.vcx3q.predicated.v2i64.v4i1" ||
+        Name == "arm.cde.vcx3qa.predicated.v2i64.v4i1")
+      return true;
+
+    if (Name == "amdgcn.alignbit") {
+      // Target specific intrinsic became redundant
+      NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::fshr,
+                                        {F->getReturnType()});
+      return true;
+    }
+
     break;
   }
 
@@ -1803,6 +1835,96 @@ void llvm::UpgradeInlineAsmString(std::string *AsmStr) {
   }
 }
 
+static Value *UpgradeARMIntrinsicCall(StringRef Name, CallInst *CI, Function *F,
+                                      IRBuilder<> &Builder) {
+  if (Name == "mve.vctp64.old") {
+    // Replace the old v4i1 vctp64 with a v2i1 vctp and predicate-casts to the
+    // correct type.
+    Value *VCTP = Builder.CreateCall(
+        Intrinsic::getDeclaration(F->getParent(), Intrinsic::arm_mve_vctp64),
+        CI->getArgOperand(0), CI->getName());
+    Value *C1 = Builder.CreateCall(
+        Intrinsic::getDeclaration(
+            F->getParent(), Intrinsic::arm_mve_pred_v2i,
+            {VectorType::get(Builder.getInt1Ty(), 2, false)}),
+        VCTP);
+    return Builder.CreateCall(
+        Intrinsic::getDeclaration(
+            F->getParent(), Intrinsic::arm_mve_pred_i2v,
+            {VectorType::get(Builder.getInt1Ty(), 4, false)}),
+        C1);
+  } else if (Name == "mve.mull.int.predicated.v2i64.v4i32.v4i1" ||
+             Name == "mve.vqdmull.predicated.v2i64.v4i32.v4i1" ||
+             Name == "mve.vldr.gather.base.predicated.v2i64.v2i64.v4i1" ||
+             Name == "mve.vldr.gather.base.wb.predicated.v2i64.v2i64.v4i1" ||
+             Name == "mve.vldr.gather.offset.predicated.v2i64.p0i64.v2i64.v4i1" ||
+             Name == "mve.vstr.scatter.base.predicated.v2i64.v2i64.v4i1" ||
+             Name == "mve.vstr.scatter.base.wb.predicated.v2i64.v2i64.v4i1" ||
+             Name == "mve.vstr.scatter.offset.predicated.p0i64.v2i64.v2i64.v4i1" ||
+             Name == "cde.vcx1q.predicated.v2i64.v4i1" ||
+             Name == "cde.vcx1qa.predicated.v2i64.v4i1" ||
+             Name == "cde.vcx2q.predicated.v2i64.v4i1" ||
+             Name == "cde.vcx2qa.predicated.v2i64.v4i1" ||
+             Name == "cde.vcx3q.predicated.v2i64.v4i1" ||
+             Name == "cde.vcx3qa.predicated.v2i64.v4i1") {
+    std::vector<Type *> Tys;
+    unsigned ID = CI->getIntrinsicID();
+    Type *V2I1Ty = FixedVectorType::get(Builder.getInt1Ty(), 2);
+    switch (ID) {
+    case Intrinsic::arm_mve_mull_int_predicated:
+    case Intrinsic::arm_mve_vqdmull_predicated:
+    case Intrinsic::arm_mve_vldr_gather_base_predicated:
+      Tys = {CI->getType(), CI->getOperand(0)->getType(), V2I1Ty};
+      break;
+    case Intrinsic::arm_mve_vldr_gather_base_wb_predicated:
+    case Intrinsic::arm_mve_vstr_scatter_base_predicated:
+    case Intrinsic::arm_mve_vstr_scatter_base_wb_predicated:
+      Tys = {CI->getOperand(0)->getType(), CI->getOperand(0)->getType(),
+             V2I1Ty};
+      break;
+    case Intrinsic::arm_mve_vldr_gather_offset_predicated:
+      Tys = {CI->getType(), CI->getOperand(0)->getType(),
+             CI->getOperand(1)->getType(), V2I1Ty};
+      break;
+    case Intrinsic::arm_mve_vstr_scatter_offset_predicated:
+      Tys = {CI->getOperand(0)->getType(), CI->getOperand(1)->getType(),
+             CI->getOperand(2)->getType(), V2I1Ty};
+      break;
+    case Intrinsic::arm_cde_vcx1q_predicated:
+    case Intrinsic::arm_cde_vcx1qa_predicated:
+    case Intrinsic::arm_cde_vcx2q_predicated:
+    case Intrinsic::arm_cde_vcx2qa_predicated:
+    case Intrinsic::arm_cde_vcx3q_predicated:
+    case Intrinsic::arm_cde_vcx3qa_predicated:
+      Tys = {CI->getOperand(1)->getType(), V2I1Ty};
+      break;
+    default:
+      llvm_unreachable("Unhandled Intrinsic!");
+    }
+
+    std::vector<Value *> Ops;
+    for (Value *Op : CI->args()) {
+      Type *Ty = Op->getType();
+      if (Ty->getScalarSizeInBits() == 1) {
+        Value *C1 = Builder.CreateCall(
+            Intrinsic::getDeclaration(
+                F->getParent(), Intrinsic::arm_mve_pred_v2i,
+                {VectorType::get(Builder.getInt1Ty(), 4, false)}),
+            Op);
+        Op = Builder.CreateCall(
+            Intrinsic::getDeclaration(F->getParent(),
+                                      Intrinsic::arm_mve_pred_i2v, {V2I1Ty}),
+            C1);
+      }
+      Ops.push_back(Op);
+    }
+
+    Function *Fn = Intrinsic::getDeclaration(F->getParent(), ID, Tys);
+    return Builder.CreateCall(Fn, Ops, CI->getName());
+  }
+  llvm_unreachable("Unknown function for ARM CallInst upgrade.");
+}
+
 /// Upgrade a call to an old intrinsic. All argument and return casting must be
 /// provided to seamlessly integrate with existing context.
 void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
@@ -1826,6 +1948,9 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
     bool IsNVVM = Name.startswith("nvvm.");
     if (IsNVVM)
       Name = Name.substr(5);
+    bool IsARM = Name.startswith("arm.");
+    if (IsARM)
+      Name = Name.substr(4);
 
     if (IsX86 && Name.startswith("sse4a.movnt.")) {
       Module *M = F->getParent();
@@ -2289,14 +2414,12 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       if (CI->arg_size() >= 3)
         Rep = EmitX86Select(Builder, CI->getArgOperand(2), Rep,
                             CI->getArgOperand(1));
-    } else if (IsX86 && (Name.startswith("avx512.mask.loadu."))) {
-      Rep = UpgradeMaskedLoad(Builder, CI->getArgOperand(0),
-                              CI->getArgOperand(1), CI->getArgOperand(2),
-                              /*Aligned*/false);
-    } else if (IsX86 && (Name.startswith("avx512.mask.load."))) {
-      Rep = UpgradeMaskedLoad(Builder, CI->getArgOperand(0),
-                              CI->getArgOperand(1),CI->getArgOperand(2),
-                              /*Aligned*/true);
+    } else if (IsX86 && Name.startswith("avx512.mask.load")) {
+      // "avx512.mask.loadu." or "avx512.mask.load."
+      bool Aligned = Name[16] != 'u'; // "avx512.mask.loadu".
+      Rep =
+          UpgradeMaskedLoad(Builder, CI->getArgOperand(0), CI->getArgOperand(1),
+                            CI->getArgOperand(2), Aligned);
     } else if (IsX86 && Name.startswith("avx512.mask.expand.load.")) {
       auto *ResultTy = cast<FixedVectorType>(CI->getType());
       Type *PtrTy = ResultTy->getElementType();
@@ -3649,6 +3772,8 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
                                    F->getParent(), Intrinsic::convert_from_fp16,
                                    {Builder.getFloatTy()}),
                                CI->getArgOperand(0), "h2f");
+    } else if (IsARM) {
+      Rep = UpgradeARMIntrinsicCall(Name, CI, F, Builder);
     } else {
       llvm_unreachable("Unknown function for CallInst upgrade.");
     }
@@ -4370,7 +4495,7 @@ void llvm::UpgradeFunctionAttributes(Function &F) {
 
   if (F.getCallingConv() == CallingConv::X86_INTR &&
       !F.arg_empty() && !F.hasParamAttribute(0, Attribute::ByVal)) {
-    Type *ByValTy = cast<PointerType>(F.getArg(0)->getType())->getElementType();
+    Type *ByValTy = F.getArg(0)->getType()->getPointerElementType();
     Attribute NewAttr = Attribute::getWithByValType(F.getContext(), ByValTy);
     F.addParamAttr(0, NewAttr);
   }
@@ -4451,27 +4576,39 @@ std::string llvm::UpgradeDataLayoutString(StringRef DL, StringRef TT) {
     return DL.empty() ? std::string("G1") : (DL + "-G1").str();
   }
 
+  std::string Res = DL.str();
+  if (!T.isX86())
+    return Res;
+
+  // If the datalayout matches the expected format, add pointer size address
+  // spaces to the datalayout.
   std::string AddrSpaces = "-p270:32:32-p271:32:32-p272:64:64";
-  // If X86, and the datalayout matches the expected format, add pointer size
-  // address spaces to the datalayout.
-  if (!T.isX86() || DL.contains(AddrSpaces))
-    return std::string(DL);
+  if (!DL.contains(AddrSpaces)) {
+    SmallVector<StringRef, 4> Groups;
+    Regex R("(e-m:[a-z](-p:32:32)?)(-[if]64:.*$)");
+    if (R.match(DL, &Groups))
+      Res = (Groups[1] + AddrSpaces + Groups[3]).str();
+  }
 
-  SmallVector<StringRef, 4> Groups;
-  Regex R("(e-m:[a-z](-p:32:32)?)(-[if]64:.*$)");
-  if (!R.match(DL, &Groups))
-    return std::string(DL);
+  // For 32-bit MSVC targets, raise the alignment of f80 values to 16 bytes.
+  // Raising the alignment is safe because Clang did not produce f80 values in
+  // the MSVC environment before this upgrade was added.
+  if (T.isWindowsMSVCEnvironment() && !T.isArch64Bit()) {
+    StringRef Ref = Res;
+    auto I = Ref.find("-f80:32-");
+    if (I != StringRef::npos)
+      Res = (Ref.take_front(I) + "-f80:128-" + Ref.drop_front(I + 8)).str();
+  }
 
-  return (Groups[1] + AddrSpaces + Groups[3]).str();
+  return Res;
 }
 
 void llvm::UpgradeAttributes(AttrBuilder &B) {
   StringRef FramePointer;
-  if (B.contains("no-frame-pointer-elim")) {
+  Attribute A = B.getAttribute("no-frame-pointer-elim");
+  if (A.isValid()) {
     // The value can be "true" or "false".
-    for (const auto &I : B.td_attrs())
-      if (I.first == "no-frame-pointer-elim")
-        FramePointer = I.second == "true" ? "all" : "none";
+    FramePointer = A.getValueAsString() == "true" ? "all" : "none";
     B.removeAttribute("no-frame-pointer-elim");
   }
   if (B.contains("no-frame-pointer-elim-non-leaf")) {
@@ -4483,12 +4620,10 @@ void llvm::UpgradeAttributes(AttrBuilder &B) {
   if (!FramePointer.empty())
     B.addAttribute("frame-pointer", FramePointer);
 
-  if (B.contains("null-pointer-is-valid")) {
+  A = B.getAttribute("null-pointer-is-valid");
+  if (A.isValid()) {
     // The value can be "true" or "false".
-    bool NullPointerIsValid = false;
-    for (const auto &I : B.td_attrs())
-      if (I.first == "null-pointer-is-valid")
-        NullPointerIsValid = I.second == "true";
+    bool NullPointerIsValid = A.getValueAsString() == "true";
     B.removeAttribute("null-pointer-is-valid");
     if (NullPointerIsValid)
       B.addAttribute(Attribute::NullPointerIsValid);

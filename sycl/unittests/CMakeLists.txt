@@ -11,10 +11,18 @@ string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 
 include(AddSYCLUnitTest)
 
+add_custom_target(check-sycl-unittests)
+
+# TODO PI tests require real hardware and must be moved to intel/llvm-test-suite
+option(SYCL_PI_TESTS "Enable PI-specific unit tests" ON)
+
+if (SYCL_PI_TESTS)
+  add_subdirectory(pi)
+endif()
+
 add_subdirectory(allowlist)
 add_subdirectory(config)
 add_subdirectory(misc)
-add_subdirectory(pi)
 add_subdirectory(kernel-and-program)
 add_subdirectory(queue)
 add_subdirectory(scheduler)
@@ -24,3 +32,4 @@ add_subdirectory(thread_safety)
 add_subdirectory(program_manager)
 add_subdirectory(assert)
 add_subdirectory(Extensions)
+add_subdirectory(windows)

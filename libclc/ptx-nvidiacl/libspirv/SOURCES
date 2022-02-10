@@ -1,3 +1,5 @@
+assert/__assert_fail.cl
+reflect.ll
 atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 integer/mul24.cl
@@ -53,7 +55,7 @@ math/native_sqrt.cl
 math/native_tan.cl
 math/nextafter.cl
 math/pow.cl
-math/remainer.cl
+math/remainder.cl
 math/round.cl
 math/rsqrt.cl
 math/sin.cl
@@ -95,6 +97,9 @@ atomic/atomic_dec.cl
 atomic/atomic_inc.cl
 atomic/atomic_max.cl
 atomic/atomic_min.cl
+atomic/atomic_sub.cl
 atomic/atomic_xchg.cl
 atomic/atomic_or.cl
 atomic/atomic_xor.cl
+atomic/atomic_load.cl
+atomic/atomic_store.cl

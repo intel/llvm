@@ -76,6 +76,8 @@
 #include <utility>
 #include <vector>
 
+#include "LiveDebugValues/LiveDebugValues.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "codegen"
@@ -89,6 +91,7 @@ static cl::opt<unsigned> AlignAllFunctions(
 static const char *getPropertyName(MachineFunctionProperties::Property Prop) {
   using P = MachineFunctionProperties::Property;
 
+  // clang-format off
   switch(Prop) {
   case P::FailedISel: return "FailedISel";
   case P::IsSSA: return "IsSSA";
@@ -100,7 +103,9 @@ static const char *getPropertyName(MachineFunctionProperties::Property Prop) {
   case P::TracksLiveness: return "TracksLiveness";
   case P::TiedOpsRewritten: return "TiedOpsRewritten";
   case P::FailsVerification: return "FailsVerification";
+  case P::TracksDebugUserValues: return "TracksDebugUserValues";
   }
+  // clang-format on
   llvm_unreachable("Invalid machine function property");
 }
 
@@ -125,7 +130,7 @@ void MachineFunctionProperties::print(raw_ostream &OS) const {
 MachineFunctionInfo::~MachineFunctionInfo() = default;
 
 void ilist_alloc_traits<MachineBasicBlock>::deleteNode(MachineBasicBlock *MBB) {
-  MBB->getParent()->DeleteMachineBasicBlock(MBB);
+  MBB->getParent()->deleteMachineBasicBlock(MBB);
 }
 
 static inline unsigned getFnStackAlignment(const TargetSubtargetInfo *STI,
@@ -347,10 +352,10 @@ void MachineFunction::assignBeginEndSections() {
 
 /// Allocate a new MachineInstr. Use this instead of `new MachineInstr'.
 MachineInstr *MachineFunction::CreateMachineInstr(const MCInstrDesc &MCID,
-                                                  const DebugLoc &DL,
+                                                  DebugLoc DL,
                                                   bool NoImplicit) {
   return new (InstructionRecycler.Allocate<MachineInstr>(Allocator))
-      MachineInstr(*this, MCID, DL, NoImplicit);
+      MachineInstr(*this, MCID, std::move(DL), NoImplicit);
 }
 
 /// Create a new MachineInstr which is a copy of the 'Orig' instruction,
@@ -361,8 +366,9 @@ MachineFunction::CloneMachineInstr(const MachineInstr *Orig) {
              MachineInstr(*this, *Orig);
 }
 
-MachineInstr &MachineFunction::CloneMachineInstrBundle(MachineBasicBlock &MBB,
-    MachineBasicBlock::iterator InsertBefore, const MachineInstr &Orig) {
+MachineInstr &MachineFunction::cloneMachineInstrBundle(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertBefore,
+    const MachineInstr &Orig) {
   MachineInstr *FirstClone = nullptr;
   MachineBasicBlock::const_instr_iterator I = Orig.getIterator();
   while (true) {
@@ -390,8 +396,7 @@ MachineInstr &MachineFunction::CloneMachineInstrBundle(MachineBasicBlock &MBB,
 ///
 /// This function also serves as the MachineInstr destructor - the real
 /// ~MachineInstr() destructor must be empty.
-void
-MachineFunction::DeleteMachineInstr(MachineInstr *MI) {
+void MachineFunction::deleteMachineInstr(MachineInstr *MI) {
   // Verify that a call site info is at valid state. This assertion should
   // be triggered during the implementation of support for the
   // call site info of a new architecture. If the assertion is triggered,
@@ -418,8 +423,7 @@ MachineFunction::CreateMachineBasicBlock(const BasicBlock *bb) {
 }
 
 /// Delete the given MachineBasicBlock.
-void
-MachineFunction::DeleteMachineBasicBlock(MachineBasicBlock *MBB) {
+void MachineFunction::deleteMachineBasicBlock(MachineBasicBlock *MBB) {
   assert(MBB->getParent() == this && "MBB parent mismatch!");
   // Clean up any references to MBB in jump tables before deleting it.
   if (JumpTableInfo)
@@ -769,8 +773,8 @@ MCSymbol *MachineFunction::addLandingPad(MachineBasicBlock *LandingPad) {
 void MachineFunction::addCatchTypeInfo(MachineBasicBlock *LandingPad,
                                        ArrayRef<const GlobalValue *> TyInfo) {
   LandingPadInfo &LP = getOrCreateLandingPadInfo(LandingPad);
-  for (unsigned N = TyInfo.size(); N; --N)
-    LP.TypeIds.push_back(getTypeIDFor(TyInfo[N - 1]));
+  for (const GlobalValue *GV : llvm::reverse(TyInfo))
+    LP.TypeIds.push_back(getTypeIDFor(GV));
 }
 
 void MachineFunction::addFilterTypeInfo(MachineBasicBlock *LandingPad,
@@ -1236,7 +1240,7 @@ bool MachineFunction::useDebugInstrRef() const {
   if (F.hasFnAttribute(Attribute::OptimizeNone))
     return false;
 
-  if (getTarget().Options.ValueTrackingVariableLocations)
+  if (llvm::debuginfoShouldUseDebugInstrRef(getTarget().getTargetTriple()))
     return true;
 
   return false;
@@ -1404,10 +1408,10 @@ MachineConstantPool::~MachineConstantPool() {
   // A constant may be a member of both Constants and MachineCPVsSharingEntries,
   // so keep track of which we've deleted to avoid double deletions.
   DenseSet<MachineConstantPoolValue*> Deleted;
-  for (unsigned i = 0, e = Constants.size(); i != e; ++i)
-    if (Constants[i].isMachineConstantPoolEntry()) {
-      Deleted.insert(Constants[i].Val.MachineCPVal);
-      delete Constants[i].Val.MachineCPVal;
+  for (const MachineConstantPoolEntry &C : Constants)
+    if (C.isMachineConstantPoolEntry()) {
+      Deleted.insert(C.Val.MachineCPVal);
+      delete C.Val.MachineCPVal;
     }
   for (MachineConstantPoolValue *CPV : MachineCPVsSharingEntries) {
     if (Deleted.count(CPV) == 0)

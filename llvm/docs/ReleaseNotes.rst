@@ -83,6 +83,7 @@ Changes to the ARM Backend
 --------------------------
 
 * Added support for the Armv9-A, Armv9.1-A and Armv9.2-A architectures.
+* Added support for the Armv8.1-M PACBTI-M extension.
 
 Changes to the MIPS Target
 --------------------------
@@ -162,6 +163,17 @@ Changes to LLDB
 * A change in Clang's type printing has changed the way LLDB names array types
   (from ``int [N]`` to ``int[N]``) - LLDB pretty printer type name matching
   code may need to be updated to handle this.
+* The following commands now ignore non-address bits (e.g. AArch64 pointer
+  signatures) in address arguments. In addition, non-address bits will not
+  be shown in the output of the commands.
+
+  * ``memory find``
+  * ``memory read``
+  * ``memory tag read``
+  * ``memory tag write``
+
+* The ``memory read`` command has a new option ``--show-tags``. Use this option
+  to show memory tags beside the contents of tagged memory ranges.
 
 Changes to Sanitizers
 ---------------------

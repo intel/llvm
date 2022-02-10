@@ -64,8 +64,8 @@ TEST_F(FIRBuilderTest, genIfThen) {
   auto loc = builder.getUnknownLoc();
   auto cdt = createCondition(builder);
   auto ifBuilder = builder.genIfThen(loc, cdt);
-  EXPECT_FALSE(ifBuilder.getIfOp().thenRegion().empty());
-  EXPECT_TRUE(ifBuilder.getIfOp().elseRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getThenRegion().empty());
+  EXPECT_TRUE(ifBuilder.getIfOp().getElseRegion().empty());
 }
 
 TEST_F(FIRBuilderTest, genIfThenElse) {
@@ -73,8 +73,8 @@ TEST_F(FIRBuilderTest, genIfThenElse) {
   auto loc = builder.getUnknownLoc();
   auto cdt = createCondition(builder);
   auto ifBuilder = builder.genIfThenElse(loc, cdt);
-  EXPECT_FALSE(ifBuilder.getIfOp().thenRegion().empty());
-  EXPECT_FALSE(ifBuilder.getIfOp().elseRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getThenRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getElseRegion().empty());
 }
 
 TEST_F(FIRBuilderTest, genIfWithThen) {
@@ -82,8 +82,8 @@ TEST_F(FIRBuilderTest, genIfWithThen) {
   auto loc = builder.getUnknownLoc();
   auto cdt = createCondition(builder);
   auto ifBuilder = builder.genIfOp(loc, {}, cdt, false);
-  EXPECT_FALSE(ifBuilder.getIfOp().thenRegion().empty());
-  EXPECT_TRUE(ifBuilder.getIfOp().elseRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getThenRegion().empty());
+  EXPECT_TRUE(ifBuilder.getIfOp().getElseRegion().empty());
 }
 
 TEST_F(FIRBuilderTest, genIfWithThenAndElse) {
@@ -91,8 +91,8 @@ TEST_F(FIRBuilderTest, genIfWithThenAndElse) {
   auto loc = builder.getUnknownLoc();
   auto cdt = createCondition(builder);
   auto ifBuilder = builder.genIfOp(loc, {}, cdt, true);
-  EXPECT_FALSE(ifBuilder.getIfOp().thenRegion().empty());
-  EXPECT_FALSE(ifBuilder.getIfOp().elseRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getThenRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getElseRegion().empty());
 }
 
 //===----------------------------------------------------------------------===//
@@ -107,7 +107,7 @@ TEST_F(FIRBuilderTest, genIsNotNull) {
   auto res = builder.genIsNotNull(loc, dummyValue);
   EXPECT_TRUE(mlir::isa<arith::CmpIOp>(res.getDefiningOp()));
   auto cmpOp = dyn_cast<arith::CmpIOp>(res.getDefiningOp());
-  EXPECT_EQ(arith::CmpIPredicate::ne, cmpOp.predicate());
+  EXPECT_EQ(arith::CmpIPredicate::ne, cmpOp.getPredicate());
 }
 
 TEST_F(FIRBuilderTest, genIsNull) {
@@ -118,7 +118,7 @@ TEST_F(FIRBuilderTest, genIsNull) {
   auto res = builder.genIsNull(loc, dummyValue);
   EXPECT_TRUE(mlir::isa<arith::CmpIOp>(res.getDefiningOp()));
   auto cmpOp = dyn_cast<arith::CmpIOp>(res.getDefiningOp());
-  EXPECT_EQ(arith::CmpIPredicate::eq, cmpOp.predicate());
+  EXPECT_EQ(arith::CmpIPredicate::eq, cmpOp.getPredicate());
 }
 
 TEST_F(FIRBuilderTest, createZeroConstant) {
@@ -144,10 +144,11 @@ TEST_F(FIRBuilderTest, createRealZeroConstant) {
   auto loc = builder.getUnknownLoc();
   auto realTy = mlir::FloatType::getF64(ctx);
   auto cst = builder.createRealZeroConstant(loc, realTy);
-  EXPECT_TRUE(mlir::isa<mlir::arith::ConstantOp>(cst.getDefiningOp()));
-  auto cstOp = dyn_cast<mlir::arith::ConstantOp>(cst.getDefiningOp());
+  EXPECT_TRUE(mlir::isa<arith::ConstantOp>(cst.getDefiningOp()));
+  auto cstOp = dyn_cast<arith::ConstantOp>(cst.getDefiningOp());
   EXPECT_EQ(realTy, cstOp.getType());
-  EXPECT_EQ(0u, cstOp.value().cast<FloatAttr>().getValue().convertToDouble());
+  EXPECT_EQ(
+      0u, cstOp.getValue().cast<FloatAttr>().getValue().convertToDouble());
 }
 
 TEST_F(FIRBuilderTest, createBool) {
@@ -237,7 +238,7 @@ TEST_F(FIRBuilderTest, uniqueCFIdent) {
 
 TEST_F(FIRBuilderTest, locationToLineNo) {
   auto builder = getBuilder();
-  auto loc = mlir::FileLineColLoc::get(builder.getIdentifier("file1"), 10, 5);
+  auto loc = mlir::FileLineColLoc::get(builder.getStringAttr("file1"), 10, 5);
   mlir::Value line =
       fir::factory::locationToLineNo(builder, loc, builder.getI64Type());
   checkIntegerConstant(line, builder.getI64Type(), 10);
@@ -259,7 +260,7 @@ TEST_F(FIRBuilderTest, hasDynamicSize) {
 TEST_F(FIRBuilderTest, locationToFilename) {
   auto builder = getBuilder();
   auto loc =
-      mlir::FileLineColLoc::get(builder.getIdentifier("file1.f90"), 10, 5);
+      mlir::FileLineColLoc::get(builder.getStringAttr("file1.f90"), 10, 5);
   mlir::Value locToFile = fir::factory::locationToFilename(builder, loc);
   auto addrOp = dyn_cast<fir::AddrOfOp>(locToFile.getDefiningOp());
   auto symbol = addrOp.symbol().getRootReference().getValue();

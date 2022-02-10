@@ -178,6 +178,18 @@ int llvm::Intrinsic::lookupLLVMIntrinsicByName(ArrayRef<const char *> NameTable,
   return -1;
 }
 
+ConstantInt *InstrProfInstBase::getNumCounters() const {
+  if (InstrProfValueProfileInst::classof(this))
+    llvm_unreachable("InstrProfValueProfileInst does not have counters!");
+  return cast<ConstantInt>(const_cast<Value *>(getArgOperand(2)));
+}
+
+ConstantInt *InstrProfInstBase::getIndex() const {
+  if (InstrProfValueProfileInst::classof(this))
+    llvm_unreachable("Please use InstrProfValueProfileInst::getIndex()");
+  return cast<ConstantInt>(const_cast<Value *>(getArgOperand(3)));
+}
+
 Value *InstrProfIncrementInst::getStep() const {
   if (InstrProfIncrementInstStep::classof(this)) {
     return const_cast<Value *>(getArgOperand(4));
@@ -468,6 +480,7 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
 }
 
 Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
+                                               Type *ReturnType,
                                                ArrayRef<Value *> Params) {
   assert(isVPIntrinsic(VPID) && "not a VP intrinsic");
   Function *VPFunc;
@@ -481,27 +494,21 @@ Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
     VPFunc = Intrinsic::getDeclaration(M, VPID, OverloadTy);
     break;
   }
+  case Intrinsic::vp_merge:
   case Intrinsic::vp_select:
     VPFunc = Intrinsic::getDeclaration(M, VPID, {Params[1]->getType()});
     break;
   case Intrinsic::vp_load:
     VPFunc = Intrinsic::getDeclaration(
-        M, VPID,
-        {Params[0]->getType()->getPointerElementType(), Params[0]->getType()});
+        M, VPID, {ReturnType, Params[0]->getType()});
     break;
   case Intrinsic::vp_gather:
     VPFunc = Intrinsic::getDeclaration(
-        M, VPID,
-        {VectorType::get(cast<VectorType>(Params[0]->getType())
-                             ->getElementType()
-                             ->getPointerElementType(),
-                         cast<VectorType>(Params[0]->getType())),
-         Params[0]->getType()});
+        M, VPID, {ReturnType, Params[0]->getType()});
     break;
   case Intrinsic::vp_store:
     VPFunc = Intrinsic::getDeclaration(
-        M, VPID,
-        {Params[1]->getType()->getPointerElementType(), Params[1]->getType()});
+        M, VPID, {Params[0]->getType(), Params[1]->getType()});
     break;
   case Intrinsic::vp_scatter:
     VPFunc = Intrinsic::getDeclaration(

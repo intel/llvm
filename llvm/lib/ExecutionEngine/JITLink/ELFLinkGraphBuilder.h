@@ -77,14 +77,14 @@ protected:
     return Obj.getHeader().e_type == llvm::ELF::ET_REL;
   }
 
-  void setGraphSection(ELFSectionIndex SecIndex, Section &Sec) {
-    assert(!GraphSections.count(SecIndex) && "Duplicate section at index");
-    GraphSections[SecIndex] = &Sec;
+  void setGraphBlock(ELFSectionIndex SecIndex, Block *B) {
+    assert(!GraphBlocks.count(SecIndex) && "Duplicate section at index");
+    GraphBlocks[SecIndex] = B;
   }
 
-  Section *getGraphSection(ELFSectionIndex SecIndex) {
-    auto I = GraphSections.find(SecIndex);
-    if (I == GraphSections.end())
+  Block *getGraphBlock(ELFSectionIndex SecIndex) {
+    auto I = GraphBlocks.find(SecIndex);
+    if (I == GraphBlocks.end())
       return nullptr;
     return I->second;
   }
@@ -139,10 +139,13 @@ protected:
   const typename ELFFile::Elf_Shdr *SymTabSec = nullptr;
   StringRef SectionStringTab;
 
-  // Maps ELF section indexes to LinkGraph Sections.
-  // Only SHF_ALLOC sections will have graph sections.
-  DenseMap<ELFSectionIndex, Section *> GraphSections;
+  // Maps ELF section indexes to LinkGraph Blocks.
+  // Only SHF_ALLOC sections will have graph blocks.
+  DenseMap<ELFSectionIndex, Block *> GraphBlocks;
   DenseMap<ELFSymbolIndex, Symbol *> GraphSymbols;
+  DenseMap<const typename ELFFile::Elf_Shdr *,
+           ArrayRef<typename ELFFile::Elf_Word>>
+      ShndxTables;
 };
 
 template <typename ELFT>
@@ -241,7 +244,7 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::prepare() {
     return SectionStringTabOrErr.takeError();
 
   // Get the SHT_SYMTAB section.
-  for (auto &Sec : Sections)
+  for (auto &Sec : Sections) {
     if (Sec.sh_type == ELF::SHT_SYMTAB) {
       if (!SymTabSec)
         SymTabSec = &Sec;
@@ -249,6 +252,20 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::prepare() {
         return make_error<JITLinkError>("Multiple SHT_SYMTAB sections in " +
                                         G->getName());
     }
+
+    // Extended table.
+    if (Sec.sh_type == ELF::SHT_SYMTAB_SHNDX) {
+      uint32_t SymtabNdx = Sec.sh_link;
+      if (SymtabNdx >= Sections.size())
+        return make_error<JITLinkError>("sh_link is out of bound");
+
+      auto ShndxTable = Obj.getSHNDXTable(Sec);
+      if (!ShndxTable)
+        return ShndxTable.takeError();
+
+      ShndxTables.insert({&Sections[SymtabNdx], *ShndxTable});
+    }
+  }
 
   return Error::success();
 }
@@ -299,23 +316,27 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySections() {
     else
       Prot = MemProt::Read | MemProt::Write;
 
-    // For now we just use this to skip the "undefined" section, probably need
-    // to revist.
-    if (Sec.sh_size == 0)
-      continue;
+    // Look for existing sections first.
+    auto *GraphSec = G->findSectionByName(*Name);
+    if (!GraphSec)
+      GraphSec = &G->createSection(*Name, Prot);
+    assert(GraphSec->getMemProt() == Prot && "MemProt should match");
 
-    auto &GraphSec = G->createSection(*Name, Prot);
+    Block *B = nullptr;
     if (Sec.sh_type != ELF::SHT_NOBITS) {
       auto Data = Obj.template getSectionContentsAsArray<char>(Sec);
       if (!Data)
         return Data.takeError();
 
-      G->createContentBlock(GraphSec, *Data, Sec.sh_addr, Sec.sh_addralign, 0);
+      B = &G->createContentBlock(*GraphSec, *Data,
+                                 orc::ExecutorAddr(Sec.sh_addr),
+                                 Sec.sh_addralign, 0);
     } else
-      G->createZeroFillBlock(GraphSec, Sec.sh_size, Sec.sh_addr,
-                             Sec.sh_addralign, 0);
+      B = &G->createZeroFillBlock(*GraphSec, Sec.sh_size,
+                                  orc::ExecutorAddr(Sec.sh_addr),
+                                  Sec.sh_addralign, 0);
 
-    setGraphSection(SecIndex, GraphSec);
+    setGraphBlock(SecIndex, B);
   }
 
   return Error::success();
@@ -381,9 +402,9 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
 
     // Handle common symbols specially.
     if (Sym.isCommon()) {
-      Symbol &GSym =
-          G->addCommonSymbol(*Name, Scope::Default, getCommonSection(), 0,
-                             Sym.st_size, Sym.getValue(), false);
+      Symbol &GSym = G->addCommonSymbol(*Name, Scope::Default,
+                                        getCommonSection(), orc::ExecutorAddr(),
+                                        Sym.st_size, Sym.getValue(), false);
       setGraphSymbol(SymIndex, GSym);
       continue;
     }
@@ -401,30 +422,36 @@ template <typename ELFT> Error ELFLinkGraphBuilder<ELFT>::graphifySymbols() {
         (Sym.getType() == ELF::STT_NOTYPE || Sym.getType() == ELF::STT_FUNC ||
          Sym.getType() == ELF::STT_OBJECT ||
          Sym.getType() == ELF::STT_SECTION || Sym.getType() == ELF::STT_TLS)) {
-
-      // FIXME: Handle extended tables.
-      if (auto *GraphSec = getGraphSection(Sym.st_shndx)) {
-        Block *B = nullptr;
-        {
-          auto Blocks = GraphSec->blocks();
-          assert(Blocks.begin() != Blocks.end() && "No blocks for section");
-          assert(std::next(Blocks.begin()) == Blocks.end() &&
-                 "Multiple blocks for section");
-          B = *Blocks.begin();
-        }
-
+      // Handle extended tables.
+      unsigned Shndx = Sym.st_shndx;
+      if (Shndx == ELF::SHN_XINDEX) {
+        auto ShndxTable = ShndxTables.find(SymTabSec);
+        if (ShndxTable == ShndxTables.end())
+          continue;
+        auto NdxOrErr = object::getExtendedSymbolTableIndex<ELFT>(
+            Sym, SymIndex, ShndxTable->second);
+        if (!NdxOrErr)
+          return NdxOrErr.takeError();
+        Shndx = *NdxOrErr;
+      }
+      if (auto *B = getGraphBlock(Shndx)) {
         LLVM_DEBUG({
           dbgs() << "      " << SymIndex
                  << ": Creating defined graph symbol for ELF symbol \"" << *Name
                  << "\"\n";
         });
 
-        if (Sym.getType() == ELF::STT_SECTION)
-          *Name = GraphSec->getName();
-
+        // In RISCV, temporary symbols (Used to generate dwarf, eh_frame
+        // sections...) will appear in object code's symbol table, and LLVM does
+        // not use names on these temporary symbols (RISCV gnu toolchain uses
+        // names on these temporary symbols). If the symbol is unnamed, add an
+        // anonymous symbol.
         auto &GSym =
-            G->addDefinedSymbol(*B, Sym.getValue(), *Name, Sym.st_size, L, S,
-                                Sym.getType() == ELF::STT_FUNC, false);
+            Name->empty()
+                ? G->addAnonymousSymbol(*B, Sym.getValue(), Sym.st_size,
+                                        false, false)
+                : G->addDefinedSymbol(*B, Sym.getValue(), *Name, Sym.st_size, L,
+                                      S, Sym.getType() == ELF::STT_FUNC, false);
         setGraphSymbol(SymIndex, GSym);
       }
     } else if (Sym.isUndefined() && Sym.isExternal()) {
@@ -476,8 +503,8 @@ Error ELFLinkGraphBuilder<ELFT>::forEachRelocation(
   }
 
   // Lookup the link-graph node corresponding to the target section name.
-  Section *GraphSect = G->findSectionByName(*Name);
-  if (!GraphSect)
+  auto *BlockToFix = getGraphBlock(RelSect.sh_info);
+  if (!BlockToFix)
     return make_error<StringError>(
         "Refencing a section that wasn't added to the graph: " + *Name,
         inconvertibleErrorCode());
@@ -488,7 +515,7 @@ Error ELFLinkGraphBuilder<ELFT>::forEachRelocation(
 
   // Let the callee process relocation entries one by one.
   for (const typename ELFT::Rela &R : *RelEntries)
-    if (Error Err = Func(R, **FixupSection, *GraphSect))
+    if (Error Err = Func(R, **FixupSection, *BlockToFix))
       return Err;
 
   LLVM_DEBUG(dbgs() << "\n");

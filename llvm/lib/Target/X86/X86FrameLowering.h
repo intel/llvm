@@ -13,6 +13,7 @@
 #ifndef LLVM_LIB_TARGET_X86_X86FRAMELOWERING_H
 #define LLVM_LIB_TARGET_X86_X86FRAMELOWERING_H
 
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/Support/TypeSize.h"
 
@@ -51,9 +52,12 @@ public:
   /// Emit target stack probe code. This is required for all
   /// large stack allocations on Windows. The caller is required to materialize
   /// the number of bytes to probe in RAX/EAX.
-  void emitStackProbe(MachineFunction &MF, MachineBasicBlock &MBB,
-                      MachineBasicBlock::iterator MBBI, const DebugLoc &DL,
-                      bool InProlog) const;
+  /// \p InstrNum optionally contains a debug-info instruction number for the
+  ///    new stack pointer.
+  void emitStackProbe(
+      MachineFunction &MF, MachineBasicBlock &MBB,
+      MachineBasicBlock::iterator MBBI, const DebugLoc &DL, bool InProlog,
+      Optional<MachineFunction::DebugInstrOperandPair> InstrNum = None) const;
 
   bool stackProbeFunctionModifiesSP() const override;
 
@@ -61,9 +65,8 @@ public:
   void inlineStackProbe(MachineFunction &MF,
                         MachineBasicBlock &PrologMBB) const override;
 
-  void
-  emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MBBI) const override;
+  void emitCalleeSavedFrameMovesFullCFA(
+      MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI) const override;
 
   void emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MBBI,
@@ -200,9 +203,10 @@ private:
   uint64_t calculateMaxStackAlign(const MachineFunction &MF) const;
 
   /// Emit target stack probe as a call to a helper function
-  void emitStackProbeCall(MachineFunction &MF, MachineBasicBlock &MBB,
-                          MachineBasicBlock::iterator MBBI, const DebugLoc &DL,
-                          bool InProlog) const;
+  void emitStackProbeCall(
+      MachineFunction &MF, MachineBasicBlock &MBB,
+      MachineBasicBlock::iterator MBBI, const DebugLoc &DL, bool InProlog,
+      Optional<MachineFunction::DebugInstrOperandPair> InstrNum) const;
 
   /// Emit target stack probe as an inline sequence.
   void emitStackProbeInline(MachineFunction &MF, MachineBasicBlock &MBB,

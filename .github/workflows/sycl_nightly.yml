@@ -1,0 +1,68 @@
+name: SYCL Nightly Builds
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+  pull_request:
+    paths:
+      - 'devops/containers/ubuntu2004_preinstalled.Dockerfile'
+      - '.github/workflows/sycl_nightly.yml'
+
+jobs:
+  ubuntu2004_build_test:
+    if: github.repository == 'intel/llvm'
+    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    with:
+      build_runs_on: build
+      build_github_cache: true
+      build_cache_root: "/__w/"
+      build_artifact_suffix: default
+      lts_config: "ocl_gen9;ocl_x64;hip_amdgpu"
+  ubuntu2004_docker_build_push:
+    if: github.repository == 'intel/llvm'
+    runs-on: ubuntu-latest
+    needs: ubuntu2004_build_test
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/download-artifact@v2
+      with:
+        name: sycl_linux_default
+        path: devops/
+    - name: Build and Push Container (with drivers)
+      uses: ./devops/actions/build_container
+      with:
+        push: ${{ github.event_name != 'pull_request' }}
+        file: ubuntu2004_preinstalled
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2004_intel_drivers
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:latest
+    - name: Build and Push Container (no drivers)
+      uses: ./devops/actions/build_container
+      with:
+        push: ${{ github.event_name != 'pull_request' }}
+        file: ubuntu2004_preinstalled
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2004_base
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers-${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers
+  ubuntu2004_build_test_new_pm:
+    # Default Linux building and LIT testing using new Pass Manager by default
+    if: github.repository == 'intel/llvm'
+    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    with:
+      build_runs_on: build
+      build_cache_root: "/__w/"
+      build_cache_suffix: new_pm
+      build_artifact_suffix: new_pm
+      build_configure_extra_args: '--hip --hip-amd-arch=gfx906 --cuda --cmake-opt=-DLLVM_ENABLE_NEW_PASS_MANAGER=ON'
+      lts_config: "hip_amdgpu;ocl_x64"

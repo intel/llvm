@@ -17,6 +17,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/mem_alloc_helper.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
@@ -183,13 +184,18 @@ public:
 
   RT::PiMem &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-    if (nullptr == MSpecConstsBuffer) {
+    if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
-      Plugin.call<PiApiKind::piMemBufferCreate>(
-          detail::getSyclObjImpl(MContext)->getHandleRef(),
-          PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_USE,
-          MSpecConstsBlob.size(), MSpecConstsBlob.data(), &MSpecConstsBuffer,
-          nullptr);
+      // Uses PI_MEM_FLAGS_HOST_PTR_COPY instead of PI_MEM_FLAGS_HOST_PTR_USE
+      // since post-enqueue cleanup might trigger destruction of
+      // device_image_impl and, as a result, destruction of MSpecConstsBlob
+      // while MSpecConstsBuffer is still in use.
+      // TODO consider changing the lifetime of device_image_impl instead
+      memBufferCreateHelper(Plugin,
+                            detail::getSyclObjImpl(MContext)->getHandleRef(),
+                            PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
+                            MSpecConstsBlob.size(), MSpecConstsBlob.data(),
+                            &MSpecConstsBuffer, nullptr);
     }
     return MSpecConstsBuffer;
   }
@@ -219,6 +225,11 @@ public:
     if (MProgram) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
       Plugin.call<PiApiKind::piProgramRelease>(MProgram);
+    }
+    if (MSpecConstsBuffer) {
+      std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
+      const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      memReleaseHelper(Plugin, MSpecConstsBuffer);
     }
   }
 
@@ -256,16 +267,22 @@ private:
         auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
         auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
                                                             Descriptors.size());
-        unsigned PrevOffset = 0;
+        unsigned LocalOffset = 0;
         while (It != End) {
           // Make sure that alignment is correct in blob.
-          BlobOffset += /*Offset*/ It[1] - PrevOffset;
-          PrevOffset = It[1];
-          // The map is not locked here because updateSpecConstSymMap() is only
-          // supposed to be called from c'tor.
-          MSpecConstSymMap[std::string{SCName}].push_back(
-              SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
-                             /*Size*/ It[2], BlobOffset});
+          const unsigned OffsetFromLast = /*Offset*/ It[1] - LocalOffset;
+          BlobOffset += OffsetFromLast;
+          // Composites may have a special padding element at the end which
+          // should not have a descriptor. These padding elements all have max
+          // ID value.
+          if (It[0] != std::numeric_limits<std::uint32_t>::max()) {
+            // The map is not locked here because updateSpecConstSymMap() is
+            // only supposed to be called from c'tor.
+            MSpecConstSymMap[std::string{SCName}].push_back(
+                SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
+                               /*Size*/ It[2], BlobOffset});
+          }
+          LocalOffset += OffsetFromLast + /*Size*/ It[2];
           BlobOffset += /*Size*/ It[2];
           It += NumElements;
         }
@@ -277,6 +294,9 @@ private:
       if (HasDefaultValues) {
         pi::ByteArray DefValDescriptors =
             pi::DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        assert(DefValDescriptors.size() - 8 == MSpecConstsBlob.size() &&
+               "Specialization constant default value blob do not have the "
+               "expected size.");
         std::uninitialized_copy(&DefValDescriptors[8],
                                 &DefValDescriptors[8] + MSpecConstsBlob.size(),
                                 MSpecConstsBlob.data());

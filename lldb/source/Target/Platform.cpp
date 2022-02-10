@@ -428,6 +428,9 @@ void Platform::GetStatus(Stream &strm) {
     strm.Printf(" Connected: %s\n", is_connected ? "yes" : "no");
   }
 
+  if (GetSDKRootDirectory()) {
+    strm.Format("   Sysroot: {0}\n", GetSDKRootDirectory());
+  }
   if (GetWorkingDirectory()) {
     strm.Printf("WorkingDir: %s\n", GetWorkingDirectory().GetCString());
   }
@@ -1547,28 +1550,20 @@ Status
 Platform::GetCachedExecutable(ModuleSpec &module_spec,
                               lldb::ModuleSP &module_sp,
                               const FileSpecList *module_search_paths_ptr) {
-  const auto platform_spec = module_spec.GetFileSpec();
-  const auto error =
-      LoadCachedExecutable(module_spec, module_sp, module_search_paths_ptr);
-  if (error.Success()) {
-    module_spec.GetFileSpec() = module_sp->GetFileSpec();
-    module_spec.GetPlatformFileSpec() = platform_spec;
-  }
-
-  return error;
-}
-
-Status
-Platform::LoadCachedExecutable(const ModuleSpec &module_spec,
-                               lldb::ModuleSP &module_sp,
-                               const FileSpecList *module_search_paths_ptr) {
-  return GetRemoteSharedModule(
+  FileSpec platform_spec = module_spec.GetFileSpec();
+  Status error = GetRemoteSharedModule(
       module_spec, nullptr, module_sp,
       [&](const ModuleSpec &spec) {
         return ResolveRemoteExecutable(spec, module_sp,
                                        module_search_paths_ptr);
       },
       nullptr);
+  if (error.Success()) {
+    module_spec.GetFileSpec() = module_sp->GetFileSpec();
+    module_spec.GetPlatformFileSpec() = platform_spec;
+  }
+
+  return error;
 }
 
 Status Platform::GetRemoteSharedModule(const ModuleSpec &module_spec,
@@ -2007,4 +2002,8 @@ size_t Platform::GetSoftwareBreakpointTrapOpcode(Target &target,
     return trap_opcode_size;
 
   return 0;
+}
+
+CompilerType Platform::GetSiginfoType(const llvm::Triple& triple) {
+  return CompilerType();
 }

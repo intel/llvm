@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "IRModule.h"
 
 #include "PybindUtils.h"
@@ -17,7 +19,6 @@ namespace py = pybind11;
 using namespace mlir;
 using namespace mlir::python;
 
-using llvm::None;
 using llvm::Optional;
 using llvm::SmallVector;
 using llvm::Twine;
@@ -117,7 +118,7 @@ public:
 
   class PyArrayAttributeIterator {
   public:
-    PyArrayAttributeIterator(PyAttribute attr) : attr(attr) {}
+    PyArrayAttributeIterator(PyAttribute attr) : attr(std::move(attr)) {}
 
     PyArrayAttributeIterator &dunderIter() { return *this; }
 
@@ -337,7 +338,7 @@ public:
               mlirStringAttrTypedGet(type, toMlirStringRef(value));
           return PyStringAttribute(type.getContext(), attr);
         },
-
+        py::arg("type"), py::arg("value"),
         "Gets a uniqued string attribute associated to a type");
     c.def_property_readonly(
         "value",
@@ -460,7 +461,7 @@ public:
         arrayInfo.format);
   }
 
-  static PyDenseElementsAttribute getSplat(PyType shapedType,
+  static PyDenseElementsAttribute getSplat(const PyType &shapedType,
                                            PyAttribute &elementAttr) {
     auto contextWrapper =
         PyMlirContext::forContext(mlirTypeGetContext(shapedType));
@@ -510,19 +511,23 @@ public:
     if (mlirTypeIsAF32(elementType)) {
       // f32
       return bufferInfo<float>(shapedType);
-    } else if (mlirTypeIsAF64(elementType)) {
+    }
+    if (mlirTypeIsAF64(elementType)) {
       // f64
       return bufferInfo<double>(shapedType);
-    } else if (mlirTypeIsAF16(elementType)) {
+    }
+    if (mlirTypeIsAF16(elementType)) {
       // f16
       return bufferInfo<uint16_t>(shapedType, "e");
-    } else if (mlirTypeIsAInteger(elementType) &&
-               mlirIntegerTypeGetWidth(elementType) == 32) {
+    }
+    if (mlirTypeIsAInteger(elementType) &&
+        mlirIntegerTypeGetWidth(elementType) == 32) {
       if (mlirIntegerTypeIsSignless(elementType) ||
           mlirIntegerTypeIsSigned(elementType)) {
         // i32
         return bufferInfo<int32_t>(shapedType);
-      } else if (mlirIntegerTypeIsUnsigned(elementType)) {
+      }
+      if (mlirIntegerTypeIsUnsigned(elementType)) {
         // unsigned i32
         return bufferInfo<uint32_t>(shapedType);
       }
@@ -532,7 +537,8 @@ public:
           mlirIntegerTypeIsSigned(elementType)) {
         // i64
         return bufferInfo<int64_t>(shapedType);
-      } else if (mlirIntegerTypeIsUnsigned(elementType)) {
+      }
+      if (mlirIntegerTypeIsUnsigned(elementType)) {
         // unsigned i64
         return bufferInfo<uint64_t>(shapedType);
       }
@@ -542,7 +548,8 @@ public:
           mlirIntegerTypeIsSigned(elementType)) {
         // i8
         return bufferInfo<int8_t>(shapedType);
-      } else if (mlirIntegerTypeIsUnsigned(elementType)) {
+      }
+      if (mlirIntegerTypeIsUnsigned(elementType)) {
         // unsigned i8
         return bufferInfo<uint8_t>(shapedType);
       }
@@ -552,7 +559,8 @@ public:
           mlirIntegerTypeIsSigned(elementType)) {
         // i16
         return bufferInfo<int16_t>(shapedType);
-      } else if (mlirIntegerTypeIsUnsigned(elementType)) {
+      }
+      if (mlirIntegerTypeIsUnsigned(elementType)) {
         // unsigned i16
         return bufferInfo<uint16_t>(shapedType);
       }
@@ -665,6 +673,12 @@ public:
       if (width == 1) {
         return mlirDenseElementsAttrGetBoolValue(*this, pos);
       }
+      if (width == 8) {
+        return mlirDenseElementsAttrGetUInt8Value(*this, pos);
+      }
+      if (width == 16) {
+        return mlirDenseElementsAttrGetUInt16Value(*this, pos);
+      }
       if (width == 32) {
         return mlirDenseElementsAttrGetUInt32Value(*this, pos);
       }
@@ -674,6 +688,12 @@ public:
     } else {
       if (width == 1) {
         return mlirDenseElementsAttrGetBoolValue(*this, pos);
+      }
+      if (width == 8) {
+        return mlirDenseElementsAttrGetInt8Value(*this, pos);
+      }
+      if (width == 16) {
+        return mlirDenseElementsAttrGetInt16Value(*this, pos);
       }
       if (width == 32) {
         return mlirDenseElementsAttrGetInt32Value(*this, pos);
@@ -712,12 +732,12 @@ public:
           SmallVector<MlirNamedAttribute> mlirNamedAttributes;
           mlirNamedAttributes.reserve(attributes.size());
           for (auto &it : attributes) {
-            auto &mlir_attr = it.second.cast<PyAttribute &>();
+            auto &mlirAttr = it.second.cast<PyAttribute &>();
             auto name = it.first.cast<std::string>();
             mlirNamedAttributes.push_back(mlirNamedAttributeGet(
-                mlirIdentifierGet(mlirAttributeGetContext(mlir_attr),
+                mlirIdentifierGet(mlirAttributeGetContext(mlirAttr),
                                   toMlirStringRef(name)),
-                mlir_attr));
+                mlirAttr));
           }
           MlirAttribute attr =
               mlirDictionaryAttrGet(context->get(), mlirNamedAttributes.size(),

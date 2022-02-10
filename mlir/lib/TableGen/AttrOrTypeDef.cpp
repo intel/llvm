@@ -56,6 +56,12 @@ AttrOrTypeDef::AttrOrTypeDef(const llvm::Record *def) : def(def) {
       if (traitSet.insert(traitInit).second)
         traits.push_back(Trait::create(traitInit));
   }
+
+  // Populate the parameters.
+  if (auto *parametersDag = def->getValueAsDag("parameters")) {
+    for (unsigned i = 0, e = parametersDag->getNumArgs(); i < e; ++i)
+      parameters.push_back(AttrOrTypeParameter(parametersDag, i));
+  }
 }
 
 Dialect AttrOrTypeDef::getDialect() const {
@@ -107,14 +113,6 @@ bool AttrOrTypeDef::hasStorageCustomConstructor() const {
   return def->getValueAsBit("hasStorageCustomConstructor");
 }
 
-void AttrOrTypeDef::getParameters(
-    SmallVectorImpl<AttrOrTypeParameter> &parameters) const {
-  if (auto *parametersDag = def->getValueAsDag("parameters")) {
-    for (unsigned i = 0, e = parametersDag->getNumArgs(); i < e; ++i)
-      parameters.push_back(AttrOrTypeParameter(parametersDag, i));
-  }
-}
-
 unsigned AttrOrTypeDef::getNumParameters() const {
   auto *parametersDag = def->getValueAsDag("parameters");
   return parametersDag ? parametersDag->getNumArgs() : 0;
@@ -149,7 +147,7 @@ Optional<StringRef> AttrOrTypeDef::getExtraDecls() const {
   return value.empty() ? Optional<StringRef>() : value;
 }
 
-ArrayRef<llvm::SMLoc> AttrOrTypeDef::getLoc() const { return def->getLoc(); }
+ArrayRef<SMLoc> AttrOrTypeDef::getLoc() const { return def->getLoc(); }
 
 bool AttrOrTypeDef::skipDefaultBuilders() const {
   return def->getValueAsBit("skipDefaultBuilders");

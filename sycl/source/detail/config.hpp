@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -182,6 +183,30 @@ public:
   }
 };
 
+template <> class SYCLConfig<SYCL_RT_WARNING_LEVEL> {
+  using BaseT = SYCLConfigBase<SYCL_RT_WARNING_LEVEL>;
+
+public:
+  static unsigned int get() { return getCachedValue(); }
+
+  static void reset() { (void)getCachedValue(true); }
+
+private:
+  static unsigned int getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+      int SignedLevel = ValStr ? std::atoi(ValStr) : 0;
+      return SignedLevel >= 0 ? SignedLevel : 0;
+    };
+
+    static unsigned int Level = Parser();
+    if (ResetCache)
+      Level = Parser();
+
+    return Level;
+  }
+};
+
 template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE> {
   using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>;
 
@@ -317,6 +342,39 @@ private:
     if (ResetCache)
       ValStr = BaseT::getRawValue();
     return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE> {
+  using BaseT = SYCLConfigBase<SYCL_QUEUE_THREAD_POOL_SIZE>;
+
+public:
+  static int get() {
+    static int Value = [] {
+      const char *ValueStr = BaseT::getRawValue();
+
+      int Result = 1;
+
+      if (ValueStr)
+        try {
+          Result = std::stoi(ValueStr);
+        } catch (...) {
+          throw invalid_parameter_error(
+              "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
+              "variable: value should be a number",
+              PI_INVALID_VALUE);
+        }
+
+      if (Result < 1)
+        throw invalid_parameter_error(
+            "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
+            "variable: value should be larger than zero",
+            PI_INVALID_VALUE);
+
+      return Result;
+    }();
+
+    return Value;
   }
 };
 

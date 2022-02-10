@@ -18,6 +18,7 @@ class AddressSpacesImpl {
   int Local = 3;
   int Constant = 4;
   int Private = 5;
+  int Constant32Bit = 6;
 }
 
 def AddrSpaces : AddressSpacesImpl;
@@ -259,7 +260,6 @@ def csh_mask_64 : PatFrag<(ops node:$src0), (and node:$src0, imm),
   }
 
 foreach width = [16, 32, 64] in {
-defvar mask = !sub(width, 1);
 defvar csh_mask = !cast<SDPatternOperator>("csh_mask_"#width);
 
 def cshl_#width : PatFrags<(ops node:$src0, node:$src1),
@@ -406,18 +406,23 @@ class Aligned<int Bytes> {
   int MinAlignment = Bytes;
 }
 
-class StoreHi16<SDPatternOperator op> : PatFrag <
+class StoreHi16<SDPatternOperator op, ValueType vt> : PatFrag <
   (ops node:$value, node:$ptr), (op (srl node:$value, (i32 16)), node:$ptr)> {
   let IsStore = 1;
+  let MemoryVT = vt;
 }
 
-def LoadAddress_constant : AddressSpaceList<[  AddrSpaces.Constant ]>;
-def LoadAddress_global : AddressSpaceList<[  AddrSpaces.Global, AddrSpaces.Constant ]>;
+def LoadAddress_constant : AddressSpaceList<[ AddrSpaces.Constant,
+                                              AddrSpaces.Constant32Bit ]>;
+def LoadAddress_global : AddressSpaceList<[ AddrSpaces.Global,
+                                            AddrSpaces.Constant,
+                                            AddrSpaces.Constant32Bit ]>;
 def StoreAddress_global : AddressSpaceList<[ AddrSpaces.Global ]>;
 
-def LoadAddress_flat : AddressSpaceList<[  AddrSpaces.Flat,
-                                           AddrSpaces.Global,
-                                           AddrSpaces.Constant ]>;
+def LoadAddress_flat : AddressSpaceList<[ AddrSpaces.Flat,
+                                          AddrSpaces.Global,
+                                          AddrSpaces.Constant,
+                                          AddrSpaces.Constant32Bit ]>;
 def StoreAddress_flat : AddressSpaceList<[ AddrSpaces.Flat, AddrSpaces.Global ]>;
 
 def LoadAddress_private : AddressSpaceList<[ AddrSpaces.Private ]>;
@@ -523,9 +528,9 @@ def truncstorei16_#as : PatFrag<(ops node:$val, node:$ptr),
   let MemoryVT = i16;
 }
 
-def store_hi16_#as : StoreHi16 <truncstorei16>;
-def truncstorei8_hi16_#as : StoreHi16<truncstorei8>;
-def truncstorei16_hi16_#as : StoreHi16<truncstorei16>;
+def store_hi16_#as : StoreHi16 <truncstorei16, i16>;
+def truncstorei8_hi16_#as : StoreHi16<truncstorei8, i8>;
+def truncstorei16_hi16_#as : StoreHi16<truncstorei16, i16>;
 
 defm atomic_store_#as : binary_atomic_op<atomic_store>;
 
@@ -711,11 +716,6 @@ class UMad24Pat<Instruction Inst, bit HasClamp = 0> : AMDGPUPat <
 class RcpPat<Instruction RcpInst, ValueType vt> : AMDGPUPat <
   (fdiv FP_ONE, vt:$src),
   (RcpInst $src)
->;
-
-class RsqPat<Instruction RsqInst, ValueType vt> : AMDGPUPat <
-  (AMDGPUrcp (fsqrt vt:$src)),
-  (RsqInst $src)
 >;
 
 // Instructions which select to the same v_min_f*

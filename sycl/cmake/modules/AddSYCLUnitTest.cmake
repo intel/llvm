@@ -4,7 +4,8 @@
 # Produces a binary names `basename(test_dirname)`.
 macro(add_sycl_unittest test_dirname link_variant)
   # Enable exception handling for these unit tests
-  set(LLVM_REQUIRES_EH 1)
+  set(LLVM_REQUIRES_EH ON)
+  set(LLVM_REQUIRES_RTTI ON)
 
   string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
   if (MSVC AND build_type_lower MATCHES "debug")
@@ -26,6 +27,28 @@ macro(add_sycl_unittest test_dirname link_variant)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()
+
+  if (SYCL_ENABLE_COVERAGE)
+    target_compile_options(${test_dirname} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+    target_link_options(${test_dirname} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+  endif()
+
+  add_custom_target(check-sycl-${test_dirname}
+    ${CMAKE_COMMAND} -E env
+    LLVM_PROFILE_FILE="${SYCL_COVERAGE_PATH}/${test_dirname}.profraw"
+    env SYCL_CONFIG_FILE_NAME=null.cfg
+    env SYCL_DEVICELIB_NO_FALLBACK=1
+    env SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
+    ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
+    DEPENDS
+    ${test_dirname}
+  )
+
+  add_dependencies(check-sycl-unittests check-sycl-${test_dirname})
 
   target_link_libraries(${test_dirname}
     PRIVATE

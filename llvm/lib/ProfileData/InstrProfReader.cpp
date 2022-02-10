@@ -52,16 +52,19 @@ static Error initializeReader(InstrProfReader &Reader) {
 }
 
 Expected<std::unique_ptr<InstrProfReader>>
-InstrProfReader::create(const Twine &Path) {
+InstrProfReader::create(const Twine &Path,
+                        const InstrProfCorrelator *Correlator) {
   // Set up the buffer to read.
   auto BufferOrError = setupMemoryBuffer(Path);
   if (Error E = BufferOrError.takeError())
     return std::move(E);
-  return InstrProfReader::create(std::move(BufferOrError.get()));
+  return InstrProfReader::create(std::move(BufferOrError.get()), Correlator);
 }
 
 Expected<std::unique_ptr<InstrProfReader>>
-InstrProfReader::create(std::unique_ptr<MemoryBuffer> Buffer) {
+InstrProfReader::create(std::unique_ptr<MemoryBuffer> Buffer,
+                        const InstrProfCorrelator *Correlator) {
+  // Sanity check the buffer.
   if (uint64_t(Buffer->getBufferSize()) > std::numeric_limits<uint64_t>::max())
     return make_error<InstrProfError>(instrprof_error::too_large);
 
@@ -73,9 +76,9 @@ InstrProfReader::create(std::unique_ptr<MemoryBuffer> Buffer) {
   if (IndexedInstrProfReader::hasFormat(*Buffer))
     Result.reset(new IndexedInstrProfReader(std::move(Buffer)));
   else if (RawInstrProfReader64::hasFormat(*Buffer))
-    Result.reset(new RawInstrProfReader64(std::move(Buffer)));
+    Result.reset(new RawInstrProfReader64(std::move(Buffer), Correlator));
   else if (RawInstrProfReader32::hasFormat(*Buffer))
-    Result.reset(new RawInstrProfReader32(std::move(Buffer)));
+    Result.reset(new RawInstrProfReader32(std::move(Buffer), Correlator));
   else if (TextInstrProfReader::hasFormat(*Buffer))
     Result.reset(new TextInstrProfReader(std::move(Buffer)));
   else
@@ -352,7 +355,7 @@ Error RawInstrProfReader<IntPtrT>::readNextHeader(const char *CurrentPos) {
 
 template <class IntPtrT>
 Error RawInstrProfReader<IntPtrT>::createSymtab(InstrProfSymtab &Symtab) {
-  if (Error E = Symtab.create(StringRef(NamesStart, NamesSize)))
+  if (Error E = Symtab.create(StringRef(NamesStart, NamesEnd - NamesStart)))
     return error(std::move(E));
   for (const RawInstrProf::ProfileData<IntPtrT> *I = Data; I != DataEnd; ++I) {
     const IntPtrT FPtr = swap(I->FunctionPointer);
@@ -369,6 +372,10 @@ Error RawInstrProfReader<IntPtrT>::readHeader(
   Version = swap(Header.Version);
   if (GET_VERSION(Version) != RawInstrProf::Version)
     return error(instrprof_error::unsupported_version);
+  if (useDebugInfoCorrelate() && !Correlator)
+    return error(instrprof_error::missing_debug_info_for_correlation);
+  if (!useDebugInfoCorrelate() && Correlator)
+    return error(instrprof_error::unexpected_debug_info_for_correlation);
 
   BinaryIdsSize = swap(Header.BinaryIdsSize);
   if (BinaryIdsSize % sizeof(uint64_t))
@@ -376,37 +383,49 @@ Error RawInstrProfReader<IntPtrT>::readHeader(
 
   CountersDelta = swap(Header.CountersDelta);
   NamesDelta = swap(Header.NamesDelta);
-  auto DataSize = swap(Header.DataSize);
+  auto NumData = swap(Header.DataSize);
   auto PaddingBytesBeforeCounters = swap(Header.PaddingBytesBeforeCounters);
-  auto CountersSize = swap(Header.CountersSize);
+  auto CountersSize = swap(Header.CountersSize) * getCounterTypeSize();
   auto PaddingBytesAfterCounters = swap(Header.PaddingBytesAfterCounters);
-  NamesSize = swap(Header.NamesSize);
+  auto NamesSize = swap(Header.NamesSize);
   ValueKindLast = swap(Header.ValueKindLast);
 
-  auto DataSizeInBytes = DataSize * sizeof(RawInstrProf::ProfileData<IntPtrT>);
+  auto DataSize = NumData * sizeof(RawInstrProf::ProfileData<IntPtrT>);
   auto PaddingSize = getNumPaddingBytes(NamesSize);
 
   // Profile data starts after profile header and binary ids if exist.
   ptrdiff_t DataOffset = sizeof(RawInstrProf::Header) + BinaryIdsSize;
-  ptrdiff_t CountersOffset =
-      DataOffset + DataSizeInBytes + PaddingBytesBeforeCounters;
-  ptrdiff_t NamesOffset = CountersOffset + (sizeof(uint64_t) * CountersSize) +
-                          PaddingBytesAfterCounters;
+  ptrdiff_t CountersOffset = DataOffset + DataSize + PaddingBytesBeforeCounters;
+  ptrdiff_t NamesOffset =
+      CountersOffset + CountersSize + PaddingBytesAfterCounters;
   ptrdiff_t ValueDataOffset = NamesOffset + NamesSize + PaddingSize;
 
   auto *Start = reinterpret_cast<const char *>(&Header);
   if (Start + ValueDataOffset > DataBuffer->getBufferEnd())
     return error(instrprof_error::bad_header);
 
-  Data = reinterpret_cast<const RawInstrProf::ProfileData<IntPtrT> *>(
-      Start + DataOffset);
-  DataEnd = Data + DataSize;
+  if (Correlator) {
+    // These sizes in the raw file are zero because we constructed them in the
+    // Correlator.
+    assert(DataSize == 0 && NamesSize == 0);
+    assert(CountersDelta == 0 && NamesDelta == 0);
+    Data = Correlator->getDataPointer();
+    DataEnd = Data + Correlator->getDataSize();
+    NamesStart = Correlator->getNamesPointer();
+    NamesEnd = NamesStart + Correlator->getNamesSize();
+  } else {
+    Data = reinterpret_cast<const RawInstrProf::ProfileData<IntPtrT> *>(
+        Start + DataOffset);
+    DataEnd = Data + NumData;
+    NamesStart = Start + NamesOffset;
+    NamesEnd = NamesStart + NamesSize;
+  }
 
   // Binary ids start just after the header.
   BinaryIdsStart =
       reinterpret_cast<const uint8_t *>(&Header) + sizeof(RawInstrProf::Header);
-  CountersStart = reinterpret_cast<const uint64_t *>(Start + CountersOffset);
-  NamesStart = Start + NamesOffset;
+  CountersStart = Start + CountersOffset;
+  CountersEnd = CountersStart + CountersSize;
   ValueDataStart = reinterpret_cast<const uint8_t *>(Start + ValueDataOffset);
 
   const uint8_t *BufferEnd = (const uint8_t *)DataBuffer->getBufferEnd();
@@ -440,53 +459,36 @@ Error RawInstrProfReader<IntPtrT>::readRawCounts(
   if (NumCounters == 0)
     return error(instrprof_error::malformed, "number of counters is zero");
 
-  IntPtrT CounterPtr = Data->CounterPtr;
-  auto *NamesStartAsCounter = reinterpret_cast<const uint64_t *>(NamesStart);
-  ptrdiff_t MaxNumCounters = NamesStartAsCounter - CountersStart;
-
-  // Check bounds. Note that the counter pointer embedded in the data record
-  // may itself be corrupt.
-  if (MaxNumCounters < 0 || NumCounters > (uint32_t)MaxNumCounters)
-    return error(instrprof_error::malformed,
-                 "counter pointer is out of bounds");
-
-  // We need to compute the in-buffer counter offset from the in-memory address
-  // distance. The initial CountersDelta is the in-memory address difference
-  // start(__llvm_prf_cnts)-start(__llvm_prf_data), so SrcData->CounterPtr -
-  // CountersDelta computes the offset into the in-buffer counter section.
-  //
-  // CountersDelta decreases as we advance to the next data record.
-  ptrdiff_t CounterOffset = getCounterOffset(CounterPtr);
-  CountersDelta -= sizeof(*Data);
-  if (CounterOffset < 0)
+  ptrdiff_t CounterBaseOffset = swap(Data->CounterPtr) - CountersDelta;
+  if (CounterBaseOffset < 0)
     return error(
         instrprof_error::malformed,
-        ("counter offset " + Twine(CounterOffset) + " is negative").str());
+        ("counter offset " + Twine(CounterBaseOffset) + " is negative").str());
 
-  if (CounterOffset > MaxNumCounters)
+  if (CounterBaseOffset >= CountersEnd - CountersStart)
     return error(instrprof_error::malformed,
-                 ("counter offset " + Twine(CounterOffset) +
-                  " is greater than the maximum number of counters " +
-                  Twine((uint32_t)MaxNumCounters))
+                 ("counter offset " + Twine(CounterBaseOffset) +
+                  " is greater than the maximum counter offset " +
+                  Twine(CountersEnd - CountersStart - 1))
                      .str());
 
-  if (((uint32_t)CounterOffset + NumCounters) > (uint32_t)MaxNumCounters)
+  uint64_t MaxNumCounters =
+      (CountersEnd - (CountersStart + CounterBaseOffset)) /
+      getCounterTypeSize();
+  if (NumCounters > MaxNumCounters)
     return error(instrprof_error::malformed,
-                 ("number of counters " +
-                  Twine(((uint32_t)CounterOffset + NumCounters)) +
+                 ("number of counters " + Twine(NumCounters) +
                   " is greater than the maximum number of counters " +
-                  Twine((uint32_t)MaxNumCounters))
+                  Twine(MaxNumCounters))
                      .str());
 
-  auto RawCounts = makeArrayRef(getCounter(CounterOffset), NumCounters);
-
-  if (ShouldSwapBytes) {
-    Record.Counts.clear();
-    Record.Counts.reserve(RawCounts.size());
-    for (uint64_t Count : RawCounts)
-      Record.Counts.push_back(swap(Count));
-  } else
-    Record.Counts = RawCounts;
+  Record.Counts.clear();
+  Record.Counts.reserve(NumCounters);
+  for (uint32_t I = 0; I < NumCounters; I++) {
+    const auto *CounterValue = reinterpret_cast<const uint64_t *>(
+        CountersStart + CounterBaseOffset + I * getCounterTypeSize());
+    Record.Counts.push_back(swap(*CounterValue));
+  }
 
   return success();
 }
@@ -977,11 +979,10 @@ IndexedInstrProfReader::getInstrProfRecord(StringRef FuncName,
   if (Err)
     return std::move(Err);
   // Found it. Look for counters with the right hash.
-  for (unsigned I = 0, E = Data.size(); I < E; ++I) {
+  for (const NamedInstrProfRecord &I : Data) {
     // Check for a match and fill the vector if there is one.
-    if (Data[I].Hash == FuncHash) {
-      return std::move(Data[I]);
-    }
+    if (I.Hash == FuncHash)
+      return std::move(I);
   }
   return error(instrprof_error::hash_mismatch);
 }

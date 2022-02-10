@@ -1,18 +1,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2017 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/online_compiler.hpp>
-
-// This test uses SYCL host only mode without integration header, so
-// forward declare used kernel name class, otherwise it will be diagnosed by
-// the diagnostic implemented in https://github.com/intel/llvm/pull/4945.
-// The error happens because in host mode it is assumed that all kernel names
-// are forward declared at global or namespace scope because of integration
-// header.
-class Test;
 
 int main() {
   cl_context ClCtx;
@@ -184,6 +173,11 @@ int main() {
 
   // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
   Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
-  
+
+  cl::sycl::multi_ptr<int, cl::sycl::access::address_space::global_space> a(
+      nullptr);
+  // expected-warning@+1 {{'atomic<int, sycl::access::address_space::global_space>' is deprecated: sycl::atomic is deprecated since SYCL 2020}}
+  cl::sycl::atomic<int> b(a);
+
   return 0;
 }

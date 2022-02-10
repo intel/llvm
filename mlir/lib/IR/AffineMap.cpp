@@ -89,7 +89,7 @@ private:
   ArrayRef<Attribute> operandConsts;
 };
 
-} // end anonymous namespace
+} // namespace
 
 /// Returns a single constant result affine map.
 AffineMap AffineMap::getConstantMap(int64_t val, MLIRContext *context) {
@@ -121,7 +121,7 @@ bool AffineMap::isMinorIdentityWithBroadcasting(
   if (getNumDims() < getNumResults())
     return false;
   unsigned suffixStart = getNumDims() - getNumResults();
-  for (auto idxAndExpr : llvm::enumerate(getResults())) {
+  for (const auto &idxAndExpr : llvm::enumerate(getResults())) {
     unsigned resIdx = idxAndExpr.index();
     AffineExpr expr = idxAndExpr.value();
     if (auto constExpr = expr.dyn_cast<AffineConstantExpr>()) {
@@ -168,7 +168,7 @@ bool AffineMap::isPermutationOfMinorIdentityWithBroadcasting(
       getNumResults() > getNumInputs() ? getNumResults() - getNumInputs() : 0;
   llvm::SmallBitVector dimFound(std::max(getNumInputs(), getNumResults()),
                                 false);
-  for (auto idxAndExpr : llvm::enumerate(getResults())) {
+  for (const auto &idxAndExpr : llvm::enumerate(getResults())) {
     unsigned resIdx = idxAndExpr.index();
     AffineExpr expr = idxAndExpr.value();
     // Each result may be either a constant 0 (broadcast dimension) or a
@@ -209,7 +209,7 @@ AffineMap AffineMap::getPermutationMap(ArrayRef<unsigned> permutation,
   SmallVector<AffineExpr, 4> affExprs;
   for (auto index : permutation)
     affExprs.push_back(getAffineDimExpr(index, context));
-  auto m = std::max_element(permutation.begin(), permutation.end());
+  const auto *m = std::max_element(permutation.begin(), permutation.end());
   auto permutationMap = AffineMap::get(*m + 1, 0, affExprs, context);
   assert(permutationMap.isPermutation() && "Invalid permutation vector");
   return permutationMap;
@@ -384,7 +384,7 @@ AffineMap::partialConstantFold(ArrayRef<Attribute> operandConstants,
 
 /// Walk all of the AffineExpr's in this mapping. Each node in an expression
 /// tree is visited in postorder.
-void AffineMap::walkExprs(std::function<void(AffineExpr)> callback) const {
+void AffineMap::walkExprs(llvm::function_ref<void(AffineExpr)> callback) const {
   for (auto expr : getResults())
     expr.walk(callback);
 }
@@ -675,7 +675,7 @@ AffineMap mlir::inversePermutation(AffineMap map) {
     return map;
   assert(map.getNumSymbols() == 0 && "expected map without symbols");
   SmallVector<AffineExpr, 4> exprs(map.getNumDims());
-  for (auto en : llvm::enumerate(map.getResults())) {
+  for (const auto &en : llvm::enumerate(map.getResults())) {
     auto expr = en.value();
     // Skip non-permutations.
     if (auto d = expr.dyn_cast<AffineDimExpr>()) {

@@ -1,10 +1,12 @@
 add_mlir_dialect_library(MLIRSCFTransforms
+  AffineCanonicalizationUtils.cpp
   Bufferize.cpp
   ForToWhile.cpp
   LoopCanonicalization.cpp
   LoopPipelining.cpp
   LoopRangeFolding.cpp
   LoopSpecialization.cpp
+  ParallelLoopCollapsing.cpp
   ParallelLoopFusion.cpp
   ParallelLoopTiling.cpp
   StructuralTypeConversions.cpp
@@ -18,7 +20,9 @@ add_mlir_dialect_library(MLIRSCFTransforms
 
   LINK_LIBS PUBLIC
   MLIRAffine
+  MLIRAffineAnalysis
   MLIRArithmetic
+  MLIRBufferizationTransforms
   MLIRIR
   MLIRMemRef
   MLIRPass
