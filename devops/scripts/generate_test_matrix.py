@@ -17,7 +17,7 @@ with open(sys.argv[1]) as f:
     lts_str = json.dumps(lts_config)
 
     for k, v in inputs.items():
-        lts_str = lts_str.replace('${{ inputs.{} }}'.format(k), v)
+        lts_str = lts_str.replace('${{ inputs.{} }}'.format(k), str(v))
 
     lts_str = lts_str.replace('%', '%25')
     lts_str = lts_str.replace('\n', '%0A')
