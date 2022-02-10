@@ -561,16 +561,19 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     // (which might be a member of the composite); offset, which is used to
     // calculate location of scalar member within the composite or zero for
     // scalar spec constants; size of a spec constant
-    assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % 3 == 0 &&
+    constexpr size_t NumElements = 3;
+    assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % NumElements ==
+               0 &&
            "unexpected layout of composite spec const descriptors");
-    auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
-    auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
-                                                        Descriptors.size());
+    const uint8_t *It = &Descriptors[8];
+    const uint8_t *End = &Descriptors[0] + Descriptors.size();
     while (It != End) {
+      std::uint32_t CurrentDesc[NumElements];
+      std::memcpy(CurrentDesc, It, NumElements * sizeof(std::uint32_t));
       Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
-          NativePrg, /* ID */ It[0], /* Size */ It[2],
-          SC.getValuePtr() + /* Offset */ It[1]);
-      It += 3;
+          NativePrg, /* ID */ CurrentDesc[0], /* Size */ CurrentDesc[2],
+          SC.getValuePtr() + /* Offset */ CurrentDesc[1]);
+      It += NumElements * sizeof(std::uint32_t);
     }
   }
 }

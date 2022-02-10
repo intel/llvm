@@ -264,27 +264,31 @@ private:
                        NumElements ==
                    0 &&
                "unexpected layout of composite spec const descriptors");
-        auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
-        auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
-                                                            Descriptors.size());
+        const uint8_t *It = &Descriptors[8];
+        const uint8_t *End = &Descriptors[0] + Descriptors.size();
         unsigned LocalOffset = 0;
         while (It != End) {
+          // Read this descriptor.
+          std::uint32_t CurrentDesc[NumElements];
+          std::memcpy(CurrentDesc, It, NumElements * sizeof(std::uint32_t));
+
           // Make sure that alignment is correct in blob.
-          const unsigned OffsetFromLast = /*Offset*/ It[1] - LocalOffset;
+          const unsigned OffsetFromLast =
+              /*Offset*/ CurrentDesc[1] - LocalOffset;
           BlobOffset += OffsetFromLast;
           // Composites may have a special padding element at the end which
           // should not have a descriptor. These padding elements all have max
           // ID value.
-          if (It[0] != std::numeric_limits<std::uint32_t>::max()) {
+          if (CurrentDesc[0] != std::numeric_limits<std::uint32_t>::max()) {
             // The map is not locked here because updateSpecConstSymMap() is
             // only supposed to be called from c'tor.
-            MSpecConstSymMap[std::string{SCName}].push_back(
-                SpecConstDescT{/*ID*/ It[0], /*CompositeOffset*/ It[1],
-                               /*Size*/ It[2], BlobOffset});
+            MSpecConstSymMap[std::string{SCName}].push_back(SpecConstDescT{
+                /*ID*/ CurrentDesc[0], /*CompositeOffset*/ CurrentDesc[1],
+                /*Size*/ CurrentDesc[2], BlobOffset});
           }
-          LocalOffset += OffsetFromLast + /*Size*/ It[2];
-          BlobOffset += /*Size*/ It[2];
-          It += NumElements;
+          LocalOffset += OffsetFromLast + /*Size*/ CurrentDesc[2];
+          BlobOffset += /*Size*/ CurrentDesc[2];
+          It += NumElements * sizeof(std::uint32_t);
         }
       }
       MSpecConstsBlob.resize(BlobOffset);

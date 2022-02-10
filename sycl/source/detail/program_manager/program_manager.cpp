@@ -1150,9 +1150,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           //             otherwise.
           // Note: Property may be padded.
           assert(DeviceGlobalInfo.size() >= 13 && "Unexpected property size");
-          const std::uint32_t TypeSize =
-              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
-          const std::uint32_t DeviceImageScopeDecorated = DeviceGlobalInfo[12];
+          std::uint32_t TypeSize;
+          std::memcpy(&TypeSize, &DeviceGlobalInfo[8], sizeof(std::uint32_t));
+          const bool DeviceImageScopeDecorated = DeviceGlobalInfo[12];
           Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
         }
       }
