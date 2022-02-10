@@ -115,6 +115,9 @@ typedef enum {
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
+  PI_COMMAND_EXECUTION_FAILURE =
+      -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
+            ///< during command enqueue or execution.
   PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
       -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
             ///< method determines the function exists but its address cannot be

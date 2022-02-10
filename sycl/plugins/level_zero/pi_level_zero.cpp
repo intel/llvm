@@ -1376,8 +1376,17 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // Offload command list to the GPU for asynchronous execution
   auto ZeCommandList = CommandList->first;
   zePrint("Calling zeCommandQueueExecuteCommandLists with Index = %d\n", Index);
-  ZE_CALL(zeCommandQueueExecuteCommandLists,
-          (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
+  auto ZeResult = ZE_CALL_NOCHECK(
+      zeCommandQueueExecuteCommandLists,
+      (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    this->Healthy = false;
+    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      // Turn into a more informative end-user error.
+      return PI_COMMAND_EXECUTION_FAILURE;
+    }
+    return mapError(ZeResult);
+  }
 
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
@@ -3176,10 +3185,13 @@ pi_result piQueueRelease(pi_queue Queue) {
         return Res;
 
       // Make sure all commands get executed.
-      ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
-      for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-        if (Queue->ZeCopyCommandQueues[i])
-          ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+      // Only do so for a healthy queue as otherwise sync may not be valid.
+      if (Queue->Healthy) {
+        ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
+        for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
+          if (Queue->ZeCopyCommandQueues[i])
+            ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+        }
       }
 
       // Destroy all the fences created associated with this queue.
@@ -3190,7 +3202,11 @@ pi_result piQueueRelease(pi_queue Queue) {
         if (it->second.InUse) {
           Queue->resetCommandList(it, true);
         }
-        ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
+        // TODO: remove "if" when the problem is fixed in the level zero
+        // runtime. Destroy only if a queue is healthy. Destroying a fence may
+        // cause a hang otherwise.
+        if (Queue->Healthy)
+          ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
       }
       Queue->CommandListMap.clear();
     }
