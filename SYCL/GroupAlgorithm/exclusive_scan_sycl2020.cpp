@@ -1,10 +1,10 @@
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -I . -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -I . -o %t13.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel -DSPIRV_1_3 %s -I . -o %t13.out
 
 #include "support.h"
 #include <CL/sycl.hpp>
@@ -185,6 +185,36 @@ int main() {
   test<class KernelNameBitAndI>(q, input_small, output_small,
                                 sycl::bit_and<int>(), ~0);
 #endif // SPIRV_1_3
+
+  // as part of SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS (
+  // https://github.com/intel/llvm/pull/5108/ ) joint_exclusive_scan and
+  // exclusive_scan_over_group now operate on std::complex but limited to the
+  // sycl::plus binary operation.
+#ifdef SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS
+  std::array<std::complex<float>, N> input_cf;
+  std::array<std::complex<float>, N> output_cf;
+  std::iota(input_cf.begin(), input_cf.end(), 0);
+  std::fill(output_cf.begin(), output_cf.end(), 0);
+  test<class KernelNamePlusComplexF>(q, input_cf, output_cf,
+                                     sycl::plus<std::complex<float>>(), 0);
+  test<class KernelNamePlusUnspecF>(q, input_cf, output_cf, sycl::plus<>(), 0);
+
+  if (q.get_device().has(aspect::fp64)) {
+    std::array<std::complex<double>, N> input_cd;
+    std::array<std::complex<double>, N> output_cd;
+    std::iota(input_cd.begin(), input_cd.end(), 0);
+    std::fill(output_cd.begin(), output_cd.end(), 0);
+    test<class KernelNamePlusComplexD>(q, input_cd, output_cd,
+                                       sycl::plus<std::complex<double>>(), 0);
+    test<class KernelNamePlusUnspecD>(q, input_cd, output_cd, sycl::plus<>(),
+                                      0);
+  } else {
+    std::cout << "aspect::fp64 not supported. skipping std::complex<double>"
+              << std::endl;
+  }
+#else
+  static_assert(false, "SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS not defined");
+#endif
 
   std::cout << "Test passed." << std::endl;
 }
