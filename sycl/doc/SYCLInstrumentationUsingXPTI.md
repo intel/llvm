@@ -291,7 +291,7 @@ All trace point types in bold provide semantic information about the graph, node
 | `offload_alloc_release`   | <div style="text-align: left"><li>**trace_type**: `xpti::trace_point_type_t::offload_buffer_release_data_t` that provides information about release of platform specific memory object</li> <li> **parent**: `nullptr` - since the stream of data just captures functions being called.</li> <li> **event**: `nullptr` - since the stream of data just captures functions being called.</li> <li> **instance**: `nullptr` since no begin-end event alignment is needed.</li> <li> **user_data**: A pointer to `offload_buffer_association_data_t` object, that includes user object ID and platform-specific representation for offload buffer. </li></div> | None     |
 | `offload_alloc_accessor` | <div style="text-align: left"><li>**trace_type**: `xpti::trace_point_type_t::offload_accessor_data_t` that marks offload accessor creation point</li> <li> **parent**: Event ID created for all functions in the `oneapi.experimental.buffer` layer.</li> <li> **event**: `nullptr` - since the stream of data just captures functions being called.</li> <li> **instance**: `nullptr` since no begin-end event alignment is needed. </li> <li> **user_data**: A pointer to `offload_accessor_data_t` object, that includes buffer object ID, accessor handle created from specific buffer, accessor information (access target and mode). </li></div> | None     |
 
-## Level Zero Plugin Stream `"oneapi.level_zero.experimental.mem_alloc"` Notification Signatures
+## SYCL Memory Allocations Stream `"sycl.experimental.mem_alloc"` Notification Signatures
 
 | Trace Point Type           | Parameter Description | Metadata |
 | :------------------------: | :-------------------- | :------- |
