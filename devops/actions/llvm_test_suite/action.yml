@@ -49,8 +49,7 @@ runs:
       path: llvm_test_suite
       repository: 'intel/llvm-test-suite'
       ref: ${{ inputs.test_ref }}
-      target_branch: ${{ inputs.target_branch }}
-      merge_target_branch: ${{ inputs.merge_target_branch }}
+      default_branch: ${{ inputs.target_branch }}
       cache_path: "/__w/repo_cache/"
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
