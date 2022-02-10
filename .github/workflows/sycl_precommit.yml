@@ -27,7 +27,7 @@ jobs:
     # the next commit is likely to be a follow-up on that job.
     needs: lint
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_runs_on: "build"
       build_cache_root: "/__w/"
