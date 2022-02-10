@@ -3557,8 +3557,12 @@ defm amdgpu_ieee : BoolOption<"m", "amdgpu-ieee",
   NegFlag<SetFalse, [CC1Option]>>, Group<m_Group>;
 
 def mcode_object_version_EQ : Joined<["-"], "mcode-object-version=">, Group<m_Group>,
-  HelpText<"Specify code object ABI version. Defaults to 4. (AMDGPU only)">,
-  MetaVarName<"<version>">, Values<"2,3,4,5">;
+  HelpText<"Specify code object ABI version. Allowed values are 2, 3, 4, and 5. Defaults to 4. (AMDGPU only)">,
+  Flags<[CC1Option]>,
+  Values<"none,2,3,4,5">,
+  NormalizedValuesScope<"TargetOptions">,
+  NormalizedValues<["COV_None", "COV_2", "COV_3", "COV_4", "COV_5"]>,
+  MarshallingInfoEnum<TargetOpts<"CodeObjectVersion">, "COV_4">;
 
 defm code_object_v3_legacy : SimpleMFlag<"code-object-v3",
   "Legacy option to specify code object ABI V3",
@@ -4889,6 +4893,10 @@ def module_suffix : Separate<["-"], "module-suffix">,  Group<f_Group>, MetaVarNa
 def fno_reformat : Flag<["-"], "fno-reformat">, Group<Preprocessor_Group>,
   HelpText<"Dump the cooked character stream in -E mode">;
 defm analyzed_objects_for_unparse : OptOutFC1FFlag<"analyzed-objects-for-unparse", "", "Do not use the analyzed objects when unparsing">;
+
+def emit_mlir : Flag<["-"], "emit-mlir">, Group<Action_Group>,
+  HelpText<"Build the parse tree, then lower it to MLIR">;
+def emit_fir : Flag<["-"], "emit-fir">, Alias<emit_mlir>;
 
 }
 
