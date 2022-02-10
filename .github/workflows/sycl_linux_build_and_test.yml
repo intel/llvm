@@ -153,12 +153,12 @@ jobs:
     - name: Upload toolchain
       uses: actions/upload-artifact@v1
       with:
-        name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: llvm_sycl.tar.xz
     - name: Upload LIT
       uses: actions/upload-artifact@v1
       with:
-        name: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_lit_${{ inputs.build_artifact_suffix }}
         path: lit.tar.xz
 
   # This job generates matrix of tests for LLVM Test Suite
@@ -170,7 +170,7 @@ jobs:
     steps:
     - id: work
       env:
-        GHA_INPUT: ${{ inputs }}
+        GHA_INPUT: ${{ toJSON(inputs) }}
       run: |
         wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/generate_test_matrix.py
         wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/test_configs.json
