@@ -16,6 +16,7 @@ Using oneAPI DPC++ for Application Development
    FAQ
    User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
    EnvironmentVariables
+   MultiTileCardWithLevelZero
 
 Developing oneAPI DPC++ Compiler
 --------------------------------
@@ -26,22 +27,20 @@ Developing oneAPI DPC++ Compiler
    API Reference <https://intel.github.io/llvm-docs/doxygen>
    Clang Documentation <https://intel.github.io/llvm-docs/clang>
    Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
-   CompilerAndRuntimeDesign
-   KernelParameterPassing
-   PluginInterface
-   ABIPolicyGuide
-   SpecializationConstants
-   KernelProgramCache
-   GlobalObjectsInRuntime
-   LinkedAllocations
-   Assert
-   SharedLibraries
-   MultiTileCardWithLevelZero
-   OptionalDeviceFeatures
-   SYCLInstrumentationUsingXPTI
-   ITTAnnotations
-   DeviceGlobal
-   CompileTimeProperties
+   internal-design/CompilerAndRuntimeDesign
+   internal-design/KernelParameterPassing
+   internal-design/PluginInterface
+   internal-design/SpecializationConstants
+   internal-design/KernelProgramCache
+   internal-design/GlobalObjectsInRuntime
+   internal-design/LinkedAllocations
+   internal-design/Assert
+   internal-design/SharedLibraries
+   internal-design/OptionalDeviceFeatures
+   internal-design/SYCLInstrumentationUsingXPTI
+   internal-design/ITTAnnotations
+   internal-design/DeviceGlobal
+   internal-design/CompileTimeProperties
 
 Development BKMs
 ~~~~~~~~~~~~~~~~
@@ -49,4 +48,5 @@ Development BKMs
 .. toctree::
    :maxdepth: 1
 
-   dev/DockerBKMs
+   development-bkms/DockerBKMs
+   development-bkms/ABIPolicyGuide

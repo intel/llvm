@@ -46,13 +46,33 @@ html_theme = 'haiku'
 # The suffix of source filenames.
 source_suffix = ['.rst', '.md']
 
-# Extensions are mostly in asciidoc which has poor support in Sphinx
-exclude_patterns = ['extensions/*']
+exclude_patterns = [
+    # Extensions are mostly in asciidoc which has poor support in Sphinx.
+    'extensions/*',
+
+    # Sphinx complains about syntax errors in these files.
+    'internal-design/DeviceLibExtensions.rst',
+    'internal-design/SYCLPipesLoweringToSPIRV.rst',
+    'internal-design/fpga_io_pipes_design.rst',
+    'internal-design/Reduction_status.md'
+]
 
 suppress_warnings = [ 'misc.highlighting_failure' ]
 
 def on_missing_reference(app, env, node, contnode):
-    new_target = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + node['reftarget']
+    # Get the directory that contains the *source* file of the link.  These
+    # files are always relative to the directory containing "conf.py"
+    # (<top>/sycl/doc).  For example, the file "sycl/doc/internal-design/foo.md"
+    # will have a directory "internal-design".
+    refdoc_components = node['refdoc'].split('/')
+    dirs = '/'.join(refdoc_components[:-1])
+    if dirs: dirs += '/'
+
+    # A missing reference usually occurs when the target file of the link is
+    # not processed by Sphinx.  Compensate by creating a link that goes to the
+    # file's location in the GitHub repo.
+    new_target = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + dirs + \
+        node['reftarget']
 
     newnode = nodes.reference('', '', internal=False, refuri=new_target)
     newnode.append(contnode)
