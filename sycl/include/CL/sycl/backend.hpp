@@ -18,7 +18,11 @@
 #include <CL/sycl/detail/backend_traits_opencl.hpp>
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_CUDA
+#ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
+#include <sycl/ext/oneapi/experimental/backend/backend_traits_cuda.hpp>
+#else
 #include <CL/sycl/detail/backend_traits_cuda.hpp>
+#endif
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <CL/sycl/detail/backend_traits_level_zero.hpp>
