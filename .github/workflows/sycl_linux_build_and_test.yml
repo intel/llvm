@@ -1,9 +1,6 @@
 name: Reusable SYCL Linux build and test workflow
 
 on:
-  pull_request:
-    paths:
-    - '.github/workflows/sycl_linux_build_and_test.yml'
   workflow_call:
     inputs:
       cc:
@@ -21,11 +18,7 @@ on:
       build_runs_on:
         type: string
         required: false
-        default: "ubuntu-latest"
-      build_github_cache:
-        type: boolean
-        required: false
-        default: false
+        default: "build"
       build_cache_root:
         type: string
         required: true
@@ -36,7 +29,7 @@ on:
       build_cache_size:
         type: string
         required: false
-        default: 2G
+        default: 8G
       build_configure_extra_args:
         type: string
         required: false
@@ -52,61 +45,25 @@ on:
         type: string
         required: false
         default: ""
-      gen9_runs_on:
-        type: string
-        required: false
-        default: "gen9"
       amdgpu_image:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      amdgpu_runs_on:
+      lts_ref:
         type: string
         required: false
-        default: "amdgpu"
+        default: 'intel'
+      max_parallel:
+        type: number
+        required: false
+        default: 4
 
 jobs:
-  configure:
-    name: Pre-build configuration
-    runs-on: ubuntu-latest
-    outputs:
-      params: ${{ steps.input-parameters.outputs.params }}
-    steps:
-      - id: input-parameters
-        env:
-          INPUTS: ${{ toJSON(inputs) }}
-        run: |
-          if [[ "$GITHUB_WORKFLOW" == "Reusable SYCL Linux build and test workflow" ]]; then
-            INPUTS="{
-              \"cc\":\"gcc\",
-              \"cxx\":\"g++\",
-              \"build_runs_on\":\"build\",
-              \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"build_github_cache\":\"false\",
-              \"build_cache_root\":\"/__w/\",
-              \"build_cache_suffix\":\"default\",
-              \"build_cache_size\":\"2G\",
-              \"build_configure_extra_args\":\"--hip --hip-amd-arch=gfx906 --cuda\",
-              \"build_artifact_suffix\":\"default\",
-              \"build_upload_artifact\":\"false\",
-              \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
-              \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"lts_config\":\"ocl_x64;hip_amdgpu\",
-              \"gen9_runs_on\":\"gen9\",
-              \"amdgpu_runs_on\":\"amdgpu\"
-            }"
-          fi
-          INPUTS="${INPUTS//'%'/'%25'}"
-          INPUTS="${INPUTS//$'\n'/'%0A'}"
-          INPUTS="${INPUTS//$'\r'/'%0D'}"
-          echo "::set-output name=params::$INPUTS"
-          echo "$INPUTS"
   build:
     name: Build + LIT
-    needs: configure
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
+    runs-on: ${{ inputs.build_runs_on }}
     container:
-      image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
+      image: ${{ inputs.build_image }}
       options: -u 1001:1001
     steps:
     # GHA requires relative paths for actions. Copy actions from container root
@@ -119,23 +76,14 @@ jobs:
       with:
         path: src
         cache_path: "/__w/repo_cache/"
-    - name: Setup Cache
-      uses: actions/cache@v2
-      if: ${{ steps.parameters.build_github_cache }}
-      id: cache
-      with:
-        path: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}/build_cache_${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
-        key: sycl-build-${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}-${{ github.sha }}
-        restore-keys: |
-          sycl-build-${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}-
     - name: Configure
       env:
-        CC: ${{ fromJSON(needs.configure.outputs.params).cc }}
-        CXX: ${{ fromJSON(needs.configure.outputs.params).cxx }}
-        CACHE_ROOT: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}
-        CACHE_SUFFIX: ${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
-        CACHE_SIZE: ${{ fromJSON(needs.configure.outputs.params).build_cache_size }}
-        ARGS: ${{ fromJSON(needs.configure.outputs.params).build_configure_extra_args }}
+        CC: ${{ inputs.cc }}
+        CXX: ${{ inputs.cxx }}
+        CACHE_ROOT: ${{ inputs.build_cache_root }}
+        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
+        CACHE_SIZE: ${{ inputs.build_cache_size }}
+        ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
@@ -213,14 +161,33 @@ jobs:
         name: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         path: lit.tar.xz
 
-  llvm_test_suite_l0_gen9:
-    name: L0 GEN9 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'l0_gen9') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
+  # This job generates matrix of tests for LLVM Test Suite
+  resolve_matrix:
+    name: Resolve Test Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      lts: ${{ steps.work.outputs.lts }}
+    steps:
+    - id: work
+      env:
+        GHA_INPUT: ${{ inputs }}
+      run: |
+        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/generate_test_matrix.py
+        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/test_configs.json
+        python3 generate_test_matrix.py test_configs.json
+
+  llvm_test_suite:
+    needs: [build, resolve_matrix]
+    if: ${{ inputs.lts_config != '' }}
+    strategy:
+      matrix:
+        max-parallel: ${{ inputs.max_parallel }}
+        fail-fast: false
+        include: ${{ fromJSON(needs.resolve_matrix.outputs.lts) }}
+    name: ${{ matrix.name }}
     container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001 --device=/dev/dri
+      image: ${{ matrix.image }}
+      options: ${{ matrix.container_options }}
     steps:
     - run: cp -r /actions .
     - name: Register cleanup after job is finished
@@ -234,99 +201,12 @@ jobs:
       name: Run LLVM Test Suite
       with:
         # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        test_ref: ${{ inputs.lts_ref }}
+        sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        lit_artifact: sycl_lit_${{ inputs.build_artifact_suffix }}
         lit_archive: lit.tar.xz
-        check_sycl_all: 'level_zero:gpu,host'
-        results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
+        check_sycl_all: ${{ matrix.check_sycl_all }}
+        results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
+        cmake_args: ${{ matrix.cmake_args }}
 
-  llvm_test_suite_ocl_gen9:
-    name: OCL GEN9 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_gen9') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001 --device=/dev/dri
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:gpu,host'
-        results_name_suffix: ocl_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
-
-  llvm_test_suite_ocl_x64:
-    name: OCL x64 Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_x64') }}
-    runs-on: x64
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-      options: -u 1001
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:cpu,host'
-        results_name_suffix: ocl_x64_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-
-  llvm_test_suite_hip_amdgpu:
-    name: HIP AMD GPU Test Suite
-    needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'hip_amdgpu') }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).amdgpu_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).amdgpu_image }}
-      options: --device=/dev/dri --device=/dev/kfd
-    steps:
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    # TODO remove this step one LLVM Test Suite action is settled and packed
-    # into container.
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'hip:gpu,host'
-        results_name_suffix: hip_amdgpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"'
