@@ -708,24 +708,26 @@ global variable that isn't `const` or `constexpr` unless the variable is of type
 
 === Referencing a device global defined in another translation unit
 
-If the implementation defines the `SYCL_EXTERNAL` macro, device code in one
-translation unit may reference a device global variable that is defined in a
-different translation unit so long as the variable is defined using
-`SYCL_EXTERNAL`.  For example:
+This extension broadens the use of the `SYCL_EXTERNAL` macro to apply also to
+device global variables.  If the implementation defines the `SYCL_EXTERNAL`
+macro, device code in one translation unit may reference a device global
+variable that is defined in a different translation unit so long as the
+declaration of the variable in both translation units uses `SYCL_EXTERNAL`.
+For example:
 
 ```c++
 // In one translation unit
 #include <sycl/sycl.hpp>
 using namespace sycl::ext::oneapi;
 
-SYCL_EXTERNAL device_global<int> Foo;  // definition
+SYCL_EXTERNAL device_global<int> Foo;  // definition (also a declaration)
 
 // In another translation unit
 #include <sycl/sycl.hpp>
 using namespace sycl::ext::oneapi;
 using namespace sycl;
 
-extern device_global<int> Foo;  // declaration
+SYCL_EXTERNAL extern device_global<int> Foo;  // declaration
 
 void bar(queue q) {
   q.single_task([=] {
