@@ -70,7 +70,7 @@ This extension introduces asynchronous barrier for CUDA devices. This extends `g
 
 Implementing this requires some space in local memory, where the state of the barrier is kept (this is true even for the CUDA compute capability 8 that support this functionality in hardware).
 
-This extension introduces a `barrier`` class, encapsulating the state of an asynchronous barrier. It must be used only in local memory, and reserves space in local memory even on hardware with native support (e.g. devices with CUDA Compute Capability 8.0). Once a barrier is initialized, it can be reused for multiple cycles of arrivals and waits.
+This extension introduces a `barrier` class, encapsulating the state of an asynchronous barrier. It must be used only in local memory, and reserves space in local memory even on hardware with native support (e.g. devices with CUDA Compute Capability 8.0). Once a barrier is initialized, it can be reused for multiple cycles of arrivals and waits.
 
 This extension can only be used on devices that support Independent Thread Scheduling (i.e. devices with CUDA Compute Capability 7.0 or higher) when using CUDA backend. On other backend the interface of `barrier` is not defined or declared. Attempting to call any functions defined in this extension with CUDA backend and a device with lower compute capability will cause kernel launch to fail.
 
@@ -86,7 +86,7 @@ After a predetermined number of arrivals, the barrier moves into the next cycle.
 
 `void initialize(uint32_t expected_count)` : Initializes the barrier with an expected number of arrivals, representing the number of arrivals required to unblock calls to `wait`. This function only needs to be called by one work-item in work group. After the initialization a barrier operation (such as `group_barrier()`) needs to be executed by all work-items using the `barrier` object before they can use the newly initialized `barrier` object. If `expected_count` is greater than the value returned by `max()`, behavior is undefined.
 
-`void invalidate()` : Invalidates a previously initialized barrier, enabling its associated memory to be repurposed. This function only needs to be called by one work-item in the work group. Before the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by all work-items using the `barrier` object, after the last call on the `barrier`. After the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by any work-items reusing the memory before the memory is reused. Calling any member function except `initialize()` on an invalidated barrier results in undefined behavior.
+`void invalidate()` : Invalidates a previously initialized barrier, enabling its associated memory to be repurposed. This function must be called by only one work-item in the work group. Before the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by all work-items using the `barrier` object, after the last call on the `barrier`. After the invalidation a barrier operation (such as `group_barrier()`) needs to be executed by any work-items reusing the memory before the memory is reused. Calling any member function except `initialize()` on an invalidated barrier results in undefined behavior.
 
 `arrival_token arrive()` : Executes arrival operation and returns a token that is needed for the `wait` call corresponding to this arrival.
 
@@ -151,6 +151,120 @@ public:
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
+----
+
+=== Examples
+
+[source, c++]
+----
+using namespace sycl;
+using namespace sycl::ext::oneapi::cuda;
+
+[...]
+
+q.submit([&](handler &cgh) {
+  auto acc = buf.get_access<access::mode::read_write>(cgh);
+  accessor<int, 1, access::mode::read_write, access::target::local> loc(
+      N, cgh);
+  accessor<barrier, 1, access::mode::read_write, access::target::local>
+      loc_barrier(2, cgh);
+  cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> item) {
+    size_t idx = item.get_local_linear_id();
+    loc[idx] = acc[idx];
+    if (idx <= 2) {
+      loc_barrier[idx].initialize(N);
+    }
+    item.barrier(access::fence_space::local_space);
+    for (int i = 0; i < N; i++) {
+      int val = loc[idx];
+      barrier::arrival_token arr = loc_barrier[0].arrive();
+      val += 1;
+      int dst_idx = (idx + 1) % N;
+      loc_barrier[0].wait(arr);
+      loc[dst_idx] = val;
+      loc_barrier[1].wait(loc_barrier[1].arrive());
+    }
+    acc[idx] = loc[idx];
+  });
+});
+----
+
+[source, c++]
+----
+using namespace sycl;
+using namespace sycl::ext::oneapi::cuda;
+
+[...]
+
+q.submit([&](handler &cgh) {
+  auto acc = buf.get_access<access::mode::read_write>(cgh);
+  accessor<int, 1, access::mode::read_write, access::target::local> loc(
+      N, cgh);
+  accessor<barrier, 1, access::mode::read_write, access::target::local>
+      loc_barrier(2, cgh);
+  cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> item) {
+    size_t idx = item.get_local_linear_id();
+    if (idx == 0) {
+      loc_barrier[0].initialize(2*N);
+    }
+    item.barrier(access::fence_space::local_space);
+    item.async_work_group_copy(loc.get_pointer(), data_acc.get_pointer(),
+                                N);
+    loc_barrier->arrive_copy_async_no_inc();
+
+    [... do some other work ...]
+
+    loc_barrier->arrive_and_wait();
+
+    [... use copied data ...]
+
+  });
+});
+----
+
+[source, c++]
+----
+using namespace sycl;
+using namespace sycl::ext::oneapi::cuda;
+
+[...]
+
+q.submit([&](handler &cgh) {
+  auto acc = buf.get_access<access::mode::read_write>(cgh);
+  accessor<int, 1, access::mode::read_write, access::target::local> loc(
+      N, cgh);
+  accessor<barrier, 1, access::mode::read_write, access::target::local>
+      loc_barrier(2, cgh);
+  cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> item) {
+    size_t idx = item.get_local_linear_id();
+    loc[idx] = acc[idx];
+    if (idx <= 2) {
+      loc_barrier[idx].initialize(N/2);
+    }
+    item.barrier(access::fence_space::local_space);
+    for(int i=0; i<N; i++){
+      if(idx > i){
+
+        [...]
+
+        barrier::arrival_token arr = loc_barrier->arrive();
+
+        [...]
+        
+        loc_barrier->wait(arr);
+
+        [...]
+
+      }
+    } else if(idx == i){
+
+        [...]
+
+        loc_barrier->arrive_and_drop();
+        break;
+    }
+  });
+});
 ----
 
 == Issues
