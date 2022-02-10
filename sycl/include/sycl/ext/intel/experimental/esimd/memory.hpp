@@ -1283,17 +1283,13 @@ constexpr int get_lsc_block_2d_data_size() {
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @param pred is predicates.
 /// @return is a vector of type T and size N * NElts
 ///
 template <typename T, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
+          lsc_data_size DS = lsc_data_size::default_size, int N>
 __ESIMD_API simd<T, N * NElts> lsc_slm_gather(simd<uint32_t, N> offsets,
                                               simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
@@ -1304,8 +1300,9 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_gather(simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  return __esimd_lsc_load_slm<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                              _Transposed, N>(pred.data(), offsets.data());
+  return __esimd_lsc_load_slm<T, cache_hint::none, cache_hint::none,
+                              _AddressScale, _ImmOffset, _DS, _VS, _Transposed,
+                              N>(pred.data(), offsets.data());
 }
 
 /// Transposed SLM gather with 1 channel.
@@ -1318,14 +1315,11 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_gather(simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
 /// @param offset is the zero-based offset for SLM buffer in bytes.
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API simd<T, NElts> lsc_slm_block_load(uint32_t offset) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -1338,8 +1332,9 @@ __ESIMD_API simd<T, NElts> lsc_slm_block_load(uint32_t offset) {
   constexpr int N = 1;
   simd_mask<N> pred = 1;
   simd<uint32_t, N> offsets = offset;
-  return __esimd_lsc_load_slm<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                              _Transposed, N>(pred.data(), offsets.data());
+  return __esimd_lsc_load_slm<T, cache_hint::none, cache_hint::none,
+                              _AddressScale, _ImmOffset, _DS, _VS, _Transposed,
+                              N>(pred.data(), offsets.data());
 }
 
 /// Accessor-based gather.
@@ -1672,17 +1667,13 @@ __ESIMD_API void lsc_prefetch(const T *p) {
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @param vals is values to store.
 /// @param pred is predicates.
 ///
 template <typename T, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
+          lsc_data_size DS = lsc_data_size::default_size, int N>
 __ESIMD_API void lsc_slm_scatter(simd<uint32_t, N> offsets,
                                  simd<T, N * NElts> vals,
                                  simd_mask<N> pred = 1) {
@@ -1694,9 +1685,9 @@ __ESIMD_API void lsc_slm_scatter(simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  __esimd_lsc_store_slm<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                        _Transposed, N>(pred.data(), offsets.data(),
-                                        vals.data());
+  __esimd_lsc_store_slm<T, cache_hint::none, cache_hint::none, _AddressScale,
+                        _ImmOffset, _DS, _VS, _Transposed, N>(
+      pred.data(), offsets.data(), vals.data());
 }
 
 /// Transposed SLM scatter with 1 channel.
@@ -1708,14 +1699,11 @@ __ESIMD_API void lsc_slm_scatter(simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
 /// @param offset is the zero-based offset for SLM buffer in bytes.
 /// @param vals is values to store.
 ///
 template <typename T, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API void lsc_slm_block_store(uint32_t offset, simd<T, NElts> vals) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -1728,9 +1716,9 @@ __ESIMD_API void lsc_slm_block_store(uint32_t offset, simd<T, NElts> vals) {
   constexpr int N = 1;
   simd_mask<N> pred = 1;
   simd<uint32_t, N> offsets = offset;
-  __esimd_lsc_store_slm<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                        _Transposed, N>(pred.data(), offsets.data(),
-                                        vals.data());
+  __esimd_lsc_store_slm<T, cache_hint::none, cache_hint::none, _AddressScale,
+                        _ImmOffset, _DS, _VS, _Transposed, N>(
+      pred.data(), offsets.data(), vals.data());
 }
 
 /// Accessor-based scatter.
@@ -2061,16 +2049,12 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
 /// @tparam Op is operation type.
 /// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
 template <typename T, atomic_op Op, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
+          lsc_data_size DS = lsc_data_size::default_size, int N>
 __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
                                                      simd_mask<N> pred) {
   detail::check_lsc_vector_size<NElts>();
@@ -2083,9 +2067,9 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-  return __esimd_lsc_xatomic_slm_0<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(pred.data(),
-                                                             offsets.data());
+  return __esimd_lsc_xatomic_slm_0<T, _Op, cache_hint::none, cache_hint::none,
+                                   _AddressScale, _ImmOffset, _DS, _VS,
+                                   _Transposed, N>(pred.data(), offsets.data());
 }
 
 /// SLM atomic.
@@ -2096,17 +2080,13 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 /// @tparam Op is operation type.
 /// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param pred is predicates.
 ///
 template <typename T, atomic_op Op, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
+          lsc_data_size DS = lsc_data_size::default_size, int N>
 __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
                                                      simd<T, N * NElts> src0,
                                                      simd_mask<N> pred) {
@@ -2120,9 +2100,10 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-  return __esimd_lsc_xatomic_slm_1<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), src0.data());
+  return __esimd_lsc_xatomic_slm_1<T, _Op, cache_hint::none, cache_hint::none,
+                                   _AddressScale, _ImmOffset, _DS, _VS,
+                                   _Transposed, N>(pred.data(), offsets.data(),
+                                                   src0.data());
 }
 
 /// SLM atomic.
@@ -2133,8 +2114,6 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 /// @tparam Op is operation type.
 /// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
@@ -2142,9 +2121,7 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 /// @param pred is predicates.
 ///
 template <typename T, atomic_op Op, uint8_t NElts = 1,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N>
+          lsc_data_size DS = lsc_data_size::default_size, int N>
 __ESIMD_API simd<T, N * NElts>
 lsc_slm_atomic_update(simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
                       simd<T, N * NElts> src1, simd_mask<N> pred) {
@@ -2158,9 +2135,10 @@ lsc_slm_atomic_update(simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-  return __esimd_lsc_xatomic_slm_2<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), src0.data(), src1.data());
+  return __esimd_lsc_xatomic_slm_2<T, _Op, cache_hint::none, cache_hint::none,
+                                   _AddressScale, _ImmOffset, _DS, _VS,
+                                   _Transposed, N>(pred.data(), offsets.data(),
+                                                   src0.data(), src1.data());
 }
 
 /// Accessor-based atomic.
