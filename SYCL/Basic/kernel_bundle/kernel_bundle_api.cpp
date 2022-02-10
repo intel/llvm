@@ -231,9 +231,6 @@ int main() {
     sycl::kernel_bundle KernelBundleExecutable =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev},
                                                                 {Kernel3ID});
-    // 3 SPIRV images - 3 calls to piextDeviceSelectBinary are expected
-    // CHECK:---> piextDeviceSelectBinary
-    // CHECK:---> piextDeviceSelectBinary
     // CHECK:---> piextDeviceSelectBinary
     // CHECK:---> piProgramCreate
     // CHECK-NEXT: <unknown> : {{.*}}
