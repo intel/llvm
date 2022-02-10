@@ -998,7 +998,7 @@ __esimd_lsc_load_bti(__SEIEED::simd_mask_storage_t<N> pred,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Flat-address gather.
+/// USM pointer gather.
 /// Supported platforms: DG2, PVC
 ///
 /// Collects elements located at specified address and returns them
@@ -1066,7 +1066,7 @@ __esimd_lsc_prefetch_bti(__SEIEED::simd_mask_storage_t<N> pred,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Flat-address prefetch gather.
+/// USM pointer prefetch gather.
 /// Supported platforms: DG2, PVC
 ///
 /// Prefetches elements located at specified address.
@@ -1166,7 +1166,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Flat-address scatter.
+/// USM pointer scatter.
 /// Supported platforms: DG2, PVC
 ///
 /// Scatters elements to specific address.
@@ -1199,7 +1199,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// 2D flat-address block load.
+/// 2D USM pointer block load.
 /// Supported platforms: PVC
 ///
 /// Collects elements located at specified address and returns them
@@ -1246,7 +1246,7 @@ __esimd_lsc_load2d_stateless(__SEIEED::simd_mask_storage_t<N> Pred,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// 2D flat-address block prefetch.
+/// 2D USM pointer block prefetch.
 /// Supported platforms: PVC
 ///
 /// Prefetches elements located at specified address.
@@ -1285,7 +1285,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// 2D flat-address block store.
+/// 2D USM pointer block store.
 /// Supported platforms: PVC
 ///
 /// Stores elements at specified address.
@@ -1542,7 +1542,7 @@ __esimd_lsc_xatomic_bti_2(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Flat-address atomic.
+/// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
@@ -1573,7 +1573,7 @@ __esimd_lsc_xatomic_stateless_0(__SEIEED::simd_mask_storage_t<N> pred,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Flat-address atomic.
+/// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
@@ -1607,7 +1607,7 @@ __esimd_lsc_xatomic_stateless_1(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Flat-address atomic.
+/// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.

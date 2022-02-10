@@ -1429,7 +1429,7 @@ __ESIMD_API
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-/// Flat-address gather.
+/// USM pointer gather.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
@@ -1468,7 +1468,7 @@ __ESIMD_API simd<T, N * NElts> lsc_gather(const T *p, simd<uint32_t, N> offsets,
                                                          addrs.data());
 }
 
-/// Flat-address transposed gather with 1 channel.
+/// USM pointer transposed gather with 1 channel.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
@@ -1588,7 +1588,7 @@ lsc_prefetch(AccessorTy acc, uint32_t offset) {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-/// Flat-address prefetch gather.
+/// USM pointer prefetch gather.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
@@ -1625,7 +1625,7 @@ __ESIMD_API void lsc_prefetch(const T *p, simd<uint32_t, N> offsets,
                                                       addrs.data());
 }
 
-/// Flat-address prefetch transposed gather with 1 channel.
+/// USM pointer prefetch transposed gather with 1 channel.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
@@ -1811,7 +1811,7 @@ lsc_block_store(AccessorTy acc, uint32_t offset, simd<T, NElts> vals) {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-/// Flat-address scatter.
+/// USM pointer scatter.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
 ///
@@ -1849,7 +1849,7 @@ __ESIMD_API void lsc_scatter(T *p, simd<uint32_t, N> offsets,
                                               vals.data());
 }
 
-/// Flat-address transposed scatter with 1 channel.
+/// USM pointer transposed scatter with 1 channel.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
 ///
@@ -1883,7 +1883,7 @@ __ESIMD_API void lsc_block_store(T *p, simd<T, NElts> vals) {
                                               vals.data());
 }
 
-/// 2D flat-address block load.
+/// 2D USM pointer block load.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
 ///
@@ -1948,7 +1948,7 @@ __ESIMD_API simd<T, N> lsc_load2d(const T *Ptr, unsigned SurfaceWidth,
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
 }
 
-/// 2D flat-address block prefetch.
+/// 2D USM pointer block prefetch.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
 ///
@@ -1992,7 +1992,7 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
 }
 
-/// 2D flat-address block store.
+/// 2D USM pointer block store.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_store_block2d.ugm
 ///
@@ -2283,7 +2283,7 @@ __ESIMD_API
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-/// Flat-address atomic.
+/// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
@@ -2321,7 +2321,7 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred) {
       pred.data(), addrs.data());
 }
 
-/// Flat-address atomic.
+/// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
@@ -2361,7 +2361,7 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
       pred.data(), addrs.data(), src0.data());
 }
 
-/// Flat-address atomic.
+/// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///

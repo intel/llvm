@@ -225,9 +225,9 @@ enum class lsc_data_size : uint8_t {
   u16 = 2,
   u32 = 3,
   u64 = 4,
-  u8u32 = 5,   // load 8b, zero extend to 32b; store the opposite
-  u16u32 = 6,  // load 16b, zero extend to 32b; store the opposite
-  u16u32h = 7, // load 16b into high 16 of each 32b; store the high 16
+  u8u32 = 5,   /// load 8b, zero extend to 32b; store the opposite
+  u16u32 = 6,  /// load 16b, zero extend to 32b; store the opposite
+  u16u32h = 7, /// load 16b into high 16 of each 32b; store the high 16
 };
 
 namespace detail {
