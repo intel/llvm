@@ -4306,8 +4306,14 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   // check now for unresolved symbols.
   ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
   if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+    // remove ZeModule that is associated with the failed program
+    ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+    ZeModule = nullptr;
     return PI_BUILD_PROGRAM_FAILURE;
   } else if (ZeResult != ZE_RESULT_SUCCESS) {
+    // remove ZeModule that is associated with the failed program
+    ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+    ZeModule = nullptr;
     return mapError(ZeResult);
   }
 
