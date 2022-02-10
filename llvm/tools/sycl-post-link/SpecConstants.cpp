@@ -306,8 +306,8 @@ void collectCompositeElementsInfoRecursive(
 void collectCompositeElementsDefaultValuesRecursive(
     const Module &M, Constant *C, unsigned &Offset,
     std::vector<char> &DefaultValues) {
-  if (isa<ConstantAggregateZero>(C)) {
-    // This code is generic for zeroinitializer for both arrays and structs
+  if (isa<ConstantAggregateZero>(C) || isa<UndefValue>(C)) {
+    // This code is generic for both arrays and structs
     size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
     std::fill_n(std::back_inserter(DefaultValues), NumBytes, 0);
     Offset += NumBytes;
@@ -506,6 +506,11 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
                               Instruction *InsertBefore,
                               Constant *DefaultValue) {
+  // Convert any undef default values into a zero
+  if (isa_and_nonnull<UndefValue>(DefaultValue))
+    DefaultValue =
+        ConstantInt::get(Type::getInt8Ty(DefaultValue->getContext()), 0);
+
   Function *F = InsertBefore->getFunction();
   // Generate arguments needed by the SPIRV version of the intrinsic
   // - integer constant ID:
