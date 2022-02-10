@@ -445,7 +445,17 @@ typedef enum {
 
 typedef enum {
   // Device-specific value opaque in PI API.
-  PI_MEM_ADVISE_UNKNOWN
+  PI_MEM_ADVICE_UNKNOWN,
+  PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY = 101,
+  PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY = 102,
+  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION = 103,
+  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION = 104,
+  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY = 105,
+  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY = 106,
+  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST = 107,
+  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 108,
+  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 109,
+  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 110,
 } _pi_mem_advice;
 
 typedef enum {
@@ -741,6 +751,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
+/// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
