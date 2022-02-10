@@ -32,8 +32,8 @@ extern "C" {
 // Forward declarartions.
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
 static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
-static pi_result EventCreate(pi_context Context, bool HostVisible,
-                             pi_event *RetEvent);
+static pi_result EventCreate(pi_context Context, pi_queue Queue,
+                             bool HostVisible, pi_event *RetEvent);
 }
 
 namespace {
@@ -428,20 +428,13 @@ pi_result _pi_mem::removeMapping(void *MappedTo, Mapping &MapInfo) {
 
 pi_result
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
-                                            size_t &Index, bool HostVisible) {
+                                            size_t &Index, bool HostVisible,
+                                            bool ProfilingEnabled) {
   // Lock while updating event pool machinery.
   std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
 
-  // Setup for host-visible pool as needed.
-  ze_event_pool_flag_t ZePoolFlag = {};
-  std::list<ze_event_pool_handle_t> *ZePoolCache;
-
-  if (HostVisible) {
-    ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
-    ZePoolCache = &ZeHostVisibleEventPoolCache;
-  } else {
-    ZePoolCache = &ZeDeviceScopeEventPoolCache;
-  }
+  std::list<ze_event_pool_handle_t> *ZePoolCache =
+      getZeEventPoolCache(HostVisible, ProfilingEnabled);
 
   // Remove full pool from the cache.
   if (!ZePoolCache->empty()) {
@@ -460,7 +453,13 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   if (*ZePool == nullptr) {
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
-    ZeEventPoolDesc.flags = ZePoolFlag | ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    ZeEventPoolDesc.flags = 0;
+    if (HostVisible) {
+      ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
+    }
+    if (ProfilingEnabled) {
+      ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    }
 
     std::vector<ze_device_handle_t> ZeDevices;
     std::for_each(Devices.begin(), Devices.end(),
@@ -486,12 +485,8 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
     return PI_SUCCESS;
   }
 
-  std::list<ze_event_pool_handle_t> *ZePoolCache;
-  if (Event->IsHostVisible()) {
-    ZePoolCache = &ZeHostVisibleEventPoolCache;
-  } else {
-    ZePoolCache = &ZeDeviceScopeEventPoolCache;
-  }
+  std::list<ze_event_pool_handle_t> *ZePoolCache =
+      getZeEventPoolCache(Event->isHostVisible(), Event->isProfilingEnabled());
 
   // Put the empty pool to the cache of the pools.
   std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
@@ -615,9 +610,9 @@ inline static pi_result
 createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
                              pi_command_type CommandType,
                              pi_command_list_ptr_t CommandList) {
-  pi_result Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+
+  PI_CALL(
+      EventCreate(Queue->Context, Queue, EventsScope == AllHostVisible, Event));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -806,13 +801,11 @@ pi_result _pi_context::finalize() {
   // For example, event pool caches would be still alive.
   {
     std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
-    for (auto &ZePool : ZeDeviceScopeEventPoolCache)
-      ZE_CALL(zeEventPoolDestroy, (ZePool));
-    for (auto &ZePool : ZeHostVisibleEventPoolCache)
-      ZE_CALL(zeEventPoolDestroy, (ZePool));
-
-    ZeDeviceScopeEventPoolCache.clear();
-    ZeHostVisibleEventPoolCache.clear();
+    for (auto &ZePoolCache : ZeEventPoolCache) {
+      for (auto &ZePool : ZePoolCache)
+        ZE_CALL(zeEventPoolDestroy, (ZePool));
+      ZePoolCache.clear();
+    }
   }
 
   // Destroy the command list used for initializations
@@ -841,8 +834,7 @@ pi_result _pi_context::finalize() {
 
 bool _pi_queue::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
-  return ((this->PiQueueProperties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
-          0);
+  return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
 }
 
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
@@ -1032,11 +1024,10 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
 _pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
-                     bool OwnZeCommandQueue,
-                     pi_queue_properties PiQueueProperties)
+                     bool OwnZeCommandQueue, pi_queue_properties Properties)
     : ZeComputeCommandQueue{Queue}, ZeCopyCommandQueues{CopyQueues},
       Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
-      PiQueueProperties(PiQueueProperties) {
+      Properties(Properties) {
   ComputeCommandBatch.OpenCommandList = CommandListMap.end();
   CopyCommandBatch.OpenCommandList = CommandListMap.end();
   ComputeCommandBatch.QueueBatchSize =
@@ -1350,7 +1341,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // Create a "proxy" host-visible event.
     //
     pi_event HostVisibleEvent;
-    PI_CALL(EventCreate(Context, true, &HostVisibleEvent));
+    PI_CALL(EventCreate(Context, this, true, &HostVisibleEvent));
 
     // Update each command's event in the command-list to "see" this
     // proxy event as a host-visible counterpart.
@@ -4955,7 +4946,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Create a "proxy" host-visible event on demand.
-    PI_CALL(EventCreate(Context, true, &HostVisibleEvent));
+    PI_CALL(EventCreate(Context, Queue, true, &HostVisibleEvent));
     HostVisibleEvent->CleanedUp = true;
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -4988,12 +4979,21 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   return PI_SUCCESS;
 }
 
-static pi_result EventCreate(pi_context Context, bool HostVisible,
-                             pi_event *RetEvent) {
+// Helper function for creating a PI event.
+// The "Queue" argument specifies the PI queue where a command is submitted.
+// The "HostVisible" argument specifies if event needs to be allocated from
+// a host-visible pool.
+//
+static pi_result EventCreate(pi_context Context, pi_queue Queue,
+                             bool HostVisible, pi_event *RetEvent) {
+
+  bool ProfilingEnabled =
+      !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+
   size_t Index = 0;
   ze_event_pool_handle_t ZeEventPool = {};
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index,
-                                                         HostVisible))
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+          ZeEventPool, Index, HostVisible, ProfilingEnabled))
     return Res;
 
   ze_event_handle_t ZeEvent;
@@ -5034,8 +5034,9 @@ static pi_result EventCreate(pi_context Context, bool HostVisible,
   return PI_SUCCESS;
 }
 
+// Exteral PI API entry
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
-  return EventCreate(Context, EventsScope == AllHostVisible, RetEvent);
+  return EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -5100,6 +5101,11 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
                                   size_t *ParamValueSizeRet) {
 
   PI_ASSERT(Event, PI_INVALID_EVENT);
+
+  if (Event->Queue &&
+      (Event->Queue->Properties & PI_QUEUE_PROFILING_ENABLE) == 0) {
+    return PI_PROFILING_INFO_NOT_AVAILABLE;
+  }
 
   uint64_t ZeTimerResolution =
       Event->Queue
