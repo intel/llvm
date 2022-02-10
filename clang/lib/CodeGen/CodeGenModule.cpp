@@ -4934,11 +4934,11 @@ CodeGenModule::getFilteredValidAttributeNameValuePairs(Expr **Exprs,
         getValidAttributeNameAsString(AttributeExprs[I], Context);
     assert(NameStr && "Attribute name is not a valid string.");
 
-    // If attribute name is empty then skip attribute
+    // If attribute name is empty, then skip attribute.
     if (NameStr->empty())
       continue;
 
-    // If attribute name is not in the filter we skip it
+    // If attribute name is not in the filter, we skip it.
     if (AttributeNameFilter && !AttributeNameFilter->contains(*NameStr))
       continue;
 
@@ -5086,7 +5086,7 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   if (getLangOpts().SYCLIsDevice)
     addGlobalIntelFPGAAnnotation(D, GV);
 
-  // Add IR attributes if add_ir_attribute_global_variable is attached to type
+  // Add IR attributes if add_ir_attribute_global_variable is attached to type.
   if (getLangOpts().SYCLIsDevice) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
     if (RD && RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())

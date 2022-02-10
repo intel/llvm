@@ -2022,7 +2022,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
 
-      // Propagate add_ir_attributes_kernel_parameter attribute
+      // Propagate add_ir_attributes_kernel_parameter attribute.
       if (const auto *AddIRAttr =
               Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
         Params.back()->addAttr(AddIRAttr->clone(SemaRef.getASTContext()));
