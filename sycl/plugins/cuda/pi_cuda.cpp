@@ -4803,6 +4803,13 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
+  // Ignore mem advice if memory is not managed
+  unsigned int is_managed;
+  PI_CHECK_ERROR(cuPointerGetAttribute(
+      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
+  if (!is_managed)
+    return PI_SUCCESS;
+
   try {
     ScopedContext active(queue->get_context());
 
@@ -4834,6 +4841,17 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                          (PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST -
                           PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION)),
           CU_DEVICE_CPU));
+      break;
+    case PI_MEM_ADVISE_RESET:
+      PI_CHECK_ERROR(cuMemAdvise((CUdeviceptr)ptr, length,
+                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY,
+                                 queue->get_context()->get_device()->get()));
+      PI_CHECK_ERROR(cuMemAdvise((CUdeviceptr)ptr, length,
+                                 CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION,
+                                 queue->get_context()->get_device()->get()));
+      PI_CHECK_ERROR(cuMemAdvise((CUdeviceptr)ptr, length,
+                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY,
+                                 queue->get_context()->get_device()->get()));
       break;
     default:
       cl::sycl::detail::pi::die("Unknown advice");
