@@ -186,7 +186,7 @@ enum class atomic_op : uint8_t {
 };
 
 /// The scope that lsc_fence operation should apply to
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 enum class lsc_scope : uint8_t {
   group = 0,  /// flush out to the threadgroup's scope
   local = 1,  /// flush out to the local scope
@@ -198,7 +198,7 @@ enum class lsc_scope : uint8_t {
 };
 
 /// The lsc_fence operation to apply to caches
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 enum class lsc_fence_op : uint8_t {
   none = 0,       /// no operation
   evict = 1,      /// dirty lines evicted and invalidated from L1
@@ -210,7 +210,7 @@ enum class lsc_fence_op : uint8_t {
 };
 
 /// The specific LSC shared function to fence with lsc_fence
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 enum class lsc_memory_kind : uint8_t {
   untyped_global = 0,         /// untyped global memory
   untyped_global_low_pri = 1, /// low-priority untyped global memory

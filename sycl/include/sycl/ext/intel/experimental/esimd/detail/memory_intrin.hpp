@@ -928,7 +928,7 @@ __ESIMD_INTRIN void __esimd_raw_send2_noresult(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// SLM gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Collects elements located at slm and returns them
 /// as a single \ref simd object.
@@ -962,7 +962,7 @@ __esimd_lsc_load_slm(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Surface-based gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Collects elements located at surface and returns them
 /// as a single \ref simd object.
@@ -999,7 +999,7 @@ __esimd_lsc_load_bti(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Flat-address gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Collects elements located at specified address and returns them
 /// as a single \ref simd object.
@@ -1033,7 +1033,7 @@ __esimd_lsc_load_stateless(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Surface-based prefetch gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Prefetches elements located at surface.
 ///
@@ -1067,7 +1067,7 @@ __esimd_lsc_prefetch_bti(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Flat-address prefetch gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Prefetches elements located at specified address.
 ///
@@ -1098,7 +1098,7 @@ __esimd_lsc_prefetch_stateless(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// SLM scatter.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Scatters elements located to slm.
 ///
@@ -1131,7 +1131,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_slm(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Surface-based scatter.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Scatters elements to surface.
 ///
@@ -1167,7 +1167,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Flat-address scatter.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Scatters elements to specific address.
 ///
@@ -1200,7 +1200,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// 2D flat-address block load.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Collects elements located at specified address and returns them
 /// as a single \ref simd object.
@@ -1247,7 +1247,7 @@ __esimd_lsc_load2d_stateless(__SEIEED::simd_mask_storage_t<N> Pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// 2D flat-address block prefetch.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Prefetches elements located at specified address.
 ///
@@ -1286,7 +1286,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// 2D flat-address block store.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// Stores elements at specified address.
 ///
@@ -1332,7 +1332,7 @@ __esimd_lsc_store2d_stateless(__SEIEED::simd_mask_storage_t<N> Pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// SLM atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1363,7 +1363,7 @@ __esimd_lsc_xatomic_slm_0(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// SLM atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1397,7 +1397,7 @@ __esimd_lsc_xatomic_slm_1(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// SLM atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1433,7 +1433,7 @@ __esimd_lsc_xatomic_slm_2(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Accessor-based atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1467,7 +1467,7 @@ __esimd_lsc_xatomic_bti_0(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Accessor-based atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1504,7 +1504,7 @@ __esimd_lsc_xatomic_bti_1(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Accessor-based atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1543,7 +1543,7 @@ __esimd_lsc_xatomic_bti_2(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Flat-address atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1574,7 +1574,7 @@ __esimd_lsc_xatomic_stateless_0(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Flat-address atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1608,7 +1608,7 @@ __esimd_lsc_xatomic_stateless_1(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Flat-address atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Ty is element type.
 /// @tparam Op is operation type.
@@ -1644,7 +1644,7 @@ __esimd_lsc_xatomic_stateless_2(
 #endif // __SYCL_DEVICE_ONLY__
 
 /// Memory fence.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Kind is the Sfid shaded function.
 /// @tparam FenceOp is the fence operation.

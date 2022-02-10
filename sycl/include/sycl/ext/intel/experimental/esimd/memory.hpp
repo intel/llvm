@@ -1274,7 +1274,7 @@ constexpr int get_lsc_block_2d_data_size() {
 } // namespace detail
 
 /// SLM gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.slm
 ///
 /// Collects elements located at slm and returns them
@@ -1309,7 +1309,7 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_gather(simd<uint32_t, N> offsets,
 }
 
 /// Transposed SLM gather with 1 channel.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.slm
 ///
 /// Collects elements located at slm and returns them
@@ -1343,7 +1343,7 @@ __ESIMD_API simd<T, NElts> lsc_slm_block_load(uint32_t offset) {
 }
 
 /// Accessor-based gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
 /// Collects elements located at surface and returns them
@@ -1389,7 +1389,7 @@ __ESIMD_API
 }
 
 /// Accessor-based transposed gather with 1 channel.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
 /// Collects elements located at surface and returns them
@@ -1435,7 +1435,7 @@ __ESIMD_API
 }
 
 /// Flat-address gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
 /// Collects elements located at specified address and returns them
@@ -1474,7 +1474,7 @@ __ESIMD_API simd<T, N * NElts> lsc_gather(const T *p, simd<uint32_t, N> offsets,
 }
 
 /// Flat-address transposed gather with 1 channel.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
 /// Collects elements located at specified address and returns them
@@ -1509,7 +1509,7 @@ __ESIMD_API simd<T, NElts> lsc_block_load(const T *p) {
 }
 
 /// Accessor-based prefetch gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
 /// Prefetches elements located at surface.
@@ -1551,7 +1551,7 @@ lsc_prefetch(AccessorTy acc, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
 }
 
 /// Accessor-based transposed prefetch gather with 1 channel.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
 /// Prefetches elements located at surface.
@@ -1594,7 +1594,7 @@ lsc_prefetch(AccessorTy acc, uint32_t offset) {
 }
 
 /// Flat-address prefetch gather.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
 /// Prefetches elements located at specified address.
@@ -1631,7 +1631,7 @@ __ESIMD_API void lsc_prefetch(const T *p, simd<uint32_t, N> offsets,
 }
 
 /// Flat-address prefetch transposed gather with 1 channel.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
 ///
 /// Prefetches elements located at specified address.
@@ -1664,7 +1664,7 @@ __ESIMD_API void lsc_prefetch(const T *p) {
 }
 
 /// SLM scatter.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.slm
 ///
 /// Scatters elements located to slm.
@@ -1700,7 +1700,7 @@ __ESIMD_API void lsc_slm_scatter(simd<uint32_t, N> offsets,
 }
 
 /// Transposed SLM scatter with 1 channel.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.slm
 ///
 /// Scatters elements located to slm.
@@ -1734,7 +1734,7 @@ __ESIMD_API void lsc_slm_block_store(uint32_t offset, simd<T, NElts> vals) {
 }
 
 /// Accessor-based scatter.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to surface.
@@ -1779,7 +1779,7 @@ lsc_scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N * NElts> vals,
 }
 
 /// Accessor-based transposed scatter with 1 channel.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to surface.
@@ -1824,7 +1824,7 @@ lsc_block_store(AccessorTy acc, uint32_t offset, simd<T, NElts> vals) {
 }
 
 /// Flat-address scatter.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to specific address.
@@ -1862,7 +1862,7 @@ __ESIMD_API void lsc_scatter(T *p, simd<uint32_t, N> offsets,
 }
 
 /// Flat-address transposed scatter with 1 channel.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store.ugm
 ///
 /// Scatters elements to specific address.
@@ -1896,7 +1896,7 @@ __ESIMD_API void lsc_block_store(T *p, simd<T, NElts> vals) {
 }
 
 /// 2D flat-address block load.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load_block2d.ugm
 ///
 /// Collects elements located at specified address and returns them
@@ -1961,7 +1961,7 @@ __ESIMD_API simd<T, N> lsc_load2d(const T *Ptr, unsigned SurfaceWidth,
 }
 
 /// 2D flat-address block prefetch.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load_block2d.ugm
 ///
 /// Prefetches elements located at specified address.
@@ -2005,7 +2005,7 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
 }
 
 /// 2D flat-address block store.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_store_block2d.ugm
 ///
 /// Stores elements at specified address.
@@ -2054,7 +2054,7 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
 }
 
 /// SLM atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.slm
 ///
 /// @tparam T is element type.
@@ -2089,7 +2089,7 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 }
 
 /// SLM atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.slm
 ///
 /// @tparam T is element type.
@@ -2126,7 +2126,7 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 }
 
 /// SLM atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.slm
 ///
 /// @tparam T is element type.
@@ -2164,7 +2164,7 @@ lsc_slm_atomic_update(simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
 }
 
 /// Accessor-based atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
 /// @tparam T is element type.
@@ -2210,7 +2210,7 @@ __ESIMD_API
 }
 
 /// Accessor-based atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
 /// @tparam T is element type.
@@ -2257,7 +2257,7 @@ __ESIMD_API
 }
 
 /// Accessor-based atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
 /// @tparam T is element type.
@@ -2306,7 +2306,7 @@ __ESIMD_API
 }
 
 /// Flat-address atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
 /// @tparam T is element type.
@@ -2344,7 +2344,7 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred) {
 }
 
 /// Flat-address atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
 /// @tparam T is element type.
@@ -2384,7 +2384,7 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
 }
 
 /// Flat-address atomic.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
 /// @tparam T is element type.
@@ -2425,7 +2425,7 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
 }
 
 /// Memory fence.
-/// Supported platforms: XeHP_SDV, DG2, PVC
+/// Supported platforms: DG2, PVC
 ///
 /// @tparam Kind is the Sfid shaded function.
 /// @tparam FenceOp is the fence operation.
