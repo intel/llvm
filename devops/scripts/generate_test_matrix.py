@@ -11,7 +11,7 @@ with open(sys.argv[1]) as f:
     lts_config = []
 
     for c in config['lts']:
-        if c.config in enabled_lts_configs:
+        if c['config'] in enabled_lts_configs:
             lts_config.append(c)
 
     lts_str = json.dumps(lts_config)
