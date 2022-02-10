@@ -506,11 +506,6 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
                               Instruction *InsertBefore,
                               Constant *DefaultValue) {
-  // Convert any undef default values into a zero
-  if (isa_and_nonnull<UndefValue>(DefaultValue))
-    DefaultValue =
-        ConstantInt::get(Type::getInt8Ty(DefaultValue->getContext()), 0);
-
   Function *F = InsertBefore->getFunction();
   // Generate arguments needed by the SPIRV version of the intrinsic
   // - integer constant ID:
@@ -525,13 +520,9 @@ Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
 }
 
 Instruction *emitSpecConstantComposite(Type *Ty,
-                                       ArrayRef<Instruction *> Elements,
+                                       ArrayRef<Value *> Elements,
                                        Instruction *InsertBefore) {
-  SmallVector<Value *, 8> Args(Elements.size());
-  for (unsigned I = 0; I < Elements.size(); ++I) {
-    Args[I] = cast<Value>(Elements[I]);
-  }
-  return emitCall(Ty, SPIRV_GET_SPEC_CONST_COMPOSITE, Args, InsertBefore);
+  return emitCall(Ty, SPIRV_GET_SPEC_CONST_COMPOSITE, Elements, InsertBefore);
 }
 
 /// For specified specialization constant type emits LLVM IR which is required
@@ -570,16 +561,24 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
     return emitSpecConstant(IDs[Index++], Ty, InsertBefore, DefaultValue);
   }
 
-  SmallVector<Instruction *, 8> Elements;
+  SmallVector<Value *, 8> Elements;
   auto LoopIteration = [&](Type *Ty, unsigned LocalIndex) {
     // Select corresponding element of the default value if it was provided
     Constant *Def =
         DefaultValue ? DefaultValue->getAggregateElement(LocalIndex) : nullptr;
-    Elements.push_back(
-        emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index, Def));
+    if (isa_and_nonnull<UndefValue>(Def))
+      Elements.push_back(Def);
+    else
+      Elements.push_back(
+          emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index, Def));
   };
 
-  if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+  if (isa_and_nonnull<UndefValue>(DefaultValue)) {
+    // If the default value is a composite and has the value 'undef', we should
+    // not generate a bunch of __spirv_SpecConstant for its elements but
+    // pass it into __spirv_SpecConstantComposite as is.
+    Elements.push_back(DefaultValue);
+  } else if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       LoopIteration(ArrTy->getElementType(), I);
     }
