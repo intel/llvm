@@ -252,9 +252,9 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  wi_element &operator=(const T &rhs) {
+  template <typename T2> wi_element &operator=(const T2 &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    M.spvm = __spirv_VectorInsertDynamic(M.spvm, rhs, idx);
+    M.spvm = __spirv_VectorInsertDynamic(M.spvm, static_cast<T>(rhs), idx);
     return *this;
 #else
     (void)rhs;
