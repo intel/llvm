@@ -6,7 +6,7 @@ with open(sys.argv[1]) as f:
     config = json.load(f)
     inputs = json.loads(os.environ['GHA_INPUT'])
 
-    enabled_lts_configs = inputs['lts_config'].slit(";")
+    enabled_lts_configs = inputs['lts_config'].split(";")
 
     lts_config = []
 
