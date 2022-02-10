@@ -396,7 +396,7 @@ if find_executable('cmc'):
 
 # Device AOT compilation tools aren't part of the SYCL project,
 # so they need to be pre-installed on the machine
-aot_tools = ["ocloc", "aoc", "opencl-aot"]
+aot_tools = ["ocloc", "opencl-aot"]
 
 for aot_tool in aot_tools:
     if find_executable(aot_tool) is not None:
