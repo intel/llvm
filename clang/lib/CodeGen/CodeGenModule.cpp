@@ -4903,20 +4903,14 @@ CodeGenModule::getAttributeFilter(Expr **AttributeExprs,
   if (!AttributeExprsSize)
     return None;
 
-  const auto *FilterListCE = dyn_cast<ConstantExpr>(AttributeExprs[0]);
-  if (!FilterListCE || !FilterListCE->getSubExpr())
-    return None;
-
-  const auto *FilterListE = dyn_cast<InitListExpr>(FilterListCE->getSubExpr());
+  const auto *FilterListE = dyn_cast<InitListExpr>(AttributeExprs[0]);
   if (!FilterListE)
     return None;
 
   llvm::SmallSet<StringRef, 4> Filter;
   for (const Expr *FilterE : FilterListE->inits()) {
     const auto *FilterStrLit = dyn_cast<StringLiteral>(FilterE);
-    if (!FilterStrLit)
-      getDiags().Report(diag::err_sycl_add_ir_attribute_invalid_filter)
-          << Attribute;
+    assert(FilterStrLit && "Element in filter list is not a string literal.");
     Filter.insert(FilterStrLit->getString());
   }
   return Filter;
@@ -4938,9 +4932,7 @@ CodeGenModule::getFilteredValidAttributeNameValuePairs(Expr **Exprs,
   for (size_t I = 0; I < AttributeExprsSize / 2; ++I) {
     const Optional<std::string> NameStr =
         getValidAttributeNameAsString(AttributeExprs[I], Context);
-    if (!NameStr)
-      getDiags().Report(diag::err_sycl_add_ir_attribute_invalid_name)
-          << Attribute;
+    assert(NameStr && "Attribute name is not a valid string.");
 
     // If attribute name is empty then skip attribute
     if (NameStr->empty())
@@ -4952,9 +4944,7 @@ CodeGenModule::getFilteredValidAttributeNameValuePairs(Expr **Exprs,
 
     const Optional<std::string> ValueStr = getValidAttributeValueAsString(
         AttributeExprs[I + AttributeExprsSize / 2], Context);
-    if (!ValueStr)
-      getDiags().Report(diag::err_sycl_add_ir_attribute_invalid_value)
-          << Attribute;
+    assert(ValueStr && "Attribute value is not a valid type.");
 
     Attrs.push_back(std::pair<std::string, std::string>(*NameStr, *ValueStr));
   }

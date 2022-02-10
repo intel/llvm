@@ -7435,35 +7435,45 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
                                         Sema *S,
                                         const AttributeCommonInfo &CI) {
   ASTContext &Context = S->getASTContext();
+
+  // Check filter list if it the first argument.
+  bool HasFilter = ArgsSize && isa<InitListExpr>(ArgsBegin[0]);
+  if (HasFilter) {
+    const auto *FilterListE = cast<InitListExpr>(ArgsBegin[0]);
+    for (const Expr *FilterElemE : FilterListE->inits()) {
+      if (!isa<StringLiteral>(FilterElemE)) {
+        S->Diag(FilterElemE->getBeginLoc(),
+                diag::err_sycl_add_ir_attribute_invalid_filter)
+            << CI;
+        return true;
+      }
+    }
+  }
+
   llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
-  bool HasDependentExpr = false, HasFilter = false;
-  for (unsigned I = 0; I < ArgsSize; I++) {
+  bool HasDependentArg = false;
+  for (unsigned I = HasFilter; I < ArgsSize; I++) {
     Expr *&E = ArgsBegin[I];
     assert(E && "error are handled before");
+
+    bool Result = false;
+    if (isa<InitListExpr>(E)) {
+      S->Diag(E->getBeginLoc(), diag::err_add_ir_attr_filter_list_invalid_arg)
+          << CI;
+      return true;
+    }
+
     if (E->isValueDependent() || E->isTypeDependent()) {
-      HasDependentExpr = true;
+      HasDependentArg = true;
       continue;
     }
 
     Expr::EvalResult Eval;
-    Notes.clear();
     Eval.Diag = &Notes;
-
-    bool Result = false;
-    if (const auto *FilterListE = dyn_cast<InitListExpr>(E)) {
-      if (I != 0) {
-        S->Diag(E->getBeginLoc(), diag::err_add_ir_attr_filter_list_invalid_arg)
-            << CI;
-        return true;
-      }
-      HasFilter = true;
-      for (const Expr *FilterElemE : FilterListE->inits()) {
-        Result = FilterElemE->EvaluateAsConstantExpr(Eval, Context);
-        if (!Result)
-          break;
-      }
-    } else {
-      Result = E->EvaluateAsConstantExpr(Eval, Context);
+    Result = E->EvaluateAsConstantExpr(Eval, Context);
+    if (Result && Notes.empty()) {
+      assert(Eval.Val.hasValue());
+      E = ConstantExpr::Create(Context, E, Eval.Val);
     }
 
     if (!Result || !Notes.empty()) {
@@ -7473,14 +7483,46 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
         S->Diag(Note.first, Note.second);
       return true;
     }
-    assert(Eval.Val.hasValue());
-    E = ConstantExpr::Create(Context, E, Eval.Val);
   }
+
   // If there are no dependent expressions, check for expected number of args.
-  if (!HasDependentExpr && ArgsSize && (ArgsSize - HasFilter) & 1) {
+  if (!HasDependentArg && ArgsSize && (ArgsSize - HasFilter) & 1) {
     S->Diag(CI.getLoc(), diag::err_sycl_add_ir_attribute_must_have_pairs) << CI;
     return true;
   }
+
+  // If there are no dependent expressions, check argument types.
+  if (!HasDependentArg) {
+    unsigned NumIRAttrs = (ArgsSize - HasFilter) / 2;
+    for (unsigned I = HasFilter; I < ArgsSize; ++I) {
+      Expr *Arg = ArgsBegin[I];
+      QualType ArgType = Arg->getType();
+
+      // Strings and const char * are valid for all arguments.
+      if ((ArgType->isArrayType() || ArgType->isPointerType()) &&
+          ArgType->getPointeeOrArrayElementType()->isCharType())
+        continue;
+
+      // First half of the arguments can only be strings.
+      if (I < NumIRAttrs + HasFilter) {
+        S->Diag(Arg->getBeginLoc(),
+                diag::err_sycl_add_ir_attribute_invalid_name)
+            << CI;
+        return true;
+      }
+
+      // Check all attribute values for accepted types.
+      if (!ArgType->isNullPtrType() && !ArgType->isIntegerType() &&
+          !ArgType->isFloatingType() && !ArgType->isCharType() &&
+          !ArgType->isEnumeralType()) {
+        S->Diag(Arg->getBeginLoc(),
+                diag::err_sycl_add_ir_attribute_invalid_value)
+            << CI;
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 
