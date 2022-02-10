@@ -2060,7 +2060,7 @@ ESIMD_INLINE simd<RT, SZ> floor(const simd<float, SZ> src0, Sat sat = {}) {
 
 /// "Floor" operation, scalar version - alias of \c rndd.
 template <typename RT, class Sat = saturation_off_tag>
-ESIMD_INLINE RT floor(float, Sat sat = {}) {
+ESIMD_INLINE RT floor(float src0, Sat sat = {}) {
   return esimd::rndd<RT, 1U>(src0, sat)[0];
 }
 
@@ -2072,7 +2072,7 @@ ESIMD_INLINE simd<RT, SZ> ceil(const simd<float, SZ> src0, Sat sat = {}) {
 
 /// "Ceiling" operation, scalar version - alias of \c rndu.
 template <typename RT, class Sat = saturation_off_tag>
-ESIMD_INLINE RT ceil(float, Sat sat = {}) {
+ESIMD_INLINE RT ceil(float src0, Sat sat = {}) {
   return esimd::rndu<RT, 1U>(src0, sat);
 }
 
