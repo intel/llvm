@@ -378,12 +378,12 @@ def err_opencl_feature_requires : Error<
 
 // SYCL
 def err_sycl_add_ir_attribute_invalid_name : Error<
-  "Each attribute name in %0 must be either a string literal or a constexpr "
-  "const char *.">;
+  "each attribute name in %0 must be either a string literal or a 'const char "
+  "*.' which is usable in a constant expression">;
 def err_sycl_add_ir_attribute_invalid_value : Error<
-  "Each attribute value in %0 must be either an integer, a floating point, a "
-  "character, a boolean, const char *, or an enum descriptor as either literal "
-  "or constexpr value">;
+  "each attribute argument in %0 must be an integer, a floating point, a "
+  "character, a boolean, 'const char *', or an enumerator usable as a constant "
+  "expression">;
 def err_sycl_add_ir_attribute_invalid_filter : Error<
-  "Initializer list in first argument of %0 must contain only string literals">;
+  "initializer list in first argument of %0 must contain only string literals">;
 }

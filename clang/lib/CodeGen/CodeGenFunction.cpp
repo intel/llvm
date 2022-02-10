@@ -1100,7 +1100,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         A->args_begin(), A->args_size(), A);
 
     llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
-    for (const auto NameValuePair : NameValuePairs)
+    for (const auto &NameValuePair : NameValuePairs)
       FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
     Fn->addFnAttrs(FnAttrBuilder);
   }
@@ -1116,7 +1116,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
           A->args_begin(), A->args_size(), A);
 
       llvm::AttrBuilder KernelParamAttrBuilder(Fn->getContext());
-      for (const auto NameValuePair : NameValuePairs)
+      for (const auto &NameValuePair : NameValuePairs)
         KernelParamAttrBuilder.addAttribute(NameValuePair.first,
                                             NameValuePair.second);
       Fn->addParamAttrs(I, KernelParamAttrBuilder);

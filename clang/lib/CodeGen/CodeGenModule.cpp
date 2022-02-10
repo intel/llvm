@@ -2845,7 +2845,7 @@ void CodeGenModule::AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
   assert(A && "no add_ir_attributes_global_variable attribute");
   const auto NameValuePairs = getFilteredValidAttributeNameValuePairs(
       A->args_begin(), A->args_size(), A);
-  for (const auto NameValuePair : NameValuePairs)
+  for (const auto &NameValuePair : NameValuePairs)
     GV->addAttribute(NameValuePair.first, NameValuePair.second);
 }
 

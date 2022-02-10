@@ -1463,7 +1463,7 @@ def SYCLIntelLoopFuse : InheritableAttr {
 def SYCLAddIRAttributesFunction : InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "add_ir_attributes_function">];
   let Args = [VariadicExprArgument<"Args">];
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AcceptsExprPack = 1;
   let Documentation = [SYCLAddIRAttributesFunctionDocs];
@@ -1473,7 +1473,7 @@ def SYCLAddIRAttributesKernelParameter : InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__",
                          "add_ir_attributes_kernel_parameter">];
   let Args = [VariadicExprArgument<"Args">];
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[ParmVar], ErrorDiag>;
   let AcceptsExprPack = 1;
   let Documentation = [SYCLAddIRAttributesKernelParameterDocs];
@@ -1483,7 +1483,7 @@ def SYCLAddIRAttributesGlobalVariable : InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__",
                          "add_ir_attributes_global_variable">];
   let Args = [VariadicExprArgument<"Args">];
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Record], ErrorDiag>;
   let AcceptsExprPack = 1;
   let Documentation = [SYCLAddIRAttributesGlobalVariableDocs];
