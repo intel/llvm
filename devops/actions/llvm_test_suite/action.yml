@@ -28,8 +28,12 @@ inputs:
   cmake_args:
     description: 'Extra arguments to cmake command'
     required: false
-  merge_intel_branch:
-    description: 'Whether to merge intel branch to test_ref or not'
+  target_branch:
+    description: 'Name of the target branch to be merged in PRs'
+    default: 'intel'
+    required: false
+  merge_target_branch:
+    description: 'Whether to merge target branch to test_ref or not'
     required: false
     default: false
 
@@ -45,8 +49,8 @@ runs:
       path: llvm_test_suite
       repository: 'intel/llvm-test-suite'
       ref: ${{ inputs.test_ref }}
-      default_branch: 'intel'
-      merge_default_branch: ${{ inputs.merge_intel_branch }}
+      target_branch: ${{ inputs.target_branch }}
+      merge_target_branch: ${{ inputs.merge_target_branch }}
       cache_path: "/__w/repo_cache/"
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
@@ -88,7 +92,11 @@ runs:
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       fi
-      echo $LD_LIBRARY_PATH
+      echo "::group::env"
+      echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+      echo "PATH=$PATH"
+      echo "LIT_OPTS=$LIT_OPTS"
+      echo "::endgroup::"
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"
