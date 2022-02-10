@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#pragma once
+
+#include <sycl/sycl.hpp>
 
 #define NOMINMAX
 
