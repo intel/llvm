@@ -290,10 +290,12 @@ Clang-Tidy Checks
    `readability-avoid-const-params-in-decls <readability-avoid-const-params-in-decls.html>`_, "Yes"
    `readability-braces-around-statements <readability-braces-around-statements.html>`_, "Yes"
    `readability-const-return-type <readability-const-return-type.html>`_, "Yes"
+   `readability-container-contains <readability-container-contains.html>`_, "Yes"
    `readability-container-data-pointer <readability-container-data-pointer.html>`_, "Yes"
    `readability-container-size-empty <readability-container-size-empty.html>`_, "Yes"
    `readability-convert-member-functions-to-static <readability-convert-member-functions-to-static.html>`_, "Yes"
    `readability-delete-null-pointer <readability-delete-null-pointer.html>`_, "Yes"
+   `readability-duplicate-include <readability-duplicate-include.html>`_, "Yes"
    `readability-else-after-return <readability-else-after-return.html>`_, "Yes"
    `readability-function-cognitive-complexity <readability-function-cognitive-complexity.html>`_,
    `readability-function-size <readability-function-size.html>`_,

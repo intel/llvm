@@ -31,3 +31,4 @@ description of these features.
 |Unified Shared Memory                          | Adds new unified shared memory APIs                         |
 |SYCL\_INTEL\_unnamed\_kernel\_lambda           | Makes kernel type-names optional                            |
 |SYCL\_INTEL\_deduction\_guides                 | Simplifies SYCL object construction by using C++ CTAD       |
+|SYCL\_INTEL\_math\_array                       | Adds `sycl::marray`                                         |

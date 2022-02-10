@@ -16,6 +16,8 @@
 #include "PassDetail.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
@@ -29,9 +31,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Passes.h"
-#include "mlir/Transforms/Utils.h"
 
 using namespace mlir;
 using namespace mlir::vector;
@@ -100,7 +100,7 @@ struct LinalgStrategyTilePass
                                              filter);
     else
       tilingPattern.add<LinalgTilingPattern>(ctx, options, filter);
-    if (anchorOpName == linalg::PadTensorOp::getOperationName())
+    if (anchorOpName == tensor::PadOp::getOperationName())
       populatePadTensorTilingPatterns(tilingPattern, options);
     (void)applyPatternsAndFoldGreedily(funcOp, std::move(tilingPattern));
   }
@@ -302,12 +302,12 @@ struct LinalgStrategyVectorizePass
                                        std::move(vectorizationPatterns));
 
     // Apply the pad tensor op vectorization separately to avoid running the
-    // GenericPadTensorOpVectorizationPattern too early.
+    // GenericPadOpVectorizationPattern too early.
     // TODO: Improve once we have better infrastructure to control pattern
     // application.
     if (vectorizePadding) {
       RewritePatternSet patterns(funcOp.getContext());
-      linalg::populatePadTensorOpVectorizationPatterns(patterns);
+      linalg::populatePadOpVectorizationPatterns(patterns);
       (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
     }
   }
@@ -348,7 +348,13 @@ struct LinalgStrategyEnablePass
         return signalPassFailure();
     }
 
-    promoteSingleIterationLoops(funcOp);
+    // Gathers all innermost loops through a post order pruned walk.
+    funcOp.walk([](Operation *op) {
+      if (auto forOp = dyn_cast<AffineForOp>(op))
+        (void)promoteIfSingleIteration(forOp);
+      else if (auto forOp = dyn_cast<scf::ForOp>(op))
+        (void)promoteIfSingleIteration(forOp);
+    });
     if (options.hoistRedundantVectorTransfers)
       hoistRedundantVectorTransfers(funcOp);
 

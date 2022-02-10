@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <set>
 #include <unordered_set>
 #include <vector>
@@ -161,9 +162,9 @@ public:
   /// instrumentation to report these dependencies as edges.
   void resolveReleaseDependencies(std::set<Command *> &list);
   /// Creates an edge event when the dependency is a command.
-  void emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
-                                         const std::string &Prefix,
-                                         bool IsCommand);
+  void emitEdgeEventForCommandDependence(
+      Command *Cmd, void *ObjAddr, bool IsCommand,
+      std::optional<access::mode> AccMode = std::nullopt);
   /// Creates an edge event when the dependency is an event.
   void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.

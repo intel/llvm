@@ -1,12 +1,12 @@
 # Implementation design for compile time constant properties
 
 This document describes the implementation design for the DPC++ extension
-[SYCL\_EXT\_ONEAPI\_PROPERTY\_LIST][1], which adds a general mechanism for
+[SYCL\_EXT\_ONEAPI\_PROPERTIES][1], which adds a general mechanism for
 specifying properties which are known at compile time.  This extension is not
 itself a feature, but rather a building block that can be incorporated into
 other features.
 
-[1]: <extensions/PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc>
+[1]: <extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc>
 
 There are a number of situations where we plan to use compile-time constant
 properties, but this design document does not attempt to address them all.
@@ -40,7 +40,7 @@ One use for compile-time properties is with types that are used exclusively
 for declaring global variables.  One such example is the
 [SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL][2] extension:
 
-[2]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc>
+[2]: <extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc>
 
 ```
 namespace sycl::ext::oneapi {
@@ -270,11 +270,11 @@ the property value to a string if it is not already a string.
 ## Properties on kernel functions
 
 Compile-time properties can also be used to decorate kernel functions as with
-the [SYCL\_EXT\_ONEAPI\_KERNEL\_PROPERTIES][8] extension.  There are two ways
-the application can specify these properties.  The first is by passing a
+the [SYCL\_EXT\_ONEAPI\_PROPERTIES][8] extension.  There are two ways the
+application can specify these properties.  The first is by passing a
 `property_list` parameter to the function that submits the kernel:
 
-[8]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/KernelProperties/KernelProperties.asciidoc>
+[8]: <extensions/proposed/SYCL_EXT_ONEAPI_PROPERTIES.asciidoc>
 
 ```
 namespace sycl {

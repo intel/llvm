@@ -212,7 +212,11 @@ joint_matrix_fill(Group sg,
   // functions
   (void)sg;
 #ifdef __SYCL_DEVICE_ONLY__
-  res.spvm = __spirv_CompositeConstruct<T, NumRows, NumCols>(static_cast<T>(v));
+  res.spvm =
+      __spirv_CompositeConstruct<T, NumRows, NumCols,
+                                 spv_matrix_layout_traits<Layout>::value>(
+          static_cast<T>(v));
+
 #else
   (void)res;
   (void)v;
@@ -477,8 +481,8 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_VectorExtractDynamic(M.spvm, idx) !=
-           static_cast<uint16_t>(0);
+    return std::fabs(make_fp32(__spirv_VectorExtractDynamic(M.spvm, idx))) >=
+           std::numeric_limits<float>::epsilon();
 #else
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_INVALID_DEVICE);
@@ -706,8 +710,9 @@ public:
   operator==(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
              const uint16_t &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) ==
-           make_fp32(rhs);
+    return std::fabs(
+               make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) -
+               make_fp32(rhs)) < std::numeric_limits<float>::epsilon();
 #else
     (void)lhs;
     (void)rhs;
@@ -720,8 +725,9 @@ public:
   operator!=(const wi_element<uint16_t, NumRows, NumCols, Layout, Group> &lhs,
              const uint16_t &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) !=
-           make_fp32(rhs);
+    return std::fabs(
+               make_fp32(__spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx)) -
+               make_fp32(rhs)) >= std::numeric_limits<float>::epsilon();
 #else
     (void)lhs;
     (void)rhs;

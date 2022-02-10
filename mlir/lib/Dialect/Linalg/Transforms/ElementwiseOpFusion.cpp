@@ -98,7 +98,7 @@ static bool areElementwiseOpsFusable(GenericOp producer, GenericOp consumer,
   // case due to the output operand. For reductions, we need to check that after
   // the fusion, each loop dimension has at least one input that defines it.
   if ((consumer.getNumReductionLoops())) {
-    llvm::BitVector coveredDims(consumer.getNumLoops(), false);
+    BitVector coveredDims(consumer.getNumLoops(), false);
 
     auto addToCoveredDims = [&](AffineMap map) {
       for (auto result : map.getResults())
@@ -318,6 +318,13 @@ fuseElementwiseOpsImpl(GenericOp producer, OpOperand *consumerOpOperand,
       consumer.iterator_types(),
       /*doc=*/nullptr,
       /*library_call=*/nullptr);
+  if (!fusedOp.getShapesToLoopsMap()) {
+    // Fused op has invalid indexing maps. Typically this means something is off
+    // in the input, but going ahead here would result in verification errors.
+    // So cleanup and abort.
+    rewriter.eraseOp(fusedOp);
+    return llvm::None;
+  }
 
   // Construct an AffineMap from consumer loops to producer loops.
   // consumer loop -> tensor index
@@ -908,11 +915,9 @@ struct FoldProducerReshapeOpByLinearization
       // the operands of the consumers that arent fused are the same.
       SmallVector<AffineMap> fusedIndexMaps = genericOp.getIndexingMaps();
 
-      // Accepted consumer maps are either identity or permutation.
-      auto invMap = inversePermutation(fusedIndexMaps[en.index()]);
-
       // Compute the indexing map to use for the result of the producer.
-      AffineMap modifiedMap = linearizeCollapsedDims(invMap, reshapeOp);
+      AffineMap modifiedMap =
+          linearizeCollapsedDims(fusedIndexMaps[en.index()], reshapeOp);
       // The modified map cannot have symbols.
       if (modifiedMap.getNumSymbols())
         return failure();
@@ -987,7 +992,7 @@ struct PushExpandingReshape : public OpRewritePattern<GenericOp> {
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
     // Only apply to elementwise linalg on tensor.
-    if (!genericOp.hasTensorSemantics() ||
+    if (!genericOp.hasTensorSemantics() || genericOp.hasIndexSemantics() ||
         genericOp.getNumParallelLoops() != genericOp.getNumLoops())
       return failure();
     // Only support identity output maps. It could be extended to permuations if
@@ -1159,11 +1164,9 @@ struct FoldConsumerReshapeOpByLinearization
     // those for the operands of the producer.
     SmallVector<AffineMap> fusedIndexMaps = producer.getIndexingMaps();
 
-    auto invMap = inversePermutation(
-        producer.getTiedIndexingMap(producer.getOutputOperand(0)));
-
     // Compute the indexing map to use for the operand of the producer.
-    AffineMap modifiedMap = linearizeCollapsedDims(invMap, reshapeOp);
+    AffineMap modifiedMap = linearizeCollapsedDims(
+        producer.getTiedIndexingMap(producer.getOutputOperand(0)), reshapeOp);
     for (AffineExpr expr : modifiedMap.getResults()) {
       if (!expr.isPureAffine()) {
         return rewriter.notifyMatchFailure(

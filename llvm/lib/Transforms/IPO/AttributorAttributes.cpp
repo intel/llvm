@@ -417,30 +417,16 @@ const Value *stripAndAccumulateMinimalOffsets(
                                                 AttributorAnalysis);
 }
 
-static const Value *getMinimalBaseOfAccessPointerOperand(
-    Attributor &A, const AbstractAttribute &QueryingAA, const Instruction *I,
-    int64_t &BytesOffset, const DataLayout &DL, bool AllowNonInbounds = false) {
-  const Value *Ptr = getPointerOperand(I, /* AllowVolatile */ false);
-  if (!Ptr)
-    return nullptr;
+static const Value *
+getMinimalBaseOfPointer(Attributor &A, const AbstractAttribute &QueryingAA,
+                        const Value *Ptr, int64_t &BytesOffset,
+                        const DataLayout &DL, bool AllowNonInbounds = false) {
   APInt OffsetAPInt(DL.getIndexTypeSizeInBits(Ptr->getType()), 0);
   const Value *Base = stripAndAccumulateMinimalOffsets(
       A, QueryingAA, Ptr, DL, OffsetAPInt, AllowNonInbounds);
 
   BytesOffset = OffsetAPInt.getSExtValue();
   return Base;
-}
-
-static const Value *
-getBasePointerOfAccessPointerOperand(const Instruction *I, int64_t &BytesOffset,
-                                     const DataLayout &DL,
-                                     bool AllowNonInbounds = false) {
-  const Value *Ptr = getPointerOperand(I, /* AllowVolatile */ false);
-  if (!Ptr)
-    return nullptr;
-
-  return GetPointerBaseWithConstantOffset(Ptr, BytesOffset, DL,
-                                          AllowNonInbounds);
 }
 
 /// Clamp the information known for all returned values of a function
@@ -1216,7 +1202,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         }
         UsrOI.Offset = PtrOI.Offset +
                        DL.getIndexedOffsetInType(
-                           CurPtr->getType()->getPointerElementType(), Indices);
+                           GEP->getSourceElementType(), Indices);
         Follow = true;
         return true;
       }
@@ -2151,31 +2137,26 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
     return DerefAA.getKnownDereferenceableBytes();
   }
 
+  Optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
+  if (!Loc || Loc->Ptr != UseV || !Loc->Size.isPrecise() || I->isVolatile())
+    return 0;
+
   int64_t Offset;
   const Value *Base =
-      getMinimalBaseOfAccessPointerOperand(A, QueryingAA, I, Offset, DL);
-  if (Base) {
-    if (Base == &AssociatedValue &&
-        getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
-      int64_t DerefBytes =
-          (int64_t)DL.getTypeStoreSize(PtrTy->getPointerElementType()) + Offset;
-
-      IsNonNull |= !NullPointerIsDefined;
-      return std::max(int64_t(0), DerefBytes);
-    }
+      getMinimalBaseOfPointer(A, QueryingAA, Loc->Ptr, Offset, DL);
+  if (Base && Base == &AssociatedValue) {
+    int64_t DerefBytes = Loc->Size.getValue() + Offset;
+    IsNonNull |= !NullPointerIsDefined;
+    return std::max(int64_t(0), DerefBytes);
   }
 
   /// Corner case when an offset is 0.
-  Base = getBasePointerOfAccessPointerOperand(I, Offset, DL,
-                                              /*AllowNonInbounds*/ true);
-  if (Base) {
-    if (Offset == 0 && Base == &AssociatedValue &&
-        getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
-      int64_t DerefBytes =
-          (int64_t)DL.getTypeStoreSize(PtrTy->getPointerElementType());
-      IsNonNull |= !NullPointerIsDefined;
-      return std::max(int64_t(0), DerefBytes);
-    }
+  Base = GetPointerBaseWithConstantOffset(Loc->Ptr, Offset, DL,
+                                          /*AllowNonInbounds*/ true);
+  if (Base && Base == &AssociatedValue && Offset == 0) {
+    int64_t DerefBytes = Loc->Size.getValue();
+    IsNonNull |= !NullPointerIsDefined;
+    return std::max(int64_t(0), DerefBytes);
   }
 
   return 0;
@@ -4083,17 +4064,15 @@ struct AADereferenceableImpl : AADereferenceable {
     if (!UseV->getType()->isPointerTy())
       return;
 
-    Type *PtrTy = UseV->getType();
-    const DataLayout &DL = A.getDataLayout();
+    Optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
+    if (!Loc || Loc->Ptr != UseV || !Loc->Size.isPrecise() || I->isVolatile())
+      return;
+
     int64_t Offset;
-    if (const Value *Base = getBasePointerOfAccessPointerOperand(
-            I, Offset, DL, /*AllowNonInbounds*/ true)) {
-      if (Base == &getAssociatedValue() &&
-          getPointerOperand(I, /* AllowVolatile */ false) == UseV) {
-        uint64_t Size = DL.getTypeStoreSize(PtrTy->getPointerElementType());
-        State.addAccessedBytes(Offset, Size);
-      }
-    }
+    const Value *Base = GetPointerBaseWithConstantOffset(
+        Loc->Ptr, Offset, A.getDataLayout(), /*AllowNonInbounds*/ true);
+    if (Base && Base == &getAssociatedValue())
+      State.addAccessedBytes(Offset, Loc->Size.getValue());
   }
 
   /// See followUsesInMBEC
@@ -6007,9 +5986,10 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
 
   Optional<APInt> getSize(Attributor &A, const AbstractAttribute &AA,
                           AllocationInfo &AI) {
-    auto Mapper = [&](const Value *V) -> const Value* {
+    auto Mapper = [&](const Value *V) -> const Value * {
       bool UsedAssumedInformation = false;
-      if (Optional<Constant *> SimpleV = A.getAssumedConstant(*V, AA, UsedAssumedInformation))
+      if (Optional<Constant *> SimpleV =
+              A.getAssumedConstant(*V, AA, UsedAssumedInformation))
         if (*SimpleV)
           return *SimpleV;
       return V;
@@ -6266,8 +6246,7 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
       if (!Size.hasValue() || Size.getValue().ugt(MaxHeapToStackSize)) {
         LLVM_DEBUG({
           if (!Size.hasValue())
-            dbgs() << "[H2S] Unknown allocation size: " << *AI.CB
-                   << "\n";
+            dbgs() << "[H2S] Unknown allocation size: " << *AI.CB << "\n";
           else
             dbgs() << "[H2S] Allocation size too large: " << *AI.CB << " vs. "
                    << MaxHeapToStackSize << "\n";
@@ -6650,9 +6629,10 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
     IRBuilder<NoFolder> IRB(IP);
     const DataLayout &DL = IP->getModule()->getDataLayout();
 
-    if (Base->getType()->getPointerElementType() != PrivType)
-      Base = BitCastInst::CreateBitOrPointerCast(Base, PrivType->getPointerTo(),
-                                                 "", ACS.getInstruction());
+    Type *PrivPtrType = PrivType->getPointerTo();
+    if (Base->getType() != PrivPtrType)
+      Base = BitCastInst::CreateBitOrPointerCast(Base, PrivPtrType, "",
+                                                 ACS.getInstruction());
 
     // Traverse the type, build GEPs and loads.
     if (auto *PrivStructType = dyn_cast<StructType>(PrivType)) {
@@ -6794,7 +6774,7 @@ struct AAPrivatizablePtrFloating : public AAPrivatizablePtrImpl {
     if (auto *AI = dyn_cast<AllocaInst>(Obj))
       if (auto *CI = dyn_cast<ConstantInt>(AI->getArraySize()))
         if (CI->isOne())
-          return Obj->getType()->getPointerElementType();
+          return AI->getAllocatedType();
     if (auto *Arg = dyn_cast<Argument>(Obj)) {
       auto &PrivArgAA = A.getAAFor<AAPrivatizablePtr>(
           *this, IRPosition::argument(*Arg), DepClassTy::REQUIRED);
@@ -8497,13 +8477,30 @@ struct AAValueConstantRangeFloating : AAValueConstantRangeImpl {
                                                   /* UseValueSimplify */ false))
       return indicatePessimisticFixpoint();
 
-    return clampStateAndIndicateChange(getState(), T);
+    // Ensure that long def-use chains can't cause circular reasoning either by
+    // introducing a cutoff below.
+    if (clampStateAndIndicateChange(getState(), T) == ChangeStatus::UNCHANGED)
+      return ChangeStatus::UNCHANGED;
+    if (++NumChanges > MaxNumChanges) {
+      LLVM_DEBUG(dbgs() << "[AAValueConstantRange] performed " << NumChanges
+                        << " but only " << MaxNumChanges
+                        << " are allowed to avoid cyclic reasoning.");
+      return indicatePessimisticFixpoint();
+    }
+    return ChangeStatus::CHANGED;
   }
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
     STATS_DECLTRACK_FLOATING_ATTR(value_range)
   }
+
+  /// Tracker to bail after too many widening steps of the constant range.
+  int NumChanges = 0;
+
+  /// Upper bound for the number of allowed changes (=widening steps) for the
+  /// constant range before we give up.
+  static constexpr int MaxNumChanges = 5;
 };
 
 struct AAValueConstantRangeFunction : AAValueConstantRangeImpl {

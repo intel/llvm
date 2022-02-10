@@ -49,7 +49,7 @@ public:
   /// Construct from an array. To allow e.g. simd_mask<N> m({1,0,0,1,...}).
   template <int N1, class = std::enable_if_t<N1 == N>>
   simd_mask_impl(const raw_element_type (&&Arr)[N1]) {
-    base_type::init_from_array(std::move(Arr));
+    base_type::template init_from_array<false>(std::move(Arr));
   }
 
   /// Implicit conversion from simd.

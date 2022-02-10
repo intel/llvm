@@ -139,6 +139,10 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
 }
@@ -384,6 +388,8 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
   ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
       ZeDeviceMemoryProperties;
+  ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
+      ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
@@ -797,6 +803,9 @@ struct _pi_queue : _pi_object {
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
   std::atomic<pi_uint32> RefCountExternal{1};
+
+  // Indicates that the queue is healthy and all operations on it are OK.
+  bool Healthy{true};
 };
 
 struct _pi_mem : _pi_object {

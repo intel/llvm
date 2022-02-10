@@ -58,6 +58,11 @@ Improvements to Clang's diagnostics
   release being diagnosed against). These new groups are automatically implied
   when passing ``-Wc++N-extensions``. Resolves PR33518.
 
+- Support ``-Wdeclaration-after-statement`` with C99 and later standards, and
+  not just C89, matching GCC's behaviour. A notable usecase is supporting style
+  guides that forbid mixing declarations and code, but want to move to newer C
+  standards.
+
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
@@ -127,6 +132,8 @@ Attribute Changes in Clang
   attributes, but will now issue an error due to the expansion of the
   predefined ``__clang__`` macro.
 
+- Added support for parameter pack expansion in `clang::annotate`.
+
 Windows Support
 ---------------
 
@@ -135,6 +142,16 @@ Windows Support
   Users should use a recent SDK and pass ``-DQUERY_H_RESTRICTION_PERMISSIVE``
   or pass ``/permissive`` to disable C++ operator names altogether. See
   `PR42427 <https://llvm.org/pr42427>` for more info.
+
+- Add support for MSVC-compatible ``/hotpatch`` flag in clang-cl, and equivalent
+  -cc1 flag ``-fms-hotpatch``. Along with the linker flag ``/functionpadmin``
+  this creates executable images suitable for runtime code patching. This flag
+  is only required for x86/x64 targets; ARM/ARM64 simply needs the linker
+  ``/functionpadmin``.
+
+  With this addition, clang-cl can be used in live code patching scenarios,
+  along with tools such as Live++ or Recode. Microsoft Edit and Continue isn't
+  currently supported.
 
 C Language Changes in Clang
 ---------------------------
@@ -237,6 +254,14 @@ X86 Support in Clang
 
 - Support for ``AVX512-FP16`` instructions has been added.
 
+DWARF Support in Clang
+----------------------
+
+- The default DWARF version has increased from DWARFv4 to DWARFv5.  You can opt
+  back in to the old behavior with ``-gdwarf-4`` or ``-fdebug-default-version=4``.
+  Some platforms (Darwin, Android, and SCE for instance) already opt out of this
+  version bump as is suitable for the platform
+
 Arm and AArch64 Support in Clang
 --------------------------------
 
@@ -252,6 +277,9 @@ Arm and AArch64 Support in Clang
   architecture features, but will enable certain optimizations specific to
   Cortex-A57 CPUs and enable the use of a more accurate scheduling model.
 
+- The --aarch64-none-elf target now uses the BareMetal driver rather than the
+  GNU driver. Programs that depend on clang invoking GCC as the linker driver
+  should use GCC as the linker in the build system.
 
 Floating Point Support in Clang
 -------------------------------
@@ -276,6 +304,12 @@ Internal API Changes
 - A new sugar ``Type`` AST node represents types accessed via a C++ using
   declaration. Given code ``using std::error_code; error_code x;``, ``x`` has
   a ``UsingType`` which desugars to the previous ``RecordType``.
+
+- Added a new attribute flag `AcceptsExprPack` that when set allows expression
+  pack expansions in the parsed arguments of the corresponding attribute.
+  Additionally it introduces delaying of attribute arguments, adding common
+  handling for creating attributes that cannot be fully initialized prior to
+  template instantiation.
 
 Build System Changes
 --------------------
@@ -306,6 +340,10 @@ AST Matchers
   and the underlying ``Type`` with ``hasUnderlyingType``.
   ``hasDeclaration`` continues to see through the alias and apply to the
   underlying type.
+- Added the ``isConsteval`` matcher to match ``consteval`` function
+  declarations as well as `if consteval` and `if ! consteval` statements.
+- Added the ``isConstinit`` matcher to match ``constinit`` variable
+  declarations.
 
 clang-format
 ------------

@@ -150,33 +150,34 @@ jobs:
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
+      id: build
       run: cmake --build $GITHUB_WORKSPACE/build
     # TODO allow to optionally disable in-tree checks
     - name: check-llvm
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         # TODO consider moving this to Dockerfile
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
     - name: check-libclc
-      if: always()
+      if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
     - name: Install
@@ -191,6 +192,9 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-size
+        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-cov
+        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
+        cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
         # TODO this should be resolved in CMakeLists.txt
         cmake --build $GITHUB_WORKSPACE/build --target install-lld || echo "skipped"
 

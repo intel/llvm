@@ -37,31 +37,6 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
          backend::ext_oneapi_level_zero;
 }
 
-// Return true if the given device 'Dev' matches with any filter
-static bool isForcedDevice(const device &Dev, int Index = -1) {
-  detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-
-  if (!FilterList)
-    return false;
-  info::device_type Type = Dev.get_info<info::device::device_type>();
-  backend Backend;
-  if (Type == info::device_type::host)
-    Backend = backend::host;
-  else
-    Backend = detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
-
-  for (const detail::device_filter &Filter : FilterList->get()) {
-    if ((Filter.Backend == Backend || Filter.Backend == backend::all) &&
-        (Filter.DeviceType == Type ||
-         Filter.DeviceType == info::device_type::all)) {
-      if (Index < 0 || (Filter.HasDeviceNum && Filter.DeviceNum == Index))
-        return true;
-    }
-  }
-  return false;
-}
-
 device device_selector::select_device() const {
   std::vector<device> devices = device::get_devices();
   int score = REJECT_DEVICE_SCORE;
@@ -86,13 +61,6 @@ device device_selector::select_device() const {
     // A negative score means that a device must not be selected.
     if (dev_score < 0)
       continue;
-
-    // If SYCL_DEVICE_FILTER is set, give a bonus point for the device
-    // whose index matches with desired device number.
-    int index = &dev - &devices[0];
-    if (isForcedDevice(dev, index)) {
-      dev_score += 1000;
-    }
 
     // SYCL spec says: "If more than one device receives the high score then
     // one of those tied devices will be returned, but which of the devices
@@ -141,12 +109,10 @@ int default_selector::operator()(const device &dev) const {
   // All unmatched devices should never be selected.
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-  if (FilterList) {
-    if (isForcedDevice(dev))
-      Score = 1000;
-    else
-      return REJECT_DEVICE_SCORE;
-  }
+  // device::get_devices returns filtered list of devices.
+  // Keep 1000 for default score when filters were applied.
+  if (FilterList)
+    Score = 1000;
 
   if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
     Score += 1000;
@@ -173,16 +139,8 @@ int gpu_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
 
   if (dev.is_gpu()) {
-    detail::device_filter_list *FilterList =
-        detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-    if (FilterList) {
-      if (isForcedDevice(dev))
-        Score = 1000;
-      else
-        return Score;
-    } else {
-      Score = 1000;
-    }
+    // device::get_devices returns filtered list of devices.
+    Score = 1000;
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
       Score += 50;
@@ -194,16 +152,9 @@ int cpu_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
 
   if (dev.is_cpu()) {
-    detail::device_filter_list *FilterList =
-        detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-    if (FilterList) {
-      if (isForcedDevice(dev))
-        Score = 1000;
-      else
-        return Score;
-    } else {
-      Score = 1000;
-    }
+    // device::get_devices returns filtered list of devices.
+    Score = 1000;
+
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
       Score += 50;
@@ -215,16 +166,9 @@ int accelerator_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
 
   if (dev.is_accelerator()) {
-    detail::device_filter_list *FilterList =
-        detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-    if (FilterList) {
-      if (isForcedDevice(dev))
-        Score = 1000;
-      else
-        return Score;
-    } else {
-      Score = 1000;
-    }
+    // device::get_devices returns filtered list of devices.
+    Score = 1000;
+
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
       Score += 50;
