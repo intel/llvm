@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/defines.hpp>
 
 #include <cstdint> // for uint* types
+#include <type_traits>
 
 /// @cond ESIMD_DETAIL
 
@@ -81,16 +82,18 @@ using uchar = unsigned char;
 using ushort = unsigned short;
 using uint = unsigned int;
 
-/// Gen hardware supports applying saturation to results of some operation.
-/// This enum allows to control this behavior.
-enum class saturation : uint8_t { off, on };
+/// Gen hardware supports applying saturation to results of certain operations.
+/// This type tag represents "saturation on" behavior.
+struct saturation_on_tag : std::true_type {};
 
-/// Integer type short-cut to saturation::off.
-static inline constexpr uint8_t saturation_off =
-    static_cast<uint8_t>(saturation::off);
-/// Integer type short-cut to saturation::on.
-static inline constexpr uint8_t saturation_on =
-    static_cast<uint8_t>(saturation::on);
+/// This type tag represents "saturation off" behavior.
+struct saturation_off_tag : std::false_type {};
+
+/// Type tag object representing "saturation off" behavior.
+static inline constexpr saturation_off_tag saturation_off{};
+
+/// Type tag object representing "saturation on" behavior.
+static inline constexpr saturation_on_tag saturation_on{};
 
 /// Represents a pixel's channel.
 enum class rgba_channel : uint8_t { R, G, B, A };
