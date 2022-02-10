@@ -1,4 +1,4 @@
-// REQUIRES: gpu, level_zero, TEMPORARILY_DISABLED
+// REQUIRES: gpu, level_zero
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 
@@ -28,7 +28,7 @@
 // CKALL: Test Pass
 // CKALL: Test Pass
 // CKALL: Test Pass
-// CKDYN: Lowering QueueBatchSize to 2
+// CKDYN: Lowering QueueBatchSize to 3
 // CKDYN-NOT: Lowering QueueBatchSize
 // CKALL: Test Pass
 // CKALL: Test Pass
