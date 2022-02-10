@@ -468,6 +468,10 @@ ENUM_CODEGENOPT(SwiftAsyncFramePointer, SwiftAsyncFramePointerKind, 2,
 /// Whether to skip RAX setup when passing variable arguments (x86 only).
 CODEGENOPT(SkipRaxSetup, 1, 0)
 
+// Whether to expect -main-file-name to be an absolute path to use it for
+/// checksum calculations or not.
+CODEGENOPT(SYCLUseMainFileName, 1, 0)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT
