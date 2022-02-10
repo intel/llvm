@@ -81,6 +81,7 @@ enum DiagnosticKind {
   DK_Unsupported,
   DK_SrcMgr,
   DK_DontCall,
+  DK_SYCLWarning,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -1089,6 +1090,34 @@ public:
   void print(DiagnosticPrinter &DP) const override;
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_DontCall;
+  }
+};
+
+/// Class for emiting warning messages from SYCL pass - PropagateAspectUsage
+class DiagnosticInfoSYCLWarning : public DiagnosticInfo {
+  SmallString<16> FunctionName;
+  SmallString<5> AspectStr;
+  std::string CallChain;
+  bool IsFullDebugMode = 0;
+
+public:
+  DiagnosticInfoSYCLWarning(StringRef FunctionName, StringRef AspectStr,
+                            std::string CallChain, bool IsFullDebugMode)
+      : DiagnosticInfo(DK_SYCLWarning, DiagnosticSeverity::DS_Warning),
+        FunctionName(FunctionName), AspectStr(AspectStr),
+        CallChain(std::move(CallChain)), IsFullDebugMode(IsFullDebugMode) {}
+
+  StringRef getFunctionName() const { return FunctionName; }
+
+  StringRef getAspect() const { return AspectStr; }
+
+  const std::string &getCallChain() const { return CallChain; }
+
+  int isFullDebugMode() const { return IsFullDebugMode; }
+
+  void print(DiagnosticPrinter &DP) const override;
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_SYCLWarning;
   }
 };
 

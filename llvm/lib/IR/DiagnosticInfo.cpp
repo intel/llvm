@@ -431,3 +431,5 @@ void DiagnosticInfoDontCall::print(DiagnosticPrinter &DP) const {
   if (!getNote().empty())
     DP << ": " << getNote();
 }
+
+void DiagnosticInfoSYCLWarning::print(DiagnosticPrinter &DP) const {}

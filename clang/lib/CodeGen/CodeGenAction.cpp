@@ -444,6 +444,7 @@ namespace clang {
     void OptimizationFailureHandler(
         const llvm::DiagnosticInfoOptimizationFailure &D);
     void DontCallDiagHandler(const DiagnosticInfoDontCall &D);
+    void SYCLWarningDiagHandler(const DiagnosticInfoSYCLWarning &D);
   };
 
   void BackendConsumer::anchor() {}
@@ -825,6 +826,14 @@ void BackendConsumer::DontCallDiagHandler(const DiagnosticInfoDontCall &D) {
       << llvm::demangle(D.getFunctionName().str()) << D.getNote();
 }
 
+void BackendConsumer::SYCLWarningDiagHandler(
+    const DiagnosticInfoSYCLWarning &D) {
+  SourceLocation Loc;
+  Diags.Report(Loc, diag::warn_sycl_wrong_aspect_usage)
+      << D.getFunctionName() << D.getAspect() << D.getCallChain()
+      << !D.isFullDebugMode();
+}
+
 /// This function is invoked when the backend needs
 /// to report something to the user.
 void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
@@ -898,6 +907,9 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     return;
   case llvm::DK_DontCall:
     DontCallDiagHandler(cast<DiagnosticInfoDontCall>(DI));
+    return;
+  case llvm::DK_SYCLWarning:
+    SYCLWarningDiagHandler(cast<DiagnosticInfoSYCLWarning>(DI));
     return;
   default:
     // Plugin IDs are not bound to any value as they are set dynamically.

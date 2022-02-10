@@ -865,10 +865,8 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     FPM.add(createVerifierPass());
 
   // Set up the per-module pass manager.
-  if (LangOpts.SYCLIsDevice) {
+  if (LangOpts.SYCLIsDevice)
     MPM.add(createESIMDVerifierPass());
-    MPM.add(createPropagateAspectUsagePass());
-  }
 
   if (!CodeGenOpts.RewriteMapFiles.empty())
     addSymbolRewriterPass(CodeGenOpts, &MPM);
@@ -1024,6 +1022,9 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
   legacy::FunctionPassManager PerFunctionPasses(TheModule);
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
+
+  if (LangOpts.SYCLIsDevice)
+    PerModulePasses.add(createPropagateAspectUsagePass());
 
   CreatePasses(PerModulePasses, PerFunctionPasses);
 
@@ -1382,6 +1383,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   ModulePassManager MPM;
+
+  if (CodeGenOpts.DisableLLVMPasses && LangOpts.SYCLIsDevice)
+    MPM.addPass(PropagateAspectUsagePass());
 
   if (!CodeGenOpts.DisableLLVMPasses) {
     // Map our optimization levels into one of the distinct levels used to

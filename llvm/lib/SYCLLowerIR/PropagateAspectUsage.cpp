@@ -58,7 +58,7 @@ private:
 
 char SYCLPropagateAspectUsageLegacyPass::ID = 0;
 INITIALIZE_PASS(SYCLPropagateAspectUsageLegacyPass, "PropagateAspectUsage",
-                "Propagates aspect usage", false, false)
+                "Propagate aspect usage", false, false)
 
 ModulePass *llvm::createPropagateAspectUsagePass() {
   return new SYCLPropagateAspectUsageLegacyPass();
@@ -223,23 +223,6 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
   return Result;
 }
 
-/// Class for emiting warning messages. Unfortunately, LLVMContext
-/// doesn't contain tools for that.
-class MissedAspectDiagnosticInfo : public DiagnosticInfo {
-  Twine Msg;
-
-public:
-  MissedAspectDiagnosticInfo(Twine DiagMsg,
-                             DiagnosticSeverity Severity = DS_Warning)
-      : DiagnosticInfo(DK_Linker, Severity), Msg(std::move(DiagMsg)) {}
-
-  void print(DiagnosticPrinter &DP) const override { DP << Msg; }
-};
-
-void emitWarning(LLVMContext &C, const StringRef Msg) {
-  C.diagnose(MissedAspectDiagnosticInfo(Msg));
-}
-
 ///
 struct AspectWithFunctionLinkTy {
   int Aspect;
@@ -261,9 +244,10 @@ using FunctionToAspectsMapTy =
 using CallGraphTy =
     DenseMap<Function *, DenseMap<Function *, const DebugLoc *>>;
 
-void traverseAspectUsageChain(const Function *F,
-                              const FunctionToAspectsMapTy &Map, int Aspect,
-                              std::string &Msg) {
+std::string constructAspectUsageChain(const Function *F,
+                                      const FunctionToAspectsMapTy &Map,
+                                      int Aspect) {
+  std::string CallChain;
   while (F) {
     auto It = Map.find(F);
     if (It == Map.end())
@@ -278,16 +262,18 @@ void traverseAspectUsageChain(const Function *F,
     assert(AspectIt != AspectsSet.end() &&
            "AspectIt is supposed to be determined");
     const DebugLoc *DL = (*AspectIt).DL;
-    Msg += formatv("  {0}()", F->getName());
+    CallChain += formatv("  {0}()", F->getName());
     if (DL && *DL) {
-      Msg +=
+      CallChain +=
           formatv(" {0}:{1}:{2}", cast<DIScope>(DL->getScope())->getFilename(),
                   DL->getLine(), DL->getCol());
     }
 
-    Msg += "\n";
+    CallChain += "\n";
     F = (*AspectIt).F;
   }
+
+  return CallChain;
 }
 
 /// Checks that all declared function's aspects correspond to the
@@ -318,17 +304,10 @@ void checkDeclaredAspectsForFunction(Function *F,
 
   LLVMContext &C = F->getContext();
   for (int Aspect : MissedAspects) {
+    auto CallChain = constructAspectUsageChain(F, Map, Aspect);
     // TODO: demangle function name and aspect's IDs?
-    std::string Msg = formatv(
-        "function '{0}' uses aspect '{1}' not listed in 'sycl::requires()'\n"
-        "use is from this call chain:\n",
-        F->getName(), Aspect);
-
-    traverseAspectUsageChain(F, Map, Aspect, Msg);
-    if (!isFullDebug)
-      Msg += "compile with '-g' to get source location\n";
-
-    emitWarning(C, Msg);
+    C.diagnose(DiagnosticInfoSYCLWarning(F->getName(), std::to_string(Aspect),
+                                         CallChain, isFullDebug));
   }
 }
 

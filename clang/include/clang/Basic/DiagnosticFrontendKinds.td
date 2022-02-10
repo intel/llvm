@@ -313,4 +313,9 @@ def warn_profile_data_unprofiled : Warning<
   InGroup<ProfileInstrUnprofiled>;
 } // end of instrumentation issue category
 
+def warn_sycl_wrong_aspect_usage : Warning<
+  "function '%0' uses aspect '%1' not listed in `sycl::requires()`\n"
+  "%2"
+  "%select{|compile with '-g' to get source location}3">;
+
 }
