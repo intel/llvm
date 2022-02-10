@@ -180,11 +180,12 @@ jobs:
     needs: [build, resolve_matrix]
     if: ${{ inputs.lts_config != '' }}
     strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.max_parallel }}
       matrix:
-        max-parallel: ${{ inputs.max_parallel }}
-        fail-fast: false
         include: ${{ fromJSON(needs.resolve_matrix.outputs.lts) }}
     name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs-on }}
     container:
       image: ${{ matrix.image }}
       options: ${{ matrix.container_options }}
