@@ -103,7 +103,7 @@ public:
   // Minimum allocation size that will be requested from the system.
   // By default this is the minimum allocation size of each memory type.
   // Memory types are host, device, shared.
-  size_t SlabMinSize[3] = {64 * 1024, 2 * 1024 * 1024, 2 * 1024 * 1024};
+  size_t SlabMinSize[3] = {64 * 1024, 64 * 1024, 2 * 1024 * 1024};
 
   // Allocations up to this limit will be subject to chunking/pooling
   size_t MaxPoolableSize[3] = {2 * 1024 * 1024, 4 * 1024 * 1024, 0};
@@ -143,7 +143,7 @@ public:
     // Capacity:        Maximum number of unfreed allocations in each bucket.
     //                  Default 4.
     // SlabMinSize:     Minimum allocation size requested from USM.
-    //                  Default 64KB host and 2MB device/shared.
+    //                  Default 64KB host and device, 2MB shared.
     //
     // Example of usage:
     // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M
