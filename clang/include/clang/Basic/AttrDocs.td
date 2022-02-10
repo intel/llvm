@@ -3270,7 +3270,7 @@ or ``ivdep``.
 
 def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg";
+  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
   let Content = [{
 The loop count attributes specify the minimum, maximum, or average number of
 iterations for a ``for`` loop. These are hints that the user specify that can be
@@ -3288,10 +3288,15 @@ using PGO.
     [[intel::loop_count_max(10)]] for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
+  void count(int *array, size_t n) {
+    [[intel::loop_count(20)]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
   void goo(int *array, size_t n) {
     [[intel::loop_count_min(3)]]
     [[intel::loop_count_max(10)]]
     [[intel::loop_count_avg(5)]]
+    [[intel::loop_count(20)]]
     for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
@@ -3300,6 +3305,10 @@ using PGO.
     [[intel::loop_count_avg(N)]] for(;;) { }
   }
 
+  template<int A>
+  void func() {
+    [[intel::loop_count(A)]] for(;;) { }
+  }
   }];
 }
 
