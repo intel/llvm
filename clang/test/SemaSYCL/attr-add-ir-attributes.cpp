@@ -24,83 +24,83 @@ constexpr const char *CEAttrName5 = "CEAttr5";
 constexpr const char *CEAttrName6 = "CEAttr6";
 constexpr const char *CEAttrName7 = "CEAttr7";
 
-[[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void FunctionLiteral1(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Text")]] void FunctionLiteral2(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", 1)]] void FunctionLiteral3(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", 3.14)]] void FunctionLiteral4(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", true)]] void FunctionLiteral5(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", false)]] void FunctionLiteral6(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", TestEnum::EnumVal1)]] void FunctionLiteral7(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", "Attr3", "Attr4", "Attr5", "Attr6", "Attr7", nullptr, "Text", 1, 3.14, true, false, TestEnum::EnumVal1)]] void FunctionLiteral8(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", nullptr)]] void FunctionLiteral9(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Text")]] void FunctionLiteral10(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", 1)]] void FunctionLiteral11(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", 3.14)]] void FunctionLiteral12(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", true)]] void FunctionLiteral13(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", false)]] void FunctionLiteral14(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", TestEnum::EnumVal1)]] void FunctionLiteral15(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", "Attr4", "Attr5", "Attr6", "Attr7", nullptr, "Text", 1, 3.14, true, false, TestEnum::EnumVal1)]] void FunctionLiteral16(){}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void FunctionLiteral1() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Text")]] void FunctionLiteral2() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", 1)]] void FunctionLiteral3() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", 3.14)]] void FunctionLiteral4() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", true)]] void FunctionLiteral5() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", false)]] void FunctionLiteral6() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", TestEnum::EnumVal1)]] void FunctionLiteral7() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", "Attr3", "Attr4", "Attr5", "Attr6", "Attr7", nullptr, "Text", 1, 3.14, true, false, TestEnum::EnumVal1)]] void FunctionLiteral8() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", nullptr)]] void FunctionLiteral9() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Text")]] void FunctionLiteral10() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", 1)]] void FunctionLiteral11() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", 3.14)]] void FunctionLiteral12() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", true)]] void FunctionLiteral13() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", false)]] void FunctionLiteral14() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", TestEnum::EnumVal1)]] void FunctionLiteral15() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", "Attr4", "Attr5", "Attr6", "Attr7", nullptr, "Text", 1, 3.14, true, false, TestEnum::EnumVal1)]] void FunctionLiteral16() {}
 
-[[__sycl_detail__::add_ir_attributes_function("Attr1", CENullptr)]] void FunctionCEVal1(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", CEStr)]] void FunctionCEVal2(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", CEInt)]] void FunctionCEVal3(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", CEFloat)]] void FunctionCEVal4(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", CETrue)]] void FunctionCEVal5(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", CEFalse)]] void FunctionCEVal6(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", CEEnum)]] void FunctionCEVal7(){}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", "Attr3", "Attr4", "Attr5", "Attr6", "Attr7", CENullptr, CEStr, CEInt, CEFloat, CETrue, CEFalse, CEEnum)]] void FunctionCEVal8(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CENullptr)]] void FunctionCEVal9(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEStr)]] void FunctionCEVal10(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEInt)]] void FunctionCEVal11(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEFloat)]] void FunctionCEVal12(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CETrue)]] void FunctionCEVal13(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEFalse)]] void FunctionCEVal14(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEEnum)]] void FunctionCEVal15(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", "Attr4", "Attr5", "Attr6", "Attr7", CENullptr, CEStr, CEInt, CEFloat, CETrue, CEFalse, CEEnum)]] void FunctionCEVal16(){}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", CENullptr)]] void FunctionCEVal1() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", CEStr)]] void FunctionCEVal2() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", CEInt)]] void FunctionCEVal3() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", CEFloat)]] void FunctionCEVal4() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", CETrue)]] void FunctionCEVal5() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", CEFalse)]] void FunctionCEVal6() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", CEEnum)]] void FunctionCEVal7() {}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", "Attr3", "Attr4", "Attr5", "Attr6", "Attr7", CENullptr, CEStr, CEInt, CEFloat, CETrue, CEFalse, CEEnum)]] void FunctionCEVal8() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CENullptr)]] void FunctionCEVal9() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEStr)]] void FunctionCEVal10() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEInt)]] void FunctionCEVal11() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEFloat)]] void FunctionCEVal12() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CETrue)]] void FunctionCEVal13() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEFalse)]] void FunctionCEVal14() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", CEEnum)]] void FunctionCEVal15() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", "Attr4", "Attr5", "Attr6", "Attr7", CENullptr, CEStr, CEInt, CEFloat, CETrue, CEFalse, CEEnum)]] void FunctionCEVal16() {}
 
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, nullptr)]] void FunctionCEName1(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, "Text")]] void FunctionCEName2(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, 1)]] void FunctionCEName3(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, 3.14)]] void FunctionCEName4(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, true)]] void FunctionCEName5(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, false)]] void FunctionCEName6(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, TestEnum::EnumVal1)]] void FunctionCEName7(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEAttrName2, CEAttrName3, CEAttrName4, CEAttrName5, CEAttrName6, CEAttrName7, nullptr, "Text", 1, 3.14, true, false, TestEnum::EnumVal1)]] void FunctionCEName8(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, nullptr)]] void FunctionCEName9(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, "Text")]] void FunctionCEName10(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, 1)]] void FunctionCEName11(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, 3.14)]] void FunctionCEName12(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, true)]] void FunctionCEName13(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, false)]] void FunctionCEName14(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, TestEnum::EnumVal1)]] void FunctionCEName15(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEAttrName2, CEAttrName3, CEAttrName4, CEAttrName5, CEAttrName6, CEAttrName7, nullptr, "Text", 1, 3.14, true, false, TestEnum::EnumVal1)]] void FunctionCEName16(){}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, nullptr)]] void FunctionCEName1() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, "Text")]] void FunctionCEName2() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, 1)]] void FunctionCEName3() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, 3.14)]] void FunctionCEName4() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, true)]] void FunctionCEName5() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, false)]] void FunctionCEName6() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, TestEnum::EnumVal1)]] void FunctionCEName7() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEAttrName2, CEAttrName3, CEAttrName4, CEAttrName5, CEAttrName6, CEAttrName7, nullptr, "Text", 1, 3.14, true, false, TestEnum::EnumVal1)]] void FunctionCEName8() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, nullptr)]] void FunctionCEName9() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, "Text")]] void FunctionCEName10() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, 1)]] void FunctionCEName11() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, 3.14)]] void FunctionCEName12() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, true)]] void FunctionCEName13() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, false)]] void FunctionCEName14() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, TestEnum::EnumVal1)]] void FunctionCEName15() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEAttrName2, CEAttrName3, CEAttrName4, CEAttrName5, CEAttrName6, CEAttrName7, nullptr, "Text", 1, 3.14, true, false, TestEnum::EnumVal1)]] void FunctionCEName16() {}
 
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CENullptr)]] void FunctionCE1(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEStr)]] void FunctionCE2(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEInt)]] void FunctionCE3(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEFloat)]] void FunctionCE4(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CETrue)]] void FunctionCE5(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEFalse)]] void FunctionCE6(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEEnum)]] void FunctionCE7(){}
-[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEAttrName2, CEAttrName3, CEAttrName4, CEAttrName5, CEAttrName6, CEAttrName7, CENullptr, CEStr, CEInt, CEFloat, CETrue, CEFalse, CEEnum)]] void FunctionCE8(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CENullptr)]] void FunctionCE9(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEStr)]] void FunctionCE10(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEInt)]] void FunctionCE11(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEFloat)]] void FunctionCE12(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CETrue)]] void FunctionCE13(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEFalse)]] void FunctionCE14(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEEnum)]] void FunctionCE15(){}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEAttrName2, CEAttrName3, CEAttrName4, CEAttrName5, CEAttrName6, CEAttrName7, CENullptr, CEStr, CEInt, CEFloat, CETrue, CEFalse, CEEnum)]] void FunctionCE16(){}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CENullptr)]] void FunctionCE1() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEStr)]] void FunctionCE2() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEInt)]] void FunctionCE3() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEFloat)]] void FunctionCE4() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CETrue)]] void FunctionCE5() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEFalse)]] void FunctionCE6() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEEnum)]] void FunctionCE7() {}
+[[__sycl_detail__::add_ir_attributes_function(CEAttrName1, CEAttrName2, CEAttrName3, CEAttrName4, CEAttrName5, CEAttrName6, CEAttrName7, CENullptr, CEStr, CEInt, CEFloat, CETrue, CEFalse, CEEnum)]] void FunctionCE8() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CENullptr)]] void FunctionCE9() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEStr)]] void FunctionCE10() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEInt)]] void FunctionCE11() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEFloat)]] void FunctionCE12() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CETrue)]] void FunctionCE13() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEFalse)]] void FunctionCE14() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEEnum)]] void FunctionCE15() {}
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, CEAttrName1, CEAttrName2, CEAttrName3, CEAttrName4, CEAttrName5, CEAttrName6, CEAttrName7, CENullptr, CEStr, CEInt, CEFloat, CETrue, CEFalse, CEEnum)]] void FunctionCE16() {}
 
-[[__sycl_detail__::add_ir_attributes_function("Attr1")]] void InvalidFunctionCEName1(){}                                               // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr, "Attr2")]] void InvalidFunctionCEName2(){}                             // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", nullptr)]] void InvalidFunctionCEName3(){}                             // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
-[[__sycl_detail__::add_ir_attributes_function({"Attr5", "Attr3"}, "Attr1")]] void InvalidFunctionCEName4(){}                           // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
-[[__sycl_detail__::add_ir_attributes_function({"Attr5", "Attr3"}, "Attr1", nullptr, "Attr2")]] void InvalidFunctionCEName5(){}         // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
-[[__sycl_detail__::add_ir_attributes_function({"Attr5", "Attr3"}, "Attr1", "Attr2", nullptr)]] void InvalidFunctionCEName6(){}         // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", {"Attr5", "Attr3"}, nullptr)]] void InvalidFunctionCEName7(){}                  // expected-error {{only the first argument of attribute 'add_ir_attributes_function' can be an initializer list}}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr, {"Attr5", "Attr3"})]] void InvalidFunctionCEName8(){}                  // expected-error {{only the first argument of attribute 'add_ir_attributes_function' can be an initializer list}}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", {"Attr5", "Attr3"}, nullptr, "Text")]] void InvalidFunctionCEName9(){} // expected-error {{only the first argument of attribute 'add_ir_attributes_function' can be an initializer list}}
+[[__sycl_detail__::add_ir_attributes_function("Attr1")]] void InvalidFunctionCEName1() {}                                               // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr, "Attr2")]] void InvalidFunctionCEName2() {}                             // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", nullptr)]] void InvalidFunctionCEName3() {}                             // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
+[[__sycl_detail__::add_ir_attributes_function({"Attr5", "Attr3"}, "Attr1")]] void InvalidFunctionCEName4() {}                           // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
+[[__sycl_detail__::add_ir_attributes_function({"Attr5", "Attr3"}, "Attr1", nullptr, "Attr2")]] void InvalidFunctionCEName5() {}         // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
+[[__sycl_detail__::add_ir_attributes_function({"Attr5", "Attr3"}, "Attr1", "Attr2", nullptr)]] void InvalidFunctionCEName6() {}         // expected-error {{attribute 'add_ir_attributes_function' must have an attribute value for each attribute name}}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", {"Attr5", "Attr3"}, nullptr)]] void InvalidFunctionCEName7() {}                  // expected-error {{only the first argument of attribute 'add_ir_attributes_function' can be an initializer list}}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr, {"Attr5", "Attr3"})]] void InvalidFunctionCEName8() {}                  // expected-error {{only the first argument of attribute 'add_ir_attributes_function' can be an initializer list}}
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", {"Attr5", "Attr3"}, nullptr, "Text")]] void InvalidFunctionCEName9() {} // expected-error {{only the first argument of attribute 'add_ir_attributes_function' can be an initializer list}}
 
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", nullptr)]] GlobalVarStructLiteral1{};
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Text")]] GlobalVarStructLiteral2{};

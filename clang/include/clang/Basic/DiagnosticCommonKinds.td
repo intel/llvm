@@ -385,5 +385,6 @@ def err_sycl_add_ir_attribute_invalid_value : Error<
   "character, a boolean, 'const char *', or an enumerator usable as a constant "
   "expression">;
 def err_sycl_add_ir_attribute_invalid_filter : Error<
-  "initializer list in first argument of %0 must contain only string literals">;
+  "initializer list in the first argument of %0 must contain only string "
+  "literals">;
 }
