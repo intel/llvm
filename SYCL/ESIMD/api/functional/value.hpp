@@ -14,8 +14,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include "../../esimd_test_utils.hpp"
 #include "type_traits.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <climits>
 #include <limits>

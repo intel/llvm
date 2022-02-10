@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include <sycl/sycl.hpp>
+
 #include <type_traits>
 #include <utility>
 
@@ -26,6 +28,13 @@ using is_sycl_floating_point =
 template <typename T>
 inline constexpr bool is_sycl_floating_point_v{
     is_sycl_floating_point<T>::value};
+
+template <typename T>
+using is_sycl_signed =
+    std::bool_constant<std::is_signed_v<T> || is_sycl_floating_point_v<T>>;
+
+template <typename T>
+inline constexpr bool is_sycl_signed_v{is_sycl_signed<T>::value};
 
 template <typename T>
 using is_nonconst_rvalue_reference =
