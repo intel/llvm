@@ -519,8 +519,7 @@ Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
   return emitCall(Ty, SPIRV_GET_SPEC_CONST_VAL, Args, InsertBefore);
 }
 
-Instruction *emitSpecConstantComposite(Type *Ty,
-                                       ArrayRef<Value *> Elements,
+Instruction *emitSpecConstantComposite(Type *Ty, ArrayRef<Value *> Elements,
                                        Instruction *InsertBefore) {
   return emitCall(Ty, SPIRV_GET_SPEC_CONST_COMPOSITE, Elements, InsertBefore);
 }
