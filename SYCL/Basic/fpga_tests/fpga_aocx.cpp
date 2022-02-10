@@ -1,4 +1,4 @@
-//==----- fpga_aocx.cpp - AOT compilation for fpga using aoc with aocx -----==//
+//==---- fpga_aocx.cpp - AOT compilation for fpga emulator dev with aocx ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: aoc, accelerator
+// REQUIRES: opencl-aot, accelerator
 
 /// E2E test for AOCX creation/use/run for FPGA
 // Produce an archive with device (AOCX) image. To avoid appending objects to

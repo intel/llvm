@@ -146,7 +146,7 @@ unavailable.
  * **cl_options** - CL command line options recognized (or not) by compiler;
  * **opencl_icd** - OpenCL ICD loader availability;
  * **aot_tool** - Ahead-of-time compilation tools availability;
- * **aoc**, **ocloc**, **opencl-aot** - Specific AOT tool availability;
+ * **ocloc**, **opencl-aot** - Specific AOT tool availability;
  * **level_zero_dev_kit** - Level_Zero headers and libraries availability;
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;

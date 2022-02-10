@@ -1,4 +1,4 @@
-//==----- accelerator.cpp - AOT compilation for fpga devices using aoc  ----==//
+//==----- accelerator.cpp - AOT compilation for fpga emulator devices  -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===------------------------------------------------------------------------===//
 // UNSUPPORTED: windows
-// REQUIRES: aoc, accelerator
+// REQUIRES: opencl-aot, accelerator
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga %S/std_complex_math_test.cpp -o %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out

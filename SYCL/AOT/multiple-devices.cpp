@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: opencl-aot, ocloc, aoc, cpu, gpu, accelerator
+// REQUIRES: opencl-aot, ocloc, cpu, gpu, accelerator
 // UNSUPPORTED: cuda
 // CUDA is not compatible with SPIR.
 
