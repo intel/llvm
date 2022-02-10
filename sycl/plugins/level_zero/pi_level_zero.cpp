@@ -865,10 +865,13 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   // synchronized above already does that.
   auto &EventList = CommandList->second.EventList;
   for (auto &Event : EventList) {
+    // All events in this loop are in the same command list which has been just
+    // reset above. We don't want cleanup() to reset same command list again for
+    // all events in the loop so set it to nullptr.
+    Event->ZeCommandList = nullptr;
     if (!Event->CleanedUp) {
       Event->cleanup(this);
     }
-    Event->ZeCommandList = nullptr;
     PI_CALL(EventRelease(Event, this));
   }
   EventList.clear();
