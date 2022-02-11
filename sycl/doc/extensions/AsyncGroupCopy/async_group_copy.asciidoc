@@ -70,9 +70,9 @@ to determine which of the extension’s APIs the implementation supports.
 as a parameter, in the same fashion as other group functions such as `group_barrier`.
 `joint_async_copy` is intended as a potential optimization, and may add more
 overhead than a simple synchronous implementation in some cases.
-The behavior of `joint_async_copy` for `sycl::group` must match the expected behavior of the SYCL and OpenCL `async_work_group_copy` function.
+The behavior of `joint_async_copy` for `sycl::group` must match the expected behavior of the SYCL and OpenCL `async_work_group_copy` functions.
 
-`joint_async_copy` will asynchronously copy a given number of values of type
+`joint_async_copy` will asynchronously copy a given number of elements of type
 `dataT` from global memory to local memory or from local memory to global
 memory. If an asynchronous copy is not supported then `joint_async_copy` will
 fall back on a synchronous copy.
@@ -81,17 +81,17 @@ fall back on a synchronous copy.
 to block until the copy has completed.
 
 When copying from global memory to local memory an optional stride, `src_stride`,
-can be provided. For 0 &le; i &lt; `count`, the value copied to dest[i] will be
+can be provided. For 0 &le; i &lt; `count`, the element copied to dest[i] will be
 src[i*`src_stride`]. 
 
 When copying from local memory to global memory an optional stride, `dest_stride`,
-can be provided. For 0 &le; i &lt; `count`, the value located at src[i] will be
+can be provided. For 0 &le; i &lt; `count`, the element located at src[i] will be
 copied to dest[i*`dest_stride`]. 
 
 `joint_async_copy` is a free function with the
 following properties:
 
-* The work-items will not necessarily be synchronized, so must have a
+* The work-items will not necessarily be synchronized, so should have a
   consistent view of the memory before the invocation.
 * The order of operations is implementation defined.
 * The method of copy is implementation defined.
@@ -167,10 +167,9 @@ as a group barrier to ensure memory consistency between the work-items of the gr
 
 
 ```c++
-namespace sycl::ext::oneapi::experimental {
 template <typename Group, typename... eventT>
 std::enable_if_t<sycl::is_group_v<Group> &&
-(std::is_same_v<eventT, async_copy_event<Group>> && ...)>
+(sycl::detail::is_same_v<eventT, async_copy_event<Group>> && ...)>
 wait_for(Group, eventT... Events);
 }  // namespace sycl
 ```
@@ -179,7 +178,7 @@ wait_for(Group, eventT... Events);
 
 1. Implementing asynchronous copies for trivially copyable types that do not fit with SPIR-Vs OpGroupAsyncCopy.
 
-NOTE: When using a stride other than 1, the size of the type must be known so the spacing between the values can be calculated. OpGroupAsyncCopy provides no way with to specify the size of the type so if the data cannot be reinterpreted as a scalar or vector of integer type or floating-point type then the type cannot be used with OpGroupAsyncCopy.
+NOTE: When using a stride other than 1, the size of the type must be known so the spacing between the elements can be calculated. OpGroupAsyncCopy provides no way with to specify the size of the type so if the data cannot be reinterpreted as a scalar or vector of integer type or floating-point type then the type cannot be used with OpGroupAsyncCopy.
 
 *RESOLUTION*: Fall back on a synchronous copy.
 
@@ -188,6 +187,7 @@ NOTE: A SPIR-V extension could be proposed that will add an instruction for asyn
 2. `joint_async_copy` has the limitation that it can only copy `count` elements of contiguous memory. This is insufficient for certain applications such as an efficient Matrix Multiply Add kernel where the memory may not be contiguous.  non-contiguous asynchronous copies could be supported by the addition of a sibling group function, `async_copy_over_group`.
 
 3. `joint_async_copy` is incompatible with an interpretation of the definition of SYCL group functions as "synchronization points", whereby all group functions require a barrier synchronization at the beginning of their execution. The definition of SYCL group functions should be clarified as discussed in https://gitlab.khronos.org/sycl/Specification/-/issues/576. The DPC++ implementation of `joint_reduce` is also inconsistent with this interpretation of a strict synchronization point, which can severely impact performance, even though these functions implement performance optimizations. It should be carefully considered whether to define subsets of SYCL group functions which adhere to different rules: i.e. those which require strict synchronization points, as defined by the previously discussed interpretation, and those that don't. If certain group functions do not require their implementation to include preliminary calls to a barrier function then it should be made clear to the user that unexpected behavior may occur following the usage of such functions that does not properly take the lack of a preliminary barrier into account.
+
 ## Revision History
 
 [frame="none",options="header"]
