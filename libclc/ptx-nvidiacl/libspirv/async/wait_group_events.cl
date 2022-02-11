@@ -8,12 +8,12 @@
 
 #include <spirv/spirv.h>
 
-int __nvvm_reflect(const char __constant *);
+int __clc_nvvm_reflect_arch();
 
 _CLC_OVERLOAD _CLC_DEF void __spirv_GroupWaitEvents(unsigned int scope,
                                                     int num_events,
                                                     event_t *event_list) {
-  if (__nvvm_reflect("__CUDA_ARCH") >= 800) {
+  if (__clc_nvvm_reflect_arch() >= 800) {
     __nvvm_cp_async_wait_all();
   }
   __spirv_ControlBarrier(scope, scope, SequentiallyConsistent);
