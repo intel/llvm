@@ -24,7 +24,6 @@ constexpr g<prop1, prop2, prop3, prop4, prop5, prop6> g_v;
 
 int main() {
   sycl::queue q;
-  g<prop1, prop2, prop3, prop4> a;
   q.submit([&](sycl::handler &h) {
     h.single_task<class test_kernel>(
         [=]() {

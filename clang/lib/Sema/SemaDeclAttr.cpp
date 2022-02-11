@@ -7436,7 +7436,7 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
                                         const AttributeCommonInfo &CI) {
   ASTContext &Context = S->getASTContext();
 
-  // Check filter list if it the first argument.
+  // Check filter list if it is the first argument.
   bool HasFilter = ArgsSize && isa<InitListExpr>(ArgsBegin[0]);
   if (HasFilter) {
     const auto *FilterListE = cast<InitListExpr>(ArgsBegin[0]);

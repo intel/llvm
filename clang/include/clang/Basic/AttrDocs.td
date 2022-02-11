@@ -3413,8 +3413,8 @@ def SYCLAddIRAttributesFunctionDocs : Documentation {
 This attribute can be applied to a function definition to add LLVM IR attributes
 to the resulting LLVM IR function declaration.
 The attribute must contain N*2 arguments where N is the number of IR attributes
-to add to the resulting LLVM IR global variable declaration. Each of the first N
-of these arguments must be either string literals or ``constexpr const char *``.
+to add to the resulting LLVM IR function declaration. Each of the first N of
+these arguments must be either string literals or ``constexpr const char *``.
 These will be the names of the added LLVM IR attributes. The following N
 arguments are the values of the LLVM IR attributes and must be integer, floating
 point, character, boolean, ``const char *``, or enumerator descriptor as either
@@ -3522,8 +3522,8 @@ This attribute can be applied to a class definition. Global variables of a class
 with this attribute will have the LLVM IR attributes specified by the arguments
 of the attribute.
 The attribute must contain N*2 arguments where N is the number of IR attributes
-to add to the resulting LLVM IR function declaration. Each of the first N of
-these arguments must be either string literals or ``constexpr const char *``.
+to add to the resulting LLVM IR global variable declaration. Each of the first N
+of these arguments must be either string literals or ``constexpr const char *``.
 These will be the names of the added LLVM IR attributes. The following N
 arguments are the values of the LLVM IR attributes and must be integer, floating
 point, character, boolean, ``const char *``, or enumerator descriptor as either
