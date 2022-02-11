@@ -100,7 +100,7 @@ template <typename Group> constexpr auto group_to_scope() {
 
 template <typename Group, typename... eventT>
 std::enable_if_t<sycl::is_group_v<Group> &&
-                 (std::is_same_v<eventT, async_copy_event<Group>> && ...)>
+                 (sycl::detail::is_same_v<eventT, async_copy_event<Group>> && ...)>
 wait_for(Group, eventT... Events) {
   (__spirv_GroupWaitEvents(detail::group_to_scope<Group>(), 1, &Events.Event),
    ...);
