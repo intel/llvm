@@ -419,14 +419,14 @@ void checkImageScopedDeviceGlobals(const Module &M,
       if (auto *I = dyn_cast<const Instruction>(U)) {
         auto *F = I->getFunction();
         Workqueue.insert(F);
-      } else {
-        if (auto *F = dyn_cast<const Function>(U)) {
-          if (isEntryPoint(*F))
-            CheckEntryPointModule(F);
-        }
-        for (auto *UU : U->users())
-          Workqueue.insert(UU);
+        continue;
       }
+      if (auto *F = dyn_cast<const Function>(U)) {
+        if (isEntryPoint(*F))
+          CheckEntryPointModule(F);
+      }
+      for (auto *UU : U->users())
+        Workqueue.insert(UU);
     }
   }
 }
