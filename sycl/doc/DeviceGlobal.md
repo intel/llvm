@@ -372,7 +372,7 @@ than one module, the `sycl-post-link` tool issues an error diagnostic:
 
 ```
 error: device_global variable <name> with property "device_image_scope"
-       is contained in more than one device image.
+       is used in more than one device image.
 ```
 
 Assuming that no error diagnostic is issued, the `sycl-post-link` tool includes
