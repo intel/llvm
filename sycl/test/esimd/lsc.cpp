@@ -92,38 +92,38 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo() {
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}} i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
   auto res_flat_atomic_0 =
-      lsc_atomic_update<int, atomic_op::inc>(ptr, offsets, pred);
+      lsc_atomic_update<atomic_op::inc, int>(ptr, offsets, pred);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
   auto res_flat_atomic_1 =
-      lsc_atomic_update<int, atomic_op::add>(ptr, offsets, add, pred);
+      lsc_atomic_update<atomic_op::add, int>(ptr, offsets, add, pred);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
-  auto res_flat_atomic_2 = lsc_atomic_update<int, atomic_op::cmpxchg>(
+  auto res_flat_atomic_2 = lsc_atomic_update<atomic_op::cmpxchg, int>(
       ptr, offsets, compare, swap, pred);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
   auto res_slm_atomic_0 =
-      lsc_slm_atomic_update<int, atomic_op::inc>(offsets, pred);
+      lsc_slm_atomic_update<atomic_op::inc, int>(offsets, pred);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 0, <4 x i32> undef)
   auto res_slm_atomic_1 =
-      lsc_slm_atomic_update<int, atomic_op::add>(offsets, add, pred);
+      lsc_slm_atomic_update<atomic_op::add, int>(offsets, add, pred);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
-  auto res_slm_atomic_2 = lsc_slm_atomic_update<int, atomic_op::cmpxchg>(
+  auto res_slm_atomic_2 = lsc_slm_atomic_update<atomic_op::cmpxchg, int>(
       offsets, compare, swap, pred);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
   auto res_surf_atomic_0 =
-      lsc_atomic_update<int, atomic_op::inc>(acc, offsets, pred);
+      lsc_atomic_update<atomic_op::inc, int>(acc, offsets, pred);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 12, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
   auto res_surf_atomic_1 =
-      lsc_atomic_update<int, atomic_op::add>(acc, offsets, add, pred);
+      lsc_atomic_update<atomic_op::add, int>(acc, offsets, add, pred);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 18, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> undef)
-  auto res_surf_atomic_2 = lsc_atomic_update<int, atomic_op::cmpxchg>(
+  auto res_surf_atomic_2 = lsc_atomic_update<atomic_op::cmpxchg, int>(
       acc, offsets, compare, swap, pred);
 
   constexpr unsigned Width = 4;

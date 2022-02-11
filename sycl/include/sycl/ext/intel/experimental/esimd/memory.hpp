@@ -2038,15 +2038,15 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.slm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam DS is the data size.
+/// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
+/// @tparam DS is the data size.
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
-          lsc_data_size DS = lsc_data_size::default_size, int N>
+template <atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
                                              simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
@@ -2068,16 +2068,16 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.slm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam DS is the data size.
+/// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
+/// @tparam DS is the data size.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
-          lsc_data_size DS = lsc_data_size::default_size, int N>
+template <atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
                                              simd<T, N> src0,
                                              simd_mask<N> pred) {
@@ -2101,17 +2101,17 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.slm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam DS is the data size.
+/// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
+/// @tparam DS is the data size.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
-          lsc_data_size DS = lsc_data_size::default_size, int N>
+template <atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
                                              simd<T, N> src0, simd<T, N> src1,
                                              simd_mask<N> pred) {
@@ -2135,19 +2135,19 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
+/// @tparam T is element type.
+/// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
-/// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
+template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, int N, typename AccessorTy>
+          cache_hint L3H = cache_hint::none, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
 lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
                   simd_mask<N> pred) {
@@ -2177,20 +2177,20 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
+/// @tparam T is element type.
+/// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
-/// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
+template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, int N, typename AccessorTy>
+          cache_hint L3H = cache_hint::none, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
 lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
                   simd_mask<N> pred) {
@@ -2220,11 +2220,11 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
+/// @tparam T is element type.
+/// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
-/// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offsets is the zero-based offsets.
@@ -2232,9 +2232,9 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
 /// @param src1 is the second atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
+template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, int N, typename AccessorTy>
+          cache_hint L3H = cache_hint::none, typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
 lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
                   simd<T, N> src1, simd_mask<N> pred) {
@@ -2264,18 +2264,18 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
+/// @tparam T is element type.
+/// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
-/// @tparam N is the number of channels (platform dependent).
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
+template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, int N>
+          cache_hint L3H = cache_hint::none>
 __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
                                          simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
@@ -2300,19 +2300,19 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
+/// @tparam T is element type.
+/// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
-/// @tparam N is the number of channels (platform dependent).
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
+template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, int N>
+          cache_hint L3H = cache_hint::none>
 __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
                                          simd<T, N> src0, simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
@@ -2337,20 +2337,20 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
 ///
-/// @tparam T is element type.
 /// @tparam Op is operation type.
+/// @tparam T is element type.
+/// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
-/// @tparam N is the number of channels (platform dependent).
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op,
+template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, int N>
+          cache_hint L3H = cache_hint::none>
 __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
                                          simd<T, N> src0, simd<T, N> src1,
                                          simd_mask<N> pred) {
