@@ -503,12 +503,16 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
   checkSYCLType(*this, Ty, Loc, Visited);
 }
 
-// Tests whether given function is a lambda function or '()' operator used as
-// SYCL kernel body function (e.g. in parallel_for).
+// Tests whether OperatorFD is a lambda function or '()' operator used as
+// SYCL kernel body function (e.g. in parallel_for). If OperatorFD is a SYCL
+// kernel body function, it's parent (or parent's parent for wrapped kernel),
+// will have be marked with SYCLKernelAttr.
 // NOTE: This is incomplete implemenation. See TODO in the FE TODO list for the
 // ESIMD extension.
-static bool isSYCLKernelBodyFunction(FunctionDecl *FD) {
-  return FD->getOverloadedOperator() == OO_Call;
+static bool isSYCLKernelBodyFunction(FunctionDecl *OperatorFD,
+                                     FunctionDecl *KernelFD) {
+  return OperatorFD->getOverloadedOperator() == OO_Call &&
+         KernelFD->hasAttr<SYCLKernelAttr>();
 }
 
 static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
@@ -818,32 +822,29 @@ class SingleDeviceFunctionTracker {
                             DirectlyCalled);
     }
 
-    // Calculate the kernel body.  Note the 'isSYCLKernelBodyFunction' only
-    // tests that it is operator(), so hopefully this doesn't get us too many
-    // false-positives.
-    if (isSYCLKernelBodyFunction(CurrentDecl)) {
-      // This is a direct callee of the kernel.
-      if (CallStack.size() == 1) {
-        assert(!KernelBody && "inconsistent call graph - only one kernel body "
-                              "function can be called");
-        KernelBody = CurrentDecl;
-      } else if (CallStack.size() == 2 && KernelBody == CallStack.back()) {
-        // To implement rounding-up of a parallel-for range the
-        // SYCL header implementation modifies the kernel call like this:
-        // auto Wrapper = [=](TransformedArgType Arg) {
-        //  if (Arg[0] >= NumWorkItems[0])
-        //    return;
-        //  Arg.set_allowed_range(NumWorkItems);
-        //  KernelFunc(Arg);
-        // };
-        //
-        // This transformation leads to a condition where a kernel body
-        // function becomes callable from a new kernel body function.
-        // Hence this test.
-        // FIXME: We need to be more selective here, this can be hit by simply
-        // having a kernel lambda with a lambda call inside of it.
-        KernelBody = CurrentDecl;
-      }
+    // Calculate the kernel body. Since Kernel body is a direct callee of the
+    // kernel, or a wrapped inside a parallel-for, size of CallStack will be
+    // either 1 or 2.
+    if (CallStack.size() == 1 &&
+        isSYCLKernelBodyFunction(CurrentDecl, CallStack.front())) {
+      assert(!KernelBody && "inconsistent call graph - only one kernel body "
+                            "function can be called");
+      KernelBody = CurrentDecl;
+    } else if (CallStack.size() == 2 &&
+               isSYCLKernelBodyFunction(CurrentDecl, CallStack.front())) {
+      // To implement rounding-up of a parallel-for range the
+      // SYCL header implementation modifies the kernel call like this:
+      // auto Wrapper = [=](TransformedArgType Arg) {
+      //  if (Arg[0] >= NumWorkItems[0])
+      //    return;
+      //  Arg.set_allowed_range(NumWorkItems);
+      //  KernelFunc(Arg);
+      // };
+      //
+      // This transformation leads to a condition where a kernel body
+      // function becomes callable from a new kernel body function.
+      // Hence this test.
+      KernelBody = CurrentDecl;
     }
 
     // Recurse.
@@ -3615,7 +3616,7 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
     FunctionDecl *FD = WorkList.back().first;
     FunctionDecl *ParentFD = WorkList.back().second;
 
-    if ((ParentFD == OpParens) && isSYCLKernelBodyFunction(FD)) {
+    if ((ParentFD == OpParens) && (FD->getOverloadedOperator() == OO_Call)) {
       KernelBody = FD;
       break;
     }
