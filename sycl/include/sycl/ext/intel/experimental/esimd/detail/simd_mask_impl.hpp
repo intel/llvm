@@ -25,9 +25,35 @@ namespace detail {
 /// @{
 
 /// This class is a simd_obj_impl specialization representing a simd mask, which
-/// is basically a simd_obj_impl with fixed element type (uint16_t, not publicly
-/// usable) and limited set of APIs. E.g. arithmetic operations (\c +, \c -,
-/// etc.) are not defined for masks, but bit operations like \c ^, \c & are.
+/// is basically a simd_obj_impl with fixed element type and limited set of
+/// APIs. E.g. arithmetic operations (\c +, \c -, etc.) are not defined for
+/// masks, but bit operations like \c ^, \c & are. Masks are used in many ESIMD
+/// APIs to enable/disable specific lanes - for example, to disable certain
+/// lanes when writing to a memory via the @ref scatter operation. Each mask
+/// element may thus be interpreted in one of two ways - by ESIMD ops -
+/// "lane enaled" or "lane disabled". They can be produced in a number of ways:
+/// - using per-element simd object comparison operations, in which case the
+///   result is \c true / \c false per lane, and \c true means "enabled" in the
+///   resulting mask lane, \c false - "disabled".
+/// - reading from memory, for example:
+/// @code{.cpp}
+///   using simd_mask_elem_t = typename simd_mask<1>::element_type;
+///   simd_mask_elem_t *arr;
+///   ...
+///   simd_mask<8> m(arr + 8*i);
+/// @endcode
+///   In this and all other cases below lanes with non-zero value are treated as
+///   "enabled", lanes with zero - as "disabled".
+/// - constructing from an array or using broadcast constructor:
+/// @code{.cpp}
+///   simd_mask<8> m1({1,0,1,0,1,0,1,0});
+///   simd_mask<8> m2(1); // all "enabled"
+/// @endcode
+/// - constructing from a @ref simd object.
+/// Use code should use <code>simd_mask<1>::element_type<code> when the mask
+/// element type needs to be used - for example, to declare a pointer to memory
+/// where mask elements can be written to/read from. Yet it must *not* assume it
+/// to be of any specific type (which is unsigned 16-bit integer in fact).
 /// @tparam T Fixed element type, must be simd_mask_elem_type.
 /// @tparam N Number of elements (per-lane predicates) in the mask.
 template <typename T, int N>
