@@ -506,7 +506,7 @@ void Sema::checkSYCLDeviceVarDecl(VarDecl *Var) {
 // Tests whether OperatorFD is a lambda function or '()' operator used as
 // SYCL kernel body function (e.g. in parallel_for). If OperatorFD is a SYCL
 // kernel body function, it's parent (or parent's parent for wrapped kernel),
-// will have be marked with SYCLKernelAttr.
+// will be marked with SYCLKernelAttr.
 // NOTE: This is incomplete implemenation. See TODO in the FE TODO list for the
 // ESIMD extension.
 static bool isSYCLKernelBodyFunction(FunctionDecl *OperatorFD,

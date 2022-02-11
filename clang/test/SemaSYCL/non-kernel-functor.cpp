@@ -16,6 +16,6 @@ public:
 
 SYCL_EXTERNAL
 void foo() {
-  Second m_uold;
-  m_uold()();
+  Second NonKernelFunctorObj;
+  NonKernelFunctorObj()();
 }
