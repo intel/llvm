@@ -50,7 +50,7 @@ namespace detail {
 ///   simd_mask<8> m2(1); // all "enabled"
 /// @endcode
 /// - constructing from a @ref simd object.
-/// Use code should use <code>simd_mask<1>::element_type<code> when the mask
+/// User code should use <code>simd_mask<1>::element_type<code> when the mask
 /// element type needs to be used - for example, to declare a pointer to memory
 /// where mask elements can be written to/read from. Yet it must *not* assume it
 /// to be of any specific type (which is unsigned 16-bit integer in fact).

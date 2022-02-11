@@ -28,7 +28,7 @@ namespace esimd {
 /// via an instance of this class. Derives from detail::simd_view_impl, which
 /// defines the majority of available APIs for view classes.
 ///
-/// Use code is never supposed to explicitly provide actual template parameters
+/// User code is never supposed to explicitly provide actual template parameters
 /// for this class. They are always auto-deduced or provided by APIs.
 /// @tparam BaseTy The base type - type of the object viewed by this one.
 /// @tparam RegionTy Describes the viewed region - its shape and element type.
