@@ -1,6 +1,6 @@
 // REQUIRES: opencl, opencl_icd
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %opencl_lib -DSYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %opencl_lib
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 //==------------- fpga_queue.cpp - SYCL FPGA queues test -------------------==//

@@ -1,5 +1,5 @@
 // REQUIRES: opencl, opencl_icd
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %opencl_lib %s -o %t.ocl.out -DSYCL_GET_NATIVE_BACKEND_OPENCL_RETURN_T_CL_EVENT
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %opencl_lib %s -o %t.ocl.out
 // RUN: env SYCL_DEVICE_FILTER="opencl" %t.ocl.out
 
 #include <CL/cl.h>
