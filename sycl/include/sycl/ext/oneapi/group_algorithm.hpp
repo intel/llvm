@@ -110,8 +110,7 @@ wait_for(Group, eventT... Events) {
 /// from the source pointed by \p src to destination pointed by \p dest
 /// with a source stride specified by \p srcStride, and returns an
 /// async_copy_event which can be used to wait on the completion of the copy.
-/// Permitted types for dataT are all trivially copyable and vector types,
-/// except boolean.
+/// Permitted types for dataT are all scalar and vector types, except boolean.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !sycl::detail::is_bool<dataT>::value,
                  async_copy_event<Group>>
@@ -131,8 +130,7 @@ joint_async_copy(Group g, global_ptr<dataT> src, local_ptr<dataT> dest,
 /// from the source pointed by \p src to destination pointed by \p dest with
 /// the destination stride specified by \p destStride, and returns an
 /// async_copy_event which can be used to wait on the completion of the copy.
-/// Permitted types for dataT are all trivially copyable and vector types,
-/// except boolean.
+/// Permitted types for dataT are all scalar and vector types, except boolean.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !sycl::detail::is_bool<dataT>::value,
                  async_copy_event<Group>>
