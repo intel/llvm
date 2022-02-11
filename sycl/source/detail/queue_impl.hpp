@@ -573,7 +573,7 @@ private:
   std::mutex MLastEventMtx;
   // Used for in-order queues in pair with MLastEvent
   // Host tasks is explicitly synchronized in RT, pi tasks - implicitly by
-  // backend Using type to setup explicit sync between host and pi tasks.
+  // backend. Using type to setup explicit sync between host and pi tasks.
   CG::CGTYPE MLastCGType = CG::CGTYPE::None;
 
   const bool MIsInorder;

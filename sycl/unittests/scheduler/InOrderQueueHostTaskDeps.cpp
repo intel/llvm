@@ -22,7 +22,6 @@
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
 
-#include <iostream>
 #include <map>
 
 using namespace sycl;
