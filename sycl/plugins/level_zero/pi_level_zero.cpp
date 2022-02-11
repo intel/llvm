@@ -5105,6 +5105,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
       Event->Queue
           ? Event->Queue->Device->ZeDeviceProperties->timerResolution
           : Event->Context->Devices[0]->ZeDeviceProperties->timerResolution;
+  // Get timestamp frequency
+  const double ZeTimerFreq = 1E09 / ZeTimerResolution;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
@@ -5113,11 +5115,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   switch (ParamName) {
   case PI_PROFILING_INFO_COMMAND_START: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
-
-    uint64_t ContextStartTime = tsResult.context.kernelStart;
-    ContextStartTime *= ZeTimerResolution;
-
-    return ReturnValue(uint64_t{ContextStartTime});
+    uint64_t ContextStartTime = tsResult.context.kernelStart * ZeTimerFreq;
+    return ReturnValue(ContextStartTime);
   }
   case PI_PROFILING_INFO_COMMAND_END: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
@@ -5136,9 +5135,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
           (1LL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1;
       ContextEndTime += TimestampMaxValue - ContextStartTime;
     }
-    ContextEndTime *= ZeTimerResolution;
-
-    return ReturnValue(uint64_t{ContextEndTime});
+    ContextEndTime *= ZeTimerFreq;
+    return ReturnValue(ContextEndTime);
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
