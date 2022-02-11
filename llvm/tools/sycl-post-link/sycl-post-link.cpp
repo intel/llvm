@@ -404,7 +404,7 @@ void checkImageScopedDeviceGlobals(const Module &M,
       }
       if (EntryPointModulesIt->second != *VarEntryPointModule) {
         error("device_global variable '" + Twine(GV.getName()) +
-              "' with property \"device_image_scope\" is contained in more "
+              "' with property \"device_image_scope\" is used in more "
               "than one device image.");
       }
     };
