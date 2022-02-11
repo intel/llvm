@@ -1073,55 +1073,51 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
     // Fill maps for kernel bundles
     if (EntriesB != EntriesE) {
-        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+      std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
-        // Register all exported symbols
-        auto ExportedSymbols = Img->getExportedSymbols();
-        for (const pi_device_binary_property &ExportedSymbol : ExportedSymbols)
-          m_ExportedSymbols.insert(ExportedSymbol->Name);
+      // Register all exported symbols
+      auto ExportedSymbols = Img->getExportedSymbols();
+      for (const pi_device_binary_property &ExportedSymbol : ExportedSymbols)
+        m_ExportedSymbols.insert(ExportedSymbol->Name);
 
+      m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
-        m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
+      for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+           ++EntriesIt) {
 
-
-        for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-             ++EntriesIt) {
-
-          // Skip creating unique kernel ID if it is a service kernel.
-          // SYCL service kernels are identified by having
-          // __sycl_service_kernel__ in the mangled name, primarily as part of
-          // the namespace of the name type.
-          if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-            m_ServiceKernels.insert(EntriesIt->name);
-            continue;
-          }
-
-          // Skip creating unique kernel ID if it is an exported device
-          // function. Exported device functions appear in the offload entries
-          // among kernels, but are identifiable by being listed in properties.
-          if (m_ExportedSymbols.find(EntriesIt->name) !=
-              m_ExportedSymbols.end())
-            continue;
-
-          // ... and create a unique kernel ID for the entry
-          auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
-          if(It == m_KernelName2KernelIDs.end()) {
-            std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-                std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-            sycl::kernel_id KernelID =
-                detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
-
-            It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name,
-                                                     KernelID);
-          }
-
-          m_KernelName2KernelIDs.insert(
-              std::make_pair(EntriesIt->name, It->second));
-
-          m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
-          m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
-
+        // Skip creating unique kernel ID if it is a service kernel.
+        // SYCL service kernels are identified by having
+        // __sycl_service_kernel__ in the mangled name, primarily as part of
+        // the namespace of the name type.
+        if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
+          m_ServiceKernels.insert(EntriesIt->name);
+          continue;
         }
+
+        // Skip creating unique kernel ID if it is an exported device
+        // function. Exported device functions appear in the offload entries
+        // among kernels, but are identifiable by being listed in properties.
+        if (m_ExportedSymbols.find(EntriesIt->name) != m_ExportedSymbols.end())
+          continue;
+
+        // ... and create a unique kernel ID for the entry
+        auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+        if (It == m_KernelName2KernelIDs.end()) {
+          std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+              std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+          sycl::kernel_id KernelID =
+              detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+
+          It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name,
+                                                   KernelID);
+        }
+
+        m_KernelName2KernelIDs.insert(
+            std::make_pair(EntriesIt->name, It->second));
+
+        m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
+        m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
+      }
 
       // Sort kernel ids for faster search
       std::sort(m_BinImg2KernelIDs[Img.get()]->begin(),
@@ -1389,7 +1385,6 @@ std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
 
   std::vector<sycl::kernel_id> AllKernelIDs;
   AllKernelIDs.reserve(m_KernelName2KernelIDs.size());
-  // TODO: Replace with inserts of vectors from m_BinImg2KernelIDs ?
   for (std::pair<std::string, kernel_id> KernelID : m_KernelName2KernelIDs) {
     AllKernelIDs.push_back(KernelID.second);
   }
@@ -1616,7 +1611,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
-      bundle_state::object, InputImpl->get_kernel_ids_ref(), Prog,
+      bundle_state::object, InputImpl->get_kernel_ids_ptr(), Prog,
       InputImpl->get_spec_const_data_ref(),
       InputImpl->get_spec_const_blob_ref());
 
@@ -1683,9 +1678,10 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
   for (const device_image_plain &DeviceImage : DeviceImages) {
     // Duplicates are not expected here, otherwise piProgramLink should fail
-    KernelIDs->insert(KernelIDs->end(),
-                     getSyclObjImpl(DeviceImage)->get_kernel_ids_ref()->begin(),
-                     getSyclObjImpl(DeviceImage)->get_kernel_ids_ref()->end());
+    KernelIDs->insert(
+        KernelIDs->end(),
+        getSyclObjImpl(DeviceImage)->get_kernel_ids_ptr()->begin(),
+        getSyclObjImpl(DeviceImage)->get_kernel_ids_ptr()->end());
   }
   // device_image_impl expects kernel ids to be sorted for fast search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
@@ -1857,7 +1853,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
-      InputImpl->get_kernel_ids_ref(), ResProgram,
+      InputImpl->get_kernel_ids_ptr(), ResProgram,
       InputImpl->get_spec_const_data_ref(),
       InputImpl->get_spec_const_blob_ref());
 

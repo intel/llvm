@@ -57,7 +57,8 @@ public:
 
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
-                    std::shared_ptr<std::vector<kernel_id>> KernelIDs, RT::PiProgram Program)
+                    std::shared_ptr<std::vector<kernel_id>> KernelIDs,
+                    RT::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)) {
@@ -66,8 +67,8 @@ public:
 
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     std::vector<device> Devices, bundle_state State,
-                    std::shared_ptr<std::vector<kernel_id>> KernelIDs, RT::PiProgram Program,
-                    const SpecConstMapT &SpecConstMap,
+                    std::shared_ptr<std::vector<kernel_id>> KernelIDs,
+                    RT::PiProgram Program, const SpecConstMapT &SpecConstMap,
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
@@ -182,7 +183,9 @@ public:
 
   const context &get_context() const noexcept { return MContext; }
 
-  std::shared_ptr<std::vector<kernel_id>> &get_kernel_ids_ref() noexcept { return MKernelIDs; }
+  std::shared_ptr<std::vector<kernel_id>> &get_kernel_ids_ptr() noexcept {
+    return MKernelIDs;
+  }
 
   std::vector<unsigned char> &get_spec_const_blob_ref() noexcept {
     return MSpecConstsBlob;
