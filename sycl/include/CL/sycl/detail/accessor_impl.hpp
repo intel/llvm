@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/id.hpp>
@@ -177,7 +178,7 @@ public:
   sycl::range<3> MSize;
   int MDims;
   int MElemSize;
-  std::vector<char> MMem;
+  std::vector<char, aligned_allocator<char>> MMem;
 };
 
 using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
