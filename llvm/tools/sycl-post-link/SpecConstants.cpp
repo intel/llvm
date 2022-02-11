@@ -369,11 +369,11 @@ void collectCompositeElementsDefaultValuesRecursive(
 
   // Assume that we encountered some scalar element
   size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
-  if (auto* IntConst = dyn_cast<ConstantInt>(C)) {
+  if (auto *IntConst = dyn_cast<ConstantInt>(C)) {
     auto Val = IntConst->getValue().getZExtValue();
     std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
                 std::back_inserter(DefaultValues));
-  } else if (auto* FPConst = dyn_cast<ConstantFP>(C)) {
+  } else if (auto *FPConst = dyn_cast<ConstantFP>(C)) {
     auto Val = FPConst->getValue();
 
     if (NumBytes == 2) {
