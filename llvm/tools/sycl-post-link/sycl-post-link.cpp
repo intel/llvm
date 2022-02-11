@@ -379,10 +379,9 @@ void checkImageScopedDeviceGlobals(const Module &M,
   for (const auto &Group : GMap) {
     EntryPointNumber += static_cast<unsigned>(Group.second.size());
   }
-  DenseMap<const Function *, const StringRef *> EntryPointModules(
-      EntryPointNumber);
+  DenseMap<const Function *, StringRef> EntryPointModules(EntryPointNumber);
   for (const auto &Group : GMap) {
-    auto *ModuleName = &Group.first;
+    auto ModuleName = Group.first;
     for (const auto *F : Group.second) {
       EntryPointModules.insert({F, ModuleName});
     }
@@ -393,13 +392,13 @@ void checkImageScopedDeviceGlobals(const Module &M,
     if (!isDeviceGlobalVariable(GV) || !hasDeviceImageScopeProperty(GV))
       continue;
 
-    const StringRef *VarEntryPointModule = nullptr;
+    Optional<StringRef> VarEntryPointModule{};
     auto CheckEntryPointModule = [&VarEntryPointModule, &EntryPointModules,
                                   &GV](const auto *F) {
       auto EntryPointModulesIt = EntryPointModules.find(F);
       assert(EntryPointModulesIt != EntryPointModules.end() &&
              "There is no group for an entry point");
-      if (VarEntryPointModule == nullptr) {
+      if (!VarEntryPointModule.hasValue()) {
         VarEntryPointModule = EntryPointModulesIt->second;
         return;
       }
