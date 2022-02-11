@@ -43,9 +43,9 @@ SYCL specification refer to that revision.
 
 ## Introduction
 
-This document proposes the `async_group_copy` group collective function, which will generalize
-`async_work_group_copy` to work with sub-groups as well as work-groups.
-A `wait_for` group collective function is also introduced as a corresponding generalization for `sycl::group::wait_for`.  The purpose of `wait_for` is to block further execution of work-items that are part of the group until the memory
+This document proposes the `joint_async_copy` group function, which will generalize
+`sycl::group::async_work_group_copy` to work with sub-groups as well as work-groups.
+A `wait_for` group function is also introduced as a corresponding generalization for `sycl::group::wait_for`.  The purpose of `wait_for` is to block further execution of work-items that are part of the group until the memory
 copy is complete.
 
 ## Feature test macro
@@ -65,18 +65,19 @@ to determine which of the extension’s APIs the implementation supports.
 |===
 
 
-## New `async_group_copy` group collective function.
-`async_group_copy` extends the functionality of `sycl::group::async_work_group_copy` to sub-groups. The group/sub-group will be provided
-as a template parameter, in the same fashion as other group collectives such as `group_barrier`.
-`async_group_copy` is intended as a potential optimization, and may add more
+## New `joint_async_copy` group collective function.
+`joint_async_copy` extends the functionality of `sycl::group::async_work_group_copy` to sub-groups. A group/sub-group must be provided
+as a parameter, in the same fashion as other group functions such as `group_barrier`.
+`joint_async_copy` is intended as a potential optimization, and may add more
 overhead than a simple synchronous implementation in some cases.
+The behavior of `joint_async_copy` for `sycl::group` must match the expected behavior of the SYCL and OpenCL `async_work_group_copy` function.
 
-`async_group_copy` will asynchronously copy a given number of values of type
+`joint_async_copy` will asynchronously copy a given number of values of type
 `dataT` from global memory to local memory or from local memory to global
-memory. If an asynchronous copy is not supported then `async_group_copy` will
+memory. If an asynchronous copy is not supported then `joint_async_copy` will
 fall back on a synchronous copy.
 
-`async_group_copy` will return an `async_copy_event` that can be used with `wait_for`
+`joint_async_copy` will return an `async_copy_event` that can be used with `wait_for`
 to block until the copy has completed.
 
 When copying from global memory to local memory an optional stride, `src_stride`,
@@ -87,7 +88,7 @@ When copying from local memory to global memory an optional stride, `dest_stride
 can be provided. For 0 &le; i &lt; `count`, the value located at src[i] will be
 copied to dest[i*`dest_stride`]. 
 
-`async_group_copy` is a free function with the
+`joint_async_copy` is a free function with the
 following properties:
 
 * The work-items will not necessarily be synchronized, so must have a
@@ -95,11 +96,11 @@ following properties:
 * The order of operations is implementation defined.
 * The method of copy is implementation defined.
 * All work-items of the group are required to call the function with the same
-  arguments, otherwise the behaviour is undefined.
-* All work-items of the group are required to call the function in convergent
-  control flow, otherwise the behaviour is undefined.
-* If the work-items of the group have diverged then the group should be re-converged prior to calls to `group_async_copy` via a call to the `sycl::barrier` group collective.
-* The type of `dataT` must either be trivially copyable, as defined by the C++ core language, or a specialization of `sycl::vec`.
+  arguments, otherwise the behavior is undefined.
+* All work-items of the group are not required to call the function in convergent
+  control flow, however performance may be negatively affected if the function is not called in convergent control flow.
+* If the work-items of the group have diverged then it is recommended that the group should be re-converged prior to calls to `joint_async_copy` via a call to `sycl::barrier`.
+* The type of `dataT` must either any scalar or vector type, as defined by the C++ core language, or a specialization of `sycl::vec`.
 * The copy is only guaranteed to be complete after `wait_for` has been called on the
   returned `async_copy_event` and has completed.
 * `src_stride` and `dst_stride` must be non-zero `size_t` values.
@@ -133,26 +134,26 @@ struct src_stride {
 };
 
 template <typename Group, typename dataT>
-async_copy_event<Group> async_group_copy(Group group, sycl::local_ptr<dataT> src, sycl::global_ptr<dataT> dest, size_t count);
+async_copy_event<Group> joint_async_copy(Group group, sycl::local_ptr<dataT> src, sycl::global_ptr<dataT> dest, size_t count);
 
 template <typename Group, typename dataT>
-async_copy_event<Group> async_group_copy(Group group, sycl::global_ptr<dataT> src, sycl::local_ptr<dataT> dest, size_t count);
+async_copy_event<Group> joint_async_copy(Group group, sycl::global_ptr<dataT> src, sycl::local_ptr<dataT> dest, size_t count);
 
 template <typename Group, typename dataT>
-async_copy_event<Group> async_group_copy(Group group, sycl::local_ptr<dataT> src, sycl::global_ptr<dataT> dest, size_t count, dest_stride destStride);
+async_copy_event<Group> joint_async_copy(Group group, sycl::local_ptr<dataT> src, sycl::global_ptr<dataT> dest, size_t count, dest_stride destStride);
 
 template <typename Group, typename dataT>
-async_copy_event<Group> async_group_copy(Group group, sycl::global_ptr<dataT> src, sycl::local_ptr<dataT> dest, size_t count, src_stride srcStride);
+async_copy_event<Group> joint_async_copy(Group group, sycl::global_ptr<dataT> src, sycl::local_ptr<dataT> dest, size_t count, src_stride srcStride);
 } // namespace sycl::ext::oneapi::experimental
 ```
 
 ## New `wait_for` group collective function
 `wait_for` will work very similarly to `nd_item::wait_for` or `group::wait_for`,
 but with the ability to utilize individual sub-groups. The group will be linked
-to the `async_copy_event` argument of `wait_for`, so invocations of `wait_for` and `async_group_copy` must use the same group when the `async_copy_event` used as an argument in `wait_for` was returned by the `async_group_copy` invocation.
+to the `async_copy_event` argument of `wait_for`, so invocations of `wait_for` and `joint_async_copy` must use the same group when the `async_copy_event` used as an argument in `wait_for` was returned by the `joint_async_copy` invocation.
 
 `wait_for` will block until all the asychronous copies represented by the
-`async_copy_event` arguments are complete. Copies performed with `async_group_copy`
+`async_copy_event` arguments are complete. Copies performed with `joint_async_copy`
 are not guaranteed to be complete until `wait_for` has been called with the returned
 `async_copy_event`, so the data cannot be read reliably before that. `wait_for` will also act
 as a group barrier to ensure memory consistency between the work-items of the group.
@@ -160,9 +161,9 @@ as a group barrier to ensure memory consistency between the work-items of the gr
 `wait_for` is a free function with the following properties:
 
 * All work-items of the group are required to call the function in convergent
-  control flow, otherwise the behaviour is undefined.
+  control flow, otherwise the behavior is undefined.
 * All instances of `eventTN` are of template type `async_copy_event` with the same specialization.
-* All work-items of the group are required to call the function with `async_copy_event` arguments representing the same copies, in the same order, otherwise the behaviour is undefined.
+* All work-items of the group are required to call the function with `async_copy_event` arguments representing the same copies, in the same order, otherwise the behavior is undefined.
 
 
 ```c++
@@ -184,6 +185,9 @@ NOTE: When using a stride other than 1, the size of the type must be known so th
 
 NOTE: A SPIR-V extension could be proposed that will add an instruction for asynchronous copy of trivally copyable types of arbitrary shape (size in bytes).
 
+2. `joint_async_copy` has the limitation that it can only copy `count` elements of contiguous memory. This is insufficient for certain applications such as an efficient Matrix Multiply Add kernel where the memory may not be contiguous.  non-contiguous asynchronous copies could be supported by the addition of a sibling group function, `async_copy_over_group`.
+
+3. `joint_async_copy` is incompatible with an interpretation of the definition of SYCL group functions as "synchronization points", whereby all group functions require a barrier synchronization at the beginning of their execution. The definition of SYCL group functions should be clarified as discussed in https://gitlab.khronos.org/sycl/Specification/-/issues/576. The DPC++ implementation of `joint_reduce` is also inconsistent with this interpretation of a strict synchronization point, which can severely impact performance, even though these functions implement performance optimizations. It should be carefully considered whether to define subsets of SYCL group functions which adhere to different rules: i.e. those which require strict synchronization points, as defined by the previously discussed interpretation, and those that don't. If certain group functions do not require their implementation to include preliminary calls to a barrier function then it should be made clear to the user that unexpected behavior may occur following the usage of such functions that does not properly take the lack of a preliminary barrier into account.
 ## Revision History
 
 [frame="none",options="header"]
