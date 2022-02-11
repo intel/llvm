@@ -5007,10 +5007,10 @@ static bool ReferencesAnonymousEntity(ArrayRef<TemplateArgument> Args) {
     case TemplateArgument::Type: {
       struct ReferencesAnonymous
           : public RecursiveASTVisitor<ReferencesAnonymous> {
-        bool ReferencesAnonymous = false;
+        bool RefAnon = false;
         bool VisitRecordType(RecordType *RT) {
           if (ReferencesAnonymousEntity(RT)) {
-            ReferencesAnonymous = true;
+            RefAnon = true;
             return false;
           }
           return true;
@@ -5018,7 +5018,7 @@ static bool ReferencesAnonymousEntity(ArrayRef<TemplateArgument> Args) {
       };
       ReferencesAnonymous RT;
       RT.TraverseType(TA.getAsType());
-      if (RT.ReferencesAnonymous)
+      if (RT.RefAnon)
         return true;
       break;
     }
@@ -5044,6 +5044,10 @@ struct ReconstitutableType : public RecursiveASTVisitor<ReconstitutableType> {
     // produce in the DWARF, so we can't get Clang's full name back.
     if (const auto *ED = dyn_cast<EnumDecl>(ET->getDecl())) {
       if (!ED->getIdentifier()) {
+        Reconstitutable = false;
+        return false;
+      }
+      if (!ED->isExternallyVisible()) {
         Reconstitutable = false;
         return false;
       }
