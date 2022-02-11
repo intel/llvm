@@ -359,6 +359,11 @@ design document][5] for more details on this topic.
 
 [5]: <SpecializationConstants.md>
 
+### Changes to the DPC++ driver
+
+A new command line argument, `--device-globals` must be passed to the 
+`sycl-post-link` tool to enable processing device global variables.
+
 ### Changes to the `sycl-post-link` tool
 
 The `sycl-post-link` tool performs its normal algorithm to identify the set of
