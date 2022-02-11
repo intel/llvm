@@ -611,9 +611,10 @@ inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
 // \param Event a pointer to hold the newly created pi_event
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
+// \param IsNormalEvent is normal or special event used only by plugin itself
 inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
-    pi_command_list_ptr_t CommandList, bool InternalHolder = false) {
+    pi_command_list_ptr_t CommandList, bool IsNormalEvent = true) {
   pi_result Res = piEventCreate(Queue->Context, Event);
   if (Res != PI_SUCCESS)
     return Res;
@@ -643,7 +644,7 @@ inline static pi_result createEventAndAssociateQueue(
   // it is really signalled, so retain it explicitly here and
   // release in Event->cleanup().
   //
-  if (!InternalHolder)
+  if (IsNormalEvent)
     PI_CALL(piEventRetain(*Event));
 
   return PI_SUCCESS;
@@ -1320,8 +1321,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
       if (this->EventlessMode) {
         LastEventInPrevCmdList = nullptr;
-        // Add barrier into command list to ensure in-order semantic inside one
-        // command list
+        // Add barrier into command-list to ensure in-order semantics inside one
+        // command-list
         ZE_CALL(zeCommandListAppendBarrier,
                 (CommandList->first, nullptr, 0, nullptr));
       }
@@ -1333,13 +1334,14 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   }
 
   if (this->EventlessMode) {
-    pi_result Res = createEventAndAssociateQueue(
-        this, &LastEventInPrevCmdList, PI_COMMAND_TYPE_USER, CommandList, true);
+    pi_result Res =
+        createEventAndAssociateQueue(this, &LastEventInPrevCmdList,
+                                     PI_COMMAND_TYPE_USER, CommandList, false);
     if (Res != PI_SUCCESS)
       return Res;
     this->LastCommandEvent = LastEventInPrevCmdList;
-    // Add barrier with the event into command list to ensure in-order semantic
-    // between command lists
+    // Add barrier with the event into command-list to ensure in-order semantics
+    // between command-lists
     ZE_CALL(zeCommandListAppendBarrier,
             (CommandList->first, LastEventInPrevCmdList->ZeEvent, 0, nullptr));
   }
@@ -5694,10 +5696,9 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
       ZeEvent = (*Event)->ZeEvent;
       (*Event)->WaitList = TmpWaitList;
 
-      const auto &WaitList = (*Event)->WaitList;
       auto ZeCommandList = CommandList->first;
       ZE_CALL(zeCommandListAppendWaitOnEvents,
-              (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
+              (ZeCommandList, TmpWaitList.Length, TmpWaitList.ZeEventList));
 
       ZE_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
     } else {

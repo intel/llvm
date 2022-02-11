@@ -428,7 +428,7 @@ struct pi_command_list_info_t {
   // Since event is not necessarily created for tracking during
   // piEnqueueKernelLaunch, it is optional. But we have to do piKernelRetain on
   // enqueued kernel and currently save the kernel in the list, so to have the
-  // ability to do a piKernelRelease on this kernel in resetCommandList we need
+  // ability to do a piKernelRelease on this kernel in resetCommandList. we need
   // to save the kernel in this variable for cases when event is not created.
   std::list<pi_kernel> EventlessKernelsInUse;
 
@@ -719,25 +719,22 @@ struct _pi_queue : _pi_object {
   // the queue. The eventless mode is used for SYCL in-order queue with
   // discard_events property. Since we don't create events for some commands we
   // guarantee in-order semantics inside command-list by using barriers and
-  // creating a special event for the last barrier of the command-list to
+  // create a special event for the last barrier of the command-list to
   // guarantee the semantics between command-lists. this mod only uses compute
   // queue to avoid creating events to provide a dependency between compute and
   // copy queues.
   bool EventlessMode = false;
 
   // Keeps a number of commands submitted into last command-list that don't have
-  // events. Since some (all) commands don't have events this is used to add a
-  // barrier between commands to ensure in-order semantics inside this command
-  // list, and also to create a special event for the last barrier to ensure
-  // in-order semantics between command-lists
+  // events.
   size_t NumEventlessCmdsInLastCmdList{0};
 
   // Keeps last special event created for internal purpose to ensure in-order
   // semantics between command-lists. The plugin is a holder of this event and
   // SYCL RT knows nothing about it. This special event will be destroyed and
   // returned back in pool by EventRelease in resetCommandList. this is used to
-  // compare with LastCommandEvent to guarantee that unneeded piEventRetain is
-  // not executed for this special event.
+  // compare against LastCommandEvent to ensure that event-dependency will only
+  // be added between command-lists.
   pi_event LastEventInPrevCmdList = nullptr;
 
   // Map of all command lists used in this queue.
