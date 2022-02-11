@@ -409,30 +409,23 @@ void checkImageScopedDeviceGlobals(const Module &M,
       }
     };
 
-    SmallVector<const User *, 32> Workqueue;
-    SmallPtrSet<const User *, 32> Visited;
+    SmallSetVector<const User *, 32> Workqueue;
     for (auto *U : GV.users())
-      Workqueue.push_back(U);
+      Workqueue.insert(U);
 
     while (!Workqueue.empty()) {
       const User *U = Workqueue.back();
       Workqueue.pop_back();
-      if (!Visited.insert(U).second)
-        continue;
       if (auto *I = dyn_cast<const Instruction>(U)) {
         auto *F = I->getFunction();
-        if (!Visited.contains(F))
-          Workqueue.push_back(F);
+        Workqueue.insert(F);
       } else {
         if (auto *F = dyn_cast<const Function>(U)) {
-          if (isEntryPoint(*F)) {
+          if (isEntryPoint(*F))
             CheckEntryPointModule(F);
-          }
         }
-        for (auto *UU : U->users()) {
-          if (!Visited.contains(UU))
-            Workqueue.push_back(UU);
-        }
+        for (auto *UU : U->users())
+          Workqueue.insert(UU);
       }
     }
   }
