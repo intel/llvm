@@ -168,13 +168,19 @@ jobs:
     outputs:
       lts: ${{ steps.work.outputs.lts }}
     steps:
+    - name: Download scripts
+      run: |
+        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/generate_test_matrix.js
+        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/test_configs.json
     - id: work
+      uses: actions/github-script@v6
+      name: Generate matrix
       env:
         GHA_INPUT: ${{ toJSON(inputs) }}
-      run: |
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/generate_test_matrix.py
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/test_configs.json
-        python3 generate_test_matrix.py test_configs.json
+      with:
+        script: |
+          const script = require('./generate_test_matrix.js');
+          script({core, process});
 
   llvm_test_suite:
     needs: [build, resolve_matrix]
