@@ -376,9 +376,8 @@ void checkImageScopedDeviceGlobals(const Module &M,
 
   // Reverse the EntryPointGroupMap to get a map of entry point -> module's name
   unsigned EntryPointNumber = 0;
-  for (const auto &Group : GMap) {
+  for (const auto &Group : GMap)
     EntryPointNumber += static_cast<unsigned>(Group.second.size());
-  }
   DenseMap<const Function *, StringRef> EntryPointModules(EntryPointNumber);
   for (const auto &Group : GMap) {
     auto ModuleName = Group.first;
