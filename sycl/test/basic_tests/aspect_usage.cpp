@@ -15,13 +15,13 @@
 // RUN: %clangxx -fsycl -fno-legacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG
 // RUN: %clangxx -fsycl -flegacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG
 
-// CHECK-WARNINGS: warning: function '_Z5func1v' uses aspect '5' not listed in `sycl::requires()`
+// CHECK-WARNINGS: warning: function '_Z5func1v' uses aspect '5' not listed in `sycl::device_has()`
 // CHECK-WARNINGS-NEXT:  _Z5func1v()
 // CHECK-WARNINGS-NEXT:  _Z5func2v()
 // CHECK-WARNINGS-NEXT:  _Z5func3v()
 // CHECK-WARNINGS-NEXT: compile with '-g' to get source location
 
-// CHECK-WARNINGS-DBG: warning: function '_Z5func1v' uses aspect '5' not listed in `sycl::requires()`
+// CHECK-WARNINGS-DBG: warning: function '_Z5func1v' uses aspect '5' not listed in `sycl::device_has()`
 // CHECK-WARNINGS-DBG-NEXT:  _Z5func1v() sycl/test/basic_tests/aspect_usage.cpp:45:57
 // CHECK-WARNINGS-DBG-NEXT:  _Z5func2v() sycl/test/basic_tests/aspect_usage.cpp:43:22
 // CHECK-WARNINGS-DBG-NEXT:  _Z5func3v() sycl/test/basic_tests/aspect_usage.cpp:38:10
