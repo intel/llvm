@@ -2001,8 +2001,6 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
 /// @tparam T is element type.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
-/// @tparam Transposed is the transposed version or not.
-/// @tparam Transformed is apply VNNI transform or not.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the data size
@@ -2014,17 +2012,14 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
 /// number of elements.
 /// @param Y is zero based Y-coordinate of the left upper rectangle corner in
 /// rows.
-/// @param Vals is a vector to store of type T and size N, where N is
-///  BlockWidth * BlockHeight * NBlocks, if transformed;
-///  otherwise,
+/// @param Vals is a vector to store of type T and size N, where
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
 ///
 template <typename T, int BlockWidth, int BlockHeight = 1,
-          bool Transposed = false, bool Transformed = false,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
-              T, 1u, BlockHeight, BlockWidth, Transposed, Transformed>()>
+              T, 1u, BlockHeight, BlockWidth, false, false>()>
 __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
                              unsigned SurfaceHeight, unsigned SurfacePitch,
                              int X, int Y, simd<T, N> Vals) {
@@ -2032,11 +2027,9 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
-  constexpr detail::lsc_data_order _Transposed =
-      Transposed ? detail::lsc_data_order::transpose
-                 : detail::lsc_data_order::nontranspose;
-  __esimd_lsc_store2d_stateless<T, L1H, L3H, DS, _Transposed, 1u, BlockWidth,
-                                BlockHeight, Transformed, N>(
+  __esimd_lsc_store2d_stateless<T, L1H, L3H, DS,
+                                detail::lsc_data_order::nontranspose, 1u,
+                                BlockWidth, BlockHeight, false, N>(
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
       Vals.data());
 }
