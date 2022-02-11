@@ -4296,8 +4296,9 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
   ze_module_handle_t ZeModule = nullptr;
-  ze_result_t ZeResult = ZE_CALL(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
-                           &Program->ZeBuildLog));
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                       &ZeModule, &Program->ZeBuildLog));
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // We need to clear Program state to avoid double destroy of zeModule in
     // case where SYCL RT calls piProgramRelease().
@@ -4311,7 +4312,7 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   // call to zeModuleDynamicLink.  However, modules created with piProgramBuild
   // are supposed to be fully linked and ready to use.  Therefore, do an extra
   // check now for unresolved symbols.
-  ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+  ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // remove ZeModule that is associated with the failed program
     ZE_CALL(zeModuleDestroy, (ZeModule));
