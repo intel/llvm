@@ -85,8 +85,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo() {
   // CHECK: {{[^)]+}} = call <4 x i32> @llvm.genx.lsc.load.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, i32 0)
   simd<int, VL> data6 = lsc_slm_gather<int>(offsets);
 
-  auto add = simd<uint16_t, VL>(5);
-  auto compare = simd<uint32_t, VL>(VL, 1);
+  auto add = simd<int, VL>(5);
+  auto compare = simd<int, VL>(VL, 1);
   auto swap = compare * 2;
   auto pred = simd_mask<VL>(1);
 

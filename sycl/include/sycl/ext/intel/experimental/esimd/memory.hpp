@@ -2040,23 +2040,22 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size, int N>
-__ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
-                                                     simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
+                                             simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 0>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
@@ -2071,25 +2070,24 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size, int N>
-__ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
-                                                     simd<T, N * NElts> src0,
-                                                     simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
+                                             simd<T, N> src0,
+                                             simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 1>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
@@ -2105,7 +2103,6 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam N is the number of channels (platform dependent).
 /// @param offsets is the zero-based offsets.
@@ -2113,18 +2110,18 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 /// @param src1 is the second atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size, int N>
-__ESIMD_API simd<T, N * NElts>
-lsc_slm_atomic_update(simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
-                      simd<T, N * NElts> src1, simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
+                                             simd<T, N> src0, simd<T, N> src1,
+                                             simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 2>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
@@ -2140,7 +2137,6 @@ lsc_slm_atomic_update(simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
@@ -2149,20 +2145,19 @@ lsc_slm_atomic_update(simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L3H = cache_hint::none, int N, typename AccessorTy>
-__ESIMD_API
-    std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N * NElts>>
-    lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
-                      simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
+lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
+                  simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 0>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
@@ -2184,7 +2179,6 @@ __ESIMD_API
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
@@ -2194,20 +2188,19 @@ __ESIMD_API
 /// @param src0 is the first atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L3H = cache_hint::none, int N, typename AccessorTy>
-__ESIMD_API
-    std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N * NElts>>
-    lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
-                      simd<T, N * NElts> src0, simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
+lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
+                  simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 1>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
@@ -2229,7 +2222,6 @@ __ESIMD_API
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
@@ -2240,21 +2232,19 @@ __ESIMD_API
 /// @param src1 is the second atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L3H = cache_hint::none, int N, typename AccessorTy>
-__ESIMD_API
-    std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N * NElts>>
-    lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
-                      simd<T, N * NElts> src0, simd<T, N * NElts> src1,
-                      simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
+lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
+                  simd<T, N> src1, simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 2>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
@@ -2276,7 +2266,6 @@ __ESIMD_API
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
@@ -2284,18 +2273,18 @@ __ESIMD_API
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L3H = cache_hint::none, int N>
-__ESIMD_API simd<T, N * NElts>
-lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
+                                         simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 0>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
@@ -2313,7 +2302,6 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred) {
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
@@ -2322,19 +2310,18 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred) {
 /// @param src0 is the first atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L3H = cache_hint::none, int N>
-__ESIMD_API simd<T, N * NElts>
-lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
-                  simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
+                                         simd<T, N> src0, simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 1>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
@@ -2352,7 +2339,6 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
 ///
 /// @tparam T is element type.
 /// @tparam Op is operation type.
-/// @tparam NElts is the number of elements per address.
 /// @tparam DS is the data size.
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the number of channels (platform dependent).
@@ -2362,19 +2348,19 @@ lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
 /// @param src1 is the second atomic operand.
 /// @param pred is predicates.
 ///
-template <typename T, atomic_op Op, uint8_t NElts = 1,
+template <typename T, atomic_op Op,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L3H = cache_hint::none, int N>
-__ESIMD_API simd<T, N * NElts>
-lsc_atomic_update(T *p, simd<uint32_t, N> offsets, simd<T, N * NElts> src0,
-                  simd<T, N * NElts> src1, simd_mask<N> pred) {
-  detail::check_lsc_vector_size<NElts>();
+__ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
+                                         simd<T, N> src0, simd<T, N> src1,
+                                         simd_mask<N> pred) {
+  detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 2>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
+  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
