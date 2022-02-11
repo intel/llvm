@@ -115,6 +115,9 @@ typedef enum {
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
+  PI_COMMAND_EXECUTION_FAILURE =
+      -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
+            ///< during command enqueue or execution.
   PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
       -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
             ///< method determines the function exists but its address cannot be
@@ -751,6 +754,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
+/// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
