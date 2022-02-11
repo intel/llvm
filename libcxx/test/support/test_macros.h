@@ -243,7 +243,7 @@
 #define LIBCPP_ONLY(...) static_assert(true, "")
 #endif
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
 #define TEST_SUPPORTS_RANGES
 #endif
 
@@ -370,6 +370,10 @@ inline void DoNotOptimize(Tp const& value) {
 
 #if defined(_LIBCPP_HAS_NO_INT128) || defined(TEST_COMPILER_MSVC)
 #   define TEST_HAS_NO_INT128
+#endif
+
+#if defined(_LIBCPP_HAS_NO_UNICODE_CHARS)
+#   define TEST_HAS_NO_UNICODE_CHARS
 #endif
 
 #if defined(__GNUC__)

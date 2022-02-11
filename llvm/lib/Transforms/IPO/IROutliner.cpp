@@ -42,6 +42,11 @@ extern cl::opt<bool> DisableBranches;
 // A command flag to be used for debugging to indirect calls from similarity
 // matching and outlining.
 extern cl::opt<bool> DisableIndirectCalls;
+
+// A command flag to be used for debugging to exclude intrinsics from similarity
+// matching and outlining.
+extern cl::opt<bool> DisableIntrinsics;
+
 } // namespace llvm
 
 // Set to true if the user wants the ir outliner to run on linkonceodr linkage
@@ -964,12 +969,11 @@ static bool outputHasNonPHI(Value *V, unsigned PHILoc, PHINode &PN,
   // We check to see if the value is used by the PHINode from some other
   // predecessor not included in the region.  If it is, we make sure
   // to keep it as an output.
-  SmallVector<unsigned, 2> IncomingNumbers(PN.getNumIncomingValues());
-  std::iota(IncomingNumbers.begin(), IncomingNumbers.end(), 0);
-  if (any_of(IncomingNumbers, [PHILoc, &PN, V, &BlocksInRegion](unsigned Idx) {
-        return (Idx != PHILoc && V == PN.getIncomingValue(Idx) &&
-                !BlocksInRegion.contains(PN.getIncomingBlock(Idx)));
-      }))
+  if (any_of(llvm::seq<unsigned>(0, PN.getNumIncomingValues()),
+             [PHILoc, &PN, V, &BlocksInRegion](unsigned Idx) {
+               return (Idx != PHILoc && V == PN.getIncomingValue(Idx) &&
+                       !BlocksInRegion.contains(PN.getIncomingBlock(Idx)));
+             }))
     return true;
 
   // Check if the value is used by any other instructions outside the region.
@@ -2610,6 +2614,8 @@ unsigned IROutliner::doOutline(Module &M) {
   // Find the possible similarity sections.
   InstructionClassifier.EnableBranches = !DisableBranches;
   InstructionClassifier.EnableIndirectCalls = !DisableIndirectCalls;
+  InstructionClassifier.EnableIntrinsics = !DisableIntrinsics;
+
   IRSimilarityIdentifier &Identifier = getIRSI(M);
   SimilarityGroupList &SimilarityCandidates = *Identifier.getSimilarity();
 
