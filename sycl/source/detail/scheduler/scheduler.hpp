@@ -516,7 +516,8 @@ protected:
         Command *FinishedCmd,
         std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
 
-    /// Removes failed command from the subgraph
+    /// Replaces a failed command in the subgraph with an empty command and
+    /// deletes the failed command.
     void cleanupFailedCommand(
         Command *FailedCmd,
         std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
@@ -557,6 +558,8 @@ protected:
                          std::vector<Command *> &ToEnqueue);
 
     /// Removes commands from leaves.
+    void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
+                      std::vector<Command *> &ToCleanUp);
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
                       access::mode AccessMode,
                       std::vector<Command *> &ToCleanUp);
