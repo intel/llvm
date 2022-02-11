@@ -65,7 +65,7 @@ struct vector_aligned_tag {
   template <typename VT> static constexpr unsigned alignment = alignof(VT);
 };
 
-/// overaligned_tag type. Flag of this type should be used in load and store
+/// \c overaligned_tag type. Flag of this type should be used in load and store
 /// operations when memory address is aligned by the user-provided alignment
 /// value N.
 /// @tparam N is the alignment value. N must be a power of two.
@@ -99,9 +99,9 @@ static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
 
 /// @} sycl_esimd_core_align
 
-/// @cond ESIMD_DETAIL
-
 namespace detail {
+
+/// @cond ESIMD_DETAIL
 
 // Functions to support efficient simd constructors - avoiding internal loop
 // over elements.
@@ -129,7 +129,7 @@ constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
 
 /// @endcond ESIMD_DETAIL
 
-/// @addtogroup sycl_esimd_core
+/// @addtogroup sycl_esimd_core_vectors
 /// @{
 
 /// This is a base class for all ESIMD simd classes with real storage (simd,
@@ -156,6 +156,8 @@ constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
 ///
 template <typename RawTy, int N, class Derived, class SFINAE>
 class simd_obj_impl {
+  /// @cond ESIMD_DETAIL
+
   // For the is_simd_obj_impl_derivative helper to work correctly, all derived
   // classes must be templated by element type and number of elements. If fewer
   // template arguments are needed, template aliases can be used
@@ -165,6 +167,8 @@ class simd_obj_impl {
   template <typename, typename> friend class simd_view_impl;
   template <typename, int> friend class simd;
   template <typename, int> friend class simd_mask_impl;
+
+  /// @endcond ESIMD_DETAIL
 
 public:
   /// Element type of the derived (user) class.
@@ -180,6 +184,7 @@ public:
   static constexpr int length = N;
 
 protected:
+  /// @cond ESIMD_DETAIL
   using Ty = element_type;
 
   template <bool UseSet = true>
@@ -210,6 +215,8 @@ private:
   const Derived &cast_this_to_derived() const {
     return reinterpret_cast<const Derived &>(*this);
   }
+
+  /// @endcond ESIMD_DETAIL
 
 public:
   /// Default constructor. Values of the constructed object's elements are
@@ -881,6 +888,7 @@ protected:
 #endif
   }
 };
+/// @} sycl_esimd_core_vectors
 
 /// @cond EXCLUDE
 
@@ -1151,8 +1159,6 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
 /// @endcond EXCLUDE
 
 } // namespace detail
-
-/// @} sycl_esimd_core
 
 } // namespace esimd
 } // namespace experimental
