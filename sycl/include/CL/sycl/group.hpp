@@ -18,7 +18,6 @@
 #include <CL/sycl/device_event.hpp>
 #include <CL/sycl/h_item.hpp>
 #include <CL/sycl/id.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/range.hpp>
@@ -134,26 +133,8 @@ public:
 #endif
   }
 
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 1), size_t>
-  get_local_linear_id() const {
-    id<Dimensions> localId = get_local_id();
-    return localId[0];
-  }
-
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 2), size_t>
-  get_local_linear_id() const {
-    id<Dimensions> localId = get_local_id();
-    return localId[0] * groupRange[1] + localId[1];
-  }
-
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 3), size_t>
-  get_local_linear_id() const {
-    id<Dimensions> localId = get_local_id();
-    return (localId[0] * groupRange[1] * groupRange[2]) +
-           (localId[1] * groupRange[2]) + localId[2];
+  size_t get_local_linear_id() const {
+    return get_local_linear_id_impl<Dimensions>();
   }
 
   range<Dimensions> get_local_range() const { return localRange; }
@@ -208,29 +189,7 @@ public:
     return groupRange[0] * groupRange[1] * groupRange[2];
   }
 
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 1), range<Dimensions>>
-  get_max_local_range() const {
-    return range<Dimensions>{
-        static_cast<size_t>(info::device::max_work_group_size)};
-  }
-
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 2), range<Dimensions>>
-  get_max_local_range() const {
-    return range<Dimensions>{
-        static_cast<size_t>(info::device::max_work_group_size),
-        static_cast<size_t>(info::device::max_work_group_size)};
-  }
-
-  template <int dims = Dimensions>
-  typename detail::enable_if_t<(dims == 3), range<Dimensions>>
-  get_max_local_range() const {
-    return range<Dimensions>{
-        static_cast<size_t>(info::device::max_work_group_size),
-        static_cast<size_t>(info::device::max_work_group_size),
-        static_cast<size_t>(info::device::max_work_group_size)};
-  }
+  range<Dimensions> get_max_local_range() const { return get_local_range(); }
 
   size_t operator[](int dimension) const { return index[dimension]; }
 
@@ -269,7 +228,7 @@ public:
            (index[1] * groupRange[2]) + index[2];
   }
 
-  bool leader() const { return false; }
+  bool leader() const { return (get_local_linear_id() == 0); }
 
   template <typename WorkItemFunctionT>
   void parallel_for_work_item(WorkItemFunctionT Func) const {
@@ -515,6 +474,28 @@ private:
   range<Dimensions> localRange;
   range<Dimensions> groupRange;
   id<Dimensions> index;
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 1), size_t>
+  get_local_linear_id_impl() const {
+    id<Dimensions> localId = get_local_id();
+    return localId[0];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 2), size_t>
+  get_local_linear_id_impl() const {
+    id<Dimensions> localId = get_local_id();
+    return localId[0] * groupRange[1] + localId[1];
+  }
+
+  template <int dims = Dimensions>
+  typename detail::enable_if_t<(dims == 3), size_t>
+  get_local_linear_id_impl() const {
+    id<Dimensions> localId = get_local_id();
+    return (localId[0] * groupRange[1] * groupRange[2]) +
+           (localId[1] * groupRange[2]) + localId[2];
+  }
 
   void waitForHelper() const {}
 
