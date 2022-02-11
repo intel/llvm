@@ -13,6 +13,7 @@
 //
 #include "llvm/SYCLLowerIR/PropagateAspectUsage.h"
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
@@ -108,24 +109,14 @@ using TypesEdgesTy =
 void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
                                   TypeToAspectsMapTy &Aspects) {
   const AspectsSetTy &AspectsToPropagate = Aspects[Start];
-  SmallPtrSet<const Type *, 16> Visited;
-  std::queue<const Type *> Queue;
-  Queue.push(Start);
-  while (!Queue.empty()) {
-    const Type *T = Queue.front();
-    Queue.pop();
-    if (!Visited.insert(T).second)
-      continue;
-
+  SmallSetVector<const Type *, 16> TypesToPropagate;
+  TypesToPropagate.insert(Start);
+  for (size_t I = 0; I < TypesToPropagate.size(); ++I) {
+    const Type *T = TypesToPropagate[I];
     Aspects[T].insert(AspectsToPropagate.begin(), AspectsToPropagate.end());
     auto It = Edges.find(T);
-    if (It == Edges.end())
-      continue;
-
-    for (const Type *TT : It->second) {
-      if (!Visited.count(TT))
-        Queue.push(TT);
-    }
+    if (It != Edges.end())
+      TypesToPropagate.insert(It->second.begin(), It->second.end());
   }
 }
 
@@ -171,38 +162,35 @@ void propagateAspectsToOtherTypesInModule(
         TT = TT->getPointerElementType();
 
       // We are not interested in some types. For example, IntTy.
-      if (!TypesToProcess.count(TT))
-        continue;
-
-      Edges[TT].push_back(T);
+      if (TypesToProcess.count(TT))
+        Edges[TT].push_back(T);
     }
   }
 
   TypeToAspectsMapTy Result;
-  for (const Type *T : TypesToProcess) {
+  for (const Type *T : TypesToProcess)
     propagateAspectsThroughTypes(Edges, T, TypesWithAspects);
-  }
 }
 
 /// Returns all aspects which might be reached from type @T.
 /// It encompases composite structures and pointers.
 /// NB! This function inserts new records in @Types map for new discovered
 /// types. For the best perfomance pass this map in the next invocations.
-AspectsSetTy getAspectsFromType(const Type *T, TypeToAspectsMapTy &Types) {
+const AspectsSetTy &getAspectsFromType(const Type *T,
+                                       TypeToAspectsMapTy &Types) {
   auto It = Types.find(T);
   if (It != Types.end())
     return It->second;
 
+  // Empty value is inserted for absent key T.
   // This is essential to no get into infinite recursive loops.
-  Types[T] = {};
-  AspectsSetTy Result;
+  AspectsSetTy &Result = Types[T];
 
   for (const Type *TT : T->subtypes()) {
-    AspectsSetTy Aspects = getAspectsFromType(TT, Types);
+    const AspectsSetTy &Aspects = getAspectsFromType(TT, Types);
     Result.insert(Aspects.begin(), Aspects.end());
   }
 
-  Types[T] = Result;
   return Result;
 }
 
@@ -216,14 +204,15 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
   AspectsSetTy Result = getAspectsFromType(ReturnType, Types);
   for (const auto &OperandIt : I.operands()) {
     Type *T = OperandIt->getType();
-    AspectsSetTy Aspects = getAspectsFromType(T, Types);
+    const AspectsSetTy &Aspects = getAspectsFromType(T, Types);
     Result.insert(Aspects.begin(), Aspects.end());
   }
 
   return Result;
 }
 
-///
+/// This is a node in a CallGraph. It contains Function link
+/// to Callee and corresponding DebugLoc info if it it present.
 struct AspectWithFunctionLinkTy {
   int Aspect;
   const Function *F = nullptr;
