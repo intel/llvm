@@ -1527,7 +1527,6 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
 } // namespace detail
 /// @endcond EXCLUDE
 
-
 } // namespace esimd
 } // namespace experimental
 } // namespace intel
