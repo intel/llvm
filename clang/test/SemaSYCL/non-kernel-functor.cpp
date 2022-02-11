@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown  -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -verify %s
 
 // Test to verify that non-kernel functors are not processed as SYCL kernel
 // functors
