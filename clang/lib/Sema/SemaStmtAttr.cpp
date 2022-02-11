@@ -399,10 +399,14 @@ CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
   unsigned int MinCount = 0;
   unsigned int MaxCount = 0;
   unsigned int AvgCount = 0;
+  unsigned int Count = 0;
   for (const auto *A : OnlyLoopCountAttrs) {
     const auto *At = dyn_cast<SYCLIntelFPGALoopCountAttr>(A);
-    At->isMin() ? MinCount++ : At->isMax() ? MaxCount++ : AvgCount++;
-    if (MinCount > 1 || MaxCount > 1 || AvgCount > 1)
+    At->isMin()   ? MinCount++
+    : At->isMax() ? MaxCount++
+    : At->isAvg() ? AvgCount++
+                  : Count++;
+    if (MinCount > 1 || MaxCount > 1 || AvgCount > 1 || Count > 1)
       S.Diag(A->getLocation(), diag::err_sycl_loop_attr_duplication) << 1 << A;
   }
 }

@@ -16,6 +16,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/device_global_map_entry.hpp>
 #include <detail/spec_constant_impl.hpp>
 
 #include <cstdint>
@@ -181,6 +182,9 @@ public:
   // The function returns the unique SYCL kernel identifier associated with a
   // built-in kernel name.
   kernel_id getBuiltInKernelID(const std::string &KernelName);
+
+  // The function inserts a device_global entry into the device_global map.
+  void addDeviceGlobalEntry(void *DeviceGlobalPtr, const char *UniqueId);
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
@@ -382,6 +386,12 @@ private:
 
   using KernelNameWithOSModule = std::pair<std::string, OSModuleHandle>;
   std::set<KernelNameWithOSModule> m_KernelUsesAssert;
+
+  // Map between device_global unique ids and associated information.
+  std::unordered_map<std::string, DeviceGlobalMapEntry> m_DeviceGlobals;
+
+  /// Protects m_DeviceGlobals.
+  std::mutex m_DeviceGlobalsMutex;
 };
 } // namespace detail
 } // namespace sycl
