@@ -956,8 +956,6 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
 
-  LinkDeviceLibs = true;
-
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
   // due to unrecognized SPIR-V format of those libraries.
