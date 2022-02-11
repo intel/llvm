@@ -12,8 +12,8 @@
 // RUN: %clangxx -fsycl -fno-legacy-pass-manager %s -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS
 // RUN: %clangxx -fsycl -flegacy-pass-manager %s -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS
 
-// RUN: %clangxx -fsycl -fno-legacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG
-// RUN: %clangxx -fsycl -flegacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG
+// RUN: %clangxx -fsycl -fno-legacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG -DPATH=%s
+// RUN: %clangxx -fsycl -flegacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG -DPATH=%s
 
 // CHECK-WARNINGS: warning: function '_Z5func1v' uses aspect '5' not listed in `sycl::device_has()`
 // CHECK-WARNINGS-NEXT:  _Z5func1v()
@@ -22,9 +22,9 @@
 // CHECK-WARNINGS-NEXT: compile with '-g' to get source location
 
 // CHECK-WARNINGS-DBG: warning: function '_Z5func1v' uses aspect '5' not listed in `sycl::device_has()`
-// CHECK-WARNINGS-DBG-NEXT:  _Z5func1v() sycl/test/basic_tests/aspect_usage.cpp:45:57
-// CHECK-WARNINGS-DBG-NEXT:  _Z5func2v() sycl/test/basic_tests/aspect_usage.cpp:43:22
-// CHECK-WARNINGS-DBG-NEXT:  _Z5func3v() sycl/test/basic_tests/aspect_usage.cpp:38:10
+// CHECK-WARNINGS-DBG-NEXT:  _Z5func1v() [[PATH]]:45:57
+// CHECK-WARNINGS-DBG-NEXT:  _Z5func2v() [[PATH]]:43:22
+// CHECK-WARNINGS-DBG-NEXT:  _Z5func3v() [[PATH]]:38:10
 
 #include <CL/sycl.hpp>
 

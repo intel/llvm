@@ -28,6 +28,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Path.h"
 
 #include <queue>
 #include <unordered_map>
@@ -253,9 +254,11 @@ std::string constructAspectUsageChain(const Function *F,
     const DebugLoc *DL = (*AspectIt).DL;
     CallChain += formatv("  {0}()", F->getName());
     if (DL && *DL) {
-      CallChain +=
-          formatv(" {0}:{1}:{2}", cast<DIScope>(DL->getScope())->getFilename(),
-                  DL->getLine(), DL->getCol());
+      DIScope *DS = cast<DIScope>(DL->getScope());
+      CallChain += formatv(" {0}:{1}:{2}",
+                           DS->getDirectory() + sys::path::get_separator() +
+                               DS->getFilename(),
+                           DL->getLine(), DL->getCol());
     }
 
     CallChain += "\n";
