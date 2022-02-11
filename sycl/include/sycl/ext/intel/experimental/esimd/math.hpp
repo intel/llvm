@@ -1766,10 +1766,10 @@ __ESIMD_INTRINSIC_DEF(rndz)
 /// @{
 
 /// Pack a simd_mask into a single unsigned 32-bit integer value.
-/// Takes the least significant bit from each input vector element and stores it
-/// into the corresponding bit of the result. I.e. LSB of i'th element goes into
-/// i'th bit of the result. Remaining (if any) bits if the result are filled
-/// with \c 0.
+/// i'th bit in the returned value is set to the result of comparison of the
+/// i'th element of the input argument to zero. "equals to zero" gives \c 0,
+/// "not equal to zero" gives \c 1. Remaining (if any) bits if the result are
+/// filled with \c 0.
 /// @tparam N Size of the input mask.
 /// @param src0 The input mask.
 /// @return The packed mask as an <code>unsgined int</code> 32-bit value.
