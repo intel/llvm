@@ -4308,7 +4308,9 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // remove ZeModule that is associated with the failed program
     ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
-
+    // Also set Program->ZeModule nullptr to avoid double destroy of zeModule in
+    // case where SYCL RT calls piProgramRelease().
+    Program->ZeModule = nullptr;
     if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
       return PI_BUILD_PROGRAM_FAILURE;
     return mapError(ZeResult);
