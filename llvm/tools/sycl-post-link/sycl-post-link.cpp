@@ -423,7 +423,7 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
       traverseCGToFindSPIRKernels(DevicelibAssertFailFunction);
 
   if (TraverseResult.hasValue())
-    return std::move(*TraverseResult); // TODO remove std::move after C++17
+    return std::move(*TraverseResult);
 
   // Here we reached "referenced-indirectly", so we need to find all kernels and
   // return them.
