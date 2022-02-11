@@ -176,7 +176,7 @@ jobs:
       uses: actions/github-script@v6
       name: Generate matrix
       env:
-        GHA_INPUT: ${{ toJSON(inputs) }}
+        GHA_INPUTS: ${{ toJSON(inputs) }}
       with:
         script: |
           const script = require('./generate_test_matrix.js');
