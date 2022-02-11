@@ -1938,6 +1938,12 @@ __ESIMD_API simd<T, N> lsc_load2d(const T *Ptr, unsigned SurfaceWidth,
       "These parameters require unpadding. It is not implemented yet");
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
+  static_assert(!Transformed ||
+                    (DS == lsc_data_size::u8 || DS == lsc_data_size::u16),
+                "VNNI transform is supported only for data size U8 or U16");
+  static_assert(!Transposed ||
+                    (DS == lsc_data_size::u32 || DS == lsc_data_size::u64),
+                "Transposed is supported only for data size U32 or U64");
   simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
