@@ -15,8 +15,11 @@ jobs:
         path: src
         fetch-depth: 1
     - name: Install dependencies
+      shell: cmd
       run: |
         choco install -y cuda ninja
+        refreshenv
+        echo CUDA_PATH=%CUDA_PATH% >> %GITHUB_ENV%
     - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
       with:
         arch: amd64
@@ -36,3 +39,8 @@ jobs:
     - name: Install
       shell: cmd
       run: cmake --build build --target deploy-sycl-toolchain
+    - name: Upload toolchain
+      uses: actions/upload-artifact@v2
+      with:
+        name: sycl_windows_default
+        path: install/**/*
