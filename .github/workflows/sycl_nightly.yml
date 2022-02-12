@@ -23,7 +23,6 @@ jobs:
   windows_default:
     name: Windows (experimental)
     if: github.repository == 'intel/llvm'
-    continue-on-error: true
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
 
   ubuntu2004_docker_build_push:
