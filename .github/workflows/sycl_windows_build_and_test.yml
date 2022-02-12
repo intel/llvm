@@ -16,7 +16,10 @@ jobs:
         fetch-depth: 1
     - name: Install dependencies
       run: |
-        choco install -y cuda
+        choco install -y cuda ninja
+    - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
+      with:
+        arch: amd64
     - name: Configure
       shell: cmd
       run: |
