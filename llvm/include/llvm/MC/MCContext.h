@@ -80,6 +80,10 @@ namespace llvm {
   private:
     Environment Env;
 
+    /// The name of the Segment where Swift5 Reflection Section data will be
+    /// outputted
+    StringRef Swift5ReflectionSegmentName;
+
     /// The triple for this object.
     Triple TT;
 
@@ -399,13 +403,17 @@ namespace llvm {
                        const MCRegisterInfo *MRI, const MCSubtargetInfo *MSTI,
                        const SourceMgr *Mgr = nullptr,
                        MCTargetOptions const *TargetOpts = nullptr,
-                       bool DoAutoReset = true);
+                       bool DoAutoReset = true,
+                       StringRef Swift5ReflSegmentName = {});
     MCContext(const MCContext &) = delete;
     MCContext &operator=(const MCContext &) = delete;
     ~MCContext();
 
     Environment getObjectFileType() const { return Env; }
 
+    const StringRef &getSwift5ReflectionSegmentName() const {
+      return Swift5ReflectionSegmentName;
+    }
     const Triple &getTargetTriple() const { return TT; }
     const SourceMgr *getSourceManager() const { return SrcMgr; }
 
@@ -641,6 +649,9 @@ namespace llvm {
     MCSectionWasm *getWasmSection(const Twine &Section, SectionKind K,
                                   unsigned Flags, const MCSymbolWasm *Group,
                                   unsigned UniqueID, const char *BeginSymName);
+
+    bool hasXCOFFSection(StringRef Section,
+                         XCOFF::CsectProperties CsectProp) const;
 
     MCSectionXCOFF *getXCOFFSection(
         StringRef Section, SectionKind K,
