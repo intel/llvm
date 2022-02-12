@@ -19,6 +19,9 @@ on:
         type: string
         required: false
         default: "build"
+      build_ref:
+        type: string
+        required: false
       build_cache_root:
         type: string
         required: true
@@ -79,6 +82,7 @@ jobs:
     - uses: ./actions/cached_checkout
       with:
         path: src
+        ref: ${{ inputs.build_ref || github.ref }}
         cache_path: "/__w/repo_cache/"
     - name: Configure
       env:
