@@ -35,8 +35,8 @@ namespace esimd {
 /// This is a group of APIs implementing standard math operations which are also
 /// directly supported by the hardware. Usually the hardware support is a
 /// specific message to the "extended math" GPU "shared function" unit, sent via
-/// the \c send or \c sends instructions. Most of the operations do not conform
-/// to OpenCL requirements for accuracy, so should be used with care.
+/// the \c math instruction. Most of the operations do not conform to OpenCL
+/// requirements for accuracy, so should be used with care.
 ///
 /// TODO Provide detailed spec of each operation.
 /// @}
