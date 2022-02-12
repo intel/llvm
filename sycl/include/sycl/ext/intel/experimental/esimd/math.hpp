@@ -1296,33 +1296,6 @@ ESIMD_NODEBUG
 }
 #endif
 
-// pln
-template <int SZ, class Sat = saturation_off_tag>
-__ESIMD_API simd<float, SZ> pln(simd<float, 4> src0, simd<float, SZ> src1,
-                                simd<float, SZ> src2, Sat sat = {}) {
-  static_assert(SZ >= 8 && (SZ & 0x7) == 0,
-                "vector size must be a multiple of 8");
-
-  // __esimd_intrinsic_impl_pln() requires src1 and src2 to be combined into
-  // a single matrix, interleaving the values together in blocks of 8
-  // items (ie, a block of 8 from src1, then a block of 8 from src2, then
-  // the next block of 8 from src1, then the next block of 8 from src2,
-  // and so-on.)
-  simd<float, (SZ >> 3) * 16> Src12v;
-  auto Src12 = Src12v.template bit_cast_view<float, (SZ >> 3), 16>();
-
-  Src12.select<(SZ >> 3), 1, 8, 1>(0, 0) =
-      src1.template bit_cast_view<float, (SZ >> 3), 8>();
-  Src12.select<(SZ >> 3), 1, 8, 1>(0, 8) =
-      src2.template bit_cast_view<float, (SZ >> 3), 8>();
-
-  simd<float, SZ> Result = __esimd_pln<SZ>(src0.data(), Src12.read().data());
-
-  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return Result;
-  else
-    return esimd::saturate<float>(Result);
-}
 /// @} sycl_esimd_math
 
 /// @addtogroup sycl_esimd_bitmanip
