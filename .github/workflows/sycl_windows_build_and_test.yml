@@ -1,0 +1,35 @@
+name: SYCL Windows Test
+
+on:
+  pull_request:
+    branches:
+    - sycl
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-2022
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: src
+        fetch-depth: 1
+    - name: Install dependencies
+      run: |
+        choco install -y cuda
+    - name: Configure
+      shell: cmd
+      run: |
+        mkdir build
+        mkdir install
+        python.exe src/buildbot/configure.py -o build ^
+          --cmake-opt="-DCMAKE_C_COMPILER=clang-cl" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER=clang-cl" ^
+          --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
+          --cuda 
+    - name: Build
+      shell: cmd
+      run: cmake --build build --target sycl-toolchain
+    - name: Install
+      shell: cmd
+      run: cmake --build build --target deploy-sycl-toolchain
