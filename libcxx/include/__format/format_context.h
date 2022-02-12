@@ -24,7 +24,7 @@
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS
@@ -132,9 +132,8 @@ private:
 
   template <class __OutIt, class __CharT>
   friend _LIBCPP_HIDE_FROM_ABI basic_format_context<__OutIt, __CharT>
-  _VSTD::__format_context_create(
-      __OutIt, basic_format_args<basic_format_context<__OutIt, __CharT>>,
-      optional<_VSTD::locale>&&);
+  __format_context_create(__OutIt, basic_format_args<basic_format_context<__OutIt, __CharT>>,
+                          optional<_VSTD::locale>&&);
 
   // Note: the Standard doesn't specify the required constructors.
   _LIBCPP_HIDE_FROM_ABI
@@ -146,8 +145,7 @@ private:
 #else
   template <class __OutIt, class __CharT>
   friend _LIBCPP_HIDE_FROM_ABI basic_format_context<__OutIt, __CharT>
-      _VSTD::__format_context_create(
-          __OutIt, basic_format_args<basic_format_context<__OutIt, __CharT>>);
+      __format_context_create(__OutIt, basic_format_args<basic_format_context<__OutIt, __CharT>>);
 
   _LIBCPP_HIDE_FROM_ABI
   explicit basic_format_context(_OutIt __out_it,
