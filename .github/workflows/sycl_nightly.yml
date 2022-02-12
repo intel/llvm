@@ -12,7 +12,7 @@ on:
 jobs:
   ubuntu2004_build_test:
     if: github.repository == 'intel/llvm'
-    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_runs_on: build
       build_github_cache: true

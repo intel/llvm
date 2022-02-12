@@ -45,6 +45,10 @@ on:
         type: string
         required: false
         default: ""
+      lts_cmake_extra_args:
+        type: string
+        required: false
+        default: ""
       amdgpu_image:
         type: string
         required: false
@@ -151,12 +155,12 @@ jobs:
     - name: Pack LIT
       run: tar -cJf lit.tar.xz -C $GITHUB_WORKSPACE/src/llvm/utils/lit .
     - name: Upload toolchain
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: llvm_sycl.tar.xz
     - name: Upload LIT
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
       with:
         name: sycl_lit_${{ inputs.build_artifact_suffix }}
         path: lit.tar.xz
@@ -207,7 +211,6 @@ jobs:
     - uses: ./llvm/devops/actions/llvm_test_suite
       name: Run LLVM Test Suite
       with:
-        # TODO allow custom test references
         test_ref: ${{ inputs.lts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
         sycl_archive: llvm_sycl.tar.xz
@@ -215,5 +218,5 @@ jobs:
         lit_archive: lit.tar.xz
         check_sycl_all: ${{ matrix.check_sycl_all }}
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
-        cmake_args: ${{ matrix.cmake_args }}
+        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
