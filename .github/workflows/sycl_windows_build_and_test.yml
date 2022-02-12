@@ -17,7 +17,7 @@ jobs:
     - name: Install dependencies
       shell: cmd
       run: |
-        choco install -y cuda --version 11.6
+        choco install -y cuda --version 11.6.0.51123
         choco install -y ninja
         refreshenv
         echo CUDA_PATH=%CUDA_PATH%
