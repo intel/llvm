@@ -1,9 +1,7 @@
 name: SYCL Windows Test
 
 on:
-  pull_request:
-    branches:
-    - sycl
+  workflow_call:
 
 jobs:
   build:
@@ -19,12 +17,22 @@ jobs:
       run: |
         choco install -y cuda --version 11.6.0.51123
         choco install -y ninja
+        choco install -y sccache --version 0.2.15
         refreshenv
         echo CUDA_PATH=%CUDA_PATH%
         echo CUDA_PATH=%CUDA_PATH% >> %GITHUB_ENV%
     - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
       with:
         arch: amd64
+    - name: Setup Cache
+      uses: actions/cache@v2
+      if: ${{ github.event_name != 'pull_request' }}
+      id: cache
+      with:
+        path: cache
+        key: sycl-win-build-${{ github.sha }}
+        restore-keys: |
+          sycl-win-build-
     - name: Configure
       shell: cmd
       env:
@@ -33,10 +41,15 @@ jobs:
       run: |
         mkdir build
         mkdir install
+        IF NOT EXIST cache MKDIR cache
+        set SCCACHE_DIR=%GITHUB_WORKSPACE%\cache
+        set PATH=C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc;%PATH%
         python.exe src/buildbot/configure.py -o build ^
           --cmake-opt="-DCMAKE_C_COMPILER=clang-cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=clang-cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
+          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
           --cuda 
     - name: Build
       shell: cmd

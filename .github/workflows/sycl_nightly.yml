@@ -19,6 +19,13 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       lts_config: "ocl_gen9;ocl_x64;hip_amdgpu"
+
+  windows_default:
+    name: Windows (experimental)
+    if: github.repository == 'intel/llvm'
+    continue-on-error: true
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml
+
   ubuntu2004_docker_build_push:
     if: github.repository == 'intel/llvm'
     runs-on: ubuntu-latest
@@ -55,4 +62,3 @@ jobs:
         tags: |
           ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers-${{ github.sha }}
           ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers
-
