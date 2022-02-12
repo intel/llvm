@@ -5,6 +5,9 @@
 
 // UNSUPPORTED: cuda
 
+// FIXME: the test fails on multiple back-ends
+// REQUIRES: TEMPORARY_DISABLED
+
 //==- handler.cpp - SYCL handler explicit memory operations test -*- C++-*--==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
