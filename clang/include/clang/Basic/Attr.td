@@ -3039,8 +3039,8 @@ def WorkGroupSizeHint :  InheritableAttr {
   let Spellings = [GNU<"work_group_size_hint">,
                    CXX11<"sycl", "work_group_size_hint">];
   let Args = [ExprArgument<"XDim">,
-              ExprArgument<"YDim">,
-              ExprArgument<"ZDim">];
+              ExprArgument<"YDim", /*optional*/1>,
+              ExprArgument<"ZDim", /*optional*/1>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let AdditionalMembers = [{
     Optional<llvm::APSInt> getXDimVal() const {
@@ -3060,6 +3060,7 @@ def WorkGroupSizeHint :  InheritableAttr {
     }
   }];
   let Documentation = [WorkGroupSizeHintAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {

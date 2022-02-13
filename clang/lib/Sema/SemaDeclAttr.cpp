@@ -3495,8 +3495,20 @@ Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
 static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
-  S.AddWorkGroupSizeHintAttr(D, AL, AL.getArgAsExpr(0), AL.getArgAsExpr(1),
-                             AL.getArgAsExpr(2));
+  // Handles default arguments in work_group_size_hint
+  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
+    assert(AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
+           AL.getScopeName()->isStr("sycl"));
+    return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                  S.Context.IntTy, AL.getLoc());
+  };
+
+  Expr *XDimExpr = AL.getArgAsExpr(0);
+  Expr *YDimExpr =
+      AL.isArgExpr(1) ? AL.getArgAsExpr(1) : SetDefaultValue(S, AL);
+  Expr *ZDimExpr =
+      AL.isArgExpr(2) ? AL.getArgAsExpr(2) : SetDefaultValue(S, AL);
+  S.AddWorkGroupSizeHintAttr(D, AL, XDimExpr, YDimExpr, ZDimExpr);
 }
 
 // Handles max_work_group_size attribute.
