@@ -50,9 +50,9 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
-          --cuda ^ 
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
+          --cuda
     - name: Build
       shell: cmd
       env:
