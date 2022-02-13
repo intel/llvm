@@ -38,6 +38,7 @@ jobs:
       env:
         CUDA_PATH: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
         CUDA_TOOLKIT_ROOT_DIR: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
+      # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       run: |
         mkdir build
         mkdir install
@@ -45,8 +46,8 @@ jobs:
         set SCCACHE_DIR=%GITHUB_WORKSPACE%\cache
         set PATH=C:\ProgramData\chocolatey\lib\sccache\tools\sccache-v0.2.15-x86_64-pc-windows-msvc;%PATH%
         python.exe src/buildbot/configure.py -o build ^
-          --cmake-opt="-DCMAKE_C_COMPILER=clang-cl" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER=clang-cl" ^
+          --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
