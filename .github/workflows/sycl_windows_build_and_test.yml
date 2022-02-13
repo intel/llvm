@@ -59,6 +59,7 @@ jobs:
         CUDA_TOOLKIT_ROOT_DIR: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
       run: |
         cmake --build build --target pi_level_zero
+        cmake --build build --target sycl
         cmake --build build --target sycl-toolchain
     - name: Install
       shell: cmd

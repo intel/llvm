@@ -62,7 +62,7 @@ if(MSVC)
   include(LLVMCheckLinkerFlag)
   llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi /FS")
     add_link_options("/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
