@@ -15,7 +15,7 @@ jobs:
     - name: Install dependencies
       shell: cmd
       run: |
-        REM choco install -y cuda --version 11.6.0.51123
+        choco install -y cuda --version 11.6.0.51123
         choco install -y ninja
         choco install -y sccache --version 0.2.15
         refreshenv
@@ -39,7 +39,7 @@ jobs:
         CUDA_PATH: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
         CUDA_TOOLKIT_ROOT_DIR: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
-      # TODO enable sccache
+      # TODO enable sccache, when problems with PDB are resolved
       run: |
         mkdir build
         mkdir install
@@ -50,17 +50,13 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
-          REM --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
-          REM --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
-          REM --cuda
+          --cuda
     - name: Build
       shell: cmd
       env:
         CUDA_PATH: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
         CUDA_TOOLKIT_ROOT_DIR: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
       run: |
-        cmake --build build --target pi_level_zero
-        cmake --build build --target sycl
         cmake --build build --target sycl-toolchain
     - name: Install
       shell: cmd
@@ -70,9 +66,3 @@ jobs:
       with:
         name: sycl_windows_default
         path: install/**/*
-    - name: Upload logs
-      if: always()
-      uses: actions/upload-artifact@v2
-      with:
-        name: sycl_windows_build_logs
-        path: build/tools/sycl/plugins/level_zero/level-zero-loader-prefix/src/level-zero-loader-stamp/level-zero-loader-build-*.log
