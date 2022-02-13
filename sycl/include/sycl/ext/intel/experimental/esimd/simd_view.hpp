@@ -20,34 +20,44 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
-/// @ingroup sycl_esimd_core
+/// @addtogroup sycl_esimd_core_vectors
 /// @{
 
 /// This class represents a reference to a sub-region of a base simd object.
 /// The referenced sub-region of the base object can be read from and written to
-/// via an instance of this class.
+/// via an instance of this class. Derives from detail::simd_view_impl, which
+/// defines the majority of available APIs for view classes.
+///
+/// User code is never supposed to explicitly provide actual template parameters
+/// for this class. They are always auto-deduced or provided by APIs.
+/// @tparam BaseTy The base type - type of the object viewed by this one.
+/// @tparam RegionTy Describes the viewed region - its shape and element type.
+///   Regions can be 1D and 2D.
 ///
 template <typename BaseTy,
           typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
 class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
+  /// @cond ESIMD_DETAIL
   template <typename, int, class, class> friend class detail::simd_obj_impl;
   template <typename, int> friend class detail::simd_mask_impl;
   template <typename, typename> friend class simd_view;
   template <typename, int> friend class simd;
   template <typename, typename> friend class detail::simd_view_impl;
 
-public:
-  static_assert(detail::is_simd_obj_impl_derivative_v<BaseTy>);
+protected:
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
-
   // Deduce the corresponding value type from its region type.
   using ShapeTy = typename shape_type<RegionTy>::type;
-  static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
-
   using base_type = BaseTy;
   template <typename ElT, int N>
   using get_simd_t = typename BaseClass::template get_simd_t<ElT, N>;
+  /// @endcond ESIMD_DETAIL
+
+public:
+  static_assert(detail::is_simd_obj_impl_derivative_v<BaseTy>);
+
+  static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
   /// The region type of this class.
   using region_type = RegionTy;
@@ -64,11 +74,10 @@ public:
       detail::vector_type_t<detail::__raw_t<element_type>, length>;
 
 protected:
-  /// @{
-  /// Constructors.
+  /// @cond ESIMD_DETAIL
   simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
   simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
-  /// @}
+  /// @endcond ESIMD_DETAIL
 
 public:
   /// Default copy and move constructors for simd_view.
@@ -76,8 +85,10 @@ public:
   simd_view(simd_view &&Other) = default;
 
   /// Construct a complete view of a vector
+  /// @param Base The vector to construct a view of.
   simd_view(BaseTy &Base) : BaseClass(Base) {}
 
+  /// Copy assignment operator.
   simd_view &operator=(const simd_view &Other) {
     BaseClass::operator=(Other);
     return *this;
@@ -215,7 +226,7 @@ public:
 
 #undef __ESIMD_DEF_SCALAR_SIMD_VIEW_RELOP
 
-/// @} sycl_esimd_core
+/// @} sycl_esimd_core_vectors
 
 } // namespace esimd
 } // namespace experimental

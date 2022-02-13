@@ -175,6 +175,10 @@ public:
       return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
     case internal::DecorationRuntimeAlignedINTEL:
       return ExtensionID::SPV_INTEL_runtime_aligned;
+    case internal::DecorationHostAccessINTEL:
+    case internal::DecorationInitModeINTEL:
+    case internal::DecorationImplementInCSRINTEL:
+      return ExtensionID::SPV_INTEL_global_variable_decorations;
     default:
       return {};
     }
@@ -707,6 +711,69 @@ public:
   SPIRVDecoratePipelineEnableINTEL(SPIRVEntry *TheTarget, SPIRVWord Enable)
       : SPIRVDecorate(spv::internal::DecorationPipelineEnableINTEL, TheTarget,
                       Enable){};
+};
+
+class SPIRVDecorateHostAccessINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVHostAccessINTEL
+  SPIRVDecorateHostAccessINTEL(SPIRVEntry *TheTarget, SPIRVWord AccessMode,
+                               const std::string &VarName)
+      : SPIRVDecorate(spv::internal::DecorationHostAccessINTEL, TheTarget) {
+    Literals.push_back(AccessMode);
+    for (auto &I : getVec(VarName))
+      Literals.push_back(I);
+    WordCount += Literals.size();
+  };
+
+  SPIRVWord getAccessMode() const { return Literals.front(); }
+  std::string getVarName() const {
+    return getString(Literals.cbegin() + 1, Literals.cend());
+  }
+
+  static void encodeLiterals(SPIRVEncoder &Encoder,
+                             const std::vector<SPIRVWord> &Literals) {
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+    if (SPIRVUseTextFormat) {
+      Encoder << Literals.front();
+      std::string Name = getString(Literals.cbegin() + 1, Literals.cend());
+      Encoder << Name;
+    } else
+#endif
+      Encoder << Literals;
+  }
+
+  static void decodeLiterals(SPIRVDecoder &Decoder,
+                             std::vector<SPIRVWord> &Literals) {
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+    if (SPIRVUseTextFormat) {
+      SPIRVWord Mode;
+      Decoder >> Mode;
+      std::string Name;
+      Decoder >> Name;
+      Literals.front() = Mode;
+      std::copy_n(getVec(Name).begin(), Literals.size() - 1,
+                  Literals.begin() + 1);
+
+    } else
+#endif
+      Decoder >> Literals;
+  }
+};
+
+class SPIRVDecorateInitModeINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVInitModeINTEL
+  SPIRVDecorateInitModeINTEL(SPIRVEntry *TheTarget, SPIRVWord Trigger)
+      : SPIRVDecorate(spv::internal::DecorationInitModeINTEL, TheTarget,
+                      Trigger){};
+};
+
+class SPIRVDecorateImplementInCSRINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVImplementInCSRINTEL
+  SPIRVDecorateImplementInCSRINTEL(SPIRVEntry *TheTarget, SPIRVWord Value)
+      : SPIRVDecorate(spv::internal::DecorationImplementInCSRINTEL, TheTarget,
+                      Value){};
 };
 
 } // namespace SPIRV
