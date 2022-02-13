@@ -57,11 +57,6 @@ if(MSVC)
   set(LLVM_REQUIRES_RTTI ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 
-  # Make sure PDBs are written synchronously
-  set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} /FS")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FS")
-  link_libraries(/FS)
-
   # Add PDB debug information
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
   include(LLVMCheckLinkerFlag)
