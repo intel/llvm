@@ -15,7 +15,7 @@ jobs:
     - name: Install dependencies
       shell: cmd
       run: |
-        choco install -y cuda --version 11.6.0.51123
+        REM choco install -y cuda --version 11.6.0.51123
         choco install -y ninja
         choco install -y sccache --version 0.2.15
         refreshenv
@@ -50,9 +50,9 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
-          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
-          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
-          --cuda
+          REM --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
+          REM --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
+          REM --cuda
     - name: Build
       shell: cmd
       env:
