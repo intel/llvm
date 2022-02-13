@@ -17,7 +17,6 @@ jobs:
       run: |
         choco install -y cuda --version 11.6.0.51123
         choco install -y ninja
-        choco install -y sccache --version 0.2.15
         refreshenv
         echo CUDA_PATH=%CUDA_PATH%
         echo CUDA_PATH=%CUDA_PATH% >> %GITHUB_ENV%
