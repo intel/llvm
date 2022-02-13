@@ -57,12 +57,18 @@ if(MSVC)
   set(LLVM_REQUIRES_RTTI ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 
+  # Make sure PDBs are written synchronously
+  if (CMAKE_GENERATOR EQUALS "Ninja")
+    list(APPEND CMAKE_C_FLAGS /FS)
+    list(APPEND CMAKE_CXX_FLAGS /FS)
+  endif()
+
   # Add PDB debug information
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
   include(LLVMCheckLinkerFlag)
   llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi /FS")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
     add_link_options("/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
