@@ -231,64 +231,9 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   EXPECT_EQ(expected_compile_options_1, current_compile_options);
 }
 
-TEST(Link_Compile_Options,
-     compile_link_Options_Test_two_devices_filled_options) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    GTEST_SKIP(); // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    GTEST_SKIP();
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    GTEST_SKIP();
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
-      redefinedProgramCompile);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  const sycl::device Dev_1 = Plt.get_devices()[0];
-  current_link_options.clear();
-  current_compile_options.clear();
-  std::string expected_compile_options_1 = "-cl-opt-disable",
-              expected_compile_options_2 =
-                  "-cl-fp32-correctly-rounded-divide-sqrt",
-              expected_link_options_1 = "-cl-denorms-are-zero",
-              expected_link_options_2 = "-cl-no-signed-zeros";
-  static sycl::unittest::PiImage DevImage_1 =
-      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options_1,
-                                                  expected_link_options_1);
-  static sycl::unittest::PiImage DevImage_2 =
-      generateEAMTestKernel2Image<EAMTestKernel2>(expected_compile_options_2,
-                                                  expected_link_options_2);
-  static sycl::unittest::PiImage Images[] = {DevImage_1, DevImage_2};
-  static sycl::unittest::PiImageArray<2> DevImageArray{Images};
-
-  auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
-  auto KernelID_2 = sycl::get_kernel_id<EAMTestKernel2>();
-  sycl::queue Queue{Dev_1};
-  const sycl::context Ctx = Queue.get_context();
-  sycl::kernel_bundle KernelBundle1 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev_1},
-                                                         {KernelID_1});
-  sycl::kernel_bundle KernelBundle2 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev_1},
-                                                         {KernelID_2});
-  auto BundleObj1 = sycl::compile(KernelBundle1);
-  auto BundleObj2 = sycl::compile(KernelBundle2);
-  sycl::link(BundleObj1);
-  sycl::link(BundleObj2);
-  EXPECT_EQ(expected_link_options_1 + " " + expected_link_options_2,
-            current_link_options);
-  EXPECT_EQ(expected_compile_options_1 + " " + expected_compile_options_2,
-            current_compile_options);
-}
+// According to kernel_bundle_impl.hpp:205 sycl::link now is not linking
+// any two device images together
+// TODO : Add check for linking 2 device images together when implemented.
 
 TEST(Link_Compile_Options, check_sycl_build) {
   sycl::platform Plt{sycl::default_selector()};

@@ -366,59 +366,50 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   return Res;
 }
 
-static void addEsimdImageCompileOptions(std::string &CompileOpts) {
-  if (!CompileOpts.empty())
-    CompileOpts += " ";
-  CompileOpts += "-vc-codegen";
+static void appendLinkOptionsFromImage(std::string &LinkOpts,
+                                       const RTDeviceBinaryImage &Img) {
+  static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  // Update only if link options are not overwritten by environment variable
+  if (!LinkOptsEnv) {
+    if (!LinkOpts.empty())
+      LinkOpts += " ";
+    const char *TemporaryStr = Img.getLinkOptions();
+    if (TemporaryStr != nullptr)
+      LinkOpts += std::string(TemporaryStr);
+  }
 }
 
-static void applyLinkOptionsFromImage(std::string &LinkOpts,
-                                      const RTDeviceBinaryImage &Img) {
-  if (!LinkOpts.empty())
-    LinkOpts += " ";
-  const char *TemporaryStr = Img.getLinkOptions();
-  if (TemporaryStr != nullptr)
-    LinkOpts += std::string(TemporaryStr);
-}
-
-static void applyCompileOptionsFromImage(
-    std::string &CompileOpts, const RTDeviceBinaryImage &Img,
-    const pi_device_binary_property &isEsimdImage = nullptr) {
-  if (!CompileOpts.empty())
-    CompileOpts += " ";
-  const char *TemporaryStr = Img.getCompileOptions();
-  if (TemporaryStr != nullptr)
-    CompileOpts += TemporaryStr;
-  if (isEsimdImage) {
-    addEsimdImageCompileOptions(CompileOpts);
+static void appendCompileOptionsFromImage(std::string &CompileOpts,
+                                          const RTDeviceBinaryImage &Img) {
+  // Build options are overridden if environment variables are present.
+  // Environment variables are not changed during program lifecycle so it
+  // is reasonable to use static here to read them only once.
+  static const char *CompileOptsEnv =
+      SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
+  // Update only if compile options are not overwritten by environment
+  // variable
+  if (!CompileOptsEnv) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    const char *TemporaryStr = Img.getCompileOptions();
+    if (TemporaryStr != nullptr)
+      CompileOpts += std::string(TemporaryStr);
+  }
+  // The -vc-codegen option is always preserved for ESIMD kernels, regardless
+  // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
+  if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += "-vc-codegen";
   }
 }
 
 static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
                                   const RTDeviceBinaryImage &Img) {
-  // Build options are overridden if environment variables are present.
-  // Environment variables are not changed during program lifecycle so it
-  // is reasonable to use static here to read them only once.
-  static const char *CompileOptsEnv =
-      SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
-  static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
-  // Update only if compile options are not overwritten by environment
-  // variable
-  // The -vc-codegen option is always preserved for ESIMD kernels, regardless
-  // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
-  pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
-  if (!CompileOptsEnv) {
-    applyCompileOptionsFromImage(CompileOpts, Img, isEsimdImage);
-  } else if (isEsimdImage &&
-             pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
-    addEsimdImageCompileOptions(CompileOpts);
-  }
-
-  // Update only if link options are not overwritten by environment variable
-  if (!LinkOptsEnv) {
-    applyLinkOptionsFromImage(LinkOpts, Img);
-  }
+  appendCompileOptionsFromImage(CompileOpts, Img);
+  appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
 static void applyOptionsFromEnvironment(std::string &CompileOpts,
@@ -1004,10 +995,9 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty() && !ForceLink) {
-    std::string Options = CompileOptions;
-    if (!LinkOptions.empty()) {
-      Options += " " + LinkOptions;
-    }
+    std::string Options = LinkOptions.empty()
+                              ? CompileOptions
+                              : (CompileOptions + " " + LinkOptions);
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
         Program.get(), /*num devices =*/1, &Device, Options.c_str(), nullptr,
         nullptr);
@@ -1693,12 +1683,12 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   // TODO: Set spec constatns here.
 
   // TODO: Handle zero sized Device list.
-
-  const char *compileOptions =
-      InputImpl->get_bin_image_ref()->getCompileOptions();
+  std::string CompileOptions;
+  appendCompileOptionsFromImage(CompileOptions,
+                                *(InputImpl->get_bin_image_ref()));
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
-      PIDevices.data(), compileOptions,
+      PIDevices.data(), CompileOptions.c_str(),
       /*num_input_headers=*/0, /*input_headers=*/nullptr,
       /*header_include_names=*/nullptr,
       /*pfn_notify=*/nullptr, /*user_data*/ nullptr);
@@ -1731,8 +1721,8 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   for (const device_image_plain &DeviceImage : DeviceImages) {
     const std::shared_ptr<device_image_impl> &InputImpl =
         getSyclObjImpl(DeviceImage);
-    applyLinkOptionsFromImage(LinkOptionsStr,
-                              *(InputImpl->get_bin_image_ref()));
+    appendLinkOptionsFromImage(LinkOptionsStr,
+                               *(InputImpl->get_bin_image_ref()));
   }
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
