@@ -804,8 +804,7 @@ class ModuleSplitter {
 public:
   ModuleSplitter(std::unique_ptr<Module> M, bool Split,
                  EntryPointGroupMap GroupMap)
-      : InputModule(std::move(M)), IsSplit(Split),
-        GMap(std::move(GroupMap)) {
+      : InputModule(std::move(M)), IsSplit(Split), GMap(std::move(GroupMap)) {
     assert(!GMap.empty() && "Entry points group map is empty!");
     GMapIt = GMap.cbegin();
   }
