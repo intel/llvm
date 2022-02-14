@@ -242,12 +242,12 @@ template <tested_types required> auto get_tested_types() {
   if constexpr (required == tested_types::core) {
     return named_type_pack<
         char, unsigned char, signed char, short, unsigned short, int,
-        unsigned int, long, unsigned long, float, sycl::half, double, long long,
+        unsigned int, long, unsigned long, float, long long,
         unsigned long long>::generate("char", "unsigned char", "signed char",
                                       "short", "unsigned short", "int",
                                       "unsigned int", "long", "unsigned long",
-                                      "float", "sycl::half", "double",
-                                      "long long", "unsigned long long");
+                                      "float", "long long",
+                                      "unsigned long long");
   } else if constexpr (required == tested_types::fp) {
     return named_type_pack<float>::generate("float");
   } else if constexpr (required == tested_types::fp_extra) {
