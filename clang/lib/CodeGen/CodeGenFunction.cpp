@@ -1166,6 +1166,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
              CGM.getCodeGenOpts().StackAlignment))
     Fn->addFnAttr("stackrealign");
 
+  // "main" doesn't need to zero out call-used registers.
+  if (FD && FD->isMain())
+    Fn->removeFnAttr("zero-call-used-regs");
+
   if (getLangOpts().SYCLIsDevice)
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
       if (FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>())

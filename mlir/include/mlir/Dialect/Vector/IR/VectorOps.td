@@ -26,15 +26,7 @@ def Vector_Dialect : Dialect {
 
 // Base class for Vector dialect ops.
 class Vector_Op<string mnemonic, list<Trait> traits = []> :
-    Op<Vector_Dialect, mnemonic, traits> {
-  // For every vector op, there needs to be a:
-  //   * void print(OpAsmPrinter &p, ${C++ class of Op} op)
-  //   * ParseResult parse${C++ class of Op}(OpAsmParser &parser,
-  //                                         OperationState &result)
-  // functions.
-  let printer = [{ return ::print(p, *this); }];
-  let parser = [{ return ::parse$cppClass(parser, result); }];
-}
+    Op<Vector_Dialect, mnemonic, traits>;
 
 // The "kind" of combining function for contractions and reductions.
 def COMBINING_KIND_ADD : BitEnumAttrCaseBit<"ADD", 0, "add">;
@@ -208,7 +200,10 @@ def Vector_ContractionOp :
       "ArrayAttr":$indexingMaps, "ArrayAttr":$iteratorTypes)>,
     OpBuilder<(ins "Value":$lhs, "Value":$rhs, "Value":$acc,
       "ArrayRef<ArrayRef<AffineExpr>>":$indexingExprs,
-      "ArrayRef<StringRef>":$iteratorTypes)>
+      "ArrayRef<StringRef>":$iteratorTypes)>,
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs, "Value":$acc,
+      "ArrayAttr":$indexingMaps, "ArrayAttr":$iteratorTypes,
+      "CombiningKind":$kind)>
   ];
   let extraClassDeclaration = [{
     VectorType getLhsType() {
@@ -253,6 +248,7 @@ def Vector_ContractionOp :
   }];
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 }
 
@@ -260,7 +256,8 @@ def Vector_ReductionOp :
   Vector_Op<"reduction", [NoSideEffect,
      PredOpTrait<"source operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>]>,
-    Arguments<(ins StrAttr:$kind, AnyVector:$vector, Variadic<AnyType>:$acc)>,
+    Arguments<(ins Vector_CombiningKindAttr:$kind, AnyVector:$vector,
+                   Optional<AnyType>:$acc)>,
     Results<(outs AnyType:$dest)> {
   let summary = "reduction operation";
   let description = [{
@@ -277,11 +274,11 @@ def Vector_ReductionOp :
     Example:
 
     ```mlir
-    %1 = vector.reduction "add", %0 : vector<16xf32> into f32
+    %1 = vector.reduction <add>, %0 : vector<16xf32> into f32
 
-    %3 = vector.reduction "xor", %2 : vector<4xi32> into i32
+    %3 = vector.reduction <xor>, %2 : vector<4xi32> into i32
 
-    %4 = vector.reduction "mul", %0, %1 : vector<16xf32> into f32
+    %4 = vector.reduction <mul>, %0, %1 : vector<16xf32> into f32
     ```
   }];
   let extraClassDeclaration = [{
@@ -289,6 +286,16 @@ def Vector_ReductionOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let builders = [
+    // Builder that infers the type of `dest`.
+    OpBuilder<(ins "CombiningKind":$kind, "Value":$vector, "Value":$acc)>,
+    // Builder that infers the type of `dest` and has no accumulator.
+    OpBuilder<(ins "CombiningKind":$kind, "Value":$vector)>
+  ];
+
+  // TODO: Migrate to assemblyFormat once `AllTypesMatch` supports optional
+  // operands.
+  let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 }
 
@@ -309,9 +316,9 @@ def Vector_MultiDimReductionOp :
     Example:
 
     ```mlir
-    %1 = vector.multi_reduction "add", %0 [1, 3] :
+    %1 = vector.multi_reduction <add>, %0 [1, 3] :
       vector<4x8x16x32xf32> into vector<4x16xf32>
-    %2 = vector.multi_reduction "add", %1 [0, 1] :
+    %2 = vector.multi_reduction <add>, %1 [0, 1] :
       vector<4x16xf32> into f32
     ```
   }];
@@ -478,6 +485,7 @@ def Vector_ShuffleOp :
       return vector().getType().cast<VectorType>();
     }
   }];
+  let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 }
 
@@ -559,6 +567,7 @@ def Vector_ExtractOp :
     }
   }];
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
   let hasVerifier = 1;
 }
@@ -968,6 +977,7 @@ def Vector_OuterProductOp :
       return CombiningKind::ADD;
     }
   }];
+  let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 }
 
@@ -1350,6 +1360,7 @@ def Vector_TransferReadOp :
                    CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
   ];
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
   let hasVerifier = 1;
 }
@@ -1489,6 +1500,7 @@ def Vector_TransferWriteOp :
   ];
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 }
 

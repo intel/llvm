@@ -20,7 +20,7 @@
 //  non-terminal or terminal, identified by a SymbolID.
 //
 //  Notions about the BNF grammar:
-//  - "_" is the augmented symbol, formed by start symbols.
+//  - "_" is the start symbol of the augmented grammar;
 //  - single-line comment is supported, starting with a #
 //  - A rule describes how a nonterminal (left side of :=) is constructed, and
 //    it is *per line* in the grammar file
@@ -38,6 +38,7 @@
 
 #include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
 #include <cstdint>
 #include <vector>
@@ -82,7 +83,7 @@ struct Rule {
 
   // We occupy 4 bits for the sequence, in theory, it can be at most 2^4 tokens
   // long, however, we're stricter in order to reduce the size, we limit the max
-  // lenth to 9 (this is the longest sequence in cxx grammar).
+  // length to 9 (this is the longest sequence in cxx grammar).
   static constexpr unsigned SizeBits = 4;
   static constexpr unsigned MaxElements = 9;
   static_assert(MaxElements <= (1 << SizeBits), "Exceeds the maximum limit");
@@ -110,12 +111,15 @@ struct GrammarTable;
 // It is a building block for constructing a table-based parser.
 class Grammar {
 public:
-  explicit Grammar(std::unique_ptr<GrammarTable> T) : T(std::move(T)) {}
+  explicit Grammar(std::unique_ptr<GrammarTable>);
 
   // Parses grammar from a BNF file.
   // Diagnostics emitted during parsing are stored in Diags.
   static std::unique_ptr<Grammar> parseBNF(llvm::StringRef BNF,
                                            std::vector<std::string> &Diags);
+
+  // Returns the SymbolID of the start symbol '_'.
+  SymbolID startSymbol() const { return StartSymbol; };
 
   // Returns all rules of the given non-terminal symbol.
   llvm::ArrayRef<Rule> rulesFor(SymbolID SID) const;
@@ -136,7 +140,15 @@ public:
 
 private:
   std::unique_ptr<GrammarTable> T;
+  // The start symbol '_' of the augmented grammar.
+  SymbolID StartSymbol;
 };
+// For each nonterminal X, computes the set of terminals that begin strings
+// derived from X. (Known as FIRST sets in grammar-based parsers).
+std::vector<llvm::DenseSet<SymbolID>> firstSets(const Grammar &);
+// For each nonterminal X, computes the set of terminals that could immediately
+// follow X. (Known as FOLLOW sets in grammar-based parsers).
+std::vector<llvm::DenseSet<SymbolID>> followSets(const Grammar &);
 
 // Storage for the underlying data of the Grammar.
 // It can be constructed dynamically (from compiling BNF file) or statically
@@ -155,7 +167,7 @@ struct GrammarTable {
   // The rules are sorted (and thus grouped) by target symbol.
   // RuleID is the index of the vector.
   std::vector<Rule> Rules;
-  // A table of terminals (aka tokens). It correspond to the clang::Token.
+  // A table of terminals (aka tokens). It corresponds to the clang::Token.
   // clang::tok::TokenKind is the index of the table.
   std::vector<std::string> Terminals;
   // A table of nonterminals, sorted by name.
