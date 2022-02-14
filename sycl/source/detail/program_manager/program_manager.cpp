@@ -984,7 +984,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
   // online linking is disabled temporarily, all fallback device libraries
   // will be linked offline. When Level Zero supports online linking, we need
   // to remove the line of code below and switch back to online linking.
-  LinkDeviceLibs = true;
+  LinkDeviceLibs = false;
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
