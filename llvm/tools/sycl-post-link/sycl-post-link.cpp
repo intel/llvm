@@ -368,14 +368,14 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
 // This function traverses over reversed call graph by BFS algorithm.
 // It means that an edge links some function @func with functions
 // which contain call of function @func. It starts from
-// @StartingFunction and lifts up until it reach all reachable functions
+// @StartingFunction and lifts up until it reach all reachable functions,
 // or it reaches some function containing "referenced-indirectly" attribute.
 // If it reaches "referenced-indirectly" attribute than it returns an empty
 // Optional.
 // Otherwise, it returns an Optional containing a list of reached
 // SPIR kernel function's names.
 Optional<std::vector<StringRef>>
-TraverseCGToFindSPIRKernels(const Function *StartingFunction) {
+traverseCGToFindSPIRKernels(const Function *StartingFunction) {
   std::queue<const Function *> FunctionsToVisit;
   std::unordered_set<const Function *> VisitedFunctions;
   FunctionsToVisit.push(StartingFunction);
@@ -411,16 +411,16 @@ TraverseCGToFindSPIRKernels(const Function *StartingFunction) {
     }
   }
 
-  return std::move(KernelNames);
+  return {std::move(KernelNames)};
 }
 
 std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
-  auto DevicelibAssertFailFunction = M.getFunction("__devicelib_assert_fail");
+  auto *DevicelibAssertFailFunction = M.getFunction("__devicelib_assert_fail");
   if (!DevicelibAssertFailFunction)
     return {};
 
   auto TraverseResult =
-      TraverseCGToFindSPIRKernels(DevicelibAssertFailFunction);
+      traverseCGToFindSPIRKernels(DevicelibAssertFailFunction);
 
   if (TraverseResult.hasValue())
     return std::move(*TraverseResult);
@@ -438,7 +438,7 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 
 // Gets reqd_work_group_size information for function Func.
 std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
-  auto ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
+  auto *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
   if (!ReqdWorkGroupSizeMD)
     return {};
   // TODO: Remove 3-operand assumption when it is relaxed.
