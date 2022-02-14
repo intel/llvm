@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/feature_test.hpp>
+#include <sycl/ext/intel/experimental/bfloat16.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -735,6 +736,165 @@ public:
                         PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
+};
+
+template <size_t NumRows, size_t NumCols, matrix_layout Layout, typename Group>
+class wi_element<sycl::ext::intel::experimental::bfloat16, NumRows, NumCols,
+                 Layout, Group> {
+  joint_matrix<sycl::ext::intel::experimental::bfloat16, NumRows, NumCols,
+               Layout, Group> &M;
+  std::size_t idx;
+
+public:
+  wi_element(joint_matrix<sycl::ext::intel::experimental::bfloat16, NumRows,
+                          NumCols, Layout, Group> &Mat,
+             std::size_t i)
+      : M(Mat), idx(i) {}
+  operator sycl::ext::intel::experimental::bfloat16() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_VectorExtractDynamic(M.spvm, idx);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  explicit operator bool() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return std::fabs(static_cast<float>(__spirv_VectorExtractDynamic(
+               M.spvm, idx))) >= std::numeric_limits<float>::epsilon();
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  wi_element &operator=(const sycl::ext::intel::experimental::bfloat16 &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    M.spvm = __spirv_VectorInsertDynamic(M.spvm, rhs, idx);
+    return *this;
+#else
+    (void)rhs;
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  wi_element &
+  operator=(const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,
+                             NumCols, Layout, Group> &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    M.spvm = __spirv_VectorInsertDynamic(
+        M.spvm, __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx), idx);
+    return *this;
+#else
+    (void)rhs;
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+#if __SYCL_DEVICE_ONLY__
+#define OP(opassign, op)                                                       \
+  wi_element &operator opassign(                                               \
+      const sycl::ext::intel::experimental::bfloat16 &rhs) {                   \
+    M.spvm = __spirv_VectorInsertDynamic(                                      \
+        M.spvm,                                                                \
+        static_cast<float>(__spirv_VectorExtractDynamic(M.spvm, idx)           \
+                                op static_cast<float>(rhs))),                  \
+        idx);                                                                  \
+    return *this;                                                              \
+  }
+#else // __SYCL_DEVICE_ONLY__
+#define OP(opassign, op)                                                       \
+  wi_element &operator opassign(                                               \
+      const sycl::ext::intel::experimental::bfloat16 &rhs) {                   \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
+  }
+#endif // __SYCL_DEVICE_ONLY__
+  OP(+=, +)
+  OP(-=, -)
+  OP(*=, *)
+  OP(/=, /)
+#undef OP
+
+#if __SYCL_DEVICE_ONLY__
+#define OP(type, op)                                                           \
+  friend type operator op(                                                     \
+      const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,      \
+                       NumCols, Layout, Group> &lhs,                           \
+      const sycl::ext::intel::experimental::bfloat16 &rhs) {                   \
+    return static_cast<float>(__spirv_VectorExtractDynamic(                    \
+        lhs.M.spvm, lhs.idx)) op static_cast<float>(rhs);                      \
+  }                                                                            \
+  friend type operator op(                                                     \
+      const sycl::ext::intel::experimental::bfloat16 &lhs,                     \
+      const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,      \
+                       NumCols, Layout, Group> &rhs) {                         \
+    return static_cast<float>(__spirv_VectorExtractDynamic(                    \
+        rhs.M.spvm, rhs.idx)) op static_cast<float>(lhs);                      \
+  }
+  OP(sycl::ext::intel::experimental::bfloat16, +)
+  OP(sycl::ext::intel::experimental::bfloat16, -)
+  OP(sycl::ext::intel::experimental::bfloat16, *)
+  OP(sycl::ext::intel::experimental::bfloat16, /)
+#undef OP
+#define OP(type, op)                                                           \
+  friend type operator op(                                                     \
+      const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,      \
+                       NumCols, Layout, Group> &lhs,                           \
+      const sycl::ext::intel::experimental::bfloat16 &rhs) {                   \
+    return type{static_cast<float>(__spirv_VectorExtractDynamic(               \
+        lhs.M.spvm, lhs.idx)) op static_cast<float>(rhs)};                     \
+  }                                                                            \
+  friend type operator op(                                                     \
+      const sycl::ext::intel::experimental::bfloat16 &lhs,                     \
+      const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,      \
+                       NumCols, Layout, Group> &rhs) {                         \
+    return type{static_cast<float>(__spirv_VectorExtractDynamic(               \
+        rhs.M.spvm, rhs.idx)) op static_cast<float>(lhs)};                     \
+  }
+  OP(bool, ==)
+  OP(bool, !=)
+  OP(bool, <)
+  OP(bool, >)
+  OP(bool, <=)
+  OP(bool, >=)
+#undef OP
+#else // __SYCL_DEVICE_ONLY__
+#define OP(type, op)                                                           \
+  friend type operator op(                                                     \
+      const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,      \
+                       NumCols, Layout, Group> &lhs,                           \
+      const sycl::ext::intel::experimental::bfloat16 &rhs) {                   \
+    (void)lhs;                                                                 \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
+  }                                                                            \
+  friend type operator op(                                                     \
+      const sycl::ext::intel::experimental::bfloat16 &lhs,                     \
+      const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,      \
+                       NumCols, Layout, Group> &rhs) {                         \
+    (void)lhs;                                                                 \
+    (void)rhs;                                                                 \
+    throw runtime_error("joint matrix is not supported on host device.",       \
+                        PI_INVALID_DEVICE);                                    \
+  }
+  OP(sycl::ext::intel::experimental::bfloat16, +)
+  OP(sycl::ext::intel::experimental::bfloat16, -)
+  OP(sycl::ext::intel::experimental::bfloat16, *)
+  OP(sycl::ext::intel::experimental::bfloat16, /)
+  OP(bool, ==)
+  OP(bool, !=)
+  OP(bool, <)
+  OP(bool, >)
+  OP(bool, <=)
+  OP(bool, >=)
+#undef OP
+#endif // __SYCL_DEVICE_ONLY__
 };
 
 template <typename T, size_t NumRows, size_t NumCols, matrix_layout Layout,
