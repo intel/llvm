@@ -367,26 +367,26 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 }
 
 static void addEsimdImageCompileOptions(std::string &CompileOpts) {
-    if (!CompileOpts.empty())
-      CompileOpts += " ";
-    CompileOpts += "-vc-codegen";
+  if (!CompileOpts.empty())
+    CompileOpts += " ";
+  CompileOpts += "-vc-codegen";
 }
 
 static void applyLinkOptionsFromImage(std::string &LinkOpts,
                                       const RTDeviceBinaryImage &Img) {
   if (!LinkOpts.empty())
-      LinkOpts += " ";
-  const char* TemporaryStr = Img.getLinkOptions();
+    LinkOpts += " ";
+  const char *TemporaryStr = Img.getLinkOptions();
   if (TemporaryStr != nullptr)
     LinkOpts += std::string(TemporaryStr);
 }
 
-static void applyCompileOptionsFromImage(std::string &CompileOpts,
-                                      const RTDeviceBinaryImage &Img,
-                                      const pi_device_binary_property &isEsimdImage = nullptr) {
+static void applyCompileOptionsFromImage(
+    std::string &CompileOpts, const RTDeviceBinaryImage &Img,
+    const pi_device_binary_property &isEsimdImage = nullptr) {
   if (!CompileOpts.empty())
     CompileOpts += " ";
-  const char* TemporaryStr = Img.getCompileOptions();
+  const char *TemporaryStr = Img.getCompileOptions();
   if (TemporaryStr != nullptr)
     CompileOpts += TemporaryStr;
   if (isEsimdImage) {
@@ -410,7 +410,8 @@ static void applyOptionsFromImage(std::string &CompileOpts,
   pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
   if (!CompileOptsEnv) {
     applyCompileOptionsFromImage(CompileOpts, Img, isEsimdImage);
-  } else if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+  } else if (isEsimdImage &&
+             pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
     addEsimdImageCompileOptions(CompileOpts);
   }
 
@@ -1008,8 +1009,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
       Options += " " + LinkOptions;
     }
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
-        Program.get(), /*num devices =*/1, &Device, Options.c_str(),
-        nullptr, nullptr);
+        Program.get(), /*num devices =*/1, &Device, Options.c_str(), nullptr,
+        nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context),
                                   Error);
@@ -1730,7 +1731,8 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   for (const device_image_plain &DeviceImage : DeviceImages) {
     const std::shared_ptr<device_image_impl> &InputImpl =
         getSyclObjImpl(DeviceImage);
-    applyLinkOptionsFromImage(LinkOptionsStr, *(InputImpl->get_bin_image_ref()));
+    applyLinkOptionsFromImage(LinkOptionsStr,
+                              *(InputImpl->get_bin_image_ref()));
   }
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);

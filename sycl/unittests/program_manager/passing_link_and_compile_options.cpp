@@ -140,8 +140,8 @@ inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
 inline pi_result redefinedProgramBuild(
     pi_program prog, pi_uint32, const pi_device *, const char *options,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
-    assert(options != nullptr);
-    current_build_opts = std::string(options);
+  assert(options != nullptr);
+  current_build_opts = std::string(options);
   return PI_SUCCESS;
 }
 
@@ -186,7 +186,6 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   EXPECT_EQ(expected_options, current_compile_options);
 }
 
-
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
@@ -211,12 +210,14 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
-  std::string expected_compile_options_1 = "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt",
-              expected_link_options_1 = "-cl-denorms-are-zero -cl-no-signed-zeros";
+  std::string expected_compile_options_1 =
+                  "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt",
+              expected_link_options_1 =
+                  "-cl-denorms-are-zero -cl-no-signed-zeros";
   static sycl::unittest::PiImage DevImage_1 =
       generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options_1,
                                                   expected_link_options_1);
-  
+
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   sycl::queue Queue{Dev};
@@ -230,7 +231,8 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   EXPECT_EQ(expected_compile_options_1, current_compile_options);
 }
 
-TEST(Link_Compile_Options, compile_link_Options_Test_two_devices_filled_options) {
+TEST(Link_Compile_Options,
+     compile_link_Options_Test_two_devices_filled_options) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
@@ -255,7 +257,8 @@ TEST(Link_Compile_Options, compile_link_Options_Test_two_devices_filled_options)
   current_link_options.clear();
   current_compile_options.clear();
   std::string expected_compile_options_1 = "-cl-opt-disable",
-              expected_compile_options_2 = "-cl-fp32-correctly-rounded-divide-sqrt",
+              expected_compile_options_2 =
+                  "-cl-fp32-correctly-rounded-divide-sqrt",
               expected_link_options_1 = "-cl-denorms-are-zero",
               expected_link_options_2 = "-cl-no-signed-zeros";
   static sycl::unittest::PiImage DevImage_1 =
@@ -265,22 +268,26 @@ TEST(Link_Compile_Options, compile_link_Options_Test_two_devices_filled_options)
       generateEAMTestKernel2Image<EAMTestKernel2>(expected_compile_options_2,
                                                   expected_link_options_2);
   static sycl::unittest::PiImage Images[] = {DevImage_1, DevImage_2};
-  static sycl::unittest::PiImageArray<2> DevImageArray {Images};
-  
+  static sycl::unittest::PiImageArray<2> DevImageArray{Images};
+
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   auto KernelID_2 = sycl::get_kernel_id<EAMTestKernel2>();
   sycl::queue Queue{Dev_1};
   const sycl::context Ctx = Queue.get_context();
   sycl::kernel_bundle KernelBundle1 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev_1}, {KernelID_1});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev_1},
+                                                         {KernelID_1});
   sycl::kernel_bundle KernelBundle2 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev_1}, {KernelID_2});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev_1},
+                                                         {KernelID_2});
   auto BundleObj1 = sycl::compile(KernelBundle1);
   auto BundleObj2 = sycl::compile(KernelBundle2);
   sycl::link(BundleObj1);
   sycl::link(BundleObj2);
-  EXPECT_EQ(expected_link_options_1 + " " + expected_link_options_2, current_link_options);
-  EXPECT_EQ(expected_compile_options_1 + " " + expected_compile_options_2, current_compile_options);
+  EXPECT_EQ(expected_link_options_1 + " " + expected_link_options_2,
+            current_link_options);
+  EXPECT_EQ(expected_compile_options_1 + " " + expected_compile_options_2,
+            current_compile_options);
 }
 
 TEST(Link_Compile_Options, check_sycl_build) {
@@ -321,5 +328,6 @@ TEST(Link_Compile_Options, check_sycl_build) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                          {KernelID});
   sycl::build(KernelBundle);
-  EXPECT_EQ(expected_compile_options + " " + expected_link_options, current_build_opts);
+  EXPECT_EQ(expected_compile_options + " " + expected_link_options,
+            current_build_opts);
 }
