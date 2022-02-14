@@ -47,9 +47,12 @@ bool isHsaAbiVersion3(const MCSubtargetInfo *STI);
 /// \returns True if HSA OS ABI Version identification is 4,
 /// false otherwise.
 bool isHsaAbiVersion4(const MCSubtargetInfo *STI);
+/// \returns True if HSA OS ABI Version identification is 5,
+/// false otherwise.
+bool isHsaAbiVersion5(const MCSubtargetInfo *STI);
 /// \returns True if HSA OS ABI Version identification is 3 or 4,
 /// false otherwise.
-bool isHsaAbiVersion3Or4(const MCSubtargetInfo *STI);
+bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI);
 
 struct GcnBufferFormatInfo {
   unsigned Format;
@@ -493,7 +496,7 @@ struct Waitcnt {
   unsigned LgkmCnt = ~0u;
   unsigned VsCnt = ~0u;
 
-  Waitcnt() {}
+  Waitcnt() = default;
   Waitcnt(unsigned VmCnt, unsigned ExpCnt, unsigned LgkmCnt, unsigned VsCnt)
       : VmCnt(VmCnt), ExpCnt(ExpCnt), LgkmCnt(LgkmCnt), VsCnt(VsCnt) {}
 

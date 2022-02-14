@@ -376,6 +376,13 @@ public:
     ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
     return ExportedSymbols;
   }
+  const PropertyRange getDeviceGlobals() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    DeviceBinaryImage::PropertyRange DeviceGlobals;
+    DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
+    return DeviceGlobals;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:

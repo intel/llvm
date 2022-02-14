@@ -31,7 +31,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/ConstantRange.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
@@ -39,9 +38,6 @@
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/IR/ValueMap.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Allocator.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/Compiler.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -56,6 +52,7 @@ class Constant;
 class ConstantInt;
 class DataLayout;
 class DominatorTree;
+class Function;
 class GEPOperator;
 class Instruction;
 class LLVMContext;
@@ -1111,9 +1108,11 @@ public:
   /// Simplify LHS and RHS in a comparison with predicate Pred. Return true
   /// iff any changes were made. If the operands are provably equal or
   /// unequal, LHS and RHS are set to the same value and Pred is set to either
-  /// ICMP_EQ or ICMP_NE.
+  /// ICMP_EQ or ICMP_NE. ControllingFiniteLoop is set if this comparison
+  /// controls the exit of a loop known to have a finite number of iterations.
   bool SimplifyICmpOperands(ICmpInst::Predicate &Pred, const SCEV *&LHS,
-                            const SCEV *&RHS, unsigned Depth = 0);
+                            const SCEV *&RHS, unsigned Depth = 0,
+                            bool ControllingFiniteLoop = false);
 
   /// Return the "disposition" of the given SCEV with respect to the given
   /// loop.
