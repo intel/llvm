@@ -3410,8 +3410,8 @@ def SYCLAddIRAttributesFunctionDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "add_ir_attributes_function";
   let Content = [{
-This attribute can be applied to a function definition to add LLVM IR attributes
-to the resulting LLVM IR function declaration.
+This attribute can be applied to a function declaration or a function definition
+to add LLVM IR attributes to the resulting LLVM IR function.
 The attribute must contain N*2 arguments where N is the number of IR attributes
 to add to the resulting LLVM IR function declaration. Each of the first N of
 these arguments must be either string literals or ``constexpr const char *``.

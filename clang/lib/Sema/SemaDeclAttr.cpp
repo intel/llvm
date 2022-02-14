@@ -7540,6 +7540,17 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
   return false;
 }
 
+SYCLAddIRAttributesFunctionAttr *Sema::MergeSYCLAddIRAttributesFunctionAttr(
+    Decl *D, const SYCLAddIRAttributesFunctionAttr &A) {
+  if (const auto *ExistingAttr =
+          D->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
+    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
+    Diag(A.getLoc(), diag::note_previous_attribute);
+    return nullptr;
+  }
+  return A.clone(Context);
+}
+
 void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                               const AttributeCommonInfo &CI,
                                               MutableArrayRef<Expr *> Args) {
@@ -7563,6 +7574,18 @@ static void handleSYCLAddIRAttributesFunctionAttr(Sema &S, Decl *D,
   S.AddSYCLAddIRAttributesFunctionAttr(D, A, Args);
 }
 
+SYCLAddIRAttributesKernelParameterAttr *
+Sema::MergeSYCLAddIRAttributesKernelParameterAttr(
+    Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A) {
+  if (const auto *ExistingAttr =
+          D->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
+    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
+    Diag(A.getLoc(), diag::note_previous_attribute);
+    return nullptr;
+  }
+  return A.clone(Context);
+}
+
 void Sema::AddSYCLAddIRAttributesKernelParameterAttr(
     Decl *D, const AttributeCommonInfo &CI, MutableArrayRef<Expr *> Args) {
   auto *Attr = SYCLAddIRAttributesKernelParameterAttr::Create(
@@ -7583,6 +7606,18 @@ static void handleSYCLAddIRAttributesKernelParameterAttr(Sema &S, Decl *D,
   }
 
   S.AddSYCLAddIRAttributesKernelParameterAttr(D, A, Args);
+}
+
+SYCLAddIRAttributesGlobalVariableAttr *
+Sema::MergeSYCLAddIRAttributesGlobalVariableAttr(
+    Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A) {
+  if (const auto *ExistingAttr =
+          D->getAttr<SYCLAddIRAttributesGlobalVariableAttr>()) {
+    Diag(ExistingAttr->getLoc(), diag::warn_duplicate_attribute_exact) << &A;
+    Diag(A.getLoc(), diag::note_previous_attribute);
+    return nullptr;
+  }
+  return A.clone(Context);
 }
 
 void Sema::AddSYCLAddIRAttributesGlobalVariableAttr(

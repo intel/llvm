@@ -10577,12 +10577,20 @@ public:
   SYCLIntelMaxWorkGroupSizeAttr *
   MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
                                      const SYCLIntelMaxWorkGroupSizeAttr &A);
+  SYCLAddIRAttributesFunctionAttr *MergeSYCLAddIRAttributesFunctionAttr(
+      Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
   void AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                           const AttributeCommonInfo &CI,
                                           MutableArrayRef<Expr *> Args);
+  SYCLAddIRAttributesKernelParameterAttr *
+  MergeSYCLAddIRAttributesKernelParameterAttr(
+      Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A);
   void AddSYCLAddIRAttributesKernelParameterAttr(Decl *D,
                                                  const AttributeCommonInfo &CI,
                                                  MutableArrayRef<Expr *> Args);
+  SYCLAddIRAttributesGlobalVariableAttr *
+  MergeSYCLAddIRAttributesGlobalVariableAttr(
+      Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A);
   void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
                                                 const AttributeCommonInfo &CI,
                                                 MutableArrayRef<Expr *> Args);

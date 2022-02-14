@@ -1326,22 +1326,22 @@ GlobalVarStructTemplate6<AttrName1, AttrName2, AttrVal1, AttrVal2> InstantiatedG
 GlobalVarStructTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> InstantiatedGV15;
 GlobalVarStructTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> InstantiatedGV16; // expected-note {{in instantiation of template class 'GlobalVarStructTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2>' requested here}}
 
-template <int... Is> struct SpecialClassStructTemplate1 {
+template <int... Is> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate1 {
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", "Attr2", "Attr3", Is...)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must have an attribute value for each attribute name}}
 };
-template <int... Is> struct SpecialClassStructTemplate2 {
+template <int... Is> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate2 {
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must have an attribute value for each attribute name}}
 };
-template <const char *...Names> struct SpecialClassStructTemplate3 {
+template <const char *...Names> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate3 {
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(Names..., 1, 2, 3)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must have an attribute value for each attribute name}}
 };
-template <const char *...Names> struct SpecialClassStructTemplate4 {
+template <const char *...Names> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate4 {
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, Names..., 1, 2, 3)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must have an attribute value for each attribute name}}
 };
-template <const char *...Strs> struct SpecialClassStructTemplate5 {
+template <const char *...Strs> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate5 {
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(Strs...)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must have an attribute value for each attribute name}}
 };
-template <const char *...Strs> struct SpecialClassStructTemplate6 {
+template <const char *...Strs> struct __attribute__((sycl_special_class)) SpecialClassStructTemplate6 {
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter({"Attr1", "Attr3"}, Strs...)]] int x) {} // expected-error {{attribute 'add_ir_attributes_kernel_parameter' must have an attribute value for each attribute name}}
 };
 
@@ -1356,6 +1356,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       CopyAssignment
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate1
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1384,6 +1385,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       TemplateArgument integral 1
   // CHECK-NEXT:       TemplateArgument integral 2
   // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate1
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1429,6 +1431,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:     TemplateArgument pack
   // CHECK-NEXT:       TemplateArgument integral 1
   // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate1
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1451,6 +1454,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       CopyAssignment
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate2
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1482,6 +1486,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       TemplateArgument integral 1
   // CHECK-NEXT:       TemplateArgument integral 2
   // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate2
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1530,6 +1535,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:     TemplateArgument pack
   // CHECK-NEXT:       TemplateArgument integral 1
   // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate2
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1552,6 +1558,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       CopyAssignment
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate3
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1583,6 +1590,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrName3' 'const char[6]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate3
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1633,6 +1641,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate3
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1655,6 +1664,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       CopyAssignment
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate4
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1689,6 +1699,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrName3' 'const char[6]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate4
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1742,6 +1753,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrName2' 'const char[6]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate4
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1764,6 +1776,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       CopyAssignment
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate5
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1784,6 +1797,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate5
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1823,6 +1837,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate5
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1878,6 +1893,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrVal3' 'const char[5]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate5
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1943,6 +1959,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate5
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1967,6 +1984,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       CopyAssignment
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate6
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -1990,6 +2008,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrName1' 'const char[6]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate6
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -2032,6 +2051,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate6
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -2090,6 +2110,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrVal3' 'const char[5]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate6
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'
@@ -2158,6 +2179,7 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:         Var {{.*}} 'AttrVal1' 'const char[5]'
   // CHECK-NEXT:       TemplateArgument decl
   // CHECK-NEXT:         Var {{.*}} 'AttrVal2' 'const char[5]'
+  // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate6
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
   // CHECK-NEXT:       ParmVarDecl {{.*}} x 'int'

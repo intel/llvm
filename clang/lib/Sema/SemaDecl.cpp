@@ -2783,6 +2783,14 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelPipeIOAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxWorkGroupSizeAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesFunctionAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLAddIRAttributesKernelParameterAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesKernelParameterAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(Attr))
+    NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
