@@ -1342,8 +1342,12 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     this->LastCommandEvent = LastEventInPrevCmdList;
     // Add barrier with the event into command-list to ensure in-order semantics
     // between command-lists
+    auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
     ZE_CALL(zeCommandListAppendBarrier,
-            (CommandList->first, LastEventInPrevCmdList->ZeEvent, 0, nullptr));
+            (CommandList->first, ZeEvent, 0, nullptr));
+
+    zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
+            pi_cast<std::uintptr_t>(ZeEvent));
   }
 
   // If available, get the copy command queue assosciated with
