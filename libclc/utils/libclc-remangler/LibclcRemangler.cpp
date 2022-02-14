@@ -58,6 +58,8 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 #include <iostream>
 #include <memory>
@@ -564,9 +566,12 @@ bool createAliasFromMap(
 
   Function *Aliasee = M->getFunction(AliaseeName);
   if (Aliasee) {
-    GlobalAlias::create(AliasName, Aliasee);
+    // TODO - rename 'alias*' to 'clone*'
+    ValueToValueMapTy Dummy;
+    Function *NewF = CloneFunction(Aliasee, Dummy);
+    NewF->setName(std::string(AliasName));
   } else if (Verbose) {
-    std::cout << "Could not create alias " << AliasName.data() << " : missing "
+    std::cout << "Could not create copy " << AliasName.data() << " : missing "
               << AliaseeName.data() << std::endl;
   }
 
@@ -661,10 +666,14 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  bool Success = true;
+  std::vector<Function *> FuncList;
   for (auto &Func : M->getFunctionList())
-    Success = remangleFunction(Func, M.get(), Replacements) && Success;
+    FuncList.push_back(&Func);
 
+  bool Success = true;
+  for (auto Func : FuncList){
+    Success = remangleFunction(*Func, M.get(), Replacements) && Success;
+  }
   // Only fail after all to give as much context as possible.
   if (!Success) {
     errs() << "Failed to remangle all mangled functions in module.\n";
