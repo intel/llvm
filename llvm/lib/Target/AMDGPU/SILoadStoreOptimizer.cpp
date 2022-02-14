@@ -105,6 +105,7 @@ class SILoadStoreOptimizer : public MachineFunctionPass {
     unsigned DMask;
     InstClassEnum InstClass;
     unsigned CPol = 0;
+    bool IsAGPR;
     bool UseST64;
     int AddrIdx[MaxAddressRegs];
     const MachineOperand *AddrReg[MaxAddressRegs];
@@ -158,8 +159,7 @@ class SILoadStoreOptimizer : public MachineFunctionPass {
       return true;
     }
 
-    void setMI(MachineBasicBlock::iterator MI, const SIInstrInfo &TII,
-               const GCNSubtarget &STM);
+    void setMI(MachineBasicBlock::iterator MI, const SILoadStoreOptimizer &LSO);
   };
 
   struct BaseRegisters {
@@ -390,7 +390,8 @@ static InstClassEnum getInstClass(unsigned Opc, const SIInstrInfo &TII) {
 }
 
 /// Determines instruction subclass from opcode. Only instructions
-/// of the same subclass can be merged together.
+/// of the same subclass can be merged together. The merged instruction may have
+/// a different subclass but must have the same class.
 static unsigned getInstSubclass(unsigned Opc, const SIInstrInfo &TII) {
   switch (Opc) {
   default:
@@ -484,14 +485,15 @@ static AddressRegs getRegs(unsigned Opc, const SIInstrInfo &TII) {
 }
 
 void SILoadStoreOptimizer::CombineInfo::setMI(MachineBasicBlock::iterator MI,
-                                              const SIInstrInfo &TII,
-                                              const GCNSubtarget &STM) {
+                                              const SILoadStoreOptimizer &LSO) {
   I = MI;
   unsigned Opc = MI->getOpcode();
-  InstClass = getInstClass(Opc, TII);
+  InstClass = getInstClass(Opc, *LSO.TII);
 
   if (InstClass == UNKNOWN)
     return;
+
+  IsAGPR = LSO.TRI->hasAGPRs(LSO.getDataRegClass(*MI));
 
   switch (InstClass) {
   case DS_READ:
@@ -505,7 +507,7 @@ void SILoadStoreOptimizer::CombineInfo::setMI(MachineBasicBlock::iterator MI,
                                                                             : 4;
     break;
   case S_BUFFER_LOAD_IMM:
-    EltSize = AMDGPU::convertSMRDOffsetUnits(STM, 4);
+    EltSize = AMDGPU::convertSMRDOffsetUnits(*LSO.STM, 4);
     break;
   default:
     EltSize = 4;
@@ -513,7 +515,7 @@ void SILoadStoreOptimizer::CombineInfo::setMI(MachineBasicBlock::iterator MI,
   }
 
   if (InstClass == MIMG) {
-    DMask = TII.getNamedOperand(*I, AMDGPU::OpName::dmask)->getImm();
+    DMask = LSO.TII->getNamedOperand(*I, AMDGPU::OpName::dmask)->getImm();
     // Offset is not considered for MIMG instructions.
     Offset = 0;
   } else {
@@ -522,17 +524,17 @@ void SILoadStoreOptimizer::CombineInfo::setMI(MachineBasicBlock::iterator MI,
   }
 
   if (InstClass == TBUFFER_LOAD || InstClass == TBUFFER_STORE)
-    Format = TII.getNamedOperand(*I, AMDGPU::OpName::format)->getImm();
+    Format = LSO.TII->getNamedOperand(*I, AMDGPU::OpName::format)->getImm();
 
-  Width = getOpcodeWidth(*I, TII);
+  Width = getOpcodeWidth(*I, *LSO.TII);
 
   if ((InstClass == DS_READ) || (InstClass == DS_WRITE)) {
     Offset &= 0xffff;
   } else if (InstClass != MIMG) {
-    CPol = TII.getNamedOperand(*I, AMDGPU::OpName::cpol)->getImm();
+    CPol = LSO.TII->getNamedOperand(*I, AMDGPU::OpName::cpol)->getImm();
   }
 
-  AddressRegs Regs = getRegs(Opc, TII);
+  AddressRegs Regs = getRegs(Opc, *LSO.TII);
 
   NumAddresses = 0;
   for (unsigned J = 0; J < Regs.NumVAddrs; J++)
@@ -892,36 +894,32 @@ SILoadStoreOptimizer::getDataRegClass(const MachineInstr &MI) const {
 bool SILoadStoreOptimizer::checkAndPrepareMerge(
     CombineInfo &CI, CombineInfo &Paired,
     SmallVectorImpl<MachineInstr *> &InstsToMove) {
+  // If another instruction has already been merged into CI, it may now be a
+  // type that we can't do any further merging into.
+  if (CI.InstClass == UNKNOWN || Paired.InstClass == UNKNOWN)
+    return false;
+  assert(CI.InstClass == Paired.InstClass);
+
+  if (getInstSubclass(CI.I->getOpcode(), *TII) !=
+      getInstSubclass(Paired.I->getOpcode(), *TII))
+    return false;
 
   // Check both offsets (or masks for MIMG) can be combined and fit in the
   // reduced range.
-  if (CI.InstClass == MIMG && !dmasksCanBeCombined(CI, *TII, Paired))
-    return false;
-
-  if (CI.InstClass != MIMG &&
-      (!widthsFit(*STM, CI, Paired) || !offsetsCanBeCombined(CI, *STM, Paired)))
-    return false;
-
-  const unsigned Opc = CI.I->getOpcode();
-  const InstClassEnum InstClass = getInstClass(Opc, *TII);
-
-  if (InstClass == UNKNOWN) {
-    return false;
+  if (CI.InstClass == MIMG) {
+    if (!dmasksCanBeCombined(CI, *TII, Paired))
+      return false;
+  } else {
+    if (!widthsFit(*STM, CI, Paired) || !offsetsCanBeCombined(CI, *STM, Paired))
+      return false;
   }
-  const unsigned InstSubclass = getInstSubclass(Opc, *TII);
 
   DenseSet<Register> RegDefsToMove;
   DenseSet<Register> PhysRegUsesToMove;
   addDefsUsesToList(*CI.I, RegDefsToMove, PhysRegUsesToMove);
 
-  const TargetRegisterClass *DataRC = getDataRegClass(*CI.I);
-  bool IsAGPR = TRI->hasAGPRs(DataRC);
-
-  MachineBasicBlock::iterator E = std::next(Paired.I);
-  MachineBasicBlock::iterator MBBI = std::next(CI.I);
   MachineBasicBlock::iterator MBBE = CI.I->getParent()->end();
-  for (; MBBI != E; ++MBBI) {
-
+  for (MachineBasicBlock::iterator MBBI = CI.I; ++MBBI != Paired.I;) {
     if (MBBI == MBBE) {
       // CombineInfo::Order is a hint on the instruction ordering within the
       // basic block. This hint suggests that CI precedes Paired, which is
@@ -932,87 +930,46 @@ bool SILoadStoreOptimizer::checkAndPrepareMerge(
       return false;
     }
 
-    if ((getInstClass(MBBI->getOpcode(), *TII) != InstClass) ||
-        (getInstSubclass(MBBI->getOpcode(), *TII) != InstSubclass)) {
-      // This is not a matching instruction, but we can keep looking as
-      // long as one of these conditions are met:
-      // 1. It is safe to move I down past MBBI.
-      // 2. It is safe to move MBBI down past the instruction that I will
-      //    be merged into.
+    // Keep going as long as one of these conditions are met:
+    // 1. It is safe to move I down past MBBI.
+    // 2. It is safe to move MBBI down past the instruction that I will
+    //    be merged into.
 
-      if (MBBI->hasUnmodeledSideEffects()) {
-        // We can't re-order this instruction with respect to other memory
-        // operations, so we fail both conditions mentioned above.
-        return false;
-      }
-
-      if (MBBI->mayLoadOrStore() &&
-          (!memAccessesCanBeReordered(*CI.I, *MBBI, AA) ||
-           !canMoveInstsAcrossMemOp(*MBBI, InstsToMove, AA))) {
-        // We fail condition #1, but we may still be able to satisfy condition
-        // #2.  Add this instruction to the move list and then we will check
-        // if condition #2 holds once we have selected the matching instruction.
-        InstsToMove.push_back(&*MBBI);
-        addDefsUsesToList(*MBBI, RegDefsToMove, PhysRegUsesToMove);
-        continue;
-      }
-
-      // When we match I with another DS instruction we will be moving I down
-      // to the location of the matched instruction any uses of I will need to
-      // be moved down as well.
-      addToListsIfDependent(*MBBI, RegDefsToMove, PhysRegUsesToMove,
-                            InstsToMove);
+    if (MBBI->mayLoadOrStore() &&
+        (!memAccessesCanBeReordered(*CI.I, *MBBI, AA) ||
+         !canMoveInstsAcrossMemOp(*MBBI, InstsToMove, AA))) {
+      // We fail condition #1, but we may still be able to satisfy condition
+      // #2.  Add this instruction to the move list and then we will check
+      // if condition #2 holds once we have selected the matching instruction.
+      InstsToMove.push_back(&*MBBI);
+      addDefsUsesToList(*MBBI, RegDefsToMove, PhysRegUsesToMove);
       continue;
     }
 
-    // Handle a case like
-    //   DS_WRITE_B32 addr, v, idx0
-    //   w = DS_READ_B32 addr, idx0
-    //   DS_WRITE_B32 addr, f(w), idx1
-    // where the DS_READ_B32 ends up in InstsToMove and therefore prevents
-    // merging of the two writes.
-    if (addToListsIfDependent(*MBBI, RegDefsToMove, PhysRegUsesToMove,
-                              InstsToMove))
-      continue;
-
-    if (&*MBBI == &*Paired.I) {
-      if (TRI->hasAGPRs(getDataRegClass(*MBBI)) != IsAGPR)
-        return false;
-      // FIXME: nothing is illegal in a ds_write2 opcode with two AGPR data
-      //        operands. However we are reporting that ds_write2 shall have
-      //        only VGPR data so that machine copy propagation does not
-      //        create an illegal instruction with a VGPR and AGPR sources.
-      //        Consequenctially if we create such instruction the verifier
-      //        will complain.
-      if (IsAGPR && CI.InstClass == DS_WRITE)
-        return false;
-
-      // We need to go through the list of instructions that we plan to
-      // move and make sure they are all safe to move down past the merged
-      // instruction.
-      if (canMoveInstsAcrossMemOp(*MBBI, InstsToMove, AA)) {
-
-        // Call offsetsCanBeCombined with modify = true so that the offsets are
-        // correct for the new instruction.  This should return true, because
-        // this function should only be called on CombineInfo objects that
-        // have already been confirmed to be mergeable.
-        if (CI.InstClass != MIMG)
-          offsetsCanBeCombined(CI, *STM, Paired, true);
-        return true;
-      }
-      return false;
-    }
-
-    // We've found a load/store that we couldn't merge for some reason.
-    // We could potentially keep looking, but we'd need to make sure that
-    // it was safe to move I and also all the instruction in InstsToMove
-    // down past this instruction.
-    // check if we can move I across MBBI and if we can move all I's users
-    if (!memAccessesCanBeReordered(*CI.I, *MBBI, AA) ||
-        !canMoveInstsAcrossMemOp(*MBBI, InstsToMove, AA))
-      break;
+    // When we match I with another load/store instruction we will be moving I
+    // down to the location of the matched instruction any uses of I will need
+    // to be moved down as well.
+    addToListsIfDependent(*MBBI, RegDefsToMove, PhysRegUsesToMove, InstsToMove);
   }
-  return false;
+
+  // If Paired depends on any of the instructions we plan to move, give up.
+  if (addToListsIfDependent(*Paired.I, RegDefsToMove, PhysRegUsesToMove,
+                            InstsToMove))
+    return false;
+
+  // We need to go through the list of instructions that we plan to
+  // move and make sure they are all safe to move down past the merged
+  // instruction.
+  if (!canMoveInstsAcrossMemOp(*Paired.I, InstsToMove, AA))
+    return false;
+
+  // Call offsetsCanBeCombined with modify = true so that the offsets are
+  // correct for the new instruction.  This should return true, because
+  // this function should only be called on CombineInfo objects that
+  // have already been confirmed to be mergeable.
+  if (CI.InstClass == DS_READ || CI.InstClass == DS_WRITE)
+    offsetsCanBeCombined(CI, *STM, Paired, true);
+  return true;
 }
 
 unsigned SILoadStoreOptimizer::read2Opcode(unsigned EltSize) const {
@@ -1961,6 +1918,7 @@ void SILoadStoreOptimizer::addInstToMergeableList(const CombineInfo &CI,
                  std::list<std::list<CombineInfo> > &MergeableInsts) const {
   for (std::list<CombineInfo> &AddrList : MergeableInsts) {
     if (AddrList.front().InstClass == CI.InstClass &&
+        AddrList.front().IsAGPR == CI.IsAGPR &&
         AddrList.front().hasSameBaseAddress(*CI.I)) {
       AddrList.emplace_back(CI);
       return;
@@ -1989,10 +1947,10 @@ SILoadStoreOptimizer::collectMergeableInsts(
     if (promoteConstantOffsetToImm(MI, Visited, AnchorList))
       Modified = true;
 
-    // Don't combine if volatile. We also won't be able to merge across this, so
-    // break the search. We can look after this barrier for separate merges.
-    if (MI.hasOrderedMemoryRef()) {
-      LLVM_DEBUG(dbgs() << "Breaking search on memory fence: " << MI);
+    // Treat volatile accesses, ordered accesses and unmodeled side effects as
+    // barriers. We can look after this barrier for separate merges.
+    if (MI.hasOrderedMemoryRef() || MI.hasUnmodeledSideEffects()) {
+      LLVM_DEBUG(dbgs() << "Breaking search on barrier: " << MI);
 
       // Search will resume after this instruction in a separate merge list.
       ++BlockI;
@@ -2010,11 +1968,21 @@ SILoadStoreOptimizer::collectMergeableInsts(
       continue;
 
     CombineInfo CI;
-    CI.setMI(MI, *TII, *STM);
+    CI.setMI(MI, *this);
     CI.Order = Order++;
 
     if (!CI.hasMergeableAddress(*MRI))
       continue;
+
+    if (CI.InstClass == DS_WRITE && CI.IsAGPR) {
+      // FIXME: nothing is illegal in a ds_write2 opcode with two AGPR data
+      //        operands. However we are reporting that ds_write2 shall have
+      //        only VGPR data so that machine copy propagation does not
+      //        create an illegal instruction with a VGPR and AGPR sources.
+      //        Consequenctially if we create such instruction the verifier
+      //        will complain.
+      continue;
+    }
 
     LLVM_DEBUG(dbgs() << "Mergeable: " << MI);
 
@@ -2116,65 +2084,43 @@ SILoadStoreOptimizer::optimizeInstsWithSameBaseAddr(
 
     LLVM_DEBUG(dbgs() << "Merging: " << *CI.I << "   with: " << *Paired.I);
 
+    MachineBasicBlock::iterator NewMI;
     switch (CI.InstClass) {
     default:
       llvm_unreachable("unknown InstClass");
       break;
-    case DS_READ: {
-      MachineBasicBlock::iterator NewMI =
-          mergeRead2Pair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *TII, *STM);
+    case DS_READ:
+      NewMI = mergeRead2Pair(CI, Paired, InstsToMove);
+      break;
+    case DS_WRITE:
+      NewMI = mergeWrite2Pair(CI, Paired, InstsToMove);
+      break;
+    case S_BUFFER_LOAD_IMM:
+      NewMI = mergeSBufferLoadImmPair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 8;
+      break;
+    case BUFFER_LOAD:
+      NewMI = mergeBufferLoadPair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
+      break;
+    case BUFFER_STORE:
+      NewMI = mergeBufferStorePair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
+      break;
+    case MIMG:
+      NewMI = mergeImagePair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
+      break;
+    case TBUFFER_LOAD:
+      NewMI = mergeTBufferLoadPair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
+      break;
+    case TBUFFER_STORE:
+      NewMI = mergeTBufferStorePair(CI, Paired, InstsToMove);
+      OptimizeListAgain |= CI.Width + Paired.Width < 4;
       break;
     }
-    case DS_WRITE: {
-      MachineBasicBlock::iterator NewMI =
-          mergeWrite2Pair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *TII, *STM);
-      break;
-    }
-    case S_BUFFER_LOAD_IMM: {
-      MachineBasicBlock::iterator NewMI =
-          mergeSBufferLoadImmPair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *TII, *STM);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 8;
-      break;
-    }
-    case BUFFER_LOAD: {
-      MachineBasicBlock::iterator NewMI =
-          mergeBufferLoadPair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *TII, *STM);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    case BUFFER_STORE: {
-      MachineBasicBlock::iterator NewMI =
-          mergeBufferStorePair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *TII, *STM);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    case MIMG: {
-      MachineBasicBlock::iterator NewMI =
-          mergeImagePair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *TII, *STM);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    case TBUFFER_LOAD: {
-      MachineBasicBlock::iterator NewMI =
-          mergeTBufferLoadPair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *TII, *STM);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    case TBUFFER_STORE: {
-      MachineBasicBlock::iterator NewMI =
-          mergeTBufferStorePair(CI, Paired, InstsToMove);
-      CI.setMI(NewMI, *TII, *STM);
-      OptimizeListAgain |= (CI.Width + Paired.Width) < 4;
-      break;
-    }
-    }
+    CI.setMI(NewMI, *this);
     CI.Order = Paired.Order;
     if (I == Second)
       I = Next;

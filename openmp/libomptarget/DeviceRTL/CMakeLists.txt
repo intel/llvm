@@ -122,7 +122,7 @@ set(src_files
   ${source_directory}/Workshare.cpp
 )
 
-set(clang_opt_flags -O1 -mllvm -openmp-opt-disable -DSHARED_SCRATCHPAD_SIZE=2048)
+set(clang_opt_flags -O1 -mllvm -openmp-opt-disable -DSHARED_SCRATCHPAD_SIZE=512)
 set(link_opt_flags  -O1        -openmp-opt-disable)
 
 # Prepend -I to each list element
@@ -180,7 +180,7 @@ function(compileDeviceRTLLibrary target_cpu target_name)
     list(APPEND bc_files ${outfile})
   endforeach()
 
-  set(bclib_name "libomptarget-new-${target_name}-${target_cpu}.bc")
+  set(bclib_name "libomptarget-${target_name}-${target_cpu}.bc")
 
   # Link to a bitcode library.
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/linked_${bclib_name}
@@ -212,7 +212,7 @@ function(compileDeviceRTLLibrary target_cpu target_name)
 
   set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${bclib_name})
 
-  set(bclib_target_name "omptarget-new-${target_name}-${target_cpu}-bc")
+  set(bclib_target_name "omptarget-${target_name}-${target_cpu}-bc")
 
   add_custom_target(${bclib_target_name} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name})
 

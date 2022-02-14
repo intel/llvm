@@ -22,7 +22,7 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
-/// @addtogroup sycl_esimd_core
+/// @addtogroup sycl_esimd_core_vectors
 /// @{
 
 /// Base class for "simd view" types.
@@ -608,7 +608,7 @@ protected:
   /// @endcond EXCLUDE
 };
 
-/// @} sycl_esimd_core
+/// @} sycl_esimd_core_vectors
 
 } // namespace detail
 } // namespace esimd

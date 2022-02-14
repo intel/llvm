@@ -3382,8 +3382,9 @@ QualType ASTContext::getBlockPointerType(QualType T) const {
 /// lvalue reference to the specified type.
 QualType
 ASTContext::getLValueReferenceType(QualType T, bool SpelledAsLValue) const {
-  assert(getCanonicalType(T) != OverloadTy &&
-         "Unresolved overloaded function type");
+  assert((!T->isPlaceholderType() ||
+          T->isSpecificPlaceholderType(BuiltinType::UnknownAny)) &&
+         "Unresolved placeholder type");
 
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
@@ -3421,6 +3422,10 @@ ASTContext::getLValueReferenceType(QualType T, bool SpelledAsLValue) const {
 /// getRValueReferenceType - Return the uniqued reference to the type for an
 /// rvalue reference to the specified type.
 QualType ASTContext::getRValueReferenceType(QualType T) const {
+  assert((!T->isPlaceholderType() ||
+          T->isSpecificPlaceholderType(BuiltinType::UnknownAny)) &&
+         "Unresolved placeholder type");
+
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
   llvm::FoldingSetNodeID ID;
@@ -6111,7 +6116,8 @@ ASTContext::getNameForTemplate(TemplateName Name,
   llvm_unreachable("bad template name kind!");
 }
 
-TemplateName ASTContext::getCanonicalTemplateName(TemplateName Name) const {
+TemplateName
+ASTContext::getCanonicalTemplateName(const TemplateName &Name) const {
   switch (Name.getKind()) {
   case TemplateName::QualifiedTemplate:
   case TemplateName::Template: {
@@ -6153,13 +6159,14 @@ TemplateName ASTContext::getCanonicalTemplateName(TemplateName Name) const {
   llvm_unreachable("bad template name!");
 }
 
-bool ASTContext::hasSameTemplateName(TemplateName X, TemplateName Y) {
-  X = getCanonicalTemplateName(X);
-  Y = getCanonicalTemplateName(Y);
-  return X.getAsVoidPointer() == Y.getAsVoidPointer();
+bool ASTContext::hasSameTemplateName(const TemplateName &X,
+                                     const TemplateName &Y) const {
+  return getCanonicalTemplateName(X).getAsVoidPointer() ==
+         getCanonicalTemplateName(Y).getAsVoidPointer();
 }
 
-bool ASTContext::isSameTemplateParameter(NamedDecl *X, NamedDecl *Y) {
+bool ASTContext::isSameTemplateParameter(const NamedDecl *X,
+                                         const NamedDecl *Y) {
   if (X->getKind() != Y->getKind())
     return false;
 
@@ -6210,8 +6217,8 @@ bool ASTContext::isSameTemplateParameter(NamedDecl *X, NamedDecl *Y) {
                                      TY->getTemplateParameters());
 }
 
-bool ASTContext::isSameTemplateParameterList(TemplateParameterList *X,
-                                             TemplateParameterList *Y) {
+bool ASTContext::isSameTemplateParameterList(const TemplateParameterList *X,
+                                             const TemplateParameterList *Y) {
   if (X->size() != Y->size())
     return false;
 
@@ -6314,7 +6321,7 @@ static bool hasSameOverloadableAttrs(const FunctionDecl *A,
   return true;
 }
 
-bool ASTContext::isSameEntity(NamedDecl *X, NamedDecl *Y) {
+bool ASTContext::isSameEntity(const NamedDecl *X, const NamedDecl *Y) {
   if (X == Y)
     return true;
 
@@ -6421,6 +6428,8 @@ bool ASTContext::isSameEntity(NamedDecl *X, NamedDecl *Y) {
       if (getLangOpts().CPlusPlus17 && XFPT && YFPT &&
           (isUnresolvedExceptionSpec(XFPT->getExceptionSpecType()) ||
            isUnresolvedExceptionSpec(YFPT->getExceptionSpecType())) &&
+          // FIXME: We could make isSameEntity const after we make
+          // hasSameFunctionTypeIgnoringExceptionSpec const.
           hasSameFunctionTypeIgnoringExceptionSpec(XT, YT))
         return true;
       return false;
@@ -8309,6 +8318,11 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string &S,
       *NotEncodedT = T;
     return;
 
+  case Type::BitInt:
+    if (NotEncodedT)
+      *NotEncodedT = T;
+    return;
+
   // We could see an undeduced auto type here during error recovery.
   // Just ignore it.
   case Type::Auto:
@@ -8316,7 +8330,6 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string &S,
     return;
 
   case Type::Pipe:
-  case Type::BitInt:
 #define ABSTRACT_TYPE(KIND, BASE)
 #define TYPE(KIND, BASE)
 #define DEPENDENT_TYPE(KIND, BASE) \
