@@ -439,8 +439,9 @@ public:
     return MAssertHappenedBuffer;
   }
 
-private:
-  void finalizeHandler(handler &Handler, const CG::CGTYPE &Type,
+protected:
+  template <typename HandlerType = handler>
+  void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
 
@@ -471,6 +472,7 @@ private:
       EventRet = Handler.finalize();
   }
 
+private:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
