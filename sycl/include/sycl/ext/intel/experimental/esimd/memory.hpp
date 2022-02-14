@@ -1296,7 +1296,8 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_gather(simd<uint32_t, N> offsets,
   detail::check_lsc_data_size<T, DS>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -1326,6 +1327,8 @@ __ESIMD_API simd<T, NElts> lsc_slm_block_load(uint32_t offset) {
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Transposed load is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
@@ -1368,7 +1371,8 @@ __ESIMD_API
   detail::check_lsc_data_size<T, DS>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -1412,6 +1416,8 @@ __ESIMD_API
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Transposed load is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
@@ -1457,7 +1463,8 @@ __ESIMD_API simd<T, N * NElts> lsc_gather(const T *p, simd<uint32_t, N> offsets,
   detail::check_lsc_data_size<T, DS>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -1492,6 +1499,8 @@ __ESIMD_API simd<T, NElts> lsc_block_load(const T *p) {
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Transposed load is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
@@ -1530,7 +1539,8 @@ lsc_prefetch(AccessorTy acc, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
   detail::check_lsc_data_size<T, DS>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -1571,6 +1581,9 @@ lsc_prefetch(AccessorTy acc, uint32_t offset) {
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(
+      _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+      "Transposed prefetch is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
@@ -1614,7 +1627,8 @@ __ESIMD_API void lsc_prefetch(const T *p, simd<uint32_t, N> offsets,
   detail::check_lsc_data_size<T, DS>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -1647,6 +1661,9 @@ __ESIMD_API void lsc_prefetch(const T *p) {
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(
+      _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+      "Transposed prefetch is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
@@ -1681,7 +1698,8 @@ __ESIMD_API void lsc_slm_scatter(simd<uint32_t, N> offsets,
   detail::check_lsc_data_size<T, DS>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -1710,6 +1728,8 @@ __ESIMD_API void lsc_slm_block_store(uint32_t offset, simd<T, NElts> vals) {
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Transposed store is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
@@ -1750,7 +1770,8 @@ lsc_scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N * NElts> vals,
   detail::check_lsc_data_size<T, DS>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -1793,6 +1814,8 @@ lsc_block_store(AccessorTy acc, uint32_t offset, simd<T, NElts> vals) {
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Transposed store is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
@@ -1838,7 +1861,8 @@ __ESIMD_API void lsc_scatter(T *p, simd<uint32_t, N> offsets,
   detail::check_lsc_data_size<T, DS>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -1872,6 +1896,8 @@ __ESIMD_API void lsc_block_store(T *p, simd<T, NElts> vals) {
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  static_assert(_DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
+                "Transposed store is supported only for data size u32 or u64");
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::transpose;
@@ -1943,7 +1969,7 @@ __ESIMD_API simd<T, N> lsc_load2d(const T *Ptr, unsigned SurfaceWidth,
                 "VNNI transform is supported only for data size U8 or U16");
   static_assert(!Transposed ||
                     (DS == lsc_data_size::u32 || DS == lsc_data_size::u64),
-                "Transposed is supported only for data size U32 or U64");
+                "Transposed load is supported only for data size u32 or u64");
   simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
@@ -1988,6 +2014,9 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
                                 int X, int Y) {
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
+  static_assert(
+      !Transposed || (DS == lsc_data_size::u32 || DS == lsc_data_size::u64),
+      "Transposed prefetch is supported only for data size u32 or u64");
   simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
@@ -2033,9 +2062,10 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
-  __esimd_lsc_store2d_stateless<T, L1H, L3H, DS,
-                                detail::lsc_data_order::nontranspose, 1u,
-                                BlockWidth, BlockHeight, false, N>(
+  constexpr detail::lsc_data_order _Transposed =
+      detail::lsc_data_order::nontranspose;
+  __esimd_lsc_store2d_stateless<T, L1H, L3H, DS, _Transposed, 1u, BlockWidth,
+                                BlockHeight, false, N>(
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
       Vals.data());
 }
@@ -2060,7 +2090,8 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
   detail::check_lsc_atomic<Op, 0>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -2092,7 +2123,8 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
   detail::check_lsc_atomic<Op, 1>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -2126,7 +2158,8 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
   detail::check_lsc_atomic<Op, 2>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -2162,7 +2195,8 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
   detail::check_lsc_atomic<Op, 0>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -2205,7 +2239,8 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
   detail::check_lsc_atomic<Op, 1>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -2249,7 +2284,8 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
   detail::check_lsc_atomic<Op, 2>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -2289,7 +2325,8 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   detail::check_lsc_atomic<Op, 0>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -2326,7 +2363,8 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   detail::check_lsc_atomic<Op, 1>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
@@ -2365,7 +2403,8 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   detail::check_lsc_atomic<Op, 2>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size _DS =
+      detail::expand_data_size(detail::finalize_data_size<T, DS>());
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;

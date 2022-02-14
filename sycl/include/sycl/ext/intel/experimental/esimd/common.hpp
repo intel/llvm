@@ -436,6 +436,14 @@ constexpr lsc_data_size finalize_data_size() {
     return DS;
 }
 
+constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
+  if (DS == lsc_data_size::u8)
+    return lsc_data_size::u8u32;
+  if (DS == lsc_data_size::u16)
+    return lsc_data_size::u16u32;
+  return DS;
+}
+
 } // namespace detail
 
 // L1 or L3 cache hint kinds.
