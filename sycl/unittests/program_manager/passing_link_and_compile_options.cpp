@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 
-std::string current_link_options, current_compile_options;
+std::string current_link_options, current_compile_options, current_build_opts;
 
 class EAMTestKernel1;
 const char EAMTestKernelName1[] = "LinkCompileTestKernel1";
@@ -119,7 +119,9 @@ inline pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
                                       void (*)(pi_program, void *), void *,
                                       pi_program *) {
   assert(_linkOpts != nullptr);
-  current_link_options = std::string(_linkOpts);
+  if (!current_link_options.empty())
+    current_link_options += " ";
+  current_link_options += std::string(_linkOpts);
   return PI_SUCCESS;
 }
 
@@ -129,13 +131,17 @@ inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
                                          const pi_program *, const char **,
                                          void (*)(pi_program, void *), void *) {
   assert(_compileOpts != nullptr);
-  current_compile_options = std::string(_compileOpts);
+  if (!current_compile_options.empty())
+    current_compile_options += " ";
+  current_compile_options += std::string(_compileOpts);
   return PI_SUCCESS;
 }
 
 inline pi_result redefinedProgramBuild(
     pi_program prog, pi_uint32, const pi_device *, const char *options,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
+    assert(options != nullptr);
+    current_build_opts = std::string(options);
   return PI_SUCCESS;
 }
 
@@ -143,364 +149,155 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
+    GTEST_SKIP(); // test is not supported on host.
   }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
+    GTEST_SKIP();
   }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
-    return;
+    GTEST_SKIP();
   }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-
   const sycl::device Dev = Plt.get_devices()[0];
-  // Check devices' compile & link options separately
   current_link_options.clear();
   current_compile_options.clear();
-  std::string expected_compile_options1 = "", expected_compile_options2 = "";
-  std::string expected_link_options1 = "", expected_link_options2 = "";
-  static sycl::unittest::PiImage DevImage1 =
-      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options1,
-                                                  expected_link_options1);
-  static sycl::unittest::PiImage DevImage2 =
-      generateEAMTestKernel1Image<EAMTestKernel2>(expected_compile_options2,
-                                                  expected_link_options2);
-  static sycl::unittest::PiImageArray<1> DevImageArray_1{&DevImage1};
-  static sycl::unittest::PiImageArray<1> DevImageArray_2{&DevImage2};
+  std::string expected_options = "";
+  static sycl::unittest::PiImage DevImage =
+      generateEAMTestKernel1Image<EAMTestKernel1>(expected_options,
+                                                  expected_options);
+  static sycl::unittest::PiImageArray<1> DevImageArray_{&DevImage};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
-  auto KernelID_2 = sycl::get_kernel_id<EAMTestKernel2>();
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
-  sycl::kernel_bundle KernelBundle1 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_1});
-  auto BundleObj1 = sycl::compile(KernelBundle1);
-  sycl::link(BundleObj1);
-  EXPECT_EQ(expected_link_options1, current_link_options);
-  EXPECT_EQ(expected_compile_options1, current_compile_options);
-  current_link_options.clear();
-  current_compile_options.clear();
-  sycl::kernel_bundle KernelBundle2 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_2});
-  auto BundleObj2 = sycl::compile(KernelBundle2);
-  sycl::link(BundleObj2);
-  EXPECT_EQ(expected_link_options2, current_link_options);
-  EXPECT_EQ(expected_compile_options2, current_compile_options);
-  // Check devices' compile & link options together
-  current_link_options.clear();
-  current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1,
-                                                            &DevImage2};
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(
-          Ctx, {Dev}, {KernelID_1, KernelID_2});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
+                                                         {KernelID_1});
   auto BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
-  EXPECT_EQ("", current_link_options);
-  EXPECT_EQ("", current_compile_options);
+  EXPECT_EQ(expected_options, current_link_options);
+  EXPECT_EQ(expected_options, current_compile_options);
 }
 
-TEST(Link_Compile_Options, compile_link_Options_Test_only_compile_options) {
+
+TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
+    GTEST_SKIP(); // test is not supported on host.
   }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
+    GTEST_SKIP();
   }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
-    return;
+    GTEST_SKIP();
   }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-
   const sycl::device Dev = Plt.get_devices()[0];
-  // Check devices' compile & link options separately
   current_link_options.clear();
   current_compile_options.clear();
-  std::string expected_compile_options1 = "-cl-single-precision-constant",
-              expected_compile_options1_1 = "",
-              expected_compile_options2 =
-                  "-cl-fp32-correctly-rounded-divide-sqrt",
-              expected_compile_options2_1 = "";
-  std::string expected_link_options = "";
-  static sycl::unittest::PiImage DevImage1 =
-      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options1,
-                                                  expected_link_options);
-  static sycl::unittest::PiImage DevImage2 =
-      generateEAMTestKernel1Image<EAMTestKernel2>(expected_compile_options2,
-                                                  expected_link_options);
-  static sycl::unittest::PiImageArray<1> DevImageArray_1{&DevImage1};
-  static sycl::unittest::PiImageArray<1> DevImageArray_2{&DevImage2};
+  std::string expected_compile_options_1 = "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt",
+              expected_link_options_1 = "-cl-denorms-are-zero -cl-no-signed-zeros";
+  static sycl::unittest::PiImage DevImage_1 =
+      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options_1,
+                                                  expected_link_options_1);
+  
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
-  auto KernelID_2 = sycl::get_kernel_id<EAMTestKernel2>();
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
-  sycl::kernel_bundle KernelBundle1 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_1});
-  auto BundleObj1 = sycl::compile(KernelBundle1);
-  sycl::link(BundleObj1);
-  EXPECT_EQ(expected_link_options, current_link_options);
-  EXPECT_EQ(expected_compile_options1, current_compile_options);
-  current_link_options.clear();
-  current_compile_options.clear();
-  sycl::kernel_bundle KernelBundle2 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_2});
-  auto BundleObj2 = sycl::compile(KernelBundle2);
-  sycl::link(BundleObj2);
-  EXPECT_EQ(expected_compile_options2, current_compile_options);
-  EXPECT_EQ(expected_link_options, current_link_options);
-  // Check devices' compile & link options together
-  current_link_options.clear();
-  current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1,
-                                                            &DevImage2};
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(
-          Ctx, {Dev}, {KernelID_1, KernelID_2});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
+                                                         {KernelID_1});
   auto BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
-  EXPECT_EQ("", current_link_options);
-  EXPECT_EQ(expected_compile_options1 + " " + expected_compile_options2,
-            current_compile_options);
-  // empty str + not empty str
-  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(
-      expected_compile_options1_1, expected_link_options);
-  current_link_options.clear();
-  current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray1[] = {&DevImage1,
-                                                             &DevImage2};
-
-  BundleObj = sycl::compile(KernelBundle);
-  sycl::link(BundleObj);
-  EXPECT_EQ("", current_link_options);
-  EXPECT_EQ(expected_compile_options2, current_compile_options);
-  // not empty str + empty
-  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(
-      expected_compile_options1, expected_link_options);
-  DevImage2 = generateEAMTestKernel1Image<EAMTestKernel2>(
-      expected_compile_options2_1, expected_link_options);
-  current_link_options.clear();
-  current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray2[] = {&DevImage1,
-                                                             &DevImage2};
-
-  BundleObj = sycl::compile(KernelBundle);
-  sycl::link(BundleObj);
-  EXPECT_EQ("", current_link_options);
-  EXPECT_EQ(expected_compile_options1, current_compile_options);
+  EXPECT_EQ(expected_link_options_1, current_link_options);
+  EXPECT_EQ(expected_compile_options_1, current_compile_options);
 }
 
-TEST(Link_Compile_Options, compile_link_Options_Test_only_link_options) {
+TEST(Link_Compile_Options, compile_link_Options_Test_two_devices_filled_options) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
+    GTEST_SKIP(); // test is not supported on host.
   }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
+    GTEST_SKIP();
   }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
-    return;
+    GTEST_SKIP();
   }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
   Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-
-  const sycl::device Dev = Plt.get_devices()[0];
-  // Check devices' compile & link options separately
+  const sycl::device Dev_1 = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
-  std::string expected_compile_options = "";
-  std::string expected_link_options1 = "-cl-finite-math-only",
-              expected_link_options1_1 = "",
-              expected_link_options2 = "-cl-no-signed-zeros",
-              expected_link_options2_1 = "";
-  static sycl::unittest::PiImage DevImage1 =
-      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options,
-                                                  expected_link_options1);
-  static sycl::unittest::PiImage DevImage2 =
-      generateEAMTestKernel1Image<EAMTestKernel2>(expected_compile_options,
-                                                  expected_link_options2);
-  static sycl::unittest::PiImageArray<1> DevImageArray_1{&DevImage1};
-  static sycl::unittest::PiImageArray<1> DevImageArray_2{&DevImage2};
+  std::string expected_compile_options_1 = "-cl-opt-disable",
+              expected_compile_options_2 = "-cl-fp32-correctly-rounded-divide-sqrt",
+              expected_link_options_1 = "-cl-denorms-are-zero",
+              expected_link_options_2 = "-cl-no-signed-zeros";
+  static sycl::unittest::PiImage DevImage_1 =
+      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options_1,
+                                                  expected_link_options_1);
+  static sycl::unittest::PiImage DevImage_2 =
+      generateEAMTestKernel2Image<EAMTestKernel2>(expected_compile_options_2,
+                                                  expected_link_options_2);
+  static sycl::unittest::PiImage Images[] = {DevImage_1, DevImage_2};
+  static sycl::unittest::PiImageArray<2> DevImageArray {Images};
+  
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   auto KernelID_2 = sycl::get_kernel_id<EAMTestKernel2>();
-  sycl::queue Queue{Dev};
+  sycl::queue Queue{Dev_1};
   const sycl::context Ctx = Queue.get_context();
   sycl::kernel_bundle KernelBundle1 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_1});
-  auto BundleObj1 = sycl::compile(KernelBundle1);
-  sycl::link(BundleObj1);
-  EXPECT_EQ(expected_link_options1, current_link_options);
-  EXPECT_EQ(expected_compile_options, current_compile_options);
-  current_link_options.clear();
-  current_compile_options.clear();
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev_1}, {KernelID_1});
   sycl::kernel_bundle KernelBundle2 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_2});
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev_1}, {KernelID_2});
+  auto BundleObj1 = sycl::compile(KernelBundle1);
   auto BundleObj2 = sycl::compile(KernelBundle2);
+  sycl::link(BundleObj1);
   sycl::link(BundleObj2);
-  EXPECT_EQ(expected_compile_options, current_compile_options);
-  EXPECT_EQ(expected_link_options2, current_link_options);
-  // Check devices' compile & link options together
-  current_link_options.clear();
-  current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1,
-                                                            &DevImage2};
-  sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(
-          Ctx, {Dev}, {KernelID_1, KernelID_2});
-  auto BundleObj = sycl::compile(KernelBundle);
-  sycl::link(BundleObj);
-  EXPECT_EQ(expected_link_options1 + " " + expected_link_options2,
-            current_link_options);
-  EXPECT_EQ("", current_compile_options);
-  // empty str + not empty str
-  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(
-      expected_compile_options, expected_link_options1_1);
-  current_link_options.clear();
-  current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray1[] = {&DevImage1,
-                                                             &DevImage2};
-
-  BundleObj = sycl::compile(KernelBundle);
-  sycl::link(BundleObj);
-  EXPECT_EQ(expected_link_options2, current_link_options);
-  EXPECT_EQ("", current_compile_options);
-  // not empty str + empty
-  DevImage1 = generateEAMTestKernel1Image<EAMTestKernel1>(
-      expected_compile_options, expected_link_options1);
-  DevImage2 = generateEAMTestKernel1Image<EAMTestKernel2>(
-      expected_compile_options, expected_link_options2_1);
-  current_link_options.clear();
-  current_compile_options.clear();
-  static sycl::unittest::PiImageArray<2> DevImageArray2[] = {&DevImage1,
-                                                             &DevImage2};
-
-  BundleObj = sycl::compile(KernelBundle);
-  sycl::link(BundleObj);
-  EXPECT_EQ(expected_link_options1, current_link_options);
-  EXPECT_EQ("", current_compile_options);
+  EXPECT_EQ(expected_link_options_1 + " " + expected_link_options_2, current_link_options);
+  EXPECT_EQ(expected_compile_options_1 + " " + expected_compile_options_2, current_compile_options);
 }
 
-TEST(Link_Compile_Options, link_compile_options_all_options) {
+TEST(Link_Compile_Options, check_sycl_build) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
+    GTEST_SKIP(); // test is not supported on host.
   }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
+    GTEST_SKIP();
   }
 
   if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
-      redefinedProgramCompile);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-
-  const sycl::device Dev = Plt.get_devices()[0];
-
-  current_link_options.clear();
-  current_compile_options.clear();
-  std::string expected_compile_options1 = "-cl-single-precision-constant",
-              expected_compile_options2 =
-                  "-cl-fp32-correctly-rounded-divide-sqrt";
-  std::string expected_link_options1 = "-cl-finite-math-only",
-              expected_link_options2 = "-cl-no-signed-zeros";
-  static sycl::unittest::PiImage DevImage1 =
-      generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options1,
-                                                  expected_link_options1);
-  static sycl::unittest::PiImage DevImage2 =
-      generateEAMTestKernel2Image<EAMTestKernel2>(expected_compile_options2,
-                                                  expected_link_options2);
-  static sycl::unittest::PiImageArray<2> DevImageArray[] = {&DevImage1,
-                                                            &DevImage2};
-  auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
-  auto KernelID_2 = sycl::get_kernel_id<EAMTestKernel2>();
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
-  // first device image check
-  sycl::kernel_bundle KernelBundle1 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_1});
-  auto BundleObj1 = sycl::compile(KernelBundle1);
-  sycl::link(BundleObj1);
-  EXPECT_EQ(expected_link_options1, current_link_options);
-  EXPECT_EQ(expected_compile_options1, current_compile_options);
-  // second device image check
-  current_link_options.clear();
-  current_compile_options.clear();
-  sycl::kernel_bundle KernelBundle2 =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_2});
-  auto BundleObj2 = sycl::compile(KernelBundle2);
-  sycl::link(BundleObj2);
-  EXPECT_EQ(expected_link_options2, current_link_options);
-  EXPECT_EQ(expected_compile_options2, current_compile_options);
-  // 2 device images check
-  current_link_options.clear();
-  current_compile_options.clear();
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-      Ctx, {Dev}, {KernelID_1, KernelID_2});
-
-  auto BundleObj = sycl::compile(KernelBundle);
-  sycl::link(BundleObj);
-  EXPECT_EQ(expected_link_options1 + " " + expected_link_options2,
-            current_link_options);
-  EXPECT_EQ(expected_compile_options1 + " " + expected_compile_options2,
-            current_compile_options);
-}
-
-TEST(Link_Compile_Options, sycl_build_test) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on HIP platform, skipping\n";
-    return;
+    GTEST_SKIP();
   }
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
@@ -511,19 +308,18 @@ TEST(Link_Compile_Options, sycl_build_test) {
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
-  std::string expected_compile_options = "-cl-single-precision-constant";
-  std::string expected_link_options = "-cl-finite-math-only";
+  std::string expected_compile_options = "-cl-opt-disable",
+              expected_link_options = "-cl-denorms-are-zero";
   static sycl::unittest::PiImage DevImage =
       generateEAMTestKernel1Image<EAMTestKernel1>(expected_compile_options,
                                                   expected_link_options);
-  auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
+  static sycl::unittest::PiImageArray<1> DevImageArray{&DevImage};
+  auto KernelID = sycl::get_kernel_id<EAMTestKernel1>();
   sycl::queue Queue{Dev};
-
   const sycl::context Ctx = Queue.get_context();
-  sycl::kernel_bundle KernelBundle1 =
+  sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
-                                                         {KernelID_1});
-  auto Dummy = sycl::build(KernelBundle1);
-  EXPECT_EQ(expected_link_options, current_link_options);
-  EXPECT_EQ(expected_compile_options, current_compile_options);
+                                                         {KernelID});
+  sycl::build(KernelBundle);
+  EXPECT_EQ(expected_compile_options + " " + expected_link_options, current_build_opts);
 }

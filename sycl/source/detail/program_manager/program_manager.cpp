@@ -365,6 +365,35 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
   return Res;
 }
+
+static void addEsimdImageCompileOptions(std::string &CompileOpts) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += "-vc-codegen";
+}
+
+static void applyLinkOptionsFromImage(std::string &LinkOpts,
+                                      const RTDeviceBinaryImage &Img) {
+  if (!LinkOpts.empty())
+      LinkOpts += " ";
+  const char* TemporaryStr = Img.getLinkOptions();
+  if (TemporaryStr != nullptr)
+    LinkOpts += std::string(TemporaryStr);
+}
+
+static void applyCompileOptionsFromImage(std::string &CompileOpts,
+                                      const RTDeviceBinaryImage &Img,
+                                      const pi_device_binary_property &isEsimdImage = nullptr) {
+  if (!CompileOpts.empty())
+    CompileOpts += " ";
+  const char* TemporaryStr = Img.getCompileOptions();
+  if (TemporaryStr != nullptr)
+    CompileOpts += TemporaryStr;
+  if (isEsimdImage) {
+    addEsimdImageCompileOptions(CompileOpts);
+  }
+}
+
 static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
                                   const RTDeviceBinaryImage &Img) {
@@ -376,26 +405,19 @@ static void applyOptionsFromImage(std::string &CompileOpts,
   static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
   // Update only if compile options are not overwritten by environment
   // variable
-  if (!CompileOptsEnv) {
-    if (!CompileOpts.empty())
-      CompileOpts += " ";
-    CompileOpts += Img.getCompileOptions();
-  }
-
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
-  if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
-    if (!CompileOpts.empty())
-      CompileOpts += " ";
-    CompileOpts += "-vc-codegen";
+  if (!CompileOptsEnv) {
+    applyCompileOptionsFromImage(CompileOpts, Img, isEsimdImage);
+  } else if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+    addEsimdImageCompileOptions(CompileOpts);
   }
 
   // Update only if link options are not overwritten by environment variable
-  if (!LinkOptsEnv)
-    if (!LinkOpts.empty())
-      LinkOpts += " ";
-  LinkOpts += Img.getLinkOptions();
+  if (!LinkOptsEnv) {
+    applyLinkOptionsFromImage(LinkOpts, Img);
+  }
 }
 
 static void applyOptionsFromEnvironment(std::string &CompileOpts,
@@ -961,7 +983,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
   // online linking is disabled temporarily, all fallback device libraries
   // will be linked offline. When Level Zero supports online linking, we need
   // to remove the line of code below and switch back to online linking.
-  LinkDeviceLibs = false;
+  LinkDeviceLibs = true;
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
@@ -981,8 +1003,12 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty() && !ForceLink) {
+    std::string Options = CompileOptions;
+    if (!LinkOptions.empty()) {
+      Options += " " + LinkOptions;
+    }
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
-        Program.get(), /*num devices =*/1, &Device, CompileOptions.c_str(),
+        Program.get(), /*num devices =*/1, &Device, Options.c_str(),
         nullptr, nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context),
@@ -1704,9 +1730,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
   for (const device_image_plain &DeviceImage : DeviceImages) {
     const std::shared_ptr<device_image_impl> &InputImpl =
         getSyclObjImpl(DeviceImage);
-    std::string CompileOpts;
-    applyOptionsFromImage(CompileOpts, LinkOptionsStr,
-                          *(InputImpl->get_bin_image_ref()));
+    applyLinkOptionsFromImage(LinkOptionsStr, *(InputImpl->get_bin_image_ref()));
   }
   const context &Context = getSyclObjImpl(DeviceImages[0])->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
