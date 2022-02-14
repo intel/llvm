@@ -328,8 +328,9 @@ bool isEntryPoint(const Function &F) {
 // EntryPointsGroups which maps some key to a group of entry points. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
-                      EntryPointsGroupScope EntryScope) {
+EntryPointGroupMap groupEntryPoints(const Module &M,
+                                    EntryPointsGroupScope EntryScope) {
+  EntryPointGroupMap EntryPointsGroups{};
   // Only process module entry points:
   for (const auto &F : M.functions()) {
     if (!isEntryPoint(F))
@@ -363,6 +364,8 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
   // No entry points met, record this.
   if (EntryPointsGroups.empty())
     EntryPointsGroups[GLOBAL_SCOPE_NAME] = {};
+
+  return EntryPointsGroups;
 }
 
 // For device global variables with the 'device_image_scope' property,
@@ -794,17 +797,15 @@ bool processCompileTimeProperties(Module &M) {
 //    module as a split condition.
 class ModuleSplitter {
   std::unique_ptr<Module> InputModule{nullptr};
+  bool IsSplit;
   EntryPointGroupMap GMap;
   EntryPointGroupMap::const_iterator GMapIt;
-  bool IsSplit;
 
 public:
   ModuleSplitter(std::unique_ptr<Module> M, bool Split,
-                 EntryPointsGroupScope Scope)
-      : InputModule(std::move(M)), IsSplit(Split) {
-    groupEntryPoints(*InputModule, GMap, Scope);
-    if (DeviceGlobals)
-      checkImageScopedDeviceGlobals(*InputModule, GMap);
+                 EntryPointGroupMap GroupMap)
+      : InputModule(std::move(M)), IsSplit(Split),
+        GMap(std::move(GroupMap)) {
     assert(!GMap.empty() && "Entry points group map is empty!");
     GMapIt = GMap.cbegin();
   }
@@ -857,9 +858,12 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     lowerEsimdConstructs(*M);
 
-  EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(*M);
+  EntryPointGroupMap GMap =
+      groupEntryPoints(*M, selectDeviceCodeGroupScope(*M));
+  if (DeviceGlobals)
+    checkImageScopedDeviceGlobals(*M, GMap);
   bool DoSplit = (SplitMode.getNumOccurrences() > 0);
-  ModuleSplitter MSplit(std::move(M), DoSplit, Scope);
+  ModuleSplitter MSplit(std::move(M), DoSplit, std::move(GMap));
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
 
