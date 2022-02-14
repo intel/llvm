@@ -1,4 +1,4 @@
-//==------- EliminatedArgMask.cpp --- eliminated args mask unit test -------==//
+//==---------- InOrderQueueSyncCheck.cpp --- Scheduler unit tests ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,7 +14,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Define type with the only methods called by finalizeHandler
 class LimitedHandler {
