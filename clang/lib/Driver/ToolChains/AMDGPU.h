@@ -143,7 +143,8 @@ public:
   llvm::SmallVector<std::string, 12>
   getCommonDeviceLibNames(const llvm::opt::ArgList &DriverArgs,
                           const std::string &GPUArch,
-                          const Action::OffloadKind DeviceOffloadingKind) const;
+                          const Action::OffloadKind DeviceOffloadingKind,
+                          bool isOpenMP = false) const;
 };
 
 } // end namespace toolchains

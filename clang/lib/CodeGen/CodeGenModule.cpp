@@ -751,6 +751,7 @@ void CodeGenModule::Release() {
                               "tag-stack-memory-buildattr", 1);
 
   if (Arch == llvm::Triple::thumb || Arch == llvm::Triple::thumbeb ||
+      Arch == llvm::Triple::arm || Arch == llvm::Triple::armeb ||
       Arch == llvm::Triple::aarch64 || Arch == llvm::Triple::aarch64_32 ||
       Arch == llvm::Triple::aarch64_be) {
     getModule().addModuleFlag(llvm::Module::Error, "branch-target-enforcement",
@@ -762,11 +763,9 @@ void CodeGenModule::Release() {
     getModule().addModuleFlag(llvm::Module::Error, "sign-return-address-all",
                               LangOpts.isSignReturnAddressScopeAll());
 
-    if (Arch != llvm::Triple::thumb && Arch != llvm::Triple::thumbeb) {
-      getModule().addModuleFlag(llvm::Module::Error,
-                                "sign-return-address-with-bkey",
-                                !LangOpts.isSignReturnAddressWithAKey());
-    }
+    getModule().addModuleFlag(llvm::Module::Error,
+                              "sign-return-address-with-bkey",
+                              !LangOpts.isSignReturnAddressWithAKey());
   }
 
   if (!CodeGenOpts.MemoryProfileOutput.empty()) {
@@ -4593,6 +4592,14 @@ LangAS CodeGenModule::GetGlobalConstantAddressSpace() const {
     return LangAS::opencl_constant;
   if (LangOpts.SYCLIsDevice)
     return LangAS::sycl_global;
+  if (LangOpts.HIP && LangOpts.CUDAIsDevice && getTriple().isSPIRV())
+    // For HIPSPV map literals to cuda_device (maps to CrossWorkGroup in SPIR-V)
+    // instead of default AS (maps to Generic in SPIR-V). Otherwise, we end up
+    // with OpVariable instructions with Generic storage class which is not
+    // allowed (SPIR-V V1.6 s3.42.8). Also, mapping literals to SPIR-V
+    // UniformConstant storage class is not viable as pointers to it may not be
+    // casted to Generic pointers which are used to model HIP's "flat" pointers.
+    return LangAS::cuda_device;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
   return LangAS::Default;
@@ -6069,6 +6076,9 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
       /*InsertBefore=*/nullptr, llvm::GlobalVariable::NotThreadLocal, TargetAS);
   if (emitter) emitter->finalize(GV);
   setGVProperties(GV, VD);
+  if (GV->getDLLStorageClass() == llvm::GlobalVariable::DLLExportStorageClass)
+    // The reference temporary should never be dllexport.
+    GV->setDLLStorageClass(llvm::GlobalVariable::DefaultStorageClass);
   GV->setAlignment(Align.getAsAlign());
   if (supportsCOMDAT() && GV->isWeakForLinker())
     GV->setComdat(TheModule.getOrInsertComdat(GV->getName()));

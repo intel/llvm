@@ -359,6 +359,11 @@ design document][5] for more details on this topic.
 
 [5]: <SpecializationConstants.md>
 
+### Changes to the DPC++ driver
+
+A new command line argument, `--device-globals` must be passed to the 
+`sycl-post-link` tool to enable processing device global variables.
+
 ### Changes to the `sycl-post-link` tool
 
 The `sycl-post-link` tool performs its normal algorithm to identify the set of
@@ -372,7 +377,7 @@ than one module, the `sycl-post-link` tool issues an error diagnostic:
 
 ```
 error: device_global variable <name> with property "device_image_scope"
-       is contained in more than one device image.
+       is used in more than one device image.
 ```
 
 Assuming that no error diagnostic is issued, the `sycl-post-link` tool includes
