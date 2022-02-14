@@ -440,6 +440,7 @@ public:
   }
 
 protected:
+  // template is needed for proper unit testing
   template <typename HandlerType = handler>
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
