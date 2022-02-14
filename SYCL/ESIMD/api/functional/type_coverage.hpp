@@ -133,7 +133,7 @@ template <typename T, T... values> struct value_pack {
   }
 };
 
-// Alias to use mainly for simd vector dimensions; no overhead as alias doesn't
+// Alias to use mainly for simd vector sizes; no overhead as alias doesn't
 // declare a new type
 template <int... values> using integer_pack = value_pack<int, values...>;
 
@@ -282,13 +282,23 @@ template <tested_types required> auto get_tested_types() {
   }
 }
 
-// Syntax sugar to retrieve simd vector dimensions in a consistent way
-template <int... Values> auto inline get_dimensions() {
+// Syntax sugar to retrieve simd vector sizes in a consistent way
+template <int... Values> auto inline get_sizes() {
   return integer_pack<Values...>::generate_unnamed();
 }
 
 // Factory method to retrieve pre-defined values_pack, to have the same
-// default dimensions over the tests
-auto inline get_all_dimensions() { return get_dimensions<1, 8, 16, 32>(); }
+// default sizes over the tests
+auto inline get_all_sizes() { return get_sizes<1, 8, 16, 32>(); }
+
+// It's a deprecated function and it exists only for backward compatibility and
+// it should be deleted in the future. Use get_all_sizes() instead.
+auto inline get_all_dimensions() { return get_all_sizes(); }
+
+// It's a deprecated function and it exists only for backward compatibility and
+// it should be deleted in the future. Use get_sizes() instead.
+template <int... Values> auto inline get_dimensions() {
+  return get_sizes<Values...>();
+}
 
 } // namespace esimd_test::api::functional

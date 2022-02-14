@@ -195,10 +195,10 @@ template <init_val... Values> auto get_init_values_pack() {
   return value_pack<init_val, Values...>::generate_unnamed();
 }
 
-template <typename DataT, typename DimT, typename TestCaseT, typename BaseValT,
+template <typename DataT, typename SizeT, typename TestCaseT, typename BaseValT,
           typename StepT>
 class run_test {
-  static constexpr int NumElems = DimT::value;
+  static constexpr int NumElems = SizeT::value;
   static constexpr init_val BaseVal = BaseValT::value;
   static constexpr init_val Step = StepT::value;
   using KernelT = kernel_for_fill<DataT, NumElems, TestCaseT, BaseVal, Step>;

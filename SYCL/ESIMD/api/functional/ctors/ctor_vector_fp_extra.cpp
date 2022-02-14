@@ -11,17 +11,12 @@
 // The current "REQUIRES" should be replaced with "gpu" only as mentioned in
 // "XREQUIRES".
 // UNSUPPORTED: cuda, hip
-// XRUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// XRUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: false
-// XFAIL: *
-// TODO The simd can't be constructed with sycl::half data type. The issue was
-// created (https://github.com/intel/llvm/issues/5077) and the test must be
-// enabled when it is resolved.
+// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // Test for simd constructor from vector.
-// This test uses extra fp data types, dimensionality and different simd
-// constructor invocation contexts.
+// This test uses different data types, sizes and different simd constructor
+// invocation contexts.
 // The test do the following actions:
 //  - call init_simd.data() to retreive vector_type and then provide it to the
 //    simd constructor
@@ -38,13 +33,14 @@ int main(int, char **) {
   bool passed = true;
 
   const auto types = get_tested_types<tested_types::fp_extra>();
-  const auto dims = get_all_dimensions();
+  const auto sizes = get_all_sizes();
   const auto contexts =
       unnamed_type_pack<ctors::initializer, ctors::var_decl,
                         ctors::rval_in_expr, ctors::const_ref>::generate();
 
   // Run test for all combinations possible
-  passed &= for_all_combinations<ctors::run_test>(types, dims, contexts, queue);
+  passed &=
+      for_all_combinations<ctors::run_test>(types, sizes, contexts, queue);
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;

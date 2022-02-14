@@ -35,10 +35,10 @@ int main(int, char **) {
 
   bool passed = true;
 
-  // Using single dimension and context to verify the accuracy of operations
+  // Using single size and context to verify the accuracy of operations
   // with floating point data types
   const auto types = get_tested_types<tested_types::fp>();
-  const auto single_dim = get_dimensions<8>();
+  const auto single_size = get_sizes<8>();
   const auto context = unnamed_type_pack<ctors::var_decl>::generate();
 
 // Run for specific combinations of types, base and step values and vector
@@ -48,7 +48,7 @@ int main(int, char **) {
     const auto base_values = ctors::get_init_values_pack<init_val::denorm>();
     const auto step_values = ctors::get_init_values_pack<init_val::ulp>();
     passed &= for_all_combinations<ctors::run_test>(
-        types, single_dim, context, base_values, step_values, queue);
+        types, single_size, context, base_values, step_values, queue);
   }
 #endif
   {
@@ -57,7 +57,7 @@ int main(int, char **) {
     const auto step_values =
         ctors::get_init_values_pack<init_val::ulp, init_val::ulp_half>();
     passed &= for_all_combinations<ctors::run_test>(
-        types, single_dim, context, base_values, step_values, queue);
+        types, single_size, context, base_values, step_values, queue);
   }
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");

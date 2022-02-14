@@ -83,8 +83,8 @@ public:
 // The core test functionality.
 // Runs a TestCaseT, specific for each C++ context, for a simd<DataT,NumElems>
 // instance
-template <typename DataT, typename DimT, typename TestCaseT> class run_test {
-  static constexpr int NumElems = DimT::value;
+template <typename DataT, typename SizeT, typename TestCaseT> class run_test {
+  static constexpr int NumElems = SizeT::value;
   using KernelName = Kernel<DataT, NumElems, TestCaseT>;
 
 public:

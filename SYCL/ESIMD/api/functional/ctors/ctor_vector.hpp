@@ -83,8 +83,8 @@ private:
 
 // The main test routine.
 // Using functor class to be able to iterate over the pre-defined data types.
-template <typename DataT, typename DimT, typename TestCaseT> class run_test {
-  static constexpr int NumElems = DimT::value;
+template <typename DataT, typename SizeT, typename TestCaseT> class run_test {
+  static constexpr int NumElems = SizeT::value;
 
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {

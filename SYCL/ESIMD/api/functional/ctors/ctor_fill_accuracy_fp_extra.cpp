@@ -35,7 +35,7 @@ int main(int, char **) {
   bool passed = true;
 
   const auto types = get_tested_types<tested_types::fp_extra>();
-  const auto single_dim = get_dimensions<8>();
+  const auto single_size = get_sizes<8>();
   const auto context = unnamed_type_pack<ctors::var_decl>::generate();
 // Run for specific combinations of types, base and step values and vector
 // length.
@@ -48,7 +48,7 @@ int main(int, char **) {
     const auto step_values =
         ctors::get_init_values_pack<ctors::init_val::ulp>();
     passed &= for_all_combinations<ctors::run_test>(
-        types, single_dim, context, base_values, step_values, queue);
+        types, single_size, context, base_values, step_values, queue);
   }
 #endif
   {
@@ -59,7 +59,7 @@ int main(int, char **) {
         ctors::get_init_values_pack<ctors::init_val::ulp,
                                     ctors::init_val::ulp_half>();
     passed &= for_all_combinations<ctors::run_test>(
-        types, single_dim, context, base_values, step_values, queue);
+        types, single_size, context, base_values, step_values, queue);
   }
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");

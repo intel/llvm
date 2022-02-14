@@ -76,8 +76,8 @@ struct const_ref {
 };
 
 // Struct that calls simd in provided context and then verifies obtained result.
-template <typename DataT, typename DimT, typename TestCaseT> struct run_test {
-  static constexpr int NumElems = DimT::value;
+template <typename DataT, typename SizeT, typename TestCaseT> struct run_test {
+  static constexpr int NumElems = SizeT::value;
 
   bool operator()(sycl::queue &queue, const std::string &data_type) {
     bool passed = true;

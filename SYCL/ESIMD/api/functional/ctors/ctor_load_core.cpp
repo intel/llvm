@@ -122,10 +122,10 @@ struct overal {
 
 // The main test routine.
 // Using functor class to be able to iterate over the pre-defined data types.
-template <typename DataT, typename DimT, typename TestCaseT,
+template <typename DataT, typename SizeT, typename TestCaseT,
           typename AlignmentT>
 class run_test {
-  static constexpr int NumElems = DimT::value;
+  static constexpr int NumElems = SizeT::value;
 
 public:
   bool operator()(sycl::queue &queue, const std::string &data_type) {
@@ -217,7 +217,7 @@ int main(int, char **) {
 
   bool passed = true;
   const auto types = get_tested_types<tested_types::core>();
-  const auto dims = get_all_dimensions();
+  const auto sizes = get_all_sizes();
 
   const auto contexts = unnamed_type_pack<initializer, var_decl, rval_in_expr,
                                           const_ref>::generate();
@@ -226,7 +226,7 @@ int main(int, char **) {
                         alignment::overal>::generate();
 
   passed &=
-      for_all_combinations<run_test>(types, dims, contexts, alignments, queue);
+      for_all_combinations<run_test>(types, sizes, contexts, alignments, queue);
 
   std::cout << (passed ? "=== Test passed\n" : "=== Test FAILED\n");
   return passed ? 0 : 1;
