@@ -799,10 +799,7 @@ public:
   wi_element &operator opassign(                                               \
       const sycl::ext::intel::experimental::bfloat16 &rhs) {                   \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
-        M.spvm,                                                                \
-        static_cast<float>(__spirv_VectorExtractDynamic(M.spvm, idx)           \
-                                op static_cast<float>(rhs))),                  \
-        idx);                                                                  \
+        M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) op rhs, idx);        \
     return *this;                                                              \
   }
 #else // __SYCL_DEVICE_ONLY__
@@ -826,15 +823,13 @@ public:
       const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,      \
                        NumCols, Layout, Group> &lhs,                           \
       const sycl::ext::intel::experimental::bfloat16 &rhs) {                   \
-    return static_cast<float>(__spirv_VectorExtractDynamic(                    \
-        lhs.M.spvm, lhs.idx)) op static_cast<float>(rhs);                      \
+    return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) op rhs;           \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::intel::experimental::bfloat16 &lhs,                     \
       const wi_element<sycl::ext::intel::experimental::bfloat16, NumRows,      \
                        NumCols, Layout, Group> &rhs) {                         \
-    return static_cast<float>(__spirv_VectorExtractDynamic(                    \
-        rhs.M.spvm, rhs.idx)) op static_cast<float>(lhs);                      \
+    return __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx) op lhs;           \
   }
   OP(sycl::ext::intel::experimental::bfloat16, +)
   OP(sycl::ext::intel::experimental::bfloat16, -)
