@@ -481,6 +481,22 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg)
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
+  // Check if root device architecture is homogeneous and we can optimize builds
+  // for sub-devices
+  DeviceImplPtr RootDevImpl = DeviceImpl;
+  while (!RootDevImpl->isRootDevice()) {
+    auto ParentDev = detail::getSyclObjImpl(
+        RootDevImpl->get_info<info::device::parent_device>());
+    if (!ContextImpl->hasDevice(ParentDev))
+      break;
+    RootDevImpl = ParentDev;
+  }
+
+  pi_bool IsRootDeviceArchHomogeneous = PI_FALSE;
+  ContextImpl->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+      RootDevImpl->getHandleRef(), PI_DEVICE_INFO_HOMOGENEOUS_ARCH,
+      sizeof(pi_bool), &IsRootDeviceArchHomogeneous, nullptr);
+
   // FIXME: the logic is modified to work around unintuitive Intel OpenCL CPU
   // implementation behavior. Kernels created with the program built for root
   // device can be re-used on sub-devices, but other combinations doesn't work
@@ -493,17 +509,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   // The expected solution is to build for any sub-device and use root device
   // handle as cache key to share build results for any other sub-device or even
   // a root device.
-  // TODO: it might be worth testing if Level Zero plug-in supports all cases
-  // and enable more cases for Level Zero.
-  DeviceImplPtr Dev = DeviceImpl;
-  while (!Dev->isRootDevice()) {
-    auto ParentDev =
-        detail::getSyclObjImpl(Dev->get_info<info::device::parent_device>());
-    if (!ContextImpl->hasDevice(ParentDev))
-      break;
-    Dev = ParentDev;
-  }
-
+  DeviceImplPtr Dev =
+      (IsRootDeviceArchHomogeneous == PI_TRUE) ? RootDevImpl : DeviceImpl;
   auto BuildF = [this, &M, &KSId, &ContextImpl, &Dev, Prg, &CompileOpts,
                  &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     auto Context = createSyclObjFromImpl<context>(ContextImpl);

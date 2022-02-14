@@ -203,7 +203,13 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
-
+  case PI_DEVICE_INFO_HOMOGENEOUS_ARCH: {
+    // FIXME: conservatively return false due to lack of low-level API exposing
+    // actual status of this property
+    cl_bool result = false;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
     // Returns the maximum sizes of a work group for each dimension one
     // could use to submit a kernel. There is no such query defined in OpenCL

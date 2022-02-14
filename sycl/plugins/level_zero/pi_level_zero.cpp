@@ -2326,6 +2326,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
   case PI_DEVICE_INFO_NAME:
     return ReturnValue(Device->ZeDeviceProperties->name);
+  case PI_DEVICE_INFO_HOMOGENEOUS_ARCH:
+    return ReturnValue(PI_TRUE);
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{1});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
