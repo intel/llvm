@@ -146,10 +146,6 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
   }
 
-  bool isEnqueueFailed() const {
-    return MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed;
-  }
-
   const QueueImplPtr &getQueue() const { return MQueue; }
 
   const QueueImplPtr &getSubmittedQueue() const { return MSubmittedQueue; }
