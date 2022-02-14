@@ -7430,7 +7430,59 @@ static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
   S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
 }
 
-// Returns true if an error occured.
+// Checks if an expression is a valid filter list for an add_ir_attributes_*
+// attribute. Returns true if an error occured.
+static bool checkAddIRAttributesFilterListExpr(Expr *FilterListArg, Sema *S,
+                                               const AttributeCommonInfo &CI) {
+  assert(isa<InitListExpr>(FilterListArg));
+  const auto *FilterListE = cast<InitListExpr>(FilterListArg);
+  for (const Expr *FilterElemE : FilterListE->inits()) {
+    if (!isa<StringLiteral>(FilterElemE)) {
+      S->Diag(FilterElemE->getBeginLoc(),
+              diag::err_sycl_add_ir_attribute_invalid_filter)
+          << CI;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Returns true if a type is either an array of char or a pointer to char.
+static bool isAddIRAttributesValidStringType(QualType T) {
+  return (T->isArrayType() || T->isPointerType()) &&
+         T->getPointeeOrArrayElementType()->isCharType();
+}
+
+// Checks if an expression is a valid attribute name for an add_ir_attributes_*
+// attribute. Returns true if an error occured.
+static bool checkAddIRAttributesNameExpr(Expr *NameArg, Sema *S,
+                                         const AttributeCommonInfo &CI) {
+  // Only strings and const char * are valid name arguments.
+  if (isAddIRAttributesValidStringType(NameArg->getType()))
+    return false;
+
+  S->Diag(NameArg->getBeginLoc(), diag::err_sycl_add_ir_attribute_invalid_name)
+      << CI;
+  return true;
+}
+
+// Checks if an expression is a valid attribute value for an add_ir_attributes_*
+// attribute. Returns true if an error occured.
+static bool checkAddIRAttributesValueExpr(Expr *ValArg, Sema *S,
+                                          const AttributeCommonInfo &CI) {
+  QualType ValType = ValArg->getType();
+  if (isAddIRAttributesValidStringType(ValType) || ValType->isNullPtrType() ||
+      ValType->isIntegerType() || ValType->isFloatingType() ||
+      ValType->isCharType() || ValType->isEnumeralType())
+    return false;
+
+  S->Diag(ValArg->getBeginLoc(), diag::err_sycl_add_ir_attribute_invalid_value)
+      << CI;
+  return true;
+}
+
+// Checks and evaluates arguments of an add_ir_attributes_* attribute. Returns
+// true if an error occured.
 static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
                                         Sema *S,
                                         const AttributeCommonInfo &CI) {
@@ -7438,25 +7490,14 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
 
   // Check filter list if it is the first argument.
   bool HasFilter = ArgsSize && isa<InitListExpr>(ArgsBegin[0]);
-  if (HasFilter) {
-    const auto *FilterListE = cast<InitListExpr>(ArgsBegin[0]);
-    for (const Expr *FilterElemE : FilterListE->inits()) {
-      if (!isa<StringLiteral>(FilterElemE)) {
-        S->Diag(FilterElemE->getBeginLoc(),
-                diag::err_sycl_add_ir_attribute_invalid_filter)
-            << CI;
-        return true;
-      }
-    }
-  }
+  if (HasFilter && checkAddIRAttributesFilterListExpr(ArgsBegin[0], S, CI))
+    return true;
 
   llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
   bool HasDependentArg = false;
   for (unsigned I = HasFilter; I < ArgsSize; I++) {
     Expr *&E = ArgsBegin[I];
-    assert(E && "error are handled before");
 
-    bool Result = false;
     if (isa<InitListExpr>(E)) {
       S->Diag(E->getBeginLoc(), diag::err_add_ir_attr_filter_list_invalid_arg)
           << CI;
@@ -7470,12 +7511,7 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
 
     Expr::EvalResult Eval;
     Eval.Diag = &Notes;
-    Result = E->EvaluateAsConstantExpr(Eval, Context);
-    if (Result && Notes.empty()) {
-      assert(Eval.Val.hasValue());
-      E = ConstantExpr::Create(Context, E, Eval.Val);
-    }
-
+    bool Result = E->EvaluateAsConstantExpr(Eval, Context);
     if (!Result || !Notes.empty()) {
       S->Diag(E->getBeginLoc(), diag::err_attribute_argument_n_type)
           << CI << (I + 1) << AANT_ArgumentConstantExpr;
@@ -7483,6 +7519,8 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
         S->Diag(Note.first, Note.second);
       return true;
     }
+    assert(Eval.Val.hasValue());
+    E = ConstantExpr::Create(Context, E, Eval.Val);
   }
 
   // If there are no dependent expressions, check for expected number of args.
@@ -7492,37 +7530,13 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
   }
 
   // If there are no dependent expressions, check argument types.
-  if (!HasDependentArg) {
-    unsigned NumIRAttrs = (ArgsSize - HasFilter) / 2;
-    for (unsigned I = HasFilter; I < ArgsSize; ++I) {
-      Expr *Arg = ArgsBegin[I];
-      QualType ArgType = Arg->getType();
-
-      // Strings and const char * are valid for all arguments.
-      if ((ArgType->isArrayType() || ArgType->isPointerType()) &&
-          ArgType->getPointeeOrArrayElementType()->isCharType())
-        continue;
-
-      // First half of the arguments can only be strings.
-      if (I < NumIRAttrs + HasFilter) {
-        S->Diag(Arg->getBeginLoc(),
-                diag::err_sycl_add_ir_attribute_invalid_name)
-            << CI;
+  // First half of the arguments are names, the second half are values.
+  unsigned MidArg = (ArgsSize - HasFilter) / 2 + HasFilter;
+  if (!HasDependentArg)
+    for (unsigned I = HasFilter; I < ArgsSize; ++I)
+      if ((I < MidArg && checkAddIRAttributesNameExpr(ArgsBegin[I], S, CI)) ||
+          (I >= MidArg && checkAddIRAttributesValueExpr(ArgsBegin[I], S, CI)))
         return true;
-      }
-
-      // Check all attribute values for accepted types.
-      if (!ArgType->isNullPtrType() && !ArgType->isIntegerType() &&
-          !ArgType->isFloatingType() && !ArgType->isCharType() &&
-          !ArgType->isEnumeralType()) {
-        S->Diag(Arg->getBeginLoc(),
-                diag::err_sycl_add_ir_attribute_invalid_value)
-            << CI;
-        return true;
-      }
-    }
-  }
-
   return false;
 }
 
