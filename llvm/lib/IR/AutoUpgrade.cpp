@@ -14,8 +14,8 @@
 
 #include "llvm/IR/AutoUpgrade.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Function.h"
@@ -4470,7 +4470,7 @@ namespace {
 // folding and other libcall simplification. The nobuiltin attribute on the
 // callsite has the same effect.
 struct StrictFPUpgradeVisitor : public InstVisitor<StrictFPUpgradeVisitor> {
-  StrictFPUpgradeVisitor() {}
+  StrictFPUpgradeVisitor() = default;
 
   void visitCallBase(CallBase &Call) {
     if (!Call.isStrictFP())

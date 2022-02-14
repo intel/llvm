@@ -18,9 +18,8 @@
 // RUN: touch %t.ii
 // RUN:  %clangxx -fsycl %t.ii -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PREPROC_USE %s
-// FOOTER_PREPROC_USE: clang-offload-bundler{{.*}} "-outputs=[[HOST1:.+\.ii]],[[DEVICE_PP:.+\.ii]]"
+// FOOTER_PREPROC_USE: clang-offload-bundler{{.*}} "-outputs=[[HOST_PP:.+\.ii]],[[DEVICE_PP:.+\.ii]]"
 // FOOTER_PREPROC_USE: clang{{.*}} "-fsycl-is-device"{{.*}} "[[DEVICE_PP]]"
-// FOOTER_PREPROC_USE: clang-offload-bundler{{.*}} "-outputs=[[HOST_PP:.+\.ii]],[[DEVICE1:.+\.ii]]"
 // FOOTER_PREPROC_USE: clang{{.*}} "-fsycl-is-host"{{.*}} "[[HOST_PP]]"
 
 /// Check that integration footer can be disabled

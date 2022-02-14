@@ -13,6 +13,7 @@
 #ifndef MLIR_ANALYSIS_PRESBURGER_INTEGERPOLYHEDRON_H
 #define MLIR_ANALYSIS_PRESBURGER_INTEGERPOLYHEDRON_H
 
+#include "mlir/Analysis/Presburger/Fraction.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
 #include "mlir/Analysis/Presburger/Utils.h"
 #include "mlir/Support/LogicalResult.h"
@@ -49,7 +50,6 @@ namespace mlir {
 /// example, `q` is existentially quantified. This can be thought of as the
 /// result of projecting out `q` from the previous example, i.e. we obtained {2,
 /// 4, 6} by projecting out the second dimension from {(2, 1), (4, 2), (6, 2)}.
-///
 class IntegerPolyhedron {
 public:
   /// All derived classes of IntegerPolyhedron.
@@ -114,6 +114,16 @@ public:
   /// Appends constraints from `other` into `this`. This is equivalent to an
   /// intersection with no simplification of any sort attempted.
   void append(const IntegerPolyhedron &other);
+
+  /// Return whether `this` and `other` are equal. This is integer-exact
+  /// and somewhat expensive, since it uses the integer emptiness check
+  /// (see IntegerPolyhedron::findIntegerSample()).
+  bool isEqual(const IntegerPolyhedron &other) const;
+
+  /// Return whether this is a subset of the given IntegerPolyhedron. This is
+  /// integer-exact and somewhat expensive, since it uses the integer emptiness
+  /// check (see IntegerPolyhedron::findIntegerSample()).
+  bool isSubsetOf(const IntegerPolyhedron &other) const;
 
   /// Returns the value at the specified equality row and column.
   inline int64_t atEq(unsigned i, unsigned j) const { return equalities(i, j); }
@@ -200,6 +210,12 @@ public:
   void removeEqualityRange(unsigned start, unsigned end);
   void removeInequalityRange(unsigned start, unsigned end);
 
+  /// Get the lexicographically minimum rational point satisfying the
+  /// constraints. Returns an empty optional if the polyhedron is empty or if
+  /// the lexmin is unbounded. Symbols are not supported and will result in
+  /// assert-failure.
+  Optional<SmallVector<Fraction, 8>> getRationalLexMin() const;
+
   /// Swap the posA^th identifier with the posB^th identifier.
   virtual void swapId(unsigned posA, unsigned posB);
 
@@ -259,10 +275,11 @@ public:
   /// otherwise.
   bool containsPoint(ArrayRef<int64_t> point) const;
 
-  /// Find pairs of inequalities identified by their position indices, using
-  /// which an explicit representation for each local variable can be computed.
-  /// The pairs are stored as indices of upperbound, lowerbound inequalities. If
-  /// no such pair can be found, it is stored as llvm::None.
+  /// Find equality and pairs of inequality contraints identified by their
+  /// position indices, using which an explicit representation for each local
+  /// variable can be computed. The indices of the constraints are stored in
+  /// `MaybeLocalRepr` struct. If no such pair can be found, the kind attribute
+  /// in `MaybeLocalRepr` is set to None.
   ///
   /// The dividends of the explicit representations are stored in `dividends`
   /// and the denominators in `denominators`. If no explicit representation
@@ -481,8 +498,16 @@ protected:
   /// Return the index at which the specified kind of id starts.
   unsigned getIdKindOffset(IdKind kind) const;
 
+  /// Return the index at which the specified kind of id ends.
+  unsigned getIdKindEnd(IdKind kind) const;
+
   /// Get the number of ids of the specified kind.
   unsigned getNumIdKind(IdKind kind) const;
+
+  /// Get the number of elements of the specified kind in the range
+  /// [idStart, idLimit).
+  unsigned getIdKindOverlap(IdKind kind, unsigned idStart,
+                            unsigned idLimit) const;
 
   /// Removes identifiers in the column range [idStart, idLimit), and copies any
   /// remaining valid data into place, updates member variables, and resizes

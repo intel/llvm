@@ -575,7 +575,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr>(A);
+                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr>(A);
     });
   }
 }
@@ -823,7 +823,8 @@ class SingleDeviceFunctionTracker {
     // false-positives.
     if (isSYCLKernelBodyFunction(CurrentDecl)) {
       // This is a direct callee of the kernel.
-      if (CallStack.size() == 1) {
+      if (CallStack.size() == 1 &&
+          CallStack.back()->hasAttr<SYCLKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
@@ -3910,9 +3911,9 @@ static void PropagateAndDiagnoseDeviceAttr(
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) < RWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) < RWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) < RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() < RWGSA->getXDimVal(Ctx) ||
+          *Existing->getYDimVal() < RWGSA->getYDimVal(Ctx) ||
+          *Existing->getZDimVal() < RWGSA->getZDimVal(Ctx)) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3930,9 +3931,9 @@ static void PropagateAndDiagnoseDeviceAttr(
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
       ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) > SIMWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) > SIMWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) > SIMWGSA->getZDimVal(Ctx)) {
+      if (Existing->getXDimVal(Ctx) > *SIMWGSA->getXDimVal() ||
+          Existing->getYDimVal(Ctx) > *SIMWGSA->getYDimVal() ||
+          Existing->getZDimVal(Ctx) > *SIMWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3967,6 +3968,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
+  case attr::Kind::SYCLDeviceHas:
     SYCLKernel->addAttr(A);
     break;
   case attr::Kind::IntelNamedSubGroupSize:
@@ -5130,14 +5132,14 @@ bool Util::isSyclKernelHandlerType(QualType Ty) {
 
 bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
   std::array<DeclContextDesc, 7> Scopes = {
-      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "ext"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "oneapi"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
-                            "instance"}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "no_alias"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "instance")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 

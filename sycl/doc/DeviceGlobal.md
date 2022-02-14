@@ -323,39 +323,46 @@ no way to reference the variable in the unnamed namespace using fully qualified
 lookup.
 
 Such programs are still legal, though.  The integration footer can support
-cases like this by defining a temporary variable that holds the address of the
+cases like this by defining a shim function that returns a reference to the
 shadowed device global:
 
 ```
 namespace {
-const void *__sycl_UNIQUE_STRING = &FuBar;  // References 'FuBar' in the
-                                            // unnamed namespace
+namespace __sycl_detail {
+
+static constexpr decltype(FuBar) &__shim_1() {
+  return FuBar;   // References 'FuBar' in the unnamed namespace
 }
 
+} // namespace __sycl_detail
+} // namespace (unnamed)
+
 namespace sycl::detail {
-namespace {
 
 __sycl_device_global_registration::__sycl_device_global_registration() noexcept {
   device_global_map::add(&::FuBar,
     /* same string returned from __builtin_sycl_unique_stable_id(::FuBar) */);
-  device_global_map::add(::__sycl_UNIQUE_STRING,
+  device_global_map::add(&::__sycl_detail::__shim_1(),
     /* same string returned from __builtin_sycl_unique_stable_id(::(unnamed)::FuBar) */);
 }
 
-} // namespace (unnamed)
 } // namespace sycl::detail
 ```
 
-The `__sycl_UNIQUE_STRING` variable is defined in the same namespace as the
-second `FuBar` device global, so it can reference the variable through
-unqualified name lookup.  Furthermore, the name of the temporary variable
-(`__sycl_UNIQUE_STRING`) is globally unique, so it is guaranteed not to be
-shadowed by any other name in the translation unit.  This problem with variable
-shadowing is also a problem for the integration footer we use for
-specialization constants.  See the [specialization constant design document][5]
-for more details on this topic.
+The `__shim_1()` function is defined in the same namespace as the second
+`FuBar` device global, so it can reference the variable through unqualified
+name lookup.  Furthermore, the name of the shim function is globally unique, so
+it is guaranteed not to be shadowed by any other name in the translation unit.
+This problem with variable shadowing is also a problem for the integration
+footer we use for specialization constants.  See the [specialization constant
+design document][5] for more details on this topic.
 
 [5]: <SpecializationConstants.md>
+
+### Changes to the DPC++ driver
+
+A new command line argument, `--device-globals` must be passed to the 
+`sycl-post-link` tool to enable processing device global variables.
 
 ### Changes to the `sycl-post-link` tool
 
@@ -370,7 +377,7 @@ than one module, the `sycl-post-link` tool issues an error diagnostic:
 
 ```
 error: device_global variable <name> with property "device_image_scope"
-       is contained in more than one device image.
+       is used in more than one device image.
 ```
 
 Assuming that no error diagnostic is issued, the `sycl-post-link` tool includes

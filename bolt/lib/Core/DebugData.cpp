@@ -18,6 +18,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/SHA1.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -121,8 +122,7 @@ void DebugARangesSectionWriter::addCURanges(uint64_t CUOffset,
 }
 
 void DebugARangesSectionWriter::writeARangesSection(
-    raw_svector_ostream &RangesStream,
-    const std::unordered_map<uint32_t, uint32_t> CUMap) const {
+    raw_svector_ostream &RangesStream, const CUOffsetMap &CUMap) const {
   // For reference on the format of the .debug_aranges section, see the DWARF4
   // specification, section 6.1.4 Lookup by Address
   // http://www.dwarfstd.org/doc/DWARF4.pdf
@@ -148,9 +148,9 @@ void DebugARangesSectionWriter::writeARangesSection(
 
     assert(CUMap.count(Offset) && "Original CU offset is not found in CU Map");
     // Header field #3: debug info offset of the correspondent compile unit.
-    support::endian::write(RangesStream,
-                           static_cast<uint32_t>(CUMap.find(Offset)->second),
-                           support::little);
+    support::endian::write(
+        RangesStream, static_cast<uint32_t>(CUMap.find(Offset)->second.Offset),
+        support::little);
 
     // Header field #4: address size.
     // 8 since we only write ELF64 binaries for now.
@@ -473,23 +473,32 @@ std::string SimpleBinaryPatcher::patchBinary(StringRef BinaryContents) {
   return BinaryContentsStr;
 }
 
-std::unordered_map<uint32_t, uint32_t>
-DebugInfoBinaryPatcher::computeNewOffsets() {
-  std::unordered_map<uint32_t, uint32_t> CUMap;
+CUOffsetMap DebugInfoBinaryPatcher::computeNewOffsets(DWARFContext &DWCtx,
+                                                      bool IsDWOContext) {
+  CUOffsetMap CUMap;
   std::sort(DebugPatches.begin(), DebugPatches.end(),
             [](const UniquePatchPtrType &V1, const UniquePatchPtrType &V2) {
               return V1.get()->Offset < V2.get()->Offset;
             });
 
+  DWARFUnitVector::compile_unit_range CompileUnits =
+      IsDWOContext ? DWCtx.dwo_compile_units() : DWCtx.compile_units();
+
+  for (const std::unique_ptr<DWARFUnit> &CU : CompileUnits)
+    CUMap[CU->getOffset()] = {static_cast<uint32_t>(CU->getOffset()),
+                              static_cast<uint32_t>(CU->getLength())};
+
   // Calculating changes in .debug_info size from Patches to build a map of old
   // to updated reference destination offsets.
+  uint32_t PreviousOffset = 0;
+  int32_t PreviousChangeInSize = 0;
   for (UniquePatchPtrType &PatchBase : DebugPatches) {
     Patch *P = PatchBase.get();
     switch (P->Kind) {
     default:
       continue;
     case DebugPatchKind::PatchValue64to32: {
-      ChangeInSize -= 4;
+      PreviousChangeInSize -= 4;
       break;
     }
     case DebugPatchKind::PatchValueVariable: {
@@ -498,13 +507,14 @@ DebugInfoBinaryPatcher::computeNewOffsets() {
       std::string Temp;
       raw_string_ostream OS(Temp);
       encodeULEB128(DPV->Value, OS);
-      ChangeInSize += Temp.size() - DPV->OldValueSize;
+      PreviousChangeInSize += Temp.size() - DPV->OldValueSize;
       break;
     }
     case DebugPatchKind::DestinationReferenceLabel: {
       DestinationReferenceLabel *DRL =
           reinterpret_cast<DestinationReferenceLabel *>(P);
-      OldToNewOffset[DRL->Offset] = DRL->Offset + ChangeInSize;
+      OldToNewOffset[DRL->Offset] =
+          DRL->Offset + ChangeInSize + PreviousChangeInSize;
       break;
     }
     case DebugPatchKind::ReferencePatchValue: {
@@ -512,7 +522,7 @@ DebugInfoBinaryPatcher::computeNewOffsets() {
       // to reduce algorithmic complexity.
       DebugPatchReference *RDP = reinterpret_cast<DebugPatchReference *>(P);
       if (RDP->PatchInfo.IndirectRelative) {
-        ChangeInSize += 4 - RDP->PatchInfo.OldValueSize;
+        PreviousChangeInSize += 4 - RDP->PatchInfo.OldValueSize;
         assert(RDP->PatchInfo.OldValueSize <= 4 &&
                "Variable encoding reference greater than 4 bytes.");
       }
@@ -522,11 +532,16 @@ DebugInfoBinaryPatcher::computeNewOffsets() {
       DWARFUnitOffsetBaseLabel *BaseLabel =
           reinterpret_cast<DWARFUnitOffsetBaseLabel *>(P);
       uint32_t CUOffset = BaseLabel->Offset;
+      ChangeInSize += PreviousChangeInSize;
       uint32_t CUOffsetUpdate = CUOffset + ChangeInSize;
-      CUMap[CUOffset] = CUOffsetUpdate;
+      CUMap[CUOffset].Offset = CUOffsetUpdate;
+      CUMap[PreviousOffset].Length += PreviousChangeInSize;
+      PreviousChangeInSize = 0;
+      PreviousOffset = CUOffset;
     }
     }
   }
+  CUMap[PreviousOffset].Length += PreviousChangeInSize;
   return CUMap;
 }
 
@@ -680,20 +695,30 @@ void DebugAbbrevWriter::addUnitAbbreviations(DWARFUnit &Unit) {
   if (!Abbrevs)
     return;
 
-  // Multiple units may share the same abbreviations. Only add abbreviations
-  // for the first unit and reuse them.
-  const uint64_t AbbrevOffset = Unit.getAbbreviationsOffset();
-  if (UnitsAbbrevData.find(AbbrevOffset) != UnitsAbbrevData.end())
-    return;
-
-  AbbrevData &UnitData = UnitsAbbrevData[AbbrevOffset];
-  UnitData.Buffer = std::make_unique<DebugBufferVector>();
-  UnitData.Stream = std::make_unique<raw_svector_ostream>(*UnitData.Buffer);
-
   const PatchesTy &UnitPatches = Patches[&Unit];
 
+  // We are duplicating abbrev sections, to handle the case where for one CU we
+  // modify it, but for another we don't.
+  auto UnitDataPtr = std::make_unique<AbbrevData>();
+  AbbrevData &UnitData = *UnitDataPtr.get();
+  UnitData.Buffer = std::make_unique<DebugBufferVector>();
+  UnitData.Stream = std::make_unique<raw_svector_ostream>(*UnitData.Buffer);
   raw_svector_ostream &OS = *UnitData.Stream.get();
 
+  // Returns true if AbbrevData is re-used, false otherwise.
+  auto hashAndAddAbbrev = [&](StringRef AbbrevData) -> bool {
+    llvm::SHA1 Hasher;
+    Hasher.update(AbbrevData);
+    StringRef Key = Hasher.final();
+    auto Iter = AbbrevDataCache.find(Key);
+    if (Iter != AbbrevDataCache.end()) {
+      UnitsAbbrevData[&Unit] = Iter->second.get();
+      return true;
+    }
+    AbbrevDataCache[Key] = std::move(UnitDataPtr);
+    UnitsAbbrevData[&Unit] = &UnitData;
+    return false;
+  };
   // Take a fast path if there are no patches to apply. Simply copy the original
   // contents.
   if (UnitPatches.empty()) {
@@ -742,9 +767,10 @@ void DebugAbbrevWriter::addUnitAbbreviations(DWARFUnit &Unit) {
       AbbrevContents = AbbrevSectionContents;
     }
 
-    OS.reserveExtraSpace(AbbrevContents.size());
-    OS << AbbrevContents;
-
+    if (!hashAndAddAbbrev(AbbrevContents)) {
+      OS.reserveExtraSpace(AbbrevContents.size());
+      OS << AbbrevContents;
+    }
     return;
   }
 
@@ -784,9 +810,13 @@ void DebugAbbrevWriter::addUnitAbbreviations(DWARFUnit &Unit) {
     encodeULEB128(0, OS);
   }
   encodeULEB128(0, OS);
+
+  hashAndAddAbbrev(OS.str());
 }
 
 std::unique_ptr<DebugBufferVector> DebugAbbrevWriter::finalize() {
+  // Used to create determinism for writing out abbrevs.
+  std::vector<AbbrevData *> Abbrevs;
   if (DWOId) {
     // We expect abbrev_offset to always be zero for DWO units as there
     // should be one CU per DWO, and TUs should share the same abbreviation
@@ -804,33 +834,40 @@ std::unique_ptr<DebugBufferVector> DebugAbbrevWriter::finalize() {
       }
     }
 
+    DWARFUnit *Unit = Context.getDWOCompileUnitForHash(*DWOId);
     // Issue abbreviations for the DWO CU only.
-    addUnitAbbreviations(*Context.getDWOCompileUnitForHash(*DWOId));
+    addUnitAbbreviations(*Unit);
+    AbbrevData *Abbrev = UnitsAbbrevData[Unit];
+    Abbrevs.push_back(Abbrev);
   } else {
+    Abbrevs.reserve(Context.getNumCompileUnits() + Context.getNumTypeUnits());
+    std::unordered_set<AbbrevData *> ProcessedAbbrevs;
     // Add abbreviations from compile and type non-DWO units.
-    for (const std::unique_ptr<DWARFUnit> &Unit : Context.normal_units())
+    for (const std::unique_ptr<DWARFUnit> &Unit : Context.normal_units()) {
       addUnitAbbreviations(*Unit);
+      AbbrevData *Abbrev = UnitsAbbrevData[Unit.get()];
+      if (!ProcessedAbbrevs.insert(Abbrev).second)
+        continue;
+      Abbrevs.push_back(Abbrev);
+    }
   }
 
   DebugBufferVector ReturnBuffer;
-
   // Pre-calculate the total size of abbrev section.
   uint64_t Size = 0;
-  for (const auto &KV : UnitsAbbrevData) {
-    const AbbrevData &UnitData = KV.second;
-    Size += UnitData.Buffer->size();
-  }
+  for (const AbbrevData *UnitData : Abbrevs)
+    Size += UnitData->Buffer->size();
+
   ReturnBuffer.reserve(Size);
 
   uint64_t Pos = 0;
-  for (auto &KV : UnitsAbbrevData) {
-    AbbrevData &UnitData = KV.second;
-    ReturnBuffer.append(*UnitData.Buffer);
-    UnitData.Offset = Pos;
-    Pos += UnitData.Buffer->size();
+  for (AbbrevData *UnitData : Abbrevs) {
+    ReturnBuffer.append(*UnitData->Buffer);
+    UnitData->Offset = Pos;
+    Pos += UnitData->Buffer->size();
 
-    UnitData.Buffer.reset();
-    UnitData.Stream.reset();
+    UnitData->Buffer.reset();
+    UnitData->Stream.reset();
   }
 
   return std::make_unique<DebugBufferVector>(ReturnBuffer);

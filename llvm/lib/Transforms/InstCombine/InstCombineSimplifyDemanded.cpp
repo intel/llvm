@@ -544,6 +544,26 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
                                         NSW, LHSKnown, RHSKnown);
     break;
   }
+  case Instruction::Mul: {
+    // The LSB of X*Y is set only if (X & 1) == 1 and (Y & 1) == 1.
+    // If we demand exactly one bit N and we have "X * (C' << N)" where C' is
+    // odd (has LSB set), then the left-shifted low bit of X is the answer.
+    if (DemandedMask.isPowerOf2()) {
+      unsigned CTZ = DemandedMask.countTrailingZeros();
+      const APInt *C;
+      if (match(I->getOperand(1), m_APInt(C)) &&
+          C->countTrailingZeros() == CTZ) {
+        Constant *ShiftC = ConstantInt::get(I->getType(), CTZ);
+        Instruction *Shl = BinaryOperator::CreateShl(I->getOperand(0), ShiftC);
+        return InsertNewInstWith(Shl, *I);
+      }
+      // 'Quadratic Reciprocity': mul(x,x) -> 0 if we're only demanding bit[1]
+      if (DemandedMask == 2 && I->getOperand(0) == I->getOperand(1))
+        return ConstantInt::getNullValue(VTy);
+    }
+    computeKnownBits(I, Known, Depth, CxtI);
+    break;
+  }
   case Instruction::Shl: {
     const APInt *SA;
     if (match(I->getOperand(1), m_APInt(SA))) {
@@ -1219,7 +1239,7 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
       for (auto I = gep_type_begin(GEP), E = gep_type_end(GEP);
            I != E; I++)
         if (I.isStruct())
-          return true;;
+          return true;
       return false;
     };
     if (mayIndexStructType(cast<GetElementPtrInst>(*I)))
@@ -1228,10 +1248,11 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
     // Conservatively track the demanded elements back through any vector
     // operands we may have.  We know there must be at least one, or we
     // wouldn't have a vector result to get here. Note that we intentionally
-    // merge the undef bits here since gepping with either an undef base or
-    // index results in undef.
+    // merge the undef bits here since gepping with either an poison base or
+    // index results in poison.
     for (unsigned i = 0; i < I->getNumOperands(); i++) {
-      if (match(I->getOperand(i), m_Undef())) {
+      if (i == 0 ? match(I->getOperand(i), m_Undef())
+                 : match(I->getOperand(i), m_Poison())) {
         // If the entire vector is undefined, just return this info.
         UndefElts = EltMask;
         return nullptr;
@@ -1239,7 +1260,11 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
       if (I->getOperand(i)->getType()->isVectorTy()) {
         APInt UndefEltsOp(VWidth, 0);
         simplifyAndSetOp(I, i, DemandedElts, UndefEltsOp);
-        UndefElts |= UndefEltsOp;
+        // gep(x, undef) is not undef, so skip considering idx ops here
+        // Note that we could propagate poison, but we can't distinguish between
+        // undef & poison bits ATM
+        if (i == 0)
+          UndefElts |= UndefEltsOp;
       }
     }
 

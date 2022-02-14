@@ -88,6 +88,8 @@ AMDGPUAsmPrinter::AMDGPUAsmPrinter(TargetMachine &TM,
       HSAMetadataStream.reset(new HSAMD::MetadataStreamerV2());
     } else if (isHsaAbiVersion3(getGlobalSTI())) {
       HSAMetadataStream.reset(new HSAMD::MetadataStreamerV3());
+    } else if (isHsaAbiVersion5(getGlobalSTI())) {
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerV5());
     } else {
       HSAMetadataStream.reset(new HSAMD::MetadataStreamerV4());
     }
@@ -109,6 +111,12 @@ AMDGPUTargetStreamer* AMDGPUAsmPrinter::getTargetStreamer() const {
 }
 
 void AMDGPUAsmPrinter::emitStartOfAsmFile(Module &M) {
+  IsTargetStreamerInitialized = false;
+}
+
+void AMDGPUAsmPrinter::initTargetStreamer(Module &M) {
+  IsTargetStreamerInitialized = true;
+
   // TODO: Which one is called first, emitStartOfAsmFile or
   // emitFunctionBodyStart?
   if (getTargetStreamer() && !getTargetStreamer()->getTargetID())
@@ -118,7 +126,7 @@ void AMDGPUAsmPrinter::emitStartOfAsmFile(Module &M) {
       TM.getTargetTriple().getOS() != Triple::AMDPAL)
     return;
 
-  if (isHsaAbiVersion3Or4(getGlobalSTI()))
+  if (isHsaAbiVersion3AndAbove(getGlobalSTI()))
     getTargetStreamer()->EmitDirectiveAMDGCNTarget();
 
   if (TM.getTargetTriple().getOS() == Triple::AMDHSA)
@@ -127,7 +135,7 @@ void AMDGPUAsmPrinter::emitStartOfAsmFile(Module &M) {
   if (TM.getTargetTriple().getOS() == Triple::AMDPAL)
     getTargetStreamer()->getPALMetadata()->readFromIR(M);
 
-  if (isHsaAbiVersion3Or4(getGlobalSTI()))
+  if (isHsaAbiVersion3AndAbove(getGlobalSTI()))
     return;
 
   // HSA emits NT_AMD_HSA_CODE_OBJECT_VERSION for code objects v2.
@@ -141,6 +149,10 @@ void AMDGPUAsmPrinter::emitStartOfAsmFile(Module &M) {
 }
 
 void AMDGPUAsmPrinter::emitEndOfAsmFile(Module &M) {
+  // Init target streamer if it has not yet happened
+  if (!IsTargetStreamerInitialized)
+    initTargetStreamer(M);
+
   // Following code requires TargetStreamer to be present.
   if (!getTargetStreamer())
     return;
@@ -259,7 +271,7 @@ void AMDGPUAsmPrinter::emitFunctionBodyEnd() {
 
 void AMDGPUAsmPrinter::emitFunctionEntryLabel() {
   if (TM.getTargetTriple().getOS() == Triple::AMDHSA &&
-      isHsaAbiVersion3Or4(getGlobalSTI())) {
+      isHsaAbiVersion3AndAbove(getGlobalSTI())) {
     AsmPrinter::emitFunctionEntryLabel();
     return;
   }
@@ -435,6 +447,11 @@ amdhsa::kernel_descriptor_t AMDGPUAsmPrinter::getAmdhsaKernelDescriptor(
 }
 
 bool AMDGPUAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
+  // Init target streamer lazily on the first function so that previous passes
+  // can set metadata.
+  if (!IsTargetStreamerInitialized)
+    initTargetStreamer(*MF.getFunction().getParent());
+
   ResourceUsage = &getAnalysis<AMDGPUResourceUsageAnalysis>();
   CurrentProgramInfo = SIProgramInfo();
 

@@ -844,6 +844,9 @@ struct _pi_queue : _pi_object {
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
   std::atomic<pi_uint32> RefCountExternal{1};
+
+  // Indicates that the queue is healthy and all operations on it are OK.
+  bool Healthy{true};
 };
 
 struct _pi_mem : _pi_object {
