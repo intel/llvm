@@ -6,21 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// <iterator>
+// UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
 
-// template <class C> auto begin(const C& c) -> decltype(c.begin());
+#include <utility>
 
-#include <vector>
-#include <cassert>
-
-#include "test_macros.h"
-
-int main(int, char**)
-{
-    int ia[] = {1, 2, 3};
-    const std::vector<int> v(ia, ia + sizeof(ia)/sizeof(ia[0]));
-    std::vector<int>::const_iterator i = begin(v);
-    assert(*i == 1);
-
-  return 0;
-}
+[[noreturn]] void unreachable() { std::unreachable(); } // expected-no-diagnostics

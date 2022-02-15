@@ -6,22 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// <iterator>
+// UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
 
-// template <class T, size_t N> T* begin(T (&array)[N]);
+#include <utility>
+#include <type_traits>
 
-#include <iterator>
-#include <cassert>
-
-#include "test_macros.h"
-
-int main(int, char**)
-{
-    int ia[] = {1, 2, 3};
-    int* i = std::begin(ia);
-    assert(*i == 1);
-    *i = 2;
-    assert(ia[0] == 2);
-
-  return 0;
-}
+static_assert(std::is_same_v<decltype(std::unreachable()), void>);

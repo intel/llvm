@@ -3189,7 +3189,7 @@ static void emitCheckHandlerCall(CodeGenFunction &CGF,
     B.addAttribute(llvm::Attribute::NoReturn)
         .addAttribute(llvm::Attribute::NoUnwind);
   }
-  B.addAttribute(llvm::Attribute::UWTable);
+  B.addUWTableAttr(llvm::UWTableKind::Default);
 
   llvm::FunctionCallee Fn = CGF.CGM.CreateRuntimeFunction(
       FnType, FnName,
@@ -3827,7 +3827,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     // interfaces, so we can't rely on GEP to do this scaling
     // correctly, so we need to cast to i8*.  FIXME: is this actually
     // true?  A lot of other things in the fragile ABI would break...
-    llvm::Type *OrigBaseTy = Addr.getType();
+    llvm::Type *OrigBaseElemTy = Addr.getElementType();
     Addr = Builder.CreateElementBitCast(Addr, Int8Ty);
 
     // Do the GEP.
@@ -3839,7 +3839,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     Addr = Address(EltPtr, Addr.getElementType(), EltAlign);
 
     // Cast back.
-    Addr = Builder.CreateBitCast(Addr, OrigBaseTy);
+    Addr = Builder.CreateElementBitCast(Addr, OrigBaseElemTy);
   } else if (const Expr *Array = isSimpleArrayDecayOperand(E->getBase())) {
     // If this is A[i] where A is an array, the frontend will have decayed the
     // base to be a ArrayToPointerDecay implicit cast.  While correct, it is

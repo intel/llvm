@@ -653,7 +653,9 @@ std::optional<Expr<SomeType>> ConvertToType(
     break;
   case TypeCategory::Derived:
     if (auto fromType{x.GetType()}) {
-      if (type == *fromType) {
+      if (type.IsTkCompatibleWith(*fromType)) {
+        // "x" could be assigned or passed to "type", or appear in a
+        // structure constructor as a value for a component with "type"
         return std::move(x);
       }
     }
@@ -1514,6 +1516,17 @@ bool SymbolSourcePositionCompare::operator()(
 
 SemanticsContext &Symbol::GetSemanticsContext() const {
   return DEREF(owner_).context();
+}
+
+bool AreTkCompatibleTypes(const DeclTypeSpec *x, const DeclTypeSpec *y) {
+  if (x && y) {
+    if (auto xDt{evaluate::DynamicType::From(*x)}) {
+      if (auto yDt{evaluate::DynamicType::From(*y)}) {
+        return xDt->IsTkCompatibleWith(*yDt);
+      }
+    }
+  }
+  return false;
 }
 
 } // namespace Fortran::semantics

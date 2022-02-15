@@ -31,7 +31,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#if !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 namespace ranges {
   template<view _View>
@@ -55,13 +55,13 @@ public:
     _LIBCPP_HIDE_FROM_ABI
     constexpr drop_view(_View __base, range_difference_t<_View> __count)
       : __count_(__count)
-      , __base_(_VSTD::move(__base))
+      , __base_(std::move(__base))
     {
       _LIBCPP_ASSERT(__count_ >= 0, "count must be greater than or equal to zero.");
     }
 
     _LIBCPP_HIDE_FROM_ABI constexpr _View base() const& requires copy_constructible<_View> { return __base_; }
-    _LIBCPP_HIDE_FROM_ABI constexpr _View base() && { return _VSTD::move(__base_); }
+    _LIBCPP_HIDE_FROM_ABI constexpr _View base() && { return std::move(__base_); }
 
     _LIBCPP_HIDE_FROM_ABI
     constexpr auto begin()
@@ -120,7 +120,7 @@ public:
   inline constexpr bool enable_borrowed_range<drop_view<_Tp>> = enable_borrowed_range<_Tp>;
 } // namespace ranges
 
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
 
