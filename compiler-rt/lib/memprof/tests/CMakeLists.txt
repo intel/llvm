@@ -10,8 +10,12 @@ set(MEMPROF_UNITTEST_CFLAGS
   -O2
   -g
   -fno-rtti
-  -Wno-gnu-zero-variadic-macro-arguments
+  -Wno-pedantic
   -fno-omit-frame-pointer)
+
+# Suppress warnings for gmock variadic macros for clang and gcc respectively.
+append_list_if(SUPPORTS_GNU_ZERO_VARIADIC_MACRO_ARGUMENTS_FLAG -Wno-gnu-zero-variadic-macro-arguments MEMPROF_UNITTEST_CFLAGS)
+append_list_if(COMPILER_RT_HAS_WVARIADIC_MACROS_FLAG -Wno-variadic-macros MEMPROF_UNITTEST_CFLAGS)
 
 file(GLOB MEMPROF_HEADERS ../*.h)
 
@@ -23,6 +27,8 @@ set(MEMPROF_UNITTESTS
   rawprofile.cpp
   driver.cpp)
 
+include_directories(../../../include)
+
 set(MEMPROF_UNIT_TEST_HEADERS
   ${MEMPROF_HEADERS})
 
@@ -30,9 +36,8 @@ if(NOT WIN32)
   list(APPEND MEMPROF_UNITTEST_LINK_FLAGS -pthread)
 endif()
 
-foreach(lib ${SANITIZER_TEST_CXX_LIBRARIES})
-  list(APPEND MEMPROF_UNITTEST_LINK_FLAGS -l${lib})
-endforeach()
+set(MEMPROF_UNITTEST_LINK_LIBRARIES ${SANITIZER_TEST_CXX_LIBRARIES})
+list(APPEND MEMPROF_UNITTEST_LINK_LIBRARIES "dl")
 
 if(COMPILER_RT_DEFAULT_TARGET_ARCH IN_LIST MEMPROF_SUPPORTED_ARCH)
   # MemProf unit tests are only run on the host machine.
@@ -49,7 +54,7 @@ if(COMPILER_RT_DEFAULT_TARGET_ARCH IN_LIST MEMPROF_SUPPORTED_ARCH)
     $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>)
   set_target_compile_flags(MemProfUnitTests ${MEMPROF_UNITTEST_CFLAGS})
   set_target_link_flags(MemProfUnitTests ${MEMPROF_UNITTEST_LINK_FLAGS})
-  target_link_libraries(MemProfUnitTests dl)
+  target_link_libraries(MemProfUnitTests ${MEMPROF_UNITTEST_LINK_LIBRARIES})
 
   if (TARGET cxx-headers OR HAVE_LIBCXX)
     add_dependencies(MemProfUnitTests cxx-headers)

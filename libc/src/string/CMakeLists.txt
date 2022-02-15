@@ -24,7 +24,7 @@ add_entrypoint_object(
   HDRS
     mempcpy.h
   DEPENDS
-    libc.src.string.memcpy
+    .memory_utils.memcpy_implementation
 )
 
 add_entrypoint_object(
@@ -35,17 +35,6 @@ add_entrypoint_object(
     memchr.h
   DEPENDS
     .string_utils
-)
-
-add_entrypoint_object(
-  memmove
-  SRCS
-    memmove.cpp
-  HDRS
-    memmove.h
-  DEPENDS
-    libc.src.__support.integer_operations
-    libc.src.string.memcpy
 )
 
 add_entrypoint_object(
@@ -74,7 +63,7 @@ add_entrypoint_object(
   HDRS
     stpncpy.h
   DEPENDS
-    .bzero
+    .memory_utils.memset_implementation
 )
 
 add_entrypoint_object(
@@ -111,7 +100,7 @@ add_entrypoint_object(
   HDRS
     strcpy.h
   DEPENDS
-    .memcpy
+    .memory_utils.memcpy_implementation
     .string_utils
 )
 
@@ -132,7 +121,7 @@ add_entrypoint_object(
   HDRS
     strdup.h
   DEPENDS
-    .memcpy
+    .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
 )
@@ -181,7 +170,7 @@ add_entrypoint_object(
   HDRS
     strndup.h
   DEPENDS
-    .memcpy
+    .memory_utils.memcpy_implementation
     .string_utils
     libc.include.stdlib
 )
@@ -262,14 +251,23 @@ function(add_implementation name impl_name)
     "ADD_IMPL"
     "" # Optional arguments
     "" # Single value arguments
-    "REQUIRE;SRCS;HDRS;DEPENDS;COMPILE_OPTIONS" # Multi value arguments
+    "REQUIRE;SRCS;HDRS;DEPENDS;COMPILE_OPTIONS;MLLVM_COMPILE_OPTIONS" # Multi value arguments
     ${ARGN})
+
+  if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+    list(APPEND ADD_IMPL_MLLVM_COMPILE_OPTIONS "-combiner-global-alias-analysis")
+    # Note that '-mllvm' needs to be prefixed with 'SHELL:' to prevent CMake flag deduplication.
+    foreach(opt IN LISTS ADD_IMPL_MLLVM_COMPILE_OPTIONS)
+      list(APPEND ADD_IMPL_COMPILE_OPTIONS "SHELL:-mllvm ${opt}")
+    endforeach()
+  endif()
+
   add_entrypoint_object(${impl_name}
     NAME ${name}
     SRCS ${ADD_IMPL_SRCS}
     HDRS ${ADD_IMPL_HDRS}
     DEPENDS ${ADD_IMPL_DEPENDS}
-    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS} "SHELL:-mllvm -combiner-global-alias-analysis"
+    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS}
   )
   get_fq_target_name(${impl_name} fq_target_name)
   set_target_properties(${fq_target_name} PROPERTIES REQUIRE_CPU_FEATURES "${ADD_IMPL_REQUIRE}")
@@ -282,7 +280,7 @@ endfunction()
 
 function(add_bcmp bcmp_name)
   add_implementation(bcmp ${bcmp_name}
-    SRCS ${LIBC_BCMP_SRC}
+    SRCS ${LIBC_SOURCE_DIR}/src/string/bcmp.cpp
     HDRS ${LIBC_SOURCE_DIR}/src/string/bcmp.h
     DEPENDS
       .memory_utils.memory_utils
@@ -295,7 +293,6 @@ function(add_bcmp bcmp_name)
 endfunction()
 
 if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
-  set(LIBC_BCMP_SRC ${LIBC_SOURCE_DIR}/src/string/bcmp.cpp)
   add_bcmp(bcmp_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
   add_bcmp(bcmp_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
   add_bcmp(bcmp_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
@@ -303,7 +300,6 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_bcmp(bcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_bcmp(bcmp)
 else()
-  set(LIBC_BCMP_SRC ${LIBC_SOURCE_DIR}/src/string/bcmp.cpp)
   add_bcmp(bcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_bcmp(bcmp)
 endif()
@@ -317,7 +313,7 @@ function(add_bzero bzero_name)
     SRCS ${LIBC_SOURCE_DIR}/src/string/bzero.cpp
     HDRS ${LIBC_SOURCE_DIR}/src/string/bzero.h
     DEPENDS
-      .memory_utils.memory_utils
+      .memory_utils.memset_implementation
       libc.include.string
     COMPILE_OPTIONS
       -fno-builtin-bzero
@@ -346,7 +342,7 @@ function(add_memcmp memcmp_name)
     SRCS ${LIBC_SOURCE_DIR}/src/string/memcmp.cpp
     HDRS ${LIBC_SOURCE_DIR}/src/string/memcmp.h
     DEPENDS
-      .memory_utils.memory_utils
+      .memory_utils.memcmp_implementation
       libc.include.string
     COMPILE_OPTIONS
       -fno-builtin-memcmp
@@ -378,7 +374,7 @@ function(add_memcpy memcpy_name)
     SRCS ${LIBC_SOURCE_DIR}/src/string/memcpy.cpp
     HDRS ${LIBC_SOURCE_DIR}/src/string/memcpy.h
     DEPENDS
-      .memory_utils.memory_utils
+      .memory_utils.memcpy_implementation
       libc.include.string
     COMPILE_OPTIONS
       -fno-builtin-memcpy
@@ -395,13 +391,46 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_memcpy(memcpy)
 elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
   # Disable tail merging as it leads to lower performance.
-  # Note that '-mllvm' needs to be prefixed with 'SHELL:' to prevent CMake flag deduplication.
   add_memcpy(memcpy_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE}
-                                      COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
-  add_memcpy(memcpy                   COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
+                                      MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
+  add_memcpy(memcpy                   MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
 else()
   add_memcpy(memcpy_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memcpy(memcpy)
+endif()
+
+# ------------------------------------------------------------------------------
+# memmove
+# ------------------------------------------------------------------------------
+
+function(add_memmove memmove_name)
+  add_implementation(memmove ${memmove_name}
+    SRCS ${LIBC_SOURCE_DIR}/src/string/memmove.cpp
+    HDRS ${LIBC_SOURCE_DIR}/src/string/memmove.h
+    DEPENDS
+      .memory_utils.memory_utils
+      libc.include.string
+    COMPILE_OPTIONS
+      -fno-builtin
+    ${ARGN}
+  )
+endfunction()
+
+if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
+  add_memmove(memmove_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
+  add_memmove(memmove_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
+  add_memmove(memmove_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
+  add_memmove(memmove_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_memmove(memmove_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_memmove(memmove)
+elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
+  # Disable tail merging as it leads to lower performance.
+  add_memmove(memmove_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE}
+                                        MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
+  add_memmove(memmove                   MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
+else()
+  add_memmove(memmove_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_memmove(memmove)
 endif()
 
 # ------------------------------------------------------------------------------
@@ -413,7 +442,7 @@ function(add_memset memset_name)
     SRCS ${LIBC_SOURCE_DIR}/src/string/memset.cpp
     HDRS ${LIBC_SOURCE_DIR}/src/string/memset.h
     DEPENDS
-      .memory_utils.memory_utils
+      .memory_utils.memset_implementation
       libc.include.string
     COMPILE_OPTIONS
       -fno-builtin-memset
@@ -429,9 +458,10 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memset(memset)
 elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
+  # Disable tail merging as it leads to lower performance.
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE}
-                                      COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
-  add_memset(memset                   COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
+                                      MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
+  add_memset(memset                   MLLVM_COMPILE_OPTIONS "-tail-merge-threshold=0")
 else()
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memset(memset)

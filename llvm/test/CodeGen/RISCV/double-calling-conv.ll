@@ -2,8 +2,8 @@
 ; RUN: llc -mtriple=riscv32 -mattr=+d -verify-machineinstrs < %s \
 ; RUN:   | FileCheck -check-prefix=RV32IFD %s
 
-; Sanity checks for calling convention lowering for RV32D. This can be
-; somewhat error-prone for soft-float RV32D due to the fact that f64 is legal
+; Basic correctness checks for calling convention lowering for RV32D. This can
+; be somewhat error-prone for soft-float RV32D due to the fact that f64 is legal
 ; but i64 is not, and there is no instruction to move values directly between
 ; the GPRs and 64-bit FPRs.
 
@@ -141,4 +141,11 @@ define double @caller_double_stack() nounwind {
 ; RV32IFD-NEXT:    ret
   %1 = call double @callee_double_stack(i64 1, i64 2, i64 3, i64 4, double 5.72, double 6.72)
   ret double %1
+}
+
+define double @func_return_double_undef() nounwind {
+; RV32IFD-LABEL: func_return_double_undef:
+; RV32IFD:       # %bb.0:
+; RV32IFD-NEXT:    ret
+  ret double undef
 }

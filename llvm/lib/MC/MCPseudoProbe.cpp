@@ -9,9 +9,10 @@
 #include "llvm/MC/MCPseudoProbe.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCFragment.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectStreamer.h"
-#include "llvm/MC/MCStreamer.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/raw_ostream.h"
@@ -151,8 +152,8 @@ void MCPseudoProbeInlineTree::emit(MCObjectStreamer *MCOS,
   // InlineSite is unique for each pair,
   // so there will be no ordering of Inlinee based on MCPseudoProbeInlineTree*
   std::map<InlineSite, MCPseudoProbeInlineTree *> Inlinees;
-  for (auto Child = Children.begin(); Child != Children.end(); ++Child)
-    Inlinees[Child->first] = Child->second.get();
+  for (auto &Child : Children)
+    Inlinees[Child.first] = Child.second.get();
 
   for (const auto &Inlinee : Inlinees) {
     if (Guid) {

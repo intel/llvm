@@ -1,11 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm \
-// RUN:   --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -15,12 +8,7 @@
 //
 // RUN: mlir-opt %s \
 // RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
-// RUN:   --sparsification="vectorization-strategy=2 vl=8" --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm \
-// RUN:   --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN:   --sparse-compiler="vectorization-strategy=2 vl=8" | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -201,19 +189,19 @@ module {
     // CHECK: 15
     // CHECK: 10
     //
-    %m0 = memref.buffer_cast %0 : memref<i32>
+    %m0 = bufferization.to_memref %0 : memref<i32>
     call @dump_i32(%m0) : (memref<i32>) -> ()
-    %m1 = memref.buffer_cast %1 : memref<f32>
+    %m1 = bufferization.to_memref %1 : memref<f32>
     call @dump_f32(%m1) : (memref<f32>) -> ()
-    %m2 = memref.buffer_cast %2 : memref<i32>
+    %m2 = bufferization.to_memref %2 : memref<i32>
     call @dump_i32(%m2) : (memref<i32>) -> ()
-    %m3 = memref.buffer_cast %3 : memref<f32>
+    %m3 = bufferization.to_memref %3 : memref<f32>
     call @dump_f32(%m3) : (memref<f32>) -> ()
-    %m4 = memref.buffer_cast %4 : memref<i32>
+    %m4 = bufferization.to_memref %4 : memref<i32>
     call @dump_i32(%m4) : (memref<i32>) -> ()
-    %m5 = memref.buffer_cast %5 : memref<i32>
+    %m5 = bufferization.to_memref %5 : memref<i32>
     call @dump_i32(%m5) : (memref<i32>) -> ()
-    %m6 = memref.buffer_cast %6 : memref<i32>
+    %m6 = bufferization.to_memref %6 : memref<i32>
     call @dump_i32(%m6) : (memref<i32>) -> ()
 
     // Release the resources.

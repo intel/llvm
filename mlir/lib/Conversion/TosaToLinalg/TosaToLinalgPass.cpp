@@ -13,7 +13,7 @@
 #include "../PassDetail.h"
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -26,6 +26,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
 
@@ -38,7 +39,7 @@ public:
                     tensor::TensorDialect, scf::SCFDialect>();
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
     target.addLegalDialect<linalg::LinalgDialect, StandardOpsDialect,
@@ -54,7 +55,7 @@ public:
 
     target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
 
-    FuncOp func = getFunction();
+    FuncOp func = getOperation();
     mlir::tosa::populateTosaToLinalgConversionPatterns(&patterns);
     if (failed(applyFullConversion(func, target, std::move(patterns))))
       signalPassFailure();
@@ -67,6 +68,13 @@ std::unique_ptr<Pass> mlir::tosa::createTosaToLinalg() {
 }
 
 void mlir::tosa::addTosaToLinalgPasses(OpPassManager &pm) {
-  pm.addNestedPass<FuncOp>(createTosaMakeBroadcastablePass());
-  pm.addNestedPass<FuncOp>(createTosaToLinalg());
+  // Optional decompositions are designed to benefit linalg.
+  pm.addNestedPass<FuncOp>(mlir::tosa::createTosaOptionalDecompositions());
+  pm.addNestedPass<FuncOp>(mlir::createCanonicalizerPass());
+
+  pm.addNestedPass<FuncOp>(tosa::createTosaMakeBroadcastablePass());
+  pm.addNestedPass<FuncOp>(tosa::createTosaToLinalgNamed());
+  pm.addNestedPass<FuncOp>(mlir::createCanonicalizerPass());
+  pm.addNestedPass<FuncOp>(tosa::createTosaMakeBroadcastablePass());
+  pm.addNestedPass<FuncOp>(tosa::createTosaToLinalg());
 }

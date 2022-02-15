@@ -1,9 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.tns" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -12,12 +7,7 @@
 //
 // Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
-// RUN: mlir-opt %s \
-// RUN:   --sparsification="vectorization-strategy=2 vl=4" --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=2 vl=4" | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.tns" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -86,7 +76,7 @@ module {
         memref.store %d0, %xdata[%i, %j] : memref<7x3xf64>
       }
     }
-    %x = memref.tensor_load %xdata : memref<7x3xf64>
+    %x = bufferization.to_tensor %xdata : memref<7x3xf64>
 
     // Read the sparse tensor from file, construct sparse storage.
     %fileName = call @getTensorFilename(%c0) : (index) -> (!Filename)
@@ -106,7 +96,7 @@ module {
     // CHECK: ( 0, 0, 0 )
     // CHECK: ( 7, 0, 0 )
     //
-    %r = memref.buffer_cast %0 : memref<7x3xf64>
+    %r = bufferization.to_memref %0 : memref<7x3xf64>
     scf.for %i = %c0 to %c7 step %c1 {
       %v = vector.transfer_read %r[%i, %c0], %d0: memref<7x3xf64>, vector<3xf64>
       vector.print %v : vector<3xf64>

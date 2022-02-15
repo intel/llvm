@@ -26,25 +26,29 @@
 
 using namespace llvm;
 
+extern cl::OptionCategory LLVMReduceOptions;
+
 static cl::opt<bool> AbortOnInvalidReduction(
     "abort-on-invalid-reduction",
-    cl::desc("Abort if any reduction results in invalid IR"));
+    cl::desc("Abort if any reduction results in invalid IR"),
+    cl::cat(LLVMReduceOptions));
 
 static cl::opt<unsigned int> StartingGranularityLevel(
     "starting-granularity-level",
-    cl::desc("Number of times to divide chunks prior to first test"));
+    cl::desc("Number of times to divide chunks prior to first test"),
+    cl::cat(LLVMReduceOptions));
 
 static cl::opt<bool> TmpFilesAsBitcode(
     "write-tmp-files-as-bitcode",
     cl::desc("Write temporary files as bitcode, instead of textual IR"),
-    cl::init(false));
+    cl::init(false), cl::cat(LLVMReduceOptions));
 
 #ifdef LLVM_ENABLE_THREADS
 static cl::opt<unsigned> NumJobs(
     "j",
     cl::desc("Maximum number of threads to use to process chunks. Set to 1 to "
              "disables parallelism."),
-    cl::init(1));
+    cl::init(1), cl::cat(LLVMReduceOptions));
 #else
 unsigned NumJobs = 1;
 #endif
@@ -211,25 +215,14 @@ SmallString<0> ProcessChunkFromSerializedBitcode(
 
 /// Runs the Delta Debugging algorithm, splits the code into chunks and
 /// reduces the amount of chunks that are considered interesting by the
-/// given test.
+/// given test. The number of chunks is determined by a preliminary run of the
+/// reduction pass where no change must be made to the module.
 template <typename T>
 void runDeltaPassInt(
     TestRunner &Test,
     function_ref<void(Oracle &, T &)> ExtractChunksFromModule) {
-  int Targets;
-  {
-    // Count the number of targets by counting the number of calls to
-    // Oracle::shouldKeep() but always returning true so no changes are
-    // made.
-    std::vector<Chunk> AllChunks = {{0, INT_MAX}};
-    Oracle Counter(AllChunks);
-    ExtractChunksFromModule(Counter, Test.getProgram());
-    Targets = Counter.count();
-  }
-  if (!Targets) {
-    errs() << "\nNothing to reduce\n";
-    return;
-  }
+  assert(!verifyReducerWorkItem(Test.getProgram(), &errs()) &&
+         "input module is broken before making changes");
 
   SmallString<128> CurrentFilepath;
   if (!isReduced(Test.getProgram(), Test, CurrentFilepath)) {
@@ -237,8 +230,36 @@ void runDeltaPassInt(
     exit(1);
   }
 
-  assert(!verifyReducerWorkItem(Test.getProgram(), &errs()) &&
-         "input module is broken before making changes");
+  int Targets;
+  {
+    // Count the number of chunks by counting the number of calls to
+    // Oracle::shouldKeep() but always returning true so no changes are
+    // made.
+    std::vector<Chunk> AllChunks = {{0, INT_MAX}};
+    Oracle Counter(AllChunks);
+    ExtractChunksFromModule(Counter, Test.getProgram());
+    Targets = Counter.count();
+
+    assert(!verifyReducerWorkItem(Test.getProgram(), &errs()) &&
+           "input module is broken after counting chunks");
+    assert(isReduced(Test.getProgram(), Test, CurrentFilepath) &&
+           "input module no longer interesting after counting chunks");
+
+#ifndef NDEBUG
+    // Make sure that the number of chunks does not change as we reduce.
+    std::vector<Chunk> NoChunks;
+    Oracle NoChunksCounter(NoChunks);
+    std::unique_ptr<ReducerWorkItem> Clone =
+        cloneReducerWorkItem(Test.getProgram());
+    ExtractChunksFromModule(NoChunksCounter, *Clone);
+    assert(Targets == NoChunksCounter.count() &&
+           "number of chunks changes when reducing");
+#endif
+  }
+  if (!Targets) {
+    errs() << "\nNothing to reduce\n";
+    return;
+  }
 
   std::vector<Chunk> ChunksStillConsideredInteresting = {{0, Targets - 1}};
   std::unique_ptr<ReducerWorkItem> ReducedProgram;

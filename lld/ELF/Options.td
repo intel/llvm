@@ -79,9 +79,6 @@ defm split_stack_adjust_size
          "non-split-stack function">,
       MetaVarName<"<value>">;
 
-defm library_path:
-  Eq<"library-path", "Add a directory to the library search path">, MetaVarName<"<dir>">;
-
 def O: JoinedOrSeparate<["-"], "O">, HelpText<"Optimize output file size">;
 
 defm Tbss: Eq<"Tbss", "Same as --section-start with .bss as the sectionname">;
@@ -122,18 +119,15 @@ defm call_graph_profile_sort: BB<"call-graph-profile-sort",
 // --chroot doesn't have a help text because it is an internal option.
 def chroot: Separate<["--"], "chroot">;
 
-defm color_diagnostics: B<"color-diagnostics",
+defm color_diagnostics: BB<"color-diagnostics",
   "Alias for --color-diagnostics=always",
   "Alias for --color-diagnostics=never">;
-def color_diagnostics_eq: J<"color-diagnostics=">,
+def color_diagnostics_eq: JJ<"color-diagnostics=">,
   HelpText<"Use colors in diagnostics (default: auto)">,
   MetaVarName<"[auto,always,never]">;
 
-def cref: FF<"cref">, HelpText<"Output cross reference table">;
-
-defm define_common: B<"define-common",
-    "Assign space to common symbols",
-    "Do not assign space to common symbols">;
+def cref: FF<"cref">,
+  HelpText<"Output cross reference table. If -Map is specified, print to the map file">;
 
 defm demangle: B<"demangle",
     "Demangle symbol names (default)",
@@ -265,8 +259,10 @@ defm just_symbols: Eq<"just-symbols", "Just link symbols">;
 
 defm keep_unique: Eq<"keep-unique", "Do not fold this symbol during ICF">;
 
-defm library: Eq<"library", "Root name of library to use">,
-  MetaVarName<"<libName>">;
+def library: JoinedOrSeparate<["-"], "l">, MetaVarName<"<libname>">,
+  HelpText<"Search for library <libname>">;
+def library_path: JoinedOrSeparate<["-"], "L">, MetaVarName<"<dir>">,
+  HelpText<"Add <dir> to the library search path">;
 
 def m: JoinedOrSeparate<["-"], "m">, HelpText<"Set target emulation">;
 
@@ -304,8 +300,8 @@ def no_undefined: F<"no-undefined">,
 def o: JoinedOrSeparate<["-"], "o">, MetaVarName<"<path>">,
   HelpText<"Path to file to write output">;
 
-def oformat: Separate<["--"], "oformat">, MetaVarName<"<format>">,
-  HelpText<"Specify the binary format for the output object file">;
+defm oformat: EEq<"oformat", "Specify the binary format for the output object file">,
+  MetaVarName<"[elf,binary]">;
 
 def omagic: FF<"omagic">, MetaVarName<"<magic>">,
   HelpText<"Set the text and data sections to be readable and writable, do not page align sections, link against static libraries">;
@@ -338,16 +334,16 @@ defm print_icf_sections: B<"print-icf-sections",
 
 def print_archive_stats: J<"print-archive-stats=">,
   HelpText<"Write archive usage statistics to the specified file. "
-           "Print the numbers of members and fetched members for each archive">;
+           "Print the numbers of members and extracted members for each archive">;
 
 defm print_symbol_order: Eq<"print-symbol-order",
   "Print a symbol order specified by --call-graph-ordering-file into the specified file">;
 
 def pop_state: F<"pop-state">,
-  HelpText<"Undo the effect of -push-state">;
+  HelpText<"Restore the states saved by --push-state">;
 
 def push_state: F<"push-state">,
-  HelpText<"Save the current state of -as-needed, -static and -whole-archive">;
+  HelpText<"Save the current state of --as-needed, -static and --whole-archive">;
 
 def print_map: F<"print-map">,
   HelpText<"Print a link map to the standard output">;
@@ -395,7 +391,7 @@ def strip_all: F<"strip-all">, HelpText<"Strip all symbols. Implies --strip-debu
 def strip_debug: F<"strip-debug">, HelpText<"Strip debugging information">;
 
 defm symbol_ordering_file:
-  Eq<"symbol-ordering-file", "Layout sections to place symbols in the order specified by symbol ordering file">;
+  EEq<"symbol-ordering-file", "Layout sections to place symbols in the order specified by symbol ordering file">;
 
 defm sysroot: Eq<"sysroot", "Set the system root">;
 
@@ -445,7 +441,7 @@ defm undefined_version: B<"undefined-version",
   "Allow unused version in version script (default)",
   "Report version scripts that refer undefined symbols">;
 
-defm rsp_quoting: Eq<"rsp-quoting", "Quoting style for response files">,
+defm rsp_quoting: EEq<"rsp-quoting", "Quoting style for response files">,
   MetaVarName<"[posix,windows]">;
 
 def v: Flag<["-"], "v">, HelpText<"Display the version number">;
@@ -454,22 +450,19 @@ def verbose: F<"verbose">, HelpText<"Verbose mode">;
 
 def version: F<"version">, HelpText<"Display the version number and exit">;
 
-def power10_stubs: F<"power10-stubs">, HelpText<"Alias for --power10-stubs=auto">;
-
-def no_power10_stubs: F<"no-power10-stubs">, HelpText<"Alias for --power10-stubs=no">;
-
-def power10_stubs_eq:
-  J<"power10-stubs=">, HelpText<
-                     "Enables Power10 instructions in all stubs without options, "
-                     "options override previous flags."
-                     "auto: Allow Power10 instructions in stubs if applicable."
-                     "no:   No Power10 instructions in stubs.">;
+def power10_stubs_eq: JJ<"power10-stubs=">, MetaVarName<"<mode>">,
+  HelpText<"Whether to use Power10 instructions in call stubs for R_PPC64_REL24_NOTOC and TOC/NOTOC "
+  "interworking (yes (default): use; no: don't use). \"auto\" is currently the same as \"yes\"">;
+def power10_stubs: FF<"power10-stubs">, Alias<power10_stubs_eq>, AliasArgs<["yes"]>,
+  HelpText<"Alias for --power10-stubs=auto">;
+def no_power10_stubs: FF<"no-power10-stubs">, Alias<power10_stubs_eq>, AliasArgs<["no"]>,
+  HelpText<"Alias for --power10-stubs=no">;
 
 defm version_script: Eq<"version-script", "Read a version script">;
 
 defm warn_backrefs: BB<"warn-backrefs",
-    "Warn about backward symbol references to fetch archive members",
-    "Do not warn about backward symbol references to fetch archive members (default)">;
+    "Warn about backward symbol references to extract archive members",
+    "Do not warn about backward symbol references to extract archive members (default)">;
 
 defm warn_backrefs_exclude
     : EEq<"warn-backrefs-exclude",
@@ -515,9 +508,6 @@ def: F<"dy">, Alias<Bdynamic>, HelpText<"Alias for --Bdynamic">;
 def: F<"dn">, Alias<Bstatic>, HelpText<"Alias for --Bstatic">;
 def: F<"non_shared">, Alias<Bstatic>, HelpText<"Alias for --Bstatic">;
 def: F<"static">, Alias<Bstatic>, HelpText<"Alias for --Bstatic">;
-def: Flag<["-"], "d">, Alias<define_common>, HelpText<"Alias for --define-common">;
-def: F<"dc">, Alias<define_common>, HelpText<"Alias for --define-common">;
-def: F<"dp">, Alias<define_common>, HelpText<"Alias for --define-common">;
 def: Flag<["-"], "x">, Alias<discard_all>, HelpText<"Alias for --discard-all">;
 def: Flag<["-"], "X">, Alias<discard_locals>, HelpText<"Alias for --discard-locals">;
 def: Flag<["-"], "q">, Alias<emit_relocs>, HelpText<"Alias for --emit-relocs">;
@@ -526,8 +516,10 @@ def: JoinedOrSeparate<["-"], "e">, Alias<entry>, HelpText<"Alias for --entry">;
 def: Flag<["-"], "E">, Alias<export_dynamic>, HelpText<"Alias for --export-dynamic">;
 def: Separate<["-"], "F">, Alias<filter>, HelpText<"Alias for --filter">;
 def: Separate<["-"], "b">, Alias<format>, HelpText<"Alias for --format">;
-def: JoinedOrSeparate<["-"], "l">, Alias<library>, HelpText<"Alias for --library">;
-def: JoinedOrSeparate<["-"], "L">, Alias<library_path>, HelpText<"Alias for --library-path">;
+def: Separate<["--", "-"], "library">, Alias<library>;
+def: Joined<["--", "-"], "library=">, Alias<library>;
+def: Separate<["--", "-"], "library-path">, Alias<library_path>;
+def: Joined<["--", "-"], "library-path=">, Alias<library_path>;
 def: Flag<["-"], "n">, Alias<nmagic>, HelpText<"Alias for --nmagic">;
 def: Flag<["-"], "N">, Alias<omagic>, HelpText<"Alias for --omagic">;
 def: Joined<["--"], "output=">, Alias<o>, HelpText<"Alias for -o">;
@@ -694,6 +686,8 @@ def plugin_opt_eq : J<"plugin-opt=">;
 
 // Options listed below are silently ignored for now for compatibility.
 def: F<"detect-odr-violations">;
+def: Flag<["-"], "d">;
+def: Flag<["-"], "dc">;
 def: Flag<["-"], "g">;
 def: F<"long-plt">;
 def: F<"no-copy-dt-needed-entries">;

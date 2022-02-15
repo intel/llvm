@@ -18,16 +18,20 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Math/Transforms/Approximation.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/Dialect/Vector/VectorUtils.h"
+#include "mlir/Dialect/Utils/IndexingUtils.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/Dialect/X86Vector/X86VectorDialect.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
 using namespace mlir::math;
@@ -84,7 +88,7 @@ static Value broadcast(ImplicitLocOpBuilder &builder, Value value,
 static Value
 handleMultidimensionalVectors(ImplicitLocOpBuilder &builder,
                               ValueRange operands, int64_t vectorWidth,
-                              std::function<Value(ValueRange)> compute) {
+                              llvm::function_ref<Value(ValueRange)> compute) {
   assert(!operands.empty() && "operands must be not empty");
   assert(vectorWidth > 0 && "vector width must be larger than 0");
 
@@ -135,7 +139,7 @@ handleMultidimensionalVectors(ImplicitLocOpBuilder &builder,
     auto offsets = delinearize(strides, i);
 
     SmallVector<Value> extracted(expandedOperands.size());
-    for (auto tuple : llvm::enumerate(expandedOperands))
+    for (const auto &tuple : llvm::enumerate(expandedOperands))
       extracted[tuple.index()] =
           builder.create<vector::ExtractOp>(tuple.value(), offsets);
 
@@ -145,7 +149,7 @@ handleMultidimensionalVectors(ImplicitLocOpBuilder &builder,
   // Stitch results together into one large vector.
   Type resultEltType = results[0].getType().cast<VectorType>().getElementType();
   Type resultExpandedType = VectorType::get(expandedShape, resultEltType);
-  Value result = builder.create<ConstantOp>(
+  Value result = builder.create<arith::ConstantOp>(
       resultExpandedType, builder.getZeroAttr(resultExpandedType));
 
   for (int64_t i = 0; i < maxLinearIndex; ++i)
@@ -179,12 +183,12 @@ static Value f32FromBits(ImplicitLocOpBuilder &builder, uint32_t bits) {
 //----------------------------------------------------------------------------//
 
 static Value min(ImplicitLocOpBuilder &builder, Value a, Value b) {
-  return builder.create<SelectOp>(
+  return builder.create<arith::SelectOp>(
       builder.create<arith::CmpFOp>(arith::CmpFPredicate::OLT, a, b), a, b);
 }
 
 static Value max(ImplicitLocOpBuilder &builder, Value a, Value b) {
-  return builder.create<SelectOp>(
+  return builder.create<arith::SelectOp>(
       builder.create<arith::CmpFOp>(arith::CmpFPredicate::OGT, a, b), a, b);
 }
 
@@ -196,7 +200,7 @@ static Value clamp(ImplicitLocOpBuilder &builder, Value value, Value lowerBound,
 // Decomposes given floating point value `arg` into a normalized fraction and
 // an integral power of two (see std::frexp). Returned values have float type.
 static std::pair<Value, Value> frexp(ImplicitLocOpBuilder &builder, Value arg,
-                                     bool is_positive = false) {
+                                     bool isPositive = false) {
   assert(getElementTypeOrSelf(arg).isF32() && "arg must be f32 type");
   ArrayRef<int64_t> shape = vectorShape(arg);
 
@@ -223,7 +227,7 @@ static std::pair<Value, Value> frexp(ImplicitLocOpBuilder &builder, Value arg,
   Value normalizedFraction = builder.create<arith::BitcastOp>(f32Vec, tmp1);
 
   // Compute exponent.
-  Value arg0 = is_positive ? arg : builder.create<math::AbsOp>(arg);
+  Value arg0 = isPositive ? arg : builder.create<math::AbsOp>(arg);
   Value biasedExponentBits = builder.create<arith::ShRUIOp>(
       builder.create<arith::BitcastOp>(i32Vec, arg0),
       bcast(i32Cst(builder, 23)));
@@ -280,6 +284,190 @@ Value makePolynomialCalculation(ImplicitLocOpBuilder &builder,
 } // namespace
 
 //----------------------------------------------------------------------------//
+// Helper function/pattern to insert casts for reusing F32 bit expansion.
+//----------------------------------------------------------------------------//
+
+template <typename T>
+LogicalResult insertCasts(Operation *op, PatternRewriter &rewriter) {
+  // Conservatively only allow where the operand and result types are exactly 1.
+  Type origType = op->getResultTypes().front();
+  for (Type t : llvm::drop_begin(op->getResultTypes()))
+    if (origType != t)
+      return rewriter.notifyMatchFailure(op, "required all types to match");
+  for (Type t : op->getOperandTypes())
+    if (origType != t)
+      return rewriter.notifyMatchFailure(op, "required all types to match");
+
+  // Skip if already F32  or larger than 32 bits.
+  if (getElementTypeOrSelf(origType).isF32() ||
+      getElementTypeOrSelf(origType).getIntOrFloatBitWidth() > 32)
+    return failure();
+
+  // Create F32 equivalent type.
+  Type newType;
+  if (auto shaped = origType.dyn_cast<ShapedType>()) {
+    newType = shaped.clone(rewriter.getF32Type());
+  } else if (origType.isa<FloatType>()) {
+    newType = rewriter.getF32Type();
+  } else {
+    return rewriter.notifyMatchFailure(op,
+                                       "unable to find F32 equivalent type");
+  }
+
+  Location loc = op->getLoc();
+  SmallVector<Value> operands;
+  for (auto operand : op->getOperands())
+    operands.push_back(rewriter.create<arith::ExtFOp>(loc, newType, operand));
+  auto result = rewriter.create<math::Atan2Op>(loc, newType, operands);
+  rewriter.replaceOpWithNewOp<arith::TruncFOp>(op, origType, result);
+  return success();
+}
+
+namespace {
+// Pattern to cast to F32 to reuse F32 expansion as fallback for single-result
+// op.
+// TODO: Consider revising to avoid adding multiple casts for a subgraph that is
+// all in lower precision. Currently this is only fallback support and performs
+// simplistic casting.
+template <typename T>
+struct ReuseF32Expansion : public OpRewritePattern<T> {
+public:
+  using OpRewritePattern<T>::OpRewritePattern;
+  LogicalResult matchAndRewrite(T op, PatternRewriter &rewriter) const final {
+    static_assert(
+        T::template hasTrait<mlir::OpTrait::SameOperandsAndResultType>(),
+        "requires same operands and result types");
+    return insertCasts<T>(op, rewriter);
+  }
+};
+} // namespace
+
+//----------------------------------------------------------------------------//
+// AtanOp approximation.
+//----------------------------------------------------------------------------//
+
+namespace {
+struct AtanApproximation : public OpRewritePattern<math::AtanOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(math::AtanOp op,
+                                PatternRewriter &rewriter) const final;
+};
+} // namespace
+
+LogicalResult
+AtanApproximation::matchAndRewrite(math::AtanOp op,
+                                   PatternRewriter &rewriter) const {
+  auto operand = op.getOperand();
+  if (!getElementTypeOrSelf(operand).isF32())
+    return rewriter.notifyMatchFailure(op, "unsupported operand type");
+
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
+
+  ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
+  auto one = broadcast(builder, f32Cst(builder, 1.0f), shape);
+
+  // Remap the problem over [0.0, 1.0] by looking at the absolute value and the
+  // handling symmetry.
+  Value abs = builder.create<math::AbsOp>(operand);
+  Value reciprocal = builder.create<arith::DivFOp>(one, abs);
+  Value compare =
+      builder.create<arith::CmpFOp>(arith::CmpFPredicate::OLT, abs, reciprocal);
+  Value x = builder.create<arith::SelectOp>(compare, abs, reciprocal);
+
+  // Perform the Taylor series approximation for atan over the range
+  // [-1.0, 1.0].
+  auto n1 = broadcast(builder, f32Cst(builder, 0.14418283f), shape);
+  auto n2 = broadcast(builder, f32Cst(builder, -0.34999234f), shape);
+  auto n3 = broadcast(builder, f32Cst(builder, -0.01067831f), shape);
+  auto n4 = broadcast(builder, f32Cst(builder, 1.00209986f), shape);
+
+  Value p = builder.create<math::FmaOp>(x, n1, n2);
+  p = builder.create<math::FmaOp>(x, p, n3);
+  p = builder.create<math::FmaOp>(x, p, n4);
+  p = builder.create<arith::MulFOp>(x, p);
+
+  // Remap the solution for over [0.0, 1.0] to [0.0, inf]
+  auto halfPi = broadcast(builder, f32Cst(builder, 1.57079632679f), shape);
+  Value sub = builder.create<arith::SubFOp>(halfPi, p);
+  Value select = builder.create<arith::SelectOp>(compare, p, sub);
+
+  // Correct for signing of the input.
+  rewriter.replaceOpWithNewOp<math::CopySignOp>(op, select, operand);
+  return success();
+}
+
+//----------------------------------------------------------------------------//
+// AtanOp approximation.
+//----------------------------------------------------------------------------//
+
+namespace {
+struct Atan2Approximation : public OpRewritePattern<math::Atan2Op> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(math::Atan2Op op,
+                                PatternRewriter &rewriter) const final;
+};
+} // namespace
+
+LogicalResult
+Atan2Approximation::matchAndRewrite(math::Atan2Op op,
+                                    PatternRewriter &rewriter) const {
+  auto y = op.getOperand(0);
+  auto x = op.getOperand(1);
+  if (!getElementTypeOrSelf(x).isF32())
+    return rewriter.notifyMatchFailure(op, "unsupported operand type");
+
+  ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
+  ArrayRef<int64_t> shape = vectorShape(op.getResult());
+
+  // Compute atan in the valid range.
+  auto div = builder.create<arith::DivFOp>(y, x);
+  auto atan = builder.create<math::AtanOp>(div);
+
+  // Determine what the atan would be for a 180 degree rotation.
+  auto zero = broadcast(builder, f32Cst(builder, 0.0f), shape);
+  auto pi = broadcast(builder, f32Cst(builder, 3.14159265359f), shape);
+  auto addPi = builder.create<arith::AddFOp>(atan, pi);
+  auto subPi = builder.create<arith::SubFOp>(atan, pi);
+  auto atanGt =
+      builder.create<arith::CmpFOp>(arith::CmpFPredicate::OGT, atan, zero);
+  auto flippedAtan = builder.create<arith::SelectOp>(atanGt, subPi, addPi);
+
+  // Determine whether to directly use atan or use the 180 degree flip
+  auto xGt = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OGT, x, zero);
+  Value result = builder.create<arith::SelectOp>(xGt, atan, flippedAtan);
+
+  // Handle x = 0, y > 0
+  Value xZero =
+      builder.create<arith::CmpFOp>(arith::CmpFPredicate::OEQ, x, zero);
+  Value yGt = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OGT, y, zero);
+  Value isHalfPi = builder.create<arith::AndIOp>(xZero, yGt);
+  auto halfPi = broadcast(builder, f32Cst(builder, 1.57079632679f), shape);
+  result = builder.create<arith::SelectOp>(isHalfPi, halfPi, result);
+
+  // Handle x = 0, y < 0
+  Value yLt = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OLT, y, zero);
+  Value isNegativeHalfPiPi = builder.create<arith::AndIOp>(xZero, yLt);
+  auto negativeHalfPiPi =
+      broadcast(builder, f32Cst(builder, -1.57079632679f), shape);
+  result = builder.create<arith::SelectOp>(isNegativeHalfPiPi, negativeHalfPiPi,
+                                           result);
+
+  // Handle x = 0, y = 0;
+  Value yZero =
+      builder.create<arith::CmpFOp>(arith::CmpFPredicate::OEQ, y, zero);
+  Value isNan = builder.create<arith::AndIOp>(xZero, yZero);
+  Value cstNan = broadcast(builder, f32FromBits(builder, 0x7fc00000), shape);
+  result = builder.create<arith::SelectOp>(isNan, cstNan, result);
+
+  rewriter.replaceOp(op, result);
+  return success();
+}
+
+//----------------------------------------------------------------------------//
 // TanhOp approximation.
 //----------------------------------------------------------------------------//
 
@@ -296,10 +484,10 @@ public:
 LogicalResult
 TanhApproximation::matchAndRewrite(math::TanhOp op,
                                    PatternRewriter &rewriter) const {
-  if (!getElementTypeOrSelf(op.operand()).isF32())
+  if (!getElementTypeOrSelf(op.getOperand()).isF32())
     return rewriter.notifyMatchFailure(op, "unsupported operand type");
 
-  ArrayRef<int64_t> shape = vectorShape(op.operand());
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
 
   ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
   auto bcast = [&](Value value) -> Value {
@@ -309,12 +497,12 @@ TanhApproximation::matchAndRewrite(math::TanhOp op,
   // Clamp operand into [plusClamp, minusClamp] range.
   Value minusClamp = bcast(f32Cst(builder, -7.99881172180175781f));
   Value plusClamp = bcast(f32Cst(builder, 7.99881172180175781f));
-  Value x = clamp(builder, op.operand(), minusClamp, plusClamp);
+  Value x = clamp(builder, op.getOperand(), minusClamp, plusClamp);
 
   // Mask for tiny values that are approximated with `operand`.
   Value tiny = bcast(f32Cst(builder, 0.0004f));
   Value tinyMask = builder.create<arith::CmpFOp>(
-      arith::CmpFPredicate::OLT, builder.create<math::AbsOp>(op.operand()),
+      arith::CmpFPredicate::OLT, builder.create<math::AbsOp>(op.getOperand()),
       tiny);
 
   // The monomial coefficients of the numerator polynomial (odd).
@@ -350,8 +538,8 @@ TanhApproximation::matchAndRewrite(math::TanhOp op,
   q = builder.create<math::FmaOp>(x2, q, beta0);
 
   // Divide the numerator by the denominator.
-  Value res = builder.create<SelectOp>(tinyMask, x,
-                                       builder.create<arith::DivFOp>(p, q));
+  Value res = builder.create<arith::SelectOp>(
+      tinyMask, x, builder.create<arith::DivFOp>(p, q));
 
   rewriter.replaceOp(op, res);
 
@@ -384,10 +572,10 @@ template <typename Op>
 LogicalResult
 LogApproximationBase<Op>::logMatchAndRewrite(Op op, PatternRewriter &rewriter,
                                              bool base2) const {
-  if (!getElementTypeOrSelf(op.operand()).isF32())
+  if (!getElementTypeOrSelf(op.getOperand()).isF32())
     return rewriter.notifyMatchFailure(op, "unsupported operand type");
 
-  ArrayRef<int64_t> shape = vectorShape(op.operand());
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
 
   ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
   auto bcast = [&](Value value) -> Value {
@@ -416,13 +604,13 @@ LogApproximationBase<Op>::logMatchAndRewrite(Op op, PatternRewriter &rewriter,
   Value cstCephesLogP7 = bcast(f32Cst(builder, -2.4999993993E-1f));
   Value cstCephesLogP8 = bcast(f32Cst(builder, +3.3333331174E-1f));
 
-  Value x = op.operand();
+  Value x = op.getOperand();
 
   // Truncate input values to the minimum positive normal.
   x = max(builder, x, cstMinNormPos);
 
   // Extract significant in the range [0.5,1) and exponent.
-  std::pair<Value, Value> pair = frexp(builder, x, /*is_positive=*/true);
+  std::pair<Value, Value> pair = frexp(builder, x, /*isPositive=*/true);
   x = pair.first;
   Value e = pair.second;
 
@@ -436,11 +624,11 @@ LogApproximationBase<Op>::logMatchAndRewrite(Op op, PatternRewriter &rewriter,
   //   } else { x = x - 1.0; }
   Value mask = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OLT, x,
                                              cstCephesSQRTHF);
-  Value tmp = builder.create<SelectOp>(mask, x, cstZero);
+  Value tmp = builder.create<arith::SelectOp>(mask, x, cstZero);
 
   x = builder.create<arith::SubFOp>(x, cstOne);
   e = builder.create<arith::SubFOp>(
-      e, builder.create<SelectOp>(mask, cstOne, cstZero));
+      e, builder.create<arith::SelectOp>(mask, cstOne, cstZero));
   x = builder.create<arith::AddFOp>(x, tmp);
 
   Value x2 = builder.create<arith::MulFOp>(x, x);
@@ -470,21 +658,21 @@ LogApproximationBase<Op>::logMatchAndRewrite(Op op, PatternRewriter &rewriter,
   }
 
   Value invalidMask = builder.create<arith::CmpFOp>(arith::CmpFPredicate::ULT,
-                                                    op.operand(), cstZero);
+                                                    op.getOperand(), cstZero);
   Value zeroMask = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OEQ,
-                                                 op.operand(), cstZero);
+                                                 op.getOperand(), cstZero);
   Value posInfMask = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OEQ,
-                                                   op.operand(), cstPosInf);
+                                                   op.getOperand(), cstPosInf);
 
   // Filter out invalid values:
   //  • x == 0     -> -INF
   //  • x < 0      ->  NAN
   //  • x == +INF  -> +INF
-  Value aproximation = builder.create<SelectOp>(
+  Value aproximation = builder.create<arith::SelectOp>(
       zeroMask, cstMinusInf,
-      builder.create<SelectOp>(
+      builder.create<arith::SelectOp>(
           invalidMask, cstNan,
-          builder.create<SelectOp>(posInfMask, cstPosInf, x)));
+          builder.create<arith::SelectOp>(posInfMask, cstPosInf, x)));
 
   rewriter.replaceOp(op, aproximation);
 
@@ -531,10 +719,10 @@ public:
 LogicalResult
 Log1pApproximation::matchAndRewrite(math::Log1pOp op,
                                     PatternRewriter &rewriter) const {
-  if (!getElementTypeOrSelf(op.operand()).isF32())
+  if (!getElementTypeOrSelf(op.getOperand()).isF32())
     return rewriter.notifyMatchFailure(op, "unsupported operand type");
 
-  ArrayRef<int64_t> shape = vectorShape(op.operand());
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
 
   ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
   auto bcast = [&](Value value) -> Value {
@@ -548,7 +736,7 @@ Log1pApproximation::matchAndRewrite(math::Log1pOp op,
   //          ^^^^^^^^^^^^^^^^^^^^^^
   //             "logLarge" below.
   Value cstOne = bcast(f32Cst(builder, 1.0f));
-  Value x = op.operand();
+  Value x = op.getOperand();
   Value u = builder.create<arith::AddFOp>(x, cstOne);
   Value uSmall =
       builder.create<arith::CmpFOp>(arith::CmpFPredicate::OEQ, u, cstOne);
@@ -558,7 +746,7 @@ Log1pApproximation::matchAndRewrite(math::Log1pOp op,
   Value logLarge = builder.create<arith::MulFOp>(
       x, builder.create<arith::DivFOp>(
              logU, builder.create<arith::SubFOp>(u, cstOne)));
-  Value approximation = builder.create<SelectOp>(
+  Value approximation = builder.create<arith::SelectOp>(
       builder.create<arith::OrIOp>(uSmall, uInf), x, logLarge);
   rewriter.replaceOp(op, approximation);
   return success();
@@ -578,10 +766,10 @@ Log1pApproximation::matchAndRewrite(math::Log1pOp op,
 LogicalResult
 ErfPolynomialApproximation::matchAndRewrite(math::ErfOp op,
                                             PatternRewriter &rewriter) const {
-  if (!getElementTypeOrSelf(op.operand()).isF32())
+  if (!getElementTypeOrSelf(op.getOperand()).isF32())
     return rewriter.notifyMatchFailure(op, "unsupported operand type");
 
-  ArrayRef<int64_t> shape = vectorShape(op.operand());
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
 
   ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
   auto bcast = [&](Value value) -> Value {
@@ -638,9 +826,10 @@ ErfPolynomialApproximation::matchAndRewrite(math::ErfOp op,
   bounds[2] = bcast(f32Cst(builder, 3.75f));
 
   Value isNegativeArg = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OLT,
-                                                      op.operand(), zero);
-  Value negArg = builder.create<arith::NegFOp>(op.operand());
-  Value x = builder.create<SelectOp>(isNegativeArg, negArg, op.operand());
+                                                      op.getOperand(), zero);
+  Value negArg = builder.create<arith::NegFOp>(op.getOperand());
+  Value x =
+      builder.create<arith::SelectOp>(isNegativeArg, negArg, op.getOperand());
 
   Value offset = offsets[0];
   Value p[polyDegree + 1];
@@ -656,11 +845,13 @@ ErfPolynomialApproximation::matchAndRewrite(math::ErfOp op,
     isLessThanBound[j] =
         builder.create<arith::CmpFOp>(arith::CmpFPredicate::OLT, x, bounds[j]);
     for (int i = 0; i <= polyDegree; ++i) {
-      p[i] = builder.create<SelectOp>(isLessThanBound[j], p[i], pp[j + 1][i]);
-      q[i] = builder.create<SelectOp>(isLessThanBound[j], q[i], qq[j + 1][i]);
+      p[i] = builder.create<arith::SelectOp>(isLessThanBound[j], p[i],
+                                             pp[j + 1][i]);
+      q[i] = builder.create<arith::SelectOp>(isLessThanBound[j], q[i],
+                                             qq[j + 1][i]);
     }
-    offset =
-        builder.create<SelectOp>(isLessThanBound[j], offset, offsets[j + 1]);
+    offset = builder.create<arith::SelectOp>(isLessThanBound[j], offset,
+                                             offsets[j + 1]);
   }
   isLessThanBound[intervalsCount - 1] = builder.create<arith::CmpFOp>(
       arith::CmpFPredicate::ULT, x, bounds[intervalsCount - 1]);
@@ -669,12 +860,13 @@ ErfPolynomialApproximation::matchAndRewrite(math::ErfOp op,
   Value qPoly = makePolynomialCalculation(builder, q, x);
   Value rationalPoly = builder.create<arith::DivFOp>(pPoly, qPoly);
   Value formula = builder.create<arith::AddFOp>(offset, rationalPoly);
-  formula = builder.create<SelectOp>(isLessThanBound[intervalsCount - 1],
-                                     formula, one);
+  formula = builder.create<arith::SelectOp>(isLessThanBound[intervalsCount - 1],
+                                            formula, one);
 
   // erf is odd function: erf(x) = -erf(-x).
   Value negFormula = builder.create<arith::NegFOp>(formula);
-  Value res = builder.create<SelectOp>(isNegativeArg, negFormula, formula);
+  Value res =
+      builder.create<arith::SelectOp>(isNegativeArg, negFormula, formula);
 
   rewriter.replaceOp(op, res);
 
@@ -702,10 +894,10 @@ public:
 LogicalResult
 ExpApproximation::matchAndRewrite(math::ExpOp op,
                                   PatternRewriter &rewriter) const {
-  if (!getElementTypeOrSelf(op.operand()).isF32())
+  if (!getElementTypeOrSelf(op.getOperand()).isF32())
     return rewriter.notifyMatchFailure(op, "unsupported operand type");
 
-  ArrayRef<int64_t> shape = vectorShape(op.operand());
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
 
   ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
 
@@ -736,7 +928,7 @@ ExpApproximation::matchAndRewrite(math::ExpOp op,
   Value cstCephesExpP4 = bcast(f32Cst(builder, 0.03668965196652099192f));
   Value cstCephesExpP5 = bcast(f32Cst(builder, 0.01314350012789660196f));
 
-  Value x = op.operand();
+  Value x = op.getOperand();
 
   // Reduced y = x - floor(x / ln(2)) * ln(2) = x - k * ln(2)
   Value xL2Inv = mul(x, cstLog2E);
@@ -758,7 +950,7 @@ ExpApproximation::matchAndRewrite(math::ExpOp op,
   auto i32Vec = broadcast(builder.getI32Type(), shape);
 
   // exp2(k)
-  Value k = builder.create<arith::FPToSIOp>(kF32, i32Vec);
+  Value k = builder.create<arith::FPToSIOp>(i32Vec, kF32);
   Value exp2KValue = exp2I32(builder, k);
 
   // exp(x) = exp(y) * exp2(k)
@@ -792,14 +984,14 @@ ExpApproximation::matchAndRewrite(math::ExpOp op,
       builder.create<arith::CmpFOp>(arith::CmpFPredicate::OGT, x, zerof32Const);
   Value isComputable = builder.create<arith::AndIOp>(rightBound, leftBound);
 
-  expY = builder.create<SelectOp>(
+  expY = builder.create<arith::SelectOp>(
       isNegInfinityX, zerof32Const,
-      builder.create<SelectOp>(
+      builder.create<arith::SelectOp>(
           isPosInfinityX, constPosInfinity,
-          builder.create<SelectOp>(isComputable, expY,
-                                   builder.create<SelectOp>(isPostiveX,
-                                                            constPosInfinity,
-                                                            underflow))));
+          builder.create<arith::SelectOp>(
+              isComputable, expY,
+              builder.create<arith::SelectOp>(isPostiveX, constPosInfinity,
+                                              underflow))));
 
   rewriter.replaceOp(op, expY);
 
@@ -824,10 +1016,10 @@ public:
 LogicalResult
 ExpM1Approximation::matchAndRewrite(math::ExpM1Op op,
                                     PatternRewriter &rewriter) const {
-  if (!getElementTypeOrSelf(op.operand()).isF32())
+  if (!getElementTypeOrSelf(op.getOperand()).isF32())
     return rewriter.notifyMatchFailure(op, "unsupported operand type");
 
-  ArrayRef<int64_t> shape = vectorShape(op.operand());
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
 
   ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
   auto bcast = [&](Value value) -> Value {
@@ -839,7 +1031,7 @@ ExpM1Approximation::matchAndRewrite(math::ExpM1Op op,
   // and when the input is ~= -inf, i.e. u - 1 ~= -1.
   Value cstOne = bcast(f32Cst(builder, 1.0f));
   Value cstNegOne = bcast(f32Cst(builder, -1.0f));
-  Value x = op.operand();
+  Value x = op.getOperand();
   Value u = builder.create<math::ExpOp>(x);
   Value uEqOne =
       builder.create<arith::CmpFOp>(arith::CmpFPredicate::OEQ, u, cstOne);
@@ -856,9 +1048,10 @@ ExpM1Approximation::matchAndRewrite(math::ExpM1Op op,
   // (u - 1) * (x / ~x)
   Value expm1 = builder.create<arith::MulFOp>(
       uMinusOne, builder.create<arith::DivFOp>(x, logU));
-  expm1 = builder.create<SelectOp>(isInf, u, expm1);
-  Value approximation = builder.create<SelectOp>(
-      uEqOne, x, builder.create<SelectOp>(uMinusOneEqNegOne, cstNegOne, expm1));
+  expm1 = builder.create<arith::SelectOp>(isInf, u, expm1);
+  Value approximation = builder.create<arith::SelectOp>(
+      uEqOne, x,
+      builder.create<arith::SelectOp>(uMinusOneEqNegOne, cstNegOne, expm1));
   rewriter.replaceOp(op, approximation);
   return success();
 }
@@ -893,10 +1086,10 @@ LogicalResult SinAndCosApproximation<isSine, OpTy>::matchAndRewrite(
       llvm::is_one_of<OpTy, math::SinOp, math::CosOp>::value,
       "SinAndCosApproximation pattern expects math::SinOp or math::CosOp");
 
-  if (!getElementTypeOrSelf(op.operand()).isF32())
+  if (!getElementTypeOrSelf(op.getOperand()).isF32())
     return rewriter.notifyMatchFailure(op, "unsupported operand type");
 
-  ArrayRef<int64_t> shape = vectorShape(op.operand());
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
 
   ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
   auto bcast = [&](Value value) -> Value {
@@ -912,7 +1105,7 @@ LogicalResult SinAndCosApproximation<isSine, OpTy>::matchAndRewrite(
 
   auto i32Vec = broadcast(builder.getI32Type(), shape);
   auto fPToSingedInteger = [&](Value a) -> Value {
-    return builder.create<arith::FPToSIOp>(a, i32Vec);
+    return builder.create<arith::FPToSIOp>(i32Vec, a);
   };
 
   auto modulo4 = [&](Value a) -> Value {
@@ -928,7 +1121,7 @@ LogicalResult SinAndCosApproximation<isSine, OpTy>::matchAndRewrite(
   };
 
   auto select = [&](Value cond, Value t, Value f) -> Value {
-    return builder.create<SelectOp>(cond, t, f);
+    return builder.create<arith::SelectOp>(cond, t, f);
   };
 
   auto fmla = [&](Value a, Value b, Value c) {
@@ -939,10 +1132,10 @@ LogicalResult SinAndCosApproximation<isSine, OpTy>::matchAndRewrite(
     return builder.create<arith::OrIOp>(a, b);
   };
 
-  Value twoOverPi = bcast(f32Cst(builder, TWO_OVER_PI));
-  Value piOverTwo = bcast(f32Cst(builder, PI_OVER_2));
+  Value twoOverPi = bcast(f32Cst(builder, (float)TWO_OVER_PI));
+  Value piOverTwo = bcast(f32Cst(builder, (float)PI_OVER_2));
 
-  Value x = op.operand();
+  Value x = op.getOperand();
 
   Value k = floor(mul(x, twoOverPi));
 
@@ -1016,10 +1209,10 @@ struct RsqrtApproximation : public OpRewritePattern<math::RsqrtOp> {
 LogicalResult
 RsqrtApproximation::matchAndRewrite(math::RsqrtOp op,
                                     PatternRewriter &rewriter) const {
-  if (!getElementTypeOrSelf(op.operand()).isF32())
+  if (!getElementTypeOrSelf(op.getOperand()).isF32())
     return rewriter.notifyMatchFailure(op, "unsupported operand type");
 
-  ArrayRef<int64_t> shape = vectorShape(op.operand());
+  ArrayRef<int64_t> shape = vectorShape(op.getOperand());
 
   // Only support already-vectorized rsqrt's.
   if (shape.empty() || shape.back() % 8 != 0)
@@ -1035,14 +1228,14 @@ RsqrtApproximation::matchAndRewrite(math::RsqrtOp op,
   Value cstNegHalf = bcast(f32Cst(builder, -0.5f));
   Value cstMinNormPos = bcast(f32FromBits(builder, 0x00800000u));
 
-  Value negHalf = builder.create<arith::MulFOp>(op.operand(), cstNegHalf);
+  Value negHalf = builder.create<arith::MulFOp>(op.getOperand(), cstNegHalf);
 
   // Select only the inverse sqrt of positive normals (denormals are
   // flushed to zero).
-  Value ltMinMask = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OLT,
-                                                  op.operand(), cstMinNormPos);
+  Value ltMinMask = builder.create<arith::CmpFOp>(
+      arith::CmpFPredicate::OLT, op.getOperand(), cstMinNormPos);
   Value infMask = builder.create<arith::CmpFOp>(arith::CmpFPredicate::OEQ,
-                                                op.operand(), cstPosInf);
+                                                op.getOperand(), cstPosInf);
   Value notNormalFiniteMask = builder.create<arith::OrIOp>(ltMinMask, infMask);
 
   // Compute an approximate result.
@@ -1064,7 +1257,8 @@ RsqrtApproximation::matchAndRewrite(math::RsqrtOp op,
   // return rsqrt(+inf) = 0, rsqrt(x) = NaN if x < 0, and rsqrt(x) = +inf if
   // x is zero or a positive denormalized float (equivalent to flushing positive
   // denormalized inputs to zero).
-  Value res = builder.create<SelectOp>(notNormalFiniteMask, yApprox, yNewton);
+  Value res =
+      builder.create<arith::SelectOp>(notNormalFiniteMask, yApprox, yNewton);
   rewriter.replaceOp(op, res);
 
   return success();
@@ -1075,9 +1269,11 @@ RsqrtApproximation::matchAndRewrite(math::RsqrtOp op,
 void mlir::populateMathPolynomialApproximationPatterns(
     RewritePatternSet &patterns,
     const MathPolynomialApproximationOptions &options) {
-  patterns.add<TanhApproximation, LogApproximation, Log2Approximation,
-               Log1pApproximation, ErfPolynomialApproximation, ExpApproximation,
-               ExpM1Approximation, SinAndCosApproximation<true, math::SinOp>,
+  patterns.add<AtanApproximation, Atan2Approximation, TanhApproximation,
+               LogApproximation, Log2Approximation, Log1pApproximation,
+               ErfPolynomialApproximation, ExpApproximation, ExpM1Approximation,
+               ReuseF32Expansion<math::Atan2Op>,
+               SinAndCosApproximation<true, math::SinOp>,
                SinAndCosApproximation<false, math::CosOp>>(
       patterns.getContext());
   if (options.enableAvx2)

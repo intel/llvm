@@ -98,18 +98,18 @@ def delete_module_cache(path):
   This is necessary in an incremental build whenever clang changes underneath,
   so doing it once per lit.py invocation is close enough. """
   if os.path.isdir(path):
-    print("Deleting module cache at %s." % path)
+    lit_config.note("Deleting module cache at %s." % path)
     shutil.rmtree(path)
 
 if is_configured('llvm_use_sanitizer'):
   if 'Address' in config.llvm_use_sanitizer:
     config.environment['ASAN_OPTIONS'] = 'detect_stack_use_after_return=1'
-    if 'Darwin' in config.host_os and 'x86' in config.host_triple:
+    if 'Darwin' in config.host_os:
       config.environment['DYLD_INSERT_LIBRARIES'] = find_sanitizer_runtime(
           'libclang_rt.asan_osx_dynamic.dylib')
 
   if 'Thread' in config.llvm_use_sanitizer:
-    if 'Darwin' in config.host_os and 'x86' in config.host_triple:
+    if 'Darwin' in config.host_os:
       config.environment['DYLD_INSERT_LIBRARIES'] = find_sanitizer_runtime(
           'libclang_rt.tsan_osx_dynamic.dylib')
 

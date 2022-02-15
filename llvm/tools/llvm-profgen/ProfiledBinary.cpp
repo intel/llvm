@@ -187,9 +187,9 @@ void ProfiledBinary::warnNoFuncEntry() {
 void ProfiledBinary::load() {
   // Attempt to open the binary.
   OwningBinary<Binary> OBinary = unwrapOrError(createBinary(Path), Path);
-  Binary &Binary = *OBinary.getBinary();
+  Binary &ExeBinary = *OBinary.getBinary();
 
-  auto *Obj = dyn_cast<ELFObjectFileBase>(&Binary);
+  auto *Obj = dyn_cast<ELFObjectFileBase>(&ExeBinary);
   if (!Obj)
     exitWithError("not a valid Elf image", Path);
 
@@ -206,14 +206,18 @@ void ProfiledBinary::load() {
   decodePseudoProbe(Obj);
 
   // Load debug info of subprograms from DWARF section.
-  loadSymbolsFromDWARF(*dyn_cast<ObjectFile>(&Binary));
+  // If path of debug info binary is specified, use the debug info from it,
+  // otherwise use the debug info from the executable binary.
+  if (!DebugBinaryPath.empty()) {
+    OwningBinary<Binary> DebugPath =
+        unwrapOrError(createBinary(DebugBinaryPath), DebugBinaryPath);
+    loadSymbolsFromDWARF(*cast<ObjectFile>(DebugPath.getBinary()));
+  } else {
+    loadSymbolsFromDWARF(*cast<ObjectFile>(&ExeBinary));
+  }
 
   // Disassemble the text sections.
   disassemble(Obj);
-
-  // Track size for optimized inlinees when probe is available
-  if (UsePseudoProbes && TrackFuncContextSize)
-    FuncSizeTracker.trackInlineesOptimizedAway(ProbeDecoder);
 
   // Use function start and return address to infer prolog and epilog
   ProEpilogTracker.inferPrologOffsets(StartOffset2FuncRangeMap);
@@ -261,7 +265,7 @@ ProfiledBinary::getExpandedContext(const SmallVectorImpl<uint64_t> &Stack,
   // Replace with decoded base discriminator
   for (auto &Frame : ContextVec) {
     Frame.Location.Discriminator = ProfileGeneratorBase::getBaseDiscriminator(
-        Frame.Location.Discriminator);
+        Frame.Location.Discriminator, UseFSDiscriminator);
   }
 
   assert(ContextVec.size() && "Context length should be at least 1");
@@ -338,6 +342,17 @@ void ProfiledBinary::decodePseudoProbe(const ELFObjectFileBase *Obj) {
         exitWithError("Pseudo Probe decoder fail in .pseudo_probe section");
       // set UsePseudoProbes flag, used for PerfReader
       UsePseudoProbes = true;
+    }
+  }
+
+  // Build TopLevelProbeFrameMap to track size for optimized inlinees when probe
+  // is available
+  if (UsePseudoProbes && TrackFuncContextSize) {
+    for (const auto &Child : ProbeDecoder.getDummyInlineRoot().getChildren()) {
+      auto *Frame = Child.second.get();
+      StringRef FuncName =
+          ProbeDecoder.getFuncDescForGUID(Frame->Guid)->FuncName;
+      TopLevelProbeFrameMap[FuncName] = Frame;
     }
   }
 
@@ -545,13 +560,17 @@ void ProfiledBinary::disassemble(const ELFObjectFileBase *Obj) {
     // Register the text section.
     TextSections.insert({SectionOffset, SectSize});
 
+    StringRef SectionName = unwrapOrError(Section.getName(), FileName);
+
     if (ShowDisassemblyOnly) {
-      StringRef SectionName = unwrapOrError(Section.getName(), FileName);
       outs() << "\nDisassembly of section " << SectionName;
       outs() << " [" << format("0x%" PRIx64, Section.getAddress()) << ", "
              << format("0x%" PRIx64, Section.getAddress() + SectSize)
              << "]:\n\n";
     }
+
+    if (SectionName == ".plt")
+      continue;
 
     // Get the section data.
     ArrayRef<uint8_t> Bytes =
@@ -564,6 +583,29 @@ void ProfiledBinary::disassemble(const ELFObjectFileBase *Obj) {
     for (std::size_t SI = 0, SE = Symbols.size(); SI != SE; ++SI) {
       if (!dissassembleSymbol(SI, Bytes, Symbols, Section))
         exitWithError("disassembling error", FileName);
+    }
+  }
+
+  // Dissassemble rodata section to check if FS discriminator symbol exists.
+  checkUseFSDiscriminator(Obj, AllSymbols);
+}
+
+void ProfiledBinary::checkUseFSDiscriminator(
+    const ELFObjectFileBase *Obj,
+    std::map<SectionRef, SectionSymbolsTy> &AllSymbols) {
+  const char *FSDiscriminatorVar = "__llvm_fs_discriminator__";
+  for (section_iterator SI = Obj->section_begin(), SE = Obj->section_end();
+       SI != SE; ++SI) {
+    const SectionRef &Section = *SI;
+    if (!Section.isData() || Section.getSize() == 0)
+      continue;
+    SectionSymbolsTy &Symbols = AllSymbols[Section];
+
+    for (std::size_t SI = 0, SE = Symbols.size(); SI != SE; ++SI) {
+      if (Symbols[SI].Name == FSDiscriminatorVar) {
+        UseFSDiscriminator = true;
+        return;
+      }
     }
   }
 }
@@ -657,8 +699,9 @@ SampleContextFrameVector ProfiledBinary::symbolize(const InstructionPointer &IP,
          "Binary should only symbolize its own instruction");
   auto Addr = object::SectionedAddress{IP.Offset + getPreferredBaseAddress(),
                                        object::SectionedAddress::UndefSection};
-  DIInliningInfo InlineStack =
-      unwrapOrError(Symbolizer->symbolizeInlinedCode(Path, Addr), getName());
+  DIInliningInfo InlineStack = unwrapOrError(
+      Symbolizer->symbolizeInlinedCode(SymbolizerPath.str(), Addr),
+      SymbolizerPath);
 
   SampleContextFrameVector CallStack;
   for (int32_t I = InlineStack.getNumberOfFrames() - 1; I >= 0; I--) {
@@ -671,15 +714,11 @@ SampleContextFrameVector ProfiledBinary::symbolize(const InstructionPointer &IP,
       FunctionName = FunctionSamples::getCanonicalFnName(FunctionName);
 
     uint32_t Discriminator = CallerFrame.Discriminator;
-    uint32_t LineOffset = CallerFrame.Line - CallerFrame.StartLine;
+    uint32_t LineOffset = (CallerFrame.Line - CallerFrame.StartLine) & 0xffff;
     if (UseProbeDiscriminator) {
       LineOffset =
           PseudoProbeDwarfDiscriminator::extractProbeIndex(Discriminator);
       Discriminator = 0;
-    } else {
-      // Filter out invalid negative(int type) lineOffset
-      if (LineOffset & 0xffff0000)
-        return SampleContextFrameVector();
     }
 
     LineLocation Line(LineOffset, Discriminator);
@@ -713,6 +752,25 @@ void ProfiledBinary::computeInlinedContextSizeForRange(uint64_t StartOffset,
     FuncSizeTracker.addInstructionForContext(SymbolizedCallStack, Size);
 
   } while (IP.advance() && IP.Address < RangeEnd);
+}
+
+void ProfiledBinary::computeInlinedContextSizeForFunc(
+    const BinaryFunction *Func) {
+  // Note that a function can be spilt into multiple ranges, so compute for all
+  // ranges of the function.
+  for (const auto &Range : Func->Ranges)
+    computeInlinedContextSizeForRange(Range.first, Range.second);
+
+  // Track optimized-away inlinee for probed binary. A function inlined and then
+  // optimized away should still have their probes left over in places.
+  if (usePseudoProbes()) {
+    auto I = TopLevelProbeFrameMap.find(Func->FuncName);
+    if (I != TopLevelProbeFrameMap.end()) {
+      BinarySizeContextTracker::ProbeFrameStack ProbeContext;
+      FuncSizeTracker.trackInlineesOptimizedAway(ProbeDecoder, *I->second,
+                                                 ProbeContext);
+    }
+  }
 }
 
 InstructionPointer::InstructionPointer(const ProfiledBinary *Binary,

@@ -719,6 +719,8 @@ def err_attributes_misplaced : Error<"misplaced attributes; expected attributes 
 def err_l_square_l_square_not_attribute : Error<
   "C++11 only allows consecutive left square brackets when "
   "introducing an attribute">;
+def err_attribute_argument_parm_pack_not_supported : Error<
+  "attribute %0 does not support argument pack expansion">;
 def err_ms_declspec_type : Error<
   "__declspec attributes must be an identifier or string literal">;
 def err_ms_property_no_getter_or_putter : Error<
@@ -1344,15 +1346,17 @@ def warn_omp_unknown_assumption_clause_without_args
 def note_omp_assumption_clause_continue_here
     : Note<"the ignored tokens spans until here">;
 def err_omp_declare_target_unexpected_clause: Error<
-  "unexpected '%0' clause, only %select{'device_type'|'to' or 'link'|'to', 'link' or 'device_type'}1 clauses expected">;
+  "unexpected '%0' clause, only %select{'device_type'|'to' or 'link'|'to', 'link' or 'device_type'|'device_type', 'indirect'|'to', 'link', 'device_type' or 'indirect'}1 clauses expected">;
 def err_omp_begin_declare_target_unexpected_implicit_to_clause: Error<
   "unexpected '(', only 'to', 'link' or 'device_type' clauses expected for 'begin declare target' directive">;
 def err_omp_declare_target_unexpected_clause_after_implicit_to: Error<
   "unexpected clause after an implicit 'to' clause">;
 def err_omp_declare_target_missing_to_or_link_clause: Error<
-  "expected at least one 'to' or 'link' clause">;
+  "expected at least one %select{'to' or 'link'|'to', 'link' or 'indirect'}0 clause">;
 def err_omp_declare_target_multiple : Error<
   "%0 appears multiple times in clauses on the same declare target directive">;
+def err_omp_declare_target_indirect_device_type: Error<
+  "only 'device_type(any)' clause is allowed with indirect clause">;
 def err_omp_expected_clause: Error<
   "expected at least one clause on '#pragma omp %0' directive">;
 def err_omp_mapper_illegal_identifier : Error<
@@ -1374,7 +1378,7 @@ def warn_omp_declare_variant_string_literal_or_identifier
               "%select{set|selector|property}0; "
               "%select{set|selector|property}0 skipped">,
       InGroup<OpenMPClauses>;
-def warn_unknown_begin_declare_variant_isa_trait
+def warn_unknown_declare_variant_isa_trait
     : Warning<"isa trait '%0' is not known to the current target; verify the "
               "spelling or consider restricting the context selector with the "
               "'arch' selector further">,
@@ -1503,6 +1507,15 @@ def warn_pragma_force_cuda_host_device_bad_arg : Warning<
 def err_pragma_cannot_end_force_cuda_host_device : Error<
   "force_cuda_host_device end pragma without matching "
   "force_cuda_host_device begin">;
+
+def warn_ext_int_deprecated : Warning<
+  "'_ExtInt' is deprecated; use '_BitInt' instead">, InGroup<DeprecatedType>;
+def ext_bit_int : Extension<
+  "'_BitInt' in %select{C17 and earlier|C++}0 is a Clang extension">,
+  InGroup<DiagGroup<"bit-int-extension">>;
+def warn_c17_compat_bit_int : Warning<
+  "'_BitInt' is incompatible with C standards before C2x">,
+  InGroup<CPre2xCompat>, DefaultIgnore;
 } // end of Parse Issue category.
 
 let CategoryName = "Modules Issue" in {

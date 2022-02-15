@@ -259,7 +259,7 @@ public:
   // This guard is needed because the libsycl.so can compiled with C++ <=14
   // while the code requires C++17. This code is not supposed to be used by the
   // libsycl.so so it should not be a problem.
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
@@ -312,7 +312,7 @@ public:
 
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> backend_return_t<Backend, kernel_bundle<State>> {
+  backend_return_t<Backend, kernel_bundle<State>> get_native() const {
     return getNative<Backend>();
   }
 
@@ -471,6 +471,21 @@ using DevImgSelectorImpl =
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State, const DevImgSelectorImpl &Selector);
+
+// Internal non-template versions of get_empty_interop_kernel_bundle API which
+// is used by public onces
+__SYCL_EXPORT detail::KernelBundleImplPtr
+get_empty_interop_kernel_bundle_impl(const context &Ctx,
+                                     const std::vector<device> &Devs);
+
+/// make_kernel may need an empty interop kernel bundle. This function supplies
+/// this.
+template <bundle_state State>
+kernel_bundle<State> get_empty_interop_kernel_bundle(const context &Ctx) {
+  detail::KernelBundleImplPtr Impl =
+      detail::get_empty_interop_kernel_bundle_impl(Ctx, Ctx.get_devices());
+  return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
+}
 } // namespace detail
 
 /// A kernel bundle in state State which contains all of the device images for
@@ -573,8 +588,13 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
 
 namespace detail {
 
+// TODO: This is no longer in use. Remove when ABI break is allowed.
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
+
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
+          bundle_state State);
 }
 
 /// \returns a new kernel bundle that represents the union of all the device
@@ -589,7 +609,7 @@ join(const std::vector<sycl::kernel_bundle<State>> &Bundles) {
     KernelBundleImpls.push_back(detail::getSyclObjImpl(Bundle));
 
   std::shared_ptr<detail::kernel_bundle_impl> Impl =
-      detail::join_impl(KernelBundleImpls);
+      detail::join_impl(KernelBundleImpls, State);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
 

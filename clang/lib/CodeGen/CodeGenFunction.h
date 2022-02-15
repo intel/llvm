@@ -46,7 +46,6 @@ namespace llvm {
 class BasicBlock;
 class LLVMContext;
 class MDNode;
-class Module;
 class SwitchInst;
 class Twine;
 class Value;
@@ -55,13 +54,11 @@ class CanonicalLoopInfo;
 
 namespace clang {
 class ASTContext;
-class BlockDecl;
 class CXXDestructorDecl;
 class CXXForRangeStmt;
 class CXXTryStmt;
 class Decl;
 class LabelDecl;
-class EnumConstantDecl;
 class FunctionDecl;
 class FunctionProtoType;
 class LabelStmt;
@@ -80,7 +77,6 @@ class ObjCAtSynchronizedStmt;
 class ObjCAutoreleasePoolStmt;
 class OMPUseDevicePtrClause;
 class OMPUseDeviceAddrClause;
-class ReturnsNonNullAttr;
 class SVETypeFlags;
 class OMPExecutableDirective;
 
@@ -92,12 +88,10 @@ namespace CodeGen {
 class CodeGenTypes;
 class CGCallee;
 class CGFunctionInfo;
-class CGRecordLayout;
 class CGBlockInfo;
 class CGCXXABI;
 class BlockByrefHelpers;
 class BlockByrefInfo;
-class BlockFlags;
 class BlockFieldFlags;
 class RegionCodeGenTy;
 class TargetCodeGenInfo;
@@ -182,6 +176,7 @@ template <> struct DominatingValue<Address> {
 
   struct saved_type {
     DominatingLLVMValue::saved_type SavedValue;
+    llvm::Type *ElementType;
     CharUnits Alignment;
   };
 
@@ -190,11 +185,11 @@ template <> struct DominatingValue<Address> {
   }
   static saved_type save(CodeGenFunction &CGF, type value) {
     return { DominatingLLVMValue::save(CGF, value.getPointer()),
-             value.getAlignment() };
+             value.getElementType(), value.getAlignment() };
   }
   static type restore(CodeGenFunction &CGF, saved_type value) {
     return Address(DominatingLLVMValue::restore(CGF, value.SavedValue),
-                   value.Alignment);
+                   value.ElementType, value.Alignment);
   }
 };
 
@@ -241,11 +236,10 @@ public:
   /// A jump destination is an abstract label, branching to which may
   /// require a jump out through normal cleanups.
   struct JumpDest {
-    JumpDest() : Block(nullptr), ScopeDepth(), Index(0) {}
-    JumpDest(llvm::BasicBlock *Block,
-             EHScopeStack::stable_iterator Depth,
+    JumpDest() : Block(nullptr), Index(0) {}
+    JumpDest(llvm::BasicBlock *Block, EHScopeStack::stable_iterator Depth,
              unsigned Index)
-      : Block(Block), ScopeDepth(Depth), Index(Index) {}
+        : Block(Block), ScopeDepth(Depth), Index(Index) {}
 
     bool isValid() const { return Block != nullptr; }
     llvm::BasicBlock *getBlock() const { return Block; }
@@ -458,6 +452,11 @@ public:
 
     /// Get the name of the capture helper.
     virtual StringRef getHelperName() const { return "__captured_stmt"; }
+
+    /// Get the CaptureFields
+    llvm::SmallDenseMap<const VarDecl *, FieldDecl *> getCaptureFields() {
+      return CaptureFields;
+    }
 
   private:
     /// The kind of captured statement being generated.
@@ -2494,14 +2493,16 @@ public:
 
   LValue MakeAddrLValue(llvm::Value *V, QualType T, CharUnits Alignment,
                         AlignmentSource Source = AlignmentSource::Type) {
-    return LValue::MakeAddr(Address(V, Alignment), T, getContext(),
-                            LValueBaseInfo(Source), CGM.getTBAAAccessInfo(T));
+    Address Addr(V, ConvertTypeForMem(T), Alignment);
+    return LValue::MakeAddr(Addr, T, getContext(), LValueBaseInfo(Source),
+                            CGM.getTBAAAccessInfo(T));
   }
 
-  LValue MakeAddrLValue(llvm::Value *V, QualType T, CharUnits Alignment,
-                        LValueBaseInfo BaseInfo, TBAAAccessInfo TBAAInfo) {
-    return LValue::MakeAddr(Address(V, Alignment), T, getContext(),
-                            BaseInfo, TBAAInfo);
+  LValue
+  MakeAddrLValueWithoutTBAA(Address Addr, QualType T,
+                            AlignmentSource Source = AlignmentSource::Type) {
+    return LValue::MakeAddr(Addr, T, getContext(), LValueBaseInfo(Source),
+                            TBAAAccessInfo());
   }
 
   LValue MakeNaturalAlignPointeeAddrLValue(llvm::Value *V, QualType T);
@@ -3128,15 +3129,18 @@ public:
 
   class ParamValue {
     llvm::Value *Value;
+    llvm::Type *ElementType;
     unsigned Alignment;
-    ParamValue(llvm::Value *V, unsigned A) : Value(V), Alignment(A) {}
+    ParamValue(llvm::Value *V, llvm::Type *T, unsigned A)
+        : Value(V), ElementType(T), Alignment(A) {}
   public:
     static ParamValue forDirect(llvm::Value *value) {
-      return ParamValue(value, 0);
+      return ParamValue(value, nullptr, 0);
     }
     static ParamValue forIndirect(Address addr) {
       assert(!addr.getAlignment().isZero());
-      return ParamValue(addr.getPointer(), addr.getAlignment().getQuantity());
+      return ParamValue(addr.getPointer(), addr.getElementType(),
+                        addr.getAlignment().getQuantity());
     }
 
     bool isIndirect() const { return Alignment != 0; }
@@ -3149,7 +3153,7 @@ public:
 
     Address getIndirectAddress() const {
       assert(isIndirect());
-      return Address(Value, CharUnits::fromQuantity(Alignment));
+      return Address(Value, ElementType, CharUnits::fromQuantity(Alignment));
     }
   };
 
@@ -3558,6 +3562,7 @@ public:
   void EmitOMPTargetTeamsDistributeSimdDirective(
       const OMPTargetTeamsDistributeSimdDirective &S);
   void EmitOMPGenericLoopDirective(const OMPGenericLoopDirective &S);
+  void EmitOMPInteropDirective(const OMPInteropDirective &S);
 
   /// Emit device code for the target directive.
   static void EmitOMPTargetDeviceFunction(CodeGenModule &CGM,
@@ -4409,7 +4414,7 @@ public:
 
   /// EmitCXXGlobalVarDeclInit - Create the initializer for a C++
   /// variable with global storage.
-  void EmitCXXGlobalVarDeclInit(const VarDecl &D, llvm::Constant *DeclPtr,
+  void EmitCXXGlobalVarDeclInit(const VarDecl &D, llvm::GlobalVariable *GV,
                                 bool PerformInit);
 
   llvm::Function *createAtExitStub(const VarDecl &VD, llvm::FunctionCallee Dtor,
@@ -4567,7 +4572,7 @@ public:
   /// \p SignedIndices indicates whether any of the GEP indices are signed.
   /// \p IsSubtraction indicates whether the expression used to form the GEP
   /// is a subtraction.
-  llvm::Value *EmitCheckedInBoundsGEP(llvm::Value *Ptr,
+  llvm::Value *EmitCheckedInBoundsGEP(llvm::Type *ElemTy, llvm::Value *Ptr,
                                       ArrayRef<llvm::Value *> IdxList,
                                       bool SignedIndices,
                                       bool IsSubtraction,
@@ -4678,13 +4683,14 @@ private:
                         SmallVectorImpl<llvm::Value *> &IRCallArgs,
                         unsigned &IRCallArgPos);
 
-  llvm::Value* EmitAsmInput(const TargetInfo::ConstraintInfo &Info,
-                            const Expr *InputExpr, std::string &ConstraintStr);
+  std::pair<llvm::Value *, llvm::Type *>
+  EmitAsmInput(const TargetInfo::ConstraintInfo &Info, const Expr *InputExpr,
+               std::string &ConstraintStr);
 
-  llvm::Value* EmitAsmInputLValue(const TargetInfo::ConstraintInfo &Info,
-                                  LValue InputValue, QualType InputType,
-                                  std::string &ConstraintStr,
-                                  SourceLocation Loc);
+  std::pair<llvm::Value *, llvm::Type *>
+  EmitAsmInputLValue(const TargetInfo::ConstraintInfo &Info, LValue InputValue,
+                     QualType InputType, std::string &ConstraintStr,
+                     SourceLocation Loc);
 
   /// Attempts to statically evaluate the object size of E. If that
   /// fails, emits code to figure the size of E out for us. This is

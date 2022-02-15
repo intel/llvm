@@ -12,8 +12,7 @@
 #include "InputElement.h"
 #include "OutputSegment.h"
 #include "SymbolTable.h"
-#include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Memory.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Reproduce.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/Wasm.h"
@@ -197,6 +196,9 @@ uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
     return getTagSymbol(reloc.Index)->getTagIndex();
   case R_WASM_FUNCTION_OFFSET_I32:
   case R_WASM_FUNCTION_OFFSET_I64: {
+    if (isa<UndefinedFunction>(sym)) {
+      return tombstone ? tombstone : reloc.Addend;
+    }
     auto *f = cast<DefinedFunction>(sym);
     return f->function->getOffset(f->function->getFunctionCodeOffset() +
                                   reloc.Addend);
@@ -467,19 +469,17 @@ void ObjFile::parse(bool ignoreComdats) {
   // Populate `Segments`.
   for (const WasmSegment &s : wasmObj->dataSegments()) {
     InputChunk *seg;
-    if (shouldMerge(s)) {
+    if (shouldMerge(s))
       seg = make<MergeInputChunk>(s, this);
-    } else
+    else
       seg = make<InputSegment>(s, this);
     seg->discarded = isExcludedByComdat(seg);
     // Older object files did not include WASM_SEG_FLAG_TLS and instead
     // relied on the naming convention.  To maintain compat with such objects
     // we still imply the TLS flag based on the name of the segment.
     if (!seg->isTLS() &&
-        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss"))) {
+        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss")))
       seg->flags |= WASM_SEG_FLAG_TLS;
-      seg->implicitTLS = true;
-    }
     segments.emplace_back(seg);
   }
   setRelocs(segments, dataSection);
@@ -579,9 +579,11 @@ Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
     InputChunk *seg = segments[sym.Info.DataRef.Segment];
     auto offset = sym.Info.DataRef.Offset;
     auto size = sym.Info.DataRef.Size;
-    if (seg->implicitTLS) {
+    // Support older (e.g. llvm 13) object files that pre-date the per-symbol
+    // TLS flag, and symbols were assumed to be TLS by being defined in a TLS
+    // segment.
+    if (!(flags & WASM_SYMBOL_TLS) && seg->isTLS())
       flags |= WASM_SYMBOL_TLS;
-    }
     if (sym.isBindingLocal())
       return make<DefinedData>(name, flags, this, seg, offset, size);
     if (seg->discarded)
@@ -718,7 +720,7 @@ static uint8_t mapVisibility(GlobalValue::VisibilityTypes gvVisibility) {
 static Symbol *createBitcodeSymbol(const std::vector<bool> &keptComdats,
                                    const lto::InputFile::Symbol &objSym,
                                    BitcodeFile &f) {
-  StringRef name = saver.save(objSym.getName());
+  StringRef name = saver().save(objSym.getName());
 
   uint32_t flags = objSym.isWeak() ? WASM_SYMBOL_BINDING_WEAK : 0;
   flags |= mapVisibility(objSym.getVisibility());
@@ -753,9 +755,9 @@ BitcodeFile::BitcodeFile(MemoryBufferRef m, StringRef archiveName,
   // symbols later in the link stage). So we append file offset to make
   // filename unique.
   StringRef name = archiveName.empty()
-                       ? saver.save(path)
-                       : saver.save(archiveName + "(" + path::filename(path) +
-                                    " at " + utostr(offsetInArchive) + ")");
+                       ? saver().save(path)
+                       : saver().save(archiveName + "(" + path::filename(path) +
+                                      " at " + utostr(offsetInArchive) + ")");
   MemoryBufferRef mbref(mb.getBuffer(), name);
 
   obj = check(lto::InputFile::create(mbref));

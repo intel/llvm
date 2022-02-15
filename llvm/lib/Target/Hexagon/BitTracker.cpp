@@ -850,8 +850,7 @@ void BT::visitNonBranch(const MachineInstr &MI) {
   bool Eval = ME.evaluate(MI, Map, ResMap);
 
   if (Trace && Eval) {
-    for (unsigned i = 0, n = MI.getNumOperands(); i < n; ++i) {
-      const MachineOperand &MO = MI.getOperand(i);
+    for (const MachineOperand &MO : MI.operands()) {
       if (!MO.isReg() || !MO.isUse())
         continue;
       RegisterRef RU(MO);
@@ -941,8 +940,8 @@ void BT::visitBranchesFrom(const MachineInstr &BI) {
       // If evaluated successfully add the targets to the cumulative list.
       if (Trace) {
         dbgs() << "  adding targets:";
-        for (unsigned i = 0, n = BTs.size(); i < n; ++i)
-          dbgs() << " " << printMBBReference(*BTs[i]);
+        for (const MachineBasicBlock *BT : BTs)
+          dbgs() << " " << printMBBReference(*BT);
         if (FallsThrough)
           dbgs() << "\n  falls through\n";
         else

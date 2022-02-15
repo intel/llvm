@@ -106,18 +106,18 @@ define amdgpu_kernel void @localize_globals(i1 %cond) {
 ; GFX9-NEXT:    s_getpc_b64 s[0:1]
 ; GFX9-NEXT:    s_add_u32 s0, s0, gv2@gotpcrel32@lo+4
 ; GFX9-NEXT:    s_addc_u32 s1, s1, gv2@gotpcrel32@hi+12
-; GFX9-NEXT:    s_getpc_b64 s[2:3]
-; GFX9-NEXT:    s_add_u32 s2, s2, gv3@gotpcrel32@lo+4
-; GFX9-NEXT:    s_addc_u32 s3, s3, gv3@gotpcrel32@hi+12
+; GFX9-NEXT:    s_load_dwordx2 s[2:3], s[0:1], 0x0
+; GFX9-NEXT:    s_getpc_b64 s[0:1]
+; GFX9-NEXT:    s_add_u32 s0, s0, gv3@gotpcrel32@lo+4
+; GFX9-NEXT:    s_addc_u32 s1, s1, gv3@gotpcrel32@hi+12
 ; GFX9-NEXT:    s_load_dwordx2 s[4:5], s[0:1], 0x0
-; GFX9-NEXT:    s_load_dwordx2 s[6:7], s[2:3], 0x0
 ; GFX9-NEXT:    v_mov_b32_e32 v0, 0
 ; GFX9-NEXT:    v_mov_b32_e32 v1, 1
 ; GFX9-NEXT:    s_mov_b32 s0, 0
 ; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
-; GFX9-NEXT:    global_store_dword v0, v0, s[4:5]
+; GFX9-NEXT:    global_store_dword v0, v0, s[2:3]
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
-; GFX9-NEXT:    global_store_dword v0, v1, s[6:7]
+; GFX9-NEXT:    global_store_dword v0, v1, s[4:5]
 ; GFX9-NEXT:    s_waitcnt vmcnt(0)
 ; GFX9-NEXT:  .LBB1_2: ; %Flow
 ; GFX9-NEXT:    s_xor_b32 s0, s0, -1
@@ -222,5 +222,41 @@ bb1:
   br label %bb2
 
 bb2:
+  ret void
+}
+
+; This would crash from using the wrong insert point
+define void @sink_null_insert_pt(i32 addrspace(4)* %arg0) {
+; GFX9-LABEL: sink_null_insert_pt:
+; GFX9:       ; %bb.0: ; %entry
+; GFX9-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX9-NEXT:    s_or_saveexec_b64 s[16:17], -1
+; GFX9-NEXT:    buffer_store_dword v40, off, s[0:3], s32 ; 4-byte Folded Spill
+; GFX9-NEXT:    s_mov_b64 exec, s[16:17]
+; GFX9-NEXT:    v_mov_b32_e32 v0, 0
+; GFX9-NEXT:    v_mov_b32_e32 v1, 0
+; GFX9-NEXT:    global_load_dword v0, v[0:1], off glc
+; GFX9-NEXT:    s_waitcnt vmcnt(0)
+; GFX9-NEXT:    v_writelane_b32 v40, s33, 2
+; GFX9-NEXT:    v_writelane_b32 v40, s30, 0
+; GFX9-NEXT:    s_mov_b32 s33, s32
+; GFX9-NEXT:    s_addk_i32 s32, 0x400
+; GFX9-NEXT:    v_writelane_b32 v40, s31, 1
+; GFX9-NEXT:    s_swappc_b64 s[30:31], 0
+; GFX9-NEXT:    v_readlane_b32 s4, v40, 0
+; GFX9-NEXT:    v_readlane_b32 s5, v40, 1
+; GFX9-NEXT:    s_addk_i32 s32, 0xfc00
+; GFX9-NEXT:    v_readlane_b32 s33, v40, 2
+; GFX9-NEXT:    s_or_saveexec_b64 s[6:7], -1
+; GFX9-NEXT:    buffer_load_dword v40, off, s[0:3], s32 ; 4-byte Folded Reload
+; GFX9-NEXT:    s_mov_b64 exec, s[6:7]
+; GFX9-NEXT:    s_waitcnt vmcnt(0)
+; GFX9-NEXT:    s_setpc_b64 s[4:5]
+entry:
+  %load0 = load volatile i32, i32 addrspace(1)* null, align 4
+  br label %bb1
+
+bb1:
+  call void null()
   ret void
 }

@@ -16,7 +16,6 @@
 
 #define WIN32_LEAN_AND_MEAN
 #define NOGDI
-#include <direct.h>
 #include <windows.h>
 #include <io.h>
 #include <psapi.h>
@@ -337,6 +336,11 @@ bool MprotectNoAccess(uptr addr, uptr size) {
   return VirtualProtect((LPVOID)addr, size, PAGE_NOACCESS, &old_protection);
 }
 
+bool MprotectReadOnly(uptr addr, uptr size) {
+  DWORD old_protection;
+  return VirtualProtect((LPVOID)addr, size, PAGE_READONLY, &old_protection);
+}
+
 void ReleaseMemoryPagesToOS(uptr beg, uptr end) {
   uptr beg_aligned = RoundDownTo(beg, GetPageSizeCached()),
        end_aligned = RoundDownTo(end, GetPageSizeCached());
@@ -566,7 +570,9 @@ void Abort() {
   internal__exit(3);
 }
 
-bool CreateDir(const char *pathname) { return _mkdir(pathname) == 0; }
+bool CreateDir(const char *pathname) {
+  return CreateDirectoryA(pathname, nullptr) != 0;
+}
 
 #if !SANITIZER_GO
 // Read the file to extract the ImageBase field from the PE header. If ASLR is
@@ -944,13 +950,18 @@ void SignalContext::InitPcSpBp() {
   CONTEXT *context_record = (CONTEXT *)context;
 
   pc = (uptr)exception_record->ExceptionAddress;
-#ifdef _WIN64
+#  if SANITIZER_WINDOWS64
+#    if SANITIZER_ARM64
+  bp = (uptr)context_record->Fp;
+  sp = (uptr)context_record->Sp;
+#    else
   bp = (uptr)context_record->Rbp;
   sp = (uptr)context_record->Rsp;
-#else
+#    endif
+#  else
   bp = (uptr)context_record->Ebp;
   sp = (uptr)context_record->Esp;
-#endif
+#  endif
 }
 
 uptr SignalContext::GetAddress() const {
@@ -972,7 +983,7 @@ SignalContext::WriteFlag SignalContext::GetWriteFlag() const {
 
   // The write flag is only available for access violation exceptions.
   if (exception_record->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
-    return SignalContext::UNKNOWN;
+    return SignalContext::Unknown;
 
   // The contents of this array are documented at
   // https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-exception_record
@@ -980,13 +991,13 @@ SignalContext::WriteFlag SignalContext::GetWriteFlag() const {
   // second element is the faulting address.
   switch (exception_record->ExceptionInformation[0]) {
     case 0:
-      return SignalContext::READ;
+      return SignalContext::Read;
     case 1:
-      return SignalContext::WRITE;
+      return SignalContext::Write;
     case 8:
-      return SignalContext::UNKNOWN;
+      return SignalContext::Unknown;
   }
-  return SignalContext::UNKNOWN;
+  return SignalContext::Unknown;
 }
 
 void SignalContext::DumpAllRegisters(void *context) {

@@ -58,6 +58,7 @@ CGOPT(bool, EnableUnsafeFPMath)
 CGOPT(bool, EnableNoInfsFPMath)
 CGOPT(bool, EnableNoNaNsFPMath)
 CGOPT(bool, EnableNoSignedZerosFPMath)
+CGOPT(bool, EnableApproxFuncFPMath)
 CGOPT(bool, EnableNoTrappingFPMath)
 CGOPT(bool, EnableAIXExtendedAltivecABI)
 CGOPT(DenormalMode::DenormalModeKind, DenormalFPMath)
@@ -90,11 +91,11 @@ CGOPT(bool, EnableAddrsig)
 CGOPT(bool, EmitCallSiteInfo)
 CGOPT(bool, EnableMachineFunctionSplitter)
 CGOPT(bool, EnableDebugEntryValues)
-CGOPT(bool, ValueTrackingVariableLocations)
 CGOPT(bool, ForceDwarfFrameSection)
 CGOPT(bool, XRayOmitFunctionIndex)
 CGOPT(bool, DebugStrictDwarf)
 CGOPT(unsigned, AlignLoops)
+CGOPT(bool, JMCInstrument)
 
 codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
 #define CGBINDOPT(NAME)                                                        \
@@ -218,6 +219,12 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
                "the sign of 0 is insignificant"),
       cl::init(false));
   CGBINDOPT(EnableNoSignedZerosFPMath);
+
+  static cl::opt<bool> EnableApproxFuncFPMath(
+      "enable-approx-func-fp-math",
+      cl::desc("Enable FP math optimizations that assume approx func"),
+      cl::init(false));
+  CGBINDOPT(EnableApproxFuncFPMath);
 
   static cl::opt<bool> EnableNoTrappingFPMath(
       "enable-no-trapping-fp-math",
@@ -433,12 +440,6 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(false));
   CGBINDOPT(EnableDebugEntryValues);
 
-  static cl::opt<bool> ValueTrackingVariableLocations(
-      "experimental-debug-variable-locations",
-      cl::desc("Use experimental new value-tracking variable locations"),
-      cl::init(false));
-  CGBINDOPT(ValueTrackingVariableLocations);
-
   static cl::opt<bool> EnableMachineFunctionSplitter(
       "split-machine-functions",
       cl::desc("Split out cold basic blocks from machine functions based on "
@@ -463,6 +464,12 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
   static cl::opt<unsigned> AlignLoops("align-loops",
                                       cl::desc("Default alignment for loops"));
   CGBINDOPT(AlignLoops);
+
+  static cl::opt<bool> JMCInstrument(
+      "enable-jmc-instrument",
+      cl::desc("Instrument functions with a call to __CheckForDebuggerJustMyCode"),
+      cl::init(false));
+  CGBINDOPT(JMCInstrument);
 
 #undef CGBINDOPT
 
@@ -500,6 +507,7 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.NoInfsFPMath = getEnableNoInfsFPMath();
   Options.NoNaNsFPMath = getEnableNoNaNsFPMath();
   Options.NoSignedZerosFPMath = getEnableNoSignedZerosFPMath();
+  Options.ApproxFuncFPMath = getEnableApproxFuncFPMath();
   Options.NoTrappingFPMath = getEnableNoTrappingFPMath();
 
   DenormalMode::DenormalModeKind DenormKind = getDenormalFPMath();
@@ -534,11 +542,11 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.EmitAddrsig = getEnableAddrsig();
   Options.EmitCallSiteInfo = getEmitCallSiteInfo();
   Options.EnableDebugEntryValues = getEnableDebugEntryValues();
-  Options.ValueTrackingVariableLocations = getValueTrackingVariableLocations();
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
   Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
   Options.DebugStrictDwarf = getDebugStrictDwarf();
   Options.LoopAlignment = getAlignLoops();
+  Options.JMCInstrument = getJMCInstrument();
 
   Options.MCOptions = mc::InitMCTargetOptionsFromFlags();
 
@@ -615,7 +623,7 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
                                     Function &F) {
   auto &Ctx = F.getContext();
   AttributeList Attrs = F.getAttributes();
-  AttrBuilder NewAttrs;
+  AttrBuilder NewAttrs(Ctx);
 
   if (!CPU.empty() && !F.hasFnAttribute("target-cpu"))
     NewAttrs.addAttribute("target-cpu", CPU);
@@ -651,6 +659,7 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
   HANDLE_BOOL_ATTR(EnableNoInfsFPMathView, "no-infs-fp-math");
   HANDLE_BOOL_ATTR(EnableNoNaNsFPMathView, "no-nans-fp-math");
   HANDLE_BOOL_ATTR(EnableNoSignedZerosFPMathView, "no-signed-zeros-fp-math");
+  HANDLE_BOOL_ATTR(EnableApproxFuncFPMathView, "approx-func-fp-math");
 
   if (DenormalFPMathView->getNumOccurrences() > 0 &&
       !F.hasFnAttribute("denormal-fp-math")) {
@@ -692,3 +701,4 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
   for (Function &F : M)
     setFunctionAttributes(CPU, Features, F);
 }
+

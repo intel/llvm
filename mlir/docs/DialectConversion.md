@@ -75,6 +75,10 @@ legality actions below:
         conversion to be successful. This action also allows for selectively
         marking specific operations as illegal in an otherwise legal dialect.
 
+Operations and dialects that are neither explicitly marked legal nor illegal are
+separate from the above ("unknown" operations) and are treated differently, for
+example, for the purposes of partial conversion as mentioned above.
+
 An example conversion target is shown below:
 
 ```c++
@@ -110,8 +114,8 @@ struct MyTarget : public ConversionTarget {
     /// All operations within the GPU dialect are illegal.
     addIllegalDialect<GPUDialect>();
 
-    /// Mark `std.br` and `std.cond_br` as illegal.
-    addIllegalOp<BranchOp, CondBranchOp>();
+    /// Mark `cf.br` and `cf.cond_br` as illegal.
+    addIllegalOp<cf::BranchOp, cf::CondBranchOp>();
   }
 
   /// Implement the default legalization handler to handle operations marked as

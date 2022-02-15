@@ -7,16 +7,13 @@ on:
 
 jobs:
   lint:
-    # TODO use nightly builds of SYCL to get clang-format
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
     steps:
-    - name: Get clang-format first
-      run: sudo apt-get install -yqq clang-format
-
     - uses: actions/checkout@v2
       with:
         fetch-depth: 2
-
     - name: Run clang-format
       uses: ./devops/actions/clang-format
 
@@ -28,9 +25,9 @@ jobs:
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
     with:
-      build_runs_on: "sycl-precommit-linux"
+      build_runs_on: "build"
       build_cache_root: "/__w/"
       build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-
+      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9"

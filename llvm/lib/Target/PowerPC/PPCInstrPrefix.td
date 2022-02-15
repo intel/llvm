@@ -2398,6 +2398,10 @@ let Predicates = [IsISA3_1] in {
 let Predicates = [IsISA3_1, HasVSX] in {
   def XVCVSPBF16 : XX2_XT6_XO5_XB6<60, 17, 475, "xvcvspbf16", vsrc, []>;
   def XVCVBF16SPN : XX2_XT6_XO5_XB6<60, 16, 475, "xvcvbf16spn", vsrc, []>;
+  def XSMAXCQP : X_VT5_VA5_VB5<63, 676, "xsmaxcqp",
+                               [(set f128:$vT, (PPCxsmaxc f128:$vA, f128:$vB))]>;
+  def XSMINCQP : X_VT5_VA5_VB5<63, 740, "xsmincqp",
+                               [(set f128:$vT, (PPCxsminc f128:$vA, f128:$vB))]>;
 }
 
 // Multiclass defining patterns for Set Boolean Extension Reverse Instructions.
@@ -2814,32 +2818,20 @@ let Predicates = [IsISA3_1, HasVSX, IsLittleEndian] in {
 
   def : Pat<(v4f32 (insertelt v4f32:$vDi, f32:$rA, i64:$rB)),
             (VINSWVRX $vDi, InsertEltShift.Sub32Left2, (XSCVDPSPN $rA))>;
-  def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddr:$rA)), i64:$rB)),
-            (VINSWRX $vDi, InsertEltShift.Sub32Left2, (LWZ memri:$rA))>;
-  def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddrX34:$rA)), i64:$rB)),
-            (VINSWRX $vDi, InsertEltShift.Sub32Left2, (PLWZ memri34:$rA))>;
-  def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load xaddr:$rA)), i64:$rB)),
-            (VINSWRX $vDi, InsertEltShift.Sub32Left2, (LWZX memrr:$rA))>;
 
   def : Pat<(v2f64 (insertelt v2f64:$vDi,  f64:$A, i64:$rB)),
             (VINSDRX $vDi, InsertEltShift.Left3, Bitcast.DblToLong)>;
-  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load iaddrX4:$rA)), i64:$rB)),
+  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load DSForm:$rA)), i64:$rB)),
             (VINSDRX $vDi, InsertEltShift.Left3, (LD memrix:$rA))>;
-  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load iaddrX34:$rA)), i64:$rB)),
+  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load PDForm:$rA)), i64:$rB)),
             (VINSDRX $vDi, InsertEltShift.Left3, (PLD memri34:$rA))>;
-  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load xaddrX4:$rA)), i64:$rB)),
+  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load XForm:$rA)), i64:$rB)),
             (VINSDRX $vDi, InsertEltShift.Left3, (LDX memrr:$rA))>;
   let AddedComplexity = 400 in {
     // Immediate vector insert element
     foreach Idx = [0, 1, 2, 3] in {
       def : Pat<(v4i32 (insertelt v4i32:$vDi, i32:$rA, Idx)),
                 (VINSW $vDi, !mul(!sub(3, Idx), 4), $rA)>;
-      def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddr:$rA)), Idx)),
-                (VINSW $vDi, !mul(!sub(3, Idx), 4), (LWZ memri:$rA))>;
-      def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddrX34:$rA)), Idx)),
-                (VINSW $vDi, !mul(!sub(3, Idx), 4), (PLWZ memri34:$rA))>;
-      def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load xaddr:$rA)), Idx)),
-                (VINSW $vDi, !mul(!sub(3, Idx), 4), (LWZX memrr:$rA))>;
     }
     foreach i = [0, 1] in
      def : Pat<(v2i64 (insertelt v2i64:$vDi, i64:$rA, (i64 i))),
@@ -2858,12 +2850,6 @@ let Predicates = [IsISA3_1, HasVSX, IsBigEndian, IsPPC32] in {
 
   def : Pat<(v4f32 (insertelt v4f32:$vDi,  f32:$rA, i32:$rB)),
             (VINSWVLX $vDi, InsertEltShift.Left2, (XSCVDPSPN $rA))>;
-  def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddr:$rA)), i32:$rB)),
-            (VINSWLX v4f32:$vDi, InsertEltShift.Left2, (LWZ memri:$rA))>;
-  def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddrX34:$rA)), i32:$rB)),
-            (VINSWLX v4f32:$vDi, InsertEltShift.Left2, (PLWZ memri34:$rA))>;
-  def: Pat<(v4f32(insertelt v4f32 : $vDi, (f32(load xaddr : $rA)), i32 : $rB)),
-           (VINSWLX v4f32 : $vDi, InsertEltShift.Left2, (LWZX memrr : $rA))>;
 }
 
 let Predicates = [IsISA3_1, HasVSX, IsBigEndian, IsPPC64] in {
@@ -2879,20 +2865,14 @@ let Predicates = [IsISA3_1, HasVSX, IsBigEndian, IsPPC64] in {
 
   def : Pat<(v4f32 (insertelt v4f32:$vDi,  f32:$rA, i64:$rB)),
             (VINSWVLX $vDi, InsertEltShift.Sub32Left2, (XSCVDPSPN $rA))>;
-  def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddr:$rA)), i64:$rB)),
-            (VINSWLX $vDi, InsertEltShift.Sub32Left2, (LWZ memri:$rA))>;
-  def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddrX34:$rA)), i64:$rB)),
-            (VINSWLX $vDi, InsertEltShift.Sub32Left2, (PLWZ memri34:$rA))>;
-  def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load xaddr:$rA)), i64:$rB)),
-            (VINSWLX $vDi, InsertEltShift.Sub32Left2, (LWZX memrr:$rA))>;
 
   def : Pat<(v2f64 (insertelt v2f64:$vDi,  f64:$A, i64:$rB)),
             (VINSDLX $vDi, InsertEltShift.Left3, Bitcast.DblToLong)>;
-  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load iaddrX4:$rA)), i64:$rB)),
+  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load DSForm:$rA)), i64:$rB)),
             (VINSDLX $vDi, InsertEltShift.Left3, (LD memrix:$rA))>;
-  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load iaddrX34:$rA)), i64:$rB)),
+  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load PDForm:$rA)), i64:$rB)),
             (VINSDLX $vDi, InsertEltShift.Left3, (PLD memri34:$rA))>;
-  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load xaddrX4:$rA)), i64:$rB)),
+  def : Pat<(v2f64 (insertelt v2f64:$vDi, (f64 (load XForm:$rA)), i64:$rB)),
             (VINSDLX $vDi, InsertEltShift.Left3, (LDX memrr:$rA))>;
 }
 
@@ -2902,15 +2882,6 @@ let AddedComplexity = 400, Predicates = [IsISA3_1, HasVSX, IsBigEndian] in {
     foreach Idx = [0, 1, 2, 3] in {
       def : Pat<(v4i32 (insertelt v4i32:$vDi, i32:$rA, (Ty Idx))),
                (VINSW $vDi, !mul(Idx, 4), $rA)>;
-      def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddr:$rA)),
-                                  (Ty Idx))),
-               (VINSW $vDi, !mul(Idx, 4), (LWZ memri:$rA))>;
-      def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load iaddrX34:$rA)),
-                                  (Ty Idx))),
-               (VINSW $vDi, !mul(Idx, 4), (PLWZ memri34:$rA))>;
-      def : Pat<(v4f32 (insertelt v4f32:$vDi, (f32 (load xaddr:$rA)),
-                                  (Ty Idx))),
-               (VINSW $vDi, !mul(Idx, 4), (LWZX memrr:$rA))>;
     }
   }
 

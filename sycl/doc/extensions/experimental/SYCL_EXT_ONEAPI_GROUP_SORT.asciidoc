@@ -1,0 +1,620 @@
+= SYCL_EXT_ONEAPI_GROUP_SORT
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+This extension is written against the SYCL 2020 revision 3 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+NOTE: This extension is experimental: interfaces are subject to change later.
+
+== Introduction
+
+This extension introduces sorting functions to the group algorithms library, along with
+associated Sorter objects and Group Helper objects.
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_GROUP_SORT` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+Table 1. Values of the `SYCL_EXT_ONEAPI_GROUP_SORT` macro.
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+== Sorting functions
+The sort function from the {cpp} standard sorts elements with respect to
+the binary comparison function object.
+
+SYCL provides two similar algorithms:
+
+`joint_sort` uses the work-items in a group to execute the corresponding
+algorithm in parallel.
+
+`sort_over_group` performs a sort over values held directly by the work-items
+in a group, and results returned to work-item `i` represent values that are in
+position `i` in the ordered range.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  template <typename GroupHelper, typename Ptr>
+  void joint_sort(GroupHelper exec, Ptr first, Ptr last); // (1)
+
+  template <typename GroupHelper, typename Ptr, typename Compare>
+  void joint_sort(GroupHelper exec, Ptr first, Ptr last, Compare comp); // (2)
+
+  template <typename Group, typename Ptr, typename Sorter>
+  void joint_sort(Group g, Ptr first, Ptr last, Sorter sorter); // (3)
+
+  template <typename GroupHelper, typename T>
+  T sort_over_group(GroupHelper exec, T val); // (4)
+
+  template <typename GroupHelper, typename T, typename Compare>
+  T sort_over_group(GroupHelper exec, T val, Compare comp); // (5)
+
+  template <typename Group, typename T, typename Sorter>
+  T sort_over_group(Group g, T val, Sorter sorter); // (6)
+}
+----
+
+1._Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+_Effects_: Sort the elements in the range `[first, last)`
+using the `exec` group helper object. Elements are compared by `operator<`.
+
+_Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupHelper` was created with a work-group or sub-group and
+some associated scratch space.
+
+2._Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+_Mandates_: `comp` must satisfy the requirements of `Compare` from
+the {cpp} standard.
+
+_Effects_: Sort the elements in the range `[first, last)` with respect to the
+binary comparison function object `comp` using the `exec` group helper object.
+
+_Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space.
+
+3._Preconditions_: `first`, `last` must be the same for all work-items in the group.
+
+_Effects_: Equivalent to: `sorter(g, first, last)`.
+
+_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
+it provides `operator()(Group, Ptr, Ptr)` overload.
+
+4._Returns_: The value returned on work-item `i` is the value in position `i`
+of the ordered range resulting from sorting `val` from all work-items in the group.
+Elements are compared by `operator<`
+using the `exec` group helper object.
+For multi-dimensional groups, the order of work-items in the group is
+determined by their linear id.
+
+_Complexity_: Let `N` be the work-group size. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space.
+
+5._Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
+
+_Returns_: The value returned on work-item `i` is the value in position `i`
+of the ordered range resulting from sorting `val` from all work-items in the
+`g` group with respect to the binary comparison function object `comp`
+using the `exec` group helper object.
+For multi-dimensional groups, the order of work-items in the group is
+determined by their linear id.
+
+_Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
+
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space.
+
+6._Effects_: Equivalent to: `return sorter(g, val)`.
+
+_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
+it provides `operator()(Group, T)` overload.
+
+== Sorters
+
+Sorter is a special type that encapsulates a sorting algorithm. Sorter may contain parameters
+that help to get better performance. Data for sorting are provided to the `operator()`
+that should contain an implementation of a sorting algorithm.
+General semantics of `operator()` is following:
+
+[source,c++]
+----
+template<typename Group, typename Ptr>
+void operator()(Group g, Ptr first, Ptr last);
+
+template<typename Group, typename T>
+T operator()(Group g, T val);
+----
+
+NOTE: At least one overload for `operator()` is required.
+If only `void operator()(Group g, Ptr first, Ptr last);` is defined then a Sorter can be passed
+to `joint_sort` function only. If it's passed to `sort_over_group`, it leads to a compilation
+error. If only `T operator()(Group g, T val);` is defined then a Sorter can be passed to
+`sort_over_group` function only. If it's passed to `joint_sort`, it leads to a compilation error.
+
+Table 2. `operator()` for Sorters.
+|===
+|`operator()`|Description
+
+|`template<typename Group, typename Ptr>
+void operator()(Group g, Ptr first, Ptr last);`
+|Implements a sorting algorithm that calls by `joint_sort`.
+Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
+`first`, `last` must be the same for all work-items in the group.
+
+|`template<typename Group, typename T>
+T operator()(Group g, T val);`
+|Implements a sorting algorithm that calls by `sort_over_group`.
+Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
+|===
+
+SYCL provides some predefined sorters mentioned below.
+However, custom sorters are particularly useful when the application knows the data has some
+special property. For example, an application could implement a fast bitonic sort
+if it knows the data size is a power of 2.
+
+=== Predefined Sorters
+
+==== Sorting Order
+
+`sorting_order` is an `enum` that defines a sorting order when `radix_sorter` is used.
+Only ascending and descending orders are applicable.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  enum class sorting_order {
+    ascending,
+    descending
+  };
+
+}
+----
+
+SYCL provides the following predefined classes:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  template<typename Compare = std::less<>>
+  class default_sorter {
+  public:
+    template<std::size_t Extent>
+    default_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = Compare());
+
+    template<typename Group, typename Ptr>
+    void operator()(Group g, Ptr first, Ptr last);
+
+    template<typename Group, typename T>
+    T operator()(Group g, T val);
+
+    template<typename T>
+    static constexpr std::size_t
+    memory_required(sycl::memory_scope scope, std::size_t range_size);
+
+    template<typename T, int dimensions>
+    static constexpr std::size_t
+    memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range);
+  };
+
+  template<typename T, sorting_order Order = sorting_order::ascending, unsigned int BitsPerPass = 4>
+  class radix_sorter {
+  public:
+    template<std::size_t Extent>
+    radix_sorter(sycl::span<std::byte, Extent> scratch,
+                 const std::bitset<sizeof(T) * CHAR_BIT> mask =
+                     std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max()));
+
+    template<typename Group, typename Ptr>
+    void operator()(Group g, Ptr first, Ptr last);
+
+    template<typename Group>
+    T operator()(Group g, T val);
+
+    static constexpr std::size_t
+    memory_required(sycl::memory_scope scope, std::size_t range_size);
+
+    template<int dimensions>
+    static constexpr std::size_t
+    memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range);
+  };
+
+}
+----
+
+Table 3. Description of predefined Sorters.
+|===
+|Sorter|Description
+
+|`template<typename Compare = std::less<>>
+default_sorter`
+|Use a default sorting method based on an implementation-defined heuristic
+using `Compare` as the binary comparison function object.
+The algorithm requires an additional memory that must be allocated on callers side.
+Size of required memory (bytes) is defined by calling `memory_required`.
+
+|`template<typename T, sorting_order Order = sorting_order::ascending, unsigned int BitsPerPass = 4>
+radix_sorter`
+|Use radix sort as a sorting method. `Order` specify the sorting order.
+Only arithmetic types as `T` can be passed to `radix_sorter`.
+`BitsPerPass` is a number of bits that values are split by.
+For example, if a sequence of `int32_t` is sorted using `BitsPerPass == 4` then one
+pass of the radix sort algorithm considers only 4 bits. The number of passes is `32/4=8`.
+The algorithm requires an additional memory that must be allocated on callers side.
+Size of required memory (bytes) is defined by calling `memory_required`.
+|===
+
+Table 4. Constructors of the `default_sorter` class.
+|===
+|Constructor|Description
+
+|`template<std::size_t Extent>
+default_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = Compare())`
+|Creates the `default_sorter` object using `comp`.
+Additional memory for the algorithm is provided using `scratch`.
+If `scratch.size()` is less than the value returned by
+`memory_required`, behavior of the corresponding sorting algorithm is undefined.
+
+|===
+
+Table 5. Member functions of the `default_sorter` class.
+|===
+|Member function|Description
+
+|`template<typename Group, typename Ptr>
+void operator()(Group g, Ptr first, Ptr last)`
+|Implements a default sorting algorithm to be called by the `joint_sort` algorithm.
+
+_Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
+
+|`template<typename Group, typename T>
+T operator()(Group g, T val)`
+|Implements a default sorting algorithm to be called by the `sort_over_group` algorithm.
+
+_Complexity_: Let `N` be the `Group` size. `O(N*log(N)*log(N))` comparisons.
+
+|`template<int dimensions = 1>
+static std::size_t memory_required(sycl::memory_scope scope, std::size_t range_size)`
+|Returns size of temporary memory (in bytes) that is required by
+the default sorting algorithm defined by the sorter calling by `joint_sort`.
+`range_size` represents a range size for sorting,
+e.g. `last-first` from `operator()` arguments.
+Result depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` to get memory size required for each work-group;
+use `sycl::memory_scope::sub_group` to get memory size required for each sub-group.
+If other `scope` values are passed, behavior is unspecified.
+
+|`static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
+|Returns size of temporary memory (in bytes) that is required by the default
+sorting algorithm defined by the sorter calling by `sort_over_group`.
+If `scope = sycl::memory_scope::work_group`,
+`local_range` is a local range of `sycl::nd_range` that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
+If other `scope` values are passed, behavior is unspecified.
+|===
+
+Table 6. Constructors of the `radix_sorter` class.
+|===
+|Constructor|Description
+
+|`template<std::size_t Extent>
+radix_sorter(sycl::span<std::byte, Extent> scratch, const std::bitset<sizeof(T) * CHAR_BIT> mask = std::bitset<sizeof(T) * CHAR_BIT>
+(std::numeric_limits<unsigned long long>::max()))`
+|Creates the `radix_sorter` object to sort values considering only bits
+that corresponds to 1 in `mask`.
+Additional memory for the algorithm is provided using `scratch`.
+If `scratch.size()` is less than the value returned by `memory_required`,
+behavior of the corresponding sorting algorithm is undefined.
+
+|===
+
+Table 7. Member functions of the `radix_sorter` class.
+|===
+|Member function|Description
+
+|`template<typename Group, typename Ptr>
+void operator()(Group g, Ptr first, Ptr last)`
+|Implements the radix sort algorithm to be called by the `joint_sort` algorithm.
+
+|`template<typename Group>
+T operator()(Group g, T val)`
+|Implements the radix sort algorithm to be called by the `sort_over_group` algorithm.
+
+|`static std::size_t
+memory_required(sycl::memory_scope scope, std::size_t range_size)`
+|Returns size of temporary memory (in bytes) that is required by the radix sort algorithm
+calling by `joint_sort`. `range_size` represents a range size for sorting,
+e.g. `last-first` from `operator()` arguments.
+Result depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` to get memory size required for each work-group;
+use `sycl::memory_scope::sub_group` to get memory size required for each sub-group.
+If other `scope` values are passed, behavior is unspecified.
+
+|`template<int dimensions = 1>
+static std::size_t
+memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
+|Returns size of temporary memory (in bytes) that is required by the radix sort algorithm
+calling by `sort_over_group`.
+If `scope = sycl::memory_scope::work_group`, `local_range` is a local range of
+`sycl::nd_range` that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `local_range` is a sub-group size.
+If other `scope` values are passed, behavior is unspecified.
+|===
+
+=== Group Helper
+
+The overloads of `joint_sort` and `sort_over_group` that do not take a Sorter parameter implicitly
+use the default sorter. Since the default sorter requires the application to allocate some
+temporary memory, the application must use a Group Helper object to communicate the location of
+this memory. A Group Helper object is any object
+that has the following two public member functions:
+
+[source,c++]
+----
+/* unspecified */ get_group() const;
+
+sycl::span<std::byte, Extent> get_memory() const
+----
+
+Table 8. Member functions of group helpers.
+|===
+|Member function|Description
+
+|`/* unspecified */ get_group() const`
+|Returns the group that is handled by the group helper object.
+Assuming `Group` is a type of method's result `sycl::is_group_v<std::decay_t<Group>>` must be true.
+
+|`sycl::span<std::byte, Extent> get_memory() const`
+|Returns the memory object that the default sorter can use.
+The return type is aligned with the first parameter of constructor for `default_sorter`.
+|===
+
+==== Predefined Group Helpers
+SYCL introduces the following predefined group helper:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  // Exposition only: all template arguments except Group are unspecified
+  template<typename Group, std::size_t Extent>
+  class group_with_scratchpad
+  {
+  public:
+    group_with_scratchpad(Group group, sycl::span<std::byte, Extent> scratch);
+    Group get_group() const;
+
+    sycl::span<std::byte, Extent>
+    get_memory() const;
+  };
+
+  // Deduction guides
+  template<typename Group, std::size_t Extent>
+  group_with_scratchpad(Group, sycl::span<std::byte, Extent>)
+    -> group_with_scratchpad<Group, Extent>;
+
+}
+----
+
+For most applications it is enough to pass an instance of the `group_with_scratchpad` class
+instead of their own classes creation.
+
+Table 9. Constructors of the `group_with_scratchpad` class.
+|===
+|Constructor|Description
+
+|`group_with_scratchpad(Group group, sycl::span<std::byte, Extent> scratch)`
+|Creates the `group_with_scratchpad` object using `group` and `scratch`.
+`sycl::is_group_v<std::decay_t<Group>>` must be true.
+`scratch.size()` must not be less than value returned by the `memory_required` method
+of `default_sorter`. Otherwise,
+behavior of sorting algorithm, which is called with the constructed object, is undefined.
+The `scratch` value must be the same for all work-items in `group`.
+|===
+
+Table 10. Member functions of the `group_with_scratchpad` class.
+|===
+|Member function|Description
+
+|`Group get_group() const`
+|Returns the `Group` class object that is handled by the `group_with_scratchpad` object.
+
+|`sycl::span<std::byte, Extent>
+get_memory() const`
+|Returns `sycl::span` that represents an additional memory
+that is handled by the `group_with_scratchpad` object.
+
+|===
+
+== Examples
+
+1.Using `joint_sort` without Sorters.
+
+[source,c++]
+----
+...
+namespace my_sycl = sycl::ext::oneapi::experimental;
+// calculate required local memory size
+size_t temp_memory_size =
+    my_sycl::default_sorter<>::memory_required<T>(sycl::memory_scope::work_group, n);
+
+q.submit([&](sycl::handler& h) {
+  auto acc = sycl::accessor(buf, h);
+  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h );
+
+  h.parallel_for(
+    sycl::nd_range<1>{ /*global_size = */ {256}, /*local_size = */ {256} },
+    [=](sycl::nd_item<1> id) {
+      auto ptr = acc.get_pointer() + id.get_group(0) * n;
+
+      my_sycl::joint_sort(
+        // create group helper using deduction guides
+        my_sycl::group_with_scratchpad(
+          id.get_group(),
+          sycl::span{scratch.get_pointer(), temp_memory_size}
+        ),
+        ptr,
+        ptr + n
+      );
+    });
+  });
+...
+----
+
+2.Using `sort_over_group` and `radix_sorter`
+
+[source,c++]
+----
+...
+namespace my_sycl = sycl::ext::oneapi::experimental;
+
+sycl::range<1> local_range{256};
+// predefine radix_sorter to calculate local memory size
+using RSorter = my_sycl::radix_sorter<T, my_sycl::sorting_order::descending>;
+// calculate required local memory size
+size_t temp_memory_size =
+    RSorter::memory_required(sycl::memory_scope::work_group, local_range);
+
+q.submit([&](sycl::handler& h) {
+  auto acc = sycl::accessor(buf, h);
+  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h);
+
+  h.parallel_for(
+    sycl::nd_range<1>{ local_range, local_range },
+    [=](sycl::nd_item<1> id) {
+
+      acc[id.get_local_id()] =
+        my_sycl::sort_over_group(
+          id.get_group(),
+          acc[id.get_local_id()],
+          RSorter(sycl::span{scratch.get_pointer(), temp_memory_size})
+      );
+    });
+  });
+...
+----
+
+3.Using `joint_sort` for key-value sorting
+(keys are compared, but keys and values are reordered both).
+
+NOTE: `oneapi::dpl::zip_iterator` is used here.
+See https://spec.oneapi.com/versions/latest/elements/oneDPL/source/index.html[oneDPL Spec]
+for details.
+
+[source,c++]
+----
+...
+namespace my_sycl = sycl::ext::oneapi::experimental;
+using TupleType = typename std::iterator_traits<oneapi::dpl::zip_iterator<T*, U*>>::value_type;
+// calculate required local memory size
+size_t temp_memory_size =
+    my_sycl::default_sorter<>::memory_required<TupleType>(sycl::memory_scope::work_group, n);
+
+q.submit([&](sycl::handler& h) {
+  auto keys_acc = sycl::accessor(keys_buf, h);
+  auto vals_acc = sycl::accessor(vals_buf, h);
+  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h);
+
+  h.parallel_for(
+    sycl::nd_range<1>{ /*global_size = */ {1024}, /*local_size = */ {256} },
+    [=](sycl::nd_item<1> id) {
+      size_t group_id = id.get_group(0);
+      auto keys_ptr = keys_acc.get_pointer() + group_id * n;
+      auto vals_ptr = vals_acc.get_pointer() + group_id * n;
+      auto first = oneapi::dpl::make_zip_iterator(keys_ptr, vals_ptr);
+
+      my_sycl::joint_sort(
+        // create group excutor using deduction guides
+        my_sycl::group_with_scratchpad(
+          id.get_group(),
+          sycl::span{scratch.get_pointer(), temp_memory_size}
+        ),
+        first,
+        first + n,
+        [](auto x, auto y){ return std::get<0>(x) < std::get<0>(y); }
+      );
+    });
+  });
+...
+----
+
+== Issues for later investigations
+
+. Sort function can have interfaces with static arrays in private memory as well.
+The concern is that it can require changes for other group algortihms as well since sort
+basing on private memory is not very useful if other algorithms in the chain use local
+memory only. It needs to make sure that we allow different layout for values in static arrays
+between different work-items, e.g. "raw major" or "column major" format for storing.
+. It can be a separate proposal for key-value sorting basing on Projections.
+It needs to be investigated what is the response for that.
+. Sorter traits can be useful if there are Finder, Reducer or other objects
+will be added to the Spec to be used with other Group algorithms, e.g. find, reduce.
+. Predefined sorters can be revisited to find a better interfaces for `memory_required` overloads.
+. `group_with_scratchpad` can be replaced with concepts that requires 2 methods.
+
+== Non-implemented features
+Please, note that following is not inplemented yet for the open-source repo:
+
+. `radix_sorter`, `radix_order`
+. sub-groups support.
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-04-28|Andrey Fedorov|Initial public working draft
+|2|2021-09-15|Andrey Fedorov|Changes related to additional memory providing
+|3|2021-12-16|Andrey Fedorov|Some refactoring, sections reordering,
+making the entire extension experimental
+|========================================

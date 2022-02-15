@@ -15,11 +15,11 @@
 
 #include "memprof_allocator.h"
 #include "memprof_mapping.h"
-#include "memprof_meminfoblock.h"
 #include "memprof_mibmap.h"
 #include "memprof_rawprofile.h"
 #include "memprof_stack.h"
 #include "memprof_thread.h"
+#include "profile/MemProfData.inc"
 #include "sanitizer_common/sanitizer_allocator_checks.h"
 #include "sanitizer_common/sanitizer_allocator_interface.h"
 #include "sanitizer_common/sanitizer_allocator_report.h"
@@ -36,6 +36,42 @@
 #include <time.h>
 
 namespace __memprof {
+namespace {
+using ::llvm::memprof::MemInfoBlock;
+
+void Print(const MemInfoBlock &M, const u64 id, bool print_terse) {
+  u64 p;
+
+  if (print_terse) {
+    p = M.total_size * 100 / M.alloc_count;
+    Printf("MIB:%llu/%u/%llu.%02llu/%u/%u/", id, M.alloc_count, p / 100,
+           p % 100, M.min_size, M.max_size);
+    p = M.total_access_count * 100 / M.alloc_count;
+    Printf("%llu.%02llu/%llu/%llu/", p / 100, p % 100, M.min_access_count,
+           M.max_access_count);
+    p = M.total_lifetime * 100 / M.alloc_count;
+    Printf("%llu.%02llu/%u/%u/", p / 100, p % 100, M.min_lifetime,
+           M.max_lifetime);
+    Printf("%u/%u/%u/%u\n", M.num_migrated_cpu, M.num_lifetime_overlaps,
+           M.num_same_alloc_cpu, M.num_same_dealloc_cpu);
+  } else {
+    p = M.total_size * 100 / M.alloc_count;
+    Printf("Memory allocation stack id = %llu\n", id);
+    Printf("\talloc_count %u, size (ave/min/max) %llu.%02llu / %u / %u\n",
+           M.alloc_count, p / 100, p % 100, M.min_size, M.max_size);
+    p = M.total_access_count * 100 / M.alloc_count;
+    Printf("\taccess_count (ave/min/max): %llu.%02llu / %llu / %llu\n", p / 100,
+           p % 100, M.min_access_count, M.max_access_count);
+    p = M.total_lifetime * 100 / M.alloc_count;
+    Printf("\tlifetime (ave/min/max): %llu.%02llu / %u / %u\n", p / 100,
+           p % 100, M.min_lifetime, M.max_lifetime);
+    Printf("\tnum migrated: %u, num lifetime overlaps: %u, num same alloc "
+           "cpu: %u, num same dealloc_cpu: %u\n",
+           M.num_migrated_cpu, M.num_lifetime_overlaps, M.num_same_alloc_cpu,
+           M.num_same_dealloc_cpu);
+  }
+}
+} // namespace
 
 static int GetCpuId(void) {
   // _memprof_preinit is called via the preinit_array, which subsequently calls
@@ -218,7 +254,6 @@ struct Allocator {
   AllocatorCache fallback_allocator_cache;
 
   uptr max_user_defined_malloc_size;
-  atomic_uint8_t rss_limit_exceeded;
 
   // Holds the mapping of stack ids to MemInfoBlocks.
   MIBMapTy MIBMap;
@@ -241,7 +276,7 @@ struct Allocator {
   static void PrintCallback(const uptr Key, LockedMemInfoBlock *const &Value,
                             void *Arg) {
     SpinMutexLock(&Value->mutex);
-    Value->mib.Print(Key, bool(Arg));
+    Print(Value->mib, Key, bool(Arg));
   }
 
   void FinishAndWrite() {
@@ -301,20 +336,12 @@ struct Allocator {
                                        : kMaxAllowedMallocSize;
   }
 
-  bool RssLimitExceeded() {
-    return atomic_load(&rss_limit_exceeded, memory_order_relaxed);
-  }
-
-  void SetRssLimitExceeded(bool limit_exceeded) {
-    atomic_store(&rss_limit_exceeded, limit_exceeded, memory_order_relaxed);
-  }
-
   // -------------------- Allocation/Deallocation routines ---------------
   void *Allocate(uptr size, uptr alignment, BufferedStackTrace *stack,
                  AllocType alloc_type) {
     if (UNLIKELY(!memprof_inited))
       MemprofInitFromRtl();
-    if (RssLimitExceeded()) {
+    if (UNLIKELY(IsRssLimitExceeded())) {
       if (AllocatorMayReturnNull())
         return nullptr;
       ReportRssLimitExceeded(stack);
@@ -533,12 +560,12 @@ struct Allocator {
 
   void PrintStats() { allocator.PrintStats(); }
 
-  void ForceLock() NO_THREAD_SAFETY_ANALYSIS {
+  void ForceLock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
     allocator.ForceLock();
     fallback_mutex.Lock();
   }
 
-  void ForceUnlock() NO_THREAD_SAFETY_ANALYSIS {
+  void ForceUnlock() SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
     fallback_mutex.Unlock();
     allocator.ForceUnlock();
   }
@@ -660,10 +687,6 @@ uptr memprof_malloc_usable_size(const void *ptr, uptr pc, uptr bp) {
     return 0;
   uptr usable_size = instance.AllocationSize(reinterpret_cast<uptr>(ptr));
   return usable_size;
-}
-
-void MemprofSoftRssLimitExceededCallback(bool limit_exceeded) {
-  instance.SetRssLimitExceeded(limit_exceeded);
 }
 
 } // namespace __memprof

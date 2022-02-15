@@ -60,8 +60,8 @@ public:
   template <class Container>
   using EnableIfContiguous =
       detail::void_t<detail::enable_if_t<std::is_convertible<
-                         detail::remove_pointer_t<decltype(
-                             std::declval<Container>().data())> (*)[],
+                         detail::remove_pointer_t<
+                             decltype(std::declval<Container>().data())> (*)[],
                          const T (*)[]>::value>,
                      decltype(std::declval<Container>().size())>;
   template <class It>
@@ -72,130 +72,190 @@ public:
   using EnableIfSameNonConstIterators = typename detail::enable_if_t<
       std::is_same<ItA, ItB>::value && !std::is_const<ItA>::value, ItA>;
 
+  std::array<size_t, 3> rangeToArray(range<3> &r) { return {r[0], r[1], r[2]}; }
+
+  std::array<size_t, 3> rangeToArray(range<2> &r) { return {r[0], r[1], 0}; }
+
+  std::array<size_t, 3> rangeToArray(range<1> &r) { return {r[0], 0, 0}; }
+
   buffer(const range<dimensions> &bufferRange,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), nullptr,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
-         AllocatorT allocator, const property_list &propList = {})
+         AllocatorT allocator, const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   template <typename _T = T>
   buffer(EnableIfSameNonConstIterators<T, _T> const *hostData,
          const range<dimensions> &bufferRange,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   template <typename _T = T>
   buffer(EnableIfSameNonConstIterators<T, _T> const *hostData,
          const range<dimensions> &bufferRange, AllocatorT allocator,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), hostData,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T> &hostData,
          const range<dimensions> &bufferRange, AllocatorT allocator,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
+    impl->constructorNotification(CodeLoc, (void *)impl.get(),
+                                  (void *)hostData.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
          const range<dimensions> &bufferRange, AllocatorT allocator,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
+    impl->constructorNotification(CodeLoc, (void *)impl.get(),
+                                  (void *)hostData.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T> &hostData,
          const range<dimensions> &bufferRange,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(),
+                                  (void *)hostData.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   buffer(const std::shared_ptr<T[]> &hostData,
          const range<dimensions> &bufferRange,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
         hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+    impl->constructorNotification(CodeLoc, (void *)impl.get(),
+                                  (void *)hostData.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   template <class InputIterator, int N = dimensions,
             typename = EnableIfOneDimension<N>,
             typename = EnableIfItInputIterator<InputIterator>>
   buffer(InputIterator first, InputIterator last, AllocatorT allocator,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
         first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
+    size_t r[3] = {Range[0], 0, 0};
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), &*first,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), r);
   }
 
   template <class InputIterator, int N = dimensions,
             typename = EnableIfOneDimension<N>,
             typename = EnableIfItInputIterator<InputIterator>>
   buffer(InputIterator first, InputIterator last,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
         first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
+    size_t r[3] = {Range[0], 0, 0};
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), &*first,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), r);
   }
 
   // This constructor is a prototype for a future SYCL specification
@@ -203,27 +263,38 @@ public:
             typename = EnableIfOneDimension<N>,
             typename = EnableIfContiguous<Container>>
   buffer(Container &container, AllocatorT allocator,
-         const property_list &propList = {})
+         const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range(range<1>(container.size())) {
     impl = std::make_shared<detail::buffer_impl>(
         container.data(), size() * sizeof(T),
         detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
+    size_t r[3] = {Range[0], 0, 0};
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), container.data(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), r);
   }
 
   // This constructor is a prototype for a future SYCL specification
   template <class Container, int N = dimensions,
             typename = EnableIfOneDimension<N>,
             typename = EnableIfContiguous<Container>>
-  buffer(Container &container, const property_list &propList = {})
-      : buffer(container, {}, propList) {}
+  buffer(Container &container, const property_list &propList = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(container, {}, propList, CodeLoc) {}
 
   buffer(buffer<T, dimensions, AllocatorT> &b, const id<dimensions> &baseIndex,
-         const range<dimensions> &subRange)
+         const range<dimensions> &subRange,
+         const detail::code_location CodeLoc = detail::code_location::current())
       : impl(b.impl), Range(subRange),
         OffsetInBytes(getOffsetInBytes<T>(baseIndex, b.Range)),
         IsSubBuffer(true) {
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), impl.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
+
     if (b.is_sub_buffer())
       throw cl::sycl::invalid_object_error(
           "Cannot create sub buffer from sub buffer.", PI_INVALID_VALUE);
@@ -239,7 +310,8 @@ public:
 #ifdef __SYCL_INTERNAL_API
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(cl_mem MemObject, const context &SyclContext,
-         event AvailableEvent = {})
+         event AvailableEvent = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
     size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
@@ -250,12 +322,29 @@ public:
         detail::pi::cast<pi_native_handle>(MemObject), SyclContext, BufSize,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
         AvailableEvent);
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 #endif
 
-  buffer(const buffer &rhs) = default;
+  buffer(const buffer &rhs,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : impl(rhs.impl), Range(rhs.Range), OffsetInBytes(rhs.OffsetInBytes),
+        IsSubBuffer(rhs.IsSubBuffer) {
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), impl.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
+  }
 
-  buffer(buffer &&rhs) = default;
+  buffer(buffer &&rhs,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : impl(std::move(rhs.impl)), Range(rhs.Range),
+        OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), impl.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
+  }
 
   buffer &operator=(const buffer &rhs) = default;
 
@@ -289,42 +378,49 @@ public:
   template <access::mode Mode, access::target Target = access::target::device>
   accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
            ext::oneapi::accessor_property_list<>>
-  get_access(handler &CommandGroupHandler) {
+  get_access(
+      handler &CommandGroupHandler,
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this,
-                                                           CommandGroupHandler);
+                    ext::oneapi::accessor_property_list<>>(
+        *this, CommandGroupHandler, {}, CodeLoc);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access() {
+  get_access(
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this);
+                    ext::oneapi::accessor_property_list<>>(*this, {}, CodeLoc);
   }
 
   template <access::mode mode, access::target target = access::target::device>
   accessor<T, dimensions, mode, target, access::placeholder::false_t,
            ext::oneapi::accessor_property_list<>>
-  get_access(handler &commandGroupHandler, range<dimensions> accessRange,
-             id<dimensions> accessOffset = {}) {
+  get_access(
+      handler &commandGroupHandler, range<dimensions> accessRange,
+      id<dimensions> accessOffset = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
-        *this, commandGroupHandler, accessRange, accessOffset);
+        *this, commandGroupHandler, accessRange, accessOffset, {}, CodeLoc);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
-  get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
+  get_access(
+      range<dimensions> accessRange, id<dimensions> accessOffset = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(*this, accessRange,
-                                                           accessOffset);
+                    ext::oneapi::accessor_property_list<>>(
+        *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
@@ -424,7 +520,8 @@ private:
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(pi_native_handle MemObject, const context &SyclContext,
-         event AvailableEvent = {})
+         event AvailableEvent = {},
+         const detail::code_location CodeLoc = detail::code_location::current())
       : Range{0} {
 
     size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
@@ -435,14 +532,22 @@ private:
         MemObject, SyclContext, BufSize,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
         AvailableEvent);
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), &MemObject,
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
   }
 
   // Reinterpret contructor
   buffer(std::shared_ptr<detail::buffer_impl> Impl,
          range<dimensions> reinterpretRange, size_t reinterpretOffset,
-         bool isSubBuffer)
+         bool isSubBuffer,
+         const detail::code_location CodeLoc = detail::code_location::current())
       : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset),
-        IsSubBuffer(isSubBuffer){};
+        IsSubBuffer(isSubBuffer) {
+    impl->constructorNotification(CodeLoc, (void *)impl.get(), Impl.get(),
+                                  (const void *)typeid(T).name(), dimensions,
+                                  sizeof(T), rangeToArray(Range).data());
+  }
 
   template <typename Type, int N>
   size_t getOffsetInBytes(const id<N> &offset, const range<N> &range) {

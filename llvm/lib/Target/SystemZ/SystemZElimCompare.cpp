@@ -65,11 +65,8 @@ class SystemZElimCompare : public MachineFunctionPass {
 public:
   static char ID;
 
-  SystemZElimCompare(const SystemZTargetMachine &tm)
-    : MachineFunctionPass(ID) {}
-
-  StringRef getPassName() const override {
-    return "SystemZ Comparison Elimination";
+  SystemZElimCompare() : MachineFunctionPass(ID) {
+    initializeSystemZElimComparePass(*PassRegistry::getPassRegistry());
   }
 
   bool processBlock(MachineBasicBlock &MBB);
@@ -105,6 +102,9 @@ private:
 char SystemZElimCompare::ID = 0;
 
 } // end anonymous namespace
+
+INITIALIZE_PASS(SystemZElimCompare, DEBUG_TYPE,
+                "SystemZ Comparison Elimination", false, false)
 
 // Returns true if MI is an instruction whose output equals the value in Reg.
 static bool preservesValueOf(MachineInstr &MI, unsigned Reg) {
@@ -144,8 +144,7 @@ Reference SystemZElimCompare::getRegReferences(MachineInstr &MI, unsigned Reg) {
   if (MI.isDebugInstr())
     return Ref;
 
-  for (unsigned I = 0, E = MI.getNumOperands(); I != E; ++I) {
-    const MachineOperand &MO = MI.getOperand(I);
+  for (const MachineOperand &MO : MI.operands()) {
     if (MO.isReg()) {
       if (Register MOReg = MO.getReg()) {
         if (TRI->regsOverlap(MOReg, Reg)) {
@@ -747,5 +746,5 @@ bool SystemZElimCompare::runOnMachineFunction(MachineFunction &F) {
 }
 
 FunctionPass *llvm::createSystemZElimComparePass(SystemZTargetMachine &TM) {
-  return new SystemZElimCompare(TM);
+  return new SystemZElimCompare();
 }

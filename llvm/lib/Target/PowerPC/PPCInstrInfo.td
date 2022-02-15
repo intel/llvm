@@ -198,8 +198,8 @@ def PPCfsel   : SDNode<"PPCISD::FSEL",
    // Type constraint for fsel.
    SDTypeProfile<1, 3, [SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>,
                         SDTCisFP<0>, SDTCisVT<1, f64>]>, []>;
-def PPCxsmaxc : SDNode<"PPCISD::XSMAXCDP", SDT_PPCFPMinMax, []>;
-def PPCxsminc : SDNode<"PPCISD::XSMINCDP", SDT_PPCFPMinMax, []>;
+def PPCxsmaxc : SDNode<"PPCISD::XSMAXC", SDT_PPCFPMinMax, []>;
+def PPCxsminc : SDNode<"PPCISD::XSMINC", SDT_PPCFPMinMax, []>;
 def PPChi       : SDNode<"PPCISD::Hi", SDTIntBinOp, []>;
 def PPClo       : SDNode<"PPCISD::Lo", SDTIntBinOp, []>;
 def PPCtoc_entry: SDNode<"PPCISD::TOC_ENTRY", SDTIntBinOp,
@@ -4780,6 +4780,7 @@ class PPCAsmPseudo<string asm, dag iops>
 def : InstAlias<"sc", (SC 0)>;
 
 def : InstAlias<"sync", (SYNC 0)>, Requires<[HasSYNC]>;
+def : InstAlias<"hwsync", (SYNC 0), 0>, Requires<[HasSYNC]>;
 def : InstAlias<"msync", (SYNC 0), 0>, Requires<[HasSYNC]>;
 def : InstAlias<"lwsync", (SYNC 1)>, Requires<[HasSYNC]>;
 def : InstAlias<"ptesync", (SYNC 2)>, Requires<[HasSYNC]>;
@@ -5527,6 +5528,30 @@ def DWBytes3210 {
   dag Word = (RLWIMI DWBytes3212.Word, DWBytes0123.Word, 8, 24, 31);
   dag DWord =
     (i64 (INSERT_SUBREG (i64 (IMPLICIT_DEF)), Word, sub_32));
+}
+
+// These instructions store a hash computed from the value of the link register
+// and the value of the stack pointer.
+let mayStore = 1 in {
+def HASHST : XForm_XD6_RA5_RB5<31, 722, (outs),
+                               (ins gprc:$RB, memrihash:$D_RA_XD),
+                               "hashst $RB, $D_RA_XD", IIC_IntGeneral, []>;
+def HASHSTP : XForm_XD6_RA5_RB5<31, 658, (outs),
+                                (ins gprc:$RB, memrihash:$D_RA_XD),
+                                "hashstp $RB, $D_RA_XD", IIC_IntGeneral, []>;
+}
+
+// These instructions check a hash computed from the value of the link register
+// and the value of the stack pointer. The hasSideEffects flag is needed as the
+// instruction may TRAP if the hash does not match the hash stored at the
+// specified address.
+let mayLoad = 1, hasSideEffects = 1 in {
+def HASHCHK : XForm_XD6_RA5_RB5<31, 754, (outs),
+                                (ins gprc:$RB, memrihash:$D_RA_XD),
+                                "hashchk $RB, $D_RA_XD", IIC_IntGeneral, []>;
+def HASHCHKP : XForm_XD6_RA5_RB5<31, 690, (outs),
+                                 (ins gprc:$RB, memrihash:$D_RA_XD),
+                                 "hashchkp $RB, $D_RA_XD", IIC_IntGeneral, []>;
 }
 
 // Now both high word and low word are reversed, next

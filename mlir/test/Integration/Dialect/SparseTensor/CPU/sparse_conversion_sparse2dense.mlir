@@ -1,12 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:  -sparsification -sparse-tensor-conversion \
-// RUN:  -linalg-bufferize -convert-linalg-to-loops \
-// RUN:  -convert-vector-to-scf -convert-scf-to-std \
-// RUN:  -func-bufferize -tensor-constant-bufferize -tensor-bufferize \
-// RUN:  -std-bufferize -finalizing-bufferize \
-// RUN:  -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm \
-// RUN:  -reconcile-unrealized-casts \
-// RUN:  | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext \
@@ -59,56 +51,56 @@ module {
   }
   func @dumpAndRelease_234(%arg0: tensor<2x3x4xf64>) {
     call @dump(%arg0) : (tensor<2x3x4xf64>) -> ()
-    %1 = memref.buffer_cast %arg0 : memref<2x3x4xf64>
+    %1 = bufferization.to_memref %arg0 : memref<2x3x4xf64>
     memref.dealloc %1 : memref<2x3x4xf64>
     return
   }
   func @dumpAndRelease_p34(%arg0: tensor<?x3x4xf64>) {
     %0 = tensor.cast %arg0 : tensor<?x3x4xf64> to tensor<2x3x4xf64>
     call @dump(%0) : (tensor<2x3x4xf64>) -> ()
-    %1 = memref.buffer_cast %arg0 : memref<?x3x4xf64>
+    %1 = bufferization.to_memref %arg0 : memref<?x3x4xf64>
     memref.dealloc %1 : memref<?x3x4xf64>
     return
   }
   func @dumpAndRelease_2p4(%arg0: tensor<2x?x4xf64>) {
     %0 = tensor.cast %arg0 : tensor<2x?x4xf64> to tensor<2x3x4xf64>
     call @dump(%0) : (tensor<2x3x4xf64>) -> ()
-    %1 = memref.buffer_cast %arg0 : memref<2x?x4xf64>
+    %1 = bufferization.to_memref %arg0 : memref<2x?x4xf64>
     memref.dealloc %1 : memref<2x?x4xf64>
     return
   }
   func @dumpAndRelease_23p(%arg0: tensor<2x3x?xf64>) {
     %0 = tensor.cast %arg0 : tensor<2x3x?xf64> to tensor<2x3x4xf64>
     call @dump(%0) : (tensor<2x3x4xf64>) -> ()
-    %1 = memref.buffer_cast %arg0 : memref<2x3x?xf64>
+    %1 = bufferization.to_memref %arg0 : memref<2x3x?xf64>
     memref.dealloc %1 : memref<2x3x?xf64>
     return
   }
   func @dumpAndRelease_2pp(%arg0: tensor<2x?x?xf64>) {
     %0 = tensor.cast %arg0 : tensor<2x?x?xf64> to tensor<2x3x4xf64>
     call @dump(%0) : (tensor<2x3x4xf64>) -> ()
-    %1 = memref.buffer_cast %arg0 : memref<2x?x?xf64>
+    %1 = bufferization.to_memref %arg0 : memref<2x?x?xf64>
     memref.dealloc %1 : memref<2x?x?xf64>
     return
   }
   func @dumpAndRelease_p3p(%arg0: tensor<?x3x?xf64>) {
     %0 = tensor.cast %arg0 : tensor<?x3x?xf64> to tensor<2x3x4xf64>
     call @dump(%0) : (tensor<2x3x4xf64>) -> ()
-    %1 = memref.buffer_cast %arg0 : memref<?x3x?xf64>
+    %1 = bufferization.to_memref %arg0 : memref<?x3x?xf64>
     memref.dealloc %1 : memref<?x3x?xf64>
     return
   }
   func @dumpAndRelease_pp4(%arg0: tensor<?x?x4xf64>) {
     %0 = tensor.cast %arg0 : tensor<?x?x4xf64> to tensor<2x3x4xf64>
     call @dump(%0) : (tensor<2x3x4xf64>) -> ()
-    %1 = memref.buffer_cast %arg0 : memref<?x?x4xf64>
+    %1 = bufferization.to_memref %arg0 : memref<?x?x4xf64>
     memref.dealloc %1 : memref<?x?x4xf64>
     return
   }
   func @dumpAndRelease_ppp(%arg0: tensor<?x?x?xf64>) {
     %0 = tensor.cast %arg0 : tensor<?x?x?xf64> to tensor<2x3x4xf64>
     call @dump(%0) : (tensor<2x3x4xf64>) -> ()
-    %1 = memref.buffer_cast %arg0 : memref<?x?x?xf64>
+    %1 = bufferization.to_memref %arg0 : memref<?x?x?xf64>
     memref.dealloc %1 : memref<?x?x?xf64>
     return
   }

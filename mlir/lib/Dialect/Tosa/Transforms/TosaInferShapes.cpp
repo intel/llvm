@@ -132,7 +132,7 @@ void propagateShapesToTosaWhile(
     }
 
     for (auto yieldOp : yieldOps) {
-      for (auto it : llvm::enumerate(yieldOp.getOperands())) {
+      for (const auto &it : llvm::enumerate(yieldOp.getOperands())) {
         auto newKnowledge =
             ValueKnowledge::getKnowledgeFromType(it.value().getType());
         yieldTypeInfo[it.index()] =
@@ -223,7 +223,7 @@ void propagateShapesInRegion(Region &region) {
           // Check whether this use case is replaceable. We define an op as
           // being replaceable if it is used by a ReturnOp or a TosaOp.
           bool replaceable = true;
-          for (auto user : result.getUsers()) {
+          for (auto *user : result.getUsers()) {
             if (isa<ReturnOp>(user))
               continue;
             if (user->getDialect()->getNamespace() ==
@@ -278,7 +278,7 @@ void propagateShapesInRegion(Region &region) {
 /// migrating to within the regions of if/while operations.
 struct TosaInferShapes : public TosaInferShapesBase<TosaInferShapes> {
 public:
-  void runOnFunction() override {
+  void runOnOperation() override {
     FuncOp func = getOperation();
 
     IRRewriter rewriter(func.getContext());
@@ -320,7 +320,7 @@ public:
     });
   }
 };
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<Pass> mlir::tosa::createTosaInferShapesPass() {
   return std::make_unique<TosaInferShapes>();

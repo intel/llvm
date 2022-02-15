@@ -46,6 +46,7 @@ enum InternalOp {
   IOpJointMatrixStoreINTEL = 6121,
   IOpJointMatrixMadINTEL = 6122,
   IOpArithmeticFenceINTEL = 6145,
+  IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpPrev = OpMax - 2,
   IOpForward
 };
@@ -59,6 +60,9 @@ enum InternalDecoration {
   IDecPipelineEnableINTEL = 5919,
   IDecRuntimeAlignedINTEL = 5940,
   IDecCallableFunctionINTEL = 6087,
+  IDecHostAccessINTEL = 6147,
+  IDecInitModeINTEL = 6148,
+  IDecImplementInCSRINTEL = 6149,
   IDecArgumentAttributeINTEL = 6409,
   IDecFuncParamKindINTEL = 9624,
   IDecFuncParamDescINTEL = 9625
@@ -75,7 +79,8 @@ enum InternalCapability {
   ICapBfloat16ConversionINTEL = 6115,
   ICapabilityJointMatrixINTEL = 6118,
   ICapabilityHWThreadQueryINTEL = 6134,
-  ICapFPArithmeticFenceINTEL = 6144
+  ICapFPArithmeticFenceINTEL = 6144,
+  ICapGlobalVariableDecorationsINTEL = 6146
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
@@ -99,8 +104,7 @@ enum InternalJointMatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
 
 enum InternalBuiltIn {
   IBuiltInSubDeviceIDINTEL = 6135,
-  IBuiltInHWThreadIDINTEL = 6136,
-  IBuiltInMaxHWThreadIDPerSubDeviceINTEL = 6137
+  IBuiltInGlobalHWThreadIDINTEL = 6136,
 };
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
@@ -109,11 +113,10 @@ _SPIRV_OP(Op, TypeJointMatrixINTEL)
 _SPIRV_OP(Op, JointMatrixLoadINTEL)
 _SPIRV_OP(Op, JointMatrixStoreINTEL)
 _SPIRV_OP(Op, JointMatrixMadINTEL)
-
+_SPIRV_OP(Op, JointMatrixWorkItemLengthINTEL)
 _SPIRV_OP(Capability, HWThreadQueryINTEL)
 _SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
-_SPIRV_OP(BuiltIn, HWThreadIDINTEL)
-_SPIRV_OP(BuiltIn, MaxHWThreadIDPerSubDeviceINTEL)
+_SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
 #undef _SPIRV_OP
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
@@ -140,6 +143,12 @@ constexpr Decoration DecorationCallableFunctionINTEL =
     static_cast<Decoration>(IDecCallableFunctionINTEL);
 constexpr Decoration DecorationRuntimeAlignedINTEL =
     static_cast<Decoration>(IDecRuntimeAlignedINTEL);
+constexpr Decoration DecorationHostAccessINTEL =
+    static_cast<Decoration>(IDecHostAccessINTEL);
+constexpr Decoration DecorationInitModeINTEL =
+    static_cast<Decoration>(IDecInitModeINTEL);
+constexpr Decoration DecorationImplementInCSRINTEL =
+    static_cast<Decoration>(IDecImplementInCSRINTEL);
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
 constexpr Decoration DecorationFuncParamKindINTEL =
@@ -165,6 +174,8 @@ constexpr Capability CapabilityFPArithmeticFenceINTEL =
     static_cast<Capability>(ICapFPArithmeticFenceINTEL);
 constexpr Capability CapabilityBfloat16ConversionINTEL =
     static_cast<Capability>(ICapBfloat16ConversionINTEL);
+constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
+    static_cast<Capability>(ICapGlobalVariableDecorationsINTEL);
 
 constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
     static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);

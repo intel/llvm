@@ -561,6 +561,122 @@ private:
     }
   }
 
+  /* The kernel passed to StoreLambda can take an id, an item or an nd_item as
+   * its argument. Since esimd plugin directly invokes the kernel (doesn’t use
+   * piKernelSetArg), the kernel argument type must be known to the plugin.
+   * However, passing kernel argument type to the plugin requires changing ABI
+   * in HostKernel class. To overcome this problem, helpers below wrap the
+   * “original” kernel with a functor that always takes an nd_item as argument.
+   * A functor is used instead of a lambda because extractArgsAndReqsFromLambda
+   * needs access to the “original” kernel and keeps references to its internal
+   * data, i.e. the kernel passed as argument cannot be local in scope. The
+   * functor itself is again encapsulated in a std::function since functor’s
+   * type is unknown to the plugin.
+   */
+
+  // For 'id, item w/wo offset, nd_item' kernel arguments
+  template <class KernelType, class NormalizedKernelType, int Dims>
+  KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
+    NormalizedKernelType NormalizedKernel(KernelFunc);
+    auto NormalizedKernelFunc =
+        std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
+    auto HostKernelPtr =
+        new detail::HostKernel<decltype(NormalizedKernelFunc),
+                               sycl::nd_item<Dims>, Dims>(NormalizedKernelFunc);
+    MHostKernel.reset(HostKernelPtr);
+    return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
+                ->MKernelFunc;
+  }
+
+  // For 'sycl::id<Dims>' kernel argument
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        detail::runKernelWithArg(MKernelFunc, Arg.get_global_id());
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  // For 'sycl::nd_item<Dims>' kernel argument
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::nd_item<Dims>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        detail::runKernelWithArg(MKernelFunc, Arg);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  // For 'sycl::item<Dims, without_offset>' kernel argument
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, false>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        sycl::item<Dims, false> Item = detail::Builder::createItem<Dims, false>(
+            Arg.get_global_range(), Arg.get_global_id());
+        detail::runKernelWithArg(MKernelFunc, Item);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  // For 'sycl::item<Dims, with_offset>' kernel argument
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, true>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        sycl::item<Dims, true> Item = detail::Builder::createItem<Dims, true>(
+            Arg.get_global_range(), Arg.get_global_id(), Arg.get_offset());
+        detail::runKernelWithArg(MKernelFunc, Item);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  /* 'wrapper'-based approach using 'NormalizedKernelType' struct is
+   * not applied for 'void(void)' type kernel and
+   * 'void(sycl::group<Dims>)'. This is because 'void(void)' type does
+   * not have argument to normalize and 'void(sycl::group<Dims>)' is
+   * not supported in ESIMD.
+   */
+  // For 'void' and 'sycl::group<Dims>' kernel argument
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, void>::value ||
+                              std::is_same<ArgT, sycl::group<Dims>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    MHostKernel.reset(
+        new detail::HostKernel<KernelType, ArgT, Dims>(KernelFunc));
+    return (KernelType *)(MHostKernel->getPtr());
+  }
+
   /// Verifies the kernel bundle to be used if any is set. This throws a
   /// sycl::exception with error code errc::kernel_not_supported if the used
   /// kernel bundle does not contain a suitable device image with the requested
@@ -579,6 +695,8 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
+    using KI = detail::KernelInfo<KernelName>;
+
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
@@ -588,9 +706,8 @@ private:
           "kernel_handler is not yet supported by host device.",
           PI_INVALID_OPERATION);
     }
-    MHostKernel.reset(
-        new detail::HostKernel<KernelType, LambdaArgType, Dims, KernelName>(
-            KernelFunc));
+    KernelType *KernelPtr =
+        ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
     using KI = sycl::detail::KernelInfo<KernelName>;
     // Empty name indicates that the compilation happens without integration
@@ -598,8 +715,9 @@ private:
     if (KI::getName() != nullptr && KI::getName()[0] != '\0') {
       // TODO support ESIMD in no-integration-header case too.
       MArgs.clear();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(), KI::getNumParams(),
-                                   &KI::getParamDesc(0), KI::isESIMD());
+      extractArgsAndReqsFromLambda(reinterpret_cast<char *>(KernelPtr),
+                                   KI::getNumParams(), &KI::getParamDesc(0),
+                                   KI::isESIMD());
       MKernelName = KI::getName();
       MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI::getName());
     } else {
@@ -798,6 +916,17 @@ private:
            AccessMode == access::mode::discard_read_write;
   }
 
+  template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+    using type = typename std::conditional_t<
+        detail::is_same_v<id<Dims>, LambdaArgType>, LambdaArgType,
+        typename std::conditional_t<
+            detail::is_convertible_v<nd_item<Dims>, LambdaArgType>,
+            nd_item<Dims>,
+            typename std::conditional_t<
+                detail::is_convertible_v<item<Dims>, LambdaArgType>, item<Dims>,
+                LambdaArgType>>>;
+  };
+
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -816,10 +945,12 @@ private:
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
-    using TransformedArgType =
-        typename std::conditional<std::is_integral<LambdaArgType>::value &&
-                                      Dims == 1,
-                                  item<Dims>, LambdaArgType>::type;
+    // If user type is convertible from sycl::item/sycl::nd_item, use
+    // sycl::item/sycl::nd_item to transport item information
+    using TransformedArgType = typename std::conditional<
+        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+        typename TransformUserItemType<Dims, LambdaArgType>::type>::type;
+
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
@@ -845,8 +976,7 @@ private:
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
     // 2. The kernel is provided via an interoperability method.
-    // 3. The API "this_item" is used inside the kernel.
-    // 4. The range is already a multiple of the rounding factor.
+    // 3. The range is already a multiple of the rounding factor.
     //
     // Cases 2 and 3 could be supported with extra effort.
     // As an optimization for the common case it is an
@@ -863,8 +993,7 @@ private:
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
         this->DisableRangeRounding() ||
-        (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
-        (KI::callsThisItem());
+        (KI::getName() == nullptr || KI::getName()[0] == '\0');
 
     // Perform range rounding if rounding-up is enabled
     // and there are sufficient work-items to need rounding
@@ -936,7 +1065,7 @@ private:
   }
 
 #ifdef SYCL_LANGUAGE_VERSION
-#define __SYCL_KERNEL_ATTR__ __attribute__((sycl_kernel))
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
 #else
 #define __SYCL_KERNEL_ATTR__
 #endif
@@ -1172,7 +1301,7 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
   template <auto &SpecName>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
@@ -1231,18 +1360,12 @@ public:
   /// Registers event dependencies on this command group.
   ///
   /// \param Event is a valid SYCL event to wait on.
-  void depends_on(event Event) {
-    MEvents.push_back(detail::getSyclObjImpl(Event));
-  }
+  void depends_on(event Event);
 
   /// Registers event dependencies on this command group.
   ///
   /// \param Events is a vector of valid SYCL events to wait on.
-  void depends_on(const std::vector<event> &Events) {
-    for (const event &Event : Events) {
-      MEvents.push_back(detail::getSyclObjImpl(Event));
-    }
-  }
+  void depends_on(const std::vector<event> &Events);
 
   template <typename T>
   using remove_cv_ref_t =
@@ -1361,8 +1484,7 @@ public:
     MNDRDesc.set(range<1>{1});
 
     MArgs = std::move(MAssociatedAccesors);
-    MHostKernel.reset(
-        new detail::HostKernel<FuncT, void, 1, void>(std::move(Func)));
+    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
     setType(detail::CG::RunOnHostIntel);
   }
 
@@ -1441,12 +1563,17 @@ public:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+    // If user type is convertible from sycl::item/sycl::nd_item, use
+    // sycl::item/sycl::nd_item to transport item information
+    using TransformedArgType =
+        typename TransformUserItemType<Dims, LambdaArgType>::type;
     (void)ExecutionRange;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
+        std::move(KernelFunc));
     setType(detail::CG::Kernel);
 #endif
   }

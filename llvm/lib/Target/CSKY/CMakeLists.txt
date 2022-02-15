@@ -5,7 +5,9 @@ set(LLVM_TARGET_DEFINITIONS CSKY.td)
 tablegen(LLVM CSKYGenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM CSKYGenAsmWriter.inc -gen-asm-writer)
 tablegen(LLVM CSKYGenCallingConv.inc -gen-callingconv)
+tablegen(LLVM CSKYGenCompressInstEmitter.inc -gen-compress-inst-emitter)
 tablegen(LLVM CSKYGenDAGISel.inc -gen-dag-isel)
+tablegen(LLVM CSKYGenDisassemblerTables.inc -gen-disassembler)
 tablegen(LLVM CSKYGenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM CSKYGenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM CSKYGenMCPseudoLowering.inc -gen-pseudo-lowering)
@@ -16,6 +18,8 @@ add_public_tablegen_target(CSKYCommonTableGen)
 
 add_llvm_target(CSKYCodeGen
   CSKYAsmPrinter.cpp
+  CSKYConstantIslandPass.cpp
+  CSKYConstantPoolValue.cpp
   CSKYFrameLowering.cpp
   CSKYInstrInfo.cpp
   CSKYISelDAGToDAG.cpp
@@ -42,5 +46,6 @@ add_llvm_target(CSKYCodeGen
   )
 
 add_subdirectory(AsmParser)
+add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)

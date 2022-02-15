@@ -87,7 +87,6 @@ The code, slightly simplified and annotated, is reproduced here:
   pm.addNestedPass<FuncOp>(createTCPBufferizePass()); // Bufferizes the downstream `tcp` dialect.
   pm.addNestedPass<FuncOp>(createSCFBufferizePass());
   pm.addNestedPass<FuncOp>(createLinalgBufferizePass());
-  pm.addNestedPass<FuncOp>(createStdBufferizePass());
   pm.addNestedPass<FuncOp>(createTensorBufferizePass());
   pm.addPass(createFuncBufferizePass());
 
@@ -97,10 +96,9 @@ The code, slightly simplified and annotated, is reproduced here:
 
 Looking first at the partial bufferization passes, we see that there are a
 sequence of `FuncOp` passes (which run in parallel on functions). These function
-passes are bracketed by `tensor-constant-bufferize` and `func-bufferize`, which
-are module passes (and thus serialize the parallel compilation process). These
-two passes must be module passes because they make changes to the top-level
-module.
+passes are bracketed by `arith-bufferize` and `func-bufferize`, which are module
+passes (and thus serialize the parallel compilation process). These two passes
+must be module passes because they make changes to the top-level module.
 
 The bulk of the bufferization work is done by the function passes. Most of these
 passes are provided as part of the upstream MLIR distribution and bufferize
@@ -163,7 +161,7 @@ void mlir::populateTensorBufferizePatterns(
 }
 
 struct TensorBufferizePass : public TensorBufferizeBase<TensorBufferizePass> {
-  void runOnFunction() override {
+  void runOnOperation() override {
     auto *context = &getContext();
     BufferizeTypeConverter typeConverter;
     RewritePatternSet patterns(context);
@@ -174,7 +172,7 @@ struct TensorBufferizePass : public TensorBufferizeBase<TensorBufferizePass> {
     target.addLegalDialect<StandardOpsDialect>();
 
     if (failed(
-            applyPartialConversion(getFunction(), target, std::move(patterns))))
+            applyPartialConversion(getOperation(), target, std::move(patterns))))
       signalPassFailure();
   }
 };
@@ -191,8 +189,8 @@ One convenient utility provided by the MLIR bufferization infrastructure is the
 `BufferizeTypeConverter`, which comes pre-loaded with the necessary conversions
 and materializations between `tensor` and `memref`.
 
-In this case, the `MemRefOpsDialect` is marked as legal, so the
-`memref.tensor_load` and `memref.buffer_cast` ops, which are inserted
+In this case, the `BufferizationOpsDialect` is marked as legal, so the
+`bufferization.to_tensor` and `bufferization.to_memref` ops, which are inserted
 automatically by the dialect conversion framework as materializations, are
 legal. There is a helper `populateBufferizeMaterializationLegality`
 ([code](https://github.com/llvm/llvm-project/blob/a0b65a7bcd6065688189b3d678c42ed6af9603db/mlir/include/mlir/Transforms/Bufferize.h#L53))
@@ -235,11 +233,11 @@ which helps with this in general.
     -   This is an example of a pass that is not split along dialect
         subdivisions.
 
--   `tensor-constant-bufferize`
-    ([code](https://github.com/llvm/llvm-project/blob/bc8acf2ce8ad6e8c9b1d97b2e02d3f4ad26e1d9d/mlir/lib/Dialect/StandardOps/Transforms/TensorConstantBufferize.cpp#L1),
-    [test](https://github.com/llvm/llvm-project/blob/bc8acf2ce8ad6e8c9b1d97b2e02d3f4ad26e1d9d/mlir/test/Dialect/Standard/tensor-constant-bufferize.mlir#L1))
+-   `arith-bufferize`
+    ([code](https://github.com/llvm/llvm-project/blob/446425f89871aa7849c5615e6b695ebd10c9b34a/mlir/lib/Dialect/Arithmetic/Transforms/Bufferize.cpp),
+    [test](https://github.com/llvm/llvm-project/blob/d1aed486efc6d35a81ca4acbabb4203c4b91cda9/mlir/test/Dialect/Arithmetic/bufferize.mlir))
 
-    -   Bufferizes only `arith.constant` ops of `tensor` type.
+    -   Bufferizes only `arith` ops of `tensor` type.
     -   This is an example of setting up the legality so that only a subset of
         `arith.constant` ops get bufferized.
     -   This is an example of a pass that is not split along dialect
@@ -252,9 +250,9 @@ from the program.
 
 The easiest way to write a finalizing bufferize pass is to not write one at all!
 MLIR provides a pass `finalizing-bufferize` which eliminates the
-`memref.tensor_load` / `memref.buffer_cast` materialization ops inserted by
-partial bufferization passes and emits an error if that is not sufficient to
-remove all tensors from the program.
+`bufferization.to_tensor` / `bufferization.to_memref` materialization ops
+inserted by partial bufferization passes and emits an error if that is not
+sufficient to remove all tensors from the program.
 
 This pass is sufficient when partial bufferization passes have bufferized all
 the ops in the program, leaving behind only the materializations. When possible,
@@ -272,7 +270,7 @@ downstream projects structured this way. This structure is not recommended in
 new code. A helper, `populateEliminateBufferizeMaterializationsPatterns`
 ([code](https://github.com/llvm/llvm-project/blob/a0b65a7bcd6065688189b3d678c42ed6af9603db/mlir/include/mlir/Transforms/Bufferize.h#L58))
 is available for such passes to provide patterns that eliminate
-`memref.tensor_load` and `memref.buffer_cast`.
+`bufferization.to_tensor` and `bufferization.to_memref`.
 
 ## Changes since [the talk](#the-talk)
 

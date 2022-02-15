@@ -26,6 +26,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -356,9 +357,8 @@ void AsmPrinter::emitInlineAsm(const MachineInstr *MI) const {
   // it.
   uint64_t LocCookie = 0;
   const MDNode *LocMD = nullptr;
-  for (unsigned i = MI->getNumOperands(); i != 0; --i) {
-    if (MI->getOperand(i-1).isMetadata() &&
-        (LocMD = MI->getOperand(i-1).getMetadata()) &&
+  for (const MachineOperand &MO : llvm::reverse(MI->operands())) {
+    if (MO.isMetadata() && (LocMD = MO.getMetadata()) &&
         LocMD->getNumOperands() != 0) {
       if (const ConstantInt *CI =
               mdconst::dyn_extract<ConstantInt>(LocMD->getOperand(0))) {
@@ -399,9 +399,9 @@ void AsmPrinter::emitInlineAsm(const MachineInstr *MI) const {
   if (!RestrRegs.empty()) {
     std::string Msg = "inline asm clobber list contains reserved registers: ";
     ListSeparator LS;
-    for (const Register &RR : RestrRegs) {
+    for (const Register RR : RestrRegs) {
       Msg += LS;
-      Msg += TRI->getName(RR);
+      Msg += TRI->getRegAsmName(RR);
     }
     const char *Note =
         "Reserved registers on the clobber list may not be "

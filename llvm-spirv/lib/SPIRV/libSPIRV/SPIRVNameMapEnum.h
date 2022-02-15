@@ -169,6 +169,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationSingleElementVectorINTEL, "SingleElementVectorINTEL");
   add(DecorationVectorComputeCallableFunctionINTEL,
       "VectorComputeCallableFunctionINTEL");
+  add(DecorationMediaBlockIOINTEL, "MediaBlockIOINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
@@ -181,6 +182,9 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
   add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
   add(internal::DecorationRuntimeAlignedINTEL, "RuntimeAlignedINTEL");
+  add(internal::DecorationHostAccessINTEL, "HostAccessINTEL");
+  add(internal::DecorationInitModeINTEL, "InitModeINTEL");
+  add(internal::DecorationImplementInCSRINTEL, "ImplementInCSRINTEL");
   add(internal::DecorationArgumentAttributeINTEL, "ArgumentAttributeINTEL");
 
   add(DecorationMax, "Max");
@@ -308,9 +312,7 @@ template <> inline void SPIRVMap<BuiltIn, std::string>::init() {
   add(BuiltInSMIDNV, "BuiltInSMIDNV");
   add(BuiltInMax, "BuiltInMax");
   add(internal::BuiltInSubDeviceIDINTEL, "BuiltInSubDeviceIDINTEL");
-  add(internal::BuiltInHWThreadIDINTEL, "BuiltInHWThreadIDINTEL");
-  add(internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL,
-      "BuiltInMaxHWThreadIDPerSubDeviceINTEL");
+  add(internal::BuiltInGlobalHWThreadIDINTEL, "BuiltInGlobalHWThreadIDINTEL");
 }
 SPIRV_DEF_NAMEMAP(BuiltIn, SPIRVBuiltInNameMap)
 
@@ -588,6 +590,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
   add(internal::CapabilityJointMatrixINTEL, "JointMatrixINTEL");
   add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
+  add(internal::CapabilityGlobalVariableDecorationsINTEL,
+      "GlobalVariableDecorationsINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

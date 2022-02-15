@@ -8,13 +8,13 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
+#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/SCF/Transforms.h"
-#include "mlir/Dialect/StandardOps/Utils/Utils.h"
+#include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -277,7 +277,7 @@ struct TiledLoopToSCFPattern : public OpRewritePattern<TiledLoopOp> {
     // Collect loop control parameters for parallel and sequential dimensions.
     SmallVector<Value, 3> seqLBs, seqUBs, seqSteps, seqIVs;
     SmallVector<Value, 3> parLBs, parUBs, parSteps, parIVs;
-    for (auto en : llvm::enumerate(
+    for (const auto &en : llvm::enumerate(
              llvm::zip(tiledLoop.lowerBound(), tiledLoop.upperBound(),
                        tiledLoop.step(), tiledLoop.getInductionVars()))) {
       Value lb, ub, step, iv;
@@ -381,8 +381,8 @@ struct LowerToAffineLoops
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect>();
   }
-  void runOnFunction() override {
-    lowerLinalgToLoopsImpl<AffineForOp>(getFunction());
+  void runOnOperation() override {
+    lowerLinalgToLoopsImpl<AffineForOp>(getOperation());
   }
 };
 
@@ -390,25 +390,25 @@ struct LowerToLoops : public LinalgLowerToLoopsBase<LowerToLoops> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect, scf::SCFDialect>();
   }
-  void runOnFunction() override {
-    lowerLinalgToLoopsImpl<scf::ForOp>(getFunction());
+  void runOnOperation() override {
+    lowerLinalgToLoopsImpl<scf::ForOp>(getOperation());
   }
 };
 
 struct LowerToParallelLoops
     : public LinalgLowerToParallelLoopsBase<LowerToParallelLoops> {
-  void runOnFunction() override {
-    lowerLinalgToLoopsImpl<scf::ParallelOp>(getFunction());
+  void runOnOperation() override {
+    lowerLinalgToLoopsImpl<scf::ParallelOp>(getOperation());
   }
 };
 
 struct LowerTiledLoopsToSCF
     : public LinalgLowerTiledLoopsToSCFBase<LowerTiledLoopsToSCF> {
-  void runOnFunction() override {
+  void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
     populateTiledLoopToSCFPattern(patterns);
-    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 };
 } // namespace

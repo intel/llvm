@@ -21,8 +21,8 @@
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Transforms/Passes.h"
-#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -137,13 +137,13 @@ public:
 class AffineDialectDemotion
     : public AffineDialectDemotionBase<AffineDialectDemotion> {
 public:
-  void runOnFunction() override {
+  void runOnOperation() override {
     auto *context = &getContext();
-    auto function = getFunction();
+    auto function = getOperation();
     LLVM_DEBUG(llvm::dbgs() << "AffineDemotion: running on function:\n";
                function.print(llvm::dbgs()););
 
-    mlir::OwningRewritePatternList patterns(context);
+    mlir::RewritePatternSet patterns(context);
     patterns.insert<ConvertConversion>(context);
     patterns.insert<AffineLoadConversion>(context);
     patterns.insert<AffineStoreConversion>(context);

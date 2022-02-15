@@ -530,22 +530,26 @@ elementwise to the input.
 
 Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±infinity
 
-========================================= ================================================================ =========================================
-         Name                              Operation                                                        Supported element types
-========================================= ================================================================ =========================================
- T __builtin_elementwise_abs(T x)          return the absolute value of a number x; the absolute value of   signed integer and floating point types
-                                           the most negative integer remains the most negative integer
- T __builtin_elementwise_ceil(T x)         return the smallest integral value greater than or equal to x    floating point types
- T __builtin_elementwise_floor(T x)        return the largest integral value less than or equal to x        floating point types
- T __builtin_elementwise_roundeven(T x)    round x to the nearest integer value in floating point format,   floating point types
-                                           rounding halfway cases to even (that is, to the nearest value
-                                           that is an even integer), regardless of the current rounding
-                                           direction.
- T__builtin_elementwise_trunc(T x)         return the integral value nearest to but no larger in            floating point types
-                                           magnitude than x
- T __builtin_elementwise_max(T x, T y)     return x or y, whichever is larger                               integer and floating point types
- T __builtin_elementwise_min(T x, T y)     return x or y, whichever is smaller                              integer and floating point types
-========================================= ================================================================ =========================================
+=========================================== ================================================================ =========================================
+         Name                                Operation                                                        Supported element types
+=========================================== ================================================================ =========================================
+ T __builtin_elementwise_abs(T x)            return the absolute value of a number x; the absolute value of   signed integer and floating point types
+                                             the most negative integer remains the most negative integer
+ T __builtin_elementwise_ceil(T x)           return the smallest integral value greater than or equal to x    floating point types
+ T __builtin_elementwise_floor(T x)          return the largest integral value less than or equal to x        floating point types
+ T __builtin_elementwise_roundeven(T x)      round x to the nearest integer value in floating point format,   floating point types
+                                             rounding halfway cases to even (that is, to the nearest value
+                                             that is an even integer), regardless of the current rounding
+                                             direction.
+ T__builtin_elementwise_trunc(T x)           return the integral value nearest to but no larger in            floating point types
+                                             magnitude than x
+ T __builtin_elementwise_max(T x, T y)       return x or y, whichever is larger                               integer and floating point types
+ T __builtin_elementwise_min(T x, T y)       return x or y, whichever is smaller                              integer and floating point types
+ T __builtin_elementwise_add_sat(T x, T y)   return the sum of x and y, clamped to the range of               integer types
+                                             representable values for the signed/unsigned integer type.
+ T __builtin_elementwise_sub_sat(T x, T y)   return the difference of x and y, clamped to the range of        integer types
+                                             representable values for the signed/unsigned integer type.
+=========================================== ================================================================ =========================================
 
 
 *Reduction Builtins*
@@ -1365,6 +1369,11 @@ The following type trait primitives are supported by Clang. Those traits marked
 * ``__is_trivially_constructible`` (C++, GNU, Microsoft)
 * ``__is_trivially_copyable`` (C++, GNU, Microsoft)
 * ``__is_trivially_destructible`` (C++, MSVC 2013)
+* ``__is_trivially_relocatable`` (Clang): Returns true if moving an object
+  of the given type, and then destroying the source object, is known to be
+  functionally equivalent to copying the underlying bytes and then dropping the
+  source object on the floor. This is true of trivial types and types which
+  were made trivially relocatable via the ``clang::trivial_abi`` attribute.
 * ``__is_union`` (C++, GNU, Microsoft, Embarcadero)
 * ``__is_unsigned`` (C++, Embarcadero):
   Returns false for enumeration types. Note, before Clang 13, returned true for
@@ -1470,6 +1479,33 @@ It's important to note that outputs are valid only on the "fallthrough" branch.
 Using outputs on an indirect branch may result in undefined behavior. For
 example, in the function above, use of the value assigned to `y` in the `err`
 block is undefined behavior.
+
+When using tied-outputs (i.e. outputs that are inputs and outputs, not just
+outputs) with the `+r` constraint, there is a hidden input that's created
+before the label, so numeric references to operands must account for that.
+
+.. code-block:: c++
+
+  int foo(int x) {
+      // %0 and %1 both refer to x
+      // %l2 refers to err
+      asm goto("# %0 %1 %l2" : "+r"(x) : : : err);
+      return x;
+    err:
+      return -1;
+  }
+
+This was changed to match GCC in clang-13; for better portability, symbolic
+references can be used instead of numeric references.
+
+.. code-block:: c++
+
+  int foo(int x) {
+      asm goto("# %[x] %l[err]" : [x]"+r"(x) : : : err);
+      return x;
+    err:
+      return -1;
+  }
 
 Query for this feature with ``__has_extension(gnu_asm_goto_with_outputs)``.
 
@@ -2098,43 +2134,104 @@ implemented directly in terms of :ref:`extended vector support
 <langext-vectors>` instead of builtins, in order to reduce the number of
 builtins that we need to implement.
 
-.. _langext-__builtin_assume:
+``__builtin_alloca``
+--------------------
 
-``__builtin_assume``
-------------------------------
-
-``__builtin_assume`` is used to provide the optimizer with a boolean
-invariant that is defined to be true.
+``__builtin_alloca`` is used to dynamically allocate memory on the stack. Memory
+is automatically freed upon function termination.
 
 **Syntax**:
 
 .. code-block:: c++
 
-  __builtin_assume(bool)
+  __builtin_alloca(size_t n)
 
 **Example of Use**:
 
 .. code-block:: c++
 
-  int foo(int x) {
-    __builtin_assume(x != 0);
-
-    // The optimizer may short-circuit this check using the invariant.
-    if (x == 0)
-      return do_something();
-
-    return do_something_else();
+  void init(float* data, size_t nbelems);
+  void process(float* data, size_t nbelems);
+  int foo(size_t n) {
+    auto mem = (float*)__builtin_alloca(n * sizeof(float));
+    init(mem, n);
+    process(mem, n);
+    /* mem is automatically freed at this point */
   }
 
 **Description**:
 
-The boolean argument to this function is defined to be true. The optimizer may
-analyze the form of the expression provided as the argument and deduce from
-that information used to optimize the program. If the condition is violated
-during execution, the behavior is undefined. The argument itself is never
-evaluated, so any side effects of the expression will be discarded.
+``__builtin_alloca`` is meant to be used to allocate a dynamic amount of memory
+on the stack. This amount is subject to stack allocation limits.
 
-Query for this feature with ``__has_builtin(__builtin_assume)``.
+Query for this feature with ``__has_builtin(__builtin_alloca)``.
+
+``__builtin_alloca_with_align``
+-------------------------------
+
+``__builtin_alloca_with_align`` is used to dynamically allocate memory on the
+stack while controlling its alignment. Memory is automatically freed upon
+function termination.
+
+
+**Syntax**:
+
+.. code-block:: c++
+
+  __builtin_alloca_with_align(size_t n, size_t align)
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  void init(float* data, size_t nbelems);
+  void process(float* data, size_t nbelems);
+  int foo(size_t n) {
+    auto mem = (float*)__builtin_alloca_with_align(
+                        n * sizeof(float),
+                        CHAR_BIT * alignof(float));
+    init(mem, n);
+    process(mem, n);
+    /* mem is automatically freed at this point */
+  }
+
+**Description**:
+
+``__builtin_alloca_with_align`` is meant to be used to allocate a dynamic amount of memory
+on the stack. It is similar to ``__builtin_alloca`` but accepts a second
+argument whose value is the alignment constraint, as a power of 2 in *bits*.
+
+Query for this feature with ``__has_builtin(__builtin_alloca_with_align)``.
+
+.. _langext-__builtin_assume:
+
+``__builtin_call_with_static_chain``
+------------------------------------
+
+``__builtin_call_with_static_chain`` is used to perform a static call while
+setting updating the static chain register.
+
+**Syntax**:
+
+.. code-block:: c++
+
+  T __builtin_call_with_static_chain(T expr, void* ptr)
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  auto v = __builtin_call_with_static_chain(foo(3), foo);
+
+**Description**:
+
+This builtin returns ``expr`` after checking that ``expr`` is a non-member
+static call expression. The call to that expression is made while using ``ptr``
+as a function pointer stored in a dedicated register to implement *static chain*
+calling convention, as used by some language to implement closures or nested
+functions.
+
+Query for this feature with ``__has_builtin(__builtin_call_with_static_chain)``.
 
 ``__builtin_readcyclecounter``
 ------------------------------
@@ -2474,6 +2571,98 @@ flow conditions such as in ``if`` and ``switch`` statements.
 
 Query for this feature with ``__has_builtin(__builtin_unpredictable)``.
 
+
+``__builtin_expect``
+--------------------
+
+``__builtin_expect`` is used to indicate that the value of an expression is
+anticipated to be the same as a statically known result.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    long __builtin_expect(long expr, long val)
+
+**Example of use**:
+
+.. code-block:: c++
+
+  if (__builtin_expect(x, 0)) {
+     bar();
+  }
+
+**Description**:
+
+The ``__builtin_expect()`` builtin is typically used with control flow
+conditions such as in ``if`` and ``switch`` statements to help branch
+prediction. It means that its first argument ``expr`` is expected to take the
+value of its second argument ``val``. It always returns ``expr``.
+
+Query for this feature with ``__has_builtin(__builtin_expect)``.
+
+``__builtin_expect_with_probability``
+-------------------------------------
+
+``__builtin_expect_with_probability`` is similar to ``__builtin_expect`` but it
+takes a probability as third argument.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    long __builtin_expect_with_probability(long expr, long val, double p)
+
+**Example of use**:
+
+.. code-block:: c++
+
+  if (__builtin_expect_with_probability(x, 0, .3)) {
+     bar();
+  }
+
+**Description**:
+
+The ``__builtin_expect_with_probability()`` builtin is typically used with
+control flow conditions such as in ``if`` and ``switch`` statements to help
+branch prediction. It means that its first argument ``expr`` is expected to take
+the value of its second argument ``val`` with probability ``p``. ``p`` must be
+within ``[0.0 ; 1.0]`` bounds. This builtin always returns the value of ``expr``.
+
+Query for this feature with ``__has_builtin(__builtin_expect_with_probability)``.
+
+``__builtin_prefetch``
+----------------------
+
+``__builtin_prefetch`` is used to communicate with the cache handler to bring
+data into the cache before it gets used.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    void __builtin_prefetch(const void *addr, int rw=0, int locality=3)
+
+**Example of use**:
+
+.. code-block:: c++
+
+    __builtin_prefetch(a + i);
+
+**Description**:
+
+The ``__builtin_prefetch(addr, rw, locality)`` builtin is expected to be used to
+avoid cache misses when the developper has a good understanding of which data
+are going to be used next. ``addr`` is the address that needs to be brought into
+the cache. ``rw`` indicates the expected access mode: ``0`` for *read* and ``1``
+for *write*. In case of *read write* access, ``1`` is to be used. ``locality``
+indicates the expected persistance of data in cache, from ``0`` which means that
+data can be discarded from cache after its next use to ``3`` which means that
+data is going to be reused a lot once in cache. ``1`` and ``2`` provide
+intermediate behavior between these two extremes.
+
+Query for this feature with ``__has_builtin(__builtin_prefetch)``.
+
 ``__sync_swap``
 ---------------
 
@@ -2516,6 +2705,48 @@ object that overloads ``operator&``.
   template<typename T> constexpr T *addressof(T &value) {
     return __builtin_addressof(value);
   }
+
+``__builtin_function_start``
+-----------------------------
+
+``__builtin_function_start`` returns the address of a function body.
+
+**Syntax**:
+
+.. code-block:: c++
+
+  void *__builtin_function_start(function)
+
+**Example of use**:
+
+.. code-block:: c++
+
+  void a() {}
+  void *p = __builtin_function_start(a);
+
+  class A {
+  public:
+    void a(int n);
+    void a();
+  };
+
+  void A::a(int n) {}
+  void A::a() {}
+
+  void *pa1 = __builtin_function_start((void(A::*)(int)) &A::a);
+  void *pa2 = __builtin_function_start((void(A::*)()) &A::a);
+
+**Description**:
+
+The ``__builtin_function_start`` builtin accepts an argument that can be
+constant-evaluated to a function, and returns the address of the function
+body.  This builtin is not supported on all targets.
+
+The returned pointer may differ from the normally taken function address
+and is not safe to call.  For example, with ``-fsanitize=cfi``, taking a
+function address produces a callable pointer to a CFI jump table, while
+``__builtin_function_start`` returns an address that fails
+:doc:`cfi-icall<ControlFlowIntegrity>` checks.
 
 ``__builtin_operator_new`` and ``__builtin_operator_delete``
 ------------------------------------------------------------
@@ -2577,6 +2808,42 @@ argument.
   struct t *v = ...;
   int *pb =__builtin_preserve_access_index(&v->c[3].b);
   __builtin_preserve_access_index(v->j);
+
+``__builtin_debugtrap``
+-----------------------
+
+``__builtin_debugtrap`` causes the program to stop its execution in such a way that a debugger can catch it.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    __builtin_debugtrap()
+
+**Description**
+
+``__builtin_debugtrap`` is lowered to the ` ``llvm.debugtrap`` <https://llvm.org/docs/LangRef.html#llvm-debugtrap-intrinsic>`_ builtin. It should have the same effect as setting a breakpoint on the line where the builtin is called.
+
+Query for this feature with ``__has_builtin(__builtin_debugtrap)``.
+
+
+``__builtin_trap``
+------------------
+
+``__builtin_trap`` causes the program to stop its execution abnormally.
+
+**Syntax**:
+
+.. code-block:: c++
+
+    __builtin_trap()
+
+**Description**
+
+``__builtin_trap`` is lowered to the ` ``llvm.trap`` <https://llvm.org/docs/LangRef.html#llvm-trap-intrinsic>`_ builtin.
+
+Query for this feature with ``__has_builtin(__builtin_trap)``.
+
 
 ``__builtin_sycl_unique_stable_name``
 -------------------------------------
@@ -3028,7 +3295,6 @@ an appropriate value during the emission.
   void  *__builtin_coro_begin(void *memory)
   void   __builtin_coro_end(void *coro_frame, bool unwind)
   char   __builtin_coro_suspend(bool final)
-  bool   __builtin_coro_param(void *original, void *copy)
 
 Note that there is no builtin matching the `llvm.coro.save` intrinsic. LLVM
 automatically will insert one if the first argument to `llvm.coro.suspend` is
@@ -4110,55 +4376,13 @@ Examples are:
 Extended Integer Types
 ======================
 
-Clang supports a set of extended integer types under the syntax ``_ExtInt(N)``
-where ``N`` is an integer that specifies the number of bits that are used to represent
-the type, including the sign bit. The keyword ``_ExtInt`` is a type specifier, thus
-it can be used in any place a type can, including as a non-type-template-parameter,
-as the type of a bitfield, and as the underlying type of an enumeration.
+Clang supports the C23 ``_BitInt(N)`` feature as an extension in older C modes
+and in C++. This type was previously implemented in Clang with the same
+semantics, but spelled ``_ExtInt(N)``. This spelling has been deprecated in
+favor of the standard type.
 
-An extended integer can be declared either signed, or unsigned by using the
-``signed``/``unsigned`` keywords. If no sign specifier is used or if the ``signed``
-keyword is used, the extended integer type is a signed integer and can represent
-negative values.
-
-The ``N`` expression is an integer constant expression, which specifies the number
-of bits used to represent the type, following normal integer representations for
-both signed and unsigned types. Both a signed and unsigned extended integer of the
-same ``N`` value will have the same number of bits in its representation. Many
-architectures don't have a way of representing non power-of-2 integers, so these
-architectures emulate these types using larger integers. In these cases, they are
-expected to follow the 'as-if' rule and do math 'as-if' they were done at the
-specified number of bits.
-
-In order to be consistent with the C language specification, and make the extended
-integer types useful for their intended purpose, extended integers follow the C
-standard integer conversion ranks. An extended integer type has a greater rank than
-any integer type with less precision.  However, they have lower rank than any
-of the built in or other integer types (such as __int128). Usual arithmetic conversions
-also work the same, where the smaller ranked integer is converted to the larger.
-
-The one exception to the C rules for integers for these types is Integer Promotion.
-Unary +, -, and ~ operators typically will promote operands to ``int``. Doing these
-promotions would inflate the size of required hardware on some platforms, so extended
-integer types aren't subject to the integer promotion rules in these cases.
-
-In languages (such as OpenCL) that define shift by-out-of-range behavior as a mask,
-non-power-of-two versions of these types use an unsigned remainder operation to constrain
-the value to the proper range, preventing undefined behavior.
-
-Extended integer types are aligned to the next greatest power-of-2 up to 64 bits.
-The size of these types for the purposes of layout and ``sizeof`` are the number of
-bits aligned to this calculated alignment. This permits the use of these types in
-allocated arrays using common ``sizeof(Array)/sizeof(ElementType)`` pattern.
-
-Extended integer types work with the C _Atomic type modifier, however only precisions
-that are powers-of-2 greater than 8 bit are accepted.
-
-Extended integer types align with existing calling conventions. They have the same size
-and alignment as the smallest basic type that can contain them. Types that are larger
-than 64 bits are handled in the same way as _int128 is handled; they are conceptually
-treated as struct of register size chunks. They number of chunks are the smallest
-number that can contain the types which does not necessarily mean a power-of-2 size.
+Note: the ABI for ``_BitInt(N)`` is still in the process of being stabilized,
+so this type should not yet be used in interfaces that require ABI stability.
 
 Intrinsics Support within Constant Expressions
 ==============================================

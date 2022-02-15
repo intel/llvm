@@ -57,6 +57,7 @@ CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
 CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
 CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
 CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
+CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
@@ -178,20 +179,24 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   switch (paramName) {
     // TODO: Check regularly to see if support in enabled in OpenCL.
     // Intel GPU EU device-specific information extensions.
+    // Some of the queries are enabled by cl_intel_device_attribute_query
+    // extension, but it's not yet in the Registry.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case PI_DEVICE_INFO_GPU_SLICES:
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if device UUID extension is enabled in OpenCL.
     // For details about Intel UUID extension, see
-    // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+    // sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md
   case PI_DEVICE_INFO_UUID:
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_INVALID_VALUE;
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
@@ -389,6 +394,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
+  clRetainCommandQueue(cast<cl_command_queue>(nativeHandle));
   return PI_SUCCESS;
 }
 
@@ -968,11 +974,56 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
 pi_result piextUSMFree(pi_context context, void *ptr) {
+  // Use a blocking free to avoid issues with indirect access from kernels that
+  // might be still running.
+  clMemBlockingFreeINTEL_fn FuncPtr = nullptr;
 
-  clMemFreeINTEL_fn FuncPtr = nullptr;
+  // We need to use clMemBlockingFreeINTEL here, however, due to a bug in OpenCL
+  // CPU runtime this call fails with CL_INVALID_EVENT on CPU devices in certain
+  // cases. As a temporary workaround, this function replicates caching of
+  // extension function pointers in getExtFuncFromContext, while choosing
+  // clMemBlockingFreeINTEL for GPU and clMemFreeINTEL for other device types.
+  // TODO remove this workaround when the new OpenCL CPU runtime version is
+  // uplifted in CI.
+  static_assert(
+      std::is_same<clMemBlockingFreeINTEL_fn, clMemFreeINTEL_fn>::value);
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
+
+  if (ret_err != CL_SUCCESS || deviceCount < 1) {
+    return PI_INVALID_CONTEXT;
+  }
+
+  std::vector<cl_device_id> devicesInCtx(deviceCount);
+  ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
+                             deviceCount * sizeof(cl_device_id),
+                             devicesInCtx.data(), nullptr);
+
+  if (ret_err != CL_SUCCESS) {
+    return PI_INVALID_CONTEXT;
+  }
+
+  bool useBlockingFree = true;
+  for (const cl_device_id &dev : devicesInCtx) {
+    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
+    ret_err = clGetDeviceInfo(dev, CL_DEVICE_TYPE, sizeof(cl_device_type),
+                              &devType, nullptr);
+    if (ret_err != CL_SUCCESS) {
+      return PI_INVALID_DEVICE;
+    }
+    useBlockingFree &= devType == CL_DEVICE_TYPE_GPU;
+  }
+
   pi_result RetVal = PI_INVALID_OPERATION;
-  RetVal = getExtFuncFromContext<clMemFreeName, clMemFreeINTEL_fn>(context,
-                                                                   &FuncPtr);
+  if (useBlockingFree)
+    RetVal =
+        getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
+            context, &FuncPtr);
+  else
+    RetVal = getExtFuncFromContext<clMemFreeName, clMemFreeINTEL_fn>(context,
+                                                                     &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
@@ -1377,6 +1428,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piQueueCreate, piQueueCreate)
   _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
   _PI_CL(piQueueFinish, clFinish)
+  _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
   _PI_CL(piQueueRelease, clReleaseCommandQueue)
   _PI_CL(piextQueueGetNativeHandle, piextQueueGetNativeHandle)

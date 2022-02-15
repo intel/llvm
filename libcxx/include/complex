@@ -243,7 +243,7 @@ template<class T> complex<T> tanh (const complex<T>&);
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -1485,8 +1485,8 @@ inline namespace literals
     {
         return { 0.0f, static_cast<float>(__im) };
     }
-  }
-}
+  } // namespace complex_literals
+} // namespace literals
 #endif
 
 _LIBCPP_END_NAMESPACE_STD

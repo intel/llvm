@@ -3227,7 +3227,7 @@ bool ARMDAGToDAGISel::transformFixedFloatingPointConversion(SDNode *N,
     if (!ImmAPF.getExactInverse(&ToConvert))
       return false;
   }
-  APSInt Converted(64, 0);
+  APSInt Converted(64, false);
   bool IsExact;
   ToConvert.convertToInteger(Converted, llvm::RoundingMode::NearestTiesToEven,
                              &IsExact);
@@ -3274,7 +3274,8 @@ bool ARMDAGToDAGISel::tryFP_TO_INT(SDNode *N, SDLoc dl) {
     return false;
   unsigned int ScalarBits = Type.getScalarSizeInBits();
 
-  bool IsUnsigned = N->getOpcode() == ISD::FP_TO_UINT;
+  bool IsUnsigned = N->getOpcode() == ISD::FP_TO_UINT ||
+                    N->getOpcode() == ISD::FP_TO_UINT_SAT;
   SDNode *Node = N->getOperand(0).getNode();
 
   // floating-point to fixed-point with one fractional bit gets turned into an
@@ -3764,6 +3765,8 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
     break;
   case ISD::FP_TO_UINT:
   case ISD::FP_TO_SINT:
+  case ISD::FP_TO_UINT_SAT:
+  case ISD::FP_TO_SINT_SAT:
     if (tryFP_TO_INT(N, dl))
       return;
     break;
@@ -5734,8 +5737,7 @@ bool ARMDAGToDAGISel::tryInlineAsm(SDNode *N){
   // them into a GPRPair.
 
   SDLoc dl(N);
-  SDValue Glue = N->getGluedNode() ? N->getOperand(NumOps-1)
-                                   : SDValue(nullptr,0);
+  SDValue Glue = N->getGluedNode() ? N->getOperand(NumOps - 1) : SDValue();
 
   SmallVector<bool, 8> OpChanged;
   // Glue node will be appended late.
@@ -5798,8 +5800,8 @@ bool ARMDAGToDAGISel::tryInlineAsm(SDNode *N){
     assert((i+2 < NumOps) && "Invalid number of operands in inline asm");
     SDValue V0 = N->getOperand(i+1);
     SDValue V1 = N->getOperand(i+2);
-    unsigned Reg0 = cast<RegisterSDNode>(V0)->getReg();
-    unsigned Reg1 = cast<RegisterSDNode>(V1)->getReg();
+    Register Reg0 = cast<RegisterSDNode>(V0)->getReg();
+    Register Reg1 = cast<RegisterSDNode>(V1)->getReg();
     SDValue PairedReg;
     MachineRegisterInfo &MRI = MF->getRegInfo();
 

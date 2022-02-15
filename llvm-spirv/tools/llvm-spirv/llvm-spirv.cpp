@@ -59,6 +59,10 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+#include "spirv-tools/libspirv.hpp"
+#endif
+
 #ifndef _SPIRV_SUPPORT_TEXT_FMT
 #define _SPIRV_SUPPORT_TEXT_FMT
 #endif
@@ -144,6 +148,10 @@ static cl::opt<bool>
         cl::desc("Preserve OpenCL kernel_arg_type and kernel_arg_type_qual "
                  "metadata through OpString"));
 
+static cl::opt<bool>
+    SPIRVToolsDis("spirv-tools-dis", cl::init(false),
+                  cl::desc("Emit textual assembly using SPIRV-Tools"));
+
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
@@ -227,6 +235,30 @@ static std::string removeExt(const std::string &FileName) {
 
 static ExitOnError ExitOnErr;
 
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+/// Stream buffer that captures written data into a vector and allows reading
+/// the data back as an array of uint32_t's.
+class StreambufToArray : public std::streambuf {
+public:
+  const uint32_t *data() const {
+    return reinterpret_cast<const uint32_t *>(Buffer.data());
+  }
+
+  size_t size() const { return Buffer.size() / sizeof(uint32_t); }
+
+protected:
+  std::streamsize xsputn(const char *s, std::streamsize count) override {
+    for (std::streamsize I = 0; I < count; I++) {
+      Buffer.push_back(s[I]);
+    }
+    return count;
+  }
+
+private:
+  std::vector<char> Buffer;
+};
+#endif // LLVM_SPIRV_HAVE_SPIRV_TOOLS
+
 static int convertLLVMToSPIRV(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
 
@@ -244,6 +276,48 @@ static int convertLLVMToSPIRV(const SPIRV::TranslatorOpts &Opts) {
       OutputFile =
           removeExt(InputFile) +
           (SPIRV::SPIRVUseTextFormat ? kExt::SpirvText : kExt::SpirvBinary);
+  }
+
+  if (SPIRVToolsDis) {
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+    auto DisMessagePrinter = [](spv_message_level_t Level, const char *source,
+                                const spv_position_t &position,
+                                const char *message) -> void {
+      errs() << source << ": " << message << "\n";
+    };
+    spvtools::SpirvTools SpvTool(SPV_ENV_OPENCL_2_0);
+    SpvTool.SetMessageConsumer(DisMessagePrinter);
+    std::string DisOutput;
+
+    // Serialize the SPIR-V module to a uint32_t array and then invoke the
+    // SPIR-V tools disassembler to obtain textual assembly.
+    std::string Err;
+    StreambufToArray OutStreamBuf;
+    std::ostream OutStream(&OutStreamBuf);
+    bool Success = writeSpirv(M.get(), Opts, OutStream, Err);
+    if (!Success) {
+      errs() << "Failed to translate SPIR-V: " << Err << '\n';
+      return -1;
+    }
+
+    if (!SpvTool.Disassemble(OutStreamBuf.data(), OutStreamBuf.size(),
+                             &DisOutput)) {
+      errs() << "Failed to generate textual assembly\n";
+      return -1;
+    }
+
+    if (OutputFile != "-") {
+      std::ofstream OutFile(OutputFile, std::ios::binary);
+      OutFile << DisOutput;
+    } else {
+      std::cout << DisOutput;
+    }
+
+    return 0;
+#else
+    errs() << "llvm-spirv was built without --spirv-tools-dis support\n";
+    return -1;
+#endif // LLVM_SPIRV_HAVE_SPIRV_TOOLS
   }
 
   std::string Err;

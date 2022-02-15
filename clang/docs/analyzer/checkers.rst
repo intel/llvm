@@ -2317,8 +2317,15 @@ Checkers implementing `taint analysis <https://en.wikipedia.org/wiki/Taint_check
 
 alpha.security.taint.TaintPropagation (C, C++)
 """"""""""""""""""""""""""""""""""""""""""""""
-Generate taint information used by other checkers.
-A data is tainted when it comes from an unreliable source.
+
+Taint analysis identifies untrusted sources of information (taint sources), rules as to how the untrusted data flows along the execution path (propagation rules), and points of execution where the use of tainted data is risky (taints sinks).
+The most notable examples of taint sources are:
+
+  - network originating data
+  - environment variables
+  - database originating data
+
+``GenericTaintChecker`` is the main implementation checker for this rule, and it generates taint information used by other checkers.
 
 .. code-block:: c
 
@@ -2344,8 +2351,109 @@ A data is tainted when it comes from an unreliable source.
      // warn: untrusted data as buffer size
  }
 
+There are built-in sources, propagations and sinks defined in code inside ``GenericTaintChecker``.
+These operations are handled even if no external taint configuration is provided.
+
+Default sources defined by ``GenericTaintChecker``:
+``fdopen``, ``fopen``, ``freopen``, ``getch``, ``getchar``, ``getchar_unlocked``, ``gets``, ``scanf``, ``socket``, ``wgetch``
+
+Default propagations defined by ``GenericTaintChecker``:
+``atoi``, ``atol``, ``atoll``, ``fgetc``, ``fgetln``, ``fgets``, ``fscanf``, ``sscanf``, ``getc``, ``getc_unlocked``, ``getdelim``, ``getline``, ``getw``, ``pread``, ``read``, ``strchr``, ``strrchr``, ``tolower``, ``toupper``
+
+Default sinks defined in ``GenericTaintChecker``:
+``printf``, ``setproctitle``, ``system``, ``popen``, ``execl``, ``execle``, ``execlp``, ``execv``, ``execvp``, ``execvP``, ``execve``, ``dlopen``, ``memcpy``, ``memmove``, ``strncpy``, ``strndup``, ``malloc``, ``calloc``, ``alloca``, ``memccpy``, ``realloc``, ``bcopy``
+
+The user can configure taint sources, sinks, and propagation rules by providing a configuration file via checker option ``alpha.security.taint.TaintPropagation:Config``.
+
+External taint configuration is in `YAML <http://llvm.org/docs/YamlIO.html#introduction-to-yaml>`_ format. The taint-related options defined in the config file extend but do not override the built-in sources, rules, sinks.
+The format of the external taint configuration file is not stable, and could change without any notice even in a non-backward compatible way.
+
+For a more detailed description of configuration options, please see the :doc:`user-docs/TaintAnalysisConfiguration`. For an example see :ref:`clangsa-taint-configuration-example`.
+
 alpha.unix
 ^^^^^^^^^^^
+
+.. _alpha-unix-StdCLibraryFunctionArgs:
+
+alpha.unix.StdCLibraryFunctionArgs (C)
+""""""""""""""""""""""""""""""""""""""
+Check for calls of standard library functions that violate predefined argument
+constraints. For example, it is stated in the C standard that for the ``int
+isalnum(int ch)`` function the behavior is undefined if the value of ``ch`` is
+not representable as unsigned char and is not equal to ``EOF``.
+
+.. code-block:: c
+
+  void test_alnum_concrete(int v) {
+    int ret = isalnum(256); // \
+    // warning: Function argument constraint is not satisfied
+    (void)ret;
+  }
+
+If the argument's value is unknown then the value is assumed to hold the proper value range.
+
+.. code-block:: c
+
+  #define EOF -1
+  int test_alnum_symbolic(int x) {
+    int ret = isalnum(x);
+    // after the call, ret is assumed to be in the range [-1, 255]
+
+    if (ret > 255)      // impossible (infeasible branch)
+      if (x == 0)
+        return ret / x; // division by zero is not reported
+    return ret;
+  }
+
+If the user disables the checker then the argument violation warning is
+suppressed. However, the assumption about the argument is still modeled. This
+is because exploring an execution path that already contains undefined behavior
+is not valuable.
+
+There are different kind of constraints modeled: range constraint, not null
+constraint, buffer size constraint. A **range constraint** requires the
+argument's value to be in a specific range, see ``isalnum`` as an example above.
+A **not null constraint** requires the pointer argument to be non-null.
+
+A **buffer size** constraint specifies the minimum size of the buffer
+argument. The size might be a known constant. For example, ``asctime_r`` requires
+that the buffer argument's size must be greater than or equal to ``26`` bytes. In
+other cases, the size is denoted by another argument or as a multiplication of
+two arguments.
+For instance, ``size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)``.
+Here, ``ptr`` is the buffer, and its minimum size is ``size * nmemb``
+
+.. code-block:: c
+
+  void buffer_size_constraint_violation(FILE *file) {
+    enum { BUFFER_SIZE = 1024 };
+    wchar_t wbuf[BUFFER_SIZE];
+
+    const size_t size = sizeof(*wbuf);   // 4
+    const size_t nitems = sizeof(wbuf);  // 4096
+
+    // Below we receive a warning because the 3rd parameter should be the
+    // number of elements to read, not the size in bytes. This case is a known
+    // vulnerability described by the the ARR38-C SEI-CERT rule.
+    fread(wbuf, size, nitems, file);
+  }
+
+**Limitations**
+
+The checker is in alpha because the reports cannot provide notes about the
+values of the arguments. Without this information it is hard to confirm if the
+constraint is indeed violated. For example, consider the above case for
+``fread``. We display in the warning message that the size of the 1st arg
+should be equal to or less than the value of the 2nd arg times the 3rd arg.
+However, we fail to display the concrete values (``4`` and ``4096``) for those
+arguments.
+
+**Parameters**
+
+The checker models functions (and emits diagnostics) from the C standard by
+default. The ``ModelPOSIX`` option enables the checker to model (and emit
+diagnostics) for functions that are defined in the POSIX standard. This option
+is disabled by default.
 
 .. _alpha-unix-BlockInCriticalSection:
 

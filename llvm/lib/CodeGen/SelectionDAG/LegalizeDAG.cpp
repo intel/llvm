@@ -1212,7 +1212,7 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     break;
   default:
     if (Node->getOpcode() >= ISD::BUILTIN_OP_END) {
-      Action = TargetLowering::Legal;
+      Action = TLI.getCustomOperationAction(*Node);
     } else {
       Action = TLI.getOperationAction(Node->getOpcode(), Node->getValueType(0));
     }
@@ -3367,13 +3367,13 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
   }
   case ISD::FSHL:
   case ISD::FSHR:
-    if (TLI.expandFunnelShift(Node, Tmp1, DAG))
-      Results.push_back(Tmp1);
+    if (SDValue Expanded = TLI.expandFunnelShift(Node, DAG))
+      Results.push_back(Expanded);
     break;
   case ISD::ROTL:
   case ISD::ROTR:
-    if (TLI.expandROT(Node, true /*AllowVectorOps*/, Tmp1, DAG))
-      Results.push_back(Tmp1);
+    if (SDValue Expanded = TLI.expandROT(Node, true /*AllowVectorOps*/, DAG))
+      Results.push_back(Expanded);
     break;
   case ISD::SADDSAT:
   case ISD::UADDSAT:
@@ -3553,9 +3553,10 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     // Node.
     Tmp1 = Node->getOperand(0);
     Tmp2 = Node->getOperand(1);
-    if (Tmp2.getOpcode() == ISD::SETCC) {
-      Tmp1 = DAG.getNode(ISD::BR_CC, dl, MVT::Other,
-                         Tmp1, Tmp2.getOperand(2),
+    if (Tmp2.getOpcode() == ISD::SETCC &&
+        TLI.isOperationLegalOrCustom(ISD::BR_CC,
+                                     Tmp2.getOperand(0).getValueType())) {
+      Tmp1 = DAG.getNode(ISD::BR_CC, dl, MVT::Other, Tmp1, Tmp2.getOperand(2),
                          Tmp2.getOperand(0), Tmp2.getOperand(1),
                          Node->getOperand(2));
     } else {
@@ -3592,9 +3593,16 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     if (Legalized) {
       // If we expanded the SETCC by swapping LHS and RHS, or by inverting the
       // condition code, create a new SETCC node.
-      if (Tmp3.getNode())
-        Tmp1 = DAG.getNode(ISD::SETCC, dl, Node->getValueType(0),
-                           Tmp1, Tmp2, Tmp3, Node->getFlags());
+      if (Tmp3.getNode()) {
+        if (IsStrict) {
+          Tmp1 = DAG.getNode(Node->getOpcode(), dl, Node->getVTList(),
+                             {Chain, Tmp1, Tmp2, Tmp3}, Node->getFlags());
+          Chain = Tmp1.getValue(1);
+        } else {
+          Tmp1 = DAG.getNode(Node->getOpcode(), dl, Node->getValueType(0), Tmp1,
+                             Tmp2, Tmp3, Node->getFlags());
+        }
+      }
 
       // If we expanded the SETCC by inverting the condition code, then wrap
       // the existing SETCC in a NOT to restore the intended condition.

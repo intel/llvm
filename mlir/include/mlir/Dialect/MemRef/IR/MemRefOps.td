@@ -11,6 +11,7 @@
 
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
+include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/CopyOpInterface.td"
@@ -24,11 +25,26 @@ def MemRefTypeAttr
   let constBuilderCall = "::mlir::TypeAttr::get($0)";
 }
 
-class MemRef_Op<string mnemonic, list<OpTrait> traits = []>
-    : Op<MemRef_Dialect, mnemonic, traits> {
-  let printer = [{ return ::print(p, *this); }];
-  let verifier = [{ return ::verify(*this); }];
-  let parser = [{ return ::parse$cppClass(parser, result); }];
+class MemRef_Op<string mnemonic, list<Trait> traits = []>
+    : Op<MemRef_Dialect, mnemonic, traits>;
+
+// Base class for ops with static/dynamic offset, sizes and strides
+// attributes/arguments.
+class MemRef_OpWithOffsetSizesAndStrides<string mnemonic,
+                                         list<Trait> traits = []>
+    : MemRef_Op<mnemonic, traits> {
+  code extraBaseClassDeclaration = [{
+    /// Returns the dynamic sizes for this subview operation if specified.
+    ::mlir::Operation::operand_range getDynamicSizes() { return sizes(); }
+
+    /// Return the list of Range (i.e. offset, size, stride). Each
+    /// Range entry contains either the dynamic value or a ConstantIndexOp
+    /// constructed with `b` at location `loc`.
+    ::mlir::SmallVector<::mlir::Range, 8> getOrCreateRanges(
+        ::mlir::OpBuilder &b, ::mlir::Location loc) {
+      return ::mlir::getOrCreateRanges(*this, b, loc);
+    }
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -37,11 +53,11 @@ class MemRef_Op<string mnemonic, list<OpTrait> traits = []>
 
 // Base class for memref allocating ops: alloca and alloc.
 //
-//   %0 = alloclike(%m)[%s] : memref<8x?xf32, (d0, d1)[s0] -> ((d0 + s0), d1)>
+//   %0 = alloclike(%m)[%s] : memref<8x?xf32, affine_map<(d0, d1)[s0] -> (d0 + s0, d1)>>
 //
 class AllocLikeOp<string mnemonic,
                   Resource resource,
-                  list<OpTrait> traits = []> :
+                  list<Trait> traits = []> :
     MemRef_Op<mnemonic,
     !listconcat([
       AttrSizedOperandSegments
@@ -92,6 +108,7 @@ class AllocLikeOp<string mnemonic,
   }];
 
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -114,6 +131,7 @@ def AssumeAlignmentOp : MemRef_Op<"assume_alignment"> {
   let results = (outs);
 
   let assemblyFormat = "$memref `,` $alignment attr-dict `:` type($memref)";
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -161,6 +179,7 @@ def MemRef_AllocOp : AllocLikeOp<"alloc", DefaultResource, []> {
       memref<8x64xf32, affine_map<(d0, d1)[s0] -> ((d0 + s0), d1)>, 1>
     ```
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -204,6 +223,7 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
     an alignment on any convenient boundary compatible with the type will be
     chosen.
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -252,6 +272,8 @@ def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope",
 
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$bodyRegion);
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -278,48 +300,7 @@ def MemRef_AllocaScopeReturnOp : MemRef_Op<"alloca_scope.return",
   let arguments = (ins Variadic<AnyType>:$results);
   let builders = [OpBuilder<(ins), [{ /*nothing to do */ }]>];
 
-  let assemblyFormat =
-      [{ attr-dict ($results^ `:` type($results))? }];
-
-  // No custom verification needed.
-  let verifier = ?;
-}
-
-//===----------------------------------------------------------------------===//
-// BufferCastOp
-//===----------------------------------------------------------------------===//
-
-def MemRef_BufferCastOp : MemRef_Op<"buffer_cast",
-    [SameOperandsAndResultShape, SameOperandsAndResultElementType, NoSideEffect,
-     TypesMatchWith<"type of 'tensor' is the tensor equivalent of 'memref'",
-                    "memref", "tensor",
-                    "getTensorTypeFromMemRefType($_self)">]> {
-  let summary = "tensor to memref cast operation";
-  let description = [{
-    Casts a tensor to a memref.
-
-    ```mlir
-    // Result type is tensor<4x?xf32>
-    %12 = memref.buffer_cast %10 : memref<4x?xf32, #map0, 42>
-    ```
-
-    Note, that mutating the result of the buffer cast operation leads to
-    undefined behavior.
-
-    This operation is a specialized variant of the built-in
-    unrealized_conversion_cast and is intended for use in the context of
-    gradual bufferization.
-  }];
-
-  let arguments = (ins AnyTensor:$tensor);
-  let results = (outs AnyRankedOrUnrankedMemRef:$memref);
-  // This op is fully verified by traits.
-  let verifier = ?;
-
-  let assemblyFormat = "$tensor attr-dict `:` type($memref)";
-
-  let hasFolder = 1;
-  let hasCanonicalizer = 1;
+  let assemblyFormat = "attr-dict ($results^ `:` type($results))?";
 }
 
 //===----------------------------------------------------------------------===//
@@ -391,12 +372,6 @@ def MemRef_CastOp : MemRef_Op<"cast", [
   let arguments = (ins AnyRankedOrUnrankedMemRef:$source);
   let results = (outs AnyRankedOrUnrankedMemRef:$dest);
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($dest)";
-  let verifier = "return impl::verifyCastOp(*this, areCastCompatible);";
-  let builders = [
-    OpBuilder<(ins "Value":$source, "Type":$destType), [{
-       impl::buildCastOp($_builder, $_state, source, destType);
-    }]>
-  ];
 
   let extraClassDeclaration = [{
     /// Fold the given CastOp into consumer op.
@@ -406,49 +381,6 @@ def MemRef_CastOp : MemRef_Op<"cast", [
   }];
 
   let hasFolder = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// CloneOp
-//===----------------------------------------------------------------------===//
-
-def CloneOp : MemRef_Op<"clone", [
-    CopyOpInterface,
-    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
-  ]> {
-  let builders = [
-    OpBuilder<(ins "Value":$value), [{
-      return build($_builder, $_state, value.getType(), value);
-    }]>];
-
-  let description = [{
-    Clones the data in the input view into an implicitly defined output view.
-
-    Usage:
-
-    ```mlir
-    %arg1 = memref.clone %arg0 : memref<?xf32> to memref<?xf32>
-    ```
-
-    Valid implementations of this operation may alias the input and output
-    views or create an actual copy. Mutating the source or result
-    of the clone operation after the clone operation thus leads to undefined
-    behavior.
-  }];
-
-  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", []>:$input);
-  let results = (outs Arg<AnyRankedOrUnrankedMemRef, "", []>:$output);
-
-  let extraClassDeclaration = [{
-    Value getSource() { return input(); }
-    Value getTarget() { return output(); }
-  }];
-
-  let assemblyFormat = "$input attr-dict `:` type($input) `to` type($output)";
-
-  let hasFolder = 1;
-  let verifier = ?;
-  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -485,7 +417,8 @@ def CopyOp : MemRef_Op<"copy",
     $source `,` $target attr-dict `:` type($source) `to` type($target)
   }];
 
-  let verifier = ?;
+  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -503,15 +436,14 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
     Example:
 
     ```mlir
-    %0 = memref.alloc() : memref<8x64xf32, (d0, d1) -> (d0, d1), 1>
-    memref.dealloc %0 : memref<8x64xf32, (d0, d1) -> (d0, d1), 1>
+    %0 = memref.alloc() : memref<8x64xf32, affine_map<(d0, d1) -> (d0, d1), 1>>
+    memref.dealloc %0 : memref<8x64xf32,  affine_map<(d0, d1) -> (d0, d1), 1>>
     ```
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", [MemFree]>:$memref);
 
   let hasFolder = 1;
-  let verifier = ?;
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 }
 
@@ -565,6 +497,7 @@ def MemRef_DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -598,11 +531,11 @@ def MemRef_DmaStartOp : MemRef_Op<"dma_start"> {
     ```mlir
     %num_elements = arith.constant 256
     %idx = arith.constant 0 : index
-    %tag = alloc() : memref<1 x i32, (d0) -> (d0), 4>
+    %tag = memref.alloc() : memref<1 x i32, affine_map<(d0) -> (d0)>, 4>
     dma_start %src[%i, %j], %dst[%k, %l], %num_elements, %tag[%idx] :
-      memref<40 x 128 x f32>, (d0) -> (d0), 0>,
-      memref<2 x 1024 x f32>, (d0) -> (d0), 1>,
-      memref<1 x i32>, (d0) -> (d0), 2>
+      memref<40 x 128 x f32>, affine_map<(d0) -> (d0)>, 0>,
+      memref<2 x 1024 x f32>, affine_map<(d0) -> (d0)>, 1>,
+      memref<1 x i32>, affine_map<(d0) -> (d0)>, 2>
     ```
 
     If %stride and %num_elt_per_stride are specified, the DMA is expected to
@@ -722,7 +655,9 @@ def MemRef_DmaStartOp : MemRef_Op<"dma_start"> {
       return getOperand(getNumOperands() - 1);
     }
   }];
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -741,12 +676,12 @@ def MemRef_DmaWaitOp : MemRef_Op<"dma_wait"> {
 
    ```mlir
     dma_start %src[%i, %j], %dst[%k, %l], %num_elements, %tag[%index] :
-      memref<2048 x f32>, (d0) -> (d0), 0>,
-      memref<256 x f32>, (d0) -> (d0), 1>
-      memref<1 x i32>, (d0) -> (d0), 2>
+      memref<2048 x f32>, affine_map<(d0) -> (d0)>, 0>,
+      memref<256 x f32>, affine_map<(d0) -> (d0)>, 1>
+      memref<1 x i32>, affine_map<(d0) -> (d0)>, 2>
     ...
     ...
-    dma_wait %tag[%index], %num_elements : memref<1 x i32, (d0) -> (d0), 2>
+    dma_wait %tag[%index], %num_elements : memref<1 x i32, affine_map<(d0) -> (d0)>, 2>
     ```
   }];
   let arguments = (ins AnyMemRef:$tagMemRef,
@@ -774,6 +709,85 @@ def MemRef_DmaWaitOp : MemRef_Op<"dma_wait"> {
     Value getNumElements() { return numElements(); }
   }];
   let hasFolder = 1;
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// GenericAtomicRMWOp
+//===----------------------------------------------------------------------===//
+
+def GenericAtomicRMWOp : MemRef_Op<"generic_atomic_rmw", [
+      SingleBlockImplicitTerminator<"AtomicYieldOp">,
+      TypesMatchWith<"result type matches element type of memref",
+                     "memref", "result",
+                     "$_self.cast<MemRefType>().getElementType()">
+    ]> {
+  let summary = "atomic read-modify-write operation with a region";
+  let description = [{
+    The `memref.generic_atomic_rmw` operation provides a way to perform a
+    read-modify-write sequence that is free from data races. The memref operand
+    represents the buffer that the read and write will be performed against, as
+    accessed by the specified indices. The arity of the indices is the rank of
+    the memref. The result represents the latest value that was stored. The
+    region contains the code for the modification itself. The entry block has
+    a single argument that represents the value stored in `memref[indices]`
+    before the write is performed. No side-effecting ops are allowed in the
+    body of `GenericAtomicRMWOp`.
+
+    Example:
+
+    ```mlir
+    %x = memref.generic_atomic_rmw %I[%i] : memref<10xf32> {
+      ^bb0(%current_value : f32):
+        %c1 = arith.constant 1.0 : f32
+        %inc = arith.addf %c1, %current_value : f32
+        memref.atomic_yield %inc : f32
+    }
+    ```
+  }];
+
+  let arguments = (ins
+      MemRefOf<[AnySignlessInteger, AnyFloat]>:$memref,
+      Variadic<Index>:$indices);
+
+  let results = (outs
+      AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$result);
+
+  let regions = (region AnyRegion:$atomic_body);
+
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins "Value":$memref, "ValueRange":$ivs)>];
+
+  let extraClassDeclaration = [{
+    // TODO: remove post migrating callers.
+    Region &body() { return getRegion(); }
+
+    // The value stored in memref[ivs].
+    Value getCurrentValue() {
+      return getRegion().getArgument(0);
+    }
+    MemRefType getMemRefType() {
+      return memref().getType().cast<MemRefType>();
+    }
+  }];
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
+def AtomicYieldOp : MemRef_Op<"atomic_yield", [
+      HasParent<"GenericAtomicRMWOp">,
+      NoSideEffect,
+      Terminator
+    ]> {
+  let summary = "yield operation for GenericAtomicRMWOp";
+  let description = [{
+    "memref.atomic_yield" yields an SSA value from a
+    GenericAtomicRMWOp region.
+  }];
+
+  let arguments = (ins AnyType:$result);
+  let assemblyFormat = "$result attr-dict `:` type($result)";
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -799,9 +813,6 @@ def MemRef_GetGlobalOp : MemRef_Op<"get_global",
   let arguments = (ins FlatSymbolRefAttr:$name);
   let results = (outs AnyStaticShapeMemRef:$result);
   let assemblyFormat = "$name `:` type($result) attr-dict";
-
-  // `GetGlobalOp` is fully verified by its traits.
-  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -868,6 +879,7 @@ def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
        return !isExternal() && initial_value().getValue().isa<UnitAttr>();
      }
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -940,8 +952,8 @@ def LoadOp : MemRef_Op<"load",
     operand_range getIndices() { return {operand_begin() + 1, operand_end()}; }
   }];
 
-  let hasCanonicalizer = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 
   let assemblyFormat = "$memref `[` $indices `]` attr-dict `:` type($memref)";
 }
@@ -984,15 +996,17 @@ def MemRef_PrefetchOp : MemRef_Op<"prefetch"> {
     static StringRef getIsDataCacheAttrName() { return "isDataCache"; }
   }];
 
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // ReinterpretCastOp
 //===----------------------------------------------------------------------===//
 
-def MemRef_ReinterpretCastOp:
-    BaseOpWithOffsetSizesAndStrides<MemRef_Dialect, "reinterpret_cast", [
+def MemRef_ReinterpretCastOp
+  : MemRef_OpWithOffsetSizesAndStrides<"reinterpret_cast", [
       NoSideEffect, AttrSizedOperandSegments, ViewLikeOpInterface,
       OffsetSizeAndStrideOpInterface, MemRefsNormalizable
     ]> {
@@ -1035,8 +1049,7 @@ def MemRef_ReinterpretCastOp:
     attr-dict `:` type($source) `to` type($result)
   }];
 
-  let parser = ?;
-  let printer = ?;
+  let hasVerifier = 1;
 
   let builders = [
     // Build a ReinterpretCastOp with mixed static and dynamic entries.
@@ -1077,6 +1090,30 @@ def MemRef_ReinterpretCastOp:
     /// and `strides` operands.
     static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// RankOp
+//===----------------------------------------------------------------------===//
+
+def MemRef_RankOp : MemRef_Op<"rank", [NoSideEffect]> {
+  let summary = "rank operation";
+  let description = [{
+    The `memref.rank` operation takes a memref operand and returns its rank.
+
+    Example:
+
+    ```mlir
+    %0 = memref.rank %arg0 : memref<*xf32>
+    %1 = memref.rank %arg1 : memref<?x?xf32>
+    ```
+  }];
+
+  let arguments = (ins AnyRankedOrUnrankedMemRef:$memref);
+  let results = (outs Index);
+
+  let hasFolder = 1;
+  let assemblyFormat = "$memref attr-dict `:` type($memref)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -1139,16 +1176,14 @@ def MemRef_ReshapeOp: MemRef_Op<"reshape", [
   let assemblyFormat = [{
     $source `(` $shape `)` attr-dict `:` functional-type(operands, results)
   }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // ExpandShapeOp / CollapseShapeOp
 //===----------------------------------------------------------------------===//
 
-def IndexListArrayAttr :
-  TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
-
-class MemRef_ReassociativeReshapeOp<string mnemonic, list<OpTrait> traits = []> :
+class MemRef_ReassociativeReshapeOp<string mnemonic, list<Trait> traits = []> :
     MemRef_Op<mnemonic, !listconcat(traits,
       [NoSideEffect, ViewLikeOpInterface])>,
     Arguments<(ins AnyStridedMemRef:$src, IndexListArrayAttr:$reassociation)>,
@@ -1207,8 +1242,8 @@ class MemRef_ReassociativeReshapeOp<string mnemonic, list<OpTrait> traits = []> 
 
   let hasFolder = 1;
   let hasCanonicalizer = 1;
-  let printer = [{ return ::print(p, *this); }];
-  let parser = [{ return ::parseReshapeLikeOp(parser, result); }];
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 def MemRef_ExpandShapeOp : MemRef_ReassociativeReshapeOp<"expand_shape"> {
@@ -1246,6 +1281,7 @@ def MemRef_ExpandShapeOp : MemRef_ReassociativeReshapeOp<"expand_shape"> {
     ```
   }];
   let extraClassDeclaration = commonExtraClassDeclaration;
+  let hasVerifier = 1;
 }
 
 def MemRef_CollapseShapeOp : MemRef_ReassociativeReshapeOp<"collapse_shape"> {
@@ -1283,6 +1319,7 @@ def MemRef_CollapseShapeOp : MemRef_ReassociativeReshapeOp<"collapse_shape"> {
     ```
   }];
   let extraClassDeclaration = commonExtraClassDeclaration;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1350,6 +1387,7 @@ def MemRef_StoreOp : MemRef_Op<"store",
   }];
 
   let hasFolder = 1;
+  let hasVerifier = 1;
 
   let assemblyFormat = [{
     $value `,` $memref `[` $indices `]` attr-dict `:` type($memref)
@@ -1360,10 +1398,10 @@ def MemRef_StoreOp : MemRef_Op<"store",
 // SubViewOp
 //===----------------------------------------------------------------------===//
 
-def SubViewOp : BaseOpWithOffsetSizesAndStrides<
-    MemRef_Dialect, "subview", [DeclareOpInterfaceMethods<ViewLikeOpInterface>,
-                NoSideEffect, AttrSizedOperandSegments,
-		OffsetSizeAndStrideOpInterface] >  {
+def SubViewOp : MemRef_OpWithOffsetSizesAndStrides<"subview", [
+    DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect,
+    AttrSizedOperandSegments, OffsetSizeAndStrideOpInterface
+  ]> {
   let summary = "memref subview operation";
   let description = [{
     The "subview" operation converts a memref type to another memref type
@@ -1393,19 +1431,19 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
     Example 1:
 
     ```mlir
-    %0 = memref.alloc() : memref<64x4xf32, (d0, d1) -> (d0 * 4 + d1)>
+    %0 = memref.alloc() : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + d1)>>
 
     // Create a sub-view of "base" memref '%0' with offset arguments '%c0',
     // dynamic sizes for each dimension, and stride arguments '%c1'.
     %1 = memref.subview %0[%c0, %c0][%size0, %size1][%c1, %c1]
-      : memref<64x4xf32, (d0, d1) -> (d0 * 4 + d1) > to
-        memref<?x?xf32, (d0, d1)[s0, s1] -> (d0 * s1 + d1 + s0)>
+      : memref<64x4xf32, affine_map<(d0, d1) -> (d0 * 4 + d1)>> to
+        memref<?x?xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + d1 + s0)>>
     ```
 
     Example 2:
 
     ```mlir
-    %0 = memref.alloc() : memref<8x16x4xf32, (d0, d1, d1) -> (d0 * 64 + d1 * 4 + d2)>
+    %0 = memref.alloc() : memref<8x16x4xf32, affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2)>>
 
     // Create a sub-view of "base" memref '%0' with dynamic offsets, sizes,
     // and strides.
@@ -1415,20 +1453,20 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
     // strides in each dimension, are represented in the view memref layout
     // map as symbols 's1', 's2' and 's3'.
     %1 = memref.subview %0[%i, %j, %k][%size0, %size1, %size2][%x, %y, %z]
-      : memref<8x16x4xf32, (d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2)> to
+      : memref<8x16x4xf32, affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2)>> to
         memref<?x?x?xf32,
-          (d0, d1, d2)[s0, s1, s2, s3] -> (d0 * s1 + d1 * s2 + d2 * s3 + s0)>
+          affine_map<(d0, d1, d2)[s0, s1, s2, s3] -> (d0 * s1 + d1 * s2 + d2 * s3 + s0)>>
     ```
 
     Example 3:
 
     ```mlir
-    %0 = memref.alloc() : memref<8x16x4xf32, (d0, d1, d1) -> (d0 * 64 + d1 * 4 + d2)>
+    %0 = memref.alloc() : memref<8x16x4xf32, affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2)>>
 
     // Subview with constant offsets, sizes and strides.
-    %1 = memref.subview %0[0, 2, 0][4, 4, 4][64, 4, 1]
-      : memref<8x16x4xf32, (d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2)> to
-        memref<4x4x4xf32, (d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2 + 8)>
+    %1 = memref.subview %0[0, 2, 0][4, 4, 4][1, 1, 1]
+      : memref<8x16x4xf32, affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2)>> to
+        memref<4x4x4xf32, affine_map<(d0, d1, d2) -> (d0 * 64 + d1 * 4 + d2 + 8)>>
     ```
 
     Example 4:
@@ -1471,8 +1509,8 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
     //
     // where, r0 = o0 * s1 + o1 * s2 + s0, r1 = s1 * t0, r2 = s2 * t1.
     %1 = memref.subview %0[%i, %j][4, 4][%x, %y] :
-      : memref<?x?xf32, (d0, d1)[s0, s1, s2] -> (d0 * s1 + d1 * s2 + s0)> to
-        memref<4x4xf32, (d0, d1)[r0, r1, r2] -> (d0 * r1 + d1 * r2 + r0)>
+      : memref<?x?xf32, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + d1 * s2 + s0)>> to
+        memref<4x4xf32, affine_map<(d0, d1)[r0, r1, r2] -> (d0 * r1 + d1 * r2 + r0)>>
 
     // Note that the subview op does not guarantee that the result
     // memref is "inbounds" w.r.t to base memref. It is upto the client
@@ -1486,6 +1524,13 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
     // Rank-reducing subview.
     %1 = memref.subview %0[0, 0, 0][1, 16, 4][1, 1, 1] :
       memref<8x16x4xf32> to memref<16x4xf32>
+
+    // Original layout:
+    // (d0, d1, d2) -> (64 * d0 + 16 * d1 + d2)
+    // Subviewed layout:
+    // (d0, d1, d2) -> (64 * (d0 + 3) + 4 * (d1 + 4) + d2 + 2) = (64 * d0 + 4 * d1 + d2 + 210)
+    // After rank reducing:
+    // (d0, d1) -> (4 * d0 + d1 + 210)
     %3 = memref.subview %2[3, 4, 2][1, 6, 3][1, 1, 1] :
       memref<8x16x4xf32> to memref<6x3xf32, offset: 210, strides: [4, 1]>
     ```
@@ -1586,69 +1631,12 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
 
     /// Return the dimensions of the source type that are dropped when
     /// the result is rank-reduced.
-    llvm::SmallDenseSet<unsigned> getDroppedDims();
+    llvm::SmallBitVector getDroppedDims();
   }];
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// TensorLoadOp
-//===----------------------------------------------------------------------===//
-
-def TensorLoadOp : MemRef_Op<"tensor_load",
-    [SameOperandsAndResultShape, SameOperandsAndResultElementType,
-     TypesMatchWith<"result type matches tensor equivalent of 'memref'",
-                    "memref", "result",
-                    "getTensorTypeFromMemRefType($_self)">]> {
-  let summary = "tensor load operation";
-  let description = [{
-    Create a tensor from a memref, making an independent copy of the element
-    data. The result value is a tensor whose shape and element type match the
-    memref operand.
-
-    The opposite of this op is buffer_cast. Together, these two ops are
-    useful for source/target materializations when doing type conversions
-    involving tensors and memrefs.
-
-    Example:
-
-    ```mlir
-    // Produces a value of tensor<4x?xf32> type.
-    %12 = memref.tensor_load %10 : memref<4x?xf32, #layout, memspace0>
-    ```
-
-    If tensor load is used in the bufferization steps, mutating the source
-    buffer after loading leads to undefined behavior.
-  }];
-
-  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef,
-                       "the reference to load from", [MemRead]>:$memref);
-  let results = (outs AnyTensor:$result);
-  // TensorLoadOp is fully verified by traits.
-  let verifier = ?;
-
-  let builders = [
-    OpBuilder<(ins "Value":$memref), [{
-      $_state.addOperands(memref);
-      $_state.addTypes(getTensorTypeFromMemRefType(memref.getType()));
-    }]>];
-
-  let extraClassDeclaration = [{
-    /// The result of a tensor_load is always a tensor.
-    TensorType getType() {
-      Type resultType = getResult().getType();
-      if (resultType.isa<TensorType>())
-        return resultType.cast<TensorType>();
-      return {};
-    }
-  }];
-
-  let assemblyFormat = "$memref attr-dict `:` type($memref)";
-
-  let hasCanonicalizer = 1;
-  let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1670,15 +1658,13 @@ def TensorStoreOp : MemRef_Op<"tensor_store",
 
     ```mlir
     %9 = dim %8, 1 : tensor<4x?xf32>
-    %10 = alloc(%9) : memref<4x?xf32, #layout, memspace0>
+    %10 = memref.alloc(%9) : memref<4x?xf32, #layout, memspace0>
     memref.tensor_store %8, %10 : memref<4x?xf32, #layout, memspace0>
     ```
   }];
 
   let arguments = (ins AnyTensor:$tensor, Arg<AnyRankedOrUnrankedMemRef,
                        "the reference to store to", [MemWrite]>:$memref);
-  // TensorStoreOp is fully verified by traits.
-  let verifier = ?;
 
   let assemblyFormat = "$tensor `,` $memref attr-dict `:` type($memref)";
 }
@@ -1712,7 +1698,9 @@ def MemRef_TransposeOp : MemRef_Op<"transpose", [NoSideEffect]>,
     ShapedType getShapedType() { return in().getType().cast<ShapedType>(); }
   }];
 
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1781,6 +1769,56 @@ def MemRef_ViewOp : MemRef_Op<"view", [
   }];
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// AtomicRMWOp
+//===----------------------------------------------------------------------===//
+
+def AtomicRMWOp : MemRef_Op<"atomic_rmw", [
+      AllTypesMatch<["value", "result"]>,
+      TypesMatchWith<"value type matches element type of memref",
+                     "memref", "value",
+                     "$_self.cast<MemRefType>().getElementType()">
+    ]> {
+  let summary = "atomic read-modify-write operation";
+  let description = [{
+    The `memref.atomic_rmw` operation provides a way to perform a read-modify-write
+    sequence that is free from data races. The kind enumeration specifies the
+    modification to perform. The value operand represents the new value to be
+    applied during the modification. The memref operand represents the buffer
+    that the read and write will be performed against, as accessed by the
+    specified indices. The arity of the indices is the rank of the memref. The
+    result represents the latest value that was stored.
+
+    Example:
+
+    ```mlir
+    %x = memref.atomic_rmw "addf" %value, %I[%i] : (f32, memref<10xf32>) -> f32
+    ```
+  }];
+
+  let arguments = (ins
+      AtomicRMWKindAttr:$kind,
+      AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$value,
+      MemRefOf<[AnySignlessInteger, AnyFloat]>:$memref,
+      Variadic<Index>:$indices);
+  let results = (outs AnyTypeOf<[AnySignlessInteger, AnyFloat]>:$result);
+
+  let assemblyFormat = [{
+    $kind $value `,` $memref `[` $indices `]` attr-dict `:` `(` type($value) `,`
+    type($memref) `)` `->` type($result)
+  }];
+
+  let extraClassDeclaration = [{
+    MemRefType getMemRefType() {
+      return memref().getType().cast<MemRefType>();
+    }
+  }];
+  let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 #endif // MEMREF_OPS

@@ -181,7 +181,7 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
             OC == OpAtomicIIncrement ? OpAtomicIAdd : OpAtomicISub);
         auto Ptr = findFirstPtr(Args);
         Type *ValueTy =
-            cast<PointerType>(Args[Ptr]->getType())->getElementType();
+            cast<PointerType>(Args[Ptr]->getType())->getPointerElementType();
         assert(ValueTy->isIntegerTy());
         Args.insert(Args.begin() + 1, llvm::ConstantInt::get(ValueTy, 1));
         return Name;
@@ -256,7 +256,8 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
         new StoreInst(Args[1], PExpected, PInsertBefore);
         unsigned AddrSpc = SPIRAS_Generic;
         Type *PtrTyAS =
-            PExpected->getType()->getElementType()->getPointerTo(AddrSpc);
+            PExpected->getType()->getPointerElementType()->getPointerTo(
+                AddrSpc);
         Args[1] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
             PExpected, PtrTyAS, PExpected->getName() + ".as", PInsertBefore);
         std::swap(Args[3], Args[4]);

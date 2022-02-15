@@ -5,14 +5,6 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
-// This test uses SYCL host only mode without integration header, so
-// forward declare used kernel name class, otherwise it will be diagnosed by
-// the diagnostic implemented in https://github.com/intel/llvm/pull/4945.
-// The error happens because in host mode it is assumed that all kernel names
-// are forward declared at global or namespace scope because of integration
-// header.
-class kernel_name_1;
-
 template <int SIZE>
 class KernelFunctor5 {
 public:

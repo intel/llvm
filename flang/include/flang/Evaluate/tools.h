@@ -91,10 +91,11 @@ template <typename A> bool IsAssumedRank(const std::optional<A> &x) {
 
 // Predicate: true when an expression is a coarray (corank > 0)
 bool IsCoarray(const ActualArgument &);
+bool IsCoarray(const Symbol &);
 template <typename A> bool IsCoarray(const A &) { return false; }
 template <typename A> bool IsCoarray(const Designator<A> &designator) {
   if (const auto *symbol{std::get_if<SymbolRef>(&designator.u)}) {
-    return symbol->get().Corank() > 0;
+    return IsCoarray(**symbol);
   }
   return false;
 }
@@ -888,6 +889,10 @@ template <typename A> bool IsAllocatableOrPointer(const A &x) {
       semantics::Attrs{semantics::Attr::POINTER, semantics::Attr::ALLOCATABLE});
 }
 
+// Like IsAllocatableOrPointer, but accepts pointer function results as being
+// pointers.
+bool IsAllocatableOrPointerObject(const Expr<SomeType> &, FoldingContext &);
+
 // Procedure and pointer detection predicates
 bool IsProcedure(const Expr<SomeType> &);
 bool IsFunction(const Expr<SomeType> &);
@@ -895,6 +900,10 @@ bool IsProcedurePointerTarget(const Expr<SomeType> &);
 bool IsBareNullPointer(const Expr<SomeType> *); // NULL() w/o MOLD=
 bool IsNullPointer(const Expr<SomeType> &);
 bool IsObjectPointer(const Expr<SomeType> &, FoldingContext &);
+
+// Can Expr be passed as absent to an optional dummy argument.
+// See 15.5.2.12 point 1 for more details.
+bool MayBePassedAsAbsentOptional(const Expr<SomeType> &, FoldingContext &);
 
 // Extracts the chain of symbols from a designator, which has perhaps been
 // wrapped in an Expr<>, removing all of the (co)subscripts.  The
@@ -1029,6 +1038,11 @@ Constant<T> PackageConstant(std::vector<Scalar<T>> &&elements,
   }
 }
 
+// Nonstandard conversions of constants (integer->logical, logical->integer)
+// that can appear in DATA statements as an extension.
+std::optional<Expr<SomeType>> DataConstantConversionExtension(
+    FoldingContext &, const DynamicType &, const Expr<SomeType> &);
+
 } // namespace Fortran::evaluate
 
 namespace Fortran::semantics {
@@ -1051,9 +1065,10 @@ bool IsProcedure(const Symbol &);
 bool IsProcedure(const Scope &);
 bool IsProcedurePointer(const Symbol &);
 bool IsAutomatic(const Symbol &);
-bool IsCoarray(const Symbol &);
 bool IsSaved(const Symbol &); // saved implicitly or explicitly
 bool IsDummy(const Symbol &);
+bool IsAssumedShape(const Symbol &);
+bool IsDeferredShape(const Symbol &);
 bool IsFunctionResult(const Symbol &);
 bool IsKindTypeParameter(const Symbol &);
 bool IsLenTypeParameter(const Symbol &);

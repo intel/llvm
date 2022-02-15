@@ -1,7 +1,8 @@
 // RUN: %libomptarget-compilexx-generic -O3 && %libomptarget-run-generic
 
-// Wrong results on amdgpu
-// XFAIL: amdgcn-amd-amdhsa
+// Hangs
+// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: amdgcn-amd-amdhsa-newDriver
 
 #include <iostream>
 

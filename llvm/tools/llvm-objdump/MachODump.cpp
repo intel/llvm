@@ -188,8 +188,12 @@ typedef DiceTable::iterator dice_table_iterator;
 namespace {
 struct ScopedXarFile {
   xar_t xar;
-  ScopedXarFile(const char *filename, int32_t flags)
-      : xar(xar_open(filename, flags)) {}
+  ScopedXarFile(const char *filename, int32_t flags) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    xar = xar_open(filename, flags);
+#pragma clang diagnostic pop
+  }
   ~ScopedXarFile() {
     if (xar)
       xar_close(xar);
@@ -917,10 +921,10 @@ static void PrintRelocationEntries(const MachOObjectFile *O,
           else {
             SymbolRef Symbol = *O->getSymbolByIndex(r_symbolnum);
             Expected<StringRef> SymNameNext = Symbol.getName();
-            const char *name = NULL;
+            const char *name = nullptr;
             if (SymNameNext)
               name = SymNameNext->data();
-            if (name == NULL)
+            if (name == nullptr)
               outs() << format("?(%d)\n", r_symbolnum);
             else
               outs() << name << "\n";
@@ -10231,12 +10235,12 @@ static void PrintMachHeader(const MachOObjectFile *Obj, bool verbose) {
 }
 
 void objdump::printMachOFileHeader(const object::ObjectFile *Obj) {
-  const MachOObjectFile *file = dyn_cast<const MachOObjectFile>(Obj);
+  const MachOObjectFile *file = cast<const MachOObjectFile>(Obj);
   PrintMachHeader(file, Verbose);
 }
 
 void objdump::printMachOLoadCommands(const object::ObjectFile *Obj) {
-  const MachOObjectFile *file = dyn_cast<const MachOObjectFile>(Obj);
+  const MachOObjectFile *file = cast<const MachOObjectFile>(Obj);
   uint32_t filetype = 0;
   uint32_t cputype = 0;
   if (file->is64Bit()) {

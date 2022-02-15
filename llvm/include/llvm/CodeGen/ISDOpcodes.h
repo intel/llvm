@@ -294,7 +294,7 @@ enum NodeType {
   /// subtraction. These nodes take three operands: The first two are normal lhs
   /// and rhs to the add or sub, and the third is a boolean indicating if there
   /// is an incoming carry. They produce two results: the normal result of the
-  /// add or sub, and a boolean that indicates if an overflow occured (*not*
+  /// add or sub, and a boolean that indicates if an overflow occurred (*not*
   /// flag, because it may be a store to memory, etc.). If the type of the
   /// boolean is not i1 then the high bits conform to getBooleanContents.
   SADDO_CARRY,
@@ -797,6 +797,10 @@ enum NodeType {
   /// The scalar width of the type given in operand 1 must be equal to, or
   /// smaller than, the scalar result type width. It may end up being smaller
   /// than the result width as a result of integer type legalization.
+  ///
+  /// After converting to the scalar integer type in operand 1, the value is
+  /// extended to the result VT. FP_TO_SINT_SAT sign extends and FP_TO_UINT_SAT
+  /// zero extends.
   FP_TO_SINT_SAT,
   FP_TO_UINT_SAT,
 

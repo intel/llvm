@@ -1434,14 +1434,9 @@ bool FastISel::selectBitCast(const User *I) {
   // First, try to perform the bitcast by inserting a reg-reg copy.
   Register ResultReg;
   if (SrcVT == DstVT) {
-    const TargetRegisterClass *SrcClass = TLI.getRegClassFor(SrcVT);
-    const TargetRegisterClass *DstClass = TLI.getRegClassFor(DstVT);
-    // Don't attempt a cross-class copy. It will likely fail.
-    if (SrcClass == DstClass) {
-      ResultReg = createResultReg(DstClass);
-      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
-              TII.get(TargetOpcode::COPY), ResultReg).addReg(Op0);
-    }
+    ResultReg = createResultReg(TLI.getRegClassFor(DstVT));
+    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
+            TII.get(TargetOpcode::COPY), ResultReg).addReg(Op0);
   }
 
   // If the reg-reg copy failed, select a BITCAST opcode.
@@ -1775,12 +1770,13 @@ bool FastISel::selectOperator(const User *I, unsigned Opcode) {
     return false;
 
   case Instruction::Call:
-    // On AIX, call lowering uses the DAG-ISEL path currently so that the
+    // On AIX, normal call lowering uses the DAG-ISEL path currently so that the
     // callee of the direct function call instruction will be mapped to the
     // symbol for the function's entry point, which is distinct from the
     // function descriptor symbol. The latter is the symbol whose XCOFF symbol
     // name is the C-linkage name of the source level function.
-    if (TM.getTargetTriple().isOSAIX())
+    // But fast isel still has the ability to do selection for intrinsics.
+    if (TM.getTargetTriple().isOSAIX() && !isa<IntrinsicInst>(I))
       return false;
     return selectCall(I);
 
@@ -1837,8 +1833,7 @@ FastISel::FastISel(FunctionLoweringInfo &FuncInfo,
       TII(*MF->getSubtarget().getInstrInfo()),
       TLI(*MF->getSubtarget().getTargetLowering()),
       TRI(*MF->getSubtarget().getRegisterInfo()), LibInfo(LibInfo),
-      SkipTargetIndependentISel(SkipTargetIndependentISel),
-      LastLocalValue(nullptr), EmitStartPt(nullptr) {}
+      SkipTargetIndependentISel(SkipTargetIndependentISel) {}
 
 FastISel::~FastISel() = default;
 

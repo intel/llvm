@@ -5,6 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // ===--------------------------------------------------------------------=== //
+
+//
+// IMPORTANT:  feature_test.hpp is a generated file - DO NOT EDIT
+//             original definitions are in feature_test.hpp.in
+//
+
 #pragma once
 
 #include <CL/sycl/detail/defines_elementary.hpp>
@@ -23,7 +29,7 @@ namespace sycl {
 // Feature test macro definitions
 
 // TODO: Move these feature-test macros to compiler driver.
-#define SYCL_EXT_INTEL_DEVICE_INFO 2
+#define SYCL_EXT_INTEL_DEVICE_INFO 3
 #define SYCL_EXT_ONEAPI_SUB_GROUP_MASK 1
 #define SYCL_EXT_ONEAPI_LOCAL_MEMORY 1
 // As for SYCL_EXT_ONEAPI_MATRIX:
@@ -35,6 +41,8 @@ namespace sycl {
 #define SYCL_EXT_ONEAPI_MATRIX 2
 #endif
 #define SYCL_EXT_ONEAPI_ASSERT 1
+#define SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS 1
+#define SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS 1
 #define SYCL_EXT_ONEAPI_ENQUEUE_BARRIER 1
 #define SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES 1
 #define SYCL_EXT_ONEAPI_GROUP_ALGORITHMS 1
@@ -43,9 +51,9 @@ namespace sycl {
 #define SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS 1
 #define SYCL_EXT_ONEAPI_DEFAULT_CONTEXT 1
 #define SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY 1
+#define SYCL_EXT_ONEAPI_SRGB 1
 #define SYCL_EXT_ONEAPI_SUB_GROUP 1
 #define SYCL_EXT_INTEL_BF16_CONVERSION 1
-#define SYCL_EXT_INTEL_BITCAST 1
 #define SYCL_EXT_INTEL_DATAFLOW_PIPES 1
 #ifdef __clang__
 #if __has_extension(sycl_extended_atomics)

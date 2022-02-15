@@ -111,7 +111,7 @@ void test2_helper(id);
 void doSomething(unsigned v);
 @implementation Test3
 - (void) test {
-  // 'addOperationWithBlock:' is specifically whitelisted.
+  // 'addOperationWithBlock:' is specifically allowlisted.
   [myOperationQueue addOperationWithBlock:^() { // no-warning
     if (count > 20) {
       doSomething(count);
@@ -130,7 +130,7 @@ void doSomething(unsigned v);
 @end
 
 
-void testBlockVariable() {
+void testBlockVariable(void) {
   typedef void (^block_t)(void);
   
   // This case will be caught by -Wuninitialized, and does not create a

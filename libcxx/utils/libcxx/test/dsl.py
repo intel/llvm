@@ -21,6 +21,14 @@ import lit.Test
 import lit.TestRunner
 import lit.util
 
+class ConfigurationError(Exception):
+  pass
+
+class ConfigurationCompilationError(ConfigurationError):
+  pass
+
+class ConfigurationRuntimeError(ConfigurationError):
+  pass
 
 def _memoizeExpensiveOperation(extractCacheKey):
   """
@@ -29,13 +37,34 @@ def _memoizeExpensiveOperation(extractCacheKey):
   We pickle the cache key to make sure we store an immutable representation
   of it. If we stored an object and the object was referenced elsewhere, it
   could be changed from under our feet, which would break the cache.
+
+  We also store the cache for a given function persistently across invocations
+  of Lit. This dramatically speeds up the configuration of the test suite when
+  invoking Lit repeatedly, which is important for developer workflow. However,
+  with the current implementation that does not synchronize updates to the
+  persistent cache, this also means that one should not call a memoized
+  operation from multiple threads. This should normally not be a problem
+  since Lit configuration is single-threaded.
   """
   def decorator(function):
-    cache = {}
-    def f(*args, **kwargs):
-      cacheKey = pickle.dumps(extractCacheKey(*args, **kwargs))
+    def f(config, *args, **kwargs):
+      cacheRoot = os.path.join(config.test_exec_root, '__config_cache__')
+      persistentCache = os.path.join(cacheRoot, function.__name__)
+      if not os.path.exists(cacheRoot):
+        os.makedirs(cacheRoot)
+
+      cache = {}
+      # Load a cache from a previous Lit invocation if there is one.
+      if os.path.exists(persistentCache):
+        with open(persistentCache, 'rb') as cacheFile:
+          cache = pickle.load(cacheFile)
+
+      cacheKey = pickle.dumps(extractCacheKey(config, *args, **kwargs))
       if cacheKey not in cache:
-        cache[cacheKey] = function(*args, **kwargs)
+        cache[cacheKey] = function(config, *args, **kwargs)
+        # Update the persistent cache so it knows about the new key
+        with open(persistentCache, 'wb') as cacheFile:
+          pickle.dump(cache, cacheFile)
       return cache[cacheKey]
     return f
   return decorator
@@ -104,18 +133,19 @@ def _makeConfigTest(config):
       os.remove(tmp.name)
   return TestWrapper(suite, pathInSuite, config)
 
-@_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
-def sourceBuilds(config, source):
+@_memoizeExpensiveOperation(lambda c, s, f=[]: (c.substitutions, c.environment, s, f))
+def sourceBuilds(config, source, additionalFlags=[]):
   """
   Return whether the program in the given string builds successfully.
 
   This is done by compiling and linking a program that consists of the given
-  source with the %{cxx} substitution, and seeing whether that succeeds.
+  source with the %{cxx} substitution, and seeing whether that succeeds. If
+  any additional flags are passed, they are appended to the compiler invocation.
   """
   with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as sourceFile:
       sourceFile.write(source)
-    out, err, exitCode, timeoutInfo = _executeScriptInternal(test, ['%{build}'])
+    _, _, exitCode, _ = _executeScriptInternal(test, ['%{{build}} {}'.format(' '.join(additionalFlags))])
     return exitCode == 0
 
 @_memoizeExpensiveOperation(lambda c, p, args=None: (c.substitutions, c.environment, p, args))
@@ -124,22 +154,22 @@ def programOutput(config, program, args=None):
   Compiles a program for the test target, run it on the test target and return
   the output.
 
-  If the program fails to compile or run, None is returned instead. Note that
-  execution of the program is done through the %{exec} substitution, which means
-  that the program may be run on a remote host depending on what %{exec} does.
+  Note that execution of the program is done through the %{exec} substitution,
+  which means that the program may be run on a remote host depending on what
+  %{exec} does.
   """
   if args is None:
     args = []
   with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as source:
       source.write(program)
-    _, _, exitCode, _ = _executeScriptInternal(test, ['%{build}'])
+    _, err, exitCode, _ = _executeScriptInternal(test, ['%{build}'])
     if exitCode != 0:
-      return None
+      raise ConfigurationCompilationError("Failed to build program, stderr is:\n{}".format(err))
 
     out, err, exitCode, _ = _executeScriptInternal(test, ["%{{run}} {}".format(' '.join(args))])
     if exitCode != 0:
-      return None
+      raise ConfigurationRuntimeError("Failed to run program, stderr is:\n{}".format(err))
 
     actualOut = re.search("# command output:\n(.+)\n$", out, flags=re.DOTALL)
     actualOut = actualOut.group(1) if actualOut else ""
@@ -159,6 +189,18 @@ def hasCompileFlag(config, flag):
     ])
     return exitCode == 0
 
+@_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
+def runScriptExitCode(config, script):
+  """
+  Runs the given script as a Lit test, and returns the exit code of the execution.
+
+  The script must be a list of commands, each of which being something that
+  could appear on the right-hand-side of a `RUN:` keyword.
+  """
+  with _makeConfigTest(config) as test:
+    _, _, exitCode, _ = _executeScriptInternal(test, script)
+    return exitCode
+
 @_memoizeExpensiveOperation(lambda c, l: (c.substitutions, c.environment, l))
 def hasAnyLocale(config, locales):
   """
@@ -172,21 +214,26 @@ def hasAnyLocale(config, locales):
   depending on the %{exec} substitution.
   """
   program = """
-    #include <locale.h>
-    #include <stdio.h>
-    int main(int argc, char** argv) {
-      // For debugging purposes print which locales are (not) supported.
-      for (int i = 1; i < argc; i++) {
-        if (::setlocale(LC_ALL, argv[i]) != NULL) {
-          printf("%s is supported.\\n", argv[i]);
-          return 0;
+    #include <stddef.h>
+    #if defined(_LIBCPP_HAS_NO_LOCALIZATION)
+      int main(int, char**) { return 1; }
+    #else
+      #include <locale.h>
+      int main(int argc, char** argv) {
+        for (int i = 1; i < argc; i++) {
+          if (::setlocale(LC_ALL, argv[i]) != NULL) {
+            return 0;
+          }
         }
-        printf("%s is not supported.\\n", argv[i]);
+        return 1;
       }
-      return 1;
-    }
+    #endif
   """
-  return programOutput(config, program, args=[pipes.quote(l) for l in locales]) is not None
+  try:
+    programOutput(config, program, args=[pipes.quote(l) for l in locales])
+  except ConfigurationRuntimeError:
+    return False
+  return True
 
 @_memoizeExpensiveOperation(lambda c, flags='': (c.substitutions, c.environment, flags))
 def compilerMacros(config, flags=''):
@@ -198,20 +245,17 @@ def compilerMacros(config, flags=''):
 
   If the optional `flags` argument (a string) is provided, these flags will
   be added to the compiler invocation when generating the macros.
-
-  If we fail to extract the compiler macros because of a compiler error, None
-  is returned instead.
   """
   with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as sourceFile:
       # Make sure files like <__config> are included, since they can define
       # additional macros.
       sourceFile.write("#include <stddef.h>")
-    unparsedOutput, err, exitCode, timeoutInfo = _executeScriptInternal(test, [
+    unparsedOutput, err, exitCode, _ = _executeScriptInternal(test, [
       "%{{cxx}} %s -dM -E %{{flags}} %{{compile_flags}} {}".format(flags)
     ])
     if exitCode != 0:
-      return None
+      raise ConfigurationCompilationError("Failed to retrieve compiler macros, stderr is:\n{}".format(err))
     parsedMacros = dict()
     defines = (l.strip() for l in unparsedOutput.split('\n') if l.startswith('#define '))
     for line in defines:

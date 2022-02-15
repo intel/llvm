@@ -10,6 +10,7 @@
 #define _LIBCPP___RANDOM_POISSON_DISTRIBUTION_H
 
 #include <__config>
+#include <__random/clamp_to_integral.h>
 #include <__random/exponential_distribution.h>
 #include <__random/normal_distribution.h>
 #include <__random/uniform_real_distribution.h>
@@ -18,7 +19,7 @@
 #include <limits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS

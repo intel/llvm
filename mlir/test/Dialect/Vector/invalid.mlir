@@ -3,7 +3,7 @@
 // -----
 
 func @broadcast_to_scalar(%arg0: f32) -> f32 {
-  // expected-error@+1 {{'vector.broadcast' op result #0 must be vector of any type values, but got 'f32'}}
+  // expected-error@+1 {{custom op 'vector.broadcast' invalid kind of type specified}}
   %0 = vector.broadcast %arg0 : f32 to f32
 }
 
@@ -12,6 +12,13 @@ func @broadcast_to_scalar(%arg0: f32) -> f32 {
 func @broadcast_rank_too_high(%arg0: vector<4x4xf32>) {
   // expected-error@+1 {{'vector.broadcast' op source rank higher than destination rank}}
   %1 = vector.broadcast %arg0 : vector<4x4xf32> to vector<4xf32>
+}
+
+// -----
+
+func @broadcast_rank_too_high_0d(%arg0: vector<1xf32>) {
+  // expected-error@+1 {{'vector.broadcast' op source rank higher than destination rank}}
+  %1 = vector.broadcast %arg0 : vector<1xf32> to vector<f32>
 }
 
 // -----
@@ -79,7 +86,7 @@ func @extract_element(%arg0: vector<f32>) {
 }
 
 // -----
- 
+
 func @extract_element(%arg0: vector<4xf32>) {
   %c = arith.constant 3 : i32
   // expected-error@+1 {{expected position for 1-D vector}}
@@ -293,7 +300,7 @@ func @test_vector.transfer_read(%arg0: memref<?x?xf32>) {
 func @test_vector.transfer_read(%arg0: vector<4x3xf32>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<4x3xf32>
+  %vf0 = vector.splat %f0 : vector<4x3xf32>
   // expected-error@+1 {{ requires memref or ranked tensor type}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 : vector<4x3xf32>, vector<1x1x2x3xf32>
 }
@@ -303,7 +310,7 @@ func @test_vector.transfer_read(%arg0: vector<4x3xf32>) {
 func @test_vector.transfer_read(%arg0: memref<4x3xf32>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<4x3xf32>
+  %vf0 = vector.splat %f0 : vector<4x3xf32>
   // expected-error@+1 {{ requires vector type}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 : memref<4x3xf32>, f32
 }
@@ -369,7 +376,7 @@ func @test_vector.transfer_read(%arg0: memref<?x?x?xf32>) {
   %c3 = arith.constant 3 : index
   %cst = arith.constant 3.0 : f32
   // expected-note@+1 {{prior use here}}
-  %mask = splat %c1 : vector<3x8x7xi1>
+  %mask = vector.splat %c1 : vector<3x8x7xi1>
   // expected-error@+1 {{expects different type than prior uses: 'vector<3x7xi1>' vs 'vector<3x8x7xi1>'}}
   %0 = vector.transfer_read %arg0[%c3, %c3, %c3], %cst, %mask {permutation_map = affine_map<(d0, d1, d2)->(d0, 0, d2)>} : memref<?x?x?xf32>, vector<3x8x7xf32>
 }
@@ -379,7 +386,7 @@ func @test_vector.transfer_read(%arg0: memref<?x?x?xf32>) {
 func @test_vector.transfer_read(%arg0: memref<?x?xvector<4x3xf32>>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<4x3xf32>
+  %vf0 = vector.splat %f0 : vector<4x3xf32>
   // expected-error@+1 {{requires source vector element and vector result ranks to match}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<4x3xf32>>, vector<3xf32>
 }
@@ -389,7 +396,7 @@ func @test_vector.transfer_read(%arg0: memref<?x?xvector<4x3xf32>>) {
 func @test_vector.transfer_read(%arg0: memref<?x?xvector<6xf32>>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<6xf32>
+  %vf0 = vector.splat %f0 : vector<6xf32>
   // expected-error@+1 {{requires the bitwidth of the minor 1-D vector to be an integral multiple of the bitwidth of the minor 1-D vector of the source}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 : memref<?x?xvector<6xf32>>, vector<3xf32>
 }
@@ -399,7 +406,7 @@ func @test_vector.transfer_read(%arg0: memref<?x?xvector<6xf32>>) {
 func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<2x3xf32>
+  %vf0 = vector.splat %f0 : vector<2x3xf32>
   // expected-error@+1 {{ expects the optional in_bounds attr of same rank as permutation_map results: affine_map<(d0, d1) -> (d0, d1)>}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {in_bounds = [true], permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
 }
@@ -409,7 +416,7 @@ func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
 func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<2x3xf32>
+  %vf0 = vector.splat %f0 : vector<2x3xf32>
   // expected-error@+1 {{requires broadcast dimensions to be in-bounds}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {in_bounds = [false, true], permutation_map = affine_map<(d0, d1)->(0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
 }
@@ -419,8 +426,8 @@ func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
 func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<2x3xf32>
-  %mask = splat %c1 : vector<2x3xi1>
+  %vf0 = vector.splat %f0 : vector<2x3xf32>
+  %mask = vector.splat %c1 : vector<2x3xi1>
   // expected-error@+1 {{does not support masks with vector element type}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %vf0, %mask {permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
 }
@@ -439,7 +446,7 @@ func @test_vector.transfer_write(%arg0: memref<?x?xf32>) {
 func @test_vector.transfer_write(%arg0: memref<vector<4x3xf32>>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<4x3xf32>
+  %vf0 = vector.splat %f0 : vector<4x3xf32>
   // expected-error@+1 {{ requires vector type}}
   vector.transfer_write %arg0, %arg0[%c3, %c3] : memref<vector<4x3xf32>>, vector<4x3xf32>
 }
@@ -449,7 +456,7 @@ func @test_vector.transfer_write(%arg0: memref<vector<4x3xf32>>) {
 func @test_vector.transfer_write(%arg0: vector<4x3xf32>) {
   %c3 = arith.constant 3 : index
   %f0 = arith.constant 0.0 : f32
-  %vf0 = splat %f0 : vector<4x3xf32>
+  %vf0 = vector.splat %f0 : vector<4x3xf32>
   // expected-error@+1 {{ requires memref or ranked tensor type}}
   vector.transfer_write %arg0, %arg0[%c3, %c3] : vector<4x3xf32>, f32
 }
@@ -867,6 +874,24 @@ func @contraction(%arg0: vector<2x1xf32>, %arg1: vector<1x3xf32>, %arg2: vector<
 
 // -----
 
+func @create_mask_0d_no_operands() {
+  %c1 = arith.constant 1 : index
+  // expected-error@+1 {{must specify exactly one operand for 0-D create_mask}}
+  %0 = vector.create_mask : vector<i1>
+}
+
+// -----
+
+func @create_mask_0d_many_operands() {
+  %c1 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+  %c3 = arith.constant 3 : index
+  // expected-error@+1 {{must specify exactly one operand for 0-D create_mask}}
+  %0 = vector.create_mask %c1, %c2, %c3 : vector<i1>
+}
+
+// -----
+
 func @create_mask() {
   %c2 = arith.constant 2 : index
   %c3 = arith.constant 3 : index
@@ -874,6 +899,20 @@ func @create_mask() {
   %0 = vector.create_mask %c3, %c2 : vector<4x3x7xi1>
 }
 
+
+// -----
+
+func @constant_mask_0d_no_attr() {
+  // expected-error@+1 {{array attr must have length 1 for 0-D vectors}}
+  %0 = vector.constant_mask [] : vector<i1>
+}
+
+// -----
+
+func @constant_mask_0d_bad_attr() {
+  // expected-error@+1 {{mask dim size must be either 0 or 1 for 0-D vectors}}
+  %0 = vector.constant_mask [2] : vector<i1>
+}
 
 // -----
 
@@ -1001,8 +1040,22 @@ func @shape_cast_invalid_rank_expansion(%arg0 : vector<15x2xf32>) {
 // -----
 
 func @bitcast_not_vector(%arg0 : vector<5x1x3x2xf32>) {
-  // expected-error@+1 {{must be vector of any type values}}
+  // expected-error@+1 {{'vector.bitcast' invalid kind of type specified}}
   %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to f32
+}
+
+// -----
+
+func @bitcast_rank_mismatch_to_0d(%arg0 : vector<1xf32>) {
+  // expected-error@+1 {{op failed to verify that all of {source, result} have same rank}}
+  %0 = vector.bitcast %arg0 : vector<1xf32> to vector<f32>
+}
+
+// -----
+
+func @bitcast_rank_mismatch_from_0d(%arg0 : vector<f32>) {
+  // expected-error@+1 {{op failed to verify that all of {source, result} have same rank}}
+  %0 = vector.bitcast %arg0 : vector<f32> to vector<1xf32>
 }
 
 // -----
@@ -1029,21 +1082,21 @@ func @bitcast_sizemismatch(%arg0 : vector<5x1x3x2xf32>) {
 // -----
 
 func @reduce_unknown_kind(%arg0: vector<16xf32>) -> f32 {
-  // expected-error@+1 {{'vector.reduction' op unknown reduction kind: joho}}
-  %0 = vector.reduction "joho", %arg0 : vector<16xf32> into f32
+  // expected-error@+1 {{custom op 'vector.reduction' Unknown combining kind: joho}}
+  %0 = vector.reduction <joho>, %arg0 : vector<16xf32> into f32
 }
 
 // -----
 
 func @reduce_elt_type_mismatch(%arg0: vector<16xf32>) -> i32 {
   // expected-error@+1 {{'vector.reduction' op failed to verify that source operand and result have same element type}}
-  %0 = vector.reduction "add", %arg0 : vector<16xf32> into i32
+  %0 = vector.reduction <add>, %arg0 : vector<16xf32> into i32
 }
 
 // -----
 
 func @reduce_unsupported_attr(%arg0: vector<16xf32>) -> i32 {
-  // expected-error@+1 {{attribute 'kind' failed to satisfy constraint: string attribute}}
+  // expected-error@+1 {{expected '<'}}
   %0 = vector.reduction 1234, %arg0 : vector<16xf32> into i32
 }
 
@@ -1051,35 +1104,35 @@ func @reduce_unsupported_attr(%arg0: vector<16xf32>) -> i32 {
 
 func @reduce_unsupported_third_argument(%arg0: vector<16xf32>, %arg1: f32) -> f32 {
   // expected-error@+1 {{'vector.reduction' unsupported number of operands}}
-  %0 = vector.reduction "add", %arg0, %arg1, %arg1 : vector<16xf32> into f32
+  %0 = vector.reduction <add>, %arg0, %arg1, %arg1 : vector<16xf32> into f32
 }
 
 // -----
 
 func @reduce_unsupported_accumulator_kind(%arg0: vector<16xf32>, %arg1: f32) -> f32 {
   // expected-error@+1 {{'vector.reduction' op no accumulator for reduction kind: min}}
-  %0 = vector.reduction "minf", %arg0, %arg1 : vector<16xf32> into f32
+  %0 = vector.reduction <minf>, %arg0, %arg1 : vector<16xf32> into f32
 }
 
 // -----
 
 func @reduce_unsupported_accumulator_type(%arg0: vector<16xi32>, %arg1: i32) -> i32 {
   // expected-error@+1 {{'vector.reduction' op no accumulator for type: 'i32'}}
-  %0 = vector.reduction "add", %arg0, %arg1 : vector<16xi32> into i32
+  %0 = vector.reduction <add>, %arg0, %arg1 : vector<16xi32> into i32
 }
 
 // -----
 
 func @reduce_unsupported_type(%arg0: vector<16xf32>) -> f32 {
   // expected-error@+1 {{'vector.reduction' op unsupported reduction type}}
-  %0 = vector.reduction "xor", %arg0 : vector<16xf32> into f32
+  %0 = vector.reduction <xor>, %arg0 : vector<16xf32> into f32
 }
 
 // -----
 
 func @reduce_unsupported_rank(%arg0: vector<4x16xf32>) -> f32 {
   // expected-error@+1 {{'vector.reduction' op unsupported reduction rank: 2}}
-  %0 = vector.reduction "add", %arg0 : vector<4x16xf32> into f32
+  %0 = vector.reduction <add>, %arg0 : vector<4x16xf32> into f32
 }
 
 // -----
@@ -1429,13 +1482,35 @@ func @insert_map_id(%v: vector<2x1xf32>, %v1: vector<4x32xf32>, %id : index) {
 
 // -----
 
-func @vector_transfer_ops_0d(%arg0: tensor<f32>)
-  -> tensor<f32> {
-    %f0 = arith.constant 0.0 : f32
-    // expected-error@+1 {{0-d transfer requires vector<1xt> shape and () -> (0) permutation_map}}
-    %0 = vector.transfer_read %arg0[], %f0 {permutation_map = affine_map<(d0)->(d0)>} :
-      tensor<f32>, vector<1xf32>
-    %1 = vector.transfer_write %0, %arg0[] {permutation_map = affine_map<()->(0)>} :
-      vector<1xf32>, tensor<f32>
-    return %1: tensor<f32>
+func @scan_reduction_dim_constraint(%arg0: vector<2x3xi32>, %arg1: vector<3xi32>) -> vector<3xi32> {
+  // expected-error@+1 {{'vector.scan' op reduction dimension 5 has to be less than 2}}
+  %0:2 = vector.scan <add>, %arg0, %arg1 {inclusive = true, reduction_dim = 5} :
+    vector<2x3xi32>, vector<3xi32>
+  return %0#1 : vector<3xi32>
+}
+
+// -----
+
+func @scan_ival_rank_constraint(%arg0: vector<2x3xi32>, %arg1: vector<1x3xi32>) -> vector<1x3xi32> {
+  // expected-error@+1 {{initial value rank 2 has to be equal to 1}}
+  %0:2 = vector.scan <add>, %arg0, %arg1 {inclusive = true, reduction_dim = 0} :
+    vector<2x3xi32>, vector<1x3xi32>
+  return %0#1 : vector<1x3xi32>
+}
+
+// -----
+
+func @scan_incompatible_shapes(%arg0: vector<2x3xi32>, %arg1: vector<5xi32>) -> vector<2x3xi32> {
+  // expected-error@+1 {{incompatible input/initial value shapes}}
+  %0:2 = vector.scan <add>, %arg0, %arg1 {inclusive = true, reduction_dim = 0} :
+    vector<2x3xi32>, vector<5xi32>
+  return %0#0 : vector<2x3xi32>
+}
+
+// -----
+
+func @invalid_splat(%v : f32) {
+  // expected-error@+1 {{invalid kind of type specified}}
+  vector.splat %v : memref<8xf32>
+  return
 }

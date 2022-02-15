@@ -520,14 +520,21 @@ class JSONCrashLogParser:
             self.crashlog.threads.append(thread)
             idx += 1
 
-    def parse_thread_registers(self, json_thread_state):
+    def parse_thread_registers(self, json_thread_state, prefix=None):
         registers = dict()
         for key, state in json_thread_state.items():
+            if key == "rosetta":
+                registers.update(self.parse_thread_registers(state))
+                continue
+            if key == "x":
+                gpr_dict = { str(idx) : reg for idx,reg in enumerate(state) }
+                registers.update(self.parse_thread_registers(gpr_dict, key))
+                continue
             try:
-               value = int(state['value'])
-               registers[key] = value
-            except (TypeError, ValueError):
-               pass
+                value = int(state['value'])
+                registers["{}{}".format(prefix,key)] = value
+            except (KeyError, ValueError, TypeError):
+                pass
         return registers
 
     def parse_errors(self, json_data):
@@ -1003,11 +1010,22 @@ def save_crashlog(debugger, command, exe_ctx, result, dict):
         result.PutCString("error: invalid target")
 
 
-def Symbolicate(debugger, command, result, dict):
-    try:
-        SymbolicateCrashLogs(debugger, shlex.split(command))
-    except Exception as e:
-        result.PutCString("error: python exception: %s" % e)
+class Symbolicate:
+    def __init__(self, debugger, internal_dict):
+        pass
+
+    def __call__(self, debugger, command, exe_ctx, result):
+        try:
+            SymbolicateCrashLogs(debugger, shlex.split(command))
+        except Exception as e:
+            result.PutCString("error: python exception: %s" % e)
+
+    def get_short_help(self):
+        return "Symbolicate one or more darwin crash log files."
+
+    def get_long_help(self):
+        option_parser = CrashLogOptionParser()
+        return option_parser.format_help()
 
 
 def SymbolicateCrashLog(crash_log, options):
@@ -1186,7 +1204,7 @@ def CreateSymbolicateCrashLogOptions(
     return option_parser
 
 
-def SymbolicateCrashLogs(debugger, command_args):
+def CrashLogOptionParser():
     description = '''Symbolicate one or more darwin crash log files to provide source file and line information,
 inlined stack frames back to the concrete functions, and disassemble the location of the crash
 for the first frame of the crashed thread.
@@ -1195,8 +1213,10 @@ for use at the LLDB command line. After a crash log has been parsed and symbolic
 created that has all of the shared libraries loaded at the load addresses found in the crash log file. This allows
 you to explore the program as if it were stopped at the locations described in the crash log and functions can
 be disassembled and lookups can be performed using the addresses found in the crash log.'''
-    option_parser = CreateSymbolicateCrashLogOptions(
-        'crashlog', description, True)
+    return CreateSymbolicateCrashLogOptions('crashlog', description, True)
+
+def SymbolicateCrashLogs(debugger, command_args):
+    option_parser = CrashLogOptionParser()
     try:
         (options, args) = option_parser.parse_args(command_args)
     except:
@@ -1219,13 +1239,17 @@ be disassembled and lookups can be performed using the addresses found in the cr
             for crash_log_file in args:
                 crash_log = CrashLogParser().parse(debugger, crash_log_file, options.verbose)
                 SymbolicateCrashLog(crash_log, options)
+
 if __name__ == '__main__':
     # Create a new debugger instance
     debugger = lldb.SBDebugger.Create()
     SymbolicateCrashLogs(debugger, sys.argv[1:])
     lldb.SBDebugger.Destroy(debugger)
-elif getattr(lldb, 'debugger', None):
-    lldb.debugger.HandleCommand(
-        'command script add -f lldb.macosx.crashlog.Symbolicate crashlog')
-    lldb.debugger.HandleCommand(
+
+def __lldb_init_module(debugger, internal_dict):
+    debugger.HandleCommand(
+        'command script add -c lldb.macosx.crashlog.Symbolicate crashlog')
+    debugger.HandleCommand(
         'command script add -f lldb.macosx.crashlog.save_crashlog save_crashlog')
+    print('"crashlog" and "save_crashlog" commands have been installed, use '
+          'the "--help" options on these commands for detailed help.')

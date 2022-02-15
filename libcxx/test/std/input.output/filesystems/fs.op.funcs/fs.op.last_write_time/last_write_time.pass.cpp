@@ -14,9 +14,6 @@
 // against already-released libc++'s.
 // XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.15
 
-// TODO(ldionne): This test fails on Ubuntu Focal on our CI nodes (and only there), in 32 bit mode.
-// UNSUPPORTED: linux && 32bits-on-64bits
-
 // <filesystem>
 
 // file_time_type last_write_time(const path& p);
@@ -25,11 +22,15 @@
 // void last_write_time(const path& p, file_time_type new_type,
 //                      std::error_code& ec) noexcept;
 
+// Disable min() and max() macros in <windows.h> on Windows.
+// ADDITIONAL_COMPILE_FLAGS: -DNOMINMAX
+
 #include "filesystem_include.h"
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <ratio>
 #include <type_traits>
 
 #include "test_macros.h"

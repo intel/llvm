@@ -1,20 +1,7 @@
-if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
-  set(LONG_DOUBLE_HDR LongDoubleBitsX86.h)
-else()
-  set(LONG_DOUBLE_HDR)
-endif()
-
-if(EXISTS ${LIBC_TARGET_ARCHITECTURE})
-  set(FENV_IMPL ${LIBC_TARGET_ARCHITECTURE}/FEnvImpl.h)
-else()
-  set(FENV_IMPL DummyFEnvImpl.h)
-endif()
-
 add_header_library(
   fputil
   HDRS
-    ${LONG_DOUBLE_HDR}
-    ${FENV_IMPL}
+    FEnvImpl.h
     BasicOperations.h
     DivisionAndRemainderOperations.h
     FEnvUtils.h
@@ -35,3 +22,14 @@ add_header_library(
     libc.src.__support.common
     libc.src.__support.CPP.standalone_cpp
 )
+
+add_header_library(
+  sqrt
+  HDRS
+    sqrt.h
+  DEPENDS
+    .fputil
+    libc.src.__support.FPUtil.generic.sqrt
+)
+
+add_subdirectory(generic)

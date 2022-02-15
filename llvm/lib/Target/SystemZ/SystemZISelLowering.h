@@ -126,6 +126,9 @@ enum NodeType : unsigned {
   // as for MVC.
   CLC,
 
+  // Use MVC to set a block of memory after storing the first byte.
+  MEMSET_MVC,
+
   // Use an MVST-based sequence to implement stpcpy().
   STPCPY,
 
@@ -378,7 +381,6 @@ enum {
 } // end namespace SystemZICMP
 
 class SystemZSubtarget;
-class SystemZTargetMachine;
 
 class SystemZTargetLowering : public TargetLowering {
 public:
@@ -441,6 +443,11 @@ public:
                                   EVT VT) const override;
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
+  bool ShouldShrinkFPConstant(EVT VT) const override {
+    // Do not shrink 64-bit FP constpool entries since LDEB is slower than
+    // LD, and having the full constant in memory enables reg/mem opcodes.
+    return VT != MVT::f64;
+  }
   bool hasInlineStackProbe(MachineFunction &MF) const override;
   bool isLegalICmpImmediate(int64_t Imm) const override;
   bool isLegalAddImmediate(int64_t Imm) const override;
@@ -709,7 +716,8 @@ private:
   MachineBasicBlock *emitAtomicCmpSwapW(MachineInstr &MI,
                                         MachineBasicBlock *BB) const;
   MachineBasicBlock *emitMemMemWrapper(MachineInstr &MI, MachineBasicBlock *BB,
-                                       unsigned Opcode) const;
+                                       unsigned Opcode,
+                                       bool IsMemset = false) const;
   MachineBasicBlock *emitStringWrapper(MachineInstr &MI, MachineBasicBlock *BB,
                                        unsigned Opcode) const;
   MachineBasicBlock *emitTransactionBegin(MachineInstr &MI,

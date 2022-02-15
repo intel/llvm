@@ -17,6 +17,10 @@ template <typename ElementType, access::address_space Space> class multi_ptr;
 // Template specialization aliases for different pointer address spaces
 
 template <typename ElementType>
+using generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space>;
+
+template <typename ElementType>
 using global_ptr = multi_ptr<ElementType, access::address_space::global_space>;
 
 template <typename ElementType>

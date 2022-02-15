@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // RUN: %clangxx -fsycl -fsyntax-only %s
+// expected-no-diagnostics
 
 // This test checks that both host and device compilers can
 // successfully compile simd_mask APIs.
@@ -60,19 +61,11 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION simd_mask<8> misc_tests(bool val) {
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void compat_test(float *ptr) {
   simd<unsigned short, 16> pred(1);
   simd<unsigned int, 16> offsets;
-  simd<int, 8> pred1(1);
-  auto pred2 = pred1.bit_cast_view<unsigned short>();
 
-  // expected-warning@+1 {{deprecated}}
   auto x1 = gather<float, 16>(ptr, offsets, pred);
-  // expected-warning@+1 {{deprecated}}
-  auto x11 = gather<float, 16>(ptr, offsets, pred2);
-  // expected-warning@+1 {{deprecated}}
   auto x2 = gather<float, 16>(ptr, offsets, simd<unsigned short, 16>{});
   simd_mask<16> m1(0);
-  // expected-warning@+1 {{deprecated}}
   m1 = pred;
   simd_mask<16> m2(0);
-  // expected-warning@+1 {{deprecated}}
   m2 = std::move(pred);
 }

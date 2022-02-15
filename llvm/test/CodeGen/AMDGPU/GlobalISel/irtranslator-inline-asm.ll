@@ -144,7 +144,7 @@ define double @test_multiple_register_outputs_mixed() #0 {
   ; CHECK-NEXT:   liveins: $sgpr30_sgpr31
   ; CHECK-NEXT: {{  $}}
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:sgpr_64 = COPY $sgpr30_sgpr31
-  ; CHECK-NEXT:   INLINEASM &"v_mov_b32 $0, 0; v_add_f64 $1, 0, 0", 0 /* attdialect */, 1835018 /* regdef:VGPR_32 */, def %1, 2883594 /* regdef:VReg_64 */, def %2
+  ; CHECK-NEXT:   INLINEASM &"v_mov_b32 $0, 0; v_add_f64 $1, 0, 0", 0 /* attdialect */, 1835018 /* regdef:VGPR_32 */, def %1, 2949130 /* regdef:VReg_64 */, def %2
   ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(s32) = COPY %1
   ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:_(s64) = COPY %2
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[COPY2]](s64)
@@ -239,7 +239,7 @@ define i32 @test_memory_constraint(i32 addrspace(3)* %a) nounwind {
   ; CHECK-NEXT:   $vgpr0 = COPY [[COPY2]](s32)
   ; CHECK-NEXT:   [[COPY3:%[0-9]+]]:ccr_sgpr_64 = COPY [[COPY1]]
   ; CHECK-NEXT:   S_SETPC_B64_return [[COPY3]], implicit $vgpr0
-  %1 = tail call i32 asm "ds_read_b32 $0, $1", "=v,*m"(i32 addrspace(3)* %a)
+  %1 = tail call i32 asm "ds_read_b32 $0, $1", "=v,*m"(i32 addrspace(3)* elementtype(i32) %a)
   ret i32 %1
 }
 

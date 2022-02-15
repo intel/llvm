@@ -343,19 +343,15 @@ id(size_t, size_t)->id<2>;
 id(size_t, size_t, size_t)->id<3>;
 #endif
 
-namespace detail {
-template <int Dims> id<Dims> store_id(const id<Dims> *i) {
-  return get_or_store(i);
-}
-} // namespace detail
-
 template <int Dims>
 __SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_id() instead")
 id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<id<Dims>>());
 #else
-  return detail::store_id<Dims>(nullptr);
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host device");
 #endif
 }
 
@@ -364,9 +360,11 @@ namespace oneapi {
 namespace experimental {
 template <int Dims> id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(detail::declptr<id<Dims>>());
+  return sycl::detail::Builder::getElement(sycl::detail::declptr<id<Dims>>());
 #else
-  return sycl::detail::store_id<Dims>(nullptr);
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host device");
 #endif
 }
 } // namespace experimental

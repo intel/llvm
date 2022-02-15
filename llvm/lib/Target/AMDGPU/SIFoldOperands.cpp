@@ -300,6 +300,13 @@ static bool updateOperand(FoldCandidate &Fold,
   assert(!Fold.needsShrink() && "not handled");
 
   if (Fold.isImm()) {
+    if (Old.isTied()) {
+      int NewMFMAOpc = AMDGPU::getMFMAEarlyClobberOp(MI->getOpcode());
+      if (NewMFMAOpc == -1)
+        return false;
+      MI->setDesc(TII.get(NewMFMAOpc));
+      MI->untieRegOperand(0);
+    }
     Old.ChangeToImmediate(Fold.ImmToFold);
     return true;
   }
@@ -1586,17 +1593,9 @@ bool SIFoldOperands::tryFoldRegSequence(MachineInstr &MI) {
 
   unsigned OpIdx = Op - &UseMI->getOperand(0);
   const MCInstrDesc &InstDesc = UseMI->getDesc();
-  const MCOperandInfo &OpInfo = InstDesc.OpInfo[OpIdx];
-  switch (OpInfo.RegClass) {
-  case AMDGPU::AV_32RegClassID:  LLVM_FALLTHROUGH;
-  case AMDGPU::AV_64RegClassID:  LLVM_FALLTHROUGH;
-  case AMDGPU::AV_96RegClassID:  LLVM_FALLTHROUGH;
-  case AMDGPU::AV_128RegClassID: LLVM_FALLTHROUGH;
-  case AMDGPU::AV_160RegClassID:
-    break;
-  default:
+  if (!TRI->isVectorSuperClass(
+          TRI->getRegClass(InstDesc.OpInfo[OpIdx].RegClass)))
     return false;
-  }
 
   const auto *NewDstRC = TRI->getEquivalentAGPRClass(MRI->getRegClass(Reg));
   auto Dst = MRI->createVirtualRegister(NewDstRC);
@@ -1628,7 +1627,7 @@ bool SIFoldOperands::tryFoldRegSequence(MachineInstr &MI) {
   // Erase the REG_SEQUENCE eagerly, unless we followed a chain of COPY users,
   // in which case we can erase them all later in runOnMachineFunction.
   if (MRI->use_nodbg_empty(MI.getOperand(0).getReg()))
-    MI.eraseFromParentAndMarkDBGValuesForRemoval();
+    MI.eraseFromParent();
   return true;
 }
 
@@ -1829,7 +1828,7 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
       while (MRI->use_nodbg_empty(InstToErase->getOperand(0).getReg())) {
         auto &SrcOp = InstToErase->getOperand(1);
         auto SrcReg = SrcOp.isReg() ? SrcOp.getReg() : Register();
-        InstToErase->eraseFromParentAndMarkDBGValuesForRemoval();
+        InstToErase->eraseFromParent();
         InstToErase = nullptr;
         if (!SrcReg || SrcReg.isPhysical())
           break;
@@ -1839,7 +1838,7 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
       }
       if (InstToErase && InstToErase->isRegSequence() &&
           MRI->use_nodbg_empty(InstToErase->getOperand(0).getReg()))
-        InstToErase->eraseFromParentAndMarkDBGValuesForRemoval();
+        InstToErase->eraseFromParent();
     }
   }
   return true;

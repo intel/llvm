@@ -352,6 +352,17 @@ func @cmpf_2dvector(%arg0 : vector<4x3xf32>, %arg1 : vector<4x3xf32>) {
 
 // -----
 
+// CHECK-LABEL: func @cmpi_0dvector(
+func @cmpi_0dvector(%arg0 : vector<i32>, %arg1 : vector<i32>) {
+  // CHECK: %[[ARG0:.*]] = builtin.unrealized_conversion_cast
+  // CHECK: %[[ARG1:.*]] = builtin.unrealized_conversion_cast
+  // CHECK: %[[CMP:.*]] = llvm.icmp "ult" %[[ARG0]], %[[ARG1]] : vector<1xi32>
+  %0 = arith.cmpi ult, %arg0, %arg1 : vector<i32>
+  std.return
+}
+
+// -----
+
 // CHECK-LABEL: func @cmpi_2dvector(
 func @cmpi_2dvector(%arg0 : vector<4x3xi32>, %arg1 : vector<4x3xi32>) {
   // CHECK: %[[ARG0:.*]] = builtin.unrealized_conversion_cast
@@ -362,4 +373,13 @@ func @cmpi_2dvector(%arg0 : vector<4x3xi32>, %arg1 : vector<4x3xi32>) {
   // CHECK: %[[INSERT:.*]] = llvm.insertvalue %[[CMP]], %2[0] : !llvm.array<4 x vector<3xi1>>
   %0 = arith.cmpi ult, %arg0, %arg1 : vector<4x3xi32>
   std.return
+}
+
+// -----
+
+// CHECK-LABEL: @select
+func @select(%arg0 : i1, %arg1 : i32, %arg2 : i32) -> i32 {
+  // CHECK: = llvm.select %arg0, %arg1, %arg2 : i1, i32
+  %0 = arith.select %arg0, %arg1, %arg2 : i32
+  return %0 : i32
 }

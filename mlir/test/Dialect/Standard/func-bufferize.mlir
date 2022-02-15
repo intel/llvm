@@ -9,11 +9,11 @@ func @identity(%arg0: tensor<f32>) -> tensor<f32> {
 
 // CHECK-LABEL:   func @block_arguments(
 // CHECK-SAME:        %[[ARG:.*]]: memref<f32>) -> memref<f32> {
-// CHECK:           br ^bb1(%[[ARG]] : memref<f32>)
+// CHECK:           cf.br ^bb1(%[[ARG]] : memref<f32>)
 // CHECK:         ^bb1(%[[BBARG:.*]]: memref<f32>):
 // CHECK:           return %[[BBARG]] : memref<f32>
 func @block_arguments(%arg0: tensor<f32>) -> tensor<f32> {
-  br ^bb1(%arg0: tensor<f32>)
+  cf.br ^bb1(%arg0: tensor<f32>)
 ^bb1(%bbarg: tensor<f32>):
   return %bbarg : tensor<f32>
 }
@@ -39,7 +39,7 @@ func @call_sink(%arg0: tensor<f32>) {
 
 // CHECK-LABEL:   func @unconverted_op_in_body() -> memref<f32> {
 // CHECK:           %[[TENSOR:.*]] = "test.source"() : () -> tensor<f32>
-// CHECK:           %[[MEMREF:.*]] = memref.buffer_cast %[[TENSOR]] : memref<f32>
+// CHECK:           %[[MEMREF:.*]] = bufferization.to_memref %[[TENSOR]] : memref<f32>
 // CHECK:           return %[[MEMREF]] : memref<f32>
 func @unconverted_op_in_body() -> tensor<f32> {
   %0 = "test.source"() : () -> tensor<f32>
@@ -52,7 +52,7 @@ func @unconverted_op_in_body() -> tensor<f32> {
 // update all terminators and issue an error if that is not possible.
 func @unable_to_update_terminator(%arg0: tensor<f32>) -> tensor<f32> {
     %0 = arith.constant true
-    cond_br %0, ^bb1(%arg0: tensor<f32>), ^bb2(%arg0: tensor<f32>)
+    cf.cond_br %0, ^bb1(%arg0: tensor<f32>), ^bb2(%arg0: tensor<f32>)
   ^bb1(%bbarg0: tensor<f32>):
     // expected-error @+1 {{failed to legalize operation 'test.terminator'}}
     "test.terminator"() : () -> ()

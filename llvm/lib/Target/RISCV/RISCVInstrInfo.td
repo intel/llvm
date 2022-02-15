@@ -174,6 +174,20 @@ def uimm5 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]> {
   let OperandNamespace = "RISCVOp";
 }
 
+def InsnDirectiveOpcode : AsmOperandClass {
+  let Name = "InsnDirectiveOpcode";
+  let ParserMethod = "parseInsnDirectiveOpcode";
+  let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isImm";
+}
+
+def uimm7_opcode : Operand<XLenVT> {
+  let ParserMatchClass = InsnDirectiveOpcode;
+  let DecoderMethod = "decodeUImmOperand<7>";
+  let OperandType = "OPERAND_UIMM7";
+  let OperandNamespace = "RISCVOp";
+}
+
 def uimm7 : Operand<XLenVT> {
   let ParserMatchClass = UImmAsmOperand<7>;
   let DecoderMethod = "decodeUImmOperand<7>";
@@ -387,6 +401,21 @@ def AddiPairImmB : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(Imm - Imm / 2, SDLoc(N),
                                    N->getValueType(0));
 }]>;
+
+def XLenSubTrailingOnes : SDNodeXForm<imm, [{
+  uint64_t XLen = Subtarget->getXLen();
+  uint64_t TrailingOnes = N->getAPIntValue().countTrailingOnes();
+  return CurDAG->getTargetConstant(XLen - TrailingOnes, SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
+// Checks if this mask is a non-empty sequence of ones starting at the
+// least significant bit with the remainder zero and exceeds simm12.
+def TrailingOnesMask : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  return !isInt<12>(N->getSExtValue()) && isMask_64(N->getZExtValue());
+}], XLenSubTrailingOnes>;
 
 //===----------------------------------------------------------------------===//
 // Instruction Formats
@@ -770,6 +799,9 @@ def : InstAlias<"jalr $rd, $rs, $offset", (JALR GPR:$rd, GPR:$rs, simm12:$offset
 
 def : InstAlias<"fence", (FENCE 0xF, 0xF)>; // 0xF == iorw
 
+let Predicates = [HasStdExtZihintpause] in
+def : InstAlias<"pause", (FENCE 0x1, 0x0)>; // 0x1 == w
+
 def : InstAlias<"rdinstret $rd", (CSRRS GPR:$rd, INSTRET.Encoding, X0)>;
 def : InstAlias<"rdcycle $rd",   (CSRRS GPR:$rd, CYCLE.Encoding, X0)>;
 def : InstAlias<"rdtime $rd",    (CSRRS GPR:$rd, TIME.Encoding, X0)>;
@@ -878,35 +910,35 @@ def : InstAlias<"zext.b $rd, $rs", (ANDI GPR:$rd, GPR:$rs, 0xFF), 0>;
 // isCodeGenOnly = 1 to hide them from the tablegened assembly parser.
 let isCodeGenOnly = 1, hasSideEffects = 1, mayLoad = 1, mayStore = 1,
     hasNoSchedulingInfo = 1 in {
-def InsnR : DirectiveInsnR<(outs AnyReg:$rd), (ins uimm7:$opcode, uimm3:$funct3,
+def InsnR : DirectiveInsnR<(outs AnyReg:$rd), (ins uimm7_opcode:$opcode, uimm3:$funct3,
                                                    uimm7:$funct7, AnyReg:$rs1,
                                                    AnyReg:$rs2),
                            "$opcode, $funct3, $funct7, $rd, $rs1, $rs2">;
-def InsnR4 : DirectiveInsnR4<(outs AnyReg:$rd), (ins uimm7:$opcode,
+def InsnR4 : DirectiveInsnR4<(outs AnyReg:$rd), (ins uimm7_opcode:$opcode,
                                                      uimm3:$funct3,
                                                      uimm2:$funct2,
                                                      AnyReg:$rs1, AnyReg:$rs2,
                                                      AnyReg:$rs3),
                             "$opcode, $funct3, $funct2, $rd, $rs1, $rs2, $rs3">;
-def InsnI : DirectiveInsnI<(outs AnyReg:$rd), (ins uimm7:$opcode, uimm3:$funct3,
+def InsnI : DirectiveInsnI<(outs AnyReg:$rd), (ins uimm7_opcode:$opcode, uimm3:$funct3,
                                                    AnyReg:$rs1, simm12:$imm12),
                            "$opcode, $funct3, $rd, $rs1, $imm12">;
-def InsnI_Mem : DirectiveInsnI<(outs AnyReg:$rd), (ins uimm7:$opcode,
+def InsnI_Mem : DirectiveInsnI<(outs AnyReg:$rd), (ins uimm7_opcode:$opcode,
                                                        uimm3:$funct3,
                                                        AnyReg:$rs1,
                                                        simm12:$imm12),
                                "$opcode, $funct3, $rd, ${imm12}(${rs1})">;
-def InsnB : DirectiveInsnB<(outs), (ins uimm7:$opcode, uimm3:$funct3,
+def InsnB : DirectiveInsnB<(outs), (ins uimm7_opcode:$opcode, uimm3:$funct3,
                                         AnyReg:$rs1, AnyReg:$rs2,
                                         simm13_lsb0:$imm12),
                            "$opcode, $funct3, $rs1, $rs2, $imm12">;
-def InsnU : DirectiveInsnU<(outs AnyReg:$rd), (ins uimm7:$opcode,
+def InsnU : DirectiveInsnU<(outs AnyReg:$rd), (ins uimm7_opcode:$opcode,
                                                    uimm20_lui:$imm20),
                            "$opcode, $rd, $imm20">;
-def InsnJ : DirectiveInsnJ<(outs AnyReg:$rd), (ins uimm7:$opcode,
+def InsnJ : DirectiveInsnJ<(outs AnyReg:$rd), (ins uimm7_opcode:$opcode,
                                                    simm21_lsb0_jal:$imm20),
                            "$opcode, $rd, $imm20">;
-def InsnS : DirectiveInsnS<(outs), (ins uimm7:$opcode, uimm3:$funct3,
+def InsnS : DirectiveInsnS<(outs), (ins uimm7_opcode:$opcode, uimm3:$funct3,
                                         AnyReg:$rs2, AnyReg:$rs1,
                                         simm12:$imm12),
                            "$opcode, $funct3, $rs2, ${imm12}(${rs1})">;
@@ -918,37 +950,37 @@ def InsnS : DirectiveInsnS<(outs), (ins uimm7:$opcode, uimm3:$funct3,
 // for known formats.
 let EmitPriority = 0 in {
 def : InstAlias<".insn_r $opcode, $funct3, $funct7, $rd, $rs1, $rs2",
-                (InsnR AnyReg:$rd, uimm7:$opcode, uimm3:$funct3, uimm7:$funct7,
+                (InsnR AnyReg:$rd, uimm7_opcode:$opcode, uimm3:$funct3, uimm7:$funct7,
                        AnyReg:$rs1, AnyReg:$rs2)>;
 // Accept 4 register form of ".insn r" as alias for ".insn r4".
 def : InstAlias<".insn_r $opcode, $funct3, $funct2, $rd, $rs1, $rs2, $rs3",
-                (InsnR4 AnyReg:$rd, uimm7:$opcode, uimm3:$funct3, uimm2:$funct2,
+                (InsnR4 AnyReg:$rd, uimm7_opcode:$opcode, uimm3:$funct3, uimm2:$funct2,
                         AnyReg:$rs1, AnyReg:$rs2, AnyReg:$rs3)>;
 def : InstAlias<".insn_r4 $opcode, $funct3, $funct2, $rd, $rs1, $rs2, $rs3",
-                (InsnR4 AnyReg:$rd, uimm7:$opcode, uimm3:$funct3, uimm2:$funct2,
+                (InsnR4 AnyReg:$rd, uimm7_opcode:$opcode, uimm3:$funct3, uimm2:$funct2,
                         AnyReg:$rs1, AnyReg:$rs2, AnyReg:$rs3)>;
 def : InstAlias<".insn_i $opcode, $funct3, $rd, $rs1, $imm12",
-                (InsnI AnyReg:$rd, uimm7:$opcode, uimm3:$funct3, AnyReg:$rs1,
+                (InsnI AnyReg:$rd, uimm7_opcode:$opcode, uimm3:$funct3, AnyReg:$rs1,
                        simm12:$imm12)>;
 def : InstAlias<".insn_i $opcode, $funct3, $rd, ${imm12}(${rs1})",
-                (InsnI_Mem AnyReg:$rd, uimm7:$opcode, uimm3:$funct3,
+                (InsnI_Mem AnyReg:$rd, uimm7_opcode:$opcode, uimm3:$funct3,
                            AnyReg:$rs1, simm12:$imm12)>;
 def : InstAlias<".insn_b $opcode, $funct3, $rs1, $rs2, $imm12",
-                (InsnB uimm7:$opcode, uimm3:$funct3, AnyReg:$rs1,
+                (InsnB uimm7_opcode:$opcode, uimm3:$funct3, AnyReg:$rs1,
                        AnyReg:$rs2, simm13_lsb0:$imm12)>;
 // Accept sb as an alias for b.
 def : InstAlias<".insn_sb $opcode, $funct3, $rs1, $rs2, $imm12",
-                (InsnB uimm7:$opcode, uimm3:$funct3, AnyReg:$rs1,
+                (InsnB uimm7_opcode:$opcode, uimm3:$funct3, AnyReg:$rs1,
                        AnyReg:$rs2, simm13_lsb0:$imm12)>;
 def : InstAlias<".insn_u $opcode, $rd, $imm20",
-                (InsnU AnyReg:$rd, uimm7:$opcode, uimm20_lui:$imm20)>;
+                (InsnU AnyReg:$rd, uimm7_opcode:$opcode, uimm20_lui:$imm20)>;
 def : InstAlias<".insn_j $opcode, $rd, $imm20",
-                (InsnJ AnyReg:$rd, uimm7:$opcode, simm21_lsb0_jal:$imm20)>;
+                (InsnJ AnyReg:$rd, uimm7_opcode:$opcode, simm21_lsb0_jal:$imm20)>;
 // Accept uj as an alias for j.
 def : InstAlias<".insn_uj $opcode, $rd, $imm20",
-                (InsnJ AnyReg:$rd, uimm7:$opcode, simm21_lsb0_jal:$imm20)>;
+                (InsnJ AnyReg:$rd, uimm7_opcode:$opcode, simm21_lsb0_jal:$imm20)>;
 def : InstAlias<".insn_s $opcode, $funct3, $rs2, ${imm12}(${rs1})",
-                (InsnS uimm7:$opcode, uimm3:$funct3, AnyReg:$rs2,
+                (InsnS uimm7_opcode:$opcode, uimm3:$funct3, AnyReg:$rs2,
                        AnyReg:$rs1, simm12:$imm12)>;
 }
 
@@ -1005,6 +1037,23 @@ def mul_const_oneuse : PatFrag<(ops node:$A, node:$B),
   return false;
 }]>;
 
+def sext_oneuse : PatFrag<(ops node:$A), (sext node:$A), [{
+  return N->hasOneUse();
+}]>;
+
+def zext_oneuse : PatFrag<(ops node:$A), (zext node:$A), [{
+  return N->hasOneUse();
+}]>;
+
+def anyext_oneuse : PatFrag<(ops node:$A), (anyext node:$A), [{
+  return N->hasOneUse();
+}]>;
+
+def fpext_oneuse : PatFrag<(ops node:$A),
+                           (any_fpextend node:$A), [{
+  return N->hasOneUse();
+}]>;
+
 /// Simple arithmetic operations
 
 def : PatGprGpr<add, ADD>;
@@ -1019,6 +1068,10 @@ def : PatGprSimm12<xor, XORI>;
 def : PatGprUimmLog2XLen<shl, SLLI>;
 def : PatGprUimmLog2XLen<srl, SRLI>;
 def : PatGprUimmLog2XLen<sra, SRAI>;
+
+// AND with trailing ones mask exceeding simm12.
+def : Pat<(XLenVT (and GPR:$rs, TrailingOnesMask:$mask)),
+          (SRLI (SLLI $rs, TrailingOnesMask:$mask), TrailingOnesMask:$mask)>;
 
 // Match both a plain shift and one where the shift amount is masked (this is
 // typically introduced when the legalizer promotes the shift amount and
@@ -1133,7 +1186,7 @@ def : Pat<(brind (add GPRJALR:$rs1, simm12:$imm12)),
 // destination.
 // Define AsmString to print "call" when compile with -S flag.
 // Define isCodeGenOnly = 0 to support parsing assembly "call" instruction.
-let isCall = 1, isBarrier = 1, isCodeGenOnly = 0, hasSideEffects = 0,
+let isCall = 1, isBarrier = 1, isCodeGenOnly = 0, Size = 8, hasSideEffects = 0,
     mayStore = 0, mayLoad = 0 in
 def PseudoCALLReg : Pseudo<(outs GPR:$rd), (ins call_symbol:$func), []> {
   let AsmString = "call\t$rd, $func";
@@ -1145,7 +1198,7 @@ def PseudoCALLReg : Pseudo<(outs GPR:$rd), (ins call_symbol:$func), []> {
 // if the offset fits in a signed 21-bit immediate.
 // Define AsmString to print "call" when compile with -S flag.
 // Define isCodeGenOnly = 0 to support parsing assembly "call" instruction.
-let isCall = 1, Defs = [X1], isCodeGenOnly = 0 in
+let isCall = 1, Defs = [X1], isCodeGenOnly = 0, Size = 8 in
 def PseudoCALL : Pseudo<(outs), (ins call_symbol:$func), []> {
   let AsmString = "call\t$func";
 }
@@ -1170,7 +1223,7 @@ def PseudoRET : Pseudo<(outs), (ins), [(riscv_ret_flag)]>,
 // expand to auipc and jalr while encoding.
 // Define AsmString to print "tail" when compile with -S flag.
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [X2],
-    isCodeGenOnly = 0 in
+    Size = 8, isCodeGenOnly = 0 in
 def PseudoTAIL : Pseudo<(outs), (ins call_symbol:$dst), []> {
   let AsmString = "tail\t$dst";
 }
@@ -1185,28 +1238,28 @@ def : Pat<(riscv_tail (iPTR tglobaladdr:$dst)),
 def : Pat<(riscv_tail (iPTR texternalsym:$dst)),
           (PseudoTAIL texternalsym:$dst)>;
 
-let isCall = 0, isBarrier = 1, isBranch = 1, isTerminator = 1,
+let isCall = 0, isBarrier = 1, isBranch = 1, isTerminator = 1, Size = 8,
     isCodeGenOnly = 0, hasSideEffects = 0, mayStore = 0, mayLoad = 0 in
 def PseudoJump : Pseudo<(outs GPR:$rd), (ins pseudo_jump_symbol:$target), []> {
   let AsmString = "jump\t$target, $rd";
 }
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0,
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Size = 8, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLLA : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                        "lla", "$dst, $src">;
 
-let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 0,
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0, Size = 8, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLA : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                       "la", "$dst, $src">;
 
-let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 0,
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0, Size = 8, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLA_TLS_IE : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                              "la.tls.ie", "$dst, $src">;
 
-let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 0,
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0, Size = 8, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                              "la.tls.gd", "$dst, $src">;
@@ -1336,6 +1389,10 @@ def ReadFRM : ReadSysReg<SysRegFRM, [FRM]>;
 def WriteFRM : WriteSysReg<SysRegFRM, [FRM]>;
 def WriteFRMImm : WriteSysRegImm<SysRegFRM, [FRM]>;
 
+let hasSideEffects = true in {
+def ReadFFLAGS : ReadSysReg<SysRegFFLAGS, [FFLAGS]>;
+def WriteFFLAGS : WriteSysReg<SysRegFFLAGS, [FFLAGS]>;
+}
 /// Other pseudo-instructions
 
 // Pessimistically assume the stack pointer will be clobbered
@@ -1462,5 +1519,6 @@ include "RISCVInstrInfoF.td"
 include "RISCVInstrInfoD.td"
 include "RISCVInstrInfoC.td"
 include "RISCVInstrInfoZb.td"
+include "RISCVInstrInfoZk.td"
 include "RISCVInstrInfoV.td"
 include "RISCVInstrInfoZfh.td"

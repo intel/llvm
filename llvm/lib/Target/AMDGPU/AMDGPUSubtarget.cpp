@@ -269,7 +269,6 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasGetWaveIdInst(false),
     HasSMemTimeInst(false),
     HasShaderCyclesRegister(false),
-    HasRegisterBanking(false),
     HasVOP3Literal(false),
     HasNoDataDepHazard(false),
     FlatAddressSpace(false),
@@ -413,21 +412,21 @@ bool GCNSubtarget::zeroesHigh16BitsOfDest(unsigned Opcode) const {
   case AMDGPU::V_MAX_I16_e32:
   case AMDGPU::V_MIN_I16_e64:
   case AMDGPU::V_MIN_I16_e32:
+  case AMDGPU::V_MAD_F16_e64:
+  case AMDGPU::V_MAD_U16_e64:
+  case AMDGPU::V_MAD_I16_e64:
+  case AMDGPU::V_FMA_F16_e64:
+  case AMDGPU::V_DIV_FIXUP_F16_e64:
     // On gfx10, all 16-bit instructions preserve the high bits.
     return getGeneration() <= AMDGPUSubtarget::GFX9;
-  case AMDGPU::V_MAD_F16_e64:
   case AMDGPU::V_MADAK_F16:
   case AMDGPU::V_MADMK_F16:
   case AMDGPU::V_MAC_F16_e64:
   case AMDGPU::V_MAC_F16_e32:
   case AMDGPU::V_FMAMK_F16:
   case AMDGPU::V_FMAAK_F16:
-  case AMDGPU::V_MAD_U16_e64:
-  case AMDGPU::V_MAD_I16_e64:
-  case AMDGPU::V_FMA_F16_e64:
   case AMDGPU::V_FMAC_F16_e64:
   case AMDGPU::V_FMAC_F16_e32:
-  case AMDGPU::V_DIV_FIXUP_F16_e64:
     // In gfx9, the preferred handling of the unused high 16-bits changed. Most
     // instructions maintain the legacy behavior of 0ing. Some instructions
     // changed to preserving the high bits.
@@ -648,9 +647,18 @@ bool AMDGPUSubtarget::makeLIDRangeMetadata(Instruction *I) const {
 }
 
 unsigned AMDGPUSubtarget::getImplicitArgNumBytes(const Function &F) const {
+  assert(AMDGPU::isKernel(F.getCallingConv()));
+
+  // We don't allocate the segment if we know the implicit arguments weren't
+  // used, even if the ABI implies we need them.
+  if (F.hasFnAttribute("amdgpu-no-implicitarg-ptr"))
+    return 0;
+
   if (isMesaKernel(F))
     return 16;
-  return AMDGPU::getIntegerAttribute(F, "amdgpu-implicitarg-num-bytes", 0);
+
+  // Assume all implicit inputs are used by default
+  return AMDGPU::getIntegerAttribute(F, "amdgpu-implicitarg-num-bytes", 56);
 }
 
 uint64_t AMDGPUSubtarget::getExplicitKernArgSize(const Function &F,
@@ -763,11 +771,11 @@ unsigned GCNSubtarget::getOccupancyWithNumVGPRs(unsigned VGPRs) const {
 }
 
 unsigned
-GCNSubtarget::getBaseReservedNumSGPRs(const bool HasFlatScratchInit) const {
+GCNSubtarget::getBaseReservedNumSGPRs(const bool HasFlatScratch) const {
   if (getGeneration() >= AMDGPUSubtarget::GFX10)
     return 2; // VCC. FLAT_SCRATCH and XNACK are no longer in SGPRs.
 
-  if (HasFlatScratchInit || HasArchitectedFlatScratch) {
+  if (HasFlatScratch || HasArchitectedFlatScratch) {
     if (getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS)
       return 6; // FLAT_SCRATCH, XNACK, VCC (in that order).
     if (getGeneration() == AMDGPUSubtarget::SEA_ISLANDS)
@@ -785,20 +793,11 @@ unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
 }
 
 unsigned GCNSubtarget::getReservedNumSGPRs(const Function &F) const {
-  // The logic to detect if the function has
-  // flat scratch init is slightly different than how
-  // SIMachineFunctionInfo constructor derives.
-  // We don't use amdgpu-calls, amdgpu-stack-objects
-  // attributes and isAmdHsaOrMesa here as it doesn't really matter.
-  // TODO: Outline this derivation logic and have just
-  // one common function in the backend to avoid duplication.
-  bool isEntry = AMDGPU::isEntryFunctionCC(F.getCallingConv());
-  bool FunctionHasFlatScratchInit = false;
-  if (hasFlatAddressSpace() && isEntry && !flatScratchIsArchitected() &&
-      enableFlatScratch()) {
-    FunctionHasFlatScratchInit = true;
-  }
-  return getBaseReservedNumSGPRs(FunctionHasFlatScratchInit);
+  // In principle we do not need to reserve SGPR pair used for flat_scratch if
+  // we know flat instructions do not access the stack anywhere in the
+  // program. For now assume it's needed if we have flat instructions.
+  const bool KernelUsesFlatScratch = hasFlatAddressSpace();
+  return getBaseReservedNumSGPRs(KernelUsesFlatScratch);
 }
 
 unsigned GCNSubtarget::computeOccupancy(const Function &F, unsigned LDSSize,

@@ -27,9 +27,11 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/platform.hpp>
+#include <CL/sycl/queue.hpp>
 #include <detail/platform_impl.hpp>
 
 #include <functional>
@@ -66,7 +68,7 @@ namespace RT = detail::pi;
 /// redefinitions would also affect other platforms' behavior.
 /// Therefore, any plugin-related information is fully copied whenever
 /// a user-passed SYCL object instance is being mocked.
-/// The underlying SYCL platform must be a non-host plaftorm to facilitate
+/// The underlying SYCL platform must be a non-host platform to facilitate
 /// plugin usage.
 ///
 /// Simple usage examples would look like this:
@@ -123,7 +125,7 @@ public:
     // Copy the PiPlugin, thus untying our to-be mock platform from other
     // platforms within the context. Reset our platform to use the new plugin.
     auto NewPluginPtr = std::make_shared<detail::plugin>(
-        OriginalPiPlugin.getPiPlugin(), OriginalPiPlugin.getBackend(),
+        OriginalPiPlugin.getPiPluginPtr(), OriginalPiPlugin.getBackend(),
         OriginalPiPlugin.getLibraryHandle());
     ImplPtr->setPlugin(NewPluginPtr);
     // Extract the new PiPlugin instance by a non-const pointer,

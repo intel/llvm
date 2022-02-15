@@ -12,6 +12,8 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/GPU/Utils.h"
@@ -20,6 +22,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/RegionUtils.h"
 
@@ -28,11 +31,8 @@ using namespace mlir;
 template <typename OpTy>
 static void createForAllDimensions(OpBuilder &builder, Location loc,
                                    SmallVectorImpl<Value> &values) {
-  for (StringRef dim : {"x", "y", "z"}) {
-    Value v = builder.create<OpTy>(loc, builder.getIndexType(),
-                                   builder.getStringAttr(dim));
-    values.push_back(v);
-  }
+  for (auto dim : {gpu::Dimension::x, gpu::Dimension::y, gpu::Dimension::z})
+    values.push_back(builder.create<OpTy>(loc, builder.getIndexType(), dim));
 }
 
 /// Adds operations generating block/thread ids and grid/block dimensions at the
@@ -52,7 +52,7 @@ static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
   createForAllDimensions<gpu::BlockDimOp>(builder, loc, indexOps);
   // Replace the leading 12 function args with the respective thread/block index
   // operations. Iterate backwards since args are erased and indices change.
-  for (auto indexOp : enumerate(indexOps))
+  for (const auto &indexOp : enumerate(indexOps))
     map.map(firstBlock.getArgument(indexOp.index()), indexOp.value());
 }
 
@@ -60,7 +60,7 @@ static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
 /// operations may not have side-effects, as otherwise sinking (and hence
 /// duplicating them) is not legal.
 static bool isSinkingBeneficiary(Operation *op) {
-  return isa<arith::ConstantOp, ConstantOp, memref::DimOp, SelectOp,
+  return isa<arith::ConstantOp, ConstantOp, memref::DimOp, arith::SelectOp,
              arith::CmpIOp>(op);
 }
 
@@ -76,7 +76,8 @@ static bool isSinkingBeneficiary(Operation *op) {
 /// is updated with results that will be available after sinking the identified
 /// ops.
 static bool
-extractBeneficiaryOps(Operation *op, SetVector<Value> existingDependencies,
+extractBeneficiaryOps(Operation *op,
+                      const SetVector<Value> &existingDependencies,
                       SetVector<Operation *> &beneficiaryOps,
                       llvm::SmallPtrSetImpl<Value> &availableValues) {
   if (beneficiaryOps.count(op))
@@ -171,7 +172,7 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   // Map arguments from gpu.launch region to the arguments of the gpu.func
   // operation.
   Block &entryBlock = outlinedFuncBody.front();
-  for (auto operand : enumerate(operands))
+  for (const auto &operand : enumerate(operands))
     map.map(operand.value(), entryBlock.getArgument(operand.index()));
 
   // Clone the region of the gpu.launch operation into the gpu.func operation.
@@ -186,7 +187,7 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   Block &launchOpEntry = launchOpBody.front();
   Block *clonedLaunchOpEntry = map.lookup(&launchOpEntry);
   builder.setInsertionPointToEnd(&entryBlock);
-  builder.create<BranchOp>(loc, clonedLaunchOpEntry);
+  builder.create<cf::BranchOp>(loc, clonedLaunchOpEntry);
 
   outlinedFunc.walk([](gpu::TerminatorOp op) {
     OpBuilder replacer(op);
@@ -239,6 +240,31 @@ namespace {
 class GpuKernelOutliningPass
     : public GpuKernelOutliningBase<GpuKernelOutliningPass> {
 public:
+  GpuKernelOutliningPass(StringRef dlStr) {
+    if (!dlStr.empty() && !dataLayoutStr.hasValue())
+      dataLayoutStr = dlStr.str();
+  }
+
+  GpuKernelOutliningPass(const GpuKernelOutliningPass &other)
+      : dataLayoutSpec(other.dataLayoutSpec) {
+    dataLayoutStr = other.dataLayoutStr;
+  }
+
+  LogicalResult initialize(MLIRContext *context) override {
+    // Initialize the data layout specification from the data layout string.
+    if (!dataLayoutStr.empty()) {
+      Attribute resultAttr = mlir::parseAttribute(dataLayoutStr, context);
+      if (!resultAttr)
+        return failure();
+
+      dataLayoutSpec = resultAttr.dyn_cast<DataLayoutSpecInterface>();
+      if (!dataLayoutSpec)
+        return failure();
+    }
+
+    return success();
+  }
+
   void runOnOperation() override {
     SymbolTable symbolTable(getOperation());
     bool modified = false;
@@ -286,10 +312,16 @@ private:
     // a SymbolTable by the caller. SymbolTable needs to be refactored to
     // prevent manual building of Ops with symbols in code using SymbolTables
     // and then this needs to use the OpBuilder.
-    auto context = getOperation().getContext();
+    auto *context = getOperation().getContext();
     OpBuilder builder(context);
     auto kernelModule = builder.create<gpu::GPUModuleOp>(kernelFunc.getLoc(),
                                                          kernelFunc.getName());
+
+    // If a valid data layout spec was provided, attach it to the kernel module.
+    // Otherwise, the default data layout will be used.
+    if (dataLayoutSpec)
+      kernelModule->setAttr(DLTIDialect::kDataLayoutAttrName, dataLayoutSpec);
+
     SymbolTable symbolTable(kernelModule);
     symbolTable.insert(kernelFunc);
 
@@ -313,10 +345,18 @@ private:
 
     return kernelModule;
   }
+
+  Option<std::string> dataLayoutStr{
+      *this, "data-layout-str",
+      llvm::cl::desc("String containing the data layout specification to be "
+                     "attached to the GPU kernel module")};
+
+  DataLayoutSpecInterface dataLayoutSpec;
 };
 
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>> mlir::createGpuKernelOutliningPass() {
-  return std::make_unique<GpuKernelOutliningPass>();
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::createGpuKernelOutliningPass(StringRef dataLayoutStr) {
+  return std::make_unique<GpuKernelOutliningPass>(dataLayoutStr);
 }

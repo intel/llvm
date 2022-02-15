@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "./Utils.h"
+
 #include "mlir/Analysis/Presburger/Simplex.h"
+#include "mlir/IR/MLIRContext.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -14,19 +17,31 @@
 namespace mlir {
 
 /// Take a snapshot, add constraints making the set empty, and rollback.
-/// The set should not be empty after rolling back.
+/// The set should not be empty after rolling back. We add additional
+/// constraints after the set is already empty and roll back the addition
+/// of these. The set should be marked non-empty only once we rollback
+/// past the addition of the first constraint that made it empty.
 TEST(SimplexTest, emptyRollback) {
   Simplex simplex(2);
   // (u - v) >= 0
   simplex.addInequality({1, -1, 0});
-  EXPECT_FALSE(simplex.isEmpty());
+  ASSERT_FALSE(simplex.isEmpty());
 
   unsigned snapshot = simplex.getSnapshot();
   // (u - v) <= -1
   simplex.addInequality({-1, 1, -1});
-  EXPECT_TRUE(simplex.isEmpty());
+  ASSERT_TRUE(simplex.isEmpty());
+
+  unsigned snapshot2 = simplex.getSnapshot();
+  // (u - v) <= -3
+  simplex.addInequality({-1, 1, -3});
+  ASSERT_TRUE(simplex.isEmpty());
+
+  simplex.rollback(snapshot2);
+  ASSERT_TRUE(simplex.isEmpty());
+
   simplex.rollback(snapshot);
-  EXPECT_FALSE(simplex.isEmpty());
+  ASSERT_FALSE(simplex.isEmpty());
 }
 
 /// Check that the set gets marked as empty when we add contradictory
@@ -80,8 +95,8 @@ TEST(SimplexTest, addInequality_rollback) {
 }
 
 Simplex simplexFromConstraints(unsigned nDim,
-                               SmallVector<SmallVector<int64_t, 8>, 8> ineqs,
-                               SmallVector<SmallVector<int64_t, 8>, 8> eqs) {
+                               ArrayRef<SmallVector<int64_t, 8>> ineqs,
+                               ArrayRef<SmallVector<int64_t, 8>> eqs) {
   Simplex simplex(nDim);
   for (const auto &ineq : ineqs)
     simplex.addInequality(ineq);
@@ -373,6 +388,29 @@ TEST(SimplexTest, isMarkedRedundantTiledLoopNestConstraints) {
   EXPECT_FALSE(simplex.isMarkedRedundant(5));
 }
 
+TEST(Simplextest, pivotRedundantRegressionTest) {
+  Simplex simplex(2);
+  simplex.addInequality({-1, 0, -1}); // x <= -1.
+  unsigned snapshot = simplex.getSnapshot();
+
+  simplex.addInequality({-1, 0, -2}); // x <= -2.
+  simplex.addInequality({-3, 0, -6});
+
+  // This first marks x <= -1 as redundant. Then it performs some more pivots
+  // to check if the other constraints are redundant. Pivot must update the
+  // non-redundant rows as well, otherwise these pivots result in an incorrect
+  // tableau state. In particular, after the rollback below, some rows that are
+  // NOT marked redundant will have an incorrect state.
+  simplex.detectRedundant();
+
+  // After the rollback, the only remaining constraint is x <= -1.
+  // The maximum value of x should be -1.
+  simplex.rollback(snapshot);
+  Optional<Fraction> maxX =
+      simplex.computeOptimum(Simplex::Direction::Up, {1, 0, 0});
+  EXPECT_TRUE(maxX.hasValue() && *maxX == Fraction(-1, 1));
+}
+
 TEST(SimplexTest, addInequality_already_redundant) {
   Simplex simplex(1);
   simplex.addInequality({1, -1}); // x >= 1.
@@ -403,11 +441,80 @@ TEST(SimplexTest, appendVariable) {
   EXPECT_EQ(simplex.getNumVariables(), 2u);
   EXPECT_EQ(simplex.getNumConstraints(), 2u);
   EXPECT_EQ(simplex.computeIntegerBounds({0, 1, 0}),
-            std::make_pair(yMin, yMax));
+            std::make_pair(Optional<int64_t>(yMin), Optional<int64_t>(yMax)));
 
   simplex.rollback(snapshot1);
   EXPECT_EQ(simplex.getNumVariables(), 1u);
   EXPECT_EQ(simplex.getNumConstraints(), 0u);
+}
+
+TEST(SimplexTest, isRedundantInequality) {
+  Simplex simplex(2);
+  simplex.addInequality({0, -1, 2}); // y <= 2.
+  simplex.addInequality({1, 0, 0});  // x >= 0.
+  simplex.addEquality({-1, 1, 0});   // y = x.
+
+  EXPECT_TRUE(simplex.isRedundantInequality({-1, 0, 2})); // x <= 2.
+  EXPECT_TRUE(simplex.isRedundantInequality({0, 1, 0}));  // y >= 0.
+
+  EXPECT_FALSE(simplex.isRedundantInequality({-1, 0, -1})); // x <= -1.
+  EXPECT_FALSE(simplex.isRedundantInequality({0, 1, -2}));  // y >= 2.
+  EXPECT_FALSE(simplex.isRedundantInequality({0, 1, -1}));  // y >= 1.
+}
+
+TEST(SimplexTest, isRedundantEquality) {
+  Simplex simplex(2);
+  simplex.addInequality({0, -1, 2}); // y <= 2.
+  simplex.addInequality({1, 0, 0});  // x >= 0.
+  simplex.addEquality({-1, 1, 0});   // y = x.
+
+  EXPECT_TRUE(simplex.isRedundantEquality({-1, 1, 0})); // y = x.
+  EXPECT_TRUE(simplex.isRedundantEquality({1, -1, 0})); // x = y.
+
+  EXPECT_FALSE(simplex.isRedundantEquality({0, 1, -1})); // y = 1.
+
+  simplex.addEquality({0, -1, 2}); // y = 2.
+
+  EXPECT_TRUE(simplex.isRedundantEquality({-1, 0, 2})); // x = 2.
+}
+
+TEST(SimplexTest, IsRationalSubsetOf) {
+  MLIRContext context;
+  IntegerPolyhedron univ = parsePoly("(x) : ()", &context);
+  IntegerPolyhedron empty =
+      parsePoly("(x) : (x + 0 >= 0, -x - 1 >= 0)", &context);
+  IntegerPolyhedron s1 = parsePoly("(x) : ( x >= 0, -x + 4 >= 0)", &context);
+  IntegerPolyhedron s2 = parsePoly("(x) : (x - 1 >= 0, -x + 3 >= 0)", &context);
+
+  Simplex simUniv(univ);
+  Simplex simEmpty(empty);
+  Simplex sim1(s1);
+  Simplex sim2(s2);
+
+  EXPECT_TRUE(simUniv.isRationalSubsetOf(univ));
+  EXPECT_TRUE(simEmpty.isRationalSubsetOf(empty));
+  EXPECT_TRUE(sim1.isRationalSubsetOf(s1));
+  EXPECT_TRUE(sim2.isRationalSubsetOf(s2));
+
+  EXPECT_TRUE(simEmpty.isRationalSubsetOf(univ));
+  EXPECT_TRUE(simEmpty.isRationalSubsetOf(s1));
+  EXPECT_TRUE(simEmpty.isRationalSubsetOf(s2));
+  EXPECT_TRUE(simEmpty.isRationalSubsetOf(empty));
+
+  EXPECT_TRUE(simUniv.isRationalSubsetOf(univ));
+  EXPECT_FALSE(simUniv.isRationalSubsetOf(s1));
+  EXPECT_FALSE(simUniv.isRationalSubsetOf(s2));
+  EXPECT_FALSE(simUniv.isRationalSubsetOf(empty));
+
+  EXPECT_TRUE(sim1.isRationalSubsetOf(univ));
+  EXPECT_TRUE(sim1.isRationalSubsetOf(s1));
+  EXPECT_FALSE(sim1.isRationalSubsetOf(s2));
+  EXPECT_FALSE(sim1.isRationalSubsetOf(empty));
+
+  EXPECT_TRUE(sim2.isRationalSubsetOf(univ));
+  EXPECT_TRUE(sim2.isRationalSubsetOf(s1));
+  EXPECT_TRUE(sim2.isRationalSubsetOf(s2));
+  EXPECT_FALSE(sim2.isRationalSubsetOf(empty));
 }
 
 } // namespace mlir

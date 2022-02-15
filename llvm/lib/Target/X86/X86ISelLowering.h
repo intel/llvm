@@ -1100,6 +1100,12 @@ namespace llvm {
 
     bool shouldSplatInsEltVarIndex(EVT VT) const override;
 
+    bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override {
+      // Converting to sat variants holds little benefit on X86 as we will just
+      // need to saturate the value back using fp arithmatic.
+      return Op != ISD::FP_TO_UINT_SAT && isOperationLegalOrCustom(Op, VT);
+    }
+
     bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
       return VT.isScalarInteger();
     }
@@ -1152,6 +1158,10 @@ namespace llvm {
     SDValue SimplifyMultipleUseDemandedBitsForTargetNode(
         SDValue Op, const APInt &DemandedBits, const APInt &DemandedElts,
         SelectionDAG &DAG, unsigned Depth) const override;
+
+    bool isSplatValueForTargetNode(SDValue Op, const APInt &DemandedElts,
+                                   APInt &UndefElts,
+                                   unsigned Depth) const override;
 
     const Constant *getTargetConstantFromLoad(LoadSDNode *LD) const override;
 
@@ -1277,6 +1287,9 @@ namespace llvm {
     /// operations of type VT1 to VT2. e.g. on x86, it's profitable to narrow
     /// from i32 to i8 but not from i32 to i16.
     bool isNarrowingProfitable(EVT VT1, EVT VT2) const override;
+
+    bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
+                                              EVT VT) const override;
 
     /// Given an intrinsic, checks if on the target the intrinsic will need to map
     /// to a MemIntrinsicNode (touches memory). If this is the case, it returns
@@ -1530,7 +1543,7 @@ namespace llvm {
     unsigned GetAlignedArgumentStackSize(unsigned StackSize,
                                          SelectionDAG &DAG) const;
 
-    unsigned getAddressSpace(void) const;
+    unsigned getAddressSpace() const;
 
     SDValue FP_TO_INTHelper(SDValue Op, SelectionDAG &DAG, bool IsSigned,
                             SDValue &Chain) const;

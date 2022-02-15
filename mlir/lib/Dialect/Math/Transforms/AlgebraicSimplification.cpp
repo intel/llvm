@@ -15,7 +15,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -41,13 +41,13 @@ LogicalResult
 PowFStrengthReduction::matchAndRewrite(math::PowFOp op,
                                        PatternRewriter &rewriter) const {
   Location loc = op.getLoc();
-  Value x = op.lhs();
+  Value x = op.getLhs();
 
   FloatAttr scalarExponent;
   DenseFPElementsAttr vectorExponent;
 
-  bool isScalar = matchPattern(op.rhs(), m_Constant(&scalarExponent));
-  bool isVector = matchPattern(op.rhs(), m_Constant(&vectorExponent));
+  bool isScalar = matchPattern(op.getRhs(), m_Constant(&scalarExponent));
+  bool isVector = matchPattern(op.getRhs(), m_Constant(&vectorExponent));
 
   // Returns true if exponent is a constant equal to `value`.
   auto isExponentValue = [&](double value) -> bool {

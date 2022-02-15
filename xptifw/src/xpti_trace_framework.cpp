@@ -5,8 +5,11 @@
 //
 #include "xpti/xpti_trace_framework.hpp"
 #include "xpti_int64_hash_table.hpp"
+#include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
 
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <cstdio>
@@ -15,6 +18,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -42,6 +46,8 @@ static_assert(std::is_trivially_destructible<xpti::utils::SpinLock>::value,
 static_assert(
     std::is_trivially_destructible<xpti::utils::PlatformHelper>::value,
     "PlatformHelper is not trivial");
+
+static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 
 namespace xpti {
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
@@ -356,18 +362,15 @@ public:
   // data types, we will allow them to add these pairs as strings. Internally,
   // we will store key-value pairs as a map of string ids.
   xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
-                             const char *Value) {
-    if (!Event || !Key || !Value)
+                             object_id_t ValueID) {
+    if (!Event || !Key)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     string_id_t KeyID = MStringTableRef.add(Key);
     if (KeyID == xpti::invalid_id) {
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
     }
-    string_id_t ValueID = MStringTableRef.add(Value);
-    if (ValueID == xpti::invalid_id) {
-      return xpti::result_t::XPTI_RESULT_INVALIDARG;
-    }
+
     // Protect simultaneous insert operations on the metadata tables
     {
       std::lock_guard<std::mutex> HashLock(MMetadataMutex);
@@ -438,6 +441,7 @@ public:
       // Add source file information ot string table
       source_id =
           MStringTableRef.add(Payload->source_file, &Payload->source_file);
+      line_no = Payload->line_no;
     }
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::StackTraceAvailable))) {
@@ -446,7 +450,7 @@ public:
           MStringTableRef.add(Payload->stack_trace, &Payload->stack_trace);
     }
     // Pack the 1st 64-bit value with string ID from source file name and line
-    // number; pack the 2nd 54-bit value with stack backtrace string ID and the
+    // number; pack the 2nd 64-bit value with stack backtrace string ID and the
     // kernel name string ID
     Payload->uid.p1 = XPTI_PACK32_RET64(source_id, line_no);
     Payload->uid.p2 = XPTI_PACK32_RET64(stack_id, name_id);
@@ -454,7 +458,7 @@ public:
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)))
       Payload->uid.p3 = (uint64_t)Payload->code_ptr_va;
-    // Generate the had from the information available and this will be our
+    // Generate the hash from the information available and this will be our
     // unique ID for the trace point.
     HashValue = Payload->uid.hash();
     Payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
@@ -826,9 +830,13 @@ public:
 
   inline uint64_t makeUniqueID() { return MTracepoints.makeUniqueID(); }
 
+  uint64_t getUniversalID() const noexcept { return g_tls_uid; }
+
+  void setUniversalID(uint64_t uid) noexcept { g_tls_uid = uid; }
+
   xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
-                             const char *Value) {
-    return MTracepoints.addMetadata(Event, Key, Value);
+                             object_id_t ValueID) {
+    return MTracepoints.addMetadata(Event, Key, ValueID);
   }
 
   xpti::trace_event_data_t *
@@ -911,6 +919,18 @@ public:
     return MStringTableRef.query(ID);
   }
 
+  object_id_t registerObject(const char *Object, size_t Size, uint8_t Type) {
+    if (!Object)
+      return xpti::invalid_id;
+
+    return MObjectTable.insert(std::string_view(Object, Size), Type);
+  }
+
+  object_data_t lookupObject(object_id_t ID) {
+    auto [Result, Type] = MObjectTable.lookup(ID);
+    return {Result.size(), Result.data(), Type};
+  }
+
   uint64_t registerPayload(xpti::payload_t *payload) {
     if (!payload)
       return xpti::invalid_id;
@@ -939,13 +959,25 @@ public:
       // have 'nullptr' for both the Parent and Object only if UserData is
       // provided and the trace_point_type is function_begin/function_end.
       // This allows us to trace function calls without too much effort.
+      std::array<trace_point_type_t, 13> AllowedTypes = {
+          trace_point_type_t::function_begin,
+          trace_point_type_t::function_end,
+          trace_point_type_t::function_with_args_begin,
+          trace_point_type_t::function_with_args_end,
+          trace_point_type_t::mem_alloc_begin,
+          trace_point_type_t::mem_alloc_end,
+          trace_point_type_t::mem_release_begin,
+          trace_point_type_t::mem_release_end,
+          trace_point_type_t::offload_alloc_construct,
+          trace_point_type_t::offload_alloc_associate,
+          trace_point_type_t::offload_alloc_release,
+          trace_point_type_t::offload_alloc_destruct,
+          trace_point_type_t::offload_alloc_accessor};
+      const auto Predicate = [TraceType](trace_point_type_t RHS) {
+        return TraceType == static_cast<uint16_t>(RHS);
+      };
       if (!(UserData &&
-            (TraceType == (uint16_t)trace_point_type_t::function_begin ||
-             TraceType == (uint16_t)trace_point_type_t::function_end ||
-             TraceType ==
-                 (uint16_t)trace_point_type_t::function_with_args_begin ||
-             TraceType ==
-                 (uint16_t)trace_point_type_t::function_with_args_end))) {
+            std::any_of(AllowedTypes.begin(), AllowedTypes.end(), Predicate))) {
         return xpti::result_t::XPTI_RESULT_INVALIDARG;
       }
     }
@@ -1016,6 +1048,8 @@ private:
   xpti::Notifications MNotifier;
   /// Thread-safe string table
   xpti::StringTable MStringTableRef;
+  /// Thread-safe object table
+  xpti::ObjectTable<object_id_t> MObjectTable;
   /// Thread-safe string table, used for stream IDs
   xpti::StringTable MStreamStringTable;
   /// Thread-safe string table, used for vendor IDs
@@ -1046,6 +1080,14 @@ XPTI_EXPORT_API void xptiFrameworkFinalize() {
   if (xpti::GFrameworkReferenceCounter == 0) {
     xpti::Framework::release();
   }
+}
+
+XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
+  return xpti::Framework::instance().getUniversalID();
+}
+
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
+  xpti::Framework::instance().setUniversalID(uid);
 }
 
 XPTI_EXPORT_API uint16_t
@@ -1087,6 +1129,15 @@ XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *String,
 
 XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t ID) {
   return xpti::Framework::instance().lookupString(ID);
+}
+
+XPTI_EXPORT_API xpti::object_id_t
+xptiRegisterObject(const char *Data, size_t Size, uint8_t Type) {
+  return xpti::Framework::instance().registerObject(Data, Size, Type);
+}
+
+XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t ID) {
+  return xpti::Framework::instance().lookupObject(ID);
 }
 
 XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
@@ -1151,8 +1202,8 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *Event,
                                                const char *Key,
-                                               const char *Value) {
-  return xpti::Framework::instance().addMetadata(Event, Key, Value);
+                                               xpti::object_id_t ID) {
+  return xpti::Framework::instance().addMetadata(Event, Key, ID);
 }
 
 XPTI_EXPORT_API xpti::metadata_t *

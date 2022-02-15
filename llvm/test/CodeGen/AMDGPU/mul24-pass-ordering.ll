@@ -68,8 +68,8 @@ define void @lsr_order_mul24_1(i32 %arg, i32 %arg1, i32 %arg2, float addrspace(3
 ; GFX9-NEXT:    v_lshlrev_b32_e32 v8, 2, v2
 ; GFX9-NEXT:    v_add_u32_e32 v9, v17, v12
 ; GFX9-NEXT:    s_mov_b64 s[10:11], 0
-; GFX9-NEXT:    v_mov_b32_e32 v3, 0x3727c5ac
 ; GFX9-NEXT:    v_mov_b32_e32 v4, 0
+; GFX9-NEXT:    ; implicit-def: $vgpr3
 ; GFX9-NEXT:  .LBB1_2: ; %bb23
 ; GFX9-NEXT:    ; =>This Inner Loop Header: Depth=1
 ; GFX9-NEXT:    v_cvt_f32_u32_e32 v3, v0
@@ -254,10 +254,11 @@ define void @slsr1_1(i32 %b.arg, i32 %s.arg) #0 {
   ret void
 }
 
-declare void @foo(i32) #0
+declare void @foo(i32) #2
 declare float @llvm.fmuladd.f32(float, float, float) #1
 
 attributes #0 = { nounwind willreturn "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
 attributes #1 = { nounwind readnone speculatable }
+attributes #2 = { nounwind "amdgpu-no-dispatch-id" "amdgpu-no-dispatch-ptr" "amdgpu-no-implicitarg-ptr" "amdgpu-no-queue-ptr" "amdgpu-no-workgroup-id-x" "amdgpu-no-workgroup-id-y" "amdgpu-no-workgroup-id-z" "amdgpu-no-workitem-id-x" "amdgpu-no-workitem-id-y" "amdgpu-no-workitem-id-z" "uniform-work-group-size"="false" "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
 
 !0 = !{float 2.500000e+00}

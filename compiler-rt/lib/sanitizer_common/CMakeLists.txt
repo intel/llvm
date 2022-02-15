@@ -34,6 +34,7 @@ set(SANITIZER_SOURCES_NOTERMINATION
   sanitizer_solaris.cpp
   sanitizer_stoptheworld_fuchsia.cpp
   sanitizer_stoptheworld_mac.cpp
+  sanitizer_stoptheworld_win.cpp
   sanitizer_suppressions.cpp
   sanitizer_tls_get_addr.cpp
   sanitizer_thread_registry.cpp
@@ -148,12 +149,14 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_interceptors_ioctl_netbsd.inc
   sanitizer_interface_internal.h
   sanitizer_internal_defs.h
+  sanitizer_leb128.h
   sanitizer_lfstack.h
   sanitizer_libc.h
   sanitizer_libignore.h
   sanitizer_linux.h
   sanitizer_list.h
   sanitizer_local_address_space_view.h
+  sanitizer_lzw.h
   sanitizer_mac.h
   sanitizer_malloc_mac.inc
   sanitizer_mutex.h
@@ -290,27 +293,31 @@ if(WIN32)
   add_compiler_rt_object_libraries(SanitizerCommonWeakInterception
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_win_weak_interception.cpp
+    SOURCES
+      sanitizer_win_weak_interception.cpp
     CFLAGS ${SANITIZER_CFLAGS} -DSANITIZER_DYNAMIC
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
   add_compiler_rt_object_libraries(SancovWeakInterception
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_coverage_win_weak_interception.cpp
+    SOURCES
+      sanitizer_coverage_win_weak_interception.cpp
     CFLAGS ${SANITIZER_CFLAGS} -DSANITIZER_DYNAMIC
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
 
   add_compiler_rt_object_libraries(SanitizerCommonDllThunk
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_win_dll_thunk.cpp
+    SOURCES
+      sanitizer_win_dll_thunk.cpp
     CFLAGS ${SANITIZER_CFLAGS} -DSANITIZER_DLL_THUNK
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
   add_compiler_rt_object_libraries(SancovDllThunk
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_coverage_win_dll_thunk.cpp
-            sanitizer_coverage_win_sections.cpp
+    SOURCES
+      sanitizer_coverage_win_dll_thunk.cpp
+      sanitizer_coverage_win_sections.cpp
     CFLAGS ${SANITIZER_CFLAGS} -DSANITIZER_DLL_THUNK
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
 
@@ -323,14 +330,16 @@ if(WIN32)
   add_compiler_rt_object_libraries(SanitizerCommonDynamicRuntimeThunk
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_win_dynamic_runtime_thunk.cpp
+    SOURCES
+      sanitizer_win_dynamic_runtime_thunk.cpp
     CFLAGS ${SANITIZER_CFLAGS} ${DYNAMIC_RUNTIME_THUNK_CFLAGS}
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
   add_compiler_rt_object_libraries(SancovDynamicRuntimeThunk
     ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-    SOURCES sanitizer_coverage_win_dynamic_runtime_thunk.cpp
-            sanitizer_coverage_win_sections.cpp
+    SOURCES
+      sanitizer_coverage_win_dynamic_runtime_thunk.cpp
+      sanitizer_coverage_win_sections.cpp
     CFLAGS ${SANITIZER_CFLAGS} ${DYNAMIC_RUNTIME_THUNK_CFLAGS}
     DEFS ${SANITIZER_COMMON_DEFINITIONS})
 endif()

@@ -2,25 +2,20 @@
 // RUN: mlir-opt %s -convert-vector-to-scf=full-unroll=true -split-input-file -allow-unregistered-dialect | FileCheck %s --check-prefix=FULL-UNROLL
 
 // CHECK-LABEL: func @vector_transfer_ops_0d(
-//  CHECK-SAME:   %[[MEM:.*]]: memref<f32>) {
 func @vector_transfer_ops_0d(%M: memref<f32>) {
-    %f0 = arith.constant 0.0 : f32
+  %f0 = arith.constant 0.0 : f32
 
-//  CHECK: %[[V0:.*]] = arith.constant dense<0{{.*}}> : vector<1xf32>
-//  CHECK: %[[R0:.*]] = scf.for %[[I:.*]] = {{.*}} iter_args(%[[V0_ITER:.*]] = %[[V0]]) -> (vector<1xf32>) {
-//  CHECK:   %[[S:.*]] = memref.load %[[MEM]][] : memref<f32>
-//  CHECK:   %[[R_ITER:.*]] = vector.insertelement %[[S]], %[[V0_ITER]][%[[I]] : index] : vector<1xf32>
-//  CHECK:   scf.yield %[[R_ITER]] : vector<1xf32>
-    %0 = vector.transfer_read %M[], %f0 {permutation_map = affine_map<()->(0)>} :
-      memref<f32>, vector<1xf32>
+  // 0-d transfers are left untouched by vector-to-scf.
+  // They are independently lowered to the proper memref.load/store.
+  //  CHECK: vector.transfer_read {{.*}}: memref<f32>, vector<f32>
+  %0 = vector.transfer_read %M[], %f0 {permutation_map = affine_map<()->()>} :
+    memref<f32>, vector<f32>
 
-//  CHECK: scf.for %[[J:.*]] = %{{.*}}
-//  CHECK:   %[[SS:.*]] = vector.extractelement %[[R0]][%[[J]] : index] : vector<1xf32>
-//  CHECK:   memref.store %[[SS]], %[[MEM]][] : memref<f32>
-    vector.transfer_write %0, %M[] {permutation_map = affine_map<()->(0)>} :
-      vector<1xf32>, memref<f32>
+  //  CHECK: vector.transfer_write {{.*}}: vector<f32>, memref<f32>
+  vector.transfer_write %0, %M[] {permutation_map = affine_map<()->()>} :
+    vector<f32>, memref<f32>
 
-    return
+  return
 }
 
 // -----
@@ -486,3 +481,22 @@ func @transfer_write_strided(%A : vector<4xf32>, %B : memref<8x4xf32, affine_map
 // CHECK-LABEL: transfer_write_strided(
 // CHECK: scf.for
 // CHECK: store
+
+// -----
+
+func private @fake_side_effecting_fun(%0: vector<2x2xf32>) -> ()
+
+// CHECK-LABEL: transfer_read_within_async_execute
+func @transfer_read_within_async_execute(%A : memref<2x2xf32>) -> !async.token {
+  %c0 = arith.constant 0 : index
+  %f0 = arith.constant 0.0 : f32
+  // CHECK-NOT: alloca
+  //     CHECK: async.execute
+  //     CHECK:   alloca
+  %token = async.execute {
+    %0 = vector.transfer_read %A[%c0, %c0], %f0 : memref<2x2xf32>, vector<2x2xf32>
+    call @fake_side_effecting_fun(%0) : (vector<2x2xf32>) -> ()
+    async.yield
+  }
+  return %token : !async.token
+}

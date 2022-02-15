@@ -15,6 +15,9 @@ def do_configure(args):
 
     llvm_external_projects = 'sycl;llvm-spirv;opencl;libdevice;xpti;xptifw'
 
+    libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
+    libclc_nvidia_target_names = 'nvptx64--;nvptx64--nvidiacl'
+
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
 
@@ -43,19 +46,11 @@ def do_configure(args):
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'ON'
 
-    if args.ci_defaults:
-        print("#############################################")
-        print("# Default CI configuration will be applied. #")
-        print("#############################################")
-
-        # For clang-format and clang-tidy
-        llvm_enable_projects += ";clang-tools-extra"
-
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
 
-    if args.enable_esimd_cpu_emulation:
+    if args.enable_esimd_emulator:
         sycl_build_pi_esimd_emulator = 'ON'
 
     if args.cuda or args.hip:
@@ -63,14 +58,14 @@ def do_configure(args):
 
     if args.cuda:
         llvm_targets_to_build += ';NVPTX'
-        libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
+        libclc_targets_to_build = libclc_nvidia_target_names
         libclc_gen_remangled_variants = 'ON'
         sycl_build_pi_cuda = 'ON'
 
     if args.hip:
         if args.hip_platform == 'AMD':
             llvm_targets_to_build += ';AMDGPU'
-            libclc_targets_to_build += ';amdgcn--;amdgcn--amdhsa'
+            libclc_targets_to_build += libclc_amd_target_names
             if args.hip_amd_arch:
                 sycl_clang_extra_flags += "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch="+args.hip_amd_arch
 
@@ -78,7 +73,7 @@ def do_configure(args):
             llvm_enable_projects += ';lld'
         elif args.hip_platform == 'NVIDIA' and not args.cuda:
             llvm_targets_to_build += ';NVPTX'
-            libclc_targets_to_build += ';nvptx64--;nvptx64--nvidiacl'
+            libclc_targets_to_build += libclc_nvidia_target_names
         libclc_gen_remangled_variants = 'ON'
 
         sycl_build_pi_hip_platform = args.hip_platform
@@ -99,7 +94,28 @@ def do_configure(args):
         llvm_build_shared_libs = 'ON'
 
     if args.use_lld:
-      llvm_enable_lld = 'ON'
+        llvm_enable_lld = 'ON'
+
+    # CI Default conditionally appends to options, keep it at the bottom of
+    # args handling
+    if args.ci_defaults:
+        print("#############################################")
+        print("# Default CI configuration will be applied. #")
+        print("#############################################")
+
+        # For clang-format, clang-tidy and code coverage
+        llvm_enable_projects += ";clang-tools-extra;compiler-rt"
+        # libclc is required for CI validation
+        if 'libclc' not in llvm_enable_projects:
+            llvm_enable_projects += ';libclc'
+        # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
+        if 'NVPTX' not in llvm_targets_to_build:
+            llvm_targets_to_build += ';NVPTX'
+        # Add both NVIDIA and AMD libclc targets
+        if libclc_amd_target_names not in libclc_targets_to_build:
+            libclc_targets_to_build += libclc_amd_target_names
+        if libclc_nvidia_target_names not in libclc_targets_to_build:
+            libclc_targets_to_build += libclc_nvidia_target_names
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -197,7 +213,7 @@ def main():
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--hip-amd-arch", type=str, help="Sets AMD gpu architecture for llvm lit tests, this is only needed for the HIP backend and AMD platform")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
-    parser.add_argument("--enable-esimd-cpu-emulation", action='store_true', help="build with ESIMD_CPU emulation support")
+    parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")

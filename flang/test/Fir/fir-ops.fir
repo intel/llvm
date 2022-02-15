@@ -121,7 +121,7 @@ func @instructions() {
   %31 = fir.no_reassoc %29 : i64
 
 // CHECK: fir.call @user_i64([[VAL_35]]) : (i64) -> ()
-// CHECK: fir.freemem [[VAL_5]] : !fir.heap<!fir.array<100xf32>>
+// CHECK: fir.freemem [[VAL_5]] : <!fir.array<100xf32>>
 // CHECK: [[VAL_36:%.*]] = fir.call @get_func() : () -> (() -> ())
 // CHECK: fir.call [[VAL_36]]() : () -> ()
 // CHECK: [[VAL_37:%.*]] = fir.address_of(@it1) : !fir.ref<() -> !fir.int<4>>
@@ -746,4 +746,27 @@ func @llvm_ptr_load_store_coordinate(%arg0: !fir.ref<tuple<!fir.ref<!fir.box<!fi
   // CHECK-NEXT: fir.load %[[LLVMPTR]] : !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
   %1 = fir.load %0 : !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
   return %1 : !fir.ref<!fir.box<!fir.ptr<f32>>>
+}
+
+func @array_access_ops(%a : !fir.ref<!fir.array<?x?xf32>>) {
+  %c1 = arith.constant 1 : index
+  %n = arith.constant 0 : index
+  %m = arith.constant 50 : index
+  %s = fir.shape %n, %m : (index, index) -> !fir.shape<2>
+  %v = fir.array_load %a(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shape<2>) -> !fir.array<?x?xf32>
+  %p = fir.array_access %v, %c1, %c1 : (!fir.array<?x?xf32>, index, index) -> !fir.ref<f32>
+  // CHECK: %{{.*}} = fir.array_access %{{.*}}, %{{.*}}, %{{.*}} : (!fir.array<?x?xf32>, index, index) -> !fir.ref<f32>
+  return
+}
+
+func @array_amend_ops(%a : !fir.ref<!fir.array<?x?xf32>>) {
+  %c1 = arith.constant 1 : index
+  %n = arith.constant 0 : index
+  %m = arith.constant 50 : index
+  %s = fir.shape %n, %m : (index, index) -> !fir.shape<2>
+  %v = fir.array_load %a(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shape<2>) -> !fir.array<?x?xf32>
+  %p = fir.array_access %v, %c1, %c1 : (!fir.array<?x?xf32>, index, index) -> !fir.ref<f32>
+  %res = fir.array_amend %v, %p : (!fir.array<?x?xf32>, !fir.ref<f32>) -> !fir.array<?x?xf32>
+  // CHECK: %{{.*}} = fir.array_amend %{{.*}}, %{{.*}} : (!fir.array<?x?xf32>, !fir.ref<f32>) -> !fir.array<?x?xf32>
+  return
 }

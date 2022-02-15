@@ -121,7 +121,7 @@ TEST_P(SamplerPropertiesTest, piCheckAddressingMode) {
   ASSERT_EQ(actualAddressMode, addressMode_);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     SamplerPropertiesTestImpl, SamplerPropertiesTest,
     ::testing::Combine(
         ::testing::Values(PI_TRUE, PI_FALSE),

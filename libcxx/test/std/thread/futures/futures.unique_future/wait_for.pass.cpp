@@ -9,8 +9,7 @@
 // UNSUPPORTED: libcpp-has-no-threads
 // UNSUPPORTED: c++03
 
-// TODO(ldionne): This test fails on Ubuntu Focal on our CI nodes (and only there), in 32 bit mode.
-// UNSUPPORTED: linux && 32bits-on-64bits
+// ALLOW_RETRIES: 3
 
 // <future>
 

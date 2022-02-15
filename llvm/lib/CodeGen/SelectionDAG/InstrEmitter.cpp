@@ -15,6 +15,7 @@
 #include "InstrEmitter.h"
 #include "SDNodeDbgValue.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -765,7 +766,7 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
   assert(!SD->isVariadic());
   SDDbgOperand DbgOperand = SD->getLocationOps()[0];
   MDNode *Var = SD->getVariable();
-  MDNode *Expr = SD->getExpression();
+  DIExpression *Expr = (DIExpression*)SD->getExpression();
   DebugLoc DL = SD->getDebugLoc();
   const MCInstrDesc &RefII = TII->get(TargetOpcode::DBG_INSTR_REF);
 
@@ -774,6 +775,13 @@ InstrEmitter::EmitDbgInstrRef(SDDbgValue *SD,
   if (DbgOperand.getKind() == SDDbgOperand::FRAMEIX ||
       DbgOperand.getKind() == SDDbgOperand::CONST)
     return EmitDbgValueFromSingleOp(SD, VRBaseMap);
+
+  // Immediately fold any indirectness from the LLVM-IR intrinsic into the
+  // expression:
+  if (SD->isIndirect()) {
+    std::vector<uint64_t> Elts = {dwarf::DW_OP_deref};
+    Expr = DIExpression::append(Expr, Elts);
+  }
 
   // It may not be immediately possible to identify the MachineInstr that
   // defines a VReg, it can depend for example on the order blocks are

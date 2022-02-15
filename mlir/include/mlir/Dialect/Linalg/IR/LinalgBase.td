@@ -37,7 +37,6 @@ def Linalg_Dialect : Dialect {
     "AffineDialect",
     "math::MathDialect",
     "memref::MemRefDialect",
-    "StandardOpsDialect",
     "tensor::TensorDialect",
   ];
   let hasCanonicalizer = 1;
@@ -57,9 +56,5 @@ def Linalg_Dialect : Dialect {
       llvm::StringMap<RegionBuilderFunType> namedStructuredOpRegionBuilders;
   }];
 }
-
-// Whether a type is a RangeType.
-def LinalgIsRangeTypePred : CPred<"$_self.isa<RangeType>()">;
-def Range : DialectType<Linalg_Dialect, LinalgIsRangeTypePred, "range">;
 
 #endif // LINALG_BASE

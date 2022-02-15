@@ -40,3 +40,31 @@ class AArch64LinuxTaggedMemoryRegionTestCase(TestBase):
         # Despite the non address bits we should find a region
         self.expect("memory region the_page", patterns=[
             "\[0x[0-9A-Fa-f]+-0x[0-9A-Fa-f]+\) r-x"])
+
+        # Check that the usual error message is displayed after repeating
+        # the command until the last region.
+        self.runCmd("memory region 0")
+
+        # Count the number of repeats for use in the next check
+        repeats = 0
+        interp = self.dbg.GetCommandInterpreter()
+        result = lldb.SBCommandReturnObject()
+
+        while True:
+            interp.HandleCommand("memory region", result)
+            if result.Succeeded():
+                repeats += 1
+            else:
+                self.assertRegexpMatches(result.GetError(), "Usage: memory region ADDR")
+                break
+
+        # This time repeat until we get the last region. At that
+        # point the previous address will have non-address bits in it.
+        self.runCmd("memory region 0")
+        for i in range(repeats):
+            self.runCmd("memory region")
+
+        # This should not error, since the user supplied address overrides
+        # the previous end address.
+        self.expect("memory region the_page", patterns=[
+            "\[0x[0-9A-Fa-f]+-0x[0-9A-Fa-f]+\) r-x"])

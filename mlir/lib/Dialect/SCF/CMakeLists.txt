@@ -9,11 +9,12 @@ add_mlir_dialect_library(MLIRSCF
 
   LINK_LIBS PUBLIC
   MLIRArithmetic
+  MLIRBufferization
   MLIRIR
   MLIRLoopLikeInterface
-  MLIRMemRef
   MLIRSideEffectInterfaces
   MLIRStandard
   )
 
 add_subdirectory(Transforms)
+add_subdirectory(Utils)

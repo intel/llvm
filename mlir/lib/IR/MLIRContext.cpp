@@ -43,9 +43,6 @@
 using namespace mlir;
 using namespace mlir::detail;
 
-using llvm::hash_combine;
-using llvm::hash_combine_range;
-
 //===----------------------------------------------------------------------===//
 // MLIRContext CommandLine Options
 //===----------------------------------------------------------------------===//
@@ -71,7 +68,7 @@ struct MLIRContextOptions {
       llvm::cl::desc("When a diagnostic is emitted, also print the stack trace "
                      "as an attached note")};
 };
-} // end anonymous namespace
+} // namespace
 
 static llvm::ManagedStatic<MLIRContextOptions> clOptions;
 
@@ -110,92 +107,7 @@ struct ScopedWriterLock {
   }
   llvm::sys::SmartRWMutex<true> *mutex;
 };
-} // end anonymous namespace.
-
-//===----------------------------------------------------------------------===//
-// AffineMap and IntegerSet hashing
-//===----------------------------------------------------------------------===//
-
-/// A utility function to safely get or create a uniqued instance within the
-/// given set container.
-template <typename ValueT, typename DenseInfoT, typename KeyT,
-          typename ConstructorFn>
-static ValueT safeGetOrCreate(DenseSet<ValueT, DenseInfoT> &container,
-                              KeyT &&key, llvm::sys::SmartRWMutex<true> &mutex,
-                              bool threadingIsEnabled,
-                              ConstructorFn &&constructorFn) {
-  // Check for an existing instance in read-only mode.
-  if (threadingIsEnabled) {
-    llvm::sys::SmartScopedReader<true> instanceLock(mutex);
-    auto it = container.find_as(key);
-    if (it != container.end())
-      return *it;
-  }
-
-  // Acquire a writer-lock so that we can safely create the new instance.
-  ScopedWriterLock instanceLock(mutex, threadingIsEnabled);
-
-  // Check for an existing instance again here, because another writer thread
-  // may have already created one. Otherwise, construct a new instance.
-  auto existing = container.insert_as(ValueT(), key);
-  if (existing.second)
-    return *existing.first = constructorFn();
-  return *existing.first;
-}
-
-namespace {
-struct AffineMapKeyInfo : DenseMapInfo<AffineMap> {
-  // Affine maps are uniqued based on their dim/symbol counts and affine
-  // expressions.
-  using KeyTy = std::tuple<unsigned, unsigned, ArrayRef<AffineExpr>>;
-  using DenseMapInfo<AffineMap>::isEqual;
-
-  static unsigned getHashValue(const AffineMap &key) {
-    return getHashValue(
-        KeyTy(key.getNumDims(), key.getNumSymbols(), key.getResults()));
-  }
-
-  static unsigned getHashValue(KeyTy key) {
-    return hash_combine(
-        std::get<0>(key), std::get<1>(key),
-        hash_combine_range(std::get<2>(key).begin(), std::get<2>(key).end()));
-  }
-
-  static bool isEqual(const KeyTy &lhs, AffineMap rhs) {
-    if (rhs == getEmptyKey() || rhs == getTombstoneKey())
-      return false;
-    return lhs == std::make_tuple(rhs.getNumDims(), rhs.getNumSymbols(),
-                                  rhs.getResults());
-  }
-};
-
-struct IntegerSetKeyInfo : DenseMapInfo<IntegerSet> {
-  // Integer sets are uniqued based on their dim/symbol counts, affine
-  // expressions appearing in the LHS of constraints, and eqFlags.
-  using KeyTy =
-      std::tuple<unsigned, unsigned, ArrayRef<AffineExpr>, ArrayRef<bool>>;
-  using DenseMapInfo<IntegerSet>::isEqual;
-
-  static unsigned getHashValue(const IntegerSet &key) {
-    return getHashValue(KeyTy(key.getNumDims(), key.getNumSymbols(),
-                              key.getConstraints(), key.getEqFlags()));
-  }
-
-  static unsigned getHashValue(KeyTy key) {
-    return hash_combine(
-        std::get<0>(key), std::get<1>(key),
-        hash_combine_range(std::get<2>(key).begin(), std::get<2>(key).end()),
-        hash_combine_range(std::get<3>(key).begin(), std::get<3>(key).end()));
-  }
-
-  static bool isEqual(const KeyTy &lhs, IntegerSet rhs) {
-    if (rhs == getEmptyKey() || rhs == getTombstoneKey())
-      return false;
-    return lhs == std::make_tuple(rhs.getNumDims(), rhs.getNumSymbols(),
-                                  rhs.getConstraints(), rhs.getEqFlags());
-  }
-};
-} // end anonymous namespace.
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // MLIRContextImpl
@@ -270,7 +182,11 @@ public:
   llvm::StringMap<OperationName::Impl> operations;
 
   /// A vector of operation info specifically for registered operations.
-  SmallVector<RegisteredOperationName> registeredOperations;
+  llvm::StringMap<RegisteredOperationName> registeredOperations;
+
+  /// This is a sorted container of registered operations for a deterministic
+  /// and efficient `getRegisteredOperations` implementation.
+  SmallVector<RegisteredOperationName, 0> sortedRegisteredOperations;
 
   /// A mutex used when accessing operation information.
   llvm::sys::SmartRWMutex<true> operationInfoMutex;
@@ -279,19 +195,7 @@ public:
   // Affine uniquing
   //===--------------------------------------------------------------------===//
 
-  // Affine allocator and mutex for thread safety.
-  llvm::BumpPtrAllocator affineAllocator;
-  llvm::sys::SmartRWMutex<true> affineMutex;
-
-  // Affine map uniquing.
-  using AffineMapSet = DenseSet<AffineMap, AffineMapKeyInfo>;
-  AffineMapSet affineMaps;
-
-  // Integer set uniquing.
-  using IntegerSets = DenseSet<IntegerSet, IntegerSetKeyInfo>;
-  IntegerSets integerSets;
-
-  // Affine expression uniquing.
+  // Affine expression, map and integer set uniquing.
   StorageUniquer affineUniquer;
 
   //===--------------------------------------------------------------------===//
@@ -347,7 +251,7 @@ public:
       attrMapping.second->~AbstractAttribute();
   }
 };
-} // end namespace mlir
+} // namespace mlir
 
 MLIRContext::MLIRContext(Threading setting)
     : MLIRContext(DialectRegistry(), setting) {}
@@ -415,9 +319,11 @@ MLIRContext::MLIRContext(const DialectRegistry &registry, Threading setting)
   impl->affineUniquer
       .registerParametricStorageType<AffineConstantExprStorage>();
   impl->affineUniquer.registerParametricStorageType<AffineDimExprStorage>();
+  impl->affineUniquer.registerParametricStorageType<AffineMapStorage>();
+  impl->affineUniquer.registerParametricStorageType<IntegerSetStorage>();
 }
 
-MLIRContext::~MLIRContext() {}
+MLIRContext::~MLIRContext() = default;
 
 /// Copy the specified array of elements into memory managed by the provided
 /// bump pointer allocator.  This assumes the elements are all PODs.
@@ -504,9 +410,9 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
                               function_ref<std::unique_ptr<Dialect>()> ctor) {
   auto &impl = getImpl();
   // Get the correct insertion position sorted by namespace.
-  std::unique_ptr<Dialect> &dialect = impl.loadedDialects[dialectNamespace];
+  auto dialectIt = impl.loadedDialects.find(dialectNamespace);
 
-  if (!dialect) {
+  if (dialectIt == impl.loadedDialects.end()) {
     LLVM_DEBUG(llvm::dbgs()
                << "Load new dialect in Context " << dialectNamespace << "\n");
 #ifndef NDEBUG
@@ -517,7 +423,8 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
           "the PassManager): this can indicate a "
           "missing `dependentDialects` in a pass for example.");
 #endif
-    dialect = ctor();
+    std::unique_ptr<Dialect> &dialect =
+        impl.loadedDialects.insert({dialectNamespace, ctor()}).first->second;
     assert(dialect && "dialect ctor failed");
 
     // Refresh all the identifiers dialect field, this catches cases where a
@@ -536,6 +443,7 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
   }
 
   // Abort if dialect with namespace has already been registered.
+  std::unique_ptr<Dialect> &dialect = dialectIt->second;
   if (dialect->getTypeID() != dialectID)
     llvm::report_fatal_error("a dialect with namespace '" + dialectNamespace +
                              "' has already been registered");
@@ -612,6 +520,16 @@ void MLIRContext::setThreadPool(llvm::ThreadPool &pool) {
   enableMultithreading();
 }
 
+unsigned MLIRContext::getNumThreads() {
+  if (isMultithreadingEnabled()) {
+    assert(impl->threadPool &&
+           "multi-threading is enabled but threadpool not set");
+    return impl->threadPool->getThreadCount();
+  }
+  // No multithreading or active thread pool. Return 1 thread.
+  return 1;
+}
+
 llvm::ThreadPool &MLIRContext::getThreadPool() {
   assert(isMultithreadingEnabled() &&
          "expected multi-threading to be enabled within the context");
@@ -655,27 +573,13 @@ void MLIRContext::printStackTraceOnDiagnostic(bool enable) {
   impl->printStackTraceOnDiagnostic = enable;
 }
 
-/// Return information about all registered operations.  This isn't very
-/// efficient, typically you should ask the operations about their properties
-/// directly.
-std::vector<RegisteredOperationName> MLIRContext::getRegisteredOperations() {
-  // We just have the operations in a non-deterministic hash table order. Dump
-  // into a temporary array, then sort it by operation name to get a stable
-  // ordering.
-  std::vector<RegisteredOperationName> result(
-      impl->registeredOperations.begin(), impl->registeredOperations.end());
-  llvm::array_pod_sort(result.begin(), result.end(),
-                       [](const RegisteredOperationName *lhs,
-                          const RegisteredOperationName *rhs) {
-                         return lhs->getIdentifier().compare(
-                             rhs->getIdentifier());
-                       });
-
-  return result;
+/// Return information about all registered operations.
+ArrayRef<RegisteredOperationName> MLIRContext::getRegisteredOperations() {
+  return impl->sortedRegisteredOperations;
 }
 
 bool MLIRContext::isOperationRegistered(StringRef name) {
-  return OperationName(name, this).isRegistered();
+  return RegisteredOperationName::lookup(name, this).hasValue();
 }
 
 void Dialect::addType(TypeID typeID, AbstractType &&typeInfo) {
@@ -735,6 +639,15 @@ OperationName::OperationName(StringRef name, MLIRContext *context) {
   // Check for an existing name in read-only mode.
   bool isMultithreadingEnabled = context->isMultithreadingEnabled();
   if (isMultithreadingEnabled) {
+    // Check the registered info map first. In the overwhelmingly common case,
+    // the entry will be in here and it also removes the need to acquire any
+    // locks.
+    auto registeredIt = ctxImpl.registeredOperations.find(name);
+    if (LLVM_LIKELY(registeredIt != ctxImpl.registeredOperations.end())) {
+      impl = registeredIt->second.impl;
+      return;
+    }
+
     llvm::sys::SmartScopedReader<true> contextLock(ctxImpl.operationInfoMutex);
     auto it = ctxImpl.operations.find(name);
     if (it != ctxImpl.operations.end()) {
@@ -761,6 +674,15 @@ StringRef OperationName::getDialectNamespace() const {
 //===----------------------------------------------------------------------===//
 // RegisteredOperationName
 //===----------------------------------------------------------------------===//
+
+Optional<RegisteredOperationName>
+RegisteredOperationName::lookup(StringRef name, MLIRContext *ctx) {
+  auto &impl = ctx->getImpl();
+  auto it = impl.registeredOperations.find(name);
+  if (it != impl.registeredOperations.end())
+    return it->getValue();
+  return llvm::None;
+}
 
 ParseResult
 RegisteredOperationName::parseAssembly(OpAsmParser &parser,
@@ -803,7 +725,19 @@ void RegisteredOperationName::insert(
                  << "' is already registered.\n";
     abort();
   }
-  ctxImpl.registeredOperations.push_back(RegisteredOperationName(&impl));
+  auto emplaced = ctxImpl.registeredOperations.try_emplace(
+      name, RegisteredOperationName(&impl));
+  assert(emplaced.second && "operation name registration must be successful");
+
+  // Add emplaced operation name to the sorted operations container.
+  RegisteredOperationName &value = emplaced.first->getValue();
+  ctxImpl.sortedRegisteredOperations.insert(
+      llvm::upper_bound(ctxImpl.sortedRegisteredOperations, value,
+                        [](auto &lhs, auto &rhs) {
+                          return lhs.getIdentifier().compare(
+                              rhs.getIdentifier());
+                        }),
+      value);
 
   // Update the registered info for this operation.
   impl.dialect = &dialect;
@@ -995,21 +929,33 @@ AffineMap AffineMap::getImpl(unsigned dimCount, unsigned symbolCount,
                              ArrayRef<AffineExpr> results,
                              MLIRContext *context) {
   auto &impl = context->getImpl();
-  auto key = std::make_tuple(dimCount, symbolCount, results);
+  auto *storage = impl.affineUniquer.get<AffineMapStorage>(
+      [&](AffineMapStorage *storage) { storage->context = context; }, dimCount,
+      symbolCount, results);
+  return AffineMap(storage);
+}
 
-  // Safely get or create an AffineMap instance.
-  return safeGetOrCreate(
-      impl.affineMaps, key, impl.affineMutex, impl.threadingIsEnabled, [&] {
-        auto *res = impl.affineAllocator.Allocate<detail::AffineMapStorage>();
-
-        // Copy the results into the bump pointer.
-        results = copyArrayRefInto(impl.affineAllocator, results);
-
-        // Initialize the memory using placement new.
-        new (res)
-            detail::AffineMapStorage{dimCount, symbolCount, results, context};
-        return AffineMap(res);
-      });
+/// Check whether the arguments passed to the AffineMap::get() are consistent.
+/// This method checks whether the highest index of dimensional identifier
+/// present in result expressions is less than `dimCount` and the highest index
+/// of symbolic identifier present in result expressions is less than
+/// `symbolCount`.
+LLVM_ATTRIBUTE_UNUSED static bool
+willBeValidAffineMap(unsigned dimCount, unsigned symbolCount,
+                     ArrayRef<AffineExpr> results) {
+  int64_t maxDimPosition = -1;
+  int64_t maxSymbolPosition = -1;
+  getMaxDimAndSymbol(ArrayRef<ArrayRef<AffineExpr>>(results), maxDimPosition,
+                     maxSymbolPosition);
+  if ((maxDimPosition >= dimCount) || (maxSymbolPosition >= symbolCount)) {
+    LLVM_DEBUG(
+        llvm::dbgs()
+        << "maximum dimensional identifier position in result expression must "
+           "be less than `dimCount` and maximum symbolic identifier position "
+           "in result expression must be less than `symbolCount`\n");
+    return false;
+  }
+  return true;
 }
 
 AffineMap AffineMap::get(MLIRContext *context) {
@@ -1023,11 +969,13 @@ AffineMap AffineMap::get(unsigned dimCount, unsigned symbolCount,
 
 AffineMap AffineMap::get(unsigned dimCount, unsigned symbolCount,
                          AffineExpr result) {
+  assert(willBeValidAffineMap(dimCount, symbolCount, {result}));
   return getImpl(dimCount, symbolCount, {result}, result.getContext());
 }
 
 AffineMap AffineMap::get(unsigned dimCount, unsigned symbolCount,
                          ArrayRef<AffineExpr> results, MLIRContext *context) {
+  assert(willBeValidAffineMap(dimCount, symbolCount, results));
   return getImpl(dimCount, symbolCount, results, context);
 }
 
@@ -1044,33 +992,9 @@ IntegerSet IntegerSet::get(unsigned dimCount, unsigned symbolCount,
   assert(constraints.size() == eqFlags.size());
 
   auto &impl = constraints[0].getContext()->getImpl();
-
-  // A utility function to construct a new IntegerSetStorage instance.
-  auto constructorFn = [&] {
-    auto *res = impl.affineAllocator.Allocate<detail::IntegerSetStorage>();
-
-    // Copy the results and equality flags into the bump pointer.
-    constraints = copyArrayRefInto(impl.affineAllocator, constraints);
-    eqFlags = copyArrayRefInto(impl.affineAllocator, eqFlags);
-
-    // Initialize the memory using placement new.
-    new (res)
-        detail::IntegerSetStorage{dimCount, symbolCount, constraints, eqFlags};
-    return IntegerSet(res);
-  };
-
-  // If this instance is uniqued, then we handle it separately so that multiple
-  // threads may simultaneously access existing instances.
-  if (constraints.size() < IntegerSet::kUniquingThreshold) {
-    auto key = std::make_tuple(dimCount, symbolCount, constraints, eqFlags);
-    return safeGetOrCreate(impl.integerSets, key, impl.affineMutex,
-                           impl.threadingIsEnabled, constructorFn);
-  }
-
-  // Otherwise, acquire a writer-lock so that we can safely create the new
-  // instance.
-  ScopedWriterLock affineLock(impl.affineMutex, impl.threadingIsEnabled);
-  return constructorFn();
+  auto *storage = impl.affineUniquer.get<IntegerSetStorage>(
+      [](IntegerSetStorage *) {}, dimCount, symbolCount, constraints, eqFlags);
+  return IntegerSet(storage);
 }
 
 //===----------------------------------------------------------------------===//

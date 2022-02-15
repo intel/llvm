@@ -1,9 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -13,11 +8,7 @@
 // Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
 // RUN: mlir-opt %s \
-// RUN:   --sparsification="vectorization-strategy=2 vl=4 enable-simd-index32" --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN:   --sparse-compiler="vectorization-strategy=2 vl=4 enable-simd-index32" | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -97,9 +88,9 @@ module {
         memref.store %d, %bdata[%j, %i] : memref<?x?xf32>
       }
     }
-    %a = memref.tensor_load %adata : memref<?x?xf32>
-    %b = memref.tensor_load %bdata : memref<?x?xf32>
-    %x = memref.tensor_load %xdata : memref<?x?xf32>
+    %a = bufferization.to_tensor %adata : memref<?x?xf32>
+    %b = bufferization.to_tensor %bdata : memref<?x?xf32>
+    %x = bufferization.to_tensor %xdata : memref<?x?xf32>
 
     // Read the sparse matrix from file, construct sparse storage.
     %fileName = call @getTensorFilename(%c0) : (index) -> (!Filename)
@@ -118,7 +109,7 @@ module {
     // CHECK: ( 164, 0, 0, 640, 0 )
     // CHECK: ( 0, 520, 0, 0, 1250 )
     //
-    %r = memref.buffer_cast %0 : memref<?x?xf32>
+    %r = bufferization.to_memref %0 : memref<?x?xf32>
     scf.for %i = %c0 to %c5 step %c1 {
       %v = vector.transfer_read %r[%i, %c0], %d0: memref<?x?xf32>, vector<5xf32>
       vector.print %v : vector<5xf32>

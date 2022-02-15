@@ -20,10 +20,12 @@
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
@@ -62,7 +64,7 @@ class AMDGPUOperand : public MCParsedAsmOperand {
 
 public:
   AMDGPUOperand(KindTy Kind_, const AMDGPUAsmParser *AsmParser_)
-    : MCParsedAsmOperand(), Kind(Kind_), AsmParser(AsmParser_) {}
+      : Kind(Kind_), AsmParser(AsmParser_) {}
 
   using Ptr = std::unique_ptr<AMDGPUOperand>;
 
@@ -246,8 +248,12 @@ public:
     return isRegKind() && !hasModifiers();
   }
 
+  bool isRegOrInline(unsigned RCID, MVT type) const {
+    return isRegClass(RCID) || isInlinableImm(type);
+  }
+
   bool isRegOrImmWithInputMods(unsigned RCID, MVT type) const {
-    return isRegClass(RCID) || isInlinableImm(type) || isLiteralImm(type);
+    return isRegOrInline(RCID, type) || isLiteralImm(type);
   }
 
   bool isRegOrImmWithInt16InputMods() const {
@@ -372,7 +378,7 @@ public:
   bool isInlineValue() const;
 
   bool isRegOrInlineNoMods(unsigned RCID, MVT type) const {
-    return (isRegClass(RCID) || isInlinableImm(type)) && !hasModifiers();
+    return isRegOrInline(RCID, type) && !hasModifiers();
   }
 
   bool isSCSrcB16() const {
@@ -1125,7 +1131,8 @@ class KernelScopeInfo {
     if (i >= SgprIndexUnusedMin) {
       SgprIndexUnusedMin = ++i;
       if (Ctx) {
-        MCSymbol * const Sym = Ctx->getOrCreateSymbol(Twine(".kernel.sgpr_count"));
+        MCSymbol* const Sym =
+          Ctx->getOrCreateSymbol(Twine(".kernel.sgpr_count"));
         Sym->setVariableValue(MCConstantExpr::create(SgprIndexUnusedMin, *Ctx));
       }
     }
@@ -1135,7 +1142,8 @@ class KernelScopeInfo {
     if (i >= VgprIndexUnusedMin) {
       VgprIndexUnusedMin = ++i;
       if (Ctx) {
-        MCSymbol * const Sym = Ctx->getOrCreateSymbol(Twine(".kernel.vgpr_count"));
+        MCSymbol* const Sym =
+          Ctx->getOrCreateSymbol(Twine(".kernel.vgpr_count"));
         Sym->setVariableValue(MCConstantExpr::create(VgprIndexUnusedMin, *Ctx));
       }
     }
@@ -1292,7 +1300,7 @@ public:
       // AsmParser::parseDirectiveSet() cannot be specialized for specific target.
       AMDGPU::IsaVersion ISA = AMDGPU::getIsaVersion(getSTI().getCPU());
       MCContext &Ctx = getContext();
-      if (ISA.Major >= 6 && isHsaAbiVersion3Or4(&getSTI())) {
+      if (ISA.Major >= 6 && isHsaAbiVersion3AndAbove(&getSTI())) {
         MCSymbol *Sym =
             Ctx.getOrCreateSymbol(Twine(".amdgcn.gfx_generation_number"));
         Sym->setVariableValue(MCConstantExpr::create(ISA.Major, Ctx));
@@ -1309,7 +1317,7 @@ public:
         Sym = Ctx.getOrCreateSymbol(Twine(".option.machine_version_stepping"));
         Sym->setVariableValue(MCConstantExpr::create(ISA.Stepping, Ctx));
       }
-      if (ISA.Major >= 6 && isHsaAbiVersion3Or4(&getSTI())) {
+      if (ISA.Major >= 6 && isHsaAbiVersion3AndAbove(&getSTI())) {
         initializeGprCountSymbol(IS_VGPR);
         initializeGprCountSymbol(IS_SGPR);
       } else
@@ -1544,6 +1552,7 @@ private:
   bool validateVccOperand(unsigned Reg) const;
   bool validateVOPLiteral(const MCInst &Inst, const OperandVector &Operands);
   bool validateMAIAccWrite(const MCInst &Inst, const OperandVector &Operands);
+  bool validateMFMA(const MCInst &Inst, const OperandVector &Operands);
   bool validateAGPRLdSt(const MCInst &Inst) const;
   bool validateVGPRAlign(const MCInst &Inst) const;
   bool validateGWS(const MCInst &Inst, const OperandVector &Operands);
@@ -2742,7 +2751,7 @@ AMDGPUAsmParser::parseRegister(bool RestoreOnFailure) {
   if (!ParseAMDGPURegister(RegKind, Reg, RegNum, RegWidth)) {
     return nullptr;
   }
-  if (isHsaAbiVersion3Or4(&getSTI())) {
+  if (isHsaAbiVersion3AndAbove(&getSTI())) {
     if (!updateGprCountSymbols(RegKind, RegNum, RegWidth))
       return nullptr;
   } else
@@ -3609,6 +3618,40 @@ bool AMDGPUAsmParser::validateMAIAccWrite(const MCInst &Inst,
   return true;
 }
 
+bool AMDGPUAsmParser::validateMFMA(const MCInst &Inst,
+                                   const OperandVector &Operands) {
+  const unsigned Opc = Inst.getOpcode();
+  const MCInstrDesc &Desc = MII.get(Opc);
+
+  if ((Desc.TSFlags & SIInstrFlags::IsMAI) == 0)
+    return true;
+
+  const int Src2Idx = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src2);
+  if (Src2Idx == -1)
+    return true;
+
+  const MCOperand &Src2 = Inst.getOperand(Src2Idx);
+  if (!Src2.isReg())
+    return true;
+
+  MCRegister Src2Reg = Src2.getReg();
+  MCRegister DstReg = Inst.getOperand(0).getReg();
+  if (Src2Reg == DstReg)
+    return true;
+
+  const MCRegisterInfo *TRI = getContext().getRegisterInfo();
+  if (TRI->getRegClass(Desc.OpInfo[0].RegClass).getSizeInBits() <= 128)
+    return true;
+
+  if (isRegIntersect(Src2Reg, DstReg, TRI)) {
+    Error(getRegLoc(mc2PseudoReg(Src2Reg), Operands),
+          "source 2 operand must not partially overlap with dst");
+    return false;
+  }
+
+  return true;
+}
+
 bool AMDGPUAsmParser::validateDivScale(const MCInst &Inst) {
   switch (Inst.getOpcode()) {
   default:
@@ -4293,6 +4336,9 @@ bool AMDGPUAsmParser::validateInstruction(const MCInst &Inst,
   if (!validateMAIAccWrite(Inst, Operands)) {
     return false;
   }
+  if (!validateMFMA(Inst, Operands)) {
+    return false;
+  }
   if (!validateCoherencyBits(Inst, Operands, IDLoc)) {
     return false;
   }
@@ -4564,7 +4610,13 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
   uint64_t AccumOffset = 0;
   SMRange SGPRRange;
   uint64_t NextFreeSGPR = 0;
-  unsigned UserSGPRCount = 0;
+
+  // Count the number of user SGPRs implied from the enabled feature bits.
+  unsigned ImpliedUserSGPRCount = 0;
+
+  // Track if the asm explicitly contains the directive for the user SGPR
+  // count.
+  Optional<unsigned> ExplicitUserSGPRCount;
   bool ReserveVCC = true;
   bool ReserveFlatScr = true;
   Optional<bool> EnableWavefrontSize32;
@@ -4613,6 +4665,8 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
       if (!isUInt<sizeof(KD.kernarg_size) * CHAR_BIT>(Val))
         return OutOfRangeError(ValRange);
       KD.kernarg_size = Val;
+    } else if (ID == ".amdhsa_user_sgpr_count") {
+      ExplicitUserSGPRCount = Val;
     } else if (ID == ".amdhsa_user_sgpr_private_segment_buffer") {
       if (hasArchitectedFlatScratch())
         return Error(IDRange.Start,
@@ -4622,31 +4676,31 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_BUFFER,
                        Val, ValRange);
       if (Val)
-        UserSGPRCount += 4;
+        ImpliedUserSGPRCount += 4;
     } else if (ID == ".amdhsa_user_sgpr_dispatch_ptr") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR, Val,
                        ValRange);
       if (Val)
-        UserSGPRCount += 2;
+        ImpliedUserSGPRCount += 2;
     } else if (ID == ".amdhsa_user_sgpr_queue_ptr") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_QUEUE_PTR, Val,
                        ValRange);
       if (Val)
-        UserSGPRCount += 2;
+        ImpliedUserSGPRCount += 2;
     } else if (ID == ".amdhsa_user_sgpr_kernarg_segment_ptr") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_KERNARG_SEGMENT_PTR,
                        Val, ValRange);
       if (Val)
-        UserSGPRCount += 2;
+        ImpliedUserSGPRCount += 2;
     } else if (ID == ".amdhsa_user_sgpr_dispatch_id") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_ID, Val,
                        ValRange);
       if (Val)
-        UserSGPRCount += 2;
+        ImpliedUserSGPRCount += 2;
     } else if (ID == ".amdhsa_user_sgpr_flat_scratch_init") {
       if (hasArchitectedFlatScratch())
         return Error(IDRange.Start,
@@ -4656,13 +4710,13 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_FLAT_SCRATCH_INIT, Val,
                        ValRange);
       if (Val)
-        UserSGPRCount += 2;
+        ImpliedUserSGPRCount += 2;
     } else if (ID == ".amdhsa_user_sgpr_private_segment_size") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_SIZE,
                        Val, ValRange);
       if (Val)
-        UserSGPRCount += 1;
+        ImpliedUserSGPRCount += 1;
     } else if (ID == ".amdhsa_wavefront_size32") {
       if (IVersion.Major < 10)
         return Error(IDRange.Start, "directive requires gfx10+", IDRange);
@@ -4845,6 +4899,13 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
   AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
                   COMPUTE_PGM_RSRC1_GRANULATED_WAVEFRONT_SGPR_COUNT,
                   SGPRBlocks);
+
+  if (ExplicitUserSGPRCount && ImpliedUserSGPRCount > *ExplicitUserSGPRCount)
+    return TokError("amdgpu_user_sgpr_count smaller than than implied by "
+                    "enabled user SGPRs");
+
+  unsigned UserSGPRCount =
+      ExplicitUserSGPRCount ? *ExplicitUserSGPRCount : ImpliedUserSGPRCount;
 
   if (!isUInt<COMPUTE_PGM_RSRC2_USER_SGPR_COUNT_WIDTH>(UserSGPRCount))
     return TokError("too many user SGPRs enabled");
@@ -5042,7 +5103,7 @@ bool AMDGPUAsmParser::ParseDirectiveHSAMetadata() {
   const char *AssemblerDirectiveBegin;
   const char *AssemblerDirectiveEnd;
   std::tie(AssemblerDirectiveBegin, AssemblerDirectiveEnd) =
-      isHsaAbiVersion3Or4(&getSTI())
+      isHsaAbiVersion3AndAbove(&getSTI())
           ? std::make_tuple(HSAMD::V3::AssemblerDirectiveBegin,
                             HSAMD::V3::AssemblerDirectiveEnd)
           : std::make_tuple(HSAMD::AssemblerDirectiveBegin,
@@ -5059,7 +5120,7 @@ bool AMDGPUAsmParser::ParseDirectiveHSAMetadata() {
                           HSAMetadataString))
     return true;
 
-  if (isHsaAbiVersion3Or4(&getSTI())) {
+  if (isHsaAbiVersion3AndAbove(&getSTI())) {
     if (!getTargetStreamer().EmitHSAMetadataV3(HSAMetadataString))
       return Error(getLoc(), "invalid HSA metadata");
   } else {
@@ -5209,7 +5270,7 @@ bool AMDGPUAsmParser::ParseDirectiveAMDGPULDS() {
 bool AMDGPUAsmParser::ParseDirective(AsmToken DirectiveID) {
   StringRef IDVal = DirectiveID.getString();
 
-  if (isHsaAbiVersion3Or4(&getSTI())) {
+  if (isHsaAbiVersion3AndAbove(&getSTI())) {
     if (IDVal == ".amdhsa_kernel")
      return ParseDirectiveAMDHSAKernel();
 
@@ -7383,7 +7444,7 @@ void AMDGPUAsmParser::onBeginOfFile() {
   if (!getTargetStreamer().getTargetID())
     getTargetStreamer().initializeTargetID(getSTI(), getSTI().getFeatureString());
 
-  if (isHsaAbiVersion3Or4(&getSTI()))
+  if (isHsaAbiVersion3AndAbove(&getSTI()))
     getTargetStreamer().EmitDirectiveAMDGCNTarget();
 }
 

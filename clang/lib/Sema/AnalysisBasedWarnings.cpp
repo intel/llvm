@@ -128,7 +128,7 @@ class LogicalErrorHandler : public CFGCallback {
   Sema &S;
 
 public:
-  LogicalErrorHandler(Sema &S) : CFGCallback(), S(S) {}
+  LogicalErrorHandler(Sema &S) : S(S) {}
 
   static bool HasMacroID(const Expr *E) {
     if (E->getExprLoc().isMacroID())
@@ -464,7 +464,7 @@ static ControlFlowKind CheckFallThrough(AnalysisDeclContext &AC) {
     // No more CFGElements in the block?
     if (ri == re) {
       const Stmt *Term = B.getTerminatorStmt();
-      if (Term && isa<CXXTryStmt>(Term)) {
+      if (Term && (isa<CXXTryStmt>(Term) || isa<ObjCAtTryStmt>(Term))) {
         HasAbnormalEdge = true;
         continue;
       }

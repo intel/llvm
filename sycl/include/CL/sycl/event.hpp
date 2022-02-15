@@ -130,18 +130,18 @@ public:
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
+  template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const ->
-      typename detail::interop<BackendName, event>::type {
-    return reinterpret_cast<typename detail::interop<BackendName, event>::type>(
-        getNative());
+  backend_return_t<Backend, event> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, event>>(getNative());
   }
 
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
   pi_native_handle getNative() const;
+
+  std::vector<pi_native_handle> getNativeVector() const;
 
   std::shared_ptr<detail::event_impl> impl;
 
@@ -150,6 +150,10 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 };
 
 } // namespace sycl

@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "membermask.h"
+
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-int __nvvm_reflect(const char __constant *);
+int __clc_nvvm_reflect_arch();
 
 // CLC helpers
 __local bool *
@@ -40,11 +42,10 @@ __clc__get_group_scratch_float() __asm("__clc__get_group_scratch_float");
 __local double *
 __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
 
-_CLC_DEF _CLC_CONVERGENT uint __clc__membermask() {
-  uint FULL_MASK = 0xFFFFFFFF;
-  uint max_size = __spirv_SubgroupMaxSize();
-  uint sg_size = __spirv_SubgroupSize();
-  return FULL_MASK >> (max_size - sg_size);
+_CLC_DEF uint inline __clc__membermask() {
+  // use a full mask as sync operations are required to be convergent and
+  // exited threads can safely be in the mask
+  return 0xFFFFFFFF;
 }
 
 #define __CLC_SUBGROUP_SHUFFLE_I32(TYPE)                                       \
@@ -150,6 +151,7 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
 #define __CLC_MIN(x, y) ((x < y) ? (x) : (y))
 #define __CLC_MAX(x, y) ((x > y) ? (x) : (y))
 #define __CLC_OR(x, y) (x | y)
+#define __CLC_XOR(x, y) (x ^ y)
 #define __CLC_AND(x, y) (x & y)
 #define __CLC_MUL(x, y) (x * y)
 
@@ -191,7 +193,7 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
       __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {                  \
     /* Fast path for warp reductions for sm_80+ */                             \
-    if (__nvvm_reflect("__CUDA_ARCH") >= 800 && op == Reduce) {                \
+    if (__clc_nvvm_reflect_arch() >= 800 && op == Reduce) {                    \
       TYPE result = __nvvm_redux_sync_##REDUX_OP(x, __clc__membermask());      \
       *carry = result;                                                         \
       return result;                                                           \
@@ -246,6 +248,13 @@ __CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, ulong, 0)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, half, -HALF_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
+
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseAnd, __CLC_AND, and, uint, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseOr, __CLC_OR, or, uint, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseXor, __CLC_XOR, xor, uint, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseAnd, __CLC_AND, and, int, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseOr, __CLC_OR, or, int, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseXor, __CLC_XOR, xor, int, 0)
 
 #undef __CLC_SUBGROUP_COLLECTIVE_BODY
 #undef __CLC_SUBGROUP_COLLECTIVE
@@ -367,6 +376,13 @@ __CLC_GROUP_COLLECTIVE(UMax, __CLC_MAX, ulong, 0)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, half, -HALF_MAX)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
+
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseAnd, __CLC_AND, uint, ~0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseOr, __CLC_OR, uint, 0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseXor, __CLC_XOR, uint, 0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseAnd, __CLC_AND, int, ~0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseOr, __CLC_OR, int, 0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseXor, __CLC_XOR, int, 0)
 
 // half requires additional mangled entry points
 _CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFAddjjDF16_(uint scope, uint op,

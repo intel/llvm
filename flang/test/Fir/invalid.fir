@@ -284,6 +284,15 @@ func @test_coordinate_of(%arr : !fir.ref<!fir.char<10>>) {
 
 // -----
 
+func @test_coordinate_of(%arr : !fir.ref<!fir.char<10, 1>>) {
+  %1 = arith.constant 10 : i32
+  // expected-error@+1 {{'fir.coordinate_of' op cannot apply coordinate_of to this type}}
+  %2 = fir.coordinate_of %arr, %1 : (!fir.ref<!fir.char<10, 1>>, i32) -> !fir.ref<f32>
+  return
+}
+
+// -----
+
 %0 = arith.constant 22 : i32
 // expected-error@+1 {{'fir.embox' op operand #0 must be any reference, but got 'i32'}}
 %1 = fir.embox %0 : (i32) -> !fir.box<i32>
@@ -603,6 +612,16 @@ func @test_misc_ops(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %m : index, %n : inde
 
 // -----
 
+func @test_misc_ops(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %m : index, %n : index, %o : index, %p : index, %f: !fir.ref<i32>) {
+  %s = fir.shape_shift %m, %n, %o, %p : (index, index, index, index) -> !fir.shapeshift<2>
+  %av1 = fir.array_load %arr1(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shapeshift<2>) -> !fir.array<?x?xf32>
+  // expected-error@+1 {{'fir.array_update' op does not support reference type for merge}}
+  %av2 = fir.array_update %av1, %f, %m, %n : (!fir.array<?x?xf32>, !fir.ref<i32>, index, index) -> !fir.array<?x?xf32>
+  return
+}
+
+// -----
+
 func @test_misc_ops(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %m : index, %n : index, %o : index, %p : index) {
   %s = fir.shape_shift %m, %n, %o, %p : (index, index, index, index) -> !fir.shapeshift<2>
   %av1 = fir.array_load %arr1(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shapeshift<2>) -> !fir.array<?x?xf32>
@@ -675,3 +694,55 @@ func @array_merge_store_no_slice_substr(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %
   fir.array_merge_store %av1, %av2 to %arr1[%slice] : !fir.array<?x?xf32>, !fir.array<?x?xf32>, !fir.ref<!fir.array<?x?xf32>>, !fir.slice<1>
   return
 }
+
+// -----
+
+func @array_access(%a : !fir.ref<!fir.array<?x?xf32>>) {
+  %c1 = arith.constant 1 : index
+  %n = arith.constant 0 : index
+  %m = arith.constant 50 : index
+  %s = fir.shape %n, %m : (index, index) -> !fir.shape<2>
+  %v = fir.array_load %a(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shape<2>) -> !fir.array<?x?xf32>
+  // expected-error@+1 {{'fir.array_access' op number of indices != dimension of array}}
+  %p = fir.array_access %v, %c1 : (!fir.array<?x?xf32>, index) -> !fir.ref<f32>
+  return
+}
+
+// -----
+
+func @array_access(%a : !fir.ref<!fir.array<?x?xf32>>) {
+  %c1 = arith.constant 1 : index
+  %n = arith.constant 0 : index
+  %m = arith.constant 50 : index
+  %s = fir.shape %n, %m : (index, index) -> !fir.shape<2>
+  %v = fir.array_load %a(%s) : (!fir.ref<!fir.array<?x?xf32>>, !fir.shape<2>) -> !fir.array<?x?xf32>
+  // expected-error@+1 {{'fir.array_access' op return type does not match array}}
+  %p = fir.array_access %v, %c1, %c1 : (!fir.array<?x?xf32>, index, index) -> !fir.ref<f64>
+  return
+}
+
+// -----
+
+func @foo(%arg0: !fir.ref<!fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>>) {
+  %c1 = arith.constant 1 : index
+  %c0 = arith.constant 0 : index
+  %c9 = arith.constant 9 : index
+  %c19 = arith.constant 19 : index
+  %c30 = arith.constant 30 : index
+  %0 = fir.shape %c30 : (index) -> !fir.shape<1>
+  %1 = fir.array_load %arg0(%0) : (!fir.ref<!fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>>, !fir.shape<1>) -> !fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>
+  %2 = fir.do_loop %arg1 = %c1 to %c9 step %c1 unordered iter_args(%arg2 = %1) -> (!fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>) {
+    %3 = fir.field_index c, !fir.type<t{c:!fir.array<20xi32>}>
+    %4 = fir.do_loop %arg3 = %c0 to %c19 step %c1 unordered iter_args(%arg4 = %arg2) -> (!fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>) {
+      // expected-error@+1 {{'fir.array_access' op return type and/or indices do not type check}}
+      %5 = fir.array_access %1, %arg1, %3, %arg3 : (!fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>, index, !fir.field, index) -> !fir.ref<f32>
+      %6 = fir.call @ifoo(%5) : (!fir.ref<f32>) -> i32
+      %7 = fir.array_update %arg4, %6, %arg1, %3, %arg3 : (!fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>, i32, index, !fir.field, index) -> !fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>
+      fir.result %7 : !fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>
+    }
+    fir.result %4 : !fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>
+  }
+  fir.array_merge_store %1, %2 to %arg0 : !fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>, !fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>, !fir.ref<!fir.array<30x!fir.type<t{c:!fir.array<20xi32>}>>>
+  return
+}
+func private @ifoo(!fir.ref<f32>) -> i32

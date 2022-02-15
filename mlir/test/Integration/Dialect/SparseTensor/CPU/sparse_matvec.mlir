@@ -1,9 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/wide.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -13,11 +8,7 @@
 // Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
 // RUN: mlir-opt %s \
-// RUN:   --sparsification="vectorization-strategy=2 vl=16 enable-simd-index32" --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN:   --sparse-compiler="vectorization-strategy=2 vl=16 enable-simd-index32" | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/wide.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -94,8 +85,8 @@ module {
     scf.for %i = %c0 to %c4 step %c1 {
       memref.store %i0, %xdata[%i] : memref<?xi32>
     }
-    %b = memref.tensor_load %bdata : memref<?xi32>
-    %x = memref.tensor_load %xdata : memref<?xi32>
+    %b = bufferization.to_tensor %bdata : memref<?xi32>
+    %x = bufferization.to_tensor %xdata : memref<?xi32>
 
     // Call kernel.
     %0 = call @kernel_matvec(%a, %b, %x)
@@ -105,7 +96,7 @@ module {
     //
     // CHECK: ( 889, 1514, -21, -3431 )
     //
-    %m = memref.buffer_cast %0 : memref<?xi32>
+    %m = bufferization.to_memref %0 : memref<?xi32>
     %v = vector.transfer_read %m[%c0], %i0: memref<?xi32>, vector<4xi32>
     vector.print %v : vector<4xi32>
 

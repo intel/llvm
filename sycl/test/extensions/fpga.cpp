@@ -128,5 +128,29 @@ int main() {
     }
   }
 
+  /*Check DSP control interface*/
+  cl::sycl::buffer<int, 1> output_buffer(1);
+  cl::sycl::buffer<int, 1> input_buffer(1);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto output_accessor =
+        output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+    auto input_accessor =
+        input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+    cgh.single_task<class DSPControlKernel>([=]() {
+      float sum = input_accessor[0];
+      sycl::ext::intel::math_dsp_control<
+          sycl::ext::intel::Preference::Softlogic>([&] { sum += 1.23f; });
+      sycl::ext::intel::math_dsp_control<sycl::ext::intel::Preference::DSP>(
+          [&] { sum += 1.23f; });
+      sycl::ext::intel::math_dsp_control<
+          sycl::ext::intel::Preference::Softlogic,
+          sycl::ext::intel::Propagate::Off>([&] { sum += 4.56f; });
+      sycl::ext::intel::math_dsp_control<sycl::ext::intel::Preference::DSP,
+                                         sycl::ext::intel::Propagate::Off>(
+          [&] { sum += 4.56f; });
+      output_accessor[0] = sum;
+    });
+  });
+
   return 0;
 }

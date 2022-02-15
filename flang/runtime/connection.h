@@ -22,20 +22,23 @@ class IoStatementState;
 enum class Direction { Output, Input };
 enum class Access { Sequential, Direct, Stream };
 
-inline bool IsRecordFile(Access a) { return a != Access::Stream; }
-
 // These characteristics of a connection are immutable after being
 // established in an OPEN statement.
 struct ConnectionAttributes {
   Access access{Access::Sequential}; // ACCESS='SEQUENTIAL', 'DIRECT', 'STREAM'
   std::optional<bool> isUnformatted; // FORM='UNFORMATTED' if true
   bool isUTF8{false}; // ENCODING='UTF-8'
-  bool isFixedRecordLength{false}; // RECL= on OPEN
-  std::optional<std::int64_t> recordLength; // RECL= or current record
+  std::optional<std::int64_t> openRecl; // RECL= on OPEN
+
+  bool IsRecordFile() const {
+    // Formatted stream files are viewed as having records, at least on input
+    return access != Access::Stream || !isUnformatted.value_or(true);
+  }
 };
 
 struct ConnectionState : public ConnectionAttributes {
   bool IsAtEOF() const; // true when read has hit EOF or endfile record
+  bool IsAfterEndfile() const; // true after ENDFILE until repositioned
   std::size_t RemainingSpaceInRecord() const;
   bool NeedAdvance(std::size_t) const;
   void HandleAbsolutePosition(std::int64_t);
@@ -46,6 +49,15 @@ struct ConnectionState : public ConnectionAttributes {
     furthestPositionInRecord = 0;
     leftTabLimit.reset();
   }
+
+  std::optional<std::int64_t> EffectiveRecordLength() const {
+    // When an input record is longer than an explicit RECL= from OPEN
+    // it is effectively truncated on input.
+    return openRecl && recordLength && *openRecl < *recordLength ? openRecl
+                                                                 : recordLength;
+  }
+
+  std::optional<std::int64_t> recordLength;
 
   // Positions in a record file (sequential or direct, not stream)
   std::int64_t currentRecordNumber{1}; // 1 is first

@@ -49,6 +49,7 @@ public:
   DILocalVariable *FuncVariable;
   DIBasicType *LongInt;
   DIExpression *EmptyExpr;
+  LiveDebugValues::OverlapMap Overlaps;
 
   DebugLoc OutermostLoc, InBlockLoc, NotNestedBlockLoc, InlinedLoc;
 
@@ -169,7 +170,7 @@ public:
 
   void addVTracker() {
     ASSERT_TRUE(LDV);
-    VTracker = std::make_unique<VLocTracker>();
+    VTracker = std::make_unique<VLocTracker>(Overlaps, EmptyExpr);
     LDV->VTracker = &*VTracker;
   }
 
@@ -194,11 +195,9 @@ public:
   }
 
   bool vlocJoin(MachineBasicBlock &MBB, InstrRefBasedLDV::LiveIdxT &VLOCOutLocs,
-                SmallPtrSet<const MachineBasicBlock *, 8> &InScopeBlocks,
                 SmallPtrSet<const MachineBasicBlock *, 8> &BlocksToExplore,
                 DbgValue &InLoc) {
-    return LDV->vlocJoin(MBB, VLOCOutLocs, InScopeBlocks, BlocksToExplore,
-                         InLoc);
+    return LDV->vlocJoin(MBB, VLOCOutLocs, BlocksToExplore, InLoc);
   }
 
   void buildVLocValueMap(const DILocation *DILoc,
@@ -643,7 +642,7 @@ TEST_F(InstrRefLDVTest, MTransferCopies) {
   // it's not completely clear why, but here we only care about correctly
   // identifying the slot, not that all the surrounding data is correct.
   SpillLoc L = {getRegByName("RSP"), StackOffset::getFixed(-8)};
-  SpillLocationNo SpillNo = MTracker->getOrTrackSpillLoc(L);
+  SpillLocationNo SpillNo = *MTracker->getOrTrackSpillLoc(L);
   unsigned SpillLocID = MTracker->getLocID(SpillNo, {64, 0});
   LocIdx SpillLoc = MTracker->getSpillMLoc(SpillLocID);
   ValueIDNum V = MTracker->readMLoc(SpillLoc);
@@ -767,7 +766,7 @@ TEST_F(InstrRefLDVTest, MTransferSubregSpills) {
     ValueIDNum DefNum(0, 1, RegLoc);
     // Read the corresponding subreg field from the stack.
     SpillLoc L = {getRegByName("RSP"), StackOffset::getFixed(-8)};
-    SpillLocationNo SpillNo = MTracker->getOrTrackSpillLoc(L);
+    SpillLocationNo SpillNo = *MTracker->getOrTrackSpillLoc(L);
     unsigned SpillID = MTracker->getLocID(SpillNo, SubRegIdxes[I]);
     LocIdx SpillLoc = MTracker->getSpillMLoc(SpillID);
     ValueIDNum SpillValue = MTracker->readMLoc(SpillLoc);
@@ -804,7 +803,7 @@ TEST_F(InstrRefLDVTest, MTransferSubregSpills) {
   // $rbx should contain something else; today it's a def at the spill point
   // of the 4 byte value.
   SpillLoc L = {getRegByName("RSP"), StackOffset::getFixed(-8)};
-  SpillLocationNo SpillNo = MTracker->getOrTrackSpillLoc(L);
+  SpillLocationNo SpillNo = *MTracker->getOrTrackSpillLoc(L);
   unsigned SpillID = MTracker->getLocID(SpillNo, {64, 0});
   LocIdx Spill64Loc = MTracker->getSpillMLoc(SpillID);
   ValueIDNum DefAtSpill64(0, 3, Spill64Loc);
@@ -818,7 +817,7 @@ TEST_F(InstrRefLDVTest, MTransferSubregSpills) {
     LocIdx RegLoc = MTracker->getRegMLoc(getRegByName(SubRegNames[I]));
     ValueIDNum DefNum(0, 1, RegLoc);
     // Read the corresponding subreg field from the stack.
-    SpillNo = MTracker->getOrTrackSpillLoc(L);
+    SpillNo = *MTracker->getOrTrackSpillLoc(L);
     SpillID = MTracker->getLocID(SpillNo, SubRegIdxes[I]);
     LocIdx SpillLoc = MTracker->getSpillMLoc(SpillID);
     ValueIDNum SpillValue = MTracker->readMLoc(SpillLoc);
@@ -847,7 +846,7 @@ TEST_F(InstrRefLDVTest, MTransferSubregSpills) {
 
   for (unsigned int I = 0; I < 5; ++I) {
     // Read subreg fields from the stack.
-    SpillLocationNo SpillNo = MTracker->getOrTrackSpillLoc(L);
+    SpillLocationNo SpillNo = *MTracker->getOrTrackSpillLoc(L);
     unsigned SpillID = MTracker->getLocID(SpillNo, SubRegIdxes[I]);
     LocIdx SpillLoc = MTracker->getSpillMLoc(SpillID);
     ValueIDNum SpillValue = MTracker->readMLoc(SpillLoc);
@@ -860,7 +859,7 @@ TEST_F(InstrRefLDVTest, MTransferSubregSpills) {
 
   // Read xmm0's position and ensure it has a value. Should be the live-in
   // value to the block, as IMPLICIT_DEF isn't a real def.
-  SpillNo = MTracker->getOrTrackSpillLoc(L);
+  SpillNo = *MTracker->getOrTrackSpillLoc(L);
   SpillID = MTracker->getLocID(SpillNo, {128, 0});
   LocIdx Spill128Loc = MTracker->getSpillMLoc(SpillID);
   SpillValue = MTracker->readMLoc(Spill128Loc);
@@ -1098,7 +1097,7 @@ TEST_F(InstrRefLDVTest, MLocDiamondSpills) {
 
   // Create a stack location and ensure it's tracked.
   SpillLoc SL = {getRegByName("RSP"), StackOffset::getFixed(-8)};
-  SpillLocationNo SpillNo = MTracker->getOrTrackSpillLoc(SL);
+  SpillLocationNo SpillNo = *MTracker->getOrTrackSpillLoc(SL);
   ASSERT_EQ(MTracker->getNumLocs(), 10u); // Tracks all possible stack locs.
   // Locations are: RSP, stack slots from 2^3 bits wide up to 2^9 for zmm regs,
   // then slots for sub_8bit_hi and sub_16bit_hi ({8, 8} and {16, 16}).
@@ -2183,14 +2182,14 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   DbgValue JoinedLoc = DbgValue(3, EmptyProps, DbgValue::NoVal);
   VLiveOuts[1] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
-  bool Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  bool Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result); // Output locs should have changed.
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::Def);
   EXPECT_EQ(JoinedLoc.ID, LiveInRsp);
 
   // And if we did it a second time, leaving the live-ins as it was, then
   // we should report no change.
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
 
   // If the live-in variable values are different, but there's no PHI placed
@@ -2199,7 +2198,7 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   VLiveOuts[1] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(LiveInRax, EmptyProps, DbgValue::Def);
   JoinedLoc = DbgValue(3, EmptyProps, DbgValue::NoVal);
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::Def);
   // RPO is blocks 0 2 1 3, so LiveInRax is picked as the first predecessor
@@ -2215,7 +2214,7 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   // Try placing a PHI. With differing input values (LiveInRsp, LiveInRax),
   // this PHI should not be eliminated.
   JoinedLoc = DbgValue(3, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   // Expect no change.
   EXPECT_FALSE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
@@ -2229,7 +2228,7 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   VLiveOuts[1] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   JoinedLoc = DbgValue(3, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::Def);
   EXPECT_EQ(JoinedLoc.ID, LiveInRsp);
@@ -2241,7 +2240,7 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   VLiveOuts[1] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(LiveInRax, EmptyProps, DbgValue::Def);
   JoinedLoc = DbgValue(2, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::Def);
   EXPECT_EQ(JoinedLoc.ID, LiveInRax); // from block 2
@@ -2251,7 +2250,7 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   VLiveOuts[1] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(0, EmptyProps, DbgValue::VPHI);
   JoinedLoc = DbgValue(2, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
   EXPECT_EQ(JoinedLoc.BlockNo, 0);
@@ -2261,7 +2260,7 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   VLiveOuts[1] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(LiveInRsp, PropsWithIndirect, DbgValue::Def);
   JoinedLoc = DbgValue(3, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
   EXPECT_EQ(JoinedLoc.BlockNo, 3);
@@ -2272,7 +2271,7 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   VLiveOuts[1] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(LiveInRsp, PropsWithIndirect, DbgValue::Def);
   JoinedLoc = DbgValue(2, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::Def);
   EXPECT_EQ(JoinedLoc.ID, LiveInRsp);
@@ -2288,7 +2287,7 @@ TEST_F(InstrRefLDVTest, vlocJoinDiamond) {
   VLiveOuts[1] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(LiveInRsp, PropsWithExpr, DbgValue::Def);
   JoinedLoc = DbgValue(3, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB3, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
 }
 
@@ -2342,7 +2341,7 @@ TEST_F(InstrRefLDVTest, vlocJoinLoops) {
   VLiveOuts[0] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[1] = DbgValue(LiveInRax, EmptyProps, DbgValue::Def);
   DbgValue JoinedLoc = DbgValue(LiveInRax, EmptyProps, DbgValue::Def);
-  bool Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  bool Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::Def);
   EXPECT_EQ(JoinedLoc.ID, LiveInRsp);
@@ -2351,7 +2350,7 @@ TEST_F(InstrRefLDVTest, vlocJoinLoops) {
   VLiveOuts[0] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[1] = DbgValue(LiveInRax, EmptyProps, DbgValue::Def);
   JoinedLoc = DbgValue(1, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
   EXPECT_EQ(JoinedLoc.BlockNo, 1);
@@ -2360,7 +2359,7 @@ TEST_F(InstrRefLDVTest, vlocJoinLoops) {
   VLiveOuts[0] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[1] = DbgValue(1, EmptyProps, DbgValue::VPHI);
   JoinedLoc = DbgValue(1, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::Def);
   EXPECT_EQ(JoinedLoc.ID, LiveInRsp);
@@ -2373,7 +2372,7 @@ TEST_F(InstrRefLDVTest, vlocJoinLoops) {
   VLiveOuts[0] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[1] = DbgValue(1, PropsWithExpr, DbgValue::VPHI);
   JoinedLoc = DbgValue(1, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
   EXPECT_EQ(JoinedLoc.BlockNo, 1);
@@ -2382,7 +2381,7 @@ TEST_F(InstrRefLDVTest, vlocJoinLoops) {
   VLiveOuts[0] = DbgValue(LiveInRsp, EmptyProps, DbgValue::Def);
   VLiveOuts[1] = DbgValue(0, EmptyProps, DbgValue::VPHI);
   JoinedLoc = DbgValue(1, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
   EXPECT_EQ(JoinedLoc.BlockNo, 1);
@@ -2446,7 +2445,7 @@ TEST_F(InstrRefLDVTest, vlocJoinBadlyNestedLoops) {
   VLiveOuts[1] = DbgValue(LiveInRax, EmptyProps, DbgValue::Def);
   VLiveOuts[2] = DbgValue(LiveInRbx, EmptyProps, DbgValue::Def);
   DbgValue JoinedLoc = DbgValue(1, EmptyProps, DbgValue::VPHI);
-  bool Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  bool Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
   EXPECT_EQ(JoinedLoc.BlockNo, 1);
@@ -2456,7 +2455,7 @@ TEST_F(InstrRefLDVTest, vlocJoinBadlyNestedLoops) {
   VLiveOuts[1] = DbgValue(1, EmptyProps, DbgValue::VPHI);
   VLiveOuts[2] = DbgValue(1, EmptyProps, DbgValue::VPHI);
   JoinedLoc = DbgValue(1, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_TRUE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::Def);
   EXPECT_EQ(JoinedLoc.ID, LiveInRsp);
@@ -2467,7 +2466,7 @@ TEST_F(InstrRefLDVTest, vlocJoinBadlyNestedLoops) {
   VLiveOuts[1] = DbgValue(1, EmptyProps, DbgValue::VPHI);
   VLiveOuts[2] = DbgValue(1, PropsWithIndirect, DbgValue::VPHI);
   JoinedLoc = DbgValue(1, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
   EXPECT_EQ(JoinedLoc.BlockNo, 1);
@@ -2477,7 +2476,7 @@ TEST_F(InstrRefLDVTest, vlocJoinBadlyNestedLoops) {
   VLiveOuts[1] = DbgValue(1, EmptyProps, DbgValue::VPHI);
   VLiveOuts[2] = DbgValue(2, EmptyProps, DbgValue::VPHI);
   JoinedLoc = DbgValue(1, EmptyProps, DbgValue::VPHI);
-  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, AllBlocks, JoinedLoc);
+  Result = vlocJoin(*MBB1, VLiveOutIdx, AllBlocks, JoinedLoc);
   EXPECT_FALSE(Result);
   EXPECT_EQ(JoinedLoc.Kind, DbgValue::VPHI);
   EXPECT_EQ(JoinedLoc.BlockNo, 1);
@@ -2515,7 +2514,7 @@ TEST_F(InstrRefLDVTest, VLocSingleBlock) {
   AssignBlocks.insert(MBB0);
 
   SmallVector<VLocTracker, 1> VLocs;
-  VLocs.resize(1);
+  VLocs.resize(1, VLocTracker(Overlaps, EmptyExpr));
 
   InstrRefBasedLDV::LiveInsT Output;
 
@@ -2579,7 +2578,7 @@ TEST_F(InstrRefLDVTest, VLocDiamondBlocks) {
   AssignBlocks.insert(MBB3);
 
   SmallVector<VLocTracker, 1> VLocs;
-  VLocs.resize(4);
+  VLocs.resize(4, VLocTracker(Overlaps, EmptyExpr));
 
   InstrRefBasedLDV::LiveInsT Output;
 
@@ -2792,7 +2791,7 @@ TEST_F(InstrRefLDVTest, VLocSimpleLoop) {
   AssignBlocks.insert(MBB2);
 
   SmallVector<VLocTracker, 3> VLocs;
-  VLocs.resize(3);
+  VLocs.resize(3, VLocTracker(Overlaps, EmptyExpr));
 
   InstrRefBasedLDV::LiveInsT Output;
 
@@ -3048,7 +3047,7 @@ TEST_F(InstrRefLDVTest, VLocNestedLoop) {
   AssignBlocks.insert(MBB4);
 
   SmallVector<VLocTracker, 5> VLocs;
-  VLocs.resize(5);
+  VLocs.resize(5, VLocTracker(Overlaps, EmptyExpr));
 
   InstrRefBasedLDV::LiveInsT Output;
 

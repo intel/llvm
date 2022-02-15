@@ -298,16 +298,6 @@ func @generic(%arg0: memref<?x?xi4>) {
 //
 // // -----
 
-// expected-error @+1 {{unknown Linalg type}}
-!invalid_type = type !linalg.unknown
-
-// -----
-
-// expected-error @+1 {{expected valid keyword}}
-!invalid_type = type !linalg<"?">
-
-// -----
-
 func @named_ops(%a3: memref<?x?x?xf32>, %b3: memref<?x?xf32>, %c3: memref<?x?x?xf32>) {
   // expected-error @+1 {{expected operand rank (2) to match the result rank of indexing_map #1 (3)}}
   linalg.batch_matmul ins(%a3, %b3: memref<?x?x?xf32>, memref<?x?xf32>)
@@ -359,144 +349,6 @@ func @init_tensor_err(%arg0 : index)
   // expected-error @+1 {{expected 2 dynamic sizes values}}
   %1 = "linalg.init_tensor"(%arg0) {static_sizes = [4, -1, -1, 5]} : (index) -> tensor<4x?x?x5xf32>
   return
-}
-
-// -----
-
-func @illegal_expanding_reshape_dynamic_tensor
-  (%arg0: tensor<?x?x?xf32>) -> tensor<?x?x?x4x?xf32>
-{
-  // expected-error @+1 {{invalid to have a single dimension (2) expanded into multiple dynamic dims (2,4)}}
-  %0 = linalg.tensor_expand_shape %arg0 [[0], [1], [2, 3, 4]]
-      : tensor<?x?x?xf32> into tensor<?x?x?x4x?xf32>
-  return %0 : tensor<?x?x?x4x?xf32>
-}
-
-// -----
-
-
-func @illegal_expanding_reshape_static_tensor
-  (%arg0: tensor<2x3x20xf32>) -> tensor<2x3x2x4x5xf32>
-{
-  // expected-error @+1 {{expected dimension 2 of collapsed type to be static value of 40}}
-  %0 = linalg.tensor_expand_shape %arg0 [[0], [1], [2, 3, 4]]
-      : tensor<2x3x20xf32> into tensor<2x3x2x4x5xf32>
-  return %0 : tensor<2x3x2x4x5xf32>
-}
-
-// -----
-
-func @illegal_collapsing_reshape_static_tensor
-  (%arg0: tensor<2x3x2x4x5xf32>) -> tensor<2x3x20xf32>
-{
-  // expected-error @+1 {{expected dimension 2 of collapsed type to be static value of 40}}
-  %0 = linalg.tensor_collapse_shape %arg0 [[0], [1], [2, 3, 4]]
-      : tensor<2x3x2x4x5xf32> into tensor<2x3x20xf32>
-  return %0 : tensor<2x3x20xf32>
-}
-
-// -----
-
-func @illegal_expanding_reshape_mixed_tensor(%arg0 : tensor<?x?xf32>) -> tensor<?x4x5xf32>
-{
-  // expected-error @+1 {{expected dimension 1 of collapsed type to be static value of 5}}
-  %0 = linalg.tensor_expand_shape %arg0 [[0, 1], [2]]
-      : tensor<?x?xf32> into tensor<?x4x5xf32>
-  return %0 : tensor<?x4x5xf32>
-}
-
-// -----
-
-func @illegal_expanding_reshape_mixed_tensor_2(%arg0 : tensor<?x?xf32>) -> tensor<?x4x5xf32>
-{
-  // expected-error @+1 {{expected dimension 1 of collapsed type to be static value of 20}}
-  %0 = linalg.tensor_expand_shape %arg0 [[0], [1, 2]]
-      : tensor<?x?xf32> into tensor<?x4x5xf32>
-  return %0 : tensor<?x4x5xf32>
-}
-
-// -----
-
-func @illegal_collapsing_reshape_mixed_tensor(%arg0 : tensor<?x4x5xf32>) -> tensor<?x?xf32>
-{
-  // expected-error @+1 {{expected dimension 1 of collapsed type to be static value of 5}}
-  %0 = linalg.tensor_collapse_shape %arg0 [[0, 1], [2]]
-      : tensor<?x4x5xf32> into tensor<?x?xf32>
-  return %0 : tensor<?x?xf32>
-}
-
-// -----
-
-func @illegal_collapsing_reshape_mixed_tensor_2(%arg0 : tensor<?x4x5xf32>) -> tensor<?x?xf32>
-{
-  // expected-error @+1 {{expected dimension 1 of collapsed type to be static value of 20}}
-  %0 = linalg.tensor_collapse_shape %arg0 [[0], [1, 2]]
-      : tensor<?x4x5xf32> into tensor<?x?xf32>
-  return %0 : tensor<?x?xf32>
-}
-
-// -----
-
-func @pad_result_type(%arg0: tensor<?x2x3x4xi32>, %arg1: index, %arg2: i32) -> tensor<?x?x?x8xf32> {
-  // expected-error @+1 {{specified type 'tensor<?x?x?x8xf32>' does not match the inferred type 'tensor<?x?x?x9xi32>}}
-  %0 = linalg.pad_tensor %arg0 low[1, %arg1, 2, 2] high[1, 2, %arg1, 3] {
-  ^bb0(%arg3: index, %arg4: index):  // no predecessors
-    linalg.yield %arg2 : i32
-  } : tensor<?x2x3x4xi32> to tensor<?x?x?x8xf32>
-  return %0 : tensor<?x?x?x8xf32>
-}
-
-// -----
-
-func @pad_number_of_block_args(%arg0: tensor<?x4xi32>, %arg1: i32) -> tensor<?x9xi32> {
-  // expected-error @+1 {{expected the block to have 2 arguments}}
-  %0 = linalg.pad_tensor %arg0 low[1, 2] high[2, 3] {
-  ^bb0(%arg2: index, %arg3: index, %arg4: index):  // no predecessors
-    linalg.yield %arg1 : i32
-  } : tensor<?x4xi32> to tensor<?x9xi32>
-  return %0 : tensor<?x9xi32>
-}
-
-// -----
-
-func @pad_no_block(%arg0: tensor<?x4xi32>, %arg1: i32) -> tensor<?x9xi32> {
-  // expected-error @+1 {{op region #0 ('region') failed to verify constraint: region with 1 blocks}}
-  %0 = linalg.pad_tensor %arg0 low[1, 2] high[2, 3] {
-  } : tensor<?x4xi32> to tensor<?x9xi32>
-  return %0 : tensor<?x9xi32>
-}
-
-// -----
-
-func @pad_block_args(%arg0: tensor<?x4xi32>, %arg1: i32) -> tensor<?x9xi32> {
-  // expected-error @+1 {{op expected block argument 1 to be an index}}
-  %0 = linalg.pad_tensor %arg0 low[1, 2] high[2, 3] {
-  ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
-    linalg.yield %arg1 : i32
-  } : tensor<?x4xi32> to tensor<?x9xi32>
-  return %0 : tensor<?x9xi32>
-}
-
-// -----
-
-func @pad_num_yields(%arg0: tensor<?x4xi32>, %arg1: i32) -> tensor<?x9xi32> {
-  // expected-error @+3 {{op expected single yield operand (got 2)}}
-  %0 = linalg.pad_tensor %arg0 low[1, 2] high[2, 3] {
-  ^bb0(%arg2: index, %arg3: index):  // no predecessors
-    linalg.yield %arg1, %arg1 : i32, i32
-  } : tensor<?x4xi32> to tensor<?x9xi32>
-  return %0 : tensor<?x9xi32>
-}
-
-// -----
-
-func @pad_yield_type(%arg0: tensor<?x4xi32>, %arg1: i8) -> tensor<?x9xi32> {
-  // expected-error @+3 {{op expected yield type to match shape element type}}
-  %0 = linalg.pad_tensor %arg0 low[1, 2] high[2, 3] {
-  ^bb0(%arg2: index, %arg3: index):  // no predecessors
-    linalg.yield %arg1 : i8
-  } : tensor<?x4xi32> to tensor<?x9xi32>
-  return %0 : tensor<?x9xi32>
 }
 
 // -----
@@ -625,7 +477,7 @@ func @tiled_loop_incorrent_iterator_types_count(%A: memref<192x192xf32>,
   %c0 = arith.constant 0 : index
   %c192 = arith.constant 192 : index
   // expected-error @+1 {{expected iterator types array attribute size = 1 to match the number of loops = 2}}
-  %0 = "linalg.tiled_loop"(%c0, %c0, %c192, %c192, %c24, %c24, %A, %B, %C_tensor, %C) ( {
+  %0 = "linalg.tiled_loop"(%c0, %c0, %c192, %c192, %c24, %c24, %A, %B, %C_tensor, %C) ({
     ^bb0(%arg4: index, %arg5: index, %A_: memref<192x192xf32>,
          %B_: memref<192x192xf32>, %CT_: tensor<192x192xf32>,
          %C_: memref<192x192xf32>):
@@ -650,7 +502,7 @@ func @tiled_loop_incorrent_block_arg_type(%A: memref<192xf32>) {
   %c192 = arith.constant 192 : index
   %c24 = arith.constant 24 : index
   // expected-error @+1 {{expected output arg 0 with type = 'memref<192xf32>' to match region arg 1 type = 'memref<100xf32>'}}
-  "linalg.tiled_loop"(%c0, %c192, %c24, %A) ( {
+  "linalg.tiled_loop"(%c0, %c192, %c24, %A) ({
     ^bb0(%arg4: index, %A_: memref<100xf32>):
       call @foo(%A_) : (memref<100xf32>)-> ()
       linalg.yield

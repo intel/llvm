@@ -82,7 +82,7 @@ std::string getClangFullRepositoryVersion() {
       OS << LLVMRepo << ' ';
     OS << LLVMRev << ')';
   }
-  return OS.str();
+  return buf;
 }
 
 std::string getClangFullVersion() {
@@ -102,7 +102,7 @@ std::string getClangToolFullVersion(StringRef ToolName) {
     OS << " " << repo;
   }
 
-  return OS.str();
+  return buf;
 }
 
 std::string getClangFullCPPVersion() {
@@ -120,7 +120,16 @@ std::string getClangFullCPPVersion() {
     OS << " " << repo;
   }
 
-  return OS.str();
+  return buf;
 }
 
+llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
+getSYCLVersionMacros(const LangOptions &LangOpts) {
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017)
+    return {{"CL_SYCL_LANGUAGE_VERSION", "121"},
+            {"SYCL_LANGUAGE_VERSION", "201707"}};
+  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
+    return {{"SYCL_LANGUAGE_VERSION", "202001"}};
+  llvm_unreachable("SYCL standard should be set");
+}
 } // end namespace clang
