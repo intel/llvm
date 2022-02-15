@@ -26,13 +26,13 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.
-GitHub does not render image icons.
+== Dependencies
 
-This extension is written against the SYCL 2020 revision 4 specification
-and SYCL Extensions: Sorting and Properties. All
-references below to the "core SYCL specification" or to section numbers in the
-SYCL specification refer to that revision.
+This extension is written against the SYCL 2020 specification, Revision 4 and
+the following extensions:
+
+- link:SYCL_EXT_ONEAPI_PROPERTIES.asciidoc[SYCL_EXT_ONEAPI_PROPERTIES]
+- link:../experimental/SYCL_EXT_ONEAPI_GROUP_SORT.asciidoc[SYCL_EXT_ONEAPI_GROUP_SORT]
 
 NOTE: This extension is experimental: interfaces are subject to change later.
 
@@ -64,10 +64,6 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_STATIC_ARRAY_INPUT` macro.
 
 Using static arrays for reduction might be more performant
 than calling reduce functions many times to avoid extra barriers.
-The result of a call to these functions is non-deterministic if the binary operator
-is not commutative and associative. Only the binary operators defined in
-core SYCL specification 4.17.2 are supported by the `reduce` functions,
-but the standard {cpp} syntax is used for forward compatibility with future SYCL versions.
 
 [source,c++]
 ----
@@ -86,7 +82,7 @@ _Preconditions_: `binary_op` must be an instance of a SYCL function object.
 
 1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
 `T` is a fundamental type, `BinaryOperation` is a SYCL function object type and
-`ItemsPerWorkItem` does not equal to `sycl::dynamic_extent`.
+`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 
 _Mandates_: `binary_op(x[i], x[j])`, where `i, j < ItemsPerWorkItem`,
 must return a value of type `T`.
@@ -97,7 +93,7 @@ sum defined in the {cpp} Standard.
 
 2._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true, `V` and `T`
 are fundamental types, `BinaryOperation` is a SYCL function object type and `ItemsPerWorkItem`
-does not equal to `sycl::dynamic_extent`.
+is not equal to `sycl::dynamic_extent`.
 
 _Mandates_: `binary_op(init, x[i])`, where `i < ItemsPerWorkItem`, must return a value of type `T`.
 
@@ -107,20 +103,15 @@ according to the generalized sum defined in the {cpp} Standard.
 
 === Exclusive Scan and Inclusive Scan
 
-The result of a call to a scan is non-deterministic if the binary operator is not associative.
-Only the binary operators defined in core SYCL specification 4.17.2 are supported by the scan
-functions, but the standard {cpp} syntax is used for forward compatibility with future SYCL
-versions.
-
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation, typename... Properties>
-  void exclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, sycl::ext::oneapi::experimental::properties<Properties...> properties = {}); // (1)
+  template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation, typename Properties = sycl::ext::oneapi::experimental::properties<>>
+  void exclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, Properties properties = {}); // (1)
 
-  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename BinaryOperation, typename... Properties>
-  void exclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, T init, BinaryOperation binary_op, sycl::ext::oneapi::experimental::properties<Properties...> properties = {}); // (2)
+  template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename Properties = sycl::ext::oneapi::experimental::properties<>>
+  void exclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, T init, BinaryOperation binary_op, Properties properties = {}); // (2)
 
 }
 ----
@@ -129,7 +120,8 @@ _Preconditions_: `binary_op` must be an instance of a SYCL function object.
 
 1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
 `T` is a fundamental type, `BinaryOperation` is a SYCL function object type,
-`ItemsPerWorkItem` does not equal to `sycl::dynamic_extent`.
+`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent` and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
 _Mandates_: `binary_op(in_data[i], in_data[j])`, where `i, j < ItemsPerWorkItem`,
 must return a value of type `T`.
@@ -138,13 +130,14 @@ _Effects_: Perform the exclusive scan of all values of `in_data` for all work-it
 and the identity value of `binary_op`, using the operator `binary_op`. The scan is computed
 using a generalized noncommutative sum as defined in standard {cpp}. For multi-dimensional groups,
 the order of work-items in the group is determined by their linear id.
-Result is placed into `out_data` with the layout specified by `properties`.
+Result is written to `out_data` with the layout specified by `properties`.
 Default layout is one that is specified by the `close` property.
 `in_data` mustn't be changed by the algorithm.
 
 2._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
-`V` and `T` are fundamental types, `BinaryOperation` is a SYCL function object type and
-`ItemsPerWorkItem` does not equal to `sycl::dynamic_extent`.
+`V` and `T` are fundamental types, `BinaryOperation` is a SYCL function object type,
+`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent` and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
 _Mandates_: `binary_op(init, in_data[i])`, where `i < ItemsPerWorkItem`,
 must return a value of type `T`.
@@ -153,7 +146,7 @@ _Effects_: Perform the exclusive scan of all values of `in_data` for all work-it
 and an initial value specified by `init`, using the operator `binary_op`.
 The scan is computed using a generalized noncommutative sum as defined in standard {cpp}.
 For multi-dimensional groups, the order of work-items in the group is determined by their linear id.
-Result is placed into `out_data` with the layout specified by `properties`.
+Result is written to `out_data` with the layout specified by `properties`.
 Default layout is one that is specified by the `close` property.
 `in_data` mustn't be changed by the algorithm.
 
@@ -162,10 +155,10 @@ Default layout is one that is specified by the `close` property.
 namespace sycl::ext::oneapi::experimental {
 
   template <typename Group, typename T, std::size_t ItemsPerWorkItem, typename BinaryOperation, typename... Properties>
-  void inclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, sycl::ext::oneapi::experimental::properties properties = {}); // (1)
+  void inclusive_scan_over_group(Group g, sycl::span<T, ItemsPerWorkItem> in_data, sycl::span<T, ItemsPerWorkItem> out_data, BinaryOperation binary_op, Properties properties = {}); // (1)
 
   template <typename Group, typename V, std::size_t ItemsPerWorkItem, typename T, typename BinaryOperation, typename... Properties>
-  void inclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, BinaryOperation binary_op, T init, sycl::ext::oneapi::experimental::properties properties = {}); // (2)
+  void inclusive_scan_over_group(Group g, sycl::span<V, ItemsPerWorkItem> in_data, sycl::span<V, ItemsPerWorkItem> out_data, BinaryOperation binary_op, T init, Properties properties = {}); // (2)
 
 }
 ----
@@ -174,7 +167,8 @@ _Preconditions_: `binary_op` must be an instance of a SYCL function object.
 
 1._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
 `T` is a fundamental type, `BinaryOperation` is a SYCL function object type,
-`ItemsPerWorkItem` does not equal to `sycl::dynamic_extent`.
+`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent` and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
 _Mandates_: `binary_op(in_data[i], in_data[j])`, where `i, j < ItemsPerWorkItem`,
 must return a value of type `T`.
@@ -183,13 +177,14 @@ _Effects_: Perform the inclusive scan of all values of `in_data` for all work-it
 and the identity value of `binary_op`, using the operator `binary_op`. The scan is computed
 using a generalized noncommutative sum as defined in standard C++. For multi-dimensional groups,
 the order of work-items in the group is determined by their linear id.
-Result is placed into `out_data` with the layout specified by `properties`.
+Result is written to `out_data` with the layout specified by `properties`.
 Default layout is one that is specified by the `close` property.
 `in_data` mustn't be changed by the algorithm.
 
 2._Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is true,
-`V` and `T` are fundamental types, `BinaryOperation` is a SYCL function object type and
-`ItemsPerWorkItem` does not equal to `sycl::dynamic_extent`.
+`V` and `T` are fundamental types, `BinaryOperation` is a SYCL function object type,
+`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent` and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
 _Mandates_: `binary_op(init, in_data[i])`, where `i < ItemsPerWorkItem`,
 must return a value of type `T`.
@@ -198,7 +193,7 @@ _Effects_: Perform the inclusive scan of all values of `in_data` for all work-it
 and an initial value specified by `init`, using the operator `binary_op`. The scan is computed
 using a generalized noncommutative sum as defined in standard C++. For multi-dimensional groups,
 the order of work-items in the group is determined by their linear id.
-Result is placed into `out_data` with the layout specified by `properties`.
+Result is written to `out_data` with the layout specified by `properties`.
 Default layout is one that is specified by the `close` property.
 `in_data` mustn't be changed by the algorithm.
 
@@ -215,28 +210,33 @@ but keys and values are reordered both.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-  template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem, typename... Properties>
-  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {}); // (1)
+  template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem, typename Properties = sycl::ext::oneapi::experimental::properties<>>
+  void
+  sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, Properties properties = {}); // (1)
 
-  template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem, typename... Properties>
-  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {}); // (2)
+  template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem, typename Properties = sycl::ext::oneapi::experimental::properties<>>
+  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Properties properties = {}); // (2)
 
-  template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem, typename Compare, typename... Properties>
-  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, Compare comp, sycl::ext::oneapi::experimental::properties properties = {}); // (3)
+  template <typename GroupHelper, typename T, std::size_t ItemsPerWorkItem, typename Compare, typename Properties = sycl::ext::oneapi::experimental::properties<>>
+  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> values, Compare comp, Properties properties = {}); // (3)
 
-  template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem, typename Compare, typename... Properties>
-  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Compare comp, sycl::ext::oneapi::experimental::properties properties = {}); // (4)
+  template <typename GroupHelper, typename T, typename U, std::size_t ItemsPerWorkItem, typename Properties = sycl::ext::oneapi::experimental::properties<>>
+  void sort_over_group(GroupHelper gh, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Compare comp, Properties properties = {}); // (4)
 
-  template<typename Group, typename T, std::size_t ItemsPerWorkItem, typename Sorter, typename... Properties>
-  void sort_over_group(Group g, sycl::span<T, ItemsPerWorkItem> values, Sorter sorter, sycl::ext::oneapi::experimental::properties properties = {}); // (5)
+  template<typename Group, typename T, std::size_t ItemsPerWorkItem, typename Sorter, typename Properties = sycl::ext::oneapi::experimental::properties<>>
+  void sort_over_group(Group g, sycl::span<T, ItemsPerWorkItem> values, Sorter sorter, Properties properties = {}); // (5)
 
-  template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem, typename Sorter, typename... Properties>
-  void sort_over_group(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Sorter sorter, sycl::ext::oneapi::experimental::properties properties = {}); // (6)
+  template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem, typename Sorter, typename Properties = sycl::ext::oneapi::experimental::properties<>>
+  void sort_over_group(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, Sorter sorter, Properties properties = {}); // (6)
 
 }
 ----
 
-1._Effects_: Sort elements in the range containing of elements inside `values` from all work-items
+1._Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
+
+_Effects_: Sort elements in the range containing of elements inside `values` from all work-items
 from the group using the `gh` group helper object.
 Result of sorting is placed into `values` with the layout specified by `properties`.
 Default layout is one that is specified by the `close` property.
@@ -244,10 +244,11 @@ Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
 
-_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
-some associated scratch space.
+2._Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
-2._Effects_: Perform key-value sorting for elements in ranges containing of elements
+_Effects_: Perform key-value sorting for elements in ranges containing of elements
 inside `keys` and `values` from all work-items from the group using the `gh` group helper object.
 Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
 Default layout is one that is specified by the `close` property.
@@ -255,10 +256,11 @@ Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the group size. `O(N*log(N)*log(N))` comparisons.
 
-_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
-some associated scratch space.
+3._Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
-3._Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
+_Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
 
 _Effects_: Sort elements in the range containing of elements inside `values` from all work-items
 from the group with respect to the binary comparison function object `comp` using the `gh` group
@@ -268,10 +270,11 @@ Default layout is one that is specified by the `close` property.
 
 _Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
 
-_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
-some associated scratch space.
+4._Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
+some associated scratch space and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
-4._Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
+_Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
 
 _Effects_: Perform key-value sorting for elements in ranges containing of elements
 inside `keys` and `values` from all work-items from the group with respect to the binary comparison
@@ -282,23 +285,23 @@ Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
 
-_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
-some associated scratch space.
+5._Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
+it provides `operator()(Group, sycl::span)` overload and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
-5._Effects_: Equivalent to: `return sorter(g, values, properties)`.
+_Effects_: Equivalent to: `return sorter(g, values, properties)`.
 
-_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
-it provides `operator()(Group, sycl::span)` overload.
+6._Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
+it provides `operator()(Group, sycl::span, sycl::span)` overload and
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
 
-6._Effects_: Equivalent to: `return sorter(g, keys, values, properties)`.
-
-_Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
-it provides `operator()(Group, sycl::span, sycl::span)` overload.
+_Effects_: Equivalent to: `return sorter(g, keys, values, properties)`.
 
 === Sorters
 
 Following operators are added to interfaces of Sorter.
-Sorters are described into the SYCL Sorting Extension.
+Sorters are described into
+link:../experimental/SYCL_EXT_ONEAPI_GROUP_SORT.asciidoc[the SYCL Sorting Extension].
 
 [source,c++]
 ----
@@ -321,7 +324,7 @@ the `sycl::span` value as an input parameter.
 Result of sorting is placed into `values` with the layout specified by `properties`.
 Default layout is one that is specified by the `close` property.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
-`ItemsPerWorkItem` does not equal to `sycl::dynamic_extent`.
+`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 
 |`template<typename Group, typename T, typename U, std::size_t ItemsPerWorkItem, typename... Properties>
 void operator()(Group g, sycl::span<T, ItemsPerWorkItem> keys, sycl::span<U, ItemsPerWorkItem> values, sycl::ext::oneapi::experimental::properties properties = {});`
@@ -330,13 +333,14 @@ accepts two `sycl::span` values as input parameters.
 Result of sorting is placed into `keys` and `values` with the layout specified by `properties`.
 Default layout is one that is specified by the `close` property.
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true and
-`ItemsPerWorkItem` does not equal to `sycl::dynamic_extent`.
+`ItemsPerWorkItem` is not equal to `sycl::dynamic_extent`.
 |===
 
 === Predefined Sorters
 
 Following changes are required for interfaces of Predefined Sorters.
-Predefined Sorters are described into the SYCL Sorting Extension.
+Predefined Sorters are described into
+link:../experimental/SYCL_EXT_ONEAPI_GROUP_SORT.asciidoc[the SYCL Sorting Extension].
 
 Two `operator()` methods are added.
 
@@ -459,7 +463,7 @@ b) `i * N + id` element of `r` fill the `i`-th element of the private memory
 under the span for `id`-th work-item.
 
 To specify a correct layout for placing of resulting data there are 2 properties
-that satisfy SYCL Properties Extension requirements:
+that satisfy link:SYCL_EXT_ONEAPI_PROPERTIES.asciidoc[SYCL Properties Extension] requirements:
 
 1.`sycl::ext::oneapi::experimental::property::close` to specify layout described in a).
 
