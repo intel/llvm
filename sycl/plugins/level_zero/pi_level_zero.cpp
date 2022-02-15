@@ -1335,7 +1335,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     CommandBatch.OpenCommandList = CommandListMap.end();
   }
 
-  if (this->EventlessMode) {
+  if (this->EventlessMode && !this->SkipLastEventInEventlessMode) {
     pi_result Res =
         createEventAndAssociateQueue(this, &LastEventInPrevCmdList,
                                      PI_COMMAND_TYPE_USER, CommandList, false);
@@ -3242,6 +3242,7 @@ pi_result piQueueRelease(pi_queue Queue) {
 
     Queue->RefCountExternal--;
     if (Queue->RefCountExternal == 0) {
+      Queue->SkipLastEventInEventlessMode = true;
       // When external reference count goes to zero it is still possible
       // that internal references still exists, e.g. command-lists that
       // are not yet completed. So do full queue synchronization here
@@ -3342,9 +3343,11 @@ static pi_result QueueFinish(pi_queue Queue, pi_queue LockedQueue) {
                      ? std::unique_lock<std::mutex>()
                      : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
 
+    Queue->SkipLastEventInEventlessMode = true;
     // execute any command list that may still be open.
     if (auto Res = Queue->executeAllOpenCommandLists())
       return Res;
+    Queue->SkipLastEventInEventlessMode = false;
 
     ZeQueues = Queue->ZeCopyCommandQueues;
     ZeQueues.push_back(Queue->ZeComputeCommandQueue);
@@ -4923,7 +4926,10 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> QueueLock(Queue->PiQueueMutex);
 
-  Queue->EventlessMode |= !Event;
+  if (!Event && !Queue->EventlessMode) {
+    Queue->EventlessMode = true;
+    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  }
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
@@ -5697,7 +5703,10 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    Queue->EventlessMode |= !Event;
+    if (!Event && !Queue->EventlessMode) {
+      Queue->EventlessMode = true;
+      Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+    }
 
     _pi_ze_event_list_t TmpWaitList = {};
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -5795,7 +5804,10 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  Queue->EventlessMode |= !Event;
+  if (!Event && !Queue->EventlessMode) {
+    Queue->EventlessMode = true;
+    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  }
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
@@ -5889,7 +5901,10 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  Queue->EventlessMode |= !Event;
+  if (!Event && !Queue->EventlessMode) {
+    Queue->EventlessMode = true;
+    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  }
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
@@ -6141,7 +6156,10 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  Queue->EventlessMode |= !Event;
+  if (!Event && !Queue->EventlessMode) {
+    Queue->EventlessMode = true;
+    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  }
 
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
@@ -7481,7 +7499,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  Queue->EventlessMode |= !Event;
+  if (!Event && !Queue->EventlessMode) {
+    Queue->EventlessMode = true;
+    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  }
 
   /**
    * @brief Please note that the following code should be run before the
@@ -7555,7 +7576,10 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  Queue->EventlessMode |= !Event;
+  if (!Event && !Queue->EventlessMode) {
+    Queue->EventlessMode = true;
+    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  }
 
   auto ZeAdvice = pi_cast<ze_memory_advice_t>(Advice);
 

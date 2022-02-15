@@ -725,6 +725,10 @@ struct _pi_queue : _pi_object {
   // copy queues.
   bool EventlessMode = false;
 
+  // It helps to skip creating the event and the last barrier for the
+  // command-list in eventless mode if we do QueueFinish or piQueueRelease
+  bool SkipLastEventInEventlessMode = false;
+
   // Keeps a number of commands submitted into last command-list that don't have
   // events.
   size_t NumEventlessCmdsInLastCmdList{0};
