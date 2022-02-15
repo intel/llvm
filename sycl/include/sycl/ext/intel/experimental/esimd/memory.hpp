@@ -347,7 +347,6 @@ ESIMD_INLINE
   constexpr int16_t scale = 0;
   const auto si = __ESIMD_GET_SURF_HANDLE(acc);
 
-#ifdef __SYCL_DEVICE_ONLY__
   if constexpr (sizeof(T) < 4) {
     using Tint = std::conditional_t<std::is_integral_v<T>, T,
                                     detail::uint_type_t<sizeof(T)>>;
@@ -359,9 +358,7 @@ ESIMD_INLINE
     const simd<PromoT, N> promo_vals = convert<PromoT>(std::move(vals_int));
     __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
         mask.data(), si, glob_offset, offsets.data(), promo_vals.data());
-  } else
-#endif // __SYCL_DEVICE_ONLY__
-  {
+  } else {
     __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
         mask.data(), si, glob_offset, offsets.data(), vals.data());
   }
@@ -380,7 +377,6 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
   constexpr uint32_t scale = 0;
   const auto si = get_surface_index(acc);
 
-#ifdef __SYCL_DEVICE_ONLY__
   if constexpr (sizeof(T) < 4) {
     using Tint = std::conditional_t<std::is_integral_v<T>, T,
                                     detail::uint_type_t<sizeof(T)>>;
@@ -401,9 +397,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
     } else {
       return Res;
     }
-  } else
-#endif // __SYCL_DEVICE_ONLY__
-  {
+  } else {
     return __esimd_gather_masked_scaled2<T, N, decltype(si), TypeSizeLog2,
                                          scale>(si, glob_offset, offsets.data(),
                                                 mask.data());
