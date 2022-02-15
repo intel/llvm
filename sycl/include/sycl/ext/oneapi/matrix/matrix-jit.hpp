@@ -299,55 +299,6 @@ public:
   OP(*=, *)
   OP(/=, /)
 #undef OP
-
-#if __SYCL_DEVICE_ONLY__
-#define OP(type, op)                                                           \
-  template <typename T2>                                                       \
-  friend type operator op(                                                     \
-      const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,               \
-      const T2 &rhs) {                                                         \
-    return type{static_cast<T>(__spirv_VectorExtractDynamic(                   \
-        lhs.M.spvm, lhs.idx)) op static_cast<T>(rhs)};                         \
-  }                                                                            \
-  template <typename T2>                                                       \
-  friend type operator op(                                                     \
-      const T2 &lhs,                                                           \
-      const wi_element<T, NumRows, NumCols, Layout, Group> &rhs) {             \
-    return type{static_cast<T>(__spirv_VectorExtractDynamic(                   \
-        rhs.M.spvm, rhs.idx)) op static_cast<T>(lhs)};                         \
-  }
-#else // __SYCL_DEVICE_ONLY__
-#define OP(type, op)                                                           \
-  template <typename T2>                                                       \
-  friend type operator op(                                                     \
-      const wi_element<T, NumRows, NumCols, Layout, Group> &lhs,               \
-      const T2 &rhs) {                                                         \
-    (void)lhs;                                                                 \
-    (void)rhs;                                                                 \
-    throw runtime_error("joint matrix is not supported on host device.",       \
-                        PI_INVALID_DEVICE);                                    \
-  }                                                                            \
-  template <typename T2>                                                       \
-  friend type operator op(                                                     \
-      const T2 &lhs,                                                           \
-      const wi_element<T, NumRows, NumCols, Layout, Group> &rhs) {             \
-    (void)lhs;                                                                 \
-    (void)rhs;                                                                 \
-    throw runtime_error("joint matrix is not supported on host device.",       \
-                        PI_INVALID_DEVICE);                                    \
-  }
-#endif // __SYCL_DEVICE_ONLY__
-  OP(T, +)
-  OP(T, -)
-  OP(T, *)
-  OP(T, /)
-  OP(bool, ==)
-  OP(bool, !=)
-  OP(bool, <)
-  OP(bool, >)
-  OP(bool, <=)
-  OP(bool, >=)
-#undef OP
 };
 
 // Note that similarly to the other matrix functions, uint16_t is used here to
