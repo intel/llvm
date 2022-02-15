@@ -8,7 +8,6 @@
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out 20
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 20
 
 #include "esimd_test_utils.hpp"

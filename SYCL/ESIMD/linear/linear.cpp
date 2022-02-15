@@ -10,7 +10,6 @@
 // TODO: esimd_emulator fails due to outdated __esimd_media_ld
 // XFAIL: esimd_emulator
 // RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
 
 #include "bitmap_helpers.h"
