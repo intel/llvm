@@ -5073,7 +5073,6 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     if (!EmittedFirstSpecConstant && !DeviceGlobalsEmitted)
       OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
 
-
     Visited.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
     if (Util::isSyclDeviceGlobalType(VD->getType())) {
