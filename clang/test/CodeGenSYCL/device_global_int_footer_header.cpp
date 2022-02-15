@@ -5,7 +5,6 @@
 // Try and compile all this stuff.
 // RUN: %clang_cc1 -fsycl-is-host -x c++ -std=c++17 -internal-isystem %S/Inputs -fsyntax-only -include %t.header.h -include %s %t.footer.h
 
-
 // This test checks that integration header and footer are emitted correctly
 // for device_global variables. It also checks that emitted costructs
 // are syntactically correct.
@@ -43,7 +42,7 @@ int main() {
 // CHECK-FOOTER-NEXT:   return AnonNS;
 // CHECK-FOOTER-NEXT: }
 // CHECK-FOOTER-NEXT: } // namespace __sycl_detail
-// CHECK-FOOTER-NEXT: } // namespace 
+// CHECK-FOOTER-NEXT: } // namespace
 // CHECK-FOOTER-NEXT: } // namespace Foo
 // CHECK-FOOTER-NEXT: namespace {
 // CHECK-FOOTER-NEXT: namespace __sycl_detail {
@@ -51,8 +50,7 @@ int main() {
 // CHECK-FOOTER-NEXT:   return HasVarTemplate::VarTempl<int>;
 // CHECK-FOOTER-NEXT: }
 // CHECK-FOOTER-NEXT: } // namespace __sycl_detail
-// CHECK-FOOTER-NEXT: } // namespace 
-
+// CHECK-FOOTER-NEXT: } // namespace
 
 // CHECK-FOOTER: namespace sycl::detail {
 // CHECK-FOOTER-NEXT: namespace {
@@ -104,11 +102,11 @@ device_global<int> AnonNS;
 // Validate that variable templates work correctly.
 namespace {
 struct HasVarTemplate {
-  constexpr HasVarTemplate(){}
-  template<typename T>
+  constexpr HasVarTemplate() {}
+  template <typename T>
   static constexpr device_global<T> VarTempl{};
 };
 
-}
+} // namespace
 const auto x = HasVarTemplate::VarTempl<int>.get();
 // CHECK-FOOTER-NEXT: device_global_map::add((void *)&::__sycl_detail::__shim_[[SHIM1]](), "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiEE");

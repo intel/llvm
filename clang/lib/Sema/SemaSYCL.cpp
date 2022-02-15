@@ -4979,8 +4979,8 @@ static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
   // Print opening-namespace
   PrintNamespaces(OS, Decl::castToDeclContext(AnonNS));
   OS << "namespace __sycl_detail {\n";
-  OS << "static constexpr decltype(" << LastShim << ") &__shim_"
-     << ShimCounter << "() {\n";
+  OS << "static constexpr decltype(" << LastShim << ") &__shim_" << ShimCounter
+     << "() {\n";
   OS << "  return " << LastShim << ";\n";
   OS << "}\n";
   OS << "} // namespace __sycl_detail\n";
@@ -5109,7 +5109,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     if (Util::isSyclDeviceGlobalType(VD->getType())) {
       DeviceGlobOS << ", \"";
-      DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
+      DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
+                                                          VD);
       DeviceGlobOS << "\");\n";
     } else {
       OS << ">() {\n";
@@ -5188,7 +5189,7 @@ bool Util::isSyclDeviceGlobalType(QualType Ty) {
   if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
     ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
     if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-        return RD->hasAttr<SYCLDeviceGlobalAttr>();
+      return RD->hasAttr<SYCLDeviceGlobalAttr>();
   }
   return RecTy->hasAttr<SYCLDeviceGlobalAttr>();
 }
