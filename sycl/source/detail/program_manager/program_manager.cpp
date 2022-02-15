@@ -995,7 +995,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty() && !ForceLink) {
-    std::string Options = LinkOptions.empty()
+    const std::string &Options = LinkOptions.empty()
                               ? CompileOptions
                               : (CompileOptions + " " + LinkOptions);
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
