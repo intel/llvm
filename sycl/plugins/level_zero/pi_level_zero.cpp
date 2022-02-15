@@ -2095,7 +2095,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     *NumDevices = ZeDeviceCount;
 
   if (NumEntries == 0) {
-    // Devices should be nullptr when querying the number of devices
+    // Devices should be nullptr when querying the number of devices.
     PI_ASSERT(Devices == nullptr, PI_INVALID_VALUE);
     return PI_SUCCESS;
   }
