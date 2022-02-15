@@ -3333,7 +3333,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // TODO: see if we need to let user choose the device.
   pi_device Device = Context->Devices[0];
   // TODO: see what we can do to correctly initialize PI queue for
-  // compute vs. copy Level-Zero queue.
+  // compute vs. copy Level-Zero queue. Currently we will send
+  // all commands to the "ZeQueue".
   std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
   *Queue =
       new _pi_queue(ZeQueue, ZeroCopyQueues, Context, Device, OwnNativeHandle);
@@ -5755,8 +5756,9 @@ pi_result piEnqueueMemBufferReadRect(
 } // extern "C"
 
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
-  return (!isInOrderQueue() || UseCopyEngineForInOrderQueue) &&
-         PreferCopyEngine && Device->hasCopyEngine();
+  return PreferCopyEngine && Device->hasCopyEngine() &&
+         ZeCopyCommandQueues.size() > 0 && // TODO: initialize interop queues
+         (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
 // Shared by all memory read/write/copy PI interfaces.
