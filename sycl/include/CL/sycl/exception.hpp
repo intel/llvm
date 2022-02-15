@@ -134,7 +134,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::runtime instead.") runtime_error
     : public exception {
 public:
-  runtime_error() = default;
+  runtime_error() : exception(make_error_code(errc::runtime)) {}
 
   runtime_error(const char *Msg, cl_int Err)
       : runtime_error(std::string(Msg), Err) {}
@@ -144,13 +144,16 @@ public:
 
   runtime_error(std::error_code ec, const std::string &Msg, const cl_int CLErr)
       : exception(ec, Msg, CLErr) {}
+
+protected:
+  runtime_error(std::error_code ec) : exception(ec) {}
 };
 
 class __SYCL2020_DEPRECATED("use sycl::exception with sycl::errc::kernel or "
                             "errc::kernel_argument instead.") kernel_error
     : public runtime_error {
 public:
-  kernel_error() = default;
+  kernel_error() : runtime_error(make_error_code(errc::kernel)) {}
 
   kernel_error(const char *Msg, cl_int Err)
       : kernel_error(std::string(Msg), Err) {}
@@ -163,7 +166,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::accessor instead.") accessor_error
     : public runtime_error {
 public:
-  accessor_error() = default;
+  accessor_error() : runtime_error(make_error_code(errc::accessor)) {}
 
   accessor_error(const char *Msg, cl_int Err)
       : accessor_error(std::string(Msg), Err) {}
@@ -176,7 +179,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
     : public runtime_error {
 public:
-  nd_range_error() = default;
+  nd_range_error() : runtime_error(make_error_code(errc::nd_range)) {}
 
   nd_range_error(const char *Msg, cl_int Err)
       : nd_range_error(std::string(Msg), Err) {}
@@ -189,7 +192,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::event instead.") event_error
     : public runtime_error {
 public:
-  event_error() = default;
+  event_error() : runtime_error(make_error_code(errc::event)) {}
 
   event_error(const char *Msg, cl_int Err)
       : event_error(std::string(Msg), Err) {}
@@ -202,7 +205,8 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.")
     invalid_parameter_error : public runtime_error {
 public:
-  invalid_parameter_error() = default;
+  invalid_parameter_error()
+      : runtime_error(make_error_code(errc::kernel_argument)) {}
 
   invalid_parameter_error(const char *Msg, cl_int Err)
       : invalid_parameter_error(std::string(Msg), Err) {}
@@ -215,7 +219,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.") device_error
     : public exception {
 public:
-  device_error() = default;
+  device_error() : exception(make_error_code(errc::invalid)) {}
 
   device_error(const char *Msg, cl_int Err)
       : device_error(std::string(Msg), Err) {}
@@ -224,6 +228,8 @@ public:
       : exception(make_error_code(errc::invalid), Msg, Err) {}
 
 protected:
+  device_error(std::error_code ec) : exception(ec) {}
+
   device_error(std::error_code ec, const std::string &Msg, const cl_int CLErr)
       : exception(ec, Msg, CLErr) {}
 };
@@ -232,7 +238,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.")
     compile_program_error : public device_error {
 public:
-  compile_program_error() = default;
+  compile_program_error() : device_error(make_error_code(errc::build)) {}
 
   compile_program_error(const char *Msg, cl_int Err)
       : compile_program_error(std::string(Msg), Err) {}
@@ -245,7 +251,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.")
     link_program_error : public device_error {
 public:
-  link_program_error() = default;
+  link_program_error() : device_error(make_error_code(errc::build)) {}
 
   link_program_error(const char *Msg, cl_int Err)
       : link_program_error(std::string(Msg), Err) {}
@@ -258,7 +264,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with a sycl::errc enum value instead.")
     invalid_object_error : public device_error {
 public:
-  invalid_object_error() = default;
+  invalid_object_error() : device_error(make_error_code(errc::invalid)) {}
 
   invalid_object_error(const char *Msg, cl_int Err)
       : invalid_object_error(std::string(Msg), Err) {}
@@ -271,7 +277,8 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::memory_allocation instead.")
     memory_allocation_error : public device_error {
 public:
-  memory_allocation_error() = default;
+  memory_allocation_error()
+      : device_error(make_error_code(errc::memory_allocation)) {}
 
   memory_allocation_error(const char *Msg, cl_int Err)
       : memory_allocation_error(std::string(Msg), Err) {}
@@ -284,7 +291,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::platform instead.") platform_error
     : public device_error {
 public:
-  platform_error() = default;
+  platform_error() : device_error(make_error_code(errc::platform)) {}
 
   platform_error(const char *Msg, cl_int Err)
       : platform_error(std::string(Msg), Err) {}
@@ -297,7 +304,7 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::profiling instead.") profiling_error
     : public device_error {
 public:
-  profiling_error() = default;
+  profiling_error() : device_error(make_error_code(errc::profiling)) {}
 
   profiling_error(const char *Msg, cl_int Err)
       : profiling_error(std::string(Msg), Err) {}
@@ -310,7 +317,8 @@ class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::feature_not_supported instead.")
     feature_not_supported : public device_error {
 public:
-  feature_not_supported() = default;
+  feature_not_supported()
+      : device_error(make_error_code(errc::feature_not_supported)) {}
 
   feature_not_supported(const char *Msg, cl_int Err)
       : feature_not_supported(std::string(Msg), Err) {}
