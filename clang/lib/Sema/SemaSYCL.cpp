@@ -5076,9 +5076,6 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     Visited.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
     if (Util::isSyclDeviceGlobalType(VD->getType())) {
-      if (!DeviceGlobalsEmitted)
-        OS << "#include <CL/sycl/detail/device_global_map.hpp>\n";
-
       DeviceGlobalsEmitted = true;
       DeviceGlobOS << "device_global_map::add(";
     } else {
@@ -5127,6 +5124,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
 
   if (DeviceGlobalsEmitted) {
+    OS << "#include <CL/sycl/detail/device_global_map.hpp>\n";
     DeviceGlobOS.flush();
     OS << "namespace sycl::detail {\n";
     OS << "namespace {\n";

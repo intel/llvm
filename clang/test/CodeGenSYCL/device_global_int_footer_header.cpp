@@ -32,7 +32,6 @@ int main() {
 // CHECK-HEADER: } // __SYCL_INLINE_NAMESPACE(cl)
 
 // CHECK-FOOTER: #include <CL/sycl/detail/defines_elementary.hpp>
-// CHECK-FOOTER: #include <CL/sycl/detail/device_global_map.hpp>
 
 // Shims go before the registration.
 // CHECK-FOOTER: namespace Foo {
@@ -52,6 +51,7 @@ int main() {
 // CHECK-FOOTER-NEXT: } // namespace __sycl_detail
 // CHECK-FOOTER-NEXT: } // namespace
 
+// CHECK-FOOTER: #include <CL/sycl/detail/device_global_map.hpp>
 // CHECK-FOOTER: namespace sycl::detail {
 // CHECK-FOOTER-NEXT: namespace {
 // CHECK-FOOTER-NEXT: __sycl_device_global_registration::__sycl_device_global_registration() noexcept {

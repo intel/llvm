@@ -6,6 +6,11 @@ __SYCL_INLINE_NAMESPACE(cl) {
   namespace sycl {
   namespace detail {
 
+#if __cplusplus >= 201703L
+  template <auto &SpecName> const char *get_spec_constant_symbolic_ID_impl();
+  template <auto &SpecName> const char *get_spec_constant_symbolic_ID();
+#endif
+
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Bool bool
 #endif
