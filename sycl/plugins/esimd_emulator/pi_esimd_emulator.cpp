@@ -586,8 +586,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue("");
   case PI_DEVICE_INFO_VERSION:
     return ReturnValue(CmEmuDeviceVersionString);
-  case PI_DEVICE_INFO_HOMOGENEOUS_ARCH: // emulator doesn't support partition
-    return ReturnValue(pi_bool{false});
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: // emulator doesn't support partition
+    return ReturnValue(pi_bool{true});
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{false});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:

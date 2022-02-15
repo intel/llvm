@@ -203,10 +203,14 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
-  case PI_DEVICE_INFO_HOMOGENEOUS_ARCH: {
-    // FIXME: conservatively return false due to lack of low-level API exposing
-    // actual status of this property
-    cl_bool result = false;
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
+    cl_int res = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
+                                 sizeof(cl_device_type), &devType, nullptr);
+
+    // FIXME: here we assume that program built for a root GPU device can be
+    // used on its sub-devices without re-building
+    cl_bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }

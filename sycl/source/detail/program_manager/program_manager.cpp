@@ -481,36 +481,25 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg)
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
-  // Check if root device architecture is homogeneous and we can optimize builds
-  // for sub-devices
+  // Check if we can optimize program builds for sub-devices by using a program
+  // built for the root device
   DeviceImplPtr RootDevImpl = DeviceImpl;
   while (!RootDevImpl->isRootDevice()) {
     auto ParentDev = detail::getSyclObjImpl(
         RootDevImpl->get_info<info::device::parent_device>());
+    // Sharing is allowed within a single context only
     if (!ContextImpl->hasDevice(ParentDev))
       break;
     RootDevImpl = ParentDev;
   }
 
-  pi_bool IsRootDeviceArchHomogeneous = PI_FALSE;
+  pi_bool MustBuildOnSubdevice = PI_TRUE;
   ContextImpl->getPlugin().call<PiApiKind::piDeviceGetInfo>(
-      RootDevImpl->getHandleRef(), PI_DEVICE_INFO_HOMOGENEOUS_ARCH,
-      sizeof(pi_bool), &IsRootDeviceArchHomogeneous, nullptr);
+      RootDevImpl->getHandleRef(), PI_DEVICE_INFO_BUILD_ON_SUBDEVICE,
+      sizeof(pi_bool), &MustBuildOnSubdevice, nullptr);
 
-  // FIXME: the logic is modified to work around unintuitive Intel OpenCL CPU
-  // implementation behavior. Kernels created with the program built for root
-  // device can be re-used on sub-devices, but other combinations doesn't work
-  // (e.g. clGetKernelWorkGroupInfo returns CL_INVALID_KERNEL if kernel was
-  // created from the program built for sub-device and re-used either on root or
-  // other sub-device).
-  // To work around this case we optimize only one case: root device shares the
-  // same context with its sub-device(s). We built for the root device and
-  // cache the results.
-  // The expected solution is to build for any sub-device and use root device
-  // handle as cache key to share build results for any other sub-device or even
-  // a root device.
   DeviceImplPtr Dev =
-      (IsRootDeviceArchHomogeneous == PI_TRUE) ? RootDevImpl : DeviceImpl;
+      (MustBuildOnSubdevice == PI_TRUE) ? DeviceImpl : RootDevImpl;
   auto BuildF = [this, &M, &KSId, &ContextImpl, &Dev, Prg, &CompileOpts,
                  &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     auto Context = createSyclObjFromImpl<context>(ContextImpl);
