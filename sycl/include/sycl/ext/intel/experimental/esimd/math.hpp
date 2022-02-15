@@ -30,14 +30,44 @@ namespace esimd {
 
 /// @addtogroup sycl_esimd_math
 /// @{
+/// @defgroup sycl_esimd_math_ext Hardware-accelerated math.
+///
+/// This is a group of APIs implementing standard math operations which are also
+/// directly supported by the hardware. Usually the hardware support is a
+/// specific message to the "extended math" GPU "shared function" unit, sent via
+/// the \c math instruction. Most of the operations do not conform to OpenCL
+/// requirements for accuracy, so should be used with care.
+///
+/// TODO Provide detailed spec of each operation.
+/// @}
+
+/// @addtogroup sycl_esimd_math
+/// @{
 
 /// Conversion of input vector elements of type \p T1 into vector of elements of
 /// type \p T0 with saturation.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector.
-/// \tparam SZ size of the input and returned vector.
-/// @param src the input vector.
-/// @return vector of elements converted to \p T0 with saturation.
+/// The following conversions are supported:
+/// - \c T0 and \c T1 is the same floating-point type (including \c half). In
+///   this case the result in the \c i'th lane is:
+///     * \c -1 if \c src[i] is less than \c -1
+///     * \c 1 if  \c src[i] is greater than \c 1
+///     * src[i] otherwise
+///
+///    I.e. it is always a value in the range <code>[-1, 1]</code>.
+/// - \c T0 is an integral type, \c T1 is any valid element type. In this case
+///   the (per-element) result is the closest representable value. For example:
+///     * Too big (exceeding representable range of \c T0) positive integral or
+///       floating-point value src[i] of type \c T1 converted to \c T0
+///       will result in <code>std:::numeric_limits<T0>::max()</code>.
+///     * Too big negative value will be converted to
+///       <code>std:::numeric_limits<T0>::min()</code>.
+///     * Negative integer or floating point value converted to unsigned \c T1
+///       will yield \c 0.
+/// @tparam T0 Element type of the returned vector.
+/// @tparam T1 Element type of the input vector.
+/// @tparam SZ Size of the input and returned vector.
+/// @param src The input vector.
+/// @return Vector of \c src elements converted to \c T0 with saturation.
 template <typename T0, typename T1, int SZ>
 __ESIMD_API std::enable_if_t<!detail::is_generic_floating_point_v<T0> ||
                                  std::is_same_v<T1, T0>,
@@ -91,9 +121,9 @@ ESIMD_NODEBUG
 /// @endcond ESIMD_DETAIL
 
 /// Get absolute value (vector version)
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector.
-/// \tparam SZ size of the input and returned vector.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector.
+/// @tparam SZ size of the input and returned vector.
 /// @param src0 the input vector.
 /// @return vector of absolute values.
 template <typename T0, typename T1, int SZ>
@@ -105,8 +135,8 @@ abs(simd<T1, SZ> src0) {
 }
 
 /// Get absolute value (scalar version)
-/// \tparam T0 element type of the returned value.
-/// \tparam T1 element type of the input value.
+/// @tparam T0 element type of the returned value.
+/// @tparam T1 element type of the input value.
 /// @param src0 the source operand.
 /// @return absolute value.
 template <typename T0, typename T1>
@@ -122,8 +152,8 @@ abs(T1 src0) {
 /// Get absolute value (vector version). This is a specialization of a version
 /// with three template parameters, where the element types of the input and
 /// output vector are the same.
-/// \tparam T1 element type of the input and output vectors.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T1 element type of the input and output vectors.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @return vector of absolute values.
 template <typename T1, int SZ> __ESIMD_API simd<T1, SZ> abs(simd<T1, SZ> src0) {
@@ -133,7 +163,7 @@ template <typename T1, int SZ> __ESIMD_API simd<T1, SZ> abs(simd<T1, SZ> src0) {
 /// Get absolute value (scalar version). This is a specialization of a version
 /// with two template parameters, where the types of the input and output value
 /// are the same.
-/// \tparam T1 element type of the input and output value.
+/// @tparam T1 element type of the input and output value.
 /// @param src0 the source operand.
 /// @return absolute value.
 template <typename T1>
@@ -149,10 +179,10 @@ abs(T1 src0) {
 /// @{
 
 /// Shift left operation (vector version)
-/// \tparam T0 element type of the returned vector. Must be any integer type.
-/// \tparam T1 element type of the input vector. Must be any integer type.
-/// \tparam SZ size of the input and returned vector.
-/// \tparam U type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vector.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be shifted.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -197,9 +227,9 @@ shl(simd<T1, SZ> src0, U src1, Sat sat = {}) {
 }
 
 /// Shift left operation (scalar version)
-/// \tparam T0 element type of the returned value. Must be any integer type.
-/// \tparam T1 element type of the input value. Must be any integer type.
-/// \tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be shifted.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -220,10 +250,10 @@ shl(T1 src0, T2 src1, Sat sat = {}) {
 }
 
 /// Shift right operation (vector version)
-/// \tparam T0 element type of the returned vector. Must be any integer type.
-/// \tparam T1 element type of the input vector. Must be any integer type.
-/// \tparam SZ size of the input and returned vector.
-/// \tparam U type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vector.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be shifted.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -250,9 +280,9 @@ shr(simd<T1, SZ> src0, U src1, Sat sat = {}) {
 }
 
 /// Shift right operation (scalar version)
-/// \tparam T0 element type of the returned value. Must be any integer type.
-/// \tparam T1 element type of the input value. Must be any integer type.
-/// \tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be shifted.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -273,9 +303,9 @@ shr(T1 src0, T2 src1, Sat sat = {}) {
 }
 
 /// Rotate left operation with two vector inputs
-/// \tparam T0 element type of the returned vector. Must be any integer type.
-/// \tparam T1 element type of the input vector. Must be any integer type.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the vector with number of bit positions by which the elements of
 /// the input vector \p src0 shall be rotated.
@@ -289,10 +319,10 @@ __ESIMD_API
 }
 
 /// Rotate left operation with a vector and a scalar inputs
-/// \tparam T0 element type of the returned vector. Must be any integer type.
-/// \tparam T1 element type of the input vector. Must be any integer type.
-/// \tparam SZ size of the input and returned vectors.
-/// \tparam U type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return vector of rotated elements.
@@ -309,9 +339,9 @@ rol(simd<T1, SZ> src0, U src1) {
 }
 
 /// Rotate left operation with two scalar inputs
-/// \tparam T0 element type of the returned value. Must be any integer type.
-/// \tparam T1 element type of the input value. Must be any integer type.
-/// \tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return rotated left value.
@@ -330,9 +360,9 @@ rol(T1 src0, T2 src1) {
 }
 
 /// Rotate right operation with two vector inputs
-/// \tparam T0 element type of the returned vector. Must be any integer type.
-/// \tparam T1 element type of the input vector. Must be any integer type.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the vector with number of bit positions by which the elements of
 /// the input vector \p src0 shall be rotated.
@@ -346,10 +376,10 @@ __ESIMD_API
 }
 
 /// Rotate right operation with a vector and a scalar inputs
-/// \tparam T0 element type of the returned vector. Must be any integer type.
-/// \tparam T1 element type of the input vector. Must be any integer type.
-/// \tparam SZ size of the input and returned vectors.
-/// \tparam U type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return vector of rotated elements.
@@ -366,9 +396,9 @@ ror(simd<T1, SZ> src0, U src1) {
 }
 
 /// Rotate right operation with two scalar inputs
-/// \tparam T0 element type of the returned value. Must be any integer type.
-/// \tparam T1 element type of the input value. Must be any integer type.
-/// \tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return rotated right value.
@@ -387,10 +417,10 @@ ror(T1 src0, T2 src1) {
 }
 
 /// Logical Shift Right (vector version)
-/// \tparam T0 element type of the returned vector. Must be any integer type.
-/// \tparam T1 element type of the input vector. Must be any integer type.
-/// \tparam SZ size of the input and returned vectors.
-/// \tparam U type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be shifted.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -416,10 +446,10 @@ lsr(simd<T1, SZ> src0, U src1, Sat sat = {}) {
 }
 
 /// Logical Shift Right (scalar version)
-/// \tparam T0 element type of the returned value. Must be any integer type.
-/// \tparam T1 element type of the input value \p src0. Must be any integer
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value \p src0. Must be any integer
 /// type.
-/// \tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be shifted.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -440,10 +470,10 @@ lsr(T1 src0, T2 src1, Sat sat = {}) {
 }
 
 /// Arithmetical Shift Right (vector version)
-/// \tparam T0 element type of the returned vector. Must be any integer type.
-/// \tparam T1 element type of the input vector. Must be any integer type.
-/// \tparam SZ size of the input and returned vectors.
-/// \tparam U type of scalar operand \p src1. Must be any integer type.
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input vector.
 /// @param src1 the number of bit positions the input vector shall be shifted.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -469,10 +499,10 @@ asr(simd<T1, SZ> src0, U src1, Sat sat = {}) {
 }
 
 /// Arithmetical Shift Right (scalar version)
-/// \tparam T0 element type of the returned value. Must be any integer type.
-/// \tparam T1 element type of the input value \p src0. Must be any integer
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value \p src0. Must be any integer
 /// type.
-/// \tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
 /// @param src0 the input value.
 /// @param src1 the number of bit positions the input vector shall be shifted.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -569,9 +599,9 @@ ESIMD_NODEBUG
 }
 
 /// Integral quotient (vector version)
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
-/// \tparam U type of scalar operand \p src1.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1.
 /// @param src0 the dividend input vector.
 /// @param src1 the divisor scalar value.
 /// @return vector of quotient elements.
@@ -584,8 +614,8 @@ __ESIMD_API
 }
 
 /// Integral quotient (scalar version)
-/// \tparam T0 element type of the dividend \p src0 and returned value.
-/// \tparam T1 element type of the divisor \p src1.
+/// @tparam T0 element type of the dividend \p src0 and returned value.
+/// @tparam T1 element type of the divisor \p src1.
 /// @param src0 the dividend.
 /// @param src1 the divisor.
 /// @return quotient value.
@@ -599,9 +629,9 @@ quot(T0 src0, T1 src1) {
 }
 
 /// Modulo (vector version)
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
-/// \tparam U type of scalar operand \p src1.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1.
 /// @param src0 the dividend input vector.
 /// @param src1 the divisor scalar value.
 /// @return vector of elements after applying modulo operation.
@@ -614,8 +644,8 @@ __ESIMD_API
 }
 
 /// Modulo (scalar version)
-/// \tparam T0 element type of the dividend \p src0 and returned value.
-/// \tparam T1 element type of the divisor \p src1.
+/// @tparam T0 element type of the dividend \p src0 and returned value.
+/// @tparam T1 element type of the divisor \p src1.
 /// @param src0 the dividend.
 /// @param src1 the divisor.
 /// @return Modulo value.
@@ -629,9 +659,10 @@ mod(T0 src0, T1 src1) {
 }
 
 /// Integral division with a vector dividend and a scalar divisor. Computes
-/// quotient and remainder of division. \tparam T element type of the input and
-/// return vectors. \tparam SZ size of the input and returned vectors. \tparam U
-/// type of scalar operand \p src1.
+/// quotient and remainder of division.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1.
 /// @param[out] remainder the vector of remainders from a division operation.
 /// @param src0 the dividend input vector.
 /// @param src1 the divisor scalar value.
@@ -646,9 +677,10 @@ __ESIMD_API
 }
 
 /// Integral division with a scalar dividend and a vector divisor. Computes
-/// quotient and remainder of division. \tparam T element type of the input and
-/// return vectors. \tparam SZ size of the input and returned vectors. \tparam U
-/// type of scalar operand \p src1.
+/// quotient and remainder of division.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1.
 /// @param[out] remainder the vector of remainders from a division operation.
 /// @param src0 the dividend scalar value.
 /// @param src1 the divisor input vector.
@@ -665,9 +697,9 @@ __ESIMD_API
 
 /// Integral division (scalar version). Computes quotient and remainder of
 /// division.
-/// \tparam RT element type of the output remainder vector.
-/// \tparam T0 element type of the dividend \p src0.
-/// \tparam T1 element type of the divisor \p src1.
+/// @tparam RT element type of the output remainder vector.
+/// @tparam T0 element type of the dividend \p src0.
+/// @tparam T1 element type of the divisor \p src1.
 /// @param[out] remainder the vector of size 1 with a remainder from division.
 /// @param src0 the dividend scalar value.
 /// @param src1 the divisor scalar value.
@@ -685,8 +717,8 @@ ESIMD_NODEBUG
 
 /// Selects component-wise the maximum of the two vectors.
 /// The source operands must be both of integer or both of floating-point type.
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the input vector.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -717,8 +749,8 @@ __ESIMD_API simd<T, SZ> max(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
 /// Selects maximums for each element of the input vector and a scalar.
 /// The source operands must be both of integer or both of
 /// floating-point type.
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -735,8 +767,8 @@ max(simd<T, SZ> src0, T src1, Sat sat = {}) {
 /// Selects maximums for each element of the input scalar and a vector.
 /// The source operands must be both of integer or both of
 /// floating-point type.
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the scalar value.
 /// @param src1 the input vector.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -752,7 +784,7 @@ max(T src0, simd<T, SZ> src1, Sat sat = {}) {
 
 /// Selects maximum between two scalar values. (scalar version)
 /// The source operands must be both of integer or both of floating-point type.
-/// \tparam T element type of the input and return vectors.
+/// @tparam T element type of the input and return vectors.
 /// @param src0 the scalar value.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -770,8 +802,8 @@ ESIMD_NODEBUG
 
 /// Selects component-wise the minimum of the two vectors.
 /// The source operands must be both of integer or both of floating-point type.
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the input vector.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -802,8 +834,8 @@ __ESIMD_API simd<T, SZ> min(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
 /// Selects minimums for each element of the input vector and a scalar.
 /// The source operands must be both of integer or both of
 /// floating-point type.
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -820,8 +852,8 @@ min(simd<T, SZ> src0, T src1, Sat sat = {}) {
 /// Selects minimums for each element of the input scalar and a vector.
 /// The source operands must be both of integer or both of
 /// floating-point type.
-/// \tparam T element type of the input and return vectors.
-/// \tparam SZ size of the input and returned vectors.
+/// @tparam T element type of the input and return vectors.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the scalar value.
 /// @param src1 the input vector.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -837,7 +869,7 @@ min(T src0, simd<T, SZ> src1, Sat sat = {}) {
 
 /// Selects minimum between two scalar values.
 /// The source operands must be both of integer or both of floating-point type.
-/// \tparam T element type of the input and return vectors.
+/// @tparam T element type of the input and return vectors.
 /// @param src0 the scalar value.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -857,12 +889,11 @@ ESIMD_NODEBUG
 #if defined(ESIMD_GEN7_5) || defined(ESIMD_GEN8) || defined(ESIMD_GEN8_5) ||   \
     defined(ESIMD_GEN9) || defined(ESIMD_GEN9_5)
 
-// FIXME: describe the operation better
 /// Dot product on groups of 4 elements.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector.
-/// \tparam SZ size of the input and returned vectors. Must be a multiple of 4.
-/// \tparam U type of scalar operand \p src1.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector.
+/// @tparam SZ size of the input and returned vectors. Must be a multiple of 4.
+/// @tparam U type of scalar operand \p src1.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -881,12 +912,11 @@ __ESIMD_API simd<T0, SZ> dp2(simd<T1, SZ> src0, U src1, Sat sat = {}) {
     return esimd::saturate<T0>(Result);
 }
 
-// FIXME: describe the operation better
 /// Dot product on groups of 4 elements.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector.
-/// \tparam SZ size of the input and returned vectors. Must be a multiple of 4.
-/// \tparam U type of scalar operand \p src1.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector.
+/// @tparam SZ size of the input and returned vectors. Must be a multiple of 4.
+/// @tparam U type of scalar operand \p src1.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -905,12 +935,11 @@ __ESIMD_API simd<T0, SZ> dp3(simd<T1, SZ> src0, U src1, Sat sat = {}) {
     return esimd::saturate<T0>(Result);
 }
 
-// FIXME: describe the operation better
 /// Dot product on groups of 4 elements.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector.
-/// \tparam SZ size of the input and returned vectors. Must be a multiple of 4.
-/// \tparam U type of scalar operand \p src1.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector.
+/// @tparam SZ size of the input and returned vectors. Must be a multiple of 4.
+/// @tparam U type of scalar operand \p src1.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -929,12 +958,11 @@ __ESIMD_API simd<T0, SZ> dp4(simd<T1, SZ> src0, U src1, Sat sat = {}) {
     return esimd::saturate<T0>(Result);
 }
 
-// FIXME: describe the operation better
 /// Dot product on groups of 4 elements.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector.
-/// \tparam SZ size of the input and returned vectors. Must be a multiple of 4.
-/// \tparam U type of scalar operand \p src1.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector.
+/// @tparam SZ size of the input and returned vectors. Must be a multiple of 4.
+/// @tparam U type of scalar operand \p src1.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -953,12 +981,11 @@ __ESIMD_API simd<T0, SZ> dph(simd<T1, SZ> src0, U src1, Sat sat = {}) {
     return esimd::saturate<T0>(Result);
 }
 
-// FIXME: describe the operation better
 /// Linear equation.
-/// \tparam RT element type of the output vector.
-/// \tparam T1 element type of the first input vector \p src0.
-/// \tparam T2 element type of the second input vector \p src1.
-/// \tparam SZ size of the second input vector and returned vectors. Must be a
+/// @tparam RT element type of the output vector.
+/// @tparam T1 element type of the first input vector \p src0.
+/// @tparam T2 element type of the second input vector \p src1.
+/// @tparam SZ size of the second input vector and returned vectors. Must be a
 /// multiple of 4.
 /// @param src0 the first input vector of size 4.
 /// @param src1 the input vector.
@@ -982,10 +1009,10 @@ __ESIMD_API simd<RT, SZ> line(simd<T1, 4> src0, simd<T2, SZ> src1,
     return esimd::saturate<RT>(Result);
 }
 
-/// FIXME: linear equation.
-/// \tparam RT element type of the output vector.
-/// \tparam T element type of the first input vector \p src0.
-/// \tparam SZ size of the second input vector and returned vectors. Must be a
+/// Linear equation.
+/// @tparam RT element type of the output vector.
+/// @tparam T element type of the first input vector \p src0.
+/// @tparam SZ size of the second input vector and returned vectors. Must be a
 /// multiple of 4.
 /// @param P the first input value.
 /// @param Q the second input value.
@@ -1013,11 +1040,11 @@ __ESIMD_API simd<RT, SZ> line(float P, float Q, simd<T, SZ> src1,
 // If the gen is not specified we warn the programmer that they are potentially
 // using a less efficient implementation if not on GEN10 or above.
 
-/// FIXME: Dot product on groups of 4 elements.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector. Must be a float type.
-/// \tparam SZ size of the input and returned vectors. Must be a multiple of 4.
-/// \tparam U type of scalar operand \p src1. Must be a float type.
+/// Dot product on groups of 4 elements.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector. Must be a float type.
+/// @tparam SZ size of the input and returned vectors. Must be a multiple of 4.
+/// @tparam U type of scalar operand \p src1. Must be a float type.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -1046,11 +1073,11 @@ ESIMD_NODEBUG
     return esimd::saturate<T1>(Result);
 }
 
-/// FIXME: Dot product on groups of 4 elements.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector. Must be a float type.
-/// \tparam SZ size of the input and returned vectors. Must be a multiple of 4.
-/// \tparam U type of scalar operand \p src1. Must be a float type.
+/// Dot product on groups of 4 elements.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector. Must be a float type.
+/// @tparam SZ size of the input and returned vectors. Must be a multiple of 4.
+/// @tparam U type of scalar operand \p src1. Must be a float type.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -1080,11 +1107,11 @@ ESIMD_NODEBUG
     return esimd::saturate<T1>(Result);
 }
 
-/// FIXME: Dot product on groups of 4 elements.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector. Must be a float type.
-/// \tparam SZ size of the input and returned vectors. Must be a multiple of 4.
-/// \tparam U type of scalar operand \p src1. Must be a float type.
+/// Dot product on groups of 4 elements.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector. Must be a float type.
+/// @tparam SZ size of the input and returned vectors. Must be a multiple of 4.
+/// @tparam U type of scalar operand \p src1. Must be a float type.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -1115,11 +1142,11 @@ ESIMD_NODEBUG
     return esimd::saturate<T1>(Result);
 }
 
-/// FIXME: Dot product on groups of 4 elements.
-/// \tparam T0 element type of the returned vector.
-/// \tparam T1 element type of the input vector. Must be a float type.
-/// \tparam SZ size of the input and returned vectors. Must be a multiple of 4.
-/// \tparam U type of scalar operand \p src1. Must be a float type.
+/// Dot product on groups of 4 elements.
+/// @tparam T0 element type of the returned vector.
+/// @tparam T1 element type of the input vector. Must be a float type.
+/// @tparam SZ size of the input and returned vectors. Must be a multiple of 4.
+/// @tparam U type of scalar operand \p src1. Must be a float type.
 /// @param src0 the input vector.
 /// @param src1 the scalar value.
 /// @param sat enables/disables the saturation (off by default). Possible
@@ -1148,10 +1175,10 @@ ESIMD_NODEBUG
     return esimd::saturate<T>(Result);
 }
 
-/// FIXME: linear equation.
-/// \tparam T element type of the second input vector \p src1 and returned
+/// Linear equation.
+/// @tparam T element type of the second input vector \p src1 and returned
 /// vector. Must be a float type.
-/// \tparam SZ size of the second input vector and returned vectors.
+/// @tparam SZ size of the second input vector and returned vectors.
 /// Must be a multiple of 4.
 /// @param src0 the first input vector of size 4.
 /// @param src1 the input vector.
@@ -1179,10 +1206,10 @@ ESIMD_NODEBUG
     return esimd::saturate<T>(Result);
 }
 
-/// FIXME: linear equation.
-/// \tparam T element type of the first input vector \p src0. Must be a float
+/// Linear equation.
+/// @tparam T element type of the first input vector \p src0. Must be a float
 /// type.
-/// \tparam SZ size of the second input vector and returned vectors. Must
+/// @tparam SZ size of the second input vector and returned vectors. Must
 /// be a multiple of 4.
 /// @param P the first input value.
 /// @param Q the second input value.
@@ -1205,8 +1232,8 @@ ESIMD_NODEBUG
 
 /// Performs component-wise truncate-to-minus-infinity fraction operation of
 /// \p src0. (vector version)
-/// \tparam T element type of the input vector \p src0 and returned vector.
-/// \tparam SZ size of the second input vector and returned vectors.
+/// @tparam T element type of the input vector \p src0 and returned vector.
+/// @tparam SZ size of the second input vector and returned vectors.
 /// @param src0 the input vector.
 /// @return vector of elements after fraction operation.
 template <typename T, int SZ> __ESIMD_API simd<T, SZ> frc(simd<T, SZ> src0) {
@@ -1216,7 +1243,7 @@ template <typename T, int SZ> __ESIMD_API simd<T, SZ> frc(simd<T, SZ> src0) {
 
 /// Performs truncate-to-minus-infinity fraction operation of \p src0.
 /// (scalar version)
-/// \tparam T element type of the input \p src0 and returned value.
+/// @tparam T element type of the input \p src0 and returned value.
 /// @param src0 the input scalar value.
 /// @return result of a fraction operation.
 template <typename T> __ESIMD_API T frc(T src0) {
@@ -1296,33 +1323,6 @@ ESIMD_NODEBUG
 }
 #endif
 
-// pln
-template <int SZ, class Sat = saturation_off_tag>
-__ESIMD_API simd<float, SZ> pln(simd<float, 4> src0, simd<float, SZ> src1,
-                                simd<float, SZ> src2, Sat sat = {}) {
-  static_assert(SZ >= 8 && (SZ & 0x7) == 0,
-                "vector size must be a multiple of 8");
-
-  // __esimd_intrinsic_impl_pln() requires src1 and src2 to be combined into
-  // a single matrix, interleaving the values together in blocks of 8
-  // items (ie, a block of 8 from src1, then a block of 8 from src2, then
-  // the next block of 8 from src1, then the next block of 8 from src2,
-  // and so-on.)
-  simd<float, (SZ >> 3) * 16> Src12v;
-  auto Src12 = Src12v.template bit_cast_view<float, (SZ >> 3), 16>();
-
-  Src12.select<(SZ >> 3), 1, 8, 1>(0, 0) =
-      src1.template bit_cast_view<float, (SZ >> 3), 8>();
-  Src12.select<(SZ >> 3), 1, 8, 1>(0, 8) =
-      src2.template bit_cast_view<float, (SZ >> 3), 8>();
-
-  simd<float, SZ> Result = __esimd_pln<SZ>(src0.data(), Src12.read().data());
-
-  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return Result;
-  else
-    return esimd::saturate<float>(Result);
-}
 /// @} sycl_esimd_math
 
 /// @addtogroup sycl_esimd_bitmanip
@@ -1404,18 +1404,11 @@ ESIMD_NODEBUG
 
 /// @} sycl_esimd_bitmanip
 
-/// @addtogroup sycl_esimd_math
+/// @addtogroup sycl_esimd_math_ext
 /// @{
 
-////////////////////////////////////////////////////////////////////////////////
-// ESIMD arithmetic intrinsics:
-//
-// inv, log2, exp2, sqrt, rsqrt, sin, cos
-//
-
 #define __ESIMD_UNARY_INTRINSIC_DEF(COND, name, iname)                         \
-  /* Faster vector implementation w/o dynamic branch when saturation       */  \
-  /* parameter is known at compile-time.                                   */  \
+  /** Vector version.                                                       */ \
   template <class T, int N, class Sat = saturation_off_tag,                    \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API simd<T, N> name(simd<T, N> src, Sat sat = {}) {                  \
@@ -1427,7 +1420,7 @@ ESIMD_NODEBUG
       return esimd::saturate<T>(res);                                          \
   }                                                                            \
                                                                                \
-  /* Faster scalar implementation */                                           \
+  /** Scalar version.                                                       */ \
   template <typename T, class Sat = saturation_off_tag,                        \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API T name(T src, Sat sat = {}) {                                    \
@@ -1439,25 +1432,49 @@ ESIMD_NODEBUG
 #define __ESIMD_EMATH_COND                                                     \
   detail::is_generic_floating_point_v<T> && (sizeof(T) <= 4)
 
+#define __ESIMD_EMATH_IEEE_COND                                                \
+  detail::is_generic_floating_point_v<T> && (sizeof(T) >= 4)
+
+/// Inversion - calculates (1/x). Supports \c half and \c float.
+/// Precision: 1 ULP.
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, inv, inv)
+
+/// Logarithm base 2. Supports \c half and \c float.
+/// Precision depending on argument range:
+/// - [0.5..2]: absolute error is <code>2^-21</code> or less
+/// - (0..0.5) or (2..+INF]: relative error is  <code>2^-21</code> or less
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, log2, log)
+
+/// Exponent base 2. Supports \c half and \c float.
+/// Precision: 4 ULP.
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, exp2, exp)
+
+/// Square root. Is not IEEE754-compatible.  Supports \c half and \c float.
+/// Precision: 4 ULP.
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sqrt, sqrt)
-// This also includes double (in addition to half and float):
-__ESIMD_UNARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
-                                (sizeof(T) >= 4),
-                            sqrt_ieee, ieee_sqrt)
+
+/// IEEE754-compliant square root. Supports \c float and \c double.
+__ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_IEEE_COND, sqrt_ieee, ieee_sqrt)
+
+/// Square root reciprocal - calculates <code>1/sqrt(x)</code>.
+/// Supports \c half and \c float.
+/// Precision: 4 ULP.
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, rsqrt, rsqrt)
+
+/// Sine. Supports \c half and \c float.
+/// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sin, sin)
+
+/// Cosine. Supports \c half and \c float.
+/// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
 
-#undef __ESIMD_EMATH_COND
 #undef __ESIMD_UNARY_INTRINSIC_DEF
 
 #define __ESIMD_BINARY_INTRINSIC_DEF(COND, name, iname)                        \
+  /** Vector version.                                                       */ \
   template <class T, int N, class U, class Sat = saturation_off_tag,           \
             class = std::enable_if_t<COND>>                                    \
-                                                                               \
   __ESIMD_API simd<T, N> name(simd<T, N> src0, simd<U, N> src1,                \
                               Sat sat = {}) {                                  \
     using RawVecT = __SEIEED::vector_type_t<__SEIEED::__raw_t<T>, N>;          \
@@ -1469,7 +1486,7 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
       return esimd::saturate<T>(simd<T, N>(res_raw));                          \
   }                                                                            \
                                                                                \
-  /* Faster scalar implementation */                                           \
+  /** Scalar version.                                                       */ \
   template <class T, class U, class Sat = saturation_off_tag,                  \
             class = std::enable_if_t<COND>>                                    \
   __ESIMD_API T name(T src0, U src1, Sat sat = {}) {                           \
@@ -1479,14 +1496,22 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
     return res[0];                                                             \
   }
 
-__ESIMD_BINARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
-                                 sizeof(T) <= 4,
-                             pow, pow)
-__ESIMD_BINARY_INTRINSIC_DEF(detail::is_generic_floating_point_v<T> &&
-                                 sizeof(T) >= 4,
-                             div_ieee, ieee_div)
+/// Power - calculates \c src0 in power of \c src1. Note available in DG2, PVC.
+///  Supports \c half and \c float.
+/// TODO document accuracy etc.
+__ESIMD_BINARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, pow, pow)
+
+/// IEEE754-compliant floating-point division. Supports \c float and \c double.
+__ESIMD_BINARY_INTRINSIC_DEF(__ESIMD_EMATH_IEEE_COND, div_ieee, ieee_div)
 
 #undef __ESIMD_BINARY_INTRINSIC_DEF
+#undef __ESIMD_EMATH_COND
+#undef __ESIMD_EMATH_IEEE_COND
+
+/// @} sycl_esimd_math_ext
+
+/// @addtogroup sycl_esimd_math
+/// @{
 
 // sincos
 template <int SZ, typename U, class Sat = saturation_off_tag>
@@ -1498,7 +1523,15 @@ __ESIMD_API simd<float, SZ> sincos(simd<float, SZ> &dstcos, U src0,
 
 // atan
 
-#define ESIMD_HDR_CONST_PI 3.1415926535897932384626433832795
+/// @cond ESIMD_DETAIL
+namespace detail {
+// std::numbers::ln2_v<float> in c++20
+constexpr float ln2 = 0.69314718f;
+// std::numbers::log2e_v<float> in c++20
+constexpr float log2e = 1.442695f;
+constexpr double HDR_CONST_PI = 3.1415926535897932384626433832795;
+} // namespace detail
+/// @endcond ESIMD_DETAIL
 
 template <typename T, int SZ>
 ESIMD_NODEBUG
@@ -1522,7 +1555,7 @@ ESIMD_NODEBUG
                         ((Src0 * T(0.395889) + T(1.12158)) * Src0P2) +
                         (Src0 * T(0.636918)) + T(1.0));
 
-  Result.merge(Result - T(ESIMD_HDR_CONST_PI / 2.0), Gt1);
+  Result.merge(Result - T(detail::HDR_CONST_PI / 2.0), Gt1);
   Result.merge(Result, Neg);
   return Result;
 }
@@ -1561,7 +1594,7 @@ ESIMD_NODEBUG
       esimd::rsqrt(Src01m * T(2.0));
 
   Result.merge(T(0.0), TooBig);
-  Result.merge(T(ESIMD_HDR_CONST_PI) - Result, Neg);
+  Result.merge(T(detail::HDR_CONST_PI) - Result, Neg);
   return Result;
 }
 
@@ -1581,7 +1614,7 @@ ESIMD_NODEBUG
   simd_mask<SZ> Neg = src0 < T(0.0);
 
   simd<T, SZ> Result =
-      T(ESIMD_HDR_CONST_PI / 2.0) - esimd::acos(esimd::abs(src0));
+      T(detail::HDR_CONST_PI / 2.0) - esimd::acos(esimd::abs(src0));
 
   Result.merge(-Result, Neg);
   return Result;
@@ -1593,15 +1626,6 @@ __ESIMD_API std::enable_if_t<std::is_floating_point<T>::value, T> asin(T src0) {
   simd<T, 1> Result = esimd::asin(Src0);
   return Result[0];
 }
-
-/// @cond ESIMD_DETAIL
-namespace detail {
-// std::numbers::ln2_v<float> in c++20
-constexpr float ln2 = 0.69314718f;
-// std::numbers::log2e_v<float> in c++20
-constexpr float log2e = 1.442695f;
-} // namespace detail
-/// @endcond ESIMD_DETAIL
 
 /// Computes the natural logarithm of the given argument. This is an
 /// emulated version based on the H/W supported log2.
@@ -1648,6 +1672,12 @@ ESIMD_NODEBUG ESIMD_INLINE T exp(T src0, Sat sat = {}) {
 ////////////////////////////////////////////////////////////////////////////////
 
 #define __ESIMD_INTRINSIC_DEF(name)                                            \
+  /** @tparam T Element type.                                               */ \
+  /** @tparam SZ Number of elements in the input vector.                    */ \
+  /** @tparam Sat Saturation control. Default is \c saturation_off_tag      */ \
+  /** @param src0 The argument to perform rounding on.                      */ \
+  /** @param sat The type tag object to auto-deduce saturation control.     */ \
+  /**   can be \c saturation_off or \c saturation_on                        */ \
   template <typename T, int SZ, class Sat = saturation_off_tag>                \
   __ESIMD_API simd<T, SZ> name(simd<float, SZ> src0, Sat sat = {}) {           \
     simd<float, SZ> Result = __esimd_##name<SZ>(src0.data());                  \
@@ -1660,6 +1690,7 @@ ESIMD_NODEBUG ESIMD_INLINE T exp(T src0, Sat sat = {}) {
       return esimd::saturate<T>(Result);                                       \
     }                                                                          \
   }                                                                            \
+  /** Scalar version.                                                       */ \
   template <typename T, class Sat = saturation_off_tag>                        \
   __ESIMD_API T name(float src0, Sat sat = {}) {                               \
     simd<float, 1> Src0 = src0;                                                \
@@ -1667,9 +1698,38 @@ ESIMD_NODEBUG ESIMD_INLINE T exp(T src0, Sat sat = {}) {
     return Result[0];                                                          \
   }
 
+/// Round-down (also known as \c floor). Supports only \c float.
+/// Corner cases:
+/// | _        | _    | _       | _  | _  | _       | _    | _
+/// |----------|------|---------|----|----|---------|------|----
+/// | **src0** | -inf | -denorm | -0 | +0 | +denorm | +inf | NaN
+/// | **dst**  | -inf | \*      | -0 | +0 | +0      | +inf | NaN
+/// - \* \c -1 or \c -0 depending on the Single Precision Denorm Mode.
 __ESIMD_INTRINSIC_DEF(rndd)
+
+/// Round-up (also known as \c ceil). Supports only \c float.
+/// Corner cases:
+/// | _        | _    | _       | _  | _  | _       | _    | _
+/// |----------|------|---------|----|----|---------|------|----
+/// | **src0** | -inf | -denorm | -0 | +0 | +denorm | +inf | NaN
+/// | **dst**  | -inf | -0      | -0 | +0 | \*      | +inf | NaN
+/// - \* \c +1 or \c +0 depending on the Single Precision Denorm Mode.
 __ESIMD_INTRINSIC_DEF(rndu)
+
+/// Round-to-even (also known as \c round). Supports only \c float.
+/// Corner cases:
+/// | _        | _    | _       | _  | _  | _       | _    | _
+/// |----------|------|---------|----|----|---------|------|----
+/// | **src0** | -inf | -denorm | -0 | +0 | +denorm | +inf | NaN
+/// | **dst**  | -inf | -0      | -0 | +0 | +0      | +inf | NaN
 __ESIMD_INTRINSIC_DEF(rnde)
+
+/// Round-to-zero (also known as \c trunc). Supports only \c float.
+/// Corner cases:
+/// | _        | _    | _       | _  | _  | _       | _    | _
+/// |----------|------|---------|----|----|---------|------|----
+/// | **src0** | -inf | -denorm | -0 | +0 | +denorm | +inf | NaN
+/// | **dst**  | -inf | -0      | -0 | +0 | +0      | +inf | NaN
 __ESIMD_INTRINSIC_DEF(rndz)
 
 #undef __ESIMD_INTRINSIC_DEF
@@ -1678,6 +1738,14 @@ __ESIMD_INTRINSIC_DEF(rndz)
 /// @addtogroup sycl_esimd_bitmanip
 /// @{
 
+/// Pack a simd_mask into a single unsigned 32-bit integer value.
+/// i'th bit in the returned value is set to the result of comparison of the
+/// i'th element of the input argument to zero. "equals to zero" gives \c 0,
+/// "not equal to zero" gives \c 1. Remaining (if any) bits if the result are
+/// filled with \c 0.
+/// @tparam N Size of the input mask.
+/// @param src0 The input mask.
+/// @return The packed mask as an <code>unsgined int</code> 32-bit value.
 template <int N>
 ESIMD_NODEBUG
     ESIMD_INLINE std::enable_if_t<(N == 8 || N == 16 || N == 32), uint>
@@ -1685,6 +1753,13 @@ ESIMD_NODEBUG
   return __esimd_pack_mask<N>(src0.data());
 }
 
+/// Unpack an unsigned 32-bit integer value into a simd_mask. Only \c N least
+/// significant bits are used, where \c N is the number of elements in the
+/// result mask. Each input bit is stored into the corresponding vector element
+/// of the output mask.
+/// @tparam N Size of the output mask.
+/// @param src0 The input packed mask.
+/// @return The unpacked mask as a simd_mask object.
 template <int N>
 ESIMD_NODEBUG
     ESIMD_INLINE std::enable_if_t<(N == 8 || N == 16 || N == 32), simd_mask<N>>
@@ -1692,6 +1767,8 @@ ESIMD_NODEBUG
   return __esimd_unpack_mask<N>(src0);
 }
 
+/// @ref pack_mask specialization when the number of elements \c N is not \c 8,
+/// \c 16 or \c 32.
 template <int N>
 __ESIMD_API std::enable_if_t<(N != 8 && N != 16 && N < 32), uint>
 pack_mask(simd_mask<N> src0) {
@@ -1943,37 +2020,39 @@ dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2, Sat sat = {}) {
   return Result;
 }
 
-static auto constexpr ESIMD_CONST_E = 2.71828f;
-static auto constexpr ESIMD_CONST_PI = 3.14159f;
-static auto constexpr ESIMD_CONST_2PI = 6.28318f;
+/// @} sycl_esimd_math
 
-/* smallest such that 1.0+ESIMD_DBL_EPSILON != 1.0 */
-static auto constexpr ESIMD_DBL_EPSILON = 0.00001f;
+/// @addtogroup sycl_esimd_conv
+/// @{
 
+/// "Floor" operation, vector version - alias of \c rndd.
 template <typename RT, int SZ, class Sat = saturation_off_tag>
 ESIMD_INLINE simd<RT, SZ> floor(const simd<float, SZ> src0, Sat sat = {}) {
   return esimd::rndd<RT, SZ>(src0, sat);
 }
 
+/// "Floor" operation, scalar version - alias of \c rndd.
 template <typename RT, class Sat = saturation_off_tag>
-ESIMD_INLINE RT floor(const float &src0, Sat sat = {}) {
+ESIMD_INLINE RT floor(float src0, Sat sat = {}) {
   return esimd::rndd<RT, 1U>(src0, sat)[0];
 }
 
+/// "Ceiling" operation, vector version - alias of \c rndu.
 template <typename RT, int SZ, class Sat = saturation_off_tag>
 ESIMD_INLINE simd<RT, SZ> ceil(const simd<float, SZ> src0, Sat sat = {}) {
   return esimd::rndu<RT, SZ>(src0, sat);
 }
 
+/// "Ceiling" operation, scalar version - alias of \c rndu.
 template <typename RT, class Sat = saturation_off_tag>
-ESIMD_INLINE RT ceil(const float &src0, Sat sat = {}) {
+ESIMD_INLINE RT ceil(float src0, Sat sat = {}) {
   return esimd::rndu<RT, 1U>(src0, sat);
 }
 
 /// Round to integral value using the round to zero rounding mode (vector
-/// version).
-/// \tparam RT element type of the return vector.
-/// \tparam SZ size of the input and returned vectors.
+/// version). Alias of \c rndz.
+/// @tparam RT element type of the return vector.
+/// @tparam SZ size of the input and returned vectors.
 /// @param src0 the input vector.
 /// @param sat enables/disables the saturation (off by default). Possible
 /// values: saturation_on/saturation_off.
@@ -1984,8 +2063,8 @@ __ESIMD_API simd<RT, SZ> trunc(const simd<float, SZ> &src0, Sat sat = {}) {
 }
 
 /// Round to integral value using the round to zero rounding mode (scalar
-/// version).
-/// \tparam RT type of the return value.
+/// version). Alias of \c rndz.
+/// @tparam RT type of the return value.
 /// @param src0 the input operand.
 /// @param sat enables/disables the saturation (off by default). Possible
 /// values: saturation_on/saturation_off.
@@ -1994,6 +2073,8 @@ template <typename RT, class Sat = saturation_off_tag>
 __ESIMD_API RT trunc(float src0, Sat sat = {}) {
   return esimd::rndz<RT, 1U>(src0, sat)[0];
 }
+
+/// @} sycl_esimd_conv
 
 /* atan2_fast - a fast atan2 implementation */
 /* vector input */
@@ -2040,6 +2121,15 @@ template <int N> simd<float, N> tanh(simd<float, N> x);
 /* ------------------------- Extended Math Routines
  * -------------------------------------------------*/
 
+/// @cond ESIMD_DETAIL
+
+namespace detail {
+static auto constexpr CONST_PI = 3.14159f;
+static auto constexpr CMPI = 3.14159265f;
+} // namespace detail
+
+/// @endcond ESIMD_DETAIL
+
 // For vector input
 template <int N>
 ESIMD_INLINE simd<float, N> atan2_fast(simd<float, N> y, simd<float, N> x) {
@@ -2048,17 +2138,20 @@ ESIMD_INLINE simd<float, N> atan2_fast(simd<float, N> y, simd<float, N> x) {
   simd<float, N> atan2;
 
   simd_mask<N> mask = (y >= 0.0f);
-  a0.merge(ESIMD_CONST_PI * 0.5f, ESIMD_CONST_PI * 1.5f, mask);
-  a1.merge(0, ESIMD_CONST_PI * 2.0f, mask);
+  a0.merge(detail::CONST_PI * 0.5f, detail::CONST_PI * 1.5f, mask);
+  a1.merge(0, detail::CONST_PI * 2.0f, mask);
 
-  a1.merge(ESIMD_CONST_PI, x < 0.0f);
+  a1.merge(detail::CONST_PI, x < 0.0f);
 
   simd<float, N> xy = x * y;
   simd<float, N> x2 = x * x;
   simd<float, N> y2 = y * y;
 
-  a0 -= (xy / (y2 + x2 * 0.28f + ESIMD_DBL_EPSILON));
-  a1 += (xy / (x2 + y2 * 0.28f + ESIMD_DBL_EPSILON));
+  /* smallest such that 1.0+CONST_DBL_EPSILON != 1.0 */
+  constexpr auto CONST_DBL_EPSILON = 0.00001f;
+
+  a0 -= (xy / (y2 + x2 * 0.28f + CONST_DBL_EPSILON));
+  a1 += (xy / (x2 + y2 * 0.28f + CONST_DBL_EPSILON));
 
   atan2.merge(a1, a0, y2 <= x2);
   return atan2;
@@ -2082,7 +2175,7 @@ ESIMD_INLINE simd<float, N> atan2(simd<float, N> y, simd<float, N> x) {
   simd_mask<N> mask;
 
   mask = (x < 0);
-  v_y0.merge(ESIMD_CONST_PI, 0, mask);
+  v_y0.merge(detail::CONST_PI, 0, mask);
   v_distance = esimd::sqrt(x * x + y * y);
   mask = (esimd::abs<float>(y) < 0.000001f);
   atan2.merge(v_y0, (2 * esimd::atan((v_distance - x) / y)), mask);
@@ -2097,7 +2190,7 @@ template <> ESIMD_INLINE float atan2(float y, float x) {
   simd_mask<1> mask;
 
   mask = (x < 0);
-  v_y0 = mask[0] ? ESIMD_CONST_PI : 0;
+  v_y0 = mask[0] ? detail::CONST_PI : 0;
   v_distance = esimd::sqrt<float>(x * x + y * y);
   mask = (esimd::abs<float>(y) < 0.000001f);
   atan2.merge(v_y0, (2 * esimd::atan((v_distance - x) / y)), mask);
@@ -2126,8 +2219,6 @@ template <> ESIMD_INLINE float fmod(float y, float x) {
   return fmod[0];
 }
 
-static auto constexpr CMPI = 3.14159265f;
-
 // sin_emu - EU emulation for sin(x)
 // For Vector input
 template <int N> ESIMD_INLINE simd<float, N> sin_emu(simd<float, N> x) {
@@ -2138,17 +2229,17 @@ template <int N> ESIMD_INLINE simd<float, N> sin_emu(simd<float, N> x) {
   simd<float, N> sign;
   simd<float, N> fTrig;
   simd<float, N> TwoPI(6.2831853f);
-  simd<float, N> CmpI(CMPI);
+  simd<float, N> CmpI(detail::CMPI);
   simd<float, N> OneP(1.f);
   simd<float, N> OneN(-1.f);
 
   x = esimd::fmod(x, TwoPI);
 
-  x1.merge(CmpI - x, x - CmpI, (x <= CMPI));
-  x1.merge(x, (x <= CMPI * 0.5f));
-  x1.merge(CmpI * 2 - x, (x > CMPI * 1.5f));
+  x1.merge(CmpI - x, x - CmpI, (x <= detail::CMPI));
+  x1.merge(x, (x <= detail::CMPI * 0.5f));
+  x1.merge(CmpI * 2 - x, (x > detail::CMPI * 1.5f));
 
-  sign.merge(OneN, OneP, (x > CMPI));
+  sign.merge(OneN, OneP, (x > detail::CMPI));
 
   x2 = x1 * x1;
   t3 = x2 * x1 * 0.1666667f;
@@ -2170,19 +2261,19 @@ template <typename T> ESIMD_INLINE float sin_emu(T x0) {
 
   simd<float, 1> sign;
   simd<float, 1> fTrig;
-  float TwoPI = CMPI * 2.0f;
+  float TwoPI = detail::CMPI * 2.0f;
 
   simd<float, 1> x = esimd::fmod(x0, TwoPI);
 
-  simd<float, 1> CmpI(CMPI);
+  simd<float, 1> CmpI(detail::CMPI);
   simd<float, 1> OneP(1.f);
   simd<float, 1> OneN(-1.f);
 
-  x1.merge(CmpI - x, x - CmpI, (x <= CMPI));
-  x1.merge(x, (x <= CMPI * 0.5f));
-  x1.merge(CmpI * 2.0f - x, (x > CMPI * 1.5f));
+  x1.merge(CmpI - x, x - CmpI, (x <= detail::CMPI));
+  x1.merge(x, (x <= detail::CMPI * 0.5f));
+  x1.merge(CmpI * 2.0f - x, (x > detail::CMPI * 1.5f));
 
-  sign.merge(OneN, OneP, (x > CMPI));
+  sign.merge(OneN, OneP, (x > detail::CMPI));
 
   x2 = x1 * x1;
   t3 = x2 * x1 * 0.1666667f;
@@ -2207,17 +2298,17 @@ template <int N> ESIMD_INLINE simd<float, N> cos_emu(simd<float, N> x) {
   simd<float, N> sign;
   simd<float, N> fTrig;
   simd<float, N> TwoPI(6.2831853f);
-  simd<float, N> CmpI(CMPI);
+  simd<float, N> CmpI(detail::CMPI);
   simd<float, N> OneP(1.f);
   simd<float, N> OneN(-1.f);
 
   x = esimd::fmod(x, TwoPI);
 
-  x1.merge(x - CMPI * 0.5f, CmpI * 1.5f - x, (x <= CMPI));
-  x1.merge(CmpI * 0.5f - x, (x <= CMPI * 0.5f));
-  x1.merge(x - CMPI * 1.5f, (x > CMPI * 1.5f));
+  x1.merge(x - detail::CMPI * 0.5f, CmpI * 1.5f - x, (x <= detail::CMPI));
+  x1.merge(CmpI * 0.5f - x, (x <= detail::CMPI * 0.5f));
+  x1.merge(x - detail::CMPI * 1.5f, (x > detail::CMPI * 1.5f));
 
-  sign.merge(1, -1, ((x < CMPI * 0.5f) | (x >= CMPI * 1.5f)));
+  sign.merge(1, -1, ((x < detail::CMPI * 0.5f) | (x >= detail::CMPI * 1.5f)));
 
   x2 = x1 * x1;
   t3 = x2 * x1 * 0.1666667f;
@@ -2238,19 +2329,20 @@ template <typename T> ESIMD_INLINE float cos_emu(T x0) {
 
   simd<float, 1> sign;
   simd<float, 1> fTrig;
-  float TwoPI = CMPI * 2.0f;
+  float TwoPI = detail::CMPI * 2.0f;
 
   simd<float, 1> x = esimd::fmod(x0, TwoPI);
 
-  simd<float, 1> CmpI(CMPI);
+  simd<float, 1> CmpI(detail::CMPI);
   simd<float, 1> OneP(1.f);
   simd<float, 1> OneN(-1.f);
 
-  x1.merge(x - CMPI * 0.5f, CmpI * 1.5f - x, (x <= CMPI));
-  x1.merge(CmpI * 0.5f - x, (x <= CMPI * 0.5f));
-  x1.merge(x - CMPI * 1.5f, (x > CMPI * 1.5f));
+  x1.merge(x - detail::CMPI * 0.5f, CmpI * 1.5f - x, (x <= detail::CMPI));
+  x1.merge(CmpI * 0.5f - x, (x <= detail::CMPI * 0.5f));
+  x1.merge(x - detail::CMPI * 1.5f, (x > detail::CMPI * 1.5f));
 
-  sign.merge(OneP, OneN, ((x < CMPI * 0.5f) | (x >= CMPI * 1.5f)));
+  sign.merge(OneP, OneN,
+             ((x < detail::CMPI * 0.5f) | (x >= detail::CMPI * 1.5f)));
 
   x2 = x1 * x1;
   t3 = x2 * x1 * 0.1666667f;
