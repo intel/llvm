@@ -110,6 +110,17 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   return WGSize;
 }
 
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<const void> &Resource,
+                                  detail::AccessorBaseHost &AttachTo) {
+  Scheduler::getInstance().attachLifetimeToMemObj(
+      Resource, getSyclObjImpl(AttachTo)->MSYCLMemObj);
+}
+
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<const void> &Resource,
+                                  void *AttachTo) {
+  Scheduler::getInstance().attachLifetimeToUSM(Resource, AttachTo);
+}
+
 } // namespace detail
 } // namespace oneapi
 } // namespace ext

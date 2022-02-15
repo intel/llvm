@@ -90,6 +90,14 @@ void SYCLMemObjT::updateHostMemory() {
         pi::cast<RT::PiMem>(MInteropMemObject));
   }
 }
+
+// TODO: With ABI break the attached resources can be held by this type. When
+// that happens this will be obsolete as the resources will automatically be
+// destroyed with the object.
+void SYCLMemObjT::detachResources() const {
+  Scheduler::getInstance().detachMemObjLifetimeResources(this);
+}
+
 const plugin &SYCLMemObjT::getPlugin() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");

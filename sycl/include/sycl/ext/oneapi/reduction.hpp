@@ -366,6 +366,15 @@ template <typename T> struct AreAllButLastReductions<T> {
   static constexpr bool value = !std::is_base_of<reduction_impl_base, T>::value;
 };
 
+/// Helper for attaching a resource to the lifetime of the memory associated
+/// with accessor.
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<const void> &Resource,
+                                  detail::AccessorBaseHost &AttachTo);
+
+/// Helper for attaching a resource to the lifetime of USM memory.
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<const void> &Resource,
+                                  void *AttachTo);
+
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
 template <typename T, class BinaryOperation, int Dims, bool IsUSM,
@@ -645,7 +654,7 @@ public:
 
   accessor<T, buffer_dim, access::mode::read>
   getReadAccToPreviousPartialReds(handler &CGH) const {
-    CGH.addReduction(MOutBufPtr);
+    attachResourceLifetimeToMem(MOutBufPtr);
     return {*MOutBufPtr, CGH};
   }
 
@@ -673,7 +682,7 @@ public:
   std::enable_if_t<!IsOneWG, rw_accessor_type>
   getWriteMemForPartialReds(size_t Size, handler &CGH) {
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
-    CGH.addReduction(MOutBufPtr);
+    attachResourceLifetimeToMem(MOutBufPtr);
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
 
@@ -691,7 +700,7 @@ public:
 
     // Create a new output buffer and return an accessor to it.
     MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
-    CGH.addReduction(MOutBufPtr);
+    attachResourceLifetimeToMem(MOutBufPtr);
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
 
@@ -707,9 +716,9 @@ public:
       return *MRWAcc;
 
     auto RWReduVal = std::make_shared<T>(MIdentity);
-    CGH.addReduction(RWReduVal);
+    attachResourceLifetimeToMem(RWReduVal);
     MOutBufPtr = std::make_shared<buffer<T, 1>>(RWReduVal.get(), range<1>(1));
-    CGH.addReduction(MOutBufPtr);
+    attachResourceLifetimeToMem(MOutBufPtr);
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
 
@@ -717,9 +726,9 @@ public:
            access::placeholder::false_t>
   getReadWriteAccessorToInitializedGroupsCounter(handler &CGH) {
     auto CounterMem = std::make_shared<int>(0);
-    CGH.addReduction(CounterMem);
+    attachResourceLifetimeToMem(CounterMem);
     auto CounterBuf = std::make_shared<buffer<int, 1>>(CounterMem.get(), 1);
-    CGH.addReduction(CounterBuf);
+    attachResourceLifetimeToMem(CounterBuf);
     return {*CounterBuf, CGH};
   }
 
@@ -765,6 +774,21 @@ private:
     rw_accessor_type Acc(Buffer);
     CGH.require(Acc);
     return Acc;
+  }
+
+  /// Attaches the resource to the lifetime of the associated memory of the
+  /// reduction.
+  void attachResourceLifetimeToMem(std::shared_ptr<const void> Resource) const {
+#ifndef __SYCL_DEVICE_ONLY__
+    if (is_usm)
+      detail::attachLifetime(Resource, MUSMPointer);
+    else if (MDWAcc != nullptr)
+      detail::attachLifetime(Resource, *MDWAcc);
+    else
+      detail::attachLifetime(Resource, *MRWAcc);
+#else
+    (void)Resource;
+#endif
   }
 
   /// Identity of the BinaryOperation.

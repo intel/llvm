@@ -164,6 +164,8 @@ void free(void *Ptr, const context &Ctxt, const detail::code_location &CL) {
     const detail::plugin &Plugin = CtxImpl->getPlugin();
     Plugin.call<PiApiKind::piextUSMFree>(C, Ptr);
   }
+  // Detach resources and mark for deferred deletion.
+  Scheduler::getInstance().deferredDetachUSMLifetimeResources(Ptr);
 }
 
 // For ABI compatibility

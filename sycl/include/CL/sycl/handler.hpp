@@ -473,6 +473,7 @@ private:
   /// They are then forwarded to command group and destroyed only after
   /// the command group finishes the work on device/host.
   /// The 'MSharedPtrStorage' suits that need.
+  /// NOTE: This is no longer in use and should be removed with next ABI break.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
   void addReduction(const std::shared_ptr<const void> &ReduObj) {

@@ -169,6 +169,7 @@ public:
   ~buffer_impl() {
     try {
       BaseT::updateHostMemory();
+      BaseT::detachResources();
     } catch (...) {
     }
     destructorNotification(this);

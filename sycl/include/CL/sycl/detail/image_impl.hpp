@@ -229,6 +229,7 @@ public:
   ~image_impl() {
     try {
       BaseT::updateHostMemory();
+      BaseT::detachResources();
     } catch (...) {
     }
   }

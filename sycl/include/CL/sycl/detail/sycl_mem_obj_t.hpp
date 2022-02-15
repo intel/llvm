@@ -203,6 +203,9 @@ protected:
   // members must be alive.
   void updateHostMemory();
 
+  // Detach additional resources associated with the memory object.
+  void detachResources() const;
+
 public:
   __SYCL_DLL_LOCAL bool useHostPtr() {
     return has_property<property::buffer::use_host_ptr>() ||
