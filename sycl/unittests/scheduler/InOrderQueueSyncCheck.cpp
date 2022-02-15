@@ -19,13 +19,14 @@ using namespace sycl;
 // Define type with the only methods called by finalizeHandler
 class LimitedHandler {
 public:
-  virtual void depends_on(sycl::event){};
+  virtual ~LimitedHandler() {}
+  virtual void depends_on(sycl::event) {}
 
   virtual event finalize() {
     cl::sycl::detail::EventImplPtr NewEvent =
         std::make_shared<detail::event_impl>();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
-  };
+  }
 };
 
 // Needed to use EXPECT_CALL to verify depends_on that originally appends lst
