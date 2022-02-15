@@ -276,8 +276,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     return PI_INVALID_VALUE;
   case PI_DEVICE_INFO_ATOMIC_64: {
     size_t extSize;
-    bool result = clGetDeviceInfo(cast<cl_device_id>(device),
-                                  CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize);
+    cl_bool result = clGetDeviceInfo(
+        cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize);
     std::string extStr(extSize, '\0');
     result = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
                              extSize, &extStr.front(), nullptr);
@@ -286,7 +286,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       result = false;
     else
       result = true;
-    std::memcpy(paramValue, &result, sizeof(bool));
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
