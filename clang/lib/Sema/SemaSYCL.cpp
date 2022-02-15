@@ -5101,7 +5101,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     }
     VarRefNameOS.flush();
     if (Util::isSyclDeviceGlobalType(VD->getType())) {
-      DeviceGlobOS << "&";
+      DeviceGlobOS << "(void *)&";
       DeviceGlobOS << VarRefName;
     } else {
       OS << VarRefName;

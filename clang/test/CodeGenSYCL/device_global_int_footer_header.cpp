@@ -1,8 +1,16 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-footer=%t.footer.h -fsycl-int-header=%t.header.h %s -emit-llvm -o %t.ll
+// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-int-footer=%t.footer.h -fsycl-int-header=%t.header.h %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.footer.h %s --check-prefix=CHECK-FOOTER
 // RUN: FileCheck -input-file=%t.header.h %s --check-prefix=CHECK-HEADER
 
-#include "Inputs/sycl.hpp"
+// Try and compile all this stuff.
+// RUN: %clang_cc1 -fsycl-is-host -x c++ -std=c++17 -internal-isystem %S/Inputs -fsyntax-only -include %t.header.h -include %s %t.footer.h
+
+
+// This test checks that integration header and footer are emitted correctly
+// for device_global variables. It also checks that emitted costructs
+// are syntactically correct.
+
+#include "sycl.hpp"
 
 using namespace cl::sycl::ext::oneapi;
 
@@ -51,48 +59,45 @@ int main() {
 // CHECK-FOOTER-NEXT: __sycl_device_global_registration::__sycl_device_global_registration() noexcept {
 
 device_global<int> Basic;
-// CHECK-FOOTER-NEXT: device_global_map::add(&::Basic, "_Z5Basic");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Basic, "_Z5Basic");
 
 struct Wrapper {
   static device_global<int> WrapperDevGlobal;
 };
-// CHECK-FOOTER-NEXT: device_global_map::add(&::Wrapper::WrapperDevGlobal, "_ZN7Wrapper16WrapperDevGlobalE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Wrapper::WrapperDevGlobal, "_ZN7Wrapper16WrapperDevGlobalE");
 
 template <typename T>
 struct WrapperTemplate {
   static device_global<T> WrapperSpecID;
 };
 template class WrapperTemplate<int>;
-// CHECK-FOOTER-NEXT: device_global_map::add(&::WrapperTemplate<int>::WrapperSpecID, "_ZN15WrapperTemplateIiE13WrapperSpecIDE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::WrapperTemplate<int>::WrapperSpecID, "_ZN15WrapperTemplateIiE13WrapperSpecIDE");
 
 namespace Foo {
 device_global<int> NS;
-// CHECK-FOOTER-NEXT: device_global_map::add(&::Foo::NS, "_ZN3Foo2NSE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Foo::NS, "_ZN3Foo2NSE");
 
 inline namespace Bar {
 device_global<float> InlineNS;
-// CHECK-FOOTER-NEXT: device_global_map::add(&::Foo::InlineNS, "_ZN3Foo3Bar8InlineNSE");
-
-device_global<int> NS;
-// CHECK-FOOTER-NEXT: device_global_map::add(&::Foo::Bar::NS, "_ZN3Foo3Bar2NSE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Foo::InlineNS, "_ZN3Foo3Bar8InlineNSE");
 
 struct Wrapper {
   static device_global<int> WrapperDevGlobal;
 };
-// CHECK-FOOTER-NEXT: device_global_map::add(&::Foo::Wrapper::WrapperDevGlobal, "_ZN3Foo3Bar7Wrapper16WrapperDevGlobalE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Foo::Wrapper::WrapperDevGlobal, "_ZN3Foo3Bar7Wrapper16WrapperDevGlobalE");
 
 template <typename T>
 struct WrapperTemplate {
   static device_global<T> WrapperDevGlobal;
 };
 template class WrapperTemplate<float>;
-// CHECK-FOOTER-NEXT: device_global_map::add(&::Foo::WrapperTemplate<float>::WrapperDevGlobal, "_ZN3Foo3Bar15WrapperTemplateIfE16WrapperDevGlobalE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Foo::WrapperTemplate<float>::WrapperDevGlobal, "_ZN3Foo3Bar15WrapperTemplateIfE16WrapperDevGlobalE");
 } // namespace Bar
 
 namespace {
 device_global<int> AnonNS;
 }
-// CHECK-FOOTER-NEXT: device_global_map::add(&::Foo::__sycl_detail::__shim_[[SHIM0]](), "____ZN3Foo12_GLOBAL__N_16AnonNSE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Foo::__sycl_detail::__shim_[[SHIM0]](), "____ZN3Foo12_GLOBAL__N_16AnonNSE");
 
 } // namespace Foo
 
@@ -106,4 +111,4 @@ struct HasVarTemplate {
 
 }
 const auto x = HasVarTemplate::VarTempl<int>.get();
-// CHECK-FOOTER-NEXT: device_global_map::add(&::__sycl_detail::__shim_[[SHIM1]](), "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiEE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::__sycl_detail::__shim_[[SHIM1]](), "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiEE");
