@@ -72,7 +72,7 @@ sycl::ext::oneapi::device_global<int> b;
 // CHECK-NEXT:   return a;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 
 // CHECK: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
@@ -91,7 +91,7 @@ sycl::ext::oneapi::device_global<int> b;
 // CHECK-NEXT:   return b;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 
 namespace outer {
 namespace {
@@ -107,9 +107,9 @@ constexpr sycl::specialization_id a{2};
 // CHECK-NEXT:   return a;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace inner
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
@@ -118,7 +118,7 @@ constexpr sycl::specialization_id a{2};
 // CHECK-NEXT:   return inner::__sycl_detail::__shim_[[SHIM2]]();
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 // CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
@@ -140,9 +140,9 @@ sycl::ext::oneapi::device_global<int> b;
 // CHECK-NEXT:   return b;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace inner
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
@@ -151,7 +151,7 @@ sycl::ext::oneapi::device_global<int> b;
 // CHECK-NEXT:   return inner::__sycl_detail::__shim_[[SHIM4]]();
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 struct Wrapper {
   static constexpr sycl::specialization_id a{18};
@@ -167,9 +167,9 @@ struct Wrapper {
 // CHECK-NEXT:   return Wrapper::a;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace inner
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
@@ -178,7 +178,7 @@ struct Wrapper {
 // CHECK-NEXT:   return inner::__sycl_detail::__shim_[[SHIM6]]();
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 // CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
@@ -200,9 +200,9 @@ struct Wrapper {
 // CHECK-NEXT:   return Wrapper::b;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace inner
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
@@ -211,7 +211,7 @@ struct Wrapper {
 // CHECK-NEXT:   return inner::__sycl_detail::__shim_[[SHIM8]]();
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
@@ -222,9 +222,9 @@ struct Wrapper {
 // CHECK-NEXT:   return Wrapper::c;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace inner
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 // CHECK-NEXT: namespace outer {
 // CHECK-NEXT: namespace {
@@ -233,7 +233,7 @@ struct Wrapper {
 // CHECK-NEXT:   return inner::__sycl_detail::__shim_[[SHIM10]]();
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
-// CHECK-NEXT: } // namespace 
+// CHECK-NEXT: } // namespace
 // CHECK-NEXT: } // namespace outer
 
 // FIXME: Shims don't work with templated wrapper classes for some reason
@@ -242,13 +242,13 @@ struct Wrapper {
 //   static constexpr sycl::specialization_id<T> a{18};
 //   static sycl::ext::oneapi::device_global<T> b;
 // };
-// 
+//
 // template class TemplateWrapper<float>;
 
-}
-}
-}
-}
+} // namespace
+} // namespace inner
+} // namespace
+} // namespace outer
 
 // CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
 // CHECK-NEXT: #include <CL/sycl/detail/device_global_map.hpp>
