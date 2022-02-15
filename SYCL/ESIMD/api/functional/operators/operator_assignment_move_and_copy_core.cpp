@@ -63,7 +63,7 @@ int main(int, char **) {
 
   bool passed = true;
 
-  const auto types = get_tested_types<tested_types::all>();
+  const auto types = get_tested_types<tested_types::core>();
   const auto dims = get_all_dimensions();
 
   const auto context =
