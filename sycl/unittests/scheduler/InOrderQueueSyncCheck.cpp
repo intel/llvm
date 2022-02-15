@@ -19,8 +19,8 @@ using namespace sycl;
 // Define type with the only methods called by finalizeHandler
 class LimitedHandler {
 public:
-  virtual ~LimitedHandler(){}
-  virtual void depends_on(sycl::event){}
+  virtual ~LimitedHandler() {}
+  virtual void depends_on(sycl::event) {}
 
   virtual event finalize() {
     cl::sycl::detail::EventImplPtr NewEvent =
