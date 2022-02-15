@@ -28,6 +28,8 @@ namespace property {
 namespace queue {
 class discard_events
     : public ::sycl::detail::DataLessProperty<::sycl::detail::DiscardEvents> {};
+class lazy_execution 
+    : public ::cl::sycl::detail::DataLessProperty<::sycl::detail::LazyExecution> {};
 } // namespace queue
 } // namespace property
 
@@ -65,6 +67,9 @@ template <>
 struct is_property<ext::oneapi::property::queue::discard_events>
     : std::true_type {};
 template <>
+struct is_property<ext::oneapi::property::queue::lazy_execution>
+    : std::true_type {};
+template <>
 struct is_property<property::queue::cuda::use_default_stream> : std::true_type {
 };
 template <>
@@ -78,6 +83,9 @@ struct is_property_of<property::queue::enable_profiling, queue>
     : std::true_type {};
 template <>
 struct is_property_of<ext::oneapi::property::queue::discard_events, queue>
+    : std::true_type {};
+template <>
+struct is_property_of<ext::oneapi::property::queue::lazy_execution, queue>
     : std::true_type {};
 template <>
 struct is_property_of<property::queue::cuda::use_default_stream, queue>
