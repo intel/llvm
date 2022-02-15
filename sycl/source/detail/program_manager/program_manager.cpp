@@ -996,8 +996,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
   const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty() && !ForceLink) {
     const std::string &Options = LinkOptions.empty()
-                              ? CompileOptions
-                              : (CompileOptions + " " + LinkOptions);
+                                     ? CompileOptions
+                                     : (CompileOptions + " " + LinkOptions);
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
         Program.get(), /*num devices =*/1, &Device, Options.c_str(), nullptr,
         nullptr);
