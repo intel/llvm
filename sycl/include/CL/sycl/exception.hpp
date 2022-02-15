@@ -142,7 +142,6 @@ public:
   runtime_error(const std::string &Msg, cl_int Err)
       : exception(make_error_code(errc::runtime), Msg, Err) {}
 
-protected:
   runtime_error(std::error_code ec, const std::string &Msg, const cl_int CLErr)
       : exception(ec, Msg, CLErr) {}
 };
