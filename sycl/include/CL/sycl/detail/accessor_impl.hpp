@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/id.hpp>
@@ -178,7 +177,7 @@ public:
   sycl::range<3> MSize;
   int MDims;
   int MElemSize;
-  std::vector<char, aligned_allocator<char>> MMem;
+  std::vector<char> MMem;
 };
 
 using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
@@ -186,14 +185,27 @@ using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
 class LocalAccessorBaseHost {
 public:
   LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize) {
+    // Allocate ElemSize more data to have sufficient padding to enforce
+    // alignment.
     impl = std::shared_ptr<LocalAccessorImplHost>(
-        new LocalAccessorImplHost(Size, Dims, ElemSize));
+        new LocalAccessorImplHost(Size + ElemSize, Dims, ElemSize));
   }
   sycl::range<3> &getSize() { return impl->MSize; }
   const sycl::range<3> &getSize() const { return impl->MSize; }
-  void *getPtr() { return impl->MMem.data(); }
+  void *getPtr() {
+    // Const cast this in order to call the const getPtr.
+    return const_cast<const LocalAccessorBaseHost *>(this)->getPtr();
+  }
   void *getPtr() const {
-    return const_cast<void *>(reinterpret_cast<void *>(impl->MMem.data()));
+    char *ptr = impl->MMem.data();
+
+    // Align the pointer to MElemSize.
+    size_t val = reinterpret_cast<size_t>(ptr);
+    if (val % impl->MElemSize != 0) {
+      ptr += impl->MElemSize - val % impl->MElemSize;
+    }
+
+    return ptr;
   }
 
   int getNumOfDims() { return impl->MDims; }
