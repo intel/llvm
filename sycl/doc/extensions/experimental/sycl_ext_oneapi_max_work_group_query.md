@@ -1,4 +1,4 @@
-# SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY
+# sycl_ext_oneapi_max_work_group_query
 
 ## Notice
 

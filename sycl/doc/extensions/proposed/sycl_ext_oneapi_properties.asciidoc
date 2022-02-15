@@ -1,6 +1,6 @@
 :sectnums:
 
-= `SYCL_EXT_ONEAPI_PROPERTIES`
+= `sycl_ext_oneapi_properties`
 
 == Introduction
 

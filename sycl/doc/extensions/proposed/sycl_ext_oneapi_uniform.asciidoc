@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_UNIFORM
+= sycl_ext_oneapi_uniform
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 

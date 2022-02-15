@@ -1740,7 +1740,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if Intel device UUID extension is utilized for CUDA.
     // For details about this extension, see
-    // sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md
+    // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
     return PI_INVALID_VALUE;
 

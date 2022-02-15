@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES
+= sycl_ext_oneapi_free_function_queries
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 

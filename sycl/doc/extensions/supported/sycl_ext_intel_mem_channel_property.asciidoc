@@ -1,4 +1,4 @@
-= SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY
+= sycl_ext_intel_mem_channel_property
 
 == Introduction
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.

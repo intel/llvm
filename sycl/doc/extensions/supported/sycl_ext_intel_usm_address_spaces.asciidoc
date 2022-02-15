@@ -1,4 +1,4 @@
-= SYCL_EXT_INTEL_USM_ADDRESS_SPACES
+= sycl_ext_intel_usm_address_spaces
 
 == Introduction
 This extension introduces two new address spaces and their corresponding multi_ptr specializations.  

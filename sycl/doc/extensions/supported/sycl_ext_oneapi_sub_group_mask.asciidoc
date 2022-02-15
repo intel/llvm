@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_SUB_GROUP_MASK
+= sycl_ext_oneapi_sub_group_mask
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 

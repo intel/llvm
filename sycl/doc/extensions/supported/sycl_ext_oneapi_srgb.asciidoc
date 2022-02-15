@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_SRGB
+= sycl_ext_oneapi_srgb
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
