@@ -1,10 +1,14 @@
-// RUN: %clang_cc1 -fsycl-is-host -I %S %S/Inputs/debug-info-checksum.cpp \
-// RUN: -triple x86_64-unknown-linux-gpu \
-// RUN: -main-file-name "%S/Inputs/debug-info-file-with-footer-checksum.cpp" \
-// RUN: -fsycl-use-main-file-name -dwarf-version=5 -S -emit-llvm \
-// RUN: -O0 -debug-info-kind=constructor -o - \
-// RUN: | FileCheck %s --check-prefix CHECKSUM
-
-// Verify that DIFile points to a correct file and that a checksum is created.
+// RUN: %clang -emit-llvm -fsycl -S -g -gcodeview  \
+// RUN: %S/Inputs/debug-info-file-checksum.cpp -o - \
+// RUN: | FileCheck %s --check-prefix CHECKSUM-FD
 //
-// CHECKSUM: !DIFile(filename: "{{.*}}debug-info-file-with-footer-checksum.cpp", directory: "{{.*}}", checksumkind: CSK_MD5, checksum: "81763dac7dbd8dabce2e3508cdd637ca")
+// RUN: %clang -emit-llvm -fsycl -S -g -gcodeview  \
+// RUN: %S/Inputs/debug-info-file-with-footer-checksum.cpp -o - \
+// RUN: | FileCheck %s --check-prefix CHECKSUM-FD-FOOTER
+
+// Verify that DIFile points to a correct file and that a checksum is created for both files.
+
+// CHECKSUM-FD: !DIFile(filename: "{{.*}}debug-info-file-checksum.cpp", directory: "{{.*}}", checksumkind: CSK_MD5, checksum: "cb171f02b4cc8520b2c25f0869a3a43e")
+
+// CHECKSUM-FD-FOOTER: !DIFile(filename: "{{.*}}debug-info-file-with-footer-checksum.cpp", directory: "{{.*}}", checksumkind: CSK_MD5, checksum: "9ed707faf26dca424db5517a838ab4cc")
+
