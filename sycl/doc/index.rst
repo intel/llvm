@@ -18,8 +18,8 @@ Using oneAPI DPC++ for Application Development
    EnvironmentVariables
    MultiTileCardWithLevelZero
 
-Developing oneAPI DPC++ Compiler
---------------------------------
+Design Documents for the oneAPI DPC++ Compiler
+----------------------------------------------
 
 .. toctree::
    :maxdepth: 1
@@ -42,8 +42,8 @@ Developing oneAPI DPC++ Compiler
    design/DeviceGlobal
    design/CompileTimeProperties
 
-Development BKMs
-~~~~~~~~~~~~~~~~
+Developer Documentation
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. toctree::
    :maxdepth: 1
