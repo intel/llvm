@@ -24,6 +24,7 @@
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
+#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCSectionWasm.h"
@@ -571,7 +572,6 @@ public:
     // proper nesting.
     bool ExpectBlockType = false;
     bool ExpectFuncType = false;
-    bool ExpectHeapType = false;
     std::unique_ptr<WebAssemblyOperand> FunctionTable;
     if (Name == "block") {
       push(Block);
@@ -624,8 +624,6 @@ public:
       if (parseFunctionTableOperand(&FunctionTable))
         return true;
       ExpectFuncType = true;
-    } else if (Name == "ref.null") {
-      ExpectHeapType = true;
     }
 
     if (ExpectFuncType || (ExpectBlockType && Lexer.is(AsmToken::LParen))) {
@@ -669,15 +667,6 @@ public:
           if (BT == WebAssembly::BlockType::Invalid)
             return error("Unknown block type: ", Id);
           addBlockTypeOperand(Operands, NameLoc, BT);
-          Parser.Lex();
-        } else if (ExpectHeapType) {
-          auto HeapType = WebAssembly::parseHeapType(Id.getString());
-          if (HeapType == WebAssembly::HeapType::Invalid) {
-            return error("Expected a heap type: ", Id);
-          }
-          Operands.push_back(std::make_unique<WebAssemblyOperand>(
-              WebAssemblyOperand::Integer, Id.getLoc(), Id.getEndLoc(),
-              WebAssemblyOperand::IntOp{static_cast<int64_t>(HeapType)}));
           Parser.Lex();
         } else {
           // Assume this identifier is a label.

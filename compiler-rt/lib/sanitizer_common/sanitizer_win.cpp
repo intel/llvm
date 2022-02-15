@@ -950,13 +950,18 @@ void SignalContext::InitPcSpBp() {
   CONTEXT *context_record = (CONTEXT *)context;
 
   pc = (uptr)exception_record->ExceptionAddress;
-#ifdef _WIN64
+#  if SANITIZER_WINDOWS64
+#    if SANITIZER_ARM64
+  bp = (uptr)context_record->Fp;
+  sp = (uptr)context_record->Sp;
+#    else
   bp = (uptr)context_record->Rbp;
   sp = (uptr)context_record->Rsp;
-#else
+#    endif
+#  else
   bp = (uptr)context_record->Ebp;
   sp = (uptr)context_record->Esp;
-#endif
+#  endif
 }
 
 uptr SignalContext::GetAddress() const {
@@ -978,7 +983,7 @@ SignalContext::WriteFlag SignalContext::GetWriteFlag() const {
 
   // The write flag is only available for access violation exceptions.
   if (exception_record->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
-    return SignalContext::UNKNOWN;
+    return SignalContext::Unknown;
 
   // The contents of this array are documented at
   // https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-exception_record
@@ -986,13 +991,13 @@ SignalContext::WriteFlag SignalContext::GetWriteFlag() const {
   // second element is the faulting address.
   switch (exception_record->ExceptionInformation[0]) {
     case 0:
-      return SignalContext::READ;
+      return SignalContext::Read;
     case 1:
-      return SignalContext::WRITE;
+      return SignalContext::Write;
     case 8:
-      return SignalContext::UNKNOWN;
+      return SignalContext::Unknown;
   }
-  return SignalContext::UNKNOWN;
+  return SignalContext::Unknown;
 }
 
 void SignalContext::DumpAllRegisters(void *context) {

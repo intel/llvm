@@ -28,6 +28,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/LexicalScopes.h"
 #include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
@@ -152,7 +153,7 @@ public:
     }
   }
 
-  DbgVariableValue() : LocNoCount(0), WasIndirect(0), WasList(0) {}
+  DbgVariableValue() : LocNoCount(0), WasIndirect(false), WasList(false) {}
   DbgVariableValue(const DbgVariableValue &Other)
       : LocNoCount(Other.LocNoCount), WasIndirect(Other.getWasIndirect()),
         WasList(Other.getWasList()), Expression(Other.getExpression()) {

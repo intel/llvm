@@ -67,8 +67,8 @@
 
 // Helper macro to identify if fallback assert is needed
 // FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT)
-#define __SYCL_USE_FALLBACK_ASSERT 1
+#if defined(SYCL_FALLBACK_ASSERT)
+#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
 #endif
@@ -251,8 +251,6 @@ public:
   template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    event Event;
-
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
@@ -268,14 +266,14 @@ public:
         }
       };
 
-      Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      return discard_or_return(Event);
     } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
     {
-      Event = submit_impl(CGF, CodeLoc);
+      auto Event = submit_impl(CGF, CodeLoc);
+      return discard_or_return(Event);
     }
-
-    return Event;
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -292,8 +290,6 @@ public:
   template <typename T>
   event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
-
-    event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
@@ -315,15 +311,15 @@ public:
         }
       };
 
-      Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
-                                          PostProcess);
+      auto Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                               PostProcess);
+      return discard_or_return(Event);
     } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
     {
-      Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      return discard_or_return(Event);
     }
-
-    return Event;
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -1088,6 +1084,10 @@ private:
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+
+  /// Checks if the event needs to be discarded and if so, discards it and
+  /// returns a discarded event. Otherwise, it returns input event.
+  event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command
   // Arguments:

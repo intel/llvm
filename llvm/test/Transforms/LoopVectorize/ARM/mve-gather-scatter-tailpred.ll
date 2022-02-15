@@ -14,9 +14,6 @@ define void @test_stride1_4i32(i32* readonly %data, i32* noalias nocapture %dst,
 ; CHECK-NEXT:    br label [[VECTOR_BODY:%.*]]
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i32 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ]
-; CHECK-NEXT:    [[BROADCAST_SPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[INDEX]], i32 0
-; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <4 x i32> [[BROADCAST_SPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
-; CHECK-NEXT:    [[INDUCTION:%.*]] = add <4 x i32> [[BROADCAST_SPLAT]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK-NEXT:    [[TMP0:%.*]] = add i32 [[INDEX]], 0
 ; CHECK-NEXT:    [[ACTIVE_LANE_MASK:%.*]] = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 [[TMP0]], i32 [[N]])
 ; CHECK-NEXT:    [[TMP1:%.*]] = mul nuw nsw i32 [[TMP0]], 1
@@ -348,8 +345,7 @@ define void @test_stride_loopinvar_4i32(i32* readonly %data, i32* noalias nocapt
 ; CHECK-NEXT:    br i1 false, label [[SCALAR_PH:%.*]], label [[VECTOR_SCEVCHECK:%.*]]
 ; CHECK:       vector.scevcheck:
 ; CHECK-NEXT:    [[IDENT_CHECK:%.*]] = icmp ne i32 [[STRIDE:%.*]], 1
-; CHECK-NEXT:    [[TMP0:%.*]] = or i1 false, [[IDENT_CHECK]]
-; CHECK-NEXT:    br i1 [[TMP0]], label [[SCALAR_PH]], label [[VECTOR_PH:%.*]]
+; CHECK-NEXT:    br i1 [[IDENT_CHECK]], label [[SCALAR_PH]], label [[VECTOR_PH:%.*]]
 ; CHECK:       vector.ph:
 ; CHECK-NEXT:    [[N_RND_UP:%.*]] = add i32 [[N:%.*]], 3
 ; CHECK-NEXT:    [[N_MOD_VF:%.*]] = urem i32 [[N_RND_UP]], 4
@@ -357,9 +353,6 @@ define void @test_stride_loopinvar_4i32(i32* readonly %data, i32* noalias nocapt
 ; CHECK-NEXT:    br label [[VECTOR_BODY:%.*]]
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i32 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ]
-; CHECK-NEXT:    [[BROADCAST_SPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[INDEX]], i32 0
-; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <4 x i32> [[BROADCAST_SPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
-; CHECK-NEXT:    [[INDUCTION:%.*]] = add <4 x i32> [[BROADCAST_SPLAT]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[INDEX]], 0
 ; CHECK-NEXT:    [[ACTIVE_LANE_MASK:%.*]] = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i32(i32 [[TMP1]], i32 [[N]])
 ; CHECK-NEXT:    [[TMP2:%.*]] = mul nuw nsw i32 [[TMP1]], [[STRIDE]]

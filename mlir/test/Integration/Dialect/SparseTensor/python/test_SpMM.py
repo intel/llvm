@@ -85,12 +85,14 @@ def build_compile_and_run_SpMM(attr: st.EncodingAttr, support_lib: str,
       np.float64)
   b = np.array([[1.0, 2.0], [4.0, 3.0], [5.0, 6.0], [8.0, 7.0]], np.float64)
   c = np.zeros((3, 2), np.float64)
-  out = np.zeros((3, 2), np.float64)
 
   mem_a = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(a)))
   mem_b = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(b)))
   mem_c = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(c)))
-  mem_out = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(out)))
+  # Allocate a MemRefDescriptor to receive the output tensor.
+  # The buffer itself is allocated inside the MLIR code generation.
+  ref_out = rt.make_nd_memref_descriptor(2, ctypes.c_double)()
+  mem_out = ctypes.pointer(ctypes.pointer(ref_out))
 
   # Invoke the kernel and get numpy output.
   # Built-in bufferization uses in-out buffers.
@@ -112,18 +114,7 @@ class SparseCompiler:
   def __init__(self, options: str):
     pipeline = (
         f'builtin.func(linalg-generalize-named-ops,linalg-fuse-elementwise-ops),'
-        f'sparsification{{{options}}},'
-        f'sparse-tensor-conversion,'
-        f'builtin.func(linalg-bufferize,convert-linalg-to-loops,convert-vector-to-scf),'
-        f'convert-scf-to-std,'
-        f'func-bufferize,'
-        f'tensor-constant-bufferize,'
-        f'builtin.func(tensor-bufferize,std-bufferize,finalizing-bufferize),'
-        f'convert-vector-to-llvm{{reassociate-fp-reductions=1 enable-index-optimizations=1}},'
-        f'lower-affine,'
-        f'convert-memref-to-llvm,'
-        f'convert-std-to-llvm,'
-        f'reconcile-unrealized-casts')
+        f'sparse-compiler{{{options} reassociate-fp-reductions=1 enable-index-optimizations=1}}')
     self.pipeline = pipeline
 
   def __call__(self, module: ir.Module):
@@ -170,6 +161,7 @@ def main():
             count = count + 1
     # CHECK: Passed 8 tests
     print('Passed ', count, 'tests')
+
 
 if __name__ == '__main__':
   main()

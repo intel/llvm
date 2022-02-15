@@ -446,6 +446,17 @@ func @constant_64bit() {
   return
 }
 
+// CHECK-LABEL: @constant_size1
+func @constant_size1() {
+  // CHECK: spv.Constant true
+  %0 = arith.constant dense<true> : tensor<1xi1>
+  // CHECK: spv.Constant 4 : i64
+  %1 = arith.constant dense<4> : vector<1xi64>
+  // CHECK: spv.Constant 5.000000e+00 : f64
+  %2 = arith.constant dense<5.0> : tensor<1xf64>
+  return
+}
+
 } // end module
 
 // -----
@@ -482,6 +493,15 @@ func @constant_64bit() {
   %3 = arith.constant dense<4.0> : tensor<5xf64>
   // CHECK: spv.Constant dense<[1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00]> : tensor<4xf32> : !spv.array<4 x f32, stride=4>
   %4 = arith.constant dense<[[1.0, 2.0], [3.0, 4.0]]> : tensor<2x2xf16>
+  return
+}
+
+// CHECK-LABEL: @constant_size1
+func @constant_size1() {
+  // CHECK: spv.Constant 4 : i32
+  %0 = arith.constant dense<4> : vector<1xi64>
+  // CHECK: spv.Constant 5.000000e+00 : f32
+  %1 = arith.constant dense<5.0> : tensor<1xf64>
   return
 }
 
@@ -868,6 +888,24 @@ func @vector_srem(%arg0: vector<3xi16>, %arg1: vector<3xi16>) {
   // CHECK:  %[[NEG:.+]] = spv.SNegate %[[ABS]] : vector<3xi16>
   // CHECK:      %{{.+}} = spv.Select %[[POS]], %[[ABS]], %[[NEG]] : vector<3xi1>, vector<3xi16>
   %0 = arith.remsi %arg0, %arg1: vector<3xi16>
+  return
+}
+
+} // end module
+
+// -----
+
+module attributes {
+  spv.target_env = #spv.target_env<
+    #spv.vce<v1.0, [Shader, Int8, Int16, Int64, Float16, Float64],
+             [SPV_KHR_storage_buffer_storage_class]>, {}>
+} {
+
+// CHECK-LABEL: @select
+func @select(%arg0 : i32, %arg1 : i32) {
+  %0 = arith.cmpi sle, %arg0, %arg1 : i32
+  // CHECK: spv.Select
+  %1 = arith.select %0, %arg0, %arg1 : i32
   return
 }
 

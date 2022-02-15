@@ -116,11 +116,11 @@ class IRPromoter {
   SmallPtrSet<Value*, 8> Promoted;
 
   void ReplaceAllUsersOfWith(Value *From, Value *To);
-  void ExtendSources(void);
-  void ConvertTruncs(void);
-  void PromoteTree(void);
-  void TruncateSinks(void);
-  void Cleanup(void);
+  void ExtendSources();
+  void ConvertTruncs();
+  void PromoteTree();
+  void TruncateSinks();
+  void Cleanup();
 
 public:
   IRPromoter(LLVMContext &C, IntegerType *Ty, unsigned Width,
@@ -549,6 +549,11 @@ void IRPromoter::TruncateSinks() {
       }
       continue;
     }
+
+    // Don't insert a trunc for a zext which can still legally promote.
+    if (auto ZExt = dyn_cast<ZExtInst>(I))
+      if (ZExt->getType()->getScalarSizeInBits() > PromotedWidth)
+        continue;
 
     // Now handle the others.
     for (unsigned i = 0; i < I->getNumOperands(); ++i) {

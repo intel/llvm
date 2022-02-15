@@ -52,15 +52,15 @@ static void collectAllDefs(StringRef selectedDialect,
   if (selectedDialect.empty()) {
     // If a dialect was not specified, ensure that all found defs belong to the
     // same dialect.
-    if (!llvm::is_splat(
-            llvm::map_range(defs, [](auto def) { return def.getDialect(); }))) {
+    if (!llvm::is_splat(llvm::map_range(
+            defs, [](const auto &def) { return def.getDialect(); }))) {
       llvm::PrintFatalError("defs belonging to more than one dialect. Must "
                             "select one via '--(attr|type)defs-dialect'");
     }
     resultDefs.assign(defs.begin(), defs.end());
   } else {
     // Otherwise, generate the defs that belong to the selected dialect.
-    auto dialectDefs = llvm::make_filter_range(defs, [&](auto def) {
+    auto dialectDefs = llvm::make_filter_range(defs, [&](const auto &def) {
       return def.getDialect().getName().equals(selectedDialect);
     });
     resultDefs.assign(dialectDefs.begin(), dialectDefs.end());
@@ -173,7 +173,7 @@ private:
   /// The prefix/suffix of the TableGen def name, either "Attr" or "Type".
   StringRef defType;
 };
-} // end anonymous namespace
+} // namespace
 
 DefGen::DefGen(const AttrOrTypeDef &def)
     : def(def), params(def.getParameters()), defCls(def.getCppClassName()),
@@ -266,9 +266,9 @@ void DefGen::emitParserPrinter() {
 
   // Declare the parser.
   SmallVector<MethodParameter> parserParams;
-  parserParams.emplace_back("::mlir::AsmParser &", "parser");
+  parserParams.emplace_back("::mlir::AsmParser &", "odsParser");
   if (isa<AttrDef>(&def))
-    parserParams.emplace_back("::mlir::Type", "type");
+    parserParams.emplace_back("::mlir::Type", "odsType");
   auto *parser = defCls.addMethod(
       strfmt("::mlir::{0}", valueType), "parse",
       def.hasGeneratedParser() ? Method::Static : Method::StaticDeclaration,
@@ -278,7 +278,7 @@ void DefGen::emitParserPrinter() {
       def.hasGeneratedPrinter() ? Method::Const : Method::ConstDeclaration;
   Method *printer =
       defCls.addMethod("void", "print", props,
-                       MethodParameter("::mlir::AsmPrinter &", "printer"));
+                       MethodParameter("::mlir::AsmPrinter &", "odsPrinter"));
   // Emit the bodies.
   emitParserPrinterBody(parser->body(), printer->body());
 }
@@ -431,14 +431,15 @@ void DefGen::emitParserPrinterBody(MethodBody &parser, MethodBody &printer) {
   if (asmFormat)
     return generateAttrOrTypeFormat(def, parser, printer);
 
-  FmtContext ctx = FmtContext(
-      {{"_parser", "parser"}, {"_printer", "printer"}, {"_type", "type"}});
+  FmtContext ctx = FmtContext({{"_parser", "odsParser"},
+                               {"_printer", "odsPrinter"},
+                               {"_type", "odsType"}});
   if (parserCode) {
-    ctx.addSubst("_ctxt", "parser.getContext()");
+    ctx.addSubst("_ctxt", "odsParser.getContext()");
     parser.indent().getStream().printReindented(tgfmt(*parserCode, &ctx).str());
   }
   if (printerCode) {
-    ctx.addSubst("_ctxt", "printer.getContext()");
+    ctx.addSubst("_ctxt", "odsPrinter.getContext()");
     printer.indent().getStream().printReindented(
         tgfmt(*printerCode, &ctx).str());
   }
@@ -561,7 +562,7 @@ void DefGen::emitConstruct() {
       MethodParameter("const KeyTy &", "tblgenKey"));
   if (!def.hasStorageCustomConstructor()) {
     auto &body = construct->body().indent();
-    for (auto it : llvm::enumerate(params)) {
+    for (const auto &it : llvm::enumerate(params)) {
       body << formatv("auto {0} = std::get<{1}>(tblgenKey);\n",
                       it.value().getName(), it.index());
     }
@@ -616,9 +617,11 @@ public:
 
 protected:
   DefGenerator(std::vector<llvm::Record *> &&defs, raw_ostream &os,
-               StringRef defType, StringRef valueType, bool isAttrGenerator)
+               StringRef defType, StringRef valueType, bool isAttrGenerator,
+               bool needsDialectParserPrinter)
       : defRecords(std::move(defs)), os(os), defType(defType),
-        valueType(valueType), isAttrGenerator(isAttrGenerator) {}
+        valueType(valueType), isAttrGenerator(isAttrGenerator),
+        needsDialectParserPrinter(needsDialectParserPrinter) {}
 
   /// Emit the list of def type names.
   void emitTypeDefList(ArrayRef<AttrOrTypeDef> defs);
@@ -637,21 +640,31 @@ protected:
   /// Flag indicating if this generator is for Attributes. False if the
   /// generator is for types.
   bool isAttrGenerator;
+  /// Track if we need to emit the printAttribute/parseAttribute
+  /// implementations.
+  bool needsDialectParserPrinter;
 };
 
 /// A specialized generator for AttrDefs.
 struct AttrDefGenerator : public DefGenerator {
   AttrDefGenerator(const llvm::RecordKeeper &records, raw_ostream &os)
       : DefGenerator(records.getAllDerivedDefinitions("AttrDef"), os, "Attr",
-                     "Attribute", /*isAttrGenerator=*/true) {}
+                     "Attribute",
+                     /*isAttrGenerator=*/true,
+                     /*needsDialectParserPrinter=*/
+                     !records.getAllDerivedDefinitions("DialectAttr").empty()) {
+  }
 };
 /// A specialized generator for TypeDefs.
 struct TypeDefGenerator : public DefGenerator {
   TypeDefGenerator(const llvm::RecordKeeper &records, raw_ostream &os)
       : DefGenerator(records.getAllDerivedDefinitions("TypeDef"), os, "Type",
-                     "Type", /*isAttrGenerator=*/false) {}
+                     "Type", /*isAttrGenerator=*/false,
+                     /*needsDialectParserPrinter=*/
+                     !records.getAllDerivedDefinitions("DialectType").empty()) {
+  }
 };
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // GEN: Declarations
@@ -663,7 +676,7 @@ static const char *const typeDefDeclHeader = R"(
 namespace mlir {
 class AsmParser;
 class AsmPrinter;
-} // end namespace mlir
+} // namespace mlir
 )";
 
 bool DefGenerator::emitDecls(StringRef selectedDialect) {
@@ -731,7 +744,7 @@ static const char *const dialectDefaultAttrPrinterParserDispatch = R"(
     if (parseResult.hasValue())
       return attr;
   }
-  parser.emitError(typeLoc) << "unknown  attribute `"
+  parser.emitError(typeLoc) << "unknown attribute `"
       << attrTag << "` in dialect `" << getNamespace() << "`";
   return {{};
 }
@@ -860,7 +873,7 @@ bool DefGenerator::emitDefs(StringRef selectedDialect) {
   Dialect firstDialect = defs.front().getDialect();
   // Emit the default parser/printer for Attributes if the dialect asked for
   // it.
-  if (valueType == "Attribute" &&
+  if (valueType == "Attribute" && needsDialectParserPrinter &&
       firstDialect.useDefaultAttributePrinterParser()) {
     NamespaceEmitter nsEmitter(os, firstDialect);
     os << llvm::formatv(dialectDefaultAttrPrinterParserDispatch,
@@ -868,7 +881,8 @@ bool DefGenerator::emitDefs(StringRef selectedDialect) {
   }
 
   // Emit the default parser/printer for Types if the dialect asked for it.
-  if (valueType == "Type" && firstDialect.useDefaultTypePrinterParser()) {
+  if (valueType == "Type" && needsDialectParserPrinter &&
+      firstDialect.useDefaultTypePrinterParser()) {
     NamespaceEmitter nsEmitter(os, firstDialect);
     os << llvm::formatv(dialectDefaultTypePrinterParserDispatch,
                         firstDialect.getCppClassName());

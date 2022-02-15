@@ -604,8 +604,14 @@ static LinkageInfo getExternalLinkageFor(const NamedDecl *D) {
   //   - A name declared at namespace scope that does not have internal linkage
   //     by the previous rules and that is introduced by a non-exported
   //     declaration has module linkage.
-  if (isInModulePurview(D) && !isExportedFromModuleInterfaceUnit(
-                                  cast<NamedDecl>(D->getCanonicalDecl())))
+  //
+  // [basic.namespace.general]/p2
+  //   A namespace is never attached to a named module and never has a name with
+  //   module linkage.
+  if (isInModulePurview(D) &&
+      !isExportedFromModuleInterfaceUnit(
+          cast<NamedDecl>(D->getCanonicalDecl())) &&
+      !isa<NamespaceDecl>(D))
     return LinkageInfo(ModuleLinkage, DefaultVisibility, false);
 
   return LinkageInfo::external();
@@ -780,6 +786,7 @@ LinkageComputer::getLVForNamespaceScopeDecl(const NamedDecl *D,
     //
     // Note that we don't want to make the variable non-external
     // because of this, but unique-external linkage suits us.
+
     if (Context.getLangOpts().CPlusPlus && !isFirstInExternCContext(Var) &&
         !IgnoreVarTypeLinkage) {
       LinkageInfo TypeLV = getLVForType(*Var->getType(), computation);
@@ -905,10 +912,6 @@ LinkageComputer::getLVForNamespaceScopeDecl(const NamedDecl *D,
   // always be default.
   if (!isExternallyVisible(LV.getLinkage()))
     return LinkageInfo(LV.getLinkage(), DefaultVisibility, false);
-
-  // Mark the symbols as hidden when compiling for the device.
-  if (Context.getLangOpts().OpenMP && Context.getLangOpts().OpenMPIsDevice)
-    LV.mergeVisibility(HiddenVisibility, /*newExplicit=*/false);
 
   return LV;
 }
@@ -1063,6 +1066,7 @@ LinkageComputer::getLVForClassMember(const NamedDecl *D,
 
   // Finally, merge in information from the class.
   LV.mergeMaybeWithVisibility(classLV, considerClassVisibility);
+
   return LV;
 }
 
@@ -1553,16 +1557,16 @@ Module *Decl::getOwningModuleForLinkage(bool IgnoreLinkage) const {
     // for linkage purposes. But internal linkage declarations in the global
     // module fragment of a particular module are owned by that module for
     // linkage purposes.
+    // FIXME: p1815 removes the need for this distinction -- there are no
+    // internal linkage declarations that need to be referred to from outside
+    // this TU.
     if (IgnoreLinkage)
       return nullptr;
     bool InternalLinkage;
     if (auto *ND = dyn_cast<NamedDecl>(this))
       InternalLinkage = !ND->hasExternalFormalLinkage();
-    else {
-      auto *NSD = dyn_cast<NamespaceDecl>(this);
-      InternalLinkage = (NSD && NSD->isAnonymousNamespace()) ||
-                        isInAnonymousNamespace();
-    }
+    else
+      InternalLinkage = isInAnonymousNamespace();
     return InternalLinkage ? M->Parent : nullptr;
   }
 
@@ -1584,7 +1588,7 @@ std::string NamedDecl::getQualifiedNameAsString(bool WithGlobalNsPrefix) const {
   llvm::raw_string_ostream OS(QualName);
   printQualifiedName(OS, getASTContext().getPrintingPolicy(),
                      WithGlobalNsPrefix);
-  return OS.str();
+  return QualName;
 }
 
 void NamedDecl::printQualifiedName(raw_ostream &OS) const {
@@ -3249,7 +3253,6 @@ bool FunctionDecl::isGlobal() const {
     if (const auto *Namespace = cast<NamespaceDecl>(DC)) {
       if (!Namespace->getDeclName())
         return false;
-      break;
     }
   }
 

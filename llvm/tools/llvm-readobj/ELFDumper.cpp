@@ -17,6 +17,7 @@
 #include "StackMapPrinter.h"
 #include "llvm-readobj.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
@@ -30,7 +31,9 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/AMDGPUMetadataVerifier.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/BinaryFormat/MsgPackDocument.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ELFTypes.h"
@@ -548,6 +551,9 @@ public:
     assert(&this->W.getOStream() == &llvm::fouts());
   }
 
+  void printFileSummary(StringRef FileStr, ObjectFile &Obj,
+                        ArrayRef<std::string> InputFilenames,
+                        const Archive *A) override;
   void printFileHeaders() override;
   void printGroupSections() override;
   void printRelocations() override;
@@ -697,7 +703,25 @@ private:
   void printMipsPLT(const MipsGOTParser<ELFT> &Parser) override;
   void printMipsABIFlags() override;
 
+protected:
   ScopedPrinter &W;
+};
+
+// JSONELFDumper shares most of the same implementation as LLVMELFDumper except
+// it uses a JSONScopedPrinter.
+template <typename ELFT> class JSONELFDumper : public LLVMELFDumper<ELFT> {
+public:
+  LLVM_ELF_IMPORT_TYPES_ELFT(ELFT)
+
+  JSONELFDumper(const object::ELFObjectFile<ELFT> &ObjF, ScopedPrinter &Writer)
+      : LLVMELFDumper<ELFT>(ObjF, Writer) {}
+
+  void printFileSummary(StringRef FileStr, ObjectFile &Obj,
+                        ArrayRef<std::string> InputFilenames,
+                        const Archive *A) override;
+
+private:
+  std::unique_ptr<DictScope> FileScope;
 };
 
 } // end anonymous namespace
@@ -709,6 +733,8 @@ static std::unique_ptr<ObjDumper>
 createELFDumper(const ELFObjectFile<ELFT> &Obj, ScopedPrinter &Writer) {
   if (opts::Output == opts::GNU)
     return std::make_unique<GNUELFDumper<ELFT>>(Obj, Writer);
+  else if (opts::Output == opts::JSON)
+    return std::make_unique<JSONELFDumper<ELFT>>(Obj, Writer);
   return std::make_unique<LLVMELFDumper<ELFT>>(Obj, Writer);
 }
 
@@ -1178,6 +1204,7 @@ const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_LANAI,         "EM_LANAI"),
   ENUM_ENT(EM_BPF,           "EM_BPF"),
   ENUM_ENT(EM_VE,            "NEC SX-Aurora Vector Engine"),
+  ENUM_ENT(EM_LOONGARCH,     "LoongArch"),
 };
 
 const EnumEntry<unsigned> ElfSymbolBindings[] = {
@@ -1559,7 +1586,8 @@ const EnumEntry<unsigned> ElfHeaderRISCVFlags[] = {
   ENUM_ENT(EF_RISCV_FLOAT_ABI_SINGLE, "single-float ABI"),
   ENUM_ENT(EF_RISCV_FLOAT_ABI_DOUBLE, "double-float ABI"),
   ENUM_ENT(EF_RISCV_FLOAT_ABI_QUAD, "quad-float ABI"),
-  ENUM_ENT(EF_RISCV_RVE, "RVE")
+  ENUM_ENT(EF_RISCV_RVE, "RVE"),
+  ENUM_ENT(EF_RISCV_TSO, "TSO"),
 };
 
 const EnumEntry<unsigned> ElfHeaderAVRFlags[] = {
@@ -3225,6 +3253,16 @@ static const EnumEntry<unsigned> *getObjectFileEnumEntry(unsigned Type) {
   return nullptr;
 }
 
+template <class ELFT>
+void GNUELFDumper<ELFT>::printFileSummary(StringRef FileStr, ObjectFile &Obj,
+                                          ArrayRef<std::string> InputFilenames,
+                                          const Archive *A) {
+  if (InputFilenames.size() > 1 || A) {
+    this->W.startLine() << "\n";
+    this->W.printString("File", FileStr);
+  }
+}
+
 template <class ELFT> void GNUELFDumper<ELFT>::printFileHeaders() {
   const Elf_Ehdr &e = this->Obj.getHeader();
   OS << "ELF Header:\n";
@@ -3870,7 +3908,7 @@ void GNUELFDumper<ELFT>::printHashTableSymbols(const Elf_Hash &SysVHash) {
   for (uint32_t Buc = 0; Buc < SysVHash.nbucket; Buc++) {
     if (Buckets[Buc] == ELF::STN_UNDEF)
       continue;
-    std::vector<bool> Visited(SysVHash.nchain);
+    BitVector Visited(SysVHash.nchain);
     for (uint32_t Ch = Buckets[Buc]; Ch < SysVHash.nchain; Ch = Chains[Ch]) {
       if (Ch == ELF::STN_UNDEF)
         break;
@@ -4618,7 +4656,7 @@ void GNUELFDumper<ELFT>::printHashHistogram(const Elf_Hash &HashTable) {
   // Go over all buckets and and note chain lengths of each bucket (total
   // unique chain lengths).
   for (size_t B = 0; B < NBucket; B++) {
-    std::vector<bool> Visited(NChain);
+    BitVector Visited(NChain);
     for (size_t C = Buckets[B]; C < NChain; C = Chains[C]) {
       if (C == ELF::STN_UNDEF)
         break;
@@ -5458,7 +5496,7 @@ StringRef getNoteTypeName(const typename ELFT::Note &Note, unsigned ELFType) {
       return Result;
     return FindNote(CoreNoteTypes);
   }
-  if (Name.startswith("OpenBSD") && ELFType == ELF::ET_CORE) {
+  if (ELFType == ELF::ET_CORE && Name.startswith("OpenBSD")) {
     // OpenBSD also places the generic core notes in the OpenBSD namespace.
     StringRef Result = FindNote(OpenBSDCoreNoteTypes);
     if (!Result.empty())
@@ -6356,6 +6394,7 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printFileHeaders() {
                      unsigned(ELF::EF_AMDGPU_MACH));
         break;
       case ELF::ELFABIVERSION_AMDGPU_HSA_V4:
+      case ELF::ELFABIVERSION_AMDGPU_HSA_V5:
         W.printFlags("Flags", E.e_flags,
                      makeArrayRef(ElfHeaderAMDGPUFlagsABIVersion4),
                      unsigned(ELF::EF_AMDGPU_MACH),
@@ -7305,4 +7344,19 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printMipsABIFlags() {
   W.printNumber("CPR2 size", getMipsRegisterSize(Flags->cpr2_size));
   W.printFlags("Flags 1", Flags->flags1, makeArrayRef(ElfMipsFlags1));
   W.printHex("Flags 2", Flags->flags2);
+}
+
+template <class ELFT>
+void JSONELFDumper<ELFT>::printFileSummary(StringRef FileStr, ObjectFile &Obj,
+                                           ArrayRef<std::string> InputFilenames,
+                                           const Archive *A) {
+  FileScope = std::make_unique<DictScope>(this->W, FileStr);
+  DictScope D(this->W, "FileSummary");
+  this->W.printString("File", FileStr);
+  this->W.printString("Format", Obj.getFileFormatName());
+  this->W.printString("Arch", Triple::getArchTypeName(Obj.getArch()));
+  this->W.printString(
+      "AddressSize",
+      std::string(formatv("{0}bit", 8 * Obj.getBytesInAddress())));
+  this->printLoadName();
 }

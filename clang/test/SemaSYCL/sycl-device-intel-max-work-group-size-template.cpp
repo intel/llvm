@@ -84,3 +84,18 @@ int check() {
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
+
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+[[intel::max_work_group_size(4, 4, 4)]] [[intel::max_work_group_size(4, 4, 4)]] void func4() {}
+// CHECK: FunctionDecl {{.*}} {{.*}} func4 'void ()'
+// CHECK:       SYCLIntelMaxWorkGroupSizeAttr
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 4
+// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 4
+// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+// CHECK-NEXT:  ConstantExpr{{.*}}'int'
+// CHECK-NEXT:  value: Int 4
+// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
+// CHECK-NOT:   SYCLIntelMaxWorkGroupSizeAttr

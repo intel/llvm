@@ -4,8 +4,8 @@ add_flang_library(FIRTransforms
   AffineDemotion.cpp
   CharacterConversion.cpp
   ArrayValueCopy.cpp
-  Inliner.cpp
   ExternalNameConversion.cpp
+  MemoryAllocation.cpp
   MemRefDataFlowOpt.cpp
   RewriteLoop.cpp
 
@@ -18,7 +18,7 @@ add_flang_library(FIRTransforms
   LINK_LIBS
   FIRBuilder
   FIRDialect
-  MLIRAffineToStandard
+  MLIRAffineUtils
   MLIRLLVMIR
   MLIROpenACC
   MLIROpenMP

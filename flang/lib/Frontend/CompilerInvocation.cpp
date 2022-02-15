@@ -23,6 +23,7 @@
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
@@ -107,6 +108,16 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
   // By default the frontend driver creates a ParseSyntaxOnly action.
   opts.programAction = ParseSyntaxOnly;
 
+  // Treat multiple action options as an invocation error. Note that `clang
+  // -cc1` does accept multiple action options, but will only consider the
+  // rightmost one.
+  if (args.hasMultipleArgs(clang::driver::options::OPT_Action_Group)) {
+    const unsigned diagID = diags.getCustomDiagID(
+        clang::DiagnosticsEngine::Error, "Only one action option is allowed");
+    diags.Report(diagID);
+    return false;
+  }
+
   // Identify the action (i.e. opts.ProgramAction)
   if (const llvm::opt::Arg *a =
           args.getLastArg(clang::driver::options::OPT_Action_Group)) {
@@ -122,6 +133,9 @@ static bool ParseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
       break;
     case clang::driver::options::OPT_fsyntax_only:
       opts.programAction = ParseSyntaxOnly;
+      break;
+    case clang::driver::options::OPT_emit_mlir:
+      opts.programAction = EmitMLIR;
       break;
     case clang::driver::options::OPT_emit_obj:
       opts.programAction = EmitObj;
@@ -554,7 +568,7 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &res,
   return success;
 }
 
-void CompilerInvocation::collectMacroDefinitions() {
+void CompilerInvocation::CollectMacroDefinitions() {
   auto &ppOpts = this->preprocessorOpts();
 
   for (unsigned i = 0, n = ppOpts.macros.size(); i != n; ++i) {
@@ -596,7 +610,7 @@ void CompilerInvocation::SetDefaultFortranOpts() {
 // TODO: When expanding this method, consider creating a dedicated API for
 // this. Also at some point we will need to differentiate between different
 // targets and add dedicated predefines for each.
-void CompilerInvocation::setDefaultPredefinitions() {
+void CompilerInvocation::SetDefaultPredefinitions() {
   auto &fortranOptions = fortranOpts();
   const auto &frontendOptions = frontendOpts();
 
@@ -620,7 +634,7 @@ void CompilerInvocation::setDefaultPredefinitions() {
   }
 }
 
-void CompilerInvocation::setFortranOpts() {
+void CompilerInvocation::SetFortranOpts() {
   auto &fortranOptions = fortranOpts();
   const auto &frontendOptions = frontendOpts();
   const auto &preprocessorOptions = preprocessorOpts();
@@ -647,8 +661,8 @@ void CompilerInvocation::setFortranOpts() {
       preprocessorOptions.searchDirectoriesFromIntrModPath.begin(),
       preprocessorOptions.searchDirectoriesFromIntrModPath.end());
 
-  //  Add the default intrinsic module directory at the end
-  fortranOptions.searchDirectories.emplace_back(getIntrinsicDir());
+  //  Add the default intrinsic module directory
+  fortranOptions.intrinsicModuleDirectories.emplace_back(getIntrinsicDir());
 
   // Add the directory supplied through -J/-module-dir to the list of search
   // directories
@@ -666,7 +680,7 @@ void CompilerInvocation::setFortranOpts() {
   }
 }
 
-void CompilerInvocation::setSemanticsOpts(
+void CompilerInvocation::SetSemanticsOpts(
     Fortran::parser::AllCookedSources &allCookedSources) {
   const auto &fortranOptions = fortranOpts();
 
@@ -675,6 +689,7 @@ void CompilerInvocation::setSemanticsOpts(
 
   semanticsContext_->set_moduleDirectory(moduleDir())
       .set_searchDirectories(fortranOptions.searchDirectories)
+      .set_intrinsicModuleDirectories(fortranOptions.intrinsicModuleDirectories)
       .set_warnOnNonstandardUsage(enableConformanceChecks())
       .set_warningsAreErrors(warnAsErr())
       .set_moduleFileSuffix(moduleFileSuffix());

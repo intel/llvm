@@ -590,6 +590,8 @@ bool HasAllowedCUDADeviceStaticInitializer(Sema &S, VarDecl *VD,
   };
   auto IsConstantInit = [&](const Expr *Init) {
     assert(Init);
+    ASTContext::CUDAConstantEvalContextRAII EvalCtx(S.Context,
+                                                    /*NoWronSidedVars=*/true);
     return Init->isConstantInitializer(S.Context,
                                        VD->getType()->isReferenceType());
   };
@@ -891,7 +893,6 @@ void Sema::CUDACheckLambdaCapture(CXXMethodDecl *Callee,
                           diag::warn_maybe_capture_bad_target_this_ptr, Callee,
                           *this, DeviceDiagnosticReason::CudaAll);
   }
-  return;
 }
 
 void Sema::CUDASetLambdaAttrs(CXXMethodDecl *Method) {

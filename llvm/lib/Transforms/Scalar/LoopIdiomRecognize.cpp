@@ -786,9 +786,9 @@ bool LoopIdiomRecognize::processLoopStores(SmallVectorImpl<StoreInst *> &SL,
     Type *IntIdxTy = DL->getIndexType(StorePtr->getType());
     const SCEV *StoreSizeSCEV = SE->getConstant(IntIdxTy, StoreSize);
     if (processLoopStridedStore(StorePtr, StoreSizeSCEV,
-                                MaybeAlign(HeadStore->getAlignment()),
-                                StoredVal, HeadStore, AdjacentStores, StoreEv,
-                                BECount, IsNegStride)) {
+                                MaybeAlign(HeadStore->getAlign()), StoredVal,
+                                HeadStore, AdjacentStores, StoreEv, BECount,
+                                IsNegStride)) {
       TransformedStores.insert(AdjacentStores.begin(), AdjacentStores.end());
       Changed = true;
     }
@@ -967,12 +967,22 @@ bool LoopIdiomRecognize::processLoopMemSet(MemSetInst *MSI,
                       << "\n");
 
     if (PositiveStrideSCEV != MemsetSizeSCEV) {
-      // TODO: folding can be done to the SCEVs
-      // The folding is to fold expressions that is covered by the loop guard
-      // at loop entry. After the folding, compare again and proceed
-      // optimization if equal.
-      LLVM_DEBUG(dbgs() << "  SCEV don't match, abort\n");
-      return false;
+      // If an expression is covered by the loop guard, compare again and
+      // proceed with optimization if equal.
+      const SCEV *FoldedPositiveStride =
+          SE->applyLoopGuards(PositiveStrideSCEV, CurLoop);
+      const SCEV *FoldedMemsetSize =
+          SE->applyLoopGuards(MemsetSizeSCEV, CurLoop);
+
+      LLVM_DEBUG(dbgs() << "  Try to fold SCEV based on loop guard\n"
+                        << "    FoldedMemsetSize: " << *FoldedMemsetSize << "\n"
+                        << "    FoldedPositiveStride: " << *FoldedPositiveStride
+                        << "\n");
+
+      if (FoldedPositiveStride != FoldedMemsetSize) {
+        LLVM_DEBUG(dbgs() << "  SCEV don't match, abort\n");
+        return false;
+      }
     }
   }
 
@@ -1107,7 +1117,7 @@ bool LoopIdiomRecognize::processLoopStridedStore(
   BasicBlock *Preheader = CurLoop->getLoopPreheader();
   IRBuilder<> Builder(Preheader->getTerminator());
   SCEVExpander Expander(*SE, *DL, "loop-idiom");
-  SCEVExpanderCleaner ExpCleaner(Expander, *DT);
+  SCEVExpanderCleaner ExpCleaner(Expander);
 
   Type *DestInt8PtrTy = Builder.getInt8PtrTy(DestAS);
   Type *IntIdxTy = DL->getIndexType(DestPtr->getType());
@@ -1162,8 +1172,15 @@ bool LoopIdiomRecognize::processLoopStridedStore(
 
   CallInst *NewCall;
   if (SplatValue) {
-    NewCall = Builder.CreateMemSet(BasePtr, SplatValue, NumBytes,
-                                   MaybeAlign(StoreAlignment));
+    AAMDNodes AATags = TheStore->getAAMetadata();
+    if (auto CI = dyn_cast<ConstantInt>(NumBytes))
+      AATags = AATags.extendTo(CI->getZExtValue());
+    else
+      AATags = AATags.extendTo(-1);
+
+    NewCall = Builder.CreateMemSet(
+        BasePtr, SplatValue, NumBytes, MaybeAlign(StoreAlignment),
+        /*isVolatile=*/false, AATags.TBAA, AATags.Scope, AATags.NoAlias);
   } else {
     // Everything is emitted in default address space
     Type *Int8PtrTy = DestInt8PtrTy;
@@ -1318,7 +1335,7 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
   IRBuilder<> Builder(Preheader->getTerminator());
   SCEVExpander Expander(*SE, *DL, "loop-idiom");
 
-  SCEVExpanderCleaner ExpCleaner(Expander, *DT);
+  SCEVExpanderCleaner ExpCleaner(Expander);
 
   bool Changed = false;
   const SCEV *StrStart = StoreEv->getStart();
@@ -1442,17 +1459,28 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
   Value *NumBytes =
       Expander.expandCodeFor(NumBytesS, IntIdxTy, Preheader->getTerminator());
 
+  AAMDNodes AATags = TheLoad->getAAMetadata();
+  AAMDNodes StoreAATags = TheStore->getAAMetadata();
+  AATags = AATags.merge(StoreAATags);
+  if (auto CI = dyn_cast<ConstantInt>(NumBytes))
+    AATags = AATags.extendTo(CI->getZExtValue());
+  else
+    AATags = AATags.extendTo(-1);
+
   CallInst *NewCall = nullptr;
   // Check whether to generate an unordered atomic memcpy:
   //  If the load or store are atomic, then they must necessarily be unordered
   //  by previous checks.
   if (!TheStore->isAtomic() && !TheLoad->isAtomic()) {
     if (UseMemMove)
-      NewCall = Builder.CreateMemMove(StoreBasePtr, StoreAlign, LoadBasePtr,
-                                      LoadAlign, NumBytes);
+      NewCall = Builder.CreateMemMove(
+          StoreBasePtr, StoreAlign, LoadBasePtr, LoadAlign, NumBytes,
+          /*isVolatile=*/false, AATags.TBAA, AATags.Scope, AATags.NoAlias);
     else
-      NewCall = Builder.CreateMemCpy(StoreBasePtr, StoreAlign, LoadBasePtr,
-                                     LoadAlign, NumBytes);
+      NewCall =
+          Builder.CreateMemCpy(StoreBasePtr, StoreAlign, LoadBasePtr, LoadAlign,
+                               NumBytes, /*isVolatile=*/false, AATags.TBAA,
+                               AATags.TBAAStruct, AATags.Scope, AATags.NoAlias);
   } else {
     // For now don't support unordered atomic memmove.
     if (UseMemMove)
@@ -1476,7 +1504,8 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
     // have an alignment but non-atomic loads/stores may not.
     NewCall = Builder.CreateElementUnorderedAtomicMemCpy(
         StoreBasePtr, StoreAlign.getValue(), LoadBasePtr, LoadAlign.getValue(),
-        NumBytes, StoreSize);
+        NumBytes, StoreSize, AATags.TBAA, AATags.TBAAStruct, AATags.Scope,
+        AATags.NoAlias);
   }
   NewCall->setDebugLoc(TheStore->getDebugLoc());
 

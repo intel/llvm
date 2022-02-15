@@ -30,7 +30,6 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
@@ -63,7 +62,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -300,9 +298,9 @@ void Argument::removeAttr(Attribute::AttrKind Kind) {
   getParent()->removeParamAttr(getArgNo(), Kind);
 }
 
-void Argument::removeAttrs(const AttrBuilder &B) {
+void Argument::removeAttrs(const AttributeMask &AM) {
   AttributeList AL = getParent()->getAttributes();
-  AL = AL.removeParamAttributes(Parent->getContext(), getArgNo(), B);
+  AL = AL.removeParamAttributes(Parent->getContext(), getArgNo(), AM);
   getParent()->setAttributes(AL);
 }
 
@@ -340,7 +338,7 @@ Function *Function::createWithDefaultAttr(FunctionType *Ty,
                                           unsigned AddrSpace, const Twine &N,
                                           Module *M) {
   auto *F = new Function(Ty, Linkage, AddrSpace, N, M);
-  AttrBuilder B;
+  AttrBuilder B(F->getContext());
   if (M->getUwtable())
     B.addAttribute(Attribute::UWTable);
   switch (M->getFramePointer()) {
@@ -589,8 +587,8 @@ void Function::removeFnAttr(StringRef Kind) {
   AttributeSets = AttributeSets.removeFnAttribute(getContext(), Kind);
 }
 
-void Function::removeFnAttrs(const AttrBuilder &Attrs) {
-  AttributeSets = AttributeSets.removeFnAttributes(getContext(), Attrs);
+void Function::removeFnAttrs(const AttributeMask &AM) {
+  AttributeSets = AttributeSets.removeFnAttributes(getContext(), AM);
 }
 
 void Function::removeRetAttr(Attribute::AttrKind Kind) {
@@ -601,7 +599,7 @@ void Function::removeRetAttr(StringRef Kind) {
   AttributeSets = AttributeSets.removeRetAttribute(getContext(), Kind);
 }
 
-void Function::removeRetAttrs(const AttrBuilder &Attrs) {
+void Function::removeRetAttrs(const AttributeMask &Attrs) {
   AttributeSets = AttributeSets.removeRetAttributes(getContext(), Attrs);
 }
 
@@ -613,7 +611,7 @@ void Function::removeParamAttr(unsigned ArgNo, StringRef Kind) {
   AttributeSets = AttributeSets.removeParamAttribute(getContext(), ArgNo, Kind);
 }
 
-void Function::removeParamAttrs(unsigned ArgNo, const AttrBuilder &Attrs) {
+void Function::removeParamAttrs(unsigned ArgNo, const AttributeMask &Attrs) {
   AttributeSets =
       AttributeSets.removeParamAttributes(getContext(), ArgNo, Attrs);
 }
@@ -817,7 +815,8 @@ static std::string getMangledTypeStr(Type *Ty, bool &HasUnnamedType) {
     // Opaque pointer doesn't have pointee type information, so we just mangle
     // address space for opaque pointer.
     if (!PTyp->isOpaque())
-      Result += getMangledTypeStr(PTyp->getElementType(), HasUnnamedType);
+      Result += getMangledTypeStr(PTyp->getNonOpaquePointerElementType(),
+                                  HasUnnamedType);
   } else if (ArrayType *ATyp = dyn_cast<ArrayType>(Ty)) {
     Result += "a" + utostr(ATyp->getNumElements()) +
               getMangledTypeStr(ATyp->getElementType(), HasUnnamedType);
@@ -982,6 +981,8 @@ enum IIT_Info {
   IIT_AMX  = 51,
   IIT_PPCF128 = 52,
   IIT_V3 = 53,
+  IIT_EXTERNREF = 54,
+  IIT_FUNCREF = 55
 };
 
 static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
@@ -1096,6 +1097,14 @@ static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
   case IIT_V1024:
     OutputTable.push_back(IITDescriptor::getVector(1024, IsScalableVector));
     DecodeIITType(NextElt, Infos, Info, OutputTable);
+    return;
+  case IIT_EXTERNREF:
+    OutputTable.push_back(IITDescriptor::get(IITDescriptor::Pointer, 10));
+    OutputTable.push_back(IITDescriptor::get(IITDescriptor::Struct, 0));
+    return;
+  case IIT_FUNCREF:
+    OutputTable.push_back(IITDescriptor::get(IITDescriptor::Pointer, 20));
+    OutputTable.push_back(IITDescriptor::get(IITDescriptor::Integer, 8));
     return;
   case IIT_PTR:
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Pointer, 0));
@@ -1455,8 +1464,8 @@ static bool matchIntrinsicType(
       if (!PT || PT->getAddressSpace() != D.Pointer_AddressSpace)
         return true;
       if (!PT->isOpaque())
-        return matchIntrinsicType(PT->getElementType(), Infos, ArgTys,
-                                  DeferredChecks, IsDeferredCheck);
+        return matchIntrinsicType(PT->getNonOpaquePointerElementType(), Infos,
+                                  ArgTys, DeferredChecks, IsDeferredCheck);
       // Consume IIT descriptors relating to the pointer element type.
       while (Infos.front().Kind == IITDescriptor::Pointer)
         Infos = Infos.slice(1);
@@ -1563,7 +1572,8 @@ static bool matchIntrinsicType(
         return IsDeferredCheck || DeferCheck(Ty);
       Type * ReferenceType = ArgTys[D.getArgumentNumber()];
       PointerType *ThisArgType = dyn_cast<PointerType>(Ty);
-      return (!ThisArgType || ThisArgType->getElementType() != ReferenceType);
+      return (!ThisArgType ||
+              !ThisArgType->isOpaqueOrPointeeTypeMatches(ReferenceType));
     }
     case IITDescriptor::PtrToElt: {
       if (D.getArgumentNumber() >= ArgTys.size())

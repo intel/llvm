@@ -48,8 +48,8 @@ static arith::CmpIOp createCondition(fir::FirOpBuilder &builder) {
 }
 
 static void checkIntegerConstant(mlir::Value value, mlir::Type ty, int64_t v) {
-  EXPECT_TRUE(mlir::isa<ConstantOp>(value.getDefiningOp()));
-  auto cstOp = dyn_cast<ConstantOp>(value.getDefiningOp());
+  EXPECT_TRUE(mlir::isa<mlir::arith::ConstantOp>(value.getDefiningOp()));
+  auto cstOp = dyn_cast<mlir::arith::ConstantOp>(value.getDefiningOp());
   EXPECT_EQ(ty, cstOp.getType());
   auto valueAttr = cstOp.getValue().dyn_cast_or_null<IntegerAttr>();
   EXPECT_EQ(v, valueAttr.getInt());
@@ -64,8 +64,8 @@ TEST_F(FIRBuilderTest, genIfThen) {
   auto loc = builder.getUnknownLoc();
   auto cdt = createCondition(builder);
   auto ifBuilder = builder.genIfThen(loc, cdt);
-  EXPECT_FALSE(ifBuilder.getIfOp().thenRegion().empty());
-  EXPECT_TRUE(ifBuilder.getIfOp().elseRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getThenRegion().empty());
+  EXPECT_TRUE(ifBuilder.getIfOp().getElseRegion().empty());
 }
 
 TEST_F(FIRBuilderTest, genIfThenElse) {
@@ -73,8 +73,8 @@ TEST_F(FIRBuilderTest, genIfThenElse) {
   auto loc = builder.getUnknownLoc();
   auto cdt = createCondition(builder);
   auto ifBuilder = builder.genIfThenElse(loc, cdt);
-  EXPECT_FALSE(ifBuilder.getIfOp().thenRegion().empty());
-  EXPECT_FALSE(ifBuilder.getIfOp().elseRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getThenRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getElseRegion().empty());
 }
 
 TEST_F(FIRBuilderTest, genIfWithThen) {
@@ -82,8 +82,8 @@ TEST_F(FIRBuilderTest, genIfWithThen) {
   auto loc = builder.getUnknownLoc();
   auto cdt = createCondition(builder);
   auto ifBuilder = builder.genIfOp(loc, {}, cdt, false);
-  EXPECT_FALSE(ifBuilder.getIfOp().thenRegion().empty());
-  EXPECT_TRUE(ifBuilder.getIfOp().elseRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getThenRegion().empty());
+  EXPECT_TRUE(ifBuilder.getIfOp().getElseRegion().empty());
 }
 
 TEST_F(FIRBuilderTest, genIfWithThenAndElse) {
@@ -91,8 +91,8 @@ TEST_F(FIRBuilderTest, genIfWithThenAndElse) {
   auto loc = builder.getUnknownLoc();
   auto cdt = createCondition(builder);
   auto ifBuilder = builder.genIfOp(loc, {}, cdt, true);
-  EXPECT_FALSE(ifBuilder.getIfOp().thenRegion().empty());
-  EXPECT_FALSE(ifBuilder.getIfOp().elseRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getThenRegion().empty());
+  EXPECT_FALSE(ifBuilder.getIfOp().getElseRegion().empty());
 }
 
 //===----------------------------------------------------------------------===//
@@ -107,7 +107,7 @@ TEST_F(FIRBuilderTest, genIsNotNull) {
   auto res = builder.genIsNotNull(loc, dummyValue);
   EXPECT_TRUE(mlir::isa<arith::CmpIOp>(res.getDefiningOp()));
   auto cmpOp = dyn_cast<arith::CmpIOp>(res.getDefiningOp());
-  EXPECT_EQ(arith::CmpIPredicate::ne, cmpOp.predicate());
+  EXPECT_EQ(arith::CmpIPredicate::ne, cmpOp.getPredicate());
 }
 
 TEST_F(FIRBuilderTest, genIsNull) {
@@ -118,7 +118,7 @@ TEST_F(FIRBuilderTest, genIsNull) {
   auto res = builder.genIsNull(loc, dummyValue);
   EXPECT_TRUE(mlir::isa<arith::CmpIOp>(res.getDefiningOp()));
   auto cmpOp = dyn_cast<arith::CmpIOp>(res.getDefiningOp());
-  EXPECT_EQ(arith::CmpIPredicate::eq, cmpOp.predicate());
+  EXPECT_EQ(arith::CmpIPredicate::eq, cmpOp.getPredicate());
 }
 
 TEST_F(FIRBuilderTest, createZeroConstant) {
@@ -147,7 +147,8 @@ TEST_F(FIRBuilderTest, createRealZeroConstant) {
   EXPECT_TRUE(mlir::isa<arith::ConstantOp>(cst.getDefiningOp()));
   auto cstOp = dyn_cast<arith::ConstantOp>(cst.getDefiningOp());
   EXPECT_EQ(realTy, cstOp.getType());
-  EXPECT_EQ(0u, cstOp.value().cast<FloatAttr>().getValue().convertToDouble());
+  EXPECT_EQ(
+      0u, cstOp.getValue().cast<FloatAttr>().getValue().convertToDouble());
 }
 
 TEST_F(FIRBuilderTest, createBool) {
@@ -237,7 +238,7 @@ TEST_F(FIRBuilderTest, uniqueCFIdent) {
 
 TEST_F(FIRBuilderTest, locationToLineNo) {
   auto builder = getBuilder();
-  auto loc = mlir::FileLineColLoc::get(builder.getIdentifier("file1"), 10, 5);
+  auto loc = mlir::FileLineColLoc::get(builder.getStringAttr("file1"), 10, 5);
   mlir::Value line =
       fir::factory::locationToLineNo(builder, loc, builder.getI64Type());
   checkIntegerConstant(line, builder.getI64Type(), 10);
@@ -259,7 +260,7 @@ TEST_F(FIRBuilderTest, hasDynamicSize) {
 TEST_F(FIRBuilderTest, locationToFilename) {
   auto builder = getBuilder();
   auto loc =
-      mlir::FileLineColLoc::get(builder.getIdentifier("file1.f90"), 10, 5);
+      mlir::FileLineColLoc::get(builder.getStringAttr("file1.f90"), 10, 5);
   mlir::Value locToFile = fir::factory::locationToFilename(builder, loc);
   auto addrOp = dyn_cast<fir::AddrOfOp>(locToFile.getDefiningOp());
   auto symbol = addrOp.symbol().getRootReference().getValue();
@@ -412,4 +413,115 @@ TEST_F(FIRBuilderTest, getExtents) {
   fir::ExtendedValue ex(aab);
   auto readExtents = fir::factory::getExtents(builder, loc, ex);
   EXPECT_EQ(2u, readExtents.size());
+}
+
+TEST_F(FIRBuilderTest, createZeroValue) {
+  auto builder = getBuilder();
+  auto loc = builder.getUnknownLoc();
+
+  mlir::Type i64Ty = mlir::IntegerType::get(builder.getContext(), 64);
+  mlir::Value zeroInt = fir::factory::createZeroValue(builder, loc, i64Ty);
+  EXPECT_TRUE(zeroInt.getType() == i64Ty);
+  auto cst =
+      mlir::dyn_cast_or_null<mlir::arith::ConstantOp>(zeroInt.getDefiningOp());
+  EXPECT_TRUE(cst);
+  auto intAttr = cst.getValue().dyn_cast<mlir::IntegerAttr>();
+  EXPECT_TRUE(intAttr && intAttr.getInt() == 0);
+
+  mlir::Type f32Ty = mlir::FloatType::getF32(builder.getContext());
+  mlir::Value zeroFloat = fir::factory::createZeroValue(builder, loc, f32Ty);
+  EXPECT_TRUE(zeroFloat.getType() == f32Ty);
+  auto cst2 = mlir::dyn_cast_or_null<mlir::arith::ConstantOp>(
+      zeroFloat.getDefiningOp());
+  EXPECT_TRUE(cst2);
+  auto floatAttr = cst2.getValue().dyn_cast<mlir::FloatAttr>();
+  EXPECT_TRUE(floatAttr && floatAttr.getValueAsDouble() == 0.);
+
+  mlir::Type boolTy = mlir::IntegerType::get(builder.getContext(), 1);
+  mlir::Value flaseBool = fir::factory::createZeroValue(builder, loc, boolTy);
+  EXPECT_TRUE(flaseBool.getType() == boolTy);
+  auto cst3 = mlir::dyn_cast_or_null<mlir::arith::ConstantOp>(
+      flaseBool.getDefiningOp());
+  EXPECT_TRUE(cst3);
+  auto intAttr2 = cst.getValue().dyn_cast<mlir::IntegerAttr>();
+  EXPECT_TRUE(intAttr2 && intAttr2.getInt() == 0);
+}
+
+TEST_F(FIRBuilderTest, getBaseTypeOf) {
+  auto builder = getBuilder();
+  auto loc = builder.getUnknownLoc();
+
+  auto makeExv = [&](mlir::Type elementType, mlir::Type arrayType)
+      -> std::tuple<llvm::SmallVector<fir::ExtendedValue, 4>,
+          llvm::SmallVector<fir::ExtendedValue, 4>> {
+    auto ptrTyArray = fir::PointerType::get(arrayType);
+    auto ptrTyScalar = fir::PointerType::get(elementType);
+    auto ptrBoxTyArray = fir::BoxType::get(ptrTyArray);
+    auto ptrBoxTyScalar = fir::BoxType::get(ptrTyScalar);
+    auto boxRefTyArray = fir::ReferenceType::get(ptrBoxTyArray);
+    auto boxRefTyScalar = fir::ReferenceType::get(ptrBoxTyScalar);
+    auto boxTyArray = fir::BoxType::get(arrayType);
+    auto boxTyScalar = fir::BoxType::get(elementType);
+
+    auto ptrValArray = builder.create<fir::UndefOp>(loc, ptrTyArray);
+    auto ptrValScalar = builder.create<fir::UndefOp>(loc, ptrTyScalar);
+    auto boxRefValArray = builder.create<fir::UndefOp>(loc, boxRefTyArray);
+    auto boxRefValScalar = builder.create<fir::UndefOp>(loc, boxRefTyScalar);
+    auto boxValArray = builder.create<fir::UndefOp>(loc, boxTyArray);
+    auto boxValScalar = builder.create<fir::UndefOp>(loc, boxTyScalar);
+
+    llvm::SmallVector<fir::ExtendedValue, 4> scalars;
+    scalars.emplace_back(fir::UnboxedValue(ptrValScalar));
+    scalars.emplace_back(fir::BoxValue(boxValScalar));
+    scalars.emplace_back(
+        fir::MutableBoxValue(boxRefValScalar, mlir::ValueRange(), {}));
+
+    llvm::SmallVector<fir::ExtendedValue, 4> arrays;
+    auto extent = builder.create<fir::UndefOp>(loc, builder.getIndexType());
+    llvm::SmallVector<mlir::Value> extents(
+        arrayType.dyn_cast<fir::SequenceType>().getDimension(),
+        extent.getResult());
+    arrays.emplace_back(fir::ArrayBoxValue(ptrValArray, extents));
+    arrays.emplace_back(fir::BoxValue(boxValArray));
+    arrays.emplace_back(
+        fir::MutableBoxValue(boxRefValArray, mlir::ValueRange(), {}));
+    return {scalars, arrays};
+  };
+
+  auto f32Ty = mlir::FloatType::getF32(builder.getContext());
+  mlir::Type f32SeqTy = builder.getVarLenSeqTy(f32Ty);
+  auto [f32Scalars, f32Arrays] = makeExv(f32Ty, f32SeqTy);
+  for (const auto &scalar : f32Scalars) {
+    EXPECT_EQ(fir::getBaseTypeOf(scalar), f32Ty);
+    EXPECT_EQ(fir::getElementTypeOf(scalar), f32Ty);
+    EXPECT_FALSE(fir::isDerivedWithLengthParameters(scalar));
+  }
+  for (const auto &array : f32Arrays) {
+    EXPECT_EQ(fir::getBaseTypeOf(array), f32SeqTy);
+    EXPECT_EQ(fir::getElementTypeOf(array), f32Ty);
+    EXPECT_FALSE(fir::isDerivedWithLengthParameters(array));
+  }
+
+  auto derivedWithLengthTy =
+      fir::RecordType::get(builder.getContext(), "derived_test");
+
+  llvm::SmallVector<std::pair<std::string, mlir::Type>> parameters;
+  llvm::SmallVector<std::pair<std::string, mlir::Type>> components;
+  parameters.emplace_back("p1", builder.getI64Type());
+  components.emplace_back("c1", f32Ty);
+  derivedWithLengthTy.finalize(parameters, components);
+  mlir::Type derivedWithLengthSeqTy =
+      builder.getVarLenSeqTy(derivedWithLengthTy);
+  auto [derivedWithLengthScalars, derivedWithLengthArrays] =
+      makeExv(derivedWithLengthTy, derivedWithLengthSeqTy);
+  for (const auto &scalar : derivedWithLengthScalars) {
+    EXPECT_EQ(fir::getBaseTypeOf(scalar), derivedWithLengthTy);
+    EXPECT_EQ(fir::getElementTypeOf(scalar), derivedWithLengthTy);
+    EXPECT_TRUE(fir::isDerivedWithLengthParameters(scalar));
+  }
+  for (const auto &array : derivedWithLengthArrays) {
+    EXPECT_EQ(fir::getBaseTypeOf(array), derivedWithLengthSeqTy);
+    EXPECT_EQ(fir::getElementTypeOf(array), derivedWithLengthTy);
+    EXPECT_TRUE(fir::isDerivedWithLengthParameters(array));
+  }
 }

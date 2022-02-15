@@ -41,6 +41,7 @@ DEFAULT_FEATURES = [
   Feature(name='has-fobjc-arc',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc') and
                                                                  sys.platform.lower().strip() == 'darwin'), # TODO: this doesn't handle cross-compiling to Apple platforms.
   Feature(name='objective-c++',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc')),
+  Feature(name='verify-support',                when=lambda cfg: hasCompileFlag(cfg, '-Xclang -verify-ignore-unexpected')),
 
   Feature(name='non-lockfree-atomics',
           when=lambda cfg: sourceBuilds(cfg, """
@@ -58,6 +59,30 @@ DEFAULT_FEATURES = [
             std::atomic<Large> x;
             int main(int, char**) { return x.is_lock_free(); }
           """)),
+
+  # Some tests rely on creating shared libraries which link in the C++ Standard Library. In some
+  # cases, this doesn't work (e.g. if the library was built as a static archive and wasn't compiled
+  # as position independent). This feature informs the test suite of whether it's possible to create
+  # a shared library in a shell test by using the '-shared' compiler flag.
+  #
+  # Note: To implement this check properly, we need to make sure that we use something inside the
+  # compiled library, not only in the headers. It should be safe to assume that all implementations
+  # define `operator new` in the compiled library.
+  Feature(name='cant-build-shared-library',
+          when=lambda cfg: not sourceBuilds(cfg, """
+            void f() { new int(3); }
+          """, ['-shared'])),
+
+  # Whether Bash can run on the executor.
+  # This is not always the case, for example when running on embedded systems.
+  #
+  # For the corner case of bash existing, but it being missing in the path
+  # set in %{exec} as "--env PATH=one-single-dir", the executor does find
+  # and executes bash, but bash then can't find any other common shell
+  # utilities. Test executing "bash -c 'bash --version'" to see if bash
+  # manages to find binaries to execute.
+  Feature(name='executor-has-no-bash',
+          when=lambda cfg: runScriptExitCode(cfg, ['%{exec} bash -c \'bash --version\'']) != 0),
 
   Feature(name='apple-clang',                                                                                                      when=_isAppleClang),
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}'.format(**compilerMacros(cfg)),                                          when=_isAppleClang),
@@ -94,7 +119,6 @@ macros = {
   '_LIBCPP_HAS_THREAD_API_PTHREAD': 'libcpp-has-thread-api-pthread',
   '_LIBCPP_NO_VCRUNTIME': 'libcpp-no-vcruntime',
   '_LIBCPP_ABI_VERSION': 'libcpp-abi-version',
-  '_LIBCPP_ABI_UNSTABLE': 'libcpp-abi-unstable',
   '_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY': 'libcpp-has-no-filesystem-library',
   '_LIBCPP_HAS_NO_RANDOM_DEVICE': 'libcpp-has-no-random-device',
   '_LIBCPP_HAS_NO_LOCALIZATION': 'libcpp-has-no-localization',
@@ -104,22 +128,10 @@ macros = {
   '_LIBCPP_HAS_NO_UNICODE': 'libcpp-has-no-unicode',
 }
 for macro, feature in macros.items():
-  DEFAULT_FEATURES += [
-    Feature(name=lambda cfg, m=macro, f=feature: f + (
-              '={}'.format(compilerMacros(cfg)[m]) if compilerMacros(cfg)[m] else ''
-            ),
-            when=lambda cfg, m=macro: m in compilerMacros(cfg),
-
-            # FIXME: This is a hack that should be fixed using module maps.
-            # If modules are enabled then we have to lift all of the definitions
-            # in <__config_site> onto the command line.
-            actions=lambda cfg, m=macro: [
-              AddCompileFlag('-Wno-macro-redefined -D{}'.format(m) + (
-                '={}'.format(compilerMacros(cfg)[m]) if compilerMacros(cfg)[m] else ''
-              ))
-            ]
-    )
-  ]
+  DEFAULT_FEATURES.append(
+    Feature(name=lambda cfg, m=macro, f=feature: f + ('={}'.format(compilerMacros(cfg)[m]) if compilerMacros(cfg)[m] else ''),
+            when=lambda cfg, m=macro: m in compilerMacros(cfg))
+  )
 
 
 # Mapping from canonical locale names (used in the tests) to possible locale

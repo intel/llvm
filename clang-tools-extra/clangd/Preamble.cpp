@@ -84,8 +84,7 @@ public:
   void AfterExecute(CompilerInstance &CI) override {
     if (ParsedCallback) {
       trace::Span Tracer("Running PreambleCallback");
-      ParsedCallback(CI.getASTContext(), CI.getPreprocessorPtr(),
-                     CanonIncludes);
+      ParsedCallback(CI.getASTContext(), CI.getPreprocessor(), CanonIncludes);
     }
 
     const SourceManager &SM = CI.getSourceManager();
@@ -99,7 +98,7 @@ public:
     CanonIncludes.addSystemHeadersMapping(CI.getLangOpts());
     LangOpts = &CI.getLangOpts();
     SourceMgr = &CI.getSourceManager();
-    Compiler = &CI;
+    Includes.collect(CI);
   }
 
   std::unique_ptr<PPCallbacks> createPPCallbacks() override {
@@ -107,10 +106,8 @@ public:
            "SourceMgr and LangOpts must be set at this point");
 
     return std::make_unique<PPChainedCallbacks>(
-        Includes.collect(*Compiler),
-        std::make_unique<PPChainedCallbacks>(
-            std::make_unique<CollectMainFileMacros>(*SourceMgr, Macros),
-            collectPragmaMarksCallback(*SourceMgr, Marks)));
+        std::make_unique<CollectMainFileMacros>(*SourceMgr, Macros),
+        collectPragmaMarksCallback(*SourceMgr, Marks));
   }
 
   CommentHandler *getCommentHandler() override {
@@ -142,7 +139,6 @@ private:
   std::unique_ptr<CommentHandler> IWYUHandler = nullptr;
   const clang::LangOptions *LangOpts = nullptr;
   const SourceManager *SourceMgr = nullptr;
-  const CompilerInstance *Compiler = nullptr;
 };
 
 // Represents directives other than includes, where basic textual information is
@@ -288,7 +284,7 @@ scanPreamble(llvm::StringRef Contents, const tooling::CompileCommand &Cmd) {
     return error("failed BeginSourceFile");
   Preprocessor &PP = Clang->getPreprocessor();
   IncludeStructure Includes;
-  PP.addPPCallbacks(Includes.collect(*Clang));
+  Includes.collect(*Clang);
   ScannedPreamble SP;
   SP.Bounds = Bounds;
   PP.addPPCallbacks(
@@ -354,7 +350,8 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
   PreambleDiagnostics.setLevelAdjuster([&](DiagnosticsEngine::Level DiagLevel,
                                            const clang::Diagnostic &Info) {
     if (Cfg.Diagnostics.SuppressAll ||
-        isBuiltinDiagnosticSuppressed(Info.getID(), Cfg.Diagnostics.Suppress))
+        isBuiltinDiagnosticSuppressed(Info.getID(), Cfg.Diagnostics.Suppress,
+                                      *CI.getLangOpts()))
       return DiagnosticsEngine::Ignored;
     switch (Info.getID()) {
     case diag::warn_no_newline_eof:

@@ -60,6 +60,16 @@ ModuleLoader &Sema::getModuleLoader() const { return PP.getModuleLoader(); }
 DarwinSDKInfo *
 Sema::getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
                                               StringRef Platform) {
+  auto *SDKInfo = getDarwinSDKInfoForAvailabilityChecking();
+  if (!SDKInfo && !WarnedDarwinSDKInfoMissing) {
+    Diag(Loc, diag::warn_missing_sdksettings_for_availability_checking)
+        << Platform;
+    WarnedDarwinSDKInfoMissing = true;
+  }
+  return SDKInfo;
+}
+
+DarwinSDKInfo *Sema::getDarwinSDKInfoForAvailabilityChecking() {
   if (CachedDarwinSDKInfo)
     return CachedDarwinSDKInfo->get();
   auto SDKInfo = parseDarwinSDKInfo(
@@ -71,8 +81,6 @@ Sema::getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
   }
   if (!SDKInfo)
     llvm::consumeError(SDKInfo.takeError());
-  Diag(Loc, diag::warn_missing_sdksettings_for_availability_checking)
-      << Platform;
   CachedDarwinSDKInfo = std::unique_ptr<DarwinSDKInfo>();
   return nullptr;
 }
@@ -187,7 +195,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       CodeSegStack(nullptr), FpPragmaStack(FPOptionsOverride()),
       CurInitSeg(nullptr), VisContext(nullptr),
       PragmaAttributeCurrentTargetDecl(nullptr),
-      IsBuildingRecoveryCallExpr(false), Cleanup{}, LateTemplateParser(nullptr),
+      IsBuildingRecoveryCallExpr(false), LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
       StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
@@ -352,9 +360,12 @@ void Sema::Initialize() {
         Context.getTargetInfo().getSupportedOpenCLOpts(), getLangOpts());
     addImplicitTypedef("sampler_t", Context.OCLSamplerTy);
     addImplicitTypedef("event_t", Context.OCLEventTy);
-    if (getLangOpts().getOpenCLCompatibleVersion() >= 200) {
-      addImplicitTypedef("clk_event_t", Context.OCLClkEventTy);
-      addImplicitTypedef("queue_t", Context.OCLQueueTy);
+    auto OCLCompatibleVersion = getLangOpts().getOpenCLCompatibleVersion();
+    if (OCLCompatibleVersion >= 200) {
+      if (getLangOpts().OpenCLCPlusPlus || getLangOpts().Blocks) {
+        addImplicitTypedef("clk_event_t", Context.OCLClkEventTy);
+        addImplicitTypedef("queue_t", Context.OCLQueueTy);
+      }
       if (getLangOpts().OpenCLPipes)
         addImplicitTypedef("reserve_id_t", Context.OCLReserveIDTy);
       addImplicitTypedef("atomic_int", Context.getAtomicType(Context.IntTy));
@@ -421,7 +432,6 @@ void Sema::Initialize() {
         }
       }
     }
-
 
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext)                                      \
   if (getOpenCLOptions().isSupported(#Ext, getLangOpts())) {                   \
@@ -1679,6 +1689,15 @@ public:
   }
 
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
+    if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
+      if (auto *VD = dyn_cast<VarDecl>(D)) {
+        if (!S.checkAllowedSYCLInitializer(VD)) {
+          S.Diag(Loc, diag::err_sycl_restrict)
+              << Sema::KernelConstStaticVariable;
+          return;
+        }
+      }
+    }
     if (isa<VarDecl>(D))
       return;
     if (auto *FD = dyn_cast<FunctionDecl>(D)) {
@@ -1761,8 +1780,15 @@ public:
   // Emit any deferred diagnostics for FD
   void emitDeferredDiags(FunctionDecl *FD, bool ShowCallStack) {
     auto It = S.DeviceDeferredDiags.find(FD);
-    if (It == S.DeviceDeferredDiags.end())
+    if (It == S.DeviceDeferredDiags.end()) {
+      // If this is a template instantiation, check if its declaration
+      // is on the deferred diagnostics stack.
+      if (FD->isTemplateInstantiation()) {
+        FD = FD->getTemplateInstantiationPattern();
+        emitDeferredDiags(FD, ShowCallStack);
+      }
       return;
+    }
     bool HasWarningOrError = false;
     bool FirstDiag = true;
     for (Sema::DeviceDeferredDiagnostic &D : It->second) {
@@ -1928,6 +1954,15 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   if (isUnevaluatedContext() || Ty.isNull())
     return;
 
+  // The original idea behind checkTypeSupport function is that unused
+  // declarations can be replaced with an array of bytes of the same size during
+  // codegen, such replacement doesn't seem to be possible for types without
+  // constant byte size like zero length arrays. So, do a deep check for SYCL.
+  if (D && LangOpts.SYCLIsDevice) {
+    llvm::DenseSet<QualType> Visited;
+    deepTypeCheckForSYCLDevice(Loc, Visited, D);
+  }
+
   Decl *C = cast<Decl>(getCurLexicalContext());
 
   // Memcpy operations for structs containing a member with unsupported type
@@ -1951,8 +1986,8 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
     if (Ty->isDependentType())
       return;
 
-    if (Ty->isExtIntType()) {
-      if (!Context.getTargetInfo().hasExtIntType()) {
+    if (Ty->isBitIntType()) {
+      if (!Context.getTargetInfo().hasBitIntType()) {
         PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
         if (D)
           PD << D;
@@ -2004,7 +2039,8 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   };
 
   auto CheckType = [&](QualType Ty, bool IsRetTy = false) {
-    if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice))
+    if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice) ||
+        LangOpts.CUDAIsDevice)
       CheckDeviceType(Ty);
 
     QualType UnqualTy = Ty.getCanonicalType().getUnqualifiedType();
@@ -2608,32 +2644,36 @@ bool Sema::tryToRecoverWithCall(ExprResult &E, const PartialDiagnostic &PD,
                                 bool (*IsPlausibleResult)(QualType)) {
   SourceLocation Loc = E.get()->getExprLoc();
   SourceRange Range = E.get()->getSourceRange();
-
-  QualType ZeroArgCallTy;
   UnresolvedSet<4> Overloads;
-  if (tryExprAsCall(*E.get(), ZeroArgCallTy, Overloads) &&
-      !ZeroArgCallTy.isNull() &&
-      (!IsPlausibleResult || IsPlausibleResult(ZeroArgCallTy))) {
-    // At this point, we know E is potentially callable with 0
-    // arguments and that it returns something of a reasonable type,
-    // so we can emit a fixit and carry on pretending that E was
-    // actually a CallExpr.
-    SourceLocation ParenInsertionLoc = getLocForEndOfToken(Range.getEnd());
-    bool IsMV = IsCPUDispatchCPUSpecificMultiVersion(E.get());
-    Diag(Loc, PD) << /*zero-arg*/ 1 << IsMV << Range
-                  << (IsCallableWithAppend(E.get())
-                          ? FixItHint::CreateInsertion(ParenInsertionLoc, "()")
-                          : FixItHint());
-    if (!IsMV)
-      notePlausibleOverloads(*this, Loc, Overloads, IsPlausibleResult);
 
-    // FIXME: Try this before emitting the fixit, and suppress diagnostics
-    // while doing so.
-    E = BuildCallExpr(nullptr, E.get(), Range.getEnd(), None,
-                      Range.getEnd().getLocWithOffset(1));
-    return true;
+  // If this is a SFINAE context, don't try anything that might trigger ADL
+  // prematurely.
+  if (!isSFINAEContext()) {
+    QualType ZeroArgCallTy;
+    if (tryExprAsCall(*E.get(), ZeroArgCallTy, Overloads) &&
+        !ZeroArgCallTy.isNull() &&
+        (!IsPlausibleResult || IsPlausibleResult(ZeroArgCallTy))) {
+      // At this point, we know E is potentially callable with 0
+      // arguments and that it returns something of a reasonable type,
+      // so we can emit a fixit and carry on pretending that E was
+      // actually a CallExpr.
+      SourceLocation ParenInsertionLoc = getLocForEndOfToken(Range.getEnd());
+      bool IsMV = IsCPUDispatchCPUSpecificMultiVersion(E.get());
+      Diag(Loc, PD) << /*zero-arg*/ 1 << IsMV << Range
+                    << (IsCallableWithAppend(E.get())
+                            ? FixItHint::CreateInsertion(ParenInsertionLoc,
+                                                         "()")
+                            : FixItHint());
+      if (!IsMV)
+        notePlausibleOverloads(*this, Loc, Overloads, IsPlausibleResult);
+
+      // FIXME: Try this before emitting the fixit, and suppress diagnostics
+      // while doing so.
+      E = BuildCallExpr(nullptr, E.get(), Range.getEnd(), None,
+                        Range.getEnd().getLocWithOffset(1));
+      return true;
+    }
   }
-
   if (!ForceComplain) return false;
 
   bool IsMV = IsCPUDispatchCPUSpecificMultiVersion(E.get());

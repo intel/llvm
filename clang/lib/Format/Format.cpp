@@ -16,7 +16,9 @@
 #include "AffectedRangeManager.h"
 #include "BreakableToken.h"
 #include "ContinuationIndenter.h"
+#include "DefinitionBlockSeparator.h"
 #include "FormatInternal.h"
+#include "FormatToken.h"
 #include "FormatTokenLexer.h"
 #include "NamespaceEndCommentsFixer.h"
 #include "QualifierAlignmentFixer.h"
@@ -33,6 +35,7 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Inclusions/HeaderIncludes.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Debug.h"
@@ -383,6 +386,7 @@ template <> struct ScalarEnumerationTraits<FormatStyle::BracketAlignmentStyle> {
     IO.enumCase(Value, "Align", FormatStyle::BAS_Align);
     IO.enumCase(Value, "DontAlign", FormatStyle::BAS_DontAlign);
     IO.enumCase(Value, "AlwaysBreak", FormatStyle::BAS_AlwaysBreak);
+    IO.enumCase(Value, "BlockIndent", FormatStyle::BAS_BlockIndent);
 
     // For backward compatibility.
     IO.enumCase(Value, "true", FormatStyle::BAS_Align);
@@ -426,6 +430,15 @@ template <> struct ScalarEnumerationTraits<FormatStyle::PointerAlignmentStyle> {
     // For backward compatibility.
     IO.enumCase(Value, "true", FormatStyle::PAS_Left);
     IO.enumCase(Value, "false", FormatStyle::PAS_Right);
+  }
+};
+
+template <>
+struct ScalarEnumerationTraits<FormatStyle::SeparateDefinitionStyle> {
+  static void enumeration(IO &IO, FormatStyle::SeparateDefinitionStyle &Value) {
+    IO.enumCase(Value, "Leave", FormatStyle::SDS_Leave);
+    IO.enumCase(Value, "Always", FormatStyle::SDS_Always);
+    IO.enumCase(Value, "Never", FormatStyle::SDS_Never);
   }
 };
 
@@ -521,11 +534,9 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("Language", Style.Language);
 
     if (IO.outputting()) {
-      StringRef StylesArray[] = {"LLVM",   "Google", "Chromium", "Mozilla",
-                                 "WebKit", "GNU",    "Microsoft"};
-      ArrayRef<StringRef> Styles(StylesArray);
-      for (size_t i = 0, e = Styles.size(); i < e; ++i) {
-        StringRef StyleName(Styles[i]);
+      StringRef Styles[] = {"LLVM",   "Google", "Chromium", "Mozilla",
+                            "WebKit", "GNU",    "Microsoft"};
+      for (StringRef StyleName : Styles) {
         FormatStyle PredefinedStyle;
         if (getPredefinedStyle(StyleName, Style.Language, &PredefinedStyle) &&
             Style == PredefinedStyle) {
@@ -655,13 +666,12 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("QualifierAlignment", Style.QualifierAlignment);
 
     // Default Order for Left/Right based Qualifier alignment.
-    if (Style.QualifierAlignment == FormatStyle::QAS_Right) {
+    if (Style.QualifierAlignment == FormatStyle::QAS_Right)
       Style.QualifierOrder = {"type", "const", "volatile"};
-    } else if (Style.QualifierAlignment == FormatStyle::QAS_Left) {
+    else if (Style.QualifierAlignment == FormatStyle::QAS_Left)
       Style.QualifierOrder = {"const", "volatile", "type"};
-    } else if (Style.QualifierAlignment == FormatStyle::QAS_Custom) {
+    else if (Style.QualifierAlignment == FormatStyle::QAS_Custom)
       IO.mapOptional("QualifierOrder", Style.QualifierOrder);
-    }
 
     IO.mapOptional("CompactNamespaces", Style.CompactNamespaces);
     IO.mapOptional("ConstructorInitializerIndentWidth",
@@ -756,6 +766,8 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("PenaltyBreakComment", Style.PenaltyBreakComment);
     IO.mapOptional("PenaltyBreakFirstLessLess",
                    Style.PenaltyBreakFirstLessLess);
+    IO.mapOptional("PenaltyBreakOpenParenthesis",
+                   Style.PenaltyBreakOpenParenthesis);
     IO.mapOptional("PenaltyBreakString", Style.PenaltyBreakString);
     IO.mapOptional("PenaltyBreakTemplateDeclaration",
                    Style.PenaltyBreakTemplateDeclaration);
@@ -769,6 +781,8 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("RawStringFormats", Style.RawStringFormats);
     IO.mapOptional("ReferenceAlignment", Style.ReferenceAlignment);
     IO.mapOptional("ReflowComments", Style.ReflowComments);
+    IO.mapOptional("RemoveBracesLLVM", Style.RemoveBracesLLVM);
+    IO.mapOptional("SeparateDefinitionBlocks", Style.SeparateDefinitionBlocks);
     IO.mapOptional("ShortNamespaceLines", Style.ShortNamespaceLines);
     IO.mapOptional("SortIncludes", Style.SortIncludes);
     IO.mapOptional("SortJavaStaticImport", Style.SortJavaStaticImport);
@@ -855,6 +869,7 @@ template <> struct MappingTraits<FormatStyle::SpaceBeforeParensCustom> {
     IO.mapOptional("AfterFunctionDeclarationName",
                    Spacing.AfterFunctionDeclarationName);
     IO.mapOptional("AfterIfMacros", Spacing.AfterIfMacros);
+    IO.mapOptional("AfterOverloadedOperator", Spacing.AfterOverloadedOperator);
     IO.mapOptional("BeforeNonEmptyParentheses",
                    Spacing.BeforeNonEmptyParentheses);
   }
@@ -878,9 +893,8 @@ template <> struct MappingTraits<FormatStyle::SpacesInLineComment> {
     IO.mapOptional("Maximum", signedMaximum);
     Space.Maximum = static_cast<unsigned>(signedMaximum);
 
-    if (Space.Maximum != -1u) {
+    if (Space.Maximum != -1u)
       Space.Minimum = std::min(Space.Minimum, Space.Maximum);
-    }
   }
 };
 
@@ -1193,12 +1207,14 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.ObjCSpaceBeforeProtocolList = true;
   LLVMStyle.PointerAlignment = FormatStyle::PAS_Right;
   LLVMStyle.ReferenceAlignment = FormatStyle::RAS_Pointer;
+  LLVMStyle.SeparateDefinitionBlocks = FormatStyle::SDS_Leave;
   LLVMStyle.ShortNamespaceLines = 1;
   LLVMStyle.SpacesBeforeTrailingComments = 1;
   LLVMStyle.Standard = FormatStyle::LS_Latest;
   LLVMStyle.UseCRLF = false;
   LLVMStyle.UseTab = FormatStyle::UT_Never;
   LLVMStyle.ReflowComments = true;
+  LLVMStyle.RemoveBracesLLVM = false;
   LLVMStyle.SpacesInParentheses = false;
   LLVMStyle.SpacesInSquareBrackets = false;
   LLVMStyle.SpaceInEmptyBlock = false;
@@ -1232,6 +1248,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.PenaltyExcessCharacter = 1000000;
   LLVMStyle.PenaltyReturnTypeOnItsOwnLine = 60;
   LLVMStyle.PenaltyBreakBeforeFirstCallParameter = 19;
+  LLVMStyle.PenaltyBreakOpenParenthesis = 0;
   LLVMStyle.PenaltyBreakTemplateDeclaration = prec::Relational;
   LLVMStyle.PenaltyIndentedWhitespace = 0;
 
@@ -1249,12 +1266,10 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.WhitespaceSensitiveMacros.push_back("CF_SWIFT_NAME");
 
   // Defaults that differ when not C++.
-  if (Language == FormatStyle::LK_TableGen) {
+  if (Language == FormatStyle::LK_TableGen)
     LLVMStyle.SpacesInContainerLiterals = false;
-  }
-  if (LLVMStyle.isJson()) {
+  if (LLVMStyle.isJson())
     LLVMStyle.ColumnLimit = 0;
-  }
 
   return LLVMStyle;
 }
@@ -1563,27 +1578,26 @@ FormatStyle getNoStyle() {
 
 bool getPredefinedStyle(StringRef Name, FormatStyle::LanguageKind Language,
                         FormatStyle *Style) {
-  if (Name.equals_insensitive("llvm")) {
+  if (Name.equals_insensitive("llvm"))
     *Style = getLLVMStyle(Language);
-  } else if (Name.equals_insensitive("chromium")) {
+  else if (Name.equals_insensitive("chromium"))
     *Style = getChromiumStyle(Language);
-  } else if (Name.equals_insensitive("mozilla")) {
+  else if (Name.equals_insensitive("mozilla"))
     *Style = getMozillaStyle();
-  } else if (Name.equals_insensitive("google")) {
+  else if (Name.equals_insensitive("google"))
     *Style = getGoogleStyle(Language);
-  } else if (Name.equals_insensitive("webkit")) {
+  else if (Name.equals_insensitive("webkit"))
     *Style = getWebKitStyle();
-  } else if (Name.equals_insensitive("gnu")) {
+  else if (Name.equals_insensitive("gnu"))
     *Style = getGNUStyle();
-  } else if (Name.equals_insensitive("microsoft")) {
+  else if (Name.equals_insensitive("microsoft"))
     *Style = getMicrosoftStyle(Language);
-  } else if (Name.equals_insensitive("none")) {
+  else if (Name.equals_insensitive("none"))
     *Style = getNoStyle();
-  } else if (Name.equals_insensitive("inheritparentconfig")) {
+  else if (Name.equals_insensitive("inheritparentconfig"))
     Style->InheritsParentConfig = true;
-  } else {
+  else
     return false;
-  }
 
   Style->Language = Language;
   return true;
@@ -1662,10 +1676,10 @@ std::error_code parseConfiguration(llvm::MemoryBufferRef Config,
   // configuration (which can only be at slot 0) after it.
   FormatStyle::FormatStyleSet StyleSet;
   bool LanguageFound = false;
-  for (int i = Styles.size() - 1; i >= 0; --i) {
-    if (Styles[i].Language != FormatStyle::LK_None)
-      StyleSet.Add(Styles[i]);
-    if (Styles[i].Language == Language)
+  for (const FormatStyle &Style : llvm::reverse(Styles)) {
+    if (Style.Language != FormatStyle::LK_None)
+      StyleSet.Add(Style);
+    if (Style.Language == Language)
       LanguageFound = true;
   }
   if (!LanguageFound) {
@@ -1731,6 +1745,45 @@ FormatStyle::GetLanguageStyle(FormatStyle::LanguageKind Language) const {
 }
 
 namespace {
+
+class BracesRemover : public TokenAnalyzer {
+public:
+  BracesRemover(const Environment &Env, const FormatStyle &Style)
+      : TokenAnalyzer(Env, Style) {}
+
+  std::pair<tooling::Replacements, unsigned>
+  analyze(TokenAnnotator &Annotator,
+          SmallVectorImpl<AnnotatedLine *> &AnnotatedLines,
+          FormatTokenLexer &Tokens) override {
+    AffectedRangeMgr.computeAffectedLines(AnnotatedLines);
+    tooling::Replacements Result;
+    removeBraces(AnnotatedLines, Result);
+    return {Result, 0};
+  }
+
+private:
+  // Remove optional braces.
+  void removeBraces(SmallVectorImpl<AnnotatedLine *> &Lines,
+                    tooling::Replacements &Result) {
+    const auto &SourceMgr = Env.getSourceManager();
+    for (AnnotatedLine *Line : Lines) {
+      removeBraces(Line->Children, Result);
+      if (!Line->Affected)
+        continue;
+      for (FormatToken *Token = Line->First; Token; Token = Token->Next) {
+        if (!Token->Optional)
+          continue;
+        assert(Token->isOneOf(tok::l_brace, tok::r_brace));
+        const auto Start = Token == Line->Last
+                               ? Token->WhitespaceRange.getBegin()
+                               : Token->Tok.getLocation();
+        const auto Range =
+            CharSourceRange::getCharRange(Start, Token->Tok.getEndLoc());
+        cantFail(Result.add(tooling::Replacement(SourceMgr, Range, "")));
+      }
+    }
+  }
+};
 
 class JavaScriptRequoter : public TokenAnalyzer {
 public:
@@ -1832,15 +1885,14 @@ public:
     tooling::Replacements Result;
     deriveLocalStyle(AnnotatedLines);
     AffectedRangeMgr.computeAffectedLines(AnnotatedLines);
-    for (unsigned i = 0, e = AnnotatedLines.size(); i != e; ++i) {
-      Annotator.calculateFormattingInformation(*AnnotatedLines[i]);
-    }
+    for (AnnotatedLine *Line : AnnotatedLines)
+      Annotator.calculateFormattingInformation(*Line);
     Annotator.setCommentLineLevels(AnnotatedLines);
 
     WhitespaceManager Whitespaces(
         Env.getSourceManager(), Style,
         Style.DeriveLineEnding
-            ? inputUsesCRLF(
+            ? WhitespaceManager::inputUsesCRLF(
                   Env.getSourceManager().getBufferData(Env.getFileID()),
                   Style.UseCRLF)
             : Style.UseCRLF);
@@ -1864,19 +1916,13 @@ public:
   }
 
 private:
-  static bool inputUsesCRLF(StringRef Text, bool DefaultToCRLF) {
-    size_t LF = Text.count('\n');
-    size_t CR = Text.count('\r') * 2;
-    return LF == CR ? DefaultToCRLF : CR > LF;
-  }
-
   bool
   hasCpp03IncompatibleFormat(const SmallVectorImpl<AnnotatedLine *> &Lines) {
     for (const AnnotatedLine *Line : Lines) {
       if (hasCpp03IncompatibleFormat(Line->Children))
         return true;
       for (FormatToken *Tok = Line->First->Next; Tok; Tok = Tok->Next) {
-        if (Tok->WhitespaceRange.getBegin() == Tok->WhitespaceRange.getEnd()) {
+        if (!Tok->hasWhitespaceBefore()) {
           if (Tok->is(tok::coloncolon) && Tok->Previous->is(TT_TemplateOpener))
             return true;
           if (Tok->is(TT_TemplateCloser) &&
@@ -1895,10 +1941,16 @@ private:
       for (FormatToken *Tok = Line->First; Tok && Tok->Next; Tok = Tok->Next) {
         if (!Tok->is(TT_PointerOrReference))
           continue;
-        bool SpaceBefore =
-            Tok->WhitespaceRange.getBegin() != Tok->WhitespaceRange.getEnd();
-        bool SpaceAfter = Tok->Next->WhitespaceRange.getBegin() !=
-                          Tok->Next->WhitespaceRange.getEnd();
+        // Don't treat space in `void foo() &&` as evidence.
+        if (const auto *Prev = Tok->getPreviousNonComment()) {
+          if (Prev->is(tok::r_paren) && Prev->MatchingParen)
+            if (const auto *Func = Prev->MatchingParen->getPreviousNonComment())
+              if (Func->isOneOf(TT_FunctionDeclarationName, TT_StartOfName,
+                                TT_OverloadedOperator))
+                continue;
+        }
+        bool SpaceBefore = Tok->hasWhitespaceBefore();
+        bool SpaceAfter = Tok->Next->hasWhitespaceBefore();
         if (SpaceBefore && !SpaceAfter)
           ++AlignmentDiff;
         if (!SpaceBefore && SpaceAfter)
@@ -1912,10 +1964,10 @@ private:
   deriveLocalStyle(const SmallVectorImpl<AnnotatedLine *> &AnnotatedLines) {
     bool HasBinPackedFunction = false;
     bool HasOnePerLineFunction = false;
-    for (unsigned i = 0, e = AnnotatedLines.size(); i != e; ++i) {
-      if (!AnnotatedLines[i]->First->Next)
+    for (AnnotatedLine *Line : AnnotatedLines) {
+      if (!Line->First->Next)
         continue;
-      FormatToken *Tok = AnnotatedLines[i]->First->Next;
+      FormatToken *Tok = Line->First->Next;
       while (Tok->Next) {
         if (Tok->is(PPK_BinPacked))
           HasBinPackedFunction = true;
@@ -2044,9 +2096,8 @@ public:
 
 private:
   void cleanupLine(AnnotatedLine *Line) {
-    for (auto *Child : Line->Children) {
+    for (auto *Child : Line->Children)
       cleanupLine(Child);
-    }
 
     if (Line->Affected) {
       cleanupRight(Line->First, tok::comma, tok::comma);
@@ -2060,10 +2111,9 @@ private:
   }
 
   bool containsOnlyComments(const AnnotatedLine &Line) {
-    for (FormatToken *Tok = Line.First; Tok != nullptr; Tok = Tok->Next) {
+    for (FormatToken *Tok = Line.First; Tok != nullptr; Tok = Tok->Next)
       if (Tok->isNot(tok::comment))
         return false;
-    }
     return true;
   }
 
@@ -2072,9 +2122,8 @@ private:
     std::set<unsigned> DeletedLines;
     for (unsigned i = 0, e = AnnotatedLines.size(); i != e; ++i) {
       auto &Line = *AnnotatedLines[i];
-      if (Line.startsWithNamespace()) {
+      if (Line.startsWithNamespace())
         checkEmptyNamespace(AnnotatedLines, i, i, DeletedLines);
-      }
     }
 
     for (auto Line : DeletedLines) {
@@ -2136,9 +2185,8 @@ private:
             AnnotatedLines[CurrentLine]->Last->Tok.getEndLoc())))
       return false;
 
-    for (unsigned i = InitLine; i <= CurrentLine; ++i) {
+    for (unsigned i = InitLine; i <= CurrentLine; ++i)
       DeletedLines.insert(i);
-    }
 
     return true;
   }
@@ -2202,10 +2250,8 @@ private:
     unsigned Idx = 0;
     while (Idx < Tokens.size()) {
       unsigned St = Idx, End = Idx;
-      while ((End + 1) < Tokens.size() &&
-             Tokens[End]->Next == Tokens[End + 1]) {
-        End++;
-      }
+      while ((End + 1) < Tokens.size() && Tokens[End]->Next == Tokens[End + 1])
+        ++End;
       auto SR = CharSourceRange::getCharRange(Tokens[St]->Tok.getLocation(),
                                               Tokens[End]->Tok.getEndLoc());
       auto Err =
@@ -2396,11 +2442,10 @@ struct JavaImportDirective {
 // Determines whether 'Ranges' intersects with ('Start', 'End').
 static bool affectsRange(ArrayRef<tooling::Range> Ranges, unsigned Start,
                          unsigned End) {
-  for (auto Range : Ranges) {
+  for (auto Range : Ranges)
     if (Range.getOffset() < End &&
         Range.getOffset() + Range.getLength() > Start)
       return true;
-  }
   return false;
 }
 
@@ -2440,7 +2485,7 @@ std::string replaceCRLF(const std::string &Code) {
   do {
     Pos = Code.find("\r\n", LastPos);
     if (Pos == LastPos) {
-      LastPos++;
+      ++LastPos;
       continue;
     }
     if (Pos == std::string::npos) {
@@ -2473,12 +2518,10 @@ static void sortCppIncludes(const FormatStyle &Style,
   unsigned IncludesBlockSize = IncludesEndOffset - IncludesBeginOffset;
   if (!affectsRange(Ranges, IncludesBeginOffset, IncludesEndOffset))
     return;
-  SmallVector<unsigned, 16> Indices;
-  for (unsigned i = 0, e = Includes.size(); i != e; ++i) {
-    Indices.push_back(i);
-  }
+  SmallVector<unsigned, 16> Indices =
+      llvm::to_vector<16>(llvm::seq<unsigned>(0, Includes.size()));
 
-  if (Style.SortIncludes == FormatStyle::SI_CaseInsensitive) {
+  if (Style.SortIncludes == FormatStyle::SI_CaseInsensitive)
     llvm::stable_sort(Indices, [&](unsigned LHSI, unsigned RHSI) {
       const auto LHSFilenameLower = Includes[LHSI].Filename.lower();
       const auto RHSFilenameLower = Includes[RHSI].Filename.lower();
@@ -2487,12 +2530,11 @@ static void sortCppIncludes(const FormatStyle &Style,
              std::tie(Includes[RHSI].Priority, RHSFilenameLower,
                       Includes[RHSI].Filename);
     });
-  } else {
+  else
     llvm::stable_sort(Indices, [&](unsigned LHSI, unsigned RHSI) {
       return std::tie(Includes[LHSI].Priority, Includes[LHSI].Filename) <
              std::tie(Includes[RHSI].Priority, Includes[RHSI].Filename);
     });
-  }
 
   // The index of the include on which the cursor will be put after
   // sorting/deduplicating.
@@ -2586,12 +2628,31 @@ tooling::Replacements sortCppIncludes(const FormatStyle &Style, StringRef Code,
   bool MainIncludeFound = false;
   bool FormattingOff = false;
 
+  // '[' must be the first and '-' the last character inside [...].
+  llvm::Regex RawStringRegex(
+      "R\"([][A-Za-z0-9_{}#<>%:;.?*+/^&\\$|~!=,'-]*)\\(");
+  SmallVector<StringRef, 2> RawStringMatches;
+  std::string RawStringTermination = ")\"";
+
   for (;;) {
     auto Pos = Code.find('\n', SearchFrom);
     StringRef Line =
         Code.substr(Prev, (Pos != StringRef::npos ? Pos : Code.size()) - Prev);
 
     StringRef Trimmed = Line.trim();
+
+    // #includes inside raw string literals need to be ignored.
+    // or we will sort the contents of the string.
+    // Skip past until we think we are at the rawstring literal close.
+    if (RawStringRegex.match(Trimmed, &RawStringMatches)) {
+      std::string CharSequence = RawStringMatches[1].str();
+      RawStringTermination = ")" + CharSequence + "\"";
+      FormattingOff = true;
+    }
+
+    if (Trimmed.contains(RawStringTermination))
+      FormattingOff = false;
+
     if (Trimmed == "// clang-format off" || Trimmed == "/* clang-format off */")
       FormattingOff = true;
     else if (Trimmed == "// clang-format on" ||
@@ -2608,6 +2669,15 @@ tooling::Replacements sortCppIncludes(const FormatStyle &Style, StringRef Code,
     if (!FormattingOff && !MergeWithNextLine) {
       if (IncludeRegex.match(Line, &Matches)) {
         StringRef IncludeName = Matches[2];
+        if (Line.contains("/*") && !Line.contains("*/")) {
+          // #include with a start of a block comment, but without the end.
+          // Need to keep all the lines until the end of the comment together.
+          // FIXME: This is somehow simplified check that probably does not work
+          // correctly if there are multiple comments on a line.
+          Pos = Code.find("*/", SearchFrom);
+          Line = Code.substr(
+              Prev, (Pos != StringRef::npos ? Pos + 2 : Code.size()) - Prev);
+        }
         int Category = Categories.getIncludePriority(
             IncludeName,
             /*CheckMainHeader=*/!MainIncludeFound && FirstIncludeBlock);
@@ -2648,7 +2718,7 @@ static unsigned findJavaImportGroup(const FormatStyle &Style,
   unsigned LongestMatchIndex = UINT_MAX;
   unsigned LongestMatchLength = 0;
   for (unsigned I = 0; I < Style.JavaImportGroups.size(); I++) {
-    std::string GroupPrefix = Style.JavaImportGroups[I];
+    const std::string &GroupPrefix = Style.JavaImportGroups[I];
     if (ImportIdentifier.startswith(GroupPrefix) &&
         GroupPrefix.length() > LongestMatchLength) {
       LongestMatchIndex = I;
@@ -2673,13 +2743,14 @@ static void sortJavaImports(const FormatStyle &Style,
   unsigned ImportsBlockSize = ImportsEndOffset - ImportsBeginOffset;
   if (!affectsRange(Ranges, ImportsBeginOffset, ImportsEndOffset))
     return;
-  SmallVector<unsigned, 16> Indices;
+
+  SmallVector<unsigned, 16> Indices =
+      llvm::to_vector<16>(llvm::seq<unsigned>(0, Imports.size()));
   SmallVector<unsigned, 16> JavaImportGroups;
-  for (unsigned i = 0, e = Imports.size(); i != e; ++i) {
-    Indices.push_back(i);
-    JavaImportGroups.push_back(
-        findJavaImportGroup(Style, Imports[i].Identifier));
-  }
+  JavaImportGroups.reserve(Imports.size());
+  for (const JavaImportDirective &Import : Imports)
+    JavaImportGroups.push_back(findJavaImportGroup(Style, Import.Identifier));
+
   bool StaticImportAfterNormalImport =
       Style.SortJavaStaticImport == FormatStyle::SJSIO_After;
   llvm::sort(Indices, [&](unsigned LHSI, unsigned RHSI) {
@@ -2775,9 +2846,8 @@ tooling::Replacements sortJavaImports(const FormatStyle &Style, StringRef Code,
       StringRef Static = Matches[1];
       StringRef Identifier = Matches[2];
       bool IsStatic = false;
-      if (Static.contains("static")) {
+      if (Static.contains("static"))
         IsStatic = true;
-      }
       ImportsInBlock.push_back(
           {Identifier, Line, Prev, AssociatedCommentLines, IsStatic});
       AssociatedCommentLines.clear();
@@ -2998,9 +3068,8 @@ reformat(const FormatStyle &Style, StringRef Code,
     // add a replacement to remove the "x = " from the result.
     if (!Replaces.add(tooling::Replacement(FileName, 0, 4, ""))) {
       // apply the reformatting changes and the removal of "x = ".
-      if (applyAllReplacements(Code, Replaces)) {
+      if (applyAllReplacements(Code, Replaces))
         return {Replaces, 0};
-      }
     }
     return {tooling::Replacements(), 0};
   }
@@ -3019,6 +3088,11 @@ reformat(const FormatStyle &Style, StringRef Code,
     });
   }
 
+  if (Style.isCpp() && Style.RemoveBracesLLVM)
+    Passes.emplace_back([&](const Environment &Env) {
+      return BracesRemover(Env, Expanded).process();
+    });
+
   if (Style.Language == FormatStyle::LK_Cpp) {
     if (Style.FixNamespaceComments)
       Passes.emplace_back([&](const Environment &Env) {
@@ -3031,8 +3105,12 @@ reformat(const FormatStyle &Style, StringRef Code,
       });
   }
 
-  if (Style.Language == FormatStyle::LK_JavaScript &&
-      Style.JavaScriptQuotes != FormatStyle::JSQS_Leave)
+  if (Style.SeparateDefinitionBlocks != FormatStyle::SDS_Leave)
+    Passes.emplace_back([&](const Environment &Env) {
+      return DefinitionBlockSeparator(Env, Expanded).process();
+    });
+
+  if (Style.isJavaScript() && Style.JavaScriptQuotes != FormatStyle::JSQS_Leave)
     Passes.emplace_back([&](const Environment &Env) {
       return JavaScriptRequoter(Env, Expanded).process();
     });
@@ -3041,7 +3119,7 @@ reformat(const FormatStyle &Style, StringRef Code,
     return Formatter(Env, Expanded, Status).process();
   });
 
-  if (Style.Language == FormatStyle::LK_JavaScript &&
+  if (Style.isJavaScript() &&
       Style.InsertTrailingCommas == FormatStyle::TCS_Wrapped)
     Passes.emplace_back([&](const Environment &Env) {
       return TrailingCommaInserter(Env, Expanded).process();
@@ -3120,6 +3198,16 @@ tooling::Replacements fixNamespaceEndComments(const FormatStyle &Style,
   return NamespaceEndCommentsFixer(*Env, Style).process().first;
 }
 
+tooling::Replacements separateDefinitionBlocks(const FormatStyle &Style,
+                                               StringRef Code,
+                                               ArrayRef<tooling::Range> Ranges,
+                                               StringRef FileName) {
+  auto Env = Environment::make(Code, FileName, Ranges);
+  if (!Env)
+    return {};
+  return DefinitionBlockSeparator(*Env, Style).process().first;
+}
+
 tooling::Replacements sortUsingDeclarations(const FormatStyle &Style,
                                             StringRef Code,
                                             ArrayRef<tooling::Range> Ranges,
@@ -3144,6 +3232,10 @@ LangOptions getFormattingLangOpts(const FormatStyle &Style) {
   LangOpts.CPlusPlus17 = LexingStd >= FormatStyle::LS_Cpp17;
   LangOpts.CPlusPlus20 = LexingStd >= FormatStyle::LS_Cpp20;
   LangOpts.Char8 = LexingStd >= FormatStyle::LS_Cpp20;
+  // Turning on digraphs in standards before C++0x is error-prone, because e.g.
+  // the sequence "<::" will be unconditionally treated as "[:".
+  // Cf. Lexer::LexTokenInternal.
+  LangOpts.Digraphs = LexingStd >= FormatStyle::LS_Cpp11;
 
   LangOpts.LineComment = 1;
   bool AlternativeOperators = Style.isCpp();
@@ -3163,6 +3255,8 @@ const char *StyleOptionHelpDescription =
     ".clang-format file located in one of the parent\n"
     "directories of the source file (or current\n"
     "directory for stdin).\n"
+    "Use -style=file:<format_file_path> to explicitly specify\n"
+    "the configuration file.\n"
     "Use -style=\"{key: value, ...}\" to set specific\n"
     "parameters, e.g.:\n"
     "  -style=\"{BasedOnStyle: llvm, IndentWidth: 8}\"";
@@ -3215,13 +3309,24 @@ const char *DefaultFormatStyle = "file";
 
 const char *DefaultFallbackStyle = "LLVM";
 
+llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
+loadAndParseConfigFile(StringRef ConfigFile, llvm::vfs::FileSystem *FS,
+                       FormatStyle *Style, bool AllowUnknownOptions) {
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Text =
+      FS->getBufferForFile(ConfigFile.str());
+  if (auto EC = Text.getError())
+    return EC;
+  if (auto EC = parseConfiguration(*Text.get(), Style, AllowUnknownOptions))
+    return EC;
+  return Text;
+}
+
 llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
                                      StringRef FallbackStyleName,
                                      StringRef Code, llvm::vfs::FileSystem *FS,
                                      bool AllowUnknownOptions) {
-  if (!FS) {
+  if (!FS)
     FS = llvm::vfs::getRealFileSystem().get();
-  }
   FormatStyle Style = getLLVMStyle(guessLanguage(FileName, Code));
 
   FormatStyle FallbackStyle = getNoStyle();
@@ -3243,6 +3348,28 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
           llvm::MemoryBuffer::getMemBuffer(StyleName, Source, false));
     else
       return Style;
+  }
+
+  // User provided clang-format file using -style=file:path/to/format/file.
+  if (!Style.InheritsParentConfig &&
+      StyleName.startswith_insensitive("file:")) {
+    auto ConfigFile = StyleName.substr(5);
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Text =
+        loadAndParseConfigFile(ConfigFile, FS, &Style, AllowUnknownOptions);
+    if (auto EC = Text.getError())
+      return make_string_error("Error reading " + ConfigFile + ": " +
+                               EC.message());
+
+    LLVM_DEBUG(llvm::dbgs()
+               << "Using configuration file " << ConfigFile << "\n");
+
+    if (!Style.InheritsParentConfig)
+      return Style;
+
+    // Search for parent configs starting from the parent directory of
+    // ConfigFile.
+    FileName = ConfigFile;
+    ChildFormatTextToApply.emplace_back(std::move(*Text));
   }
 
   // If the style inherits the parent configuration it is a command line
@@ -3270,14 +3397,23 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
 
   auto dropDiagnosticHandler = [](const llvm::SMDiagnostic &, void *) {};
 
+  auto applyChildFormatTexts = [&](FormatStyle *Style) {
+    for (const auto &MemBuf : llvm::reverse(ChildFormatTextToApply)) {
+      auto EC = parseConfiguration(*MemBuf, Style, AllowUnknownOptions,
+                                   dropDiagnosticHandler);
+      // It was already correctly parsed.
+      assert(!EC);
+      static_cast<void>(EC);
+    }
+  };
+
   for (StringRef Directory = Path; !Directory.empty();
        Directory = llvm::sys::path::parent_path(Directory)) {
 
     auto Status = FS->status(Directory);
     if (!Status ||
-        Status->getType() != llvm::sys::fs::file_type::directory_file) {
+        Status->getType() != llvm::sys::fs::file_type::directory_file)
       continue;
-    }
 
     for (const auto &F : FilesToLookFor) {
       SmallString<128> ConfigFile(Directory);
@@ -3290,19 +3426,16 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
       if (Status &&
           (Status->getType() == llvm::sys::fs::file_type::regular_file)) {
         llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Text =
-            FS->getBufferForFile(ConfigFile.str());
-        if (std::error_code EC = Text.getError())
-          return make_string_error(EC.message());
-        if (std::error_code ec =
-                parseConfiguration(*Text.get(), &Style, AllowUnknownOptions)) {
-          if (ec == ParseError::Unsuitable) {
+            loadAndParseConfigFile(ConfigFile, FS, &Style, AllowUnknownOptions);
+        if (auto EC = Text.getError()) {
+          if (EC == ParseError::Unsuitable) {
             if (!UnsuitableConfigFiles.empty())
               UnsuitableConfigFiles.append(", ");
             UnsuitableConfigFiles.append(ConfigFile);
             continue;
           }
           return make_string_error("Error reading " + ConfigFile + ": " +
-                                   ec.message());
+                                   EC.message());
         }
         LLVM_DEBUG(llvm::dbgs()
                    << "Using configuration file " << ConfigFile << "\n");
@@ -3312,14 +3445,7 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
             return Style;
 
           LLVM_DEBUG(llvm::dbgs() << "Applying child configurations\n");
-
-          for (const auto &MemBuf : llvm::reverse(ChildFormatTextToApply)) {
-            auto Ec = parseConfiguration(*MemBuf, &Style, AllowUnknownOptions,
-                                         dropDiagnosticHandler);
-            // It was already correctly parsed.
-            assert(!Ec);
-            static_cast<void>(Ec);
-          }
+          applyChildFormatTexts(&Style);
 
           return Style;
         }
@@ -3345,17 +3471,9 @@ llvm::Expected<FormatStyle> getStyle(StringRef StyleName, StringRef FileName,
                              UnsuitableConfigFiles);
 
   if (!ChildFormatTextToApply.empty()) {
-    assert(ChildFormatTextToApply.size() == 1);
-
     LLVM_DEBUG(llvm::dbgs()
-               << "Applying child configuration on fallback style\n");
-
-    auto Ec =
-        parseConfiguration(*ChildFormatTextToApply.front(), &FallbackStyle,
-                           AllowUnknownOptions, dropDiagnosticHandler);
-    // It was already correctly parsed.
-    assert(!Ec);
-    static_cast<void>(Ec);
+               << "Applying child configurations on fallback style\n");
+    applyChildFormatTexts(&FallbackStyle);
   }
 
   return FallbackStyle;

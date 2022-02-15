@@ -55,6 +55,12 @@ LLVMTypeConverter::LLVMTypeConverter(MLIRContext *ctx,
   });
   addConversion([&](LLVM::LLVMStructType type, SmallVectorImpl<Type> &results,
                     ArrayRef<Type> callStack) -> llvm::Optional<LogicalResult> {
+    // Fastpath for types that won't be converted by this callback anyway.
+    if (LLVM::isCompatibleType(type)) {
+      results.push_back(type);
+      return success();
+    }
+
     if (type.isIdentified()) {
       auto convertedType = LLVM::LLVMStructType::getIdentified(
           type.getContext(), ("_Converted_" + type.getName()).str());
@@ -405,7 +411,8 @@ Type LLVMTypeConverter::convertVectorType(VectorType type) {
     return {};
   if (type.getShape().empty())
     return VectorType::get({1}, elementType);
-  Type vectorType = VectorType::get(type.getShape().back(), elementType);
+  Type vectorType = VectorType::get(type.getShape().back(), elementType,
+                                    type.getNumScalableDims());
   assert(LLVM::isCompatibleVectorType(vectorType) &&
          "expected vector type compatible with the LLVM dialect");
   auto shape = type.getShape();

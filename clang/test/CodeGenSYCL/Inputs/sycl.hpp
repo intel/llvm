@@ -62,6 +62,18 @@ enum class address_space : int {
   local_space
 };
 } // namespace access
+
+// Dummy aspect enum with limited enumerators
+enum class aspect {
+  host = 0,
+  cpu = 1,
+  gpu = 2,
+  accelerator = 3,
+  custom = 4,
+  fp16 = 5,
+  fp64 = 6,
+};
+
 using access::target;
 using access_mode = access::mode;
 
@@ -143,21 +155,8 @@ namespace ext {
 namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
-namespace experimental {
-template <int Dims> item<Dims>
-this_item() { return item<Dims>{}; }
-
-template <int Dims> id<Dims>
-this_id() { return id<Dims>{}; }
-} // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
-template <int Dims> item<Dims>
-this_item() { return item<Dims>{}; }
-
-template <int Dims> id<Dims>
-this_id() { return id<Dims>{}; }
 
 template <int dim>
 struct range {

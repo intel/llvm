@@ -295,6 +295,8 @@ static cl::opt<bool> OverwriteExistingWeights(
     "overwrite-existing-weights", cl::Hidden, cl::init(false),
     cl::desc("Ignore existing branch weights on IR and always overwrite."));
 
+extern cl::opt<bool> EnableExtTspBlockPlacement;
+
 namespace {
 
 using BlockWeightMap = DenseMap<const BasicBlock *, uint64_t>;
@@ -467,6 +469,9 @@ protected:
   void emitOptimizationRemarksForInlineCandidates(
       const SmallVectorImpl<CallBase *> &Candidates, const Function &F,
       bool Hot);
+  void promoteMergeNotInlinedContextSamples(
+      DenseMap<CallBase *, const FunctionSamples *> NonInlinedCallSites,
+      const Function &F);
   std::vector<Function *> buildFunctionOrder(Module &M, CallGraph *CG);
   std::unique_ptr<ProfiledCallGraph> buildProfiledCallGraph(CallGraph &CG);
   void generateMDProfMetadata(Function &F);
@@ -485,7 +490,7 @@ protected:
   std::unique_ptr<SampleContextTracker> ContextTracker;
 
   /// Flag indicating whether input profile is context-sensitive
-  bool ProfileIsCS = false;
+  bool ProfileIsCSFlat = false;
 
   /// Flag indicating which LTO/ThinLTO phase the pass is invoked in.
   ///
@@ -602,7 +607,7 @@ ErrorOr<uint64_t> SampleProfileLoader::getInstWeight(const Instruction &Inst) {
   // call instruction should have 0 count.
   // For CS profile, the callsite count of previously inlined callees is
   // populated with the entry count of the callees.
-  if (!ProfileIsCS)
+  if (!ProfileIsCSFlat)
     if (const auto *CB = dyn_cast<CallBase>(&Inst))
       if (!CB->isIndirectCall() && findCalleeFunctionSamples(*CB))
         return 0;
@@ -641,7 +646,7 @@ ErrorOr<uint64_t> SampleProfileLoader::getProbeWeight(const Instruction &Inst) {
   // call instruction should have 0 count.
   // For CS profile, the callsite count of previously inlined callees is
   // populated with the entry count of the callees.
-  if (!ProfileIsCS)
+  if (!ProfileIsCSFlat)
     if (const auto *CB = dyn_cast<CallBase>(&Inst))
       if (!CB->isIndirectCall() && findCalleeFunctionSamples(*CB))
         return 0;
@@ -695,7 +700,7 @@ SampleProfileLoader::findCalleeFunctionSamples(const CallBase &Inst) const {
   if (Function *Callee = Inst.getCalledFunction())
     CalleeName = Callee->getName();
 
-  if (ProfileIsCS)
+  if (ProfileIsCSFlat)
     return ContextTracker->getCalleeContextSamplesFor(Inst, CalleeName);
 
   const FunctionSamples *FS = findFunctionSamples(Inst);
@@ -727,7 +732,7 @@ SampleProfileLoader::findIndirectCallFunctionSamples(
            FunctionSamples::getGUID(R->getName());
   };
 
-  if (ProfileIsCS) {
+  if (ProfileIsCSFlat) {
     auto CalleeSamples =
         ContextTracker->getIndirectCalleeContextSamplesFor(DIL);
     if (CalleeSamples.empty())
@@ -780,7 +785,7 @@ SampleProfileLoader::findFunctionSamples(const Instruction &Inst) const {
 
   auto it = DILocation2SampleMap.try_emplace(DIL,nullptr);
   if (it.second) {
-    if (ProfileIsCS)
+    if (ProfileIsCSFlat)
       it.first->second = ContextTracker->getContextSamplesFor(DIL);
     else
       it.first->second =
@@ -1039,7 +1044,7 @@ void SampleProfileLoader::findExternalInlineCandidate(
 
   // For AutoFDO profile, retrieve candidate profiles by walking over
   // the nested inlinee profiles.
-  if (!ProfileIsCS) {
+  if (!ProfileIsCSFlat) {
     Samples->findInlinedFunctions(InlinedGUIDs, SymbolMap, Threshold);
     return;
   }
@@ -1134,7 +1139,7 @@ bool SampleProfileLoader::inlineHotFunctions(
               assert((!FunctionSamples::UseMD5 || FS->GUIDToFuncNameMap) &&
                      "GUIDToFuncNameMap has to be populated");
               AllCandidates.push_back(CB);
-              if (FS->getEntrySamples() > 0 || ProfileIsCS)
+              if (FS->getEntrySamples() > 0 || ProfileIsCSFlat)
                 LocalNotInlinedCallSites.try_emplace(CB, FS);
               if (callsiteIsHot(FS, PSI, ProfAccForSymsInList))
                 Hot = true;
@@ -1156,11 +1161,9 @@ bool SampleProfileLoader::inlineHotFunctions(
     }
     for (CallBase *I : CIS) {
       Function *CalledFunction = I->getCalledFunction();
-      InlineCandidate Candidate = {
-          I,
-          LocalNotInlinedCallSites.count(I) ? LocalNotInlinedCallSites[I]
-                                            : nullptr,
-          0 /* dummy count */, 1.0 /* dummy distribution factor */};
+      InlineCandidate Candidate = {I, LocalNotInlinedCallSites.lookup(I),
+                                   0 /* dummy count */,
+                                   1.0 /* dummy distribution factor */};
       // Do not inline recursive calls.
       if (CalledFunction == &F)
         continue;
@@ -1198,53 +1201,9 @@ bool SampleProfileLoader::inlineHotFunctions(
   }
 
   // For CS profile, profile for not inlined context will be merged when
-  // base profile is being trieved
-  if (ProfileIsCS)
-    return Changed;
-
-  // Accumulate not inlined callsite information into notInlinedSamples
-  for (const auto &Pair : LocalNotInlinedCallSites) {
-    CallBase *I = Pair.getFirst();
-    Function *Callee = I->getCalledFunction();
-    if (!Callee || Callee->isDeclaration())
-      continue;
-
-    ORE->emit(OptimizationRemarkAnalysis(CSINLINE_DEBUG, "NotInline",
-                                         I->getDebugLoc(), I->getParent())
-              << "previous inlining not repeated: '"
-              << ore::NV("Callee", Callee) << "' into '"
-              << ore::NV("Caller", &F) << "'");
-
-    ++NumCSNotInlined;
-    const FunctionSamples *FS = Pair.getSecond();
-    if (FS->getTotalSamples() == 0 && FS->getEntrySamples() == 0) {
-      continue;
-    }
-
-    if (ProfileMergeInlinee) {
-      // A function call can be replicated by optimizations like callsite
-      // splitting or jump threading and the replicates end up sharing the
-      // sample nested callee profile instead of slicing the original inlinee's
-      // profile. We want to do merge exactly once by filtering out callee
-      // profiles with a non-zero head sample count.
-      if (FS->getHeadSamples() == 0) {
-        // Use entry samples as head samples during the merge, as inlinees
-        // don't have head samples.
-        const_cast<FunctionSamples *>(FS)->addHeadSamples(
-            FS->getEntrySamples());
-
-        // Note that we have to do the merge right after processing function.
-        // This allows OutlineFS's profile to be used for annotation during
-        // top-down processing of functions' annotation.
-        FunctionSamples *OutlineFS = Reader->getOrCreateSamplesFor(*Callee);
-        OutlineFS->merge(*FS);
-      }
-    } else {
-      auto pair =
-          notInlinedCallInfo.try_emplace(Callee, NotInlinedProfileInfo{0});
-      pair.first->second.entryCount += FS->getEntrySamples();
-    }
-  }
+  // base profile is being retrieved.
+  if (!FunctionSamples::ProfileIsCSFlat)
+    promoteMergeNotInlinedContextSamples(LocalNotInlinedCallSites, F);
   return Changed;
 }
 
@@ -1269,45 +1228,45 @@ bool SampleProfileLoader::tryInlineCandidate(
 
   InlineFunctionInfo IFI(nullptr, GetAC);
   IFI.UpdateProfile = false;
-  if (InlineFunction(CB, IFI).isSuccess()) {
-    // Merge the attributes based on the inlining.
-    AttributeFuncs::mergeAttributesForInlining(*BB->getParent(),
-                                               *CalledFunction);
+  if (!InlineFunction(CB, IFI).isSuccess())
+    return false;
 
-    // The call to InlineFunction erases I, so we can't pass it here.
-    emitInlinedIntoBasedOnCost(*ORE, DLoc, BB, *CalledFunction,
-                               *BB->getParent(), Cost, true, CSINLINE_DEBUG);
+  // Merge the attributes based on the inlining.
+  AttributeFuncs::mergeAttributesForInlining(*BB->getParent(),
+                                             *CalledFunction);
 
-    // Now populate the list of newly exposed call sites.
-    if (InlinedCallSites) {
-      InlinedCallSites->clear();
-      for (auto &I : IFI.InlinedCallSites)
-        InlinedCallSites->push_back(I);
-    }
+  // The call to InlineFunction erases I, so we can't pass it here.
+  emitInlinedIntoBasedOnCost(*ORE, DLoc, BB, *CalledFunction,
+                             *BB->getParent(), Cost, true, CSINLINE_DEBUG);
 
-    if (ProfileIsCS)
-      ContextTracker->markContextSamplesInlined(Candidate.CalleeSamples);
-    ++NumCSInlined;
-
-    // Prorate inlined probes for a duplicated inlining callsite which probably
-    // has a distribution less than 100%. Samples for an inlinee should be
-    // distributed among the copies of the original callsite based on each
-    // callsite's distribution factor for counts accuracy. Note that an inlined
-    // probe may come with its own distribution factor if it has been duplicated
-    // in the inlinee body. The two factor are multiplied to reflect the
-    // aggregation of duplication.
-    if (Candidate.CallsiteDistribution < 1) {
-      for (auto &I : IFI.InlinedCallSites) {
-        if (Optional<PseudoProbe> Probe = extractProbe(*I))
-          setProbeDistributionFactor(*I, Probe->Factor *
-                                             Candidate.CallsiteDistribution);
-      }
-      NumDuplicatedInlinesite++;
-    }
-
-    return true;
+  // Now populate the list of newly exposed call sites.
+  if (InlinedCallSites) {
+    InlinedCallSites->clear();
+    for (auto &I : IFI.InlinedCallSites)
+      InlinedCallSites->push_back(I);
   }
-  return false;
+
+  if (ProfileIsCSFlat)
+    ContextTracker->markContextSamplesInlined(Candidate.CalleeSamples);
+  ++NumCSInlined;
+
+  // Prorate inlined probes for a duplicated inlining callsite which probably
+  // has a distribution less than 100%. Samples for an inlinee should be
+  // distributed among the copies of the original callsite based on each
+  // callsite's distribution factor for counts accuracy. Note that an inlined
+  // probe may come with its own distribution factor if it has been duplicated
+  // in the inlinee body. The two factor are multiplied to reflect the
+  // aggregation of duplication.
+  if (Candidate.CallsiteDistribution < 1) {
+    for (auto &I : IFI.InlinedCallSites) {
+      if (Optional<PseudoProbe> Probe = extractProbe(*I))
+        setProbeDistributionFactor(*I, Probe->Factor *
+                                   Candidate.CallsiteDistribution);
+    }
+    NumDuplicatedInlinesite++;
+  }
+
+  return true;
 }
 
 bool SampleProfileLoader::getInlineCandidate(InlineCandidate *NewCandidate,
@@ -1430,7 +1389,6 @@ SampleProfileLoader::shouldInlineCandidate(InlineCandidate &Candidate) {
 
 bool SampleProfileLoader::inlineHotFunctionsWithPriority(
     Function &F, DenseSet<GlobalValue::GUID> &InlinedGUIDs) {
-  assert(ProfileIsCS && "Prioritiy based inliner only works with CSSPGO now");
 
   // ProfAccForSymsInList is used in callsiteIsHot. The assertion makes sure
   // Profile symbol list is ignored when profile-sample-accurate is on.
@@ -1466,6 +1424,8 @@ bool SampleProfileLoader::inlineHotFunctionsWithPriority(
   SizeLimit = std::max(SizeLimit, (unsigned)ProfileInlineLimitMin);
   if (ExternalInlineAdvisor)
     SizeLimit = std::numeric_limits<unsigned>::max();
+
+  DenseMap<CallBase *, const FunctionSamples *> LocalNotInlinedCallSites;
 
   // Perform iterative BFS call site prioritized inlining
   bool Changed = false;
@@ -1521,6 +1481,8 @@ bool SampleProfileLoader::inlineHotFunctionsWithPriority(
           }
           ICPCount++;
           Changed = true;
+        } else if (!ContextTracker) {
+          LocalNotInlinedCallSites.try_emplace(I, FS);
         }
       }
     } else if (CalledFunction && CalledFunction->getSubprogram() &&
@@ -1532,6 +1494,8 @@ bool SampleProfileLoader::inlineHotFunctionsWithPriority(
             CQueue.emplace(NewCandidate);
         }
         Changed = true;
+      } else if (!ContextTracker) {
+        LocalNotInlinedCallSites.try_emplace(I, Candidate.CalleeSamples);
       }
     } else if (LTOPhase == ThinOrFullLTOPhase::ThinLTOPreLink) {
       findExternalInlineCandidate(I, findCalleeFunctionSamples(*I),
@@ -1549,7 +1513,61 @@ bool SampleProfileLoader::inlineHotFunctionsWithPriority(
       ++NumCSInlinedHitGrowthLimit;
   }
 
+  // For CS profile, profile for not inlined context will be merged when
+  // base profile is being retrieved.
+  if (!FunctionSamples::ProfileIsCSFlat)
+    promoteMergeNotInlinedContextSamples(LocalNotInlinedCallSites, F);
   return Changed;
+}
+
+void SampleProfileLoader::promoteMergeNotInlinedContextSamples(
+    DenseMap<CallBase *, const FunctionSamples *> NonInlinedCallSites,
+    const Function &F) {
+  // Accumulate not inlined callsite information into notInlinedSamples
+  for (const auto &Pair : NonInlinedCallSites) {
+    CallBase *I = Pair.getFirst();
+    Function *Callee = I->getCalledFunction();
+    if (!Callee || Callee->isDeclaration())
+      continue;
+
+    ORE->emit(OptimizationRemarkAnalysis(CSINLINE_DEBUG, "NotInline",
+                                         I->getDebugLoc(), I->getParent())
+              << "previous inlining not repeated: '"
+              << ore::NV("Callee", Callee) << "' into '"
+              << ore::NV("Caller", &F) << "'");
+
+    ++NumCSNotInlined;
+    const FunctionSamples *FS = Pair.getSecond();
+    if (FS->getTotalSamples() == 0 && FS->getEntrySamples() == 0) {
+      continue;
+    }
+
+    if (ProfileMergeInlinee) {
+      // A function call can be replicated by optimizations like callsite
+      // splitting or jump threading and the replicates end up sharing the
+      // sample nested callee profile instead of slicing the original
+      // inlinee's profile. We want to do merge exactly once by filtering out
+      // callee profiles with a non-zero head sample count.
+      if (FS->getHeadSamples() == 0) {
+        // Use entry samples as head samples during the merge, as inlinees
+        // don't have head samples.
+        const_cast<FunctionSamples *>(FS)->addHeadSamples(
+            FS->getEntrySamples());
+
+        // Note that we have to do the merge right after processing function.
+        // This allows OutlineFS's profile to be used for annotation during
+        // top-down processing of functions' annotation.
+        FunctionSamples *OutlineFS = Reader->getOrCreateSamplesFor(*Callee);
+        OutlineFS->merge(*FS, 1);
+        // Set outlined profile to be synthetic to not bias the inliner.
+        OutlineFS->SetContextSynthetic();
+      }
+    } else {
+      auto pair =
+          notInlinedCallInfo.try_emplace(Callee, NotInlinedProfileInfo{0});
+      pair.first->second.entryCount += FS->getEntrySamples();
+    }
+  }
 }
 
 /// Returns the sorted CallTargetMap \p M by count in descending order.
@@ -1607,7 +1625,7 @@ void SampleProfileLoader::generateMDProfMetadata(Function &F) {
           // With CSSPGO all indirect call targets are counted torwards the
           // original indirect call site in the profile, including both
           // inlined and non-inlined targets.
-          if (!FunctionSamples::ProfileIsCS) {
+          if (!FunctionSamples::ProfileIsCSFlat) {
             if (const FunctionSamplesMap *M =
                     FS->findFunctionSamplesMapAt(CallSite)) {
               for (const auto &NameFS : *M)
@@ -1754,7 +1772,7 @@ bool SampleProfileLoader::emitAnnotations(Function &F) {
   }
 
   DenseSet<GlobalValue::GUID> InlinedGUIDs;
-  if (ProfileIsCS && CallsitePrioritizedInline)
+  if (CallsitePrioritizedInline)
     Changed |= inlineHotFunctionsWithPriority(F, InlinedGUIDs);
   else
     Changed |= inlineHotFunctions(F, InlinedGUIDs);
@@ -1782,7 +1800,7 @@ INITIALIZE_PASS_END(SampleProfileLoaderLegacyPass, "sample-profile",
 std::unique_ptr<ProfiledCallGraph>
 SampleProfileLoader::buildProfiledCallGraph(CallGraph &CG) {
   std::unique_ptr<ProfiledCallGraph> ProfiledCG;
-  if (ProfileIsCS)
+  if (ProfileIsCSFlat)
     ProfiledCG = std::make_unique<ProfiledCallGraph>(*ContextTracker);
   else
     ProfiledCG = std::make_unique<ProfiledCallGraph>(Reader->getProfiles());
@@ -1828,7 +1846,7 @@ SampleProfileLoader::buildFunctionOrder(Module &M, CallGraph *CG) {
   assert(&CG->getModule() == &M);
 
   if (UseProfiledCallGraph ||
-      (ProfileIsCS && !UseProfiledCallGraph.getNumOccurrences())) {
+      (ProfileIsCSFlat && !UseProfiledCallGraph.getNumOccurrences())) {
     // Use profiled call edges to augment the top-down order. There are cases
     // that the top-down order computed based on the static call graph doesn't
     // reflect real execution order. For example
@@ -1961,10 +1979,8 @@ bool SampleProfileLoader::doInitialization(Module &M,
   }
 
   // Apply tweaks if context-sensitive profile is available.
-  if (Reader->profileIsCS()) {
-    ProfileIsCS = true;
-    FunctionSamples::ProfileIsCS = true;
-
+  if (Reader->profileIsCSFlat() || Reader->profileIsCSNested()) {
+    ProfileIsCSFlat = Reader->profileIsCSFlat();
     // Enable priority-base inliner and size inline by default for CSSPGO.
     if (!ProfileSizeInline.getNumOccurrences())
       ProfileSizeInline = true;
@@ -1986,9 +2002,15 @@ bool SampleProfileLoader::doInitialization(Module &M,
     if (!SampleProfileUseProfi.getNumOccurrences())
       SampleProfileUseProfi = true;
 
-    // Tracker for profiles under different context
-    ContextTracker = std::make_unique<SampleContextTracker>(
-        Reader->getProfiles(), &GUIDToFuncNameMap);
+    // Enable EXT-TSP block layout for CSSPGO.
+    if (!EnableExtTspBlockPlacement.getNumOccurrences())
+      EnableExtTspBlockPlacement = true;
+
+    if (FunctionSamples::ProfileIsCSFlat) {
+      // Tracker for profiles under different context
+      ContextTracker = std::make_unique<SampleContextTracker>(
+          Reader->getProfiles(), &GUIDToFuncNameMap);
+    }
   }
 
   // Load pseudo probe descriptors for probe-based function samples.
@@ -1997,7 +2019,8 @@ bool SampleProfileLoader::doInitialization(Module &M,
     if (!ProbeManager->moduleIsProbed(M)) {
       const char *Msg =
           "Pseudo-probe-based profile requires SampleProfileProbePass";
-      Ctx.diagnose(DiagnosticInfoSampleProfile(Filename, Msg));
+      Ctx.diagnose(DiagnosticInfoSampleProfile(M.getModuleIdentifier(), Msg,
+                                               DS_Warning));
       return false;
     }
   }
@@ -2065,7 +2088,7 @@ bool SampleProfileLoader::runOnModule(Module &M, ModuleAnalysisManager *AM,
   }
 
   // Account for cold calls not inlined....
-  if (!ProfileIsCS)
+  if (!ProfileIsCSFlat)
     for (const std::pair<Function *, NotInlinedProfileInfo> &pair :
          notInlinedCallInfo)
       updateProfileCallee(pair.first, pair.second.entryCount);
@@ -2141,7 +2164,7 @@ bool SampleProfileLoader::runOnFunction(Function &F, ModuleAnalysisManager *AM) 
     ORE = OwnedORE.get();
   }
 
-  if (ProfileIsCS)
+  if (ProfileIsCSFlat)
     Samples = ContextTracker->getBaseSamplesFor(F);
   else
     Samples = Reader->getSamplesFor(F);

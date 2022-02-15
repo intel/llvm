@@ -21,7 +21,7 @@ using namespace mlir::scf;
 
 namespace {
 struct SCFBufferizePass : public SCFBufferizeBase<SCFBufferizePass> {
-  void runOnFunction() override {
+  void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
 
@@ -36,7 +36,7 @@ struct SCFBufferizePass : public SCFBufferizeBase<SCFBufferizePass> {
       return signalPassFailure();
   };
 };
-} // end anonymous namespace
+} // namespace
 
 std::unique_ptr<Pass> mlir::createSCFBufferizePass() {
   return std::make_unique<SCFBufferizePass>();

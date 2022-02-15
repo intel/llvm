@@ -71,7 +71,7 @@ public:
       : InstCombiner(Worklist, Builder, MinimizeSize, AA, AC, TLI, TTI, DT, ORE,
                      BFI, PSI, DL, LI) {}
 
-  virtual ~InstCombinerImpl() {}
+  virtual ~InstCombinerImpl() = default;
 
   /// Run the combiner over the entire worklist until it is empty.
   ///
@@ -148,6 +148,8 @@ public:
   Instruction *SliceUpIllegalIntegerPHI(PHINode &PN);
   Instruction *visitPHINode(PHINode &PN);
   Instruction *visitGetElementPtrInst(GetElementPtrInst &GEP);
+  Instruction *visitGEPOfGEP(GetElementPtrInst &GEP, GEPOperator *Src);
+  Instruction *visitGEPOfBitcast(BitCastInst *BCI, GetElementPtrInst &GEP);
   Instruction *visitAllocaInst(AllocaInst &AI);
   Instruction *visitAllocSite(Instruction &FI);
   Instruction *visitFree(CallInst &FI);
@@ -195,8 +197,6 @@ private:
   bool shouldChangeType(unsigned FromBitWidth, unsigned ToBitWidth) const;
   bool shouldChangeType(Type *From, Type *To) const;
   Value *dyn_castNegVal(Value *V) const;
-  Type *FindElementAtOffset(PointerType *PtrTy, int64_t Offset,
-                            SmallVectorImpl<Value *> &NewIndices);
 
   /// Classify whether a cast is worth optimizing.
   ///
@@ -600,11 +600,22 @@ public:
   /// Canonicalize the position of binops relative to shufflevector.
   Instruction *foldVectorBinop(BinaryOperator &Inst);
   Instruction *foldVectorSelect(SelectInst &Sel);
+  Instruction *foldSelectShuffle(ShuffleVectorInst &Shuf);
 
   /// Given a binary operator, cast instruction, or select which has a PHI node
   /// as operand #0, see if we can fold the instruction into the PHI (which is
   /// only possible if all operands to the PHI are constants).
   Instruction *foldOpIntoPhi(Instruction &I, PHINode *PN);
+
+  /// For a binary operator with 2 phi operands, try to hoist the binary
+  /// operation before the phi. This can result in fewer instructions in
+  /// patterns where at least one set of phi operands simplifies.
+  /// Example:
+  /// BB3: binop (phi [X, BB1], [C1, BB2]), (phi [Y, BB1], [C2, BB2])
+  /// -->
+  /// BB1: BO = binop X, Y
+  /// BB3: phi [BO, BB1], [(binop C1, C2), BB2]
+  Instruction *foldBinopWithPhiOperands(BinaryOperator &BO);
 
   /// Given an instruction with a select as one operand and a constant as the
   /// other operand, try to fold the binary operator into the select arguments.
@@ -641,7 +652,8 @@ public:
                            ICmpInst::Predicate Cond, Instruction &I);
   Instruction *foldAllocaCmp(ICmpInst &ICI, const AllocaInst *Alloca,
                              const Value *Other);
-  Instruction *foldCmpLoadFromIndexedGlobal(GetElementPtrInst *GEP,
+  Instruction *foldCmpLoadFromIndexedGlobal(LoadInst *LI,
+                                            GetElementPtrInst *GEP,
                                             GlobalVariable *GV, CmpInst &ICI,
                                             ConstantInt *AndCst = nullptr);
   Instruction *foldFCmpIntToFPConst(FCmpInst &I, Instruction *LHSI,

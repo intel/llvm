@@ -21,6 +21,9 @@ group("default") {
       "//libcxxabi",
     ]
   }
+  if (current_os == "linux" || current_os == "win") {
+    deps += [ "//compiler-rt/test/asan" ]
+  }
   if (current_os == "linux" || current_os == "android") {
     deps += [ "//compiler-rt/test/hwasan" ]
   }
@@ -70,6 +73,9 @@ group("llvm-nm") {
 }
 group("llvm-cxxfilt") {
   deps = [ "//llvm/tools/llvm-cxxfilt:symlinks" ]
+}
+group("llvm-debuginfod-find") {
+  deps = [ "//llvm/tools/llvm-debuginfod-find:symlinks" ]
 }
 group("llvm-objcopy") {
   deps = [ "//llvm/tools/llvm-objcopy:symlinks" ]

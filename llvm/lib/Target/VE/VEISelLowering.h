@@ -40,12 +40,21 @@ enum NodeType : unsigned {
   TS1AM,                  // A TS1AM instruction used for 1/2 bytes swap.
   VEC_BROADCAST,          // A vector broadcast instruction.
                           //   0: scalar value, 1: VL
+  REPL_I32,
+  REPL_F32, // Replicate subregister to other half.
+
+  // Annotation as a wrapper. LEGALAVL(VL) means that VL refers to 64bit of
+  // data, whereas the raw EVL coming in from VP nodes always refers to number
+  // of elements, regardless of their size.
+  LEGALAVL,
 
 // VVP_* nodes.
 #define ADD_VVP_OP(VVP_NAME, ...) VVP_NAME,
 #include "VVPNodes.def"
 };
 }
+
+class VECustomDAG;
 
 class VETargetLowering : public TargetLowering {
   const VESubtarget *Subtarget;
@@ -103,6 +112,9 @@ public:
   }
 
   /// Custom Lower {
+  TargetLoweringBase::LegalizeAction
+  getCustomOperationAction(SDNode &) const override;
+
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
   unsigned getJumpTableEncoding() const override;
   const MCExpr *LowerCustomJumpTableEntry(const MachineJumpTableInfo *MJTI,
@@ -168,6 +180,8 @@ public:
 
   /// VVP Lowering {
   SDValue lowerToVVP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue legalizeInternalVectorOp(SDValue Op, SelectionDAG &DAG) const;
+  SDValue legalizePackedAVL(SDValue Op, VECustomDAG &CDAG) const;
   /// } VVPLowering
 
   /// Custom DAGCombine {
@@ -219,4 +233,4 @@ public:
 };
 } // namespace llvm
 
-#endif // VE_ISELLOWERING_H
+#endif // LLVM_LIB_TARGET_VE_VEISELLOWERING_H

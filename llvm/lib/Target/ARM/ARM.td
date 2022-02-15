@@ -446,6 +446,11 @@ def FeaturePACBTI         : SubtargetFeature<"pacbti", "HasPACBTI", "true",
                                              "Enable Pointer Authentication and Branch "
                                              "Target Identification">;
 
+def FeatureNoBTIAtReturnTwice : SubtargetFeature<"no-bti-at-return-twice",
+                                                 "NoBTIAtReturnTwice", "true",
+                                                 "Don't place a BTI instruction "
+                                                 "after a return-twice">;
+
 //===----------------------------------------------------------------------===//
 // ARM architecture class
 //
@@ -507,8 +512,7 @@ def HasV6T2Ops  : SubtargetFeature<"v6t2", "HasV6T2Ops", "true",
 
 def HasV7Ops    : SubtargetFeature<"v7", "HasV7Ops", "true",
                                    "Support ARM v7 instructions",
-                                   [HasV6T2Ops, FeaturePerfMon,
-                                    FeatureV7Clrex]>;
+                                   [HasV6T2Ops, FeatureV7Clrex]>;
 
 def HasV8MMainlineOps :
                   SubtargetFeature<"v8m.main", "HasV8MMainlineOps", "true",
@@ -517,7 +521,7 @@ def HasV8MMainlineOps :
 
 def HasV8Ops    : SubtargetFeature<"v8", "HasV8Ops", "true",
                                    "Support ARM v8 instructions",
-                                   [HasV7Ops, FeatureAcquireRelease]>;
+                                   [HasV7Ops, FeaturePerfMon, FeatureAcquireRelease]>;
 
 def HasV8_1aOps : SubtargetFeature<"v8.1a", "HasV8_1aOps", "true",
                                    "Support ARM v8.1a instructions",
@@ -548,6 +552,10 @@ def HasV8_7aOps   : SubtargetFeature<"v8.7a", "HasV8_7aOps", "true",
                                    "Support ARM v8.7a instructions",
                                    [HasV8_6aOps]>;
 
+def HasV8_8aOps   : SubtargetFeature<"v8.8a", "HasV8_8aOps", "true",
+                                   "Support ARM v8.8a instructions",
+                                   [HasV8_7aOps]>;
+
 def HasV9_0aOps   : SubtargetFeature<"v9a", "HasV9_0aOps", "true",
                                    "Support ARM v9a instructions",
                                    [HasV8_5aOps]>;
@@ -559,6 +567,10 @@ def HasV9_1aOps   : SubtargetFeature<"v9.1a", "HasV9_1aOps", "true",
 def HasV9_2aOps   : SubtargetFeature<"v9.2a", "HasV9_2aOps", "true",
                                    "Support ARM v9.2a instructions",
                                    [HasV8_7aOps, HasV9_1aOps]>;
+
+def HasV9_3aOps   : SubtargetFeature<"v9.3a", "HasV9_3aOps", "true",
+                                   "Support ARM v9.3a instructions",
+                                   [HasV8_8aOps, HasV9_2aOps]>;
 
 def HasV8_1MMainlineOps : SubtargetFeature<
                "v8.1m.main", "HasV8_1MMainlineOps", "true",
@@ -644,6 +656,8 @@ def ProcA710    : SubtargetFeature<"cortex-a710", "ARMProcFamily",
                                    "CortexA710", "Cortex-A710 ARM processors", []>;
 def ProcX1      : SubtargetFeature<"cortex-x1", "ARMProcFamily", "CortexX1",
                                    "Cortex-X1 ARM processors", []>;
+def ProcX1C     : SubtargetFeature<"cortex-x1c", "ARMProcFamily", "CortexX1C",
+                                   "Cortex-X1C ARM processors", []>;
 
 def ProcV1      : SubtargetFeature<"neoverse-v1", "ARMProcFamily",
                                    "NeoverseV1", "Neoverse-V1 ARM processors", []>;
@@ -752,7 +766,8 @@ def ARMv7a    : Architecture<"armv7-a",   "ARMv7a",   [HasV7Ops,
                                                        FeatureNEON,
                                                        FeatureDB,
                                                        FeatureDSP,
-                                                       FeatureAClass]>;
+                                                       FeatureAClass,
+                                                       FeaturePerfMon]>;
 
 def ARMv7ve   : Architecture<"armv7ve",   "ARMv7ve",  [HasV7Ops,
                                                        FeatureNEON,
@@ -761,13 +776,15 @@ def ARMv7ve   : Architecture<"armv7ve",   "ARMv7ve",  [HasV7Ops,
                                                        FeatureTrustZone,
                                                        FeatureMP,
                                                        FeatureVirtualization,
-                                                       FeatureAClass]>;
+                                                       FeatureAClass,
+                                                       FeaturePerfMon]>;
 
 def ARMv7r    : Architecture<"armv7-r",   "ARMv7r",   [HasV7Ops,
                                                        FeatureDB,
                                                        FeatureDSP,
                                                        FeatureHWDivThumb,
-                                                       FeatureRClass]>;
+                                                       FeatureRClass,
+                                                       FeaturePerfMon]>;
 
 def ARMv7m    : Architecture<"armv7-m",   "ARMv7m",   [HasV7Ops,
                                                        FeatureThumb2,
@@ -889,6 +906,19 @@ def ARMv87a   : Architecture<"armv8.7-a", "ARMv87a",  [HasV8_7aOps,
                                                        FeatureCRC,
                                                        FeatureRAS,
                                                        FeatureDotProd]>;
+def ARMv88a   : Architecture<"armv8.8-a", "ARMv88a",  [HasV8_8aOps,
+                                                       FeatureAClass,
+                                                       FeatureDB,
+                                                       FeatureFPARMv8,
+                                                       FeatureNEON,
+                                                       FeatureDSP,
+                                                       FeatureTrustZone,
+                                                       FeatureMP,
+                                                       FeatureVirtualization,
+                                                       FeatureCrypto,
+                                                       FeatureCRC,
+                                                       FeatureRAS,
+                                                       FeatureDotProd]>;
 
 def ARMv9a   : Architecture<"armv9-a", "ARMv9a",       [HasV9_0aOps,
                                                        FeatureAClass,
@@ -923,6 +953,19 @@ def ARMv92a   : Architecture<"armv9.2-a", "ARMv92a",  [HasV9_2aOps,
                                                        FeatureTrustZone,
                                                        FeatureMP,
                                                        FeatureVirtualization,
+                                                       FeatureCRC,
+                                                       FeatureRAS,
+                                                       FeatureDotProd]>;
+def ARMv93a   : Architecture<"armv9.3-a", "ARMv93a",  [HasV9_3aOps,
+                                                       FeatureAClass,
+                                                       FeatureDB,
+                                                       FeatureFPARMv8,
+                                                       FeatureNEON,
+                                                       FeatureDSP,
+                                                       FeatureTrustZone,
+                                                       FeatureMP,
+                                                       FeatureVirtualization,
+                                                       FeatureCrypto,
                                                        FeatureCRC,
                                                        FeatureRAS,
                                                        FeatureDotProd]>;
@@ -1402,6 +1445,14 @@ def : ProcNoItin<"cortex-x1",                           [ARMv82a, ProcX1,
                                                          FeatureFullFP16,
                                                          FeatureDotProd]>;
 
+def : ProcNoItin<"cortex-x1c",                          [ARMv82a, ProcX1C,
+                                                         FeatureHWDivThumb,
+                                                         FeatureHWDivARM,
+                                                         FeatureCrypto,
+                                                         FeatureCRC,
+                                                         FeatureFullFP16,
+                                                         FeatureDotProd]>;
+
 def : ProcNoItin<"neoverse-v1",                         [ARMv84a,
                                                          FeatureHWDivThumb,
                                                          FeatureHWDivARM,
@@ -1420,8 +1471,7 @@ def : ProcNoItin<"neoverse-n1",                         [ARMv82a,
 
 def : ProcNoItin<"neoverse-n2",                         [ARMv85a,
                                                          FeatureBF16,
-                                                         FeatureMatMulInt8,
-                                                         FeaturePerfMon]>;
+                                                         FeatureMatMulInt8]>;
 
 def : ProcessorModel<"cyclone",     SwiftModel,         [ARMv8a, ProcSwift,
                                                          FeatureHasRetAddrStack,

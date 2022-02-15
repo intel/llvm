@@ -38,10 +38,15 @@ template simd<T, N> test_simd_constructor_vector_aligned<T, N>(T*); \
 template simd<T, N> test_simd_constructor_overaligned<T, N>(T*);
 
 TEST_SVM_CONSTRUCTOR(char, 2)
+TEST_SVM_CONSTRUCTOR(char, 52)
 TEST_SVM_CONSTRUCTOR(short, 5)
+TEST_SVM_CONSTRUCTOR(short, 55)
 TEST_SVM_CONSTRUCTOR(int, 7)
+TEST_SVM_CONSTRUCTOR(int, 57)
 TEST_SVM_CONSTRUCTOR(float, 14)
+TEST_SVM_CONSTRUCTOR(float, 54)
 TEST_SVM_CONSTRUCTOR(double, 16)
+TEST_SVM_CONSTRUCTOR(double, 56)
 
 #undef TEST_SVM_CONSTRUCTOR
 
@@ -74,10 +79,15 @@ template simd<T, N> test_simd_constructor_vector_aligned<T, N>(accessor<T, 1, ac
 template simd<T, N> test_simd_constructor_overaligned<T, N>(accessor<T, 1, access::mode::read_write, access::target::device> &);
 
 TEST_ACC_CONSTRUCTOR(char, 2)
+TEST_ACC_CONSTRUCTOR(char, 52)
 TEST_ACC_CONSTRUCTOR(short, 5)
+TEST_ACC_CONSTRUCTOR(short, 55)
 TEST_ACC_CONSTRUCTOR(int, 7)
+TEST_ACC_CONSTRUCTOR(int, 57)
 TEST_ACC_CONSTRUCTOR(float, 14)
+TEST_ACC_CONSTRUCTOR(float, 54)
 TEST_ACC_CONSTRUCTOR(double, 16)
+TEST_ACC_CONSTRUCTOR(double, 56)
 
 #undef TEST_ACC_CONSTRUCTOR
 
@@ -114,10 +124,15 @@ template void test_simd_copy_vector_aligned<T, N>(T*, T*); \
 template void test_simd_copy_overaligned<T, N>(T*, T*);
 
 TEST_SVM_COPY(char, 2)
+TEST_SVM_COPY(char, 52)
 TEST_SVM_COPY(short, 5)
+TEST_SVM_COPY(short, 55)
 TEST_SVM_COPY(int, 7)
+TEST_SVM_COPY(int, 57)
 TEST_SVM_COPY(float, 14)
+TEST_SVM_COPY(float, 54)
 TEST_SVM_COPY(double, 16)
+TEST_SVM_COPY(double, 56)
 
 #undef TEST_SVM_COPY
 
@@ -154,10 +169,15 @@ template void test_simd_copy_vector_aligned<T, N>(accessor<T, 1, access::mode::r
 template void test_simd_copy_overaligned<T, N>(accessor<T, 1, access::mode::read, access::target::device> &, accessor<T, 1, access::mode::write, access::target::device> &);
 
 TEST_ACC_COPY(char, 2)
+TEST_ACC_COPY(char, 52)
 TEST_ACC_COPY(short, 5)
+TEST_ACC_COPY(short, 55)
 TEST_ACC_COPY(int, 7)
+TEST_ACC_COPY(int, 57)
 TEST_ACC_COPY(float, 14)
+TEST_ACC_COPY(float, 54)
 TEST_ACC_COPY(double, 16)
+TEST_ACC_COPY(double, 56)
 
 #undef TEST_ACC_COPY
 

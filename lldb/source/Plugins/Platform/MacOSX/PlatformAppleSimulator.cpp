@@ -18,6 +18,7 @@
 #include "lldb/Host/PseudoTerminal.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
@@ -265,12 +266,11 @@ CoreSimulatorSupport::Device PlatformAppleSimulator::GetSimulatorDevice() {
 }
 #endif
 
-bool PlatformAppleSimulator::GetSupportedArchitectureAtIndex(uint32_t idx,
-                                                             ArchSpec &arch) {
-  if (idx >= m_supported_triples.size())
-    return false;
-  arch = ArchSpec(m_supported_triples[idx]);
-  return true;
+std::vector<ArchSpec> PlatformAppleSimulator::GetSupportedArchitectures() {
+  std::vector<ArchSpec> result(m_supported_triples.size());
+  llvm::transform(m_supported_triples, result.begin(),
+                  [](llvm::StringRef triple) { return ArchSpec(triple); });
+  return result;
 }
 
 PlatformSP PlatformAppleSimulator::CreateInstance(
@@ -282,7 +282,7 @@ PlatformSP PlatformAppleSimulator::CreateInstance(
     llvm::StringRef sdk, lldb_private::XcodeSDK::Type sdk_type,
     CoreSimulatorSupport::DeviceType::ProductFamilyID kind, bool force,
     const ArchSpec *arch) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   if (log) {
     const char *arch_name;
     if (arch && arch->GetArchitectureName())
@@ -380,10 +380,11 @@ Status PlatformAppleSimulator::ResolveExecutable(
     // so ask the platform for the architectures that we should be using (in
     // the correct order) and see if we can find a match that way
     StreamString arch_names;
+    llvm::ListSeparator LS;
     ArchSpec platform_arch;
-    for (uint32_t idx = 0; GetSupportedArchitectureAtIndex(
-             idx, resolved_module_spec.GetArchitecture());
-         ++idx) {
+    for (const ArchSpec &arch : GetSupportedArchitectures()) {
+      resolved_module_spec.GetArchitecture() = arch;
+
       // Only match x86 with x86 and x86_64 with x86_64...
       if (!module_spec.GetArchitecture().IsValid() ||
           module_spec.GetArchitecture().GetCore() ==
@@ -398,9 +399,7 @@ Status PlatformAppleSimulator::ResolveExecutable(
             error.SetErrorToGenericError();
         }
 
-        if (idx > 0)
-          arch_names.PutCString(", ");
-        arch_names.PutCString(platform_arch.GetArchitectureName());
+        arch_names << LS << platform_arch.GetArchitectureName();
       }
     }
 

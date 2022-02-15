@@ -25,6 +25,7 @@
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionValue.h"
+#include "lldb/Interpreter/OptionValueLanguage.h"
 #include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Interpreter/OptionValueSInt64.h"
 #include "lldb/Interpreter/OptionValueString.h"
@@ -42,6 +43,7 @@
 #include "lldb/Target/ThreadList.h"
 #include "lldb/Utility/AnsiTerminal.h"
 #include "lldb/Utility/Event.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Listener.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Reproducer.h"
@@ -322,6 +324,20 @@ bool Debugger::SetScriptLanguage(lldb::ScriptLanguage script_lang) {
   const uint32_t idx = ePropertyScriptLanguage;
   return m_collection_sp->SetPropertyAtIndexAsEnumeration(nullptr, idx,
                                                           script_lang);
+}
+
+lldb::LanguageType Debugger::GetREPLLanguage() const {
+  const uint32_t idx = ePropertyREPLLanguage;
+  OptionValueLanguage *value =
+      m_collection_sp->GetPropertyAtIndexAsOptionValueLanguage(nullptr, idx);
+  if (value)
+    return value->GetCurrentValue();
+  return LanguageType();
+}
+
+bool Debugger::SetREPLLanguage(lldb::LanguageType repl_lang) {
+  const uint32_t idx = ePropertyREPLLanguage;
+  return m_collection_sp->SetPropertyAtIndexAsLanguage(nullptr, idx, repl_lang);
 }
 
 uint32_t Debugger::GetTerminalWidth() const {
@@ -1677,8 +1693,7 @@ bool Debugger::StartEventHandlerThread() {
     if (event_handler_thread) {
       m_event_handler_thread = *event_handler_thread;
     } else {
-      LLDB_LOG(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST),
-               "failed to launch host thread: {}",
+      LLDB_LOG(GetLog(LLDBLog::Host), "failed to launch host thread: {}",
                llvm::toString(event_handler_thread.takeError()));
     }
 
@@ -1718,8 +1733,7 @@ bool Debugger::StartIOHandlerThread() {
     if (io_handler_thread) {
       m_io_handler_thread = *io_handler_thread;
     } else {
-      LLDB_LOG(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST),
-               "failed to launch host thread: {}",
+      LLDB_LOG(GetLog(LLDBLog::Host), "failed to launch host thread: {}",
                llvm::toString(io_handler_thread.takeError()));
     }
   }
@@ -1753,17 +1767,20 @@ Status Debugger::RunREPL(LanguageType language, const char *repl_options) {
   Status err;
   FileSpec repl_executable;
 
+  if (language == eLanguageTypeUnknown)
+    language = GetREPLLanguage();
+
   if (language == eLanguageTypeUnknown) {
     LanguageSet repl_languages = Language::GetLanguagesSupportingREPLs();
 
     if (auto single_lang = repl_languages.GetSingularLanguage()) {
       language = *single_lang;
     } else if (repl_languages.Empty()) {
-      err.SetErrorStringWithFormat(
+      err.SetErrorString(
           "LLDB isn't configured with REPL support for any languages.");
       return err;
     } else {
-      err.SetErrorStringWithFormat(
+      err.SetErrorString(
           "Multiple possible REPL languages.  Please specify a language.");
       return err;
     }

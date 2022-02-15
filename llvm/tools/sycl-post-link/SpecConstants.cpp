@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SpecConstants.h"
+#include "Support.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -17,7 +18,6 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
@@ -50,11 +50,6 @@ constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 // constants encountered in the module
 constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
     "sycl.specialization-constants-default-values";
-
-void AssertRelease(bool Cond, const char *Msg) {
-  if (!Cond)
-    report_fatal_error((Twine("SpecConstants.cpp: ") + Msg).str().c_str());
-}
 
 StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
                               SmallVectorImpl<Instruction *> &DelInsts) {
@@ -241,18 +236,20 @@ MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
-    const Module &M, Type *Ty, unsigned &Index, unsigned &Offset,
+    const Module &M, Type *Ty, const unsigned *&IDIter, unsigned &Offset,
     std::vector<SpecConstantDescriptor> &Result) {
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       // TODO: this is a spot for potential optimization: for arrays we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(), Index,
+      collectCompositeElementsInfoRecursive(M, ArrTy->getElementType(), IDIter,
                                             Offset, Result);
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
+    const unsigned BaseOffset = Offset;
+    unsigned LocalOffset = Offset;
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
       auto *ElTy = StructTy->getElementType(I);
       // When handling elements of a structure, we do not use manually
@@ -260,10 +257,23 @@ void collectCompositeElementsInfoRecursive(
       // encountered elements), but instead rely on data provided for us by
       // DataLayout, because the structure can be unpacked, i.e. padded in
       // order to ensure particular alignment of its elements.
-      unsigned LocalOffset = Offset + SL->getElementOffset(I);
-      collectCompositeElementsInfoRecursive(M, ElTy, Index, LocalOffset,
+      LocalOffset = Offset + SL->getElementOffset(I);
+      collectCompositeElementsInfoRecursive(M, ElTy, IDIter, LocalOffset,
                                             Result);
     }
+
+    // Add a special descriptor if the struct has padding at the end.
+    const unsigned PostStructPadding =
+        BaseOffset + SL->getSizeInBytes() - LocalOffset;
+    if (PostStructPadding > 0) {
+      SpecConstantDescriptor Desc;
+      // ID of padding descriptors is the max value possible.
+      Desc.ID = std::numeric_limits<unsigned>::max();
+      Desc.Offset = LocalOffset;
+      Desc.Size = PostStructPadding;
+      Result.push_back(Desc);
+    }
+
     // Update "global" offset according to the total size of a handled struct
     // type.
     Offset += SL->getSizeInBytes();
@@ -272,15 +282,18 @@ void collectCompositeElementsInfoRecursive(
       // TODO: this is a spot for potential optimization: for vectors we could
       // just make a single recursive call here and use it to populate Result
       // in a loop.
-      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(), Index,
+      collectCompositeElementsInfoRecursive(M, VecTy->getElementType(), IDIter,
                                             Offset, Result);
     }
   } else { // Assume that we encountered some scalar element
     SpecConstantDescriptor Desc;
-    Desc.ID = 0; // To be filled later
+    Desc.ID = *IDIter;
     Desc.Offset = Offset;
     Desc.Size = M.getDataLayout().getTypeStoreSize(Ty);
-    Result[Index++] = Desc;
+    Result.push_back(Desc);
+
+    // Move current ID and offset
+    ++IDIter;
     Offset += Desc.Size;
   }
 }
@@ -293,7 +306,14 @@ void collectCompositeElementsInfoRecursive(
 void collectCompositeElementsDefaultValuesRecursive(
     const Module &M, Constant *C, unsigned &Offset,
     std::vector<char> &DefaultValues) {
-  Type *Ty = C->getType();
+  if (isa<ConstantAggregateZero>(C)) {
+    // This code is generic for zeroinitializer for both arrays and structs
+    size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
+    std::fill_n(std::back_inserter(DefaultValues), NumBytes, 0);
+    Offset += NumBytes;
+    return;
+  }
+
   if (auto *DataSeqC = dyn_cast<ConstantDataSequential>(C)) {
     // This code is generic for both vectors and arrays of scalars
     for (size_t I = 0; I < DataSeqC->getNumElements(); ++I) {
@@ -301,22 +321,25 @@ void collectCompositeElementsDefaultValuesRecursive(
       collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
                                                      DefaultValues);
     }
-  } else if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+    return;
+  }
+
+  if (auto *ArrayC = dyn_cast<ConstantArray>(C)) {
     // This branch handles arrays of composite types (structs, arrays, etc.)
-    for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
-      Constant *El = cast<Constant>(C->getOperand(I));
-      collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
-                                                     DefaultValues);
+    assert(!C->isZeroValue() && "C must not be a zeroinitializer");
+    for (size_t I = 0; I < ArrayC->getType()->getNumElements(); ++I) {
+      collectCompositeElementsDefaultValuesRecursive(M, ArrayC->getOperand(I),
+                                                     Offset, DefaultValues);
     }
-  } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+    return;
+  }
+
+  if (auto *StructC = dyn_cast<ConstantStruct>(C)) {
+    assert(!C->isZeroValue() && "C must not be a zeroinitializer");
+    auto *StructTy = StructC->getType();
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     const size_t BaseDefaultValueOffset = DefaultValues.size();
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
-      Constant *El = nullptr;
-      if (C->isZeroValue())
-        El = Constant::getNullValue(StructTy->getElementType(I));
-      else
-        El = cast<Constant>(C->getOperand(I));
       // When handling elements of a structure, we do not use manually
       // calculated offsets (which are sum of sizes of all previously
       // encountered elements), but instead rely on data provided for us by
@@ -328,8 +351,8 @@ void collectCompositeElementsDefaultValuesRecursive(
       while (LocalOffset != DefaultValues.size())
         DefaultValues.push_back(0);
 
-      collectCompositeElementsDefaultValuesRecursive(M, El, LocalOffset,
-                                                     DefaultValues);
+      collectCompositeElementsDefaultValuesRecursive(
+          M, StructC->getOperand(I), LocalOffset, DefaultValues);
     }
     const size_t SLSize = SL->getSizeInBytes();
 
@@ -341,38 +364,39 @@ void collectCompositeElementsDefaultValuesRecursive(
     // Update "global" offset according to the total size of a handled struct
     // type.
     Offset += SLSize;
-  } else { // Assume that we encountered some scalar element
-    int NumBytes = M.getDataLayout().getTypeStoreSize(Ty);
-
-    if (auto IntConst = dyn_cast<ConstantInt>(C)) {
-      auto Val = IntConst->getValue().getZExtValue();
-      std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
-                  std::back_inserter(DefaultValues));
-    } else if (auto FPConst = dyn_cast<ConstantFP>(C)) {
-      auto Val = FPConst->getValue();
-
-      if (NumBytes == 2) {
-        auto IVal = Val.bitcastToAPInt();
-        assert(IVal.getBitWidth() == 16);
-        auto Storage = static_cast<uint16_t>(IVal.getZExtValue());
-        std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
-                    std::back_inserter(DefaultValues));
-      } else if (NumBytes == 4) {
-        float v = Val.convertToFloat();
-        std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
-                    std::back_inserter(DefaultValues));
-      } else if (NumBytes == 8) {
-        double v = Val.convertToDouble();
-        std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
-                    std::back_inserter(DefaultValues));
-      } else {
-        llvm_unreachable("Unexpected constant floating point type");
-      }
-    } else {
-      llvm_unreachable("Unexpected constant scalar type");
-    }
-    Offset += NumBytes;
+    return;
   }
+
+  // Assume that we encountered some scalar element
+  size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
+  if (auto *IntConst = dyn_cast<ConstantInt>(C)) {
+    auto Val = IntConst->getValue().getZExtValue();
+    std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
+                std::back_inserter(DefaultValues));
+  } else if (auto *FPConst = dyn_cast<ConstantFP>(C)) {
+    auto Val = FPConst->getValue();
+
+    if (NumBytes == 2) {
+      auto IVal = Val.bitcastToAPInt();
+      assert(IVal.getBitWidth() == 16);
+      auto Storage = static_cast<uint16_t>(IVal.getZExtValue());
+      std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
+                  std::back_inserter(DefaultValues));
+    } else if (NumBytes == 4) {
+      float V = Val.convertToFloat();
+      std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
+                  std::back_inserter(DefaultValues));
+    } else if (NumBytes == 8) {
+      double V = Val.convertToDouble();
+      std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
+                  std::back_inserter(DefaultValues));
+    } else {
+      llvm_unreachable("Unexpected constant floating point type");
+    }
+  } else {
+    llvm_unreachable("Unexpected constant scalar type");
+  }
+  Offset += NumBytes;
 }
 
 MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
@@ -386,13 +410,19 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
   MDOps.push_back(MDString::get(Ctx, SymbolicID));
 
   if (IsNativeSpecConstant) {
-    std::vector<SpecConstantDescriptor> Result(IDs.size());
-    unsigned Index = 0, Offset = 0;
-    collectCompositeElementsInfoRecursive(M, SCTy, Index, Offset, Result);
+    std::vector<SpecConstantDescriptor> Result;
+    Result.reserve(IDs.size());
+    unsigned Offset = 0;
+    const unsigned *IDPtr = IDs.data();
+    collectCompositeElementsInfoRecursive(M, SCTy, IDPtr, Offset, Result);
+
+    // We may have padding elements so size should be at least the same size as
+    // the ID vector.
+    assert(Result.size() >= IDs.size());
 
     for (unsigned I = 0; I < Result.size(); ++I) {
       MDOps.push_back(ConstantAsMetadata::get(
-          Constant::getIntegerValue(Int32Ty, APInt(32, IDs[I]))));
+          Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].ID))));
       MDOps.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(Int32Ty, APInt(32, Result[I].Offset))));
       MDOps.push_back(ConstantAsMetadata::get(
@@ -783,7 +813,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
-bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
+bool SpecConstantsPass::collectSpecConstantMetadata(const Module &M,
                                                     SpecIDMapTy &IDMap) {
   NamedMDNode *MD = M.getNamedMetadata(SPEC_CONST_MD_STRING);
   if (!MD)
@@ -814,7 +844,7 @@ bool SpecConstantsPass::collectSpecConstantMetadata(Module &M,
 }
 
 bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
-    Module &M, std::vector<char> &DefaultValues) {
+    const Module &M, std::vector<char> &DefaultValues) {
   NamedMDNode *N = M.getNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
   if (!N)
     return false;

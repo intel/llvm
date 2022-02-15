@@ -37,7 +37,8 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRPrintingPasses.h"
-#include "llvm/SYCLLowerIR/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/Support/Valgrind.h"
 #include "llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h"
 #include "llvm/Transforms/IPO.h"
@@ -126,6 +127,7 @@ namespace {
       (void) llvm::createInstSimplifyLegacyPass();
       (void) llvm::createInstructionCombiningPass();
       (void) llvm::createInternalizePass();
+      (void) llvm::createJMCInstrumenterPass();
       (void) llvm::createLCSSAPass();
       (void) llvm::createLegacyDivergenceAnalysisPass();
       (void) llvm::createLICMPass();

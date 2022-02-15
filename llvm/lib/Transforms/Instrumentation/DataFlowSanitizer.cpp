@@ -208,6 +208,14 @@ static cl::opt<bool> ClEventCallbacks(
     cl::desc("Insert calls to __dfsan_*_callback functions on data events."),
     cl::Hidden, cl::init(false));
 
+// Experimental feature that inserts callbacks for conditionals, including:
+// conditional branch, switch, select.
+// This must be true for dfsan_set_conditional_callback() to have effect.
+static cl::opt<bool> ClConditionalCallbacks(
+    "dfsan-conditional-callbacks",
+    cl::desc("Insert calls to callback functions on conditionals."), cl::Hidden,
+    cl::init(false));
+
 // Controls whether the pass tracks the control flow of select instructions.
 static cl::opt<bool> ClTrackSelectControlFlow(
     "dfsan-track-select-control-flow",
@@ -231,6 +239,12 @@ static cl::opt<int> ClInstrumentWithCallThreshold(
 static cl::opt<int> ClTrackOrigins("dfsan-track-origins",
                                    cl::desc("Track origins of labels"),
                                    cl::Hidden, cl::init(0));
+
+static cl::opt<bool> ClIgnorePersonalityRoutine(
+    "dfsan-ignore-personality-routine",
+    cl::desc("If a personality routine is marked uninstrumented from the ABI "
+             "list, do not create a wrapper for it."),
+    cl::Hidden, cl::init(false));
 
 static StringRef getGlobalTypeString(const GlobalValue &G) {
   // Types of GlobalVariables are always pointer types.
@@ -422,6 +436,8 @@ class DataFlowSanitizer {
   FunctionType *DFSanSetLabelFnTy;
   FunctionType *DFSanNonzeroLabelFnTy;
   FunctionType *DFSanVarargWrapperFnTy;
+  FunctionType *DFSanConditionalCallbackFnTy;
+  FunctionType *DFSanConditionalCallbackOriginFnTy;
   FunctionType *DFSanCmpCallbackFnTy;
   FunctionType *DFSanLoadStoreCallbackFnTy;
   FunctionType *DFSanMemTransferCallbackFnTy;
@@ -438,6 +454,8 @@ class DataFlowSanitizer {
   FunctionCallee DFSanLoadCallbackFn;
   FunctionCallee DFSanStoreCallbackFn;
   FunctionCallee DFSanMemTransferCallbackFn;
+  FunctionCallee DFSanConditionalCallbackFn;
+  FunctionCallee DFSanConditionalCallbackOriginFn;
   FunctionCallee DFSanCmpCallbackFn;
   FunctionCallee DFSanChainOriginFn;
   FunctionCallee DFSanChainOriginIfTaintedFn;
@@ -448,7 +466,7 @@ class DataFlowSanitizer {
   MDNode *OriginStoreWeights;
   DFSanABIList ABIList;
   DenseMap<Value *, Function *> UnwrappedFnMap;
-  AttrBuilder ReadOnlyNoneAttrs;
+  AttributeMask ReadOnlyNoneAttrs;
 
   /// Memory map parameters used in calculation mapping application addresses
   /// to shadow addresses and origin addresses.
@@ -636,6 +654,10 @@ struct DFSanFunction {
 
   Align getShadowAlign(Align InstAlignment);
 
+  // If ClConditionalCallbacks is enabled, insert a callback after a given
+  // branch instruction using the given conditional expression.
+  void addConditionalCallbacksIfEnabled(Instruction &I, Value *Condition);
+
 private:
   /// Collapses the shadow with aggregate type into a single primitive shadow
   /// value.
@@ -742,6 +764,8 @@ public:
   void visitSelectInst(SelectInst &I);
   void visitMemSetInst(MemSetInst &I);
   void visitMemTransferInst(MemTransferInst &I);
+  void visitBranchInst(BranchInst &BR);
+  void visitSwitchInst(SwitchInst &SW);
 
 private:
   void visitCASOrRMW(Align InstAlignment, Instruction &I);
@@ -965,6 +989,22 @@ Value *DFSanFunction::collapseToPrimitiveShadow(Value *Shadow,
   return PrimitiveShadow;
 }
 
+void DFSanFunction::addConditionalCallbacksIfEnabled(Instruction &I,
+                                                     Value *Condition) {
+  if (!ClConditionalCallbacks) {
+    return;
+  }
+  IRBuilder<> IRB(&I);
+  Value *CondShadow = getShadow(Condition);
+  if (DFS.shouldTrackOrigins()) {
+    Value *CondOrigin = getOrigin(Condition);
+    IRB.CreateCall(DFS.DFSanConditionalCallbackOriginFn,
+                   {CondShadow, CondOrigin});
+  } else {
+    IRB.CreateCall(DFS.DFSanConditionalCallbackFn, {CondShadow});
+  }
+}
+
 Type *DataFlowSanitizer::getShadowTy(Type *OrigTy) {
   if (!OrigTy->isSized())
     return PrimitiveShadowTy;
@@ -1026,6 +1066,13 @@ bool DataFlowSanitizer::initializeModule(Module &M) {
       FunctionType::get(Type::getVoidTy(*Ctx), None, /*isVarArg=*/false);
   DFSanVarargWrapperFnTy = FunctionType::get(
       Type::getVoidTy(*Ctx), Type::getInt8PtrTy(*Ctx), /*isVarArg=*/false);
+  DFSanConditionalCallbackFnTy =
+      FunctionType::get(Type::getVoidTy(*Ctx), PrimitiveShadowTy,
+                        /*isVarArg=*/false);
+  Type *DFSanConditionalCallbackOriginArgs[2] = {PrimitiveShadowTy, OriginTy};
+  DFSanConditionalCallbackOriginFnTy = FunctionType::get(
+      Type::getVoidTy(*Ctx), DFSanConditionalCallbackOriginArgs,
+      /*isVarArg=*/false);
   DFSanCmpCallbackFnTy =
       FunctionType::get(Type::getVoidTy(*Ctx), PrimitiveShadowTy,
                         /*isVarArg=*/false);
@@ -1115,7 +1162,7 @@ DataFlowSanitizer::buildWrapperFunction(Function *F, StringRef NewFName,
 
   BasicBlock *BB = BasicBlock::Create(*Ctx, "entry", NewF);
   if (F->isVarArg()) {
-    NewF->removeFnAttrs(AttrBuilder().addAttribute("split-stack"));
+    NewF->removeFnAttr("split-stack");
     CallInst::Create(DFSanVarargWrapperFn,
                      IRBuilder<>(BB).CreateGlobalStringPtr(F->getName()), "",
                      BB);
@@ -1154,7 +1201,7 @@ Constant *DataFlowSanitizer::getOrBuildTrampolineFunction(FunctionType *FT,
     // F is called by a wrapped custom function with primitive shadows. So
     // its arguments and return value need conversion.
     DFSanFunction DFSF(*this, F, /*IsNativeABI=*/true,
-                       /*ForceZeroLabels=*/false);
+                       /*IsForceZeroLabels=*/false);
     Function::arg_iterator ValAI = F->arg_begin(), ShadowAI = AI;
     ++ValAI;
     for (unsigned N = FT->getNumParams(); N != 0; ++ValAI, ++ShadowAI, --N) {
@@ -1265,6 +1312,10 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
   DFSanRuntimeFunctions.insert(
       DFSanMemTransferCallbackFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
+      DFSanConditionalCallbackFn.getCallee()->stripPointerCasts());
+  DFSanRuntimeFunctions.insert(
+      DFSanConditionalCallbackOriginFn.getCallee()->stripPointerCasts());
+  DFSanRuntimeFunctions.insert(
       DFSanCmpCallbackFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
       DFSanChainOriginFn.getCallee()->stripPointerCasts());
@@ -1286,6 +1337,12 @@ void DataFlowSanitizer::initializeCallbackFunctions(Module &M) {
       "__dfsan_mem_transfer_callback", DFSanMemTransferCallbackFnTy);
   DFSanCmpCallbackFn =
       Mod->getOrInsertFunction("__dfsan_cmp_callback", DFSanCmpCallbackFnTy);
+
+  DFSanConditionalCallbackFn = Mod->getOrInsertFunction(
+      "__dfsan_conditional_callback", DFSanConditionalCallbackFnTy);
+  DFSanConditionalCallbackOriginFn =
+      Mod->getOrInsertFunction("__dfsan_conditional_callback_origin",
+                               DFSanConditionalCallbackOriginFnTy);
 }
 
 void DataFlowSanitizer::injectMetadataGlobals(Module &M) {
@@ -1357,9 +1414,24 @@ bool DataFlowSanitizer::runImpl(Module &M) {
   std::vector<Function *> FnsToInstrument;
   SmallPtrSet<Function *, 2> FnsWithNativeABI;
   SmallPtrSet<Function *, 2> FnsWithForceZeroLabel;
+  SmallPtrSet<Constant *, 1> PersonalityFns;
   for (Function &F : M)
-    if (!F.isIntrinsic() && !DFSanRuntimeFunctions.contains(&F))
+    if (!F.isIntrinsic() && !DFSanRuntimeFunctions.contains(&F)) {
       FnsToInstrument.push_back(&F);
+      if (F.hasPersonalityFn())
+        PersonalityFns.insert(F.getPersonalityFn()->stripPointerCasts());
+    }
+
+  if (ClIgnorePersonalityRoutine) {
+    for (auto *C : PersonalityFns) {
+      assert(isa<Function>(C) && "Personality routine is not a function!");
+      Function *F = cast<Function>(C);
+      if (!isInstrumented(F))
+        FnsToInstrument.erase(
+            std::remove(FnsToInstrument.begin(), FnsToInstrument.end(), F),
+            FnsToInstrument.end());
+    }
+  }
 
   // Give function aliases prefixes when necessary, and build wrappers where the
   // instrumentedness is inconsistent.
@@ -2572,6 +2644,8 @@ void DFSanVisitor::visitSelectInst(SelectInst &I) {
   Value *FalseOrigin =
       ShouldTrackOrigins ? DFSF.getOrigin(I.getFalseValue()) : nullptr;
 
+  DFSF.addConditionalCallbacksIfEnabled(I, I.getCondition());
+
   if (isa<VectorType>(I.getCondition()->getType())) {
     ShadowSel = DFSF.combineShadowsThenConvert(I.getType(), TrueShadow,
                                                FalseShadow, &I);
@@ -2660,6 +2734,17 @@ void DFSanVisitor::visitMemTransferInst(MemTransferInst &I) {
                    {RawDestShadow,
                     IRB.CreateZExtOrTrunc(I.getLength(), DFSF.DFS.IntptrTy)});
   }
+}
+
+void DFSanVisitor::visitBranchInst(BranchInst &BR) {
+  if (!BR.isConditional())
+    return;
+
+  DFSF.addConditionalCallbacksIfEnabled(BR, BR.getCondition());
+}
+
+void DFSanVisitor::visitSwitchInst(SwitchInst &SW) {
+  DFSF.addConditionalCallbacksIfEnabled(SW, SW.getCondition());
 }
 
 static bool isAMustTailRetVal(Value *RetVal) {

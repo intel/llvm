@@ -1,3 +1,4 @@
+include(GNUInstallDirs)
 include(LLVMDistributionSupport)
 include(LLVMProcessSources)
 include(LLVM-Config)
@@ -254,14 +255,6 @@ function(add_link_opts target_name)
   # Don't use linker optimizations in debug builds since it slows down the
   # linker in a context where the optimizations are not important.
   if (NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
-
-    # Pass -O3 to the linker. This enabled different optimizations on different
-    # linkers.
-    if(NOT (CMAKE_SYSTEM_NAME MATCHES "Darwin|SunOS|AIX|OS390" OR WIN32) AND in_distribution)
-      set_property(TARGET ${target_name} APPEND_STRING PROPERTY
-                   LINK_FLAGS " -Wl,-O3")
-    endif()
-
     if(NOT LLVM_NO_DEAD_STRIP)
       if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         # ld64's implementation of -dead_strip breaks tools that use plugins.
@@ -739,6 +732,7 @@ function(add_llvm_install_targets target)
                             ${prefix_option}
                             -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
                     USES_TERMINAL)
+  set_target_properties(${target} PROPERTIES FOLDER "Component Install Targets")
   add_custom_target(${target}-stripped
                     DEPENDS ${file_dependencies}
                     COMMAND "${CMAKE_COMMAND}"
@@ -747,6 +741,7 @@ function(add_llvm_install_targets target)
                             -DCMAKE_INSTALL_DO_STRIP=1
                             -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
                     USES_TERMINAL)
+  set_target_properties(${target}-stripped PROPERTIES FOLDER "Component Install Targets (Stripped)")
   if(target_dependencies)
     add_dependencies(${target} ${target_dependencies})
     add_dependencies(${target}-stripped ${target_dependencies})
@@ -845,7 +840,7 @@ macro(add_llvm_library name)
               ${export_to_llvmexports}
               LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT ${name}
               ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT ${name}
-              RUNTIME DESTINATION bin COMPONENT ${name})
+              RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT ${name})
 
       if (NOT LLVM_ENABLE_IDE)
         add_llvm_install_targets(install-${name}
@@ -1215,12 +1210,14 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     llvm-ar
     llvm-cov
     llvm-cxxfilt
+    llvm-dwp
     llvm-ranlib
     llvm-lib
     llvm-ml
     llvm-nm
     llvm-objcopy
     llvm-objdump
+    llvm-pdbutil
     llvm-rc
     llvm-readobj
     llvm-size
@@ -1278,7 +1275,7 @@ macro(add_llvm_example name)
   endif()
   add_llvm_executable(${name} ${ARGN})
   if( LLVM_BUILD_EXAMPLES )
-    install(TARGETS ${name} RUNTIME DESTINATION examples)
+    install(TARGETS ${name} RUNTIME DESTINATION "${LLVM_EXAMPLES_INSTALL_DIR}")
   endif()
   set_target_properties(${name} PROPERTIES FOLDER "Examples")
 endmacro(add_llvm_example name)
@@ -1852,7 +1849,11 @@ endfunction()
 
 function(add_lit_testsuites project directory)
   if (NOT LLVM_ENABLE_IDE)
-    cmake_parse_arguments(ARG "EXCLUDE_FROM_CHECK_ALL" "" "PARAMS;DEPENDS;ARGS" ${ARGN})
+    cmake_parse_arguments(ARG "EXCLUDE_FROM_CHECK_ALL" "FOLDER" "PARAMS;DEPENDS;ARGS" ${ARGN})
+    
+    if (NOT ARG_FOLDER)
+      set(ARG_FOLDER "Test Subdirectories")
+    endif()
 
     # Search recursively for test directories by assuming anything not
     # in a directory called Inputs contains tests.
@@ -1880,6 +1881,7 @@ function(add_lit_testsuites project directory)
           DEPENDS ${ARG_DEPENDS}
           ARGS ${ARG_ARGS}
         )
+        set_target_properties(check-${name_var} PROPERTIES FOLDER ${ARG_FOLDER})
       endif()
     endforeach()
   endif()

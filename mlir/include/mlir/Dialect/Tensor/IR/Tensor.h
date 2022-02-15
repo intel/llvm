@@ -10,6 +10,8 @@
 #define MLIR_DIALECT_TENSOR_IR_TENSOR_H_
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
+#include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -18,6 +20,7 @@
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/TilingInterface.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 
 //===----------------------------------------------------------------------===//

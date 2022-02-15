@@ -1167,11 +1167,13 @@ void SIFrameLowering::processFunctionBeforeFrameFinalized(
   if (SpillVGPRToAGPR) {
     // To track the spill frame indices handled in this pass.
     BitVector SpillFIs(MFI.getObjectIndexEnd(), false);
+    BitVector NonVGPRSpillFIs(MFI.getObjectIndexEnd(), false);
 
     bool SeenDbgInstr = false;
 
     for (MachineBasicBlock &MBB : MF) {
       for (MachineInstr &MI : llvm::make_early_inc_range(MBB)) {
+        int FrameIndex;
         if (MI.isDebugInstr())
           SeenDbgInstr = true;
 
@@ -1191,9 +1193,18 @@ void SIFrameLowering::processFunctionBeforeFrameFinalized(
             SpillFIs.set(FI);
             continue;
           }
-        }
+        } else if (TII->isStoreToStackSlot(MI, FrameIndex) ||
+                   TII->isLoadFromStackSlot(MI, FrameIndex))
+          if (!MFI.isFixedObjectIndex(FrameIndex))
+            NonVGPRSpillFIs.set(FrameIndex);
       }
     }
+
+    // Stack slot coloring may assign different objets to the same stack slot.
+    // If not, then the VGPR to AGPR spill slot is dead.
+    for (unsigned FI : SpillFIs.set_bits())
+      if (!NonVGPRSpillFIs.test(FI))
+        FuncInfo->setVGPRToAGPRSpillDead(FI);
 
     for (MachineBasicBlock &MBB : MF) {
       for (MCPhysReg Reg : FuncInfo->getVGPRSpillAGPRs())
@@ -1218,7 +1229,11 @@ void SIFrameLowering::processFunctionBeforeFrameFinalized(
     }
   }
 
-  FuncInfo->removeDeadFrameIndices(MFI);
+  // At this point we've already allocated all spilled SGPRs to VGPRs if we
+  // can. Any remaining SGPR spills will go to memory, so move them back to the
+  // default stack.
+  bool HaveSGPRToVMemSpill =
+      FuncInfo->removeDeadFrameIndices(MFI, /*ResetSGPRSpillStackIDs*/ true);
   assert(allSGPRSpillsAreDead(MF) &&
          "SGPR spill should have been removed in SILowerSGPRSpills");
 
@@ -1230,6 +1245,13 @@ void SIFrameLowering::processFunctionBeforeFrameFinalized(
 
     // Add an emergency spill slot
     RS->addScavengingFrameIndex(FuncInfo->getScavengeFI(MFI, *TRI));
+
+    // If we are spilling SGPRs to memory with a large frame, we may need a
+    // second VGPR emergency frame index.
+    if (HaveSGPRToVMemSpill &&
+        allocateScavengingFrameIndexesNearIncomingSP(MF)) {
+      RS->addScavengingFrameIndex(MFI.CreateStackObject(4, Align(4), false));
+    }
   }
 }
 
@@ -1310,16 +1332,14 @@ void SIFrameLowering::determineCalleeSavesSGPR(MachineFunction &MF,
   const BitVector AllSavedRegs = SavedRegs;
   SavedRegs.clearBitsInMask(TRI->getAllVectorRegMask());
 
-  // If clearing VGPRs changed the mask, we will have some CSR VGPR spills.
-  const bool HaveAnyCSRVGPR = SavedRegs != AllSavedRegs;
-
   // We have to anticipate introducing CSR VGPR spills or spill of caller
   // save VGPR reserved for SGPR spills as we now always create stack entry
-  // for it, if we don't have any stack objects already, since we require
-  // an FP if there is a call and stack.
+  // for it, if we don't have any stack objects already, since we require a FP
+  // if there is a call and stack. We will allocate a VGPR for SGPR spills if
+  // there are any SGPR spills. Whether they are CSR spills or otherwise.
   MachineFrameInfo &FrameInfo = MF.getFrameInfo();
   const bool WillHaveFP =
-      FrameInfo.hasCalls() && (HaveAnyCSRVGPR || MFI->VGPRReservedForSGPRSpill);
+      FrameInfo.hasCalls() && (AllSavedRegs.any() || MFI->hasSpilledSGPRs());
 
   // FP will be specially managed like SP.
   if (WillHaveFP || hasFP(MF))

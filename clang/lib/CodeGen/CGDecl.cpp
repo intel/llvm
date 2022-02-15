@@ -266,8 +266,7 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
   // OpenCL/SYCL variables in local address space and CUDA shared
   // variables cannot have an initializer.
   llvm::Constant *Init = nullptr;
-  if (Ty.getAddressSpace() == LangAS::opencl_local ||
-      Ty.getAddressSpace() == LangAS::sycl_local ||
+  if (AS == LangAS::opencl_local || AS == LangAS::sycl_local ||
       D.hasAttr<CUDASharedAttr>() || D.hasAttr<LoaderUninitializedAttr>())
     Init = llvm::UndefValue::get(LTy);
   else
@@ -429,7 +428,8 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
 
   // Store into LocalDeclMap before generating initializer to handle
   // circular references.
-  setAddrOfLocalVar(&D, Address(addr, alignment));
+  llvm::Type *elemTy = ConvertTypeForMem(D.getType());
+  setAddrOfLocalVar(&D, Address(addr, elemTy, alignment));
 
   // We can't have a VLA here, but we can have a pointer to a VLA,
   // even though that doesn't really make any sense.
@@ -486,8 +486,7 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   // RAUW's the GV uses of this constant will be invalid.
   llvm::Constant *castedAddr =
     llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(var, expectedType);
-  if (var != castedAddr)
-    LocalDeclMap.find(&D)->second = Address(castedAddr, alignment);
+  LocalDeclMap.find(&D)->second = Address(castedAddr, elemTy, alignment);
   CGM.setStaticLocalDeclAddress(&D, castedAddr);
 
   CGM.getSanitizerMetadata()->reportGlobalToASan(var, D);
@@ -1174,7 +1173,7 @@ Address CodeGenModule::createUnnamedGlobalFrom(const VarDecl &D,
     CacheEntry->setAlignment(Align.getAsAlign());
   }
 
-  return Address(CacheEntry, Align);
+  return Address(CacheEntry, CacheEntry->getValueType(), Align);
 }
 
 static Address createUnnamedGlobalForMemcpyFrom(CodeGenModule &CGM,
@@ -1221,7 +1220,7 @@ static void emitStoresForConstant(CodeGenModule &CGM, const VarDecl &D,
     bool valueAlreadyCorrect =
         constant->isNullValue() || isa<llvm::UndefValue>(constant);
     if (!valueAlreadyCorrect) {
-      Loc = Builder.CreateBitCast(Loc, Ty->getPointerTo(Loc.getAddressSpace()));
+      Loc = Builder.CreateElementBitCast(Loc, Ty);
       emitStoresForInitAfterBZero(CGM, constant, Loc, isVolatile, Builder,
                                   IsAutoInit);
     }
@@ -1424,9 +1423,11 @@ void CodeGenFunction::EmitAndRegisterVariableArrayDimensions(
     else {
       // Create an artificial VarDecl to generate debug info for.
       IdentifierInfo *NameIdent = VLAExprNames[NameIdx++];
-      auto VlaExprTy = VlaSize.NumElts->getType()->getPointerElementType();
+      assert(cast<llvm::PointerType>(VlaSize.NumElts->getType())
+                 ->isOpaqueOrPointeeTypeMatches(SizeTy) &&
+             "Number of VLA elements must be SizeTy");
       auto QT = getContext().getIntTypeForBitwidth(
-          VlaExprTy->getScalarSizeInBits(), false);
+          SizeTy->getScalarSizeInBits(), false);
       auto *ArtificialDecl = VarDecl::Create(
           getContext(), const_cast<DeclContext *>(D.getDeclContext()),
           D.getLocation(), D.getLocation(), NameIdent, QT,
@@ -2298,16 +2299,17 @@ void CodeGenFunction::emitArrayDestroy(llvm::Value *begin,
 
   // Shift the address back by one element.
   llvm::Value *negativeOne = llvm::ConstantInt::get(SizeTy, -1, true);
+  llvm::Type *llvmElementType = ConvertTypeForMem(elementType);
   llvm::Value *element = Builder.CreateInBoundsGEP(
-      elementPast->getType()->getPointerElementType(), elementPast, negativeOne,
-      "arraydestroy.element");
+      llvmElementType, elementPast, negativeOne, "arraydestroy.element");
 
   if (useEHCleanup)
     pushRegularPartialArrayCleanup(begin, element, elementType, elementAlign,
                                    destroyer);
 
   // Perform the actual destruction there.
-  destroyer(*this, Address(element, elementAlign), elementType);
+  destroyer(*this, Address(element, llvmElementType, elementAlign),
+            elementType);
 
   if (useEHCleanup)
     PopCleanupBlock();

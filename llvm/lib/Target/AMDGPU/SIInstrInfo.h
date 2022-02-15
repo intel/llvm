@@ -35,6 +35,11 @@ class RegScavenger;
 class TargetRegisterClass;
 class ScheduleHazardRecognizer;
 
+/// Mark the MMO of a uniform load if there are no potentially clobbering stores
+/// on any path from the start of an entry function to this load.
+static const MachineMemOperand::Flags MONoClobber =
+    MachineMemOperand::MOTargetFlag1;
+
 class SIInstrInfo final : public AMDGPUGenInstrInfo {
 private:
   const SIRegisterInfo RI;
@@ -78,11 +83,8 @@ private:
   moveScalarAddSub(SetVectorType &Worklist, MachineInstr &Inst,
                    MachineDominatorTree *MDT = nullptr) const;
 
-  void lowerSelect32(SetVectorType &Worklist, MachineInstr &Inst,
-                     MachineDominatorTree *MDT = nullptr) const;
-
-  void splitSelect64(SetVectorType &Worklist, MachineInstr &Inst,
-                     MachineDominatorTree *MDT = nullptr) const;
+  void lowerSelect(SetVectorType &Worklist, MachineInstr &Inst,
+                   MachineDominatorTree *MDT = nullptr) const;
 
   void lowerScalarAbs(SetVectorType &Worklist,
                       MachineInstr &Inst) const;
@@ -1039,6 +1041,9 @@ public:
   ArrayRef<std::pair<unsigned, const char *>>
   getSerializableDirectMachineOperandTargetFlags() const override;
 
+  ArrayRef<std::pair<MachineMemOperand::Flags, const char *>>
+  getSerializableMachineMemOperandTargetFlags() const override;
+
   ScheduleHazardRecognizer *
   CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
                                  const ScheduleDAG *DAG) const override;
@@ -1248,6 +1253,10 @@ namespace AMDGPU {
   /// of an SS (SADDR) form.
   LLVM_READONLY
   int getFlatScratchInstSVfromSS(uint16_t Opcode);
+
+  /// \returns earlyclobber version of a MAC MFMA is exists.
+  LLVM_READONLY
+  int getMFMAEarlyClobberOp(uint16_t Opcode);
 
   const uint64_t RSRC_DATA_FORMAT = 0xf00000000000LL;
   const uint64_t RSRC_ELEMENT_SIZE_SHIFT = (32 + 19);

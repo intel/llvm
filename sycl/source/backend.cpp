@@ -246,10 +246,10 @@ kernel make_kernel(const context &TargetContext,
 
 kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
                    backend Backend) {
-  return make_kernel(TargetContext,
-                     get_kernel_bundle<bundle_state::executable>(
-                         TargetContext, std::vector<kernel_id>{}),
-                     NativeHandle, false, Backend);
+  return make_kernel(
+      TargetContext,
+      get_empty_interop_kernel_bundle<bundle_state::executable>(TargetContext),
+      NativeHandle, false, Backend);
 }
 
 } // namespace detail

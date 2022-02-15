@@ -73,7 +73,7 @@ class PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
           PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
                       LPMUpdater &>> {
 public:
-  explicit PassManager() {}
+  explicit PassManager() = default;
 
   // FIXME: These are equivalent to the default move constructor/move
   // assignment. However, using = default triggers linker errors due to the
@@ -435,8 +435,7 @@ public:
                                      bool UseBlockFrequencyInfo = false,
                                      bool UseBranchProbabilityInfo = false,
                                      bool LoopNestMode = false)
-      : Pass(std::move(Pass)), LoopCanonicalizationFPM(),
-        UseMemorySSA(UseMemorySSA),
+      : Pass(std::move(Pass)), UseMemorySSA(UseMemorySSA),
         UseBlockFrequencyInfo(UseBlockFrequencyInfo),
         UseBranchProbabilityInfo(UseBranchProbabilityInfo),
         LoopNestMode(LoopNestMode) {

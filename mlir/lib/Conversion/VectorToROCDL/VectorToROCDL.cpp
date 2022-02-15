@@ -22,7 +22,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -145,7 +145,7 @@ public:
         vecTy, dwordConfig, int32Zero, int32Zero, int1False, int1False);
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void mlir::populateVectorToROCDLConversionPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {

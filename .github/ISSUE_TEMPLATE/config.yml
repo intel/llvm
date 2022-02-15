@@ -1,6 +1,0 @@
-contact_links:
-  - name: Ask community a question
-    url: https://github.com/intel/llvm/discussions/categories/q-a
-    about: Please use Q&A Discussions category instead of Issues to ask questions
-
-blank_issues_enabled: false

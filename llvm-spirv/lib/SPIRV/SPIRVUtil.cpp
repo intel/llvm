@@ -248,7 +248,7 @@ bool isVoidFuncTy(FunctionType *FT) { return FT->getReturnType()->isVoidTy(); }
 
 bool isPointerToOpaqueStructType(llvm::Type *Ty) {
   if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque())
         return true;
   return false;
@@ -256,15 +256,28 @@ bool isPointerToOpaqueStructType(llvm::Type *Ty) {
 
 bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name) {
   if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque() && ST->getName() == Name)
         return true;
   return false;
 }
 
+bool isSPIRVSamplerType(llvm::Type *Ty) {
+  if (auto *PT = dyn_cast<PointerType>(Ty))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
+      if (ST->isOpaque()) {
+        auto Name = ST->getName();
+        if (Name.startswith(std::string(kSPIRVTypeName::PrefixAndDelim) +
+                            kSPIRVTypeName::Sampler)) {
+          return true;
+        }
+      }
+  return false;
+}
+
 bool isOCLImageType(llvm::Type *Ty, StringRef *Name) {
   if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque()) {
         auto FullName = ST->getName();
         if (FullName.find(kSPR2TypeName::ImagePrefix) == 0) {
@@ -281,7 +294,7 @@ bool isOCLImageType(llvm::Type *Ty, StringRef *Name) {
 ///   type Name as spirv.BaseTyName.Postfixes.
 bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix) {
   if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto ST = dyn_cast<StructType>(PT->getElementType()))
+    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
       if (ST->isOpaque()) {
         auto FullName = ST->getName();
         std::string N =
@@ -294,6 +307,21 @@ bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix) {
           return true;
         }
       }
+  return false;
+}
+
+bool isSYCLHalfType(llvm::Type *Ty) {
+  if (auto *ST = dyn_cast<StructType>(Ty)) {
+    if (!ST->hasName())
+      return false;
+    StringRef Name = ST->getName();
+    Name.consume_front("class.");
+    if ((Name.startswith("cl::sycl::") ||
+         Name.startswith("__sycl_internal::")) &&
+        Name.endswith("::half")) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -331,6 +359,8 @@ Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
     }
     LLVM_DEBUG(dbgs() << "[getOrCreateFunction] ";
                if (F) dbgs() << *F << " => "; dbgs() << *NewF << '\n';);
+    if (F)
+      NewF->setDSOLocal(F->isDSOLocal());
     F = NewF;
     F->setCallingConv(CallingConv::SPIR_FUNC);
     if (Attrs)
@@ -687,6 +717,21 @@ void mutateFunction(
   for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
     if (auto CI = dyn_cast<CallInst>(*I++))
       mutateCallInst(M, CI, ArgMutate, Mangle, Attrs, TakeFuncName);
+  }
+  if (F->use_empty())
+    F->eraseFromParent();
+}
+
+void mutateFunction(
+    Function *F,
+    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
+        ArgMutate,
+    std::function<Instruction *(CallInst *)> RetMutate,
+    BuiltinFuncMangleInfo *Mangle, AttributeList *Attrs, bool TakeName) {
+  auto *M = F->getParent();
+  for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
+    if (auto *CI = dyn_cast<CallInst>(*I++))
+      mutateCallInst(M, CI, ArgMutate, RetMutate, Mangle, Attrs, TakeName);
   }
   if (F->use_empty())
     F->eraseFromParent();
@@ -2085,6 +2130,8 @@ public:
     case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeDistortionsINTEL:
     case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeMotionVectorsINTEL:
     case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeReferenceIdsINTEL:
+    case OpSubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTEL:
+    case OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL:
     case OpSubgroupAvcRefEvaluateWithMultiReferenceINTEL:
     case OpSubgroupAvcSicEvaluateWithMultiReferenceINTEL:
       addUnsignedArgs(1, 2);

@@ -20,7 +20,8 @@ compiler and runtime.
 | `SYCL_CACHE_THRESHOLD` | Positive integer | Cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
 | `SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE` | Positive integer | Minimum size of device code image in bytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it. Default value is 0 to cache all images. |
 | `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in bytes which is cached. Too big kernels may overload disk too fast. Default value is 1 GB. |
-| `SYCL_ENABLE_DEFAULT_CONTEXTS` | '1' or '0' | Enable ('1') or disable ('0') creation of default platform contexts in SYCL runtime. The default context for each platform contains all devices in the platform. Refer to [Platform Default Contexts](extensions/PlatformContext/PlatformContext.adoc) extension to learn more. Enabled by default on Linux and disabled on Windows. |
+| `SYCL_ENABLE_DEFAULT_CONTEXTS` | '1' or '0' | Enable ('1') or disable ('0') creation of default platform contexts in SYCL runtime. The default context for each platform contains all devices in the platform. Refer to [Platform Default Contexts](extensions/supported/SYCL_EXT_ONEAPI_DEFAULT_CONTEXT.asciidoc) extension to learn more. Enabled by default on Linux and disabled on Windows. |
+| `SYCL_USM_HOSTPTR_IMPORT` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -92,6 +93,7 @@ variables in production code.</span>
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable cleanup of finished command nodes at host-device synchronization points. |
+| `SYCL_DISABLE_POST_ENQUEUE_CLEANUP` | Any(\*) | Disable cleanup of enqueued command nodes during submission. |
 | `SYCL_THROW_ON_BLOCK` | Any(\*) | Throw an exception on attempt to wait for a blocked command.  |
 | `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 | `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid OpenCL compile options | Override compile options for all programs. |
@@ -139,10 +141,24 @@ variables in production code.</span>
 | -------------------- | ------ | ----------- |
 | `SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE` | Positive integer | Maximum number of oneAPI Level Zero Command lists that can be allocated with no reuse before throwing an "out of resources" error. Default is 20000, threshold may be increased based on resource availabilty and workload demand. |
 | `SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR` | EnableBuffers, MaxPoolSize [, MemType, MaxPoolableSize, Capacity, SlabMinSize]... | EnableBuffers enables pooling for SYCL buffers, default false. MaxPoolSize is the maximum size of the pool, default 0. MemType is host, device or shared. Other parameters are values specified as positive integers with optional K, M or G suffix. MaxPoolableSize is the maximum allocation size that may be pooled, default 0 for host and shared, 32KB for device. Capacity is the number of allocations in each size range freed by the program but retained in the pool for reallocation, default 0. Size ranges follow this pattern: 64, 96, 128, 192, and so on, i.e., powers of 2, with one range in between. SlabMinSize is the minimum allocation size, 64KB for host and device, 2MB for shared. |
-| `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
+| `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of compute commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
+| `SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE` | Integer | Sets a preferred number of copy commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
 | `SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST` | Integer | When set to 0, disables filtering of signaled events from wait lists when using the Level Zero backend. The default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE` | Any(\*) | This environment variable enables users to control use of copy engines for copy operations. If the value is an integer, it will allow the use of copy engines, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The value of this environment variable can also be a pair of the form "lower_index:upper_index" where the indices point to copy engines in a list of all available copy engines. The default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
-| `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. The default is 0, meaning all events are host-visible. |
+| `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 the Level Zero plugin would create all events having device-scope and add proxy host-visible event at the end of each command-list submission. The default is 0, meaning all events are host-visible. |
+
+## Debugging variables for CUDA Plugin
+
+:warning: **Warning:** <span style="color:red">the environment variables
+described below are used for development and debugging of DPC++ compiler
+and runtime. Their semantics are subject to change. Do not rely on these
+variables in production code.</span>
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT` (experimental) | Any(\*) | Enable support of images. This option is experimental since the image support is not fully implemented. |
+
+`(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
 [xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md

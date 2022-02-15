@@ -17,7 +17,7 @@
 // RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= \
 // RUN:   -target riscv64-unknown-elf --rtlib=platform \
 // RUN:   --gcc-toolchain=%S/Inputs/basic_riscv64_tree \
-// RUN:   --sysroot=%S/Inputs/basic_riscv64_tree/riscv64-unknown-elf 2>&1 \
+// RUN:   --sysroot=%S/Inputs/basic_riscv64_tree/riscv64-unknown-elf 2>&1 -no-pie \
 // RUN:   | FileCheck -check-prefix=C-RV64-BAREMETAL-LP64 %s
 
 // C-RV64-BAREMETAL-LP64: "{{.*}}Inputs/basic_riscv64_tree/lib/gcc/riscv64-unknown-elf/8.0.1/../../..{{/|\\\\}}..{{/|\\\\}}bin{{/|\\\\}}riscv64-unknown-elf-ld"
@@ -74,7 +74,7 @@
 // CXX-RV64-BAREMETAL-NOSYSROOT-LP64: "-lstdc++" "--start-group" "-lc" "-lgloss" "--end-group" "-lgcc"
 // CXX-RV64-BAREMETAL-NOSYSROOT-LP64: "{{.*}}/Inputs/basic_riscv64_tree/lib/gcc/riscv64-unknown-elf/8.0.1{{/|\\\\}}crtend.o"
 
-// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld=ld -fuse-ld= \
+// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld= -no-pie \
 // RUN:   -target riscv64-unknown-linux-gnu --rtlib=platform -mabi=lp64 \
 // RUN:   --gcc-toolchain=%S/Inputs/multilib_riscv_linux_sdk \
 // RUN:   --sysroot=%S/Inputs/multilib_riscv_linux_sdk/sysroot 2>&1 \
@@ -89,7 +89,7 @@
 // C-RV64-LINUX-MULTI-LP64: "-L{{.*}}/Inputs/multilib_riscv_linux_sdk/sysroot/lib64/lp64"
 // C-RV64-LINUX-MULTI-LP64: "-L{{.*}}/Inputs/multilib_riscv_linux_sdk/sysroot/usr/lib64/lp64"
 
-// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld=ld \
+// RUN: %clang %s -### -no-canonical-prefixes -fuse-ld=ld -no-pie \
 // RUN:   -target riscv64-unknown-linux-gnu --rtlib=platform -march=rv64imafd \
 // RUN:   --gcc-toolchain=%S/Inputs/multilib_riscv_linux_sdk \
 // RUN:   --sysroot=%S/Inputs/multilib_riscv_linux_sdk/sysroot 2>&1 \
@@ -285,46 +285,46 @@ int size_a_ld = sizeof(_Atomic(long double));
 // Check types
 
 // CHECK: define dso_local zeroext i8 @check_char()
-char check_char() { return 0; }
+char check_char(void) { return 0; }
 
 // CHECK: define dso_local signext i16 @check_short()
-short check_short() { return 0; }
+short check_short(void) { return 0; }
 
 // CHECK: define dso_local signext i32 @check_int()
-int check_int() { return 0; }
+int check_int(void) { return 0; }
 
 // CHECK: define dso_local signext i32 @check_wchar_t()
-int check_wchar_t() { return 0; }
+int check_wchar_t(void) { return 0; }
 
 // CHECK: define dso_local i64 @check_long()
-long check_long() { return 0; }
+long check_long(void) { return 0; }
 
 // CHECK: define dso_local i64 @check_longlong()
-long long check_longlong() { return 0; }
+long long check_longlong(void) { return 0; }
 
 // CHECK: define dso_local zeroext i8 @check_uchar()
-unsigned char check_uchar() { return 0; }
+unsigned char check_uchar(void) { return 0; }
 
 // CHECK: define dso_local zeroext i16 @check_ushort()
-unsigned short check_ushort() { return 0; }
+unsigned short check_ushort(void) { return 0; }
 
 // CHECK: define dso_local signext i32 @check_uint()
-unsigned int check_uint() { return 0; }
+unsigned int check_uint(void) { return 0; }
 
 // CHECK: define dso_local i64 @check_ulong()
-unsigned long check_ulong() { return 0; }
+unsigned long check_ulong(void) { return 0; }
 
 // CHECK: define dso_local i64 @check_ulonglong()
-unsigned long long check_ulonglong() { return 0; }
+unsigned long long check_ulonglong(void) { return 0; }
 
 // CHECK: define dso_local i64 @check_size_t()
-size_t check_size_t() { return 0; }
+size_t check_size_t(void) { return 0; }
 
 // CHECK: define dso_local float @check_float()
-float check_float() { return 0; }
+float check_float(void) { return 0; }
 
 // CHECK: define dso_local double @check_double()
-double check_double() { return 0; }
+double check_double(void) { return 0; }
 
 // CHECK: define dso_local fp128 @check_longdouble()
-long double check_longdouble() { return 0; }
+long double check_longdouble(void) { return 0; }

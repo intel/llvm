@@ -238,12 +238,12 @@ void SetPrintfAndReportCallback(void (*callback)(const char *));
 // Lock sanitizer error reporting and protects against nested errors.
 class ScopedErrorReportLock {
  public:
-  ScopedErrorReportLock() ACQUIRE(mutex_) { Lock(); }
-  ~ScopedErrorReportLock() RELEASE(mutex_) { Unlock(); }
+  ScopedErrorReportLock() SANITIZER_ACQUIRE(mutex_) { Lock(); }
+  ~ScopedErrorReportLock() SANITIZER_RELEASE(mutex_) { Unlock(); }
 
-  static void Lock() ACQUIRE(mutex_);
-  static void Unlock() RELEASE(mutex_);
-  static void CheckLocked() CHECK_LOCKED(mutex_);
+  static void Lock() SANITIZER_ACQUIRE(mutex_);
+  static void Unlock() SANITIZER_RELEASE(mutex_);
+  static void CheckLocked() SANITIZER_CHECK_LOCKED(mutex_);
 
  private:
   static atomic_uintptr_t reporting_thread_;
@@ -667,11 +667,9 @@ void Sort(T *v, uptr size, Compare comp = {}) {
 
 // Works like std::lower_bound: finds the first element that is not less
 // than the val.
-template <class Container,
+template <class Container, class T,
           class Compare = CompareLess<typename Container::value_type>>
-uptr InternalLowerBound(const Container &v,
-                        const typename Container::value_type &val,
-                        Compare comp = {}) {
+uptr InternalLowerBound(const Container &v, const T &val, Compare comp = {}) {
   uptr first = 0;
   uptr last = v.size();
   while (last > first) {
@@ -741,6 +739,9 @@ bool ReadFileToBuffer(const char *file_name, char **buff, uptr *buff_size,
                       uptr *read_len, uptr max_len = kDefaultFileMaxSize,
                       error_t *errno_p = nullptr);
 
+int GetModuleAndOffsetForPc(uptr pc, char *module_name, uptr module_name_len,
+                            uptr *pc_offset);
+
 // When adding a new architecture, don't forget to also update
 // script/asan_symbolize.py and sanitizer_symbolizer_libcdep.cpp.
 inline const char *ModuleArchToString(ModuleArch arch) {
@@ -772,7 +773,7 @@ inline const char *ModuleArchToString(ModuleArch arch) {
   return "";
 }
 
-const uptr kModuleUUIDSize = 16;
+const uptr kModuleUUIDSize = 32;
 const uptr kMaxSegName = 16;
 
 // Represents a binary loaded into virtual memory (e.g. this can be an
@@ -784,6 +785,7 @@ class LoadedModule {
         base_address_(0),
         max_executable_address_(0),
         arch_(kModuleArchUnknown),
+        uuid_size_(0),
         instrumented_(false) {
     internal_memset(uuid_, 0, kModuleUUIDSize);
     ranges_.clear();
@@ -791,6 +793,7 @@ class LoadedModule {
   void set(const char *module_name, uptr base_address);
   void set(const char *module_name, uptr base_address, ModuleArch arch,
            u8 uuid[kModuleUUIDSize], bool instrumented);
+  void setUuid(const char *uuid, uptr size);
   void clear();
   void addAddressRange(uptr beg, uptr end, bool executable, bool writable,
                        const char *name = nullptr);
@@ -801,6 +804,7 @@ class LoadedModule {
   uptr max_executable_address() const { return max_executable_address_; }
   ModuleArch arch() const { return arch_; }
   const u8 *uuid() const { return uuid_; }
+  uptr uuid_size() const { return uuid_size_; }
   bool instrumented() const { return instrumented_; }
 
   struct AddressRange {
@@ -829,6 +833,7 @@ class LoadedModule {
   uptr base_address_;
   uptr max_executable_address_;
   ModuleArch arch_;
+  uptr uuid_size_;
   u8 uuid_[kModuleUUIDSize];
   bool instrumented_;
   IntrusiveList<AddressRange> ranges_;
@@ -932,6 +937,7 @@ inline uptr GetPthreadDestructorIterations() {
 
 void *internal_start_thread(void *(*func)(void*), void *arg);
 void internal_join_thread(void *th);
+void MaybeStartBackgroudThread();
 
 // Make the compiler think that something is going on there.
 // Use this inside a loop that looks like memset/memcpy/etc to prevent the
@@ -953,7 +959,7 @@ struct SignalContext {
   uptr sp;
   uptr bp;
   bool is_memory_access;
-  enum WriteFlag { UNKNOWN, READ, WRITE } write_flag;
+  enum WriteFlag { Unknown, Read, Write } write_flag;
 
   // In some cases the kernel cannot provide the true faulting address; `addr`
   // will be zero then.  This field allows to distinguish between these cases

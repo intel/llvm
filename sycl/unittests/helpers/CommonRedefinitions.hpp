@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -54,19 +53,31 @@ inline pi_result redefinedProgramGetInfoCommon(pi_program program,
                                                size_t param_value_size,
                                                void *param_value,
                                                size_t *param_value_size_ret) {
+  if (param_value_size_ret) {
+    *param_value_size_ret = sizeof(size_t);
+  }
   if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
-    auto value = reinterpret_cast<unsigned int *>(param_value);
-    *value = 1;
+    if (param_value) {
+      auto value = reinterpret_cast<unsigned int *>(param_value);
+      *value = 1;
+    }
   }
 
   if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
-    auto value = reinterpret_cast<size_t *>(param_value);
-    value[0] = 1;
+    if (param_value) {
+      auto value = reinterpret_cast<size_t *>(param_value);
+      value[0] = 1;
+    }
   }
 
   if (param_name == PI_PROGRAM_INFO_BINARIES) {
-    auto value = reinterpret_cast<unsigned char *>(param_value);
-    value[0] = 1;
+    if (param_value_size_ret) {
+      *param_value_size_ret = sizeof(unsigned char);
+    }
+    if (param_value) {
+      auto value = reinterpret_cast<unsigned char *>(param_value);
+      value[0] = 1;
+    }
   }
 
   return PI_SUCCESS;
@@ -111,6 +122,18 @@ inline pi_result redefinedKernelSetExecInfoCommon(
 
 inline pi_result redefinedEventsWaitCommon(pi_uint32 num_events,
                                            const pi_event *event_list) {
+  return PI_SUCCESS;
+}
+
+inline pi_result redefinedEventGetInfoCommon(pi_event event,
+                                             pi_event_info param_name,
+                                             size_t param_value_size,
+                                             void *param_value,
+                                             size_t *param_value_size_ret) {
+  if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    auto *status = reinterpret_cast<pi_event_status *>(param_value);
+    *status = PI_EVENT_SUBMITTED;
+  }
   return PI_SUCCESS;
 }
 
@@ -166,6 +189,7 @@ inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piKernelSetExecInfo>(
       redefinedKernelSetExecInfoCommon);
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWaitCommon);
+  Mock.redefine<PiApiKind::piEventGetInfo>(redefinedEventGetInfoCommon);
   Mock.redefine<PiApiKind::piEventRelease>(redefinedEventReleaseCommon);
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunchCommon);

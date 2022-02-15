@@ -14,6 +14,7 @@
 #include "RISCV.h"
 #include "RISCVMachineFunctionInfo.h"
 #include "RISCVSubtarget.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -105,7 +106,6 @@ BitVector RISCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // Floating point environment registers.
   markSuperRegs(Reserved, RISCV::FRM);
   markSuperRegs(Reserved, RISCV::FFLAGS);
-  markSuperRegs(Reserved, RISCV::FCSR);
 
   assert(checkAllSuperRegsMarked(Reserved));
   return Reserved;
@@ -347,4 +347,9 @@ void RISCVRegisterInfo::getOffsetOpcodes(const StackOffset &Offset,
     Ops.push_back(dwarf::DW_OP_mul);
     Ops.push_back(dwarf::DW_OP_minus);
   }
+}
+
+unsigned
+RISCVRegisterInfo::getRegisterCostTableIndex(const MachineFunction &MF) const {
+  return MF.getSubtarget<RISCVSubtarget>().hasStdExtC() ? 1 : 0;
 }

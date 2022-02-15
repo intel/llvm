@@ -827,10 +827,13 @@ private:
                         const ParseMemoryInst &Later);
 
   Value *getOrCreateResult(Value *Inst, Type *ExpectedType) const {
+    // TODO: We could insert relevant casts on type mismatch here.
     if (auto *LI = dyn_cast<LoadInst>(Inst))
-      return LI;
-    if (auto *SI = dyn_cast<StoreInst>(Inst))
-      return SI->getValueOperand();
+      return LI->getType() == ExpectedType ? LI : nullptr;
+    else if (auto *SI = dyn_cast<StoreInst>(Inst)) {
+      Value *V = SI->getValueOperand();
+      return V->getType() == ExpectedType ? V : nullptr;
+    }
     assert(isa<IntrinsicInst>(Inst) && "Instruction not supported");
     auto *II = cast<IntrinsicInst>(Inst);
     if (isHandledNonTargetIntrinsic(II->getIntrinsicID()))
@@ -1366,8 +1369,16 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
           continue;
         }
-        if (auto *I = dyn_cast<Instruction>(V))
-          I->andIRFlags(&Inst);
+        if (auto *I = dyn_cast<Instruction>(V)) {
+          // If I being poison triggers UB, there is no need to drop those
+          // flags. Otherwise, only retain flags present on both I and Inst.
+          // TODO: Currently some fast-math flags are not treated as
+          // poison-generating even though they should. Until this is fixed,
+          // always retain flags present on both I and Inst for floating point
+          // instructions.
+          if (isa<FPMathOperator>(I) || (I->hasPoisonGeneratingFlags() && !programUndefinedIfPoison(I)))
+            I->andIRFlags(&Inst);
+        }
         Inst.replaceAllUsesWith(V);
         salvageKnowledge(&Inst, &AC);
         removeMSSA(Inst);

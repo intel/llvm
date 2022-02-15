@@ -1,4 +1,4 @@
-// UNSUPPORTED: system-windows
+// UNSUPPORTED: system-windows, default-pie-on-linux
 // General tests that ld invocations on Linux targets sane. Note that we use
 // sysroot to make these tests independent of the host system.
 //
@@ -988,12 +988,6 @@
 // RUN:   | FileCheck --check-prefix=CHECK-ANDROID-HASH-STYLE-M %s
 // CHECK-ANDROID-HASH-STYLE-M: "{{.*}}ld{{(.exe)?}}"
 // CHECK-ANDROID-HASH-STYLE-M: "--hash-style=gnu"
-
-// RUN: %clang %s -### -o %t.o 2>&1 \
-// RUN:     --target=armv7-linux-android21 \
-// RUN:   | FileCheck --check-prefix=CHECK-ANDROID-WARN-SHARED-TEXTREL %s
-// CHECK-ANDROID-WARN-SHARED-TEXTREL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-ANDROID-WARN-SHARED-TEXTREL: "--warn-shared-textrel"
 
 // RUN: %clang %s -### -o %t.o 2>&1 --target=mips64-linux-gnuabin32 \
 // RUN:   | FileCheck --check-prefix=CHECK-MIPS64EL-GNUABIN32 %s

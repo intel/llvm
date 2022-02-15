@@ -43,10 +43,11 @@ TEST_F(xptiCorrectnessTest, xptiMakeEvent) {
   xpti::payload_t p("foo", "foo.cpp", 1, 0, (void *)13);
   auto Result =
       xptiMakeEvent("foo", &p, 0, (xpti::trace_activity_type_t)1, &Instance);
-  EXPECT_NE(Result, nullptr);
+  ASSERT_NE(Result, nullptr);
   p = xpti::payload_t("foo", "foo.cpp", 1, 0, (void *)13);
   auto NewResult =
       xptiMakeEvent("foo", &p, 0, (xpti::trace_activity_type_t)1, &Instance);
+  ASSERT_NE(NewResult, nullptr);
   EXPECT_EQ(Result, NewResult);
   EXPECT_EQ(Result->unique_id, NewResult->unique_id);
   EXPECT_EQ(Result->reserved.payload, NewResult->reserved.payload);

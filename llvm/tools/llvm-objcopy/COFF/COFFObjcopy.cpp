@@ -130,7 +130,8 @@ static uint32_t flagsToCharacteristics(SectionFlag AllFlags, uint32_t OldChar) {
   return NewCharacteristics;
 }
 
-static Error handleArgs(const CommonConfig &Config, Object &Obj) {
+static Error handleArgs(const CommonConfig &Config,
+                        const COFFConfig &COFFConfig, Object &Obj) {
   // Perform the actual section removals.
   Obj.removeSections([&Config](const Section &Sec) {
     // Contrary to --only-keep-debug, --only-section fully removes sections that
@@ -252,22 +253,67 @@ static Error handleArgs(const CommonConfig &Config, Object &Obj) {
         Characteristics);
   }
 
+  for (StringRef Flag : Config.UpdateSection) {
+    StringRef SecName, FileName;
+    std::tie(SecName, FileName) = Flag.split('=');
+
+    auto BufOrErr = MemoryBuffer::getFile(FileName);
+    if (!BufOrErr)
+      return createFileError(FileName, errorCodeToError(BufOrErr.getError()));
+    auto Buf = std::move(*BufOrErr);
+
+    auto It = llvm::find_if(Obj.getMutableSections(), [SecName](auto &Sec) {
+      return Sec.Name == SecName;
+    });
+    if (It == Obj.getMutableSections().end())
+      return createStringError(errc::invalid_argument,
+                               "could not find section with name '%s'",
+                               SecName.str().c_str());
+    size_t ContentSize = It->getContents().size();
+    if (!ContentSize)
+      return createStringError(
+          errc::invalid_argument,
+          "section '%s' cannot be updated because it does not have contents",
+          SecName.str().c_str());
+    if (ContentSize < Buf->getBufferSize())
+      return createStringError(
+          errc::invalid_argument,
+          "new section cannot be larger than previous section");
+    It->setOwnedContents({Buf->getBufferStart(), Buf->getBufferEnd()});
+  }
+
   if (!Config.AddGnuDebugLink.empty())
     if (Error E = addGnuDebugLink(Obj, Config.AddGnuDebugLink))
       return E;
 
+  if (COFFConfig.Subsystem || COFFConfig.MajorSubsystemVersion ||
+      COFFConfig.MinorSubsystemVersion) {
+    if (!Obj.IsPE)
+      return createStringError(
+          errc::invalid_argument,
+          "'" + Config.OutputFilename +
+              "': unable to set subsystem on a relocatable object file");
+    if (COFFConfig.Subsystem)
+      Obj.PeHeader.Subsystem = *COFFConfig.Subsystem;
+    if (COFFConfig.MajorSubsystemVersion)
+      Obj.PeHeader.MajorSubsystemVersion = *COFFConfig.MajorSubsystemVersion;
+    if (COFFConfig.MinorSubsystemVersion)
+      Obj.PeHeader.MinorSubsystemVersion = *COFFConfig.MinorSubsystemVersion;
+  }
+
   return Error::success();
 }
 
-Error executeObjcopyOnBinary(const CommonConfig &Config, const COFFConfig &,
-                             COFFObjectFile &In, raw_ostream &Out) {
+Error executeObjcopyOnBinary(const CommonConfig &Config,
+                             const COFFConfig &COFFConfig, COFFObjectFile &In,
+                             raw_ostream &Out) {
   COFFReader Reader(In);
   Expected<std::unique_ptr<Object>> ObjOrErr = Reader.create();
   if (!ObjOrErr)
     return createFileError(Config.InputFilename, ObjOrErr.takeError());
   Object *Obj = ObjOrErr->get();
   assert(Obj && "Unable to deserialize COFF object");
-  if (Error E = handleArgs(Config, *Obj))
+  if (Error E = handleArgs(Config, COFFConfig, *Obj))
     return createFileError(Config.InputFilename, std::move(E));
   COFFWriter Writer(*Obj, Out);
   if (Error E = Writer.write())

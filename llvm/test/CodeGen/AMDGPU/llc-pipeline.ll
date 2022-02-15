@@ -1,7 +1,5 @@
 ; When EXPENSIVE_CHECKS are enabled, the machine verifier appears between each
 ; pass. Ignore it with 'grep -v'.
-; fixme: the following line is added to cleanup bots, will be removed in weeks.
-; RUN: rm -f %S/llc-pipeline.s
 ; RUN: llc -O0 -mtriple=amdgcn--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
 ; RUN:   | grep -v 'Verify generated machine code' | FileCheck -match-full-lines -strict-whitespace -check-prefix=GCN-O0 %s
 ; RUN: llc -O1 -mtriple=amdgcn--amdhsa -disable-verify -debug-pass=Structure < %s 2>&1 \
@@ -50,6 +48,7 @@
 ; GCN-O0-NEXT:      Expand vector predication intrinsics
 ; GCN-O0-NEXT:      Scalarize Masked Memory Intrinsics
 ; GCN-O0-NEXT:      Expand reduction intrinsics
+; GCN-O0-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O0-NEXT:    AMDGPU Attributor
 ; GCN-O0-NEXT:    CallGraph Construction
 ; GCN-O0-NEXT:    Call Graph SCC Pass Manager
@@ -138,12 +137,12 @@
 ; GCN-O0-NEXT:        Branch relaxation pass
 ; GCN-O0-NEXT:        Register Usage Information Collector Pass
 ; GCN-O0-NEXT:        Live DEBUG_VALUE analysis
-; GCN-O0-NEXT:      Function register usage analysis
-; GCN-O0-NEXT:      FunctionPass Manager
-; GCN-O0-NEXT:        Lazy Machine Block Frequency Analysis
-; GCN-O0-NEXT:        Machine Optimization Remark Emitter
-; GCN-O0-NEXT:        AMDGPU Assembly Printer
-; GCN-O0-NEXT:        Free MachineFunction
+; GCN-O0-NEXT:    Function register usage analysis
+; GCN-O0-NEXT:    FunctionPass Manager
+; GCN-O0-NEXT:      Lazy Machine Block Frequency Analysis
+; GCN-O0-NEXT:      Machine Optimization Remark Emitter
+; GCN-O0-NEXT:      AMDGPU Assembly Printer
+; GCN-O0-NEXT:      Free MachineFunction
 ; GCN-O0-NEXT:Pass Arguments:  -domtree
 ; GCN-O0-NEXT:  FunctionPass Manager
 ; GCN-O0-NEXT:    Dominator Tree Construction
@@ -162,6 +161,7 @@
 ; GCN-O1-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O1-NEXT:Machine Branch Probability Analysis
 ; GCN-O1-NEXT:Register Usage Information Storage
+; GCN-O1-NEXT:Default Regalloc Eviction Advisor
 ; GCN-O1-NEXT:  ModulePass Manager
 ; GCN-O1-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O1-NEXT:    AMDGPU Printf lowering
@@ -215,6 +215,7 @@
 ; GCN-O1-NEXT:      Expand vector predication intrinsics
 ; GCN-O1-NEXT:      Scalarize Masked Memory Intrinsics
 ; GCN-O1-NEXT:      Expand reduction intrinsics
+; GCN-O1-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O1-NEXT:    AMDGPU Attributor
 ; GCN-O1-NEXT:    CallGraph Construction
 ; GCN-O1-NEXT:    Call Graph SCC Pass Manager
@@ -389,12 +390,12 @@
 ; GCN-O1-NEXT:        Branch relaxation pass
 ; GCN-O1-NEXT:        Register Usage Information Collector Pass
 ; GCN-O1-NEXT:        Live DEBUG_VALUE analysis
-; GCN-O1-NEXT:      Function register usage analysis
-; GCN-O1-NEXT:      FunctionPass Manager
-; GCN-O1-NEXT:        Lazy Machine Block Frequency Analysis
-; GCN-O1-NEXT:        Machine Optimization Remark Emitter
-; GCN-O1-NEXT:        AMDGPU Assembly Printer
-; GCN-O1-NEXT:        Free MachineFunction
+; GCN-O1-NEXT:    Function register usage analysis
+; GCN-O1-NEXT:    FunctionPass Manager
+; GCN-O1-NEXT:      Lazy Machine Block Frequency Analysis
+; GCN-O1-NEXT:      Machine Optimization Remark Emitter
+; GCN-O1-NEXT:      AMDGPU Assembly Printer
+; GCN-O1-NEXT:      Free MachineFunction
 ; GCN-O1-NEXT:Pass Arguments:  -domtree
 ; GCN-O1-NEXT:  FunctionPass Manager
 ; GCN-O1-NEXT:    Dominator Tree Construction
@@ -413,6 +414,7 @@
 ; GCN-O1-OPTS-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O1-OPTS-NEXT:Machine Branch Probability Analysis
 ; GCN-O1-OPTS-NEXT:Register Usage Information Storage
+; GCN-O1-OPTS-NEXT:Default Regalloc Eviction Advisor
 ; GCN-O1-OPTS-NEXT:  ModulePass Manager
 ; GCN-O1-OPTS-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O1-OPTS-NEXT:    AMDGPU Printf lowering
@@ -485,6 +487,7 @@
 ; GCN-O1-OPTS-NEXT:      Scalarize Masked Memory Intrinsics
 ; GCN-O1-OPTS-NEXT:      Expand reduction intrinsics
 ; GCN-O1-OPTS-NEXT:      Early CSE
+; GCN-O1-OPTS-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O1-OPTS-NEXT:    AMDGPU Attributor
 ; GCN-O1-OPTS-NEXT:    CallGraph Construction
 ; GCN-O1-OPTS-NEXT:    Call Graph SCC Pass Manager
@@ -673,12 +676,12 @@
 ; GCN-O1-OPTS-NEXT:        Branch relaxation pass
 ; GCN-O1-OPTS-NEXT:        Register Usage Information Collector Pass
 ; GCN-O1-OPTS-NEXT:        Live DEBUG_VALUE analysis
-; GCN-O1-OPTS-NEXT:      Function register usage analysis
-; GCN-O1-OPTS-NEXT:      FunctionPass Manager
-; GCN-O1-OPTS-NEXT:        Lazy Machine Block Frequency Analysis
-; GCN-O1-OPTS-NEXT:        Machine Optimization Remark Emitter
-; GCN-O1-OPTS-NEXT:        AMDGPU Assembly Printer
-; GCN-O1-OPTS-NEXT:        Free MachineFunction
+; GCN-O1-OPTS-NEXT:    Function register usage analysis
+; GCN-O1-OPTS-NEXT:    FunctionPass Manager
+; GCN-O1-OPTS-NEXT:      Lazy Machine Block Frequency Analysis
+; GCN-O1-OPTS-NEXT:      Machine Optimization Remark Emitter
+; GCN-O1-OPTS-NEXT:      AMDGPU Assembly Printer
+; GCN-O1-OPTS-NEXT:      Free MachineFunction
 ; GCN-O1-OPTS-NEXT:Pass Arguments:  -domtree
 ; GCN-O1-OPTS-NEXT:  FunctionPass Manager
 ; GCN-O1-OPTS-NEXT:    Dominator Tree Construction
@@ -697,6 +700,7 @@
 ; GCN-O2-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O2-NEXT:Machine Branch Probability Analysis
 ; GCN-O2-NEXT:Register Usage Information Storage
+; GCN-O2-NEXT:Default Regalloc Eviction Advisor
 ; GCN-O2-NEXT:  ModulePass Manager
 ; GCN-O2-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O2-NEXT:    AMDGPU Printf lowering
@@ -769,6 +773,7 @@
 ; GCN-O2-NEXT:      Scalarize Masked Memory Intrinsics
 ; GCN-O2-NEXT:      Expand reduction intrinsics
 ; GCN-O2-NEXT:      Early CSE
+; GCN-O2-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O2-NEXT:    AMDGPU Attributor
 ; GCN-O2-NEXT:    CallGraph Construction
 ; GCN-O2-NEXT:    Call Graph SCC Pass Manager
@@ -959,12 +964,12 @@
 ; GCN-O2-NEXT:        Branch relaxation pass
 ; GCN-O2-NEXT:        Register Usage Information Collector Pass
 ; GCN-O2-NEXT:        Live DEBUG_VALUE analysis
-; GCN-O2-NEXT:      Function register usage analysis
-; GCN-O2-NEXT:      FunctionPass Manager
-; GCN-O2-NEXT:        Lazy Machine Block Frequency Analysis
-; GCN-O2-NEXT:        Machine Optimization Remark Emitter
-; GCN-O2-NEXT:        AMDGPU Assembly Printer
-; GCN-O2-NEXT:        Free MachineFunction
+; GCN-O2-NEXT:    Function register usage analysis
+; GCN-O2-NEXT:    FunctionPass Manager
+; GCN-O2-NEXT:      Lazy Machine Block Frequency Analysis
+; GCN-O2-NEXT:      Machine Optimization Remark Emitter
+; GCN-O2-NEXT:      AMDGPU Assembly Printer
+; GCN-O2-NEXT:      Free MachineFunction
 ; GCN-O2-NEXT:Pass Arguments:  -domtree
 ; GCN-O2-NEXT:  FunctionPass Manager
 ; GCN-O2-NEXT:    Dominator Tree Construction
@@ -983,6 +988,7 @@
 ; GCN-O3-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O3-NEXT:Machine Branch Probability Analysis
 ; GCN-O3-NEXT:Register Usage Information Storage
+; GCN-O3-NEXT:Default Regalloc Eviction Advisor
 ; GCN-O3-NEXT:  ModulePass Manager
 ; GCN-O3-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O3-NEXT:    AMDGPU Printf lowering
@@ -1068,6 +1074,7 @@
 ; GCN-O3-NEXT:      Lazy Block Frequency Analysis
 ; GCN-O3-NEXT:      Optimization Remark Emitter
 ; GCN-O3-NEXT:      Global Value Numbering
+; GCN-O3-NEXT:    SYCL Local Accessor to Shared Memory
 ; GCN-O3-NEXT:    AMDGPU Attributor
 ; GCN-O3-NEXT:    CallGraph Construction
 ; GCN-O3-NEXT:    Call Graph SCC Pass Manager
@@ -1258,12 +1265,12 @@
 ; GCN-O3-NEXT:        Branch relaxation pass
 ; GCN-O3-NEXT:        Register Usage Information Collector Pass
 ; GCN-O3-NEXT:        Live DEBUG_VALUE analysis
-; GCN-O3-NEXT:      Function register usage analysis
-; GCN-O3-NEXT:      FunctionPass Manager
-; GCN-O3-NEXT:        Lazy Machine Block Frequency Analysis
-; GCN-O3-NEXT:        Machine Optimization Remark Emitter
-; GCN-O3-NEXT:        AMDGPU Assembly Printer
-; GCN-O3-NEXT:        Free MachineFunction
+; GCN-O3-NEXT:    Function register usage analysis
+; GCN-O3-NEXT:    FunctionPass Manager
+; GCN-O3-NEXT:      Lazy Machine Block Frequency Analysis
+; GCN-O3-NEXT:      Machine Optimization Remark Emitter
+; GCN-O3-NEXT:      AMDGPU Assembly Printer
+; GCN-O3-NEXT:      Free MachineFunction
 ; GCN-O3-NEXT:Pass Arguments:  -domtree
 ; GCN-O3-NEXT:  FunctionPass Manager
 ; GCN-O3-NEXT:    Dominator Tree Construction

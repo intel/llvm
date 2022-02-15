@@ -189,6 +189,6 @@ protected:
   Operation *op;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_UTILS_STRUCTUREDOPSUTILS_H
+#endif // MLIR_DIALECT_UTILS_STRUCTUREDOPSUTILS_H
