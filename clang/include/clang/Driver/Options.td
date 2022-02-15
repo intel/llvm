@@ -6169,7 +6169,10 @@ def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
 def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics that require the SYCL integration header.">,
   MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;
-
+def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
+  HelpText<"Tells compiler that -main-file-name contains an absolute path and "
+           "file specified there should be used for checksum calculation.">,
+  MarshallingInfoFlag<CodeGenOpts<"SYCLUseMainFileName">>;
 } // let Flags = [CC1Option, NoDriverOption]
 
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,

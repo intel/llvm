@@ -473,6 +473,10 @@ CODEGENOPT(SkipRaxSetup, 1, 0)
 ENUM_CODEGENOPT(ZeroCallUsedRegs, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind,
                 5, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::Skip)
 
+/// Whether to expect -main-file-name to be an absolute path to use it for
+/// checksum calculations or not.
+CODEGENOPT(SYCLUseMainFileName, 1, 0)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT
