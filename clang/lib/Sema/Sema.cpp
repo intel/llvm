@@ -1101,11 +1101,14 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
     // Set the names of the kernels, now that the names have settled down. This
     // needs to happen before we generate the integration headers.
     SetSYCLKernelNames();
+    // Make sure that the footer emitted before header, since only after the
+    // footer is emitted it is known that translation unit contains device
+    // global variables.
+    if (SyclIntFooter != nullptr)
+      SyclIntFooter->emit(getLangOpts().SYCLIntFooter);
     // Emit SYCL integration header for current translation unit if needed
     if (SyclIntHeader != nullptr)
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
-    if (SyclIntFooter != nullptr)
-      SyclIntFooter->emit(getLangOpts().SYCLIntFooter);
     MarkDevices();
   }
 

@@ -124,6 +124,10 @@ public:
   static bool isSyclSpecIdType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
+  /// device_global class.
+  static bool isSyclDeviceGlobalType(QualType Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
   /// kernel_handler class.
   static bool isSyclKernelHandlerType(QualType Ty);
 
@@ -4676,7 +4680,23 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "namespace sycl {\n";
   O << "namespace detail {\n";
 
-  O << "\n";
+  // Generate declaration of variable of type __sycl_device_global_registration
+  // whose sole purpose is to run its constructor before the application's
+  // main() function.
+
+  if (S.getSyclIntegrationFooter().metSYCLDeviceGlobals()) {
+    O << "namespace {\n";
+
+    O << "class __sycl_device_global_registration {\n";
+    O << "public:\n";
+    O << "  __sycl_device_global_registration() noexcept;\n";
+    O << "};\n";
+    O << "__sycl_device_global_registration __sycl_device_global_registerer;\n";
+
+    O << "} // namespace\n";
+
+    O << "\n";
+  }
 
   O << "// names of all kernels defined in the corresponding source\n";
   O << "static constexpr\n";
@@ -4858,9 +4878,9 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // template instantiations as a VarDecl.
   if (isa<VarTemplatePartialSpecializationDecl>(VD))
     return;
-  // Step 1: ensure that this is of the correct type-spec-constant template
-  // specialization).
-  if (!Util::isSyclSpecIdType(VD->getType())) {
+  // Step 1: ensure that this is of the correct type template specialization.
+  if (!Util::isSyclSpecIdType(VD->getType()) &&
+      !Util::isSyclDeviceGlobalType(VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
     // guide. We have to do this here since this function, unlike most of the
     // rest of this file, is called during Sema instead of after it. We will
@@ -4876,8 +4896,8 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   // let an error happen during host compilation.
   if (!VD->hasGlobalStorage() || VD->isLocalVarDeclOrParm())
     return;
-  // Step 3: Add to SpecConstants collection.
-  SpecConstants.push_back(VD);
+  // Step 3: Add to collection.
+  GlobalVars.push_back(VD);
 }
 
 // Post-compile integration header support.
@@ -4955,15 +4975,15 @@ static std::string EmitSpecIdShim(raw_ostream &OS, unsigned &ShimCounter,
                                   const std::string &LastShim,
                                   const NamespaceDecl *AnonNS) {
   std::string NewShimName =
-      "__sycl_detail::__spec_id_shim_" + std::to_string(ShimCounter) + "()";
+      "__sycl_detail::__shim_" + std::to_string(ShimCounter) + "()";
   // Print opening-namespace
   PrintNamespaces(OS, Decl::castToDeclContext(AnonNS));
   OS << "namespace __sycl_detail {\n";
-  OS << "static constexpr decltype(" << LastShim << ") &__spec_id_shim_"
+  OS << "static constexpr decltype(" << LastShim << ") &__shim_"
      << ShimCounter << "() {\n";
   OS << "  return " << LastShim << ";\n";
   OS << "}\n";
-  OS << "} // namespace __sycl_detail \n";
+  OS << "} // namespace __sycl_detail\n";
   PrintNSClosingBraces(OS, Decl::castToDeclContext(AnonNS));
 
   ++ShimCounter;
@@ -5026,58 +5046,97 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
 
-  llvm::SmallSet<const VarDecl *, 8> VisitedSpecConstants;
+  llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;
 
   // Used to uniquely name the 'shim's as we generate the names in each
   // anonymous namespace.
   unsigned ShimCounter = 0;
-  for (const VarDecl *VD : SpecConstants) {
+
+  std::string DeviceGlobalsBuf;
+  llvm::raw_string_ostream DeviceGlobOS(DeviceGlobalsBuf);
+  for (const VarDecl *VD : GlobalVars) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if this isn't a SpecIdType.  This can happen if it was a deduced
-    // type.
-    if (!Util::isSyclSpecIdType(VD->getType()))
+    // Skip if this isn't a SpecIdType or DeviceGlobal.  This can happen if it
+    // was a deduced type.
+    if (!Util::isSyclSpecIdType(VD->getType()) &&
+        !Util::isSyclDeviceGlobalType(VD->getType()))
       continue;
 
     // Skip if we've already visited this.
-    if (llvm::find(VisitedSpecConstants, VD) != VisitedSpecConstants.end())
+    if (llvm::find(Visited, VD) != Visited.end())
       continue;
 
     // We only want to emit the #includes if we have a spec-constant that needs
     // them, so emit this one on the first time through the loop.
-    if (!EmittedFirstSpecConstant)
+    if (!EmittedFirstSpecConstant && !DeviceGlobalsEmitted)
       OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
-    EmittedFirstSpecConstant = true;
 
-    VisitedSpecConstants.insert(VD);
+
+    Visited.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
-    OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
-    OS << "namespace sycl {\n";
-    OS << "namespace detail {\n";
-    OS << "template<>\n";
-    OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
+    if (Util::isSyclDeviceGlobalType(VD->getType())) {
+      if (!DeviceGlobalsEmitted)
+        OS << "#include <CL/sycl/detail/device_global_map.hpp>\n";
 
-    if (VD->isInAnonymousNamespace()) {
-      OS << TopShim;
+      DeviceGlobalsEmitted = true;
+      DeviceGlobOS << "device_global_map::add(";
     } else {
-      OS << "::";
-      VD->getNameForDiagnostic(OS, Policy, true);
+      EmittedFirstSpecConstant = true;
+      OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
+      OS << "namespace sycl {\n";
+      OS << "namespace detail {\n";
+      OS << "template<>\n";
+      OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
     }
 
-    OS << ">() {\n";
-    OS << "  return \"";
-    OS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
-    OS << "\";\n";
-    OS << "}\n";
-    OS << "} // namespace detail\n";
-    OS << "} // namespace sycl\n";
-    OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
+    std::string VarRefName;
+    llvm::raw_string_ostream VarRefNameOS(VarRefName);
+    if (VD->isInAnonymousNamespace()) {
+      VarRefNameOS << TopShim;
+    } else {
+      VarRefNameOS << "::";
+      VD->getNameForDiagnostic(VarRefNameOS, Policy, true);
+    }
+    VarRefNameOS.flush();
+    if (Util::isSyclDeviceGlobalType(VD->getType())) {
+      DeviceGlobOS << "&";
+      DeviceGlobOS << VarRefName;
+    } else {
+      OS << VarRefName;
+    }
+
+    if (Util::isSyclDeviceGlobalType(VD->getType())) {
+      DeviceGlobOS << ", \"";
+      DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
+      DeviceGlobOS << "\");\n";
+    } else {
+      OS << ">() {\n";
+      OS << "  return \"";
+      OS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
+      OS << "\";\n";
+      OS << "}\n";
+      OS << "} // namespace detail\n";
+      OS << "} // namespace sycl\n";
+      OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
+    }
   }
 
   if (EmittedFirstSpecConstant)
     OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
 
+  if (DeviceGlobalsEmitted) {
+    DeviceGlobOS.flush();
+    OS << "namespace sycl::detail {\n";
+    OS << "namespace {\n";
+    OS << "__sycl_device_global_registration::__sycl_device_global_"
+          "registration() noexcept {\n";
+    OS << DeviceGlobalsBuf;
+    OS << "}\n";
+    OS << "} // namespace (unnamed)\n";
+    OS << "} // namespace sycl::detail\n";
+  }
   return true;
 }
 
@@ -5120,6 +5179,18 @@ bool Util::isSyclSpecIdType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "specialization_id")};
   return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isSyclDeviceGlobalType(QualType Ty) {
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false;
+  if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
+    ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
+    if (CXXRecordDecl *RD = Template->getTemplatedDecl())
+        return RD->hasAttr<SYCLDeviceGlobalAttr>();
+  }
+  return RecTy->hasAttr<SYCLDeviceGlobalAttr>();
 }
 
 bool Util::isSyclKernelHandlerType(QualType Ty) {
