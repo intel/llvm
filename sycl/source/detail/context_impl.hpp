@@ -148,7 +148,7 @@ public:
   ///  cl_intel_devicelib_complex -> #<pi_program with complex functions>
   ///  etc.
   ///
-  /// See `doc/internal-design/DeviceLibExtensions.rst' for
+  /// See `doc/design/DeviceLibExtensions.rst' for
   /// more details.
   ///
   /// \returns a map with device library programs.

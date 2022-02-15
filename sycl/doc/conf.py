@@ -51,10 +51,10 @@ exclude_patterns = [
     'extensions/*',
 
     # Sphinx complains about syntax errors in these files.
-    'internal-design/DeviceLibExtensions.rst',
-    'internal-design/SYCLPipesLoweringToSPIRV.rst',
-    'internal-design/fpga_io_pipes_design.rst',
-    'internal-design/Reduction_status.md'
+    'design/DeviceLibExtensions.rst',
+    'design/SYCLPipesLoweringToSPIRV.rst',
+    'design/fpga_io_pipes_design.rst',
+    'design/Reduction_status.md'
 ]
 
 suppress_warnings = [ 'misc.highlighting_failure' ]
@@ -62,8 +62,8 @@ suppress_warnings = [ 'misc.highlighting_failure' ]
 def on_missing_reference(app, env, node, contnode):
     # Get the directory that contains the *source* file of the link.  These
     # files are always relative to the directory containing "conf.py"
-    # (<top>/sycl/doc).  For example, the file "sycl/doc/internal-design/foo.md"
-    # will have a directory "internal-design".
+    # (<top>/sycl/doc).  For example, the file "sycl/doc/design/foo.md" will
+    # have a directory "design".
     refdoc_components = node['refdoc'].split('/')
     dirs = '/'.join(refdoc_components[:-1])
     if dirs: dirs += '/'

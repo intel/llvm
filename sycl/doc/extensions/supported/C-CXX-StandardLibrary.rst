@@ -238,7 +238,7 @@ Device compiler
 Device compiler is free to implement these `__devicelib_*` functions.
 In order to indicate support for a particular set of functions,
 underlying runtime have to support the corresponding OpenCL (PI)
-extension. See ``../../internal-design/DeviceLibExtensions.rst`` for
+extension. See ``../../design/DeviceLibExtensions.rst`` for
 a list of supported functions and corresponding extensions.
 
 Fallback implementation

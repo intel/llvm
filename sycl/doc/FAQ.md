@@ -58,7 +58,7 @@ compiler command-line interface in general, please refer to the
 To learn more about the concepts behind this flow, and the DPC++
 Compiler internals as such, we welcome you to study our
 [DPC++ Compiler and Runtime architecture design](
-internal-design/CompilerAndRuntimeDesign.md) document.
+design/CompilerAndRuntimeDesign.md) document.
 
 
 ## Using applications built with DPC++
@@ -150,7 +150,7 @@ debugging tools of your choice for the host device code.
 
 Furthermore, developers can extend capabilities of the DPC++ Runtime to
 non-OpenCL devices by writing correspondent plugins. To learn more, please
-check out our [Plugin Interface Guide](internal-design/PluginInterface.md).
+check out our [Plugin Interface Guide](design/PluginInterface.md).
 
 ### Q: DPC++ applications hang on Intel GPUs while working well on other devices
 **A:** One of the common reasons is Intel GPUs feature called "hang check".

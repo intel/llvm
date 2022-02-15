@@ -27,20 +27,20 @@ Developing oneAPI DPC++ Compiler
    API Reference <https://intel.github.io/llvm-docs/doxygen>
    Clang Documentation <https://intel.github.io/llvm-docs/clang>
    Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
-   internal-design/CompilerAndRuntimeDesign
-   internal-design/KernelParameterPassing
-   internal-design/PluginInterface
-   internal-design/SpecializationConstants
-   internal-design/KernelProgramCache
-   internal-design/GlobalObjectsInRuntime
-   internal-design/LinkedAllocations
-   internal-design/Assert
-   internal-design/SharedLibraries
-   internal-design/OptionalDeviceFeatures
-   internal-design/SYCLInstrumentationUsingXPTI
-   internal-design/ITTAnnotations
-   internal-design/DeviceGlobal
-   internal-design/CompileTimeProperties
+   design/CompilerAndRuntimeDesign
+   design/KernelParameterPassing
+   design/PluginInterface
+   design/SpecializationConstants
+   design/KernelProgramCache
+   design/GlobalObjectsInRuntime
+   design/LinkedAllocations
+   design/Assert
+   design/SharedLibraries
+   design/OptionalDeviceFeatures
+   design/SYCLInstrumentationUsingXPTI
+   design/ITTAnnotations
+   design/DeviceGlobal
+   design/CompileTimeProperties
 
 Development BKMs
 ~~~~~~~~~~~~~~~~
@@ -48,5 +48,5 @@ Development BKMs
 .. toctree::
    :maxdepth: 1
 
-   development-bkms/DockerBKMs
-   development-bkms/ABIPolicyGuide
+   developer/DockerBKMs
+   developer/ABIPolicyGuide

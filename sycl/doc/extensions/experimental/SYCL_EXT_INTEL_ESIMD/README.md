@@ -81,7 +81,7 @@ extension.
 
 ##### Features not supported with ESIMD extension:
 - The [C and C++ Standard libraries support](../supported/C-CXX-StandardLibrary.rst)
-- The [Device library extensions](../../../internal-design/DeviceLibExtensions.rst)
+- The [Device library extensions](../../../design/DeviceLibExtensions.rst)
 - Host device
 
 ##### Unsupported standard SYCL APIs:

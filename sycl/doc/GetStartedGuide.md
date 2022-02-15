@@ -54,7 +54,7 @@ docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llv
 ```
 
 This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](development-bkms/DockerBKMs.md) for more info on Docker
+instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on Docker
 commands.
 
 ### Create DPC++ workspace
@@ -434,7 +434,7 @@ command:
 
 ### Obtain prerequisites for ahead of time (AOT) compilation
 
-[Ahead of time compilation](internal-design/CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
+[Ahead of time compilation](design/CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
 requires ahead of time compiler available in `PATH`. There is
 AOT compiler for each device type:
 
@@ -660,7 +660,7 @@ clang++ -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 simple-sycl-app.cpp -o si
 
 Additionally, user can pass specific options of AOT compiler to
 the DPC++ compiler using ```-Xsycl-target-backend``` option, see
-[Device code formats](internal-design/CompilerAndRuntimeDesign.md#device-code-formats) for
+[Device code formats](design/CompilerAndRuntimeDesign.md#device-code-formats) for
 more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
