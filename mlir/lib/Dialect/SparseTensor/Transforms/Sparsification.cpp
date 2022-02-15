@@ -354,21 +354,21 @@ static bool isAdmissableTensorExp(Merger &merger, linalg::GenericOp op,
 // Sparse compiler synthesis methods (reductions).
 //===----------------------------------------------------------------------===//
 
-/// Maps reduction kind to name encoding.
-static StringRef getReductionName(Reduction kind) {
+/// Maps reduction kind to vector::CombiningKind.
+static vector::CombiningKind getCombiningKind(Reduction kind) {
   switch (kind) {
   case kNoReduc:
     break;
   case kSum:
-    return "add";
+    return vector::CombiningKind::ADD;
   case kProduct:
-    return "mul";
+    return vector::CombiningKind::MUL;
   case kAnd:
-    return "and";
+    return vector::CombiningKind::AND;
   case kOr:
-    return "or";
+    return vector::CombiningKind::OR;
   case kXor:
-    return "xor";
+    return vector::CombiningKind::XOR;
   }
   llvm_unreachable("unknown reduction kind");
 }
@@ -427,10 +427,8 @@ static Value genVectorReducInit(CodeGen &codegen, PatternRewriter &rewriter,
 /// Generates final value for a vector reduction.
 static Value genVectorReducEnd(CodeGen &codegen, PatternRewriter &rewriter,
                                Location loc, VectorType vtp) {
-  StringRef name = getReductionName(codegen.redKind);
-  StringAttr kind = rewriter.getStringAttr(name);
-  return rewriter.create<vector::ReductionOp>(loc, vtp.getElementType(), kind,
-                                              codegen.redVal, ValueRange{});
+  vector::CombiningKind kind = getCombiningKind(codegen.redKind);
+  return rewriter.create<vector::ReductionOp>(loc, kind, codegen.redVal);
 }
 
 /// Updates scalarized reduction value.
@@ -831,11 +829,11 @@ static Value genLoad(CodeGen &codegen, PatternRewriter &rewriter, Location loc,
     if (!etp.isa<IndexType>()) {
       if (etp.getIntOrFloatBitWidth() < 32)
         vload = rewriter.create<arith::ExtUIOp>(
-            loc, vload, vectorType(codegen, rewriter.getI32Type()));
+            loc, vectorType(codegen, rewriter.getI32Type()), vload);
       else if (etp.getIntOrFloatBitWidth() < 64 &&
                !codegen.options.enableSIMDIndex32)
         vload = rewriter.create<arith::ExtUIOp>(
-            loc, vload, vectorType(codegen, rewriter.getI64Type()));
+            loc, vectorType(codegen, rewriter.getI64Type()), vload);
     }
     return vload;
   }
@@ -846,9 +844,9 @@ static Value genLoad(CodeGen &codegen, PatternRewriter &rewriter, Location loc,
   Value load = rewriter.create<memref::LoadOp>(loc, ptr, s);
   if (!load.getType().isa<IndexType>()) {
     if (load.getType().getIntOrFloatBitWidth() < 64)
-      load = rewriter.create<arith::ExtUIOp>(loc, load, rewriter.getI64Type());
+      load = rewriter.create<arith::ExtUIOp>(loc, rewriter.getI64Type(), load);
     load =
-        rewriter.create<arith::IndexCastOp>(loc, load, rewriter.getIndexType());
+        rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), load);
   }
   return load;
 }
@@ -868,7 +866,7 @@ static Value genAddress(CodeGen &codegen, PatternRewriter &rewriter,
   Value mul = rewriter.create<arith::MulIOp>(loc, size, p);
   if (auto vtp = i.getType().dyn_cast<VectorType>()) {
     Value inv =
-        rewriter.create<arith::IndexCastOp>(loc, mul, vtp.getElementType());
+        rewriter.create<arith::IndexCastOp>(loc, vtp.getElementType(), mul);
     mul = genVectorInvariantValue(codegen, rewriter, inv);
   }
   return rewriter.create<arith::AddIOp>(loc, mul, i);

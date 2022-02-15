@@ -603,7 +603,8 @@ static void printCallOp(mlir::OpAsmPrinter &p, fir::CallOp &op) {
   else
     p << op.getOperand(0);
   p << '(' << op->getOperands().drop_front(isDirect ? 0 : 1) << ')';
-  p.printOptionalAttrDict(op->getAttrs(), {"callee"});
+  p.printOptionalAttrDict(op->getAttrs(),
+                          {fir::CallOp::getCalleeAttrNameStr()});
   auto resultTypes{op.getResultTypes()};
   llvm::SmallVector<Type> argTypes(
       llvm::drop_begin(op.getOperandTypes(), isDirect ? 0 : 1));
@@ -620,7 +621,8 @@ static mlir::ParseResult parseCallOp(mlir::OpAsmParser &parser,
   mlir::SymbolRefAttr funcAttr;
   bool isDirect = operands.empty();
   if (isDirect)
-    if (parser.parseAttribute(funcAttr, "callee", attrs))
+    if (parser.parseAttribute(funcAttr, fir::CallOp::getCalleeAttrNameStr(),
+                              attrs))
       return mlir::failure();
 
   Type type;
@@ -3209,26 +3211,6 @@ mlir::ParseResult fir::parseSelector(mlir::OpAsmParser &parser,
       parser.parseLSquare())
     return mlir::failure();
   return mlir::success();
-}
-
-/// Generic pretty-printer of a binary operation
-static void printBinaryOp(Operation *op, OpAsmPrinter &p) {
-  assert(op->getNumOperands() == 2 && "binary op must have two operands");
-  assert(op->getNumResults() == 1 && "binary op must have one result");
-
-  p << ' ' << op->getOperand(0) << ", " << op->getOperand(1);
-  p.printOptionalAttrDict(op->getAttrs());
-  p << " : " << op->getResult(0).getType();
-}
-
-/// Generic pretty-printer of an unary operation
-static void printUnaryOp(Operation *op, OpAsmPrinter &p) {
-  assert(op->getNumOperands() == 1 && "unary op must have one operand");
-  assert(op->getNumResults() == 1 && "unary op must have one result");
-
-  p << ' ' << op->getOperand(0);
-  p.printOptionalAttrDict(op->getAttrs());
-  p << " : " << op->getResult(0).getType();
 }
 
 bool fir::isReferenceLike(mlir::Type type) {

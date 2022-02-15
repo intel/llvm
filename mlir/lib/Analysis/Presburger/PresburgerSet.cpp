@@ -16,17 +16,13 @@ using namespace mlir;
 using namespace presburger_utils;
 
 PresburgerSet::PresburgerSet(const IntegerPolyhedron &poly)
-    : numDims(poly.getNumDimIds()), numSymbols(poly.getNumSymbolIds()) {
+    : PresburgerSpace(poly) {
   unionPolyInPlace(poly);
 }
 
 unsigned PresburgerSet::getNumPolys() const {
   return integerPolyhedrons.size();
 }
-
-unsigned PresburgerSet::getNumDimIds() const { return numDims; }
-
-unsigned PresburgerSet::getNumSymbolIds() const { return numSymbols; }
 
 ArrayRef<IntegerPolyhedron> PresburgerSet::getAllIntegerPolyhedron() const {
   return integerPolyhedrons;
@@ -383,6 +379,20 @@ bool PresburgerSet::findIntegerSample(SmallVectorImpl<int64_t> &sample) {
     }
   }
   return false;
+}
+
+Optional<uint64_t> PresburgerSet::computeVolume() const {
+  assert(getNumSymbolIds() == 0 && "Symbols are not yet supported!");
+  // The sum of the volumes of the disjuncts is a valid overapproximation of the
+  // volume of their union, even if they overlap.
+  uint64_t result = 0;
+  for (const IntegerPolyhedron &poly : integerPolyhedrons) {
+    Optional<uint64_t> volume = poly.computeVolume();
+    if (!volume)
+      return {};
+    result += *volume;
+  }
+  return result;
 }
 
 PresburgerSet PresburgerSet::coalesce() const {

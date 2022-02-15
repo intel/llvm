@@ -14,10 +14,8 @@
 #define LLD_ELF_SYMBOLS_H
 
 #include "InputFiles.h"
-#include "InputSection.h"
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Memory.h"
-#include "lld/Common/Strings.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ELF.h"
@@ -35,9 +33,8 @@ std::string toELFString(const llvm::object::Archive::Symbol &);
 namespace elf {
 class CommonSymbol;
 class Defined;
-class InputFile;
-class LazyArchive;
-class LazyObject;
+class OutputSection;
+class SectionBase;
 class SharedSymbol;
 class Symbol;
 class Undefined;
@@ -116,7 +113,8 @@ public:
   // whether it is required to be exported into .dynsym. This is set when any of
   // the following conditions hold:
   //
-  // - If there is an interposable symbol from a DSO.
+  // - If there is an interposable symbol from a DSO. Note: We also do this for
+  //   STV_PROTECTED symbols which can't be interposed (to match BFD behavior).
   // - If -shared or --export-dynamic is specified, any symbol in an object
   //   file/bitcode sets this property, unless suppressed by LTO
   //   canBeOmittedFromSymbolTable().
