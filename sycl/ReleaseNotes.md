@@ -1185,7 +1185,7 @@ Release notes for commit range 5976ff0..1fc0e4f
     [c4c3494]
 
 ### Documentation
-  - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/extensions/SPIRV/SPV_INTEL_usm_storage_classes.asciidoc)
+  - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/design/spirv-extensions/SPV_INTEL_usm_storage_classes.asciidoc)
     and [SYCL_INTEL_usm_address_spaces](doc/extensions/supported/SYCL_EXT_INTEL_USM_ADDRESS_SPACES.asciidoc) [781fbfc]
   - Fixed SPIR-V format name spelling [6e9bf3b]
   - Added extension [LocalMemory](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc) draft specification [4b5308a]
