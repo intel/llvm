@@ -1393,10 +1393,13 @@ public:
   const Use &getCalledOperandUse() const { return Op<CalledOperandOpEndIdx>(); }
   Use &getCalledOperandUse() { return Op<CalledOperandOpEndIdx>(); }
 
-  /// Returns the function called, or null if this is an
-  /// indirect function invocation.
+  /// Returns the function called, or null if this is an indirect function
+  /// invocation or the function signature does not match the call signature.
   Function *getCalledFunction() const {
-    return dyn_cast_or_null<Function>(getCalledOperand());
+    if (auto *F = dyn_cast_or_null<Function>(getCalledOperand()))
+      if (F->getValueType() == getFunctionType())
+        return F;
+    return nullptr;
   }
 
   /// Return true if the callsite is an indirect call.
@@ -1723,7 +1726,13 @@ public:
   }
 
   /// Extract the alignment of the return value.
-  MaybeAlign getRetAlign() const { return Attrs.getRetAlignment(); }
+  MaybeAlign getRetAlign() const {
+    if (auto Align = Attrs.getRetAlignment())
+      return Align;
+    if (const Function *F = getCalledFunction())
+      return F->getAttributes().getRetAlignment();
+    return None;
+  }
 
   /// Extract the alignment for a call or parameter (0=unknown).
   MaybeAlign getParamAlign(unsigned ArgNo) const {

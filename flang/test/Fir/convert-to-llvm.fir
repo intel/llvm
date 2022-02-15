@@ -1175,23 +1175,23 @@ func @select_case_integer(%arg0: !fir.ref<i32>) -> i32 {
 ^bb1:  // pred: ^bb0
   %c1_i32_0 = arith.constant 1 : i32
   fir.store %c1_i32_0 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb2:  // pred: ^bb0
   %c2_i32_1 = arith.constant 2 : i32
   fir.store %c2_i32_1 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb3:  // pred: ^bb0
   %c0_i32 = arith.constant 0 : i32
   fir.store %c0_i32 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb4:  // pred: ^bb0
   %c4_i32_2 = arith.constant 4 : i32
   fir.store %c4_i32_2 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb5:  // 3 preds: ^bb0, ^bb0, ^bb0
   %c7_i32_3 = arith.constant 7 : i32
   fir.store %c7_i32_3 to %arg0 : !fir.ref<i32>
-  br ^bb6
+  cf.br ^bb6
 ^bb6:  // 5 preds: ^bb1, ^bb2, ^bb3, ^bb4, ^bb5
   %3 = fir.load %arg0 : !fir.ref<i32>
   return %3 : i32
@@ -1275,10 +1275,10 @@ func @select_case_logical(%arg0: !fir.ref<!fir.logical<4>>) {
                             unit, ^bb3]
 ^bb1:
   %c1_i32 = arith.constant 1 : i32
-  br ^bb3
+  cf.br ^bb3
 ^bb2:
   %c2_i32 = arith.constant 2 : i32
-  br ^bb3
+  cf.br ^bb3
 ^bb3:
   return
 }
@@ -1583,7 +1583,7 @@ func @embox_typecode2(%arg0: !fir.ref<f128>) {
 }
 
 // CHECK-LABEL: llvm.func @embox_typecode2
-// CHECK: %[[TYPE_CODE_F128:.*]] = llvm.mlir.constant(30 : i32) : i32
+// CHECK: %[[TYPE_CODE_F128:.*]] = llvm.mlir.constant(31 : i32) : i32
 // CHECK: %[[TYPE_CODE_F128_I8:.*]] = llvm.trunc %[[TYPE_CODE_F128]] : i32 to i8
 // CHECK: %{{.*}} = llvm.insertvalue %[[TYPE_CODE_F128_I8]], %{{.*}}[4 : i32] : !llvm.struct<(ptr<f128>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}})>
 
@@ -2471,16 +2471,30 @@ func @coordinate_array_known_size_1d(%arg0: !fir.ref<!fir.array<10 x i32>>, %arg
 
 // -----
 
-func @coordinate_array_known_size_2d(%arg0: !fir.ref<!fir.array<10 x 10 x i32>>, %arg1 : index, %arg2 : index) {
+func @coordinate_array_known_size_2d_get_i32(%arg0: !fir.ref<!fir.array<10 x 10 x i32>>, %arg1 : index, %arg2 : index) {
    %q = fir.coordinate_of %arg0, %arg1, %arg2 : (!fir.ref<!fir.array<10 x 10 x i32>>, index, index) -> !fir.ref<i32>
    return
 }
-// CHECK-LABEL:   llvm.func @coordinate_array_known_size_2d(
+// CHECK-LABEL:   llvm.func @coordinate_array_known_size_2d_get_i32(
 // CHECK-SAME:    %[[VAL_0:.*]]: !llvm.ptr<array<10 x array<10 x i32>>>,
 // CHECK-SAME:    %[[VAL_1:.*]]: i64,
 // CHECK-SAME:    %[[VAL_2:.*]]: i64) {
 // CHECK:           %[[VAL_3:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK:           %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_3]], %[[VAL_2]], %[[VAL_1]]] : (!llvm.ptr<array<10 x array<10 x i32>>>, i64, i64, i64) -> !llvm.ptr<i32>
+// CHECK:           llvm.return
+// CHECK:         }
+
+// -----
+
+func @coordinate_array_known_size_2d_get_array(%arg0: !fir.ref<!fir.array<10 x 10 x i32>>, %arg1 : index) {
+   %q = fir.coordinate_of %arg0, %arg1 : (!fir.ref<!fir.array<10 x 10 x i32>>, index) -> !fir.ref<!fir.array<10 x i32>>
+   return
+}
+// CHECK-LABEL:   llvm.func @coordinate_array_known_size_2d_get_array(
+// CHECK-SAME:    %[[VAL_0:.*]]: !llvm.ptr<array<10 x array<10 x i32>>>,
+// CHECK-SAME:    %[[VAL_1:.*]]: i64) {
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK:           %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_0]][%[[VAL_2]], %[[VAL_1]]] : (!llvm.ptr<array<10 x array<10 x i32>>>, i64, i64) -> !llvm.ptr<array<10 x i32>>
 // CHECK:           llvm.return
 // CHECK:         }
 

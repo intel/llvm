@@ -23,6 +23,8 @@ enum functions_t {
   XPTI_GET_UNIQUE_ID,
   XPTI_REGISTER_STRING,
   XPTI_LOOKUP_STRING,
+  XPTI_REGISTER_OBJECT,
+  XPTI_LOOKUP_OBJECT,
   XPTI_REGISTER_STREAM,
   XPTI_UNREGISTER_STREAM,
   XPTI_REGISTER_USER_DEFINED_TP,
@@ -56,6 +58,8 @@ class ProxyLoader {
       {XPTI_GET_UNIQUE_ID, "xptiGetUniqueId"},
       {XPTI_REGISTER_STRING, "xptiRegisterString"},
       {XPTI_LOOKUP_STRING, "xptiLookupString"},
+      {XPTI_REGISTER_OBJECT, "xptiRegisterObject"},
+      {XPTI_LOOKUP_OBJECT, "xptiLookupObject"},
       {XPTI_REGISTER_PAYLOAD, "xptiRegisterPayload"},
       {XPTI_REGISTER_STREAM, "xptiRegisterStream"},
       {XPTI_UNREGISTER_STREAM, "xptiUnregisterStream"},
@@ -265,6 +269,28 @@ XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id) {
   return nullptr;
 }
 
+XPTI_EXPORT_API xpti::object_id_t
+xptiRegisterObject(const char *data, size_t size, uint8_t type) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_REGISTER_OBJECT);
+    if (f) {
+      return (*(xpti_register_object_t)f)(data, size, type);
+    }
+  }
+  return xpti::invalid_id;
+}
+
+XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t id) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_LOOKUP_OBJECT);
+    if (f) {
+      return (*(xpti_lookup_object_t)f)(id);
+    }
+  }
+  return xpti::object_data_t{0, nullptr, 0};
+}
+
 XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
@@ -396,11 +422,11 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
                                                const char *key,
-                                               const char *value) {
+                                               xpti::object_id_t value_id) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_ADD_METADATA);
     if (f) {
-      return (*(xpti_add_metadata_t)f)(e, key, value);
+      return (*(xpti_add_metadata_t)f)(e, key, value_id);
     }
   }
   return xpti::result_t::XPTI_RESULT_FAIL;

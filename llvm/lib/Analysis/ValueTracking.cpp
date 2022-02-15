@@ -451,7 +451,12 @@ static void computeKnownBitsMul(const Value *Op0, const Value *Op1, bool NSW,
     }
   }
 
-  Known = KnownBits::mul(Known, Known2);
+  bool SelfMultiply = Op0 == Op1;
+  // TODO: SelfMultiply can be poison, but not undef.
+  if (SelfMultiply)
+    SelfMultiply &=
+        isGuaranteedNotToBeUndefOrPoison(Op0, Q.AC, Q.CxtI, Q.DT, Depth + 1);
+  Known = KnownBits::mul(Known, Known2, SelfMultiply);
 
   // Only make use of no-wrap flags if we failed to compute the sign bit
   // directly.  This matters if the multiplication always overflows, in
@@ -1593,7 +1598,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
         computeKnownBits(I->getOperand(0), Known2, Depth + 1, Q);
         // If we have a known 1, its position is our upper bound.
         unsigned PossibleLZ = Known2.countMaxLeadingZeros();
-        // If this call is undefined for 0, the result will be less than 2^n.
+        // If this call is poison for 0 input, the result will be less than 2^n.
         if (II->getArgOperand(1) == ConstantInt::getTrue(II->getContext()))
           PossibleLZ = std::min(PossibleLZ, BitWidth - 1);
         unsigned LowBits = Log2_32(PossibleLZ)+1;
@@ -1604,7 +1609,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
         computeKnownBits(I->getOperand(0), Known2, Depth + 1, Q);
         // If we have a known 1, its position is our upper bound.
         unsigned PossibleTZ = Known2.countMaxTrailingZeros();
-        // If this call is undefined for 0, the result will be less than 2^n.
+        // If this call is poison for 0 input, the result will be less than 2^n.
         if (II->getArgOperand(1) == ConstantInt::getTrue(II->getContext()))
           PossibleTZ = std::min(PossibleTZ, BitWidth - 1);
         unsigned LowBits = Log2_32(PossibleTZ)+1;
@@ -4559,8 +4564,8 @@ bool llvm::isSafeToSpeculativelyExecute(const Value *V,
       return false;
     const DataLayout &DL = LI->getModule()->getDataLayout();
     return isDereferenceableAndAlignedPointer(
-        LI->getPointerOperand(), LI->getType(), MaybeAlign(LI->getAlign()), DL,
-        CtxI, DT, TLI);
+        LI->getPointerOperand(), LI->getType(), LI->getAlign(), DL, CtxI, DT,
+        TLI);
   }
   case Instruction::Call: {
     auto *CI = cast<const CallInst>(Inst);
@@ -5125,10 +5130,10 @@ static bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
     auto *TI = Dominator->getBlock()->getTerminator();
 
     Value *Cond = nullptr;
-    if (auto BI = dyn_cast<BranchInst>(TI)) {
+    if (auto BI = dyn_cast_or_null<BranchInst>(TI)) {
       if (BI->isConditional())
         Cond = BI->getCondition();
-    } else if (auto SI = dyn_cast<SwitchInst>(TI)) {
+    } else if (auto SI = dyn_cast_or_null<SwitchInst>(TI)) {
       Cond = SI->getCondition();
     }
 

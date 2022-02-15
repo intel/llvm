@@ -111,8 +111,12 @@ SPIRVWord SPIRVType::getVectorComponentCount() const {
 }
 
 SPIRVType *SPIRVType::getVectorComponentType() const {
-  assert(OpCode == OpTypeVector && "Not vector type");
-  return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == OpTypeVector)
+    return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == internal::OpTypeJointMatrixINTEL)
+    return static_cast<const SPIRVTypeJointMatrixINTEL *>(this)->getCompType();
+  assert(0 && "getVectorComponentType(): Not a vector or joint matrix type");
+  return nullptr;
 }
 
 SPIRVWord SPIRVType::getMatrixColumnCount() const {

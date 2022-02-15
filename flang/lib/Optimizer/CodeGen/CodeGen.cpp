@@ -18,11 +18,13 @@
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Support/TypeCode.h"
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Target/LLVMIR/ModuleTranslation.h"
 #include "llvm/ADT/ArrayRef.h"
 
 #define DEBUG_TYPE "flang-codegen"
@@ -1639,7 +1641,7 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
   mlir::Value
   getTypeDescriptor(BOX box, mlir::ConversionPatternRewriter &rewriter,
                     mlir::Location loc, fir::RecordType recType) const {
-    std::string name = recType.getLoweredName();
+    std::string name = recType.translateNameToFrontendMangledName();
     auto module = box->template getParentOfType<mlir::ModuleOp>();
     if (auto global = module.template lookupSymbol<fir::GlobalOp>(name)) {
       auto ty = mlir::LLVM::LLVMPointerType::get(
@@ -3265,7 +3267,7 @@ public:
 
     auto *context = getModule().getContext();
     fir::LLVMTypeConverter typeConverter{getModule()};
-    mlir::OwningRewritePatternList pattern(context);
+    mlir::RewritePatternSet pattern(context);
     pattern.insert<
         AbsentOpConversion, AddcOpConversion, AddrOfOpConversion,
         AllocaOpConversion, AllocMemOpConversion, BoxAddrOpConversion,
@@ -3292,6 +3294,8 @@ public:
     mlir::populateStdToLLVMConversionPatterns(typeConverter, pattern);
     mlir::arith::populateArithmeticToLLVMConversionPatterns(typeConverter,
                                                             pattern);
+    mlir::cf::populateControlFlowToLLVMConversionPatterns(typeConverter,
+                                                          pattern);
     mlir::ConversionTarget target{*context};
     target.addLegalDialect<mlir::LLVM::LLVMDialect>();
 
@@ -3305,8 +3309,44 @@ public:
     }
   }
 };
+
+/// Lower from LLVM IR dialect to proper LLVM-IR and dump the module
+struct LLVMIRLoweringPass
+    : public mlir::PassWrapper<LLVMIRLoweringPass,
+                               mlir::OperationPass<mlir::ModuleOp>> {
+  using Printer = fir::LLVMIRLoweringPrinter;
+  LLVMIRLoweringPass(raw_ostream &output, Printer p)
+      : output{output}, printer{p} {}
+
+  mlir::ModuleOp getModule() { return getOperation(); }
+
+  void runOnOperation() override final {
+    auto *ctx = getModule().getContext();
+    auto optName = getModule().getName();
+    llvm::LLVMContext llvmCtx;
+    if (auto llvmModule = mlir::translateModuleToLLVMIR(
+            getModule(), llvmCtx, optName ? *optName : "FIRModule")) {
+      printer(*llvmModule, output);
+      return;
+    }
+
+    mlir::emitError(mlir::UnknownLoc::get(ctx), "could not emit LLVM-IR\n");
+    signalPassFailure();
+  }
+
+private:
+  raw_ostream &output;
+  Printer printer;
+};
+
 } // namespace
 
 std::unique_ptr<mlir::Pass> fir::createFIRToLLVMPass() {
   return std::make_unique<FIRToLLVMLowering>();
+}
+
+std::unique_ptr<mlir::Pass>
+fir::createLLVMDialectToLLVMPass(raw_ostream &output,
+                                 fir::LLVMIRLoweringPrinter printer) {
+  return std::make_unique<LLVMIRLoweringPass>(output, printer);
 }

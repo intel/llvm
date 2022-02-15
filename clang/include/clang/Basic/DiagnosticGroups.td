@@ -58,7 +58,9 @@ def DeprecatedExperimentalCoroutine :
   DiagGroup<"deprecated-experimental-coroutine">;
 def DeprecatedCoroutine :
   DiagGroup<"deprecated-coroutine", [DeprecatedExperimentalCoroutine]>;
-def Coroutine : DiagGroup<"coroutine", [CoroutineMissingUnhandledException, DeprecatedCoroutine]>;
+def AlwaysInlineCoroutine :
+  DiagGroup<"always-inline-coroutine">;
+def Coroutine : DiagGroup<"coroutine", [CoroutineMissingUnhandledException, DeprecatedCoroutine, AlwaysInlineCoroutine]>;
 def ObjCBoolConstantConversion : DiagGroup<"objc-bool-constant-conversion">;
 def ConstantConversion : DiagGroup<"constant-conversion",
                                    [BitFieldConstantConversion,
@@ -543,6 +545,7 @@ def ExplicitInitializeCall : DiagGroup<"explicit-initialize-call">;
 def OrderedCompareFunctionPointers : DiagGroup<"ordered-compare-function-pointers">;
 def Packed : DiagGroup<"packed">;
 def Padded : DiagGroup<"padded">;
+def UnalignedAccess : DiagGroup<"unaligned-access">;
 
 def PessimizingMove : DiagGroup<"pessimizing-move">;
 def ReturnStdMove : DiagGroup<"return-std-move">;

@@ -21,7 +21,7 @@ target triple = "amdgcn-amd-amdhsa"
 ; CHECK-NO-OPT-NEXT: .address_space: local
 ; CHECK-NO-OPT-NEXT: .name: a
 ; CHECK-NO-OPT-NEXT: .offset: 0
-; CHECK-NO-OPT-NEXT: .pointee_align: 4
+; CHECK-NO-OPT-NEXT: .pointee_align: 1
 ; CHECK-NO-OPT-NEXT: .size: 4
 ; CHECK-NO-OPT-NEXT: .value_kind:     dynamic_shared_pointer
 ; Function Attrs: noinline

@@ -502,10 +502,10 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
-If testing with HIP for AMD make sure to specify the GPU being used
-by adding `-hip-amd-arch=<target>`to buildbot/configure.py or add 
-`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` 
-to the CMake variable `SYCL_CLANG_EXTRA_FLAGS`.
+If testing with HIP for AMD, the lit tests will use `gfx906` as the default
+architecture. It is possible to change it by adding
+`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to the CMake
+variable `SYCL_CLANG_EXTRA_FLAGS`.
 
 #### Run DPC++ E2E test suite
 
@@ -818,7 +818,7 @@ which contains all the symbols required.
   project and may cause compilation issues on some platforms
 * `sycl::sqrt` is not correctly rounded by default as the SYCL specification
   allows lower precision, when porting from CUDA it may be helpful to use
-  `-Xclang -fcuda-prec-sqrt` to use the correctly rounded square root, this is
+  `-fsycl-fp32-prec-sqrt` to use the correctly rounded square root, this is
   significantly slower but matches the default precision used by `nvcc`, and
   this `clang++` flag is equivalent to the `nvcc` `-prec-sqrt` flag, except that
   it defaults to `false`.

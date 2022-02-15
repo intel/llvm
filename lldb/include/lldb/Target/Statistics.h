@@ -9,11 +9,13 @@
 #ifndef LLDB_TARGET_STATISTICS_H
 #define LLDB_TARGET_STATISTICS_H
 
+#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/lldb-forward.h"
 #include "llvm/Support/JSON.h"
 #include <atomic>
 #include <chrono>
+#include <ratio>
 #include <string>
 #include <vector>
 
@@ -98,6 +100,13 @@ struct ModuleStats {
   std::string path;
   std::string uuid;
   std::string triple;
+  // Path separate debug info file, or empty if none.
+  std::string symfile_path;
+  // If the debug info is contained in multiple files where each one is
+  // represented as a separate lldb_private::Module, then these are the
+  // identifiers of these modules in the global module list. This allows us to
+  // track down all of the stats that contribute to this module.
+  std::vector<intptr_t> symfile_modules;
   double symtab_parse_time = 0.0;
   double symtab_index_time = 0.0;
   double debug_parse_time = 0.0;
@@ -107,6 +116,11 @@ struct ModuleStats {
   bool symtab_saved_to_cache = false;
   bool debug_info_index_loaded_from_cache = false;
   bool debug_info_index_saved_to_cache = false;
+};
+
+struct ConstStringStats {
+  llvm::json::Value ToJSON() const;
+  ConstString::MemoryStats stats = ConstString::GetMemoryStats();
 };
 
 /// A class that represents statistics for a since lldb_private::Target.

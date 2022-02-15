@@ -23,6 +23,7 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -808,7 +809,7 @@ static StringRef solveTypeName(Type *Ty) {
 
   if (Ty->isPointerTy()) {
     auto *PtrTy = cast<PointerType>(Ty);
-    Type *PointeeTy = PtrTy->getElementType();
+    Type *PointeeTy = PtrTy->getPointerElementType();
     auto Name = solveTypeName(PointeeTy);
     if (Name == "UnknownType")
       return "PointerType";
@@ -2278,7 +2279,7 @@ static void eliminateSwiftErrorArgument(Function &F, Argument &Arg,
   IRBuilder<> Builder(F.getEntryBlock().getFirstNonPHIOrDbg());
 
   auto ArgTy = cast<PointerType>(Arg.getType());
-  auto ValueTy = ArgTy->getElementType();
+  auto ValueTy = ArgTy->getPointerElementType();
 
   // Reduce to the alloca case:
 

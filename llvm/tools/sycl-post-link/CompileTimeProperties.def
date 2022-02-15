@@ -1,0 +1,17 @@
+/*=- CompileTimeProperties.def - Compile-time properties registry-*- C++ -*-= *\
+|*
+|* Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+|* See https://llvm.org/LICENSE.txt for license information.
+|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+|*
+\*===----------------------------------------------------------------------===*/
+
+#ifndef SYCL_COMPILE_TIME_PROPERTY
+#error "SYCL_COMPILE_TIME_PROPERTY(PropertyName, Decoration, ValueType) is not defined."
+#endif
+
+// The corresponding SPIR-V OpCodes for the init_mode and implement_in_csr
+// properties are documented in the SPV_INTEL_global_variable_decorations design
+// document: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
+SYCL_COMPILE_TIME_PROPERTY("init_mode", 6148, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("implement_in_csr", 6149, DecorValueTy::boolean)

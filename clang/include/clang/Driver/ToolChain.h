@@ -159,6 +159,7 @@ private:
   mutable std::unique_ptr<Tool> AppendFooter;
   mutable std::unique_ptr<Tool> FileTableTform;
   mutable std::unique_ptr<Tool> SpirvToIrWrapper;
+  mutable std::unique_ptr<Tool> LinkerWrapper;
 
   Tool *getClang() const;
   Tool *getFlang() const;
@@ -177,6 +178,7 @@ private:
   Tool *getAppendFooter() const;
   Tool *getTableTform() const;
   Tool *getSpirvToIrWrapper() const;
+  Tool *getLinkerWrapper() const;
 
   mutable bool SanitizerArgsChecked = false;
   mutable std::unique_ptr<XRayArgs> XRayArguments;
@@ -428,6 +430,9 @@ public:
   /// Check whether to enable x86 relax relocations by default.
   virtual bool useRelaxRelocations() const;
 
+  /// Check whether use IEEE binary128 as long double format by default.
+  bool defaultToIEEELongDouble() const;
+
   /// GetDefaultStackProtectorLevel - Get the default stack protector level for
   /// this tool chain.
   virtual LangOptions::StackProtectorMode
@@ -529,7 +534,7 @@ public:
 
   // Return the DWARF version to emit, in the absence of arguments
   // to the contrary.
-  virtual unsigned GetDefaultDwarfVersion() const { return 4; }
+  virtual unsigned GetDefaultDwarfVersion() const { return 5; }
 
   // Some toolchains may have different restrictions on the DWARF version and
   // may need to adjust it. E.g. NVPTX may need to enforce DWARF2 even when host
@@ -705,7 +710,8 @@ public:
 
   /// Get paths of HIP device libraries.
   virtual llvm::SmallVector<BitCodeLibraryInfo, 12>
-  getHIPDeviceLibs(const llvm::opt::ArgList &Args) const;
+  getHIPDeviceLibs(const llvm::opt::ArgList &Args,
+                   const Action::OffloadKind DeviceOffloadingKind) const;
 
   /// Return sanitizers which are available in this toolchain.
   virtual SanitizerMask getSupportedSanitizers() const;
@@ -726,6 +732,22 @@ public:
       const llvm::opt::ArgList &DriverArgs, const JobAction &JA,
       const llvm::fltSemantics *FPType = nullptr) const {
     return llvm::DenormalMode::getIEEE();
+  }
+
+  // We want to expand the shortened versions of the triples passed in to
+  // the values used for the bitcode libraries.
+  static llvm::Triple getOpenMPTriple(StringRef TripleStr) {
+    llvm::Triple TT(TripleStr);
+    if (TT.getVendor() == llvm::Triple::UnknownVendor ||
+        TT.getOS() == llvm::Triple::UnknownOS) {
+      if (TT.getArch() == llvm::Triple::nvptx)
+        return llvm::Triple("nvptx-nvidia-cuda");
+      if (TT.getArch() == llvm::Triple::nvptx64)
+        return llvm::Triple("nvptx64-nvidia-cuda");
+      if (TT.getArch() == llvm::Triple::amdgcn)
+        return llvm::Triple("amdgcn-amd-amdhsa");
+    }
+    return TT;
   }
 };
 

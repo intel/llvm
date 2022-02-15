@@ -412,20 +412,65 @@ The SYCL kernel in the previous code sample meets these expectations.
 def SYCLSpecialClassDocs : Documentation {
   let Category = DocCatStmt;
   let Content = [{
+SYCL defines some special classes (accessor, sampler, and stream) which require
+specific handling during the generation of the SPIR entry point.
 The ``__attribute__((sycl_special_class))`` attribute is used in SYCL
-headers to indicate that a class or a struct needs additional handling when
-it is passed from host to device. Please note that this is an attribute that is
-used for internal implementation and not intended to be used by external users.
-It is used for ``accessor``, ``sampler`` , or ``stream`` classes.
-The types that own this attribute are excluded from device-copyable and other
-type-legalization steps.
+headers to indicate that a class or a struct needs a specific handling when
+it is passed from host to device.
+Special classes will have a mandatory ``__init`` method and an optional
+``__finalize`` method (the ``__finalize`` method is used only with the
+``stream`` type). Kernel parameters types are extract from the ``__init`` method
+parameters. The kernel function arguments list is derived from the
+arguments of the ``__init`` method. The arguments of the ``__init`` method are
+copied into the kernel function argument list and the ``__init`` and
+``__finalize`` methods are called at the beginning and the end of the kernel,
+respectively.
+The ``__init`` and ``__finalize`` methods must be defined inside the
+special class.
+Please note that this is an attribute that is used as an internal
+implementation detail and not intended to be used by external users.
+
+The syntax of the attribute is as follows:
+
+.. code-block:: text
+
+  class __attribute__((sycl_special_class)) accessor {};
+  class [[clang::sycl_special_class]] accessor {};
+
+This is a code example that illustrates the use of the attribute:
 
 .. code-block:: c++
 
-  class __attribute__((sycl_special_class)) accessor {
-    private:
-      void __init() {}
+  class __attribute__((sycl_special_class)) SpecialType {
+    int F1;
+    int F2;
+    void __init(int f1) {
+      F1 = f1;
+      F2 = f1;
+    }
+    void __finalize() {}
+  public:
+    SpecialType() = default;
+    int getF2() const { return F2; }
   };
+
+  int main () {
+    SpecialType T;
+    cgh.single_task([=] {
+      T.getF2();
+    });
+  }
+
+This would trigger the following kernel entry point in the AST:
+
+.. code-block:: c++
+
+  void __sycl_kernel(int f1) {
+    SpecialType T;
+    T.__init(f1);
+    ...
+    T.__finalize()
+  }
   }];
 }
 
@@ -3225,7 +3270,7 @@ or ``ivdep``.
 
 def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg";
+  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
   let Content = [{
 The loop count attributes specify the minimum, maximum, or average number of
 iterations for a ``for`` loop. These are hints that the user specify that can be
@@ -3243,10 +3288,15 @@ using PGO.
     [[intel::loop_count_max(10)]] for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
+  void count(int *array, size_t n) {
+    [[intel::loop_count(20)]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
   void goo(int *array, size_t n) {
     [[intel::loop_count_min(3)]]
     [[intel::loop_count_max(10)]]
     [[intel::loop_count_avg(5)]]
+    [[intel::loop_count(20)]]
     for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
@@ -3255,6 +3305,10 @@ using PGO.
     [[intel::loop_count_avg(N)]] for(;;) { }
   }
 
+  template<int A>
+  void func() {
+    [[intel::loop_count(A)]] for(;;) { }
+  }
   }];
 }
 
@@ -4490,6 +4544,9 @@ If a type is trivial for the purposes of calls, has a non-trivial destructor,
 and is passed as an argument by value, the convention is that the callee will
 destroy the object before returning.
 
+If a type is trivial for the purpose of calls, it is assumed to be trivially
+relocatable for the purpose of ``__is_trivially_relocatable``.
+
 Attribute ``trivial_abi`` has no effect in the following cases:
 
 - The class directly declares a virtual base or virtual methods.
@@ -5100,10 +5157,10 @@ completion handler in a Swift async method. For instance, here:
 This method asynchronously calls ``completionHandler`` when the data is
 available, or calls it with an error. ``_Nullable_result`` indicates to the
 Swift importer that this is the uncommon case where ``result`` can get ``nil``
-even if no error has occured, and will therefore import it as a Swift optional
+even if no error has occurred, and will therefore import it as a Swift optional
 type. Otherwise, if ``result`` was annotated with ``_Nullable``, the Swift
 importer will assume that ``result`` will always be non-nil unless an error
-occured.
+occurred.
 }];
 }
 
@@ -7489,6 +7546,10 @@ optimization level.
 
 Does not guarantee that inline substitution actually occurs.
 
+<ins>Note: applying this attribute to a coroutine at the `-O0` optimization level
+has no effect; other optimization levels may only partially inline and result in a
+diagnostic.</ins>
+
 See also `the Microsoft Docs on Inline Functions`_, `the GCC Common Function
 Attribute docs`_, and `the GCC Inline docs`_.
 
@@ -7548,5 +7609,43 @@ pointing to precise locations of the call site in the source.
       dontcall(); // No Warning
     sizeof(dontcall()); // No Warning
   }
+  }];
+}
+
+def ZeroCallUsedRegsDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute, when attached to a function, causes the compiler to zero a
+subset of all call-used registers before the function returns. It's used to
+increase program security by either mitigating `Return-Oriented Programming`_
+(ROP) attacks or preventing information leakage through registers.
+
+The term "call-used" means registers which are not guaranteed to be preserved
+unchanged for the caller by the current calling convention. This could also be
+described as "caller-saved" or "not callee-saved".
+
+The `choice` parameters gives the programmer flexibility to choose the subset
+of the call-used registers to be zeroed:
+
+- ``skip`` doesn't zero any call-used registers. This choice overrides any
+  command-line arguments.
+- ``used`` only zeros call-used registers used in the function. By ``used``, we
+  mean a register whose contents have been set or referenced in the function.
+- ``used-gpr`` only zeros call-used GPR registers used in the funciton.
+- ``used-arg`` only zeros call-used registers used to pass arguments to the
+  function.
+- ``used-gpr-arg`` only zeros call-used GPR registers used to pass arguments to
+  the function.
+- ``all`` zeros all call-used registers.
+- ``all-gpr`` zeros all call-used GPR registers.
+- ``all-arg`` zeros all call-used registers used to pass arguments to the
+  function.
+- ``all-gpr-arg`` zeros all call-used GPR registers used to pass arguments to
+  the function.
+
+The default for the attribute is contolled by the ``-fzero-call-used-regs``
+flag.
+
+.. _Return-Oriented Programming: https://en.wikipedia.org/wiki/Return-oriented_programming
   }];
 }

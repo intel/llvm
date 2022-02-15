@@ -14,7 +14,6 @@
 #ifndef BOLT_CORE_DEBUG_DATA_H
 #define BOLT_CORE_DEBUG_DATA_H
 
-#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/MC/MCDwarf.h"
@@ -32,8 +31,6 @@
 #define DWARF2_FLAG_END_SEQUENCE (1 << 4)
 
 namespace llvm {
-
-class DWARFAbbreviationDeclarationSet;
 
 namespace bolt {
 
@@ -110,6 +107,13 @@ struct DebugLineTableRowRef {
 /// Common buffer vector used for debug info handling.
 using DebugBufferVector = SmallVector<char, 16>;
 
+/// Map of old CU offset to new offset and length.
+struct CUInfo {
+  uint32_t Offset;
+  uint32_t Length;
+};
+using CUOffsetMap = std::map<uint32_t, CUInfo>;
+
 /// Serializes the .debug_ranges DWARF section.
 class DebugRangesSectionWriter {
 public:
@@ -158,9 +162,8 @@ public:
   /// Writes .debug_aranges with the added ranges to the MCObjectWriter.
   /// Takes in \p RangesStream to write into, and \p CUMap which maps CU
   /// original offsets to new ones.
-  void
-  writeARangesSection(raw_svector_ostream &RangesStream,
-                      const std::unordered_map<uint32_t, uint32_t> CUMap) const;
+  void writeARangesSection(raw_svector_ostream &RangesStream,
+                           const CUOffsetMap &CUMap) const;
 
   /// Resets the writer to a clear state.
   void reset() { CUAddressRanges.clear(); }
@@ -650,8 +653,8 @@ public:
   void setDWPOffset(uint64_t DWPOffset) { DWPUnitOffset = DWPOffset; }
 
   /// When this function is invoked all of the DebugInfo Patches must be done.
-  /// Returns a map of old CU offsets to new ones.
-  std::unordered_map<uint32_t, uint32_t> computeNewOffsets();
+  /// Returns a map of old CU offsets to new offsets and new sizes.
+  CUOffsetMap computeNewOffsets(DWARFContext &DWCtx, bool IsDWOContext);
 
 private:
   struct PatchDeleter {
@@ -688,7 +691,7 @@ private:
   using UniquePatchPtrType = std::unique_ptr<Patch, PatchDeleter>;
 
   uint64_t DWPUnitOffset{0};
-  uint32_t ChangeInSize{0};
+  int32_t ChangeInSize{0};
   std::vector<UniquePatchPtrType> DebugPatches;
   /// Mutex used for parallel processing of debug info.
   std::mutex WriterMutex;
@@ -712,8 +715,11 @@ class DebugAbbrevWriter {
     std::unique_ptr<DebugBufferVector> Buffer;
     std::unique_ptr<raw_svector_ostream> Stream;
   };
-  /// Map original unit abbrev offset to abbreviations data.
-  std::map<uint64_t, AbbrevData> UnitsAbbrevData;
+  /// Map original unit to abbreviations data.
+  std::unordered_map<const DWARFUnit *, AbbrevData *> UnitsAbbrevData;
+
+  /// Map from Hash Signature to AbbrevData.
+  llvm::StringMap<std::unique_ptr<AbbrevData>> AbbrevDataCache;
 
   /// Attributes substitution (patch) information.
   struct PatchInfo {
@@ -780,10 +786,8 @@ public:
   /// Return an offset in the finalized abbrev section corresponding to CU/TU.
   uint64_t getAbbreviationsOffsetForUnit(const DWARFUnit &Unit) {
     assert(!DWOId && "offsets are tracked for non-DWO units only");
-    assert(UnitsAbbrevData.find(Unit.getAbbreviationsOffset()) !=
-               UnitsAbbrevData.end() &&
-           "no abbrev data found for unit");
-    return UnitsAbbrevData[Unit.getAbbreviationsOffset()].Offset;
+    assert(UnitsAbbrevData.count(&Unit) && "no abbrev data found for unit");
+    return UnitsAbbrevData[&Unit]->Offset;
   }
 };
 

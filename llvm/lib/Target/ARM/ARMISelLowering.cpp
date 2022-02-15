@@ -392,6 +392,7 @@ void ARMTargetLowering::addMVEVectorTypes(bool HasMVEFP) {
     setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Custom);
     setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
     setOperationAction(ISD::VSELECT, VT, Legal);
+    setOperationAction(ISD::VECTOR_SHUFFLE, VT, Custom);
   }
   setOperationAction(ISD::SCALAR_TO_VECTOR, MVT::v2f64, Legal);
 
@@ -14527,7 +14528,7 @@ static SDValue PerformXORCombine(SDNode *N,
     SDValue N0 = N->getOperand(0);
     SDValue N1 = N->getOperand(1);
     const TargetLowering *TLI = Subtarget->getTargetLowering();
-    if (TLI->isConstTrueVal(N1.getNode()) &&
+    if (TLI->isConstTrueVal(N1) &&
         (N0->getOpcode() == ARMISD::VCMP || N0->getOpcode() == ARMISD::VCMPZ)) {
       if (CanInvertMVEVCMP(N0)) {
         SDLoc DL(N0);
@@ -17060,13 +17061,10 @@ static SDValue PerformVMOVNCombine(SDNode *N,
       IsTop ? Op1DemandedElts
             : APInt::getSplat(NumElts, APInt::getHighBitsSet(2, 1));
 
-  APInt KnownUndef, KnownZero;
   const TargetLowering &TLI = DCI.DAG.getTargetLoweringInfo();
-  if (TLI.SimplifyDemandedVectorElts(Op0, Op0DemandedElts, KnownUndef,
-                                     KnownZero, DCI))
+  if (TLI.SimplifyDemandedVectorElts(Op0, Op0DemandedElts, DCI))
     return SDValue(N, 0);
-  if (TLI.SimplifyDemandedVectorElts(Op1, Op1DemandedElts, KnownUndef,
-                                     KnownZero, DCI))
+  if (TLI.SimplifyDemandedVectorElts(Op1, Op1DemandedElts, DCI))
     return SDValue(N, 0);
 
   return SDValue();
@@ -17082,10 +17080,8 @@ static SDValue PerformVQMOVNCombine(SDNode *N,
       APInt::getSplat(NumElts, IsTop ? APInt::getLowBitsSet(2, 1)
                                      : APInt::getHighBitsSet(2, 1));
 
-  APInt KnownUndef, KnownZero;
   const TargetLowering &TLI = DCI.DAG.getTargetLoweringInfo();
-  if (TLI.SimplifyDemandedVectorElts(Op0, Op0DemandedElts, KnownUndef,
-                                     KnownZero, DCI))
+  if (TLI.SimplifyDemandedVectorElts(Op0, Op0DemandedElts, DCI))
     return SDValue(N, 0);
   return SDValue();
 }
@@ -20789,10 +20785,10 @@ bool ARMTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     auto &DL = I.getCalledFunction()->getParent()->getDataLayout();
     PointerType *PtrTy = cast<PointerType>(I.getArgOperand(0)->getType());
     Info.opc = ISD::INTRINSIC_W_CHAIN;
-    Info.memVT = MVT::getVT(PtrTy->getElementType());
+    Info.memVT = MVT::getVT(PtrTy->getPointerElementType());
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
-    Info.align = DL.getABITypeAlign(PtrTy->getElementType());
+    Info.align = DL.getABITypeAlign(PtrTy->getPointerElementType());
     Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MOVolatile;
     return true;
   }
@@ -20801,10 +20797,10 @@ bool ARMTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     auto &DL = I.getCalledFunction()->getParent()->getDataLayout();
     PointerType *PtrTy = cast<PointerType>(I.getArgOperand(1)->getType());
     Info.opc = ISD::INTRINSIC_W_CHAIN;
-    Info.memVT = MVT::getVT(PtrTy->getElementType());
+    Info.memVT = MVT::getVT(PtrTy->getPointerElementType());
     Info.ptrVal = I.getArgOperand(1);
     Info.offset = 0;
-    Info.align = DL.getABITypeAlign(PtrTy->getElementType());
+    Info.align = DL.getABITypeAlign(PtrTy->getPointerElementType());
     Info.flags = MachineMemOperand::MOStore | MachineMemOperand::MOVolatile;
     return true;
   }

@@ -16,6 +16,7 @@
 #include "lldb/Host/File.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Interpreter/ScriptInterpreter.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Stream.h"
 
@@ -70,7 +71,9 @@ Expected<std::string> python::As<std::string>(Expected<PythonObject> &&obj) {
 }
 
 static bool python_is_finalizing() {
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 7
+#if PY_MAJOR_VERSION == 2
+  return false;
+#elif PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 7
   return _Py_Finalizing != nullptr;
 #else
   return _Py_IsFinalizing();
@@ -279,7 +282,9 @@ PythonObject PythonObject::GetAttributeValue(llvm::StringRef attr) const {
 }
 
 StructuredData::ObjectSP PythonObject::CreateStructuredObject() const {
+#if PY_MAJOR_VERSION >= 3
   assert(PyGILState_Check());
+#endif
   switch (GetObjectType()) {
   case PyObjectType::Dictionary:
     return PythonDictionary(PyRefType::Borrowed, m_py_obj)
@@ -1046,7 +1051,7 @@ PythonException::PythonException(const char *caller) {
       PyErr_Clear();
     }
   }
-  Log *log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT);
+  Log *log = GetLog(LLDBLog::Script);
   if (caller)
     LLDB_LOGF(log, "%s failed with exception: %s", caller, toCString());
   else

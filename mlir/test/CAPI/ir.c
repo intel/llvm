@@ -904,6 +904,8 @@ int printBuiltinAttributes(MlirContext ctx) {
   int bools[] = {0, 1};
   uint8_t uints8[] = {0u, 1u};
   int8_t ints8[] = {0, 1};
+  uint16_t uints16[] = {0u, 1u};
+  int16_t ints16[] = {0, 1};
   uint32_t uints32[] = {0u, 1u};
   int32_t ints32[] = {0, 1};
   uint64_t uints64[] = {0u, 1u};
@@ -921,6 +923,13 @@ int printBuiltinAttributes(MlirContext ctx) {
   MlirAttribute int8Elements = mlirDenseElementsAttrInt8Get(
       mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 8), encoding),
       2, ints8);
+  MlirAttribute uint16Elements = mlirDenseElementsAttrUInt16Get(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeUnsignedGet(ctx, 16),
+                              encoding),
+      2, uints16);
+  MlirAttribute int16Elements = mlirDenseElementsAttrInt16Get(
+      mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeGet(ctx, 16), encoding),
+      2, ints16);
   MlirAttribute uint32Elements = mlirDenseElementsAttrUInt32Get(
       mlirRankedTensorTypeGet(2, shape, mlirIntegerTypeUnsignedGet(ctx, 32),
                               encoding),
@@ -956,6 +965,8 @@ int printBuiltinAttributes(MlirContext ctx) {
   if (mlirDenseElementsAttrGetBoolValue(boolElements, 1) != 1 ||
       mlirDenseElementsAttrGetUInt8Value(uint8Elements, 1) != 1 ||
       mlirDenseElementsAttrGetInt8Value(int8Elements, 1) != 1 ||
+      mlirDenseElementsAttrGetUInt16Value(uint16Elements, 1) != 1 ||
+      mlirDenseElementsAttrGetInt16Value(int16Elements, 1) != 1 ||
       mlirDenseElementsAttrGetUInt32Value(uint32Elements, 1) != 1 ||
       mlirDenseElementsAttrGetInt32Value(int32Elements, 1) != 1 ||
       mlirDenseElementsAttrGetUInt64Value(uint64Elements, 1) != 1 ||
@@ -1520,10 +1531,10 @@ int registerOnlyStd() {
   fprintf(stderr, "@registration\n");
   // CHECK-LABEL: @registration
 
-  // CHECK: std.cond_br is_registered: 1
-  fprintf(stderr, "std.cond_br is_registered: %d\n",
+  // CHECK: cf.cond_br is_registered: 1
+  fprintf(stderr, "cf.cond_br is_registered: %d\n",
           mlirContextIsRegisteredOperation(
-              ctx, mlirStringRefCreateFromCString("std.cond_br")));
+              ctx, mlirStringRefCreateFromCString("cf.cond_br")));
 
   // CHECK: std.not_existing_op is_registered: 0
   fprintf(stderr, "std.not_existing_op is_registered: %d\n",
@@ -1893,6 +1904,36 @@ int testSymbolTable(MlirContext ctx) {
   return 0;
 }
 
+int testDialectRegistry() {
+  fprintf(stderr, "@testDialectRegistry\n");
+
+  MlirDialectRegistry registry = mlirDialectRegistryCreate();
+  if (mlirDialectRegistryIsNull(registry)) {
+    fprintf(stderr, "ERROR: Expected registry to be present\n");
+    return 1;
+  }
+
+  MlirDialectHandle stdHandle = mlirGetDialectHandle__std__();
+  mlirDialectHandleInsertDialect(stdHandle, registry);
+
+  MlirContext ctx = mlirContextCreate();
+  if (mlirContextGetNumRegisteredDialects(ctx) != 0) {
+    fprintf(stderr,
+            "ERROR: Expected no dialects to be registered to new context\n");
+  }
+
+  mlirContextAppendDialectRegistry(ctx, registry);
+  if (mlirContextGetNumRegisteredDialects(ctx) != 1) {
+    fprintf(stderr, "ERROR: Expected the dialect in the registry to be "
+                    "registered to the context\n");
+  }
+
+  mlirContextDestroy(ctx);
+  mlirDialectRegistryDestroy(registry);
+
+  return 0;
+}
+
 void testDiagnostics() {
   MlirContext ctx = mlirContextCreate();
   MlirDiagnosticHandlerID id = mlirContextAttachDiagnosticHandler(
@@ -1977,6 +2018,8 @@ int main() {
     return 13;
   if (testSymbolTable(ctx))
     return 14;
+  if (testDialectRegistry())
+    return 15;
 
   mlirContextDestroy(ctx);
 

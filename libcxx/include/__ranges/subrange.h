@@ -31,21 +31,23 @@
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 namespace ranges {
   template<class _From, class _To>
+  concept __uses_nonqualification_pointer_conversion =
+    is_pointer_v<_From> && is_pointer_v<_To> &&
+    !convertible_to<remove_pointer_t<_From>(*)[], remove_pointer_t<_To>(*)[]>;
+
+  template<class _From, class _To>
   concept __convertible_to_non_slicing =
     convertible_to<_From, _To> &&
-    // If they're both pointers, they must have the same element type.
-    !(is_pointer_v<decay_t<_From>> &&
-      is_pointer_v<decay_t<_To>> &&
-      __different_from<remove_pointer_t<decay_t<_From>>, remove_pointer_t<decay_t<_To>>>);
+    !__uses_nonqualification_pointer_conversion<decay_t<_From>, decay_t<_To>>;
 
   template<class _Tp>
   concept __pair_like =
@@ -225,7 +227,7 @@ namespace ranges {
     -> subrange<iterator_t<_Range>, sentinel_t<_Range>, subrange_kind::sized>;
 
   template<size_t _Index, class _Iter, class _Sent, subrange_kind _Kind>
-    requires (_Index < 2)
+    requires ((_Index == 0 && copyable<_Iter>) || _Index == 1)
   _LIBCPP_HIDE_FROM_ABI
   constexpr auto get(const subrange<_Iter, _Sent, _Kind>& __subrange) {
     if constexpr (_Index == 0)
@@ -280,7 +282,7 @@ struct tuple_element<1, const ranges::subrange<_Ip, _Sp, _Kp>> {
   using type = _Sp;
 };
 
-#endif // !defined(_LIBCPP_HAS_NO_RANGES)
+#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 _LIBCPP_END_NAMESPACE_STD
 

@@ -126,9 +126,8 @@ void FormatTokenLexer::tryMergePreviousTokens() {
       Tokens.back()->Tok.setKind(tok::period);
       return;
     }
-    if (tryMergeNullishCoalescingEqual()) {
+    if (tryMergeNullishCoalescingEqual())
       return;
-    }
   }
 
   if (Style.isCSharp()) {
@@ -430,24 +429,20 @@ bool FormatTokenLexer::tryMergeLessLess() {
     return false;
 
   auto First = Tokens.end() - 3;
-  bool FourthTokenIsLess = false;
-
-  if (Tokens.size() > 3) {
-    auto Fourth = (Tokens.end() - 4)[0];
-    FourthTokenIsLess = Fourth->is(tok::less);
-
-    // Do not remove a whitespace between the two "<" e.g. "operator< <>".
-    if (First[2]->is(tok::greater) && Fourth->is(tok::kw_operator))
-      return false;
-  }
-
-  if (First[2]->is(tok::less) || First[1]->isNot(tok::less) ||
-      First[0]->isNot(tok::less) || FourthTokenIsLess)
+  if (First[0]->isNot(tok::less) || First[1]->isNot(tok::less))
     return false;
 
   // Only merge if there currently is no whitespace between the two "<".
-  if (First[1]->WhitespaceRange.getBegin() !=
-      First[1]->WhitespaceRange.getEnd())
+  if (First[1]->hasWhitespaceBefore())
+    return false;
+
+  auto X = Tokens.size() > 3 ? First[-1] : nullptr;
+  auto Y = First[2];
+  if ((X && X->is(tok::less)) || Y->is(tok::less))
+    return false;
+
+  // Do not remove a whitespace between the two "<" e.g. "operator< <>".
+  if (X && X->is(tok::kw_operator) && Y->is(tok::greater))
     return false;
 
   First[0]->Tok.setKind(tok::lessless);
@@ -468,8 +463,7 @@ bool FormatTokenLexer::tryMergeTokens(ArrayRef<tok::TokenKind> Kinds,
     return false;
   unsigned AddLength = 0;
   for (unsigned i = 1; i < Kinds.size(); ++i) {
-    if (!First[i]->is(Kinds[i]) || First[i]->WhitespaceRange.getBegin() !=
-                                       First[i]->WhitespaceRange.getEnd())
+    if (!First[i]->is(Kinds[i]) || First[i]->hasWhitespaceBefore())
       return false;
     AddLength += First[i]->TokenText.size();
   }
@@ -626,9 +620,9 @@ void FormatTokenLexer::handleCSharpVerbatimAndInterpolatedStrings() {
   if (LastBreak != StringRef::npos) {
     CSharpStringLiteral->IsMultiline = true;
     unsigned StartColumn = 0;
-    CSharpStringLiteral->LastLineColumnWidth = encoding::columnWidthWithTabs(
-        LiteralText.substr(LastBreak + 1, LiteralText.size()), StartColumn,
-        Style.TabWidth, Encoding);
+    CSharpStringLiteral->LastLineColumnWidth =
+        encoding::columnWidthWithTabs(LiteralText.substr(LastBreak + 1),
+                                      StartColumn, Style.TabWidth, Encoding);
   }
 
   SourceLocation loc = Offset < Lex->getBuffer().end()
@@ -693,9 +687,9 @@ void FormatTokenLexer::handleTemplateStrings() {
   if (LastBreak != StringRef::npos) {
     BacktickToken->IsMultiline = true;
     unsigned StartColumn = 0; // The template tail spans the entire line.
-    BacktickToken->LastLineColumnWidth = encoding::columnWidthWithTabs(
-        LiteralText.substr(LastBreak + 1, LiteralText.size()), StartColumn,
-        Style.TabWidth, Encoding);
+    BacktickToken->LastLineColumnWidth =
+        encoding::columnWidthWithTabs(LiteralText.substr(LastBreak + 1),
+                                      StartColumn, Style.TabWidth, Encoding);
   }
 
   SourceLocation loc = Offset < Lex->getBuffer().end()
@@ -785,29 +779,26 @@ bool FormatTokenLexer::tryMergeConflictMarkers() {
   StringRef Buffer = SourceMgr.getBufferOrFake(ID).getBuffer();
   // Calculate the offset of the start of the current line.
   auto LineOffset = Buffer.rfind('\n', FirstInLineOffset);
-  if (LineOffset == StringRef::npos) {
+  if (LineOffset == StringRef::npos)
     LineOffset = 0;
-  } else {
+  else
     ++LineOffset;
-  }
 
   auto FirstSpace = Buffer.find_first_of(" \n", LineOffset);
   StringRef LineStart;
-  if (FirstSpace == StringRef::npos) {
+  if (FirstSpace == StringRef::npos)
     LineStart = Buffer.substr(LineOffset);
-  } else {
+  else
     LineStart = Buffer.substr(LineOffset, FirstSpace - LineOffset);
-  }
 
   TokenType Type = TT_Unknown;
-  if (LineStart == "<<<<<<<" || LineStart == ">>>>") {
+  if (LineStart == "<<<<<<<" || LineStart == ">>>>")
     Type = TT_ConflictStart;
-  } else if (LineStart == "|||||||" || LineStart == "=======" ||
-             LineStart == "====") {
+  else if (LineStart == "|||||||" || LineStart == "=======" ||
+           LineStart == "====")
     Type = TT_ConflictAlternative;
-  } else if (LineStart == ">>>>>>>" || LineStart == "<<<<") {
+  else if (LineStart == ">>>>>>>" || LineStart == "<<<<")
     Type = TT_ConflictEnd;
-  }
 
   if (Type != TT_Unknown) {
     FormatToken *Next = Tokens.back();
@@ -1045,11 +1036,10 @@ FormatToken *FormatTokenLexer::getNextToken() {
         FormatTok->Tok.setKind(tok::kw_if);
       }
     } else if (FormatTok->is(tok::identifier)) {
-      if (MacroBlockBeginRegex.match(Text)) {
+      if (MacroBlockBeginRegex.match(Text))
         FormatTok->setType(TT_MacroBlockBegin);
-      } else if (MacroBlockEndRegex.match(Text)) {
+      else if (MacroBlockEndRegex.match(Text))
         FormatTok->setType(TT_MacroBlockEnd);
-      }
     }
   }
 
@@ -1073,21 +1063,18 @@ void FormatTokenLexer::readRawToken(FormatToken &Tok) {
 
   if ((Style.isJavaScript() || Style.Language == FormatStyle::LK_Proto ||
        Style.Language == FormatStyle::LK_TextProto) &&
-      Tok.is(tok::char_constant)) {
+      Tok.is(tok::char_constant))
     Tok.Tok.setKind(tok::string_literal);
-  }
 
   if (Tok.is(tok::comment) && (Tok.TokenText == "// clang-format on" ||
-                               Tok.TokenText == "/* clang-format on */")) {
+                               Tok.TokenText == "/* clang-format on */"))
     FormattingDisabled = false;
-  }
 
   Tok.Finalized = FormattingDisabled;
 
   if (Tok.is(tok::comment) && (Tok.TokenText == "// clang-format off" ||
-                               Tok.TokenText == "/* clang-format off */")) {
+                               Tok.TokenText == "/* clang-format off */"))
     FormattingDisabled = true;
-  }
 }
 
 void FormatTokenLexer::resetLexer(unsigned Offset) {

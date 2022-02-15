@@ -51,6 +51,7 @@ namespace format {
   TYPE(FunctionAnnotationRParen)                                               \
   TYPE(FunctionDeclarationName)                                                \
   TYPE(FunctionLBrace)                                                         \
+  TYPE(FunctionLikeOrFreestandingMacro)                                        \
   TYPE(FunctionTypeLParen)                                                     \
   TYPE(IfMacro)                                                                \
   TYPE(ImplicitStringLiteral)                                                  \
@@ -95,6 +96,7 @@ namespace format {
   TYPE(PointerOrReference)                                                     \
   TYPE(PureVirtualSpecifier)                                                   \
   TYPE(RangeBasedForLoopColon)                                                 \
+  TYPE(RecordLBrace)                                                           \
   TYPE(RegexLiteral)                                                           \
   TYPE(SelectorName)                                                           \
   TYPE(StartOfName)                                                            \
@@ -120,6 +122,34 @@ namespace format {
   TYPE(CSharpGenericTypeConstraintColon)                                       \
   TYPE(CSharpGenericTypeConstraintComma)                                       \
   TYPE(Unknown)
+
+/// Sorted operators that can follow a C variable.
+static const std::vector<clang::tok::TokenKind> COperatorsFollowingVar = [] {
+  std::vector<clang::tok::TokenKind> ReturnVal = {
+      tok::l_square,     tok::r_square,
+      tok::l_paren,      tok::r_paren,
+      tok::r_brace,      tok::period,
+      tok::ellipsis,     tok::ampamp,
+      tok::ampequal,     tok::star,
+      tok::starequal,    tok::plus,
+      tok::plusplus,     tok::plusequal,
+      tok::minus,        tok::arrow,
+      tok::minusminus,   tok::minusequal,
+      tok::exclaim,      tok::exclaimequal,
+      tok::slash,        tok::slashequal,
+      tok::percent,      tok::percentequal,
+      tok::less,         tok::lessless,
+      tok::lessequal,    tok::lesslessequal,
+      tok::greater,      tok::greatergreater,
+      tok::greaterequal, tok::greatergreaterequal,
+      tok::caret,        tok::caretequal,
+      tok::pipe,         tok::pipepipe,
+      tok::pipeequal,    tok::question,
+      tok::semi,         tok::equal,
+      tok::equalequal,   tok::comma};
+  assert(std::is_sorted(ReturnVal.begin(), ReturnVal.end()));
+  return ReturnVal;
+}();
 
 /// Determines the semantic type of a syntactic token, e.g. whether "<" is a
 /// template opener or binary operator.
@@ -637,6 +667,12 @@ public:
     return WhitespaceRange.getEnd();
   }
 
+  /// Returns \c true if the range of whitespace immediately preceding the \c
+  /// Token is not empty.
+  bool hasWhitespaceBefore() const {
+    return WhitespaceRange.getBegin() != WhitespaceRange.getEnd();
+  }
+
   prec::Level getPrecedence() const {
     return getBinOpPrecedence(Tok.getKind(), /*GreaterThanIsOperator=*/true,
                               /*CPlusPlus11=*/true);
@@ -651,7 +687,7 @@ public:
   }
 
   /// Returns the next token ignoring comments.
-  const FormatToken *getNextNonComment() const {
+  LLVM_NODISCARD const FormatToken *getNextNonComment() const {
     const FormatToken *Tok = Next;
     while (Tok && Tok->is(tok::comment))
       Tok = Tok->Next;
@@ -660,19 +696,7 @@ public:
 
   /// Returns \c true if this tokens starts a block-type list, i.e. a
   /// list that should be indented with a block indent.
-  bool opensBlockOrBlockTypeList(const FormatStyle &Style) const {
-    // C# Does not indent object initialisers as continuations.
-    if (is(tok::l_brace) && getBlockKind() == BK_BracedInit && Style.isCSharp())
-      return true;
-    if (is(TT_TemplateString) && opensScope())
-      return true;
-    return is(TT_ArrayInitializerLSquare) || is(TT_ProtoExtensionLSquare) ||
-           (is(tok::l_brace) &&
-            (getBlockKind() == BK_Block || is(TT_DictLiteral) ||
-             (!Style.Cpp11BracedListStyle && NestingLevel == 0))) ||
-           (is(tok::less) && (Style.Language == FormatStyle::LK_Proto ||
-                              Style.Language == FormatStyle::LK_TextProto));
-  }
+  LLVM_NODISCARD bool opensBlockOrBlockTypeList(const FormatStyle &Style) const;
 
   /// Returns whether the token is the left square bracket of a C++
   /// structured binding declaration.

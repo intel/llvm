@@ -347,6 +347,13 @@ bool device_impl::isAssertFailSupported() const {
   return MIsAssertFailSupported;
 }
 
+std::string device_impl::getDeviceName() const {
+  std::call_once(MDeviceNameFlag,
+                 [this]() { MDeviceName = get_info<info::device::name>(); });
+
+  return MDeviceName;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

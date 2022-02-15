@@ -38,6 +38,28 @@
 
 using namespace llvm;
 
+// Extracts the variant information from the top 8 bits in the version and
+// returns an enum specifying the variants present.
+static InstrProfKind getProfileKindFromVersion(uint64_t Version) {
+  InstrProfKind ProfileKind = InstrProfKind::Unknown;
+  if (Version & VARIANT_MASK_IR_PROF) {
+    ProfileKind |= InstrProfKind::IR;
+  }
+  if (Version & VARIANT_MASK_CSIR_PROF) {
+    ProfileKind |= InstrProfKind::CS;
+  }
+  if (Version & VARIANT_MASK_INSTR_ENTRY) {
+    ProfileKind |= InstrProfKind::BB;
+  }
+  if (Version & VARIANT_MASK_BYTE_COVERAGE) {
+    ProfileKind |= InstrProfKind::SingleByteCoverage;
+  }
+  if (Version & VARIANT_MASK_FUNCTION_ENTRY_ONLY) {
+    ProfileKind |= InstrProfKind::FunctionEntryOnly;
+  }
+  return ProfileKind;
+}
+
 static Expected<std::unique_ptr<MemoryBuffer>>
 setupMemoryBuffer(const Twine &Path) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
@@ -131,14 +153,6 @@ IndexedInstrProfReader::create(std::unique_ptr<MemoryBuffer> Buffer,
   return std::move(Result);
 }
 
-void InstrProfIterator::Increment() {
-  if (auto E = Reader->readNextRecord(Record)) {
-    // Handle errors in the reader.
-    InstrProfError::take(std::move(E));
-    *this = InstrProfIterator();
-  }
-}
-
 bool TextInstrProfReader::hasFormat(const MemoryBuffer &Buffer) {
   // Verify that this really looks like plain ASCII text by checking a
   // 'reasonable' number of characters (up to profile magic size).
@@ -154,30 +168,24 @@ bool TextInstrProfReader::hasFormat(const MemoryBuffer &Buffer) {
 // with a leading ':' will be reported an error format.
 Error TextInstrProfReader::readHeader() {
   Symtab.reset(new InstrProfSymtab());
-  bool IsIRInstr = false;
-  bool IsEntryFirst = false;
-  bool IsCS = false;
 
   while (Line->startswith(":")) {
     StringRef Str = Line->substr(1);
     if (Str.equals_insensitive("ir"))
-      IsIRInstr = true;
+      ProfileKind |= InstrProfKind::IR;
     else if (Str.equals_insensitive("fe"))
-      IsIRInstr = false;
+      ProfileKind |= InstrProfKind::FE;
     else if (Str.equals_insensitive("csir")) {
-      IsIRInstr = true;
-      IsCS = true;
+      ProfileKind |= InstrProfKind::IR;
+      ProfileKind |= InstrProfKind::CS;
     } else if (Str.equals_insensitive("entry_first"))
-      IsEntryFirst = true;
+      ProfileKind |= InstrProfKind::BB;
     else if (Str.equals_insensitive("not_entry_first"))
-      IsEntryFirst = false;
+      ProfileKind &= ~InstrProfKind::BB;
     else
       return error(instrprof_error::bad_header);
     ++Line;
   }
-  IsIRLevelProfile = IsIRInstr;
-  InstrEntryBBEnabled = IsEntryFirst;
-  HasCSIRLevelProfile = IsCS;
   return success();
 }
 
@@ -304,6 +312,11 @@ Error TextInstrProfReader::readNextRecord(NamedInstrProfRecord &Record) {
 }
 
 template <class IntPtrT>
+InstrProfKind RawInstrProfReader<IntPtrT>::getProfileKind() const {
+  return getProfileKindFromVersion(Version);
+}
+
+template <class IntPtrT>
 bool RawInstrProfReader<IntPtrT>::hasFormat(const MemoryBuffer &DataBuffer) {
   if (DataBuffer.getBufferSize() < sizeof(uint64_t))
     return false;
@@ -411,8 +424,8 @@ Error RawInstrProfReader<IntPtrT>::readHeader(
     assert(CountersDelta == 0 && NamesDelta == 0);
     Data = Correlator->getDataPointer();
     DataEnd = Data + Correlator->getDataSize();
-    NamesStart = Correlator->getCompressedNamesPointer();
-    NamesEnd = NamesStart + Correlator->getCompressedNamesSize();
+    NamesStart = Correlator->getNamesPointer();
+    NamesEnd = NamesStart + Correlator->getNamesSize();
   } else {
     Data = reinterpret_cast<const RawInstrProf::ProfileData<IntPtrT> *>(
         Start + DataOffset);
@@ -485,9 +498,15 @@ Error RawInstrProfReader<IntPtrT>::readRawCounts(
   Record.Counts.clear();
   Record.Counts.reserve(NumCounters);
   for (uint32_t I = 0; I < NumCounters; I++) {
-    const auto *CounterValue = reinterpret_cast<const uint64_t *>(
-        CountersStart + CounterBaseOffset + I * getCounterTypeSize());
-    Record.Counts.push_back(swap(*CounterValue));
+    const char *Ptr =
+        CountersStart + CounterBaseOffset + I * getCounterTypeSize();
+    if (hasSingleByteCoverage()) {
+      // A value of zero signifies the block is covered.
+      Record.Counts.push_back(*Ptr == 0 ? 1 : 0);
+    } else {
+      const auto *CounterValue = reinterpret_cast<const uint64_t *>(Ptr);
+      Record.Counts.push_back(swap(*CounterValue));
+    }
   }
 
   return success();
@@ -716,6 +735,11 @@ InstrProfReaderIndex<HashTableImpl>::InstrProfReaderIndex(
       Buckets, Payload, Base,
       typename HashTableImpl::InfoType(HashType, Version)));
   RecordIterator = HashTable->data_begin();
+}
+
+template <typename HashTableImpl>
+InstrProfKind InstrProfReaderIndex<HashTableImpl>::getProfileKind() const {
+  return getProfileKindFromVersion(FormatVersion);
 }
 
 namespace {

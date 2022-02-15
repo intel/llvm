@@ -710,6 +710,10 @@ void CudaToolChain::addClangTargetOptions(
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
                                                   CC1Args);
+
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
+      CC1Args.push_back("-fcuda-prec-sqrt");
+    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv,
@@ -820,12 +824,11 @@ void CudaToolChain::addClangTargetOptions(
       return;
     }
 
-    std::string BitcodeSuffix;
-    if (DriverArgs.hasFlag(options::OPT_fopenmp_target_new_runtime,
-                           options::OPT_fno_openmp_target_new_runtime, true))
-      BitcodeSuffix = "new-nvptx-" + GpuArch.str();
-    else
-      BitcodeSuffix = "nvptx-" + GpuArch.str();
+    // Link the bitcode library late if we're using device LTO.
+    if (getDriver().isUsingLTO(/* IsOffload */ true))
+      return;
+
+    std::string BitcodeSuffix = "nvptx-" + GpuArch.str();
 
     addOpenMPDeviceRTL(getDriver(), DriverArgs, CC1Args, BitcodeSuffix,
                        getTriple());

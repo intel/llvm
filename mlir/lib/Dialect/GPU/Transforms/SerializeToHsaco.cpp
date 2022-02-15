@@ -34,12 +34,14 @@
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
@@ -49,8 +51,6 @@
 #include "llvm/Target/TargetOptions.h"
 
 #include "llvm/Transforms/IPO/Internalize.h"
-
-#include "lld/Common/Driver.h"
 
 #include <mutex>
 
@@ -357,7 +357,7 @@ SerializeToHsacoPass::assembleIsa(const std::string &isa) {
 
   llvm::SourceMgr srcMgr;
   srcMgr.AddNewSourceBuffer(llvm::MemoryBuffer::getMemBuffer(isa),
-                            llvm::SMLoc());
+                            SMLoc());
 
   const llvm::MCTargetOptions mcOptions;
   std::unique_ptr<llvm::MCRegisterInfo> mri(
@@ -433,16 +433,15 @@ SerializeToHsacoPass::createHsaco(const SmallVectorImpl<char> &isaBinary) {
   }
   llvm::FileRemover cleanupHsaco(tempHsacoFilename);
 
-  {
-    static std::mutex mutex;
-    const std::lock_guard<std::mutex> lock(mutex);
-    // Invoke lld. Expect a true return value from lld.
-    if (!lld::elf::link({"ld.lld", "-shared", tempIsaBinaryFilename.c_str(),
-                         "-o", tempHsacoFilename.c_str()},
-                        /*canEarlyExit=*/false, llvm::outs(), llvm::errs())) {
-      emitError(loc, "lld invocation error");
-      return {};
-    }
+  std::string theRocmPath = getRocmPath();
+  llvm::SmallString<32> lldPath(std::move(theRocmPath));
+  llvm::sys::path::append(lldPath, "llvm", "bin", "ld.lld");
+  int lldResult = llvm::sys::ExecuteAndWait(
+      lldPath,
+      {"ld.lld", "-shared", tempIsaBinaryFilename, "-o", tempHsacoFilename});
+  if (lldResult != 0) {
+    emitError(loc, "lld invocation error");
+    return {};
   }
 
   // Load the HSA code object.
@@ -479,6 +478,17 @@ void mlir::registerGpuSerializeToHsacoPass() {
                                                       "", 2);
       });
 }
+
+/// Create an instance of the GPU kernel function to HSAco binary serialization
+/// pass.
+std::unique_ptr<Pass> mlir::createGpuSerializeToHsacoPass(StringRef triple,
+                                                          StringRef arch,
+                                                          StringRef features,
+                                                          int optLevel) {
+  return std::make_unique<SerializeToHsacoPass>(triple, arch, features,
+                                                optLevel);
+}
+
 #else  // MLIR_GPU_TO_HSACO_PASS_ENABLE
 void mlir::registerGpuSerializeToHsacoPass() {}
 #endif // MLIR_GPU_TO_HSACO_PASS_ENABLE
