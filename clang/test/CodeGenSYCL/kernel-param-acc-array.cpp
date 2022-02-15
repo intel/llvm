@@ -25,11 +25,11 @@ int main() {
 
 // Check kernel_A parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_A
-// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG1:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+_1]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE1:%[a-zA-Z0-9_]+_2]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET1:%[a-zA-Z0-9_]+_3]],
-// CHECK-SAME: i32 addrspace(1)* noundef [[MEM_ARG2:%[a-zA-Z0-9_]+_4]],
+// CHECK-SAME: i32 addrspace(1)* noundef align 4 [[MEM_ARG2:%[a-zA-Z0-9_]+_4]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+_6]],
 // CHECK-SAME: %"struct.cl::sycl::range"* noundef byval{{.*}}align 4 [[MEM_RANGE2:%[a-zA-Z0-9_]+_7]],
 // CHECK-SAME: %"struct.cl::sycl::id"* noundef byval{{.*}}align 4 [[OFFSET2:%[a-zA-Z0-9_]+_8]])

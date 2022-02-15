@@ -328,8 +328,9 @@ bool isEntryPoint(const Function &F) {
 // EntryPointsGroups which maps some key to a group of entry points. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
-                      EntryPointsGroupScope EntryScope) {
+EntryPointGroupMap groupEntryPoints(const Module &M,
+                                    EntryPointsGroupScope EntryScope) {
+  EntryPointGroupMap EntryPointsGroups{};
   // Only process module entry points:
   for (const auto &F : M.functions()) {
     if (!isEntryPoint(F))
@@ -363,6 +364,73 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
   // No entry points met, record this.
   if (EntryPointsGroups.empty())
     EntryPointsGroups[GLOBAL_SCOPE_NAME] = {};
+
+  return EntryPointsGroups;
+}
+
+// For device global variables with the 'device_image_scope' property,
+// the function checks that there are no usages of a single device global
+// variable from kernels grouped to different modules.
+void checkImageScopedDeviceGlobals(const Module &M,
+                                   const EntryPointGroupMap &GMap) {
+  // Early exit if there is only one group
+  if (GMap.size() < 2)
+    return;
+
+  // Reverse the EntryPointGroupMap to get a map of entry point -> module's name
+  unsigned EntryPointNumber = 0;
+  for (const auto &Group : GMap)
+    EntryPointNumber += static_cast<unsigned>(Group.second.size());
+  DenseMap<const Function *, StringRef> EntryPointModules(EntryPointNumber);
+  for (const auto &Group : GMap) {
+    auto ModuleName = Group.first;
+    for (const auto *F : Group.second) {
+      EntryPointModules.insert({F, ModuleName});
+    }
+  }
+
+  // Processing device global variables with the "device_image_scope" property
+  for (auto &GV : M.globals()) {
+    if (!isDeviceGlobalVariable(GV) || !hasDeviceImageScopeProperty(GV))
+      continue;
+
+    Optional<StringRef> VarEntryPointModule{};
+    auto CheckEntryPointModule = [&VarEntryPointModule, &EntryPointModules,
+                                  &GV](const auto *F) {
+      auto EntryPointModulesIt = EntryPointModules.find(F);
+      assert(EntryPointModulesIt != EntryPointModules.end() &&
+             "There is no group for an entry point");
+      if (!VarEntryPointModule.hasValue()) {
+        VarEntryPointModule = EntryPointModulesIt->second;
+        return;
+      }
+      if (EntryPointModulesIt->second != *VarEntryPointModule) {
+        error("device_global variable '" + Twine(GV.getName()) +
+              "' with property \"device_image_scope\" is used in more "
+              "than one device image.");
+      }
+    };
+
+    SmallSetVector<const User *, 32> Workqueue;
+    for (auto *U : GV.users())
+      Workqueue.insert(U);
+
+    while (!Workqueue.empty()) {
+      const User *U = Workqueue.back();
+      Workqueue.pop_back();
+      if (auto *I = dyn_cast<const Instruction>(U)) {
+        auto *F = I->getFunction();
+        Workqueue.insert(F);
+        continue;
+      }
+      if (auto *F = dyn_cast<const Function>(U)) {
+        if (isEntryPoint(*F))
+          CheckEntryPointModule(F);
+      }
+      for (auto *UU : U->users())
+        Workqueue.insert(UU);
+    }
+  }
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
@@ -478,18 +546,25 @@ extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
     const Function *F = &*Workqueue.back();
     Workqueue.pop_back();
     for (const auto &I : instructions(F)) {
-      if (const CallBase *CB = dyn_cast<CallBase>(&I))
-        if (const Function *CF = CB->getCalledFunction())
+      if (const CallBase *CB = dyn_cast<CallBase>(&I)) {
+        if (const Function *CF = CB->getCalledFunction()) {
           if (!CF->isDeclaration() && !GVs.count(CF)) {
             GVs.insert(CF);
             Workqueue.push_back(CF);
           }
+        }
+      }
     }
   }
 
   // It's not easy to trace global variable's uses inside needed functions
   // because global variable can be used inside a combination of operators, so
   // mark all global variables as needed and remove dead ones after cloning.
+  // Notice. For device global variables with the 'device_image_scope' property,
+  // removing dead ones is a must, the 'checkImageScopedDeviceGlobals' function
+  // checks that there are no usages of a single device global variable with the
+  // 'device_image_scope' property from multiple modules and the splitter must
+  // not add such usages after the check.
   for (const auto &G : M.globals()) {
     GVs.insert(&G);
   }
@@ -722,15 +797,14 @@ bool processCompileTimeProperties(Module &M) {
 //    module as a split condition.
 class ModuleSplitter {
   std::unique_ptr<Module> InputModule{nullptr};
+  bool IsSplit;
   EntryPointGroupMap GMap;
   EntryPointGroupMap::const_iterator GMapIt;
-  bool IsSplit;
 
 public:
   ModuleSplitter(std::unique_ptr<Module> M, bool Split,
-                 EntryPointsGroupScope Scope)
-      : InputModule(std::move(M)), IsSplit(Split) {
-    groupEntryPoints(*InputModule, GMap, Scope);
+                 EntryPointGroupMap GroupMap)
+      : InputModule(std::move(M)), IsSplit(Split), GMap(std::move(GroupMap)) {
     assert(!GMap.empty() && "Entry points group map is empty!");
     GMapIt = GMap.cbegin();
   }
@@ -745,9 +819,9 @@ public:
     ++GMapIt;
 
     std::unique_ptr<Module> SplitModule{nullptr};
-    if (IsSplit && !SplitModuleEntryPoints.empty())
+    if (IsSplit && !SplitModuleEntryPoints.empty()) {
       SplitModule = extractCallGraph(*InputModule, SplitModuleEntryPoints);
-    else {
+    } else {
       assert(GMap.size() == 1 && "Too many entry points groups in map!");
       SplitModule = std::move(InputModule);
     }
@@ -783,9 +857,12 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     lowerEsimdConstructs(*M);
 
-  EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(*M);
+  EntryPointGroupMap GMap =
+      groupEntryPoints(*M, selectDeviceCodeGroupScope(*M));
+  if (DeviceGlobals)
+    checkImageScopedDeviceGlobals(*M, GMap);
   bool DoSplit = (SplitMode.getNumOccurrences() > 0);
-  ModuleSplitter MSplit(std::move(M), DoSplit, Scope);
+  ModuleSplitter MSplit(std::move(M), DoSplit, std::move(GMap));
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
 
