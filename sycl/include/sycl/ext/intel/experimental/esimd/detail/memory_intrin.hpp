@@ -927,4 +927,62 @@ __ESIMD_INTRIN void __esimd_raw_send2_noresult(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+/// Represents named barrier synchronization for a subgroup of threads.
+/// Available only on PVC
+///
+/// @param mode  - is wait(0) or signal(1)
+///
+/// @param id  - barrier id
+///
+/// @param thread_count  - number of threads, ignored in 'wait' mode
+__ESIMD_INTRIN void __esimd_nbarrier(uint8_t mode, uint8_t id,
+                                     uint8_t thread_count)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+/// Initialize number of named barriers for a kernel
+/// Available only on PVC
+///
+/// @param count  - number of named barriers
+__ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+/// Raw send signal to perform signal operation on named barriers
+/// Available only on PVC
+/// @tparam Ty  - message element type
+///
+/// @tparam N  - message length
+///
+/// @param is_sendc  - is sendc
+///
+/// @param extended_descriptor  - extended message descriptor
+///
+/// @param descriptor  - message descriptor
+///
+/// @param msg_var  - source operand of send message
+///
+/// @param pred  - predicate for enabled channels
+template <typename Ty, int N>
+__ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
+    uint32_t is_sendc, uint32_t extended_descriptor, uint32_t descriptor,
+    __SEIEED::vector_type_t<Ty, N> msg_var, uint16_t pred = 1)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 /// @endcond ESIMD_DETAIL
