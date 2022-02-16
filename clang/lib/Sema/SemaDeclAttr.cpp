@@ -7436,14 +7436,11 @@ static bool checkAddIRAttributesFilterListExpr(Expr *FilterListArg, Sema *S,
                                                const AttributeCommonInfo &CI) {
   assert(isa<InitListExpr>(FilterListArg));
   const auto *FilterListE = cast<InitListExpr>(FilterListArg);
-  for (const Expr *FilterElemE : FilterListE->inits()) {
-    if (!isa<StringLiteral>(FilterElemE)) {
-      S->Diag(FilterElemE->getBeginLoc(),
-              diag::err_sycl_add_ir_attribute_invalid_filter)
-          << CI;
-      return true;
-    }
-  }
+  for (const Expr *FilterElemE : FilterListE->inits())
+    if (!isa<StringLiteral>(FilterElemE))
+      return S->Diag(FilterElemE->getBeginLoc(),
+                     diag::err_sycl_add_ir_attribute_invalid_filter)
+             << CI;
   return false;
 }
 
@@ -7461,9 +7458,9 @@ static bool checkAddIRAttributesNameExpr(Expr *NameArg, Sema *S,
   if (isAddIRAttributesValidStringType(NameArg->getType()))
     return false;
 
-  S->Diag(NameArg->getBeginLoc(), diag::err_sycl_add_ir_attribute_invalid_name)
-      << CI;
-  return true;
+  return S->Diag(NameArg->getBeginLoc(),
+                 diag::err_sycl_add_ir_attribute_invalid_name)
+         << CI;
 }
 
 // Checks if an expression is a valid attribute value for an add_ir_attributes_*
@@ -7476,33 +7473,31 @@ static bool checkAddIRAttributesValueExpr(Expr *ValArg, Sema *S,
       ValType->isCharType() || ValType->isEnumeralType())
     return false;
 
-  S->Diag(ValArg->getBeginLoc(), diag::err_sycl_add_ir_attribute_invalid_value)
-      << CI;
-  return true;
+  return S->Diag(ValArg->getBeginLoc(),
+                 diag::err_sycl_add_ir_attribute_invalid_value)
+         << CI;
 }
 
 // Checks and evaluates arguments of an add_ir_attributes_* attribute. Returns
 // true if an error occured.
-static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
-                                        Sema *S,
+static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema *S,
                                         const AttributeCommonInfo &CI) {
   ASTContext &Context = S->getASTContext();
 
   // Check filter list if it is the first argument.
-  bool HasFilter = ArgsSize && isa<InitListExpr>(ArgsBegin[0]);
-  if (HasFilter && checkAddIRAttributesFilterListExpr(ArgsBegin[0], S, CI))
+  bool HasFilter = ArgsSize && isa<InitListExpr>(Args[0]);
+  if (HasFilter && checkAddIRAttributesFilterListExpr(Args[0], S, CI))
     return true;
 
   llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
   bool HasDependentArg = false;
   for (unsigned I = HasFilter; I < ArgsSize; I++) {
-    Expr *&E = ArgsBegin[I];
+    Expr *&E = Args[I];
 
-    if (isa<InitListExpr>(E)) {
-      S->Diag(E->getBeginLoc(), diag::err_add_ir_attr_filter_list_invalid_arg)
-          << CI;
-      return true;
-    }
+    if (isa<InitListExpr>(E))
+      return S->Diag(E->getBeginLoc(),
+                     diag::err_add_ir_attr_filter_list_invalid_arg)
+             << CI;
 
     if (E->isValueDependent() || E->isTypeDependent()) {
       HasDependentArg = true;
@@ -7524,18 +7519,17 @@ static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
   }
 
   // If there are no dependent expressions, check for expected number of args.
-  if (!HasDependentArg && ArgsSize && (ArgsSize - HasFilter) & 1) {
-    S->Diag(CI.getLoc(), diag::err_sycl_add_ir_attribute_must_have_pairs) << CI;
-    return true;
-  }
+  if (!HasDependentArg && ArgsSize && (ArgsSize - HasFilter) & 1)
+    return S->Diag(CI.getLoc(), diag::err_sycl_add_ir_attribute_must_have_pairs)
+           << CI;
 
   // If there are no dependent expressions, check argument types.
   // First half of the arguments are names, the second half are values.
   unsigned MidArg = (ArgsSize - HasFilter) / 2 + HasFilter;
   if (!HasDependentArg)
     for (unsigned I = HasFilter; I < ArgsSize; ++I)
-      if ((I < MidArg && checkAddIRAttributesNameExpr(ArgsBegin[I], S, CI)) ||
-          (I >= MidArg && checkAddIRAttributesValueExpr(ArgsBegin[I], S, CI)))
+      if ((I < MidArg && checkAddIRAttributesNameExpr(Args[I], S, CI)) ||
+          (I >= MidArg && checkAddIRAttributesValueExpr(Args[I], S, CI)))
         return true;
   return false;
 }

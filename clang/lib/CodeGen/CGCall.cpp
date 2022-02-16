@@ -2675,6 +2675,18 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
     if (Arg->hasAttr<SYCLAccessorReadonlyAttr>())
       Fn->getArg(FirstIRArg)->addAttr(llvm::Attribute::ReadOnly);
 
+    if (const auto *AddIRAttr =
+            Arg->getAttr<SYCLAddIRAttributesKernelParameterAttr>()) {
+      const auto NameValuePairs = CGM.getFilteredValidAttributeNameValuePairs(
+          AddIRAttr->args_begin(), AddIRAttr->args_size(), AddIRAttr);
+
+      llvm::AttrBuilder KernelParamAttrBuilder(Fn->getContext());
+      for (const auto &NameValuePair : NameValuePairs)
+        KernelParamAttrBuilder.addAttribute(NameValuePair.first,
+                                            NameValuePair.second);
+      Fn->addParamAttrs(ArgNo, KernelParamAttrBuilder);
+    }
+
     switch (ArgI.getKind()) {
     case ABIArgInfo::InAlloca: {
       assert(NumIRArgs == 0);

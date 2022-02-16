@@ -44,6 +44,37 @@ void FunctionRedecl1();
 [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]] void FunctionRedecl1(); // expected-warning {{attribute 'add_ir_attributes_function' is already applied}} // expected-note {{previous attribute is here}}
 [[__sycl_detail__::add_ir_attributes_function("Attr3", false)]] void FunctionRedecl1(){};          // expected-warning {{attribute 'add_ir_attributes_function' is already applied}}
 
+// CHECK:      FunctionDecl [[FunctionRedecl2ID1:0x[0-9a-f]+]] {{.*}} FunctionRedecl2 'void ()'
+// CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+// CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' true
+// CHECK-NEXT: FunctionDecl {{.*}} prev [[FunctionRedecl2ID1]] {{.*}} FunctionRedecl2 'void ()'
+// CHECK-NEXT:   SYCLAddIRAttributesFunctionAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+// CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' true
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]] void FunctionRedecl2();
+void FunctionRedecl2();
+
 // CHECK:      CXXRecordDecl [[GlobalVarStructRedecl1ID1:0x[0-9a-f]+]] {{.*}} struct GlobalVarStructRedecl1
 // CHECK-NEXT: CXXRecordDecl [[GlobalVarStructRedecl1ID2:0x[0-9a-f]+]] prev [[GlobalVarStructRedecl1ID1]] {{.*}} struct GlobalVarStructRedecl1
 // CHECK-NEXT:   SYCLAddIRAttributesGlobalVariableAttr
@@ -93,6 +124,37 @@ struct GlobalVarStructRedecl1;
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl1; // expected-note {{previous attribute is here}}
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl1; // expected-warning {{attribute 'add_ir_attributes_global_variable' is already applied}} expected-note {{previous attribute is here}}
 struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] GlobalVarStructRedecl1{};          // expected-warning {{attribute 'add_ir_attributes_global_variable' is already applied}}
+
+// CHECK:      CXXRecordDecl [[GlobalVarStructRedecl2ID1:0x[0-9a-f]+]] {{.*}} struct GlobalVarStructRedecl2
+// CHECK-NEXT:   SYCLAddIRAttributesGlobalVariableAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+// CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' true
+// CHECK-NEXT: CXXRecordDecl {{.*}} prev [[GlobalVarStructRedecl2ID1]] {{.*}} struct GlobalVarStructRedecl2
+// CHECK-NEXT:   SYCLAddIRAttributesGlobalVariableAttr
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'const char[6]' lvalue
+// CHECK-NEXT:       value: LValue
+// CHECK-NEXT:       StringLiteral {{.*}} 'const char[6]' lvalue "Attr2"
+// CHECK-NEXT:     ConstantExpr {{.*}} 'int'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
+// CHECK-NEXT:     ConstantExpr {{.*}} 'bool'
+// CHECK-NEXT:       value: Int 1
+// CHECK-NEXT:       CXXBoolLiteralExpr {{.*}} 'bool' true
+struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]] GlobalVarStructRedecl2;
+struct GlobalVarStructRedecl2;
 
 // CHECK:      CXXRecordDecl {{.*}} referenced struct GlobalVarStructBase definition
 // CHECK-NEXT:   DefinitionData
