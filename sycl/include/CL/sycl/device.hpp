@@ -28,6 +28,9 @@ class device_impl;
 auto getDeviceComparisonLambda();
 }
 
+// A tag to allow for creating a host device
+struct host_device {};
+
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
@@ -35,6 +38,9 @@ auto getDeviceComparisonLambda();
 class __SYCL_EXPORT device {
 public:
   /// Constructs a SYCL device instance as a host device.
+  device(host_device);
+
+  /// Constructs a SYCL device instance as selected by default_selector
   device();
 
   /// Constructs a SYCL device instance from an OpenCL cl_device_id

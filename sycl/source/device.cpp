@@ -29,7 +29,11 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 }
 } // namespace detail
 
-device::device() : impl(detail::device_impl::getHostDeviceImpl()) {}
+device::device() {
+  *this = default_selector{}.select_device();
+}
+
+device::device(host_device) : impl(detail::device_impl::getHostDeviceImpl()) {}
 
 device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we

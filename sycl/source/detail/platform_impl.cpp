@@ -240,7 +240,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // If SYCL_DEVICE_FILTER is set, check if filter contains host.
     device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
     if (!FilterList || FilterList->containsHost()) {
-      Res.push_back(device());
+      Res.push_back(device(host_device{}));
     }
   }
 
