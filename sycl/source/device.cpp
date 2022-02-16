@@ -29,9 +29,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 }
 } // namespace detail
 
-device::device() {
-  *this = default_selector{}.select_device();
-}
+device::device() { *this = default_selector{}.select_device(); }
 
 device::device(host_device) : impl(detail::device_impl::getHostDeviceImpl()) {}
 
