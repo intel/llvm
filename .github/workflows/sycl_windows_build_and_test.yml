@@ -17,6 +17,7 @@ jobs:
       run: |
         choco install -y cuda --version 11.6.0.51123
         choco install -y ninja
+        choco install -y sccache --version 0.2.15
         refreshenv
         echo CUDA_PATH=%CUDA_PATH%
         echo CUDA_PATH=%CUDA_PATH% >> %GITHUB_ENV%
@@ -49,6 +50,8 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
           --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
+          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
           --cuda
     - name: Build
       shell: cmd
@@ -56,6 +59,7 @@ jobs:
         CUDA_PATH: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
         CUDA_TOOLKIT_ROOT_DIR: 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6'
       run: |
+        cmake --build build --target sycl
         cmake --build build --target sycl-toolchain
     - name: Install
       shell: cmd
