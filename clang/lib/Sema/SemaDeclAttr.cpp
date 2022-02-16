@@ -7496,7 +7496,7 @@ static bool evaluateAddIRAttributesArgs(Expr **Args, size_t ArgsSize, Sema *S,
 
     if (isa<InitListExpr>(E))
       return S->Diag(E->getBeginLoc(),
-                     diag::err_add_ir_attr_filter_list_invalid_arg)
+                     diag::err_sycl_add_ir_attr_filter_list_invalid_arg)
              << CI;
 
     if (E->isValueDependent() || E->isTypeDependent()) {

@@ -11645,7 +11645,7 @@ def err_sycl_taking_address_of_wrong_function : Error<
   "taking address of a function not marked with "
   "'intel::device_indirectly_callable' attribute is not allowed in SYCL device "
   "code">;
-def err_add_ir_attr_filter_list_invalid_arg : Error<
+def err_sycl_add_ir_attr_filter_list_invalid_arg : Error<
   "only the first argument of attribute %0 can be an initializer list">;
 def err_sycl_add_ir_attribute_must_have_pairs : Error<
   "attribute %0 must have an attribute value for each attribute name">;
