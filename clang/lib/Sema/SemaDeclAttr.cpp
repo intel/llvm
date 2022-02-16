@@ -3523,6 +3523,23 @@ static bool InvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
            ZDimExpr->getResultAsAPSInt() != 1));
 }
 
+// If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+// a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+// attribute, check to see if values of reqd_work_group_size arguments are
+// equal or less than values of max_work_group_size attribute arguments.
+static bool checkWorkGroupSizeAttrValues(const Expr *LHS, const Expr *RHS) {
+  // If any of the operand is still value dependent, we can't test anything.
+  const auto *LHSCE = dyn_cast<ConstantExpr>(LHS);
+  const auto *RHSCE = dyn_cast<ConstantExpr>(RHS);
+
+  if (!LHSCE || !RHSCE)
+    return false;
+
+  // Otherwise, check if value of reqd_work_group_size argument is
+  // equal or less than value of max_work_group_size attribute argument.
+  return !(LHSCE->getResultAsAPSInt() <= RHSCE->getResultAsAPSInt());
+}
+
 void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
                                             const AttributeCommonInfo &CI,
                                             Expr *XDim, Expr *YDim,
@@ -3555,6 +3572,20 @@ void Sema::AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
   ZDim = CheckAndConvertArg(ZDim);
   if (!XDim || !YDim || !ZDim)
     return;
+
+  // If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+  // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+  // attribute, check to see if values of reqd_work_group_size arguments are
+  // equal or less than values of max_work_group_size attribute arguments.
+  if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    if (checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), XDim),
+	checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), YDim),
+	checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), ZDim)) {
+      Diag(CI.getLoc(), diag::err_conflicting_sycl_function_attributes)
+         << CI << DeclAttr->getSpelling();
+      return;
+    }
+  }
 
   // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr, check to see if
   // the attribute holds equal values to (1, 1, 1) in case the value of
@@ -3614,6 +3645,20 @@ SYCLIntelMaxWorkGroupSizeAttr *Sema::MergeSYCLIntelMaxWorkGroupSizeAttr(
     if (llvm::all_of(Results,
                      [](DupArgResult V) { return V == DupArgResult::Same; }))
       return nullptr;
+  }
+
+  // If the [[intel::max_work_group_size(X, Y, Z)]] attribute is specified on
+  // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
+  // attribute, check to see if values of reqd_work_group_size arguments are
+  // equal or less than values of max_work_group_size attribute arguments.
+  if (const auto *DeclAttr = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    if (checkWorkGroupSizeAttrValues(DeclAttr->getXDim(), A.getXDim()),
+        checkWorkGroupSizeAttrValues(DeclAttr->getYDim(), A.getYDim()),
+        checkWorkGroupSizeAttrValues(DeclAttr->getZDim(), A.getZDim())) {
+      Diag(DeclAttr->getLoc(), diag::err_conflicting_sycl_function_attributes)
+         << DeclAttr << A.getSpelling();
+      return nullptr;
+    }
   }
 
   // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr,
