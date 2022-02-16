@@ -605,13 +605,15 @@ inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
 // \param Event a pointer to hold the newly created pi_event
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
-inline static pi_result
-createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
-                             pi_command_type CommandType,
-                             pi_command_list_ptr_t CommandList) {
+// \param ForceHostVisible tells if the event must be created in
+//        the host-visible pool
+inline static pi_result createEventAndAssociateQueue(
+    pi_queue Queue, pi_event *Event, pi_command_type CommandType,
+    pi_command_list_ptr_t CommandList, bool ForceHostVisible = false) {
 
-  PI_CALL(
-      EventCreate(Queue->Context, Queue, EventsScope == AllHostVisible, Event));
+  PI_CALL(EventCreate(Queue->Context, Queue,
+                      ForceHostVisible ? true : EventsScope == AllHostVisible,
+                      Event));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -1340,7 +1342,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // Create a "proxy" host-visible event.
     //
     pi_event HostVisibleEvent;
-    PI_CALL(EventCreate(Context, this, true, &HostVisibleEvent));
+    auto Res = createEventAndAssociateQueue(
+        this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+    if (Res)
+      return Res;
 
     // Update each command's event in the command-list to "see" this
     // proxy event as a host-visible counterpart.
@@ -1349,10 +1354,14 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       PI_CALL(piEventRetain(HostVisibleEvent));
     }
 
-    // Decrement the reference count by 1 so all the remaining references
-    // are from the other commands in this batch. This host-visible event
-    // will be destroyed after all events in the batch are gone.
+    // Decrement the reference count of the event such that all the remaining
+    // references are from the other commands in this batch. This host-visible
+    // event will not be waited/release by SYCL RT, so it must be destroyed
+    // after all events in the batch are gone.
     PI_CALL(piEventRelease(HostVisibleEvent));
+    PI_CALL(piEventRelease(HostVisibleEvent));
+    PI_CALL(piEventRelease(HostVisibleEvent));
+
     // Indicate no cleanup is needed for this PI event as it is special.
     HostVisibleEvent->CleanedUp = true;
 
@@ -4944,10 +4953,6 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
     if (EventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
-    // Create a "proxy" host-visible event on demand.
-    PI_CALL(EventCreate(Context, Queue, true, &HostVisibleEvent));
-    HostVisibleEvent->CleanedUp = true;
-
     // Submit the command(s) signalling the proxy event to the queue.
     // We have to first submit a wait for the device-only event for which this
     // proxy is created.
@@ -4962,6 +4967,13 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
       pi_command_list_ptr_t CommandList{};
       if (auto Res = Queue->Context->getAvailableCommandList(
               Queue, CommandList, false /* UseCopyEngine */, OkToBatch))
+        return Res;
+
+      // Create a "proxy" host-visible event.
+      auto Res = createEventAndAssociateQueue(
+          Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+      // HostVisibleEvent->CleanedUp = true;
+      if (Res != PI_SUCCESS)
         return Res;
 
       ZE_CALL(zeCommandListAppendWaitOnEvents,
@@ -5380,7 +5392,7 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     // and release a reference to it.
     if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
       // Decrement ref-count of the host-visible proxy event.
-      PI_CALL(piEventRelease(Event->HostVisibleEvent));
+      PI_CALL(EventRelease(Event->HostVisibleEvent, LockedQueue));
     }
 
     auto Context = Event->Context;
