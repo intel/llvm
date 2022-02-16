@@ -670,6 +670,7 @@ pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
     ret_err = getExtFuncFromContext<clCreateBufferWithPropertiesName,
                                     clCreateBufferWithPropertiesINTEL_fn>(
         context, &FuncPtr);
+    //cl_mem_properties_intel props[3] = {CL_MEM_ALLOC_BUFFER_LOCATION_INTEL, 1, 0};
     if (FuncPtr) {
       *ret_mem = cast<pi_mem>(FuncPtr(cast<cl_context>(context), properties,
                                       cast<cl_mem_flags>(flags), size, host_ptr,

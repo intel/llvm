@@ -58,6 +58,9 @@ struct buffer_location {
     constexpr bool operator!=(const buffer_location::instance<B> &) const {
       return A != B;
     }
+    int get_location() {
+      return A;
+    }
   };
 };
 } // namespace property

@@ -34,6 +34,8 @@ public:
   void releaseHostMem(void *) {}
   size_t getSize() const override { return 10; }
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
+  void addOrReplaceAccessorProperties(const property_list &PropertyList) {}
+  void deleteAccessorProperty(const detail::PropWithDataKind &Kind) {}
 };
 
 static cl::sycl::device getDeviceWithHostUnifiedMemory() {

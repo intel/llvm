@@ -51,6 +51,13 @@ public:
     return has_property_helper<PropT>();
   }
 
+  void add_or_replace_accessor_properties(const property_list &PropertyList) {
+    add_or_replace_accessor_properties_helper(PropertyList.MPropsWithData);
+  }
+  void delete_accessor_property(const sycl::detail::PropWithDataKind &Kind) {
+    delete_accessor_property_helper(Kind);
+  }
+
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
 private:

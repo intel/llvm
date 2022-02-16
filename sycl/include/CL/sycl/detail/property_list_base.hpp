@@ -103,6 +103,30 @@ protected:
                                      PI_INVALID_VALUE);
   }
 
+  void add_or_replace_accessor_properties_helper(
+      const std::vector<std::shared_ptr<PropertyWithDataBase>> &PropsWithData) {
+    for (auto &Prop : PropsWithData) {
+      if (Prop->isSame(sycl::detail::PropWithDataKind::AccPropBufferLocation)) {
+        delete_accessor_property_helper(sycl::detail::PropWithDataKind::AccPropBufferLocation);
+        MPropsWithData.push_back(Prop);
+      }
+    }
+  }
+
+  void delete_accessor_property_helper(const PropWithDataKind &Kind) {
+    auto It = MPropsWithData.begin();
+    for (; It != MPropsWithData.end(); ++It) {
+      if ((*It)->isSame(Kind))
+        break;
+    }
+    if (It != MPropsWithData.end()) {
+      std::iter_swap(It, MPropsWithData.end() - 1);
+      MPropsWithData.pop_back();
+    }
+  }
+
+  
+
   // Stores enabled/disabled for simple properties
   std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;
   // Stores shared_ptrs to complex properties

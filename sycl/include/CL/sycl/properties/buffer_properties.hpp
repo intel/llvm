@@ -51,6 +51,16 @@ private:
   uint32_t MChannel;
 };
 
+namespace detail{
+class buffer_location : public sycl::detail::PropertyWithData<sycl::detail::PropWithDataKind::AccPropBufferLocation> {
+public:
+  buffer_location(uint64_t Location) : MLocation(Location) {}
+  uint64_t get_buffer_location() const { return MLocation; }
+
+private:
+  uint64_t MLocation;
+};
+} // namespace detail
 } // namespace buffer
 } // namespace property
 
@@ -75,6 +85,8 @@ template <>
 struct is_property<property::buffer::use_host_ptr> : std::true_type {};
 template <> struct is_property<property::buffer::use_mutex> : std::true_type {};
 template <>
+struct is_property<property::buffer::detail::buffer_location> : std::true_type {};
+template <>
 struct is_property<property::buffer::context_bound> : std::true_type {};
 template <>
 struct is_property<property::buffer::mem_channel> : std::true_type {};
@@ -88,6 +100,10 @@ struct is_property_of<property::buffer::use_host_ptr,
     : std::true_type {};
 template <typename T, int Dimensions, typename AllocatorT>
 struct is_property_of<property::buffer::use_mutex,
+                      buffer<T, Dimensions, AllocatorT, void>>
+    : std::true_type {};
+template <typename T, int Dimensions, typename AllocatorT>
+struct is_property_of<property::buffer::detail::buffer_location,
                       buffer<T, Dimensions, AllocatorT, void>>
     : std::true_type {};
 template <typename T, int Dimensions, typename AllocatorT>

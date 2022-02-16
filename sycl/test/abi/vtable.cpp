@@ -25,7 +25,7 @@ void foo(sycl::detail::HostKernelBase &HKB) {
 
 void foo(sycl::detail::SYCLMemObjI &MemObj) { (void)MemObj.getType(); }
 
-// CHECK:    Vtable for 'sycl::detail::SYCLMemObjI' (11 entries).
+// CHECK:    Vtable for 'sycl::detail::SYCLMemObjI' (13 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)
 // CHECK-NEXT:   1 | sycl::detail::SYCLMemObjI RTTI
 // CHECK-NEXT:       -- (sycl::detail::SYCLMemObjI, 0) vtable address --
@@ -38,6 +38,8 @@ void foo(sycl::detail::SYCLMemObjI &MemObj) { (void)MemObj.getType(); }
 // CHECK-NEXT:   8 | void sycl::detail::SYCLMemObjI::releaseHostMem(void *) [pure]
 // CHECK-NEXT:   9 | size_t sycl::detail::SYCLMemObjI::getSize() const [pure]
 // CHECK-NEXT:  10 | sycl::detail::ContextImplPtr sycl::detail::SYCLMemObjI::getInteropContext() const [pure]
+// CHECK-NEXT:  11 | void sycl::detail::SYCLMemObjI::addOrReplaceAccessorProperties(const sycl::property_list &) [pure]
+// CHECK-NEXT:  12 | void sycl::detail::SYCLMemObjI::deleteAccessorProperty(const sycl::detail::PropWithDataKind &) [pure]
 
 void foo(sycl::detail::pi::DeviceBinaryImage &Img) { Img.print(); }
 // CHECK:    Vtable for 'sycl::detail::pi::DeviceBinaryImage' (6 entries).

@@ -111,6 +111,14 @@ public:
     return MProps.get_property<propertyT>();
   }
 
+  __SYCL_DLL_LOCAL void addOrReplaceAccessorProperties(const property_list &PropertyList) override {
+    MProps.add_or_replace_accessor_properties(PropertyList);
+  }
+
+  __SYCL_DLL_LOCAL void deleteAccessorProperty(const PropWithDataKind &Kind) override {
+    MProps.delete_accessor_property(Kind);
+  }
+
   template <typename AllocatorT>
   __SYCL_DLL_LOCAL AllocatorT get_allocator() const {
     return MAllocator->getAllocator<AllocatorT>();
