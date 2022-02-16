@@ -4078,10 +4078,6 @@ static void handleSYCLDetailGlobalVariableAllowedAttr(Sema &S, Decl *D, const Pa
   D->addAttr(::new (S.Context) SYCLDetailGlobalVariableAllowedAttr(S.Context, AL));
 }
 
-/*static void handleSYCLUniqueIDAttr(Decl *D, const AttributeCommonInfo &CI,
-                          Expr *E) {
-}*/
-
 static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   // If no attribute argument is specified, set to default value '1'.
   Expr *E = A.isArgExpr(0)
@@ -10420,9 +10416,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_SYCLDetailGlobalVariableAllowed:
     handleSYCLDetailGlobalVariableAllowedAttr(S, D, AL);
     break;
-//  case ParsedAttr::AT_SYCLUniqueID:
-//    handleSYCLUniqueIDAttr(S, D, AL);
-//    break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     handleSYCLIntelNoGlobalWorkOffsetAttr(S, D, AL);
     break;

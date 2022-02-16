@@ -1448,13 +1448,6 @@ def SYCLDetailGlobalVariableAllowed : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def SYCLUniqueID : InheritableAttr {
-  let Spellings = [CXX11<"__sycl_detail__", "sycl-unique-id">];
-  let Subjects = SubjectList<[GlobalVar]>;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [Undocumented];
-}
-
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
   let Spellings = [CXX11<"intel", "no_global_work_offset">];
   let Args = [ExprArgument<"Value", /*optional*/1>];

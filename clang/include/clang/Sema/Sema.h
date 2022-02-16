@@ -10567,20 +10567,6 @@ public:
                                                 const SYCLUsesAspectsAttr &A);
   void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
                               Expr **Exprs, unsigned Size);
-/*
-  void AddSYCLDetailDeviceGlobal(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E);
-  SYCLDetailDeviceGlobalAttr *
-  MergeSYCLDetailDeviceGlobalAttr(Decl *D, const SYCLDetailDeviceGlobalAttr &A);
-
-  void AddSYCLDetailGlobalVariableAllowed(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E);
-  SYCLDetailGlobalVariableAllowedAttr *
-  MergeSYCLDetailGlobalVariableAllowedAttr(Decl *D, const SYCLDetailGlobalVariableAllowedAttr &A);
-*/
-  void AddSYCLUniqueIDAttr(Decl *D, const AttributeCommonInfo &CI,
-                           Expr *E);
-  SYCLUniqueIDAttr *MergeSYCLUniqueIDAttr(Decl *D, const SYCLUniqueIDAttr &A);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,

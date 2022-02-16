@@ -3115,15 +3115,6 @@ This attribute is part of support for SYCL device_global feature.
   }];
 }
 
-def SYCLUniqueIDAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "sycl-unique-id";
-  let Content = [{
-This attribute is part of support for SYCL device_global feature.
-sycl-unique-id is an LLVM IR attribute added to the definition of each device_global variable, which provides a unique string identifier for each device global variable. This attribute uses __builtin_sycl_unique_stable_id to generate the unique string. This cannont be used in customer code.
-  }];
-}
-
 def SYCLFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";
