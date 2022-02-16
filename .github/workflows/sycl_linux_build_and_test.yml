@@ -36,7 +36,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --hip-amd-arch=gfx906 --cuda"
+        default: "--hip --cuda"
       build_artifact_suffix:
         type: string
         required: true

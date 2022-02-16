@@ -22,11 +22,8 @@
 #include <string_view>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -140,13 +137,12 @@ private:
   // shall be well-formed when treated as an unevaluated operand.
 
   template <class _Ctx, class... _Args>
-  _LIBCPP_HIDE_FROM_ABI
-      _LIBCPP_AVAILABILITY_FORMAT friend __format_arg_store<_Ctx, _Args...>
-      _VSTD::make_format_args(const _Args&...);
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_FORMAT friend __format_arg_store<_Ctx, _Args...>
+  make_format_args(const _Args&...);
 
   template <class _Visitor, class _Ctx>
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_AVAILABILITY_FORMAT friend decltype(auto)
-  _VSTD::visit_format_arg(_Visitor&& __vis, basic_format_arg<_Ctx> __arg);
+  visit_format_arg(_Visitor&& __vis, basic_format_arg<_Ctx> __arg);
 
   union {
     bool __boolean;
@@ -287,7 +283,5 @@ private:
 #endif //_LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___FORMAT_FORMAT_ARG_H

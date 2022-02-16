@@ -172,6 +172,10 @@ void HeaderSearch::getHeaderMapFileNames(
 std::string HeaderSearch::getCachedModuleFileName(Module *Module) {
   const FileEntry *ModuleMap =
       getModuleMap().getModuleMapFileForUniquing(Module);
+  // The ModuleMap maybe a nullptr, when we load a cached C++ module without
+  // *.modulemap file. In this case, just return an empty string.
+  if (ModuleMap == nullptr)
+    return {};
   return getCachedModuleFileName(Module->Name, ModuleMap->getName());
 }
 
@@ -1037,8 +1041,9 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
       }
     }
 
-    // If this file is found in a header map and uses the framework style of
-    // includes, then this header is part of a framework we're building.
+    // Set the `Framework` info if this file is in a header map with framework
+    // style include spelling or found in a framework dir. The header map case
+    // is possible when building frameworks which use header maps.
     if (CurDir->isHeaderMap() && isAngled) {
       size_t SlashPos = Filename.find('/');
       if (SlashPos != StringRef::npos)
@@ -1046,6 +1051,11 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
             getUniqueFrameworkName(StringRef(Filename.begin(), SlashPos));
       if (CurDir->isIndexHeaderMap())
         HFI.IndexHeaderMapHeader = 1;
+    } else if (CurDir->isFramework()) {
+      size_t SlashPos = Filename.find('/');
+      if (SlashPos != StringRef::npos)
+        HFI.Framework =
+            getUniqueFrameworkName(StringRef(Filename.begin(), SlashPos));
     }
 
     if (checkMSVCHeaderSearch(Diags, MSFE ? &MSFE->getFileEntry() : nullptr,

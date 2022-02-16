@@ -40,7 +40,6 @@
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/DebugLoc.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/InstructionCost.h"
 #include <algorithm>
 #include <cassert>
@@ -54,6 +53,7 @@ class BasicBlock;
 class DominatorTree;
 class InductionDescriptor;
 class InnerLoopVectorizer;
+class IRBuilderBase;
 class LoopInfo;
 class raw_ostream;
 class RecurrenceDescriptor;
@@ -67,10 +67,11 @@ class VPlanSlp;
 /// Returns a calculation for the total number of elements for a given \p VF.
 /// For fixed width vectors this value is a constant, whereas for scalable
 /// vectors it is an expression determined at runtime.
-Value *getRuntimeVF(IRBuilder<> &B, Type *Ty, ElementCount VF);
+Value *getRuntimeVF(IRBuilderBase &B, Type *Ty, ElementCount VF);
 
 /// Return a value for Step multiplied by VF.
-Value *createStepForVF(IRBuilder<> &B, Type *Ty, ElementCount VF, int64_t Step);
+Value *createStepForVF(IRBuilderBase &B, Type *Ty, ElementCount VF,
+                       int64_t Step);
 
 /// A range of powers-of-2 vectorization factors with fixed start and
 /// adjustable end. The range includes start and excludes end, e.g.,:
@@ -151,7 +152,7 @@ public:
 
   /// Returns an expression describing the lane index that can be used at
   /// runtime.
-  Value *getAsRuntimeExpr(IRBuilder<> &Builder, const ElementCount &VF) const;
+  Value *getAsRuntimeExpr(IRBuilderBase &Builder, const ElementCount &VF) const;
 
   /// Returns the Kind of lane offset.
   Kind getKind() const { return LaneKind; }
@@ -199,7 +200,7 @@ struct VPIteration {
 /// needed for generating the output IR.
 struct VPTransformState {
   VPTransformState(ElementCount VF, unsigned UF, LoopInfo *LI,
-                   DominatorTree *DT, IRBuilder<> &Builder,
+                   DominatorTree *DT, IRBuilderBase &Builder,
                    InnerLoopVectorizer *ILV, VPlan *Plan)
       : VF(VF), UF(UF), LI(LI), DT(DT), Builder(Builder), ILV(ILV), Plan(Plan) {
   }
@@ -337,7 +338,7 @@ struct VPTransformState {
   DominatorTree *DT;
 
   /// Hold a reference to the IRBuilder used to generate output IR code.
-  IRBuilder<> &Builder;
+  IRBuilderBase &Builder;
 
   VPValue2ValueTy VPValue2Value;
 
@@ -759,6 +760,14 @@ public:
   bool mayReadOrWriteMemory() const {
     return mayReadFromMemory() || mayWriteToMemory();
   }
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  /// Conservatively returns false.
+  virtual bool onlyFirstLaneUsed(const VPValue *Op) const {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return false;
+  }
 };
 
 inline bool VPUser::classof(const VPDef *Def) {
@@ -893,6 +902,24 @@ public:
 
   /// Set the fast-math flags.
   void setFastMathFlags(FastMathFlags FMFNew);
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    if (getOperand(0) != Op)
+      return false;
+    switch (getOpcode()) {
+    default:
+      return false;
+    case VPInstruction::ActiveLaneMask:
+    case VPInstruction::CanonicalIVIncrement:
+    case VPInstruction::CanonicalIVIncrementNUW:
+    case VPInstruction::BranchOnCount:
+      return true;
+    };
+    llvm_unreachable("switch should return");
+  }
 };
 
 /// VPWidenRecipe is a recipe for producing a copy of vector type its
@@ -1027,18 +1054,24 @@ public:
 class VPWidenIntOrFpInductionRecipe : public VPRecipeBase, public VPValue {
   PHINode *IV;
   const InductionDescriptor &IndDesc;
+  bool NeedsScalarIV;
+  bool NeedsVectorIV;
 
 public:
   VPWidenIntOrFpInductionRecipe(PHINode *IV, VPValue *Start,
-                                const InductionDescriptor &IndDesc)
+                                const InductionDescriptor &IndDesc,
+                                bool NeedsScalarIV, bool NeedsVectorIV)
       : VPRecipeBase(VPWidenIntOrFpInductionSC, {Start}), VPValue(IV, this),
-        IV(IV), IndDesc(IndDesc) {}
+        IV(IV), IndDesc(IndDesc), NeedsScalarIV(NeedsScalarIV),
+        NeedsVectorIV(NeedsVectorIV) {}
 
   VPWidenIntOrFpInductionRecipe(PHINode *IV, VPValue *Start,
                                 const InductionDescriptor &IndDesc,
-                                TruncInst *Trunc)
+                                TruncInst *Trunc, bool NeedsScalarIV,
+                                bool NeedsVectorIV)
       : VPRecipeBase(VPWidenIntOrFpInductionSC, {Start}), VPValue(Trunc, this),
-        IV(IV), IndDesc(IndDesc) {}
+        IV(IV), IndDesc(IndDesc), NeedsScalarIV(NeedsScalarIV),
+        NeedsVectorIV(NeedsVectorIV) {}
 
   ~VPWidenIntOrFpInductionRecipe() override = default;
 
@@ -1082,6 +1115,12 @@ public:
     const TruncInst *TruncI = getTruncInst();
     return TruncI ? TruncI->getType() : IV->getType();
   }
+
+  /// Returns true if a scalar phi needs to be created for the induction.
+  bool needsScalarIV() const { return NeedsScalarIV; }
+
+  /// Returns true if a vector phi needs to be created for the induction.
+  bool needsVectorIV() const { return NeedsVectorIV; }
 };
 
 /// A pure virtual base class for all recipes modeling header phis, including
@@ -1318,6 +1357,17 @@ public:
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 #endif
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    // Recursing through Blend recipes only, must terminate at header phi's the
+    // latest.
+    return all_of(users(), [this](VPUser *U) {
+      return cast<VPRecipeBase>(U)->onlyFirstLaneUsed(this);
+    });
+  }
 };
 
 /// VPInterleaveRecipe is a recipe for transforming an interleave group of load
@@ -1495,6 +1545,13 @@ public:
   bool isPacked() const { return AlsoPack; }
 
   bool isPredicated() const { return IsPredicated; }
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return isUniform();
+  }
 };
 
 /// A recipe for generating conditional branches on the bits of a mask.
@@ -1651,6 +1708,16 @@ public:
   void print(raw_ostream &O, const Twine &Indent,
              VPSlotTracker &SlotTracker) const override;
 #endif
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+
+    // Widened, consecutive memory operations only demand the first lane of
+    // their address.
+    return Op == getAddr() && isConsecutive();
+  }
 };
 
 /// Canonical scalar induction phi of the vector loop. Starting at the specified
@@ -1685,6 +1752,13 @@ public:
   /// Returns the scalar type of the induction.
   const Type *getScalarType() const {
     return getOperand(0)->getLiveInIRValue()->getType();
+  }
+
+  /// Returns true if the recipe only uses the first lane of operand \p Op.
+  bool onlyFirstLaneUsed(const VPValue *Op) const override {
+    assert(is_contained(operands(), Op) &&
+           "Op must be an operand of the recipe");
+    return true;
   }
 };
 
@@ -2766,6 +2840,14 @@ public:
   /// Return true if all visited instruction can be combined.
   bool isCompletelySLP() const { return CompletelySLP; }
 };
+
+namespace vputils {
+
+/// Returns true if only the first lane of \p Def is used.
+bool onlyFirstLaneUsed(VPValue *Def);
+
+} // end namespace vputils
+
 } // end namespace llvm
 
 #endif // LLVM_TRANSFORMS_VECTORIZE_VPLAN_H
