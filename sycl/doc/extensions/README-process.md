@@ -147,7 +147,7 @@ Note that a deprecated extension is still supported, so the implementation is
 not removed.
 
 We usually do not deprecate experimental extensions since there is no guarantee
-that these extension remain supported from one DPC++ release to the next.
+that these extensions remain supported from one DPC++ release to the next.
 Instead, these extensions can be removed without a deprecation period.
 
 

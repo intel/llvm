@@ -1,6 +1,6 @@
 # SYCL Extensions in DPC++
 
-DPC++ is an implementation of the [SYCL language][1].  In addition to the core
+The DPC++ compiler supports the [SYCL language][1].  In addition to the core
 SYCL features, DPC++ also implements certain extensions, and this directory
 contains the specifications for those extensions.  These extensions are
 organized into subdirectories according to their state.
