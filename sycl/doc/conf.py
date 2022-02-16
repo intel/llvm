@@ -46,8 +46,12 @@ html_theme = 'haiku'
 # The suffix of source filenames.
 source_suffix = ['.rst', '.md']
 
-# Extensions are mostly in asciidoc which has poor support in Sphinx
-exclude_patterns = ['extensions/*']
+exclude_patterns = [
+    # Extensions are mostly in asciidoc which has poor support in Sphinx.
+    'extensions/*',
+    'design/opencl-extensions/*',
+    'design/spirv-extensions/*'
+]
 
 suppress_warnings = [ 'misc.highlighting_failure' ]
 
