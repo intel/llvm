@@ -371,11 +371,12 @@ static void appendLinkOptionsFromImage(std::string &LinkOpts,
   static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
   // Update only if link options are not overwritten by environment variable
   if (!LinkOptsEnv) {
-    if (!LinkOpts.empty())
-      LinkOpts += " ";
     const char *TemporaryStr = Img.getLinkOptions();
-    if (TemporaryStr != nullptr)
+    if (TemporaryStr != nullptr) {
+      if (!LinkOpts.empty())
+        LinkOpts += " ";
       LinkOpts += std::string(TemporaryStr);
+    }
   }
 }
 
