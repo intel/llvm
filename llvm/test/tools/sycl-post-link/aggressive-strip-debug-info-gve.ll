@@ -1,12 +1,23 @@
 ; This test checks that sycl-post-link delete debug compile units if global
 ; constants from those units are absent in split module.
 
-; RUN: sycl-post-link -split=kernel -aggressive-strip-debug-info -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.ll
-; RUN: FileCheck %s -input-file=%t_1.ll
+; RUN: sycl-post-link -split=kernel -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.ll -check-prefix=AGGR
+; RUN: FileCheck %s -input-file=%t_1.ll -check-prefix=AGGR
+; RUN: FileCheck %s -input-file=%t_2.ll -check-prefix=AGGR
 
-; CHECK: !llvm.dbg.cu = !{!{{[0-9]+}}}
+; CHECK-AGGR: !llvm.dbg.cu = !{!{{[0-9]+}}}
 ; CHECK-COUNT-1: !DICompileUnit
+
+; Note: one of IR files should contain 3 compile units, but to simplify
+;       validation we check that at least 2 compile units present in each file.
+; RUN: sycl-post-link -split=kernel -safe-strip-dead-debug-info=true -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.ll -check-prefix=SAFE
+; RUN: FileCheck %s -input-file=%t_1.ll -check-prefix=SAFE
+; RUN: FileCheck %s -input-file=%t_2.ll -check-prefix=SAFE
+
+; CHECK-SAFE: !llvm.dbg.cu = !{!{{[0-9]+}}, !{{[0-9]+}}
+; CHECK-SAFE-COUNT-2: !DICompileUnit
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
