@@ -669,4 +669,6 @@ def err_drv_cuda_offload_only_emit_bc : Error<
 def warn_drv_jmc_requires_debuginfo : Warning<
   "/JMC requires debug info. Use '/Zi', '/Z7' or other debug options; option ignored">,
   InGroup<OptionIgnored>;
+def warn_drv_fsycl_with_c_type : Warning<
+  "treating '%0' input as '%1' when -fsycl is used">, InGroup<SyclCompat>;
 }
