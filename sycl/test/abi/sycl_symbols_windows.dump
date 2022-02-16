@@ -1313,6 +1313,8 @@
 ?atanpi@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@@Z
 ?atanpi@__host_std@cl@@YAMM@Z
 ?atanpi@__host_std@cl@@YANN@Z
+?attachLifetime@detail@oneapi@ext@sycl@cl@@YAXAEAV?$shared_ptr@$$CBX@std@@AEAVAccessorBaseHost@145@@Z
+?attachLifetime@detail@oneapi@ext@sycl@cl@@YAXAEAV?$shared_ptr@$$CBX@std@@PEAX@Z
 ?barrier@handler@sycl@cl@@QEAAXAEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@@Z
 ?barrier@handler@sycl@cl@@QEAAXXZ
 ?begin@exception_list@sycl@cl@@QEBA?AV?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@Vexception_ptr@std@@@std@@@std@@@std@@XZ
@@ -1689,6 +1691,7 @@
 ?depends_on@handler@sycl@cl@@QEAAXAEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@@Z
 ?depends_on@handler@sycl@cl@@QEAAXVevent@23@@Z
 ?destructorNotification@buffer_impl@detail@sycl@cl@@QEAAXPEAX@Z
+?detachResources@SYCLMemObjT@detail@sycl@cl@@IEBAXXZ
 ?determineHostPtr@SYCLMemObjT@detail@sycl@cl@@IEAAXAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@_NAEAPEAXAEA_N@Z
 ?device_has@queue@sycl@cl@@QEBA_NW4aspect@23@@Z
 ?die@pi@detail@sycl@cl@@YAXPEBD@Z
