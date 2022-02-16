@@ -892,7 +892,7 @@ static void translateUnPackMask(CallInst &CI) {
 // This function sets VCNamedBarrierCount attribute to set
 // the number of named barriers required by a kernel
 static void translateNbarrierInit(CallInst &CI) {
-  auto F = CI.getParent()->getParent();
+  auto *F = CI.getFunction();
 
   auto *ArgV = CI.getArgOperand(0);
   assert(isa<ConstantInt>(ArgV) &&
