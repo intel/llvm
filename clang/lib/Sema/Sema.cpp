@@ -1691,7 +1691,8 @@ public:
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
-        if (!S.checkAllowedSYCLInitializer(VD)) {
+        if (!S.checkAllowedSYCLInitializer(VD) &&
+            !VD->hasAttr<SYCLDetailGlobalVariableAllowedAttr>()) {
           S.Diag(Loc, diag::err_sycl_restrict)
               << Sema::KernelConstStaticVariable;
           return;

@@ -3088,7 +3088,10 @@ def SYCLDetailDeviceGlobalAttrDocs : Documentation {
   let Heading = "__sycl_detail__::device_global";
   let Content = [{
 This attribute is part of support for SYCL device_global feature.
-[[__sycl_detail__::device_global]] attribute is used for checking restrictions on variable declarations using the device_global type, rather than the class name. We do not intend to support this as a general attribute that customer code can use, so we have this attribute in sycl_detail namespace.
+[[__sycl_detail__::device_global]] attribute is used for checking restrictions
+on variable declarations using the device_global type instead of the class name.
+We do not intend to support this as a general attribute that customer code can
+use, so we have this attribute in sycl_detail namespace.
 
 .. code-block:: c++
 
@@ -3104,7 +3107,10 @@ def SYCLDetailGlobalVariableAllowedAttrDocs : Documentation {
   let Heading = "__sycl_detail__::global_variable_allowed";
   let Content = [{
 This attribute is part of support for SYCL device_global feature.
-[[__sycl_detail__::global_variable_allowed]] attribute is used to avoid diagnosing an error when variables of type device_global are referenced in device codei. We do not intend to support this as a general attribute that customer code can use, therefore it is wrapped in sycl_detail namespace.
+[[__sycl_detail__::global_variable_allowed]] attribute is used to avoid
+diagnosing an error when variables of type device_global are referenced in
+device code. We do not intend to support this as a general attribute that
+customer code can use, therefore it is wrapped in sycl_detail namespace.
 
 .. code-block:: c++
   
