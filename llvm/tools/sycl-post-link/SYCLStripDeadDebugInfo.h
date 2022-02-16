@@ -19,7 +19,11 @@
 namespace llvm {
 
 class SYCLStripDeadDebugInfo : public PassInfoMixin<SYCLStripDeadDebugInfo> {
+  bool AggressiveMode = true;
+
 public:
+  SYCLStripDeadDebugInfo(bool AggrMode = true) : AggressiveMode(AggrMode) {}
+
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 

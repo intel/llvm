@@ -32,12 +32,12 @@ bool stripDeadDebugInfoImpl(Module &M) {
 
   LLVMContext &C = M.getContext();
 
-  // Find all debug info in DIF. This is actually overkill in terms of what we
+  // Find all debug info in F. This is actually overkill in terms of what we
   // want to do, but we want to try and be as resilient as possible in the face
   // of potential debug info changes by using the formal interfaces given to us
   // as much as possible.
-  DebugInfoFinder DIF;
-  DIF.processModule(M);
+  DebugInfoFinder F;
+  F.processModule(M);
 
   // For each compile unit, find the live set of global variables/functions and
   // replace the current list of potentially dead global variables/functions
@@ -54,22 +54,34 @@ bool stripDeadDebugInfoImpl(Module &M) {
   }
 
   std::unordered_set<const DISubprogram *> PresentFunctionsSPs;
-  for (auto &F : M.functions())
-    if (auto *FSP = cast_or_null<DISubprogram>(F.getSubprogram()))
-      PresentFunctionsSPs.insert(FSP);
+  if (AggressiveMode) {
+    for (auto &Func : M.functions())
+      if (auto *FSP = cast_or_null<DISubprogram>(Func.getSubprogram()))
+        PresentFunctionsSPs.insert(FSP);
+  }
 
   std::set<DICompileUnit *> LiveCUs;
-  // Any CU referenced from a subprogram is live if this subprogram is linked to
-  // a function in a processed module.
-  for (const DISubprogram *SP : DIF.subprograms())
-    if (SP->getUnit() && PresentFunctionsSPs.count(SP))
+  // Any CU referenced from a subprogram is live.
+  // Diff 1: Additional condition which is added here in contrast to initial
+  // pass is that this debug info should link to a function in a processed
+  // module.
+  for (const DISubprogram *SP : F.subprograms())
+    if (SP->getUnit() && (!AggressiveMode || PresentFunctionsSPs.count(SP)))
       LiveCUs.insert(SP->getUnit());
 
   bool HasDeadCUs = false;
-  for (DICompileUnit *DIC : DIF.compile_units()) {
+  for (DICompileUnit *DIC : F.compile_units()) {
     // Create our live global variable list.
     bool GlobalVariableChange = false;
     for (auto *DIG : DIC->getGlobalVariables()) {
+      // Diff 2: Second difference from initial pass is that we don't include
+      // additional compile units with constant global expressions because if
+      // a global constant is used in a function then a compile unit with that
+      // function should be already added.
+      if (!AggressiveMode && DIG->getExpression() &&
+          DIG->getExpression()->isConstant())
+        LiveGVs.insert(DIG);
+
       // Make sure we only visit each global variable only once.
       if (!VisitedSet.insert(DIG).second)
         continue;

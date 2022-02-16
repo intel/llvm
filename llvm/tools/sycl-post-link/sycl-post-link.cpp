@@ -198,10 +198,10 @@ cl::opt<bool> DeviceGlobals{
     cl::desc("Lower and generate information about device global variables"),
     cl::cat(PostLinkCat)};
 
-cl::opt<bool> AggressiveStripDebugInfo{
-    "aggressive-strip-debug-info",
-    cl::desc("Strip extra debug info more aggressively. It may significantly "
-             "reduce file size, but lower debugability of device code."),
+cl::opt<bool> SafeStripDebugInfo{
+    "safe-strip-dead-debug-info",
+    cl::desc("Store more debug info in a split module. If this option is used "
+             "then resulting module size may grow significantly."),
     cl::cat(PostLinkCat)};
 
 struct GlobalBinImageProps {
@@ -513,10 +513,8 @@ extractCallGraph(const Module &M, const EntryPointGroup &ModuleEntryPoints) {
   // Do cleanup.
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
-  if (!AggressiveStripDebugInfo)
-    MPM.addPass(StripDeadDebugInfoPass()); // Remove dead debug info.
-  else
-    MPM.addPass(SYCLStripDeadDebugInfo()); // Remove more dead debug info.
+  MPM.addPass(
+      SYCLStripDeadDebugInfo(!SafeStripDebugInfo)); // Remove dead debug info.
 
   MPM.run(*MClone.get(), MAM);
 
