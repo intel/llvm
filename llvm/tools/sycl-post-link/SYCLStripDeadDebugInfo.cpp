@@ -27,7 +27,7 @@ namespace {
 // llvm::StripDeadDebugInfoPass, but some conditions for delete debug info more
 // aggressive taking into account that processed module is split from another
 // bigger module and contains only a subset of functions from it.
-bool stripDeadDebugInfoImpl(Module &M) {
+bool stripDeadDebugInfoImpl(Module &M, bool AggressiveMode) {
   bool Changed = false;
 
   LLVMContext &C = M.getContext();
@@ -128,7 +128,7 @@ namespace llvm {
 
 PreservedAnalyses SYCLStripDeadDebugInfo::run(Module &M,
                                               ModuleAnalysisManager &AM) {
-  stripDeadDebugInfoImpl(M);
+  stripDeadDebugInfoImpl(M, AggressiveMode);
   return PreservedAnalyses::all();
 }
 
