@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/property_list.hpp>
@@ -167,6 +168,30 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  /// Attach a resource to a memory object.
+  ///
+  /// \param Resource is the resource to attach to the memory object
+  /// \param AttachTo is the memory object to attach the resource to
+  void attachLifetimeToMemObj(std::shared_ptr<const void> &Resource,
+                              const SYCLMemObjI *AttachTo);
+
+  /// Detach all resources attached to a memory object.
+  ///
+  /// \param AttachedTo is the memory object to detach resources from
+  void detachMemObjLifetimeResources(const SYCLMemObjI *AttachedTo);
+
+  /// Attach a resource to a USM pointer.
+  ///
+  /// \param Resource is the resource to attach to the USM pointer
+  /// \param AttachTo is the USM pointer to attach the resource to
+  void attachLifetimeToUSM(std::shared_ptr<const void> &Resource,
+                           const void *AttachTo);
+
+  /// Detach all resources attached to a USM pointer.
+  ///
+  /// \param AttachedTo is the USM pointer to detach resources from
+  void detachUSMLifetimeResources(const void *AttachedTo);
+
 private:
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
@@ -177,6 +202,22 @@ private:
   std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
       MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
+
+  /// Matches SYCL memory objects to attached resources.
+  /// TODO: On ABI break this could be made part of SYCLMemObjT instead.
+  std::unordered_map<const SYCLMemObjI *,
+                     std::vector<std::shared_ptr<const void>>>
+      MMemObjLifetimeAttachedResources;
+
+  /// Protects m_MemObjLifetimeAttachedResources.
+  std::mutex MMemObjLifetimeAttachedResourcesMutex;
+
+  /// Matches USM pointers to attached resources.
+  std::unordered_map<const void *, std::vector<std::shared_ptr<const void>>>
+      MUSMLifetimeAttachedResources;
+
+  /// Protects m_USMLifetimeAttachedResources.
+  std::mutex MUSMLifetimeAttachedResourcesMutex;
 };
 
 } // namespace detail

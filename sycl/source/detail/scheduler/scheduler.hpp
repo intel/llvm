@@ -443,30 +443,6 @@ public:
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
-  /// Attach a resource to a memory object.
-  ///
-  /// \param Resource is the resource to attach to the memory object
-  /// \param AttachTo is the memory object to attach the resource to
-  void attachLifetimeToMemObj(std::shared_ptr<const void> &Resource,
-                              const SYCLMemObjI *AttachTo);
-
-  /// Detach all resources attached to a memory object.
-  ///
-  /// \param AttachedTo is the memory object to detach resources from
-  void detachMemObjLifetimeResources(const SYCLMemObjI *AttachedTo);
-
-  /// Attach a resource to a USM pointer.
-  ///
-  /// \param Resource is the resource to attach to the USM pointer
-  /// \param AttachTo is the USM pointer to attach the resource to
-  void attachLifetimeToUSM(std::shared_ptr<const void> &Resource,
-                           const void *AttachTo);
-
-  /// Detach all resources attached to a USM pointer.
-  ///
-  /// \param AttachedTo is the USM pointer to detach resources from
-  void detachUSMLifetimeResources(const void *AttachedTo);
-
   Scheduler();
   ~Scheduler();
 
@@ -844,22 +820,6 @@ protected:
   // scheduler. If program is not correct and doesn't have necessary sync point
   // then warning will be issued.
   std::unordered_map<stream_impl *, StreamBuffers *> StreamBuffersPool;
-
-  /// Matches SYCL memory objects to attached resources.
-  /// TODO: On ABI break this could be made part of SYCLMemObjT instead.
-  std::unordered_map<const SYCLMemObjI *,
-                     std::vector<std::shared_ptr<const void>>>
-      m_MemObjLifetimeAttachedResources;
-
-  /// Protects m_MemObjLifetimeAttachedResources.
-  std::mutex m_MemObjLifetimeAttachedResourcesMutex;
-
-  /// Matches USM pointers to attached resources.
-  std::unordered_map<const void *, std::vector<std::shared_ptr<const void>>>
-      m_USMLifetimeAttachedResources;
-
-  /// Protects m_USMLifetimeAttachedResources.
-  std::mutex m_USMLifetimeAttachedResourcesMutex;
 };
 
 } // namespace detail

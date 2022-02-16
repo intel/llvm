@@ -371,54 +371,6 @@ void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
   StreamBuffersPool.erase(Impl);
 }
 
-void Scheduler::attachLifetimeToMemObj(std::shared_ptr<const void> &Resource,
-                                       const SYCLMemObjI *AttachTo) {
-  std::lock_guard<std::mutex> lock(m_MemObjLifetimeAttachedResourcesMutex);
-  auto AttachedResourcesIt = m_MemObjLifetimeAttachedResources.find(AttachTo);
-  if (AttachedResourcesIt != m_MemObjLifetimeAttachedResources.end())
-    AttachedResourcesIt->second.push_back(Resource);
-  else
-    m_MemObjLifetimeAttachedResources.insert({AttachTo, {Resource}});
-}
-
-void Scheduler::detachMemObjLifetimeResources(const SYCLMemObjI *AttachedTo) {
-  // Swap the attached resources and let them go out of scope without the lock.
-  // This is required as they could potentially have their own attached
-  // resources they need to detach.
-  std::vector<std::shared_ptr<const void>> AttachedResources;
-  {
-    std::lock_guard<std::mutex> lock(m_MemObjLifetimeAttachedResourcesMutex);
-    auto AttachedResourcesIt =
-        m_MemObjLifetimeAttachedResources.find(AttachedTo);
-    if (AttachedResourcesIt == m_MemObjLifetimeAttachedResources.end())
-      return;
-    std::swap(AttachedResourcesIt->second, AttachedResources);
-    m_MemObjLifetimeAttachedResources.erase(AttachedResourcesIt);
-  }
-}
-
-void Scheduler::attachLifetimeToUSM(std::shared_ptr<const void> &Resource,
-                                    const void *AttachTo) {
-  std::lock_guard<std::mutex> lock(m_USMLifetimeAttachedResourcesMutex);
-  auto AttachedResourcesIt = m_USMLifetimeAttachedResources.find(AttachTo);
-  if (AttachedResourcesIt != m_USMLifetimeAttachedResources.end())
-    AttachedResourcesIt->second.push_back(Resource);
-  else
-    m_USMLifetimeAttachedResources.insert({AttachTo, {Resource}});
-}
-
-void Scheduler::detachUSMLifetimeResources(const void *AttachedTo) {
-  std::vector<std::shared_ptr<const void>> AttachedResources;
-  {
-    std::lock_guard<std::mutex> lock(m_USMLifetimeAttachedResourcesMutex);
-    auto AttachedResourcesIt = m_USMLifetimeAttachedResources.find(AttachedTo);
-    if (AttachedResourcesIt == m_USMLifetimeAttachedResources.end())
-      return;
-    std::swap(AttachedResourcesIt->second, AttachedResources);
-    m_USMLifetimeAttachedResources.erase(AttachedResourcesIt);
-  }
-}
-
 Scheduler::Scheduler() {
   sycl::device HostDevice;
   sycl::context HostContext{HostDevice};

@@ -95,7 +95,8 @@ void SYCLMemObjT::updateHostMemory() {
 // that happens this will be obsolete as the resources will automatically be
 // destroyed with the object.
 void SYCLMemObjT::detachResources() const {
-  Scheduler::getInstance().detachMemObjLifetimeResources(this);
+  if (MInteropContext)
+    MInteropContext->detachMemObjLifetimeResources(this);
 }
 
 const plugin &SYCLMemObjT::getPlugin() const {

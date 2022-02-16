@@ -165,7 +165,7 @@ void free(void *Ptr, const context &Ctxt, const detail::code_location &CL) {
     Plugin.call<PiApiKind::piextUSMFree>(C, Ptr);
   }
   // Detach resources.
-  Scheduler::getInstance().detachUSMLifetimeResources(Ptr);
+  detail::getSyclObjImpl(Ctxt)->detachUSMLifetimeResources(Ptr);
 }
 
 // For ABI compatibility

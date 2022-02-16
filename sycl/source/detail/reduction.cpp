@@ -110,15 +110,17 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   return WGSize;
 }
 
-__SYCL_EXPORT void attachLifetime(std::shared_ptr<const void> &Resource,
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<queue_impl> &Queue,
+                                  std::shared_ptr<const void> &Resource,
                                   detail::AccessorBaseHost &AttachTo) {
-  Scheduler::getInstance().attachLifetimeToMemObj(
-      Resource, getSyclObjImpl(AttachTo)->MSYCLMemObj);
+  Queue->getContextImplPtr()->attachLifetimeToMemObj(Resource,
+                                  getSyclObjImpl(AttachTo)->MSYCLMemObj);
 }
 
-__SYCL_EXPORT void attachLifetime(std::shared_ptr<const void> &Resource,
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<queue_impl> &Queue,
+                                  std::shared_ptr<const void> &Resource,
                                   void *AttachTo) {
-  Scheduler::getInstance().attachLifetimeToUSM(Resource, AttachTo);
+  Queue->getContextImplPtr()->attachLifetimeToUSM(Resource, AttachTo);
 }
 
 } // namespace detail
