@@ -20,4 +20,5 @@ add_sycl_unittest(SchedulerTests OBJECT
     Regression.cpp
     utils.cpp
     LeafLimitDiffContexts.cpp
+    InOrderQueueSyncCheck.cpp
 )

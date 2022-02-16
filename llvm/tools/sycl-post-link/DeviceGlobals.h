@@ -59,6 +59,14 @@ DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M);
 /// otherwise.
 bool isDeviceGlobalVariable(const GlobalVariable &GV);
 
+/// Return \c true if the variable @GV has the "device_image_scope" property.
+///
+/// @param GV [in] A variable to test.
+///
+/// @return \c true if the variable has the "device_image_scope" property,
+/// \c false otherwise.
+bool hasDeviceImageScopeProperty(const GlobalVariable &GV);
+
 /// Returns the unique id for the device global variable.
 ///
 /// @param GV [in] Device Global variable.

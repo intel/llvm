@@ -3333,7 +3333,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // TODO: see if we need to let user choose the device.
   pi_device Device = Context->Devices[0];
   // TODO: see what we can do to correctly initialize PI queue for
-  // compute vs. copy Level-Zero queue.
+  // compute vs. copy Level-Zero queue. Currently we will send
+  // all commands to the "ZeQueue".
   std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
   *Queue =
       new _pi_queue(ZeQueue, ZeroCopyQueues, Context, Device, OwnNativeHandle);
@@ -5105,6 +5106,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
       Event->Queue
           ? Event->Queue->Device->ZeDeviceProperties->timerResolution
           : Event->Context->Devices[0]->ZeDeviceProperties->timerResolution;
+  // Get timestamp frequency
+  const double ZeTimerFreq = 1E09 / ZeTimerResolution;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
@@ -5113,11 +5116,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   switch (ParamName) {
   case PI_PROFILING_INFO_COMMAND_START: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
-
-    uint64_t ContextStartTime = tsResult.context.kernelStart;
-    ContextStartTime *= ZeTimerResolution;
-
-    return ReturnValue(uint64_t{ContextStartTime});
+    uint64_t ContextStartTime = tsResult.context.kernelStart * ZeTimerFreq;
+    return ReturnValue(ContextStartTime);
   }
   case PI_PROFILING_INFO_COMMAND_END: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
@@ -5136,9 +5136,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
           (1LL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1;
       ContextEndTime += TimestampMaxValue - ContextStartTime;
     }
-    ContextEndTime *= ZeTimerResolution;
-
-    return ReturnValue(uint64_t{ContextEndTime});
+    ContextEndTime *= ZeTimerFreq;
+    return ReturnValue(ContextEndTime);
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
@@ -5755,8 +5754,9 @@ pi_result piEnqueueMemBufferReadRect(
 } // extern "C"
 
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
-  return (!isInOrderQueue() || UseCopyEngineForInOrderQueue) &&
-         PreferCopyEngine && Device->hasCopyEngine();
+  return PreferCopyEngine && Device->hasCopyEngine() &&
+         ZeCopyCommandQueues.size() > 0 && // TODO: initialize interop queues
+         (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
 // Shared by all memory read/write/copy PI interfaces.
