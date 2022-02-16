@@ -58,7 +58,6 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/ADT/ilist.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
@@ -70,7 +69,6 @@
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -2194,12 +2192,12 @@ void Verifier::verifyStatepoint(const CallBase &Call) {
          "positive",
          Call);
 
-  const Value *Target = Call.getArgOperand(2);
-  auto *PT = dyn_cast<PointerType>(Target->getType());
-  Assert(PT && PT->getPointerElementType()->isFunctionTy(),
-         "gc.statepoint callee must be of function pointer type", Call, Target);
-  FunctionType *TargetFuncType =
-      cast<FunctionType>(PT->getPointerElementType());
+  Type *TargetElemType = Call.getAttributes().getParamElementType(2);
+  Assert(TargetElemType,
+         "gc.statepoint callee argument must have elementtype attribute", Call);
+  FunctionType *TargetFuncType = dyn_cast<FunctionType>(TargetElemType);
+  Assert(TargetFuncType,
+         "gc.statepoint callee elementtype must be function type", Call);
 
   const int NumCallArgs = cast<ConstantInt>(Call.getArgOperand(3))->getZExtValue();
   Assert(NumCallArgs >= 0,
@@ -5005,9 +5003,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
            Call.getArgOperand(0));
 
     // Assert that result type matches wrapped callee.
-    const Value *Target = StatepointCall->getArgOperand(2);
-    auto *PT = cast<PointerType>(Target->getType());
-    auto *TargetFuncType = cast<FunctionType>(PT->getPointerElementType());
+    auto *TargetFuncType = cast<FunctionType>(
+        StatepointCall->getAttributes().getParamElementType(2));
     Assert(Call.getType() == TargetFuncType->getReturnType(),
            "gc.result result type does not match wrapped callee", Call);
     break;
@@ -5811,14 +5808,10 @@ void Verifier::verifyAttachedCallBundle(const CallBase &Call,
          "void return type",
          Call);
 
-  Assert((BU.Inputs.empty() ||
-          (BU.Inputs.size() == 1 && isa<Function>(BU.Inputs.front()))),
-         "operand bundle \"clang.arc.attachedcall\" can take either no "
-         "arguments or one function as an argument",
+  Assert(BU.Inputs.size() == 1 && isa<Function>(BU.Inputs.front()),
+         "operand bundle \"clang.arc.attachedcall\" requires one function as "
+         "an argument",
          Call);
-
-  if (BU.Inputs.empty())
-    return;
 
   auto *Fn = cast<Function>(BU.Inputs.front());
   Intrinsic::ID IID = Fn->getIntrinsicID();

@@ -151,7 +151,7 @@ Address CodeGenFunction::CreateMemTemp(QualType Ty, CharUnits Align,
 
     Result = Address(
         Builder.CreateBitCast(Result.getPointer(), VectorTy->getPointerTo()),
-        Result.getAlignment());
+        VectorTy, Result.getAlignment());
   }
   return Result;
 }
@@ -1933,7 +1933,7 @@ RValue CodeGenFunction::EmitLoadOfLValue(LValue LV, SourceLocation Loc) {
     llvm::Value *Idx = LV.getMatrixIdx();
     if (CGM.getCodeGenOpts().OptimizationLevel > 0) {
       const auto *const MatTy = LV.getType()->castAs<ConstantMatrixType>();
-      llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+      llvm::MatrixBuilder MB(Builder);
       MB.CreateIndexAssumption(Idx, MatTy->getNumElementsFlattened());
     }
     llvm::LoadInst *Load =
@@ -2079,7 +2079,7 @@ void CodeGenFunction::EmitStoreThroughLValue(RValue Src, LValue Dst,
       llvm::Value *Idx = Dst.getMatrixIdx();
       if (CGM.getCodeGenOpts().OptimizationLevel > 0) {
         const auto *const MatTy = Dst.getType()->castAs<ConstantMatrixType>();
-        llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+        llvm::MatrixBuilder MB(Builder);
         MB.CreateIndexAssumption(Idx, MatTy->getNumElementsFlattened());
       }
       llvm::Instruction *Load = Builder.CreateLoad(Dst.getMatrixAddress());

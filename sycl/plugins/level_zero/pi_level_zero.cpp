@@ -865,10 +865,13 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   // synchronized above already does that.
   auto &EventList = CommandList->second.EventList;
   for (auto &Event : EventList) {
+    // All events in this loop are in the same command list which has been just
+    // reset above. We don't want cleanup() to reset same command list again for
+    // all events in the loop so set it to nullptr.
+    Event->ZeCommandList = nullptr;
     if (!Event->CleanedUp) {
       Event->cleanup(this);
     }
-    Event->ZeCommandList = nullptr;
     PI_CALL(EventRelease(Event, this));
   }
   EventList.clear();
@@ -1184,7 +1187,7 @@ void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   auto &ZeCommandListBatchConfig =
       IsCopy ? ZeCommandListBatchCopyConfig : ZeCommandListBatchComputeConfig;
-  pi_uint32 QueueBatchSize = CommandBatch.QueueBatchSize;
+  pi_uint32 &QueueBatchSize = CommandBatch.QueueBatchSize;
   // QueueBatchSize of 0 means never allow batching.
   if (QueueBatchSize == 0 || !ZeCommandListBatchConfig.dynamic())
     return;
@@ -1205,14 +1208,13 @@ void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
   }
-  CommandBatch.QueueBatchSize = QueueBatchSize;
 }
 
 void _pi_queue::adjustBatchSizeForPartialBatch(bool IsCopy) {
   auto &CommandBatch = IsCopy ? CopyCommandBatch : ComputeCommandBatch;
   auto &ZeCommandListBatchConfig =
       IsCopy ? ZeCommandListBatchCopyConfig : ZeCommandListBatchComputeConfig;
-  pi_uint32 QueueBatchSize = CommandBatch.QueueBatchSize;
+  pi_uint32 &QueueBatchSize = CommandBatch.QueueBatchSize;
   // QueueBatchSize of 0 means never allow batching.
   if (QueueBatchSize == 0 || !ZeCommandListBatchConfig.dynamic())
     return;
@@ -1377,8 +1379,17 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // Offload command list to the GPU for asynchronous execution
   auto ZeCommandList = CommandList->first;
   zePrint("Calling zeCommandQueueExecuteCommandLists with Index = %d\n", Index);
-  ZE_CALL(zeCommandQueueExecuteCommandLists,
-          (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
+  auto ZeResult = ZE_CALL_NOCHECK(
+      zeCommandQueueExecuteCommandLists,
+      (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    this->Healthy = false;
+    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      // Turn into a more informative end-user error.
+      return PI_COMMAND_EXECUTION_FAILURE;
+    }
+    return mapError(ZeResult);
+  }
 
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
@@ -1477,9 +1488,9 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
         *CopyQueueGroupIndex = Device->ZeMainCopyQueueGroupIndex;
       else
         *CopyQueueGroupIndex = Device->ZeLinkCopyQueueGroupIndex;
+      zePrint("Note: CopyQueueGroupIndex = %d\n", *CopyQueueGroupIndex);
     }
     zePrint("Note: CopyQueueIndex = %d\n", *CopyQueueIndex);
-    zePrint("Note: CopyQueueGroupIndex = %d\n", *CopyQueueGroupIndex);
     ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
     if (getOrCreateCopyCommandQueue(0, ZeCopyCommandQueue))
       return nullptr;
@@ -1811,7 +1822,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1) { // Means print all PI traces
+  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
     PrintPiTrace = true;
   }
 
@@ -3177,10 +3188,13 @@ pi_result piQueueRelease(pi_queue Queue) {
         return Res;
 
       // Make sure all commands get executed.
-      ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
-      for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-        if (Queue->ZeCopyCommandQueues[i])
-          ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+      // Only do so for a healthy queue as otherwise sync may not be valid.
+      if (Queue->Healthy) {
+        ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
+        for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
+          if (Queue->ZeCopyCommandQueues[i])
+            ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+        }
       }
 
       // Destroy all the fences created associated with this queue.
@@ -3191,7 +3205,11 @@ pi_result piQueueRelease(pi_queue Queue) {
         if (it->second.InUse) {
           Queue->resetCommandList(it, true);
         }
-        ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
+        // TODO: remove "if" when the problem is fixed in the level zero
+        // runtime. Destroy only if a queue is healthy. Destroying a fence may
+        // cause a hang otherwise.
+        if (Queue->Healthy)
+          ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
       }
       Queue->CommandListMap.clear();
     }
@@ -3315,7 +3333,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // TODO: see if we need to let user choose the device.
   pi_device Device = Context->Devices[0];
   // TODO: see what we can do to correctly initialize PI queue for
-  // compute vs. copy Level-Zero queue.
+  // compute vs. copy Level-Zero queue. Currently we will send
+  // all commands to the "ZeQueue".
   std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
   *Queue =
       new _pi_queue(ZeQueue, ZeroCopyQueues, Context, Device, OwnNativeHandle);
@@ -5087,6 +5106,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
       Event->Queue
           ? Event->Queue->Device->ZeDeviceProperties->timerResolution
           : Event->Context->Devices[0]->ZeDeviceProperties->timerResolution;
+  // Get timestamp frequency
+  const double ZeTimerFreq = 1E09 / ZeTimerResolution;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
@@ -5095,11 +5116,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   switch (ParamName) {
   case PI_PROFILING_INFO_COMMAND_START: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
-
-    uint64_t ContextStartTime = tsResult.context.kernelStart;
-    ContextStartTime *= ZeTimerResolution;
-
-    return ReturnValue(uint64_t{ContextStartTime});
+    uint64_t ContextStartTime = tsResult.context.kernelStart * ZeTimerFreq;
+    return ReturnValue(ContextStartTime);
   }
   case PI_PROFILING_INFO_COMMAND_END: {
     ZE_CALL(zeEventQueryKernelTimestamp, (Event->ZeEvent, &tsResult));
@@ -5118,9 +5136,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
           (1LL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1;
       ContextEndTime += TimestampMaxValue - ContextStartTime;
     }
-    ContextEndTime *= ZeTimerResolution;
-
-    return ReturnValue(uint64_t{ContextEndTime});
+    ContextEndTime *= ZeTimerFreq;
+    return ReturnValue(ContextEndTime);
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
@@ -5737,8 +5754,9 @@ pi_result piEnqueueMemBufferReadRect(
 } // extern "C"
 
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
-  return (!isInOrderQueue() || UseCopyEngineForInOrderQueue) &&
-         PreferCopyEngine && Device->hasCopyEngine();
+  return PreferCopyEngine && Device->hasCopyEngine() &&
+         ZeCopyCommandQueues.size() > 0 && // TODO: initialize interop queues
+         (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
 // Shared by all memory read/write/copy PI interfaces.

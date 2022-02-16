@@ -27,6 +27,7 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -60,7 +61,7 @@ raw_ostream &llvm::operator<<(raw_ostream &OS, const VPValue &V) {
 }
 #endif
 
-Value *VPLane::getAsRuntimeExpr(IRBuilder<> &Builder,
+Value *VPLane::getAsRuntimeExpr(IRBuilderBase &Builder,
                                 const ElementCount &VF) const {
   switch (LaneKind) {
   case VPLane::Kind::ScalableLast:
@@ -640,7 +641,7 @@ void VPRecipeBase::moveBefore(VPBasicBlock &BB,
 
 void VPInstruction::generateInstruction(VPTransformState &State,
                                         unsigned Part) {
-  IRBuilder<> &Builder = State.Builder;
+  IRBuilderBase &Builder = State.Builder;
   Builder.SetCurrentDebugLocation(DL);
 
   if (Instruction::isBinaryOp(getOpcode())) {
@@ -1648,4 +1649,10 @@ void VPSlotTracker::assignSlots(const VPlan &Plan) {
     for (const VPRecipeBase &Recipe : *VPBB)
       for (VPValue *Def : Recipe.definedValues())
         assignSlot(Def);
+}
+
+bool vputils::onlyFirstLaneUsed(VPValue *Def) {
+  return all_of(Def->users(), [Def](VPUser *U) {
+    return cast<VPRecipeBase>(U)->onlyFirstLaneUsed(Def);
+  });
 }

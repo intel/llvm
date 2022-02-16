@@ -86,12 +86,14 @@ static std::string deviceToString(device Device) {
     return "UNKNOWN";
 }
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
 static size_t deviceToID(const device &Device) {
   if (Device.is_host())
     return 0;
   else
     return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
 }
+#endif
 
 static std::string accessModeToString(access::mode Mode) {
   switch (Mode) {

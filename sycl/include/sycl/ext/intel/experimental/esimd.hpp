@@ -36,6 +36,11 @@
 ///    can be accessed by ESIMD APIs, with ability to enable/disable access
 ///    to each channel for all pixels.
 ///
+/// NOTES:
+/// - API elements (macros, types, functions, etc.) starting with underscore
+///   \c _, as well as those in \c detail namespace, are never supposed to be
+///   used directly in the user code.
+
 // clang-format on
 
 /// @addtogroup sycl_esimd
