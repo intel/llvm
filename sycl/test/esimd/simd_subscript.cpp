@@ -63,21 +63,13 @@ void test_simd_writable_subscript() SYCL_ESIMD_FUNCTION {
   simd<int, 4> v = 1;
   int val1 = v[0]; // simd_view -> int
   v[1] = 0;        // returns simd_view
-
-  // CHECK: simd_subscript.cpp:69{{.*}}warning: {{.*}} deprecated
-  // CHECK: sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp:{{.*}} note: {{.*}} has been explicitly marked deprecated here
-  v(1) = 0;
 }
 
 void test_simd_const_subscript() SYCL_ESIMD_FUNCTION {
   const simd<int, 4> cv = 1;
   int val2 = cv[0]; // returns int instead of simd_view
-  // CHECK: simd_subscript.cpp:76{{.*}}error: expression is not assignable
+  // CHECK: simd_subscript.cpp:72{{.*}}error: expression is not assignable
   cv[1] = 0;
-
-  // CHECK: simd_subscript.cpp:80{{.*}}warning: {{.*}} deprecated
-  // CHECK: sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp:{{.*}} note: {{.*}} has been explicitly marked deprecated here
-  int val3 = cv(0);
 }
 
 void test_simd_view_assign_op() SYCL_ESIMD_FUNCTION {

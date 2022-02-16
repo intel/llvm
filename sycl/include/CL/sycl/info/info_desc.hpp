@@ -21,6 +21,7 @@ class program;
 class device;
 class platform;
 class kernel_id;
+enum class memory_scope;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
@@ -44,6 +45,8 @@ enum class context : cl_context_info {
   devices = CL_CONTEXT_DEVICES,
   atomic_memory_order_capabilities =
       PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+  atomic_memory_scope_capabilities =
+      PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
 };
 
 // A.3 Device information descriptors
@@ -168,7 +171,9 @@ enum class device : cl_device_info {
       PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS,
   ext_oneapi_max_work_groups_1d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D,
   ext_oneapi_max_work_groups_2d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D,
-  ext_oneapi_max_work_groups_3d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D
+  ext_oneapi_max_work_groups_3d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+  atomic_memory_scope_capabilities =
+      PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES
 };
 
 enum class device_type : pi_uint64 {

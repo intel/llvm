@@ -37,6 +37,7 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spv-lower-const-expr"
 
+#include "SPIRVLowerConstExpr.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "SPIRVMDBuilder.h"
@@ -65,29 +66,6 @@ cl::opt<bool> SPIRVLowerConst(
     "spirv-lower-const-expr", cl::init(true),
     cl::desc("LLVM/SPIR-V translation enable lowering constant expression"));
 
-class SPIRVLowerConstExprBase {
-public:
-  SPIRVLowerConstExprBase() : M(nullptr), Ctx(nullptr) {}
-
-  bool runLowerConstExpr(Module &M);
-  void visit(Module *M);
-
-private:
-  Module *M;
-  LLVMContext *Ctx;
-};
-
-class SPIRVLowerConstExprPass
-    : public llvm::PassInfoMixin<SPIRVLowerConstExprPass>,
-      public SPIRVLowerConstExprBase {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM) {
-    return runLowerConstExpr(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
-  }
-};
-
 class SPIRVLowerConstExprLegacy : public ModulePass,
                                   public SPIRVLowerConstExprBase {
 public:
@@ -110,11 +88,11 @@ bool SPIRVLowerConstExprBase::runLowerConstExpr(Module &Module) {
   Ctx = &M->getContext();
 
   LLVM_DEBUG(dbgs() << "Enter SPIRVLowerConstExpr:\n");
-  visit(M);
+  bool Changed = visit(M);
 
   verifyRegularizationPass(*M, "SPIRVLowerConstExpr");
 
-  return true;
+  return Changed;
 }
 
 /// Since SPIR-V cannot represent constant expression, constant expressions
@@ -126,7 +104,8 @@ bool SPIRVLowerConstExprBase::runLowerConstExpr(Module &Module) {
 /// is replaced by one instruction.
 /// ToDo: remove redundant instructions for common subexpression
 
-void SPIRVLowerConstExprBase::visit(Module *M) {
+bool SPIRVLowerConstExprBase::visit(Module *M) {
+  bool Changed = false;
   for (auto &I : M->functions()) {
     std::list<Instruction *> WorkList;
     for (auto &BI : I) {
@@ -138,7 +117,7 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
     while (!WorkList.empty()) {
       auto II = WorkList.front();
 
-      auto LowerOp = [&II, &FBegin, &I](Value *V) -> Value * {
+      auto LowerOp = [&II, &FBegin, &I, &Changed](Value *V) -> Value * {
         if (isa<Function>(V))
           return V;
         auto *CE = cast<ConstantExpr>(V);
@@ -163,6 +142,7 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
               ReplInst->moveBefore(User);
           User->replaceUsesOfWith(CE, ReplInst);
         }
+        Changed = true;
         return ReplInst;
       };
 
@@ -190,6 +170,7 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
       }
     }
   }
+  return Changed;
 }
 
 } // namespace SPIRV

@@ -11,6 +11,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 #include <CL/sycl/builtins.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/elem_type_traits.hpp>
@@ -1199,3 +1201,5 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
 #undef __ESIMD_raw_vec_t
+
+/// @endcond ESIMD_DETAIL

@@ -153,7 +153,6 @@ protected:
   bool HasGetWaveIdInst;
   bool HasSMemTimeInst;
   bool HasShaderCyclesRegister;
-  bool HasRegisterBanking;
   bool HasVOP3Literal;
   bool HasNoDataDepHazard;
   bool FlatAddressSpace;
@@ -723,10 +722,6 @@ public:
     return HasShaderCyclesRegister;
   }
 
-  bool hasRegisterBanking() const {
-    return HasRegisterBanking;
-  }
-
   bool hasVOP3Literal() const {
     return HasVOP3Literal;
   }
@@ -1029,7 +1024,7 @@ public:
   /// \returns Reserved number of SGPRs. This is common
   /// utility function called by MachineFunction and
   /// Function variants of getReservedNumSGPRs.
-  unsigned getBaseReservedNumSGPRs(const bool HasFlatScratchInit) const;
+  unsigned getBaseReservedNumSGPRs(const bool HasFlatScratch) const;
   /// \returns Reserved number of SGPRs for given machine function \p MF.
   unsigned getReservedNumSGPRs(const MachineFunction &MF) const;
 
@@ -1109,6 +1104,10 @@ public:
   /// subtarget's specifications, or does not meet number of waves per execution
   /// unit requirement.
   unsigned getMaxNumVGPRs(const Function &F) const;
+
+  unsigned getMaxNumAGPRs(const Function &F) const {
+    return getMaxNumVGPRs(F);
+  }
 
   /// \returns Maximum number of VGPRs that meets number of waves per execution
   /// unit requirement for function \p MF, or number of VGPRs explicitly

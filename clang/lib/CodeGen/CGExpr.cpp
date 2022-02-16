@@ -151,7 +151,7 @@ Address CodeGenFunction::CreateMemTemp(QualType Ty, CharUnits Align,
 
     Result = Address(
         Builder.CreateBitCast(Result.getPointer(), VectorTy->getPointerTo()),
-        Result.getAlignment());
+        VectorTy, Result.getAlignment());
   }
   return Result;
 }
@@ -1932,8 +1932,8 @@ RValue CodeGenFunction::EmitLoadOfLValue(LValue LV, SourceLocation Loc) {
   if (LV.isMatrixElt()) {
     llvm::Value *Idx = LV.getMatrixIdx();
     if (CGM.getCodeGenOpts().OptimizationLevel > 0) {
-      const auto *const MatTy = LV.getType()->getAs<ConstantMatrixType>();
-      llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+      const auto *const MatTy = LV.getType()->castAs<ConstantMatrixType>();
+      llvm::MatrixBuilder MB(Builder);
       MB.CreateIndexAssumption(Idx, MatTy->getNumElementsFlattened());
     }
     llvm::LoadInst *Load =
@@ -2078,8 +2078,8 @@ void CodeGenFunction::EmitStoreThroughLValue(RValue Src, LValue Dst,
     if (Dst.isMatrixElt()) {
       llvm::Value *Idx = Dst.getMatrixIdx();
       if (CGM.getCodeGenOpts().OptimizationLevel > 0) {
-        const auto *const MatTy = Dst.getType()->getAs<ConstantMatrixType>();
-        llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+        const auto *const MatTy = Dst.getType()->castAs<ConstantMatrixType>();
+        llvm::MatrixBuilder MB(Builder);
         MB.CreateIndexAssumption(Idx, MatTy->getNumElementsFlattened());
       }
       llvm::Instruction *Load = Builder.CreateLoad(Dst.getMatrixAddress());
@@ -3179,7 +3179,7 @@ static void emitCheckHandlerCall(CodeGenFunction &CGF,
   bool MayReturn =
       !IsFatal || RecoverKind == CheckRecoverableKind::AlwaysRecoverable;
 
-  llvm::AttrBuilder B;
+  llvm::AttrBuilder B(CGF.getLLVMContext());
   if (!MayReturn) {
     B.addAttribute(llvm::Attribute::NoReturn)
         .addAttribute(llvm::Attribute::NoUnwind);
@@ -4735,12 +4735,9 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
     if (LV.isSimple()) {
       Address V = LV.getAddress(*this);
       if (V.isValid()) {
-        llvm::Type *T =
-            ConvertTypeForMem(E->getType())
-                ->getPointerTo(
-                    cast<llvm::PointerType>(V.getType())->getAddressSpace());
-        if (V.getType() != T)
-          LV.setAddress(Builder.CreateBitCast(V, T));
+        llvm::Type *T = ConvertTypeForMem(E->getType());
+        if (V.getElementType() != T)
+          LV.setAddress(Builder.CreateElementBitCast(V, T));
       }
     }
     return LV;
@@ -4799,8 +4796,9 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
 
     CGM.EmitExplicitCastExprType(CE, this);
     LValue LV = EmitLValue(E->getSubExpr());
-    Address V = Builder.CreateBitCast(LV.getAddress(*this),
-                                      ConvertType(CE->getTypeAsWritten()));
+    Address V = Builder.CreateElementBitCast(
+        LV.getAddress(*this),
+        ConvertTypeForMem(CE->getTypeAsWritten()->getPointeeType()));
 
     if (SanOpts.has(SanitizerKind::CFIUnrelatedCast))
       EmitVTablePtrCheckForCast(E->getType(), V.getPointer(),

@@ -139,6 +139,10 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
 }
@@ -384,6 +388,8 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
   ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
       ZeDeviceMemoryProperties;
+  ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
+      ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
@@ -558,7 +564,7 @@ struct _pi_context : _pi_object {
   // pool then create new one. The HostVisible parameter tells if we need a
   // slot for a host-visible event.
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
-                                           bool HostVisible = false);
+                                           bool HostVisible);
 
   // Decrement number of events living in the pool upon event destroy
   // and return the pool to the cache if there are no unreleased events.
@@ -595,7 +601,7 @@ private:
   // head. In case there is no next pool, a new pool is created and made the
   // head.
   //
-  std::list<ze_event_pool_handle_t> ZeEventPoolCache;
+  std::list<ze_event_pool_handle_t> ZeDeviceScopeEventPoolCache;
   // Cache of event pools to which host-visible events are added to.
   std::list<ze_event_pool_handle_t> ZeHostVisibleEventPoolCache;
 
@@ -797,6 +803,9 @@ struct _pi_queue : _pi_object {
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
   std::atomic<pi_uint32> RefCountExternal{1};
+
+  // Indicates that the queue is healthy and all operations on it are OK.
+  bool Healthy{true};
 };
 
 struct _pi_mem : _pi_object {
@@ -810,6 +819,9 @@ struct _pi_mem : _pi_object {
 
   // Flag to indicate that this memory is allocated in host memory
   bool OnHost;
+
+  // Flag to indicate that the host ptr has been imported into USM
+  bool HostPtrImported;
 
   // Supplementary data to keep track of the mappings of this memory
   // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
@@ -838,8 +850,10 @@ struct _pi_mem : _pi_object {
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
 protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false,
+          bool ImportedHostPtr = false)
+      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost},
+        HostPtrImported{ImportedHostPtr}, Mappings{} {}
 
 private:
   // The key is the host pointer representing an active mapping.
@@ -856,9 +870,9 @@ struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
   _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
              _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
-             bool MemOnHost = false)
-      : _pi_mem(Ctx, HostPtr, MemOnHost), ZeMem{Mem}, SubBuffer{Parent, Origin,
-                                                                Size} {}
+             bool MemOnHost = false, bool ImportedHostPtr = false)
+      : _pi_mem(Ctx, HostPtr, MemOnHost, ImportedHostPtr), ZeMem{Mem},
+        SubBuffer{Parent, Origin, Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 
@@ -961,18 +975,21 @@ struct _pi_event : _pi_object {
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
-  // In case we use device-only events/pools these are their host-visible
-  // counterparts. The idea is that two Level-Zero events co-exist:
-  // - one is always created with device-scope and used for GPU book-keeping.
-  // - the other host-visible proxy event is created on demand when we need
-  //   to query/wait on a device-scope event from the host.
+  // In case we use device-only events this holds their host-visible
+  // counterpart. If this event is itself host-visble then HostVisibleEvent
+  // points to this event. If this event is not host-visible then this field can
+  // be: 1) null, meaning that a host-visible event wasn't yet created 2) a PI
+  // event created internally that host will actually be redirected
+  //    to wait/query instead of this PI event.
   //
-  ze_event_handle_t ZeHostVisibleEvent = {nullptr};
-  ze_event_pool_handle_t ZeHostVisibleEventPool = {nullptr};
+  // The HostVisibleEvent is a reference counted PI event and can be used more
+  // than by just this one event, depending on the mode (see EventsScope).
+  //
+  pi_event HostVisibleEvent = {nullptr};
+  bool IsHostVisible() const { return this == HostVisibleEvent; }
+
   // Get the host-visible event or create one and enqueue its signal.
   pi_result getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
-  // Return the host-visible event if one was already created before, or null.
-  ze_event_handle_t getHostVisibleEvent() const;
 
   // Level Zero command list where the command signaling this event was appended
   // to. This is currently used to remember/destroy the command list after all

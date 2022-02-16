@@ -26,17 +26,13 @@
 #include "ABIInfo.h"
 
 namespace llvm {
-class AttributeList;
-class Function;
 class Type;
 class Value;
 } // namespace llvm
 
 namespace clang {
-class ASTContext;
 class Decl;
 class FunctionDecl;
-class ObjCMethodDecl;
 class VarDecl;
 
 namespace CodeGen {
@@ -116,7 +112,8 @@ public:
     assert(functionPtr && "configuring callee without function pointer");
     assert(functionPtr->getType()->isPointerTy());
     assert(functionPtr->getType()->isOpaquePointerTy() ||
-           functionPtr->getType()->getPointerElementType()->isFunctionTy());
+           functionPtr->getType()->getNonOpaquePointerElementType()
+               ->isFunctionTy());
   }
 
   static CGCallee forBuiltin(unsigned builtinID,

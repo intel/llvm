@@ -14,17 +14,17 @@ declare dso_local spir_func <4 x i8> @_Z16__spirv_IsFiniteIDv4_aDv4_fET_T0_(<4 x
 declare dso_local spir_func <4 x i8> @_Z16__spirv_IsNormalIDv4_aDv4_fET_T0_(<4 x float>)
 declare dso_local spir_func <4 x i8> @_Z18__spirv_SignBitSetIDv4_aDv4_fET_T0_(<4 x float>)
 
-; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z13__spirv_IsNanDv4_f
-; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z13__spirv_IsInfDv4_f
-; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z16__spirv_IsFiniteDv4_f
-; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z16__spirv_IsNormalDv4_f
-; CHECK-SPV-LLVM: call spir_func <4 x i32> @_Z18__spirv_SignBitSetDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i8> @_Z13__spirv_IsNanDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i8> @_Z13__spirv_IsInfDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i8> @_Z16__spirv_IsFiniteDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i8> @_Z16__spirv_IsNormalDv4_f
+; CHECK-SPV-LLVM: call spir_func <4 x i8> @_Z18__spirv_SignBitSetDv4_f
 
-; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z13__spirv_IsNanDv4_f(<4 x float>)
-; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z13__spirv_IsInfDv4_f(<4 x float>)
-; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z16__spirv_IsFiniteDv4_f(<4 x float>)
-; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z16__spirv_IsNormalDv4_f(<4 x float>)
-; CHECK-SPV-LLVM: declare spir_func <4 x i32> @_Z18__spirv_SignBitSetDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i8> @_Z13__spirv_IsNanDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i8> @_Z13__spirv_IsInfDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i8> @_Z16__spirv_IsFiniteDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i8> @_Z16__spirv_IsNormalDv4_f(<4 x float>)
+; CHECK-SPV-LLVM: declare spir_func <4 x i8> @_Z18__spirv_SignBitSetDv4_f(<4 x float>)
 
 ; CHECK-SPIRV: {{[0-9]+}} TypeBool [[TBool:[0-9]+]]
 ; CHECK-SPIRV: {{[0-9]+}} TypeVector [[TBoolVec:[0-9]+]] [[TBool]]

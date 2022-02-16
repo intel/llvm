@@ -438,6 +438,17 @@ std::pair<RT::PiProgram, bool> ProgramManager::getOrCreatePIProgram(
   return {NativePrg, BinProg.size()};
 }
 
+/// Emits information about built programs if the appropriate contitions are
+/// met, namely when SYCL_RT_WARNING_LEVEL is greater than or equal to 2.
+static void emitBuiltProgramInfo(const pi_program &Prog,
+                                 const ContextImplPtr &Context) {
+  if (SYCLConfig<SYCL_RT_WARNING_LEVEL>::get() >= 2) {
+    std::string ProgramBuildLog =
+        ProgramManager::getProgramBuildLog(Prog, Context);
+    std::clog << ProgramBuildLog << std::endl;
+  }
+}
+
 RT::PiProgram ProgramManager::getBuiltPIProgram(
     OSModuleHandle M, const ContextImplPtr &ContextImpl,
     const DeviceImplPtr &DeviceImpl, const std::string &KernelName,
@@ -510,6 +521,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Device)->getHandleRef(),
               ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+
+    emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
@@ -1117,6 +1130,32 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
               std::make_pair(EntriesIt->name, std::move(KernelID)));
         }
       }
+      // ... and initialize associated device_global information
+      {
+        std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+
+        auto DeviceGlobals = Img->getDeviceGlobals();
+        for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
+          auto Entry = m_DeviceGlobals.find(DeviceGlobal->Name);
+          assert(Entry != m_DeviceGlobals.end() &&
+                 "Device global has not been registered.");
+
+          pi::ByteArray DeviceGlobalInfo =
+              pi::DeviceBinaryProperty(DeviceGlobal).asByteArray();
+
+          // The supplied device_global info property is expected to contain:
+          // * 8 bytes - Size of the property.
+          // * 4 bytes - Size of the underlying type in the device_global.
+          // * 1 byte  - 0 if device_global has device_image_scope and any value
+          //             otherwise.
+          // Note: Property may be padded.
+          assert(DeviceGlobalInfo.size() >= 13 && "Unexpected property size");
+          const std::uint32_t TypeSize =
+              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
+          const std::uint32_t DeviceImageScopeDecorated = DeviceGlobalInfo[12];
+          Entry->second.initialize(TypeSize, DeviceImageScopeDecorated);
+        }
+      }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
 
       cacheKernelUsesAssertInfo(M, *Img);
@@ -1364,6 +1403,15 @@ kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
   }
 
   return KernelID->second;
+}
+
+void ProgramManager::addDeviceGlobalEntry(void *DeviceGlobalPtr,
+                                          const char *UniqueId) {
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+
+  assert(m_DeviceGlobals.find(UniqueId) == m_DeviceGlobals.end() &&
+         "Device global has already been registered.");
+  m_DeviceGlobals.insert({UniqueId, DeviceGlobalMapEntry(DeviceGlobalPtr)});
 }
 
 std::vector<device_image_plain>
@@ -1788,6 +1836,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getRawSyclObjImpl(Devs[0])->getHandleRef(),
               ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
+
+    emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);

@@ -29,11 +29,6 @@ class FileSystem;
 } // namespace llvm
 
 namespace clang {
-
-class Lexer;
-class SourceManager;
-class DiagnosticConsumer;
-
 namespace format {
 
 enum class ParseError {
@@ -87,6 +82,19 @@ struct FormatStyle {
     ///       argument1, argument2);
     /// \endcode
     BAS_AlwaysBreak,
+    /// Always break after an open bracket, if the parameters don't fit
+    /// on a single line. Closing brackets will be placed on a new line.
+    /// E.g.:
+    /// \code
+    ///   someLongFunction(
+    ///       argument1, argument2
+    ///   )
+    /// \endcode
+    ///
+    /// \warning
+    ///  Note: This currently only applies to parentheses.
+    /// \endwarning
+    BAS_BlockIndent,
   };
 
   /// If ``true``, horizontally aligns arguments after an open bracket.
@@ -2102,7 +2110,7 @@ struct FormatStyle {
   /// Defines when to put an empty line after access modifiers.
   /// ``EmptyLineBeforeAccessModifier`` configuration handles the number of
   /// empty lines between two access modifiers.
-  /// \version 14
+  /// \version 13
   EmptyLineAfterAccessModifierStyle EmptyLineAfterAccessModifier;
 
   /// Different styles for empty line before access modifiers.
@@ -2277,7 +2285,7 @@ struct FormatStyle {
   ///
   /// For example: `KJ_IF_MAYBE
   /// <https://github.com/capnproto/capnproto/blob/master/kjdoc/tour.md#maybes>`_
-  /// \version 14
+  /// \version 13
   std::vector<std::string> IfMacros;
 
   /// \brief A vector of macros that should be interpreted as type declarations
@@ -2704,7 +2712,7 @@ struct FormatStyle {
   /// readability to have the signature indented two levels and to use
   /// ``OuterScope``. The KJ style guide requires ``OuterScope``.
   /// `KJ style guide
-  /// <https://github.com/capnproto/capnproto/blob/master/kjdoc/style-guide.md>`_
+  /// <https://github.com/capnproto/capnproto/blob/master/style-guide.md>`_
   /// \version 13
   LambdaBodyIndentationKind LambdaBodyIndentation;
 
@@ -2948,7 +2956,7 @@ struct FormatStyle {
   ///    # define BAR
   ///    #endif
   /// \endcode
-  /// \version 14
+  /// \version 13
   int PPIndentWidth;
 
   /// See documentation of ``RawStringFormats``.
@@ -3034,7 +3042,7 @@ struct FormatStyle {
 
   /// \brief Reference alignment style (overrides ``PointerAlignment`` for
   /// references).
-  /// \version 14
+  /// \version 13
   ReferenceAlignmentStyle ReferenceAlignment;
 
   // clang-format off
@@ -3053,6 +3061,60 @@ struct FormatStyle {
   /// \version 4
   bool ReflowComments;
   // clang-format on
+
+  /// Remove optional braces of control statements (``if``, ``else``, ``for``,
+  /// and ``while``) in C++ according to the LLVM coding style.
+  /// \warning
+  ///  This option will be renamed and expanded to support other styles.
+  /// \endwarning
+  /// \warning
+  ///  Setting this option to `true` could lead to incorrect code formatting due
+  ///  to clang-format's lack of complete semantic information. As such, extra
+  ///  care should be taken to review code changes made by this option.
+  /// \endwarning
+  /// \code
+  ///   false:                                     true:
+  ///
+  ///   if (isa<FunctionDecl>(D)) {        vs.     if (isa<FunctionDecl>(D))
+  ///     handleFunctionDecl(D);                     handleFunctionDecl(D);
+  ///   } else if (isa<VarDecl>(D)) {              else if (isa<VarDecl>(D))
+  ///     handleVarDecl(D);                          handleVarDecl(D);
+  ///   }
+  ///
+  ///   if (isa<VarDecl>(D)) {             vs.     if (isa<VarDecl>(D)) {
+  ///     for (auto *A : D.attrs()) {                for (auto *A : D.attrs())
+  ///       if (shouldProcessAttr(A)) {                if (shouldProcessAttr(A))
+  ///         handleAttr(A);                             handleAttr(A);
+  ///       }                                      }
+  ///     }
+  ///   }
+  ///
+  ///   if (isa<FunctionDecl>(D)) {        vs.     if (isa<FunctionDecl>(D))
+  ///     for (auto *A : D.attrs()) {                for (auto *A : D.attrs())
+  ///       handleAttr(A);                             handleAttr(A);
+  ///     }
+  ///   }
+  ///
+  ///   if (auto *D = (T)(D)) {            vs.     if (auto *D = (T)(D)) {
+  ///     if (shouldProcess(D)) {                    if (shouldProcess(D))
+  ///       handleVarDecl(D);                          handleVarDecl(D);
+  ///     } else {                                   else
+  ///       markAsIgnored(D);                          markAsIgnored(D);
+  ///     }                                        }
+  ///   }
+  ///
+  ///   if (a) {                           vs.     if (a)
+  ///     b();                                       b();
+  ///   } else {                                   else if (c)
+  ///     if (c) {                                   d();
+  ///       d();                                   else
+  ///     } else {                                   e();
+  ///       e();
+  ///     }
+  ///   }
+  /// \endcode
+  /// \version 14
+  bool RemoveBracesLLVM;
 
   /// \brief The style if definition blocks should be separated.
   enum SeparateDefinitionStyle {
@@ -3131,7 +3193,7 @@ struct FormatStyle {
   ///      int bar;                           int bar;
   ///    } // namespace b                   } // namespace b
   /// \endcode
-  /// \version 14
+  /// \version 13
   unsigned ShortNamespaceLines;
 
   /// Include sorting options.
@@ -3548,7 +3610,7 @@ struct FormatStyle {
     SIAS_Leave
   };
   /// The SpacesInAnglesStyle to use for template argument lists.
-  /// \version 14
+  /// \version 3.4
   SpacesInAnglesStyle SpacesInAngles;
 
   /// If ``true``, spaces will be inserted around if/for/switch/while
@@ -3616,7 +3678,7 @@ struct FormatStyle {
   ///   ///  - Foo                                /// - Foo
   ///   ///    - Bar                              ///   - Bar
   /// \endcode
-  /// \version 14
+  /// \version 13
   SpacesInLineComment SpacesInLineCommentPrefix;
 
   /// If ``true``, spaces will be inserted after ``(`` and before ``)``.
@@ -3863,6 +3925,7 @@ struct FormatStyle {
            QualifierOrder == R.QualifierOrder &&
            RawStringFormats == R.RawStringFormats &&
            ReferenceAlignment == R.ReferenceAlignment &&
+           RemoveBracesLLVM == R.RemoveBracesLLVM &&
            SeparateDefinitionBlocks == R.SeparateDefinitionBlocks &&
            ShortNamespaceLines == R.ShortNamespaceLines &&
            SortIncludes == R.SortIncludes &&
@@ -3999,7 +4062,7 @@ bool getPredefinedStyle(StringRef Name, FormatStyle::LanguageKind Language,
 /// document, are retained in \p Style.
 ///
 /// If AllowUnknownOptions is true, no errors are emitted if unknown
-/// format options are occured.
+/// format options are occurred.
 ///
 /// If set all diagnostics are emitted through the DiagHandler.
 std::error_code

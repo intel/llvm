@@ -138,7 +138,7 @@ bool AArch64TargetInfo::setABI(const std::string &Name) {
   return true;
 }
 
-bool AArch64TargetInfo::validateBranchProtection(StringRef Spec,
+bool AArch64TargetInfo::validateBranchProtection(StringRef Spec, StringRef,
                                                  BranchProtectionInfo &BPI,
                                                  StringRef &Err) const {
   llvm::ARM::ParsedBranchProtection PBP;
@@ -226,6 +226,8 @@ void AArch64TargetInfo::getTargetDefinesARMV87A(const LangOptions &Opts,
 
 void AArch64TargetInfo::getTargetDefinesARMV88A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
+  // FIXME: this does not handle the case where MOPS is disabled using +nomops
+  Builder.defineMacro("__ARM_FEATURE_MOPS", "1");
   // Also include the Armv8.7 defines
   getTargetDefinesARMV87A(Opts, Builder);
 }
@@ -435,6 +437,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   if (HasRandGen)
     Builder.defineMacro("__ARM_FEATURE_RNG", "1");
 
+  if (HasMOPS)
+    Builder.defineMacro("__ARM_FEATURE_MOPS", "1");
+
   switch (ArchKind) {
   default:
     break;
@@ -543,6 +548,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   HasMatmulFP64 = false;
   HasMatmulFP32 = false;
   HasLSE = false;
+  HasHBC = false;
+  HasMOPS = false;
 
   ArchKind = llvm::AArch64::ArchKind::INVALID;
 
@@ -551,36 +558,36 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       FPU |= NeonMode;
     if (Feature == "+sve") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
+      HasFullFP16 = true;
     }
     if (Feature == "+sve2") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
     }
     if (Feature == "+sve2-aes") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2AES = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2AES = true;
     }
     if (Feature == "+sve2-sha3") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2SHA3 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2SHA3 = true;
     }
     if (Feature == "+sve2-sm4") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2SM4 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2SM4 = true;
     }
     if (Feature == "+sve2-bitperm") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2BitPerm = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2BitPerm = true;
     }
     if (Feature == "+f32mm") {
       FPU |= SveMode;
@@ -658,6 +665,10 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasRandGen = true;
     if (Feature == "+flagm")
       HasFlagM = true;
+    if (Feature == "+hbc")
+      HasHBC = true;
+    if (Feature == "+mops")
+      HasMOPS = true;
   }
 
   setDataLayout();

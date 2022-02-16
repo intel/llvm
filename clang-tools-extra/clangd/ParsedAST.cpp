@@ -10,6 +10,7 @@
 #include "../clang-tidy/ClangTidyCheck.h"
 #include "../clang-tidy/ClangTidyDiagnosticConsumer.h"
 #include "../clang-tidy/ClangTidyModuleRegistry.h"
+#include "../clang-tidy/NoLintDirectiveHandler.h"
 #include "AST.h"
 #include "Compiler.h"
 #include "Config.h"
@@ -30,6 +31,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -37,17 +39,10 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendActions.h"
-#include "clang/Frontend/Utils.h"
-#include "clang/Index/IndexDataConsumer.h"
-#include "clang/Index/IndexingAction.h"
 #include "clang/Lex/Lexer.h"
-#include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Lex/PreprocessorOptions.h"
-#include "clang/Sema/Sema.h"
 #include "clang/Serialization/ASTWriter.h"
-#include "clang/Serialization/PCHContainerOperations.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -55,7 +50,6 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <memory>
 #include <vector>
@@ -412,6 +406,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   ast_matchers::MatchFinder CTFinder;
   llvm::Optional<tidy::ClangTidyContext> CTContext;
   llvm::Optional<IncludeFixer> FixIncludes;
+  llvm::DenseMap<diag::kind, DiagnosticsEngine::Level> OverriddenSeverity;
   // No need to run clang-tidy or IncludeFixerif we are not going to surface
   // diagnostics.
   if (PreserveDiags) {
@@ -434,12 +429,31 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
       Check->registerMatchers(&CTFinder);
     }
 
+    // Clang only corrects typos for use of undeclared functions in C if that
+    // use is an error. Include fixer relies on typo correction, so pretend
+    // this is an error. (The actual typo correction is nice too).
+    // We restore the original severity in the level adjuster.
+    // FIXME: It would be better to have a real API for this, but what?
+    for (auto ID : {diag::ext_implicit_function_decl,
+                    diag::warn_implicit_function_decl}) {
+      OverriddenSeverity.try_emplace(
+          ID, Clang->getDiagnostics().getDiagnosticLevel(ID, SourceLocation()));
+      Clang->getDiagnostics().setSeverity(ID, diag::Severity::Error,
+                                          SourceLocation());
+    }
+
     const Config &Cfg = Config::current();
     ASTDiags.setLevelAdjuster([&](DiagnosticsEngine::Level DiagLevel,
                                   const clang::Diagnostic &Info) {
       if (Cfg.Diagnostics.SuppressAll ||
-          isBuiltinDiagnosticSuppressed(Info.getID(), Cfg.Diagnostics.Suppress))
+          isBuiltinDiagnosticSuppressed(Info.getID(), Cfg.Diagnostics.Suppress,
+                                        Clang->getLangOpts()))
         return DiagnosticsEngine::Ignored;
+
+      auto It = OverriddenSeverity.find(Info.getID());
+      if (It != OverriddenSeverity.end())
+        DiagLevel = It->second;
+
       if (!CTChecks.empty()) {
         std::string CheckName = CTContext->getCheckName(Info.getID());
         bool IsClangTidyDiag = !CheckName.empty();
@@ -455,12 +469,11 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
           bool IsInsideMainFile =
               Info.hasSourceManager() &&
               isInsideMainFile(Info.getLocation(), Info.getSourceManager());
-          SmallVector<tidy::ClangTidyError, 1> TidySuppressedErrors;
-          if (IsInsideMainFile &&
-              tidy::shouldSuppressDiagnostic(DiagLevel, Info, *CTContext,
-                                             TidySuppressedErrors,
-                                             /*AllowIO=*/false,
-                                             /*EnableNolintBlocks=*/false)) {
+          SmallVector<tooling::Diagnostic, 1> TidySuppressedErrors;
+          if (IsInsideMainFile && CTContext->shouldSuppressDiagnostic(
+                                      DiagLevel, Info, TidySuppressedErrors,
+                                      /*AllowIO=*/false,
+                                      /*EnableNolintBlocks=*/false)) {
             // FIXME: should we expose the suppression error (invalid use of
             // NOLINT comments)?
             return DiagnosticsEngine::Ignored;

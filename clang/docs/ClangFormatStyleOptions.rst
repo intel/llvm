@@ -162,7 +162,7 @@ the configuration (without a prefix: ``Auto``).
     <https://www.webkit.org/coding/coding-style.html>`_
   * ``Microsoft``
     A style complying with `Microsoft's style guide
-    <https://docs.microsoft.com/en-us/visualstudio/ide/editorconfig-code-style-settings-reference?view=vs-2017>`_
+    <https://docs.microsoft.com/en-us/visualstudio/ide/editorconfig-code-style-settings-reference>`_
   * ``GNU``
     A style complying with the `GNU coding standards
     <https://www.gnu.org/prep/standards/standards.html>`_
@@ -213,6 +213,22 @@ the configuration (without a prefix: ``Auto``).
 
       someLongFunction(
           argument1, argument2);
+
+  * ``BAS_BlockIndent`` (in configuration: ``BlockIndent``)
+    Always break after an open bracket, if the parameters don't fit
+    on a single line. Closing brackets will be placed on a new line.
+    E.g.:
+
+    .. code-block:: c++
+
+      someLongFunction(
+          argument1, argument2
+      )
+
+
+    .. warning:: 
+
+     Note: This currently only applies to parentheses.
 
 
 
@@ -2193,7 +2209,7 @@ the configuration (without a prefix: ``Auto``).
 **DisableFormat** (``Boolean``) :versionbadge:`clang-format 3.7`
   Disables formatting completely.
 
-**EmptyLineAfterAccessModifier** (``EmptyLineAfterAccessModifierStyle``) :versionbadge:`clang-format 14`
+**EmptyLineAfterAccessModifier** (``EmptyLineAfterAccessModifierStyle``) :versionbadge:`clang-format 13`
   Defines when to put an empty line after access modifiers.
   ``EmptyLineBeforeAccessModifier`` configuration handles the number of
   empty lines between two access modifiers.
@@ -2359,7 +2375,7 @@ the configuration (without a prefix: ``Auto``).
 
   For example: BOOST_FOREACH.
 
-**IfMacros** (``List of Strings``) :versionbadge:`clang-format 14`
+**IfMacros** (``List of Strings``) :versionbadge:`clang-format 13`
   A vector of macros that should be interpreted as conditionals
   instead of as function calls.
 
@@ -2854,7 +2870,7 @@ the configuration (without a prefix: ``Auto``).
   readability to have the signature indented two levels and to use
   ``OuterScope``. The KJ style guide requires ``OuterScope``.
   `KJ style guide
-  <https://github.com/capnproto/capnproto/blob/master/kjdoc/style-guide.md>`_
+  <https://github.com/capnproto/capnproto/blob/master/style-guide.md>`_
 
   Possible values:
 
@@ -3111,7 +3127,7 @@ the configuration (without a prefix: ``Auto``).
   Add a space in front of an Objective-C protocol list, i.e. use
   ``Foo <Protocol>`` instead of ``Foo<Protocol>``.
 
-**PPIndentWidth** (``Integer``) :versionbadge:`clang-format 14`
+**PPIndentWidth** (``Integer``) :versionbadge:`clang-format 13`
   The number of columns to use for indentation of preprocessor statements.
   When set to -1 (default) ``IndentWidth`` is used also for preprocessor
   statements.
@@ -3355,7 +3371,7 @@ the configuration (without a prefix: ``Auto``).
           BasedOnStyle: llvm
           CanonicalDelimiter: 'cc'
 
-**ReferenceAlignment** (``ReferenceAlignmentStyle``) :versionbadge:`clang-format 14`
+**ReferenceAlignment** (``ReferenceAlignmentStyle``) :versionbadge:`clang-format 13`
   Reference alignment style (overrides ``PointerAlignment`` for
   references).
 
@@ -3401,6 +3417,62 @@ the configuration (without a prefix: ``Auto``).
      // information
      /* second veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongComment with plenty of
       * information */
+
+**RemoveBracesLLVM** (``Boolean``) :versionbadge:`clang-format 14`
+  Remove optional braces of control statements (``if``, ``else``, ``for``,
+  and ``while``) in C++ according to the LLVM coding style.
+
+  .. warning:: 
+
+   This option will be renamed and expanded to support other styles.
+
+  .. warning:: 
+
+   Setting this option to `true` could lead to incorrect code formatting due
+   to clang-format's lack of complete semantic information. As such, extra
+   care should be taken to review code changes made by this option.
+
+  .. code-block:: c++
+
+    false:                                     true:
+
+    if (isa<FunctionDecl>(D)) {        vs.     if (isa<FunctionDecl>(D))
+      handleFunctionDecl(D);                     handleFunctionDecl(D);
+    } else if (isa<VarDecl>(D)) {              else if (isa<VarDecl>(D))
+      handleVarDecl(D);                          handleVarDecl(D);
+    }
+
+    if (isa<VarDecl>(D)) {             vs.     if (isa<VarDecl>(D)) {
+      for (auto *A : D.attrs()) {                for (auto *A : D.attrs())
+        if (shouldProcessAttr(A)) {                if (shouldProcessAttr(A))
+          handleAttr(A);                             handleAttr(A);
+        }                                      }
+      }
+    }
+
+    if (isa<FunctionDecl>(D)) {        vs.     if (isa<FunctionDecl>(D))
+      for (auto *A : D.attrs()) {                for (auto *A : D.attrs())
+        handleAttr(A);                             handleAttr(A);
+      }
+    }
+
+    if (auto *D = (T)(D)) {            vs.     if (auto *D = (T)(D)) {
+      if (shouldProcess(D)) {                    if (shouldProcess(D))
+        handleVarDecl(D);                          handleVarDecl(D);
+      } else {                                   else
+        markAsIgnored(D);                          markAsIgnored(D);
+      }                                        }
+    }
+
+    if (a) {                           vs.     if (a)
+      b();                                       b();
+    } else {                                   else if (c)
+      if (c) {                                   d();
+        d();                                   else
+      } else {                                   e();
+        e();
+      }
+    }
 
 **SeparateDefinitionBlocks** (``SeparateDefinitionStyle``) :versionbadge:`clang-format 14`
   Specifies the use of empty lines to separate definition blocks, including
@@ -3463,7 +3535,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**ShortNamespaceLines** (``Unsigned``) :versionbadge:`clang-format 14`
+**ShortNamespaceLines** (``Unsigned``) :versionbadge:`clang-format 13`
   The maximal number of unwrapped lines that a short namespace spans.
   Defaults to 1.
 
@@ -3897,7 +3969,7 @@ the configuration (without a prefix: ``Auto``).
        }             // foo
      }
 
-**SpacesInAngles** (``SpacesInAnglesStyle``) :versionbadge:`clang-format 14`
+**SpacesInAngles** (``SpacesInAnglesStyle``) :versionbadge:`clang-format 3.4`
   The SpacesInAnglesStyle to use for template argument lists.
 
   Possible values:
@@ -3952,7 +4024,7 @@ the configuration (without a prefix: ``Auto``).
      var arr = [ 1, 2, 3 ];         vs.     var arr = [1, 2, 3];
      f({a : 1, b : 2, c : 3});              f({a: 1, b: 2, c: 3});
 
-**SpacesInLineCommentPrefix** (``SpacesInLineComment``) :versionbadge:`clang-format 14`
+**SpacesInLineCommentPrefix** (``SpacesInLineComment``) :versionbadge:`clang-format 13`
   How many spaces are allowed at the start of a line comment. To disable the
   maximum set it to ``-1``, apart from that the maximum takes precedence
   over the minimum.

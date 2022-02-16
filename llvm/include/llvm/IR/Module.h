@@ -47,9 +47,7 @@ class GVMaterializer;
 class LLVMContext;
 class MemoryBuffer;
 class ModuleSummaryIndex;
-class Pass;
 class RandomNumberGenerator;
-template <class PtrType> class SmallPtrSetImpl;
 class StructType;
 class VersionTuple;
 
@@ -941,10 +939,17 @@ public:
   /// @returns a string containing the target variant triple.
   StringRef getDarwinTargetVariantTriple() const;
 
+  /// Set the target variant triple which is a string describing a variant of
+  /// the target host platform.
+  void setDarwinTargetVariantTriple(StringRef T);
+
   /// Get the target variant version build SDK version metadata.
   ///
   /// An empty version is returned if no such metadata is attached.
   VersionTuple getDarwinTargetVariantSDKVersion() const;
+
+  /// Set the target variant version build SDK version metadata.
+  void setDarwinTargetVariantSDKVersion(VersionTuple Version);
 };
 
 /// Given "llvm.used" or "llvm.compiler.used" as a global name, collect the

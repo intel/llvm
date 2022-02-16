@@ -360,6 +360,8 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::CONCAT_VECTORS, MVT::v8f32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2f16, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2i16, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4f16, Custom);
+  setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4i16, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2f32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v2i32, Custom);
   setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v3f32, Custom);
@@ -1406,6 +1408,11 @@ SDValue AMDGPUTargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
   if (((SrcVT == MVT::v4f16 && VT == MVT::v2f16) ||
        (SrcVT == MVT::v4i16 && VT == MVT::v2i16)) &&
       Start != 1)
+    return Op;
+
+  if (((SrcVT == MVT::v8f16 && VT == MVT::v4f16) ||
+       (SrcVT == MVT::v8i16 && VT == MVT::v4i16)) &&
+      (Start == 0 || Start == 4))
     return Op;
 
   DAG.ExtractVectorElements(Op.getOperand(0), Args, Start,
@@ -3274,8 +3281,9 @@ SDValue AMDGPUTargetLowering::performSrlCombine(SDNode *N,
   // this improves the ability to match BFE patterns in isel.
   if (LHS.getOpcode() == ISD::AND) {
     if (auto *Mask = dyn_cast<ConstantSDNode>(LHS.getOperand(1))) {
-      if (Mask->getAPIntValue().isShiftedMask() &&
-          Mask->getAPIntValue().countTrailingZeros() == ShiftAmt) {
+      unsigned MaskIdx, MaskLen;
+      if (Mask->getAPIntValue().isShiftedMask(MaskIdx, MaskLen) &&
+          MaskIdx == ShiftAmt) {
         return DAG.getNode(
             ISD::AND, SL, VT,
             DAG.getNode(ISD::SRL, SL, VT, LHS.getOperand(0), N->getOperand(1)),
@@ -4626,11 +4634,12 @@ void AMDGPUTargetLowering::computeKnownBitsForTargetNode(
     RHSKnown = RHSKnown.trunc(24);
 
     if (Opc == AMDGPUISD::MUL_I24) {
-      unsigned LHSValBits = 24 - LHSKnown.countMinSignBits();
-      unsigned RHSValBits = 24 - RHSKnown.countMinSignBits();
-      unsigned MaxValBits = std::min(LHSValBits + RHSValBits, 32u);
-      if (MaxValBits >= 32)
+      unsigned LHSValBits = LHSKnown.countMaxSignificantBits();
+      unsigned RHSValBits = RHSKnown.countMaxSignificantBits();
+      unsigned MaxValBits = LHSValBits + RHSValBits;
+      if (MaxValBits > 32)
         break;
+      unsigned SignBits = 32 - MaxValBits + 1;
       bool LHSNegative = LHSKnown.isNegative();
       bool LHSNonNegative = LHSKnown.isNonNegative();
       bool LHSPositive = LHSKnown.isStrictlyPositive();
@@ -4639,16 +4648,16 @@ void AMDGPUTargetLowering::computeKnownBitsForTargetNode(
       bool RHSPositive = RHSKnown.isStrictlyPositive();
 
       if ((LHSNonNegative && RHSNonNegative) || (LHSNegative && RHSNegative))
-        Known.Zero.setHighBits(32 - MaxValBits);
+        Known.Zero.setHighBits(SignBits);
       else if ((LHSNegative && RHSPositive) || (LHSPositive && RHSNegative))
-        Known.One.setHighBits(32 - MaxValBits);
+        Known.One.setHighBits(SignBits);
     } else {
-      unsigned LHSValBits = 24 - LHSKnown.countMinLeadingZeros();
-      unsigned RHSValBits = 24 - RHSKnown.countMinLeadingZeros();
-      unsigned MaxValBits = std::min(LHSValBits + RHSValBits, 32u);
+      unsigned LHSValBits = LHSKnown.countMaxActiveBits();
+      unsigned RHSValBits = RHSKnown.countMaxActiveBits();
+      unsigned MaxValBits = LHSValBits + RHSValBits;
       if (MaxValBits >= 32)
         break;
-      Known.Zero.setHighBits(32 - MaxValBits);
+      Known.Zero.setBitsFrom(MaxValBits);
     }
     break;
   }
@@ -4906,5 +4915,6 @@ AMDGPUTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
 
 bool AMDGPUTargetLowering::isConstantUnsignedBitfieldExtractLegal(
     unsigned Opc, LLT Ty1, LLT Ty2) const {
-  return Ty1 == Ty2 && (Ty1 == LLT::scalar(32) || Ty1 == LLT::scalar(64));
+  return (Ty1 == LLT::scalar(32) || Ty1 == LLT::scalar(64)) &&
+         Ty2 == LLT::scalar(32);
 }

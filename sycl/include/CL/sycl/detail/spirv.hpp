@@ -515,24 +515,22 @@ EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 #ifndef __NVPTX__
   using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleDownINTEL(
-      OCLT(x), OCLT(x), static_cast<uint32_t>(local_id.get(0)));
+  return __spirv_SubgroupShuffleDownINTEL(OCLT(x), OCLT(x), delta);
 #else
-  return __nvvm_shfl_sync_down_i32(membermask(), x, local_id.get(0), 0x1f);
+  return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
 #endif
 }
 
 template <typename T>
-EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 #ifndef __NVPTX__
   using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x),
-                                        static_cast<uint32_t>(local_id.get(0)));
+  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x), delta);
 #else
-  return __nvvm_shfl_sync_up_i32(membermask(), x, local_id.get(0), 0);
+  return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
 #endif
 }
 
@@ -556,19 +554,19 @@ EnableIfVectorShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfVectorShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+EnableIfVectorShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
-    result[s] = SubgroupShuffleDown(x[s], local_id);
+    result[s] = SubgroupShuffleDown(x[s], delta);
   }
   return result;
 }
 
 template <typename T>
-EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
-    result[s] = SubgroupShuffleUp(x[s], local_id);
+    result[s] = SubgroupShuffleUp(x[s], delta);
   }
   return result;
 }
@@ -626,29 +624,26 @@ EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
-  ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(
-      ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+  ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(ShuffleX, ShuffleX, delta);
 #else
   ShuffleT Result =
-      __nvvm_shfl_sync_down_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
+      __nvvm_shfl_sync_down_i32(membermask(), ShuffleX, delta, 0x1f);
 #endif
   return bit_cast<T>(Result);
 }
 
 template <typename T>
-EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
   auto ShuffleX = bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
-  ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(
-      ShuffleX, ShuffleX, static_cast<uint32_t>(local_id.get(0)));
+  ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(ShuffleX, ShuffleX, delta);
 #else
-  ShuffleT Result =
-      __nvvm_shfl_sync_up_i32(membermask(), ShuffleX, local_id.get(0), 0);
+  ShuffleT Result = __nvvm_shfl_sync_up_i32(membermask(), ShuffleX, delta, 0);
 #endif
   return bit_cast<T>(Result);
 }
@@ -706,14 +701,14 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
+EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
     std::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleDown(ShuffleX, local_id);
+    ShuffleResult = SubgroupShuffleDown(ShuffleX, delta);
     std::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
@@ -721,14 +716,14 @@ EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, id<1> local_id) {
 }
 
 template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
+EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
     std::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffleUp(ShuffleX, local_id);
+    ShuffleResult = SubgroupShuffleUp(ShuffleX, delta);
     std::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);

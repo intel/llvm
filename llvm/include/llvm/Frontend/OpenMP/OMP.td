@@ -358,6 +358,7 @@ def OMPC_Unknown : Clause<"unknown"> {
 def OMPC_Link : Clause<"link"> {
   let flangClass = "OmpObjectList";
 }
+def OMPC_Indirect : Clause<"indirect"> {}
 def OMPC_Inbranch : Clause<"inbranch"> {}
 def OMPC_Notinbranch : Clause<"notinbranch"> {}
 def OMPC_Filter : Clause<"filter"> {
@@ -589,7 +590,15 @@ def OMP_Requires : Directive<"requires"> {
   let allowedClauses = [
     VersionedClause<OMPC_UnifiedAddress>,
     VersionedClause<OMPC_UnifiedSharedMemory>,
-    VersionedClause<OMPC_ReverseOffload>,
+    // OpenMP 5.2 Spec: If an implementation is not supporting a requirement
+    // (reverse offload in this case) then it should give compile-time error
+    // termination.
+    // Seeting supported version for reverse_offload to a distant future version
+    // 9.9 so that its partial support can be tested in the meantime.
+    //
+    // TODO: Correct this supprted version number whenever complete
+    // implementation of reverse_offload is available.
+    VersionedClause<OMPC_ReverseOffload, 99>,
     VersionedClause<OMPC_DynamicAllocators>,
     VersionedClause<OMPC_AtomicDefaultMemOrder>
   ];
@@ -973,12 +982,14 @@ def OMP_BeginDeclareTarget : Directive<"begin declare target"> {
     VersionedClause<OMPC_To>,
     VersionedClause<OMPC_Link>,
     VersionedClause<OMPC_DeviceType>,
+    VersionedClause<OMPC_Indirect>
   ];
 }
 def OMP_DeclareTarget : Directive<"declare target"> {
   let allowedClauses = [
     VersionedClause<OMPC_To>,
-    VersionedClause<OMPC_Link>
+    VersionedClause<OMPC_Link>,
+    VersionedClause<OMPC_Indirect>
   ];
 }
 def OMP_EndDeclareTarget : Directive<"end declare target"> {}

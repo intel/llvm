@@ -756,18 +756,18 @@ Error EHFrameNullTerminator::operator()(LinkGraph &G) {
   return Error::success();
 }
 
-EHFrameRegistrar::~EHFrameRegistrar() {}
+EHFrameRegistrar::~EHFrameRegistrar() = default;
 
 Error InProcessEHFrameRegistrar::registerEHFrames(
-    orc::ExecutorAddr EHFrameSectionAddr, size_t EHFrameSectionSize) {
-  return orc::registerEHFrameSection(EHFrameSectionAddr.toPtr<void *>(),
-                                     EHFrameSectionSize);
+    orc::ExecutorAddrRange EHFrameSection) {
+  return orc::registerEHFrameSection(EHFrameSection.Start.toPtr<void *>(),
+                                     EHFrameSection.size());
 }
 
 Error InProcessEHFrameRegistrar::deregisterEHFrames(
-    orc::ExecutorAddr EHFrameSectionAddr, size_t EHFrameSectionSize) {
-  return orc::deregisterEHFrameSection(EHFrameSectionAddr.toPtr<void *>(),
-                                       EHFrameSectionSize);
+    orc::ExecutorAddrRange EHFrameSection) {
+  return orc::deregisterEHFrameSection(EHFrameSection.Start.toPtr<void *>(),
+                                       EHFrameSection.size());
 }
 
 LinkGraphPassFunction

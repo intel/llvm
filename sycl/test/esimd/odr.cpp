@@ -35,7 +35,7 @@ int main() {
   try {
     q.submit([&](handler &cgh) {
       cgh.single_task<class my_kernel0>([=]() SYCL_ESIMD_KERNEL {
-        simd<int, VLEN> v0{0, 1, 2, 3, 4, 5, 6, 7};
+        simd<int, VLEN> v0({0, 1, 2, 3, 4, 5, 6, 7});
         simd<int, VLEN> v1 = block_load<int, VLEN>(data);
         v0 = esimd::min(v0, v1); // v0 becomes 0,1,2,3,4,4,4,4
         block_store(data, v0);
@@ -65,7 +65,7 @@ void run_kernel2(queue &q, int *data) {
   try {
     q.submit([&](handler &cgh) {
       cgh.single_task<class my_kernel1>([=]() SYCL_ESIMD_KERNEL {
-        simd<int, VLEN> v0{7, 6, 5, 4, 3, 2, 1, 0};
+        simd<int, VLEN> v0({7, 6, 5, 4, 3, 2, 1, 0});
         simd<int, VLEN> v1 =
             block_load<int, VLEN>(data); // v1 = 0,1,2,3,4,4,4,4
         v0 = esimd::min(v0, v1);         // v0 becomes 0,1,2,3,3,2,1,0

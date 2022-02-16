@@ -34,6 +34,12 @@
 #include <utility>
 #include <vector>
 
+namespace llvm {
+
+class Triple;
+
+} // namespace llvm
+
 namespace clang {
 
 class DiagnosticsEngine;
@@ -51,6 +57,8 @@ class TargetInfo;
 /// The preprocessor keeps track of this information for each
 /// file that is \#included.
 struct HeaderFileInfo {
+  // TODO: Whether the file was imported is not a property of the file itself.
+  // It's a preprocessor state, move it there.
   /// True if this is a \#import'd file.
   unsigned isImport : 1;
 
@@ -88,9 +96,6 @@ struct HeaderFileInfo {
 
   /// Whether this file has been looked up as a header.
   unsigned IsValid : 1;
-
-  /// The number of times the file has been included already.
-  unsigned short NumIncludes = 0;
 
   /// The ID number of the controlling macro.
   ///
@@ -286,6 +291,12 @@ public:
   /// Add an additional search path.
   void AddSearchPath(const DirectoryLookup &dir, bool isAngled);
 
+  /// Add an additional system search path.
+  void AddSystemSearchPath(const DirectoryLookup &dir) {
+    SearchDirs.push_back(dir);
+    SearchDirsUsage.push_back(false);
+  }
+
   /// Set the list of system header prefixes.
   void SetSystemHeaderPrefixes(ArrayRef<std::pair<std::string, bool>> P) {
     SystemHeaderPrefixes.assign(P.begin(), P.end());
@@ -396,7 +407,7 @@ public:
   /// found.
   Optional<FileEntryRef> LookupFile(
       StringRef Filename, SourceLocation IncludeLoc, bool isAngled,
-      const DirectoryLookup *FromDir, const DirectoryLookup *&CurDir,
+      const DirectoryLookup *FromDir, const DirectoryLookup **CurDir,
       ArrayRef<std::pair<const FileEntry *, const DirectoryEntry *>> Includers,
       SmallVectorImpl<char> *SearchPath, SmallVectorImpl<char> *RelativePath,
       Module *RequestingModule, ModuleMap::KnownHeader *SuggestedModule,
@@ -456,12 +467,6 @@ public:
   void MarkFileModuleHeader(const FileEntry *FE,
                             ModuleMap::ModuleHeaderRole Role,
                             bool isCompilingModuleHeader);
-
-  /// Increment the count for the number of times the specified
-  /// FileEntry has been entered.
-  void IncrementIncludeCount(const FileEntry *File) {
-    ++getFileInfo(File).NumIncludes;
-  }
 
   /// Mark the specified file as having a controlling macro.
   ///
@@ -838,6 +843,12 @@ private:
   LoadModuleMapResult loadModuleMapFile(const DirectoryEntry *Dir,
                                         bool IsSystem, bool IsFramework);
 };
+
+/// Apply the header search options to get given HeaderSearch object.
+void ApplyHeaderSearchOptions(HeaderSearch &HS,
+                              const HeaderSearchOptions &HSOpts,
+                              const LangOptions &Lang,
+                              const llvm::Triple &triple);
 
 } // namespace clang
 

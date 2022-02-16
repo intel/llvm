@@ -12,6 +12,7 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/GPU/Passes.h"
@@ -30,11 +31,8 @@ using namespace mlir;
 template <typename OpTy>
 static void createForAllDimensions(OpBuilder &builder, Location loc,
                                    SmallVectorImpl<Value> &values) {
-  for (StringRef dim : {"x", "y", "z"}) {
-    Value v = builder.create<OpTy>(loc, builder.getIndexType(),
-                                   builder.getStringAttr(dim));
-    values.push_back(v);
-  }
+  for (auto dim : {gpu::Dimension::x, gpu::Dimension::y, gpu::Dimension::z})
+    values.push_back(builder.create<OpTy>(loc, builder.getIndexType(), dim));
 }
 
 /// Adds operations generating block/thread ids and grid/block dimensions at the
@@ -62,7 +60,7 @@ static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
 /// operations may not have side-effects, as otherwise sinking (and hence
 /// duplicating them) is not legal.
 static bool isSinkingBeneficiary(Operation *op) {
-  return isa<arith::ConstantOp, ConstantOp, memref::DimOp, SelectOp,
+  return isa<arith::ConstantOp, ConstantOp, memref::DimOp, arith::SelectOp,
              arith::CmpIOp>(op);
 }
 
@@ -189,7 +187,7 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   Block &launchOpEntry = launchOpBody.front();
   Block *clonedLaunchOpEntry = map.lookup(&launchOpEntry);
   builder.setInsertionPointToEnd(&entryBlock);
-  builder.create<BranchOp>(loc, clonedLaunchOpEntry);
+  builder.create<cf::BranchOp>(loc, clonedLaunchOpEntry);
 
   outlinedFunc.walk([](gpu::TerminatorOp op) {
     OpBuilder replacer(op);
@@ -322,7 +320,7 @@ private:
     // If a valid data layout spec was provided, attach it to the kernel module.
     // Otherwise, the default data layout will be used.
     if (dataLayoutSpec)
-      kernelModule->setAttr("dlspec", dataLayoutSpec);
+      kernelModule->setAttr(DLTIDialect::kDataLayoutAttrName, dataLayoutSpec);
 
     SymbolTable symbolTable(kernelModule);
     symbolTable.insert(kernelFunc);

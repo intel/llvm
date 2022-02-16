@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \file esimdemu_device_interface.hpp
+/// @cond ESIMD_EMU
+
+/// \file esimd_emulator_device_interface.hpp
 /// Declarations for ESIMD_EMULATOR-device specific definitions.
 /// ESIMD intrinsic and LibCM functionalities required by intrinsic defined
 ///
@@ -71,3 +73,5 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface();
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+/// @endcond ESIMD_EMU

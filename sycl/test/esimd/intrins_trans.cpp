@@ -122,7 +122,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
                    sycl::access::target::device>
         acc;
     simd<uint32_t, 8> offsets = 1;
-    simd_mask<8> pred{1, 0, 1, 0, 1, 0, 1, 0};
+    simd_mask<8> pred({1, 0, 1, 0, 1, 0, 1, 0});
 
     // 4-byte element gather
     simd<int, 8> v = gather<int, 8>(acc, offsets, 100);
@@ -152,21 +152,21 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
     // CHECK: %[[SI6:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI6_ADDR]]
     // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, i16 0, i32 %[[SI6]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
   }
-  __esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE);
+  __esimd_fence(fence_mask::global_coherent_fence);
   // CHECK: call void @llvm.genx.fence(i8 1)
-  __esimd_fence(ESIMD_L3_FLUSH_INSTRUCTIONS);
+  __esimd_fence(fence_mask::l3_flush_instructions);
   // CHECK: call void @llvm.genx.fence(i8 2)
-  __esimd_fence(ESIMD_L3_FLUSH_TEXTURE_DATA);
+  __esimd_fence(fence_mask::l3_flush_texture_data);
   // CHECK: call void @llvm.genx.fence(i8 4)
-  __esimd_fence(ESIMD_L3_FLUSH_CONSTANT_DATA);
+  __esimd_fence(fence_mask::l3_flush_constant_data);
   // CHECK: call void @llvm.genx.fence(i8 8)
-  __esimd_fence(ESIMD_L3_FLUSH_RW_DATA);
+  __esimd_fence(fence_mask::l3_flush_rw_data);
   // CHECK: call void @llvm.genx.fence(i8 16)
-  __esimd_fence(ESIMD_LOCAL_BARRIER);
+  __esimd_fence(fence_mask::local_barrier);
   // CHECK: call void @llvm.genx.fence(i8 32)
-  __esimd_fence(ESIMD_L1_FLUSH_RO_DATA);
+  __esimd_fence(fence_mask::l1_flush_ro_data);
   // CHECK: call void @llvm.genx.fence(i8 64)
-  __esimd_fence(ESIMD_SW_BARRIER);
+  __esimd_fence(fence_mask::sw_barrier);
   // CHECK: call void @llvm.genx.fence(i8 -128)
 
   return d;

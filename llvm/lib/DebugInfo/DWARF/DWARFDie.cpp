@@ -24,6 +24,7 @@
 #include "llvm/Support/FormatAdapters.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
@@ -772,7 +773,7 @@ static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
     DWARFDie D = resolveReferencedType(Die, FormValue);
     if (D && !D.isNULL()) {
       OS << Space << "\"";
-      DWARFTypePrinter(OS).appendQualifiedName(D);
+      dumpTypeQualifiedName(D, OS);
       OS << '"';
     }
   } else if (Attr == DW_AT_APPLE_property_attribute) {
@@ -808,7 +809,7 @@ void DWARFDie::getFullName(raw_string_ostream &OS,
     return;
   if (getTag() == DW_TAG_GNU_template_parameter_pack)
     return;
-  DWARFTypePrinter(OS).appendUnqualifiedName(*this, OriginalFullName);
+  dumpTypeUnqualifiedName(*this, OS, OriginalFullName);
 }
 
 bool DWARFDie::isSubprogramDIE() const { return getTag() == DW_TAG_subprogram; }
@@ -1270,3 +1271,16 @@ bool DWARFAttribute::mayHaveLocationExpr(dwarf::Attribute Attr) {
     return false;
   }
 }
+
+namespace llvm {
+
+void dumpTypeQualifiedName(const DWARFDie &DIE, raw_ostream &OS) {
+  DWARFTypePrinter(OS).appendQualifiedName(DIE);
+}
+
+void dumpTypeUnqualifiedName(const DWARFDie &DIE, raw_ostream &OS,
+                             std::string *OriginalFullName) {
+  DWARFTypePrinter(OS).appendUnqualifiedName(DIE, OriginalFullName);
+}
+
+} // namespace llvm

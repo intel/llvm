@@ -63,11 +63,11 @@ enum NodeType : unsigned {
   CLZW,
   CTZW,
   // RV64IB/RV32IB funnel shifts, with the semantics of the named RISC-V
-  // instructions, but the same operand order as fshl/fshr intrinsics.
+  // instructions. Operand order is rs1, rs3, rs2/shamt.
   FSR,
   FSL,
-  // RV64IB funnel shifts, with the semantics of the named RISC-V instructions,
-  // but the same operand order as fshl/fshr intrinsics.
+  // RV64IB funnel shifts, with the semantics of the named RISC-V instructions.
+  // Operand order is rs1, rs3, rs2/shamt.
   FSRW,
   FSLW,
   // FPR<->GPR transfer operations when the FPR is smaller than XLEN, needed as
@@ -120,6 +120,13 @@ enum NodeType : unsigned {
   BCOMPRESSW,
   BDECOMPRESS,
   BDECOMPRESSW,
+  // The bit field place (bfp) instruction places up to XLEN/2 LSB bits from rs2
+  // into the value in rs1. The upper bits of rs2 control the length of the bit
+  // field and target position. The layout of rs2 is chosen in a way that makes
+  // it possible to construct rs2 easily using pack[h] instructions and/or
+  // andi/lui.
+  BFP,
+  BFPW,
   // Vector Extension
   // VMV_V_X_VL matches the semantics of vmv.v.x but includes an extra operand
   // for the VL value to be used for the operation.
@@ -134,9 +141,6 @@ enum NodeType : unsigned {
   VMV_S_X_VL,
   // VFMV_S_F_VL matches the semantics of vfmv.s.f. It carries a VL operand.
   VFMV_S_F_VL,
-  // Splats an i64 scalar to a vector type (with element type i64) where the
-  // scalar is a sign-extended i32.
-  SPLAT_VECTOR_I64,
   // Splats an 64-bit value that has been split into two i32 parts. This is
   // expanded late to two scalar stores and a stride 0 vector load.
   SPLAT_VECTOR_SPLIT_I64_VL,
@@ -238,6 +242,15 @@ enum NodeType : unsigned {
   // Widening instructions
   VWMUL_VL,
   VWMULU_VL,
+  VWMULSU_VL,
+  VWADD_VL,
+  VWADDU_VL,
+  VWSUB_VL,
+  VWSUBU_VL,
+  VWADD_W_VL,
+  VWADDU_W_VL,
+  VWSUB_W_VL,
+  VWSUBU_W_VL,
 
   // Vector compare producing a mask. Fourth operand is input mask. Fifth
   // operand is VL.
@@ -245,6 +258,10 @@ enum NodeType : unsigned {
 
   // Vector select with an additional VL operand. This operation is unmasked.
   VSELECT_VL,
+  // Vector select with operand #2 (the value when the condition is false) tied
+  // to the destination and an additional VL operand. This operation is
+  // unmasked.
+  VP_MERGE_VL,
 
   // Mask binary operators.
   VMAND_VL,
@@ -528,6 +545,16 @@ public:
 
   bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
 
+  SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
+                        SmallVectorImpl<SDNode *> &Created) const override;
+
+  unsigned getJumpTableEncoding() const override;
+
+  const MCExpr *LowerCustomJumpTableEntry(const MachineJumpTableInfo *MJTI,
+                                          const MachineBasicBlock *MBB,
+                                          unsigned uid,
+                                          MCContext &Ctx) const override;
+
 private:
   /// RISCVCCAssignFn - This target-specific function extends the default
   /// CCValAssign with additional information used to lower RISC-V calling
@@ -653,6 +680,15 @@ namespace RISCVVIntrinsicsTable {
 struct RISCVVIntrinsicInfo {
   unsigned IntrinsicID;
   uint8_t SplatOperand;
+  uint8_t VLOperand;
+  bool hasSplatOperand() const {
+    // 0xF is not valid. See NoSplatOperand in IntrinsicsRISCV.td.
+    return SplatOperand != 0xF;
+  }
+  bool hasVLOperand() const {
+    // 0x1F is not valid. See NoVLOperand in IntrinsicsRISCV.td.
+    return VLOperand != 0x1F;
+  }
 };
 
 using namespace RISCV;

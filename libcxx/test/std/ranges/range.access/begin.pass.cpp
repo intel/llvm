@@ -31,9 +31,26 @@ static_assert( std::is_invocable_v<RangeBeginT, int (&)[]>);
 
 struct Incomplete;
 static_assert(!std::is_invocable_v<RangeBeginT, Incomplete(&&)[]>);
-static_assert(!std::is_invocable_v<RangeBeginT, Incomplete(&&)[42]>);
+static_assert(!std::is_invocable_v<RangeBeginT, const Incomplete(&&)[]>);
 static_assert(!std::is_invocable_v<RangeCBeginT, Incomplete(&&)[]>);
-static_assert(!std::is_invocable_v<RangeCBeginT, Incomplete(&&)[42]>);
+static_assert(!std::is_invocable_v<RangeCBeginT, const Incomplete(&&)[]>);
+
+static_assert(!std::is_invocable_v<RangeBeginT, Incomplete(&&)[10]>);
+static_assert(!std::is_invocable_v<RangeBeginT, const Incomplete(&&)[10]>);
+static_assert(!std::is_invocable_v<RangeCBeginT, Incomplete(&&)[10]>);
+static_assert(!std::is_invocable_v<RangeCBeginT, const Incomplete(&&)[10]>);
+
+// This case is IFNDR; we handle it SFINAE-friendly.
+LIBCPP_STATIC_ASSERT(!std::is_invocable_v<RangeBeginT, Incomplete(&)[]>);
+LIBCPP_STATIC_ASSERT(!std::is_invocable_v<RangeBeginT, const Incomplete(&)[]>);
+LIBCPP_STATIC_ASSERT(!std::is_invocable_v<RangeCBeginT, Incomplete(&)[]>);
+LIBCPP_STATIC_ASSERT(!std::is_invocable_v<RangeCBeginT, const Incomplete(&)[]>);
+
+// This case is IFNDR; we handle it SFINAE-friendly.
+LIBCPP_STATIC_ASSERT(!std::is_invocable_v<RangeBeginT, Incomplete(&)[10]>);
+LIBCPP_STATIC_ASSERT(!std::is_invocable_v<RangeBeginT, const Incomplete(&)[10]>);
+LIBCPP_STATIC_ASSERT(!std::is_invocable_v<RangeCBeginT, Incomplete(&)[10]>);
+LIBCPP_STATIC_ASSERT(!std::is_invocable_v<RangeCBeginT, const Incomplete(&)[10]>);
 
 struct BeginMember {
   int x;
@@ -48,7 +65,7 @@ static_assert(!std::is_invocable_v<RangeBeginT, BeginMember const&&>);
 static_assert( std::is_invocable_v<RangeCBeginT, BeginMember &>);
 static_assert(!std::is_invocable_v<RangeCBeginT, BeginMember &&>);
 static_assert( std::is_invocable_v<RangeCBeginT, BeginMember const&>);
-static_assert( std::is_invocable_v<RangeCBeginT, BeginMember const&&>);
+static_assert(!std::is_invocable_v<RangeCBeginT, BeginMember const&&>);
 
 constexpr bool testReturnTypes() {
   {
@@ -307,7 +324,9 @@ static_assert(noexcept(std::ranges::cbegin(brar)));
 struct Incomplete;
 template<class T> struct Holder { T t; };
 static_assert(!std::is_invocable_v<RangeBeginT, Holder<Incomplete>*>);
+static_assert(!std::is_invocable_v<RangeBeginT, Holder<Incomplete>*&>);
 static_assert(!std::is_invocable_v<RangeCBeginT, Holder<Incomplete>*>);
+static_assert(!std::is_invocable_v<RangeCBeginT, Holder<Incomplete>*&>);
 
 int main(int, char**) {
   static_assert(testReturnTypes());

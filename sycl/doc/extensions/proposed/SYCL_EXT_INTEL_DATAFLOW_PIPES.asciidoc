@@ -1,0 +1,764 @@
+= SYCL_INTEL_data_flow_pipes
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This is a proposed update to an existing extension.  The APIs
+described in this document are not yet implemented and cannot be used in
+application code.  See
+link:../supported/SYCL_EXT_INTEL_DATAFLOW_PIPES.asciidoc[here] for the existing
+extension, which is implemented.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
+
+This document describes an extension that adds pipes to SYCL.  Pipes are first in first out primitives that can provide efficient on-device communication between elements of a design, and are particularly relevant for expression of some algorithms on data flow and spatial architectures such as FPGAs.  This specification uses the term _pipe_ to be consistent with terminology from OpenCL 2.0 and later, but does not expose identical functionality.
+
+== Name Strings
+
++SYCL_INTEL_data_flow_pipes+
+
+== Notice
+
+Copyright (c) 2019-2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 3
+
+== Contact
+Michael Kinsner, Intel (michael 'dot' kinsner 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 3.
+
+The use of blocking pipe reads or writes requires support for https://github.com/KhronosGroup/SPIRV-Registry/blob/master/extensions/INTEL/SPV_INTEL_blocking_pipes.asciidoc[SPV_INTEL_blocking_pipes] if SPIR-V is used by an implementation.
+
+== Overview
+
+Data flow and spatial compute architectures often expose the concept of a first in first out (FIFO) buffer.  The FIFO construct provides links between elements of a design that are accessed through read and write or push and pop application programming interfaces (APIs), without the notion of a memory address/pointer to elements within the FIFO.  Data is written to a FIFO through an API that commits a single word or packet (of FIFO data width), and that word/packet is later returned by an API reading data from the FIFO.  FIFO constructs may include storage to buffer multiple words/packets internally (accept reads even if there is previously written data that hasn't been read) for algorithmic reasons, but are fundamentally read/write interfaces without random access ability, and internal storage does not impact semantics of the pipe.
+
+The usefulness of FIFO constructs is not restricted to spatial architectures like FPGAs, but this extension is framed from an FPGA perspective.  Other architectures require different execution model guarantees and in some cases additional APIs to support those execution models (e.g. OpenCL pipe reservations).  The primary objective of this extension is to enable pipes on FPGA architectures, where they are fundamental to performance of some spatial algorithm decompositions.  Focusing on FPGAs simplifies the interface and semantics for this version of the extension.
+
+OpenCL defines _pipes_, which are FIFO constructs.  This extension uses the term pipe for consistency with Khronos specifications.
+
+FIFOs are fundamental in spatial architectures where different kernels or subsets of a kernel are executing on different regions of an accelerator.  FIFOs provide a mechanism to pass ordered data between processing regions.  This has multiple benefits, including simplifying decomposition of a problem into smaller more independent units, decoupling processing rates and hiding burst characteristics of data, and simplifying implementation details such as frequency critical paths on some architectures.
+
+This extension adds support for pipes to SYCL.  It does not expose the full OpenCL or SPIR-V pipe feature sets (e.g. pipe reservations and dynamic connectivity), and instead focuses on the functionality required to enable performance on spatial architectures - specifically point-to-point FIFO communication between compute units (of some definition) that may be executing concurrently.  The extension aligns much more closely with OpenCL 2.2 program pipes than with OpenCL 2.0 kernel argument-based pipes, and can effectively leverage the program pipe representation in SPIR-V.  Like the relation to OpenCL and SPIR-V, this extension also does not align with the pipes definition published in the provisional SYCL 2.2 specification, which has been deprecated and was not finalized.
+
+This extension enables four classes of pipe connectivity:
+
+. *Cross kernel:* Kernel A => Kernel B
+. *Intra-kernel:* Kernel A => Kernel A
+. *Host pipe:* Kernel A &#8660; host program
+. *I/O pipe:* Kernel A &#8660; I/O peripheral
+
+== Design goals
+
+. Simple use cases should be simple to express
+. Complex use cases should be possible to express using native {cpp} mechanisms.  Need first class interaction with the {cpp} type system and features like templating and metaprogramming
+. Guaranteed static connectivity of pipes between kernels.  Device compilers must be able to extract and implement the connectivity of pipes between kernels in the same program.  Dynamic connectivity - binding or modification of pipe read/write connections at runtime - isn't supported by this extension
+. Leverage the existing SPIR-V representation of pipes
+. Require minimal compiler changes for functional implementation.  Use the C++ type system to guarantee static connectivity
+. Expose single handle to pipe identity - e.g. either type or object instance, but not both
+. Expose performance available from underlying layers such as OpenCL
+
+== Key pipe properties
+
+. *FIFO ordering:* Data is only accessible (readable) in FIFO order, specifically the program order of data written to the pipe from the perspective of a single work-item. 
+. *Capacity:* To avoid deadlock with some programming patterns that use pipes, a user must be able to define or reason about a minimum capacity, in number of data words.  Capacity is the number of outstanding words that can be written to a pipe but not yet read from it.  More specifically capacity is the number of data words that can be written to the pipe, assuming that the pipe is initialized with no contained data word(s) and that no read operations from the pipe occur, without non-blocking writes returning a "failed" status (which does not affect pipe contents or state) or blocking calls blocking indefinitely.  Compilers cannot in general infer such requirements, which depend on algorithm and accelerator characteristics, as well as host program architecture and behavior.
+. *Implicit control information:* Pipes provide implicit control information based on availability of data in a pipe, and also the ordering of data within a pipe.  Non-blocking calls return a status indicating whether the operation was successful (was capacity in the pipe to write data, or data was available to read).  Unsuccessful non-blocking pipe reads or writes do not impact the state or content of a pipe.  Blocking calls wait until there is available capacity to commit data, or until data is available to be read.  In all of these cases the pipe indirectly conveys side channel control information to the program, which can be used for flow control or many other purposes by an application.  This implicit side channel of control information is a fundamental property of many spatial architectures and protocols, and is a primary reason that pipes are important on architectures like FPGA - they map to the hardware and spatial algorithm decompositions efficiently.
+. *Fine grained communication:* A critical property of pipes for spatial architectures is fine grained availability of data without coarse grained synchronization points, such as kernel completion events.  On-chip communication between concurrently executing kernels, for example, requires guarantees that a consumer kernel sees data written by a producer kernel, without buffering of large amounts of data or waiting for kernel completion events that may not otherwise be desired.  Instead, finer-grained data visibility guarantees allow kernels to cooperate with minimal data storage requirements within a pipe, and is required to make cooperation between concurrently executing kernels on spatial architectures efficient.  Pipes guarantee that any word (of `pipeT` type) written to a pipe will eventually be visible to read endpoints, regardless of whether additional words are written to the pipe.  There is no minimum amount of data (beyond a single word) that must be written to receive this guarantee, and there is no minimum capacity or storage requirement associated with this guarantee.
+
+== Mechanism that identifies a pipe
+
+The mechanism through which a pipe is uniquely identified for reading and writing is a critical property.  It significantly influences interaction with C++ language features, and complexity of implementation in compilers.
+
+The two primary candidate mechanisms to uniquely identify a pipe in SYCL are:
+
+. *Object instance of a pipe type*.  This is the approach taken by the OpenCL {cpp} kernel language and SYCL 2.2 provisional specification
+. *Specialization of the pipe type*
+
+Both mechanisms should not be exposed simultaneously due to interface complexity and likelihood of bugs in application code.
+
+The ability for a device compiler to infer static connectivity within and between kernels is the primary objective of this extension.  Everything else leads to poor performance that is difficult for a user to comprehend and correct.
+
+This extension is based on (2) above, and specifically uses type (template specializations of the `pipe` class) to identify a pipe.  Writes to or reads from the same pipe type are accesses to the same pipe.  This approach guarantees that a device compiler can infer static connectivity of pipes by leveraging the C++ type system.
+
+A pipe type is a specialization of the pipe class:
+
+[source,c++,Pipe type def,linenums]
+----
+template <typename name,
+          typename dataT,
+          size_t min_capacity = 0>
+class pipe;
+----
+
+The combined set of the three template parameters forms the type of a pipe.  Any uses of a read/write member function on that type operate on the same pipe.
+
+A difference in any of the three template parameters identifies a different pipe.  For example, all of the pipes in the following snip are different:
+
+[source,c++,Pipe type def,linenums]
+----
+using pipe<class foo, int>;
+using pipe<class bar, int>;
+using pipe<class bar, float>;
+using pipe<class bar, float, 5>;
+----
+
+
+The interface of a pipe is through static member functions, and instances of a pipe class cannot be instantiated.  Allowing instances of pipe objects, when their type defines connectivity, would introduce an error prone secondary mechanism of reference.
+
+The first template parameter, `name`, can be any type, and is typically expected to be a user defined class in a user namespace.  The type only needs to be forward declared, and not defined.
+
+Above this basic mechanism of {cpp} type being used to identify a pipe, additional layers can be built on top to contain the type in an object that can be passed by value.  Because such mechanisms (e.g. `boost::hana::type`) can layer on top of the fundamental type-based mechanism described here, those mechanisms are not included in the extension specification.
+
+== Simple example of an inter-kernel pipe
+
+[source,c++,First example,linenums]
+----
+// It is highly recommended to declare the type at a scope visible to all uses.
+// Defining a type alias (like shown here) is the recommended practice for users
+// without reason to do otherwise.
+using my_pipe = pipe<class some_pipe, int>;
+
+myQueue.submit([&](handler& cgh) {
+  auto read_acc = readBuf.get_access<access::mode::read>(cgh);
+
+  cgh.parallel_for<class foo>(range<1> { 1024 }, [=](id<1> idx) {
+    // Note: The ordering of work-item IDs writing to the pipe is not defined
+    my_pipe::write( read_add[idx] );
+  });
+});
+
+myQueue.submit([&](handler& cgh) {
+  auto write_acc = writeBuf.get_access<access::mode::write>(cgh);
+
+  cgh.parallel_for<class bar>(range<1> { 1024 }, [=](id<1> idx) {
+    // Note: The ordering of work-item IDs reading from the pipe is not defined
+    write_acc[idx] = my_pipe::read();
+  });
+});
+----
+
+
+== Read/write member functions, and pipe template parameters
+
+The pipe class exposes static member functions for writing a data word to a pipe, and for reading a data word from a pipe.  A data word in this context is the data type that the pipe contains (`dataT` pipe template argument).
+
+Blocking and non-blocking forms of the read and write members are defined, with the form chosen based on overload resolution.
+
+[source,c++,Read write members,linenums]
+----
+template <typename name,
+          typename dataT,
+          size_t min_capacity = 0>
+class pipe {
+  // Blocking
+  static dataT read();
+  static void write( const dataT &data );
+
+  // Non-blocking
+  static dataT read( bool &success_code );
+  static void write( const dataT &data, bool &success_code );
+}
+----
+
+The read and write member functions may be invoked within device code, or within a SYCL host program.  Some interfaces may not be available on all devices/implementations, but the pipe definition itself does not gate availability.  Instead, implementations should error if an unsupported pipe is used.  See section <<device_queries>> for information on querying the availability of specific pipe features relative to a device.
+
+The template parameters of the device type are defined as:
+
+* `name`: Type that is the basis of pipe identification.  Typically a user-defined class, in a user namespace.  Forward declaration of the type is sufficient, and the type does not need to be defined.
+* `dataT`: The type of data word/packet contained within a pipe.  This is the data type that is read during a successful `pipe::read` operation, or written during a successful `pipe::write` operation.  The type must be standard layout and trivially copyable.
+* `min_capacity`: User defined minimum number of words in units of `dataT` that the pipe must be able to store without any being read out.  A minimum capacity is required in some algorithms to avoid deadlock, or for performance tuning.  An implementation can include more capacity than this parameter, but not less.
+
+== Pipe types and {cpp} scope
+
+Use of the {cpp} type alias mechanism (`using`) is highly encouraged, to avoid errors where slighly different pipe types inadvertently lead to unique pipes.  `using` should be nested within a user namespace(s) to protect from unexpected type collisions with pipe types elsewhere in the code, or within libraries (which should also nest name types within namespaces).
+
+Normal {cpp} forward declaration and scoping rules apply.  For example, the following example has four pipes, each of which is written to once.  If the user intended to have four write endpoints of a *single* pipe, which is almost certain in this case because scoping prevents the pipes from ever being read, then the user could have defined the type through `using`, or at least have forward declared `class some_pipe` at a scope visible to all uses. 
+
+[source,c++,Different pipes,linenums]
+----
+// Write to a pipe
+myQueue.submit([&](handler& cgh) {
+  auto read_acc = readBuf.get_access<access::mode::read>(cgh);
+
+  cgh.parallel_for<class foo>(range<1> { 1024 }, [=](id<1> idx) {
+    pipe<class some_pipe, int>::write( read_add[idx] );
+  });
+});
+
+// Read from a different pipe (probably by accident)
+myQueue.submit([&](handler& cgh) {
+  auto write_acc = writeBuf.get_access<access::mode::write>(cgh);
+
+  cgh.parallel_for<class bar>(range<1> { 1024 }, [=](id<1> idx) {
+    write_acc[idx] = pipe<class some_pipe, int>:read();
+  });
+});
+
+// Write to yet a third pipe (probably by accident)
+{
+  pipe<class some_pipe, int>::write( read_add[idx] );
+}
+
+// Write to a fourth pipe (probably by accident)
+{
+  pipe<class some_pipe, int>::write( read_add[idx] );
+}
+  
+// Forward declaring `class some_pipe` before this code block would have
+// made all writes access the same pipe type.  It is highly encouraged to define
+// pipe types through `using` once, at a scope visible to all uses, unless
+// C++ scoping is intentionally being used to create unique pipe types.
+----
+
+An outstanding issue is whether the code example above (with writes to independent pipes) should lead to a warning within implementations.  Backends will typically already error if a pipe doesn't have both read and write endpoint(s), but it's easy to generate code examples where this condition is met and multiple pipe types still lead to unexpected behavior (to a user not accustomed to {cpp} scoping rules).
+
+== Pipe types and type aliasing
+
+Type aliases in {cpp} through the `using` mechanism do not change the type of a pipe.  For example, the two writes in the following code snip are to the same pipe, even though _name_ in the second write is an alias to that used in the first write.
+
+[source,c++,Read write members,linenums]
+----
+  class a_class;
+  using type_alias = a_class;
+  pipe<a_class, int>::write(0);
+  pipe<type_alias, int>::write(0);
+----
+
+== Host pipe map/unmap
+
+Pipes expose two additional static member functions that are available within host code, and which map to the OpenCL C host pipe extension map/unmap interface.  These member functions provide higher bandwidth or otherwise more efficient communication on some platforms, by allowing block transfers of larger data sets.
+
+[source,c++,Read write members,linenums]
+----
+template <typename name,
+          typename dataT,
+          size_t min_capacity = 0>
+class pipe {
+  template <pipe_property::writeable host_writeable>
+    static dataT* map(size_t requested_size, size_t &mapped_size);
+
+  static size_t unmap(T* mapped_ptr, size_t size_to_unmap);
+}
+----
+
+For a pipe to be used for Kernel &#8660; host program communication, the pipe type must be readable and writeable because the host program will perform one of those operations, and a kernel will perform the other.  A pipe communicating between host and kernel is unidirectional, in that the host (and likewise kernel) will either read or write, but not both.  The `map` member function is therefore templated on the type of operation that the host will perform, using the _host_writeable_ template parameter.
+
+If _host_writeable_ is true, then the host program writes to the pipe and the kernel also accessing the pipe must read from it.  If _host_writeable_ is false, then the host program reads from the pipe, and the kernel accessing the pipe must write to it.
+
+Mapping a pipe does not impact the _min_capacity_ property of the pipe in any way, so a mapped memory region used to read from or write to the pipe from the host must not be considered as adding additional capacity to the pipe from the perspective of preventing application deadlock.
+
+The APIs are defined as:
+
+[cols="2*^",options="header",stripes=none]
+|===
+|Function |Description  
+|`template <pipe_property::writeable host_writeable> +
+dataT* map(size_t requested_size, size_t &mapped_size);`
+|Returns a _dataT *_ in the host address space. The host can write data to this pointer for reading by a device pipe endpoint, if it was created with template parameter `host_writeable = true`.  Alternatively, the host can read data from this pointer if it was created with template parameter `host_writeable = false`.
+
+The value returned in the mapped_size argument specifies the maximum number of bytes that the host can access. The value specified by _mapped_size_ is less than or equal to the value of the _requested_size_ argument that the caller specifies.  _mapped_size_ does not impact the _min_capacity_ property of the pipe.
+
+After writing to or reading from the returned _dataT *_, the host must execute one or more `unmap` calls on the same pipe, to signal to the runtime that data is ready for transfer to the device (on a write), and that the runtime can reclaim the memory for reuse (on a read or write). If `map` is called on a pipe before `unmap` has been used to unmap all memory mapped by a previous `map` operation, the buffer returned by the second `map` call will not overlap with that returned by the first call.
+
+|`static size_t unmap(T* mapped_ptr, size_t size_to_unmap);`
+|Signals to the runtime that the host is no longer using _size_to_unmap_ bytes of the host allocation that was returned previously from a call to `map`. In the case of a writeable host pipe, calling `unmap` allows the unmapped data to become available to the kernel. If the _size_to_unmap_ value is smaller than the _mapped_size_ value specified to `map`, then multiple `unmap` function calls are necessary to unmap the full capacity of the host allocation. It is legal to perform multiple `unmap` function calls to unmap successive bytes in the buffer returned by `map`, up to the _mapped_size_ value defined in the `map` operation.
+|===
+
+== Multiple pipe endpoints
+
+Multiple reads and/or multiple writes to a pipe may require arbitration with some policy in an implementation.  Multiple reads or writes to the same pipe within a single kernel are in no way disallowed by this specification, but may be unintentional from a user perspective, particularly if materialized through optimizations such as loop unrolling.
+
+Multiple reads or multiple writes to the same pipe from more than one kernel are not allowed, and the mechanism through which an implementation should reject this situation is implementation defined.  For this restriction, a single kernel is defined as a single built kernel within a single program object.  Multiple invocations/enqueues of such a single kernel do not violate the requirement that only a single kernel (or the host) may read from or write to a pipe.  Multiple launches of the kernel are still considered to be a single kernel from the perspective of this restriction.
+
+When there are accesses to a pipe from different work-items or host threads, the order of data written to or read from the pipe is not defined.  Specifically, regarding multiple accesses to the same pipe:
+
+1. *Accesses to a single pipe within a single work-item of a kernel or thread of the host program:* Operations on the same pipe occur in program order with respect to the work-item or host thread.  No "concurrent" accesses or reordering of accesses are observable from the perspective of the single pipe.  If there are multiple pipe access operations to the same pipe within a single kernel, they execute in program order from the perspective of a single work-item.
+2. *Accesses to multiple pipes within a single work-item of a kernel or thread of the host program:*  Different pipes are treated in the same way as non-aliased memory, in that accesses to one pipe may be reordered relative to accesses to another pipe.  There is no expectation of program ordering of pipe operations across different pipes, only for a single pipe.  If a happens-before relationship across pipes is required, synchronization mechanisms such as atomics or barriers must be used.
+3. *Accesses to a single pipe within two work-items of the same kernel (same or different invocations of a single kernel), and/or threads of the host program:* No ordering guarantees are made on the order of pipe operations across device work-items or host threads.  For example, if two work-items executing a kernel write to a pipe, there are no guarantees that the work-item with lower _id_ (for any definition of _id_) executes before the pipe write from a higher _id_.  The execution order of work-items executing a kernel are not defined by SYCL, may be dynamically reordered, and may not be deterministic.  If ordering guarantees are required across work-items and/or host threads, synchronization mechanisms such as atomics or barriers must be used.
+
+=== Restrictions on pipes accessed by both kernels and the host program
+
+A pipe can be accessed (read from or written to) from both device code and SYCL host code.  Host-accessible pipes are unidirectional from both the host and device perspectives.  A kernel cannot both read from and write to a pipe, that the host program also reads from or writes to.  Similarly, the host program cannot read from and write to the same pipe type.  A consequence of this rule is that loop-back host pipes are not possible using the same pipe - the host program cannot write to and also read from a pipe.  The compiler, linker, and/or runtime are required to emit an error if any of these conditions are violated.
+
+A pipe accessed by the host can communicate with a kernel in exactly one program executing on one device.  If two instances of a kernel are launched to different devices, or if a kernel is compiled into more than one program object and both are enqueued, then the runtime is required to throw a synchronous `cl::sycl::kernel_error` exception.  The intent of this restriction is that accesses to a pipe on the host provide a point to point link with a kernel executing on a specific device without ambiguity, arbitration, broadcasts, or synchronization across devices.
+
+The data lifetime rules for pipes apply also to host accessible pipes.  Specifically: data in a pipe exists within an instance of a program object on a device (programming bitstream lifetime on FPGA devices).  Invocation of a kernel from a different program object might destroy all data stored in pipes within the program object associated with the previous kernel(s) executed on the device, and also might destroy any data in pipes being accessed by the host that were communicating with kernel(s) in the program object.
+
+==== Allowed:
+[source,c++,Host pipe works,linenums]
+----
+using my_pipe = pipe<class some_pipe, int>;
+
+myQueue.submit([&](handler& cgh) {
+  cgh.parallel_for<class bar>(range<1> { 1024 }, [=](id<1> idx) {
+    int data = my_pipe::read();
+    ...
+  });
+});
+
+my_pipe::write(5);  // OK.  Only communicates with single kernel
+----
+
+==== Illegal (host and multiple kernels connected with pipe):
+[source,c++,Host pipe restriction,linenums]
+----
+using my_pipe = pipe<class some_pipe, int>;
+
+myQueue.submit([&](handler& cgh) {
+  cgh.parallel_for<class foo>(range<1> { 1024 }, [=](id<1> idx) {
+    int data = my_pipe::read();
+    ...
+  });
+});
+
+myQueue.submit([&](handler& cgh) {
+  cgh.parallel_for<class bar>(range<1> { 1024 }, [=](id<1> idx) {
+    int data = my_pipe::read();
+    ...
+  });
+});
+
+my_pipe::write(5);  // Error.  Pipe communicates with two kernels
+----
+
+==== Illegal (host access combined with bidirectional access by a kernel):
+[source,c++,Host pipe restriction2,linenums]
+----
+using my_pipe = pipe<class some_pipe, int>;
+
+myQueue.submit([&](handler& cgh) {
+  cgh.parallel_for<class foo>(range<1> { 1024 }, [=](id<1> idx) {
+    int data = my_pipe::read();
+    my_pipe::write( data );  // Error: Write as well as read from kernel, on pipe that is also accessed from host code (below)
+  });
+});
+
+my_pipe::write(5);
+----
+
+==== Illegal (host both reads and writes pipe):
+[source,c++,Host pipe restriction3,linenums]
+----
+using my_pipe = pipe<class some_pipe, int>;
+
+my_pipe::write(5);
+int data = my_pipe::read();  // Error: Loopback pipes not allowed on host.  Pipes from host perspective must be unidirectional
+----
+
+
+== I/O Pipes
+
+The pipe class described above exposes both read and write static member functions.  Two additional classes are defined which can be exposed by an implementation, to provide access to hardware peripherals.  The link to a hardware peripheral is unidirectional, so the the classes that describe these links expose either read or write members, but not both.
+
+[source,c++,iopipes,linenums]
+----
+template <typename name,
+          typename dataT,
+          size_t min_capacity = 0>
+class kernel_readable_io_pipe {
+  public:
+    static dataT read();  // Blocking
+    static dataT read( bool &success_code );  // Non-blocking
+};
+
+template <typename name,
+          typename dataT,
+          size_t min_capacity = 0>
+class kernel_writeable_io_pipe {
+  public:
+    static void write( dataT data );  // Blocking
+    static void write( dataT data, bool &success_code );  // Non-blocking
+}
+----
+
+
+[source,c++,boardspec,linenums]
+----
+// "Built-in pipes" provide interfaces with hardware peripherals
+// These definitions are typically provided by a device vendor and
+// made available to developers for use.
+namespace example_platform {
+  template <unsigned ID>
+  struct ethernet_pipe_id {
+    static constexpr unsigned id = ID;
+  };
+  
+  using ethernet_read_pipe = kernel_readable_io_pipe<ethernet_pipe_id<0>, int, 0>;
+  using ethernet_write_pipe =kernel_writeable_io_pipe<ethernet_pipe_id<1>, int, 0>;
+}
+----
+
+== Memory model
+
+Pipes in the context of this extension step outside the OpenCL and SYCL memory models in the following ways:
+
+. Pipes are not defined to be in any address space.  Each pipe is conceptually in its own address space, that does not alias with any others.
+
+. Data written to a pipe must be eventually visible to the read endpoint of the pipe without an OpenCL synchronization point.  Specifically, kernel completion or other synchronization points are not required to guarantee pipe write side effect visibility on the read endpoint of the pipe.
+
+. There is no implicit synchronizes-with relationship between different pipes and/or with non-pipe memory in a named address space (e.g. global, local, private).  Specifically, there is no implicit global or local release of side effects through a pipe access, and observation of data or control information on one pipe does not imply any knowledge through happens-before relationship with a different pipe or with memory not associated with the pipe.
+
+. Pipe read and write operations behave as if they are SYCL relaxed atomic load and store operations.  When paired with sycl::atomic_fences to establish a sychronizes-with relationship, pipe operations can provide guarantees on side effect visibility in memory, as defined by the SYCL memory model.
+
+. At a work-group barrier, there is an implicit acquire and release of side effects for any pipes operated on within the kernel, either before or after the barrier.  This occurs without an explicit memory fence being applied to or around the barrier.
+
+. There are no guarantees on pipe operation side effect latency.  Writes to a pipe will eventually be visible to read operations on the pipe, without a synchronization point, but that visibility is not guaranteed to be by the time that the next instruction is executed by a writing work-item, for example.  There may be arbitrary latency between a write to a pipe and visibility of the data on a read endpoint of the pipe.  Likewise, there may be arbitrary latency between a read from a pipe, and visibility at a write endpoint that there is capacity available to write to (assuming that capacity was full prior to the read).
+
+. Data in a pipe is only guaranteed to exist within an instance of a program object on a device (programming bitstream lifetime on FPGA devices).  Invocation of a kernel from a different program object might destroy all data stored in pipes within the program object associated with the previous kernel(s) executed on the device.  Different devices using the same SYCL program object maintain independent pipe state and data.
+
+
+== SYCL DAG and pipes
+The SYCL `accessor` mechanism exposes an object through which to access data, but also adds dependency edges (_requirements_) between nodes in the DAG.  Pipes imply no such dependency edges, regardless of whether they connect purely kernels, or also to host pipe operations.  A user should create DAG ordering constraints, using events for example, if required.
+
+== Lowering to SPIR-V
+SPIR-V is a first class target through which SYCL pipes should be representable.  Pipes are already representable within SPIR-V due to OpenCL heritage, and this extension has been written so that it can be implemented on top of those existing representations.  The OpenCL 2.2 program pipe representation in SPIR-V is particularly relevant for repesentation of pipes from this extension.
+
+If blocking pipe reads or writes are to be represented within SPIR-V, the extension https://github.com/KhronosGroup/SPIRV-Registry/blob/master/extensions/INTEL/SPV_INTEL_blocking_pipes.asciidoc[SPV_INTEL_blocking_pipes] is available to define the representation.
+
+== Translation unit scope, linking, functions
+
+To enable libraries:
+
+. Pipes must be usable within libraries which have source which is not visible to the compiler.  It must therefore be possible to connect a pipe to a library function, including linking at the implementation level.
+. Pipes must be passable to function calls through some mechanism.
+
+Pipes in this extension are defined by type.  This allows a library to expose pipe types to an application, without also exposing internal implementation details of the library.  Library code can thus be compiled in a different translation unit, and only the pipe types documented or exported to an application.  Implementation-defined linking details are responsible for linking the code generated by different translation units, potentially at a SPIR-V level.
+
+Library interfaces can also be templated to accept user-defined pipe types.  If the library implementation isn't to be included in a header file, then the library implementation needs to provide an interface that separates the user-defined pipe types from data or pipe consumption by the library code which is in a different translation unit.
+
+
+== Interoperability with OpenCL kernels
+
+Interoperability between the pipes described by this SYCL extension and OpenCL pipes is not a goal of this version of the extension, so is not defined.  OpenCL pipes are defined through kernel arguments, with host code to bind kernels together through pipes.  No mechanism is currently defined to bind a SYCL pipe type (instance of a pipe) to an OpenCL pipe kernel argument.
+
+== Examples
+
+Example uses of pipes, as could exist for example within device code.
+[source,c++,Examples block,linenums]
+----
+bool success;
+
+// Simple pipe
+using my_pipe1 = pipe<class foo, int>;
+my_pipe1::write(1);           // Blocking
+my_pipe1::read();             // Blocking
+my_pipe1::write(2, success);  // Non-blocking
+my_pipe1::read(success);      // Non-blocking
+
+// Simple pipe, explicit type
+pipe<class bar, float>::write(2.0);
+pipe<class bar, float>::read();
+
+// Changing the data type of a pipe is a different pipe, even with same first template parameter as my_pipe1
+using my_pipe2 = pipe<class foo, float>;
+my_pipe2::write(1);
+my_pipe2::read();
+
+// Example of how namespaces create unique pipe types
+pipe<myclass, int>::write(0);               // Mangled pipe name:  7myclass
+pipe<nestA::myclass, int>::write(0);        // Mangled pipe name:  N5nestA7myclassE
+pipe<nestA::nestB::myclass, int>::write(0); // Mangled pipe name:  N5nestA5nestB7myclassE
+
+// Built-in pipe - interface with hardware peripheral
+example_platform::ethernet_write_pipe::write(10);
+example_platform::ethernet_read_pipe::read();
+
+// Numeric ID example.  Users can define arbitrarily complex functions and helper for
+// managing pipe types, as desired.
+template <int ID>
+struct numeric_id {
+  static constexpr unsigned id = ID;
+};
+pipe<numeric_id<0>, float>::write(3.0);
+
+// Forward declaring type allows structures with enclosing scope, such as lambdas, to access the same pipe
+class pipe_type_for_lambdas;  // Forward decl leads to types within lambdas being the same
+[](){
+  pipe<class pipe_type_for_lambdas, int>::write(0);
+}();
+[](){
+  pipe<class pipe_type_for_lambdas, int>::write(0);
+}();
+
+// Library example 1: Lib style where lib has defined a pipe type, visible through the lib header
+mylib_namespace::lib_fft_write_pipe::write(2);
+
+// Library example 2: Lib style where the pipe name is defined by library, but not dataType, for example
+pipe<mylib_namespace::some_lib_pipe_identifier<3>, float>::write(2);
+
+// Library example 3: Lib style where user binds their own pipes to lib function
+mylib_namespace::lib_function<my_pipe1, my_pipe2>();
+----
+
+== [[device_queries]]Device queries
+
+Add additional device information queries to Table 25:
+
+[cols="3*^",options="header",stripes=none]
+|===
+|Device descriptors |Return type |Description  
+
+|intel::info::device::kernel_kernel_pipe_support
+|`bool`
+|Returns true if the device supports pipes connecting a kernel to another or the same kernel.  Returns false otherwise.
+
+|intel::info::device::kernel_host_pipe_support
+|`bool`
+|Returns true if the device supports pipes connecting a kernel to or from a pipe endpoint in the host program.  Returns false otherwise.
+
+|intel::info::device::max_host_read_pipes
+|`size_t`
+|Maximum number of host accessible read pipes (read from the host perspective) that are supported by the device.  Returns 0 if _intel::info::device::kernel_host_pipe_support_ is false.
+
+|intel::info::device::max_host_write_pipes
+|`size_t`
+|Maximum number of host accessible write pipes (write from the host perspective) that are supported by the device.  Returns 0 if _intel::info::device::kernel_host_pipe_support_ is false.
+|===
+
+
+
+== [[InlinedCallGotcha]]Function calls and pitfall to avoid
+
+There are many advantages to pipes being defined through their type instead of instance, and library abstractions can be built on top to provide an instance-based or other interface.  The type-based interface leads to a pattern worth calling out that is well defined by the type system, but that potentially causes unexpected behavior for some users.  This is illustrated through a simple example:
+
+
+[source,c++,FunctionCallExample,linenums]
+----
+void pipe_memcpy(int* dest, const int* src, size_t n) {
+  constexpr int N = 10;  // n <= N.  No checking here for simplicity
+  using mypipe = pipe<class local, int, N>;
+  for (size_t i = 0; i < n; ++i) mypipe::write(src[i]);
+  for (size_t i = 0; i < n; ++i) dest[i] = mypipe::read();
+}
+----
+
+
+For serialized calls to pipe_memcpy, within a kernel for example, all behaves as expected.
+
+[source,c++,SerializedFunctionCallExample,linenums]
+----
+pipe_memcpy(d1, s1, N);
+pipe_memcpy(d2, s2, N);
+----
+
+The same pipe type is reused by both of these calls, but the calls execute serially so the memcpy behavior is as expected.
+
+Once concurrency enters the picture, then `pipe_memcpy` potentially exhibits unexpected behavior because the pipe type declared locally to the function is identical/common across the calls.  This can be exposed through calls from different kernels that happen to be executing concurrently, or by calls from different work-items in the same kernel.  The pipe therefore becomes a resource that is identical/common across calls to `pipe_memcpy`, and requires either uniquification between invocations, or handling similar to concurrent accesses to a shared memory resource.  This is the expected and desired behavior, but if users intend for the pipe to be privatized per invocation, then they must explicitly code for that.
+
+Note that calls from the same kernel and same work-item which happen to be inlined and otherwise optimized to execute "concurrently" will not exhibit incorrect behavior - sequential consistency within a work-item is still required.  The pipe accesses have side effects, and each pipe is conceptually in it's own address space that doesn't alias with any others.  Within a single work-item, the compiler is not free to arbitrarily reorder operations with side effects.
+
+Uses of pipes declared within a function call that is invoked in a concurrent way are not common, but are legal.
+
+Users can privatize the pipe type by templating the function, if they do require independent pipes for concurrent calls to the function.  For example:
+
+[source,c++,TemplatedFunctionCallExample,linenums]
+----
+template <int id>
+void pipe_memcpy(int* dest, const int* src, size_t n) {
+  constexpr int N = 10;  // n <= N.  No checking here for simplicity
+  using mypipe = pipe<class local, int, N>;
+  for (size_t i = 0; i < n; ++i) mypipe::write(src[i]);
+  for (size_t i = 0; i < n; ++i) dest[i] = mypipe::read();
+}
+
+...
+
+pipe_memcpy<1>(d1, s1, N);
+pipe_memcpy<2>(d2, s2, N);
+----
+
+The above example function `pipe_memcpy()` could alternatively be templated on the pipe type (first template argument of the pipe class specialization), amongst other possibilities.
+
+Automated mechanisms are possible to provide uniquification across calls, and could be exposed through a wrapper or library.
+
+== [[warnings]]Required warning messages needing compiler support
+
+. Warning if two pipes are found within the translation unit that have an identical first template argument, and differ only in one or more of the following template arguments.
+
+== Issues
+
+. Should a warning be required if there is no forward declaration of a pipe type (e.g. declared within an expression)?  More specifically, should we add a required compiler warning/error if a pipe name type (first template argument of pipe type) is declared at a scope local to the pipe type declaration?  This would result in feedback to the user if they didn't declare the type at some scope larger than the pipe declaration, which is possibly a bug that will result in misconnected or unconnected pipes.
++
+--
+*RESOLUTION*: Not resolved.  Looking for input, because this is a valid design pattern in some cases.
+--
+
+. Arbitration is allowed by default (more than one read or write endpoint) within a single kernel.  Should there be an additional pipe template parameter to disable arbitration, as part of the type?  Downsides are that restriction as part of the type requires compiler support, since the pipe and read/write member functions are stateless, and adding additional parameters to the type increases likelihood of accidentally creating two pipes with slightly different parameterizations.
++
+--
+*RESOLUTION*: Resolved.  Not adding template parameter in this version because want to minimize parameters of the type.  But open to further input.
+--
+
+. Pipe types effectively link globally, if the name type is at a global scope.  There is no way to scope a type to only apply in a restricted region of code aside from a namespace scope, with the same type elsewhere forming a different pipe.  Namespaces can make this very manageable, but adding as an issue to make sure that this is well understood.
++
+--
+*RESOLUTION*: Resolved.  Need good documentation on this, but is a fundamental property of the type-based approach.
+--
+
+. Can't pass pipe as argument without additional wrapping.  Again, this is a feature in many ways, but important to make explicit.  Without a mechanism to contain a type as an object, pipes are passed as template arguments.
++
+--
+*RESOLUTION*: Resolved.  This is the design.  Wrapper libs can be built to enable pass-by-value appearance.
+--
+
+
+. Arrays of pipes are not supported without additional wrapping of the type into a container built for the purpose.
++
+--
+*RESOLUTION*: Resolved.  Abstraction/libraries on top enable functionality like this.  We will make public a library that enables arrays of pipes.
+--
+
+== Experimental APIs
+
+*NOTE*: The APIs described in this section are experimental. Future versions of this extension may change these APIs in ways that are incompatible with the versions described here.
+
+In the experimental API version, read/write methods take template arguments, which can contain the latency control properties `latency_anchor_id` and/or `latency_constraint`.
+
+* `sycl::ext::intel::experimental::latency_anchor_id<N>`, where `N` is an integer: An ID to associate with the current read/write function call, which can then be referenced by other `latency_constraint` properties elsewhere in the program to define relative latency constaints. ID must be unique within the application, and a diagnostic is required if that condition is not met.
+* `sycl::ext::intel::experimental::latency_constraint<A, B, C>`: A tuple of three values which cause the current read/write function call to act as an endpoint of a latency constraint relative to a specified `latency_anchor_id` defined by a different instruction.
+** `A` is an integer: The ID of the target anchor defined on a different instruction through a `latency_anchor_id` property.
+** `B` is an enum value: The type of control from the set {`type::exact`, `type::max`, `type::min`}.
+** `C` is an integer: The relative clock cycle difference between the target anchor and the current function call, that the constraint should infer subject to the type of the control (exact, max, min).
+
+The template arguments above don't have to be specified if user doesn't want to apply latency controls. The template arguments can be passed in arbitrary order.
+
+=== Implementation
+
+[source,c++]
+----
+// Added in version 2 of this extension.
+namespace sycl::ext::intel::experimental {
+enum class type {
+  none, // default
+  exact,
+  max,
+  min
+};
+
+template <int32_t _N> struct latency_anchor_id {
+  static constexpr int32_t value = _N;
+  static constexpr int32_t default_value = -1;
+};
+
+template <int32_t _N1, type _N2, int32_t _N3> struct latency_constraint {
+  static constexpr std::tuple<int32_t, type, int32_t> value = {_N1, _N2, _N3};
+  static constexpr std::tuple<int32_t, type, int32_t> default_value = {
+      0, type::none, 0};
+};
+
+template <typename name,
+          typename dataT,
+          size_t min_capacity = 0>
+class pipe {
+  // Blocking
+  template <class... _Params>
+  static dataT read();
+  template <class... _Params>
+  static void write( const dataT &data );
+
+  // Non-blocking
+  template <class... _Params>
+  static dataT read( bool &success_code );
+  template <class... _Params>
+  static void write( const dataT &data, bool &success_code );
+}
+} // namespace sycl::ext::intel::experimental
+----
+
+=== Usage
+
+[source,c++]
+----
+// Added in version 2 of this extension.
+#include <sycl/ext/intel/fpga_extensions.hpp>
+...
+using Pipe1 = ext::intel::experimental::pipe<class PipeClass1, int, 8>;
+using Pipe2 = ext::intel::experimental::pipe<class PipeClass2, int, 8>;
+using Pipe3 = ext::intel::experimental::pipe<class PipeClass2, int, 8>;
+
+myQueue.submit([&](handler &cgh) {
+  cgh.single_task<class foo>([=] {
+    // The following Pipe1::read is anchor 0
+    int value = Pipe1::read<ext::intel::experimental::latency_anchor_id<0>>();
+
+    // The following Pipe2::write is anchor 1
+    // The following Pipe2::write occurs exactly 2 cycles after anchor 0
+    Pipe2::write<ext::intel::experimental::latency_anchor_id<1>,
+                 ext::intel::experimental::latency_constraint<
+                     0, ext::intel::experimental::type::exact, 2>>(value);
+
+    // The following Pipe3::write occurs at least 2 cycles after anchor 1
+    Pipe3::write<ext::intel::experimental::latency_constraint<
+        1, ext::intel::experimental::type::min, 2>>(value);
+  });
+});
+----
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro `SYCL_EXT_INTEL_DATAFLOW_PIPES`
+to one of the values defined in the table below. Applications can test for the
+existence of this macro to determine if the implementation supports this
+feature, or applications can test the macro's value to determine which of the
+extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|2     |Add experimental latency control API.
+|===
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2019-09-12|Michael Kinsner|*Initial public working draft*
+|2|2019-11-13|Michael Kinsner|Incorporate feedback
+|3|2020-04-27|Michael Kinsner|Clarify that pipe operations behave as-if they are relaxed atomic operations.  Make SYCL2020 the baseline
+|4|2021-12-02|Shuo Niu|Add experimental latency control API
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

@@ -12,16 +12,20 @@
 
 #include <__availability>
 #include <__config>
+#include <__debug>
 #include <__filesystem/directory_entry.h>
 #include <__filesystem/directory_options.h>
 #include <__filesystem/path.h>
 #include <__iterator/iterator_traits.h>
 #include <__memory/shared_ptr.h>
-#include <__debug>
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/enable_view.h>
 #include <cstddef>
 #include <system_error>
+
+#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#  pragma GCC system_header
+#endif
 
 #ifndef _LIBCPP_CXX03_LANG
 
@@ -133,7 +137,7 @@ _LIBCPP_AVAILABILITY_FILESYSTEM_POP
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 
-#if !defined(_LIBCPP_HAS_NO_RANGES)
+#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 template <>
 _LIBCPP_AVAILABILITY_FILESYSTEM

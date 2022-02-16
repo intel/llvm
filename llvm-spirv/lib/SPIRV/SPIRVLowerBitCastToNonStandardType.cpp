@@ -46,6 +46,7 @@
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
 
 #include <utility>
 
@@ -56,7 +57,7 @@ namespace SPIRV {
 static VectorType *getVectorType(Type *Ty) {
   assert(Ty != nullptr && "Expected non-null type");
   if (auto *ElemTy = dyn_cast<PointerType>(Ty))
-    Ty = ElemTy->getElementType();
+    Ty = ElemTy->getPointerElementType();
   return dyn_cast<VectorType>(Ty);
 }
 

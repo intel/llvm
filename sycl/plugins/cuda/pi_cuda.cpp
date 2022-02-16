@@ -851,6 +851,33 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
+  case PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             context->get_device()->get()) == CUDA_SUCCESS);
+    pi_memory_order_capabilities capabilities =
+        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
+                     : PI_MEMORY_ORDER_RELAXED;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
+  case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             context->get_device()->get()) == CUDA_SUCCESS);
+    pi_memory_order_capabilities capabilities =
+        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
+                           PI_MEMORY_SCOPE_SYSTEM
+                     : PI_MEMORY_SCOPE_DEVICE;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
+  }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -1112,11 +1139,31 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    atomic64);
   }
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    // NVPTX currently only support at most monotonic atomic load/store.
-    // Acquire and release is present in newer PTX, but is not yet supported
-    // in LLVM NVPTX.
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    pi_memory_order_capabilities capabilities =
+        (major >= 6) ? PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
+                           PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL
+                     : PI_MEMORY_ORDER_RELAXED;
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_MEMORY_ORDER_RELAXED);
+                   capabilities);
+  }
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+    pi_memory_order_capabilities capabilities =
+        (major >= 5) ? PI_MEMORY_SCOPE_WORK_ITEM | PI_MEMORY_SCOPE_SUB_GROUP |
+                           PI_MEMORY_SCOPE_WORK_GROUP | PI_MEMORY_SCOPE_DEVICE |
+                           PI_MEMORY_SCOPE_SYSTEM
+                     : PI_MEMORY_SCOPE_DEVICE;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   capabilities);
   }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
@@ -1693,7 +1740,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if Intel device UUID extension is utilized for CUDA.
     // For details about this extension, see
-    // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+    // sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md
   case PI_DEVICE_INFO_UUID:
     return PI_INVALID_VALUE;
 
@@ -4731,9 +4778,32 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       event_ptr->start();
     }
 
-    result = PI_CHECK_ERROR(
-        cuMemAdvise((CUdeviceptr)ptr, length, (CUmem_advise)advice,
-                    queue->get_context()->get_device()->get()));
+    switch (advice) {
+    case PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY:
+    case PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY:
+    case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION:
+    case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION:
+    case PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY:
+    case PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY:
+      result = PI_CHECK_ERROR(cuMemAdvise(
+          (CUdeviceptr)ptr, length,
+          (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1),
+          queue->get_context()->get_device()->get()));
+      break;
+    case PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST:
+    case PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST:
+    case PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST:
+    case PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST:
+      result = PI_CHECK_ERROR(cuMemAdvise(
+          (CUdeviceptr)ptr, length,
+          (CUmem_advise)(advice - PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY + 1 -
+                         (PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST -
+                          PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION)),
+          CU_DEVICE_CPU));
+      break;
+    default:
+      cl::sycl::detail::pi::die("Unknown advice");
+    }
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();

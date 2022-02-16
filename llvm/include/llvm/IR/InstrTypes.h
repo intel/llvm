@@ -1393,10 +1393,13 @@ public:
   const Use &getCalledOperandUse() const { return Op<CalledOperandOpEndIdx>(); }
   Use &getCalledOperandUse() { return Op<CalledOperandOpEndIdx>(); }
 
-  /// Returns the function called, or null if this is an
-  /// indirect function invocation.
+  /// Returns the function called, or null if this is an indirect function
+  /// invocation or the function signature does not match the call signature.
   Function *getCalledFunction() const {
-    return dyn_cast_or_null<Function>(getCalledOperand());
+    if (auto *F = dyn_cast_or_null<Function>(getCalledOperand()))
+      if (F->getValueType() == getFunctionType())
+        return F;
+    return nullptr;
   }
 
   /// Return true if the callsite is an indirect call.
@@ -1723,7 +1726,13 @@ public:
   }
 
   /// Extract the alignment of the return value.
-  MaybeAlign getRetAlign() const { return Attrs.getRetAlignment(); }
+  MaybeAlign getRetAlign() const {
+    if (auto Align = Attrs.getRetAlignment())
+      return Align;
+    if (const Function *F = getCalledFunction())
+      return F->getAttributes().getRetAlignment();
+    return None;
+  }
 
   /// Extract the alignment for a call or parameter (0=unknown).
   MaybeAlign getParamAlign(unsigned ArgNo) const {
@@ -1818,14 +1827,14 @@ public:
 
   /// Determine if the call does not access or only reads memory.
   bool onlyReadsMemory() const {
-    return doesNotAccessMemory() || hasFnAttr(Attribute::ReadOnly);
+    return hasImpliedFnAttr(Attribute::ReadOnly);
   }
 
   void setOnlyReadsMemory() { addFnAttr(Attribute::ReadOnly); }
 
   /// Determine if the call does not access or only writes memory.
   bool onlyWritesMemory() const {
-    return doesNotAccessMemory() || hasFnAttr(Attribute::WriteOnly);
+    return hasImpliedFnAttr(Attribute::WriteOnly);
   }
   void setOnlyWritesMemory() { addFnAttr(Attribute::WriteOnly); }
 
@@ -2087,8 +2096,8 @@ public:
   /// Is the function attribute S disallowed by some operand bundle on
   /// this operand bundle user?
   bool isFnAttrDisallowedByOpBundle(StringRef S) const {
-    // Operand bundles only possibly disallow readnone, readonly and argmemonly
-    // attributes.  All String attributes are fine.
+    // Operand bundles only possibly disallow memory access attributes.  All
+    // String attributes are fine.
     return false;
   }
 
@@ -2113,6 +2122,9 @@ public:
 
     case Attribute::ReadOnly:
       return hasClobberingOperandBundles();
+
+    case Attribute::WriteOnly:
+      return hasReadingOperandBundles();
     }
 
     llvm_unreachable("switch has a default case!");
@@ -2283,6 +2295,26 @@ private:
       return false;
 
     return hasFnAttrOnCalledFunction(Kind);
+  }
+
+  /// A specialized version of hasFnAttrImpl for when the caller wants to
+  /// know if an attribute's semantics are implied, not whether the attribute
+  /// is actually present.  This distinction only exists when checking whether
+  /// something is readonly or writeonly since readnone implies both.  The case
+  /// which motivates the specialized code is a callee with readnone, and an
+  /// operand bundle on the call which disallows readnone but not either
+  /// readonly or writeonly.
+  bool hasImpliedFnAttr(Attribute::AttrKind Kind) const {
+    assert((Kind == Attribute::ReadOnly || Kind == Attribute::WriteOnly) &&
+           "use hasFnAttrImpl instead");
+    if (Attrs.hasFnAttr(Kind) || Attrs.hasFnAttr(Attribute::ReadNone))
+      return true;
+
+    if (isFnAttrDisallowedByOpBundle(Kind))
+      return false;
+
+    return hasFnAttrOnCalledFunction(Kind) ||
+      hasFnAttrOnCalledFunction(Attribute::ReadNone);
   }
 
   /// Determine whether the return value has the given attribute. Supports

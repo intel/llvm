@@ -67,7 +67,7 @@ def err_drv_no_cuda_libdevice : Error<
   "libdevice">;
 
 def err_drv_no_rocm_device_lib : Error<
-  "cannot find ROCm device library%select{| for %1}0; provide its path via "
+  "cannot find ROCm device library%select{| for %1|for ABI version %1}0; provide its path via "
   "'--rocm-path' or '--rocm-device-lib-path', or pass '-nogpulib' to build "
   "without ROCm device library">;
 def err_drv_no_hip_runtime : Error<
@@ -117,10 +117,6 @@ def warn_drv_unsupported_option_for_offload_arch_req_feature : Warning<
   InGroup<OptionIgnored>;
 def warn_drv_unsupported_option_for_target : Warning<
   "ignoring '%0' option as it is not currently supported for target '%1'">,
-  InGroup<OptionIgnored>;
-
-def warn_drv_spirv_linking_multiple_inputs_unsupported: Warning<
-  "Linking multiple input files is not supported for SPIR-V yet">,
   InGroup<OptionIgnored>;
 
 def err_drv_invalid_thread_model_for_target : Error<
@@ -412,6 +408,9 @@ def warn_drv_deprecated_arg : Warning<
   "argument '%0' is deprecated, use '%1' instead">, InGroup<Deprecated>;
 def warn_drv_assuming_mfloat_abi_is : Warning<
   "unknown platform, assuming -mfloat-abi=%0">;
+def warn_drv_unsupported_float_abi_by_lib : Warning<
+  "float ABI '%0' is not supported by current library">,
+  InGroup<DiagGroup<"unsupported-abi">>;
 def warn_ignoring_ftabstop_value : Warning<
   "ignoring invalid -ftabstop value '%0', using default value %1">;
 def warn_drv_overriding_flag_option : Warning<
@@ -660,8 +659,14 @@ def err_cc1_unbounded_vscale_min : Error<
 def err_drv_ssp_missing_offset_argument : Error<
   "'%0' is used without '-mstack-protector-guard-offset', and there is no default">;
 
-def err_drv_only_one_offload_target_supported_in : Error<
-  "Only one offload target is supported in %0.">;
+def err_drv_only_one_offload_target_supported : Error<
+  "only one offload target is supported">;
 def err_drv_invalid_or_unsupported_offload_target : Error<
-  "Invalid or unsupported offload target: '%0'.">;
+  "invalid or unsupported offload target: '%0'">;
+def err_drv_cuda_offload_only_emit_bc : Error<
+  "CUDA offload target is supported only along with --emit-llvm">;
+
+def warn_drv_jmc_requires_debuginfo : Warning<
+  "/JMC requires debug info. Use '/Zi', '/Z7' or other debug options; option ignored">,
+  InGroup<OptionIgnored>;
 }
