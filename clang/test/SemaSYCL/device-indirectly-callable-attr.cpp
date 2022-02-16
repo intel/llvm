@@ -3,7 +3,7 @@
 // RUN: %clang_cc1 -verify -DNO_SYCL %s
 // RUN: %clang_cc1 -fsycl-is-host -fsyntax-only -verify -DSYCL_HOST %s
 
-#if !defined(NO_SYCL) || defined (SYCL_HOST)
+#if !defined(NO_SYCL) || defined(SYCL_HOST)
 
 [[intel::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute only applies to functions}}
 int N;
