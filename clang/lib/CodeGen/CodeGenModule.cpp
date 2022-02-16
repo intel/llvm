@@ -780,6 +780,9 @@ void CodeGenModule::Release() {
                                   llvm::DenormalMode::IEEE);
     getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-prec-sqrt",
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
+  }
+
+  if ( LangOpts.isSYCL() && getTriple().isNVPTX()) {
     getModule().addModuleFlag(llvm::Module::Override,
                               "nvvm-reflect-approx-tanhf",
                               getTarget().getTargetOpts().NVVMCudaApproxTanhf);

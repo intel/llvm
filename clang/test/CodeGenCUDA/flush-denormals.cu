@@ -44,8 +44,8 @@ extern "C" __device__ void foo() {}
 // FTZ: attributes #0 = {{.*}} "denormal-fp-math-f32"="preserve-sign,preserve-sign"
 // NOFTZ-NOT: "denormal-fp-math-f32"
 
-// PTXFTZ:!llvm.module.flags = !{{{.*}}, [[MODFLAG:![0-9]+]], {{.*}}, {{.*}}}
+// PTXFTZ:!llvm.module.flags = !{{{.*}}, [[MODFLAG:![0-9]+]], {{.*}}}
 // PTXFTZ:[[MODFLAG]] = !{i32 4, !"nvvm-reflect-ftz", i32 1}
 
-// PTXNOFTZ:!llvm.module.flags = !{{{.*}}, [[MODFLAG:![0-9]+]], {{.*}}, {{.*}}}
+// PTXNOFTZ:!llvm.module.flags = !{{{.*}}, [[MODFLAG:![0-9]+]], {{.*}}}
 // PTXNOFTZ:[[MODFLAG]] = !{i32 4, !"nvvm-reflect-ftz", i32 0}

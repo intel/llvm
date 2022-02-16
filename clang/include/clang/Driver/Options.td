@@ -985,10 +985,6 @@ defm cuda_prec_sqrt : BoolFOption<"cuda-prec-sqrt",
   PosFlag<SetTrue, [CC1Option], "Specify">,
   NegFlag<SetFalse, [], "Don't specify">,
   BothFlags<[], " that sqrt is correctly rounded (for CUDA devices)">>;
-defm nvvm_cuda_approx_tanhf : BoolFOption<"cuda-approx-tanhf",
-  TargetOpts<"NVVMCudaApproxTanhf">, DefaultFalse,
-  PosFlag<SetTrue, [CC1Option], "Only SYCL. Use the built-in fast approximation of tanhf function. Device needs to have a compute capability >= 8.0">,
-  NegFlag<SetFalse>>;
 def rocm_path_EQ : Joined<["--"], "rocm-path=">, Group<i_Group>,
   HelpText<"ROCm installation path, used for finding and automatically linking required bitcode libraries.">;
 def hip_path_EQ : Joined<["--"], "hip-path=">, Group<i_Group>,
@@ -4730,7 +4726,10 @@ def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<s
   Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
   "device libraries from device binary linkage. Valid arguments "
   "are libc, libm-fp32, libm-fp64, all">;
-
+defm nvvm_cuda_approx_tanh : BoolFOption<"sycl-cuda-approx-tanh",
+  TargetOpts<"NVVMCudaApproxTanhf">, DefaultFalse,
+  PosFlag<SetTrue, [CC1Option], "Use the built-in fast approximation of tanh function. Device needs to have a compute capability >= 8.0">,
+  NegFlag<SetFalse>>;
 //===----------------------------------------------------------------------===//
 // FLangOption + CoreOption + NoXarchOption
 //===----------------------------------------------------------------------===//
