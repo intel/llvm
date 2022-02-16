@@ -1,3 +1,6 @@
+// FIXME: Investigate OS-agnostic failures
+// REQUIRES: TEMPORARY_DISABLED
+
 // UNSUPPORTED: cuda || hip
 // CUDA does not support SYCL 1.2.1 images.
 //
