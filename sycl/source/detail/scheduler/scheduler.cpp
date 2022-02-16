@@ -407,7 +407,7 @@ void Scheduler::attachLifetimeToUSM(std::shared_ptr<const void> &Resource,
     m_USMLifetimeAttachedResources.insert({AttachTo, {Resource}});
 }
 
-void Scheduler::deferredDetachUSMLifetimeResources(const void *AttachedTo) {
+void Scheduler::detachUSMLifetimeResources(const void *AttachedTo) {
   std::vector<std::shared_ptr<const void>> AttachedResources;
   {
     std::lock_guard<std::mutex> lock(m_USMLifetimeAttachedResourcesMutex);
@@ -416,12 +416,6 @@ void Scheduler::deferredDetachUSMLifetimeResources(const void *AttachedTo) {
       return;
     std::swap(AttachedResourcesIt->second, AttachedResources);
     m_USMLifetimeAttachedResources.erase(AttachedResourcesIt);
-  }
-  {
-    std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-    MDeferredCleanupResources.insert(MDeferredCleanupResources.begin(),
-                                     AttachedResources.begin(),
-                                     AttachedResources.end());
   }
 }
 
@@ -450,10 +444,10 @@ Scheduler::~Scheduler() {
           "not all resources were released. Please be sure that all kernels "
           "have synchronization points.\n\n");
   }
-  // There might be some commands and resources scheduled for post enqueue
-  // cleanup that haven't been freed because of the graph mutex being locked at
-  // the time, clean them up now.
-  cleanupDeferred();
+  // There might be some commands scheduled for post enqueue cleanup that
+  // haven't been freed because of the graph mutex being locked at the time,
+  // clean them up now.
+  cleanupCommands({});
 }
 
 void Scheduler::acquireWriteLock(WriteLockT &Lock) {
@@ -481,66 +475,29 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
   return Req->MSYCLMemObj->MRecord.get();
 }
 
-void Scheduler::cleanupDeferred() {
-  std::vector<Command *> DeferredCleanupCommands;
-  std::vector<std::shared_ptr<const void>> DeferredCleanupResources;
-  // Cleaning up commands and resources may create more deferred commands and
-  // resources to clean up.
-  while (true) {
-    {
-      // Note: Operations acquiring the graph lock are prohibited here as they
-      // may lead to dead-locks.
-      std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-
-      // Cleanup is done when there are no more deferred commands and resources.
-      if (MDeferredCleanupCommands.empty() && MDeferredCleanupResources.empty())
-        return;
-
-      std::swap(DeferredCleanupCommands, MDeferredCleanupCommands);
-      std::swap(DeferredCleanupResources, MDeferredCleanupResources);
-    }
-    {
-      WriteLockT Lock(MGraphLock);
-      for (Command *Cmd : DeferredCleanupCommands)
-        MGraphBuilder.cleanupCommand(Cmd);
-    }
-    DeferredCleanupCommands.clear();
-    // Release resources without holding the graph-lock.
-    DeferredCleanupResources.clear();
-  }
-}
-
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   if (Cmds.empty())
     return;
-
-  // Create holder for cleaning up resources outside the scope that acquires the
-  // graph-lock. Once it goes out of scope it may cause destruction of resources
-  // that will acquire the lock themselves.
-  std::vector<std::shared_ptr<const void>> DeferredCleanupResources;
-  {
-    WriteLockT Lock(MGraphLock, std::try_to_lock);
-    // In order to avoid deadlocks related to blocked commands, defer cleanup if
-    // the lock wasn't acquired.
-    if (Lock.owns_lock()) {
-      for (Command *Cmd : Cmds) {
-        MGraphBuilder.cleanupCommand(Cmd);
-      }
-      std::vector<Command *> DeferredCleanupCommands;
-      {
-        std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-        std::swap(DeferredCleanupCommands, MDeferredCleanupCommands);
-        std::swap(DeferredCleanupResources, MDeferredCleanupResources);
-      }
-      for (Command *Cmd : DeferredCleanupCommands) {
-        MGraphBuilder.cleanupCommand(Cmd);
-      }
-
-    } else {
-      std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-      MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
-                                      Cmds.begin(), Cmds.end());
+  WriteLockT Lock(MGraphLock, std::try_to_lock);
+  // In order to avoid deadlocks related to blocked commands, defer cleanup if
+  // the lock wasn't acquired.
+  if (Lock.owns_lock()) {
+    for (Command *Cmd : Cmds) {
+      MGraphBuilder.cleanupCommand(Cmd);
     }
+    std::vector<Command *> DeferredCleanupCommands;
+    {
+      std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
+      std::swap(DeferredCleanupCommands, MDeferredCleanupCommands);
+    }
+    for (Command *Cmd : DeferredCleanupCommands) {
+      MGraphBuilder.cleanupCommand(Cmd);
+    }
+
+  } else {
+    std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
+    MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
+                                    Cmds.begin(), Cmds.end());
   }
 }
 

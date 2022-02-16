@@ -462,11 +462,10 @@ public:
   void attachLifetimeToUSM(std::shared_ptr<const void> &Resource,
                            const void *AttachTo);
 
-  /// Detach all resources attached to a USM pointer. Release of these resources
-  /// is deferred.
+  /// Detach all resources attached to a USM pointer.
   ///
   /// \param AttachedTo is the USM pointer to detach resources from
-  void deferredDetachUSMLifetimeResources(const void *AttachedTo);
+  void detachUSMLifetimeResources(const void *AttachedTo);
 
   Scheduler();
   ~Scheduler();
@@ -483,9 +482,6 @@ protected:
   ///
   /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
   void acquireWriteLock(WriteLockT &Lock);
-
-  /// Forces a cleanup of all deferred commands and resources.
-  void cleanupDeferred();
 
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
@@ -794,7 +790,6 @@ protected:
   RWLockT MGraphLock;
 
   std::vector<Command *> MDeferredCleanupCommands;
-  std::vector<std::shared_ptr<const void>> MDeferredCleanupResources;
   std::mutex MDeferredCleanupMutex;
 
   QueueImplPtr DefaultHostQueue;
