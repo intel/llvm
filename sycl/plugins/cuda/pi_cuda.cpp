@@ -1173,6 +1173,16 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
+  case PI_DEVICE_INFO_BF16: {
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             device->get()) == CUDA_SUCCESS);
+
+    bool bf16 = (major >= 8) ? true : false;
+    return getInfo(param_value_size, param_value, param_value_size_ret, bf16);
+  }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int warpSize = 0;
