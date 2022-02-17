@@ -406,6 +406,17 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
 
   SmallString<32> Checksum;
 
+  if (CGM.getCodeGenOpts().SYCLUseMainFileName && FID.isInvalid() &&
+      !llvm::sys::path::is_absolute(FileName)) {
+    FileID MainFileID = SM.getMainFileID();
+    auto ExpectedFileRef = SM.getFileManager().getFileRef(FileName);
+    if (ExpectedFileRef) {
+      MainFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
+                                        SrcMgr::CharacteristicKind::C_User);
+      FID = MainFileID;
+    }
+  }
+
   Optional<llvm::DIFile::ChecksumKind> CSKind = computeChecksum(FID, Checksum);
   Optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo;
   if (CSKind)
