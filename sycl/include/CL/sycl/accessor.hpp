@@ -1444,6 +1444,13 @@ public:
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     preScreenAccessor(BufferRef.size(), PropertyList);
+    if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
+                                BufferRef.get_range()))
+      throw cl::sycl::invalid_object_error(
+          "accessor with requested offset and range would exceed the bounds of "
+          "the buffer",
+          PI_INVALID_VALUE);
+
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1478,6 +1485,13 @@ public:
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     preScreenAccessor(BufferRef.size(), PropertyList);
+    if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
+                                BufferRef.get_range()))
+      throw cl::sycl::invalid_object_error(
+          "accessor with requested offset and range would exceed the bounds of "
+          "the buffer",
+          PI_INVALID_VALUE);
+
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1539,6 +1553,13 @@ public:
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     preScreenAccessor(BufferRef.size(), PropertyList);
+    if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
+                                BufferRef.get_range()))
+      throw cl::sycl::invalid_object_error(
+          "accessor with requested offset and range would exceed the bounds of "
+          "the buffer",
+          PI_INVALID_VALUE);
+
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1572,6 +1593,13 @@ public:
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     preScreenAccessor(BufferRef.size(), PropertyList);
+    if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
+                                BufferRef.get_range()))
+      throw cl::sycl::invalid_object_error(
+          "accessor with requested offset and range would exceed the bounds of "
+          "the buffer",
+          PI_INVALID_VALUE);
+
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
