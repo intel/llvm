@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/stl.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <CL/sycl/stl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -66,8 +66,8 @@ public:
   // interoperability constructor, nullptr otherwise.
   virtual ContextImplPtr getInteropContext() const = 0;
 
-
-  virtual void addOrReplaceAccessorProperties(const property_list &PropertyList) = 0;
+  virtual void
+  addOrReplaceAccessorProperties(const property_list &PropertyList) = 0;
 
   virtual void deleteAccessorProperty(const PropWithDataKind &Kind) = 0;
 

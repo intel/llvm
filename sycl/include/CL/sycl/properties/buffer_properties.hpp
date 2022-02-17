@@ -51,8 +51,10 @@ private:
   uint32_t MChannel;
 };
 
-namespace detail{
-class buffer_location : public sycl::detail::PropertyWithData<sycl::detail::PropWithDataKind::AccPropBufferLocation> {
+namespace detail {
+class buffer_location
+    : public sycl::detail::PropertyWithData<
+          sycl::detail::PropWithDataKind::AccPropBufferLocation> {
 public:
   buffer_location(uint64_t Location) : MLocation(Location) {}
   uint64_t get_buffer_location() const { return MLocation; }

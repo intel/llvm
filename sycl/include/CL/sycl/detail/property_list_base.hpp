@@ -107,7 +107,8 @@ protected:
       const std::vector<std::shared_ptr<PropertyWithDataBase>> &PropsWithData) {
     for (auto &Prop : PropsWithData) {
       if (Prop->isSame(sycl::detail::PropWithDataKind::AccPropBufferLocation)) {
-        delete_accessor_property_helper(sycl::detail::PropWithDataKind::AccPropBufferLocation);
+        delete_accessor_property_helper(
+            sycl::detail::PropWithDataKind::AccPropBufferLocation);
         MPropsWithData.push_back(Prop);
       }
     }
@@ -124,8 +125,6 @@ protected:
       MPropsWithData.pop_back();
     }
   }
-
-  
 
   // Stores enabled/disabled for simple properties
   std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;

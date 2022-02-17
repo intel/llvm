@@ -1200,8 +1200,8 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, PropertyList, CodeLoc) {
-        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
-      }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1215,8 +1215,8 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, PropertyList, CodeLoc) {
-        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
-      }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+  }
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1294,8 +1294,8 @@ public:
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
-      }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1310,8 +1310,8 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
-      }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+  }
 
 #endif
 
@@ -1354,8 +1354,8 @@ public:
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
-      }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1370,8 +1370,8 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
-      }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+  }
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1416,8 +1416,8 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {
-                   adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
-                 }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1433,8 +1433,8 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {
-                   adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
-                 }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+  }
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1515,8 +1515,8 @@ public:
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
-      }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1531,8 +1531,8 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
-      }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+  }
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1614,8 +1614,8 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {
-                   adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
-                 }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1631,8 +1631,8 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {
-                   adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
-                 }
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+  }
 #endif
 
   template <typename... NewPropsT>
@@ -1796,12 +1796,15 @@ private:
 #if __cplusplus >= 201703L
   template <typename... PropTypes>
   void adjustAccPropsInBuf(detail::SYCLMemObjI *SYCLMemObject,
-    const sycl::ext::oneapi::accessor_property_list<PropTypes...> &PropertyList = {}) {
+                           const sycl::ext::oneapi::accessor_property_list<
+                               PropTypes...> &PropertyList = {}) {
     if constexpr (PropertyListT::template has_property<
-                        sycl::ext::intel::property::buffer_location>()) {
+                      sycl::ext::intel::property::buffer_location>()) {
       auto location = (PropertyListT::template get_property<
-                        sycl::ext::intel::property::buffer_location>()).get_location();
-      property_list PropList{sycl::property::buffer::detail::buffer_location(location)};
+                           sycl::ext::intel::property::buffer_location>())
+                          .get_location();
+      property_list PropList{
+          sycl::property::buffer::detail::buffer_location(location)};
       SYCLMemObject->addOrReplaceAccessorProperties(PropList);
     } else {
       deleteAccPropsFromBuf(SYCLMemObject);
@@ -1809,7 +1812,8 @@ private:
   }
 
   void deleteAccPropsFromBuf(detail::SYCLMemObjI *SYCLMemObject) {
-    SYCLMemObject->deleteAccessorProperty(sycl::detail::PropWithDataKind::AccPropBufferLocation);
+    SYCLMemObject->deleteAccessorProperty(
+        sycl::detail::PropWithDataKind::AccPropBufferLocation);
   }
 #endif
 };
