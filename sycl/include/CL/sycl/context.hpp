@@ -27,6 +27,8 @@ class platform;
 namespace detail {
 class context_impl;
 }
+template <backend Backend, class SyclT>
+auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
 /// The context class represents a SYCL context on which kernel functions may
 /// be executed.
@@ -220,7 +222,7 @@ public:
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   backend_return_t<Backend, context> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, context>>(getNative());
+    return sycl::get_native<Backend, context>(*this);
   }
 
 private:
@@ -230,6 +232,10 @@ private:
   pi_native_handle getNative() const;
 
   std::shared_ptr<detail::context_impl> impl;
+
+  template <backend Backend, class SyclT>
+  friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
+
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
