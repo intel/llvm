@@ -46,7 +46,7 @@ class context;
 namespace detail {
 
 // This value must be the same as in libdevice/device_itt.h.
-// See sycl/doc/extensions/ITTAnnotations/ITTAnnotations.rst for more info.
+// See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
 
 class context_impl;

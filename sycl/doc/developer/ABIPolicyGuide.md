@@ -118,4 +118,4 @@ Whenever you need to change the existing ABI, please, follow these steps:
 1. If there is a need to add a new field in `sycl::handler` or/and
    `sycl::detail::CG` classes it can be done without breaking ABI using the
    approach described in the comment at the beggining of
-   [cg.hpp](../include/CL/sycl/detail/cg.hpp)
+   [cg.hpp](../../include/CL/sycl/detail/cg.hpp)
