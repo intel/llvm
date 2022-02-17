@@ -1314,7 +1314,7 @@
 ?atanpi@__host_std@cl@@YAMM@Z
 ?atanpi@__host_std@cl@@YANN@Z
 ?attachLifetime@detail@oneapi@ext@sycl@cl@@YAXAEAV?$shared_ptr@$$CBX@std@@AEAVAccessorBaseHost@145@@Z
-?attachLifetime@detail@oneapi@ext@sycl@cl@@YAXAEAV?$shared_ptr@$$CBX@std@@PEAX@Z
+?attachLifetime@detail@oneapi@ext@sycl@cl@@YAXAEAV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@AEAV?$shared_ptr@$$CBX@7@PEAX@Z
 ?barrier@handler@sycl@cl@@QEAAXAEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@@Z
 ?barrier@handler@sycl@cl@@QEAAXXZ
 ?begin@exception_list@sycl@cl@@QEBA?AV?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@Vexception_ptr@std@@@std@@@std@@@std@@XZ
