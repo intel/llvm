@@ -84,7 +84,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD(int32_t, accumulator, 16, 16, int32_t, 8)
 // single-bit
 template <matrix_layout Layout>
 struct joint_matrix<
-    uint32_t, matrix_use::a, 8, 128, Layout, sycl::sub_group,
+    uint32_t, matrix_use::a, 8, 4, Layout, sycl::sub_group,
     typename std::enable_if_t<Layout == matrix_layout::row_major ||
                               Layout == matrix_layout::col_major>> {
   joint_matrix() {
@@ -97,7 +97,7 @@ struct joint_matrix<
 
 template <matrix_layout Layout>
 struct joint_matrix<
-    uint32_t, matrix_use::b, 128, 8, Layout, sycl::sub_group,
+    uint32_t, matrix_use::b, 4, 8, Layout, sycl::sub_group,
     typename std::enable_if_t<Layout == matrix_layout::row_major ||
                               Layout == matrix_layout::col_major>> {
   joint_matrix() {
@@ -277,13 +277,13 @@ struct joint_matrix_load_impl<
         __dmma_m8n8k4_ld_c(res.data, src.get(), stride,
                            get_layout_id<Layout>());
       }
-    } else if constexpr (NumRows == 8 && NumCols == 128) {
+    } else if constexpr (NumRows == 8 && NumCols == 4) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
-      __bmma_m8n8k128_ld_a_b1(res.data, tileptr, stride,
+      __bmma_m8n8k128_ld_a_b1(res.data, tileptr, stride * 32,
                               get_layout_id<Layout>());
-    } else if constexpr (NumRows == 128 && NumCols == 8) {
+    } else if constexpr (NumRows == 4 && NumCols == 8) {
       int32_t *tileptr = reinterpret_cast<int32_t *>(src.get());
-      __bmma_m8n8k128_ld_b_b1(res.data, tileptr, stride,
+      __bmma_m8n8k128_ld_b_b1(res.data, tileptr, stride * 32,
                               get_layout_id<Layout>());
     } else if constexpr (std::is_same<T, int32_t>::value) {
       if constexpr (NumRows == 16 && NumCols == 16) {
