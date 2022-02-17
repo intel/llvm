@@ -403,6 +403,11 @@ public:
       handler &commandGroupHandler, range<dimensions> accessRange,
       id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
+    if (isOutOfBounds(accessOffset, accessRange, this->Range))
+      throw cl::sycl::invalid_object_error(
+          "Requested accessor would exceed the bounds of the buffer",
+          PI_INVALID_VALUE);
+
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
         *this, commandGroupHandler, accessRange, accessOffset, {}, CodeLoc);
@@ -414,6 +419,11 @@ public:
   get_access(
       range<dimensions> accessRange, id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
+    if (isOutOfBounds(accessOffset, accessRange, this->Range))
+      throw cl::sycl::invalid_object_error(
+          "Requested accessor would exceed the bounds of the buffer",
+          PI_INVALID_VALUE);
+
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
