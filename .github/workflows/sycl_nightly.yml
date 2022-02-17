@@ -68,5 +68,5 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: new_pm
       build_artifact_suffix: new_pm
-      build_configure_extra_args: '--hip --hip-amd-arch=gfx906 --cuda --cmake-opt=-DLLVM_ENABLE_NEW_PASS_MANAGER=ON'
+      build_configure_extra_args: '--hip --cuda --cmake-opt=-DLLVM_ENABLE_NEW_PASS_MANAGER=ON'
       lts_config: "hip_amdgpu;ocl_x64"
