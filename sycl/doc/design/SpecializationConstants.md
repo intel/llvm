@@ -1,7 +1,7 @@
 # Specialization constants
 
 DPC++ implements this [proposal](https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md)
-with some restrictions. See this [document](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/SpecConstants/README.md) for more details.
+with some restrictions. See this [document](../extensions/experimental/SYCL_EXT_ONEAPI_SPEC_CONSTANTS.md) for more details.
 
 ## Requirements:
 

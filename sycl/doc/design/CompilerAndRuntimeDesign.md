@@ -951,4 +951,4 @@ with any other address space (including default).
 
 ## DPC++ Language extensions to SYCL
 
-List of language extensions can be found at [extensions](extensions)
+List of language extensions can be found at [extensions](../extensions)
