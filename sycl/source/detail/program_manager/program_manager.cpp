@@ -558,8 +558,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   // FIXME: Level Zero creates multiple PiDevices for a single physical device
   // when sub-device is partitioned into sub-sub-devices. Sub-sub-device is
   // technically a command queue and we should not build program for each
-  // command queue. PiDevice probably not the right abstraction for a Level Zero
-  // command queue.
+  // command queue. PiDevice is probably not the right abstraction for a Level
+  // Zero command queue.
   const RT::PiDevice PiDevice = Dev->getHandleRef();
 
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
