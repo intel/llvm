@@ -129,6 +129,36 @@ static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
 static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
     new sycl::detail::SpinLock;
 
+pi_result _pi_mem::addMapping(void *MappedTo, size_t SizeArg,
+                              size_t OffsetArg) {
+  std::lock_guard<std::mutex> Lock(MappingsMutex);
+  auto Res = Mappings.insert({MappedTo, {OffsetArg, SizeArg}});
+  // False as the second value in pair means that mapping was not inserted
+  // because mapping already exists.
+  if (!Res.second) {
+    if (PrintPiTrace) {
+      std::cerr << "piEnqueueMemBufferMap: duplicate mapping detected"
+                << std::endl;
+    }
+    return PI_INVALID_VALUE;
+  }
+  return PI_SUCCESS;
+}
+
+pi_result _pi_mem::removeMapping(void *MappedTo, Mapping &MapInfo) {
+  std::lock_guard<std::mutex> Lock(MappingsMutex);
+  auto It = Mappings.find(MappedTo);
+  if (It == Mappings.end()) {
+    if (PrintPiTrace) {
+      std::cerr << "piEnqueueMemUnmap: unknown memory mapping" << std::endl;
+    }
+    return PI_INVALID_VALUE;
+  }
+  MapInfo = It->second;
+  Mappings.erase(It);
+  return PI_SUCCESS;
+}
+
 // To be compared with ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION in device
 // interface header file
 #define ESIMDEmuPluginDataVersion 0
@@ -925,6 +955,7 @@ pi_result piContextRelease(pi_context Context) {
   }
 
   if (--(Context->RefCount) == 0) {
+    std::lock_guard<std::mutex> Lock(Context->CmSVMMapMutex);
     for (auto &Entry : Context->Addr2CmBufferSVM) {
       Context->Device->CmDevicePtr->DestroyBufferSVM(Entry.second);
     }
@@ -1027,45 +1058,78 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     return PI_INVALID_VALUE;
   }
 
-  cm_support::CmBuffer *CmBuf = nullptr;
-  cm_support::SurfaceIndex *CmIndex;
-
-  int Status = Context->Device->CmDevicePtr->CreateBuffer(
-      static_cast<unsigned int>(Size), CmBuf);
-
-  if (Status != cm_support::CM_SUCCESS) {
-    return PI_OUT_OF_HOST_MEMORY;
+  // Flag & HostPtr argument sanity check
+  if (Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
+    if (HostPtr == nullptr) {
+      if (PrintPiTrace) {
+        std::cerr
+            << "HostPtr argument is required for PI_MEM_FLAGS_HOST_PTR_USE/COPY"
+            << std::endl;
+      }
+      return PI_INVALID_OPERATION;
+    }
+    // COPY and USE are mutually exclusive
+    if ((Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) ==
+        (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
+      if (PrintPiTrace) {
+        std::cerr
+            << "PI_MEM_FLAGS_HOST_PTR_USE and _COPY cannot be used together"
+            << std::endl;
+      }
+      return PI_INVALID_OPERATION;
+    }
   }
 
-  Status = CmBuf->GetIndex(CmIndex);
-  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
-  assert(PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) ==
-             PiESimdSurfaceMap->end() &&
-         "Failure from CM-managed buffer creation");
+  char *MapBasePtr = nullptr;
+  cm_support::CmBuffer *CmBuf = nullptr;
+  int SurfaceIndexArg;
 
-  // Initialize the buffer with user data provided with 'HostPtr'
-  if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
-    if (HostPtr != nullptr) {
+  // TODO : Minimize critical section
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+
+  if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
+    // Memory space is already allocated in host memory.
+    // ESIMD_EMULATOR won't create cache for memory space pointed to
+    // by HostPtr, therefore there is no corresponding CM-surface and
+    // no mapping entry for PiESimdSurfaceMap.
+    MapBasePtr = pi_cast<char *>(HostPtr);
+    SurfaceIndexArg = _pi_mem::HOST_SURFACE_INDEX;
+  } else {
+    cm_support::SurfaceIndex *CmIndex;
+
+    int Status = Context->Device->CmDevicePtr->CreateBuffer(
+        static_cast<unsigned int>(Size), CmBuf);
+
+    if (Status != cm_support::CM_SUCCESS) {
+      return PI_OUT_OF_HOST_MEMORY;
+    }
+
+    Status = CmBuf->GetIndex(CmIndex);
+    SurfaceIndexArg = CmIndex->get_data();
+    assert(PiESimdSurfaceMap->find(SurfaceIndexArg) ==
+               PiESimdSurfaceMap->end() &&
+           "Failure from CM-managed buffer creation");
+    MapBasePtr =
+        pi_cast<char *>(cm_support::get_surface_base_addr(SurfaceIndexArg));
+
+    if (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
       Status =
           CmBuf->WriteSurface(reinterpret_cast<const unsigned char *>(HostPtr),
                               nullptr, static_cast<unsigned int>(Size));
     }
   }
 
-  auto HostPtrOrNull =
-      (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) ? nullptr : pi_cast<char *>(HostPtr);
-
   try {
-    *RetMem =
-        new _pi_buffer(Context, HostPtrOrNull, CmBuf,
-                       /* integer buffer index */ CmIndex->get_data(), Size);
+    *RetMem = new _pi_buffer(Context, MapBasePtr, CmBuf, SurfaceIndexArg, Size);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
 
-  (*PiESimdSurfaceMap)[(unsigned int)CmIndex->get_data()] = *RetMem;
+  if (SurfaceIndexArg != _pi_mem::HOST_SURFACE_INDEX) {
+    (*PiESimdSurfaceMap)[(unsigned int)SurfaceIndexArg] = *RetMem;
+  }
 
   return PI_SUCCESS;
 }
@@ -1206,38 +1270,67 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     return PI_IMAGE_FORMAT_NOT_SUPPORTED;
   }
 
-  cm_support::CmSurface2D *CmSurface = nullptr;
-  cm_support::SurfaceIndex *CmIndex;
+  // Flag & HostPtr argument sanity check
+  if (Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
+    if (HostPtr == nullptr) {
+      if (PrintPiTrace) {
+        std::cerr
+            << "HostPtr argument is required for PI_MEM_FLAGS_HOST_PTR_USE/COPY"
+            << std::endl;
+      }
+      return PI_INVALID_OPERATION;
+    }
+    // COPY and USE are mutually exclusive
+    if ((Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) ==
+        (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
+      if (PrintPiTrace) {
+        std::cerr
+            << "PI_MEM_FLAGS_HOST_PTR_USE and _COPY cannot be used together"
+            << std::endl;
+      }
+      return PI_INVALID_OPERATION;
+    }
+  }
+
   cm_support::CM_SURFACE_FORMAT CmSurfFormat =
       ConvertPiImageFormatToCmFormat(ImageFormat);
-
   if (CmSurfFormat == cm_support::CM_SURFACE_FORMAT_UNKNOWN) {
     return PI_IMAGE_FORMAT_NOT_SUPPORTED;
   }
 
-  int Status = Context->Device->CmDevicePtr->CreateSurface2D(
-      static_cast<unsigned int>(ImageDesc->image_width),
-      static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
-      CmSurface);
+  cm_support::CmSurface2D *CmSurface = nullptr;
+  char *MapBasePtr = nullptr;
+  int SurfaceIndexArg;
 
-  if (Status != cm_support::CM_SUCCESS) {
-    return PI_OUT_OF_HOST_MEMORY;
-  }
-
-  Status = CmSurface->GetIndex(CmIndex);
-
+  // TODO : Minimize critical section
   const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
-  if (PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) !=
-      PiESimdSurfaceMap->end()) {
-    if (PrintPiTrace) {
-      std::cerr << "Failure from CM-managed image creation" << std::endl;
-    }
-    return PI_INVALID_MEM_OBJECT;
-  }
+  if (Flags & PI_MEM_FLAGS_HOST_PTR_USE) {
+    // Memory space is already allocated in host memory.
+    // ESIMD_EMULATOR won't create cache for memory space pointed to
+    // by HostPtr, therefore there is no corresponding CM-surface and
+    // no mapping entry for PiESimdSurfaceMap.
+    MapBasePtr = pi_cast<char *>(HostPtr);
+    SurfaceIndexArg = _pi_mem::HOST_SURFACE_INDEX;
+  } else {
+    cm_support::SurfaceIndex *CmIndex;
+    int Status = Context->Device->CmDevicePtr->CreateSurface2D(
+        static_cast<unsigned int>(ImageDesc->image_width),
+        static_cast<unsigned int>(ImageDesc->image_height), CmSurfFormat,
+        CmSurface);
 
-  // Initialize the buffer with user data provided with 'HostPtr'
-  if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
-    if (HostPtr != nullptr) {
+    if (Status != cm_support::CM_SUCCESS) {
+      return PI_OUT_OF_HOST_MEMORY;
+    }
+
+    Status = CmSurface->GetIndex(CmIndex);
+
+    SurfaceIndexArg = CmIndex->get_data();
+    assert(PiESimdSurfaceMap->find(SurfaceIndexArg) ==
+               PiESimdSurfaceMap->end() &&
+           "Failure from CM-managed buffer creation");
+    MapBasePtr =
+        pi_cast<char *>(cm_support::get_surface_base_addr(SurfaceIndexArg));
+    if (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
       Status = CmSurface->WriteSurface(
           reinterpret_cast<const unsigned char *>(HostPtr), nullptr,
           static_cast<unsigned int>(ImageDesc->image_width *
@@ -1245,12 +1338,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     }
   }
 
-  auto HostPtrOrNull =
-      (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) ? nullptr : pi_cast<char *>(HostPtr);
-
   try {
-    *RetImage = new _pi_image(Context, HostPtrOrNull, CmSurface,
-                              /* integer surface index */ CmIndex->get_data(),
+    *RetImage = new _pi_image(Context, MapBasePtr, CmSurface, SurfaceIndexArg,
                               ImageDesc->image_width, ImageDesc->image_height,
                               BytesPerPixel);
   } catch (const std::bad_alloc &) {
@@ -1259,7 +1348,9 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
     return PI_ERROR_UNKNOWN;
   }
 
-  (*PiESimdSurfaceMap)[(unsigned int)CmIndex->get_data()] = *RetImage;
+  if (SurfaceIndexArg != _pi_mem::HOST_SURFACE_INDEX) {
+    (*PiESimdSurfaceMap)[(unsigned int)SurfaceIndexArg] = *RetImage;
+  }
 
   return PI_SUCCESS;
 }
@@ -1556,15 +1647,49 @@ pi_result piEnqueueMemBufferFill(pi_queue, pi_mem, const void *, size_t, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEnqueueMemBufferMap(pi_queue, pi_mem, pi_bool, pi_map_flags, size_t,
-                                size_t, pi_uint32, const pi_event *, pi_event *,
-                                void **) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
+                                pi_bool BlockingMap, pi_map_flags MapFlags,
+                                size_t Offset, size_t Size,
+                                pi_uint32 NumEventsInWaitList,
+                                const pi_event *EventWaitList, pi_event *Event,
+                                void **RetMap) {
+
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
+  *RetMap = Buffer->MapHostPtr + Offset;
+  if (PI_SUCCESS != Buffer->addMapping(*RetMap, Offset, Size)) {
+    return PI_INVALID_VALUE;
+  }
+
+  if (Event) {
+    *Event = RetEv.release();
+  }
+  return PI_SUCCESS;
 }
 
-pi_result piEnqueueMemUnmap(pi_queue, pi_mem, void *, pi_uint32,
-                            const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
+                            pi_uint32 NumEventsInWaitList,
+                            const pi_event *EventWaitList, pi_event *Event) {
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
+  _pi_mem::Mapping MapInfo = {};
+  if (PI_SUCCESS != MemObj->removeMapping(MappedPtr, MapInfo)) {
+    return PI_INVALID_VALUE;
+  }
+
+  if (Event) {
+    *Event = RetEv.release();
+  }
+
+  return PI_SUCCESS;
 }
 
 pi_result piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *, size_t *) {
@@ -1748,6 +1873,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
     return PI_OUT_OF_HOST_MEMORY;
   }
   *ResultPtr = SystemMemPtr;
+  std::lock_guard<std::mutex> Lock(Context->CmSVMMapMutex);
   auto Iter = Context->Addr2CmBufferSVM.find(SystemMemPtr);
   if (Context->Addr2CmBufferSVM.end() != Iter) {
     return PI_INVALID_MEM_OBJECT;
@@ -1764,6 +1890,7 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
     return PI_INVALID_OPERATION;
   }
 
+  std::lock_guard<std::mutex> Lock(Context->CmSVMMapMutex);
   cm_support::CmBufferSVM *Buf = Context->Addr2CmBufferSVM[Ptr];
   if (Buf == nullptr) {
     return PI_INVALID_MEM_OBJECT;

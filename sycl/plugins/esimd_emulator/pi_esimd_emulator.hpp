@@ -88,6 +88,8 @@ struct _pi_context : _pi_object {
   /// Map SVM memory starting address to corresponding
   /// CmBufferSVM object. CmBufferSVM object is needed to release memory.
   std::unordered_map<void *, cm_support::CmBufferSVM *> Addr2CmBufferSVM;
+  // Thread-safe mapping management of Addr2CmBufferSVM
+  std::mutex CmSVMMapMutex;
 };
 
 struct _pi_queue : _pi_object {
@@ -100,10 +102,12 @@ struct _pi_queue : _pi_object {
 };
 
 struct _pi_mem : _pi_object {
+  static const int HOST_SURFACE_INDEX = (-1);
   _pi_mem() = default;
 
   pi_context Context;
 
+  // To be used for piEnqueueMemBufferMap
   char *MapHostPtr = nullptr;
 
   // Mutex for load/store accessing
@@ -112,9 +116,19 @@ struct _pi_mem : _pi_object {
   // Surface index used by CM
   int SurfaceIndex;
 
+  // Supplementary data to keep track of the mappings of this memory
+  // created with piEnqueueMemBufferMap
+  struct Mapping {
+    size_t Offset;
+    size_t Size;
+  };
+
   virtual ~_pi_mem() = default;
 
   _pi_mem_type getMemType() const { return MemType; };
+
+  pi_result addMapping(void *MappedTo, size_t SizeArg, size_t OffsetArg);
+  pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
 protected:
   _pi_mem(pi_context ctxt, char *HostPtr, _pi_mem_type MemTypeArg,
@@ -124,6 +138,10 @@ protected:
 
 private:
   _pi_mem_type MemType;
+
+  std::unordered_map<void *, Mapping> Mappings;
+  // Thread-safe mapping management for piEnqueueMemBufferMap
+  std::mutex MappingsMutex;
 };
 
 struct _pi_buffer final : _pi_mem {
