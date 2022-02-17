@@ -1200,7 +1200,7 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, PropertyList, CodeLoc) {
-        deleteAccPropsFromBuf(detail::getSyclObjImpl(BufferRef).get());
+        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
       }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1215,7 +1215,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, PropertyList, CodeLoc) {
-        addOrReplaceAccPropsInBuf(PropertyList, detail::getSyclObjImpl(BufferRef).get());
+        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
       }
 #endif
 
@@ -1294,7 +1294,7 @@ public:
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-        deleteAccPropsFromBuf(detail::getSyclObjImpl(BufferRef).get());
+        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
       }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1310,7 +1310,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-        addOrReplaceAccPropsInBuf(PropertyList, detail::getSyclObjImpl(BufferRef).get());
+        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
       }
 
 #endif
@@ -1354,7 +1354,7 @@ public:
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-        deleteAccPropsFromBuf(detail::getSyclObjImpl(BufferRef).get());
+        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
       }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1370,7 +1370,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-        addOrReplaceAccPropsInBuf(PropertyList, detail::getSyclObjImpl(BufferRef).get());
+        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
       }
 #endif
 
@@ -1416,7 +1416,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {
-                   deleteAccPropsFromBuf(detail::getSyclObjImpl(BufferRef).get());
+                   adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
                  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1433,7 +1433,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {
-                   addOrReplaceAccPropsInBuf(PropertyList, detail::getSyclObjImpl(BufferRef).get());
+                   adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
                  }
 #endif
 
@@ -1515,7 +1515,7 @@ public:
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-        deleteAccPropsFromBuf(detail::getSyclObjImpl(BufferRef).get());
+        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
       }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1531,7 +1531,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-        addOrReplaceAccPropsInBuf(PropertyList, detail::getSyclObjImpl(BufferRef).get());
+        adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
       }
 #endif
 
@@ -1614,7 +1614,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {
-                   deleteAccPropsFromBuf(detail::getSyclObjImpl(BufferRef).get());
+                   adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
                  }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1631,7 +1631,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {
-                   addOrReplaceAccPropsInBuf(PropertyList, detail::getSyclObjImpl(BufferRef).get());
+                   adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
                  }
 #endif
 
@@ -1793,12 +1793,10 @@ private:
           PI_INVALID_VALUE);
   }
 
-/// my TODO: rename function
 #if __cplusplus >= 201703L
   template <typename... PropTypes>
-  void addOrReplaceAccPropsInBuf(
-    const sycl::ext::oneapi::accessor_property_list<PropTypes...> &PropertyList,
-                                       detail::SYCLMemObjI *SYCLMemObject) {
+  void adjustAccPropsInBuf(detail::SYCLMemObjI *SYCLMemObject,
+    const sycl::ext::oneapi::accessor_property_list<PropTypes...> &PropertyList = {}) {
     if constexpr (PropertyListT::template has_property<
                         sycl::ext::intel::property::buffer_location>()) {
       auto location = (PropertyListT::template get_property<
@@ -1808,13 +1806,6 @@ private:
     } else {
       deleteAccPropsFromBuf(SYCLMemObject);
     }
-    /*if (PropertyList.template has_property<sycl::ext::intel::property::buffer_location>()){
-      auto location = PropertyList.template get_property<sycl::ext::intel::property::buffer_location>().get_location();
-      property_list PropList{sycl::property::buffer::detail::buffer_location(location)};
-      SYCLMemObject->addOrReplaceAccessorProperties(PropList);
-    } else {
-      deleteAccPropsFromBuf(SYCLMemObject);
-    }*/
   }
 
   void deleteAccPropsFromBuf(detail::SYCLMemObjI *SYCLMemObject) {
