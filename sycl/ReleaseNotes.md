@@ -15,18 +15,18 @@ Release notes for commit range 4fc5ebe..bd68232
  - Added support for SYCL 2020 exceptions [5c0f748][eef07606][5af8c43d]
  - Added support for [SYCL_EXT_INTEL_BF16_CONVERSION extension](doc/extensions/experimental/SYCL_EXT_INTEL_BF16_CONVERSION.asciidoc)
    [8075463]
- - Added support for fallback implementation of [assert feature](doc/Assert.md)
+ - Added support for fallback implementation of [assert feature](doc/design/Assert.md)
    [56c9ec4]
  - Added support SYCL 2020 `sycl::logical_and` and `sycl::logical_or` operators
    [6c077a0]
 ### Documentation
- - Added design document for [optional kernel features](doc/OptionalDeviceFeatures.md)
+ - Added design document for [optional kernel features](doc/design/OptionalDeviceFeatures.md)
    [88cfe16]
  - Added [SYCL_INTEL_bf16_conversion extension document](doc/extensions/experimental/SYCL_EXT_INTEL_BF16_CONVERSION.asciidoc)
    [9f8cc3af]
  - Align [SYCL_EXT_ONEAPI_GROUP_MASK extension](doc/extensions/supported/SYCL_EXT_ONEAPI_SUB_GROUP_MASK.asciidoc)
    with SYCL 2020 specification [a06bd1fb]
- - Added [documentation](doc/SYCLInstrumentationUsingXPTI.md) of XPTI related
+ - Added [documentation](doc/design/SYCLInstrumentationUsingXPTI.md) of XPTI related
    tracing in SYCL [1308fe7b]
  - Align `SYCL_EXT_ONEAPI_LOCAL_MEMORY` extension
    [document](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc) with SYCL 2020
@@ -1104,7 +1104,7 @@ Release notes for commit range c9d50752..5d7e0925
   - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
     with older version of the SYCL library may not work with new one.
     The workaround is to rebuild the application.
-    [ABI policy guide](doc/ABIPolicyGuide.md)
+    [ABI policy guide](doc/developer/ABIPolicyGuide.md)
   - Using `cl::sycl::program` API to refer to a kernel defined in another
     translation unit leads to undefined behavior
   - Linkage errors with the following message:
@@ -1185,7 +1185,7 @@ Release notes for commit range 5976ff0..1fc0e4f
     [c4c3494]
 
 ### Documentation
-  - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/extensions/SPIRV/SPV_INTEL_usm_storage_classes.asciidoc)
+  - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/design/spirv-extensions/SPV_INTEL_usm_storage_classes.asciidoc)
     and [SYCL_INTEL_usm_address_spaces](doc/extensions/supported/SYCL_EXT_INTEL_USM_ADDRESS_SPACES.asciidoc) [781fbfc]
   - Fixed SPIR-V format name spelling [6e9bf3b]
   - Added extension [LocalMemory](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc) draft specification [4b5308a]
@@ -1243,7 +1243,7 @@ Release notes for commit range 5976ff0..1fc0e4f
   - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
     with older version of the SYCL library may not work with new one.
     The workaround is to rebuild the application.
-    [ABI policy guide](doc/ABIPolicyGuide.md)
+    [ABI policy guide](doc/developer/ABIPolicyGuide.md)
   - Using `cl::sycl::program` API to refer to a kernel defined in another
     translation unit leads to undefined behavior
   - Linkage errors with the following message:
@@ -1431,7 +1431,7 @@ Release notes for the commit range 75b3dc2..5976ff0
   - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
     with older version of the SYCL library may not work with new one.
     The workaround is to rebuild the application.
-    [ABI policy guide](doc/ABIPolicyGuide.md)
+    [ABI policy guide](doc/developer/ABIPolicyGuide.md)
   - Using `cl::sycl::program` API to refer to a kernel defined in another
     translation unit leads to undefined behavior
   - Linkage errors with the following message:
@@ -1585,7 +1585,7 @@ Release notes for the commit range ba404be..24726df
   - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
     with older version of the SYCL library may not work with new one.
     The workaround is to rebuild the application.
-    [ABI policy guide](doc/ABIPolicyGuide.md)
+    [ABI policy guide](doc/developer/ABIPolicyGuide.md)
   - Using `cl::sycl::program` API to refer to a kernel defined in another
     translation unit leads to undefined behavior
   - Linkage errors with the following message:
@@ -1661,7 +1661,7 @@ Release notes for the commit range ba404be..67d3d9e
   - Updated prerequisites in GetStartedGuide(doc/GetStartedGuide.md) [5d0d034]
   - Published a [proposal](doc/extensions/KernelRHSAttributes/SYCL_INTEL_attribute_style.asciidoc)
     for function-type attributes (right-sided) for kernel attributes [5d5351b]
-  - The [compiler and runtime design doc](doc/CompilerAndRuntimeDesign.md) has
+  - The [compiler and runtime design doc](doc/design/CompilerAndRuntimeDesign.md) has
     been updated to describe the CUDA target and reflect changed action graphs
     [91b597b] [212a26c]
   - [ExtendedAtomics documentation](doc/extensions/ExtendedAtomics/README.md)
@@ -1673,7 +1673,7 @@ Release notes for the commit range ba404be..67d3d9e
   - Published [device_specific_kernel_queries](doc/extensions/DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc)
     extension which rephrases work group queries as device-specific kernel
     queries [4c07ff8]
-  - Added more information about the [plugin interface (PI)](doc/PluginInterface.md)
+  - Added more information about the [plugin interface (PI)](doc/design/PluginInterface.md)
     [0614e9a]
   - [Contribution guidelines](../CONTRIBUTING.md) were simplified, now sign-off
     line is not required [7886fd8]
@@ -1736,7 +1736,7 @@ Release notes for the commit range ba404be..67d3d9e
   - The SYCL library doesn't guarantee stable API/ABI, so applications compiled
     with older version of the SYCL library may not work with new one.
     The workaround is to rebuild the application.
-    [ABI policy guide](doc/ABIPolicyGuide.md)
+    [ABI policy guide](doc/developer/ABIPolicyGuide.md)
   - Using `cl::sycl::program` API to refer to a kernel defined in another
     translation unit leads to undefined behavior
   - Linkage errors with the following message:

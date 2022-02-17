@@ -21,6 +21,7 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
@@ -28,7 +29,6 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
-// TODO : Rename esimdcpu to esimdemu for next CM_EMU release
 #include <esimdemu_support.h>
 
 #include <cstdarg>
@@ -116,6 +116,19 @@ static bool PrintPiTrace = false;
 // Sycl RT calls piTearDown().
 static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 
+// Single-entry cache for piPlatformsGet call.
+static pi_platform PiPlatformCache;
+// TODO/FIXME : Memory leak. Handle with 'piTearDown'.
+static sycl::detail::SpinLock *PiPlatformCacheMutex =
+    new sycl::detail::SpinLock;
+
+// Mapping between surface index and CM-managed surface
+static std::unordered_map<unsigned int, _pi_mem *> *PiESimdSurfaceMap =
+    new std::unordered_map<unsigned int, _pi_mem *>;
+// TODO/FIXME : Memory leak. Handle with 'piTearDown'.
+static sycl::detail::SpinLock *PiESimdSurfaceMapLock =
+    new sycl::detail::SpinLock;
+
 // To be compared with ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION in device
 // interface header file
 #define ESIMDEmuPluginDataVersion 0
@@ -126,9 +139,6 @@ static sycl::detail::ESIMDEmuPluginOpaqueData *PiESimdDeviceAccess;
 
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
-
-// For PI_DEVICE_INFO_VERSION info
-static char CmEmuDeviceVersionString[32];
 
 using IDBuilder = sycl::detail::Builder;
 
@@ -283,6 +293,51 @@ void sycl_get_cm_image_params(void *PtrInput, char **BaseAddr, uint32_t *Width,
   *MtxLock = &(Img->mutexLock);
 }
 
+// Function to provide image info for kernel compilation without
+// dependency on '_pi_mem' definition
+unsigned int sycl_get_cm_surface_index(void *PtrInput) {
+  _pi_mem *Surface = static_cast<_pi_mem *>(PtrInput);
+
+  return (unsigned int)(Surface->SurfaceIndex);
+}
+
+// Function to provide image info for kernel compilation using surface
+// index without dependency on '_pi_image' definition
+void sycl_get_cm_buffer_params_index(unsigned int IndexInput, char **BaseAddr,
+                                     uint32_t *Width, std::mutex **MtxLock) {
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  auto MemIter = PiESimdSurfaceMap->find(IndexInput);
+
+  assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
+
+  _pi_buffer *Buf = static_cast<_pi_buffer *>(MemIter->second);
+
+  *BaseAddr = cm_support::get_surface_base_addr(Buf->SurfaceIndex);
+  *Width = static_cast<uint32_t>(Buf->Size);
+
+  *MtxLock = &(Buf->mutexLock);
+}
+
+// Function to provide image info for kernel compilation using surface
+// index without dependency on '_pi_image' definition
+void sycl_get_cm_image_params_index(unsigned int IndexInput, char **BaseAddr,
+                                    uint32_t *Width, uint32_t *Height,
+                                    uint32_t *Bpp, std::mutex **MtxLock) {
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  auto MemIter = PiESimdSurfaceMap->find(IndexInput);
+  assert(MemIter != PiESimdSurfaceMap->end() && "Invalid Surface Index");
+
+  _pi_image *Img = static_cast<_pi_image *>(MemIter->second);
+
+  *BaseAddr = cm_support::get_surface_base_addr(Img->SurfaceIndex);
+
+  *Bpp = static_cast<uint32_t>(Img->BytesPerPixel);
+  *Width = static_cast<uint32_t>(Img->Width) * (*Bpp);
+  *Height = static_cast<uint32_t>(Img->Height);
+
+  *MtxLock = &(Img->mutexLock);
+}
+
 /// Implementation for ESIMD_EMULATOR device interface accessing ESIMD
 /// intrinsics and LibCM functionalties requred by intrinsics
 sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
@@ -300,6 +355,11 @@ sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
 
   sycl_get_cm_buffer_params_ptr = sycl_get_cm_buffer_params;
   sycl_get_cm_image_params_ptr = sycl_get_cm_image_params;
+
+  sycl_get_cm_surface_index_ptr = sycl_get_cm_surface_index;
+  sycl_get_cm_buffer_params_index_ptr = sycl_get_cm_buffer_params_index;
+  sycl_get_cm_image_params_index_ptr = sycl_get_cm_image_params_index;
+
   /* From 'esimd_emulator_functions_v1.h' : End */
 }
 
@@ -373,9 +433,10 @@ extern "C" {
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
-
+  static bool PiPlatformCachePopulated = false;
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
+
   if (PiTraceValue == -1) { // Means print all PI traces
     PrintPiTrace = true;
   }
@@ -401,9 +462,15 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiPlatformCacheMutex};
+  if (!PiPlatformCachePopulated) {
+    PiPlatformCache = new _pi_platform();
+    PiPlatformCache->CmEmuVersion = std::string("0.0.1");
+    PiPlatformCachePopulated = true;
+  }
+
   if (Platforms && NumEntries > 0) {
-    *Platforms = new _pi_platform();
-    Platforms[0]->CmEmuVersion = std::string("0.0.1");
+    *Platforms = PiPlatformCache;
   }
 
   return PI_SUCCESS;
@@ -456,6 +523,11 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_PLATFORM;
   }
 
+  pi_result Res = Platform->populateDeviceCacheIfNeeded();
+  if (Res != PI_SUCCESS) {
+    return Res;
+  }
+
   // CM has single-root-GPU-device without sub-device support.
   pi_uint32 DeviceCount = (DeviceType & PI_DEVICE_TYPE_GPU) ? 1 : 0;
 
@@ -477,10 +549,23 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   if (DeviceCount == 0) {
-    /// No GPU entry to fill 'Device' array
+    /// No GPU entry to fill 'Devices' array
     return PI_SUCCESS;
   }
 
+  if (Devices) {
+    *Devices = Platform->PiDeviceCache.get();
+  }
+  return PI_SUCCESS;
+}
+
+// Check the device cache and load it if necessary.
+pi_result _pi_platform::populateDeviceCacheIfNeeded() {
+  std::lock_guard<std::mutex> Lock(PiDeviceCacheMutex);
+
+  if (DeviceCachePopulated) {
+    return PI_SUCCESS;
+  }
   cm_support::CmDevice *CmDevice = nullptr;
   // TODO FIXME Implement proper version checking and reporting:
   // - version passed to cm_support::CreateCmDevice
@@ -493,6 +578,10 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   unsigned int Version = 0;
 
   int Result = cm_support::CreateCmDevice(CmDevice, Version);
+
+  if (Result != cm_support::CM_SUCCESS) {
+    return PI_INVALID_DEVICE;
+  }
 
   // CM Device version info consists of two decimal numbers - major
   // and minor. Minor is single-digit. Version info is encoded into a
@@ -509,21 +598,13 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_DEVICE;
   }
 
-  sprintf(CmEmuDeviceVersionString, "%d.%d", (int)(Version / 100),
-          (int)(Version % 10));
+  std::ostringstream StrFormat;
+  StrFormat << (int)(Version / 100) << "." << (int)(Version % 10);
 
-  if (Result != cm_support::CM_SUCCESS) {
-    return PI_INVALID_DEVICE;
-  }
-
-  // FIXME / TODO : piDevicesGet always must return same pointer for
-  // 'Devices[0]' from cached entry. Reference : level-zero
-  // platform/device implementation with PiDevicesCache and
-  // PiDevicesCache
-  if (Devices) {
-    Devices[0] = new _pi_device(Platform, CmDevice);
-  }
-
+  std::unique_ptr<_pi_device> Device(
+      new _pi_device(this, CmDevice, StrFormat.str()));
+  PiDeviceCache = std::move(Device);
+  DeviceCachePopulated = true;
   return PI_SUCCESS;
 }
 
@@ -585,7 +666,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // cl_khr_int64_extended_atomics
     return ReturnValue("");
   case PI_DEVICE_INFO_VERSION:
-    return ReturnValue(CmEmuDeviceVersionString);
+    return ReturnValue(Device->VersionStr.c_str());
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: // emulator doesn't support partition
     return ReturnValue(pi_bool{true});
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
@@ -959,6 +1040,10 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   Status = CmBuf->GetIndex(CmIndex);
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  assert(PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) ==
+             PiESimdSurfaceMap->end() &&
+         "Failure from CM-managed buffer creation");
 
   // Initialize the buffer with user data provided with 'HostPtr'
   if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
@@ -981,6 +1066,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  (*PiESimdSurfaceMap)[(unsigned int)CmIndex->get_data()] = *RetMem;
 
   return PI_SUCCESS;
 }
@@ -1021,6 +1108,19 @@ pi_result piMemRelease(pi_mem Mem) {
         return PI_INVALID_MEM_OBJECT;
       }
     } else {
+      return PI_INVALID_MEM_OBJECT;
+    }
+
+    // Removing Surface-map entry
+    const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+    auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
+    if (MapEntryIt != PiESimdSurfaceMap->end()) {
+      PiESimdSurfaceMap->erase(MapEntryIt);
+    } else {
+      if (PrintPiTrace) {
+        std::cerr << "Failure from CM-managed buffer/image deletion"
+                  << std::endl;
+      }
       return PI_INVALID_MEM_OBJECT;
     }
 
@@ -1128,6 +1228,15 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
   Status = CmSurface->GetIndex(CmIndex);
 
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  if (PiESimdSurfaceMap->find((unsigned int)CmIndex->get_data()) !=
+      PiESimdSurfaceMap->end()) {
+    if (PrintPiTrace) {
+      std::cerr << "Failure from CM-managed image creation" << std::endl;
+    }
+    return PI_INVALID_MEM_OBJECT;
+  }
+
   // Initialize the buffer with user data provided with 'HostPtr'
   if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     if (HostPtr != nullptr) {
@@ -1151,6 +1260,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  (*PiESimdSurfaceMap)[(unsigned int)CmIndex->get_data()] = *RetImage;
 
   return PI_SUCCESS;
 }
@@ -1735,6 +1846,11 @@ pi_result piTearDown(void *) {
   delete reinterpret_cast<sycl::detail::ESIMDEmuPluginOpaqueData *>(
       PiESimdDeviceAccess->data);
   delete PiESimdDeviceAccess;
+
+  const std::lock_guard<sycl::detail::SpinLock> Lock{*PiESimdSurfaceMapLock};
+  for (auto it = PiESimdSurfaceMap->begin(); it != PiESimdSurfaceMap->end();) {
+    it = PiESimdSurfaceMap->erase(it);
+  }
   return PI_SUCCESS;
 }
 
