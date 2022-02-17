@@ -1112,9 +1112,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
                                                    KernelID);
         }
 
-        m_KernelName2KernelIDs.insert(
-            std::make_pair(EntriesIt->name, It->second));
-
         m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
         m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
       }
