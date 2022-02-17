@@ -1437,15 +1437,15 @@ def SYCLDetailDeviceGlobal: InheritableAttr {
                    CXX11<"__sycl_detail__", "device_global">];
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [Undocumented];
+  let Documentation = [SYCLDetailDeviceGlobalAttrDocs];
 }
 
 def SYCLDetailGlobalVariableAllowed : InheritableAttr {
   let Spellings = [GNU<"global_variable_allowed">,
                    CXX11<"__sycl_detail__", "global_variable_allowed">];
-  let Subjects = SubjectList<[CXXRecord, GlobalStorageNonLocalVar], ErrorDiag>;
+  let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [Undocumented];
+  let Documentation = [SYCLDetailGlobalVariableAllowedAttrDocs];
 }
 
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {

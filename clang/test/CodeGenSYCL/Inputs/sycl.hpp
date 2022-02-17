@@ -129,10 +129,10 @@ struct no_alias {
   template <bool> class instance {};
 };
 } // namespace property
-// Global type decorated with attributes
+// device_global type decorated with attributes
 template <typename T>
 struct [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global { // sycl::ext::oneapi:device_global<T>
-  device_global() = default;
+  device_global() {}
 };
 } // namespace oneapi
 } // namespace ext

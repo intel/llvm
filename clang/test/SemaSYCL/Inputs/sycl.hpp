@@ -64,6 +64,12 @@ namespace ext {
 namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
+
+// device_global type decorated with attributes
+template <typename T>
+struct [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global { // sycl::ext::oneapi:device_global<T>
+  device_global() {}
+};
 } // namespace oneapi
 } // namespace ext
 
