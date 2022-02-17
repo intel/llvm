@@ -98,6 +98,16 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   return TP;
 }
 
+std::unordered_map<const SYCLMemObjI *,
+                   std::vector<std::shared_ptr<const void>>> &
+GlobalHandler::getMemObjLifetimeAttachedResources() {
+  return getOrCreate(MMemObjLifetimeAttachedResources);
+}
+
+std::mutex &GlobalHandler::getMemObjLifetimeAttachedResourcesMutex() {
+  return getOrCreate(MMemObjLifetimeAttachedResourcesMutex);
+}
+
 void releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
 #ifndef _WIN32
@@ -121,6 +131,12 @@ void GlobalHandler::registerDefaultContextReleaseHandler() {
 }
 
 void shutdown() {
+  // In case a user is leaking a memory object we may still have attached
+  // resources. These resources will be released with the context, but we need
+  // to do it before we release the backend context to avoid confusing errors.
+  if (GlobalHandler::instance().MMemObjLifetimeAttachedResources.Inst)
+    GlobalHandler::instance().MMemObjLifetimeAttachedResources.Inst->clear();
+
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
   if (GlobalHandler::instance().MHostTaskThreadPool.Inst)

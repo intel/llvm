@@ -118,14 +118,6 @@ context_impl::~context_impl() {
   // In case a user is leaking a memory object we may still have attached
   // resources. These resources will be released with the context, but we need
   // to do it before we release the backend context to avoid confusing errors.
-  std::unordered_map<const SYCLMemObjI *,
-                     std::vector<std::shared_ptr<const void>>>
-      MemObjLTARes;
-  {
-    std::lock_guard<std::mutex> lock(MMemObjLifetimeAttachedResourcesMutex);
-    std::swap(MemObjLTARes, MMemObjLifetimeAttachedResources);
-  }
-  MemObjLTARes.clear();
   std::unordered_map<const void *, std::vector<std::shared_ptr<const void>>>
       USMLTARes;
   {
@@ -223,33 +215,6 @@ pi_native_handle context_impl::getNative() const {
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
-}
-
-void context_impl::attachLifetimeToMemObj(std::shared_ptr<const void> &Resource,
-                                          const SYCLMemObjI *AttachTo) {
-  std::lock_guard<std::mutex> lock(MMemObjLifetimeAttachedResourcesMutex);
-  auto AttachedResourcesIt = MMemObjLifetimeAttachedResources.find(AttachTo);
-  if (AttachedResourcesIt != MMemObjLifetimeAttachedResources.end())
-    AttachedResourcesIt->second.push_back(Resource);
-  else
-    MMemObjLifetimeAttachedResources.insert({AttachTo, {Resource}});
-}
-
-void context_impl::detachMemObjLifetimeResources(
-    const SYCLMemObjI *AttachedTo) {
-  // Swap the attached resources and let them go out of scope without the lock.
-  // This is required as they could potentially have their own attached
-  // resources they need to detach.
-  std::vector<std::shared_ptr<const void>> AttachedResources;
-  {
-    std::lock_guard<std::mutex> lock(MMemObjLifetimeAttachedResourcesMutex);
-    auto AttachedResourcesIt =
-        MMemObjLifetimeAttachedResources.find(AttachedTo);
-    if (AttachedResourcesIt == MMemObjLifetimeAttachedResources.end())
-      return;
-    std::swap(AttachedResourcesIt->second, AttachedResources);
-    MMemObjLifetimeAttachedResources.erase(AttachedResourcesIt);
-  }
 }
 
 void context_impl::attachLifetimeToUSM(std::shared_ptr<const void> &Resource,

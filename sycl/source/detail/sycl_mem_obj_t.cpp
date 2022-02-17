@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
@@ -95,8 +96,21 @@ void SYCLMemObjT::updateHostMemory() {
 // that happens this will be obsolete as the resources will automatically be
 // destroyed with the object.
 void SYCLMemObjT::detachResources() const {
-  if (MInteropContext)
-    MInteropContext->detachMemObjLifetimeResources(this);
+  // Swap the attached resources and let them go out of scope without the lock.
+  // This is required as they could potentially have their own attached
+  // resources they need to detach.
+  std::vector<std::shared_ptr<const void>> AttachedResources;
+  {
+    std::lock_guard<std::mutex> lock(
+        GlobalHandler::instance().getMemObjLifetimeAttachedResourcesMutex());
+    auto &AttachedResourcesMap =
+        GlobalHandler::instance().getMemObjLifetimeAttachedResources();
+    auto AttachedResourcesIt = AttachedResourcesMap.find(this);
+    if (AttachedResourcesIt == AttachedResourcesMap.end())
+      return;
+    std::swap(AttachedResourcesIt->second, AttachedResources);
+    AttachedResourcesMap.erase(AttachedResourcesIt);
+  }
 }
 
 const plugin &SYCLMemObjT::getPlugin() const {

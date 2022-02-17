@@ -368,12 +368,11 @@ template <typename T> struct AreAllButLastReductions<T> {
 
 /// Helper for attaching a resource to the lifetime of the memory associated
 /// with accessor.
-__SYCL_EXPORT void attachLifetime(std::shared_ptr<queue_impl> &Context,
-                                  std::shared_ptr<const void> &Resource,
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<const void> &Resource,
                                   detail::AccessorBaseHost &AttachTo);
 
 /// Helper for attaching a resource to the lifetime of USM memory.
-__SYCL_EXPORT void attachLifetime(std::shared_ptr<queue_impl> &Context,
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<queue_impl> &Queue,
                                   std::shared_ptr<const void> &Resource,
                                   void *AttachTo);
 
@@ -786,9 +785,9 @@ private:
     if (is_usm)
       detail::attachLifetime(CGH.MQueue, Resource, MUSMPointer);
     else if (MDWAcc != nullptr)
-      detail::attachLifetime(CGH.MQueue, Resource, *MDWAcc);
+      detail::attachLifetime(Resource, *MDWAcc);
     else
-      detail::attachLifetime(CGH.MQueue, Resource, *MRWAcc);
+      detail::attachLifetime(Resource, *MRWAcc);
 #else
     (void)CGH;
     (void)Resource;

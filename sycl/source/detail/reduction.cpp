@@ -110,11 +110,19 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   return WGSize;
 }
 
-__SYCL_EXPORT void attachLifetime(std::shared_ptr<queue_impl> &Queue,
-                                  std::shared_ptr<const void> &Resource,
+__SYCL_EXPORT void attachLifetime(std::shared_ptr<const void> &Resource,
                                   detail::AccessorBaseHost &AttachTo) {
-  Queue->getContextImplPtr()->attachLifetimeToMemObj(Resource,
-                                  getSyclObjImpl(AttachTo)->MSYCLMemObj);
+  SYCLMemObjI *MemObj = getSyclObjImpl(AttachTo)->MSYCLMemObj;
+  // On ABI break this should attach directly to the memory object.
+  std::lock_guard<std::mutex> lock(
+      GlobalHandler::instance().getMemObjLifetimeAttachedResourcesMutex());
+  auto &AttachedResourcesMap =
+      GlobalHandler::instance().getMemObjLifetimeAttachedResources();
+  auto AttachedResourcesIt = AttachedResourcesMap.find(MemObj);
+  if (AttachedResourcesIt != AttachedResourcesMap.end())
+    AttachedResourcesIt->second.push_back(Resource);
+  else
+    AttachedResourcesMap.insert({MemObj, {Resource}});
 }
 
 __SYCL_EXPORT void attachLifetime(std::shared_ptr<queue_impl> &Queue,

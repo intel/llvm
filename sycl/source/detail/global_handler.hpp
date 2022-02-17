@@ -26,6 +26,7 @@ class plugin;
 class device_filter_list;
 class XPTIRegistry;
 class ThreadPool;
+class SYCLMemObjI;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
@@ -70,6 +71,11 @@ public:
   std::mutex &getHandlerExtendedMembersMutex();
   ThreadPool &getHostTaskThreadPool();
 
+  std::unordered_map<const SYCLMemObjI *,
+                     std::vector<std::shared_ptr<const void>>> &
+  getMemObjLifetimeAttachedResources();
+  std::mutex &getMemObjLifetimeAttachedResourcesMutex();
+
   static void registerDefaultContextReleaseHandler();
 
 private:
@@ -105,6 +111,12 @@ private:
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
+
+  /// TODO: On ABI break this should be made part of SYCLMemObjT.
+  InstWithLock<std::unordered_map<const SYCLMemObjI *,
+                                  std::vector<std::shared_ptr<const void>>>>
+      MMemObjLifetimeAttachedResources;
+  InstWithLock<std::mutex> MMemObjLifetimeAttachedResourcesMutex;
 };
 } // namespace detail
 } // namespace sycl
