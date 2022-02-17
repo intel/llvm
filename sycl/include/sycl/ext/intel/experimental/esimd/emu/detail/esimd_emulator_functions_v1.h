@@ -51,4 +51,10 @@ void (*sycl_get_cm_buffer_params_ptr)(void *, char **, uint32_t *,
 void (*sycl_get_cm_image_params_ptr)(void *, char **, uint32_t *, uint32_t *,
                                      uint32_t *, std::mutex **);
 
+unsigned int (*sycl_get_cm_surface_index_ptr)(void *);
+void (*sycl_get_cm_buffer_params_index_ptr)(unsigned int, char **, uint32_t *,
+                                            std::mutex **);
+void (*sycl_get_cm_image_params_index_ptr)(unsigned int, char **, uint32_t *,
+                                           uint32_t *, uint32_t *,
+                                           std::mutex **);
 /// @endcond ESIMD_EMU
