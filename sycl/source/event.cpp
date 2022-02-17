@@ -55,7 +55,7 @@ void event::wait_and_throw(const std::vector<event> &EventList) {
 std::vector<event> event::get_wait_list() {
   std::vector<event> Result;
 
-  for (auto &EventImpl : detail::Scheduler::getInstance().getWaitList(impl))
+  for (auto &EventImpl : impl->getWaitList())
     Result.push_back(detail::createSyclObjFromImpl<event>(EventImpl));
 
   return Result;

@@ -427,9 +427,6 @@ public:
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
 
-  /// \return a vector of "immediate" dependencies for the Event given.
-  std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
-
   /// Allocate buffers in the pool for a provided stream
   ///
   /// \param Impl to the stream object
@@ -731,10 +728,6 @@ protected:
   /// \ingroup sycl_graph
   class GraphProcessor {
   public:
-    /// \return a list of events that represent immediate dependencies of the
-    /// command associated with Event passed.
-    static std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
-
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
     /// \param ToCleanUp container for commands that can be cleaned up.
@@ -780,6 +773,7 @@ protected:
   friend class Command;
   friend class DispatchHostTask;
   friend class queue_impl;
+  friend class event_impl;
 
   /// Stream buffers structure.
   ///

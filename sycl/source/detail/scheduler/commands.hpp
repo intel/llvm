@@ -20,6 +20,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/cg.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -188,7 +189,7 @@ public:
     return nullptr;
   }
 
-  virtual ~Command() = default;
+  virtual ~Command() { MEvent->cleanupDependencyEvents(); }
 
   const char *getBlockReason() const;
 
@@ -207,14 +208,14 @@ public:
   virtual bool supportsPostEnqueueCleanup() const;
 
 protected:
-  EventImplPtr MEvent;
   QueueImplPtr MQueue;
   QueueImplPtr MSubmittedQueue;
+  EventImplPtr MEvent;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
-  std::vector<EventImplPtr> MPreparedDepsEvents;
-  std::vector<EventImplPtr> MPreparedHostDepsEvents;
+  std::vector<EventImplPtr> &MPreparedDepsEvents;
+  std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);

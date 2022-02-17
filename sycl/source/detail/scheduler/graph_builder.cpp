@@ -1186,7 +1186,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
   }
 
   Cmd->getEvent()->setCommand(nullptr);
-  //Cmd->getEvent()->cleanupDependencyEvents();
   delete Cmd;
 }
 

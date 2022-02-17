@@ -27,6 +27,8 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+class event_impl;
+using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
 
 class event_impl {
 public:
@@ -167,11 +169,32 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  /// Returns vector of event dependencies.
+  ///
+  /// @return a reference to MPreparedDepsEvents.
+  std::vector<std::shared_ptr<event_impl>> &getPreparedDepsEvents() {
+    return MPreparedDepsEvents;
+  }
+
+  /// Returns vector of host event dependencies.
+  ///
+  /// @return a reference to MPreparedHostDepsEvents.
+  std::vector<std::shared_ptr<event_impl>> &getPreparedHostDepsEvents() {
+    return MPreparedHostDepsEvents;
+  }
+
+  /// Returns vector of event_impl that this event_impl depends on.
+  ///
+  /// @return a vector of "immediate" dependencies for this event_impl.
+  std::vector<EventImplPtr> getWaitList();
 
   /// Performs a flush on the queue associated with this event if the user queue
   /// is different and the task associated with this event hasn't been submitted
   /// to the device yet.
   void flushIfNeeded(const QueueImplPtr &UserQueue);
+
+  /// Cleans dependencies of this event_impl
+  void cleanupDependencyEvents();
 
   /// Checks if this event is discarded by SYCL implementation.
   ///
@@ -200,6 +223,10 @@ private:
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
 
+  /// Dependency events prepared for waiting by backend.
+  std::vector<EventImplPtr> MPreparedDepsEvents;
+  std::vector<EventImplPtr> MPreparedHostDepsEvents;
+
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.
   std::atomic<bool> MIsFlushed = false;
@@ -214,6 +241,8 @@ private:
   // handled by post enqueue cleanup yet and has to be deleted by cleanup after
   // wait.
   bool MNeedsCleanupAfterWait = false;
+
+  std::mutex MMutex;
 };
 
 } // namespace detail

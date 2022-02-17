@@ -213,11 +213,6 @@ Scheduler &Scheduler::getInstance() {
   return GlobalHandler::instance().getScheduler();
 }
 
-std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
-  ReadLockT Lock(MGraphLock);
-  return GraphProcessor::getWaitList(std::move(Event));
-}
-
 void Scheduler::waitForEvent(EventImplPtr Event) {
   ReadLockT Lock(MGraphLock);
   // It's fine to leave the lock unlocked upon return from waitForEvent as
