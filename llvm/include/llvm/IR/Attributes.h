@@ -20,14 +20,12 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 #include <bitset>
 #include <cassert>
 #include <cstdint>
-#include <map>
 #include <set>
 #include <string>
 #include <utility>
@@ -981,12 +979,12 @@ public:
   /// attribute.
   bool contains(StringRef A) const { return TargetDepAttrs.count(A); }
 
-  using td_const_iterator = decltype(TargetDepAttrs)::const_iterator;
-  using td_const_range = iterator_range<td_const_iterator>;
-  td_const_range td_attrs() const {
-    return {TargetDepAttrs.begin(), TargetDepAttrs.end()};
+  /// Return true if the mask contains the specified attribute.
+  bool contains(Attribute A) const {
+    if (A.isStringAttribute())
+      return contains(A.getKindAsString());
+    return contains(A.getKindAsEnum());
   }
-  auto const &attrs() const { return Attrs; }
 };
 
 //===----------------------------------------------------------------------===//
@@ -997,13 +995,7 @@ public:
 /// equality, presence of attributes, etc.
 class AttrBuilder {
   LLVMContext &Ctx;
-  std::bitset<Attribute::EndAttrKinds> Attrs;
-  SmallVector<Attribute, 8> TargetDepAttrs;
-  std::array<uint64_t, Attribute::NumIntAttrKinds> IntAttrs = {};
-  std::array<Type *, Attribute::NumTypeAttrKinds> TypeAttrs = {};
-
-  Optional<unsigned> kindToIntIndex(Attribute::AttrKind Kind) const;
-  Optional<unsigned> kindToTypeIndex(Attribute::AttrKind Kind) const;
+  SmallVector<Attribute, 8> Attrs;
 
 public:
   AttrBuilder(LLVMContext &Ctx) : Ctx(Ctx) {}
@@ -1014,20 +1006,12 @@ public:
     addAttribute(A);
   }
 
-  AttrBuilder(LLVMContext &Ctx, AttributeList AS, unsigned Idx);
   AttrBuilder(LLVMContext &Ctx, AttributeSet AS);
 
   void clear();
 
   /// Add an attribute to the builder.
-  AttrBuilder &addAttribute(Attribute::AttrKind Val) {
-    assert((unsigned)Val < Attribute::EndAttrKinds &&
-           "Attribute out of range!");
-    assert(Attribute::isEnumAttrKind(Val) &&
-           "Adding integer/type attribute without an argument!");
-    Attrs[Val] = true;
-    return *this;
-  }
+  AttrBuilder &addAttribute(Attribute::AttrKind Val);
 
   /// Add the Attribute object to the builder.
   AttrBuilder &addAttribute(Attribute A);
@@ -1049,10 +1033,8 @@ public:
       return removeAttribute(A.getKindAsEnum());
   }
 
-  /// Remove the attributes from the builder.
-  AttrBuilder &removeAttributes(AttributeList A, uint64_t WithoutIndex);
-
-  /// Add the attributes from the builder.
+  /// Add the attributes from the builder. Attributes in the passed builder
+  /// overwrite attributes in this builder if they have the same key.
   AttrBuilder &merge(const AttrBuilder &B);
 
   /// Remove the attributes from the builder.
@@ -1063,24 +1045,25 @@ public:
   bool overlaps(const AttributeMask &AM) const;
 
   /// Return true if the builder has the specified attribute.
-  bool contains(Attribute::AttrKind A) const {
-    assert((unsigned)A < Attribute::EndAttrKinds && "Attribute out of range!");
-    return Attrs[A];
-  }
+  bool contains(Attribute::AttrKind A) const;
 
   /// Return true if the builder has the specified target-dependent
   /// attribute.
   bool contains(StringRef A) const;
 
   /// Return true if the builder has IR-level attributes.
-  bool hasAttributes() const;
-
-  /// Return true if the builder has any attribute that's in the
-  /// specified attribute.
-  bool hasAttributes(AttributeList A, uint64_t Index) const;
+  bool hasAttributes() const { return !Attrs.empty(); }
 
   /// Return true if the builder has an alignment attribute.
   bool hasAlignmentAttr() const;
+
+  /// Return Attribute with the given Kind. The returned attribute will be
+  /// invalid if the Kind is not present in the builder.
+  Attribute getAttribute(Attribute::AttrKind Kind) const;
+
+  /// Return Attribute with the given Kind. The returned attribute will be
+  /// invalid if the Kind is not present in the builder.
+  Attribute getAttribute(StringRef Kind) const;
 
   /// Return raw (possibly packed/encoded) value of integer attribute or 0 if
   /// not set.
@@ -1207,16 +1190,7 @@ public:
   /// Attribute.getIntValue().
   AttrBuilder &addVScaleRangeAttrFromRawRepr(uint64_t RawVScaleRangeRepr);
 
-  // Iterators for target-dependent attributes.
-  using td_const_iterator = decltype(TargetDepAttrs)::const_iterator;
-  using td_const_range = iterator_range<td_const_iterator>;
-
-  td_const_iterator td_begin() const { return TargetDepAttrs.begin(); }
-  td_const_iterator td_end() const { return TargetDepAttrs.end(); }
-
-  td_const_range td_attrs() const {
-    return td_const_range(td_begin(), td_end());
-  }
+  ArrayRef<Attribute> attrs() const { return Attrs; }
 
   bool operator==(const AttrBuilder &B) const;
   bool operator!=(const AttrBuilder &B) const { return !(*this == B); }

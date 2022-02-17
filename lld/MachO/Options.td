@@ -73,6 +73,10 @@ def thinlto_cache_policy: Joined<["--"], "thinlto-cache-policy=">,
     Group<grp_lld>;
 def O : JoinedOrSeparate<["-"], "O">,
     HelpText<"Optimize output file size">;
+def start_lib: Flag<["--"], "start-lib">,
+    HelpText<"Start a grouping of objects that should be treated as if they were together in an archive">;
+def end_lib: Flag<["--"], "end-lib">,
+    HelpText<"End a grouping of objects that should be treated as if they were together in an archive">;
 def no_warn_dylib_install_name: Joined<["--"], "no-warn-dylib-install-name">,
     HelpText<"Do not warn on -install-name if -dylib is not passed (default)">,
     Group<grp_lld>;
@@ -223,6 +227,9 @@ def F : JoinedOrSeparate<["-"], "F">,
 def all_load : Flag<["-"], "all_load">,
     HelpText<"Load all members of all static archive libraries">,
     Group<grp_libs>;
+def noall_load : Flag<["-"], "noall_load">,
+    HelpText<"Don't load all static members from archives, this is the default, this negates -all_load">,
+    Group<grp_libs>;
 def ObjC : Flag<["-"], "ObjC">,
     HelpText<"Load all members of static archives that are an Objective-C class or category.">,
     Group<grp_libs>;
@@ -244,6 +251,10 @@ def segcreate : MultiArg<["-"], "segcreate", 3>,
     MetaVarName<"<segment> <section> <file>">,
     Alias<sectcreate>,
     HelpText<"Alias for -sectcreate">,
+    Group<grp_content>;
+def add_empty_section : MultiArg<["-"], "add_empty_section", 2>,
+    MetaVarName<"<segment> <section>">,
+    HelpText<"Create an empty <section> in <segment>">,
     Group<grp_content>;
 def filelist : Separate<["-"], "filelist">,
     MetaVarName<"<file>">,
@@ -433,7 +444,6 @@ def no_pie : Flag<["-"], "no_pie">,
 def pagezero_size : Separate<["-"], "pagezero_size">,
     MetaVarName<"<size>">,
     HelpText<"Size of unreadable segment at address zero is hex <size> (default is 4KB on 32-bit and 4GB on 64-bit)">,
-    Flags<[HelpHidden]>,
     Group<grp_main>;
 def stack_size : Separate<["-"], "stack_size">,
     MetaVarName<"<size>">,
@@ -987,10 +997,6 @@ def single_module : Flag<["-"], "single_module">,
     Group<grp_deprecated>;
 def no_dead_strip_inits_and_terms : Flag<["-"], "no_dead_strip_inits_and_terms">,
     HelpText<"Unnecessary option: initialization and termination are roots of the dead strip graph, so never dead stripped">,
-    Flags<[HelpHidden]>,
-    Group<grp_deprecated>;
-def noall_load : Flag<["-"], "noall_load">,
-    HelpText<"Unnecessary option: this is already the default">,
     Flags<[HelpHidden]>,
     Group<grp_deprecated>;
 

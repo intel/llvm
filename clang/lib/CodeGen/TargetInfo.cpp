@@ -709,7 +709,8 @@ Address EmitVAArgInstr(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
            "Unexpected CoerceToType seen in arginfo in generic VAArg emitter!");
 
     Address Temp = CGF.CreateMemTemp(Ty, "varet");
-    Val = CGF.Builder.CreateVAArg(VAListAddr.getPointer(), CGF.ConvertType(Ty));
+    Val = CGF.Builder.CreateVAArg(VAListAddr.getPointer(),
+                                  CGF.ConvertTypeForMem(Ty));
     CGF.Builder.CreateStore(Val, Temp);
     return Temp;
   }
@@ -5563,8 +5564,8 @@ public:
 
     TargetInfo::BranchProtectionInfo BPI;
     StringRef Error;
-    (void)CGM.getTarget().validateBranchProtection(Attr.BranchProtection,
-                                                   BPI, Error);
+    (void)CGM.getTarget().validateBranchProtection(
+        Attr.BranchProtection, Attr.Architecture, BPI, Error);
     assert(Error.empty());
 
     auto *Fn = cast<llvm::Function>(GV);
@@ -6377,17 +6378,36 @@ public:
       if (!Attr.BranchProtection.empty()) {
         TargetInfo::BranchProtectionInfo BPI;
         StringRef DiagMsg;
-        (void)CGM.getTarget().validateBranchProtection(Attr.BranchProtection,
-                                                       BPI, DiagMsg);
+        StringRef Arch = Attr.Architecture.empty()
+                             ? CGM.getTarget().getTargetOpts().CPU
+                             : Attr.Architecture;
+        if (!CGM.getTarget().validateBranchProtection(Attr.BranchProtection,
+                                                      Arch, BPI, DiagMsg)) {
+          CGM.getDiags().Report(
+              D->getLocation(),
+              diag::warn_target_unsupported_branch_protection_attribute)
+              << Arch;
+        } else {
+          static const char *SignReturnAddrStr[] = {"none", "non-leaf", "all"};
+          assert(static_cast<unsigned>(BPI.SignReturnAddr) <= 2 &&
+                 "Unexpected SignReturnAddressScopeKind");
+          Fn->addFnAttr(
+              "sign-return-address",
+              SignReturnAddrStr[static_cast<int>(BPI.SignReturnAddr)]);
 
-        static const char *SignReturnAddrStr[] = {"none", "non-leaf", "all"};
-        assert(static_cast<unsigned>(BPI.SignReturnAddr) <= 2 &&
-               "Unexpected SignReturnAddressScopeKind");
-        Fn->addFnAttr("sign-return-address",
-                      SignReturnAddrStr[static_cast<int>(BPI.SignReturnAddr)]);
-
-        Fn->addFnAttr("branch-target-enforcement",
-                      BPI.BranchTargetEnforcement ? "true" : "false");
+          Fn->addFnAttr("branch-target-enforcement",
+                        BPI.BranchTargetEnforcement ? "true" : "false");
+        }
+      } else if (CGM.getLangOpts().BranchTargetEnforcement ||
+                 CGM.getLangOpts().hasSignReturnAddress()) {
+        // If the Branch Protection attribute is missing, validate the target
+        // Architecture attribute against Branch Protection command line
+        // settings.
+        if (!CGM.getTarget().isBranchProtectionSupportedArch(Attr.Architecture))
+          CGM.getDiags().Report(
+              D->getLocation(),
+              diag::warn_target_unsupported_branch_protection_attribute)
+              << Attr.Architecture;
       }
     }
 
@@ -8282,14 +8302,17 @@ public:
 
   LangAS getGlobalVarAddressSpace(CodeGenModule &CGM,
                                   const VarDecl *D) const override {
-    // Check if a global/static variable is defined within address space 1
+    // Check if global/static variable is defined in address space
+    // 1~6 (__flash, __flash1, __flash2, __flash3, __flash4, __flash5)
     // but not constant.
-    LangAS AS = D->getType().getAddressSpace();
-    if (isTargetAddressSpace(AS) && toTargetAddressSpace(AS) == 1 &&
-        !D->getType().isConstQualified())
-      CGM.getDiags().Report(D->getLocation(),
-                            diag::err_verify_nonconst_addrspace)
-          << "__flash";
+    if (D) {
+      LangAS AS = D->getType().getAddressSpace();
+      if (isTargetAddressSpace(AS) && 1 <= toTargetAddressSpace(AS) &&
+          toTargetAddressSpace(AS) <= 6 && !D->getType().isConstQualified())
+        CGM.getDiags().Report(D->getLocation(),
+                              diag::err_verify_nonconst_addrspace)
+            << "__flash*";
+    }
     return TargetCodeGenInfo::getGlobalVarAddressSpace(CGM, D);
   }
 
@@ -8936,9 +8959,9 @@ private:
   llvm::Type *coerceKernelArgumentType(llvm::Type *Ty, unsigned FromAS,
                                        unsigned ToAS) const {
     // Single value types.
-    if (Ty->isPointerTy() && Ty->getPointerAddressSpace() == FromAS)
-      return llvm::PointerType::get(
-          cast<llvm::PointerType>(Ty)->getElementType(), ToAS);
+    auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Ty);
+    if (PtrTy && PtrTy->getAddressSpace() == FromAS)
+      return llvm::PointerType::getWithSamePointeeType(PtrTy, ToAS);
     return Ty;
   }
 
@@ -9339,8 +9362,8 @@ llvm::Constant *AMDGPUTargetCodeGenInfo::getNullPointer(
     return llvm::ConstantPointerNull::get(PT);
 
   auto &Ctx = CGM.getContext();
-  auto NPT = llvm::PointerType::get(PT->getElementType(),
-      Ctx.getTargetAddressSpace(LangAS::opencl_generic));
+  auto NPT = llvm::PointerType::getWithSamePointeeType(
+      PT, Ctx.getTargetAddressSpace(LangAS::opencl_generic));
   return llvm::ConstantExpr::getAddrSpaceCast(
       llvm::ConstantPointerNull::get(NPT), PT);
 }
@@ -9458,6 +9481,28 @@ class SparcV8TargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   SparcV8TargetCodeGenInfo(CodeGenTypes &CGT)
       : TargetCodeGenInfo(std::make_unique<SparcV8ABIInfo>(CGT)) {}
+
+  llvm::Value *decodeReturnAddress(CodeGen::CodeGenFunction &CGF,
+                                   llvm::Value *Address) const override {
+    int Offset;
+    if (isAggregateTypeForABI(CGF.CurFnInfo->getReturnType()))
+      Offset = 12;
+    else
+      Offset = 8;
+    return CGF.Builder.CreateGEP(CGF.Int8Ty, Address,
+                                 llvm::ConstantInt::get(CGF.Int32Ty, Offset));
+  }
+
+  llvm::Value *encodeReturnAddress(CodeGen::CodeGenFunction &CGF,
+                                   llvm::Value *Address) const override {
+    int Offset;
+    if (isAggregateTypeForABI(CGF.CurFnInfo->getReturnType()))
+      Offset = -12;
+    else
+      Offset = -8;
+    return CGF.Builder.CreateGEP(CGF.Int8Ty, Address,
+                                 llvm::ConstantInt::get(CGF.Int32Ty, Offset));
+  }
 };
 } // end anonymous namespace
 
@@ -9732,6 +9777,18 @@ public:
 
   bool initDwarfEHRegSizeTable(CodeGen::CodeGenFunction &CGF,
                                llvm::Value *Address) const override;
+
+  llvm::Value *decodeReturnAddress(CodeGen::CodeGenFunction &CGF,
+                                   llvm::Value *Address) const override {
+    return CGF.Builder.CreateGEP(CGF.Int8Ty, Address,
+                                 llvm::ConstantInt::get(CGF.Int32Ty, 8));
+  }
+
+  llvm::Value *encodeReturnAddress(CodeGen::CodeGenFunction &CGF,
+                                   llvm::Value *Address) const override {
+    return CGF.Builder.CreateGEP(CGF.Int8Ty, Address,
+                                 llvm::ConstantInt::get(CGF.Int32Ty, -8));
+  }
 };
 } // end anonymous namespace
 
@@ -10307,9 +10364,9 @@ ABIArgInfo SPIRVABIInfo::classifyKernelArgumentType(QualType Ty) const {
     llvm::Type *LTy = CGT.ConvertType(Ty);
     auto DefaultAS = getContext().getTargetAddressSpace(LangAS::Default);
     auto GlobalAS = getContext().getTargetAddressSpace(LangAS::cuda_device);
-    if (LTy->isPointerTy() && LTy->getPointerAddressSpace() == DefaultAS) {
-      LTy = llvm::PointerType::get(
-          cast<llvm::PointerType>(LTy)->getElementType(), GlobalAS);
+    auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(LTy);
+    if (PtrTy && PtrTy->getAddressSpace() == DefaultAS) {
+      LTy = llvm::PointerType::getWithSamePointeeType(PtrTy, GlobalAS);
       return ABIArgInfo::getDirect(LTy, 0, nullptr, false);
     }
   }

@@ -575,7 +575,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
       return isa<SYCLIntelLoopFuseAttr, SYCLIntelFPGAMaxConcurrencyAttr,
                  SYCLIntelFPGADisableLoopPipeliningAttr,
                  SYCLIntelFPGAInitiationIntervalAttr,
-                 SYCLIntelUseStallEnableClustersAttr>(A);
+                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr>(A);
     });
   }
 }
@@ -636,9 +636,16 @@ public:
       }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
                !e->isTypeDependent() &&
-               !isa<CXXPseudoDestructorExpr>(e->getCallee()))
-      SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-          << Sema::KernelCallFunctionPointer;
+               !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
+      bool MaybeConstantExpr = false;
+      Expr *NonDirectCallee = e->getCallee();
+      if (!NonDirectCallee->isValueDependent())
+        MaybeConstantExpr =
+            NonDirectCallee->isCXX11ConstantExpr(SemaRef.getASTContext());
+      if (!MaybeConstantExpr)
+        SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
+            << Sema::KernelCallFunctionPointer;
+    }
     return true;
   }
 
@@ -816,7 +823,8 @@ class SingleDeviceFunctionTracker {
     // false-positives.
     if (isSYCLKernelBodyFunction(CurrentDecl)) {
       // This is a direct callee of the kernel.
-      if (CallStack.size() == 1) {
+      if (CallStack.size() == 1 &&
+          CallStack.back()->hasAttr<SYCLKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
@@ -1566,8 +1574,8 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
 // A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
-  bool IsSIMD = false;
   DiagnosticsEngine &Diag;
+  bool IsSIMD = false;
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
@@ -3903,9 +3911,9 @@ static void PropagateAndDiagnoseDeviceAttr(
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) < RWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) < RWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) < RWGSA->getZDimVal(Ctx)) {
+      if (*Existing->getXDimVal() < RWGSA->getXDimVal(Ctx) ||
+          *Existing->getYDimVal() < RWGSA->getYDimVal(Ctx) ||
+          *Existing->getZDimVal() < RWGSA->getZDimVal(Ctx)) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3923,9 +3931,9 @@ static void PropagateAndDiagnoseDeviceAttr(
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
       ASTContext &Ctx = S.getASTContext();
-      if (Existing->getXDimVal(Ctx) > SIMWGSA->getXDimVal(Ctx) ||
-          Existing->getYDimVal(Ctx) > SIMWGSA->getYDimVal(Ctx) ||
-          Existing->getZDimVal(Ctx) > SIMWGSA->getZDimVal(Ctx)) {
+      if (Existing->getXDimVal(Ctx) > *SIMWGSA->getXDimVal() ||
+          Existing->getYDimVal(Ctx) > *SIMWGSA->getYDimVal() ||
+          Existing->getZDimVal(Ctx) > *SIMWGSA->getZDimVal()) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -3960,6 +3968,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelFPGADisableLoopPipelining:
   case attr::Kind::SYCLIntelFPGAInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
+  case attr::Kind::SYCLDeviceHas:
     SYCLKernel->addAttr(A);
     break;
   case attr::Kind::IntelNamedSubGroupSize:
@@ -4714,6 +4723,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
+    PresumedLoc PLoc = S.Context.getSourceManager().getPresumedLoc(
+        S.Context.getSourceManager()
+            .getExpansionRange(K.KernelLocation)
+            .getEnd());
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
@@ -4737,6 +4750,44 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
       << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFileName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \""
+      << std::string(PLoc.getFilename())
+             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFunctionName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \"";
+    SYCLKernelNameTypePrinter Printer(O, Policy);
+    Printer.Visit(K.NameType);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getLineNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getLine() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getColumnNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getColumn() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
     O << "};\n";
     CurStart += N;
   }
@@ -5081,14 +5132,14 @@ bool Util::isSyclKernelHandlerType(QualType Ty) {
 
 bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
   std::array<DeclContextDesc, 7> Scopes = {
-      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "ext"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "oneapi"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
-                            "instance"}};
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "no_alias"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "instance")};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 

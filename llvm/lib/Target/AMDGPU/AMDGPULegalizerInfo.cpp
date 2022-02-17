@@ -929,10 +929,11 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   getActionDefinitionsBuilder(G_CTPOP)
     .legalFor({{S32, S32}, {S32, S64}})
     .clampScalar(0, S32, S32)
+    .widenScalarToNextPow2(1, 32)
     .clampScalar(1, S32, S64)
     .scalarize(0)
-    .widenScalarToNextPow2(0, 32)
-    .widenScalarToNextPow2(1, 32);
+    .widenScalarToNextPow2(0, 32);
+
 
   // The hardware instructions return a different result on 0 than the generic
   // instructions expect. The hardware produces -1, but these produce the
@@ -1295,6 +1296,18 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   if (ST.hasAtomicFaddInsts())
     Atomic.legalFor({{S32, GlobalPtr}});
 
+  if (ST.hasGFX90AInsts()) {
+    // These are legal with some caveats, and should have undergone expansion in
+    // the IR in most situations
+    // TODO: Move atomic expansion into legalizer
+    // TODO: Also supports <2 x f16>
+    Atomic.legalFor({
+        {S32, GlobalPtr},
+        {S64, GlobalPtr},
+        {S64, FlatPtr}
+      });
+  }
+
   // BUFFER/FLAT_ATOMIC_CMP_SWAP on GCN GPUs needs input marshalling, and output
   // demarshalling
   getActionDefinitionsBuilder(G_ATOMIC_CMPXCHG)
@@ -1345,8 +1358,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       }, changeTo(1, S16));
     Shifts.maxScalarIf(typeIs(0, S16), 1, S16);
     Shifts.clampScalar(1, S32, S32);
-    Shifts.clampScalar(0, S16, S64);
     Shifts.widenScalarToNextPow2(0, 16);
+    Shifts.clampScalar(0, S16, S64);
 
     getActionDefinitionsBuilder({G_SSHLSAT, G_USHLSAT})
       .minScalar(0, S16)
@@ -1357,8 +1370,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     // expansion for the shifted type will produce much worse code if it hasn't
     // been truncated already.
     Shifts.clampScalar(1, S32, S32);
-    Shifts.clampScalar(0, S32, S64);
     Shifts.widenScalarToNextPow2(0, 32);
+    Shifts.clampScalar(0, S32, S64);
 
     getActionDefinitionsBuilder({G_SSHLSAT, G_USHLSAT})
       .minScalar(0, S32)
@@ -1859,31 +1872,9 @@ bool AMDGPULegalizerInfo::legalizeAddrSpaceCast(
     return true;
   }
 
-  if (DestAS == AMDGPUAS::CONSTANT_ADDRESS_32BIT) {
-    // Truncate.
-    B.buildExtract(Dst, Src, 0);
-    MI.eraseFromParent();
-    return true;
-  }
-
-  if (SrcAS == AMDGPUAS::CONSTANT_ADDRESS_32BIT) {
-    const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
-    uint32_t AddrHiVal = Info->get32BitAddressHighBits();
-
-    // FIXME: This is a bit ugly due to creating a merge of 2 pointers to
-    // another. Merge operands are required to be the same type, but creating an
-    // extra ptrtoint would be kind of pointless.
-    auto HighAddr = B.buildConstant(
-      LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS_32BIT, 32), AddrHiVal);
-    B.buildMerge(Dst, {Src, HighAddr});
-    MI.eraseFromParent();
-    return true;
-  }
-
-  if (SrcAS == AMDGPUAS::FLAT_ADDRESS) {
-    assert(DestAS == AMDGPUAS::LOCAL_ADDRESS ||
-           DestAS == AMDGPUAS::PRIVATE_ADDRESS);
-
+  if (SrcAS == AMDGPUAS::FLAT_ADDRESS &&
+      (DestAS == AMDGPUAS::LOCAL_ADDRESS ||
+       DestAS == AMDGPUAS::PRIVATE_ADDRESS)) {
     if (isKnownNonNull(Src, MRI, TM, SrcAS)) {
       // Extract low 32-bits of the pointer.
       B.buildExtract(Dst, Src, 0);
@@ -1907,37 +1898,70 @@ bool AMDGPULegalizerInfo::legalizeAddrSpaceCast(
     return true;
   }
 
-  if (SrcAS != AMDGPUAS::LOCAL_ADDRESS && SrcAS != AMDGPUAS::PRIVATE_ADDRESS)
-    return false;
+  if (DestAS == AMDGPUAS::FLAT_ADDRESS &&
+      (SrcAS == AMDGPUAS::LOCAL_ADDRESS ||
+       SrcAS == AMDGPUAS::PRIVATE_ADDRESS)) {
+    if (!ST.hasFlatAddressSpace())
+      return false;
 
-  if (!ST.hasFlatAddressSpace())
-    return false;
+    Register ApertureReg = getSegmentAperture(SrcAS, MRI, B);
+    if (!ApertureReg.isValid())
+      return false;
 
-  Register ApertureReg = getSegmentAperture(SrcAS, MRI, B);
-  if (!ApertureReg.isValid())
-    return false;
+    // Coerce the type of the low half of the result so we can use merge_values.
+    Register SrcAsInt = B.buildPtrToInt(S32, Src).getReg(0);
 
-  // Coerce the type of the low half of the result so we can use merge_values.
-  Register SrcAsInt = B.buildPtrToInt(S32, Src).getReg(0);
+    // TODO: Should we allow mismatched types but matching sizes in merges to
+    // avoid the ptrtoint?
+    auto BuildPtr = B.buildMerge(DstTy, {SrcAsInt, ApertureReg});
 
-  // TODO: Should we allow mismatched types but matching sizes in merges to
-  // avoid the ptrtoint?
-  auto BuildPtr = B.buildMerge(DstTy, {SrcAsInt, ApertureReg});
+    if (isKnownNonNull(Src, MRI, TM, SrcAS)) {
+      B.buildCopy(Dst, BuildPtr);
+      MI.eraseFromParent();
+      return true;
+    }
 
-  if (isKnownNonNull(Src, MRI, TM, SrcAS)) {
-    B.buildCopy(Dst, BuildPtr);
+    auto SegmentNull = B.buildConstant(SrcTy, TM.getNullPointerValue(SrcAS));
+    auto FlatNull = B.buildConstant(DstTy, TM.getNullPointerValue(DestAS));
+
+    auto CmpRes = B.buildICmp(CmpInst::ICMP_NE, LLT::scalar(1), Src,
+                              SegmentNull.getReg(0));
+
+    B.buildSelect(Dst, CmpRes, BuildPtr, FlatNull);
+
     MI.eraseFromParent();
     return true;
   }
 
-  auto SegmentNull = B.buildConstant(SrcTy, TM.getNullPointerValue(SrcAS));
-  auto FlatNull = B.buildConstant(DstTy, TM.getNullPointerValue(DestAS));
+  if (DestAS == AMDGPUAS::CONSTANT_ADDRESS_32BIT &&
+      SrcTy.getSizeInBits() == 64) {
+    // Truncate.
+    B.buildExtract(Dst, Src, 0);
+    MI.eraseFromParent();
+    return true;
+  }
 
-  auto CmpRes =
-      B.buildICmp(CmpInst::ICMP_NE, LLT::scalar(1), Src, SegmentNull.getReg(0));
+  if (SrcAS == AMDGPUAS::CONSTANT_ADDRESS_32BIT &&
+      DstTy.getSizeInBits() == 64) {
+    const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
+    uint32_t AddrHiVal = Info->get32BitAddressHighBits();
 
-  B.buildSelect(Dst, CmpRes, BuildPtr, FlatNull);
+    // FIXME: This is a bit ugly due to creating a merge of 2 pointers to
+    // another. Merge operands are required to be the same type, but creating an
+    // extra ptrtoint would be kind of pointless.
+    auto HighAddr = B.buildConstant(
+        LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS_32BIT, 32), AddrHiVal);
+    B.buildMerge(Dst, {Src, HighAddr});
+    MI.eraseFromParent();
+    return true;
+  }
 
+  DiagnosticInfoUnsupported InvalidAddrSpaceCast(
+      MF.getFunction(), "invalid addrspacecast", B.getDebugLoc());
+
+  LLVMContext &Ctx = MF.getFunction().getContext();
+  Ctx.diagnose(InvalidAddrSpaceCast);
+  B.buildUndef(Dst);
   MI.eraseFromParent();
   return true;
 }
@@ -4154,7 +4178,6 @@ static unsigned getBufferAtomicPseudo(Intrinsic::ID IntrID) {
   case Intrinsic::amdgcn_raw_buffer_atomic_cmpswap:
   case Intrinsic::amdgcn_struct_buffer_atomic_cmpswap:
     return AMDGPU::G_AMDGPU_BUFFER_ATOMIC_CMPSWAP;
-  case Intrinsic::amdgcn_buffer_atomic_fadd:
   case Intrinsic::amdgcn_raw_buffer_atomic_fadd:
   case Intrinsic::amdgcn_struct_buffer_atomic_fadd:
     return AMDGPU::G_AMDGPU_BUFFER_ATOMIC_FADD;
@@ -4261,15 +4284,18 @@ static void packImage16bitOpsToDwords(MachineIRBuilder &B, MachineInstr &MI,
     if ((I < Intr->GradientStart) ||
         (I >= Intr->GradientStart && I < Intr->CoordStart && !IsG16) ||
         (I >= Intr->CoordStart && !IsA16)) {
-      // Handle any gradient or coordinate operands that should not be packed
       if ((I < Intr->GradientStart) && IsA16 &&
           (B.getMRI()->getType(AddrReg) == S16)) {
+        assert(I == Intr->BiasIndex && "Got unexpected 16-bit extra argument");
         // Special handling of bias when A16 is on. Bias is of type half but
         // occupies full 32-bit.
         PackedAddrs.push_back(
             B.buildBuildVector(V2S16, {AddrReg, B.buildUndef(S16).getReg(0)})
                 .getReg(0));
       } else {
+        assert((!IsA16 || Intr->NumBiasArgs == 0 || I != Intr->BiasIndex) &&
+               "Bias needs to be converted to 16 bit in A16 mode");
+        // Handle any gradient or coordinate operands that should not be packed
         AddrReg = B.buildBitcast(V2S16, AddrReg).getReg(0);
         PackedAddrs.push_back(AddrReg);
       }
@@ -4434,44 +4460,6 @@ bool AMDGPULegalizerInfo::legalizeImageIntrinsic(
   }
 
   unsigned CorrectedNumVAddrs = Intr->NumVAddrs;
-
-  // Optimize _L to _LZ when _L is zero
-  if (const AMDGPU::MIMGLZMappingInfo *LZMappingInfo =
-          AMDGPU::getMIMGLZMappingInfo(Intr->BaseOpcode)) {
-    const ConstantFP *ConstantLod;
-
-    if (mi_match(MI.getOperand(ArgOffset + Intr->LodIndex).getReg(), *MRI,
-                 m_GFCst(ConstantLod))) {
-      if (ConstantLod->isZero() || ConstantLod->isNegative()) {
-        // Set new opcode to _lz variant of _l, and change the intrinsic ID.
-        const AMDGPU::ImageDimIntrinsicInfo *NewImageDimIntr =
-            AMDGPU::getImageDimIntrinsicByBaseOpcode(LZMappingInfo->LZ,
-                                                     Intr->Dim);
-
-        // The starting indexes should remain in the same place.
-        --CorrectedNumVAddrs;
-
-        MI.getOperand(NumDefs).setIntrinsicID(
-            static_cast<Intrinsic::ID>(NewImageDimIntr->Intr));
-        MI.RemoveOperand(ArgOffset + Intr->LodIndex);
-        Intr = NewImageDimIntr;
-      }
-    }
-  }
-
-  // Optimize _mip away, when 'lod' is zero
-  if (AMDGPU::getMIMGMIPMappingInfo(Intr->BaseOpcode)) {
-    int64_t ConstantLod;
-    if (mi_match(MI.getOperand(ArgOffset + Intr->MipIndex).getReg(), *MRI,
-                 m_ICst(ConstantLod))) {
-      if (ConstantLod == 0) {
-        // TODO: Change intrinsic opcode and remove operand instead or replacing
-        // it with 0, as the _L to _LZ handling is done above.
-        MI.getOperand(ArgOffset + Intr->MipIndex).ChangeToImmediate(0);
-        --CorrectedNumVAddrs;
-      }
-    }
-  }
 
   // Rewrite the addressing register layout before doing anything else.
   if (BaseOpcode->Gradients && !ST.hasG16() && (IsA16 != IsG16)) {
@@ -4801,6 +4789,7 @@ bool AMDGPULegalizerInfo::legalizeTrapIntrinsic(MachineInstr &MI,
     case ELF::ELFABIVERSION_AMDGPU_HSA_V3:
       return legalizeTrapHsaQueuePtr(MI, MRI, B);
     case ELF::ELFABIVERSION_AMDGPU_HSA_V4:
+    case ELF::ELFABIVERSION_AMDGPU_HSA_V5:
       return ST.supportsGetDoorbellID() ?
           legalizeTrapHsa(MI, MRI, B) :
           legalizeTrapHsaQueuePtr(MI, MRI, B);
@@ -5169,16 +5158,29 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   case Intrinsic::amdgcn_struct_buffer_atomic_inc:
   case Intrinsic::amdgcn_raw_buffer_atomic_dec:
   case Intrinsic::amdgcn_struct_buffer_atomic_dec:
-  case Intrinsic::amdgcn_raw_buffer_atomic_fadd:
-  case Intrinsic::amdgcn_struct_buffer_atomic_fadd:
   case Intrinsic::amdgcn_raw_buffer_atomic_cmpswap:
   case Intrinsic::amdgcn_struct_buffer_atomic_cmpswap:
-  case Intrinsic::amdgcn_buffer_atomic_fadd:
   case Intrinsic::amdgcn_raw_buffer_atomic_fmin:
   case Intrinsic::amdgcn_struct_buffer_atomic_fmin:
   case Intrinsic::amdgcn_raw_buffer_atomic_fmax:
   case Intrinsic::amdgcn_struct_buffer_atomic_fmax:
     return legalizeBufferAtomic(MI, B, IntrID);
+  case Intrinsic::amdgcn_raw_buffer_atomic_fadd:
+  case Intrinsic::amdgcn_struct_buffer_atomic_fadd: {
+    Register DstReg = MI.getOperand(0).getReg();
+    if (!MRI.use_empty(DstReg) && !ST.hasGFX90AInsts()) {
+      Function &F = B.getMF().getFunction();
+      DiagnosticInfoUnsupported NoFpRet(
+          F, "return versions of fp atomics not supported", B.getDebugLoc(),
+          DS_Error);
+      F.getContext().diagnose(NoFpRet);
+      B.buildUndef(DstReg);
+      MI.eraseFromParent();
+      return true;
+    }
+
+    return legalizeBufferAtomic(MI, B, IntrID);
+  }
   case Intrinsic::amdgcn_atomic_inc:
     return legalizeAtomicIncDec(MI, B, true);
   case Intrinsic::amdgcn_atomic_dec:

@@ -24,7 +24,7 @@ One is using environment variable SYCL_DEVICE_FILTER described in [EnvironmentVa
 $ SYCL_DEVICE_FILTER=level_zero sycl-ls
 [level_zero:0] GPU : Intel(R) Level-Zero 1.1 [1.1.19792]
 ```
-Another way is to use similar SYCL API described in [FilterSelector.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/FilterSelector/FilterSelector.adoc)
+Another way is to use similar SYCL API described in [SYCL\_EXT\_ONEAPI\_FILTER\_SELECTOR](extensions/supported/SYCL_EXT_ONEAPI_FILTER_SELECTOR.asciidoc)
 E.g. `filter_selector("level_zero")` will only see Level-Zero operated devices.
 
 If there are multiple GPUs in a system then they will be seen as multiple different root-devices.

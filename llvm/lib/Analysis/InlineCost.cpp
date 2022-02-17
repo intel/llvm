@@ -198,7 +198,7 @@ class CallAnalyzer : public InstVisitor<CallAnalyzer, bool> {
   friend class InstVisitor<CallAnalyzer, bool>;
 
 protected:
-  virtual ~CallAnalyzer() {}
+  virtual ~CallAnalyzer() = default;
   /// The TargetTransformInfo available for this compilation.
   const TargetTransformInfo &TTI;
 
@@ -361,10 +361,10 @@ protected:
   /// Model the elimination of repeated loads that is expected to happen
   /// whenever we simplify away the stores that would otherwise cause them to be
   /// loads.
-  bool EnableLoadElimination;
+  bool EnableLoadElimination = true;
 
   /// Whether we allow inlining for recursive call.
-  bool AllowRecursiveCall;
+  bool AllowRecursiveCall = false;
 
   SmallPtrSet<Value *, 16> LoadAddrSet;
 
@@ -455,8 +455,7 @@ public:
                OptimizationRemarkEmitter *ORE = nullptr)
       : TTI(TTI), GetAssumptionCache(GetAssumptionCache), GetBFI(GetBFI),
         PSI(PSI), F(Callee), DL(F.getParent()->getDataLayout()), ORE(ORE),
-        CandidateCall(Call), EnableLoadElimination(true),
-        AllowRecursiveCall(false) {}
+        CandidateCall(Call) {}
 
   InlineResult analyze();
 
@@ -1021,7 +1020,7 @@ public:
     return None;
   }
 
-  virtual ~InlineCostCallAnalyzer() {}
+  virtual ~InlineCostCallAnalyzer() = default;
   int getThreshold() const { return Threshold; }
   int getCost() const { return Cost; }
   Optional<CostBenefitPair> getCostBenefitPair() { return CostBenefit; }

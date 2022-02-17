@@ -2210,12 +2210,12 @@ Parser::DeclGroupPtrTy Parser::ParseOpenMPDeclarativeDirectiveWithExtDecl(
     VariantMatchInfo VMI;
     TI.getAsVariantMatchInfo(ASTCtx, VMI);
 
-    std::function<void(StringRef)> DiagUnknownTrait = [this, Loc](
-                                                          StringRef ISATrait) {
-      // TODO Track the selector locations in a way that is accessible here to
-      // improve the diagnostic location.
-      Diag(Loc, diag::warn_unknown_declare_variant_isa_trait) << ISATrait;
-    };
+    std::function<void(StringRef)> DiagUnknownTrait =
+        [this, Loc](StringRef ISATrait) {
+          // TODO Track the selector locations in a way that is accessible here
+          // to improve the diagnostic location.
+          Diag(Loc, diag::warn_unknown_declare_variant_isa_trait) << ISATrait;
+        };
     TargetOMPContext OMPCtx(
         ASTCtx, std::move(DiagUnknownTrait),
         /* CurrentFunctionDecl */ nullptr,
@@ -2551,12 +2551,12 @@ Parser::ParseOpenMPDeclarativeOrExecutableDirective(ParsedStmtContext StmtCtx) {
     TPA.Revert();
     // End of the first iteration. Parser is reset to the start of metadirective
 
-    std::function<void(StringRef)> DiagUnknownTrait = [this, Loc](
-                                                          StringRef ISATrait) {
-      // TODO Track the selector locations in a way that is accessible here to
-      // improve the diagnostic location.
-      Diag(Loc, diag::warn_unknown_declare_variant_isa_trait) << ISATrait;
-    };
+    std::function<void(StringRef)> DiagUnknownTrait =
+        [this, Loc](StringRef ISATrait) {
+          // TODO Track the selector locations in a way that is accessible here
+          // to improve the diagnostic location.
+          Diag(Loc, diag::warn_unknown_declare_variant_isa_trait) << ISATrait;
+        };
     TargetOMPContext OMPCtx(ASTContext, std::move(DiagUnknownTrait),
                             /* CurrentFunctionDecl */ nullptr,
                             ArrayRef<llvm::omp::TraitProperty>());
@@ -3582,7 +3582,8 @@ OMPClause *Parser::ParseOpenMPInteropClause(OpenMPClauseKind Kind,
 ///         'bind' '(' 'teams' | 'parallel' | 'thread' ')'
 ///
 ///    update-clause:
-///         'update' '(' 'in' | 'out' | 'inout' | 'mutexinoutset' ')'
+///         'update' '(' 'in' | 'out' | 'inout' | 'mutexinoutset' |
+///         'inoutset' ')'
 ///
 OMPClause *Parser::ParseOpenMPSimpleClause(OpenMPClauseKind Kind,
                                            bool ParseOnly) {

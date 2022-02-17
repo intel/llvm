@@ -13,13 +13,12 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Transforms.h"
-#include "mlir/Dialect/SCF/Utils.h"
+#include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Transforms/Passes.h"
 
 #include "llvm/ADT/SetVector.h"
 
@@ -27,14 +26,14 @@ using namespace mlir;
 
 namespace {
 class TestSCFForUtilsPass
-    : public PassWrapper<TestSCFForUtilsPass, FunctionPass> {
+    : public PassWrapper<TestSCFForUtilsPass, OperationPass<FuncOp>> {
 public:
   StringRef getArgument() const final { return "test-scf-for-utils"; }
   StringRef getDescription() const final { return "test scf.for utils"; }
   explicit TestSCFForUtilsPass() = default;
 
-  void runOnFunction() override {
-    FuncOp func = getFunction();
+  void runOnOperation() override {
+    FuncOp func = getOperation();
     SmallVector<scf::ForOp, 4> toErase;
 
     func.walk([&](Operation *fakeRead) {
@@ -92,7 +91,7 @@ static const StringLiteral kTestPipeliningOpOrderMarker =
     "__test_pipelining_op_order__";
 
 class TestSCFPipeliningPass
-    : public PassWrapper<TestSCFPipeliningPass, FunctionPass> {
+    : public PassWrapper<TestSCFPipeliningPass, OperationPass<FuncOp>> {
 public:
   StringRef getArgument() const final { return "test-scf-pipelining"; }
   StringRef getDescription() const final { return "test scf.forOp pipelining"; }
@@ -120,14 +119,14 @@ public:
     registry.insert<arith::ArithmeticDialect, StandardOpsDialect>();
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     mlir::scf::PipeliningOption options;
     options.getScheduleFn = getSchedule;
 
     scf::populateSCFLoopPipeliningPatterns(patterns, options);
-    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
-    getFunction().walk([](Operation *op) {
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+    getOperation().walk([](Operation *op) {
       // Clean up the markers.
       op->removeAttr(kTestPipeliningStageMarker);
       op->removeAttr(kTestPipeliningOpOrderMarker);

@@ -5,6 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // ===--------------------------------------------------------------------=== //
+
+//
+// IMPORTANT:  feature_test.hpp is a generated file - DO NOT EDIT
+//             original definitions are in feature_test.hpp.in
+//
+
 #pragma once
 
 #include <CL/sycl/detail/defines_elementary.hpp>
@@ -35,6 +41,7 @@ namespace sycl {
 #define SYCL_EXT_ONEAPI_MATRIX 2
 #endif
 #define SYCL_EXT_ONEAPI_ASSERT 1
+#define SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS 1
 #define SYCL_EXT_ONEAPI_DISCARD_QUEUE_EVENTS 1
 #define SYCL_EXT_ONEAPI_ENQUEUE_BARRIER 1
 #define SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES 1

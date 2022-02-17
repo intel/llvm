@@ -30,14 +30,28 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
-/// The simd vector class.
+/// @addtogroup sycl_esimd_core
+/// @{
+
+/// @defgroup sycl_esimd_core_vectors Main vector data types.
+/// ESIMD defines the following two main vector data types:
+/// - simd. Register-mapped vector of elements.
+/// - simd_mask. Register-mapped mask - vector of predicates.
+
+/// @} sycl_esimd_core
+
+/// @addtogroup sycl_esimd_core_vectors
+/// @{
+
+/// The main simd vector class.
 ///
-/// This is a wrapper class for llvm vector values. Additionally this class
-/// supports region operations that map to Intel GPU regions. The type of
-/// a region select or format operation is of simd_view type, which models
-/// read-update-write semantics.
+/// A vector of elements, which compiler tries to map to a GPU register.
+/// Supports all standard C++ unary and binary operations. See more details
+/// in the base class' docs: \c detail::simd_obj_impl.
 ///
-/// \ingroup sycl_esimd
+/// @tparam Ty element type. Can be any C++ integer or floating point type or
+///    \c sycl::half.
+/// @tparam N the number of elements.
 template <typename Ty, int N>
 class simd : public detail::simd_obj_impl<
                  detail::__raw_t<Ty>, N, simd<Ty, N>,
@@ -51,8 +65,13 @@ public:
   using raw_vector_type = typename base_type::raw_vector_type;
   static constexpr int length = N;
 
-  // Implicit conversion constructor from another simd object of the same
-  // length.
+  /// Implicit conversion constructor from another simd object of the same
+  /// length.
+  /// Available when \c SimdT is
+  /// - instantiation of simd
+  /// - has the same number of elements
+  /// @tparam SimdT type of the object to convert from
+  /// @param RHS object to convert from
   template <typename SimdT,
             class = std::enable_if_t<__SEIEED::is_simd_type_v<SimdT> &&
                                      (length == SimdT::length)>>
@@ -62,14 +81,22 @@ public:
     __esimd_dbg_print(simd(const SimdT &RHS));
   }
 
-  // Broadcast constructor with conversion.
+  /// Broadcast constructor with conversion. Converts given value to
+  /// #element_type and replicates it in all elements.
+  /// Available when \c T1 is a valid simd element type.
+  /// @tparam T1 broadcast value type
+  /// @tparam Val broadcast value
   template <typename T1,
             class = std::enable_if_t<detail::is_valid_simd_elem_type_v<T1>>>
   simd(T1 Val) : base_type(Val) {
     __esimd_dbg_print(simd(T1 Val));
   }
 
-  /// Type conversion for simd<T, 1> into T.
+  /// Converts this object to a scalar. Available when
+  /// - this object's length is 1
+  /// - \c To is a valid simd element type
+  /// @tparam To the scalar type
+  /// @return this object's single element value converted to the result type.
   template <class To, class T = simd,
             class = sycl::detail::enable_if_t<
                 (T::length == 1) && detail::is_valid_simd_elem_type_v<To>>>
@@ -78,30 +105,37 @@ public:
     return detail::convert_scalar<To, element_type>(base_type::data()[0]);
   }
 
-  /// @{
-  /// Infix and postfix operators ++, --
+  /// Prefix increment, increments elements of this object.
+  /// @return Reference to this object.
   simd &operator++() {
     *this += 1;
     return *this;
   }
 
+  /// Postfix increment.
+  /// @return New simd object, whose element values are incremented values of
+  /// this object's elements.
   simd operator++(int) {
     simd Ret(base_type::data());
     operator++();
     return Ret;
   }
 
+  /// Prefix decrement, decrements elements of this object.
+  /// @return Reference to this object.
   simd &operator--() {
     *this -= 1;
     return *this;
   }
 
+  /// Postfix decrement.
+  /// @return New simd object, whose element values are decremented values of
+  /// this object's elements.
   simd operator--(int) {
     simd Ret(base_type::data());
     operator--();
     return Ret;
   }
-  /// @}
 
 #define __ESIMD_DEF_SIMD_ARITH_UNARY_OP(ARITH_UNARY_OP, ID)                    \
   template <class T1 = Ty> simd operator ARITH_UNARY_OP() const {              \
@@ -111,10 +145,17 @@ public:
         base_type::data())};                                                   \
   }
 
+  /// Unary minus applied to elements of this object.
   __ESIMD_DEF_SIMD_ARITH_UNARY_OP(-, minus)
+  /// Unary plus applied to elements of this object.
   __ESIMD_DEF_SIMD_ARITH_UNARY_OP(+, plus)
 #undef __ESIMD_DEF_SIMD_ARITH_UNARY_OP
 };
+
+/// @} sycl_esimd_core_vectors
+
+/// @addtogroup sycl_esimd_conv
+/// @{
 
 /// Covert from a simd object with element type \c From to a simd object with
 /// element type \c To.
@@ -124,14 +165,17 @@ ESIMD_INLINE simd<To, N> convert(const simd<From, N> &val) {
     return val;
   else
     return detail::convert_vector<To, From, N>(val.data());
-  ;
 }
+/// @} sycl_esimd_conv
 
-#undef __ESIMD_DEF_RELOP
-#undef __ESIMD_DEF_BITWISE_OP
+/// @addtogroup sycl_esimd_core_vectors
+/// @{
 
-/// Represents a simd mask.
+/// Represents a simd mask os size \c N.
+/// This is basically an alias of the detail::simd_mask_impl class.
 template <int N> using simd_mask = detail::simd_mask_type<N>;
+
+/// @} sycl_esimd_core_vectors
 
 } // namespace esimd
 } // namespace experimental
@@ -140,10 +184,13 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+/// @ingroup sycl_esimd_misc
+/// Prints a \c simd object to an output stream.
+/// TODO: implemented for host code only.
 template <typename Ty, int N>
 std::ostream &operator<<(std::ostream &OS, const __SEIEE::simd<Ty, N> &V)
 #ifdef __SYCL_DEVICE_ONLY__
-    ;
+    {}
 #else
 {
   OS << "{";

@@ -486,7 +486,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"image_status", {{"image", SameInt}, OptionalTEAM}, DefaultInt},
     {"index",
         {{"string", SameChar}, {"substring", SameChar},
-            {"back", AnyLogical, Rank::scalar, Optionality::optional},
+            {"back", AnyLogical, Rank::elemental, Optionality::optional},
             DefaultingKIND},
         KINDInt},
     {"int", {{"a", AnyNumeric, Rank::elementalOrBOZ}, DefaultingKIND}, KINDInt},
@@ -793,6 +793,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
             DefaultingKIND},
         KINDInt},
     {"__builtin_ieee_is_nan", {{"a", AnyFloating}}, DefaultLogical},
+    {"__builtin_ieee_is_normal", {{"a", AnyFloating}}, DefaultLogical},
+    {"__builtin_ieee_is_negative", {{"a", AnyFloating}}, DefaultLogical},
     {"__builtin_ieee_next_after", {{"x", SameReal}, {"y", AnyReal}}, SameReal},
     {"__builtin_ieee_next_down", {{"x", SameReal}}, SameReal},
     {"__builtin_ieee_next_up", {{"x", SameReal}}, SameReal},
@@ -920,22 +922,22 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
          TypePattern{IntType, KindCode::exactKind, 1}},
         "abs"},
     {{"cabs", {{"a", DefaultComplex}}, DefaultReal}, "abs"},
-    {{"ccos", {{"a", DefaultComplex}}, DefaultComplex}, "cos"},
+    {{"ccos", {{"x", DefaultComplex}}, DefaultComplex}, "cos"},
     {{"cdabs", {{"a", DoublePrecisionComplex}}, DoublePrecision}, "abs"},
-    {{"cdcos", {{"a", DoublePrecisionComplex}}, DoublePrecisionComplex}, "cos"},
-    {{"cdexp", {{"a", DoublePrecisionComplex}}, DoublePrecisionComplex}, "exp"},
-    {{"cdlog", {{"a", DoublePrecisionComplex}}, DoublePrecisionComplex}, "log"},
-    {{"cdsin", {{"a", DoublePrecisionComplex}}, DoublePrecisionComplex}, "sin"},
-    {{"cdsqrt", {{"a", DoublePrecisionComplex}}, DoublePrecisionComplex},
+    {{"cdcos", {{"x", DoublePrecisionComplex}}, DoublePrecisionComplex}, "cos"},
+    {{"cdexp", {{"x", DoublePrecisionComplex}}, DoublePrecisionComplex}, "exp"},
+    {{"cdlog", {{"x", DoublePrecisionComplex}}, DoublePrecisionComplex}, "log"},
+    {{"cdsin", {{"x", DoublePrecisionComplex}}, DoublePrecisionComplex}, "sin"},
+    {{"cdsqrt", {{"x", DoublePrecisionComplex}}, DoublePrecisionComplex},
         "sqrt"},
-    {{"cexp", {{"a", DefaultComplex}}, DefaultComplex}, "exp"},
-    {{"clog", {{"a", DefaultComplex}}, DefaultComplex}, "log"},
-    {{"conjg", {{"a", DefaultComplex}}, DefaultComplex}},
+    {{"cexp", {{"x", DefaultComplex}}, DefaultComplex}, "exp"},
+    {{"clog", {{"x", DefaultComplex}}, DefaultComplex}, "log"},
+    {{"conjg", {{"z", DefaultComplex}}, DefaultComplex}},
     {{"cos", {{"x", DefaultReal}}, DefaultReal}},
     {{"cosh", {{"x", DefaultReal}}, DefaultReal}},
-    {{"csin", {{"a", DefaultComplex}}, DefaultComplex}, "sin"},
-    {{"csqrt", {{"a", DefaultComplex}}, DefaultComplex}, "sqrt"},
-    {{"ctan", {{"a", DefaultComplex}}, DefaultComplex}, "tan"},
+    {{"csin", {{"x", DefaultComplex}}, DefaultComplex}, "sin"},
+    {{"csqrt", {{"x", DefaultComplex}}, DefaultComplex}, "sqrt"},
+    {{"ctan", {{"x", DefaultComplex}}, DefaultComplex}, "tan"},
     {{"dabs", {{"a", DoublePrecision}}, DoublePrecision}, "abs"},
     {{"dacos", {{"x", DoublePrecision}}, DoublePrecision}, "acos"},
     {{"dasin", {{"x", DoublePrecision}}, DoublePrecision}, "asin"},
@@ -949,16 +951,16 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
              {"y", AnyIntOrReal, Rank::elementalOrBOZ, Optionality::optional}},
          DoublePrecisionComplex},
         "cmplx", true},
-    {{"dconjg", {{"a", AnyComplex}}, DoublePrecisionComplex}, "conjg"},
+    {{"dconjg", {{"z", AnyComplex}}, DoublePrecisionComplex}, "conjg"},
     {{"dcos", {{"x", DoublePrecision}}, DoublePrecision}, "cos"},
     {{"dcosh", {{"x", DoublePrecision}}, DoublePrecision}, "cosh"},
     {{"ddim", {{"x", DoublePrecision}, {"y", DoublePrecision}},
          DoublePrecision},
         "dim"},
     {{"dexp", {{"x", DoublePrecision}}, DoublePrecision}, "exp"},
-    {{"dfloat", {{"i", AnyInt}}, DoublePrecision}, "real", true},
+    {{"dfloat", {{"a", AnyInt}}, DoublePrecision}, "real", true},
     {{"dim", {{"x", DefaultReal}, {"y", DefaultReal}}, DefaultReal}},
-    {{"dimag", {{"a", AnyComplex}}, DoublePrecision}, "aimag"},
+    {{"dimag", {{"z", AnyComplex}}, DoublePrecision}, "aimag"},
     {{"dint", {{"a", DoublePrecision}}, DoublePrecision}, "aint"},
     {{"dlog", {{"x", DoublePrecision}}, DoublePrecision}, "log"},
     {{"dlog10", {{"x", DoublePrecision}}, DoublePrecision}, "log10"},
@@ -987,7 +989,7 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
     {{"dtan", {{"x", DoublePrecision}}, DoublePrecision}, "tan"},
     {{"dtanh", {{"x", DoublePrecision}}, DoublePrecision}, "tanh"},
     {{"exp", {{"x", DefaultReal}}, DefaultReal}},
-    {{"float", {{"i", AnyInt}}, DefaultReal}, "real", true},
+    {{"float", {{"a", AnyInt}}, DefaultReal}, "real", true},
     {{"iabs", {{"a", DefaultInt}}, DefaultInt}, "abs"},
     {{"idim", {{"x", DefaultInt}, {"y", DefaultInt}}, DefaultInt}, "dim"},
     {{"idint", {{"a", AnyReal}}, DefaultInt}, "int", true},
@@ -1183,7 +1185,7 @@ static DynamicType GetBuiltinDerivedType(
 }
 
 // Ensure that the keywords of arguments to MAX/MIN and their variants
-// are of the form A123 with no duplicates.
+// are of the form A123 with no duplicates or leading zeroes.
 static bool CheckMaxMinArgument(std::optional<parser::CharBlock> keyword,
     std::set<parser::CharBlock> &set, const char *intrinsicName,
     parser::ContextualMessages &messages) {
@@ -1191,7 +1193,7 @@ static bool CheckMaxMinArgument(std::optional<parser::CharBlock> keyword,
     std::size_t j{1};
     for (; j < keyword->size(); ++j) {
       char ch{(*keyword)[j]};
-      if (ch < '0' || ch > '9') {
+      if (ch < (j == 1 ? '1' : '0') || ch > '9') {
         break;
       }
     }
@@ -1347,10 +1349,17 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
             d.rank == Rank::elementalOrBOZ) {
           continue;
         } else {
-          const IntrinsicDummyArgument &nextParam{dummy[j + 1]};
-          messages.Say(
-              "Typeless (BOZ) not allowed for both '%s=' & '%s=' arguments"_err_en_US, // C7109
-              d.keyword, nextParam.keyword);
+          const IntrinsicDummyArgument *nextParam{
+              j + 1 < dummies ? &dummy[j + 1] : nullptr};
+          if (nextParam && nextParam->rank == Rank::elementalOrBOZ) {
+            messages.Say(
+                "Typeless (BOZ) not allowed for both '%s=' & '%s=' arguments"_err_en_US, // C7109
+                d.keyword, nextParam->keyword);
+          } else {
+            messages.Say(
+                "Typeless (BOZ) not allowed for '%s=' argument"_err_en_US,
+                d.keyword);
+          }
         }
       } else {
         // NULL(), procedure, or procedure pointer
@@ -1801,8 +1810,19 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     if (const auto &arg{rearranged[j]}) {
       if (const Expr<SomeType> *expr{arg->UnwrapExpr()}) {
         std::string kw{d.keyword};
-        if (isMaxMin) {
-          kw = "a"s + std::to_string(j + 1);
+        if (arg->keyword()) {
+          kw = arg->keyword()->ToString();
+        } else if (isMaxMin) {
+          for (std::size_t k{j + 1};; ++k) {
+            kw = "a"s + std::to_string(k);
+            auto iter{std::find_if(dummyArgs.begin(), dummyArgs.end(),
+                [&kw](const characteristics::DummyArgument &prev) {
+                  return prev.name == kw;
+                })};
+            if (iter == dummyArgs.end()) {
+              break;
+            }
+          }
         }
         auto dc{characteristics::DummyArgument::FromActual(
             std::move(kw), *expr, context)};
@@ -2240,22 +2260,18 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                         "procedure designator"_err_en_US,
                         pointerSymbol->name(), targetName),
                     *pointerSymbol);
-              } else {
+              } else if (targetSymbol) {
                 // object pointer and target
-                if (const Symbol * targetSymbol{GetLastSymbol(*targetExpr)}) {
-                  if (!(targetSymbol->attrs().test(semantics::Attr::POINTER) ||
-                          targetSymbol->attrs().test(
-                              semantics::Attr::TARGET))) {
-                    AttachDeclaration(
-                        context.messages().Say(
-                            "TARGET= argument '%s' must have either "
-                            "the POINTER or the TARGET "
-                            "attribute"_err_en_US,
-                            targetName),
-                        *targetSymbol);
+                SymbolVector symbols{GetSymbolVector(*targetExpr)};
+                CHECK(!symbols.empty());
+                if (!GetLastTarget(symbols)) {
+                  parser::Message *msg{context.messages().Say(
+                      "TARGET= argument '%s' must have either the POINTER or the TARGET attribute"_err_en_US,
+                      targetExpr->AsFortran())};
+                  for (SymbolRef ref : symbols) {
+                    msg = AttachDeclaration(msg, *ref);
                   }
                 }
-
                 if (const auto pointerType{pointerArg->GetType()}) {
                   if (const auto targetType{targetArg->GetType()}) {
                     ok = pointerType->IsTkCompatibleWith(*targetType);

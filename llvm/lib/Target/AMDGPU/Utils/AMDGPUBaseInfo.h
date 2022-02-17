@@ -47,9 +47,12 @@ bool isHsaAbiVersion3(const MCSubtargetInfo *STI);
 /// \returns True if HSA OS ABI Version identification is 4,
 /// false otherwise.
 bool isHsaAbiVersion4(const MCSubtargetInfo *STI);
+/// \returns True if HSA OS ABI Version identification is 5,
+/// false otherwise.
+bool isHsaAbiVersion5(const MCSubtargetInfo *STI);
 /// \returns True if HSA OS ABI Version identification is 3 or 4,
 /// false otherwise.
-bool isHsaAbiVersion3Or4(const MCSubtargetInfo *STI);
+bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI);
 
 struct GcnBufferFormatInfo {
   unsigned Format;
@@ -64,6 +67,7 @@ struct GcnBufferFormatInfo {
 #define GET_MIMGEncoding_DECL
 #define GET_MIMGLZMapping_DECL
 #define GET_MIMGMIPMapping_DECL
+#define GET_MIMGBiASMapping_DECL
 #include "AMDGPUGenSearchableTables.inc"
 
 namespace IsaInfo {
@@ -330,6 +334,16 @@ struct MIMGMIPMappingInfo {
   MIMGBaseOpcode NONMIP;
 };
 
+struct MIMGBiasMappingInfo {
+  MIMGBaseOpcode Bias;
+  MIMGBaseOpcode NoBias;
+};
+
+struct MIMGOffsetMappingInfo {
+  MIMGBaseOpcode Offset;
+  MIMGBaseOpcode NoOffset;
+};
+
 struct MIMGG16MappingInfo {
   MIMGBaseOpcode G;
   MIMGBaseOpcode G16;
@@ -340,6 +354,12 @@ const MIMGLZMappingInfo *getMIMGLZMappingInfo(unsigned L);
 
 LLVM_READONLY
 const MIMGMIPMappingInfo *getMIMGMIPMappingInfo(unsigned MIP);
+
+LLVM_READONLY
+const MIMGBiasMappingInfo *getMIMGBiasMappingInfo(unsigned Bias);
+
+LLVM_READONLY
+const MIMGOffsetMappingInfo *getMIMGOffsetMappingInfo(unsigned Offset);
 
 LLVM_READONLY
 const MIMGG16MappingInfo *getMIMGG16MappingInfo(unsigned G);
@@ -476,7 +496,7 @@ struct Waitcnt {
   unsigned LgkmCnt = ~0u;
   unsigned VsCnt = ~0u;
 
-  Waitcnt() {}
+  Waitcnt() = default;
   Waitcnt(unsigned VmCnt, unsigned ExpCnt, unsigned LgkmCnt, unsigned VsCnt)
       : VmCnt(VmCnt), ExpCnt(ExpCnt), LgkmCnt(LgkmCnt), VsCnt(VsCnt) {}
 

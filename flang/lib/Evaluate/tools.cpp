@@ -607,6 +607,9 @@ std::optional<Expr<SomeType>> ConvertToNumeric(int kind, Expr<SomeType> &&x) {
 
 std::optional<Expr<SomeType>> ConvertToType(
     const DynamicType &type, Expr<SomeType> &&x) {
+  if (type.IsTypelessIntrinsicArgument()) {
+    return std::nullopt;
+  }
   switch (type.category()) {
   case TypeCategory::Integer:
     if (auto *boz{std::get_if<BOZLiteralConstant>(&x.u)}) {
@@ -1075,6 +1078,24 @@ std::optional<Expr<SomeType>> DataConstantConversionExtension(
   return std::nullopt;
 }
 
+bool IsAllocatableOrPointerObject(
+    const Expr<SomeType> &expr, FoldingContext &context) {
+  const semantics::Symbol *sym{UnwrapWholeSymbolOrComponentDataRef(expr)};
+  return (sym && semantics::IsAllocatableOrPointer(*sym)) ||
+      evaluate::IsObjectPointer(expr, context);
+}
+
+bool MayBePassedAsAbsentOptional(
+    const Expr<SomeType> &expr, FoldingContext &context) {
+  const semantics::Symbol *sym{UnwrapWholeSymbolOrComponentDataRef(expr)};
+  // 15.5.2.12 1. is pretty clear that an unallocated allocatable/pointer actual
+  // may be passed to a non-allocatable/non-pointer optional dummy. Note that
+  // other compilers (like nag, nvfortran, ifort, gfortran and xlf) seems to
+  // ignore this point in intrinsic contexts (e.g CMPLX argument).
+  return (sym && semantics::IsOptional(*sym)) ||
+      IsAllocatableOrPointerObject(expr, context);
+}
+
 } // namespace Fortran::evaluate
 
 namespace Fortran::semantics {
@@ -1178,20 +1199,21 @@ bool IsPureProcedure(const Scope &scope) {
 }
 
 bool IsFunction(const Symbol &symbol) {
-  return std::visit(
-      common::visitors{
-          [](const SubprogramDetails &x) { return x.isFunction(); },
-          [&](const SubprogramNameDetails &) {
-            return symbol.test(Symbol::Flag::Function);
-          },
-          [](const ProcEntityDetails &x) {
-            const auto &ifc{x.interface()};
-            return ifc.type() || (ifc.symbol() && IsFunction(*ifc.symbol()));
-          },
-          [](const ProcBindingDetails &x) { return IsFunction(x.symbol()); },
-          [](const auto &) { return false; },
-      },
-      symbol.GetUltimate().details());
+  const Symbol &ultimate{symbol.GetUltimate()};
+  return ultimate.test(Symbol::Flag::Function) ||
+      std::visit(common::visitors{
+                     [](const SubprogramDetails &x) { return x.isFunction(); },
+                     [](const ProcEntityDetails &x) {
+                       const auto &ifc{x.interface()};
+                       return ifc.type() ||
+                           (ifc.symbol() && IsFunction(*ifc.symbol()));
+                     },
+                     [](const ProcBindingDetails &x) {
+                       return IsFunction(x.symbol());
+                     },
+                     [](const auto &) { return false; },
+                 },
+          ultimate.details());
 }
 
 bool IsFunction(const Scope &scope) {

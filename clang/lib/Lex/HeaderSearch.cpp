@@ -90,16 +90,10 @@ HeaderSearch::HeaderSearch(std::shared_ptr<HeaderSearchOptions> HSOpts,
 void HeaderSearch::PrintStats() {
   llvm::errs() << "\n*** HeaderSearch Stats:\n"
                << FileInfo.size() << " files tracked.\n";
-  unsigned NumOnceOnlyFiles = 0, MaxNumIncludes = 0, NumSingleIncludedFiles = 0;
-  for (unsigned i = 0, e = FileInfo.size(); i != e; ++i) {
+  unsigned NumOnceOnlyFiles = 0;
+  for (unsigned i = 0, e = FileInfo.size(); i != e; ++i)
     NumOnceOnlyFiles += (FileInfo[i].isPragmaOnce || FileInfo[i].isImport);
-    if (MaxNumIncludes < FileInfo[i].NumIncludes)
-      MaxNumIncludes = FileInfo[i].NumIncludes;
-    NumSingleIncludedFiles += FileInfo[i].NumIncludes == 1;
-  }
-  llvm::errs() << "  " << NumOnceOnlyFiles << " #import/#pragma once files.\n"
-               << "  " << NumSingleIncludedFiles << " included exactly once.\n"
-               << "  " << MaxNumIncludes << " max times a file is included.\n";
+  llvm::errs() << "  " << NumOnceOnlyFiles << " #import/#pragma once files.\n";
 
   llvm::errs() << "  " << NumIncluded << " #include/#include_next/#import.\n"
                << "    " << NumMultiIncludeFileOptzn
@@ -178,6 +172,10 @@ void HeaderSearch::getHeaderMapFileNames(
 std::string HeaderSearch::getCachedModuleFileName(Module *Module) {
   const FileEntry *ModuleMap =
       getModuleMap().getModuleMapFileForUniquing(Module);
+  // The ModuleMap maybe a nullptr, when we load a cached C++ module without
+  // *.modulemap file. In this case, just return an empty string.
+  if (ModuleMap == nullptr)
+    return {};
   return getCachedModuleFileName(Module->Name, ModuleMap->getName());
 }
 
@@ -831,12 +829,15 @@ diagnoseFrameworkInclude(DiagnosticsEngine &Diags, SourceLocation IncludeLoc,
 /// search is needed. Microsoft mode will pass all \#including files.
 Optional<FileEntryRef> HeaderSearch::LookupFile(
     StringRef Filename, SourceLocation IncludeLoc, bool isAngled,
-    const DirectoryLookup *FromDir, const DirectoryLookup *&CurDir,
+    const DirectoryLookup *FromDir, const DirectoryLookup **CurDirArg,
     ArrayRef<std::pair<const FileEntry *, const DirectoryEntry *>> Includers,
     SmallVectorImpl<char> *SearchPath, SmallVectorImpl<char> *RelativePath,
     Module *RequestingModule, ModuleMap::KnownHeader *SuggestedModule,
     bool *IsMapped, bool *IsFrameworkFound, bool SkipCache,
     bool BuildSystemModule) {
+  const DirectoryLookup *CurDirLocal = nullptr;
+  const DirectoryLookup *&CurDir = CurDirArg ? *CurDirArg : CurDirLocal;
+
   if (IsMapped)
     *IsMapped = false;
 
@@ -1040,8 +1041,9 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
       }
     }
 
-    // If this file is found in a header map and uses the framework style of
-    // includes, then this header is part of a framework we're building.
+    // Set the `Framework` info if this file is in a header map with framework
+    // style include spelling or found in a framework dir. The header map case
+    // is possible when building frameworks which use header maps.
     if (CurDir->isHeaderMap() && isAngled) {
       size_t SlashPos = Filename.find('/');
       if (SlashPos != StringRef::npos)
@@ -1049,6 +1051,11 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
             getUniqueFrameworkName(StringRef(Filename.begin(), SlashPos));
       if (CurDir->isIndexHeaderMap())
         HFI.IndexHeaderMapHeader = 1;
+    } else if (CurDir->isFramework()) {
+      size_t SlashPos = Filename.find('/');
+      if (SlashPos != StringRef::npos)
+        HFI.Framework =
+            getUniqueFrameworkName(StringRef(Filename.begin(), SlashPos));
     }
 
     if (checkMSVCHeaderSearch(Diags, MSFE ? &MSFE->getFileEntry() : nullptr,
@@ -1083,7 +1090,7 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
       ScratchFilename += Filename;
 
       Optional<FileEntryRef> File = LookupFile(
-          ScratchFilename, IncludeLoc, /*isAngled=*/true, FromDir, CurDir,
+          ScratchFilename, IncludeLoc, /*isAngled=*/true, FromDir, &CurDir,
           Includers.front(), SearchPath, RelativePath, RequestingModule,
           SuggestedModule, IsMapped, /*IsFrameworkFound=*/nullptr);
 
@@ -1240,7 +1247,6 @@ static void mergeHeaderFileInfo(HeaderFileInfo &HFI,
   HFI.isImport |= OtherHFI.isImport;
   HFI.isPragmaOnce |= OtherHFI.isPragmaOnce;
   HFI.isModuleHeader |= OtherHFI.isModuleHeader;
-  HFI.NumIncludes += OtherHFI.NumIncludes;
 
   if (!HFI.ControllingMacro && !HFI.ControllingMacroID) {
     HFI.ControllingMacro = OtherHFI.ControllingMacro;
@@ -1401,7 +1407,7 @@ bool HeaderSearch::ShouldEnterIncludeFile(Preprocessor &PP,
     FileInfo.isImport = true;
 
     // Has this already been #import'ed or #include'd?
-    if (FileInfo.NumIncludes && !TryEnterImported())
+    if (PP.alreadyIncluded(File) && !TryEnterImported())
       return false;
   } else {
     // Otherwise, if this is a #include of a file that was previously #import'd
@@ -1424,10 +1430,7 @@ bool HeaderSearch::ShouldEnterIncludeFile(Preprocessor &PP,
     }
   }
 
-  // Increment the number of times this file has been included.
-  ++FileInfo.NumIncludes;
-
-  IsFirstIncludeOfFile = FileInfo.NumIncludes == 1;
+  IsFirstIncludeOfFile = PP.markIncluded(File);
 
   return true;
 }

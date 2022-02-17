@@ -20,14 +20,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Transforms/LoopUtils.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -65,7 +65,7 @@ struct AffineDataCopyGeneration
     this->fastMemoryCapacity = fastMemCapacityBytes / 1024;
   }
 
-  void runOnFunction() override;
+  void runOnOperation() override;
   void runOnBlock(Block *block, DenseSet<Operation *> &copyNests);
 
   // Constant zero index to avoid too many duplicates.
@@ -196,8 +196,8 @@ void AffineDataCopyGeneration::runOnBlock(Block *block,
   }
 }
 
-void AffineDataCopyGeneration::runOnFunction() {
-  FuncOp f = getFunction();
+void AffineDataCopyGeneration::runOnOperation() {
+  FuncOp f = getOperation();
   OpBuilder topBuilder(f.getBody());
   zeroIndex = topBuilder.create<arith::ConstantIndexOp>(f.getLoc(), 0);
 

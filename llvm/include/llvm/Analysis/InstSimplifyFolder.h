@@ -22,12 +22,11 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/TargetFolder.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilderFolder.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 
 namespace llvm {
+class Constant;
 
 /// InstSimplifyFolder - Use InstructionSimplify to fold operations to existing
 /// values. Also applies target-specific constant folding when not using
@@ -50,6 +49,10 @@ public:
   Value *FoldAdd(Value *LHS, Value *RHS, bool HasNUW = false,
                  bool HasNSW = false) const override {
     return SimplifyAddInst(LHS, RHS, HasNUW, HasNSW, SQ);
+  }
+
+  Value *FoldAnd(Value *LHS, Value *RHS) const override {
+    return SimplifyAndInst(LHS, RHS, SQ);
   }
 
   Value *FoldOr(Value *LHS, Value *RHS) const override {
@@ -121,9 +124,6 @@ public:
   Value *CreateAShr(Constant *LHS, Constant *RHS,
                     bool isExact = false) const override {
     return ConstFolder.CreateAShr(LHS, RHS, isExact);
-  }
-  Value *CreateAnd(Constant *LHS, Constant *RHS) const override {
-    return ConstFolder.CreateAnd(LHS, RHS);
   }
   Value *CreateXor(Constant *LHS, Constant *RHS) const override {
     return ConstFolder.CreateXor(LHS, RHS);

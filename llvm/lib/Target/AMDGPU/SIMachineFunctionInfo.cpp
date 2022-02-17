@@ -74,6 +74,8 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     PSInputAddr = AMDGPU::getInitialPSInputAddr(F);
   }
 
+  MayNeedAGPRs = ST.hasMAIInsts();
+
   if (!isEntryFunction()) {
     if (CC != CallingConv::AMDGPU_Gfx)
       ArgInfo = AMDGPUArgumentUsageInfo::FixedABIFunctionInfo;
@@ -97,6 +99,11 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     ImplicitArgPtr = false;
     MaxKernArgAlign = std::max(ST.getAlignmentForImplicitArgPtr(),
                                MaxKernArgAlign);
+
+    if (ST.hasGFX90AInsts() &&
+        ST.getMaxNumVGPRs(F) <= AMDGPU::VGPR_32RegClass.getNumRegs() &&
+        !mayUseAGPRs(MF))
+      MayNeedAGPRs = false; // We will select all MAI with VGPR operands.
   }
 
   bool isAmdHsaOrMesa = ST.isAmdHsaOrMesa(F);
@@ -118,10 +125,12 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     if (IsKernel || !F.hasFnAttribute("amdgpu-no-workitem-id-x"))
       WorkItemIDX = true;
 
-    if (!F.hasFnAttribute("amdgpu-no-workitem-id-y"))
+    if (!F.hasFnAttribute("amdgpu-no-workitem-id-y") &&
+        ST.getMaxWorkitemID(F, 1) != 0)
       WorkItemIDY = true;
 
-    if (!F.hasFnAttribute("amdgpu-no-workitem-id-z"))
+    if (!F.hasFnAttribute("amdgpu-no-workitem-id-z") &&
+        ST.getMaxWorkitemID(F, 2) != 0)
       WorkItemIDZ = true;
 
     if (!F.hasFnAttribute("amdgpu-no-dispatch-ptr"))
@@ -400,7 +409,8 @@ bool SIMachineFunctionInfo::allocateVGPRSpillToAGPR(MachineFunction &MF,
   return Spill.FullyAllocated;
 }
 
-void SIMachineFunctionInfo::removeDeadFrameIndices(MachineFrameInfo &MFI) {
+bool SIMachineFunctionInfo::removeDeadFrameIndices(
+    MachineFrameInfo &MFI, bool ResetSGPRSpillStackIDs) {
   // Remove dead frame indices from function frame, however keep FP & BP since
   // spills for them haven't been inserted yet. And also make sure to remove the
   // frame indices from `SGPRToVGPRSpills` data structure, otherwise, it could
@@ -413,17 +423,28 @@ void SIMachineFunctionInfo::removeDeadFrameIndices(MachineFrameInfo &MFI) {
     }
   }
 
-  // All other SPGRs must be allocated on the default stack, so reset the stack
-  // ID.
-  for (int i = MFI.getObjectIndexBegin(), e = MFI.getObjectIndexEnd(); i != e;
-       ++i)
-    if (i != FramePointerSaveIndex && i != BasePointerSaveIndex)
-      MFI.setStackID(i, TargetStackID::Default);
+  bool HaveSGPRToMemory = false;
+
+  if (ResetSGPRSpillStackIDs) {
+    // All other SPGRs must be allocated on the default stack, so reset the
+    // stack ID.
+    for (int i = MFI.getObjectIndexBegin(), e = MFI.getObjectIndexEnd(); i != e;
+         ++i) {
+      if (i != FramePointerSaveIndex && i != BasePointerSaveIndex) {
+        if (MFI.getStackID(i) == TargetStackID::SGPRSpill) {
+          MFI.setStackID(i, TargetStackID::Default);
+          HaveSGPRToMemory = true;
+        }
+      }
+    }
+  }
 
   for (auto &R : VGPRToAGPRSpills) {
     if (R.second.IsDead)
       MFI.RemoveStackObject(R.first);
   }
+
+  return HaveSGPRToMemory;
 }
 
 int SIMachineFunctionInfo::getScavengeFI(MachineFrameInfo &MFI,
@@ -593,9 +614,46 @@ bool SIMachineFunctionInfo::initializeBaseYamlFields(
   return false;
 }
 
+bool SIMachineFunctionInfo::mayUseAGPRs(const MachineFunction &MF) const {
+  for (const BasicBlock &BB : MF.getFunction()) {
+    for (const Instruction &I : BB) {
+      const auto *CB = dyn_cast<CallBase>(&I);
+      if (!CB)
+        continue;
+
+      if (CB->isInlineAsm()) {
+        const InlineAsm *IA = dyn_cast<InlineAsm>(CB->getCalledOperand());
+        for (const auto &CI : IA->ParseConstraints()) {
+          for (StringRef Code : CI.Codes) {
+            Code.consume_front("{");
+            if (Code.startswith("a"))
+              return true;
+          }
+        }
+        continue;
+      }
+
+      const Function *Callee =
+          dyn_cast<Function>(CB->getCalledOperand()->stripPointerCasts());
+      if (!Callee)
+        return true;
+
+      if (Callee->getIntrinsicID() == Intrinsic::not_intrinsic)
+        return true;
+    }
+  }
+
+  return false;
+}
+
 bool SIMachineFunctionInfo::usesAGPRs(const MachineFunction &MF) const {
   if (UsesAGPRs)
     return *UsesAGPRs;
+
+  if (!mayNeedAGPRs()) {
+    UsesAGPRs = false;
+    return false;
+  }
 
   if (!AMDGPU::isEntryFunctionCC(MF.getFunction().getCallingConv()) ||
       MF.getFrameInfo().hasCalls()) {

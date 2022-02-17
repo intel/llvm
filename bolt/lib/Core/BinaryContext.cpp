@@ -26,8 +26,10 @@
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCObjectStreamer.h"
 #include "llvm/MC/MCObjectWriter.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Regex.h"
@@ -1632,6 +1634,8 @@ void BinaryContext::printInstruction(raw_ostream &OS, const MCInst &Instruction,
       OS << " # UNKNOWN CONTROL FLOW";
     }
   }
+  if (Optional<uint32_t> Offset = MIB->getOffset(Instruction))
+    OS << " # Offset: " << *Offset;
 
   MIB->printAnnotations(Instruction, OS);
 

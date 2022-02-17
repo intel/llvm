@@ -22,6 +22,7 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/PartialDiagnostic.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/DeclSpec.h"
@@ -2265,7 +2266,7 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
   if (ICE.isInvalid())
     return QualType();
 
-  int64_t NumBits = Bits.getSExtValue();
+  size_t NumBits = Bits.getZExtValue();
   if (!IsUnsigned && NumBits < 2) {
     Diag(Loc, diag::err_bit_int_bad_size) << 0;
     return QualType();
@@ -2276,9 +2277,10 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
     return QualType();
   }
 
-  if (NumBits > llvm::IntegerType::MAX_INT_BITS) {
+  const TargetInfo &TI = getASTContext().getTargetInfo();
+  if (NumBits > TI.getMaxBitIntWidth()) {
     Diag(Loc, diag::err_bit_int_max_size)
-        << IsUnsigned << llvm::IntegerType::MAX_INT_BITS;
+        << IsUnsigned << static_cast<uint64_t>(TI.getMaxBitIntWidth());
     return QualType();
   }
 
@@ -6063,6 +6065,8 @@ namespace {
              DS.getTypeSpecType() == TST_auto_type ||
              DS.getTypeSpecType() == TST_unspecified);
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
+      if (DS.getTypeSpecType() == TST_decltype_auto)
+        TL.setRParenLoc(DS.getTypeofParensRange().getEnd());
       if (!DS.isConstrainedAuto())
         return;
       TemplateIdAnnotation *TemplateId = DS.getRepAsTemplateId();

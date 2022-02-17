@@ -18,6 +18,7 @@
 #include "FormatToken.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Format/Format.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/Support/Regex.h"
 #include <stack>
 #include <vector>
@@ -91,7 +92,6 @@ private:
   void reset();
   void parseFile();
   bool precededByCommentOrPPDirective() const;
-  bool mightFitOnOneLine() const;
   bool parseLevel(bool HasOpeningBrace, IfStmtKind *IfKind = nullptr);
   IfStmtKind parseBlock(bool MustBeDeclaration = false, unsigned AddLevels = 1u,
                         bool MunchSemi = true,
@@ -231,7 +231,7 @@ private:
 
   // We store for each line whether it must be a declaration depending on
   // whether we are in a compound statement or not.
-  std::vector<bool> DeclarationScopeStack;
+  llvm::BitVector DeclarationScopeStack;
 
   const FormatStyle &Style;
   const AdditionalKeywords &Keywords;

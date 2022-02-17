@@ -18,6 +18,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "llvm/ADT/SmallBitVector.h"
 
 using namespace mlir;
 
@@ -208,8 +209,10 @@ struct AllocaScopeOpLowering
     if (allocaScopeOp.getNumResults() == 0) {
       continueBlock = remainingOpsBlock;
     } else {
-      continueBlock = rewriter.createBlock(remainingOpsBlock,
-                                           allocaScopeOp.getResultTypes());
+      continueBlock = rewriter.createBlock(
+          remainingOpsBlock, allocaScopeOp.getResultTypes(),
+          SmallVector<Location>(allocaScopeOp->getNumResults(),
+                                allocaScopeOp.getLoc()));
       rewriter.create<LLVM::BrOp>(loc, ValueRange(), remainingOpsBlock);
     }
 
@@ -410,6 +413,139 @@ private:
   }
 };
 
+/// Common base for load and store operations on MemRefs. Restricts the match
+/// to supported MemRef types. Provides functionality to emit code accessing a
+/// specific element of the underlying data buffer.
+template <typename Derived>
+struct LoadStoreOpLowering : public ConvertOpToLLVMPattern<Derived> {
+  using ConvertOpToLLVMPattern<Derived>::ConvertOpToLLVMPattern;
+  using ConvertOpToLLVMPattern<Derived>::isConvertibleAndHasIdentityMaps;
+  using Base = LoadStoreOpLowering<Derived>;
+
+  LogicalResult match(Derived op) const override {
+    MemRefType type = op.getMemRefType();
+    return isConvertibleAndHasIdentityMaps(type) ? success() : failure();
+  }
+};
+
+/// Wrap a llvm.cmpxchg operation in a while loop so that the operation can be
+/// retried until it succeeds in atomically storing a new value into memory.
+///
+///      +---------------------------------+
+///      |   <code before the AtomicRMWOp> |
+///      |   <compute initial %loaded>     |
+///      |   cf.br loop(%loaded)              |
+///      +---------------------------------+
+///             |
+///  -------|   |
+///  |      v   v
+///  |   +--------------------------------+
+///  |   | loop(%loaded):                 |
+///  |   |   <body contents>              |
+///  |   |   %pair = cmpxchg              |
+///  |   |   %ok = %pair[0]               |
+///  |   |   %new = %pair[1]              |
+///  |   |   cf.cond_br %ok, end, loop(%new) |
+///  |   +--------------------------------+
+///  |          |        |
+///  |-----------        |
+///                      v
+///      +--------------------------------+
+///      | end:                           |
+///      |   <code after the AtomicRMWOp> |
+///      +--------------------------------+
+///
+struct GenericAtomicRMWOpLowering
+    : public LoadStoreOpLowering<memref::GenericAtomicRMWOp> {
+  using Base::Base;
+
+  LogicalResult
+  matchAndRewrite(memref::GenericAtomicRMWOp atomicOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = atomicOp.getLoc();
+    Type valueType = typeConverter->convertType(atomicOp.getResult().getType());
+
+    // Split the block into initial, loop, and ending parts.
+    auto *initBlock = rewriter.getInsertionBlock();
+    auto *loopBlock = rewriter.createBlock(
+        initBlock->getParent(), std::next(Region::iterator(initBlock)),
+        valueType, loc);
+    auto *endBlock = rewriter.createBlock(
+        loopBlock->getParent(), std::next(Region::iterator(loopBlock)));
+
+    // Operations range to be moved to `endBlock`.
+    auto opsToMoveStart = atomicOp->getIterator();
+    auto opsToMoveEnd = initBlock->back().getIterator();
+
+    // Compute the loaded value and branch to the loop block.
+    rewriter.setInsertionPointToEnd(initBlock);
+    auto memRefType = atomicOp.memref().getType().cast<MemRefType>();
+    auto dataPtr = getStridedElementPtr(loc, memRefType, adaptor.memref(),
+                                        adaptor.indices(), rewriter);
+    Value init = rewriter.create<LLVM::LoadOp>(loc, dataPtr);
+    rewriter.create<LLVM::BrOp>(loc, init, loopBlock);
+
+    // Prepare the body of the loop block.
+    rewriter.setInsertionPointToStart(loopBlock);
+
+    // Clone the GenericAtomicRMWOp region and extract the result.
+    auto loopArgument = loopBlock->getArgument(0);
+    BlockAndValueMapping mapping;
+    mapping.map(atomicOp.getCurrentValue(), loopArgument);
+    Block &entryBlock = atomicOp.body().front();
+    for (auto &nestedOp : entryBlock.without_terminator()) {
+      Operation *clone = rewriter.clone(nestedOp, mapping);
+      mapping.map(nestedOp.getResults(), clone->getResults());
+    }
+    Value result = mapping.lookup(entryBlock.getTerminator()->getOperand(0));
+
+    // Prepare the epilog of the loop block.
+    // Append the cmpxchg op to the end of the loop block.
+    auto successOrdering = LLVM::AtomicOrdering::acq_rel;
+    auto failureOrdering = LLVM::AtomicOrdering::monotonic;
+    auto boolType = IntegerType::get(rewriter.getContext(), 1);
+    auto pairType = LLVM::LLVMStructType::getLiteral(rewriter.getContext(),
+                                                     {valueType, boolType});
+    auto cmpxchg = rewriter.create<LLVM::AtomicCmpXchgOp>(
+        loc, pairType, dataPtr, loopArgument, result, successOrdering,
+        failureOrdering);
+    // Extract the %new_loaded and %ok values from the pair.
+    Value newLoaded = rewriter.create<LLVM::ExtractValueOp>(
+        loc, valueType, cmpxchg, rewriter.getI64ArrayAttr({0}));
+    Value ok = rewriter.create<LLVM::ExtractValueOp>(
+        loc, boolType, cmpxchg, rewriter.getI64ArrayAttr({1}));
+
+    // Conditionally branch to the end or back to the loop depending on %ok.
+    rewriter.create<LLVM::CondBrOp>(loc, ok, endBlock, ArrayRef<Value>(),
+                                    loopBlock, newLoaded);
+
+    rewriter.setInsertionPointToEnd(endBlock);
+    moveOpsRange(atomicOp.getResult(), newLoaded, std::next(opsToMoveStart),
+                 std::next(opsToMoveEnd), rewriter);
+
+    // The 'result' of the atomic_rmw op is the newly loaded value.
+    rewriter.replaceOp(atomicOp, {newLoaded});
+
+    return success();
+  }
+
+private:
+  // Clones a segment of ops [start, end) and erases the original.
+  void moveOpsRange(ValueRange oldResult, ValueRange newResult,
+                    Block::iterator start, Block::iterator end,
+                    ConversionPatternRewriter &rewriter) const {
+    BlockAndValueMapping mapping;
+    mapping.map(oldResult, newResult);
+    SmallVector<Operation *, 2> opsToErase;
+    for (auto it = start; it != end; ++it) {
+      rewriter.clone(*it, mapping);
+      opsToErase.push_back(&*it);
+    }
+    for (auto *it : opsToErase)
+      rewriter.eraseOp(it);
+  }
+};
+
 /// Returns the LLVM type of the global variable given the memref type `type`.
 static Type convertGlobalMemrefTypeToLLVM(MemRefType type,
                                           LLVMTypeConverter &typeConverter) {
@@ -515,21 +651,6 @@ struct GetGlobalMemrefOpLowering : public AllocLikeOpLLVMLowering {
     // Both allocated and aligned pointers are same. We could potentially stash
     // a nullptr for the allocated pointer since we do not expect any dealloc.
     return std::make_tuple(deadBeefPtr, gep);
-  }
-};
-
-// Common base for load and store operations on MemRefs. Restricts the match
-// to supported MemRef types. Provides functionality to emit code accessing a
-// specific element of the underlying data buffer.
-template <typename Derived>
-struct LoadStoreOpLowering : public ConvertOpToLLVMPattern<Derived> {
-  using ConvertOpToLLVMPattern<Derived>::ConvertOpToLLVMPattern;
-  using ConvertOpToLLVMPattern<Derived>::isConvertibleAndHasIdentityMaps;
-  using Base = LoadStoreOpLowering<Derived>;
-
-  LogicalResult match(Derived op) const override {
-    MemRefType type = op.getMemRefType();
-    return isConvertibleAndHasIdentityMaps(type) ? success() : failure();
   }
 };
 
@@ -673,8 +794,7 @@ struct MemRefCastOpLowering : public ConvertOpToLLVMPattern<memref::CastOp> {
               .getResult();
       // rank = ConstantOp srcRank
       auto rankVal = rewriter.create<LLVM::ConstantOp>(
-          loc, typeConverter->convertType(rewriter.getIntegerType(64)),
-          rewriter.getI64IntegerAttr(rank));
+          loc, getIndexType(), rewriter.getIndexAttr(rank));
       // undef = UndefOp
       UnrankedMemRefDescriptor memRefDesc =
           UnrankedMemRefDescriptor::undef(rewriter, loc, targetStructType);
@@ -794,9 +914,10 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
     auto sourcePtr = promote(unrankedSource);
     auto targetPtr = promote(unrankedTarget);
 
+    unsigned typeSize =
+        mlir::DataLayout::closest(op).getTypeSize(srcType.getElementType());
     auto elemSize = rewriter.create<LLVM::ConstantOp>(
-        loc, getIndexType(),
-        rewriter.getIndexAttr(srcType.getElementTypeBitWidth() / 8));
+        loc, getIndexType(), rewriter.getIndexAttr(typeSize));
     auto copyFn = LLVM::lookupOrCreateMemRefCopyFn(
         op->getParentOfType<ModuleOp>(), getIndexType(), sourcePtr.getType());
     rewriter.create<LLVM::CallOp>(loc, copyFn,
@@ -1019,7 +1140,7 @@ private:
     Block::iterator remainingOpsIt = std::next(rewriter.getInsertionPoint());
 
     Block *condBlock = rewriter.createBlock(initBlock->getParent(), {},
-                                            {indexType, indexType});
+                                            {indexType, indexType}, {loc, loc});
 
     // Move the remaining initBlock ops to condBlock.
     Block *remainingBlock = rewriter.splitBlock(initBlock, remainingOpsIt);
@@ -1382,10 +1503,10 @@ struct SubViewOpLowering : public ConvertOpToLLVMPattern<memref::SubViewOp> {
     SmallVector<OpFoldResult> mixedStrides = subViewOp.getMixedStrides();
     assert(mixedSizes.size() == mixedStrides.size() &&
            "expected sizes and strides of equal length");
-    llvm::SmallDenseSet<unsigned> unusedDims = subViewOp.getDroppedDims();
+    llvm::SmallBitVector unusedDims = subViewOp.getDroppedDims();
     for (int i = inferredShapeRank - 1, j = resultShapeRank - 1;
          i >= 0 && j >= 0; --i) {
-      if (unusedDims.contains(i))
+      if (unusedDims.test(i))
         continue;
 
       // `i` may overflow subViewOp.getMixedSizes because of trailing semantics.
@@ -1681,6 +1802,7 @@ void mlir::populateMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
       AtomicRMWOpLowering,
       AssumeAlignmentOpLowering,
       DimOpLowering,
+      GenericAtomicRMWOpLowering,
       GlobalMemrefOpLowering,
       GetGlobalMemrefOpLowering,
       LoadOpLowering,

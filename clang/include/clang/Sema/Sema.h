@@ -2457,6 +2457,8 @@ private:
   };
   /// The modules we're currently parsing.
   llvm::SmallVector<ModuleScope, 16> ModuleScopes;
+  /// The global module fragment of the current translation unit.
+  clang::Module *GlobalModuleFragment = nullptr;
 
   /// Namespace definitions that we will export when they finish.
   llvm::SmallPtrSet<const NamespaceDecl*, 8> DeferredExportedNamespaces;
@@ -4180,8 +4182,8 @@ public:
                                                 FunctionDecl *DefaultedFn);
 
   ExprResult CreateOverloadedArraySubscriptExpr(SourceLocation LLoc,
-                                                SourceLocation RLoc,
-                                                Expr *Base,Expr *Idx);
+                                                SourceLocation RLoc, Expr *Base,
+                                                MultiExprArg Args);
 
   ExprResult BuildCallToMemberFunction(Scope *S, Expr *MemExpr,
                                        SourceLocation LParenLoc,
@@ -4560,6 +4562,8 @@ public:
                             bool ConsiderLinkage, bool AllowInlineNamespace);
 
   bool CheckRedeclarationModuleOwnership(NamedDecl *New, NamedDecl *Old);
+  bool CheckRedeclarationExported(NamedDecl *New, NamedDecl *Old);
+  bool CheckRedeclarationInModule(NamedDecl *New, NamedDecl *Old);
 
   void DiagnoseAmbiguousLookup(LookupResult &Result);
   //@}
@@ -4602,8 +4606,10 @@ public:
   /// such as checking whether a parameter was properly specified, or the
   /// correct number of arguments were passed, etc. Returns true if the
   /// attribute has been diagnosed.
-  bool checkCommonAttributeFeatures(const Decl *D, const ParsedAttr &A);
-  bool checkCommonAttributeFeatures(const Stmt *S, const ParsedAttr &A);
+  bool checkCommonAttributeFeatures(const Decl *D, const ParsedAttr &A,
+                                    bool SkipArgCountCheck = false);
+  bool checkCommonAttributeFeatures(const Stmt *S, const ParsedAttr &A,
+                                    bool SkipArgCountCheck = false);
 
   /// Determine if type T is a valid subject for a nonnull and similar
   /// attributes. By default, we look through references (the behavior used by
@@ -4616,6 +4622,9 @@ public:
                             const FunctionDecl *FD = nullptr);
   bool CheckAttrTarget(const ParsedAttr &CurrAttr);
   bool CheckAttrNoArgs(const ParsedAttr &CurrAttr);
+  bool checkStringLiteralArgumentAttr(const AttributeCommonInfo &CI,
+                                      const Expr *E, StringRef &Str,
+                                      SourceLocation *ArgLocation = nullptr);
   bool checkStringLiteralArgumentAttr(const ParsedAttr &Attr, unsigned ArgNum,
                                       StringRef &Str,
                                       SourceLocation *ArgLocation = nullptr);
@@ -5630,7 +5639,8 @@ public:
                                  tok::TokenKind Kind, Expr *Input);
 
   ExprResult ActOnArraySubscriptExpr(Scope *S, Expr *Base, SourceLocation LLoc,
-                                     Expr *Idx, SourceLocation RLoc);
+                                     MultiExprArg ArgExprs,
+                                     SourceLocation RLoc);
   ExprResult CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
                                              Expr *Idx, SourceLocation RLoc);
 
@@ -7198,7 +7208,7 @@ public:
   /// \brief Check whether the given non-dependent constraint expression is
   /// satisfied. Returns false and updates Satisfaction with the satisfaction
   /// verdict if successful, emits a diagnostic and returns true if an error
-  /// occured and satisfaction could not be determined.
+  /// occurred and satisfaction could not be determined.
   ///
   /// \returns true if an error occurred, false otherwise.
   bool CheckConstraintSatisfaction(const Expr *ConstraintExpr,
@@ -7207,7 +7217,7 @@ public:
   /// Check whether the given function decl's trailing requires clause is
   /// satisfied, if any. Returns false and updates Satisfaction with the
   /// satisfaction verdict if successful, emits a diagnostic and returns true if
-  /// an error occured and satisfaction could not be determined.
+  /// an error occurred and satisfaction could not be determined.
   ///
   /// \returns true if an error occurred, false otherwise.
   bool CheckFunctionConstraints(const FunctionDecl *FD,
@@ -7678,9 +7688,15 @@ public:
   CheckStructuredBindingMemberAccess(SourceLocation UseLoc,
                                      CXXRecordDecl *DecomposedClass,
                                      DeclAccessPair Field);
+  AccessResult CheckMemberOperatorAccess(SourceLocation Loc, Expr *ObjectExpr,
+                                         const SourceRange &,
+                                         DeclAccessPair FoundDecl);
   AccessResult CheckMemberOperatorAccess(SourceLocation Loc,
                                          Expr *ObjectExpr,
                                          Expr *ArgExpr,
+                                         DeclAccessPair FoundDecl);
+  AccessResult CheckMemberOperatorAccess(SourceLocation Loc, Expr *ObjectExpr,
+                                         ArrayRef<Expr *> ArgExprs,
                                          DeclAccessPair FoundDecl);
   AccessResult CheckAddressOfMemberAccess(Expr *OvlExpr,
                                           DeclAccessPair FoundDecl);
@@ -8147,7 +8163,7 @@ public:
   /// contain the converted forms of the template arguments as written.
   /// Otherwise, \p TemplateArgs will not be modified.
   ///
-  /// \param ConstraintsNotSatisfied If provided, and an error occured, will
+  /// \param ConstraintsNotSatisfied If provided, and an error occurred, will
   /// receive true if the cause for the error is the associated constraints of
   /// the template not being satisfied by the template arguments.
   ///
@@ -10565,6 +10581,11 @@ public:
                                                 const SYCLUsesAspectsAttr &A);
   void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
                               Expr **Exprs, unsigned Size);
+  void AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLIntelMaxWorkGroupSizeAttr *
+  MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
+                                     const SYCLIntelMaxWorkGroupSizeAttr &A);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);

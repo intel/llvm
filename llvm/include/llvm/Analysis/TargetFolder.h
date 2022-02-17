@@ -20,13 +20,13 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Analysis/ConstantFolding.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IRBuilderFolder.h"
 
 namespace llvm {
 
+class Constant;
 class DataLayout;
+class Type;
 
 /// TargetFolder - Create constants with target dependent folding.
 class TargetFolder final : public IRBuilderFolder {
@@ -54,6 +54,14 @@ public:
     auto *RC = dyn_cast<Constant>(RHS);
     if (LC && RC)
       return Fold(ConstantExpr::getAdd(LC, RC, HasNUW, HasNSW));
+    return nullptr;
+  }
+
+  Value *FoldAnd(Value *LHS, Value *RHS) const override {
+    auto *LC = dyn_cast<Constant>(LHS);
+    auto *RC = dyn_cast<Constant>(RHS);
+    if (LC && RC)
+      return Fold(ConstantExpr::getAnd(LC, RC));
     return nullptr;
   }
 
@@ -149,9 +157,6 @@ public:
   Constant *CreateAShr(Constant *LHS, Constant *RHS,
                        bool isExact = false) const override {
     return Fold(ConstantExpr::getAShr(LHS, RHS, isExact));
-  }
-  Constant *CreateAnd(Constant *LHS, Constant *RHS) const override {
-    return Fold(ConstantExpr::getAnd(LHS, RHS));
   }
   Constant *CreateXor(Constant *LHS, Constant *RHS) const override {
     return Fold(ConstantExpr::getXor(LHS, RHS));

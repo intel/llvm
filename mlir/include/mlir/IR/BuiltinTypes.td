@@ -154,6 +154,10 @@ def Builtin_Function : Builtin_Type<"Function", [
     unsigned getNumResults() const;
     Type getResult(unsigned i) const { return getResults()[i]; }
 
+    /// Returns a clone of this function type with the given argument
+    /// and result types.
+    FunctionType clone(TypeRange inputs, TypeRange results) const;
+
     /// Returns a new function type with the specified arguments and results
     /// inserted.
     FunctionType getWithArgsAndResults(ArrayRef<unsigned> argIndices,
@@ -162,8 +166,8 @@ def Builtin_Function : Builtin_Type<"Function", [
                                        TypeRange resultTypes);
 
     /// Returns a new function type without the specified arguments and results.
-    FunctionType getWithoutArgsAndResults(ArrayRef<unsigned> argIndices,
-                                          ArrayRef<unsigned> resultIndices);
+    FunctionType getWithoutArgsAndResults(const BitVector &argIndices,
+                                          const BitVector &resultIndices);
   }];
 }
 

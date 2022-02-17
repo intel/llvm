@@ -10,6 +10,8 @@
 
 #pragma once
 
+/// @cond ESIMD_DETAIL
+
 // The test proxy if solely for the test purposes, so it's off by default, with
 // no any code generated. It is enabled only if the __ESIMD_ENABLE_TEST_PROXY
 // macro is defined.
@@ -103,3 +105,5 @@ public:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #endif // __ESIMD_ENABLE_TEST_PROXY
+
+/// @endcond ESIMD_DETAIL

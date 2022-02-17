@@ -19,6 +19,10 @@
 #include <string>
 #include <string_view>
 
+#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#  pragma GCC system_header
+#endif
+
 #ifndef _LIBCPP_CXX03_LANG
 
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
@@ -38,15 +42,13 @@ public:
   };
 
 public:
-  typedef bidirectional_iterator_tag iterator_category;
+  typedef input_iterator_tag iterator_category;
+  typedef bidirectional_iterator_tag iterator_concept;
 
   typedef path value_type;
   typedef ptrdiff_t difference_type;
   typedef const path* pointer;
-  typedef const path& reference;
-
-  typedef void
-      __stashing_iterator_tag; // See reverse_iterator and __is_stashing_iterator
+  typedef path reference;
 
 public:
   _LIBCPP_INLINE_VISIBILITY

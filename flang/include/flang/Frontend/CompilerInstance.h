@@ -125,7 +125,7 @@ public:
   Fortran::semantics::Semantics &semantics() { return *semantics_; }
   const Fortran::semantics::Semantics &semantics() const { return *semantics_; }
 
-  void setSemantics(std::unique_ptr<Fortran::semantics::Semantics> semantics) {
+  void SetSemantics(std::unique_ptr<Fortran::semantics::Semantics> semantics) {
     semantics_ = std::move(semantics);
   }
 
@@ -249,6 +249,13 @@ public:
   // Allow the frontend compiler to write in the output stream.
   void WriteOutputStream(const std::string &message) {
     *outputStream_ << message;
+  }
+
+  /// Get the user specified output stream.
+  llvm::raw_pwrite_stream &GetOutputStream() {
+    assert(outputStream_ &&
+        "Compiler instance has no user-specified output stream!");
+    return *outputStream_;
   }
 };
 

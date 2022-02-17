@@ -428,11 +428,6 @@ AMDGPURegisterBankInfo::getInstrAlternativeMappingsIntrinsicWSideEffects(
   }
 }
 
-static bool memOpHasNoClobbered(const MachineMemOperand *MMO) {
-  const Instruction *I = dyn_cast_or_null<Instruction>(MMO->getValue());
-  return I && I->getMetadata("amdgpu.noclobber");
-}
-
 // FIXME: Returns uniform if there's no source value information. This is
 // probably wrong.
 static bool isScalarLoadLegal(const MachineInstr &MI) {
@@ -451,7 +446,7 @@ static bool isScalarLoadLegal(const MachineInstr &MI) {
          // spaces.
          (IsConst || !MMO->isVolatile()) &&
          // Memory must be known constant, or not written before this load.
-         (IsConst || MMO->isInvariant() || memOpHasNoClobbered(MMO)) &&
+         (IsConst || MMO->isInvariant() || (MMO->getFlags() & MONoClobber)) &&
          AMDGPUInstrInfo::isUniformMMO(MMO);
 }
 
@@ -3696,6 +3691,16 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     OpdsMapping[1] = AMDGPU::getValueMapping(SrcBankID, 32);
     break;
   }
+  case AMDGPU::G_AMDGPU_WAVE_ADDRESS: {
+    // This case is weird because we expect a physical register in the source,
+    // but need to set a bank anyway.
+    //
+    // We could select the result to SGPR or VGPR, but for the one current use
+    // it's more practical to always use VGPR.
+    OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, 32);
+    OpdsMapping[1] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, 32);
+    break;
+  }
   case AMDGPU::G_INSERT: {
     unsigned BankID = getMappingType(MRI, MI);
     unsigned DstSize = getSizeInBits(MI.getOperand(0).getReg(), MRI, *TRI);
@@ -4083,7 +4088,6 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_mqsad_pk_u16_u8:
     case Intrinsic::amdgcn_mqsad_u32_u8:
     case Intrinsic::amdgcn_cvt_pk_u8_f32:
-    case Intrinsic::amdgcn_alignbit:
     case Intrinsic::amdgcn_alignbyte:
     case Intrinsic::amdgcn_perm:
     case Intrinsic::amdgcn_fdot2:
@@ -4245,10 +4249,17 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       // for srcA/srcB?
       //
       // vdst, srcA, srcB, srcC
-      OpdsMapping[0] = getAGPROpMapping(MI.getOperand(0).getReg(), MRI, *TRI);
+      const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
+      OpdsMapping[0] =
+          Info->mayNeedAGPRs()
+              ? getAGPROpMapping(MI.getOperand(0).getReg(), MRI, *TRI)
+              : getVGPROpMapping(MI.getOperand(0).getReg(), MRI, *TRI);
       OpdsMapping[2] = getVGPROpMapping(MI.getOperand(2).getReg(), MRI, *TRI);
       OpdsMapping[3] = getVGPROpMapping(MI.getOperand(3).getReg(), MRI, *TRI);
-      OpdsMapping[4] = getAGPROpMapping(MI.getOperand(4).getReg(), MRI, *TRI);
+      OpdsMapping[4] =
+          Info->mayNeedAGPRs()
+              ? getAGPROpMapping(MI.getOperand(4).getReg(), MRI, *TRI)
+              : getVGPROpMapping(MI.getOperand(4).getReg(), MRI, *TRI);
       break;
     }
     case Intrinsic::amdgcn_interp_p1:

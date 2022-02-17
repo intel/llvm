@@ -35,10 +35,8 @@
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCAsmLayout.h"
-#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCObjectStreamer.h"
-#include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -321,27 +319,6 @@ namespace bolt {
 
 extern const char *BoltRevision;
 
-extern MCPlusBuilder *createX86MCPlusBuilder(const MCInstrAnalysis *,
-                                             const MCInstrInfo *,
-                                             const MCRegisterInfo *);
-extern MCPlusBuilder *createAArch64MCPlusBuilder(const MCInstrAnalysis *,
-                                                 const MCInstrInfo *,
-                                                 const MCRegisterInfo *);
-
-} // namespace bolt
-} // namespace llvm
-
-namespace {
-
-bool refersToReorderedSection(ErrorOr<BinarySection &> Section) {
-  auto Itr =
-      std::find_if(opts::ReorderData.begin(), opts::ReorderData.end(),
-                   [&](const std::string &SectionName) {
-                     return (Section && Section->getName() == SectionName);
-                   });
-  return Itr != opts::ReorderData.end();
-}
-
 MCPlusBuilder *createMCPlusBuilder(const Triple::ArchType Arch,
                                    const MCInstrAnalysis *Analysis,
                                    const MCInstrInfo *Info,
@@ -357,6 +334,20 @@ MCPlusBuilder *createMCPlusBuilder(const Triple::ArchType Arch,
 #endif
 
   llvm_unreachable("architecture unsupported by MCPlusBuilder");
+}
+
+} // namespace bolt
+} // namespace llvm
+
+namespace {
+
+bool refersToReorderedSection(ErrorOr<BinarySection &> Section) {
+  auto Itr =
+      std::find_if(opts::ReorderData.begin(), opts::ReorderData.end(),
+                   [&](const std::string &SectionName) {
+                     return (Section && Section->getName() == SectionName);
+                   });
+  return Itr != opts::ReorderData.end();
 }
 
 } // anonymous namespace
@@ -2771,7 +2762,6 @@ void RewriteInstance::buildFunctionsCFG() {
                      "Build Binary Functions", opts::TimeBuild);
 
   // Create annotation indices to allow lock-free execution
-  BC->MIB->getOrCreateAnnotationIndex("Offset");
   BC->MIB->getOrCreateAnnotationIndex("JTIndexReg");
   BC->MIB->getOrCreateAnnotationIndex("NOP");
   BC->MIB->getOrCreateAnnotationIndex("Size");
