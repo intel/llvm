@@ -2,19 +2,19 @@
 ; constants from those units are absent in split module.
 
 ; RUN: sycl-post-link -split=kernel -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.ll -check-prefix=AGGR
-; RUN: FileCheck %s -input-file=%t_1.ll -check-prefix=AGGR
-; RUN: FileCheck %s -input-file=%t_2.ll -check-prefix=AGGR
+; RUN: FileCheck %s -input-file=%t_0.ll -check-prefix=CHECK-AGGR
+; RUN: FileCheck %s -input-file=%t_1.ll -check-prefix=CHECK-AGGR
+; RUN: FileCheck %s -input-file=%t_2.ll -check-prefix=CHECK-AGGR
 
 ; CHECK-AGGR: !llvm.dbg.cu = !{!{{[0-9]+}}}
-; CHECK-COUNT-1: !DICompileUnit
+; CHECK-AGGR-COUNT-1: !DICompileUnit
 
 ; Note: one of IR files should contain 3 compile units, but to simplify
 ;       validation we check that at least 2 compile units present in each file.
 ; RUN: sycl-post-link -split=kernel -safe-strip-dead-debug-info=true -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.ll -check-prefix=SAFE
-; RUN: FileCheck %s -input-file=%t_1.ll -check-prefix=SAFE
-; RUN: FileCheck %s -input-file=%t_2.ll -check-prefix=SAFE
+; RUN: FileCheck %s -input-file=%t_0.ll -check-prefix=CHECK-SAFE
+; RUN: FileCheck %s -input-file=%t_1.ll -check-prefix=CHECK-SAFE
+; RUN: FileCheck %s -input-file=%t_2.ll -check-prefix=CHECK-SAFE
 
 ; CHECK-SAFE: !llvm.dbg.cu = !{!{{[0-9]+}}, !{{[0-9]+}}
 ; CHECK-SAFE-COUNT-2: !DICompileUnit
