@@ -190,15 +190,25 @@ inline backend_return_t<backend::opencl, event> get_native<
 }
 #endif
 
-// Native handle of an accessor should be accessed through interop_handler
+// Native accessor handle for kernel function interop
 template <backend BackendName, typename DataT, int Dimensions,
           access::mode AccessMode, access::target AccessTarget,
           access::placeholder IsPlaceholder>
 auto get_native(const accessor<DataT, Dimensions, AccessMode, AccessTarget,
                                IsPlaceholder> &Obj) ->
-    typename detail::interop<
-        BackendName, accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                              IsPlaceholder>>::type = delete;
+    typename detail::interop<BackendName,
+                             accessor<DataT, Dimensions, AccessMode,
+                                      AccessTarget, IsPlaceholder>>::type {
+#ifdef __SYCL_DEVICE_ONLY__
+  return reinterpret_cast<typename detail::interop<
+      BackendName, accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                            IsPlaceholder>>::type>(Obj.get_pointer().get());
+
+#else
+  throw runtime_error("Get native accessor is not support on host.",
+                      PI_INVALID_VALUE);
+#endif
+}
 
 namespace detail {
 // Forward declaration

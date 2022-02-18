@@ -2218,6 +2218,12 @@ public:
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 };
 
+// local_accessor
+// Same semantics and restrictions as accessor with target::local
+template <typename DataT, int Dimensions = 1>
+using local_accessor =
+    accessor<DataT, Dimensions, access_mode::read_write, access::target::local>;
+
 /// Image accessors.
 ///
 /// Available only when accessTarget == access::target::image.

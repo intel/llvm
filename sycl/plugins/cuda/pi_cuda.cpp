@@ -420,6 +420,12 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
   cuda_piContextRetain(context_);
 }
 
+_pi_event::_pi_event(pi_context context, CUevent eventNative)
+    : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, hasBeenWaitedOn_{false},
+      isRecorded_{false}, isStarted_{false}, evEnd_{eventNative},
+      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
+                                                                  context} {}
+
 _pi_event::~_pi_event() {
   if (queue_ != nullptr) {
     cuda_piQueueRelease(queue_);
@@ -908,6 +914,53 @@ pi_result cuda_piDevicesGet(pi_platform platform, pi_device_type device_type,
   } catch (...) {
     return PI_OUT_OF_RESOURCES;
   }
+}
+
+pi_result cuda_piextPlatformGetNativeHandle(pi_platform platform,
+                                            pi_native_handle *nativeHandle) {
+  cl::sycl::detail::pi::die(
+      "cuda_piextPlatformGetNativeHandle not implemented");
+  return {};
+}
+
+pi_result
+cuda_piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                         pi_platform *platform) {
+  assert(platform);
+  assert(nativeHandle);
+
+  auto native_platform =
+      reinterpret_cast<std::vector<CUdevice> *>(nativeHandle);
+
+  // Get list of platforms
+  pi_uint32 num_platforms;
+  pi_result result = cuda_piPlatformsGet(0, nullptr, &num_platforms);
+
+  pi_platform *plat =
+      static_cast<pi_platform *>(malloc(num_platforms * sizeof(pi_platform)));
+  result = cuda_piPlatformsGet(num_platforms, plat, nullptr);
+
+  // Iterate through platforms to find device that matches nativeHandle
+  bool found_match = false;
+  for (pi_uint32 j = 0; j < num_platforms; ++j) {
+    bool is_same = true;
+    for (auto &dev : plat[j]->devices_) {
+      auto it =
+          find(native_platform->begin(), native_platform->end(), dev->get());
+      if (it == native_platform->end())
+        is_same = false;
+    }
+    if (is_same) {
+      found_match = true;
+      *platform = plat[j];
+    }
+  }
+
+  if (!found_match) {
+    return PI_INVALID_VALUE;
+  }
+
+  return result;
 }
 
 /// \return PI_SUCCESS if the function is executed successfully
@@ -1856,11 +1909,49 @@ pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
 /// \param[out] device Set to the PI device object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle, pi_platform,
-                                                 pi_device *) {
-  cl::sycl::detail::pi::die(
-      "Creation of PI device from native handle not implemented");
-  return {};
+pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                 pi_platform platform,
+                                                 pi_device *piDevice) {
+  assert(piDevice != nullptr);
+
+  // If a platform is provided just check if the device is in it
+  if (platform) {
+    bool found_match = false;
+    for (auto &dev : platform->devices_) {
+      if (dev->get() == static_cast<CUdevice>(nativeHandle)) {
+        *piDevice = dev.get();
+        found_match = true;
+      }
+    }
+    if (!found_match)
+      return PI_INVALID_VALUE;
+    return PI_SUCCESS;
+  }
+
+  // Get list of platforms
+  pi_uint32 num_platforms;
+  pi_result result = cuda_piPlatformsGet(0, nullptr, &num_platforms);
+
+  pi_platform *plat =
+      static_cast<pi_platform *>(malloc(num_platforms * sizeof(pi_platform)));
+  result = cuda_piPlatformsGet(num_platforms, plat, nullptr);
+
+  // Iterate through platforms to find device that matches nativeHandle
+  bool found_match = false;
+  for (pi_uint32 j = 0; j < num_platforms; ++j) {
+    for (auto &dev : plat[j]->devices_) {
+      if (dev->get() == static_cast<CUdevice>(nativeHandle)) {
+        *piDevice = dev.get();
+        found_match = true;
+      }
+    }
+  }
+
+  // If the provided nativeHandle cannot be matched to an
+  // existing device return error
+  if (!found_match)
+    return PI_INVALID_VALUE;
+  return result;
 }
 
 /* Context APIs */
@@ -1990,6 +2081,7 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
     if (cuCtxt != current) {
       PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
     }
+    PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
     PI_CHECK_ERROR(cuCtxSynchronize());
     cuCtxGetCurrent(&current);
     if (cuCtxt == current) {
@@ -1998,6 +2090,7 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
     return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
   } else {
     // Primary context is not destroyed, but released
+    PI_CHECK_ERROR(cuEventDestroy(context->evBase_));
     CUdevice cuDev = ctxt->get_device()->get();
     CUcontext current;
     cuCtxPopCurrent(&current);
@@ -2025,12 +2118,43 @@ pi_result cuda_piextContextGetNativeHandle(pi_context context,
 /// \param[out] context Set to the PI context object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle, pi_uint32,
-                                                  const pi_device *, bool,
-                                                  pi_context *) {
-  cl::sycl::detail::pi::die(
-      "Creation of PI context from native handle not implemented");
-  return {};
+pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_uint32 num_devices,
+                                                  const pi_device *devices,
+                                                  bool ownNativeHandle,
+                                                  pi_context *piContext) {
+  (void)num_devices;
+  (void)devices;
+  (void)ownNativeHandle;
+  assert(piContext != nullptr);
+  assert(ownNativeHandle == false);
+
+  CUcontext newContext = reinterpret_cast<CUcontext>(nativeHandle);
+
+  // Push native context to thread
+  pi_result retErr = PI_CHECK_ERROR(cuCtxPushCurrent(newContext));
+
+  // Get context's native device
+  CUdevice cu_device;
+  retErr = PI_CHECK_ERROR(cuCtxGetDevice(&cu_device));
+
+  // Create a SYCL device from the ctx device
+  pi_device device = nullptr;
+  retErr = cuda_piextDeviceCreateWithNativeHandle(cu_device, nullptr, &device);
+
+  // Create sycl context
+  *piContext =
+      new _pi_context{_pi_context::kind::user_defined, newContext, device};
+
+  // Use default stream to record base event counter
+  retErr =
+      PI_CHECK_ERROR(cuEventCreate(&(*piContext)->evBase_, CU_EVENT_DEFAULT));
+  retErr = PI_CHECK_ERROR(cuEventRecord((*piContext)->evBase_, 0));
+
+  // Pop native context
+  retErr = PI_CHECK_ERROR(cuCtxPopCurrent(nullptr));
+
+  return retErr;
 }
 
 /// Creates a PI Memory object using a CUDA memory allocation.
@@ -2442,13 +2566,29 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 ///        the native handle, if it can.
 ///
 /// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                pi_queue *,
+pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                pi_queue *queue,
                                                 bool ownNativeHandle) {
   (void)ownNativeHandle;
-  cl::sycl::detail::pi::die(
-      "Creation of PI queue from native handle not implemented");
-  return {};
+  assert(ownNativeHandle == 1);
+
+  unsigned int flags;
+  CUstream cuStream = reinterpret_cast<CUstream>(nativeHandle);
+
+  auto retErr = PI_CHECK_ERROR(cuStreamGetFlags(cuStream, &flags));
+
+  pi_queue_properties properties = 0;
+  if (flags == CU_STREAM_DEFAULT)
+    properties = __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
+  else if (flags == CU_STREAM_NON_BLOCKING)
+    properties = __SYCL_PI_CUDA_SYNC_WITH_DEFAULT;
+  else
+    cl::sycl::detail::pi::die("Unknown cuda stream");
+
+  *queue = new _pi_queue{cuStream, context, context->get_device(), properties};
+
+  return retErr;
 }
 
 pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -3719,11 +3859,19 @@ pi_result cuda_piextEventGetNativeHandle(pi_event event,
 /// \param[out] event Set to the PI event object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                bool, pi_event *) {
-  cl::sycl::detail::pi::die(
-      "Creation of PI event from native handle not implemented");
-  return {};
+pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                bool ownNativeHandle,
+                                                pi_event *event) {
+  (void)ownNativeHandle;
+  assert(ownNativeHandle == true);
+
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  *event = _pi_event::make_with_native(context,
+                                       reinterpret_cast<CUevent>(nativeHandle));
+
+  return PI_SUCCESS;
 }
 
 /// Creates a PI sampler object
@@ -5067,6 +5215,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Platform
   _PI_CL(piPlatformsGet, cuda_piPlatformsGet)
   _PI_CL(piPlatformGetInfo, cuda_piPlatformGetInfo)
+  _PI_CL(piextPlatformGetNativeHandle, cuda_piextPlatformGetNativeHandle)
+  _PI_CL(piextPlatformCreateWithNativeHandle,
+         cuda_piextPlatformCreateWithNativeHandle)
   // Device
   _PI_CL(piDevicesGet, cuda_piDevicesGet)
   _PI_CL(piDeviceGetInfo, cuda_piDeviceGetInfo)
