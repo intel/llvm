@@ -1490,6 +1490,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
   }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
+  }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);

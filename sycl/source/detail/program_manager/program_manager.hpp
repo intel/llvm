@@ -108,8 +108,8 @@ public:
                        SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
-  /// \param M idenfies the OS module the kernel comes from (multiple OS modules
-  ///          may have kernels with the same name)
+  /// \param M identifies the OS module the kernel comes from (multiple OS
+  ///        modules may have kernels with the same name)
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
@@ -153,7 +153,7 @@ public:
   /// \param NativePrg the native program, target for spec constant setting; if
   ///        not null then overrides the native program in Prg
   /// \param Img A source of the information about which constants need
-  ///        setting and symboling->integer spec constnant ID mapping. If not
+  ///        setting and symboling->integer spec constant ID mapping. If not
   ///        null, overrides native program->binary image binding maintained by
   ///        the program manager.
   void flushSpecConstants(const program_impl &Prg,

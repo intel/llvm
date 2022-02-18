@@ -481,10 +481,29 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg)
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
-  auto BuildF = [this, &M, &KSId, &ContextImpl, &DeviceImpl, Prg, &CompileOpts,
+  // Check if we can optimize program builds for sub-devices by using a program
+  // built for the root device
+  DeviceImplPtr RootDevImpl = DeviceImpl;
+  while (!RootDevImpl->isRootDevice()) {
+    auto ParentDev = detail::getSyclObjImpl(
+        RootDevImpl->get_info<info::device::parent_device>());
+    // Sharing is allowed within a single context only
+    if (!ContextImpl->hasDevice(ParentDev))
+      break;
+    RootDevImpl = ParentDev;
+  }
+
+  pi_bool MustBuildOnSubdevice = PI_TRUE;
+  ContextImpl->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+      RootDevImpl->getHandleRef(), PI_DEVICE_INFO_BUILD_ON_SUBDEVICE,
+      sizeof(pi_bool), &MustBuildOnSubdevice, nullptr);
+
+  DeviceImplPtr Dev =
+      (MustBuildOnSubdevice == PI_TRUE) ? DeviceImpl : RootDevImpl;
+  auto BuildF = [this, &M, &KSId, &ContextImpl, &Dev, Prg, &CompileOpts,
                  &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     auto Context = createSyclObjFromImpl<context>(ContextImpl);
-    auto Device = createSyclObjFromImpl<device>(DeviceImpl);
+    auto Device = createSyclObjFromImpl<device>(Dev);
 
     const RTDeviceBinaryImage &Img =
         getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
@@ -536,7 +555,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     return BuiltProgram.release();
   };
 
-  const RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
+  const RT::PiDevice PiDevice = Dev->getHandleRef();
 
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
