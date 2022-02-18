@@ -91,7 +91,7 @@ TEST_F(BufferTest, BufferLocationOnly) {
         cgh.single_task<TestKernel>([=]() { Acc[0] = 4; });
       })
       .wait();
-  EXPECT_EQ(PassedLocation, 2);
+  EXPECT_EQ(PassedLocation, (uint64_t)2);
 }
 
 // Test that buffer_location was passed correcty if there is one more accessor
@@ -124,7 +124,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
         cgh.single_task<TestKernel>([=]() { Acc[0] = 4; });
       })
       .wait();
-  EXPECT_EQ(PassedLocation, 5);
+  EXPECT_EQ(PassedLocation, (uint64_t)5);
 
   // Check that if new accessor created, buffer_location is changed
   Queue
@@ -146,7 +146,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
   EXPECT_EQ(
       BufImpl->get_property<sycl::property::buffer::detail::buffer_location>()
           .get_buffer_location(),
-      3);
+      (uint64_t)3);
 
   // Check that if new accessor created, buffer_location is deleted from buffer
   Queue
