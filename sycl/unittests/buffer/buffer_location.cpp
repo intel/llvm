@@ -48,6 +48,9 @@ public:
 protected:
   void SetUp() override {
     if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
+      std::cout << "This test is only supported on OpenCL backend\n";
+      std::cout << "Current platform is "
+                << Plt.get_info<sycl::info::platform::name>();
       return;
     }
 
@@ -65,6 +68,10 @@ protected:
 
 // Test that buffer_location was passed correctly
 TEST_F(BufferTest, BufferLocationOnly) {
+  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
+    return;
+  }
+
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::default_selector{}};
 
@@ -90,6 +97,10 @@ TEST_F(BufferTest, BufferLocationOnly) {
 // Test that buffer_location was passed correcty if there is one more accessor
 // property and buffer_location is correctly chaned by creating new accessors
 TEST_F(BufferTest, BufferLocationWithAnotherProp) {
+  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
+    return;
+  }
+
   const uint64_t BUFFER_LOCATION = 5;
   const uint64_t BUFFER_LOCATION2 = 3;
 
@@ -159,6 +170,10 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
 
 // Test that there is no buffer_location property
 TEST_F(BufferTest, WOBufferLocation) {
+  if (Plt.is_host() || Plt.get_backend() != sycl::backend::opencl) {
+    return;
+  }
+
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::default_selector{}};
 
