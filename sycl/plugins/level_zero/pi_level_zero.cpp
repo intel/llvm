@@ -4313,21 +4313,20 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   // are supposed to be fully linked and ready to use.  Therefore, do an extra
   // check now for unresolved symbols.
   ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+  // We no longer need the IL / native code.
+  Program->Code.reset();
+  Program->ZeModule = ZeModule;
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // Note that the ZeModule is still allocated and will be released when
     // the user catch the exception that RT throws.
     // Otherwise, the user program crashes and memory leak is not a concern.
+    Program->State = _pi_program::Invalid;
     if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
       return PI_BUILD_PROGRAM_FAILURE;
     return mapError(ZeResult);
   }
 
-  // We no longer need the IL / native code.
-  Program->Code.reset();
-
-  Program->ZeModule = ZeModule;
   Program->State = _pi_program::Exe;
-
   return PI_SUCCESS;
 }
 
