@@ -25,7 +25,13 @@ namespace NS {
 
 void foo() {
   q.submit([&](handler &h) {
-    h.single_task<class kernel_name_1>([=]() {(void)A; (void)B; (void)Foo::C; (void)same_name; (void)NS::same_name; });
+    h.single_task<class kernel_name_1>([=]() {
+      (void)A;
+      (void)B;
+      (void)Foo::C;
+      (void)same_name;
+      (void)NS::same_name;
+      });
   });
 }
 

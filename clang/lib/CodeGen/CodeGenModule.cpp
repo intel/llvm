@@ -4935,7 +4935,7 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
 
   if (getLangOpts().SYCLIsDevice) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
-    if (RD && RD->hasAttr<SYCLDetailDeviceGlobalAttr>())
+    if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>())
       addSYCLUniqueID(GV, D);
   }
 

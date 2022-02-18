@@ -1432,20 +1432,22 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
-def SYCLDetailDeviceGlobal: InheritableAttr {
+def SYCLDeviceGlobal: InheritableAttr {
   let Spellings = [GNU<"device_global">,
                    CXX11<"__sycl_detail__", "device_global">];
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLDetailDeviceGlobalAttrDocs];
+  let Documentation = [SYCLDeviceGlobalAttrDocs];
+  let SimpleHandler = 1;
 }
 
-def SYCLDetailGlobalVariableAllowed : InheritableAttr {
+def SYCLGlobalVariableAllowed : InheritableAttr {
   let Spellings = [GNU<"global_variable_allowed">,
                    CXX11<"__sycl_detail__", "global_variable_allowed">];
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLDetailGlobalVariableAllowedAttrDocs];
+  let Documentation = [SYCLGlobalVariableAllowedAttrDocs];
+  let SimpleHandler = 1;
 }
 
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {

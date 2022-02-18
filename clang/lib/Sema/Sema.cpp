@@ -1628,9 +1628,9 @@ bool Sema::isSyclGlobalVariableAllowedType(QualType Ty) {
   if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
     ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
     if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-      return RD->hasAttr<SYCLDetailGlobalVariableAllowedAttr>();
+      return RD->hasAttr<SYCLGlobalVariableAllowedAttr>();
   }
-  return RecTy->hasAttr<SYCLDetailGlobalVariableAllowedAttr>();
+  return RecTy->hasAttr<SYCLGlobalVariableAllowedAttr>();
 }
 
 namespace {

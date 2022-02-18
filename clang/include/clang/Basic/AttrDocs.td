@@ -3083,7 +3083,7 @@ function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
-def SYCLDetailDeviceGlobalAttrDocs : Documentation {
+def SYCLDeviceGlobalAttrDocs : Documentation {
   let Category = DocCatType;
   let Heading = "__sycl_detail__::device_global";
   let Content = [{
@@ -3102,7 +3102,7 @@ use, so we have this attribute in sycl_detail namespace.
   }];
 }
 
-def SYCLDetailGlobalVariableAllowedAttrDocs : Documentation {
+def SYCLGlobalVariableAllowedAttrDocs : Documentation {
   let Category = DocCatType;
   let Heading = "__sycl_detail__::global_variable_allowed";
   let Content = [{
