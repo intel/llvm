@@ -4296,6 +4296,9 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
   ze_module_handle_t ZeModule = nullptr;
+
+  pi_result Result = PI_SUCCESS;
+  Program->State = _pi_program::Exe;
   ze_result_t ZeResult =
       ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
                                        &ZeModule, &Program->ZeBuildLog));
@@ -4303,7 +4306,6 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
     // We adjust pi_program below to avoid attempting to release zeModule when
     // RT calls piProgramRelease().
     Program->ZeModule = nullptr;
-    Program->Code.reset();
     Program->State = _pi_program::Invalid;
     return mapError(ZeResult);
   }
@@ -4313,20 +4315,17 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   // are supposed to be fully linked and ready to use.  Therefore, do an extra
   // check now for unresolved symbols.
   ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    Program->State = _pi_program::Invalid;
+    Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
+                 ? PI_BUILD_PROGRAM_FAILURE
+                 : mapError(ZeResult);
+  }
+
   // We no longer need the IL / native code.
   Program->Code.reset();
   Program->ZeModule = ZeModule;
-  if (ZeResult != ZE_RESULT_SUCCESS) {
-    // Note that the ZeModule is still allocated and will be released when
-    // the user catch the exception that RT throws.
-    // Otherwise, the user program terminates and memory leak is not a concern.
-    if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
-      return PI_BUILD_PROGRAM_FAILURE;
-    return mapError(ZeResult);
-  }
-
-  Program->State = _pi_program::Exe;
-  return PI_SUCCESS;
+  return Result;
 }
 
 pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
