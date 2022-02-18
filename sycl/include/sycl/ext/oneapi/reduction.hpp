@@ -426,8 +426,9 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -438,8 +439,9 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -450,8 +452,9 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// SYCL-2020.
@@ -467,8 +470,9 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -491,8 +495,9 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -515,8 +520,9 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -542,8 +548,9 @@ public:
         MBinaryOp(BOp), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -554,8 +561,9 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -566,8 +574,9 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::invalid_object_error("Reduction variable must be a scalar.",
-                                       PI_INVALID_VALUE);
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
