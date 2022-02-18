@@ -256,9 +256,9 @@ joint_matrix_bmad(
 }
 ```
 
-Bitwise Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (M by K) with a column of matrix B (K by N).  Instead, a sequence of logical operations are performed: The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B, to produce a 128 bit intermediate output.
-The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the accumulator matrix C. Currently only the shape M = 8, N = 8, K = 128 is supported.
-The most important difference with respect to the joint_matrix_mad interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
+Bitwise Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (M by K) with a column of matrix B (K by N), where the programmer can construct e.g. a standard C++ (M by K) array of specified type T to represent matrix A.  Instead, a sequence of logical operations are performed: The AND or XOR logical operations operate on the ith bit of a (K * 32) bit row of matrix A with the ith bit of a (K * 32) bit column of matrix B, to produce a 128 bit intermediate output.
+The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the accumulator matrix C. Currently only the shape M = 8, N = 8, K = 4 (K = 4 corresponds to 128 single-bit matrix elements) is supported.
+An important difference with respect to the joint_matrix_mad interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
 
 `sycl::bit_and<uint32_t>()`
 
@@ -279,9 +279,9 @@ Single-bit MADs can be used as part of Binarized Neural Networks (BNNs) in the c
 Hubara et al. (I. Hubara, M. Courbariaux, D. Soudry, R. El-Yaniv, and Y. Bengio. Binarized Neural Networks, Advances in Neural Information Processing Systems 29 (NIPS 2016)) first demonstrated the utility of an algorithm that could use both binarized activations and weights with backpropagation, by keeping track of real valued weights which are mapped to the binarized weights. In the backwards pass the real valued weights are updated according to a heuristic named the "Straight Through Estimator", whereby the gradient of the loss function with respect to the real weights is set equal to the gradient of the loss function with respect to the binarized weights.
 This implies that the precision of the data type used in the matrix multiplications can be single bit, with the necessary addition of forward and backward element wise mappings between binarized and real valued representations of the matrices.
 This could prove a significant advantage for large models, since the computational cost of Matrix Multiplication scales with the number of elements per dimension, N, as O(N^3) for square matrices, whereas corresponding element wise operations scale as O(N^2).
-Further algorithms based on this binarized approach have been proposed, e.g. see Rastegari et al. (M. Rastegari, V Ordonez, J. Redmon, and A. Farhadi. Computer Vision – ECCV 2016, 525-542) who have made a comparison between a binarized version of a CNN and corresponding full precision models, for both the accuracy and performance of image classification using the ImageNet data set.
+Further algorithms based on this binarized approach have been proposed, e.g. see Rastegari et al. (M. Rastegari, V Ordonez, J. Redmon, and A. Farhadi. Computer Vision – ECCV 2016, 525-542) who have made a comparison between a binarized version of a CNN (Using a XNOR Binary Dot Product) and corresponding full precision models, for both the accuracy and performance of image classification using the ImageNet data set.
 
-For a discussion of how bitwise MADs can be efficiently leveraged on current Nvidia® hardware see (A. Li, and S. Su. IEEE Transactions on Parallel and Distributed Systems, 32(7):1878-1891, 2021).
+For an example of how bitwise MADs can be leveraged on current Nvidia® hardware see (A. Li, and S. Su. IEEE Transactions on Parallel and Distributed Systems, 32(7):1878-1891, 2021).
 
 #### Example using bitwise operations with `joint_matrix_bmad`
 
@@ -297,18 +297,18 @@ queue q;
     range<2> LocalRange = {1, N_THREADS_PER_MATRIX_OP};
     range<2> GlobalRange = {Sub_Tiles_M, Sub_Tiles_N * N_THREADS_PER_MATRIX_OP};
     cgh.parallel_for<KernelName<M, K, N, BinaryOperation>>(
-        nd_range<2>(GlobalRange, LocalRange), [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+        nd_range<2>(GlobalRange, LocalRange), [=](nd_item<2> item) {
           sycl::sub_group sg = item.get_sub_group();
           const auto m = item.get_group().get_id()[0]; // row id of current submatrix of BIG C matrix
           const auto n = item.get_group().get_id()[1]; // column id of current submatrix of BIG C matrix
-          joint_matrix<uint32_t, matrix_use::a, 8, 128, matrix_layout::row_major> sub_a;
-          joint_matrix<uint32_t, matrix_use::b, 128, 8, matrix_layout::col_major> sub_b;
+          joint_matrix<uint32_t, matrix_use::a, 8, 4, matrix_layout::row_major> sub_a;
+          joint_matrix<uint32_t, matrix_use::b, 4, 8, matrix_layout::col_major> sub_b;
           joint_matrix<int32_t, matrix_use::accumulator, 8, 8, matrix_layout::row_major> sub_c;
           joint_matrix_load(sg, sub_c, accC.get_pointer() + (m * M) * Big_N + n * N, Big_N);
           for (int k = 0; k < Sub_Tiles_K; k++) // row/col id of current submatrix of BIG A/B matrices
           {
-            joint_matrix_load(sg, sub_a, accA.get_pointer() + (k * K / 32) + (m * M * Big_K / 32), Big_K);
-            joint_matrix_load(sg, sub_b, accB.get_pointer() + (n * N * Big_K / 32) + (k * K / 32), Big_K);
+            joint_matrix_load(sg, sub_a, accA.get_pointer() + (k * K) + (m * M * Big_K), Big_K);
+            joint_matrix_load(sg, sub_b, accB.get_pointer() + (n * N * Big_K) + (k * K), Big_K);
             sub_c = joint_matrix_bmad(sg, sub_a, sub_b, sub_c, Op);
           }
           joint_matrix_store(sg, sub_c, accD.get_pointer() + (m * M) * Big_N + n * N, Big_N);
