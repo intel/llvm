@@ -2028,7 +2028,7 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_INVALID_VALUE;
 }
 
-// Get the cahched PI device created for the L0 device handle.
+// Get the cached PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
 pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
@@ -2188,6 +2188,11 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         // Create PI sub-sub-devices with the sub-device for all the ordinals.
         // Each {ordinal, index} points to a specific CCS which constructs
         // a sub-sub-device at this point.
+        // FIXME: Level Zero creates multiple PiDevices for a single physical
+        // device when sub-device is partitioned into sub-sub-devices.
+        // Sub-sub-device is technically a command queue and we should not build
+        // program for each command queue. PiDevice is probably not the right
+        // abstraction for a Level Zero command queue.
         for (uint32_t J = 0; J < Ordinals.size(); ++J) {
           for (uint32_t K = 0; K < QueueGroupProperties[Ordinals[J]].numQueues;
                ++K) {
