@@ -1273,6 +1273,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   if (UseCopyEngine)
     zePrint("Command list to be executed on copy engine %d\n", Index);
 
+  this->IsPrevCopyEngine = UseCopyEngine;
+
   // If the current LastCommandEvent is the nullptr, then it means
   // either that no command has ever been issued to the queue
   // or it means that the LastCommandEvent has been signalled and
@@ -1286,7 +1288,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // ansyway, and many regression tests use it.
   //
   // To have the batching for cases where no events are created, we check
-  // NumEventlessCommands
+  // NumEventlessCmdsInLastCmdList
   bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr &&
                         this->NumEventlessCmdsInLastCmdList == 0;
 
@@ -1320,14 +1322,6 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
     if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
       CommandBatch.OpenCommandList = CommandList;
-
-      if (this->EventlessMode) {
-        LastEventInPrevCmdList = nullptr;
-        // Add barrier into command-list to ensure in-order semantics inside one
-        // command-list
-        ZE_CALL(zeCommandListAppendBarrier,
-                (CommandList->first, nullptr, 0, nullptr));
-      }
       return PI_SUCCESS;
     }
 
@@ -1613,6 +1607,41 @@ pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
     return Res;
   }
 
+  return PI_SUCCESS;
+}
+
+pi_result _pi_queue::AddBarrierInPreviousCmdListIfNeeded(bool UseCopyEngine) {
+  auto &PrevCommandBatch =
+      IsPrevCopyEngine ? CopyCommandBatch : ComputeCommandBatch;
+  if (PrevCommandBatch.OpenCommandList != CommandListMap.end()) {
+    if (IsPrevCopyEngine != UseCopyEngine) {
+      pi_result Res = createEventAndAssociateQueue(
+          this, &LastEventInPrevCmdList, PI_COMMAND_TYPE_USER, LastCommandList,
+          false);
+      if (Res != PI_SUCCESS)
+        return Res;
+      // Since we have added a new event to the list, it will affect the
+      // batching, but this is a special event and we do not want it to affect
+      // batching, to have the batching for this command-list work correctly we
+      // do a decrement here.
+      --LastCommandList->second.NumEventlessCommands;
+      this->LastCommandEvent = LastEventInPrevCmdList;
+      // Add barrier with the event into command-list to ensure in-order
+      // semantics between command-lists
+      auto &ZeEvent = LastEventInPrevCmdList->ZeEvent;
+      ZE_CALL(zeCommandListAppendBarrier,
+              (LastCommandList->first, ZeEvent, 0, nullptr));
+
+      zePrint("calling zeCommandListAppendBarrier() with Event %#lx\n",
+              pi_cast<std::uintptr_t>(ZeEvent));
+    } else {
+      LastEventInPrevCmdList = nullptr;
+      // Add barrier into command-list to ensure in-order semantics inside one
+      // command-list
+      ZE_CALL(zeCommandListAppendBarrier,
+              (LastCommandList->first, nullptr, 0, nullptr));
+    }
+  }
   return PI_SUCCESS;
 }
 
@@ -4926,9 +4955,12 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> QueueLock(Queue->PiQueueMutex);
 
-  if (!Event && !Queue->EventlessMode) {
-    Queue->EventlessMode = true;
-    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  bool UseCopyEngine = false;
+
+  Queue->EventlessMode |= !Event;
+  if (Queue->EventlessMode) {
+    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
   }
 
   _pi_ze_event_list_t TmpWaitList;
@@ -4939,9 +4971,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /* UseCopyEngine */,
-          true /* AllowBatching */))
+          Queue, CommandList, UseCopyEngine, true /* AllowBatching */))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
@@ -5703,9 +5735,12 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    if (!Event && !Queue->EventlessMode) {
-      Queue->EventlessMode = true;
-      Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+    bool UseCopyEngine = false;
+
+    Queue->EventlessMode |= !Event;
+    if (Queue->EventlessMode) {
+      if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+        return Res;
     }
 
     _pi_ze_event_list_t TmpWaitList = {};
@@ -5715,8 +5750,10 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     // Get a new command list to be used on this call
     pi_command_list_ptr_t CommandList{};
-    if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
+    if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                           UseCopyEngine))
       return Res;
+    Queue->LastCommandList = CommandList;
 
     ze_event_handle_t ZeEvent = nullptr;
     if (Event) {
@@ -5804,9 +5841,12 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  if (!Event && !Queue->EventlessMode) {
-    Queue->EventlessMode = true;
-    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  bool UseCopyEngine = false;
+
+  Queue->EventlessMode |= !Event;
+  if (Queue->EventlessMode) {
+    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
   }
 
   _pi_ze_event_list_t TmpWaitList;
@@ -5818,8 +5858,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   bool OkToBatch = true;
   pi_command_list_ptr_t CommandList{};
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /*copy*/, OkToBatch))
+          Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
@@ -5885,7 +5926,7 @@ pi_result piEnqueueMemBufferReadRect(
 
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
   return (!isInOrderQueue() || UseCopyEngineForInOrderQueue) &&
-         !EventlessMode && PreferCopyEngine && Device->hasCopyEngine();
+         PreferCopyEngine && Device->hasCopyEngine();
 }
 
 // Shared by all memory read/write/copy PI interfaces.
@@ -5901,9 +5942,12 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  if (!Event && !Queue->EventlessMode) {
-    Queue->EventlessMode = true;
-    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+
+  Queue->EventlessMode |= !Event;
+  if (Queue->EventlessMode) {
+    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
   }
 
   _pi_ze_event_list_t TmpWaitList;
@@ -5913,14 +5957,12 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
-
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
-
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
@@ -5977,6 +6019,13 @@ static pi_result enqueueMemCopyRectHelper(
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+
+  if (Queue->EventlessMode) {
+    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
+  }
+
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
                                                           EventWaitList, Queue))
@@ -5984,12 +6033,12 @@ static pi_result enqueueMemCopyRectHelper(
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   auto Res =
@@ -6156,17 +6205,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  if (!Event && !Queue->EventlessMode) {
-    Queue->EventlessMode = true;
-    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
-  }
-
-  _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
-    return Res;
-
   bool PreferCopyEngine = true;
+
   size_t MaxPatternSize =
       Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
 
@@ -6191,13 +6231,26 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             PI_INVALID_VALUE);
 
-  pi_command_list_ptr_t CommandList{};
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+
+  Queue->EventlessMode |= !Event;
+  if (Queue->EventlessMode) {
+    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
+  }
+
+  _pi_ze_event_list_t TmpWaitList;
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
+                                                          EventWaitList, Queue))
+    return Res;
+
+  pi_command_list_ptr_t CommandList{};
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   if (Event) {
@@ -6277,10 +6330,15 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
   ze_event_handle_t ZeEvent = nullptr;
-
+  bool UseCopyEngine = false;
   {
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+    if (Queue->EventlessMode) {
+      if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+        return Res;
+    }
 
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -6319,8 +6377,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       {
         // Lock automatically releases when this goes out of scope.
         std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-        TmpLastCommandEvent = Queue->LastCommandEvent;
-        if (Queue->NumEventlessCmdsInLastCmdList != 0) {
+        if (Queue->EventlessMode) {
           PI_CALL(QueueFinish(Queue, Queue));
         } else {
           TmpLastCommandEvent = Queue->LastCommandEvent;
@@ -6352,8 +6409,10 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
 
   // For discrete devices we need a command list
   pi_command_list_ptr_t CommandList{};
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                         UseCopyEngine))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   // Set the commandlist in the event
   if (Event) {
@@ -6398,9 +6457,15 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
   ze_event_handle_t ZeEvent = nullptr;
+  bool UseCopyEngine = false;
   {
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+
+    if (Queue->EventlessMode) {
+      if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+        return Res;
+    }
 
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
@@ -6441,8 +6506,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
       {
         // Lock automatically releases when this goes out of scope.
         std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-        TmpLastCommandEvent = Queue->LastCommandEvent;
-        if (Queue->NumEventlessCmdsInLastCmdList != 0) {
+        if (Queue->EventlessMode) {
           PI_CALL(QueueFinish(Queue, Queue));
         } else {
           TmpLastCommandEvent = Queue->LastCommandEvent;
@@ -6468,8 +6532,10 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
   pi_command_list_ptr_t CommandList{};
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                         UseCopyEngine))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   // Set the commandlist in the event
   (*Event)->ZeCommandList = CommandList->first;
@@ -6575,6 +6641,13 @@ static pi_result enqueueMemImageCommandHelper(
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+
+  if (Queue->EventlessMode) {
+    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
+  }
+
   _pi_ze_event_list_t TmpWaitList;
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
                                                           EventWaitList, Queue))
@@ -6582,12 +6655,12 @@ static pi_result enqueueMemImageCommandHelper(
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   ze_event_handle_t ZeEvent = nullptr;
   auto Res =
@@ -7499,9 +7572,12 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  if (!Event && !Queue->EventlessMode) {
-    Queue->EventlessMode = true;
-    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  bool UseCopyEngine = false;
+
+  Queue->EventlessMode |= !Event;
+  if (Queue->EventlessMode) {
+    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
   }
 
   /**
@@ -7518,9 +7594,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   pi_command_list_ptr_t CommandList{};
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
   // support is added
-  if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /* UseCopyEngine */))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                         UseCopyEngine))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
@@ -7576,9 +7653,12 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-  if (!Event && !Queue->EventlessMode) {
-    Queue->EventlessMode = true;
-    Queue->LastEventInPrevCmdList = Queue->LastCommandEvent;
+  bool UseCopyEngine = false;
+
+  Queue->EventlessMode |= !Event;
+  if (Queue->EventlessMode) {
+    if (auto Res = Queue->AddBarrierInPreviousCmdListIfNeeded(UseCopyEngine))
+      return Res;
   }
 
   auto ZeAdvice = pi_cast<ze_memory_advice_t>(Advice);
@@ -7592,9 +7672,10 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // UseCopyEngine is set to 'false' here.
   // TODO: Additional analysis is required to check if this operation will
   // run faster on copy engines.
-  if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /* UseCopyEngine */))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                         UseCopyEngine))
     return Res;
+  Queue->LastCommandList = CommandList;
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;

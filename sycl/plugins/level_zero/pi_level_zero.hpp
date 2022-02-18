@@ -415,7 +415,7 @@ struct pi_command_list_info_t {
 
   // Keeps a number of commands submitted into this command-list that don't have
   // events.
-  size_t NumEventlessCommands{0};
+  int NumEventlessCommands{0};
 
   // Since an application can combine commands with events and eventless
   // commands, we have to save dependency allocations inside such command-lists
@@ -426,10 +426,9 @@ struct pi_command_list_info_t {
   std::list<pi_uint32> Lengths{};
 
   // Since event is not necessarily created for tracking during
-  // piEnqueueKernelLaunch, it is optional. But we have to do piKernelRetain on
-  // enqueued kernel and currently save the kernel in the list, so to have the
-  // ability to do a piKernelRelease on this kernel in resetCommandList. we need
-  // to save the kernel in this variable for cases when event is not created.
+  // piEnqueueKernelLaunch. We need to save the kernel in this variable for
+  // cases when event is not created to have the ability to do a piKernelRelease
+  // on the kernel in resetCommandList.
   std::list<pi_kernel> EventlessKernelsInUse;
 
   // Keeps events created by commands submitted into this command-list.
@@ -725,13 +724,21 @@ struct _pi_queue : _pi_object {
   // copy queues.
   bool EventlessMode = false;
 
+  // Indicates if the previous command was submitted into the copy engine. it is
+  // used in eventless mode to identify that we changed compute queue to copy
+  // queue or vice versa. if the change happened then we create an event to
+  // maintain the order between the two queues.
+  bool IsPrevCopyEngine = false;
+
   // It helps to skip creating the event and the last barrier for the
   // command-list in eventless mode if we do QueueFinish or piQueueRelease
   bool SkipLastEventInEventlessMode = false;
 
   // Keeps a number of commands submitted into last command-list that don't have
-  // events.
-  size_t NumEventlessCmdsInLastCmdList{0};
+  // events. It can be negative which means that we are in eventless mode and
+  // the last command has changed copy engine to compute or vice versa and this
+  // command produces event.
+  int NumEventlessCmdsInLastCmdList{0};
 
   // Keeps last special event created for internal purpose to ensure in-order
   // semantics between command-lists. The plugin is a holder of this event and
@@ -740,6 +747,9 @@ struct _pi_queue : _pi_object {
   // compare against LastCommandEvent to ensure that event-dependency will only
   // be added between command-lists.
   pi_event LastEventInPrevCmdList = nullptr;
+
+  // Keeps command-list of the previous command to use in EventlessMode.
+  pi_command_list_ptr_t LastCommandList{};
 
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;
@@ -841,6 +851,10 @@ struct _pi_queue : _pi_object {
       return Res;
     return PI_SUCCESS;
   }
+
+  // In eventless mode, to support in-order semantics, it adds a barrier or
+  // barrier with an event to the previous command-list if the list is open.
+  pi_result AddBarrierInPreviousCmdListIfNeeded(bool IsCopy);
 
   // Besides each PI object keeping a total reference count in
   // _pi_object::RefCount we keep special track of the queue *external*
