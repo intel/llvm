@@ -403,7 +403,7 @@ has the `implement_in_csr` property).  See the
 [SPV\_INTEL\_global\_variable\_decorations][6] SPIR-V extension for details
 about all of these decorations.
 
-[6]: <../extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc>
+[6]: <spirv-extensions/SPV_INTEL_global_variable_decorations.asciidoc>
 
 The `sycl-post-link` tool also create a "SYCL/device globals" property set for
 each device code module that contains at least one device global variable.
@@ -614,7 +614,7 @@ The OpenCL backend has a proposed extension
 which can be easily used to implement these PI interfaces.  This DPC++ design
 depends upon implementation of that OpenCL extension.
 
-[10]: <../extensions/DeviceGlobal/cl_intel_global_variable_access.asciidoc>
+[10]: <opencl-extensions/cl_intel_global_variable_access.asciidoc>
 
 The CUDA backend has existing APIs `cudaMemcpyToSymbol()` and
 `cudaMemcpyFromSymbol()` which can be used to implement these PI interfaces.
