@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_DEVICE_IF
+= sycl_ext_oneapi_device_if
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 

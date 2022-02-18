@@ -4,7 +4,7 @@ OneAPI provides the "Explicit SIMD" SYCL extension (or simply "ESIMD") for
 lower-level Intel GPU programming. It provides APIs closely matching Intel GPU ISA
 yet allows to write explicitly vectorized device code. This helps programmer to
 have more control over the generated code and depend less on compiler
-optimizations. The [specification](SYCL_EXT_INTEL_ESIMD.md),
+optimizations. The [specification](sycl_ext_intel_esimd.md),
 [API reference](https://intel.github.io/llvm-docs/doxygen/group__sycl__esimd.html), and
 [working code examples](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) are available on the Intel DPC++ project's github.
 

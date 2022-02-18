@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_ASSERT
+= sycl_ext_oneapi_assert
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table

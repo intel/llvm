@@ -1,2 +1,2 @@
 This extension has been deprecated, but the specification is still available
-link:../deprecated/SYCL_EXT_ONEAPI_GROUP_ALGORITHMS.asciidoc[here].
+link:../deprecated/sycl_ext_oneapi_sub_group.asciidoc[here].

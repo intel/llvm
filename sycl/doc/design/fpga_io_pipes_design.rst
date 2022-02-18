@@ -22,7 +22,7 @@ Requirements
 
 Links
 -----
-.. _Spec: ../extensions/supported/SYCL_EXT_INTEL_DATAFLOW_PIPES.asciidoc
+.. _Spec: ../extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc
 .. _Interesting comment from Ronan: https://github.com/intel/llvm/pull/635#discussion_r325851766
 
 Summary

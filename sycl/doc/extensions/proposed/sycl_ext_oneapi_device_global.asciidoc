@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_DEVICE_GLOBAL
+= sycl_ext_oneapi_device_global
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table

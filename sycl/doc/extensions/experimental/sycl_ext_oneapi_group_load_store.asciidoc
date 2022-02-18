@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_GROUP_LOAD_STORE
+= sycl_ext_oneapi_group_load_store
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 

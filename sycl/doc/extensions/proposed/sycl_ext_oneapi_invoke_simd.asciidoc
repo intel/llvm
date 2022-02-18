@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_INVOKE_SIMD
+= sycl_ext_oneapi_invoke_simd
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -53,7 +53,7 @@ Jason Sewall, Intel (jason 'dot' sewall 'at' intel 'dot' com) +
 This extension is written against the SYCL 2020 specification, Revision 4 and the following extensions:
 
 - SPV_INTEL_function_pointers
-- SYCL_EXT_ONEAPI_UNIFORM
+- sycl_ext_oneapi_uniform
 
 == Feature Test Macro
 
@@ -183,7 +183,7 @@ is an error, and an implementation must issue a diagnostic.
 
 To enable overloading in cases where the `Callable` accepts either a scalar
 type or a SIMD type, we leverage the `sycl::ext::oneapi::experimental::uniform` wrapper
-type from the `SYCL_EXT_ONEAPI_UNIFORM` extension.
+type from the `sycl_ext_oneapi_uniform` extension.
 
 Each argument in the `args` parameter pack must be an arithmetic type, a
 trivially copyable type wrapped in a `sycl::ext::oneapi::experimental::uniform`, or a

@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_ENQUEUE_BARRIER
+= sycl_ext_oneapi_enqueue_barrier
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 

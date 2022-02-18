@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_KERNEL_PROPERTIES
+= sycl_ext_oneapi_kernel_properties
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -58,7 +58,7 @@ Roland Schulz, Intel
 This extension is written against the SYCL 2020 specification, Revision 4 and
 the following extensions:
 
-- link:SYCL_EXT_ONEAPI_PROPERTIES.asciidoc[SYCL_EXT_ONEAPI_PROPERTIES]
+- link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 
 == Feature Test Macro
 
