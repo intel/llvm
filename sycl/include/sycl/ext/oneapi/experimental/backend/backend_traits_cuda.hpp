@@ -98,7 +98,7 @@ struct BackendInput<backend::ext_oneapi_cuda,
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendReturn<backend::ext_oneapi_cuda,
                      buffer<DataT, Dimensions, AllocatorT>> {
-  using type = CUdeviceptr;
+  using type = void *;
 };
 
 template <> struct BackendInput<backend::ext_oneapi_cuda, context> {
