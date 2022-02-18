@@ -16,6 +16,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
@@ -252,7 +253,8 @@ std::string constructAspectUsageChain(const Function *F,
     assert(AspectIt != AspectsSet.end() &&
            "AspectIt is supposed to be determined");
     const DebugLoc *DL = (*AspectIt).DL;
-    CallChain += formatv("  {0}()", F->getName());
+    CallChain += "  ";
+    CallChain += demangle(F->getName().str());
     if (DL && *DL) {
       DIScope *DS = cast<DIScope>(DL->getScope());
       CallChain += formatv(" {0}:{1}:{2}",
@@ -266,6 +268,83 @@ std::string constructAspectUsageChain(const Function *F,
   }
 
   return CallChain;
+}
+
+std::string getAspectStrRepresentation(int Aspect) {
+  switch (Aspect) {
+  case 0:
+    return "host";
+  case 1:
+    return "cpu";
+  case 2:
+    return "gpu";
+  case 3:
+    return "accelerator";
+  case 4:
+    return "custom";
+  case 5:
+    return "fp16";
+  case 6:
+    return "fp64";
+  case 7:
+    return "int64_base_atomics";
+  case 8:
+    return "int64_extended_atomics";
+  case 9:
+    return "image";
+  case 10:
+    return "online_compiler";
+  case 11:
+    return "online_linker";
+  case 12:
+    return "queue_profiling";
+  case 13:
+    return "usm_device_allocations";
+  case 14:
+    return "usm_host_allocations";
+  case 15:
+    return "usm_shared_allocations";
+  case 16:
+    return "usm_restricted_shared_allocations";
+  case 17:
+    return "usm_system_allocations";
+  case 18:
+    return "ext_intel_pci_address";
+  case 19:
+    return "ext_intel_gpu_eu_count";
+  case 20:
+    return "ext_intel_gpu_eu_simd_width";
+  case 21:
+    return "ext_intel_gpu_slices";
+  case 22:
+    return "ext_intel_gpu_subslices_per_slice";
+  case 23:
+    return "ext_intel_gpu_eu_count_per_subslice";
+  case 24:
+    return "ext_intel_max_mem_bandwidth";
+  case 25:
+    return "ext_intel_mem_channel";
+  case 26:
+    return "usm_atomic_host_allocations";
+  case 27:
+    return "usm_atomic_shared_allocations";
+  case 28:
+    return "atomic64";
+  case 29:
+    return "ext_intel_device_info_uuid";
+  case 30:
+    return "ext_oneapi_srgb";
+  case 31:
+    return "ext_oneapi_native_assert";
+  case 32:
+    return "host_debuggable";
+  case 33:
+    return "ext_intel_gpu_hw_threads_per_eu";
+  default:
+    return std::to_string(Aspect);
+  }
+
+  llvm_unreachable("Aspect value isn't recognized");
 }
 
 /// Checks that all declared function's aspects correspond to the
@@ -297,8 +376,8 @@ void checkDeclaredAspectsForFunction(Function *F,
   LLVMContext &C = F->getContext();
   for (int Aspect : MissedAspects) {
     auto CallChain = constructAspectUsageChain(F, Map, Aspect);
-    // TODO: demangle function name and aspect's IDs?
-    C.diagnose(DiagnosticInfoSYCLWarning(F->getName(), std::to_string(Aspect),
+    C.diagnose(DiagnosticInfoSYCLWarning(F->getName(),
+                                         getAspectStrRepresentation(Aspect),
                                          CallChain, isFullDebug));
   }
 }
