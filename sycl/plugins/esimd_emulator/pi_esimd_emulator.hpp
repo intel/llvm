@@ -27,6 +27,8 @@ namespace cm_support {
 #include <cm_rt.h>
 } // namespace cm_support
 
+#define ESIMD_EMULATOR_MAX_SURFACE 65536
+
 template <class To, class From> To pi_cast(From Value) {
   // TODO: see if more sanity checks are possible.
   assert(sizeof(From) == sizeof(To));
@@ -80,16 +82,33 @@ struct _pi_device : _pi_object {
 };
 
 struct _pi_context : _pi_object {
-  _pi_context(pi_device ArgDevice) : Device{ArgDevice} {}
+  _pi_context(pi_device ArgDevice)
+      : Device{ArgDevice}, HostSurfaceIndex{ESIMD_EMULATOR_MAX_SURFACE} {}
 
-  /// One-to-one mapping between Context and Device
+  // One-to-one mapping between Context and Device
   pi_device Device;
 
-  /// Map SVM memory starting address to corresponding
-  /// CmBufferSVM object. CmBufferSVM object is needed to release memory.
+  // Map SVM memory starting address to corresponding
+  // CmBufferSVM object. CmBufferSVM object is needed to release memory.
   std::unordered_map<void *, cm_support::CmBufferSVM *> Addr2CmBufferSVM;
   // Thread-safe mapping management of Addr2CmBufferSVM
   std::mutex CmSVMMapMutex;
+
+  // HOST_SURFACE_INDEX generator
+  int generateHostSurfaceIndex() {
+    // CM generates Surface Index from 0, incrementing
+    // ESIMD_EMULATOR PI generates Surface Index from
+    // ESIMD_EMULATOR_MAX_SURFACE, decrementing
+    std::lock_guard<std::mutex> Lock(SurfaceIdxGeneratorLock);
+    int NewIndex = HostSurfaceIndex--;
+    return NewIndex;
+  }
+
+  int getLastHostSurfaceIndex() { return HostSurfaceIndex + 1; }
+
+private:
+  std::mutex SurfaceIdxGeneratorLock;
+  int HostSurfaceIndex;
 };
 
 struct _pi_queue : _pi_object {
@@ -102,7 +121,6 @@ struct _pi_queue : _pi_object {
 };
 
 struct _pi_mem : _pi_object {
-  static const int HOST_SURFACE_INDEX = (-1);
   _pi_mem() = default;
 
   pi_context Context;
@@ -113,7 +131,7 @@ struct _pi_mem : _pi_object {
   // Mutex for load/store accessing
   std::mutex mutexLock;
 
-  // Surface index used by CM
+  // Surface index
   int SurfaceIndex;
 
   // Supplementary data to keep track of the mappings of this memory
@@ -129,6 +147,9 @@ struct _pi_mem : _pi_object {
 
   pi_result addMapping(void *MappedTo, size_t SizeArg, size_t OffsetArg);
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
+  bool isCmSurface() {
+    return SurfaceIndex < Context->getLastHostSurfaceIndex();
+  }
 
 protected:
   _pi_mem(pi_context ctxt, char *HostPtr, _pi_mem_type MemTypeArg,
