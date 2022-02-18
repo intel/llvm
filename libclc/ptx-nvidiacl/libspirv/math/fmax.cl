@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clcmacro.h>
+#include <spirv/spirv.h>
 
 extern int __clc_nvvm_reflect_arch();
 

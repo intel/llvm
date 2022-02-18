@@ -16,6 +16,8 @@
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
 #include <math/unary_builtin.inc>
 
+extern int __clc_nvvm_reflect_arch();
+
 _CLC_DEF _CLC_OVERLOAD ushort __spirv_ocl_exp2(ushort x) {
   if (__clc_nvvm_reflect_arch() >= 800) {
     return __nvvm_ex2_approx_bf16(x);
