@@ -1088,6 +1088,7 @@
 ?acospi@__host_std@cl@@YAMM@Z
 ?acospi@__host_std@cl@@YANN@Z
 ?addHostAccessorAndWait@detail@sycl@cl@@YAXPEAVAccessorImplHost@123@@Z
+?addOrReplaceAccessorProperties@SYCLMemObjT@detail@sycl@cl@@QEAAXAEBVproperty_list@34@@Z
 ?addReduction@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@$$CBX@std@@@Z
 ?addStream@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@Vstream_impl@detail@sycl@cl@@@std@@@Z
 ?advise_usm@MemoryManager@detail@sycl@cl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KW4_pi_mem_advice@@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
@@ -1686,6 +1687,7 @@
 ?degrees@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@@Z
 ?degrees@__host_std@cl@@YAMM@Z
 ?degrees@__host_std@cl@@YANN@Z
+?deleteAccessorProperty@SYCLMemObjT@detail@sycl@cl@@QEAAXAEBW4PropWithDataKind@234@@Z
 ?depends_on@handler@sycl@cl@@QEAAXAEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@@Z
 ?depends_on@handler@sycl@cl@@QEAAXVevent@23@@Z
 ?destructorNotification@buffer_impl@detail@sycl@cl@@QEAAXPEAX@Z
