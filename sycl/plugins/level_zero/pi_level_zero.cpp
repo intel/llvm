@@ -4307,7 +4307,7 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
     // RT calls piProgramRelease().
     Program->ZeModule = nullptr;
     Program->State = _pi_program::Invalid;
-    return mapError(ZeResult);
+    Result = mapError(ZeResult);
   }
   // The call to zeModuleCreate does not report an error if there are
   // unresolved symbols because it thinks these could be resolved later via a
