@@ -112,12 +112,12 @@ public:
   }
 
   __SYCL_DLL_LOCAL void
-  addOrReplaceAccessorProperties(const property_list &PropertyList) override {
+  addOrReplaceAccessorProperties(const property_list &PropertyList) {
     MProps.add_or_replace_accessor_properties(PropertyList);
   }
 
   __SYCL_DLL_LOCAL void
-  deleteAccessorProperty(const PropWithDataKind &Kind) override {
+  deleteAccessorProperty(const PropWithDataKind &Kind) {
     MProps.delete_accessor_property(Kind);
   }
 

@@ -110,6 +110,7 @@ protected:
         delete_accessor_property_helper(
             sycl::detail::PropWithDataKind::AccPropBufferLocation);
         MPropsWithData.push_back(Prop);
+        break;
       }
     }
   }

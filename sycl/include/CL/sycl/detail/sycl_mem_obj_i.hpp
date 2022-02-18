@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -65,11 +64,6 @@ public:
   // Returns the context which is passed if a memory object is created using
   // interoperability constructor, nullptr otherwise.
   virtual ContextImplPtr getInteropContext() const = 0;
-
-  virtual void
-  addOrReplaceAccessorProperties(const property_list &PropertyList) = 0;
-
-  virtual void deleteAccessorProperty(const PropWithDataKind &Kind) = 0;
 
 protected:
   // Pointer to the record that contains the memory commands. This is managed

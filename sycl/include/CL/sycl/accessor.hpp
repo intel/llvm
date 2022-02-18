@@ -1805,14 +1805,16 @@ private:
                           .get_location();
       property_list PropList{
           sycl::property::buffer::detail::buffer_location(location)};
-      SYCLMemObject->addOrReplaceAccessorProperties(PropList);
+      detail::SYCLMemObjT *SYCLMemObjectT = dynamic_cast<detail::SYCLMemObjT *>(SYCLMemObject); 
+      SYCLMemObjectT->addOrReplaceAccessorProperties(PropList);
     } else {
       deleteAccPropsFromBuf(SYCLMemObject);
     }
   }
 
   void deleteAccPropsFromBuf(detail::SYCLMemObjI *SYCLMemObject) {
-    SYCLMemObject->deleteAccessorProperty(
+    detail::SYCLMemObjT *SYCLMemObjectT = dynamic_cast<detail::SYCLMemObjT *>(SYCLMemObject); 
+    SYCLMemObjectT->deleteAccessorProperty(
         sycl::detail::PropWithDataKind::AccPropBufferLocation);
   }
 #endif
