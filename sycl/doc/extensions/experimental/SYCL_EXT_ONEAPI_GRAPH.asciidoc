@@ -1,0 +1,290 @@
+= SYCL_EXT_ONEAPI_GRAPH
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+Copyright (c) 2022 Intel Corporation.  All rights reserved.
+
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+This extension is written against the SYCL 2020 revision 4 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+NOTE: This extension is experimental: interfaces are subject to change later.
+
+== Introduction
+
+This extension introduces an interface that enables a lazy execution and easy replay of a kernel graph by separating
+Its definition and execution. 
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_GRAPH` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+Table 1. Values of the `SYCL_EXT_ONEAPI_GRAPH` macro.
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+== SYCL Graph Terminology
+
+Table 2. Terminology.
+|===
+|Concept|Description
+|graph| Class that stores structured work units and their dependencies
+|node| The unit of work. Can have different attributes.
+|edge| Dependency between work units. Happens before relation.
+|===
+
+== Node
+
+Node is a class that can encapsulate SYCL kernel functions or host tasks for deferred execution.
+A graph has to be created first, the structure of a graph is defined second by adding nodes and edges.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+	class node{
+	};
+}
+----
+
+NOTE:
+
+== Edge
+
+A dependency between two nodes representing a happens before relationship.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+	// Adding dependency between two nodes.
+    	void make_edge(node sender, node receiver);
+}
+----
+
+== Graph
+
+Graph is a class that represents a directed acyclic graph of nodes. 
+A graph can be nested, can have multiple root nodes that are scheduled for execution first and multiple leaf nodes that are scheduled for execution last.
+Member functions as listed in Table 2 and 3 can be used to add nodes to a graph.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  class graph {
+  };
+
+}
+----
+
+=== Executable Graph
+
+`executable_graph` represents a user generated device and context specific execution object that can be submitted to a queue for execution. 
+The structure of an `executable_graph` object, such as adding nodes or edges, can not be changed.
+Each `executable_graph` object can only be executed once at the same time on its assigned queue.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  class executable_graph {
+  };
+
+}
+----
+
+
+Table 3. Constructors of the `graph` class.
+|===
+|Constructor|Description
+
+|`graph()`
+|Creates a `graph` object
+
+|`graph(graph& parent)`
+|Creates a nested `graph` object
+
+|===
+
+Table 4. Member functions of the `graph` class.
+|===
+|Member function|Description
+
+|`node add_empty_node(const std::vector<node>& dep = {});`
+|This node holds no task that is scheduled for execution. It's intended use is a synchronization point inside a graph, this node can significantly reduce the number of edges ( O(n) vs. O(n^2) ) .
+
+|`template<typename T>
+    	node add_host_node(T hostTaskCallable, const std::vector<node>& dep = {});`
+|This node captures a host task, a native C++ callable which is scheduled by the SYCL runtime.
+
+|`template<typename T>
+    	node add_device_node(T cgf, const std::vector<node>& dep = {});`
+|This node captures a SYCL function for invoking kernels, with all restrictions that apply as described in the spec.
+
+|`template<typename T>
+    	executable_graph make_executable(const queue& syclQueue);`
+|Returns a queue specific graph object that can be submitted to a queue.
+
+|`template<typename T>
+    	executable_graph make_executable(const device& syclDevice, const context& syclContext);`
+|Returns a device and context specific graph object that can be submitted to a queue.
+
+|===
+
+Table 5. Member functions of the `graph` class (memory operations).
+|===
+|Member function|Description
+
+|`node add_memcpy_node(void* dest, const void* src, size_t numBytes, const std::vector<node>& dep = {});`
+|Adding a node that encapsulates a `memcpy` operation.
+
+|`node add_memset_node(void* ptr, int value, size_t numBytes, const std::vector<node>& dep = {});`
+|Adding a node that encapsulates a `memset` operation.
+
+|`node add_malloc_node(void *data, size_t numBytes, usm::alloc kind, const std::vector<node>& dep = {});`
+|Adding a node that encapsulates a `malloc` operation.
+
+|`node add_free_node(void *data, const std::vector<node>& dep = {});`
+|Adding a node that encapsulates a `free` operation.
+
+|===
+
+
+== Examples
+
+1. Dot product
+
+[source,c++]
+----
+...
+
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+
+int main() {
+  const size_t n = 10;
+  float alpha = 1.0f;
+  float beta = 2.0f;
+  float gamma = 3.0f;
+
+#ifndef POC_IMPL
+  sycl::queue q;
+#else
+  sycl::property_list p{sycl::ext::oneapi::property::queue::lazy_execution{}};
+  sycl::queue q{p};
+#endif
+
+  sycl::ext::oneapi::experimental::graph g;
+
+  float *x = sycl::malloc_shared<float>(n, q);
+  float *y = sycl::malloc_shared<float>(n, q);
+  float *z = sycl::malloc_shared<float>(n, q);
+
+  float *dotp = sycl::malloc_shared<float>(1, q);
+
+  for (int i = 0; i < n; i++) {
+    x[i] = 1.0f;
+    y[i] = 2.0f;
+    z[i] = 3.0f;
+  }
+
+  auto node_a = g.add_device_node([&](sycl::handler &h) {
+    h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
+      const size_t i = it[0];
+      x[i] = alpha * x[i] + beta * y[i];
+    });
+  });
+
+  auto node_b = g.add_device_node([&](sycl::handler &h) {
+    h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
+      const size_t i = it[0];
+      z[i] = gamma * z[i] + beta * y[i];
+    });
+  });
+
+  auto node_c = g.add_device_node(
+      [&](sycl::handler &h) {
+        h.parallel_for(sycl::range<1>{n},
+                       sycl::reduction(dotp, 0.0f, std::plus()),
+                       [=](sycl::id<1> it, auto &sum) {
+                         const size_t i = it[0];
+                         sum += x[i] * z[i];
+                       });
+      },
+      {node_a, node_b});
+
+  auto exec = g.make_exec(q);
+
+#ifndef POC_IMPL
+  q.submit(exec).wait();
+#else
+  exec.exec_and_wait();
+#endif
+
+  sycl::free(x, q);
+  sycl::free(y, q);
+  sycl::free(z, q);
+  sycl::free(dotp, q);
+
+  return 0;
+}
+
+
+...
+----
+
+== Issues for later investigations
+
+. Explicit memory movement can cause POC to stall.
+
+== Non-implemented features
+Please, note that the following features are not yet implemented:
+
+. Level Zero backend only
+. Memory operation nodes not implemented
+. Host node not implemented
+. Submit overload of a queue. `submit(graph)` Use a combination of `executable_graph::exec_and_wait()` and queue property `sycl::ext::oneapi::property::queue::lazy_execution{}` instead.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-02-11|Pablo Reble|Initial public working draft
+|========================================
