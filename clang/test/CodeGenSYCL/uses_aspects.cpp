@@ -28,7 +28,7 @@ template <cl::sycl::aspect Aspect>
 void func5() {}
 
 [[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] void func6();
-// CHECK: define dso_local spir_func void @{{.*}}func6{{.*}} !intel_used_aspects ![[ASPECTS1]] {
+// CHECK: define dso_local spir_func void @{{.*}}func6{{.*}} !intel_used_aspects ![[ASPECTS4:[0-9]+]] {
 void func6() {
   Type1WithAspect TestObj1;
   Type2WithAspect TestObj2;
@@ -57,10 +57,11 @@ void foo() {
     h.single_task<class kernel_name_1>(f1);
   });
 }
-// CHECK: !intel_types_that_use_aspects = !{![[TYPE1:[0-9]+]], ![[TYPE2:[0-9]+]]}
-// CHECK: [[TYPE1]] = !{!"class.Type1WithAspect", i32 1}
-// CHECK: [[TYPE2]] = !{!"class.Type2WithAspect", i32 5, i32 1}
-// CHECK: [[EMPTYASPECTS]] = !{}
-// CHECK: [[ASPECTS1]] = !{i32 1}
-// CHECK: [[ASPECTS2]] = !{i32 5, i32 2}
-// CHECK: [[ASPECTS3]] = !{i32 0}
+// CHECK-DAG: !intel_types_that_use_aspects = !{![[TYPE1:[0-9]+]], ![[TYPE2:[0-9]+]]}
+// CHECK-DAG: [[TYPE1]] = !{!"class.Type1WithAspect", i32 1}
+// CHECK-DAG: [[TYPE2]] = !{!"class.Type2WithAspect", i32 5, i32 1}
+// CHECK-DAG: [[EMPTYASPECTS]] = !{}
+// CHECK-DAG: [[ASPECTS1]] = !{i32 1}
+// CHECK-DAG: [[ASPECTS2]] = !{i32 5, i32 2}
+// CHECK-DAG: [[ASPECTS3]] = !{i32 0}
+// CHECK-DAG: [[ASPECTS4]] = !{i32 1, i32 5}
