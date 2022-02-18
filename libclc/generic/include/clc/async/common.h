@@ -10,12 +10,12 @@
 #define CLC_ASYNC_COMMON
 
 #define SET_GROUP_SIZE_AND_ID(SIZE, ID)                                        \
-    SIZE = __spirv_WorkgroupSize_x() * __spirv_WorkgroupSize_y() *             \
-           __spirv_WorkgroupSize_z();                                          \
-    ID = (__spirv_WorkgroupSize_y() * __spirv_WorkgroupSize_x() *              \
-          __spirv_LocalInvocationId_z()) +                                     \
-         (__spirv_WorkgroupSize_x() * __spirv_LocalInvocationId_y()) +         \
-         __spirv_LocalInvocationId_x();
+  SIZE = __spirv_WorkgroupSize_x() * __spirv_WorkgroupSize_y() *               \
+         __spirv_WorkgroupSize_z();                                            \
+  ID = (__spirv_WorkgroupSize_y() * __spirv_WorkgroupSize_x() *                \
+        __spirv_LocalInvocationId_z()) +                                       \
+       (__spirv_WorkgroupSize_x() * __spirv_LocalInvocationId_y()) +           \
+       __spirv_LocalInvocationId_x();
 
 // Macro used by all data types, for generic and nvidia, for async copy when
 // arch < sm80
