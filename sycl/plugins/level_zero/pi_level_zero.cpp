@@ -4316,7 +4316,7 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   if (ZeResult != ZE_RESULT_SUCCESS) {
     // Note that the ZeModule is still allocated and will be released when
     // the user catch the exception that RT throws.
-    // Otherwise, the user program crashes and memory leak is not a concern.
+    // Otherwise, the user program terminates and memory leak is not a concern.
     if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
       return PI_BUILD_PROGRAM_FAILURE;
     return mapError(ZeResult);
