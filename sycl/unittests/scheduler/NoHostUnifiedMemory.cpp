@@ -62,18 +62,17 @@ static pi_result redefinedMemRetain(pi_mem mem) { return PI_SUCCESS; }
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
 static pi_context InteropPiContext = nullptr;
-static pi_result redefinedMemGetInfo(pi_mem mem, cl_mem_info param_name,
+static pi_result redefinedMemGetInfo(pi_mem mem, pi_mem_info param_name,
                                      size_t param_value_size, void *param_value,
                                      size_t *param_value_size_ret) {
-  EXPECT_EQ(param_name, static_cast<cl_mem_info>(CL_MEM_CONTEXT));
   auto *Result = reinterpret_cast<pi_context *>(param_value);
   *Result = InteropPiContext;
   return PI_SUCCESS;
 
-  if (param_name == CL_MEM_CONTEXT) {
+  if (param_name == PI_MEM_CONTEXT) {
     auto *Result = reinterpret_cast<pi_context *>(param_value);
     *Result = InteropPiContext;
-  } else if (param_name == CL_MEM_SIZE) {
+  } else if (param_name == PI_MEM_SIZE) {
     auto *Result = reinterpret_cast<size_t *>(param_value);
     *Result = 8;
   }

@@ -166,6 +166,8 @@ public:
 
   ~buffer_impl() {
     try {
+      if (BaseT::MInteropContext && !BaseT::MOwnNativeHandle)
+        BaseT::updateInteropMemory();
       BaseT::updateHostMemory();
     } catch (...) {
     }

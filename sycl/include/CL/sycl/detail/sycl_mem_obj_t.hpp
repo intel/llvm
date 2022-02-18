@@ -67,7 +67,7 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : MAllocator(std::move(Allocator)), MProps(Props), MInteropEvent(nullptr),
         MInteropContext(nullptr), MInteropMemObject(nullptr),
-        MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
+        MOwnNativeHandle(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {}
 
@@ -91,7 +91,7 @@ public:
                     std::move(Allocator)) {}
 
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-              bool OwmNativeHandle, event AvailableEvent,
+              bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   virtual ~SYCLMemObjT() = default;
@@ -141,7 +141,7 @@ public:
   void releaseMem(ContextImplPtr Context, void *MemAllocation) override;
 
   __SYCL_DLL_LOCAL void *getUserPtr() const {
-    return MOpenCLInterop ? static_cast<void *>(MInteropMemObject) : MUserPtr;
+    return MInteropContext ? static_cast<void *>(MInteropMemObject) : MUserPtr;
   }
 
   __SYCL_DLL_LOCAL void set_write_back(bool NeedWriteBack) {
@@ -207,6 +207,12 @@ public:
   }
 
 protected:
+  // Update memory object passed by user to interoperability constructor.
+  // Such update is required if user wants to keep ownership of the native
+  // memory handle and if buffer is used in multiple contexts meaning that the
+  // latest data needs to be copied back to the memory passed by user.
+  void updateInteropMemory();
+
   void updateHostMemory(void *const Ptr);
 
   // Update host with the latest data + notify scheduler that the memory object
@@ -345,7 +351,7 @@ protected:
   RT::PiMem MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
-  bool MOpenCLInterop;
+  bool MOwnNativeHandle;
   // Indicates if user provided pointer is read only.
   bool MHostPtrReadOnly;
   // Indicates if memory object should write memory to the host on destruction.

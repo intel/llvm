@@ -34,9 +34,9 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
-      MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
-      MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
-      MSharedPtrStorage(nullptr) {
+      MOwnNativeHandle(OwnNativeHandle), MHostPtrReadOnly(false),
+      MNeedWriteBack(true), MUserPtr(nullptr), MShadowCopy(nullptr),
+      MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
     throw cl::sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -52,9 +52,9 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
 
   // Get the size of the buffer in bytes
   Plugin.call<detail::PiApiKind::piMemGetInfo>(
-      MInteropMemObject, CL_MEM_SIZE, sizeof(size_t), &MSizeInBytes, nullptr);
+      MInteropMemObject, PI_MEM_SIZE, sizeof(size_t), &MSizeInBytes, nullptr);
 
-  Plugin.call<PiApiKind::piMemGetInfo>(MInteropMemObject, CL_MEM_CONTEXT,
+  Plugin.call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
@@ -69,6 +69,23 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
   void *Ptr = getUserPtr();
   return MemoryManager::releaseMemObj(Context, this, MemAllocation, Ptr);
+}
+
+void SYCLMemObjT::updateInteropMemory() {
+  const id<3> Offset{0, 0, 0};
+  const range<3> AccessRange{MSizeInBytes, 1, 1};
+  const range<3> MemoryRange{MSizeInBytes, 1, 1};
+  const access::mode AccessMode = access::mode::read;
+  SYCLMemObjI *SYCLMemObject = this;
+  const int Dims = 1;
+  const int ElemSize = 1;
+
+  Requirement Req(Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject,
+                  Dims, ElemSize);
+
+  EventImplPtr Event = Scheduler::getInstance().updateInteropMemory(&Req);
+  if (Event)
+    Event->wait(Event);
 }
 
 void SYCLMemObjT::updateHostMemory(void *const Ptr) {
@@ -99,10 +116,11 @@ void SYCLMemObjT::updateHostMemory() {
     Scheduler::getInstance().removeMemoryObject(this);
   releaseHostMem(MShadowCopy);
 
-  if (MOpenCLInterop) {
+  if (MInteropContext) {
     const plugin &Plugin = getPlugin();
-    Plugin.call<PiApiKind::piMemRelease>(
-        pi::cast<RT::PiMem>(MInteropMemObject));
+    if (Plugin.getBackend() == backend::opencl)
+      Plugin.call<PiApiKind::piMemRelease>(
+          pi::cast<RT::PiMem>(MInteropMemObject));
   }
 }
 const plugin &SYCLMemObjT::getPlugin() const {
@@ -121,12 +139,12 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   const detail::plugin &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
   Plugin.call<detail::PiApiKind::piMemGetInfo>(
-      detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
+      detail::pi::cast<detail::RT::PiMem>(MemObject), PI_MEM_SIZE,
       sizeof(size_t), &BufSize, nullptr);
   return BufSize;
 }
 
-bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
+bool SYCLMemObjT::isInterop() const { return MInteropContext != nullptr; }
 
 void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
                                    bool InitFromUserData, void *&HostPtr,
@@ -145,7 +163,7 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
   // 4. The allocation is not the first one and not on host. InitFromUserData ==
   // false, HostPtr is provided if the command is linked. The host pointer is
   // guaranteed to be reused in this case.
-  if (Context->is_host() && !MOpenCLInterop && !MHostPtrReadOnly)
+  if (Context->is_host() && !MInteropContext && !MHostPtrReadOnly)
     InitFromUserData = true;
 
   if (InitFromUserData) {

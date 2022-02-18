@@ -170,6 +170,42 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   return NewEvent;
 }
 
+EventImplPtr Scheduler::updateInteropMemory(Requirement *Req) {
+  std::vector<Command *> ToEnqueue;
+  Command *NewCmd = nullptr;
+  {
+    WriteLockT Lock(MGraphLock, std::defer_lock);
+    acquireWriteLock(Lock);
+    NewCmd = MGraphBuilder.updateInteropMemory(Req, ToEnqueue);
+    // Command was not creted because there were no operations with
+    // buffer.
+    if (!NewCmd)
+      return nullptr;
+  }
+
+  std::vector<Command *> ToCleanUp;
+  try {
+    ReadLockT Lock(MGraphLock);
+    EnqueueResultT Res;
+    bool Enqueued;
+
+    for (Command *Cmd : ToEnqueue) {
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    }
+
+    Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+  } catch (...) {
+    NewCmd->getQueue()->reportAsyncException(std::current_exception());
+  }
+  EventImplPtr NewEvent = NewCmd->getEvent();
+  cleanupCommands(ToCleanUp);
+  return NewEvent;
+}
+
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   std::vector<Command *> AuxiliaryCmds;
   Command *NewCmd = nullptr;

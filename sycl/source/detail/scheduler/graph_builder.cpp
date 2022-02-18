@@ -451,6 +451,41 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
   return MapCmd;
 }
 
+// Req must be a requirement to an interoperability buffer. The function adds
+// copy operation of the up to date'st memory to a memory object provided by
+// user to the interoperability constructor. This method is called when user
+// wants to keep ownership of the native handle and that's why we need to copy
+// the latest data to this memory. Copy is performed through the host.
+Command *Scheduler::GraphBuilder::updateInteropMemory(
+    Requirement *Req, std::vector<Command *> &ToEnqueue) {
+  SYCLMemObjI *MemObj = Req->MSYCLMemObj;
+  const ContextImplPtr &InteropCtxPtr = MemObj->getInteropContext();
+
+  assert(InteropCtxPtr != nullptr);
+
+  QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
+  MemObjRecord *Record = getMemObjRecord(MemObj);
+
+  // Do nothing if there were no or only read operations with the memory object.
+  if (nullptr == Record || !Record->MMemModified)
+    return nullptr;
+
+  std::set<Command *> Deps =
+      findDepsForReq(Record, Req, HostQueue->getContextImplPtr());
+
+  AllocaCommandBase *DstAllocaCmd =
+      findAllocaForReq(Record, Req, InteropCtxPtr);
+  // If same context then copy is not needed
+  if (Record->MCurContext != InteropCtxPtr) {
+    // Check if up to date memory is on host.
+    if (!Record->MCurContext->is_host())
+      insertMemoryMove(Record, Req, HostQueue, ToEnqueue);
+    return insertMemoryMove(Record, Req, DstAllocaCmd->getQueue(), ToEnqueue);
+  }
+
+  return nullptr;
+}
+
 // The function adds copy operation of the up to date'st memory to the memory
 // pointed by Req.
 Command *
@@ -477,7 +512,6 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 
   if (!MemCpyCmdUniquePtr)
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-
   MemCpyCommandHost *MemCpyCmd = MemCpyCmdUniquePtr.release();
 
   std::vector<Command *> ToCleanUp;

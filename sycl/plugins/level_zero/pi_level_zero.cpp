@@ -3558,10 +3558,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   return PI_SUCCESS;
 }
 
-pi_result piMemGetInfo(pi_mem Mem,
-                       cl_mem_info ParamName, // TODO: untie from OpenCL
-                       size_t ParamValueSize, void *ParamValue,
-                       size_t *ParamValueSizeRet) {
+pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
+                       void *ParamValue, size_t *ParamValueSizeRet) {
   PI_ASSERT(Mem, PI_INVALID_VALUE);
   // piMemImageGetInfo must be used for images
   PI_ASSERT(!Mem->isImage(), PI_INVALID_VALUE);
@@ -3569,9 +3567,9 @@ pi_result piMemGetInfo(pi_mem Mem,
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   switch (ParamName) {
-  case CL_MEM_CONTEXT:
+  case PI_MEM_CONTEXT:
     return ReturnValue(Mem->Context);
-  case CL_MEM_SIZE: {
+  case PI_MEM_SIZE: {
     // Get size of the allocation
     void *Base;
     size_t Size;
@@ -7638,7 +7636,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 /// @param ParamValue is the result
 /// @param ParamValueRet is how many bytes were written
 pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
-                                  pi_mem_info ParamName, size_t ParamValueSize,
+                                  pi_usm_info ParamName, size_t ParamValueSize,
                                   void *ParamValue, size_t *ParamValueSizeRet) {
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 

@@ -4852,7 +4852,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_size_ret is how many bytes were written
 pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                       pi_mem_info param_name,
+                                       pi_usm_info param_name,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
