@@ -4300,12 +4300,12 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
       ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
                                        &ZeModule, &Program->ZeBuildLog));
   if (ZeResult != ZE_RESULT_SUCCESS) {
-    // We need to clear Program state to avoid double destroy of zeModule in
-    // case where SYCL RT calls piProgramRelease().
-    // We should not return with an error code here due to the comments below.
+    // We adjust pi_program below to avoid attempting to release zeModule when
+    // RT calls piProgramRelease().
     Program->ZeModule = nullptr;
     Program->Code.reset();
     Program->State = _pi_program::Invalid;
+    return mapError(ZeResult);
   }
   // The call to zeModuleCreate does not report an error if there are
   // unresolved symbols because it thinks these could be resolved later via a
@@ -4314,9 +4314,9 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   // check now for unresolved symbols.
   ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
   if (ZeResult != ZE_RESULT_SUCCESS) {
-    // remove ZeModule that is associated with the failed program
-    ZE_CALL(zeModuleDestroy, (ZeModule));
-
+    // Note that the ZeModule is still allocated and will be released when
+    // the user catch the exception that RT throws.
+    // Otherwise, the user program crashes and memory leak is not a concern.
     if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
       return PI_BUILD_PROGRAM_FAILURE;
     return mapError(ZeResult);
