@@ -834,6 +834,53 @@ pi_result cuda_piDevicesGet(pi_platform platform, pi_device_type device_type,
   }
 }
 
+pi_result cuda_piextPlatformGetNativeHandle(pi_platform platform,
+                                            pi_native_handle *nativeHandle) {
+  cl::sycl::detail::pi::die(
+      "cuda_piextPlatformGetNativeHandle not implemented");
+  return {};
+}
+
+pi_result
+cuda_piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                         pi_platform *platform) {
+  assert(platform);
+  assert(nativeHandle);
+
+  auto native_platform =
+      reinterpret_cast<std::vector<CUdevice> *>(nativeHandle);
+
+  // Get list of platforms
+  pi_uint32 num_platforms;
+  pi_result result = cuda_piPlatformsGet(0, nullptr, &num_platforms);
+
+  pi_platform *plat =
+      static_cast<pi_platform *>(malloc(num_platforms * sizeof(pi_platform)));
+  result = cuda_piPlatformsGet(num_platforms, plat, nullptr);
+
+  // Iterate through platforms to find device that matches nativeHandle
+  bool found_match = false;
+  for (pi_uint32 j = 0; j < num_platforms; ++j) {
+    bool is_same = true;
+    for (auto &dev : plat[j]->devices_) {
+      auto it =
+          find(native_platform->begin(), native_platform->end(), dev->get());
+      if (it == native_platform->end())
+        is_same = false;
+    }
+    if (is_same) {
+      found_match = true;
+      *platform = plat[j];
+    }
+  }
+
+  if (!found_match) {
+    return PI_INVALID_VALUE;
+  }
+
+  return result;
+}
+
 /// \return PI_SUCCESS if the function is executed successfully
 /// CUDA devices are always root devices so retain always returns success.
 pi_result cuda_piDeviceRetain(pi_device) { return PI_SUCCESS; }
@@ -1772,11 +1819,49 @@ pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
 /// \param[out] device Set to the PI device object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle, pi_platform,
-                                                 pi_device *) {
-  cl::sycl::detail::pi::die(
-      "Creation of PI device from native handle not implemented");
-  return {};
+pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                 pi_platform platform,
+                                                 pi_device *piDevice) {
+  assert(piDevice != nullptr);
+
+  // If a platform is provided just check if the device is in it
+  if (platform) {
+    bool found_match = false;
+    for (auto &dev : platform->devices_) {
+      if (dev->get() == static_cast<CUdevice>(nativeHandle)) {
+        *piDevice = dev.get();
+        found_match = true;
+      }
+    }
+    if (!found_match)
+      return PI_INVALID_VALUE;
+    return PI_SUCCESS;
+  }
+
+  // Get list of platforms
+  pi_uint32 num_platforms;
+  pi_result result = cuda_piPlatformsGet(0, nullptr, &num_platforms);
+
+  pi_platform *plat =
+      static_cast<pi_platform *>(malloc(num_platforms * sizeof(pi_platform)));
+  result = cuda_piPlatformsGet(num_platforms, plat, nullptr);
+
+  // Iterate through platforms to find device that matches nativeHandle
+  bool found_match = false;
+  for (pi_uint32 j = 0; j < num_platforms; ++j) {
+    for (auto &dev : plat[j]->devices_) {
+      if (dev->get() == static_cast<CUdevice>(nativeHandle)) {
+        *piDevice = dev.get();
+        found_match = true;
+      }
+    }
+  }
+
+  // If the provided nativeHandle cannot be matched to an
+  // existing device return error
+  if (!found_match)
+    return PI_INVALID_VALUE;
+  return result;
 }
 
 /* Context APIs */
@@ -4937,6 +5022,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Platform
   _PI_CL(piPlatformsGet, cuda_piPlatformsGet)
   _PI_CL(piPlatformGetInfo, cuda_piPlatformGetInfo)
+  _PI_CL(piextPlatformGetNativeHandle, cuda_piextPlatformGetNativeHandle)
+  _PI_CL(piextPlatformCreateWithNativeHandle,
+         cuda_piextPlatformCreateWithNativeHandle)
   // Device
   _PI_CL(piDevicesGet, cuda_piDevicesGet)
   _PI_CL(piDeviceGetInfo, cuda_piDeviceGetInfo)
