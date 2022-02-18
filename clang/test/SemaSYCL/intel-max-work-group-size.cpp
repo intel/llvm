@@ -32,8 +32,10 @@ public:
 
 class FunctorC {
 public:
-  [[sycl::reqd_work_group_size(64, 64, 64)]] [[intel::max_work_group_size(16, 16, 16)]] void operator()() const; //expected-error{{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
-  [[sycl::reqd_work_group_size(64, 64, 64)]] [[intel::max_work_group_size(16, 16, 16)]] void operator()(int) const; //expected-error{{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[sycl::reqd_work_group_size(64, 64, 64)]] // expected-note {{conflicting attribute is here}}
+  [[intel::max_work_group_size(16, 16, 16)]] void operator()() const; //expected-error{{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[sycl::reqd_work_group_size(64, 64, 64)]] // expected-note {{conflicting attribute is here}}
+  [[intel::max_work_group_size(16, 16, 16)]] void operator()(int) const; //expected-error{{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 };
 
 // Ensure that template arguments behave appropriately based on instantiations.
@@ -71,8 +73,8 @@ void instantiate() {
 // a declaration along with [[sycl::reqd_work_group_size(X1, Y1, Z1)]]
 // attribute, check to see if values of reqd_work_group_size arguments are
 // equal or less than values coming from max_work_group_size attribute.
-[[sycl::reqd_work_group_size(64, 64, 64)]]
-[[intel::max_work_group_size(16, 16, 16)]]  //expected-error{{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+[[sycl::reqd_work_group_size(64, 64, 64)]]  // expected-note {{conflicting attribute is here}}
+[[intel::max_work_group_size(16, 16, 16)]]  // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 void f9() {}
 
 [[intel::max_work_group_size(4, 4, 4)]] void f10();
@@ -88,8 +90,8 @@ void f9() {}
 [[sycl::reqd_work_group_size(64, 64, 64)]] void f12();
 [[intel::max_work_group_size(16, 16, 16)]] void f12(); // expected error but now OK.
 
-[[intel::max_work_group_size(16, 16, 16)]]
-[[sycl::reqd_work_group_size(64, 64, 64)]] void f13() {} // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
+[[intel::max_work_group_size(16, 16, 16)]] // expected-note {{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(64, 64, 64)]] void f13() {} // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
 
-[[intel::max_work_group_size(16, 16, 16)]] void f14();
+[[intel::max_work_group_size(16, 16, 16)]] void f14(); // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(64, 64, 64)]] void f14(); // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}

@@ -20,7 +20,7 @@ func1();
 
 #else
 //second case - expect error
-[[intel::max_work_group_size(4, 4, 4)]] void func2();
+[[intel::max_work_group_size(4, 4, 4)]] void func2(); // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(8, 8, 8)]] void func2() {} // expected-error {{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
 
 //third case - expect error

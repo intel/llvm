@@ -26,9 +26,10 @@ __attribute__((reqd_work_group_size(4))) void four_yet_again(); // expected-erro
 class Functor32 {
 public:
   // expected-note@+3{{conflicting attribute is here}}
-  // expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different arguments}}
-  // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
-  [[sycl::reqd_work_group_size(32, 1, 1)]] [[sycl::reqd_work_group_size(1, 1, 32)]] void operator()() const {}
+  // expected-warning@+3{{attribute 'reqd_work_group_size' is already applied with different arguments}}
+  // expected-error@+2{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+  [[sycl::reqd_work_group_size(32, 1, 1)]] // expected-note {{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(1, 1, 32)]] void operator()() const {}
 };
 #endif // TRIGGER_ERROR
 
