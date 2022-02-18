@@ -7,12 +7,12 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-// M, N, (K * 32) define the sizes of dimensions of the three matrix types (a, b,
-// accumulator) used per subgroup operation.
-constexpr int M = 8;   // number of rows of accumulator,
-                       // number of cols of b.
-constexpr int N = 8;   // number of cols of accumulator,
-                       // number of rows of a.
+// M, N, (K * 32) define the sizes of dimensions of the three matrix types (a,
+// b, accumulator) used per subgroup operation.
+constexpr int M = 8; // number of rows of accumulator,
+                     // number of cols of b.
+constexpr int N = 8; // number of cols of accumulator,
+                     // number of rows of a.
 constexpr int K = 4; // number of cols of a/number of rows of b divided by 32
 
 // Each bit of each uint32_t A/B array element is an element of a single-bit
