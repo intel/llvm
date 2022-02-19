@@ -4305,28 +4305,37 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
   ze_module_handle_t ZeModule = nullptr;
-  ZE_CALL(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
-                           &Program->ZeBuildLog));
 
-  // The call to zeModuleCreate does not report an error if there are
-  // unresolved symbols because it thinks these could be resolved later via a
-  // call to zeModuleDynamicLink.  However, modules created with piProgramBuild
-  // are supposed to be fully linked and ready to use.  Therefore, do an extra
-  // check now for unresolved symbols.
-  ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
-  if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-    return PI_BUILD_PROGRAM_FAILURE;
-  } else if (ZeResult != ZE_RESULT_SUCCESS) {
-    return mapError(ZeResult);
+  pi_result Result = PI_SUCCESS;
+  Program->State = _pi_program::Exe;
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                       &ZeModule, &Program->ZeBuildLog));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    // We adjust pi_program below to avoid attempting to release zeModule when
+    // RT calls piProgramRelease().
+    ZeModule = nullptr;
+    Program->State = _pi_program::Invalid;
+    Result = mapError(ZeResult);
+  } else {
+    // The call to zeModuleCreate does not report an error if there are
+    // unresolved symbols because it thinks these could be resolved later via a
+    // call to zeModuleDynamicLink.  However, modules created with
+    // piProgramBuild are supposed to be fully linked and ready to use.
+    // Therefore, do an extra check now for unresolved symbols.
+    ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+    if (ZeResult != ZE_RESULT_SUCCESS) {
+      Program->State = _pi_program::Invalid;
+      Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
+                   ? PI_BUILD_PROGRAM_FAILURE
+                   : mapError(ZeResult);
+    }
   }
 
   // We no longer need the IL / native code.
   Program->Code.reset();
-
   Program->ZeModule = ZeModule;
-  Program->State = _pi_program::Exe;
-
-  return PI_SUCCESS;
+  return Result;
 }
 
 pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
