@@ -549,9 +549,17 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     }
 
     // Save program to persistent cache if it is not there
-    if (!DeviceCodeWasInCache)
+    if (DeviceCodeWasInCache) {
+      // Whenever a program is reused, increment the reference count so that
+      // the program is deallocated only when the last used program is released.
+      Plugin.call<PiApiKind::piProgramRetain>(BuiltProgram.get());
+    } else {
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
+      // Do not redundantly call retain if backend is level_zero.
+      if (Plugin.getBackend() != backend::ext_oneapi_level_zero)
+        Plugin.call<PiApiKind::piProgramRetain>(BuiltProgram.get());
+    }
     return BuiltProgram.release();
   };
 

@@ -264,8 +264,6 @@ void program_impl::build_with_kernel_name(std::string KernelName,
         Module, detail::getSyclObjImpl(get_context()),
         detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
         /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-    const detail::plugin &Plugin = getPlugin();
-    Plugin.call<PiApiKind::piProgramRetain>(MProgram);
   }
   MState = program_state::linked;
 }

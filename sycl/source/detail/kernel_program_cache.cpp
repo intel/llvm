@@ -35,9 +35,6 @@ KernelProgramCache::~KernelProgramCache() {
       }
       MKernelsPerProgramCache.erase(KernIt);
     }
-
-    const detail::plugin &Plugin = MParentContext->getPlugin();
-    Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
   }
 }
 }
