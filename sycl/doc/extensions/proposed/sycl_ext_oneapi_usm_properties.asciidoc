@@ -1,0 +1,190 @@
+= sycl_ext_oneapi_usm_properties
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension adds properties support (as defined in the sycl_ext_oneapi_properties extension) to the USM malloc APIs.  This allows the malloc calls to accept both run time and compile time properties.  
+
+`malloc_device`, `malloc_host`, `malloc_shared` take the properties, and return an annotated_ptr that carries the passed in compile-time properties.
+
+The goal of these changes is to enable information about properties to propagate to the device compiler and thereby enable additional optimization of kernel code.
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Version
+
+Revision: 1
+
+== Contributors
+
+Abhishek Tiwari, Intel +
+Aditi Kumaraswamy, Intel +
+Gregory Lueck, Intel +
+Jason Sewall, Intel +
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+Mike Kinsner, Intel +
+Sherry Yuan, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+- link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+- link:../proposed/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+
+=== Examples
+
+The new USM malloc API can be used as follows:
+
+[source,c++]
+----
+
+using namespace sycl::ext::oneapi;
+
+// A property list containing compile-time property (buffer_location) and runtime property (use_host_ptr)
+sycl::ext::oneapi::experimental::properties properties{sycl::ext::intel::buffer_location<1>, sycl::property::buffer::use_host_ptr};
+
+// The compile time property is passed to template arguments of annotated_ptr, and runtime properties are passed to 
+auto data = malloc_device(N, q, properties);
+
+auto data2 = malloc_device<int>(N, q, properties);
+// data2 is of type annotated_ptr<int*, property_list_t<sycl::ext::intel::buffer_location<1>>>
+
+sycl::queue q;
+q.parallel_for(range<1>(N), [=] (id<1> i){
+  data2[i] *= 2;
+}).wait();
+----
+
+`buffer_location` property is defined as a part of `SYCL_INTEL_buffer_location` extension. Once passed in, buffer_location property is passed onto runtime libraries, and is available as template arguments for annotated_ptr.
+
+== Proposal
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification, Section 6.3.3 "Feature test macros". Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_USM_PROPERTIES` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features
+that the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version
+|===
+
+
+=== New USM allocation APIs
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Available only when is_property_list<PropertyListT>::value is true
+template <typename T = void*, typename PropertyListT = property_list_t<>>
+annotated_ptr<T, PropertyListT> malloc_device(
+    size_t Count, const queue &Q, PropertyListT &PropList) {
+  ...
+}
+
+// Available only when is_property_list<PropertyListT>::value is true
+template <typename T = void*, typename PropertyListT = property_list_t<>>
+annotated_ptr<T, PropertyListT> malloc_shared(
+    size_t Count, const queue &Q, PropertyListT &PropList) {
+  ...
+}
+
+// Available only when is_property_list<PropertyListT>::value is true
+template <typename T = void*, typename PropertyListT = property_list_t<>>
+annotated_ptr<T, PropertyListT> malloc_host(
+    size_t Count, const context &Ctxt, PropertyListT &PropList) {
+  ...
+}
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+The same setup is applied to other overloads of malloc APIs.
+
+Compile time properties can be pass into runtime properties within the allocation function.
+
+The table below describes the effects of associating each properties with each malloc function.
+
+|===
+|Property|Description
+
+|`buffer_location`
+|The `buffer_location` property adds the requirement that the memory must be
+ allocated to the specified memory location as defined in `SYCL_INTEL_buffer_location` extension. 
+ With `malloc_device` the returned device memory pointer must belong to the specified memory location.
+ with `malloc_shared`, memory must implicitly migrate to the specified memory location.
+
+|===
+
+SYCL implementations may introduce additional properties. If any
+combinations of properties are invalid, this must be clearly documented
+as part of this spec.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-02-21|Sherry Yuan|*Initial public working draft*
+|========================================
