@@ -3495,9 +3495,16 @@ Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
 static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
+  // __attribute__((work_group_size_hint) require exactly three arguments.
+  if (AL.getSyntax() == ParsedAttr::AS_GNU || !AL.hasScope() ||
+      (AL.hasScope() && !AL.getScopeName()->isStr("sycl"))) {
+    if (!AL.checkExactlyNumArgs(S, 3))
+      return;
+  }
+
   // Handles default arguments in work_group_size_hint
   auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
-    assert(AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
+    assert(AL.getKind() == ParsedAttr::AT_WorkGroupSizeHint && AL.hasScope() &&
            AL.getScopeName()->isStr("sycl"));
     return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
                                   S.Context.IntTy, AL.getLoc());
