@@ -1,19 +1,28 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 
 // Check the basics.
-[[sycl::work_group_size_hint]] void f0(); // expected-error {{'work_group_size_hint' attribute requires exactly 3 arguments}}
-[[sycl::work_group_size_hint(12, 12, 12, 12)]] void f1(); // expected-error {{'work_group_size_hint' attribute requires exactly 3 arguments}}
-[[sycl::work_group_size_hint("derp", 1, 2)]] void f2(); // expected-error {{integral constant expression must have integral or unscoped enumeration type, not 'const char[5]'}}
-[[sycl::work_group_size_hint(1, 1, 1)]] int i; // expected-error {{'work_group_size_hint' attribute only applies to functions}}
+[[sycl::work_group_size_hint]] void f0();                 // expected-error {{'work_group_size_hint' attribute takes at least 1 argument}}
+[[sycl::work_group_size_hint(12, 12, 12, 12)]] void f1(); // expected-error {{'work_group_size_hint' attribute takes no more than 3 arguments}}
+[[sycl::work_group_size_hint("derp", 1, 2)]] void f2();   // expected-error {{integral constant expression must have integral or unscoped enumeration type, not 'const char[5]'}}
+[[sycl::work_group_size_hint(1, 1, 1)]] int i;            // expected-error {{'work_group_size_hint' attribute only applies to functions}}
 
 // Produce a conflicting attribute warning when the args are different.
-[[sycl::work_group_size_hint(4, 1, 1)]] void f3(); // expected-note {{previous attribute is here}}
-[[sycl::work_group_size_hint(32, 1, 1)]] void f3() {} // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
+[[sycl::work_group_size_hint(4, 1, 1)]] void f3();    // expected-note {{previous attribute is here}}
+[[sycl::work_group_size_hint(1, 1, 32)]] void f3() {} // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
 
-// FIXME: the attribute is like reqd_work_group_size in that it has a one, two,
-// and three arg form that needs to be supported.
-[[sycl::work_group_size_hint(1)]] void f4(); // expected-error {{'work_group_size_hint' attribute requires exactly 3 arguments}}
-[[sycl::work_group_size_hint(1, 1)]] void f5(); // expected-error {{'work_group_size_hint' attribute requires exactly 3 arguments}}
+// 1 and 2 dim versions
+[[sycl::work_group_size_hint(2)]] void f4();    // ok
+[[sycl::work_group_size_hint(2, 1)]] void f5(); // ok
+
+// FIXME: This turns out to be wrong as there aren't really default values
+// (that is an implementation detail we use but shouldn't expose to the user).
+// Instead, the dimensionality of the attribute needs to match that of the
+// kernel, so the one, two, and three arg forms of the attribute are actually
+// *different* attributes. This means that you should not be able to redeclare
+// the function with a different dimensionality.
+// As a result these two (re)declarations should result in errors.
+[[sycl::work_group_size_hint(2)]] void f5();
+[[sycl::work_group_size_hint(2, 1, 1)]] void f5();
 
 // The GNU spelling is deprecated in SYCL mode, but otherwise these attributes
 // have the same semantics.
@@ -49,6 +58,8 @@ template <int X, int Y, int Z>
 [[sycl::work_group_size_hint(X, 1, Z)]] void f10(); // expected-note {{previous attribute is here}}
 template <int X, int Y, int Z>
 [[sycl::work_group_size_hint(X, 2, Z)]] void f10(); // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
+
+[[sycl::work_group_size_hint(1, 2, 0)]] void f11(); // expected-error {{'work_group_size_hint' attribute requires a positive integral compile time constant expression}}
 
 void instantiate() {
   f8<1>(); // OK
