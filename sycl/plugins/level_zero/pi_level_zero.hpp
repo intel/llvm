@@ -423,9 +423,7 @@ struct pi_command_list_info_t {
   // Keeps the ordinal of the ZeQueue queue group. Invalid if ZeQueue==nullptr
   uint32_t ZeQueueGroupOrdinal{0};
   // Helper functions to tell if this is a copy command-list.
-  bool isCopy() const {
-    return ZeQueueGroupOrdinal != _pi_device::queue_group_info_t::type::Compute;
-  }
+  bool isCopy(pi_queue Queue) const;
 
   // Keeps events created by commands submitted into this command-list.
   // TODO: use this for explicit wait/cleanup of events at command-list

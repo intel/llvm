@@ -829,6 +829,13 @@ pi_result _pi_context::finalize() {
   return PI_SUCCESS;
 }
 
+bool pi_command_list_info_t::isCopy(pi_queue Queue) const {
+  return ZeQueueGroupOrdinal !=
+         (uint32_t)Queue->Device
+             ->QueueGroup[_pi_device::queue_group_info_t::type::Compute]
+             .ZeOrdinal;
+}
+
 bool _pi_queue::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
   return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
@@ -836,7 +843,7 @@ bool _pi_queue::isInOrderQueue() const {
 
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                                       bool MakeAvailable) {
-  bool UseCopyEngine = CommandList->second.isCopy();
+  bool UseCopyEngine = CommandList->second.isCopy(this);
   auto &ZeCommandListCache =
       UseCopyEngine
           ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
@@ -1037,11 +1044,11 @@ _pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
       getRangeOfAllowedCopyEngines.second < 0) {
     // We are asked not to use copy engines, just do nothing.
     // Leave CopyQueueGroup.ZeQueues empty, and it won't be used.
-  }
-  else {
+  } else {
     uint32_t FilterLowerIndex = getRangeOfAllowedCopyEngines.first;
     uint32_t FilterUpperIndex = getRangeOfAllowedCopyEngines.second;
-    FilterUpperIndex = std::min((size_t)FilterUpperIndex, CopyQueues.size() - 1);
+    FilterUpperIndex =
+        std::min((size_t)FilterUpperIndex, CopyQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       CopyQueueGroup.ZeQueues = CopyQueues;
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
@@ -1140,7 +1147,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   for (auto it = Queue->CommandListMap.begin();
        it != Queue->CommandListMap.end(); ++it) {
     // Make sure this is the command list type needed.
-    if (UseCopyEngine != it->second.isCopy())
+    if (UseCopyEngine != it->second.isCopy(Queue))
       continue;
 
     ze_result_t ZeResult =
@@ -1242,7 +1249,7 @@ void _pi_queue::adjustBatchSizeForPartialBatch(bool IsCopy) {
 pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
-  bool UseCopyEngine = CommandList->second.isCopy();
+  bool UseCopyEngine = CommandList->second.isCopy(this);
 
   // If the current LastCommandEvent is the nullptr, then it means
   // either that no command has ever been issued to the queue
@@ -5728,8 +5735,7 @@ pi_result piEnqueueMemBufferReadRect(
 } // extern "C"
 
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
-  return PreferCopyEngine &&
-         CopyQueueGroup.ZeQueues.size() > 0 &&
+  return PreferCopyEngine && CopyQueueGroup.ZeQueues.size() > 0 &&
          (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
