@@ -78,20 +78,20 @@ void foo()
 #ifndef SYCLHOST
 // expected-warning@+2 {{'scheduler_target_fmax_mhz' attribute ignored}}
 #endif
-  [[intel::scheduler_target_fmax_mhz(3)]] void func3();
+  [[intel::scheduler_target_fmax_mhz(3)]] void func2();
 
 #ifndef SYCLHOST
 // expected-warning@+2 {{'kernel_args_restrict' attribute ignored}}
 #endif
-  [[intel::kernel_args_restrict]] void func4();
+  [[intel::kernel_args_restrict]] void func3();
 
 #ifndef SYCLHOST
 // expected-warning@+2 {{'num_simd_work_items' attribute ignored}}
 #endif
-  [[intel::num_simd_work_items(12)]] void func5();
+  [[intel::num_simd_work_items(12)]] void func4();
 
 #ifndef SYCLHOST
 // expected-warning@+2 {{'max_work_group_size' attribute ignored}}
 #endif
-  [[intel::max_work_group_size(32, 32, 32)]] void func6();
+  [[intel::max_work_group_size(32, 32, 32)]] void func5();
 }
