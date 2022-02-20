@@ -15,6 +15,7 @@
 
 #include "mlir/Analysis/Presburger/Fraction.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
+#include "mlir/Analysis/Presburger/PresburgerSpace.h"
 #include "mlir/Analysis/Presburger/Utils.h"
 #include "mlir/Support/LogicalResult.h"
 
@@ -50,28 +51,26 @@ namespace mlir {
 /// example, `q` is existentially quantified. This can be thought of as the
 /// result of projecting out `q` from the previous example, i.e. we obtained {2,
 /// 4, 6} by projecting out the second dimension from {(2, 1), (4, 2), (6, 2)}.
-class IntegerPolyhedron {
+class IntegerPolyhedron : public PresburgerLocalSpace {
 public:
   /// All derived classes of IntegerPolyhedron.
   enum class Kind {
     FlatAffineConstraints,
     FlatAffineValueConstraints,
+    MultiAffineFunction,
     IntegerPolyhedron
   };
-
-  /// Kind of identifier (column).
-  enum IdKind { Dimension, Symbol, Local };
 
   /// Constructs a constraint system reserving memory for the specified number
   /// of constraints and identifiers.
   IntegerPolyhedron(unsigned numReservedInequalities,
                     unsigned numReservedEqualities, unsigned numReservedCols,
                     unsigned numDims, unsigned numSymbols, unsigned numLocals)
-      : numIds(numDims + numSymbols + numLocals), numDims(numDims),
-        numSymbols(numSymbols),
-        equalities(0, numIds + 1, numReservedEqualities, numReservedCols),
-        inequalities(0, numIds + 1, numReservedInequalities, numReservedCols) {
-    assert(numReservedCols >= numIds + 1);
+      : PresburgerLocalSpace(numDims, numSymbols, numLocals),
+        equalities(0, getNumIds() + 1, numReservedEqualities, numReservedCols),
+        inequalities(0, getNumIds() + 1, numReservedInequalities,
+                     numReservedCols) {
+    assert(numReservedCols >= getNumIds() + 1);
   }
 
   /// Constructs a constraint system with the specified number of
@@ -90,8 +89,6 @@ public:
                                        unsigned numSymbols = 0) {
     return IntegerPolyhedron(numDims, numSymbols);
   }
-
-  virtual ~IntegerPolyhedron() = default;
 
   /// Return the kind of this IntegerPolyhedron.
   virtual Kind getKind() const { return Kind::IntegerPolyhedron; }
@@ -138,16 +135,9 @@ public:
   unsigned getNumConstraints() const {
     return getNumInequalities() + getNumEqualities();
   }
-  inline unsigned getNumIds() const { return numIds; }
-  inline unsigned getNumDimIds() const { return numDims; }
-  inline unsigned getNumSymbolIds() const { return numSymbols; }
-  inline unsigned getNumDimAndSymbolIds() const { return numDims + numSymbols; }
-  inline unsigned getNumLocalIds() const {
-    return numIds - numDims - numSymbols;
-  }
 
   /// Returns the number of columns in the constraint system.
-  inline unsigned getNumCols() const { return numIds + 1; }
+  inline unsigned getNumCols() const { return getNumIds() + 1; }
 
   inline unsigned getNumEqualities() const { return equalities.getNumRows(); }
 
@@ -179,7 +169,7 @@ public:
   unsigned insertDimId(unsigned pos, unsigned num = 1);
   unsigned insertSymbolId(unsigned pos, unsigned num = 1);
   unsigned insertLocalId(unsigned pos, unsigned num = 1);
-  virtual unsigned insertId(IdKind kind, unsigned pos, unsigned num = 1);
+  unsigned insertId(IdKind kind, unsigned pos, unsigned num = 1) override;
 
   /// Append `num` identifiers of the specified kind after the last identifier.
   /// of that kind. Return the position of the first appended column. The
@@ -193,6 +183,11 @@ public:
   void addInequality(ArrayRef<int64_t> inEq);
   /// Adds an equality from the coefficients specified in `eq`.
   void addEquality(ArrayRef<int64_t> eq);
+
+  /// Eliminate the `posB^th` local identifier, replacing every instance of it
+  /// with the `posA^th` local identifier. This should be used when the two
+  /// local variables are known to always take the same values.
+  virtual void eliminateRedundantLocalId(unsigned posA, unsigned posB);
 
   /// Removes identifiers of the specified kind with the specified pos (or
   /// within the specified range) from the system. The specified location is
@@ -271,8 +266,16 @@ public:
   /// otherwise.
   Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
 
+  /// Compute an overapproximation of the number of integer points in the
+  /// polyhedron. Symbol ids are currently not supported. If the computed
+  /// overapproximation is infinite, an empty optional is returned.
+  Optional<uint64_t> computeVolume() const;
+
   /// Returns true if the given point satisfies the constraints, or false
   /// otherwise.
+  ///
+  /// Note: currently, if the polyhedron contains local ids, the values of
+  /// the local ids must also be provided.
   bool containsPoint(ArrayRef<int64_t> point) const;
 
   /// Find equality and pairs of inequality contraints identified by their
@@ -315,11 +318,6 @@ public:
   // mark exactness for example.
   void projectOut(unsigned pos, unsigned num);
   inline void projectOut(unsigned pos) { return projectOut(pos, 1); }
-
-  /// Changes the partition between dimensions and symbols. Depending on the new
-  /// symbol count, either a chunk of trailing dimensional identifiers becomes
-  /// symbols, or some of the leading symbols become dimensions.
-  void setDimSymbolSeparation(unsigned newSymbolCount);
 
   /// Tries to fold the specified identifier to a constant using a trivial
   /// equality detection; if successful, the constant is substituted for the
@@ -374,7 +372,6 @@ public:
 
   /// Returns the constant bound for the pos^th identifier if there is one;
   /// None otherwise.
-  // TODO: Support EQ bounds.
   Optional<int64_t> getConstantBound(BoundType type, unsigned pos) const;
 
   /// Removes constraints that are independent of (i.e., do not have a
@@ -495,24 +492,10 @@ protected:
   /// IntegerPolyhedron.
   virtual void printSpace(raw_ostream &os) const;
 
-  /// Return the index at which the specified kind of id starts.
-  unsigned getIdKindOffset(IdKind kind) const;
-
-  /// Return the index at which the specified kind of id ends.
-  unsigned getIdKindEnd(IdKind kind) const;
-
-  /// Get the number of ids of the specified kind.
-  unsigned getNumIdKind(IdKind kind) const;
-
-  /// Get the number of elements of the specified kind in the range
-  /// [idStart, idLimit).
-  unsigned getIdKindOverlap(IdKind kind, unsigned idStart,
-                            unsigned idLimit) const;
-
   /// Removes identifiers in the column range [idStart, idLimit), and copies any
   /// remaining valid data into place, updates member variables, and resizes
   /// arrays as needed.
-  virtual void removeIdRange(unsigned idStart, unsigned idLimit);
+  void removeIdRange(unsigned idStart, unsigned idLimit) override;
 
   /// A parameter that controls detection of an unrealistic number of
   /// constraints. If the number of constraints is this many times the number of
@@ -525,16 +508,6 @@ protected:
   // don't expect an identifier to have more than 32 lower/upper/equality
   // constraints. This is conservatively set low and can be raised if needed.
   constexpr static unsigned kExplosionFactor = 32;
-
-  /// Total number of identifiers.
-  unsigned numIds;
-
-  /// Number of identifiers corresponding to real dimensions.
-  unsigned numDims;
-
-  /// Number of identifiers corresponding to symbols (unknown but constant for
-  /// analysis).
-  unsigned numSymbols;
 
   /// Coefficients of affine equalities (in == 0 form).
   Matrix equalities;
