@@ -32,8 +32,8 @@ extern "C" {
 // Forward declarartions.
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
 static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
-static pi_result EventCreate(pi_context Context, bool HostVisible,
-                             pi_event *RetEvent);
+static pi_result EventCreate(pi_context Context, pi_queue Queue,
+                             bool HostVisible, pi_event *RetEvent);
 }
 
 namespace {
@@ -428,20 +428,13 @@ pi_result _pi_mem::removeMapping(void *MappedTo, Mapping &MapInfo) {
 
 pi_result
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
-                                            size_t &Index, bool HostVisible) {
+                                            size_t &Index, bool HostVisible,
+                                            bool ProfilingEnabled) {
   // Lock while updating event pool machinery.
   std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
 
-  // Setup for host-visible pool as needed.
-  ze_event_pool_flag_t ZePoolFlag = {};
-  std::list<ze_event_pool_handle_t> *ZePoolCache;
-
-  if (HostVisible) {
-    ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
-    ZePoolCache = &ZeHostVisibleEventPoolCache;
-  } else {
-    ZePoolCache = &ZeDeviceScopeEventPoolCache;
-  }
+  std::list<ze_event_pool_handle_t> *ZePoolCache =
+      getZeEventPoolCache(HostVisible, ProfilingEnabled);
 
   // Remove full pool from the cache.
   if (!ZePoolCache->empty()) {
@@ -460,7 +453,12 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   if (*ZePool == nullptr) {
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
-    ZeEventPoolDesc.flags = ZePoolFlag | ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    ZeEventPoolDesc.flags = 0;
+    if (HostVisible)
+      ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
+    if (ProfilingEnabled)
+      ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    zePrint("ze_event_pool_desc_t flags set to: %d\n", ZeEventPoolDesc.flags);
 
     std::vector<ze_device_handle_t> ZeDevices;
     std::for_each(Devices.begin(), Devices.end(),
@@ -486,12 +484,8 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
     return PI_SUCCESS;
   }
 
-  std::list<ze_event_pool_handle_t> *ZePoolCache;
-  if (Event->IsHostVisible()) {
-    ZePoolCache = &ZeHostVisibleEventPoolCache;
-  } else {
-    ZePoolCache = &ZeDeviceScopeEventPoolCache;
-  }
+  std::list<ze_event_pool_handle_t> *ZePoolCache =
+      getZeEventPoolCache(Event->isHostVisible(), Event->isProfilingEnabled());
 
   // Put the empty pool to the cache of the pools.
   std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
@@ -611,13 +605,15 @@ inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
 // \param Event a pointer to hold the newly created pi_event
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
-inline static pi_result
-createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
-                             pi_command_type CommandType,
-                             pi_command_list_ptr_t CommandList) {
-  pi_result Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+// \param ForceHostVisible tells if the event must be created in
+//        the host-visible pool
+inline static pi_result createEventAndAssociateQueue(
+    pi_queue Queue, pi_event *Event, pi_command_type CommandType,
+    pi_command_list_ptr_t CommandList, bool ForceHostVisible = false) {
+
+  PI_CALL(EventCreate(Queue->Context, Queue,
+                      ForceHostVisible ? true : EventsScope == AllHostVisible,
+                      Event));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -806,13 +802,11 @@ pi_result _pi_context::finalize() {
   // For example, event pool caches would be still alive.
   {
     std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
-    for (auto &ZePool : ZeDeviceScopeEventPoolCache)
-      ZE_CALL(zeEventPoolDestroy, (ZePool));
-    for (auto &ZePool : ZeHostVisibleEventPoolCache)
-      ZE_CALL(zeEventPoolDestroy, (ZePool));
-
-    ZeDeviceScopeEventPoolCache.clear();
-    ZeHostVisibleEventPoolCache.clear();
+    for (auto &ZePoolCache : ZeEventPoolCache) {
+      for (auto &ZePool : ZePoolCache)
+        ZE_CALL(zeEventPoolDestroy, (ZePool));
+      ZePoolCache.clear();
+    }
   }
 
   // Destroy the command list used for initializations
@@ -841,8 +835,7 @@ pi_result _pi_context::finalize() {
 
 bool _pi_queue::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
-  return ((this->PiQueueProperties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
-          0);
+  return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
 }
 
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
@@ -1032,11 +1025,10 @@ static const zeCommandListBatchConfig ZeCommandListBatchCopyConfig = [] {
 _pi_queue::_pi_queue(ze_command_queue_handle_t Queue,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
-                     bool OwnZeCommandQueue,
-                     pi_queue_properties PiQueueProperties)
+                     bool OwnZeCommandQueue, pi_queue_properties Properties)
     : ZeComputeCommandQueue{Queue}, ZeCopyCommandQueues{CopyQueues},
       Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
-      PiQueueProperties(PiQueueProperties) {
+      Properties(Properties) {
   ComputeCommandBatch.OpenCommandList = CommandListMap.end();
   CopyCommandBatch.OpenCommandList = CommandListMap.end();
   ComputeCommandBatch.QueueBatchSize =
@@ -1350,7 +1342,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // Create a "proxy" host-visible event.
     //
     pi_event HostVisibleEvent;
-    PI_CALL(EventCreate(Context, true, &HostVisibleEvent));
+    auto Res = createEventAndAssociateQueue(
+        this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+    if (Res)
+      return Res;
 
     // Update each command's event in the command-list to "see" this
     // proxy event as a host-visible counterpart.
@@ -1359,10 +1354,14 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       PI_CALL(piEventRetain(HostVisibleEvent));
     }
 
-    // Decrement the reference count by 1 so all the remaining references
-    // are from the other commands in this batch. This host-visible event
-    // will be destroyed after all events in the batch are gone.
+    // Decrement the reference count of the event such that all the remaining
+    // references are from the other commands in this batch. This host-visible
+    // event will not be waited/release by SYCL RT, so it must be destroyed
+    // after all events in the batch are gone.
     PI_CALL(piEventRelease(HostVisibleEvent));
+    PI_CALL(piEventRelease(HostVisibleEvent));
+    PI_CALL(piEventRelease(HostVisibleEvent));
+
     // Indicate no cleanup is needed for this PI event as it is special.
     HostVisibleEvent->CleanedUp = true;
 
@@ -2029,7 +2028,7 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_INVALID_VALUE;
 }
 
-// Get the cahched PI device created for the L0 device handle.
+// Get the cached PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
 pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
@@ -2105,7 +2104,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     *NumDevices = ZeDeviceCount;
 
   if (NumEntries == 0) {
-    // Devices should be nullptr when querying the number of devices
+    // Devices should be nullptr when querying the number of devices.
     PI_ASSERT(Devices == nullptr, PI_INVALID_VALUE);
     return PI_SUCCESS;
   }
@@ -2189,6 +2188,11 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         // Create PI sub-sub-devices with the sub-device for all the ordinals.
         // Each {ordinal, index} points to a specific CCS which constructs
         // a sub-sub-device at this point.
+        // FIXME: Level Zero creates multiple PiDevices for a single physical
+        // device when sub-device is partitioned into sub-sub-devices.
+        // Sub-sub-device is technically a command queue and we should not build
+        // program for each command queue. PiDevice is probably not the right
+        // abstraction for a Level Zero command queue.
         for (uint32_t J = 0; J < Ordinals.size(); ++J) {
           for (uint32_t K = 0; K < QueueGroupProperties[Ordinals[J]].numQueues;
                ++K) {
@@ -2277,8 +2281,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
   }
   case PI_DEVICE_INFO_PARENT_DEVICE:
-    // TODO: all Level Zero devices are parent ?
-    return ReturnValue(pi_device{0});
+    return ReturnValue(Device->RootDevice);
   case PI_DEVICE_INFO_PLATFORM:
     return ReturnValue(Device->Platform);
   case PI_DEVICE_INFO_VENDOR_ID:
@@ -2286,7 +2289,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_UUID:
     // Intel extension for device UUID. This returns the UUID as
     // std::array<std::byte, 16>. For details about this extension,
-    // see sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md.
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     return ReturnValue(Device->ZeDeviceProperties->uuid.id);
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
@@ -2338,6 +2341,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
   case PI_DEVICE_INFO_NAME:
     return ReturnValue(Device->ZeDeviceProperties->name);
+  // zeModuleCreate allows using root device module for sub-devices:
+  // > The application must only use the module for the device, or its
+  // > sub-devices, which was provided during creation.
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
+    return ReturnValue(PI_FALSE);
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{1});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
@@ -3333,7 +3341,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // TODO: see if we need to let user choose the device.
   pi_device Device = Context->Devices[0];
   // TODO: see what we can do to correctly initialize PI queue for
-  // compute vs. copy Level-Zero queue.
+  // compute vs. copy Level-Zero queue. Currently we will send
+  // all commands to the "ZeQueue".
   std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
   *Queue =
       new _pi_queue(ZeQueue, ZeroCopyQueues, Context, Device, OwnNativeHandle);
@@ -3441,7 +3450,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
     // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
     // pinned host memory, see:
-    // sycl/doc/extensions/supported/SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY.asciidoc
+    // sycl/doc/extensions/supported/sycl_ext_oneapi_use_pinned_host_memory_property.asciidoc
     // We are however missing such functionality in Level Zero, so we just
     // ignore the flag for now.
     //
@@ -4296,28 +4305,37 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
   ze_module_handle_t ZeModule = nullptr;
-  ZE_CALL(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
-                           &Program->ZeBuildLog));
 
-  // The call to zeModuleCreate does not report an error if there are
-  // unresolved symbols because it thinks these could be resolved later via a
-  // call to zeModuleDynamicLink.  However, modules created with piProgramBuild
-  // are supposed to be fully linked and ready to use.  Therefore, do an extra
-  // check now for unresolved symbols.
-  ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
-  if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-    return PI_BUILD_PROGRAM_FAILURE;
-  } else if (ZeResult != ZE_RESULT_SUCCESS) {
-    return mapError(ZeResult);
+  pi_result Result = PI_SUCCESS;
+  Program->State = _pi_program::Exe;
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                       &ZeModule, &Program->ZeBuildLog));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    // We adjust pi_program below to avoid attempting to release zeModule when
+    // RT calls piProgramRelease().
+    ZeModule = nullptr;
+    Program->State = _pi_program::Invalid;
+    Result = mapError(ZeResult);
+  } else {
+    // The call to zeModuleCreate does not report an error if there are
+    // unresolved symbols because it thinks these could be resolved later via a
+    // call to zeModuleDynamicLink.  However, modules created with
+    // piProgramBuild are supposed to be fully linked and ready to use.
+    // Therefore, do an extra check now for unresolved symbols.
+    ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+    if (ZeResult != ZE_RESULT_SUCCESS) {
+      Program->State = _pi_program::Invalid;
+      Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
+                   ? PI_BUILD_PROGRAM_FAILURE
+                   : mapError(ZeResult);
+    }
   }
 
   // We no longer need the IL / native code.
   Program->Code.reset();
-
   Program->ZeModule = ZeModule;
-  Program->State = _pi_program::Exe;
-
-  return PI_SUCCESS;
+  return Result;
 }
 
 pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
@@ -4954,10 +4972,6 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
     if (EventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
-    // Create a "proxy" host-visible event on demand.
-    PI_CALL(EventCreate(Context, true, &HostVisibleEvent));
-    HostVisibleEvent->CleanedUp = true;
-
     // Submit the command(s) signalling the proxy event to the queue.
     // We have to first submit a wait for the device-only event for which this
     // proxy is created.
@@ -4974,6 +4988,13 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
               Queue, CommandList, false /* UseCopyEngine */, OkToBatch))
         return Res;
 
+      // Create a "proxy" host-visible event.
+      auto Res = createEventAndAssociateQueue(
+          Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+      // HostVisibleEvent->CleanedUp = true;
+      if (Res != PI_SUCCESS)
+        return Res;
+
       ZE_CALL(zeCommandListAppendWaitOnEvents,
               (CommandList->first, 1, &ZeEvent));
       ZE_CALL(zeCommandListAppendSignalEvent,
@@ -4988,12 +5009,21 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   return PI_SUCCESS;
 }
 
-static pi_result EventCreate(pi_context Context, bool HostVisible,
-                             pi_event *RetEvent) {
+// Helper function for creating a PI event.
+// The "Queue" argument specifies the PI queue where a command is submitted.
+// The "HostVisible" argument specifies if event needs to be allocated from
+// a host-visible pool.
+//
+static pi_result EventCreate(pi_context Context, pi_queue Queue,
+                             bool HostVisible, pi_event *RetEvent) {
+
+  bool ProfilingEnabled =
+      !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+
   size_t Index = 0;
   ze_event_pool_handle_t ZeEventPool = {};
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index,
-                                                         HostVisible))
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+          ZeEventPool, Index, HostVisible, ProfilingEnabled))
     return Res;
 
   ze_event_handle_t ZeEvent;
@@ -5034,8 +5064,9 @@ static pi_result EventCreate(pi_context Context, bool HostVisible,
   return PI_SUCCESS;
 }
 
+// Exteral PI API entry
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
-  return EventCreate(Context, EventsScope == AllHostVisible, RetEvent);
+  return EventCreate(Context, nullptr, EventsScope == AllHostVisible, RetEvent);
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -5100,6 +5131,11 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
                                   size_t *ParamValueSizeRet) {
 
   PI_ASSERT(Event, PI_INVALID_EVENT);
+
+  if (Event->Queue &&
+      (Event->Queue->Properties & PI_QUEUE_PROFILING_ENABLE) == 0) {
+    return PI_PROFILING_INFO_NOT_AVAILABLE;
+  }
 
   uint64_t ZeTimerResolution =
       Event->Queue
@@ -5373,7 +5409,7 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     // and release a reference to it.
     if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
       // Decrement ref-count of the host-visible proxy event.
-      PI_CALL(piEventRelease(Event->HostVisibleEvent));
+      PI_CALL(EventRelease(Event->HostVisibleEvent, LockedQueue));
     }
 
     auto Context = Event->Context;
@@ -5753,8 +5789,9 @@ pi_result piEnqueueMemBufferReadRect(
 } // extern "C"
 
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
-  return (!isInOrderQueue() || UseCopyEngineForInOrderQueue) &&
-         PreferCopyEngine && Device->hasCopyEngine();
+  return PreferCopyEngine && Device->hasCopyEngine() &&
+         ZeCopyCommandQueues.size() > 0 && // TODO: initialize interop queues
+         (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
 // Shared by all memory read/write/copy PI interfaces.

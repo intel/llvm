@@ -17,3 +17,5 @@ jobs:
         exempt-issue-labels: 'confirmed,hip,cuda,enhancement,help wanted,upstream'
         stale-issue-label: 'stale'
         exempt-all-issue-assignees: true
+        operations-per-run: 200
+

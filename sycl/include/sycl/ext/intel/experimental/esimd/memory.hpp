@@ -48,10 +48,6 @@ namespace detail {
 // accesses and thus reuse validity checks etc.
 struct LocalAccessorMarker {};
 
-// Shared Local Memory Binding Table Index (aka surface index).
-static inline constexpr SurfaceIndex SLM_BTI = 254;
-static inline constexpr SurfaceIndex INVALID_BTI =
-    static_cast<SurfaceIndex>(-1);
 } // namespace detail
 
 /// @endcond ESIMD_DETAIL
@@ -66,23 +62,19 @@ static inline constexpr SurfaceIndex INVALID_BTI =
 ///
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
-#ifdef __SYCL_DEVICE_ONLY__
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
     return detail::SLM_BTI;
   } else {
+#ifdef __SYCL_DEVICE_ONLY__
     const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     return __esimd_get_surface_index(mem_obj);
+#else  // __SYCL_DEVICE_ONLY__
+    return __esimd_get_surface_index(acc);
+#endif // __SYCL_DEVICE_ONLY__
   }
-#else
-  throw sycl::feature_not_supported();
-#endif
 }
 
-#ifdef __SYCL_DEVICE_ONLY__
 #define __ESIMD_GET_SURF_HANDLE(acc) get_surface_index(acc)
-#else
-#define __ESIMD_GET_SURF_HANDLE(acc) acc
-#endif // __SYCL_DEVICE_ONLY__
 
 // TODO @Pennycook
 // {quote}
@@ -266,21 +258,15 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#else  // __SYCL_DEVICE_ONLY__
+  auto surf_ind = __esimd_get_surface_index(acc);
 #endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
-#if defined(__SYCL_DEVICE_ONLY__)
     return __esimd_oword_ld<T, N>(surf_ind, offset >> 4);
-#else
-    return __esimd_oword_ld<T, N>(acc, offset >> 4);
-#endif // __SYCL_DEVICE_ONLY__
   } else {
-#if defined(__SYCL_DEVICE_ONLY__)
     return __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
-#else
-    return __esimd_oword_ld_unaligned<T, N>(acc, offset);
-#endif // __SYCL_DEVICE_ONLY__
   }
 }
 
@@ -336,10 +322,10 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#else //
+  auto surf_ind = __esimd_get_surface_index(acc);
+#endif
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
-#else
-  __esimd_oword_st<T, N>(acc, offset >> 4, vals.data());
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// @} sycl_esimd_memory
@@ -820,24 +806,7 @@ __ESIMD_API void sbarrier(split_barrier_action flag) { __esimd_sbarrier(flag); }
 /// @{
 
 /// Declare per-work-group slm size.
-/// @param size the requested size of the shared local memory for current work
-/// group. Must be compile-time constant.
-#ifdef __SYCL_DEVICE_ONLY__
-// TODO slm_init should call __esimd_slm_init (TBD) and declared as __ESIMD_API
-// on both host and device. Currently __ESIMD_API on device leads to:
-// "... cannot call an undefined function without SYCL_EXTERNAL attribute"
-__ESIMD_INTRIN
-#else
-__ESIMD_API
-#endif
-void slm_init(uint32_t size)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  throw sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 
 /// Gather operation over the Shared Local Memory.
 /// This API has almost the same interface as the @ref accessor_gather
