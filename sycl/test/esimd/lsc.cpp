@@ -143,9 +143,9 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo() {
       ptr, data_width, data_height, data_pitch, x, y, data8);
 
   // CHECK: call void @llvm.genx.lsc.prefetch2d.stateless.v32i1.i64(<32 x i1> {{[^)]+}}, i8 1, i8 2, i8 3, i8 1, i8 2, i16 4, i16 4, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
-  lsc_prefetch2d<int, Width, Height, NumBlocks, false, false,
-                 cache_hint::uncached, cache_hint::cached>(
-      ptr, data_width, data_height, data_pitch, x, y);
+  lsc_prefetch2d<int, Width, Height, NumBlocks, cache_hint::uncached,
+                 cache_hint::cached>(ptr, data_width, data_height, data_pitch,
+                                     x, y);
 
   lsc_fence<lsc_memory_kind::shared_local, lsc_fence_op::none, lsc_scope::group,
             16>();

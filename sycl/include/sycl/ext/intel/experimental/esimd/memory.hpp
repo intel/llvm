@@ -1995,8 +1995,6 @@ __ESIMD_API simd<T, N> lsc_load2d(const T *Ptr, unsigned SurfaceWidth,
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
 /// @tparam NBlocks is the number of blocks.
-/// @tparam Transposed is the transposed version or not.
-/// @tparam Transformed is apply VNNI transform or not.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam N is the data size
@@ -2010,26 +2008,21 @@ __ESIMD_API simd<T, N> lsc_load2d(const T *Ptr, unsigned SurfaceWidth,
 /// rows.
 ///
 template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
-          bool Transposed = false, bool Transformed = false,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N = detail::get_lsc_block_2d_data_size<
-              T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
+              T, NBlocks, BlockHeight, BlockWidth, false, false>()>
 __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
                                 unsigned SurfaceHeight, unsigned SurfacePitch,
                                 int X, int Y) {
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
-  static_assert(
-      !Transposed || (DS == lsc_data_size::u32 || DS == lsc_data_size::u64),
-      "Transposed prefetch is supported only for data size u32 or u64");
   simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
-      Transposed ? detail::lsc_data_order::transpose
-                 : detail::lsc_data_order::nontranspose;
+      detail::lsc_data_order::nontranspose;
   __esimd_lsc_prefetch2d_stateless<T, L1H, L3H, DS, _Transposed, NBlocks,
-                                   BlockWidth, BlockHeight, Transformed, N>(
+                                   BlockWidth, BlockHeight, false, N>(
       pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
 }
 
