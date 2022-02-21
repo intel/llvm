@@ -982,10 +982,11 @@ private:
         Tok->setType(TT_JsTypeOperator);
       break;
     case tok::kw_if:
-    case tok::kw_while:
-      if (Tok->is(tok::kw_if) && CurrentToken &&
+      if (CurrentToken &&
           CurrentToken->isOneOf(tok::kw_constexpr, tok::identifier))
         next();
+      LLVM_FALLTHROUGH;
+    case tok::kw_while:
       if (CurrentToken && CurrentToken->is(tok::l_paren)) {
         next();
         if (!parseParens(/*LookForDecls=*/true))
@@ -1424,11 +1425,12 @@ private:
             TT_LambdaArrow, TT_NamespaceMacro, TT_OverloadedOperator,
             TT_RegexLiteral, TT_TemplateString, TT_ObjCStringLiteral,
             TT_UntouchableMacroFunc, TT_StatementAttributeLikeMacro,
-            TT_FunctionLikeOrFreestandingMacro, TT_RecordLBrace,
-            TT_RequiresClause, TT_RequiresClauseInARequiresExpression,
-            TT_RequiresExpression, TT_RequiresExpressionLParen,
-            TT_RequiresExpressionLBrace, TT_BinaryOperator,
-            TT_CompoundRequirementLBrace, TT_BracedListLBrace))
+            TT_FunctionLikeOrFreestandingMacro, TT_ClassLBrace, TT_EnumLBrace,
+            TT_RecordLBrace, TT_StructLBrace, TT_UnionLBrace, TT_RequiresClause,
+            TT_RequiresClauseInARequiresExpression, TT_RequiresExpression,
+            TT_RequiresExpressionLParen, TT_RequiresExpressionLBrace,
+            TT_BinaryOperator, TT_CompoundRequirementLBrace,
+            TT_BracedListLBrace))
       CurrentToken->setType(TT_Unknown);
     CurrentToken->Role.reset();
     CurrentToken->MatchingParen = nullptr;
