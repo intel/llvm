@@ -477,7 +477,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   ELFOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 
-  // Interpret the flags early because error()/warn() depend on them.
+  // Interpret these flags early because error()/warn() depend on them.
   errorHandler().errorLimit = args::getInteger(args, OPT_error_limit, 20);
   errorHandler().fatalWarnings =
       args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
@@ -1668,11 +1668,15 @@ static void excludeLibs(opt::InputArgList &args) {
   bool all = libs.count("ALL");
 
   auto visit = [&](InputFile *file) {
-    if (!file->archiveName.empty())
-      if (all || libs.count(path::filename(file->archiveName)))
-        for (Symbol *sym : file->getSymbols())
-          if (!sym->isUndefined() && !sym->isLocal() && sym->file == file)
-            sym->versionId = VER_NDX_LOCAL;
+    if (file->archiveName.empty() ||
+        !(all || libs.count(path::filename(file->archiveName))))
+      return;
+    ArrayRef<Symbol *> symbols = file->getSymbols();
+    if (isa<ELFFileBase>(file))
+      symbols = cast<ELFFileBase>(file)->getGlobalSymbols();
+    for (Symbol *sym : symbols)
+      if (!sym->isUndefined() && sym->file == file)
+        sym->versionId = VER_NDX_LOCAL;
   };
 
   for (ELFFileBase *file : objectFiles)
