@@ -163,7 +163,13 @@ public:
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
-      std::lock_guard<std::mutex> Guard(*TracingMutex);
+      // MEmergencyModeEnabled signals if process is terminating now, it may
+      // happen by initiative from underlying modules and mutex can be still
+      // locked. Program behavior is undefined if thread terminates while owning
+      // a mutex so skip mutex ownership request in emergency mode.
+      auto Guard = MEmergencyModeEnabled
+                       ? std::unique_lock<std::mutex>()
+                       : std::unique_lock<std::mutex>(*TracingMutex);
       const char *FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
       RT::printArgs(Args...);
@@ -245,6 +251,8 @@ public:
 
   std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
 
+  void enableEmergencyMode() { MEmergencyModeEnabled = true; }
+
 private:
   std::shared_ptr<RT::PiPlugin> MPlugin;
   backend MBackend;
@@ -259,6 +267,8 @@ private:
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in PiPlatforms vector.
   std::vector<int> LastDeviceIds;
+
+  bool MEmergencyModeEnabled = false;
 }; // class plugin
 } // namespace detail
 } // namespace sycl

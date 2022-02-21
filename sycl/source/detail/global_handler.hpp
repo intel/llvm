@@ -74,7 +74,7 @@ public:
 
 private:
   friend void releaseDefaultContexts();
-  friend void shutdown();
+  friend void shutdown(bool NormalExit);
 
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
