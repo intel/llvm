@@ -1,11 +1,10 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s
 
-source_filename = "/the_file.ll"
-target triple = "spir"
+source_filename = "the_file.ll"
+target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind
 define spir_func i1 @trunc_to_i1(i32 %iarg) #0 !dbg !7 {
@@ -72,36 +71,30 @@ define spir_func float @uitofp_b(i1 %barg) #0 !dbg !20 {
 
 attributes #0 = { nounwind }
 
-!opencl.enable.FP_CONTRACT = !{}
-!opencl.spir.version = !{!0}
-!opencl.ocl.version = !{!0}
-!opencl.used.extensions = !{!1}
-!opencl.used.optional.core.features = !{!1}
-!opencl.compiler.options = !{!1}
 !llvm.dbg.cu = !{!2}
 !llvm.debugify = !{!4, !5}
 !llvm.module.flags = !{!6}
 
 !0 = !{i32 1, i32 2}
 !1 = !{}
-!2 = distinct !DICompileUnit(language: DW_LANG_C, file: !3, producer: "debugify", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug)
-!3 = !DIFile(filename: "/the_file.ll", directory: "/")
+!2 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus, file: !3, producer: "debugify", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug)
+!3 = !DIFile(filename: "the_file.ll", directory: "", checksumkind: CSK_MD5, checksum: "18aa9ce738eaafc7b7b7181c19092815")
 !4 = !{i32 10}
 !5 = !{i32 0}
 !6 = !{i32 2, !"Debug Info Version", i32 3}
-!7 = distinct !DISubprogram(name: "trunc_to_i1", linkageName: "trunc_to_i1", scope: null, file: !3, line: 1, type: !8, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !2, retainedNodes: !1)
+!7 = distinct !DISubprogram(name: "trunc_to_i1", scope: !3, file: !3, line: 1, type: !8, scopeLine: 1, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2, retainedNodes: !1)
 !8 = !DISubroutineType(types: !1)
 !9 = !DILocation(line: 1, column: 1, scope: !7)
 !10 = !DILocation(line: 2, column: 1, scope: !7)
-!11 = distinct !DISubprogram(name: "sext_from_i1", linkageName: "sext_from_i1", scope: null, file: !3, line: 3, type: !8, scopeLine: 3, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !2, retainedNodes: !1)
+!11 = distinct !DISubprogram(name: "sext_from_i1", scope: !3, file: !3, line: 3, type: !8, scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2, retainedNodes: !1)
 !12 = !DILocation(line: 3, column: 1, scope: !11)
 !13 = !DILocation(line: 4, column: 1, scope: !11)
-!14 = distinct !DISubprogram(name: "zext_from_i1", linkageName: "zext_from_i1", scope: null, file: !3, line: 5, type: !8, scopeLine: 5, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !2, retainedNodes: !1)
+!14 = distinct !DISubprogram(name: "zext_from_i1", scope: !3, file: !3, line: 5, type: !8, scopeLine: 5, flags: DIFlagPrototyped , spFlags: DISPFlagDefinition, unit: !2, retainedNodes: !1)
 !15 = !DILocation(line: 5, column: 1, scope: !14)
 !16 = !DILocation(line: 6, column: 1, scope: !14)
-!17 = distinct !DISubprogram(name: "sitofp_b", linkageName: "sitofp_b", scope: null, file: !3, line: 7, type: !8, scopeLine: 7, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !2, retainedNodes: !1)
+!17 = distinct !DISubprogram(name: "sitofp_b", scope: !3, file: !3, line: 7, type: !8, scopeLine: 7, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2, retainedNodes: !1)
 !18 = !DILocation(line: 7, column: 1, scope: !17)
 !19 = !DILocation(line: 8, column: 1, scope: !17)
-!20 = distinct !DISubprogram(name: "uitofp_b", linkageName: "uitofp_b", scope: null, file: !3, line: 9, type: !8, scopeLine: 9, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !2, retainedNodes: !1)
+!20 = distinct !DISubprogram(name: "uitofp_b", scope: !3, file: !3, line: 9, type: !8, scopeLine: 9, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2, retainedNodes: !1)
 !21 = !DILocation(line: 9, column: 1, scope: !20)
 !22 = !DILocation(line: 10, column: 1, scope: !20)
