@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-int-footer=%t.footer.h -fsycl-int-header=%t.header.h %s -emit-llvm -o %t.ll
+// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-int-footer=%t.footer.h -fsycl-int-header=%t.header.h -fsycl-unique-prefix=THE_PREFIX %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.footer.h %s --check-prefix=CHECK-FOOTER
 // RUN: FileCheck -input-file=%t.header.h %s --check-prefix=CHECK-HEADER
 
@@ -66,10 +66,10 @@ struct Wrapper {
 
 template <typename T>
 struct WrapperTemplate {
-  static device_global<T> WrapperSpecID;
+  static device_global<T> WrapperDevGlobal;
 };
 template class WrapperTemplate<int>;
-// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::WrapperTemplate<int>::WrapperSpecID, "_ZN15WrapperTemplateIiE13WrapperSpecIDE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::WrapperTemplate<int>::WrapperDevGlobal, "_ZN15WrapperTemplateIiE16WrapperDevGlobalE");
 
 namespace Foo {
 device_global<int> NS;
@@ -95,7 +95,7 @@ template class WrapperTemplate<float>;
 namespace {
 device_global<int> AnonNS;
 }
-// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Foo::__sycl_detail::__shim_[[SHIM0]](), "____ZN3Foo12_GLOBAL__N_16AnonNSE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::Foo::__sycl_detail::__shim_[[SHIM0]](), "THE_PREFIX____ZN3Foo12_GLOBAL__N_16AnonNSE");
 
 } // namespace Foo
 
@@ -109,4 +109,4 @@ struct HasVarTemplate {
 
 } // namespace
 const auto x = HasVarTemplate::VarTempl<int>.get();
-// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::__sycl_detail::__shim_[[SHIM1]](), "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiEE");
+// CHECK-FOOTER-NEXT: device_global_map::add((void *)&::__sycl_detail::__shim_[[SHIM1]](), "THE_PREFIX____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiEE");
