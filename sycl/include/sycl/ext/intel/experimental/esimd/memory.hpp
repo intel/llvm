@@ -1369,6 +1369,7 @@ __ESIMD_API
                simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -1413,6 +1414,7 @@ __ESIMD_API
     lsc_block_load(AccessorTy acc, uint32_t offset) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
@@ -1461,6 +1463,7 @@ __ESIMD_API simd<T, N * NElts> lsc_gather(const T *p, simd<uint32_t, N> offsets,
                                           simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -1496,6 +1499,7 @@ template <typename T, uint8_t NElts = 1,
 __ESIMD_API simd<T, NElts> lsc_block_load(const T *p) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
@@ -1537,6 +1541,7 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -1578,6 +1583,7 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, uint32_t offset) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
@@ -1625,6 +1631,7 @@ __ESIMD_API void lsc_prefetch(const T *p, simd<uint32_t, N> offsets,
                               simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -1658,6 +1665,7 @@ template <typename T, uint8_t NElts = 1,
 __ESIMD_API void lsc_prefetch(const T *p) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
@@ -1768,6 +1776,7 @@ lsc_scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N * NElts> vals,
             simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -1811,6 +1820,7 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_block_store(AccessorTy acc, uint32_t offset, simd<T, NElts> vals) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
@@ -1859,6 +1869,7 @@ __ESIMD_API void lsc_scatter(T *p, simd<uint32_t, N> offsets,
                              simd<T, N * NElts> vals, simd_mask<N> pred = 1) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -1893,6 +1904,7 @@ template <typename T, uint8_t NElts = 1,
 __ESIMD_API void lsc_block_store(T *p, simd<T, NElts> vals) {
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
+  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
@@ -1951,6 +1963,7 @@ __ESIMD_API simd<T, N> lsc_load2d(const T *Ptr, unsigned SurfaceWidth,
                 "Transposed and transformed is not supported");
   static_assert(!Transposed || (Transposed && NBlocks == 1),
                 "Transposed expected to be 1 block only");
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr int ElemsPerDword = 4 / sizeof(T);
   constexpr int GRFRowSize = Transposed ? BlockHeight : BlockWidth;
   constexpr int GRFRowPitch = detail::getNextPowerOf2<GRFRowSize>();
@@ -2012,6 +2025,7 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
                                 unsigned SurfaceHeight, unsigned SurfacePitch,
                                 int X, int Y) {
+  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   static_assert(
@@ -2058,6 +2072,7 @@ template <typename T, int BlockWidth, int BlockHeight = 1,
 __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
                              unsigned SurfaceHeight, unsigned SurfacePitch,
                              int X, int Y, simd<T, N> Vals) {
+  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   simd_mask<N> pred = 1;
@@ -2178,6 +2193,7 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
@@ -2186,13 +2202,15 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
 ///
 template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, typename AccessorTy>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
 lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
                   simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 0>();
+  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -2203,12 +2221,12 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = get_surface_index(acc);
-  return __esimd_lsc_xatomic_bti_0<T, _Op, cache_hint::none, L3H, _AddressScale,
-                                   _ImmOffset, _DS, _VS, _Transposed, N>(
+  return __esimd_lsc_xatomic_bti_0<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                   _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), surf_ind);
 #else
-  return __esimd_lsc_xatomic_bti_0<T, _Op, cache_hint::none, L3H, _AddressScale,
-                                   _ImmOffset, _DS, _VS, _Transposed, N>(
+  return __esimd_lsc_xatomic_bti_0<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                   _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), acc);
 #endif // __SYCL_DEVICE_ONLY__
 }
@@ -2221,6 +2239,7 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
@@ -2230,13 +2249,15 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
 ///
 template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, typename AccessorTy>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
 lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
                   simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 1>();
+  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -2247,12 +2268,12 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = get_surface_index(acc);
-  return __esimd_lsc_xatomic_bti_1<T, _Op, cache_hint::none, L3H, _AddressScale,
-                                   _ImmOffset, _DS, _VS, _Transposed, N>(
+  return __esimd_lsc_xatomic_bti_1<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                   _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), src0.data(), surf_ind);
 #else
-  return __esimd_lsc_xatomic_bti_1<T, _Op, cache_hint::none, L3H, _AddressScale,
-                                   _ImmOffset, _DS, _VS, _Transposed, N>(
+  return __esimd_lsc_xatomic_bti_1<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                   _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), src0.data(), acc);
 #endif // __SYCL_DEVICE_ONLY__
 }
@@ -2265,6 +2286,7 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
@@ -2275,13 +2297,15 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
 ///
 template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none, typename AccessorTy>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value, simd<T, N>>
 lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
                   simd<T, N> src1, simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 2>();
+  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -2292,12 +2316,12 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = get_surface_index(acc);
-  return __esimd_lsc_xatomic_bti_2<T, _Op, cache_hint::none, L3H, _AddressScale,
-                                   _ImmOffset, _DS, _VS, _Transposed, N>(
+  return __esimd_lsc_xatomic_bti_2<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                   _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), src0.data(), src1.data(), surf_ind);
 #else
-  return __esimd_lsc_xatomic_bti_2<T, _Op, cache_hint::none, L3H, _AddressScale,
-                                   _ImmOffset, _DS, _VS, _Transposed, N>(
+  return __esimd_lsc_xatomic_bti_2<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                   _DS, _VS, _Transposed, N>(
       pred.data(), offsets.data(), src0.data(), src1.data(), acc);
 #endif // __SYCL_DEVICE_ONLY__
 }
@@ -2310,6 +2334,7 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
@@ -2317,12 +2342,13 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
 ///
 template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
                                          simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 0>();
+  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -2333,10 +2359,9 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  return __esimd_lsc_xatomic_stateless_0<T, _Op, cache_hint::none, L3H,
-                                         _AddressScale, _ImmOffset, _DS, _VS,
-                                         _Transposed, N>(pred.data(),
-                                                         addrs.data());
+  return __esimd_lsc_xatomic_stateless_0<T, _Op, L1H, L3H, _AddressScale,
+                                         _ImmOffset, _DS, _VS, _Transposed, N>(
+      pred.data(), addrs.data());
 }
 
 /// USM pointer atomic.
@@ -2347,6 +2372,7 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
@@ -2355,12 +2381,13 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
 ///
 template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
                                          simd<T, N> src0, simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 1>();
+  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -2371,9 +2398,8 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  return __esimd_lsc_xatomic_stateless_1<T, _Op, cache_hint::none, L3H,
-                                         _AddressScale, _ImmOffset, _DS, _VS,
-                                         _Transposed, N>(
+  return __esimd_lsc_xatomic_stateless_1<T, _Op, L1H, L3H, _AddressScale,
+                                         _ImmOffset, _DS, _VS, _Transposed, N>(
       pred.data(), addrs.data(), src0.data());
 }
 
@@ -2385,6 +2411,7 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
@@ -2394,13 +2421,14 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
 ///
 template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
                                          simd<T, N> src0, simd<T, N> src1,
                                          simd_mask<N> pred) {
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 2>();
+  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
   constexpr uint16_t _AddressScale = 1;
   constexpr int _ImmOffset = 0;
   constexpr lsc_data_size _DS =
@@ -2411,9 +2439,8 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  return __esimd_lsc_xatomic_stateless_2<T, _Op, cache_hint::none, L3H,
-                                         _AddressScale, _ImmOffset, _DS, _VS,
-                                         _Transposed, N>(
+  return __esimd_lsc_xatomic_stateless_2<T, _Op, L1H, L3H, _AddressScale,
+                                         _ImmOffset, _DS, _VS, _Transposed, N>(
       pred.data(), addrs.data(), src0.data(), src1.data());
 }
 

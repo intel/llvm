@@ -446,7 +446,7 @@ constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
 
 } // namespace detail
 
-// L1 or L3 cache hint kinds.
+/// L1 or L3 cache hint kinds.
 enum class cache_hint : uint8_t {
   none = 0,
   uncached = 1,
@@ -456,6 +456,73 @@ enum class cache_hint : uint8_t {
   streaming = 5,
   read_invalidate = 6
 };
+
+namespace detail {
+
+template <cache_hint Hint> class cache_hint_wrap {
+  template <cache_hint...> class is_one_of_t;
+  template <cache_hint Last>
+  struct is_one_of_t<Last>
+      : std::conditional<Last == Hint, std::true_type, std::false_type>::type {
+  };
+  template <cache_hint Head, cache_hint... Tail>
+  struct is_one_of_t<Head, Tail...>
+      : std::conditional<Head == Hint, std::true_type,
+                         is_one_of_t<Tail...>>::type {};
+
+public:
+  constexpr operator cache_hint() const { return Hint; }
+  template <cache_hint... Hints> constexpr bool is_one_of() const {
+    return is_one_of_t<Hints...>::value;
+  }
+};
+
+constexpr bool are_both(cache_hint First, cache_hint Second, cache_hint Val) {
+  return First == Val && Second == Val;
+}
+
+enum class lsc_action { prefetch, load, store, atomic };
+
+template <lsc_action Action, cache_hint L1, cache_hint L3>
+constexpr void check_lsc_cache_hint() {
+  constexpr auto L1H = cache_hint_wrap<L1>{};
+  constexpr auto L3H = cache_hint_wrap<L3>{};
+  if constexpr (Action == lsc_action::prefetch) {
+    static_assert(
+        L1H.template is_one_of<cache_hint::cached, cache_hint::uncached,
+                               cache_hint::streaming>() &&
+            L3H.template is_one_of<cache_hint::cached,
+                                   cache_hint::uncached>() &&
+            !are_both(L1H, L3H, cache_hint::uncached),
+        "unsupported cache hint");
+  } else if constexpr (Action == lsc_action::load) {
+    static_assert(
+        are_both(L1H, L3H, cache_hint::none) ||
+            (L1H.template is_one_of<cache_hint::uncached, cache_hint::cached,
+                                    cache_hint::streaming>() &&
+             L3H.template is_one_of<cache_hint::uncached,
+                                    cache_hint::cached>()) ||
+            (L1H == cache_hint::read_invalidate && L3H == cache_hint::cached),
+        "unsupported cache hint");
+  } else if constexpr (Action == lsc_action::store) {
+    static_assert(are_both(L1H, L3H, cache_hint::none) ||
+                      are_both(L1H, L3H, cache_hint::write_back) ||
+                      (L1H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_through,
+                                              cache_hint::streaming>() &&
+                       L3H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_back>()),
+                  "unsupported cache hint");
+  } else if constexpr (Action == lsc_action::atomic) {
+    static_assert(are_both(L1H, L3H, cache_hint::none) ||
+                      (L1H == cache_hint::uncached &&
+                       L3H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_back>()),
+                  "unsupported cache hint");
+  }
+}
+
+} // namespace detail
 
 /// Represents a split barrier action.
 enum class split_barrier_action : uint8_t {
