@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/defines.hpp>
 
 #include <cstdint> // for uint* types
+#include <type_traits> // std::conditional
 
 /// @cond ESIMD_DETAIL
 
@@ -443,6 +444,20 @@ constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
     return lsc_data_size::u16u32;
   return DS;
 }
+
+template <typename T> struct lsc_expand_type {
+  using type = typename std::conditional<sizeof(T) < 4, uint32_t, T>::type;
+};
+
+template <typename T> struct lsc_bitcast_type {
+private:
+  using _type1 = typename std::conditional<sizeof(T) == 2, uint16_t, T>::type;
+  using _type2 = typename std::conditional<sizeof(T) == 1, uint8_t, T>::type;
+
+public:
+  using type =
+      typename std::conditional<sizeof(_type2) == 1, _type2, _type1>::type;
+};
 
 } // namespace detail
 

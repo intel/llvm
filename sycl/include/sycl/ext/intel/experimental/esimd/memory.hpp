@@ -1271,6 +1271,14 @@ constexpr int get_lsc_block_2d_data_size() {
            detail::getNextPowerOf2<Width>() * NBlocks;
   return Width * Height * NBlocks;
 }
+
+// Format u8u32 and u16u32 back to u8 and u16.
+template <typename T, typename T1, int N>
+ESIMD_INLINE simd<T, N> lsc_format_ret(simd<T1, N> Vals) {
+  auto Formatted = Vals.template bit_cast_view<T>();
+  constexpr int Stride = Formatted.length / N;
+  return Formatted.template select<N, Stride>(0);
+}
 } // namespace detail
 
 /// SLM gather.
@@ -1301,9 +1309,12 @@ __ESIMD_API simd<T, N * NElts> lsc_slm_gather(simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  return __esimd_lsc_load_slm<T, cache_hint::none, cache_hint::none,
-                              _AddressScale, _ImmOffset, _DS, _VS, _Transposed,
-                              N>(pred.data(), offsets.data());
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  simd<_MsgT, N *NElts> Tmp =
+      __esimd_lsc_load_slm<_MsgT, cache_hint::none, cache_hint::none,
+                           _AddressScale, _ImmOffset, _DS, _VS, _Transposed, N>(
+          pred.data(), offsets.data());
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// Transposed SLM gather with 1 channel.
@@ -1377,15 +1388,12 @@ __ESIMD_API
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
-  return __esimd_lsc_load_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                              _Transposed, N>(pred.data(), offsets.data(),
-                                              surf_ind);
-#else
-  return __esimd_lsc_load_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                              _Transposed, N>(pred.data(), offsets.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  simd<_MsgT, N *NElts> Tmp =
+      __esimd_lsc_load_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
+                           _Transposed, N>(pred.data(), offsets.data(), si);
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// Accessor-based transposed gather with 1 channel.
@@ -1426,15 +1434,9 @@ __ESIMD_API
   constexpr int N = 1;
   simd_mask<N> pred = 1;
   simd<uint32_t, N> offsets = offset;
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
   return __esimd_lsc_load_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                              _Transposed, N>(pred.data(), offsets.data(),
-                                              surf_ind);
-#else
-  return __esimd_lsc_load_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                              _Transposed, N>(pred.data(), offsets.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+                              _Transposed, N>(pred.data(), offsets.data(), si);
 }
 
 /// USM pointer gather.
@@ -1471,11 +1473,14 @@ __ESIMD_API simd<T, N * NElts> lsc_gather(const T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  return __esimd_lsc_load_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                                    _VS, _Transposed, N>(pred.data(),
-                                                         addrs.data());
+  simd<_MsgT, N *NElts> Tmp =
+      __esimd_lsc_load_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset,
+                                 _DS, _VS, _Transposed, N>(pred.data(),
+                                                           addrs.data());
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// USM pointer transposed gather with 1 channel.
@@ -1549,15 +1554,10 @@ lsc_prefetch(AccessorTy acc, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
-  __esimd_lsc_prefetch_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), offsets.data(),
-                                           surf_ind);
-#else
-  __esimd_lsc_prefetch_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), offsets.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  __esimd_lsc_prefetch_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
+                           _Transposed, N>(pred.data(), offsets.data(), si);
 }
 
 /// Accessor-based transposed prefetch gather with 1 channel.
@@ -1596,15 +1596,9 @@ lsc_prefetch(AccessorTy acc, uint32_t offset) {
   constexpr int N = 1;
   simd_mask<N> pred = 1;
   simd<uint32_t, N> offsets = offset;
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
   __esimd_lsc_prefetch_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), offsets.data(),
-                                           surf_ind);
-#else
-  __esimd_lsc_prefetch_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), offsets.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+                           _Transposed, N>(pred.data(), offsets.data(), si);
 }
 
 /// USM pointer prefetch gather.
@@ -1639,11 +1633,12 @@ __ESIMD_API void lsc_prefetch(const T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __esimd_lsc_prefetch_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                                 _VS, _Transposed, N>(pred.data(),
-                                                      addrs.data());
+  __esimd_lsc_prefetch_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset,
+                                 _DS, _VS, _Transposed, N>(pred.data(),
+                                                           addrs.data());
 }
 
 /// USM pointer prefetch transposed gather with 1 channel.
@@ -1711,9 +1706,12 @@ __ESIMD_API void lsc_slm_scatter(simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-  __esimd_lsc_store_slm<T, cache_hint::none, cache_hint::none, _AddressScale,
-                        _ImmOffset, _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), vals.data());
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using _CstT = typename detail::lsc_bitcast_type<T>::type;
+  simd<_MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
+  __esimd_lsc_store_slm<_MsgT, cache_hint::none, cache_hint::none,
+                        _AddressScale, _ImmOffset, _DS, _VS, _Transposed, N>(
+      pred.data(), offsets.data(), Tmp.data());
 }
 
 /// Transposed SLM scatter with 1 channel.
@@ -1784,16 +1782,13 @@ lsc_scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N * NElts> vals,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
-  __esimd_lsc_store_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                        _Transposed, N>(pred.data(), offsets.data(),
-                                        vals.data(), surf_ind);
-#else
-  __esimd_lsc_store_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                        _Transposed, N>(pred.data(), offsets.data(),
-                                        vals.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using _CstT = typename detail::lsc_bitcast_type<T>::type;
+  simd<_MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  __esimd_lsc_store_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
+                        _Transposed, N>(pred.data(), offsets.data(), Tmp.data(),
+                                        si);
 }
 
 /// Accessor-based transposed scatter with 1 channel.
@@ -1832,16 +1827,10 @@ lsc_block_store(AccessorTy acc, uint32_t offset, simd<T, NElts> vals) {
   constexpr int N = 1;
   simd_mask<N> pred = 1;
   simd<uint32_t, N> offsets = offset;
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
   __esimd_lsc_store_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                         _Transposed, N>(pred.data(), offsets.data(),
-                                        vals.data(), surf_ind);
-#else
-  __esimd_lsc_store_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                        _Transposed, N>(pred.data(), offsets.data(),
-                                        vals.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+                                        vals.data(), si);
 }
 
 /// USM pointer scatter.
@@ -1877,11 +1866,14 @@ __ESIMD_API void lsc_scatter(T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  using _CstT = typename detail::lsc_bitcast_type<T>::type;
+  simd<_MsgT, N *NElts> Tmp = vals.template bit_cast_view<_CstT>();
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __esimd_lsc_store_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
-                              _Transposed, N>(pred.data(), addrs.data(),
-                                              vals.data());
+  __esimd_lsc_store_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
+                              _VS, _Transposed, N>(pred.data(), addrs.data(),
+                                                   Tmp.data());
 }
 
 /// USM pointer transposed scatter with 1 channel.
@@ -2111,9 +2103,12 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-  return __esimd_lsc_xatomic_slm_0<T, _Op, cache_hint::none, cache_hint::none,
-                                   _AddressScale, _ImmOffset, _DS, _VS,
-                                   _Transposed, N>(pred.data(), offsets.data());
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_slm_0<_MsgT, _Op, cache_hint::none, cache_hint::none,
+                                _AddressScale, _ImmOffset, _DS, _VS,
+                                _Transposed, N>(pred.data(), offsets.data());
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// SLM atomic.
@@ -2144,10 +2139,13 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-  return __esimd_lsc_xatomic_slm_1<T, _Op, cache_hint::none, cache_hint::none,
-                                   _AddressScale, _ImmOffset, _DS, _VS,
-                                   _Transposed, N>(pred.data(), offsets.data(),
-                                                   src0.data());
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_slm_1<_MsgT, _Op, cache_hint::none, cache_hint::none,
+                                _AddressScale, _ImmOffset, _DS, _VS,
+                                _Transposed, N>(pred.data(), offsets.data(),
+                                                src0.data());
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// SLM atomic.
@@ -2179,10 +2177,13 @@ __ESIMD_API simd<T, N> lsc_slm_atomic_update(simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-  return __esimd_lsc_xatomic_slm_2<T, _Op, cache_hint::none, cache_hint::none,
-                                   _AddressScale, _ImmOffset, _DS, _VS,
-                                   _Transposed, N>(pred.data(), offsets.data(),
-                                                   src0.data(), src1.data());
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_slm_2<_MsgT, _Op, cache_hint::none, cache_hint::none,
+                                _AddressScale, _ImmOffset, _DS, _VS,
+                                _Transposed, N>(pred.data(), offsets.data(),
+                                                src0.data(), src1.data());
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// Accessor-based atomic.
@@ -2219,16 +2220,13 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
-  return __esimd_lsc_xatomic_bti_0<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), surf_ind);
-#else
-  return __esimd_lsc_xatomic_bti_0<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_bti_0<_MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                _DS, _VS, _Transposed, N>(pred.data(),
+                                                          offsets.data(), si);
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// Accessor-based atomic.
@@ -2266,16 +2264,13 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
-  return __esimd_lsc_xatomic_bti_1<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), src0.data(), surf_ind);
-#else
-  return __esimd_lsc_xatomic_bti_1<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), src0.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_bti_1<_MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                _DS, _VS, _Transposed, N>(
+          pred.data(), offsets.data(), src0.data(), si);
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// Accessor-based atomic.
@@ -2314,16 +2309,13 @@ lsc_atomic_update(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> src0,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = get_surface_index(acc);
-  return __esimd_lsc_xatomic_bti_2<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), src0.data(), src1.data(), surf_ind);
-#else
-  return __esimd_lsc_xatomic_bti_2<T, _Op, L1H, L3H, _AddressScale, _ImmOffset,
-                                   _DS, _VS, _Transposed, N>(
-      pred.data(), offsets.data(), src0.data(), src1.data(), acc);
-#endif // __SYCL_DEVICE_ONLY__
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
+  auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_bti_2<_MsgT, _Op, L1H, L3H, _AddressScale, _ImmOffset,
+                                _DS, _VS, _Transposed, N>(
+          pred.data(), offsets.data(), src0.data(), src1.data(), si);
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// USM pointer atomic.
@@ -2357,11 +2349,14 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  return __esimd_lsc_xatomic_stateless_0<T, _Op, L1H, L3H, _AddressScale,
-                                         _ImmOffset, _DS, _VS, _Transposed, N>(
-      pred.data(), addrs.data());
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_stateless_0<_MsgT, _Op, L1H, L3H, _AddressScale,
+                                      _ImmOffset, _DS, _VS, _Transposed, N>(
+          pred.data(), addrs.data());
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// USM pointer atomic.
@@ -2396,11 +2391,14 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  return __esimd_lsc_xatomic_stateless_1<T, _Op, L1H, L3H, _AddressScale,
-                                         _ImmOffset, _DS, _VS, _Transposed, N>(
-      pred.data(), addrs.data(), src0.data());
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_stateless_1<_MsgT, _Op, L1H, L3H, _AddressScale,
+                                      _ImmOffset, _DS, _VS, _Transposed, N>(
+          pred.data(), addrs.data(), src0.data());
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// USM pointer atomic.
@@ -2437,11 +2435,14 @@ __ESIMD_API simd<T, N> lsc_atomic_update(T *p, simd<uint32_t, N> offsets,
   constexpr detail::lsc_data_order _Transposed =
       detail::lsc_data_order::nontranspose;
   constexpr detail::lsc_atomic_op _Op = detail::to_lsc_atomic_op<Op>();
+  using _MsgT = typename detail::lsc_expand_type<T>::type;
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  return __esimd_lsc_xatomic_stateless_2<T, _Op, L1H, L3H, _AddressScale,
-                                         _ImmOffset, _DS, _VS, _Transposed, N>(
-      pred.data(), addrs.data(), src0.data(), src1.data());
+  simd<_MsgT, N> Tmp =
+      __esimd_lsc_xatomic_stateless_2<_MsgT, _Op, L1H, L3H, _AddressScale,
+                                      _ImmOffset, _DS, _VS, _Transposed, N>(
+          pred.data(), addrs.data(), src0.data(), src1.data());
+  return detail::lsc_format_ret<T>(Tmp);
 }
 
 /// Memory fence.
