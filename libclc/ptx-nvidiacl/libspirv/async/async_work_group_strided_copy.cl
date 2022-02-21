@@ -14,7 +14,6 @@
 #define __CLC_GEN_VEC3
 #include "../../include/clc/async/gentype.inc"
 #undef __CLC_GEN_VEC3
-#undef __CLC_BODY
 
 int __clc_nvvm_reflect_arch();
 
