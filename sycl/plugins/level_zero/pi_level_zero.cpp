@@ -1611,6 +1611,7 @@ pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
   return PI_SUCCESS;
 }
 
+// NOTE: this function must be called before createAndRetainPiZeEventList.
 pi_result _pi_queue::AddBarrierInPreviousCmdListIfNeeded(bool UseCopyEngine) {
   auto &PrevCommandBatch =
       IsPrevCopyEngine ? CopyCommandBatch : ComputeCommandBatch;
@@ -7591,6 +7592,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
+  // TODO: Change UseCopyEngine argument to 'true' once L0 backend
+  // support is added
   bool UseCopyEngine = false;
 
   Queue->EventlessMode |= !Event;
@@ -7611,8 +7614,6 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  // TODO: Change UseCopyEngine argument to 'true' once L0 backend
-  // support is added
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
                                                          UseCopyEngine))
     return Res;
@@ -7672,6 +7673,9 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
+  // UseCopyEngine is set to 'false' here.
+  // TODO: Additional analysis is required to check if this operation will
+  // run faster on copy engines.
   bool UseCopyEngine = false;
 
   Queue->EventlessMode |= !Event;
@@ -7688,9 +7692,6 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  // UseCopyEngine is set to 'false' here.
-  // TODO: Additional analysis is required to check if this operation will
-  // run faster on copy engines.
   if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
                                                          UseCopyEngine))
     return Res;
