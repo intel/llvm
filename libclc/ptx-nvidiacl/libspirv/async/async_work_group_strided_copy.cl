@@ -12,7 +12,9 @@
 #define __CLC_BODY                                                             \
 <../../../generic/libspirv/async/async_work_group_strided_copy.inc>
 #define __CLC_GEN_VEC3
-#include <clc/async/gentype.inc>
+#include "../../include/clc/async/gentype.inc"
+#undef __CLC_GEN_VEC3
+#undef __CLC_BODY
 
 int __clc_nvvm_reflect_arch();
 
