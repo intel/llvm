@@ -16,15 +16,17 @@
 // RUN: %clangxx -fsycl -flegacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG -DPATH=%s
 
 // CHECK-WARNINGS: warning: function '_Z5func1v' uses aspect 'fp16' not listed in `sycl::device_has()`
+// CHECK-WARNINGS-NEXT: use is from this call chain:
 // CHECK-WARNINGS-NEXT:  func1()
 // CHECK-WARNINGS-NEXT:  func2()
 // CHECK-WARNINGS-NEXT:  func3()
 // CHECK-WARNINGS-NEXT: compile with '-g' to get source location
 
 // CHECK-WARNINGS-DBG: warning: function '_Z5func1v' uses aspect 'fp16' not listed in `sycl::device_has()`
-// CHECK-WARNINGS-DBG-NEXT:  func1() [[PATH]]:45:57
-// CHECK-WARNINGS-DBG-NEXT:  func2() [[PATH]]:43:22
-// CHECK-WARNINGS-DBG-NEXT:  func3() [[PATH]]:38:10
+// CHECK-WARNINGS-DBG-NEXT: use is from this call chain:
+// CHECK-WARNINGS-DBG-NEXT:  func1() (defined at [[PATH]]:45:57)
+// CHECK-WARNINGS-DBG-NEXT:  func2() (defined at [[PATH]]:43:22)
+// CHECK-WARNINGS-DBG-NEXT:  func3() (defined at [[PATH]]:38:10)
 
 #include <CL/sycl.hpp>
 

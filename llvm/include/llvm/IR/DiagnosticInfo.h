@@ -16,6 +16,7 @@
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -1093,16 +1094,17 @@ public:
   }
 };
 
-/// Class for emiting warning messages from SYCL pass - PropagateAspectUsage
-class DiagnosticInfoSYCLWarning : public DiagnosticInfo {
+/// Class for emiting warning messages from SYCL PropagateAspectUsage pass
+/// about unspecified aspect.
+class DiagnosticInfoSYCLUnspecAspect : public DiagnosticInfo {
   SmallString<16> FunctionName;
   SmallString<5> AspectStr;
   std::string CallChain;
-  bool IsFullDebugMode = 0;
+  bool IsFullDebugMode = false;
 
 public:
-  DiagnosticInfoSYCLWarning(StringRef FunctionName, StringRef AspectStr,
-                            std::string CallChain, bool IsFullDebugMode)
+  DiagnosticInfoSYCLUnspecAspect(StringRef FunctionName, StringRef AspectStr,
+                                 std::string CallChain, bool IsFullDebugMode)
       : DiagnosticInfo(DK_SYCLWarning, DiagnosticSeverity::DS_Warning),
         FunctionName(FunctionName), AspectStr(AspectStr),
         CallChain(std::move(CallChain)), IsFullDebugMode(IsFullDebugMode) {}

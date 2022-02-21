@@ -432,4 +432,4 @@ void DiagnosticInfoDontCall::print(DiagnosticPrinter &DP) const {
     DP << ": " << getNote();
 }
 
-void DiagnosticInfoSYCLWarning::print(DiagnosticPrinter &DP) const {}
+void DiagnosticInfoSYCLUnspecAspect::print(DiagnosticPrinter &DP) const {}

@@ -215,23 +215,13 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
 
 /// This is a node in a CallGraph. It contains Function link
 /// to Callee and corresponding DebugLoc info if it it present.
-struct AspectWithFunctionLinkTy {
-  int Aspect;
+struct FunctionLinkTy {
   const Function *F = nullptr;
   const DebugLoc *DL = nullptr;
-
-  bool operator<(const AspectWithFunctionLinkTy &Rhs) const {
-    return Aspect < Rhs.Aspect;
-  }
-
-  bool operator==(const AspectWithFunctionLinkTy &Rhs) const {
-    return Aspect == Rhs.Aspect;
-  }
 };
 
-using AspectWithFunctionLinkSetTy = SmallSet<AspectWithFunctionLinkTy, 4>;
-using FunctionToAspectsMapTy =
-    DenseMap<Function *, AspectWithFunctionLinkSetTy>;
+using AspectToFunctionLinkMapTy = DenseMap<int, FunctionLinkTy>;
+using FunctionToAspectsMapTy = DenseMap<Function *, AspectToFunctionLinkMapTy>;
 using CallGraphTy =
     DenseMap<Function *, DenseMap<Function *, const DebugLoc *>>;
 
@@ -244,27 +234,23 @@ std::string constructAspectUsageChain(const Function *F,
     if (It == Map.end())
       break;
 
-    auto &AspectsSet = It->second;
-    auto AspectIt =
-        std::find_if(AspectsSet.begin(), AspectsSet.end(),
-                     [Aspect](const auto &AspectWithFunctionLink) {
-                       return Aspect == AspectWithFunctionLink.Aspect;
-                     });
-    assert(AspectIt != AspectsSet.end() &&
+    auto &AspectsToFunctionLinkMap = It->second;
+    auto AspectIt = AspectsToFunctionLinkMap.find(Aspect);
+    assert(AspectIt != AspectsToFunctionLinkMap.end() &&
            "AspectIt is supposed to be determined");
-    const DebugLoc *DL = (*AspectIt).DL;
+    const DebugLoc *DL = AspectIt->second.DL;
     CallChain += "  ";
     CallChain += demangle(F->getName().str());
     if (DL && *DL) {
       DIScope *DS = cast<DIScope>(DL->getScope());
-      CallChain += formatv(" {0}:{1}:{2}",
+      CallChain += formatv(" (defined at {0}:{1}:{2})",
                            DS->getDirectory() + sys::path::get_separator() +
                                DS->getFilename(),
                            DL->getLine(), DL->getCol());
     }
 
     CallChain += "\n";
-    F = (*AspectIt).F;
+    F = AspectIt->second.F;
   }
 
   return CallChain;
@@ -366,37 +352,42 @@ void checkDeclaredAspectsForFunction(Function *F,
         cast<const ConstantInt>(CAM->getValue())->getSExtValue());
   }
 
-  const AspectWithFunctionLinkSetTy &UsedAspects = Map.find(F)->second;
+  const AspectToFunctionLinkMapTy &UsedAspects = Map.find(F)->second;
   AspectsSetTy MissedAspects;
-  for (AspectWithFunctionLinkTy A : UsedAspects) {
-    if (DeclaredAspects.count(A.Aspect) == 0)
-      MissedAspects.insert(A.Aspect);
+  for (const auto &A : UsedAspects) {
+    if (DeclaredAspects.count(A.first) == 0)
+      MissedAspects.insert(A.first);
   }
 
   LLVMContext &C = F->getContext();
   for (int Aspect : MissedAspects) {
     auto CallChain = constructAspectUsageChain(F, Map, Aspect);
-    C.diagnose(DiagnosticInfoSYCLWarning(F->getName(),
-                                         getAspectStrRepresentation(Aspect),
-                                         CallChain, isFullDebug));
+    C.diagnose(DiagnosticInfoSYCLUnspecAspect(
+        F->getName(), getAspectStrRepresentation(Aspect), CallChain,
+        isFullDebug));
   }
 }
 
 void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
   for (auto &It : Map) {
     Function *F = It.first;
-    AspectWithFunctionLinkSetTy &Aspects = It.second;
+    AspectToFunctionLinkMapTy &Aspects = It.second;
     if (Aspects.empty())
       continue;
 
     LLVMContext &C = F->getContext();
-    SmallVector<AspectWithFunctionLinkTy, 16> AspectsVector(Aspects.begin(),
-                                                            Aspects.end());
-    std::sort(AspectsVector.begin(), AspectsVector.end());
+    SmallVector<std::pair<int, FunctionLinkTy>, 16> AspectsVector(
+        Aspects.begin(), Aspects.end());
+    std::sort(AspectsVector.begin(), AspectsVector.end(),
+              [](const auto &Lhs, const auto &Rhs) {
+                // sort only by aspects
+                return Lhs.first < Rhs.first;
+              });
+
     SmallVector<Metadata *, 16> AspectsMetadata;
-    for (AspectWithFunctionLinkTy A : AspectsVector)
+    for (const auto &A : AspectsVector)
       AspectsMetadata.push_back(ConstantAsMetadata::get(
-          ConstantInt::getSigned(Type::getInt32Ty(C), A.Aspect)));
+          ConstantInt::getSigned(Type::getInt32Ty(C), A.first)));
 
     MDNode *MDN = MDNode::get(C, AspectsMetadata);
     F->setMetadata("intel_used_aspects", MDN);
@@ -422,7 +413,7 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
   if (It == CG.end())
     return;
 
-  AspectWithFunctionLinkSetTy LocalAspects;
+  AspectToFunctionLinkMapTy LocalAspects;
   for (auto Edge : It->second) {
     Function *Callee = Edge.first;
     if (Visited.insert(Callee).second)
@@ -430,8 +421,7 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 
     auto &CalleeAspects = AspectsMap[Callee];
     for (auto AspectIt : CalleeAspects) {
-      LocalAspects.insert(
-          AspectWithFunctionLinkTy{AspectIt.Aspect, Callee, Edge.second});
+      LocalAspects[AspectIt.first] = FunctionLinkTy{Callee, Edge.second};
     }
   }
 
@@ -444,12 +434,11 @@ void processFunctionInstructions(Function &F,
                                  FunctionToAspectsMapTy &FunctionToAspects,
                                  TypeToAspectsMapTy &TypesWithAspects,
                                  CallGraphTy &CG) {
-  auto &AspectsWithFunctionLinkSet = FunctionToAspects[&F];
+  auto &AspectToFunctionLinkMap = FunctionToAspects[&F];
   for (Instruction &I : instructions(F)) {
     AspectsSetTy Aspects = getAspectsUsedByInstruction(I, TypesWithAspects);
     for (int Aspect : Aspects) {
-      FunctionToAspects[&F].insert(
-          AspectWithFunctionLinkTy{Aspect, nullptr, &I.getDebugLoc()});
+      FunctionToAspects[&F][Aspect] = FunctionLinkTy{nullptr, &I.getDebugLoc()};
     }
 
     if (auto *DBI = dyn_cast<DbgVariableIntrinsic>(&I)) {
@@ -465,17 +454,11 @@ void processFunctionInstructions(Function &F,
       Type *T = DBI->getVariableLocationOp(0)->getType();
       Aspects = getAspectsFromType(T, TypesWithAspects);
       for (int Aspect : Aspects) {
-        AspectWithFunctionLinkTy AspectWithFunctionLink{Aspect};
-        auto It =
-            std::find(AspectsWithFunctionLinkSet.begin(),
-                      AspectsWithFunctionLinkSet.end(), AspectWithFunctionLink);
-        if (It == AspectsWithFunctionLinkSet.end())
+        auto It = AspectToFunctionLinkMap.find(Aspect);
+        if (It == AspectToFunctionLinkMap.end())
           continue;
 
-        AspectWithFunctionLink = *It;
-        AspectsWithFunctionLinkSet.erase(AspectWithFunctionLink);
-        AspectWithFunctionLink.DL = &I.getDebugLoc();
-        AspectsWithFunctionLinkSet.insert(AspectWithFunctionLink);
+        It->second.DL = &I.getDebugLoc();
       }
 
       continue;
