@@ -4,6 +4,9 @@
 // Hip is missing some of the parameters tested here so it fails with NVIDIA
 // XFAIL: hip_nvidia
 
+// XFAIL: hip
+// Expected failure because hip does not have atomic64 check implementation
+
 //==--------------- aspects.cpp - SYCL device test ------------------------==//
 //
 // Returns the various aspects of a device  and platform.
