@@ -20,6 +20,8 @@
 namespace llvm {
 
 class Module;
+class ModulePass;
+class PassRegistry;
 
 class PropagateAspectUsagePass
     : public PassInfoMixin<PropagateAspectUsagePass> {
