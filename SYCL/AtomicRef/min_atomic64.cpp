@@ -4,9 +4,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// XFAIL: hip
-// Expected failure because hip does not have atomic64 check implementation
-
 #include "min.h"
 #include <iostream>
 using namespace sycl;
