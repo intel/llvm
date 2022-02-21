@@ -1,14 +1,14 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
-// #2252 Disable until all variants of built-ins are available in OpenCL CPU
-// runtime for every supported ISA
-// RUNx %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
 // Missing __spirv_SubgroupBlockReadINTEL, __spirv_SubgroupBlockWriteINTEL on
 // AMD
 // XFAIL: hip_amd
+//
+// Missing GroupNonUniformArithmetic capability on CPU RT
+// XFAIL: cpu
 //
 //==----------- load_store.cpp - SYCL sub_group load/store test ------------==//
 //

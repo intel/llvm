@@ -1,8 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -D SG_GPU %s -o %t_gpu.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include "helper.hpp"
