@@ -27,6 +27,7 @@ math/fabs.cl
 math/fdim.cl
 math/floor.cl
 math/fma.cl
+math/fma_relu.cl
 math/fmax.cl
 math/fmin.cl
 math/fmod.cl
