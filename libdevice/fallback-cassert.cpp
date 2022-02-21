@@ -20,7 +20,58 @@
 // definition
 SPIR_GLOBAL AssertHappened SPIR_AssertHappenedMem;
 
-DEVICE_EXTERN_C void __devicelib_assert_read(__SYCL_GLOBAL__ void *_Dst);
+DEVICE_EXTERN_C void __devicelib_assert_read(__SYCL_GLOBAL__ void *_Dst) {
+  AssertHappened *Dst = (AssertHappened *)_Dst;
+  int Flag = atomicLoad(&SPIR_AssertHappenedMem.Flag);
+
+  if (ASSERT_NONE == Flag) {
+    Dst->Flag = Flag;
+    return;
+  }
+
+  if (Flag != ASSERT_FINISH)
+    while (ASSERT_START == atomicLoad(&SPIR_AssertHappenedMem.Flag))
+      ;
+
+  *Dst = SPIR_AssertHappenedMem;
+}
+
+#ifdef SYCL_LANGUAGE_VERSION
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
+#else
+#define __SYCL_KERNEL_ATTR__
+#endif
+
+// Create a kernel entry point for __devicelib_assert_read
+template <typename KernelName, typename KernelType>
+__SYCL_KERNEL_ATTR__ __attribute__((noinline)) void
+kernel_caller(KernelType KernelFunc) {
+  KernelFunc();
+}
+
+namespace detail {
+class DevicelibAssertReadKernel {
+  __SYCL_GLOBAL__ void *MDst;
+public:
+  DevicelibAssertReadKernel(__SYCL_GLOBAL__ void *Dst) : MDst{Dst} {}
+  __attribute__((noinline))
+  void operator()() const {
+    __devicelib_assert_read(MDst);
+  }
+};
+} // namespace detail
+
+
+using DevicelibAssertReadT = detail::DevicelibAssertReadKernel;//void (*)(__SYCL_GLOBAL__ void *);
+
+__attribute__((noinline))
+struct DevicelibAssertReadKernelName;
+
+// a stub function to enforce assert info reader kernel in devicelib image
+__attribute__((noinline))
+DEVICE_EXTERN_C void __devicelib_stub() {
+  kernel_caller<DevicelibAssertReadKernelName, DevicelibAssertReadT>(DevicelibAssertReadT{NULL});
+}
 
 DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                                              int32_t line, const char *func,
@@ -30,7 +81,10 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   // FIXME make offline linking against __devicelib_assert_fail enforce linking
   // against __devicelib_assert_read also
   {
-    __devicelib_assert_read(NULL);
+    __devicelib_stub();
+//    kernel_caller<DevicelibAssertReadKernelName, DevicelibAssertReadT>(DevicelibAssertReadT{NULL});
+//    __devicelib_stub();
+//    __devicelib_assert_read(NULL);
   }
 
 
