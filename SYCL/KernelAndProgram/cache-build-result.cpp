@@ -4,7 +4,6 @@
 // RUN: env SYCL_CACHE_PERSISTENT=1 %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: env SYCL_CACHE_PERSISTENT=1 %ACC_RUN_PLACEHOLDER %t.out
 // XFAIL: cuda || hip
-// UNSUPPORTED: ze_debug-1,ze_debug4
 #include <CL/sycl.hpp>
 
 SYCL_EXTERNAL
