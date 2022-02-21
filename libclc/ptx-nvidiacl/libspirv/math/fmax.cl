@@ -39,8 +39,14 @@ _CLC_DEF _CLC_OVERLOAD half __spirv_ocl_fmax(half x, half y) {
   }
   return x > y ? x : y;
 }
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fmax, half,
-                      half)
+_CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fmax(half2 x, half2 y) {
+  if (__clc_nvvm_reflect_arch() >= 800) {
+    return __nvvm_fmax_f16x2(x, y);
+  }
+  return (half2)(__spirv_ocl_fmax(x.x, y.x), __spirv_ocl_fmax(x.y, y.y));
+}
+_CLC_BINARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fmax,
+                            half, half)
 
 #endif
 

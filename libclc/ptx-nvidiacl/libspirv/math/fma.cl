@@ -33,10 +33,18 @@ _CLC_DEF _CLC_OVERLOAD half __spirv_ocl_fma(half x, half y, half z) {
   if (__clc_nvvm_reflect_arch() >= 530) {
     return __nvvm_fma_rn_f16(x, y, z);
   }
-  return __nv_fmaf(x,y,z);
+  return __nv_fmaf(x, y, z);
 }
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fma, half,
-                       half, half)
+
+_CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fma(half2 x, half2 y, half2 z) {
+  if (__clc_nvvm_reflect_arch() >= 530) {
+    return __nvvm_fma_rn_f16x2(x, y, z);
+  }
+  return (half2)(__spirv_ocl_fma(x.x, y.x, z.x),
+                 __spirv_ocl_fma(x.y, y.y, z.y));
+}
+_CLC_TERNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fma,
+                             half, half, half)
 
 #endif
 
