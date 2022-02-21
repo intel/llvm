@@ -99,6 +99,22 @@ define dso_local spir_kernel void @kernel7() {
   ret void
 }
 
+; Check a link by vector type
+;  -->  A2
+;  |    |
+;  |    B2
+; *|   / \
+;  ---C2  D
+
+%A2 = type { %B2 }
+%B2 = type { %C2, %D}
+%C2 = type { <4 x %A2*> }
+
+; CHECK-DAG: dso_local spir_kernel void @kernel8() !intel_used_aspects !1 {
+define dso_local spir_kernel void @kernel8() {
+  %tmp2 = alloca %C2
+  ret void
+}
 
 !intel_types_that_use_aspects = !{!0}
 !0 = !{!"D", i32 1}

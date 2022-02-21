@@ -9,11 +9,9 @@
 // CHECK-NODES-DAG: !intel_used_aspects ![[NODE:[0-9]+]]
 // CHECK-NODES: ![[NODE]] = !{i32 5}
 
-// RUN: %clangxx -fsycl -fno-legacy-pass-manager %s -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS
-// RUN: %clangxx -fsycl -flegacy-pass-manager %s -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS
+// RUN: %clangxx -fsycl %s -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS
 
-// RUN: %clangxx -fsycl -fno-legacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG -DPATH=%s
-// RUN: %clangxx -fsycl -flegacy-pass-manager %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG -DPATH=%s
+// RUN: %clangxx -fsycl %s -g -emit-llvm -S -o /dev/null 2>&1 | FileCheck %s --check-prefix CHECK-WARNINGS-DBG -DPATH=%s
 
 // CHECK-WARNINGS: warning: function '_Z5func1v' uses aspect 'fp16' not listed in `sycl::device_has()`
 // CHECK-WARNINGS-NEXT: use is from this call chain:

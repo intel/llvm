@@ -160,8 +160,10 @@ void propagateAspectsToOtherTypesInModule(
   for (const Type *T : TypesToProcess) {
     for (const Type *TT : T->subtypes()) {
       // If TT = %A*** then we want to get TT = %A
-      while (TT->isPointerTy())
-        TT = TT->getPointerElementType();
+      // The same with arrays and vectors
+      while (TT->isPointerTy() || TT->isArrayTy() || TT->isVectorTy()) {
+        TT = TT->getContainedType(0);
+      }
 
       // We are not interested in some types. For example, IntTy.
       if (TypesToProcess.count(TT))

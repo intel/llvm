@@ -315,7 +315,7 @@ def warn_profile_data_unprofiled : Warning<
 
 def warn_sycl_wrong_aspect_usage : Warning<
   "function '%0' uses aspect '%1' not listed in `sycl::device_has()`\n"
-  "use is from this call chain:"
+  "use is from this call chain:\n"
   "%2"
   "%select{|compile with '-g' to get source location}3">,
   InGroup<SyclAspectUsage>;
