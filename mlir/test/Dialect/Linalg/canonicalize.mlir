@@ -54,7 +54,7 @@ func @memref_cast_into_tiled_loop(%arg0: memref<192xf32>)  {
 
 func @dce_zero_memref(%arg0 : memref<0xf32>, %arg1: tensor<0xf32>) -> tensor<0xf32> {
   // memref<0x32> is expected to be dce'ed
-  linalg.copy(%arg0, %arg0): memref<0xf32>, memref<0xf32>
+  memref.copy %arg0, %arg0 : memref<0xf32> to memref<0xf32>
 
   // tensor<0xf32> cannot be dce'ed
   %1 = linalg.generic #trait outs(%arg1 : tensor<0xf32>) {
@@ -67,7 +67,7 @@ func @dce_zero_memref(%arg0 : memref<0xf32>, %arg1: tensor<0xf32>) -> tensor<0xf
 // CHECK-LABEL: @dce_zero_memref
 //  CHECK-SAME:   %[[ARG0:[a-zA-Z0-9_]+]]: memref<0xf32>
 //  CHECK-SAME:   %[[ARG1:[a-zA-Z0-9_]+]]: tensor<0xf32>
-//   CHECK-NOT:   linalg.copy
+//   CHECK-NOT:   memref.copy
 //  CHECK-NEXT:   return %[[ARG1]]
 
 // -----
@@ -208,7 +208,7 @@ func @keep_not_noop(%arg0 : tensor<?x?xf32>) -> tensor<?x?xf32> {
   %0 = tensor.dim %arg0, %c0 : tensor<?x?xf32>
   %1 = tensor.dim %arg0, %c1 : tensor<?x?xf32>
   %2 = linalg.init_tensor [%0, %1] : tensor<?x?xf32>
-  br ^bb1(%cst : f32)
+  cf.br ^bb1(%cst : f32)
 
 ^bb1(%arg1 : f32):
   %3 = linalg.generic
@@ -234,7 +234,7 @@ func @keep_not_noop(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>)
   %0 = tensor.dim %arg0, %c0 : tensor<?x?xf32>
   %1 = tensor.dim %arg0, %c1 : tensor<?x?xf32>
   %2 = linalg.init_tensor [%0, %1] : tensor<?x?xf32>
-  br ^bb1(%cst : f32)
+  cf.br ^bb1(%cst : f32)
 
 ^bb1(%arg2 : f32):
   %3:2 = linalg.generic
@@ -330,22 +330,8 @@ func @propogate_casts(%arg0 : tensor<?x?xf32>, %arg1 : f32, %arg2 : index,
 // CHECK-LABEL: @self_copy
 func @self_copy(%arg0 : memref<2x3x?x4xf32>) {
 
-//   CHECK-NOT: linalg.copy
-  linalg.copy(%arg0, %arg0): memref<2x3x?x4xf32>, memref<2x3x?x4xf32>
-
-//   CHECK: return
-  return
-}
-
-// -----
-
-// CHECK-LABEL: @self_copy_with_permutation
-func @self_copy_with_permutation(%arg0 : memref<2x3x?x4xf32>) {
-
-//   CHECK: linalg.copy
-  linalg.copy(%arg0, %arg0)
-    {inputPermutation = affine_map<(i, j, k, l) -> (j, k, i, l)>,
-     outputPermuation = affine_map<(i, j, k, l) -> (i, j, k, l)>} : memref<2x3x?x4xf32>, memref<2x3x?x4xf32>
+//   CHECK-NOT: memref.copy
+  memref.copy %arg0, %arg0 : memref<2x3x?x4xf32> to memref<2x3x?x4xf32>
 
 //   CHECK: return
   return
@@ -598,4 +584,69 @@ func @fold_self_copy(%0 : memref<4x16xf32>) {
         linalg.yield %arg4 : f32
     }
   return 
+}
+
+// -----
+
+// CHECK-LABEL: func @fold_static_pad_fill
+//       CHECK:   %[[F0:.+]] = arith.constant 0.000000e+00 : f32
+//       CHECK:   %[[INIT:.+]] = linalg.init_tensor [412, 276] : tensor<412x276xf32>
+//       CHECK:   %[[FILL:.+]] = linalg.fill(%[[F0]], %[[INIT]])
+//       CHECK:   return %[[FILL]]
+func @fold_static_pad_fill() -> tensor<412x276xf32> {
+  %f0 = arith.constant 0.0 : f32
+  %init = linalg.init_tensor [400, 273] : tensor<400x273xf32>
+  %fill = linalg.fill(%f0, %init) : f32, tensor<400x273xf32> -> tensor<400x273xf32>
+  %pad = tensor.pad %fill low[4, 1] high[8, 2] {
+  ^bb0(%arg1: index, %arg2: index):
+    tensor.yield %f0 : f32
+  } : tensor<400x273xf32> to tensor<412x276xf32>
+  return %pad : tensor<412x276xf32>
+}
+
+// -----
+
+// CHECK: #[[MAP0:.+]] = affine_map<()[s0] -> (s0 + 9)>
+// CHECK: #[[MAP1:.+]] = affine_map<()[s0] -> (s0 + 10)>
+// CHECK: #[[MAP2:.+]] = affine_map<()[s0] -> (s0 + 23)>
+// CHECK: #[[MAP3:.+]] = affine_map<()[s0, s1] -> (s0 + s1 + 32)>
+
+//      CHECK: func @fold_dynamic_pad_fill
+// CHECK-SAME: %[[SRC:.+]]: tensor<8x?x16x32xf32>, %[[LOW0:.+]]: index, %[[LOW3:.+]]: index, %[[HIGH2:.+]]: index, %[[HIGH3:.+]]: index
+
+//  CHECK-DAG:   %[[I1:.+]] = arith.constant 1 : index
+//  CHECK-DAG:   %[[F0:.+]] = arith.constant 0.000000e+00 : f32
+//      CHECK:   %[[OF:.+]] = linalg.fill(%[[F0]], %[[SRC]]) : f32, tensor<8x?x16x32xf32>
+//      CHECK:   %[[S0:.+]] = affine.apply #[[MAP0]]()[%[[LOW0]]]
+//      CHECK:   %[[DIM1:.+]] = tensor.dim %[[OF]], %[[I1]] : tensor<8x?x16x32xf32>
+//      CHECK:   %[[S1:.+]] = affine.apply #[[MAP1]]()[%[[DIM1]]]
+//      CHECK:   %[[S2:.+]] = affine.apply #[[MAP2]]()[%[[HIGH2]]]
+//      CHECK:   %[[S3:.+]] = affine.apply #[[MAP3]]()[%[[LOW3]], %[[HIGH3]]]
+//      CHECK:   %[[INIT:.+]] = linalg.init_tensor [%[[S0]], %[[S1]], %[[S2]], %[[S3]]] : tensor<?x?x?x?xf32>
+//      CHECK:   %[[FILL:.+]] = linalg.fill(%[[F0]], %[[INIT]])
+//      CHECK:   return %[[FILL]]
+func @fold_dynamic_pad_fill(%init: tensor<8x?x16x32xf32>, %low0: index, %low3: index, %high2: index, %high3: index) -> tensor<?x?x?x?xf32> {
+  %f0 = arith.constant 0.0 : f32
+  %fill = linalg.fill(%f0, %init) : f32, tensor<8x?x16x32xf32> -> tensor<8x?x16x32xf32>
+  %pad = tensor.pad %fill low[%low0, 8, 7, %low3] high[1, 2, %high2, %high3] {
+  ^bb0(%arg1: index, %arg2: index, %arg3: index, %arg4: index):
+    tensor.yield %f0 : f32
+  } : tensor<8x?x16x32xf32> to tensor<?x?x?x?xf32>
+  return %pad : tensor<?x?x?x?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @no_fold_pad_fill_value_mismatch
+func @no_fold_pad_fill_value_mismatch() -> tensor<412x276xf32> {
+  %f0 = arith.constant 0.0 : f32
+  %f1 = arith.constant 1.0 : f32
+  %init = linalg.init_tensor [400, 273] : tensor<400x273xf32>
+  %fill = linalg.fill(%f0, %init) : f32, tensor<400x273xf32> -> tensor<400x273xf32>
+  // CHECK: tensor.pad
+  %pad = tensor.pad %fill low[4, 1] high[8, 2] {
+  ^bb0(%arg1: index, %arg2: index):
+    tensor.yield %f1 : f32
+  } : tensor<400x273xf32> to tensor<412x276xf32>
+  return %pad : tensor<412x276xf32>
 }

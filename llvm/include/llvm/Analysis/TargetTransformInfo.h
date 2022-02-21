@@ -27,7 +27,6 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/BranchProbability.h"
-#include "llvm/Support/DataTypes.h"
 #include "llvm/Support/InstructionCost.h"
 #include <functional>
 #include <utility>
@@ -1789,7 +1788,7 @@ class TargetTransformInfo::Model final : public TargetTransformInfo::Concept {
 
 public:
   Model(T Impl) : Impl(std::move(Impl)) {}
-  ~Model() override {}
+  ~Model() override = default;
 
   const DataLayout &getDataLayout() const override {
     return Impl.getDataLayout();

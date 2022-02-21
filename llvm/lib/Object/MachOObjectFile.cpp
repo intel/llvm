@@ -20,6 +20,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/BinaryFormat/Swift.h"
 #include "llvm/Object/Error.h"
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
@@ -33,7 +34,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/LEB128.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SwapByteOrder.h"
 #include "llvm/Support/raw_ostream.h"
@@ -4764,4 +4765,16 @@ MachOObjectFile::findDsymObjectMembers(StringRef Path) {
                              "%s: no objects found in dSYM bundle",
                              Path.str().c_str());
   return ObjectPaths;
+}
+
+llvm::binaryformat::Swift5ReflectionSectionKind
+MachOObjectFile::mapReflectionSectionNameToEnumValue(
+    StringRef SectionName) const {
+#define HANDLE_SWIFT_SECTION(KIND, MACHO, ELF, COFF)                           \
+  .Case(MACHO, llvm::binaryformat::Swift5ReflectionSectionKind::KIND)
+  return StringSwitch<llvm::binaryformat::Swift5ReflectionSectionKind>(
+             SectionName)
+#include "llvm/BinaryFormat/Swift.def"
+      .Default(llvm::binaryformat::Swift5ReflectionSectionKind::unknown);
+#undef HANDLE_SWIFT_SECTION
 }

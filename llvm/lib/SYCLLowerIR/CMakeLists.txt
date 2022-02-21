@@ -13,11 +13,12 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # commit d2f78f24314cd5aad1f633042cf5ae49b0ecdb24
-    # Author: Sergey Semenov <sergey.semenov@intel.com>
-    # Date:   Tue Jan 25 17:59:19 2022 +0000
-    # Fix an issue with GenXIntrinsicDescription.gen includes
-    set(LLVMGenXIntrinsics_GIT_TAG d2f78f24314cd5aad1f633042cf5ae49b0ecdb24)
+    # commit 8b6e209fe1269a2c6470b36dfbaa0e051d2a100f (master)
+    # Author: Konstantin Vladimirov <konstantin.vladimirov@intel.com>
+    # Date:   Tue Feb 8 10:47:03 2022 +0000
+    # introducing named barrier support in adaptor pass
+    # named barrier required for DPC++ and other customers
+    set(LLVMGenXIntrinsics_GIT_TAG 8b6e209fe1269a2c6470b36dfbaa0e051d2a100f)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)

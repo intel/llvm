@@ -1,4 +1,4 @@
-//===----- DeviceGlobals.h - SYCL Device Globals Pass ---------------------===//
+//===--- DeviceGlobals.h - get required into about SYCL Device Globals ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A transformation pass which converts symbolic device globals attributes
-// to integer id-based ones to later map to SPIRV device globals. The class
-// also contains a number of static methods to extract corresponding
-// attributes of the device global variables and save them as a property set
-// for the runtime.
+// The file contains a number of functions to extract corresponding attributes
+// of the device global variables and save them as a property set for the
+// runtime.
 //===----------------------------------------------------------------------===//
 
 #pragma once
@@ -22,6 +20,7 @@
 
 namespace llvm {
 
+class GlobalVariable;
 class Module;
 class StringRef;
 
@@ -42,13 +41,38 @@ struct DeviceGlobalProperty {
 using DeviceGlobalPropertyMapTy =
     MapVector<StringRef, std::vector<DeviceGlobalProperty>>;
 
-class DeviceGlobalsPass {
-public:
-  // Searches given module for occurrences of device global variable-specific
-  // metadata and builds "device global variable name" ->
-  // vector<"variable properties"> map.
-  static DeviceGlobalPropertyMapTy
-  collectDeviceGlobalProperties(const Module &M);
-};
+/// Searches given module for occurrences of device global variable-specific
+/// metadata and builds "device global variable name" ->
+/// vector<"variable properties"> map.
+///
+/// @param M [in] LLVM Module.
+///
+/// @returns the "device global variable name" -> vector<"variable properties">
+/// map.
+DeviceGlobalPropertyMapTy collectDeviceGlobalProperties(const Module &M);
+
+/// Return \c true if the variable @GV is a device global variable.
+///
+/// @param GV [in] A variable to test.
+///
+/// @return \c true if the variable is a device global variable, \c false
+/// otherwise.
+bool isDeviceGlobalVariable(const GlobalVariable &GV);
+
+/// Return \c true if the variable @GV has the "device_image_scope" property.
+///
+/// @param GV [in] A variable to test.
+///
+/// @return \c true if the variable has the "device_image_scope" property,
+/// \c false otherwise.
+bool hasDeviceImageScopeProperty(const GlobalVariable &GV);
+
+/// Returns the unique id for the device global variable.
+///
+/// @param GV [in] Device Global variable.
+///
+/// @returns the unique id of the device global variable represented
+/// in the LLVM IR by \c GV.
+StringRef getGlobalVariableUniqueId(const GlobalVariable &GV);
 
 } // end namespace llvm

@@ -54,7 +54,7 @@ docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llv
 ```
 
 This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](dev/DockerBKMs.md) for more info on Docker
+instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on Docker
 commands.
 
 ### Create DPC++ workspace
@@ -434,7 +434,7 @@ command:
 
 ### Obtain prerequisites for ahead of time (AOT) compilation
 
-[Ahead of time compilation](CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
+[Ahead of time compilation](design/CompilerAndRuntimeDesign.md#ahead-of-time-aot-compilation)
 requires ahead of time compiler available in `PATH`. There is
 AOT compiler for each device type:
 
@@ -502,10 +502,10 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
-If testing with HIP for AMD make sure to specify the GPU being used
-by adding `-hip-amd-arch=<target>`to buildbot/configure.py or add 
-`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` 
-to the CMake variable `SYCL_CLANG_EXTRA_FLAGS`.
+If testing with HIP for AMD, the lit tests will use `gfx906` as the default
+architecture. It is possible to change it by adding
+`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to the CMake
+variable `SYCL_CLANG_EXTRA_FLAGS`.
 
 #### Run DPC++ E2E test suite
 
@@ -660,7 +660,7 @@ clang++ -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 simple-sycl-app.cpp -o si
 
 Additionally, user can pass specific options of AOT compiler to
 the DPC++ compiler using ```-Xsycl-target-backend``` option, see
-[Device code formats](CompilerAndRuntimeDesign.md#device-code-formats) for
+[Device code formats](design/CompilerAndRuntimeDesign.md#device-code-formats) for
 more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
@@ -705,7 +705,7 @@ SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
 device selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
-[Intel FPGA selector(s)](extensions/supported/SYCL_EXT_INTEL_FPGA_DEVICE_SELECTOR.md)) as
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
 
@@ -818,7 +818,7 @@ which contains all the symbols required.
   project and may cause compilation issues on some platforms
 * `sycl::sqrt` is not correctly rounded by default as the SYCL specification
   allows lower precision, when porting from CUDA it may be helpful to use
-  `-Xclang -fcuda-prec-sqrt` to use the correctly rounded square root, this is
+  `-fsycl-fp32-prec-sqrt` to use the correctly rounded square root, this is
   significantly slower but matches the default precision used by `nvcc`, and
   this `clang++` flag is equivalent to the `nvcc` `-prec-sqrt` flag, except that
   it defaults to `false`.
