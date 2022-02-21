@@ -406,7 +406,8 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
 
   SmallString<32> Checksum;
 
-  if (CGM.getCodeGenOpts().SYCLUseMainFileName && FID.isInvalid() &&
+  if (SM.getFileEntryForID(SM.getMainFileID()) &&
+      CGM.getCodeGenOpts().SYCLUseMainFileName && FID.isInvalid() &&
       !llvm::sys::path::is_absolute(FileName)) {
     FileID MainFileID = SM.getMainFileID();
     auto ExpectedFileRef = SM.getFileManager().getFileRef(FileName);
