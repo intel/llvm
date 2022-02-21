@@ -136,6 +136,22 @@ bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI) {
          isHsaAbiVersion5(STI);
 }
 
+// FIXME: All such magic numbers about the ABI should be in a
+// central TD file.
+unsigned getHostcallImplicitArgPosition() {
+  switch (AmdhsaCodeObjectVersion) {
+  case 2:
+  case 3:
+  case 4:
+    return 24;
+  case 5:
+    return 80;
+  default:
+    llvm_unreachable("Unexpected code object version");
+    return 0;
+  }
+}
+
 #define GET_MIMGBaseOpcodesTable_IMPL
 #define GET_MIMGDimInfoTable_IMPL
 #define GET_MIMGInfoTable_IMPL
@@ -1427,6 +1443,10 @@ bool isModuleEntryFunctionCC(CallingConv::ID CC) {
   }
 }
 
+bool isKernelCC(const Function *Func) {
+  return AMDGPU::isModuleEntryFunctionCC(Func->getCallingConv());
+}
+
 bool hasXNACK(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureXNACK];
 }
@@ -1506,13 +1526,6 @@ bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI) {
   const unsigned FirstSubReg = TRI->getSubReg(Reg, AMDGPU::sub0);
   return SGPRClass.contains(FirstSubReg != 0 ? FirstSubReg : Reg) ||
     Reg == AMDGPU::SCC;
-}
-
-bool isRegIntersect(unsigned Reg0, unsigned Reg1, const MCRegisterInfo* TRI) {
-  for (MCRegAliasIterator R(Reg0, TRI, true); R.isValid(); ++R) {
-    if (*R == Reg1) return true;
-  }
-  return false;
 }
 
 #define MAP_REG2REG \

@@ -39,6 +39,17 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  getenv
+  SRCS
+    getenv.cpp
+  HDRS
+    getenv.h
+  DEPENDS
+    libc.config.linux.app_h
+    libc.src.string.strncmp
+)
+
+add_entrypoint_object(
   strtof
   SRCS
     strtof.cpp
@@ -230,7 +241,19 @@ if(LLVM_LIBC_INCLUDE_SCUDO)
     DEPENDS
       ${SCUDO_DEPS}
   )
-
+else()
+  add_entrypoint_external(
+    malloc
+  )
+  add_entrypoint_external(
+    calloc
+  )
+  add_entrypoint_external(
+    realloc
+  )
+  add_entrypoint_external(
+    free
+  )
 endif()
 
 if(NOT LLVM_LIBC_FULL_BUILD)

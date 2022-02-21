@@ -38,6 +38,8 @@ What's New in Libc++ 15.0.0?
 New Features
 ------------
 
+ - Implemented P0627R6 (Function to mark unreachable code)
+
 API Changes
 -----------
 
@@ -46,6 +48,9 @@ API Changes
   they were not supposed to set ``_LIBCPP_ABI_UNSTABLE`` manually, however we
   still feel that it is worth mentioning in the release notes in case some users
   had been doing it.
+- The header ``<experimental/filesystem>`` has been removed. Instead, use
+  ``<filesystem>`` header. The associated macro
+  ``_LIBCPP_DEPRECATED_EXPERIMENTAL_FILESYSTEM`` has also been removed.
 
 ABI Changes
 -----------

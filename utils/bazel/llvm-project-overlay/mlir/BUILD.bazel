@@ -1917,9 +1917,7 @@ gentbl_cc_library(
 
 cc_library(
     name = "SparseTensor",
-    srcs = glob([
-        "lib/Dialect/SparseTensor/IR/*.cpp",
-    ]),
+    srcs = ["lib/Dialect/SparseTensor/IR/SparseTensorDialect.cpp"],
     hdrs = ["include/mlir/Dialect/SparseTensor/IR/SparseTensor.h"],
     includes = ["include"],
     deps = [
@@ -1996,6 +1994,7 @@ cc_library(
         ":StandardOpsTransforms",
         ":TensorTransforms",
         ":VectorToLLVM",
+        ":VectorTransforms",
     ],
 )
 
@@ -2908,11 +2907,29 @@ cc_library(
     ],
 )
 
+gentbl_cc_library(
+    name = "VectorPassIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            [
+                "-gen-pass-decls",
+                "-name=Vector",
+            ],
+            "include/mlir/Dialect/Vector/Transforms/Passes.h.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/Vector/Transforms/Passes.td",
+    deps = [":PassBaseTdFiles"],
+)
+
 cc_library(
     name = "VectorTransforms",
     srcs = glob(
         [
             "lib/Dialect/Vector/Transforms/*.cpp",
+            "lib/Dialect/Vector/Transforms/*.h",
         ],
     ),
     hdrs = glob([
@@ -2925,16 +2942,20 @@ cc_library(
         ":Analysis",
         ":ArithmeticDialect",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":DialectUtils",
         ":IR",
         ":LinalgOps",
         ":MemRefDialect",
+        ":Pass",
         ":SCFDialect",
         ":StandardOps",
         ":Support",
         ":TensorDialect",
+        ":Transforms",
         ":VectorInterfaces",
         ":VectorOps",
+        ":VectorPassIncGen",
         ":VectorUtils",
         "//llvm:Support",
     ],
@@ -5913,6 +5934,7 @@ cc_library(
         ":VectorToROCDL",
         ":VectorToSCF",
         ":VectorToSPIRV",
+        ":VectorTransforms",
         ":X86Vector",
         ":X86VectorTransforms",
     ],

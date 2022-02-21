@@ -54,6 +54,9 @@ bool isHsaAbiVersion5(const MCSubtargetInfo *STI);
 /// false otherwise.
 bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI);
 
+/// \returns The offset of the hostcall pointer argument from implicitarg_ptr
+unsigned getHostcallImplicitArgPosition();
+
 struct GcnBufferFormatInfo {
   unsigned Format;
   unsigned BitsPerComp;
@@ -738,6 +741,8 @@ bool isEntryFunctionCC(CallingConv::ID CC);
 LLVM_READNONE
 bool isModuleEntryFunctionCC(CallingConv::ID CC);
 
+bool isKernelCC(const Function *Func);
+
 // FIXME: Remove this when calling conventions cleaned up
 LLVM_READNONE
 inline bool isKernel(CallingConv::ID CC) {
@@ -773,9 +778,6 @@ bool hasArchitectedFlatScratch(const MCSubtargetInfo &STI);
 
 /// Is Reg - scalar register
 bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI);
-
-/// Is there any intersection between registers
-bool isRegIntersect(unsigned Reg0, unsigned Reg1, const MCRegisterInfo* TRI);
 
 /// If \p Reg is a pseudo reg, return the correct hardware register given
 /// \p STI otherwise return \p Reg.
