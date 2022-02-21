@@ -250,9 +250,7 @@ void event_impl::cleanupCommand(
     detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
 
-template <>
-cl_ulong
-event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
+void event_impl::checkProfilingPreconditions() const {
   if (MQueue.lock() != nullptr) {
     if (!MQueue.lock()->has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(sycl::errc::invalid),
@@ -260,6 +258,12 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
                             "'enable_profiling' queue property");
     }
   }
+}
+
+template <>
+cl_ulong
+event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
+  checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<
@@ -276,13 +280,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_start>() const {
-  if (MQueue.lock() != nullptr) {
-    if (!MQueue.lock()->has_property<property::queue::enable_profiling>()) {
-      throw sycl::exception(make_error_code(sycl::errc::invalid),
-                            "get_profiling_info() can't be used without set "
-                            "'enable_profiling' queue property");
-    }
-  }
+  checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<
@@ -299,13 +297,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_end>() const {
-  if (MQueue.lock() != nullptr) {
-    if (!MQueue.lock()->has_property<property::queue::enable_profiling>()) {
-      throw sycl::exception(make_error_code(sycl::errc::invalid),
-                            "get_profiling_info() can't be used without set "
-                            "'enable_profiling' queue property");
-    }
-  }
+  checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<info::event_profiling::command_end>::get(
