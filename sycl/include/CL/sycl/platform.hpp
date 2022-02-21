@@ -27,6 +27,8 @@ class device;
 namespace detail {
 class platform_impl;
 }
+template <backend Backend, class SyclT>
+auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -123,7 +125,7 @@ public:
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   backend_return_t<Backend, platform> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, platform>>(getNative());
+    return sycl::get_native<Backend, platform>(*this);
   }
 
   /// Indicates if all of the SYCL devices on this platform have the
@@ -146,6 +148,9 @@ private:
 
   std::shared_ptr<detail::platform_impl> impl;
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
+
+  template <backend Backend, class SyclT>
+  friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
