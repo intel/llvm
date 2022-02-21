@@ -7,13 +7,13 @@ Release notes for commit range 4fc5ebe..bd68232
  - Added support for HIP backend
    [06fdabb5][da138cc][de6e848c][104b45ee][2e08d0e][bfbd5af][c19294f]
 ### SYCL Library
- - Added [sRGBA support](doc/extensions/supported/SYCL_EXT_ONEAPI_SRGB.asciidoc)
+ - Added [sRGBA support](doc/extensions/supported/sycl_ext_oneapi_srgb.asciidoc)
    [e488327][191efdd]
  - Added a preview feature implementation for the DPC++ experimental
-   [matrix extension](doc/extensions/experimental/SYCL_EXT_ONEAPI_MATRIX.asciidoc)
+   [matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
    [7f218531] [a95f46d]
  - Added support for SYCL 2020 exceptions [5c0f748][eef07606][5af8c43d]
- - Added support for [SYCL_EXT_INTEL_BF16_CONVERSION extension](doc/extensions/experimental/SYCL_EXT_INTEL_BF16_CONVERSION.asciidoc)
+ - Added support for [sycl_ext_intel_bf16_conversion extension](doc/extensions/experimental/sycl_ext_intel_bf16_conversion.asciidoc)
    [8075463]
  - Added support for fallback implementation of [assert feature](doc/design/Assert.md)
    [56c9ec4]
@@ -22,14 +22,14 @@ Release notes for commit range 4fc5ebe..bd68232
 ### Documentation
  - Added design document for [optional kernel features](doc/design/OptionalDeviceFeatures.md)
    [88cfe16]
- - Added [SYCL_INTEL_bf16_conversion extension document](doc/extensions/experimental/SYCL_EXT_INTEL_BF16_CONVERSION.asciidoc)
+ - Added [SYCL_INTEL_bf16_conversion extension document](doc/extensions/experimental/sycl_ext_intel_bf16_conversion.asciidoc)
    [9f8cc3af]
- - Align [SYCL_EXT_ONEAPI_GROUP_MASK extension](doc/extensions/supported/SYCL_EXT_ONEAPI_SUB_GROUP_MASK.asciidoc)
+ - Align [sycl_ext_oneapi_sub_group_mask extension](doc/extensions/supported/sycl_ext_oneapi_sub_group_mask.asciidoc)
    with SYCL 2020 specification [a06bd1fb]
  - Added [documentation](doc/design/SYCLInstrumentationUsingXPTI.md) of XPTI related
    tracing in SYCL [1308fe7b]
- - Align `SYCL_EXT_ONEAPI_LOCAL_MEMORY` extension
-   [document](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc) with SYCL 2020
+ - Align `sycl_ext_oneapi_local_memory` extension
+   [document](doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc) with SYCL 2020
    specification [6ed6565]
 
 ## Improvements
@@ -93,8 +93,8 @@ Release notes for commit range 4fc5ebe..bd68232
  - Added caching of device properties in Level Zero plugin [a50f45b8]
  - Optimized Cuda plugin work with small kernels [07189af0]
  - Optimized submission of kernels [441dc3b2][33432df6]
- - Aligned implementation of `SYCL_EXT_ONEAPI_LOCAL_MEMORY` extension
-   [document](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc) with updated
+ - Aligned implementation of `sycl_ext_oneapi_local_memory` extension
+   [document](doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc) with updated
    document [b3db5e5]
  - Improved `sycl::accessor` initialization performance on device [a10199d]
  - Added support `sycl::get_kernel_ids` and cache for `sycl::kernel_id` objects
@@ -123,7 +123,7 @@ Release notes for commit range 4fc5ebe..bd68232
 ### Tools
  - Added support for ROCm devices in `get_device_count_by_type` [03155e7]
 ### Documentation
- - Extended group [sort algorithms extension](doc/extensions/experimental/SYCL_EXT_ONEAPI_GROUP_SORT.asciidoc)
+ - Extended group [sort algorithms extension](doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc)
    with interfaces to scratchpad memory [f57091d]
  - Updated several extension documents to follow SYCL 2020 extension rules
    [7fb56cf]
@@ -256,7 +256,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Added support for AMD GPU devices [ec612228]
  - Implemented SYCL 2020 `sycl::is_device_copyable` type trait [44c1cbcd]
  - Implemented SYCL 2020 USM features [1df6873d]
- - Implemented support for Device UUID from [Intel's Extensions for Device Information](doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md) [25aee287]
+ - Implemented support for Device UUID from [Intel's Extensions for Device Information](doc/extensions/supported/sycl_ext_intel_device_info.md) [25aee287]
  - Implemented SYCL 2020 `sycl::atomic_fence` [dcd59547]
  - Implemented `intel::loop_count_max`, `intel::loop_count_max`,
    `intel::loop_count_avg` attributes that allow to specify number of loop
@@ -264,18 +264,18 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Implemented generation of compiler report for kernel arguments [201f902]
  - Implemented SYCL 2020 `[[reqd_sub_group_size]]` attribute [347e41c]
  - Implemented support for `[[intel::named_sub_group_size(primary)]]` attribute
-   from [sub-group extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc#attributes)
+   from [sub-group extension](doc/extensions/deprecated/sycl_ext_oneapi_sub_group.asciidoc#attributes)
    [347e41c]
  - Implemented SYCL 2020 interoperability API [e6733e4]
- - Added [group sorting algorithm](doc/extensions/experimental/SYCL_EXT_ONEAPI_GROUP_SORT.asciidoc)
+ - Added [group sorting algorithm](doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc)
    extension specification [edaee9b]
- - Added [initial draft](doc/extensions/supported/SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO.md)
+ - Added [initial draft](doc/extensions/supported/sycl_ext_oneapi_backend_level_zero.md)
    for querying of free device memory in LevelZero backend extension [fa428bf]
- - Added [InvokeSIMD](doc/extensions/proposed/SYCL_EXT_ONEAPI_INVOKE_SIMD.asciidoc) and
-   [Uniform](doc/extensions/proposed/SYCL_EXT_ONEAPI_UNIFORM.asciidoc) extensions [72e1611]
- - Added [Matrix Programming Extension for DPC++ document](doc/extensions/experimental/SYCL_EXT_ONEAPI_MATRIX.asciidoc) [ace4c733]
+ - Added [InvokeSIMD](doc/extensions/proposed/sycl_ext_oneapi_invoke_simd.asciidoc) and
+   [Uniform](doc/extensions/proposed/sycl_ext_oneapi_uniform.asciidoc) extensions [72e1611]
+ - Added [Matrix Programming Extension for DPC++ document](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc) [ace4c733]
  - Implemented SYCL 2020 `sycl::span` [9356d53]
- - Added [device-if](doc/extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_IF.asciidoc) extension
+ - Added [device-if](doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) extension
    [4fb95fc]
  - Added a [programming guide](doc/MultiTileCardWithLevelZero.md) for
    multi-tile and multi-card under Level Zero backend [d581178a]
@@ -355,7 +355,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Deprecated `sycl::buffer::get_count()`, please use `sycl::buffer::size()`
    instead [baf2ed9d]
  - Implemented `sycl::group_barrier` free function [48363902]
- - Added support of [SYCL_INTEL_enqueue_barrier extension](doc/extensions/supported/SYCL_EXT_ONEAPI_ENQUEUE_BARRIER.asciidoc) for CUDA backend [2e978482]
+ - Added support of [SYCL_INTEL_enqueue_barrier extension](doc/extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc) for CUDA backend [2e978482]
  - Deprecated `has_extension` method of `sycl::device` and `sycl::platform`
    classes, please use `has` method with aspects APIs instead [51c747da]
  - Deprecated `sycl::*_class` types, please use STL classes instead [51c747da]
@@ -387,7 +387,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Updated [sub-group algoritms](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
    extension to use `marray` instead of `vec` [98715ae]
  - Updated data flow pipes extension to be based on SYCL 2020 [f22f2e0]
- - Updated [ESIMD documentation](doc/extensions/experimental/SYCL_EXT_INTEL_ESIMD/SYCL_EXT_INTEL_ESIMD.md)
+ - Updated [ESIMD documentation](doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md)
    reflecting recent API changes [1e0bd1ed]
  - Updated [devicelib](doc/extensions/supported/C-CXX-StandardLibrary.rst)
    extension document with `scalnbn`, `abs` and `div` (and their variants) as
@@ -419,7 +419,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Fixed build issue when CUDA 11 is used [f7224f1]
  - Fixed caching of sub-devices in Level Zero backend[4c34f93]
  - Fixed requesting of USM memory allocation info on CUDA [691f842]
- - Fixed [`joint_matrix_mad`](doc/extensions/experimental/SYCL_EXT_ONEAPI_MATRIX.asciidoc)
+ - Fixed [`joint_matrix_mad`](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
    behaviour to return `A*B+C` instead of assigning the result to `C` [ea59c2b]
  - Workaround an issue in Level Zero backend when event isn't waited upon its
    completion but is queried for its status in an infinite loop  [bfef316]
@@ -512,9 +512,9 @@ Release notes for commit range 2ffafb95f887..6a49170027fb
  - Added an initial AOT implementation of the experimental matrix extension on
    the CPU device to target AMX hardware. Base features are supported [35db973]
  - Added support for
-   [SYCL_INTEL_local_memory extension](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc)
+   [sycl_ext_oneapi_local_memory extension](doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc)
    [5a66fcb] [9a734f6]
- - Documented [Level Zero backend](doc/extensions/supported/SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO.md)
+ - Documented [Level Zero backend](doc/extensions/supported/sycl_ext_oneapi_backend_level_zero.md)
    [8994e6d]
 
 ## Improvements
@@ -591,7 +591,7 @@ Release notes for commit range 2ffafb95f887..6a49170027fb
  - Improved design document for program cache [ed4b4c4]
  - Updated compiler options [description](doc/UsersManual.md) [e56e576]
  - Updated
-   [SYCL_INTEL_sub_group](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc)
+   [SYCL_INTEL_sub_group](doc/extensions/deprecated/sycl_ext_oneapi_sub_group.asciidoc)
    extension document to use `automatic` instead of `auto` [c4d08f5]
 
 ## Bug fixes
@@ -697,7 +697,7 @@ Release notes for commit range 5eebd1e4bfce..2ffafb95f887
    default one [184d258b902a]
  - Enabled support for multiple AOCX device binaries for FPGA [6ea38f0f1f7a]
 ### SYCL Library
- - Implemented [`online_compiler`](doc/extensions/experimental/SYCL_EXT_INTEL_ONLINE_COMPILER.asciidoc)
+ - Implemented [`online_compiler`](doc/extensions/experimental/sycl_ext_intel_online_compiler.asciidoc)
    feature [91122526e74d]
 ### Documentation
  - Added specification for [set kernel cache configuration extension](doc/extensions/IntelGPU/IntelGPUKernelCache.md)
@@ -800,16 +800,16 @@ Release notes for commit range 5d7e0925..5eebd1e4bfce
 ### SYCL Compiler
  - Allow for multiple build options for opencl-aot [5e5703f58449]
 ### SYCL Library
- - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/supported/SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY.asciidoc)
+ - Implement [`SYCL_INTEL_mem_channel_property`](doc/extensions/supported/sycl_ext_intel_mem_channel_property.asciidoc)
    extension [2f1f3167b7c6]
  - Add `marray` class as defined by SYCL 2020 provisional [5eebd1e4bfce]
  - Implement dynamic batch size adjusting when using Level-Zero plugin
    [c70b0477aa8a, cf0d0538d162]
  - Add online compilation API interface [70ac47d23264]
 ### Documentation
- - Proposal for [new device descriptors extension](doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md)
+ - Proposal for [new device descriptors extension](doc/extensions/supported/sycl_ext_intel_device_info.md)
    was added [1ad813ba133e]
- - Added [online compilation extension](doc/extensions/experimental/SYCL_EXT_INTEL_ONLINE_COMPILER.asciidoc)
+ - Added [online compilation extension](doc/extensions/experimental/sycl_ext_intel_online_compiler.asciidoc)
    specification [e05a19c8d303]
 
 ## Improvements
@@ -1185,11 +1185,11 @@ Release notes for commit range 5976ff0..1fc0e4f
     [c4c3494]
 
 ### Documentation
-  - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/extensions/SPIRV/SPV_INTEL_usm_storage_classes.asciidoc)
-    and [SYCL_INTEL_usm_address_spaces](doc/extensions/supported/SYCL_EXT_INTEL_USM_ADDRESS_SPACES.asciidoc) [781fbfc]
+  - Added documentation for [`SPV_INTEL_usm_storage_classes`](doc/design/spirv-extensions/SPV_INTEL_usm_storage_classes.asciidoc)
+    and [SYCL_INTEL_usm_address_spaces](doc/extensions/supported/sycl_ext_intel_usm_address_spaces.asciidoc) [781fbfc]
   - Fixed SPIR-V format name spelling [6e9bf3b]
-  - Added extension [LocalMemory](doc/extensions/supported/SYCL_EXT_ONEAPI_LOCAL_MEMORY.asciidoc) draft specification [4b5308a]
-  - Added extension [free functions queries](doc/extensions/experimental/SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES.asciidoc) draft specification [8953bfd]
+  - Added extension [LocalMemory](doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc) draft specification [4b5308a]
+  - Added extension [free functions queries](doc/extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc) draft specification [8953bfd]
   - Removed documentation for implicit attribute `buffer_location` [71a56e7]
 
 ## Bug fixes
@@ -1264,10 +1264,10 @@ Release notes for commit range 5976ff0..1fc0e4f
 Release notes for the commit range 75b3dc2..5976ff0
 
 ## New features
-  - Implemented basic support for the [Explicit SIMD extension](doc/extensions/experimental/SYCL_EXT_INTEL_ESIMD/SYCL_EXT_INTEL_ESIMD.md)
+  - Implemented basic support for the [Explicit SIMD extension](doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md)
     for low-level GPU performance tuning [84bf234] [32bf607] [a lot of others]
   - Implemented support for the [SYCL_INTEL_usm_address_spaces extension](https://github.com/intel/llvm/pull/1840)
-  - Implemented support for the [Use Pinned Host Memory Property extension](doc/extensions/supported/SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY.asciidoc) [e5ea144][aee2d6c][396759d]
+  - Implemented support for the [Use Pinned Host Memory Property extension](doc/extensions/supported/sycl_ext_oneapi_use_pinned_host_memory_property.asciidoc) [e5ea144][aee2d6c][396759d]
   - Implemented aspects feature from the SYCL 2020 provisional Specification
     [89804af]
 
@@ -1348,19 +1348,19 @@ Release notes for the commit range 75b3dc2..5976ff0
     query native handles of SYCL objects and to create SYCL objects by providing
     a native handle: platform, device, queue, program. The feature is described
     in the SYCL 2020 provisional specification [a51c333]
-  - Added support for `sycl::intel::atomic_ref` from [SYCL_INTEL_extended_atomics extension](doc/extensions/supported/SYCL_EXT_ONEAPI_EXTENDED_ATOMICS.asciidoc)
+  - Added support for `sycl::intel::atomic_ref` from [sycl_ext_oneapi_extended_atomics extension](doc/extensions/supported/sycl_ext_oneapi_extended_atomics.asciidoc)
 
 ### Documentation
   - Added [SYCL_INTEL_accessor_properties](doc/extensions/accessor_properties/SYCL_INTEL_accessor_properties.asciidoc) extension specification [58fc414]
   - The documentation for the CUDA BE has been improved [928b815]
   - The [Queue Shortcuts extension](sycl/doc/extensions/QueueShortcuts/QueueShortcuts.adoc)
     document has been updated [defac3c2]
-  - Added [Use Pinned Host Memory Property extension](doc/extensions/supported/SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY.asciidoc) specification [e5ea144]
-  - Updated the [SYCL_INTEL_extended_atomics extension](doc/extensions/supported/SYCL_EXT_ONEAPI_EXTENDED_ATOMICS.asciidoc)
+  - Added [Use Pinned Host Memory Property extension](doc/extensions/supported/sycl_ext_oneapi_use_pinned_host_memory_property.asciidoc) specification [e5ea144]
+  - Updated the [sycl_ext_oneapi_extended_atomics extension](doc/extensions/supported/sycl_ext_oneapi_extended_atomics.asciidoc)
     to describe `sycl::intel::atomic_accessor` [4968e7c]
-  - The [SYCL_INTEL_sub_group extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc)
+  - The [SYCL_INTEL_sub_group extension](doc/extensions/deprecated/sycl_ext_oneapi_sub_group.asciidoc)
     document has been updated [067536e]
-  - Added [FPGA lsu extension](sycl/doc/extensions/supported/SYCL_EXT_INTEL_FPGA_LSU.md)
+  - Added [FPGA lsu extension](doc/extensions/supported/sycl_ext_intel_fpga_lsu.md)
     document [2c2b5f2]
 
 ## Bug fixes
@@ -1454,7 +1454,7 @@ Release notes for the commit range ba404be..24726df
   - Introduced the Level Zero plugin which enables SYCL working on top of Level0
     API. Interoperability is not supportet yet [d32da99]
   - Implemented [parallel_for simplification extension](doc/extensions/ParallelForSimpification) [13fe9fb]
-  - Implemented [SYCL_INTEL_enqueue_barrier extension](doc/extensions/supported/SYCL_EXT_ONEAPI_ENQUEUE_BARRIER.asciidoc) [da6bfd0]
+  - Implemented [SYCL_INTEL_enqueue_barrier extension](doc/extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc) [da6bfd0]
   - Implemented [SYCL_INTEL_accessor_simplification extension](https://github.com/intel/llvm/pull/1498) [1f76efc]
   - Implemented OpenCL interoperability API following [SYCL Generalization proposal](https://github.com/KhronosGroup/SYCL-Shared/blob/master/proposals/sycl_generalization.md) [bae0639]
 
@@ -1485,7 +1485,7 @@ Release notes for the commit range ba404be..24726df
 
 ### SYCL Library
   - Updated the implementation to align with changes in
-    [SubGroup extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc) [9d4c284]
+    [SubGroup extension](doc/extensions/deprecated/sycl_ext_oneapi_sub_group.asciidoc) [9d4c284]
   - `sycl::ordered_queue` class has been removed [875347a]
   - Added support of rounding modes for floating and integer types in
     `sycl::vec::convert` [096d0a0]
@@ -1517,7 +1517,7 @@ Release notes for the commit range ba404be..24726df
   - OpenCL CPU runtime installation instructions in
     [GetStartedGuide](doc/GetStartedGuide.md) and the installation script have
     been improved [9aa5029]
-  - The [SYCL_INTEL_sub_group extension document](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc)
+  - The [SYCL_INTEL_sub_group extension document](doc/extensions/deprecated/sycl_ext_oneapi_sub_group.asciidoc)
     has been updated [010f112]
   - Render user API classes on a dedicated page [98b6ee4]
 
@@ -1599,7 +1599,7 @@ Release notes for the commit range ba404be..24726df
 Release notes for the commit range ba404be..67d3d9e
 
 ## New features
-  - Implemented [reduction extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS.md)
+  - Implemented [reduction extension](doc/extensions/deprecated/sycl_ext_oneapi_nd_range_reductions.md)
     for `sycl::handler::parallel_for` accepting a `sycl::nd_range` object
     [bb73d926] [04a360a] [05625f1]
   - XPTI instrumentation has been added to the runtime to capture semantic and
@@ -1667,7 +1667,7 @@ Release notes for the commit range ba404be..67d3d9e
   - [ExtendedAtomics documentation](doc/extensions/ExtendedAtomics/README.md)
     has been updated [1084685]
   - Published [sycl_bitcast extension](doc/extensions/Bitcast/SYCL_INTEL_bitcast.asciidoc)
-  - Published a [proposal](doc/extensions/proposed/SYCL_EXT_ONEAPI_LOCAL_STATIC_MEM_USED.asciidoc)
+  - Published a [proposal](doc/extensions/proposed/sycl_ext_oneapi_local_static_mem_used.asciidoc)
     which adds ability to query max local size which is used by a specific
     kernel and a specific device.
   - Published [device_specific_kernel_queries](doc/extensions/DeviceSpecificKernelQueries/SYCL_INTEL_device_specific_kernel_queries.asciidoc)
@@ -1678,10 +1678,10 @@ Release notes for the commit range ba404be..67d3d9e
   - [Contribution guidelines](../CONTRIBUTING.md) were simplified, now sign-off
     line is not required [7886fd8]
   - Added missing constructors and member functions in
-    [reduction extension proposal](doc/extensions/deprecated/SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS.md)
+    [reduction extension proposal](doc/extensions/deprecated/sycl_ext_oneapi_nd_range_reductions.md)
     [f695479]
   - Published [parallel_for simplification extension](doc/extensions/ParallelForSimpification/SYCL_INTEL_parallel_for_simplification.asciidoc) [856a777]
-  - Added memory scope to [ExtendedAtomics extension](doc/extensions/supported/SYCL_EXT_ONEAPI_EXTENDED_ATOMICS.asciidoc) [f8e11e0]
+  - Added memory scope to [ExtendedAtomics extension](doc/extensions/supported/sycl_ext_oneapi_extended_atomics.asciidoc) [f8e11e0]
   - Published [math array extension](doc/extensions/MathArray/SYCL_INTEL_math_array.asciidoc) [36c5041]
   - Added more comments that describe Scheduler design [ad441a0]
   - Published [extension mechanism proposal](doc/extensions/ExtensionMechanism/SYCL_INTEL_extension_api.asciidoc) [cf65794]
@@ -1752,7 +1752,7 @@ Release notes for the commit range e8f1f29..ba404be
 ## New features
   - Initial CUDA backend support [7a9a425]
   - [SYCL][FPGA] Implement IO pipes interface [c900248]
-  - Added the implementation of [GroupAlgorithms extension](doc/extensions/deprecated/SYCL_EXT_ONEAPI_GROUP_ALGORITHMS.asciidoc)
+  - Added the implementation of [GroupAlgorithms extension](doc/extensions/deprecated/sycl_ext_oneapi_group_algorithms.asciidoc)
     [8bfa107]
   - Added a partial implementation of [sub group algorithms extension](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
     [017af4e]
@@ -1819,18 +1819,18 @@ Release notes for the commit range e8f1f29..ba404be
     [29d9cc2]
   - More details have been added about the `-fintelfpga` option in the
     [Compiler User Manual](doc/SYCLCompilerUserManual.md) [4b03ddb]
-  - Added [SYCL_INTEL_enqueue_barrier extension document](doc/extensions/supported/SYCL_EXT_ONEAPI_ENQUEUE_BARRIER.asciidoc)
+  - Added [SYCL_INTEL_enqueue_barrier extension document](doc/extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
     [6cfd2cb]
   - Added [standard layout relaxation extension](doc/extensions/RelaxStdLayout/SYCL_INTEL_relax_standard_layout.asciidoc)
     [ce53521]
   - Deprecated SubGroupNDRange extension [d9b178f]
   - Added extension for base sub-group class:
-    [SubGroup](doc/extensions/deprecated/SYCL_EXT_ONEAPI_SUB_GROUP.asciidoc) [d9b178f]
+    [SubGroup](doc/extensions/deprecated/sycl_ext_oneapi_sub_group.asciidoc) [d9b178f]
   - Added extension for functions operating on sub-groups:
-    [SubGroupAlgorithms](doc/extensions/SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)
+    [SubGroupAlgorithms](doc/extensions/deprecated/sycl_ext_oneapi_group_algorithms.asciidoc)
     [d9b178f]
   - Added extension introducing group masks and ballot functionality:
-    [GroupMask](doc/extensions/supported/SYCL_EXT_ONEAPI_SUB_GROUP_MASK.asciidoc)
+    [GroupMask](doc/extensions/supported/sycl_ext_oneapi_sub_group_mask.asciidoc)
     [d9b178f]
   - The project has been renamed to "oneAPI DPC++ Compiler", all documentation
     has been fixed accordingly [7a2e75e]
@@ -1983,7 +1983,7 @@ Release notes for commit e8f1f29
     [proposal](doc/extensions/OrderedQueue/OrderedQueue_v2.adoc) [9fa878f]
   - Added device code split options documentation to the
     [user's manual](doc/UsersManual.md) [1355aa6]
-  - Added documentation for [ExtendedAtomics extension](doc/extensions/supported/SYCL_EXT_ONEAPI_EXTENDED_ATOMICS.asciidoc) [4445462]
+  - Added documentation for [ExtendedAtomics extension](doc/extensions/supported/sycl_ext_oneapi_extended_atomics.asciidoc) [4445462]
   - Removed old Ordered Queue proposal and make a note of deprecation [e8f1f29]
 
 ## Bug fixes
@@ -2216,9 +2216,9 @@ Release notes for commit e0a62df4e20eaf4bdff5c7dd46cbde566fbaee90
     to use proper names of AOT related options [b3ee6a2]
   - Added [unnamed lambda extension](doc/extensions/UnnamedKernelLambda/SYCL_INTEL_unnamed_kernel_lambda.asciidoc)
     draft [47c4c71]
-  - Added [kernel restrict all extension](doc/extensions/supported/SYCL_EXT_INTEL_KERNEL_ARGS_RESTRICT.asciidoc)
+  - Added [kernel restrict all extension](doc/extensions/supported/sycl_ext_intel_kernel_args_restrict.asciidoc)
     draft [47c4c71]
-  - Added initial draft of [data flow pipes extension](doc/extensions/supported/SYCL_EXT_INTEL_DATAFLOW_PIPES.asciidoc)
+  - Added initial draft of [data flow pipes extension](doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc)
     proposal [ee2b482]
   - [USM doc](doc/extensions/USM/USM.adoc) was updated with new version of
     allocation functions [0c32410]
@@ -2508,8 +2508,8 @@ Release notes for commit d4efd2ae3a708fc995e61b7da9c7419dac900372
   See [SYCL ENV VARIABLES](doc/SYCLEnvironmentVariables.md) for information how
   to enable it. [c615566]
 - Added support for
-  [`cl::sycl::intel::fpga_reg`](doc/extensions/supported/SYCL_EXT_INTEL_FPGA_REG.md) and
-  [`cl::sycl::intel::fpga_selector`](doc/extensions/supported/SYCL_EXT_INTEL_FPGA_DEVICE_SELECTOR.md)
+  [`cl::sycl::intel::fpga_reg`](doc/extensions/supported/sycl_ext_intel_fpga_reg.md) and
+  [`cl::sycl::intel::fpga_selector`](doc/extensions/supported/sycl_ext_intel_fpga_device_selector.md)
   extensions. [e438d2b]
 
 ## Improvements

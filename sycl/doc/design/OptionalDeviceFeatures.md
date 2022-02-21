@@ -266,7 +266,7 @@ non-FPGA users may want to use the `device_global` property
 [`device_image_scope`][5], which requires even non-FPGA users to have precise
 control over the way kernels are bundled into device images.
 
-[5]: <../extensions/proposed/SYCL_EXT_ONEAPI_DEVICE_GLOBAL.asciidoc#properties-for-device-global-variables>
+[5]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc#properties-for-device-global-variables>
 
 The new definition of `-fsycl-device-code-split` is as follows:
 

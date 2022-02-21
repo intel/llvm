@@ -2028,7 +2028,7 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_INVALID_VALUE;
 }
 
-// Get the cahched PI device created for the L0 device handle.
+// Get the cached PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
 pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
@@ -2188,6 +2188,11 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
         // Create PI sub-sub-devices with the sub-device for all the ordinals.
         // Each {ordinal, index} points to a specific CCS which constructs
         // a sub-sub-device at this point.
+        // FIXME: Level Zero creates multiple PiDevices for a single physical
+        // device when sub-device is partitioned into sub-sub-devices.
+        // Sub-sub-device is technically a command queue and we should not build
+        // program for each command queue. PiDevice is probably not the right
+        // abstraction for a Level Zero command queue.
         for (uint32_t J = 0; J < Ordinals.size(); ++J) {
           for (uint32_t K = 0; K < QueueGroupProperties[Ordinals[J]].numQueues;
                ++K) {
@@ -2276,8 +2281,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     }
   }
   case PI_DEVICE_INFO_PARENT_DEVICE:
-    // TODO: all Level Zero devices are parent ?
-    return ReturnValue(pi_device{0});
+    return ReturnValue(Device->RootDevice);
   case PI_DEVICE_INFO_PLATFORM:
     return ReturnValue(Device->Platform);
   case PI_DEVICE_INFO_VENDOR_ID:
@@ -2285,7 +2289,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_UUID:
     // Intel extension for device UUID. This returns the UUID as
     // std::array<std::byte, 16>. For details about this extension,
-    // see sycl/doc/extensions/supported/SYCL_EXT_INTEL_DEVICE_INFO.md.
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     return ReturnValue(Device->ZeDeviceProperties->uuid.id);
   case PI_DEVICE_INFO_EXTENSIONS: {
     // Convention adopted from OpenCL:
@@ -2337,6 +2341,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
   case PI_DEVICE_INFO_NAME:
     return ReturnValue(Device->ZeDeviceProperties->name);
+  // zeModuleCreate allows using root device module for sub-devices:
+  // > The application must only use the module for the device, or its
+  // > sub-devices, which was provided during creation.
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE:
+    return ReturnValue(PI_FALSE);
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{1});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
@@ -3441,7 +3450,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   if (Flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
     // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
     // pinned host memory, see:
-    // sycl/doc/extensions/supported/SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY.asciidoc
+    // sycl/doc/extensions/supported/sycl_ext_oneapi_use_pinned_host_memory_property.asciidoc
     // We are however missing such functionality in Level Zero, so we just
     // ignore the flag for now.
     //
@@ -4296,28 +4305,37 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
   ze_module_handle_t ZeModule = nullptr;
-  ZE_CALL(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
-                           &Program->ZeBuildLog));
 
-  // The call to zeModuleCreate does not report an error if there are
-  // unresolved symbols because it thinks these could be resolved later via a
-  // call to zeModuleDynamicLink.  However, modules created with piProgramBuild
-  // are supposed to be fully linked and ready to use.  Therefore, do an extra
-  // check now for unresolved symbols.
-  ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
-  if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-    return PI_BUILD_PROGRAM_FAILURE;
-  } else if (ZeResult != ZE_RESULT_SUCCESS) {
-    return mapError(ZeResult);
+  pi_result Result = PI_SUCCESS;
+  Program->State = _pi_program::Exe;
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                       &ZeModule, &Program->ZeBuildLog));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    // We adjust pi_program below to avoid attempting to release zeModule when
+    // RT calls piProgramRelease().
+    ZeModule = nullptr;
+    Program->State = _pi_program::Invalid;
+    Result = mapError(ZeResult);
+  } else {
+    // The call to zeModuleCreate does not report an error if there are
+    // unresolved symbols because it thinks these could be resolved later via a
+    // call to zeModuleDynamicLink.  However, modules created with
+    // piProgramBuild are supposed to be fully linked and ready to use.
+    // Therefore, do an extra check now for unresolved symbols.
+    ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+    if (ZeResult != ZE_RESULT_SUCCESS) {
+      Program->State = _pi_program::Invalid;
+      Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
+                   ? PI_BUILD_PROGRAM_FAILURE
+                   : mapError(ZeResult);
+    }
   }
 
   // We no longer need the IL / native code.
   Program->Code.reset();
-
   Program->ZeModule = ZeModule;
-  Program->State = _pi_program::Exe;
-
-  return PI_SUCCESS;
+  return Result;
 }
 
 pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,

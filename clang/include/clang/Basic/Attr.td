@@ -1347,7 +1347,7 @@ def SYCLScope : Attr {
 def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let Spellings = [ CXX11<"intel", "device_indirectly_callable"> ];
   let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
 }
 
