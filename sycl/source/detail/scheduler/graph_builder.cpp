@@ -1377,7 +1377,7 @@ Command *Scheduler::GraphBuilder::addAssertInfoCheckerCGs(Command *Cmd) {
   bool FallbackAssertDisabled = false; // TODO check queue for compile-time value
                                        // check env var also
   bool KernelUsesAssert = true; // TODO check program manager.
-                                 // imply interop k-l uses assert
+                                 // imply interop kernel doesn't use assert
 
   // Don't enqueue assert info copier and checker in case of either of:
   //  * kernel is launched on host
@@ -1412,7 +1412,7 @@ Command *Scheduler::GraphBuilder::addAssertInfoCheckerCGs(Command *Cmd) {
       (OSModuleHandle)(-1),
       KernelCmd->getWorkerQueue()->getContextImplPtr(),
       KernelCmd->getWorkerQueue()->getDeviceImplPtr(),
-      "__devicelib_assert_read",
+      "_ZTS29DevicelibAssertReadKernelName",
       nullptr);
   fprintf(stderr, "Kernel: %p, Mtx: %p, Prg: %p\n",
           (const void *)Kernel, (const void *)Mtx, (const void *)Prg);
