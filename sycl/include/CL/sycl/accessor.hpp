@@ -1215,7 +1215,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
   }
 #endif
 
@@ -1310,7 +1310,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
   }
 
 #endif
@@ -1370,7 +1370,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
   }
 #endif
 
@@ -1433,7 +1433,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
   }
 #endif
 
@@ -1531,7 +1531,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
   }
 #endif
 
@@ -1631,7 +1631,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get(), PropertyList);
+    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
   }
 #endif
 
@@ -1795,9 +1795,7 @@ private:
 
 #if __cplusplus >= 201703L
   template <typename... PropTypes>
-  void adjustAccPropsInBuf(detail::SYCLMemObjI *SYCLMemObject,
-                           const sycl::ext::oneapi::accessor_property_list<
-                               PropTypes...> &PropertyList = {}) {
+  void adjustAccPropsInBuf(detail::SYCLMemObjI *SYCLMemObject) {
     if constexpr (PropertyListT::template has_property<
                       sycl::ext::intel::property::buffer_location>()) {
       auto location = (PropertyListT::template get_property<
