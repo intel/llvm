@@ -106,18 +106,18 @@ public:
   size_t SlabMinSize[3] = {64 * 1024, 64 * 1024, 2 * 1024 * 1024};
 
   // Allocations up to this limit will be subject to chunking/pooling
-  size_t MaxPoolableSize[3] = {0, 32 * 1024, 0};
+  size_t MaxPoolableSize[3] = {2 * 1024 * 1024, 4 * 1024 * 1024, 0};
 
   // When pooling, each bucket will hold a max of 4 unfreed slabs
-  size_t Capacity[3] = {0, 0, 0};
+  size_t Capacity[3] = {4, 4, 0};
 
   // Maximum memory left unfreed in pool
-  size_t MaxPoolSize = 0;
+  size_t MaxPoolSize = 16 * 1024 * 1024;
 
   size_t CurPoolSize = 0;
   size_t CurPoolSizes[3] = {0, 0, 0};
 
-  bool EnableBuffers = false;
+  bool EnableBuffers = true;
 
   // Whether to print pool usage statistics
   int PoolTrace = 0;
@@ -134,22 +134,21 @@ public:
     // pool size for all contexts.
     // Duplicate specifications will result in the right-most taking effect.
     //
-    // Current defaults are to match pre-2021.3 pooling.
     // EnableBuffers:   Apply chunking/pooling to SYCL buffers.
-    //                  Default 0 (false).
+    //                  Default true.
     // MaxPoolSize:     Limit on overall unfreed memory.
-    //                  Default 0MB.
+    //                  Default 16MB.
     // MaxPoolableSize: Maximum allocation size subject to chunking/pooling.
-    //                  Default 32KB.
+    //                  Default 2MB host, 4MB device and 0 shared.
     // Capacity:        Maximum number of unfreed allocations in each bucket.
-    //                  Default 0.
+    //                  Default 4.
     // SlabMinSize:     Minimum allocation size requested from USM.
-    //                  Default 64KB.
+    //                  Default 64KB host and device, 2MB shared.
     //
     // Example of usage:
     // SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M
 
-    auto GetValue = [](std::string &Param, size_t Length) {
+    auto GetValue = [](std::string &Param, size_t Length, size_t InVal) {
       size_t Multiplier = 1;
       if (tolower(Param[Length - 1]) == 'k') {
         Length--;
@@ -164,8 +163,10 @@ public:
         Multiplier = 1024 * 1024 * 1024;
       }
       std::string TheNumber = Param.substr(0, Length);
-      assert(TheNumber.find_first_not_of("0123456789") == std::string::npos);
-      return std::stoi(TheNumber) * Multiplier;
+      if (TheNumber.find_first_not_of("0123456789") == std::string::npos)
+        return std::stoi(TheNumber) * Multiplier;
+      else
+        return InVal;
     };
 
     auto ParamParser = [=](std::string &Params, size_t &Setting,
@@ -178,13 +179,13 @@ public:
       size_t Pos = Params.find(',');
       if (Pos != std::string::npos) {
         if (Pos > 0) {
-          Setting = GetValue(Params, Pos);
+          Setting = GetValue(Params, Pos, Setting);
           ParamWasSet = true;
         }
         Params.erase(0, Pos + 1);
         More = true;
       } else {
-        Setting = GetValue(Params, Params.size());
+        Setting = GetValue(Params, Params.size(), Setting);
         ParamWasSet = true;
         More = false;
       }
@@ -245,13 +246,13 @@ public:
       size_t Pos = Params.find(';');
       if (Pos != std::string::npos) {
         if (Pos > 0) {
-          EnableBuffers = GetValue(Params, Pos);
+          EnableBuffers = GetValue(Params, Pos, EnableBuffers);
         }
         Params.erase(0, Pos + 1);
         size_t Pos = Params.find(';');
         if (Pos != std::string::npos) {
           if (Pos > 0) {
-            MaxPoolSize = GetValue(Params, Pos);
+            MaxPoolSize = GetValue(Params, Pos, MaxPoolSize);
           }
           Params.erase(0, Pos + 1);
           do {
@@ -270,10 +271,10 @@ public:
             }
           } while (true);
         } else {
-          MaxPoolSize = GetValue(Params, Params.size());
+          MaxPoolSize = GetValue(Params, Params.size(), MaxPoolSize);
         }
       } else {
-        EnableBuffers = GetValue(Params, Params.size());
+        EnableBuffers = GetValue(Params, Params.size(), EnableBuffers);
       }
     }
 
@@ -515,9 +516,24 @@ public:
   USMAllocImpl(std::unique_ptr<SystemMemory> SystemMemHandle)
       : MemHandle{std::move(SystemMemHandle)} {
 
-    Buckets.reserve(BucketSizes.size());
+    // Buckets for Host and Shared allocations will use the full
+    // set of buckets, starting at the page size of 64 bytes.
+    auto NumBuckets = BucketSizes.size();
+
+    // Buckets for Device allocations will use starting size of 512.
+    // This is because memory compression on newer GPUs makes the
+    // minimum granularity 512 bytes instead of 64.
+    auto MT = MemHandle->getMemType();
+    if (MT == SystemMemory::Device)
+      // Skip buckets between 64 and 512.
+      NumBuckets -= 6;
+
+    Buckets.reserve(NumBuckets);
 
     for (auto &&Size : BucketSizes) {
+      // Don't create buckets less than 512 for Device allocations.
+      if (MT == SystemMemory::Device && Size < 512)
+        continue;
       Buckets.emplace_back(std::make_unique<Bucket>(Size, *this));
     }
   }
