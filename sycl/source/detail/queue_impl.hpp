@@ -95,6 +95,7 @@ public:
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MHasDiscardEventsSupport(
@@ -133,6 +134,7 @@ public:
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MHasDiscardEventsSupport(
@@ -580,6 +582,7 @@ private:
   CG::CGTYPE MLastCGType = CG::CGTYPE::None;
 
   const bool MIsInorder;
+  const bool MIsProfilingEnabled = false;
 
 public:
   // Queue constructed with the discard_events property
