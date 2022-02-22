@@ -1468,11 +1468,6 @@ pi_result _pi_queue::getOrCreateCopyCommandQueue(
   return PI_SUCCESS;
 }
 
-bool _pi_queue::isEagerExec() {
-  return false;
-  // (this->PiQueueProperties & (1<<5)) == 0)
-}
-
 // This function will return one of possibly multiple available copy queues.
 // Currently, a round robin strategy is used.
 // This function also sends back the value of CopyQueueIndex and
