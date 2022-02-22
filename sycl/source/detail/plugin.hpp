@@ -10,6 +10,7 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/spinlock.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin_printers.hpp>
@@ -92,7 +93,7 @@ public:
   plugin(const std::shared_ptr<RT::PiPlugin> &Plugin, backend UseBackend,
          void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
-        TracingMutex(std::make_shared<std::mutex>()),
+        MTracingSLock(std::make_shared<SpinLock>()),
         MPluginMutex(std::make_shared<std::mutex>()) {}
 
   plugin &operator=(const plugin &) = default;
@@ -163,13 +164,13 @@ public:
 #endif
     RT::PiResult R;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
-      // MEmergencyModeEnabled signals if process is terminating now, it may
-      // happen by initiative from underlying modules and mutex can be still
-      // locked. Program behavior is undefined if thread terminates while owning
-      // a mutex so skip mutex ownership request in emergency mode.
-      auto Guard = MEmergencyModeEnabled
-                       ? std::unique_lock<std::mutex>()
-                       : std::unique_lock<std::mutex>(*TracingMutex);
+      // MShutdownModeEnabled signals if process is terminating now. It covers
+      // normal case and undefined behavior when it happens by initiative from
+      // underlying modules (calling exit(1)). In case of unexpected exit(1)
+      // call sync primitive can be still locked.
+      auto Guard = MShutdownModeEnabled
+                       ? std::unique_lock<SpinLock>()
+                       : std::unique_lock<SpinLock>(*MTracingSLock);
       const char *FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
       RT::printArgs(Args...);
@@ -251,13 +252,13 @@ public:
 
   std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
 
-  void enableEmergencyMode() { MEmergencyModeEnabled = true; }
+  void enableShutdownMode() { MShutdownModeEnabled = true; }
 
 private:
   std::shared_ptr<RT::PiPlugin> MPlugin;
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
-  std::shared_ptr<std::mutex> TracingMutex;
+  std::shared_ptr<SpinLock> MTracingSLock;
   // Mutex to guard PiPlatforms and LastDeviceIds.
   // Note that this is a temporary solution until we implement the global
   // Device/Platform cache later.
@@ -268,7 +269,7 @@ private:
   // index of this vector corresponds to the index in PiPlatforms vector.
   std::vector<int> LastDeviceIds;
 
-  bool MEmergencyModeEnabled = false;
+  bool MShutdownModeEnabled = false;
 }; // class plugin
 } // namespace detail
 } // namespace sycl

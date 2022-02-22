@@ -120,7 +120,7 @@ void GlobalHandler::registerDefaultContextReleaseHandler() {
   static DefaultContextReleaseHandler handler{};
 }
 
-void shutdown(bool NormalExit) {
+void shutdown() {
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
   if (GlobalHandler::instance().MHostTaskThreadPool.Inst)
@@ -143,10 +143,12 @@ void shutdown(bool NormalExit) {
   // there's no need to load and unload plugins.
   if (GlobalHandler::instance().MPlugins.Inst) {
     for (plugin &Plugin : GlobalHandler::instance().getPlugins()) {
-      // shutdown() is called only when process is terminated by exitProcess()
-      // Emergency mode allows to skip some potentially unsafe code
-      if (!NormalExit)
-        Plugin.enableEmergencyMode();
+      // shutdown() is called once and only when process is terminating.
+      // Till the time it is called all threads using RT must be closed so it
+      // should be safe to work will plugin without multi thread protection.
+      // Shutdown mode allows to skip some potentially unsafe code
+      // (lock/unlock).
+      Plugin.enableShutdownMode();
       // PluginParameter is reserved for future use that can control
       // some parameters in the plugin tear-down process.
       // Currently, it is not used.
@@ -169,7 +171,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
     if (!lpReserved)
-      shutdown(true);
+      shutdown();
     break;
   case DLL_PROCESS_ATTACH:
   case DLL_THREAD_ATTACH:
@@ -179,19 +181,11 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
-void TearDown(int ExitCode, void *) { shutdown(ExitCode == EXIT_SUCCESS); }
-
-__attribute__((constructor(110))) static void syclLoad() {
-  int Res = on_exit(TearDown, nullptr);
-  if (Res != 0) {
-    exit(EXIT_FAILURE);
-  };
-}
 // Setting low priority on destructor ensures it runs after all other global
 // destructors. Priorities 0-100 are reserved by the compiler. The priority
 // value 110 allows SYCL users to run their destructors after runtime library
 // deinitialization.
-//__attribute__((destructor(110))) static void syclUnload() { shutdown(); }
+__attribute__((destructor(110))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
 } // namespace sycl
